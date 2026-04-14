@@ -114,6 +114,8 @@ Firmware is published as two rolling channel tags:
 - `latest` (auto-updated from green `fork-drift` pushes)
 - `stable` (updated on stable version tags)
 
+### Manual
+
 Each channel publishes five firmware variants plus one shared partitions file:
 
 - `crosspoint-standard.bin`

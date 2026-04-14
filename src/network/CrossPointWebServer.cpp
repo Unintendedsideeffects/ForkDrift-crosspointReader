@@ -1458,7 +1458,7 @@ void CrossPointWebServer::handleDelete() const {
   // Parse paths
   String pathsArg;
   JsonDocument doc;
-  DeserializationError error;
+  DeserializationError error = DeserializationError(DeserializationError::Code::Ok);
   if (hasPathsArg) {
     pathsArg = server->arg("paths");
     error = deserializeJson(doc, pathsArg);
