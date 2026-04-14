@@ -1,20 +1,59 @@
 #include "CrossPointWebServer.h"
 
+#include <ArduinoJson.h>
 #include <HalStorage.h>
 #include <Logging.h>
 #include <esp_task_wdt.h>
 
 #include "CrossPointSettings.h"
 #include "SpiBusMutex.h"
+#include "network/FileListApi.h"
 #include "network/FileReadApi.h"
 
 void CrossPointWebServer::handleFileListData() const {
-  const auto result = network::buildFileListJson(server->hasArg("path") ? server->arg("path") : "",
-                                                 SETTINGS.showHiddenFiles);
-  server->send(result.statusCode, result.contentType, result.body);
-  if (result.ok()) {
-    LOG_DBG("WEB", "Served file listing page for path: %s", result.normalizedPath.c_str());
+  const String rawPath = server->hasArg("path") ? server->arg("path") : "";
+  const auto pathResult = network::resolveFileListPath(rawPath);
+  if (!pathResult.ok()) {
+    server->send(pathResult.statusCode, pathResult.contentType, pathResult.body);
+    return;
   }
+
+  // Stream the JSON array entry-by-entry to avoid building the full response
+  // in a single heap-allocated String (large directories can cause OOM).
+  server->setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server->send(200, "application/json", "");
+  server->sendContent("[");
+
+  bool seenFirst = false;
+  char output[512];
+  constexpr size_t outputSize = sizeof(output);
+  JsonDocument doc;
+
+  network::scanDirectory(pathResult.normalizedPath.c_str(), SETTINGS.showHiddenFiles,
+                         [&](const network::DirEntry& entry) {
+                           doc.clear();
+                           doc["name"] = entry.name;
+                           doc["size"] = entry.size;
+                           doc["isDirectory"] = entry.isDirectory;
+                           doc["isEpub"] = entry.isEpub;
+
+                           const size_t written = serializeJson(doc, output, outputSize);
+                           if (written >= outputSize) {
+                             LOG_DBG("WEB", "Skipping file entry with oversized JSON for name: %s",
+                                     entry.name.c_str());
+                             return;
+                           }
+
+                           if (seenFirst) {
+                             server->sendContent(",");
+                           } else {
+                             seenFirst = true;
+                           }
+                           server->sendContent(output);
+                         });
+
+  server->sendContent("]");
+  LOG_DBG("WEB", "Served file listing for path: %s", pathResult.normalizedPath.c_str());
 }
 
 void CrossPointWebServer::handleDownload() const {

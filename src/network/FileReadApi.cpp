@@ -11,7 +11,7 @@
 
 namespace network {
 
-FileListDescriptor buildFileListJson(const String& rawPath, const bool showHiddenFiles) {
+FileListDescriptor resolveFileListPath(const String& rawPath) {
   String currentPath = "/";
   if (!rawPath.isEmpty()) {
     currentPath = PathUtils::urlDecode(rawPath);
@@ -25,6 +25,16 @@ FileListDescriptor buildFileListJson(const String& rawPath, const bool showHidde
     }
   }
 
+  return {200, "application/json", "", currentPath};
+}
+
+FileListDescriptor buildFileListJson(const String& rawPath, const bool showHiddenFiles) {
+  const auto pathResult = resolveFileListPath(rawPath);
+  if (!pathResult.ok()) {
+    return pathResult;
+  }
+
+  const String& currentPath = pathResult.normalizedPath;
   String json = "[";
   char output[512];
   constexpr size_t outputSize = sizeof(output);

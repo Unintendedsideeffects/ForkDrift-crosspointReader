@@ -8,6 +8,20 @@
 #include <WebSocketsServer.h>
 #else
 class WebSocketsServer;
+// Minimal WStype_t definition for builds without WebSocketsServer.h
+enum WStype_t : unsigned char {
+  WStype_ERROR = 0,
+  WStype_DISCONNECTED,
+  WStype_CONNECTED,
+  WStype_TEXT,
+  WStype_BIN,
+  WStype_FRAGMENT_TEXT_START,
+  WStype_FRAGMENT_BIN_START,
+  WStype_FRAGMENT,
+  WStype_FRAGMENT_FIN,
+  WStype_PING,
+  WStype_PONG
+};
 #endif
 
 #if __has_include(<NetworkUdp.h>)

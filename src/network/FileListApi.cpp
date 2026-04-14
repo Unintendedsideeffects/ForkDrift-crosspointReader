@@ -4,6 +4,13 @@
 #include <HalStorage.h>
 #include <Logging.h>
 
+#if __has_include(<esp_task_wdt.h>)
+#include <esp_task_wdt.h>
+#define FILELIST_HAS_TASK_WDT 1
+#else
+#define FILELIST_HAS_TASK_WDT 0
+#endif
+
 #include "SpiBusMutex.h"
 #include "util/PathUtils.h"
 
@@ -40,7 +47,11 @@ void scanDirectory(const char* path, bool showHiddenFiles, const std::function<v
       if (!file) break;
 
       char name[500];
-      file.getName(name, sizeof(name));
+      if (!file.getName(name, sizeof(name))) {
+        LOG_DBG("WEB", "Failed to get file name while scanning directory: %s", path);
+        file.close();
+        continue;
+      }
       auto fileName = String(name);
 
       shouldHide = (!showHiddenFiles && fileName.startsWith(".")) ||
@@ -63,6 +74,13 @@ void scanDirectory(const char* path, bool showHiddenFiles, const std::function<v
     if (!shouldHide) {
       callback(entry);
     }
+
+    // Yield outside the SPI mutex to allow other tasks to run and prevent WDT
+    // resets during large directory scans.
+    yield();
+#if FILELIST_HAS_TASK_WDT
+    esp_task_wdt_reset();
+#endif
   }
 
   {

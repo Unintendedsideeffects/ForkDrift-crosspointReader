@@ -72,10 +72,8 @@ class UploadSession {
   unsigned long totalWriteTime = 0;
   size_t writeCount = 0;
   size_t uploadLastLoggedSize = 0;
-#if CROSSPOINT_HAS_TASK_WDT
   static constexpr size_t kBufferSize = 4096;
   uint8_t uploadBuffer[kBufferSize] = {};
-#endif
 };
 
 UploadSession& uploadSession() {
@@ -196,7 +194,6 @@ void resetUploadSession() { uploadSession().reset(); }
 
 }  // namespace network
 
-#if CROSSPOINT_HAS_TASK_WDT
 bool UploadSession::flushBuffer(const char* logLabel) {
   if (uploadBufferPos > 0 && uploadFile) {
     SpiBusMutex::Guard guard;
@@ -372,14 +369,6 @@ void UploadSession::handleUpload(WebServer* server, const UploadConfig& config) 
     LOG_DBG("WEB", "[%s] Upload aborted", logLabel);
   }
 }
-#else
-bool UploadSession::flushBuffer(const char* /*logLabel*/) {
-  uploadBufferPos = 0;
-  return true;
-}
-
-void UploadSession::handleUpload(WebServer* /*server*/, const UploadConfig& /*config*/) {}
-#endif
 
 void UploadSession::reset() {
   if (uploadFile) {
