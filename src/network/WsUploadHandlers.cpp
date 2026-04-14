@@ -41,7 +41,7 @@ void CrossPointWebServer::abortWsUpload(const char* tag) {
     LOG_DBG(tag, "Failed to delete incomplete upload: %s", filePath.c_str());
   }
   wsUploadInProgress = false;
-  wsUploadClientNum = 255;
+  wsUploadClientNum = kNoUploadClient;
   wsLastProgressSent = 0;
 }
 
@@ -288,12 +288,6 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
       }
 
       // Write binary data directly to file
-      size_t remaining = wsUploadSize - wsUploadReceived;
-      if (length > remaining) {
-        abortWsUpload("WS");
-        wsServer->sendTXT(num, "ERROR:Upload overflow");
-        return;
-      }
       esp_task_wdt_reset();
       size_t written = 0;
       {
@@ -325,7 +319,7 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
           wsUploadFile.close();
         }
         wsUploadInProgress = false;
-        wsUploadClientNum = 255;
+        wsUploadClientNum = kNoUploadClient;
 
         wsLastCompleteName = wsUploadFileName;
         wsLastCompleteSize = wsUploadSize;

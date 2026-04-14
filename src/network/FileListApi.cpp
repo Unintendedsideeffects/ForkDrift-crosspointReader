@@ -54,8 +54,12 @@ void scanDirectory(const char* path, bool showHiddenFiles, const std::function<v
       }
       auto fileName = String(name);
 
-      shouldHide = (!showHiddenFiles && fileName.startsWith(".")) ||
-                   PathUtils::isProtectedWebComponent(fileName);
+      const bool isDotFile = fileName.startsWith(".");
+      // Dotfiles are hidden when showHiddenFiles is false; they remain visible
+      // when the user explicitly opts in. Named protected components (e.g.
+      // "System Volume Information") are always hidden regardless.
+      shouldHide = (!showHiddenFiles && isDotFile) ||
+                   (!isDotFile && PathUtils::isProtectedWebComponent(fileName));
 
       if (!shouldHide) {
         entry.name = fileName;
@@ -77,9 +81,11 @@ void scanDirectory(const char* path, bool showHiddenFiles, const std::function<v
 
     // Yield outside the SPI mutex to allow other tasks to run and prevent WDT
     // resets during large directory scans.
+#if defined(ARDUINO)
     yield();
 #if FILELIST_HAS_TASK_WDT
     esp_task_wdt_reset();
+#endif
 #endif
   }
 

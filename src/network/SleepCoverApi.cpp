@@ -30,8 +30,13 @@ void setPinnedPath(char* pinnedPath, const size_t pinnedPathSize, const char* va
 
 SleepCoverHttpResult savePinnedPath(char* pinnedPath, const size_t pinnedPathSize, const char* value,
                                     const SleepCoverSaveSettings& saveSettings) {
+  // Snapshot the old value so we can restore in-memory state if persistence fails.
+  const std::string oldValue(pinnedPath != nullptr ? pinnedPath : "");
+
   setPinnedPath(pinnedPath, pinnedPathSize, value);
   if (!saveSettings || !saveSettings()) {
+    // Restore in-memory state so it stays consistent with what is on disk.
+    setPinnedPath(pinnedPath, pinnedPathSize, oldValue.c_str());
     return {500, "text/plain", "Failed to save settings"};
   }
 
@@ -56,12 +61,16 @@ bool copyCoverToPinnedPath(const std::string& coverPath) {
     if (Storage.openFileForRead("WEB", coverPath.c_str(), src) &&
         Storage.openFileForWrite("WEB", kPinnedSleepCoverPath, dst)) {
       uint8_t buffer[512];
+      bool writeError = false;
       while (const size_t read = src.read(buffer, sizeof(buffer))) {
-        dst.write(buffer, read);
+        if (dst.write(buffer, read) != read) {
+          writeError = true;
+          break;
+        }
       }
       dst.close();
       src.close();
-      copyOk = true;
+      copyOk = !writeError;
     }
   }
 
@@ -117,8 +126,10 @@ SleepCoverHttpResult handleSleepCoverPinRequest(const bool hasBody, const String
   const char* pathValue = request["path"] | "";
   const String rawPath(pathValue);
   if (rawPath.isEmpty()) {
+    const std::string oldValue(pinnedPath != nullptr ? pinnedPath : "");
     setPinnedPath(pinnedPath, pinnedPathSize, "");
     if (!saveSettings || !saveSettings()) {
+      setPinnedPath(pinnedPath, pinnedPathSize, oldValue.c_str());
       return {500, "text/plain", "Failed to save"};
     }
     return {200, "text/plain", "Cleared"};

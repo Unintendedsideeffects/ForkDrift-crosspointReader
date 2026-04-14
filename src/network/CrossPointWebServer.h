@@ -92,6 +92,9 @@ class CrossPointWebServer {
   CrossPointUdpType udp;
   bool udpActive = false;
 
+  // Sentinel value meaning "no WebSocket client currently owns an upload slot".
+  static constexpr uint8_t kNoUploadClient = 255;
+
   // WebSocket upload state
   FsFile wsUploadFile;
   String wsUploadFileName;
@@ -101,7 +104,7 @@ class CrossPointWebServer {
   size_t wsLastProgressSent = 0;
   unsigned long wsUploadStartTime = 0;
   bool wsUploadInProgress = false;
-  uint8_t wsUploadClientNum = 255;  // 255 = no active upload client
+  uint8_t wsUploadClientNum = kNoUploadClient;
   uint8_t wsUploadOwnerClient = 0;
   bool wsUploadOwnerValid = false;
   String wsLastCompleteName;

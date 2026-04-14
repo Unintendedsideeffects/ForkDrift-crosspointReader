@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <cstdint>
 #include <iosfwd>
 #include <string>
@@ -17,7 +18,7 @@ class CrossPointState {
   // volatile guarantees the main loop re-reads after a task switch.
   volatile int8_t pendingPageTurn = 0;
   // Remote screenshot trigger. Written by WiFi handler task, read and cleared by main loop.
-  volatile bool pendingScreenshot = false;
+  std::atomic<bool> pendingScreenshot{false};
   uint8_t lastSleepImage = UINT8_MAX;  // UINT8_MAX = unset sentinel
   uint8_t readerActivityLoadCount = 0;
   bool lastSleepFromReader = false;

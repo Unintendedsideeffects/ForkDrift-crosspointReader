@@ -45,6 +45,7 @@ void CrossPointWebServer::handleNotFound() const {
 
 void CrossPointWebServer::handleFileList() const {
   sendPrecompressedHtml(server.get(), FilesPageHtml, FilesPageHtmlCompressedSize);
+  LOG_DBG("WEB", "Served files page");
 }
 
 void CrossPointWebServer::handleSettingsPage() const {

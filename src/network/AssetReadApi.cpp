@@ -95,7 +95,7 @@ String buildSleepImagesJson() {
         if (!file) {
           done = true;
         } else {
-          char name[500];
+          char name[260];
           file.getName(name, sizeof(name));
           entryName = name;
           isEntryDir = file.isDirectory();

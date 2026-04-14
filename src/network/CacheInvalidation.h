@@ -7,3 +7,6 @@
 
 // Invalidates feature-module caches if the given SD path is affected (sleep images, plugin data).
 void invalidateFeatureCachesIfNeeded(const String& filePath);
+
+// Invalidate the sleep image cache (implementation in SleepActivity.cpp).
+void invalidateSleepImageCache();

@@ -8,9 +8,8 @@
 
 #include "SpiBusMutex.h"
 #include "core/features/FeatureModules.h"
+#include "network/CacheInvalidation.h"
 #include "util/PathUtils.h"
-
-void invalidateSleepImageCache();
 
 #if __has_include(<esp_task_wdt.h>)
 #include <esp_task_wdt.h>
@@ -194,6 +193,12 @@ void resetUploadSession() { uploadSession().reset(); }
 
 }  // namespace network
 
+// The full upload implementation requires Arduino HTTP upload types (HTTPUpload,
+// UPLOAD_FILE_START, etc.) which are only available in Arduino/ESP32 builds.
+// On host test builds we compile no-op stubs so other API modules can still be
+// tested without bringing in the full firmware toolchain.
+#if defined(ARDUINO)
+
 bool UploadSession::flushBuffer(const char* logLabel) {
   if (uploadBufferPos > 0 && uploadFile) {
     SpiBusMutex::Guard guard;
@@ -369,6 +374,17 @@ void UploadSession::handleUpload(WebServer* server, const UploadConfig& config) 
     LOG_DBG("WEB", "[%s] Upload aborted", logLabel);
   }
 }
+
+#else
+
+bool UploadSession::flushBuffer(const char* /*logLabel*/) {
+  uploadBufferPos = 0;
+  return true;
+}
+
+void UploadSession::handleUpload(WebServer* /*server*/, const UploadConfig& /*config*/) {}
+
+#endif
 
 void UploadSession::reset() {
   if (uploadFile) {

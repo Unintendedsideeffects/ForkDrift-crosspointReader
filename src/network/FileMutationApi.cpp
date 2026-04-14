@@ -13,20 +13,14 @@ bool pathExists(const String& path) {
 }
 
 bool openFileForMutation(const String& path, FsFile& file, bool& isDir) {
-  {
-    SpiBusMutex::Guard guard;
-    file = Storage.open(path.c_str());
-  }
+  SpiBusMutex::Guard guard;
+  file = Storage.open(path.c_str());
   if (!file) {
     return false;
   }
-
-  {
-    SpiBusMutex::Guard guard;
-    isDir = file.isDirectory();
-    if (isDir) {
-      file.close();
-    }
+  isDir = file.isDirectory();
+  if (isDir) {
+    file.close();
   }
   return true;
 }
@@ -216,18 +210,19 @@ FileMutationResult moveFile(const String& rawItemPath, const String& rawDestPath
   }
 
   FsFile destDir;
+  bool destIsDir = false;
   {
     SpiBusMutex::Guard guard;
     destDir = Storage.open(destPath.c_str());
-  }
-  if (!destDir || !destDir.isDirectory()) {
     if (destDir) {
+      destIsDir = destDir.isDirectory();
       destDir.close();
     }
+  }
+  if (!destIsDir) {
     file.close();
     return {400, "Destination is not a folder"};
   }
-  destDir.close();
 
   String newPath = destPath;
   if (!newPath.endsWith("/")) {

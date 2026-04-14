@@ -2,6 +2,7 @@
 
 #include <ArduinoJson.h>
 #include <HalStorage.h>
+#include <Logging.h>
 
 #include <cctype>
 #include <cstring>
@@ -109,7 +110,9 @@ TodoPlannerHttpResult handleTodoEntryRequest(const bool plannerEnabled, const bo
     const bool textExists = Storage.exists(textPath.c_str());
     targetPath = TodoPlannerStorage::dailyPath(today, markdownEnabled, markdownExists, textExists);
     if (!Storage.exists(dirPath.c_str())) {
-      Storage.mkdir(dirPath.c_str());
+      if (!Storage.mkdir(dirPath.c_str())) {
+        LOG_ERR("WEB", "Failed to create daily directory: %s", dirPath.c_str());
+      }
     }
     if (Storage.exists(targetPath.c_str())) {
       content = Storage.readFile(targetPath.c_str()).c_str();
@@ -241,7 +244,9 @@ TodoPlannerHttpResult handleTodoTodaySaveRequest(const bool plannerEnabled, cons
     const bool textExists = Storage.exists(textPath.c_str());
     targetPath = TodoPlannerStorage::dailyPath(today, markdownEnabled, markdownExists, textExists);
     if (!Storage.exists(dirPath.c_str())) {
-      Storage.mkdir(dirPath.c_str());
+      if (!Storage.mkdir(dirPath.c_str())) {
+        LOG_ERR("WEB", "Failed to create daily directory: %s", dirPath.c_str());
+      }
     }
     writeOk = Storage.writeFile(targetPath.c_str(), content.c_str());
   }

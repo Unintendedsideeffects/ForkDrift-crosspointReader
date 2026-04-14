@@ -19,7 +19,20 @@ TEST_CASE("file read api builds file list json for visible entries") {
   JsonDocument doc;
   REQUIRE(deserializeJson(doc, result.body.c_str()) == DeserializationError::Ok);
   REQUIRE(doc.is<JsonArray>());
-  CHECK(doc.as<JsonArray>().size() == 2);
+  REQUIRE(doc.as<JsonArray>().size() == 2);
+
+  bool foundEpub = false;
+  bool foundTxt = false;
+  bool foundHidden = false;
+  for (JsonVariant v : doc.as<JsonArray>()) {
+    const std::string name = v["name"] | "";
+    if (name == "novel.epub") foundEpub = true;
+    if (name == "readme.txt") foundTxt = true;
+    if (name == ".hidden") foundHidden = true;
+  }
+  CHECK(foundEpub);
+  CHECK(foundTxt);
+  CHECK(!foundHidden);
 }
 
 TEST_CASE("file read api rejects protected list paths") {

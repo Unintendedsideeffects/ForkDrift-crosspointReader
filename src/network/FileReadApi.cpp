@@ -82,6 +82,9 @@ DownloadDescriptor resolveDownload(const String& rawPath) {
 
   const int lastSlash = itemPath.lastIndexOf('/');
   const String itemName = lastSlash >= 0 ? itemPath.substring(lastSlash + 1) : itemPath;
+  // Defence-in-depth: pathContainsProtectedItem() already rejects protected path
+  // segments, but isProtectedWebComponent() on the final component catches cases
+  // where a caller constructs a path that bypasses the path-level check.
   if (PathUtils::isProtectedWebComponent(itemName)) {
     return {403, "text/plain", "Cannot access protected items"};
   }

@@ -1,6 +1,7 @@
 [submodule "open-x4-sdk"]
 	path = open-x4-sdk
-	# This project uses the community-maintained fork of the open-x4-sdk, which
-	# tracks the upstream SDK with project-specific patches applied on top.
-	# The fork is the authoritative source for this project's SDK dependency.
+	# Intentional: this project uses Unintendedsideeffects/community-sdk, a
+	# personal fork of the open-x4-sdk that contains project-specific customized
+	# fixes not yet merged upstream. It is the authoritative SDK source for this
+	# repository and is maintained alongside the firmware.
 	url = https://github.com/Unintendedsideeffects/community-sdk.git

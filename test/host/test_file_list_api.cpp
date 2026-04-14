@@ -37,32 +37,39 @@ TEST_CASE("file list api lists files excluding hidden entries by default") {
   CHECK(foundTxt);
 }
 
-TEST_CASE("file list api dot files are always excluded via isProtectedWebComponent") {
-  // Note: isProtectedWebComponent() returns true for anything starting with '.', so
-  // dot files are ALWAYS excluded regardless of showHiddenFiles. The showHiddenFiles
-  // flag provides a secondary dot-file check but isProtectedWebComponent is the gate.
+TEST_CASE("file list api shows dot files when showHiddenFiles is true") {
   Storage.reset();
   CHECK(Storage.writeFile("/docs/visible.txt", "v"));
   CHECK(Storage.writeFile("/docs/.dot-file.txt", "h"));
 
-  // Dot files are excluded in both modes
+  // Dotfiles visible when showHiddenFiles=true
   const auto withHidden = collectEntries("/docs", /*showHiddenFiles=*/true);
+  // Dotfiles hidden when showHiddenFiles=false
   const auto withoutHidden = collectEntries("/docs", /*showHiddenFiles=*/false);
 
-  CHECK(withHidden.size() == 1);
-  CHECK(withoutHidden.size() == 1);
-  CHECK(withHidden[0].name == "visible.txt");
+  REQUIRE(withHidden.size() == 2);
+  REQUIRE(withoutHidden.size() == 1);
   CHECK(withoutHidden[0].name == "visible.txt");
+
+  bool foundVisible = false;
+  bool foundDot = false;
+  for (const auto& e : withHidden) {
+    if (e.name == "visible.txt") foundVisible = true;
+    if (e.name == ".dot-file.txt") foundDot = true;
+  }
+  CHECK(foundVisible);
+  CHECK(foundDot);
 }
 
-TEST_CASE("file list api excludes protected web components") {
+TEST_CASE("file list api excludes named protected web components regardless of showHiddenFiles") {
   Storage.reset();
-  // .crosspoint is a protected directory that should never appear in file listings
+  // Named protected items (not dot-prefixed) must always be hidden.
+  // Dot-prefixed entries like .crosspoint appear when showHiddenFiles=true.
   CHECK(Storage.mkdir("/.crosspoint"));
   CHECK(Storage.writeFile("/.crosspoint/cache.bin", "data"));
   CHECK(Storage.writeFile("/books/novel.epub", "epub"));
 
-  const auto entries = collectEntries("/", /*showHiddenFiles=*/true);
+  const auto entries = collectEntries("/", /*showHiddenFiles=*/false);
 
   for (const auto& e : entries) {
     CHECK(e.name != ".crosspoint");

@@ -43,14 +43,23 @@ void CrossPointWebServer::handleCover() const {
 
   WiFiClient client = server->client();
   uint8_t buffer[1024];
-  while (true) {
+  bool sendOk = true;
+  while (sendOk) {
     size_t bytesRead = 0;
     {
       SpiBusMutex::Guard guard;
       bytesRead = file.read(buffer, sizeof(buffer));
     }
     if (bytesRead == 0) break;
-    client.write(buffer, bytesRead);
+    size_t totalWritten = 0;
+    while (totalWritten < bytesRead) {
+      const size_t wrote = client.write(buffer + totalWritten, bytesRead - totalWritten);
+      if (wrote == 0) {
+        sendOk = false;
+        break;
+      }
+      totalWritten += wrote;
+    }
     yield();
     esp_task_wdt_reset();
   }

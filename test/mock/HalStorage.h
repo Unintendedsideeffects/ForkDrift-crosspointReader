@@ -41,8 +41,9 @@ class FsFile {
     return f;
   }
 
-  void write(const uint8_t* data, size_t len) {
+  size_t write(const uint8_t* data, size_t len) {
     if (buf_) buf_->insert(buf_->end(), data, data + len);
+    return len;
   }
 
   size_t read(uint8_t* data, size_t len) {
