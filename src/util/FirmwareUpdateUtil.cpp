@@ -17,7 +17,7 @@ bool FirmwareUpdateUtil::checkForLocalUpdate() {
   return Storage.exists(kFirmwareBinPath);
 }
 
-bool FirmwareUpdateUtil::performLocalUpdate(GfxRenderer& renderer) {
+bool FirmwareUpdateUtil::performLocalUpdate(const GfxRenderer& renderer) {
   LOG_INF("FWUPD", "Starting local firmware update from %s", kFirmwareBinPath);
 
   FsFile firmwareFile;

@@ -30,9 +30,11 @@ g++ -std=c++20 -O2 -Wno-narrowing \
   -fno-omit-frame-pointer \
   -DENABLE_WEB_POKEDEX_PLUGIN=1 \
   -DENABLE_POKEMON_PARTY=1 \
+  -DENABLE_IMAGE_SLEEP=1 \
   -I"$ROOT_DIR" \
   -I"$ROOT_DIR/test" \
   -I"$ROOT_DIR/test/mock" \
+  -I"$ROOT_DIR/lib/I18n" \
   -I"$ROOT_DIR/lib/FsHelpers" \
   -I"$ROOT_DIR/lib/Markdown" \
   -I"$ROOT_DIR/lib/third_party/md4c" \
@@ -41,10 +43,19 @@ g++ -std=c++20 -O2 -Wno-narrowing \
   -I"$ROOT_DIR/src" \
   -I"$ARDUINOJSON_DIR" \
   "$ROOT_DIR/test/host/"*.cpp \
+  "$ROOT_DIR/src/network/AssetReadApi.cpp" \
+  "$ROOT_DIR/src/network/FileListApi.cpp" \
+  "$ROOT_DIR/src/network/FileMutationApi.cpp" \
+  "$ROOT_DIR/src/network/FileReadApi.cpp" \
+  "$ROOT_DIR/src/network/UploadApi.cpp" \
   "$ROOT_DIR/lib/FsHelpers/FsHelpers.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownParser.cpp" \
   "$ROOT_DIR/src/core/features/FeatureCatalog.cpp" \
+  "$ROOT_DIR/src/network/ReadingDataApi.cpp" \
   "$ROOT_DIR/src/network/RemoteControlApi.cpp" \
+  "$ROOT_DIR/src/network/SleepCoverApi.cpp" \
+  "$ROOT_DIR/src/network/SettingsSnapshotApi.cpp" \
+  "$ROOT_DIR/src/network/TodoPlannerApi.cpp" \
   "$ROOT_DIR/src/features/pokemon_party/Registration.cpp" \
   "$ROOT_DIR/src/features/remote_keyboard_input/Registration.cpp" \
   "$ROOT_DIR/src/network/RemoteKeyboardSession.cpp" \
@@ -55,6 +66,7 @@ g++ -std=c++20 -O2 -Wno-narrowing \
   "$ROOT_DIR/src/util/PathUtils.cpp" \
   "$ROOT_DIR/src/util/PokemonBookDataStore.cpp" \
   "$ROOT_DIR/src/CrossPointSettings.cpp" \
+  "$ROOT_DIR/test/mock/FeatureModuleHooks.cpp" \
   "$ROOT_DIR/test/mock/JsonSettingsIO.cpp" \
   "$BUILD_DIR/md4c.o" \
   "$BUILD_DIR/entity.o" \

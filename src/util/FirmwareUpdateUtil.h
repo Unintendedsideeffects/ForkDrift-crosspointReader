@@ -20,5 +20,5 @@ class FirmwareUpdateUtil {
    * @param renderer The renderer to use for progress display.
    * @return true if the update was successful (the device will reboot on success).
    */
-  static bool performLocalUpdate(GfxRenderer& renderer);
+  static bool performLocalUpdate(const GfxRenderer& renderer);
 };

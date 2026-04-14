@@ -1,3 +1,7 @@
 [submodule "open-x4-sdk"]
 	path = open-x4-sdk
-	url = https://github.com/open-x4-epaper/community-sdk.git
+	# Intentional: this project uses Unintendedsideeffects/community-sdk, a
+	# personal fork of the open-x4-sdk that contains project-specific customized
+	# fixes not yet merged upstream. It is the authoritative SDK source for this
+	# repository and is maintained alongside the firmware.
+	url = https://github.com/Unintendedsideeffects/community-sdk.git

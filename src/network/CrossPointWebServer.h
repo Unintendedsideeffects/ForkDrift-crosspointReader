@@ -3,7 +3,26 @@
 #include <FeatureFlags.h>
 #include <HalStorage.h>
 #include <WebServer.h>
+
+#if __has_include(<WebSocketsServer.h>)
 #include <WebSocketsServer.h>
+#else
+class WebSocketsServer;
+// Minimal WStype_t definition for builds without WebSocketsServer.h
+enum WStype_t : unsigned char {
+  WStype_ERROR = 0,
+  WStype_DISCONNECTED,
+  WStype_CONNECTED,
+  WStype_TEXT,
+  WStype_BIN,
+  WStype_FRAGMENT_TEXT_START,
+  WStype_FRAGMENT_BIN_START,
+  WStype_FRAGMENT,
+  WStype_FRAGMENT_FIN,
+  WStype_PING,
+  WStype_PONG
+};
+#endif
 
 #if __has_include(<NetworkUdp.h>)
 #include <NetworkUdp.h>
@@ -19,14 +38,6 @@ using CrossPointUdpType = WiFiUDP;
 #include <memory>
 #include <string>
 #include <vector>
-
-// Structure to hold file information
-struct FileInfo {
-  String name;
-  size_t size;
-  bool isEpub;
-  bool isDirectory;
-};
 
 class CrossPointWebServer {
  public:
@@ -81,6 +92,9 @@ class CrossPointWebServer {
   CrossPointUdpType udp;
   bool udpActive = false;
 
+  // Sentinel value meaning "no WebSocket client currently owns an upload slot".
+  static constexpr uint8_t kNoUploadClient = 255;
+
   // WebSocket upload state
   FsFile wsUploadFile;
   String wsUploadFileName;
@@ -90,6 +104,7 @@ class CrossPointWebServer {
   size_t wsLastProgressSent = 0;
   unsigned long wsUploadStartTime = 0;
   bool wsUploadInProgress = false;
+  uint8_t wsUploadClientNum = kNoUploadClient;
   uint8_t wsUploadOwnerClient = 0;
   bool wsUploadOwnerValid = false;
   String wsLastCompleteName;
@@ -100,11 +115,6 @@ class CrossPointWebServer {
   void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
   static void wsEventCallback(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
   void abortWsUpload(const char* tag);
-
-  // File scanning
-  void scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const;
-  String formatFileSize(size_t bytes) const;
-  bool isEpubFile(const String& filename) const;
 
   // Request handlers
   void handleRoot() const;

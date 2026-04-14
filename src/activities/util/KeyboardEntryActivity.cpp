@@ -445,7 +445,6 @@ void KeyboardEntryActivity::renderRemoteMode(RenderLock&&) {
 
   const auto snapshot = REMOTE_KEYBOARD_SESSION.snapshot();
   const auto network = remoteNetworkSession ? remoteNetworkSession->snapshot() : RemoteKeyboardNetworkSession::State{};
-  const int pageWidth = renderer.getScreenWidth();
   const int lineHeight = renderer.getLineHeight(UI_10_FONT_ID);
 
   renderer.drawCenteredText(UI_12_FONT_ID, 16, title.c_str(), true, EpdFontFamily::BOLD);

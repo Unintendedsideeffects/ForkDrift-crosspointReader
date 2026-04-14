@@ -85,6 +85,10 @@ class String {
     auto pos = s_.find(c, static_cast<size_t>(fromIndex));
     return pos == std::string::npos ? -1 : static_cast<int>(pos);
   }
+  int lastIndexOf(char c) const {
+    auto pos = s_.find_last_of(c);
+    return pos == std::string::npos ? -1 : static_cast<int>(pos);
+  }
 
   // Predicates
   bool startsWith(const char* prefix) const {

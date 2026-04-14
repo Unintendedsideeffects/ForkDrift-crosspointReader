@@ -414,9 +414,9 @@ Rect BaseTheme::computeBookCardRect(GfxRenderer& renderer, Rect area, const std:
 }
 
 // Draw the book card frame: cover image or empty card with bookmark ribbon.
-void BaseTheme::drawBookCard(GfxRenderer& renderer, Rect area, Rect bookRect,
+void BaseTheme::drawBookCard(const GfxRenderer& renderer, Rect area, Rect bookRect,
                              const std::vector<RecentBook>& recentBooks, bool bookSelected, bool hasCoverImage,
-                             bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
+                             bool& coverRendered, bool& coverBufferStored, const bool& bufferRestored,
                              std::function<bool()> storeCoverBuffer) const {
   const bool hasContinueReading = !recentBooks.empty();
 

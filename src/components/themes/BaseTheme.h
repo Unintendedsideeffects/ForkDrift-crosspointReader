@@ -107,9 +107,9 @@ class BaseTheme {
   // Helper methods for drawRecentBookCover
   Rect computeBookCardRect(GfxRenderer& renderer, Rect area, const std::vector<RecentBook>& recentBooks,
                            bool& hasCoverImage) const;
-  void drawBookCard(GfxRenderer& renderer, Rect area, Rect bookRect, const std::vector<RecentBook>& recentBooks,
+  void drawBookCard(const GfxRenderer& renderer, Rect area, Rect bookRect, const std::vector<RecentBook>& recentBooks,
                     bool bookSelected, bool hasCoverImage, bool& coverRendered, bool& coverBufferStored,
-                    bool& bufferRestored, std::function<bool()> storeCoverBuffer) const;
+                    const bool& bufferRestored, std::function<bool()> storeCoverBuffer) const;
   void drawBookMetadata(const GfxRenderer& renderer, Rect area, Rect bookRect,
                         const std::vector<RecentBook>& recentBooks, bool bookSelected, bool coverRendered) const;
 

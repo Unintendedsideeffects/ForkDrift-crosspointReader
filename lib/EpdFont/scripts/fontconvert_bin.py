@@ -1,6 +1,5 @@
 #!python3
 import freetype
-import sys
 import math
 import argparse
 import struct
