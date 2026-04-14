@@ -241,7 +241,7 @@ Static web UI for custom firmware configuration:
 - Direct link to GitHub Actions workflow
 
 Hosted on GitHub Pages at:
-https://[username].github.io/crosspoint-reader/configurator/
+https://[username].github.io/ForkDrift-crosspointReader/configurator/
 
 Component: Web Configurator UI
 Dependencies: Component 1, 3a

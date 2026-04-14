@@ -118,7 +118,7 @@ uv run pio run -e custom
 
 ## Plugin Picker Web UI Test
 
-1. [  ] Open https://[username].github.io/crosspoint-reader/configurator/
+1. [  ] Open https://[username].github.io/ForkDrift-crosspointReader/configurator/
 2. [  ] Page loads without errors
 3. [  ] Profile buttons work
 4. [  ] Individual feature toggles work

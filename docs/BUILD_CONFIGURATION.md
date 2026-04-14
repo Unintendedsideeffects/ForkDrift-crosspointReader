@@ -16,7 +16,7 @@ CrossPoint Reader supports customizable firmware builds, allowing you to include
 
 ### Using the Feature Picker (Easiest)
 
-1. Visit [Feature Picker](https://unintendedsideeffects.github.io/crosspoint-reader/configurator/)
+1. Visit [Feature Picker](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/)
 2. Select your desired features or choose a profile
 3. Click "Build on GitHub Actions"
 4. Wait ~5-10 minutes for the build to complete
@@ -487,7 +487,7 @@ GitHub Actions provides cloud-based builds without requiring local build tools.
 
 ### Using the Feature Picker
 
-1. Go to [Feature Picker](https://unintendedsideeffects.github.io/crosspoint-reader/configurator/)
+1. Go to [Feature Picker](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/)
 2. Configure your features
 3. Click "Build on GitHub Actions"
 4. Sign in to GitHub if prompted
@@ -684,7 +684,7 @@ To add a new optional feature:
 
 - [README.md](../README.md) - Main project documentation
 - [USER_GUIDE.md](../USER_GUIDE.md) - User guide for operating CrossPoint
-- [Feature Picker](https://unintendedsideeffects.github.io/crosspoint-reader/configurator/) - Web-based configuration tool
+- [Feature Picker](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/) - Web-based configuration tool
 
 ---
 
