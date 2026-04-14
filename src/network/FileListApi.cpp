@@ -1,0 +1,74 @@
+#include "network/FileListApi.h"
+
+#include <FsHelpers.h>
+#include <HalStorage.h>
+#include <Logging.h>
+
+#include "SpiBusMutex.h"
+#include "util/PathUtils.h"
+
+namespace network {
+
+void scanDirectory(const char* path, bool showHiddenFiles, const std::function<void(const DirEntry&)>& callback) {
+  FsFile root;
+  {
+    SpiBusMutex::Guard guard;
+    root = Storage.open(path);
+  }
+
+  if (!root) {
+    LOG_DBG("WEB", "Failed to open directory: %s", path);
+    return;
+  }
+
+  if (!root.isDirectory()) {
+    LOG_DBG("WEB", "Not a directory: %s", path);
+    SpiBusMutex::Guard guard;
+    root.close();
+    return;
+  }
+
+  LOG_DBG("WEB", "Scanning files in: %s", path);
+
+  while (true) {
+    DirEntry entry;
+    bool shouldHide = false;
+
+    {
+      SpiBusMutex::Guard guard;
+      FsFile file = root.openNextFile();
+      if (!file) break;
+
+      char name[500];
+      file.getName(name, sizeof(name));
+      auto fileName = String(name);
+
+      shouldHide = (!showHiddenFiles && fileName.startsWith(".")) ||
+                   PathUtils::isProtectedWebComponent(fileName);
+
+      if (!shouldHide) {
+        entry.name = fileName;
+        entry.isDirectory = file.isDirectory();
+        if (entry.isDirectory) {
+          entry.size = 0;
+          entry.isEpub = false;
+        } else {
+          entry.size = file.size();
+          entry.isEpub = FsHelpers::hasEpubExtension(fileName);
+        }
+      }
+      file.close();
+    }
+
+    if (!shouldHide) {
+      callback(entry);
+    }
+  }
+
+  {
+    SpiBusMutex::Guard guard;
+    root.close();
+  }
+}
+
+}  // namespace network

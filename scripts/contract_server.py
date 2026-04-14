@@ -178,7 +178,7 @@ _mutations = _default_mutations()
 
 class ContractHandler(BaseHTTPRequestHandler):
 
-    def log_message(self, fmt, *args):  # suppress per-request logging
+    def log_message(self, _fmt, *_args):  # suppress per-request logging
         pass
 
     # ── Request parsing helpers ──────────────────────────────────────────────
@@ -260,7 +260,6 @@ class ContractHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         base, query = self._path_and_query()
-        body = self._read_body()  # usually empty for GET
 
         with _lock:
             if base in _state["errorPaths"]:

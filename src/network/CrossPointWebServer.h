@@ -3,7 +3,12 @@
 #include <FeatureFlags.h>
 #include <HalStorage.h>
 #include <WebServer.h>
+
+#if __has_include(<WebSocketsServer.h>)
 #include <WebSocketsServer.h>
+#else
+class WebSocketsServer;
+#endif
 
 #if __has_include(<NetworkUdp.h>)
 #include <NetworkUdp.h>
@@ -19,14 +24,6 @@ using CrossPointUdpType = WiFiUDP;
 #include <memory>
 #include <string>
 #include <vector>
-
-// Structure to hold file information
-struct FileInfo {
-  String name;
-  size_t size;
-  bool isEpub;
-  bool isDirectory;
-};
 
 class CrossPointWebServer {
  public:
@@ -90,6 +87,7 @@ class CrossPointWebServer {
   size_t wsLastProgressSent = 0;
   unsigned long wsUploadStartTime = 0;
   bool wsUploadInProgress = false;
+  uint8_t wsUploadClientNum = 255;  // 255 = no active upload client
   uint8_t wsUploadOwnerClient = 0;
   bool wsUploadOwnerValid = false;
   String wsLastCompleteName;
@@ -100,11 +98,6 @@ class CrossPointWebServer {
   void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
   static void wsEventCallback(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
   void abortWsUpload(const char* tag);
-
-  // File scanning
-  void scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const;
-  String formatFileSize(size_t bytes) const;
-  bool isEpubFile(const String& filename) const;
 
   // Request handlers
   void handleRoot() const;

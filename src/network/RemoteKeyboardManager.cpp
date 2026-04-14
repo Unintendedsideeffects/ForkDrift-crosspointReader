@@ -57,9 +57,8 @@ bool RemoteKeyboardManager::hasRecentAndroidHeartbeatLocked() const {
 std::string RemoteKeyboardManager::normalizeTextLocked(const std::string& text) const {
   std::string normalized;
   normalized.reserve(text.size());
-  for (const char c : text) {
-    normalized.push_back((c == '\r' || c == '\n') ? ' ' : c);
-  }
+  std::transform(text.begin(), text.end(), std::back_inserter(normalized),
+                 [](const char c) { return (c == '\r' || c == '\n') ? ' ' : c; });
   if (session.maxLength > 0 && normalized.size() > session.maxLength) {
     normalized.resize(session.maxLength);
   }

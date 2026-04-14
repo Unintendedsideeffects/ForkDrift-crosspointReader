@@ -2,7 +2,6 @@
 import freetype
 import zlib
 import sys
-import re
 import math
 import argparse
 from collections import namedtuple

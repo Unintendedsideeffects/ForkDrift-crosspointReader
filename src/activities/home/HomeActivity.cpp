@@ -357,10 +357,9 @@ bool HomeActivity::storeCoverBuffer() {
   coverBufferStored = true;
 
   // Record which books' covers are now in the buffer so we can validate on re-entry.
-  coverCacheBookPaths.clear();
-  for (const auto& book : recentBooks) {
-    coverCacheBookPaths.push_back(book.path);
-  }
+  coverCacheBookPaths.resize(recentBooks.size());
+  std::transform(recentBooks.begin(), recentBooks.end(), coverCacheBookPaths.begin(),
+                 [](const RecentBook& book) { return book.path; });
 
   return true;
 }

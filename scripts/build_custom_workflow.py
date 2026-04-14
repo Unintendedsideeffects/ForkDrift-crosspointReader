@@ -12,7 +12,6 @@ import argparse
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 from generate_build_config import FEATURES, PROFILES, resolve_profile_name
 
