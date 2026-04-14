@@ -30,13 +30,17 @@ void setPinnedPath(char* pinnedPath, const size_t pinnedPathSize, const char* va
 
 SleepCoverHttpResult savePinnedPath(char* pinnedPath, const size_t pinnedPathSize, const char* value,
                                     const SleepCoverSaveSettings& saveSettings) {
-  // Snapshot the old value so we can restore in-memory state if persistence fails.
-  const std::string oldValue(pinnedPath != nullptr ? pinnedPath : "");
+  // Snapshot the old value on the stack so we can restore in-memory state if persistence fails.
+  // pinnedPathSize is always <= sizeof(CrossPointSettings::sleepPinnedPath) == 256.
+  char oldValue[256] = {};
+  if (pinnedPath != nullptr && pinnedPathSize > 0) {
+    std::strncpy(oldValue, pinnedPath, sizeof(oldValue) - 1);
+  }
 
   setPinnedPath(pinnedPath, pinnedPathSize, value);
   if (!saveSettings || !saveSettings()) {
     // Restore in-memory state so it stays consistent with what is on disk.
-    setPinnedPath(pinnedPath, pinnedPathSize, oldValue.c_str());
+    setPinnedPath(pinnedPath, pinnedPathSize, oldValue);
     return {500, "text/plain", "Failed to save settings"};
   }
 
@@ -126,10 +130,13 @@ SleepCoverHttpResult handleSleepCoverPinRequest(const bool hasBody, const String
   const char* pathValue = request["path"] | "";
   const String rawPath(pathValue);
   if (rawPath.isEmpty()) {
-    const std::string oldValue(pinnedPath != nullptr ? pinnedPath : "");
+    char oldValue[256] = {};
+    if (pinnedPath != nullptr && pinnedPathSize > 0) {
+      std::strncpy(oldValue, pinnedPath, sizeof(oldValue) - 1);
+    }
     setPinnedPath(pinnedPath, pinnedPathSize, "");
     if (!saveSettings || !saveSettings()) {
-      setPinnedPath(pinnedPath, pinnedPathSize, oldValue.c_str());
+      setPinnedPath(pinnedPath, pinnedPathSize, oldValue);
       return {500, "text/plain", "Failed to save"};
     }
     return {200, "text/plain", "Cleared"};

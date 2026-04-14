@@ -55,8 +55,13 @@ void CrossPointWebServer::handleCover() const {
     while (totalWritten < bytesRead) {
       const size_t wrote = client.write(buffer + totalWritten, bytesRead - totalWritten);
       if (wrote == 0) {
+        LOG_DBG("WEB", "Asset send: client disconnected after %u bytes", static_cast<unsigned int>(totalWritten));
         sendOk = false;
         break;
+      }
+      if (wrote < (bytesRead - totalWritten)) {
+        LOG_DBG("WEB", "Asset send: partial write %u/%u bytes, retrying", static_cast<unsigned int>(wrote),
+                static_cast<unsigned int>(bytesRead - totalWritten));
       }
       totalWritten += wrote;
     }

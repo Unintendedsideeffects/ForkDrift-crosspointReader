@@ -68,15 +68,30 @@ TEST_CASE("file list api excludes named protected web components regardless of s
   CHECK(Storage.mkdir("/.crosspoint"));
   CHECK(Storage.writeFile("/.crosspoint/cache.bin", "data"));
   CHECK(Storage.writeFile("/books/novel.epub", "epub"));
+  // XTCache is a named protected component (no dot prefix) - always hidden.
+  CHECK(Storage.mkdir("/XTCache"));
 
-  const auto entries = collectEntries("/", /*showHiddenFiles=*/false);
-
-  for (const auto& e : entries) {
+  // With showHiddenFiles=false: both .crosspoint and XTCache hidden
+  const auto entriesHidden = collectEntries("/", /*showHiddenFiles=*/false);
+  for (const auto& e : entriesHidden) {
     CHECK(e.name != ".crosspoint");
+    CHECK(e.name != "XTCache");
   }
-  // At least books directory is visible
+
+  // With showHiddenFiles=true: .crosspoint visible, XTCache still hidden
+  const auto entriesVisible = collectEntries("/", /*showHiddenFiles=*/true);
+  bool foundDotCrosspoint = false;
+  bool foundXTCache = false;
+  for (const auto& e : entriesVisible) {
+    if (e.name == ".crosspoint") foundDotCrosspoint = true;
+    if (e.name == "XTCache") foundXTCache = true;
+  }
+  CHECK(foundDotCrosspoint);   // dotfiles show when showHiddenFiles=true
+  CHECK(!foundXTCache);        // named protected components always hidden
+
+  // At least books directory is visible in both modes
   bool foundBooks = false;
-  for (const auto& e : entries) {
+  for (const auto& e : entriesHidden) {
     if (e.name == "books") { foundBooks = true; CHECK(e.isDirectory); }
   }
   CHECK(foundBooks);
