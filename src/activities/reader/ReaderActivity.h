@@ -17,7 +17,6 @@ class ReaderActivity final : public Activity {
   static bool isTxtFile(const std::string& path);
   static bool isBmpFile(const std::string& path);
 
-  static std::string extractFolderPath(const std::string& filePath);
   void goToLibrary(const std::string& fromBookPath = "");
 
   void onGoBack();

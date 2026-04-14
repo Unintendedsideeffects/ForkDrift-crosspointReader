@@ -91,6 +91,24 @@ To revert to official firmware, use the "Swap boot partition" button at [xteink.
 
 ### Firmware Release Channels
 
+### Command line (specific firmware version)
+
+1. Install [`esptool`](https://github.com/espressif/esptool) :
+```bash
+pip install esptool
+```
+2. Download the `firmware.bin` file from the release of your choice via the [releases page](https://github.com/crosspoint-reader/crosspoint-reader/releases)
+3. Connect your Xteink X4 to your computer via USB-C.
+4. Note the device location. On Linux, run `dmesg` after connecting. On MacOS, run :
+```bash
+log stream --predicate 'subsystem == "com.apple.iokit"' --info
+```
+5. Flash the firmware :
+```bash
+esptool.py --chip esp32c3 --port /dev/ttyACM0 --baud 921600 write_flash 0x10000 /path/to/firmware.bin
+```
+Change `/dev/ttyACM0` to the device for your system.
+
 Firmware is published as two rolling channel tags:
 
 - `latest` (auto-updated from green `fork-drift` pushes)

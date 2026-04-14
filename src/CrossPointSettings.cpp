@@ -387,7 +387,7 @@ void CrossPointSettings::validateAndClamp() {
   if (paragraphAlignment >= PARAGRAPH_ALIGNMENT_COUNT) paragraphAlignment = JUSTIFIED;
   if (sleepTimeout > SLEEP_30_MIN) sleepTimeout = SLEEP_10_MIN;
   if (refreshFrequency > REFRESH_30) refreshFrequency = REFRESH_15;
-  if (shortPwrBtn > SELECT) shortPwrBtn = IGNORE;
+  if (shortPwrBtn > FORCE_REFRESH) shortPwrBtn = IGNORE;
   if (hideBatteryPercentage > HIDE_ALWAYS) hideBatteryPercentage = HIDE_NEVER;
   if (timeMode > TIME_MODE_MANUAL) timeMode = TIME_MODE_UTC;
   if (todoFallbackCover > 1) todoFallbackCover = 0;

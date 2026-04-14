@@ -352,7 +352,6 @@ void setup() {
   }
 
   HalSystem::checkPanic();
-  HalSystem::clearPanic();  // TODO: move this to an activity when we have one to display the panic info
 
   core::FeatureLifecycle::onStorageReady();
 
@@ -405,8 +404,13 @@ void setup() {
   APP_STATE.loadFromFile();
   RECENT_BOOKS.loadFromFile();
 
-  if (APP_STATE.openEpubPath.empty() || !APP_STATE.lastSleepFromReader ||
-      mappedInputManager.isPressed(MappedInputManager::Button::Back) || APP_STATE.readerActivityLoadCount > 0) {
+  if (HalSystem::isRebootFromPanic()) {
+    // If we rebooted from a panic, go to crash report screen to show the panic info
+    activityManager.goToCrashReport();
+  } else if (APP_STATE.openEpubPath.empty() || !APP_STATE.lastSleepFromReader ||
+             mappedInputManager.isPressed(MappedInputManager::Button::Back) || APP_STATE.readerActivityLoadCount > 0) {
+    // Boot to home screen if no book is open, last sleep was not from reader, back button is held, or reader activity
+    // crashed (indicated by readerActivityLoadCount > 0)
     activityManager.goHome();
   } else {
     const auto path = APP_STATE.openEpubPath;
@@ -618,6 +622,14 @@ void loop() {
     APP_STATE.pendingPageTurn = 0;
     mappedInputManager.injectVirtualActivation(pageTurn > 0 ? MappedInputManager::Button::PageForward
                                                             : MappedInputManager::Button::PageBack);
+  }
+
+  // Refresh screen when power button is short-pressed with FORCE_REFRESH setting.
+  if (SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::FORCE_REFRESH &&
+      mappedInputManager.wasReleased(MappedInputManager::Button::Power)) {
+    LOG_DBG("MAIN", "Manual screen refresh triggered");
+    RenderLock lock;
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
   // Refresh the battery icon when USB is plugged or unplugged.

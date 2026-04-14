@@ -11,6 +11,7 @@ class FileBrowserActivity final : public Activity {
   std::string basepath = "/";
   std::vector<std::string> files;
   size_t selectorIndex = 0;
+  bool lockLongPressBack = false;
 
   void loadFiles();
   void clearFileMetadata(const std::string& fullPath);
