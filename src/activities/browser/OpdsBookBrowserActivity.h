@@ -8,19 +8,16 @@
 #include "../Activity.h"
 #include "util/ButtonNavigator.h"
 
+/**
+ * Activity for browsing and downloading books from an OPDS server.
+ * Supports navigation through catalog hierarchy and downloading EPUBs.
+ */
 class OpdsBookBrowserActivity final : public Activity {
  public:
-  enum class BrowserState {
-    CHECK_WIFI,
-    WIFI_SELECTION,
-    LOADING,
-    BROWSING,
-    DOWNLOADING,
-    ERROR,
-  };
+  enum class BrowserState { CHECK_WIFI, WIFI_SELECTION, LOADING, BROWSING, DOWNLOADING, ERROR, SEARCH_INPUT };
 
   explicit OpdsBookBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
-      : Activity("OpdsBookBrowser", renderer, mappedInput) {}
+      : Activity("OpdsBookBrowser", renderer, mappedInput), buttonNavigator() {}
 
   void onEnter() override;
   void onExit() override;
@@ -33,6 +30,9 @@ class OpdsBookBrowserActivity final : public Activity {
   std::vector<OpdsEntry> entries;
   std::vector<std::string> navigationHistory;
   std::string currentPath;
+  std::string searchTemplate;
+  bool consumeConfirm = false;
+  bool consumeBack = false;
   int selectorIndex = 0;
   std::string errorMessage;
   std::string statusMessage;
@@ -47,4 +47,7 @@ class OpdsBookBrowserActivity final : public Activity {
   void navigateToEntry(const OpdsEntry& entry);
   void navigateBack();
   void downloadBook(const OpdsEntry& book);
+  void launchSearch();
+  void performSearch(const std::string& query);
+  bool preventAutoSleep() override { return true; }
 };

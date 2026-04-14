@@ -1441,11 +1441,41 @@ void CrossPointWebServer::handleMove() const {
 }
 
 void CrossPointWebServer::handleDelete() const {
-  if (!server->hasArg("paths") && !server->hasArg("path")) {
-    server->send(400, "text/plain", "Missing path(s)");
+  // To ensure backwards compatibility, plain `path` is mapped
+  // to a single element JSON array.
+  bool hasPathArg = server->hasArg("path");
+  bool hasPathsArg = server->hasArg("paths");
+  // Check 'paths' or `path` argument is provided
+  if (!(hasPathArg || hasPathsArg)) {
+    server->send(400, "text/plain", "Missing `path` or `paths` argument");
+    return;
+  }
+  if (hasPathArg && hasPathsArg) {
+    server->send(400, "text/plain", "Provide either 'path' or 'paths', not both");
     return;
   }
 
+  // Parse paths
+  String pathsArg;
+  JsonDocument doc;
+  DeserializationError error;
+  if (hasPathsArg) {
+    pathsArg = server->arg("paths");
+    error = deserializeJson(doc, pathsArg);
+  } else {
+    pathsArg = server->arg("path");
+    doc.add(pathsArg);
+  }
+  if (error) {
+    server->send(400, "text/plain", "Invalid paths format");
+    return;
+  }
+
+  auto paths = doc.as<JsonArray>();
+  if (paths.isNull() || paths.size() == 0) {
+    server->send(400, "text/plain", "No paths provided");
+    return;
+  }
   bool allSuccess = true;
   String failedItems;
   size_t processed = 0;
@@ -1527,28 +1557,9 @@ void CrossPointWebServer::handleDelete() const {
     LOG_DBG("WEB", "Deleted %s: %s", isDirectory ? "folder" : "file", itemPath.c_str());
   };
 
-  if (server->hasArg("paths")) {
-    JsonDocument doc;
-    const String pathsArg = server->arg("paths");
-    const DeserializationError error = deserializeJson(doc, pathsArg);
-    if (error) {
-      server->send(400, "text/plain", "Invalid paths format");
-      return;
-    }
-
-    JsonArray paths = doc.as<JsonArray>();
-    if (paths.isNull() || paths.size() == 0) {
-      server->send(400, "text/plain", "No paths provided");
-      return;
-    }
-
-    for (const auto& p : paths) {
-      processPath(p.as<String>());
-      processed++;
-    }
-  } else {
-    processPath(server->arg("path"));
-    processed = 1;
+  for (const auto& p : paths) {
+    processPath(p.as<String>());
+    processed++;
   }
 
   if (processed == 0) {

@@ -8,6 +8,7 @@
 #include "boot_sleep/SleepActivity.h"
 #include "core/registries/HomeActionRegistry.h"
 #include "core/registries/ReaderRegistry.h"
+#include "home/CrashActivity.h"
 #include "home/HomeActivity.h"
 #include "home/MyLibraryActivity.h"
 #include "home/NotesActivity.h"
@@ -285,6 +286,8 @@ void ActivityManager::goToBoot() { replaceActivity(std::make_unique<BootActivity
 void ActivityManager::goToFullScreenMessage(std::string message, EpdFontFamily::Style style) {
   replaceActivity(std::make_unique<FullScreenMessageActivity>(renderer, mappedInput, std::move(message), style));
 }
+
+void ActivityManager::goToCrashReport() { replaceActivity(std::make_unique<CrashActivity>(renderer, mappedInput)); }
 
 void ActivityManager::goHome() { replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInput)); }
 

@@ -94,7 +94,7 @@ void BmpViewerActivity::loop() {
   Activity::loop();
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-    activityManager.goHome();
+    activityManager.goToFileBrowser(filePath);
     return;
   }
 }
