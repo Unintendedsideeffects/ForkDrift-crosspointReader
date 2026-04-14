@@ -6,7 +6,7 @@ This document outlines the relationship between this repository and the upstream
 
 While the upstream CrossPoint Reader project provides a stable and high-quality firmware for the Xteink X4, this fork exists to:
 
-1.  **Maintain the Feature Picker:** Support the [web-based build configurator](https://unintendedsideeffects.github.io/crosspoint-reader/configurator/) which allows users to generate custom firmware builds.
+1.  **Maintain the Feature Picker:** Support the [web-based build configurator](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/) which allows users to generate custom firmware builds.
 2.  **Accelerate Feature Iteration:** Provide a staging ground for experimental features, community-driven enhancements, and rapid bug fixes that may not yet be ready for the main upstream repository.
 3.  **Experimental Drift:** Enable architectural experiments and "drifting" features that prioritize specific community needs or hardware optimizations.
 
@@ -35,7 +35,7 @@ If you would like to contribute to this fork:
 
 1.  **Target the `fork-drift` branch:** All new features and bug fixes should be submitted as Pull Requests against the `fork-drift` branch.
 2.  **Synchronize with Upstream:** If your change is a general improvement intended for all CrossPoint users, we will work with you to prepare it for upstreaming after it has been validated in `fork-drift`.
-3.  **Issue Tracking:** Please refer to [GitHub Issues](https://github.com/Unintendedsideeffects/crosspoint-reader/issues) for current priorities and known regressions being addressed in this fork.
+3.  **Issue Tracking:** Please refer to [GitHub Issues](https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/issues) for current priorities and known regressions being addressed in this fork.
 
 ## Behavioral Drifts
 

@@ -5,14 +5,14 @@ Built using **PlatformIO** and targeting the **ESP32-C3** microcontroller.
 
 This is the **`fork-drift`** branch. It tracks upstream while adding fork-specific capabilities (notably the web build configurator and modular feature profiles).
 
-[![Build](https://github.com/Unintendedsideeffects/crosspoint-reader/actions/workflows/build.yml/badge.svg?branch=fork-drift)](https://github.com/Unintendedsideeffects/crosspoint-reader/actions/workflows/build.yml)
+[![Build](https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/actions/workflows/build.yml/badge.svg?branch=fork-drift)](https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/actions/workflows/build.yml)
 
 <img width="959" height="1008" alt="image" src="https://github.com/user-attachments/assets/b787388b-9dc6-43eb-9fcb-24b4d8fee604" />
 
 
 ## Build Configurator
 
-The **[Build Configurator](https://unintendedsideeffects.github.io/crosspoint-reader/configurator/)** is the primary entry point for this fork.
+The **[Build Configurator](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/)** is the primary entry point for this fork.
 
 Because the ESP32-C3 has limited flash and RAM, the configurator lets you choose only the features you need and generates matching build flags.
 
@@ -78,7 +78,7 @@ For scope/constraints, see [SCOPE.md](SCOPE.md).
 
 ### Web Configurator (Recommended)
 
-1. Go to the **[Build Configurator](https://unintendedsideeffects.github.io/crosspoint-reader/configurator/)**.
+1. Go to the **[Build Configurator](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/)**.
 2. Select features and click **Build on GitHub**.
 3. Once the build completes, download the `firmware.bin` or use the browser-based flasher.
 
@@ -108,7 +108,7 @@ Each channel publishes five firmware variants plus one shared partitions file:
 ### Web (Specific Firmware Version)
 
 1. Connect your Xteink X4 via USB-C
-2. Download `firmware.bin` from the [releases page](https://github.com/Unintendedsideeffects/crosspoint-reader/releases)
+2. Download `firmware.bin` from the [releases page](https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases)
 3. Flash it via [xteink.dve.al](https://xteink.dve.al/) (OTA fast flash controls)
 
 ## Development
@@ -126,7 +126,7 @@ CrossPoint uses PlatformIO for building and flashing the firmware. To get starte
 
 ```
 # Clone the fork-drift branch (active development)
-git clone --recursive --branch fork-drift https://github.com/Unintendedsideeffects/crosspoint-reader
+git clone --recursive --branch fork-drift https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader
 
 # Or, if you've already cloned without --recursive:
 git submodule update --init --recursive

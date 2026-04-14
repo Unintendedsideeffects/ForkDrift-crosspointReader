@@ -18,17 +18,17 @@
 
 namespace {
 constexpr char stableReleaseUrl[] =
-    "https://api.github.com/repos/Unintendedsideeffects/crosspoint-reader/releases/latest";
+    "https://api.github.com/repos/Unintendedsideeffects/ForkDrift-crosspointReader/releases/latest";
 constexpr char stableTagUrl[] =
-    "https://api.github.com/repos/Unintendedsideeffects/crosspoint-reader/releases/tags/stable";
+    "https://api.github.com/repos/Unintendedsideeffects/ForkDrift-crosspointReader/releases/tags/stable";
 constexpr char nightlyChannelUrl[] =
-    "https://api.github.com/repos/Unintendedsideeffects/crosspoint-reader/releases/tags/nightly";
+    "https://api.github.com/repos/Unintendedsideeffects/ForkDrift-crosspointReader/releases/tags/nightly";
 constexpr char latestChannelUrl[] =
-    "https://api.github.com/repos/Unintendedsideeffects/crosspoint-reader/releases/tags/latest";
+    "https://api.github.com/repos/Unintendedsideeffects/ForkDrift-crosspointReader/releases/tags/latest";
 // Override at build time via -DFEATURE_STORE_CATALOG_URL='"..."' in platformio.ini build_flags.
 #ifndef FEATURE_STORE_CATALOG_URL
 #define FEATURE_STORE_CATALOG_URL                                                                  \
-  "https://raw.githubusercontent.com/Unintendedsideeffects/crosspoint-reader/fork-drift/docs/ota/" \
+  "https://raw.githubusercontent.com/Unintendedsideeffects/ForkDrift-crosspointReader/fork-drift/docs/ota/" \
   "feature-store-catalog.json"
 #endif
 constexpr char featureStoreCatalogUrl[] = FEATURE_STORE_CATALOG_URL;

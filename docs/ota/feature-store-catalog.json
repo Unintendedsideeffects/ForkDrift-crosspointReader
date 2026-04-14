@@ -8,7 +8,7 @@
       "version": "latest",
       "board": "esp32c3",
       "featureFlags": "epub_support,markdown,todo_planner",
-      "downloadUrl": "https://github.com/Unintendedsideeffects/crosspoint-reader/releases/download/stable/crosspoint-standard.bin",
+      "downloadUrl": "https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases/download/stable/crosspoint-standard.bin",
       "checksum": "",
       "binarySize": 0
     },
@@ -18,7 +18,7 @@
       "version": "nightly",
       "board": "esp32c3",
       "featureFlags": "epub_support,markdown,todo_planner,extended_fonts,ota_updates,dark_mode,ble_wifi_provisioning,web_wifi_setup,usb_mass_storage,koreader_sync,calibre_sync",
-      "downloadUrl": "https://github.com/Unintendedsideeffects/crosspoint-reader/releases/download/nightly/crosspoint-reader-nightly.bin",
+      "downloadUrl": "https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases/download/nightly/crosspoint-reader-nightly.bin",
       "checksum": "",
       "binarySize": 0
     },
@@ -28,7 +28,7 @@
       "version": "dev",
       "board": "esp32c3",
       "featureFlags": "epub_support,extended_fonts,ota_updates,dark_mode,ble_wifi_provisioning,web_wifi_setup,usb_mass_storage",
-      "downloadUrl": "https://github.com/Unintendedsideeffects/crosspoint-reader/releases/download/latest/crosspoint-standard.bin",
+      "downloadUrl": "https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases/download/latest/crosspoint-standard.bin",
       "checksum": "",
       "binarySize": 0
     },
@@ -38,7 +38,7 @@
       "version": "dev",
       "board": "esp32c3",
       "featureFlags": "epub_support",
-      "downloadUrl": "https://github.com/Unintendedsideeffects/crosspoint-reader/releases/download/latest/crosspoint-lean.bin",
+      "downloadUrl": "https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases/download/latest/crosspoint-lean.bin",
       "checksum": "",
       "binarySize": 0
     },
@@ -48,7 +48,7 @@
       "version": "dev",
       "board": "esp32c3",
       "featureFlags": "epub_support,extended_fonts,markdown,ota_updates,dark_mode,ble_wifi_provisioning,web_wifi_setup,usb_mass_storage,koreader_sync,calibre_sync,todo_planner",
-      "downloadUrl": "https://github.com/Unintendedsideeffects/crosspoint-reader/releases/download/latest/crosspoint-full.bin",
+      "downloadUrl": "https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases/download/latest/crosspoint-full.bin",
       "checksum": "",
       "binarySize": 0
     }

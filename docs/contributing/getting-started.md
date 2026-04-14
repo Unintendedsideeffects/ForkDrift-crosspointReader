@@ -30,8 +30,8 @@ Verify version: `clang-format-21 --version`. The reported major version must be 
 Clone the repository and its **submodules** (important!) using the **`fork-drift`** branch:
 
 ```sh
-git clone --recursive https://github.com/Unintendedsideeffects/crosspoint-reader --branch fork-drift
-cd crosspoint-reader
+git clone --recursive https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader --branch fork-drift
+cd ForkDrift-crosspointReader
 ```
 
 If you already cloned without submodules or are on a different branch:
