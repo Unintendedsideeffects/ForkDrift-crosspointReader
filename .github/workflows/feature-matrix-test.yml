@@ -11,7 +11,7 @@ on:
       - "platformio.ini"
       - ".github/workflows/feature-matrix-test.yml"
   push:
-    branches: [master, fork-drift, "feature/**"]
+    branches: [master, fork-drift]
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
@@ -25,7 +25,7 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           - id: lean
@@ -134,13 +134,13 @@ jobs:
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v7
-        if: always()
+        if: failure()
         with:
           name: profile-test-${{ matrix.id }}
           path: |
             .pio-${{ matrix.id }}/custom/firmware.bin
             platformio-custom.ini
-          retention-days: 7
+          retention-days: 3
 
   report-results:
     name: Matrix Summary

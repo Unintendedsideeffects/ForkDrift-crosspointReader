@@ -39,6 +39,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: CrossPoint-RC-${{ env.BRANCH_SUFFIX }}
+          retention-days: 14
           path: |
             .pio/build/gh_release_rc/bootloader.bin
             .pio/build/gh_release_rc/firmware.bin

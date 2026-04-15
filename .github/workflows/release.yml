@@ -33,6 +33,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: CrossPoint-${{ github.ref_name }}
+          retention-days: 30
           path: |
             .pio/build/gh_release/bootloader.bin
             .pio/build/gh_release/firmware.bin

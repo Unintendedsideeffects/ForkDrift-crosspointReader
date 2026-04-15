@@ -253,10 +253,12 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload firmware.bin artifact
-        uses: actions/upload-artifact@v6
+        if: steps.reuse.outputs.found != 'true'
+        uses: actions/upload-artifact@v4
         with:
           name: firmware.bin
           path: .pio/build/default/firmware.bin
+          retention-days: 7
           if-no-files-found: error
 
   # This job is used as the PR required actions check, allows for changes to other steps in the future without breaking

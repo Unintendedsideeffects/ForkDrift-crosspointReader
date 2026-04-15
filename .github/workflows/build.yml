@@ -4,7 +4,6 @@ on:
   push:
     branches: ['**']
     tags: ["v*"]
-  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -58,7 +57,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           - profile: lean
@@ -192,7 +191,7 @@ jobs:
         with:
           name: firmware-${{ matrix.profile }}
           path: artifact/
-          retention-days: 30
+          retention-days: 7
 
   # ── Build (latest channel): gh_latest env, any branch push ─────
   build-latest:
