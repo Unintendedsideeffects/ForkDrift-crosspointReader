@@ -22,7 +22,7 @@ constexpr uint16_t ZIP_METHOD_DEFLATED = 8;
 // it performed the open.  Removes the wasOpen/close boilerplate from every method.
 class ScopedOpenClose final {
  public:
-  [[nodiscard]] explicit ScopedOpenClose(ZipFile& zf) : zf(zf), needsClose(!zf.isOpen()) {
+  explicit ScopedOpenClose(ZipFile& zf) : zf(zf), needsClose(!zf.isOpen()) {
     if (needsClose) ok = zf.open();
   }
   ~ScopedOpenClose() {

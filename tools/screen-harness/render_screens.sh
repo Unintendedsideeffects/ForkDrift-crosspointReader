@@ -17,7 +17,6 @@ pushd "$ROOT_DIR" >/dev/null
   -O2 \
   -ffunction-sections \
   -fdata-sections \
-  -Wno-bidi-chars \
   -Wl,--gc-sections \
   -DEINK_DISPLAY_SINGLE_BUFFER_MODE=1 \
   -DHOST_BUILD=1 \

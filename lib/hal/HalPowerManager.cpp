@@ -100,7 +100,7 @@ uint16_t HalPowerManager::getBatteryPercentage() const {
       _batteryLastPollMs = now;
       return _batteryCachedPercent;
     }
-    Wire.requestFrom(I2C_ADDR_BQ27220, (uint8_t)2);
+    Wire.requestFrom(static_cast<uint8_t>(I2C_ADDR_BQ27220), static_cast<uint8_t>(2), static_cast<uint8_t>(true));
     if (Wire.available() < 2) {
       _batteryLastPollMs = now;
       return _batteryCachedPercent;
