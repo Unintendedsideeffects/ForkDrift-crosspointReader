@@ -298,7 +298,7 @@
       Generate Pokedex sleep wallpapers and upload them to <code>/sleep/pokedex</code>.
     </p>
     <div style="text-align: center; margin-top: 10px;">
-      <a class="save-btn" id="pokedex-link" href="/plugins/pokedex"
+      <a class="save-btn" id="pokedex-link" href="/plugins/pokemon-wallpaper"
          style="display:inline-block; padding:8px 20px; font-size:0.8em; text-decoration:none;">Open Pokedex</a>
     </div>
   </div>
@@ -344,7 +344,7 @@
   const BACKGROUND_SERVER_MODE_ALWAYS = 2;
   const BACKGROUND_SERVER_ALWAYS_WARNING =
     'Always keeps WiFi and the file server active while the device is awake. This uses much more battery.';
-  const POKEDEX_PLUGIN_PATH = '/plugins/pokedex';
+  const POKEMON_WALLPAPER_PATH = '/plugins/pokemon-wallpaper';
   const SETTING_DISPLAY_NAMES = {
     usbMscPromptOnConnect: 'USB Mass Storage Prompt'
   };
@@ -457,7 +457,7 @@
     const link = document.getElementById('pokedex-link');
     if (!card || !title || !description || !link) return;
 
-    const hasPokedex = !!(features && features.web_pokedex_plugin);
+    const hasPokedex = !!(features && features.pokemon_wallpaper_plugin);
     const hasPokemonParty = !!(features && features.pokemon_party);
 
     if (!hasPokedex) {
@@ -469,7 +469,7 @@
     description.innerHTML = hasPokemonParty
       ? 'Open the Pokedex plugin to assign Pokemon to the first 6 recent books, inspect reading-based levels, and generate sleep wallpapers.'
       : 'Generate Pokedex sleep wallpapers and upload them to <code>/sleep/pokedex</code>.';
-    link.href = POKEDEX_PLUGIN_PATH;
+    link.href = hasPokemonParty ? '/plugins/pokemon-party' : POKEMON_WALLPAPER_PATH;
     link.textContent = hasPokemonParty ? 'Open Party Tools' : 'Open Pokedex';
     card.style.display = 'block';
   }

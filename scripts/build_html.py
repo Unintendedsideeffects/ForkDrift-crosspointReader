@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 SRC_DIR = "src"
-POKEDEX_HTML_NAME = "PokedexPluginPage.html"
+POKEMON_CACHE_HTML_NAMES = ("PokemonWallpaperPluginPage.html", "PokemonPartyPluginPage.html")
 POKEDEX_CACHE_MARKER_RE = re.compile(
     r"/\* POKEMON_CACHE_INJECT_START \*/.*?/\* POKEMON_CACHE_INJECT_END \*/",
     re.DOTALL,
@@ -48,12 +48,12 @@ def update_configurator_tokens(tokens: str, repo_root: str):
         print(f"Updated theme tokens in {path}")
 
 
-def inject_pokedex_cache(html_path: str, html: str) -> str:
+def inject_pokemon_cache(html_path: str, html: str) -> str:
     path = Path(html_path)
-    if path.name != POKEDEX_HTML_NAME:
+    if path.name not in POKEMON_CACHE_HTML_NAMES:
         return html
 
-    cache_path = path.with_suffix(".cache.json")
+    cache_path = path.parent / "pokemon.cache.json"
     if not cache_path.exists():
         return html
 
@@ -61,7 +61,7 @@ def inject_pokedex_cache(html_path: str, html: str) -> str:
         cache_data = json.load(cache_file)
 
     if "POKEMON_CACHE_INJECT_START" not in html:
-        raise RuntimeError(f"Missing Pokedex cache marker in {html_path}")
+        raise RuntimeError(f"Missing Pokemon cache marker in {html_path}")
 
     json_str = json.dumps(cache_data, separators=(",", ":"), ensure_ascii=False)
     json_str = json_str.replace("</", "<\\/")
@@ -69,9 +69,9 @@ def inject_pokedex_cache(html_path: str, html: str) -> str:
     injected = POKEDEX_CACHE_MARKER_RE.sub(replacement, html)
 
     if injected == html:
-        raise RuntimeError(f"Failed to inject Pokedex cache from {cache_path}")
+        raise RuntimeError(f"Failed to inject Pokemon cache from {cache_path}")
 
-    print(f"Injected Pokedex cache from {cache_path} ({len(cache_data)} entries)")
+    print(f"Injected Pokemon cache from {cache_path} ({len(cache_data)} entries)")
     return injected
 
 def minify_html(html: str) -> str:
@@ -145,7 +145,7 @@ for root, _, files in os.walk(SRC_DIR):
 
             # Only minify and inject for HTML files; JS files are typically pre-minified (e.g., jszip.min.js)
             if file.endswith(".html"):
-                content = inject_pokedex_cache(file_path, content)
+                content = inject_pokemon_cache(file_path, content)
                 content = inject_theme_tokens(content, theme_tokens)
                 processed = minify_html(content)
             else:

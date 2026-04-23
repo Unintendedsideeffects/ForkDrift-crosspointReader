@@ -13,7 +13,7 @@
 namespace features::pokemon_party {
 namespace {
 
-#if ENABLE_WEB_POKEDEX_PLUGIN
+#if ENABLE_POKEMON_PARTY
 bool shouldRegisterPokemonPartyApiRoute() { return core::FeatureCatalog::isEnabled("pokemon_party"); }
 
 void mountPokemonRoutes(WebServer* server) {
@@ -144,7 +144,7 @@ void mountPokemonRoutes(WebServer* server) {
 }  // namespace
 
 void registerFeature() {
-#if ENABLE_WEB_POKEDEX_PLUGIN
+#if ENABLE_POKEMON_PARTY
   core::WebRouteEntry webRouteEntry{};
   webRouteEntry.routeId = "pokemon_party_api";
   webRouteEntry.shouldRegister = shouldRegisterPokemonPartyApiRoute;

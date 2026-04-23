@@ -13,8 +13,8 @@ namespace {
 constexpr const char* kRequiresBookImagesAny[] = {"epub_support", "markdown"};
 constexpr const char* kRequiresKOReaderSyncAll[] = {"integrations"};
 constexpr const char* kRequiresCalibreSyncAll[] = {"integrations"};
-constexpr const char* kRequiresWebPokedexPluginAll[] = {"image_sleep"};
-constexpr const char* kRequiresPokemonPartyAll[] = {"web_pokedex_plugin"};
+constexpr const char* kRequiresPokemonWallpaperPluginAll[] = {"image_sleep"};
+constexpr const char* kRequiresPokemonPartyAll[] = {};
 constexpr const char* kRequiresHyphenationAll[] = {"epub_support"};
 constexpr const char* kRequiresLyraThemeAll[] = {"home_media_picker"};
 constexpr const char* kRequiresBleWifiProvisioningAll[] = {"web_wifi_setup"};
@@ -41,8 +41,9 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"background_server_always", "Background Server Always", ENABLE_BACKGROUND_SERVER_ALWAYS != 0, nullptr, 0, nullptr,
      0},
     {"home_media_picker", "Home Media Picker", ENABLE_HOME_MEDIA_PICKER != 0, nullptr, 0, nullptr, 0},
-    {"web_pokedex_plugin", "Web Pokedex", ENABLE_WEB_POKEDEX_PLUGIN != 0, kRequiresWebPokedexPluginAll,
-     sizeof(kRequiresWebPokedexPluginAll) / sizeof(kRequiresWebPokedexPluginAll[0]), nullptr, 0},
+    {"pokemon_wallpaper_plugin", "Pokemon Wallpaper", ENABLE_POKEMON_WALLPAPER_PLUGIN != 0,
+     kRequiresPokemonWallpaperPluginAll,
+     sizeof(kRequiresPokemonWallpaperPluginAll) / sizeof(kRequiresPokemonWallpaperPluginAll[0]), nullptr, 0},
     {"pokemon_party", "Pokemon Party", ENABLE_POKEMON_PARTY != 0, kRequiresPokemonPartyAll,
      sizeof(kRequiresPokemonPartyAll) / sizeof(kRequiresPokemonPartyAll[0]), nullptr, 0},
     {"web_wallpaper_plugin", "Web Wallpaper", ENABLE_WEB_WALLPAPER_PLUGIN != 0, nullptr, 0, nullptr, 0},

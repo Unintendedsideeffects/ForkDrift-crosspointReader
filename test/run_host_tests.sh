@@ -28,7 +28,7 @@ gcc -c "$ROOT_DIR/lib/third_party/md4c/entity.c" -I"$ROOT_DIR/lib/third_party/md
 g++ -std=c++20 -O2 -Wno-narrowing \
   -fsanitize=address,undefined \
   -fno-omit-frame-pointer \
-  -DENABLE_WEB_POKEDEX_PLUGIN=1 \
+  -DENABLE_POKEMON_WALLPAPER_PLUGIN=1 \
   -DENABLE_POKEMON_PARTY=1 \
   -DENABLE_IMAGE_SLEEP=1 \
   -I"$ROOT_DIR" \

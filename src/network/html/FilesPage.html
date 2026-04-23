@@ -3188,7 +3188,7 @@ function updatePluginButtons() {
     return;
   }
 
-  if (pluginCapabilities.web_pokedex_plugin) {
+  if (pluginCapabilities.pokemon_wallpaper_plugin) {
     pokedexButton.style.display = 'inline-flex';
   } else {
     pokedexButton.style.display = 'none';
@@ -3206,7 +3206,7 @@ function updatePluginButtons() {
 }
 
 function openPokedexPlugin() {
-  window.location.href = '/plugins/pokedex';
+  window.location.href = '/plugins/pokemon-wallpaper';
 }
 
 async function openTodoPrompt(agendaEntry) {

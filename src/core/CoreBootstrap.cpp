@@ -14,14 +14,15 @@
 #include "features/ota_updates/Registration.h"
 #include "features/pokemon_party/Registration.h"
 #include "features/remote_keyboard_input/Registration.h"
+#include "features/status_overlay/Registration.h"
 #include "features/todo_planner/Registration.h"
 #include "features/trmnl_switch/Registration.h"
 #include "features/txt/Registration.h"
 #include "features/usb_mass_storage/Registration.h"
 #include "features/user_fonts/Registration.h"
-#include "features/status_overlay/Registration.h"
 #include "features/visual_cover_picker/Registration.h"
-#include "features/web_pokedex/Registration.h"
+#include "features/web_pokemon_party/Registration.h"
+#include "features/web_pokemon_wallpaper/Registration.h"
 #include "features/web_wallpaper/Registration.h"
 #include "features/web_wifi_setup/Registration.h"
 #include "features/xtc/Registration.h"
@@ -51,7 +52,8 @@ void registerFeatureModules() {
   features::todo_planner::registerFeature();
   features::pokemon_party::registerFeature();
   features::remote_keyboard_input::registerFeature();
-  features::web_pokedex::registerFeature();
+  features::web_pokemon_party::registerFeature();
+  features::web_pokemon_wallpaper::registerFeature();
   features::web_wallpaper::registerFeature();
   features::web_wifi_setup::registerFeature();
   features::lyra_theme::registerFeature();

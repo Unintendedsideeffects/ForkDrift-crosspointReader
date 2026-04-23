@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CrossPoint Reader - Pokedex Plugin</title>
+  <title>CrossPoint Reader - Pokemon Wallpaper</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
@@ -61,14 +61,22 @@
       font-size: 1.8em;
     }
 
+    h2 {
+      font-size: 0.95em;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
     .subtitle {
       color: var(--gray-4);
       font-size: 0.9em;
+      line-height: 1.45;
     }
 
     .layout {
       display: grid;
-      grid-template-columns: 1fr 320px;
+      grid-template-columns: minmax(0, 1fr) 320px;
       gap: 16px;
       align-items: start;
     }
@@ -78,6 +86,11 @@
       gap: 12px;
     }
 
+    .stack {
+      display: grid;
+      gap: 10px;
+    }
+
     .row {
       display: flex;
       gap: 8px;
@@ -85,11 +98,25 @@
       flex-wrap: wrap;
     }
 
+    .row > * {
+      flex: 1 1 0;
+    }
+
     label {
       font-size: 0.8em;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.06em;
+    }
+
+    .check-row label {
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: 0.82em;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
     }
 
     input[type="text"] {
@@ -185,150 +212,68 @@
       padding: 1px 4px;
     }
 
-    .party-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    .party-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
-    }
-
-    .party-slot {
+    details.advanced {
       border: 2px solid var(--black);
-      background: var(--white);
-      padding: 12px;
-      display: grid;
-      gap: 10px;
-    }
-
-    .party-book {
-      display: grid;
-      grid-template-columns: 72px 1fr;
-      gap: 10px;
-      align-items: start;
-    }
-
-    .party-cover {
-      width: 72px;
-      aspect-ratio: 3 / 4;
-      border: 2px solid var(--black);
+      padding: 10px 12px 12px;
       background: var(--gray-10);
-      overflow: hidden;
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      font-size: 0.72em;
-      padding: 6px;
     }
 
-    .party-cover img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    .party-cover .party-sprite {
-      position: absolute;
-      right: -4px;
-      bottom: -4px;
-      width: 42px;
-      height: 42px;
-      object-fit: contain;
-      image-rendering: pixelated;
-      filter: drop-shadow(0 0 1px var(--white)) drop-shadow(0 0 1px var(--white));
-      pointer-events: none;
-    }
-
-    .party-meta {
-      min-width: 0;
-      display: grid;
-      gap: 4px;
-    }
-
-    .party-book-title {
-      font-size: 0.9em;
-      font-weight: 700;
-      line-height: 1.25;
-      word-break: break-word;
-    }
-
-    .party-book-author {
-      font-size: 0.78em;
-      color: var(--gray-4);
-      word-break: break-word;
-    }
-
-    .party-book-progress {
-      font-size: 0.76em;
-      color: var(--gray-4);
-      word-break: break-word;
-      line-height: 1.35;
-    }
-
-    .party-pokemon {
-      border-top: 1px dashed var(--gray-8);
-      padding-top: 8px;
-      display: grid;
-      gap: 4px;
-    }
-
-    .party-pokemon-name {
+    details.advanced > summary {
+      cursor: pointer;
       font-size: 0.82em;
       font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      list-style: none;
     }
 
-    .party-pokemon-empty,
-    .party-pokemon-line {
-      font-size: 0.76em;
-      color: var(--gray-4);
-      line-height: 1.35;
+    details.advanced > summary::-webkit-details-marker {
+      display: none;
     }
 
-    .party-chip-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
+    details.advanced > summary::before {
+      content: "[+] ";
     }
 
-    .party-chip {
-      border: 1px solid var(--black);
-      background: var(--gray-10);
-      padding: 2px 6px;
-      font-size: 0.72em;
+    details.advanced[open] > summary::before {
+      content: "[-] ";
     }
 
-    .party-actions {
-      display: flex;
-      flex-wrap: wrap;
+    .advanced-grid {
+      display: grid;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .advanced-section {
+      display: grid;
       gap: 8px;
     }
 
-    .party-actions .btn {
-      flex: 1 1 120px;
+    .advanced-section-title {
+      font-size: 0.78em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
     }
 
-    .party-status {
-      margin: 0 0 12px;
+    .credits {
+      border-style: dashed;
+      background: var(--gray-10);
+    }
+
+    .locked-by-hp {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     @media (max-width: 780px) {
       .layout {
         grid-template-columns: 1fr;
       }
+
       canvas {
         max-width: 360px;
-      }
-      .party-header {
-        flex-direction: column;
       }
     }
   </style>
@@ -341,159 +286,161 @@
 </nav>
 
 <div class="card">
-  <h1>Pokedex Wallpaper Plugin</h1>
-  <p class="subtitle">Browser-side generation for XTEink X4 (480x800), then direct upload to <code>/sleep/pokedex</code>. Use <code>Image Source = Pokedex</code> on the device.</p>
+  <h1>Pokemon Wallpaper</h1>
+  <p class="subtitle">Pick a Pokemon, preview the 480x800 sleep screen, then download or upload it to <code>/sleep/pokedex</code>. Advanced styling, overlays, and batch tools stay out of the primary flow.</p>
 </div>
 
 <div class="card">
-  <div class="layout">
-    <div class="controls">
-      <div>
-        <label for="pokemonInput">Pokemon Name or ID</label>
-        <div class="row">
-          <input id="pokemonInput" type="text" value="1" placeholder="e.g. 25 or pikachu" />
-          <button class="btn secondary" id="randomBtn" type="button">Random</button>
+  <div class="stack">
+    <div class="status" id="statusBox">Enter a Pokemon and click Preview.</div>
+
+    <div class="layout">
+      <div class="controls">
+        <div>
+          <label for="pokemonInput">Pokemon Name or ID</label>
+          <div class="row">
+            <input id="pokemonInput" type="text" value="1" placeholder="e.g. 25 or pikachu" />
+            <button class="btn secondary" id="randomBtn" type="button">Random</button>
+          </div>
         </div>
-      </div>
 
-      <div>
-        <label for="layoutStyle">Layout Style</label>
-        <select id="layoutStyle">
-          <option value="classic" selected>Classic</option>
-          <option value="boxed">Boxed Panels</option>
-        </select>
-      </div>
-
-      <div>
-        <label for="artStyle">Art Style</label>
-        <select id="artStyle">
-          <option value="pixel" selected>Classic Pixel</option>
-          <option value="official">Official Artwork</option>
-          <option value="home">3D Render</option>
-        </select>
-      </div>
-
-      <div>
-        <label for="fontMode">Text Font</label>
-        <select id="fontMode">
-          <option value="vintage" selected>VT323 (Retro)</option>
-          <option value="mono">Courier New</option>
-          <option value="pixel">Press Start 2P</option>
-          <option value="display">Serif Display</option>
-          <option value="sans">Sans Serif</option>
-          <option value="custom">Custom</option>
-        </select>
-        <input id="customFont" type="text" placeholder="Custom CSS font stack (optional)" />
-      </div>
-
-      <div>
-        <label for="bgStyle">Background</label>
-        <select id="bgStyle">
-          <option value="diagonal" selected>Classic Diagonal</option>
-          <option value="white">All White</option>
-          <option value="black">All Black</option>
-        </select>
-      </div>
-
-      <div>
-        <label for="spriteScale">Sprite Size</label>
-        <input id="spriteScale" type="range" min="0.5" max="3.0" step="0.1" value="1.2" />
-        <p class="hint" id="spriteScaleLabel">Current scale: 1.2x</p>
-      </div>
-
-      <div class="row">
-        <label><input id="spriteOverlay" type="checkbox" /> Sprite over text layer</label>
-        <label><input id="showTypes" type="checkbox" checked /> Show type pill</label>
-      </div>
-
-      <div>
-        <label>Bottom Panel Content</label>
         <div class="row">
-          <label><input id="showFlavor" type="checkbox" checked /> Flavor text</label>
-          <label><input id="showHp" type="checkbox" /> HP/Stats</label>
-          <label><input id="showEvolution" type="checkbox" checked /> Evolution</label>
-          <label><input id="showAbilities" type="checkbox" checked /> Abilities</label>
+          <button class="btn" id="previewBtn" type="button">Preview</button>
+          <button class="btn secondary" id="downloadBtn" type="button">Download BMP</button>
+          <button class="btn" id="uploadBtn" type="button">Upload to Device</button>
         </div>
-        <p class="hint">HP/Stats works best if Flavor or Evolution/Abilities is disabled.</p>
+
+        <details class="advanced">
+          <summary>Advanced</summary>
+          <div class="advanced-grid">
+            <div class="advanced-section">
+              <div class="advanced-section-title">Render Style</div>
+              <div>
+                <label for="layoutStyle">Layout Style</label>
+                <select id="layoutStyle">
+                  <option value="classic" selected>Classic</option>
+                  <option value="boxed">Boxed Panels</option>
+                </select>
+              </div>
+              <div>
+                <label for="artStyle">Art Style</label>
+                <select id="artStyle">
+                  <option value="pixel" selected>Classic Pixel</option>
+                  <option value="official">Official Artwork</option>
+                  <option value="home">3D Render</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="advanced-section">
+              <div class="advanced-section-title">Font</div>
+              <div>
+                <label for="fontMode">Text Font</label>
+                <select id="fontMode">
+                  <option value="vintage" selected>VT323 (Retro)</option>
+                  <option value="mono">Courier New</option>
+                  <option value="pixel">Press Start 2P</option>
+                  <option value="display">Serif Display</option>
+                  <option value="sans">Sans Serif</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <input id="customFont" type="text" placeholder="Custom CSS font stack (optional)" />
+            </div>
+
+            <div class="advanced-section">
+              <div class="advanced-section-title">Background</div>
+              <div>
+                <label for="bgStyle">Background</label>
+                <select id="bgStyle">
+                  <option value="diagonal" selected>Classic Diagonal</option>
+                  <option value="white">All White</option>
+                  <option value="black">All Black</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="advanced-section">
+              <div class="advanced-section-title">Sprite Scale</div>
+              <div>
+                <label for="spriteScale">Sprite Size</label>
+                <input id="spriteScale" type="range" min="0.5" max="3.0" step="0.1" value="1.2" />
+                <p class="hint" id="spriteScaleLabel">Current scale: 1.2x</p>
+              </div>
+            </div>
+
+            <div class="advanced-section">
+              <div class="advanced-section-title">Overlay Toggles</div>
+              <div class="row check-row">
+                <label><input id="spriteOverlay" type="checkbox" /> Sprite over text layer</label>
+                <label><input id="showTypes" type="checkbox" checked /> Show type pill</label>
+              </div>
+              <div class="stack">
+                <div class="advanced-section-title">Bottom Panel Composition</div>
+                <div class="row check-row">
+                  <label id="showFlavorLabel"><input id="showFlavor" type="checkbox" checked /> Flavor text</label>
+                  <label id="showHpLabel"><input id="showHp" type="checkbox" /> HP/Stats</label>
+                </div>
+                <div class="row check-row">
+                  <label id="showEvolutionLabel"><input id="showEvolution" type="checkbox" checked /> Evolution</label>
+                  <label id="showAbilitiesLabel"><input id="showAbilities" type="checkbox" checked /> Abilities</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="advanced-section">
+              <div class="advanced-section-title">Batch</div>
+              <div>
+                <label for="batchGens">Batch Generations</label>
+                <select id="batchGens" multiple size="5">
+                  <option value="1,151">Gen 1 (1-151)</option>
+                  <option value="152,251">Gen 2 (152-251)</option>
+                  <option value="252,386">Gen 3 (252-386)</option>
+                  <option value="387,493">Gen 4 (387-493)</option>
+                  <option value="494,649">Gen 5 (494-649)</option>
+                  <option value="650,721">Gen 6 (650-721)</option>
+                  <option value="722,809">Gen 7 (722-809)</option>
+                  <option value="810,905">Gen 8 (810-905)</option>
+                  <option value="906,1025">Gen 9 (906-1025)</option>
+                </select>
+                <p class="hint">Tip: use Ctrl/Cmd + click to select multiple generations.</p>
+              </div>
+              <div>
+                <label for="batchType">Batch Type Filter</label>
+                <select id="batchType">
+                  <option value="" selected>Any Type</option>
+                  <option value="normal">Normal</option><option value="fire">Fire</option><option value="water">Water</option>
+                  <option value="electric">Electric</option><option value="grass">Grass</option><option value="ice">Ice</option>
+                  <option value="fighting">Fighting</option><option value="poison">Poison</option><option value="ground">Ground</option>
+                  <option value="flying">Flying</option><option value="psychic">Psychic</option><option value="bug">Bug</option>
+                  <option value="rock">Rock</option><option value="ghost">Ghost</option><option value="dragon">Dragon</option>
+                  <option value="dark">Dark</option><option value="steel">Steel</option><option value="fairy">Fairy</option>
+                </select>
+              </div>
+              <div class="row">
+                <button class="btn secondary" id="batchPreviewBtn" type="button">Preview Batch Start</button>
+                <button class="btn" id="batchUploadBtn" type="button">Batch Upload</button>
+              </div>
+            </div>
+
+            <div class="advanced-section">
+              <button class="btn secondary" id="openFolderBtn" type="button">Open /sleep/pokedex</button>
+              <p class="hint">This page renders in your browser. The device is only used for file storage via <code>/upload</code>.</p>
+            </div>
+          </div>
+        </details>
       </div>
 
-      <div>
-        <label for="batchGens">Batch Generations</label>
-        <select id="batchGens" multiple size="5">
-          <option value="1,151">Gen 1 (1-151)</option>
-          <option value="152,251">Gen 2 (152-251)</option>
-          <option value="252,386">Gen 3 (252-386)</option>
-          <option value="387,493">Gen 4 (387-493)</option>
-          <option value="494,649">Gen 5 (494-649)</option>
-          <option value="650,721">Gen 6 (650-721)</option>
-          <option value="722,809">Gen 7 (722-809)</option>
-          <option value="810,905">Gen 8 (810-905)</option>
-          <option value="906,1025">Gen 9 (906-1025)</option>
-        </select>
-        <p class="hint">Tip: use Ctrl/Cmd + click to select multiple generations.</p>
+      <div class="canvas-wrap">
+        <canvas id="previewCanvas" width="480" height="800"></canvas>
       </div>
-
-      <div>
-        <label for="batchType">Batch Type Filter</label>
-        <select id="batchType">
-          <option value="" selected>Any Type</option>
-          <option value="normal">Normal</option><option value="fire">Fire</option><option value="water">Water</option>
-          <option value="electric">Electric</option><option value="grass">Grass</option><option value="ice">Ice</option>
-          <option value="fighting">Fighting</option><option value="poison">Poison</option><option value="ground">Ground</option>
-          <option value="flying">Flying</option><option value="psychic">Psychic</option><option value="bug">Bug</option>
-          <option value="rock">Rock</option><option value="ghost">Ghost</option><option value="dragon">Dragon</option>
-          <option value="dark">Dark</option><option value="steel">Steel</option><option value="fairy">Fairy</option>
-        </select>
-      </div>
-
-      <div class="row">
-        <button class="btn" id="previewBtn" type="button">Preview</button>
-        <button class="btn secondary" id="downloadBtn" type="button">Download BMP</button>
-      </div>
-
-      <div class="row">
-        <button class="btn" id="uploadBtn" type="button">Upload to Device</button>
-        <button class="btn secondary" id="openFolderBtn" type="button">Open /sleep/pokedex</button>
-      </div>
-
-      <div class="row">
-        <button class="btn secondary" id="batchPreviewBtn" type="button">Preview Batch Start</button>
-        <button class="btn" id="batchUploadBtn" type="button">Batch Upload</button>
-      </div>
-
-      <div class="status" id="statusBox">Enter a Pokemon and click Preview.</div>
-
-      <p class="hint">
-        This page does all rendering in your browser. The device is only used for file storage via <code>/upload</code>.
-      </p>
-      
-      <div class="card" style="margin: 12px 0; border-style: dashed; background: var(--gray-10);">
-        <p class="hint" style="font-weight: bold; color: var(--black);">
-          Credits & Acknowledgments:
-        </p>
-        <p class="hint">
-          Based on the excellent <a href="https://m86-tech.github.io/BOOX-Pokedex-Wallpaper-Generator/" target="_blank" rel="noopener noreferrer">BOOX Pokedex Wallpaper Generator</a> by m86-tech. 
-          Adapted for CrossPoint Reader and XTEink X4.
-        </p>
-      </div>
-    </div>
-
-    <div class="canvas-wrap">
-      <canvas id="previewCanvas" width="480" height="800"></canvas>
     </div>
   </div>
 </div>
 
-<div class="card" id="partyCard" style="display:none;">
-  <div class="party-header">
-    <div>
-      <h1 style="font-size:1.35em; margin-bottom:4px;">Recent Books Party</h1>
-      <p class="subtitle">Your first 6 recent books are the party. Assign the current preview to save Pokemon family data in each book cache.</p>
-    </div>
-    <button class="btn secondary" id="refreshPartyBtn" type="button">Refresh Party</button>
-  </div>
-  <div class="status party-status" id="partyStatusBox">Loading recent books...</div>
-  <div class="party-grid" id="partyGrid"></div>
+<div class="card credits">
+  <p class="hint" style="font-weight: bold; color: var(--black);">Credits &amp; Acknowledgments:</p>
+  <p class="hint">Based on the excellent <a href="https://m86-tech.github.io/BOOX-Pokedex-Wallpaper-Generator/" target="_blank" rel="noopener noreferrer">BOOX Pokedex Wallpaper Generator</a> by m86-tech. Adapted for CrossPoint Reader and XTEink X4.</p>
 </div>
 
 <script>
@@ -505,14 +452,11 @@
   const SCREEN_HEIGHT = 800;
   const MAX_POKEMON_ID = 1025;
   const UPLOAD_PATH = "/sleep/pokedex";
-  const PARTY_SLEEP_UPLOAD_PATH = "/sleep/pokedex/party";
-  const PARTY_VISUAL_WIDTH = 360;
-  const PARTY_VISUAL_HEIGHT = 480;
-  const MIN_SPRITE_SCALE = 0.5; // Match the original companion defaults while keeping explicit bounds.
-  const MAX_SPRITE_SCALE = 3.0; // Preserve the old slider range for larger classic renders.
-  const MAX_EVOLUTION_CHAIN_LENGTH = 5; // Limit branch traversal so the footer section does not overflow.
-  const MAX_FLAVOR_TEXT_LINES = 4; // Keeps room for optional HP/evolution sections in the same bottom area.
-  const MAX_EVOLUTION_TEXT_LINES = 2; // Prevent long evolution strings from colliding with footer branding.
+  const MIN_SPRITE_SCALE = 0.5;
+  const MAX_SPRITE_SCALE = 3.0;
+  const MAX_EVOLUTION_CHAIN_LENGTH = 5;
+  const MAX_FLAVOR_TEXT_LINES = 4;
+  const MAX_EVOLUTION_TEXT_LINES = 2;
   const MAX_ABILITY_TEXT_LINES = 2;
   const GENERATIONS = {
     "generation-i": "Kanto",
@@ -524,26 +468,6 @@
     "generation-vii": "Alola",
     "generation-viii": "Galar",
     "generation-ix": "Paldea"
-  };
-  const TYPE_ACCENTS = {
-    normal: "#a8a77a",
-    fire: "#ee8130",
-    water: "#6390f0",
-    electric: "#f7d02c",
-    grass: "#7ac74c",
-    ice: "#96d9d6",
-    fighting: "#c22e28",
-    poison: "#a33ea1",
-    ground: "#e2bf65",
-    flying: "#a98ff3",
-    psychic: "#f95587",
-    bug: "#a6b91a",
-    rock: "#b6a136",
-    ghost: "#735797",
-    dragon: "#6f35fc",
-    dark: "#705746",
-    steel: "#b7b7ce",
-    fairy: "#d685ad"
   };
 
   const canvas = document.getElementById("previewCanvas");
@@ -572,17 +496,11 @@
   const batchTypeSelect = document.getElementById("batchType");
   const batchPreviewBtn = document.getElementById("batchPreviewBtn");
   const batchUploadBtn = document.getElementById("batchUploadBtn");
-  const partyCard = document.getElementById("partyCard");
-  const partyGrid = document.getElementById("partyGrid");
-  const partyStatusBox = document.getElementById("partyStatusBox");
-  const refreshPartyBtn = document.getElementById("refreshPartyBtn");
 
   const spriteBoundsCache = new Map();
   const speciesDefaultPokemonCache = new Map();
   let lastRendered = null;
-  let partyFeatureEnabled = false;
-  let partyBooks = [];
-  let partyBusy = false;
+  let busy = false;
 
   function setStatus(message, isError) {
     statusBox.textContent = message;
@@ -591,29 +509,13 @@
   }
 
   function setBusy(isBusy) {
-    partyBusy = isBusy;
+    busy = isBusy;
     previewBtn.disabled = isBusy;
     downloadBtn.disabled = isBusy;
     uploadBtn.disabled = isBusy;
     randomBtn.disabled = isBusy;
     batchPreviewBtn.disabled = isBusy;
     batchUploadBtn.disabled = isBusy;
-    refreshPartyBtn.disabled = isBusy;
-    syncPartyActionButtons();
-  }
-
-  function setPartyStatus(message, isError) {
-    partyStatusBox.textContent = message;
-    partyStatusBox.style.borderColor = isError ? "#000" : "#ddd";
-    partyStatusBox.style.background = isError ? "#fff" : "#f5f5f5";
-  }
-
-  function syncPartyActionButtons() {
-    Array.from(document.querySelectorAll("[data-party-action]")).forEach(function(button) {
-      const requiresRendered = button.getAttribute("data-needs-rendered") === "1";
-      const requiresAssigned = button.getAttribute("data-has-assigned") === "1";
-      button.disabled = partyBusy || (requiresRendered && !lastRendered) || !requiresAssigned;
-    });
   }
 
   function titleCase(value) {
@@ -622,26 +524,8 @@
       .replace(/\b\w/g, function(ch) { return ch.toUpperCase(); });
   }
 
-  function escapeHtml(value) {
-    return String(value == null ? "" : value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-  }
-
   function sanitizeFilename(value) {
     return String(value).toLowerCase().replace(/[^a-z0-9_-]/g, "_");
-  }
-
-  function extractResourceId(url) {
-    const match = String(url || "").match(/\/(\d+)\/?$/);
-    return match ? parseInt(match[1], 10) : null;
-  }
-
-  function getPokemonFilename(id, name) {
-    return "pokedex_" + String(id).padStart(4, "0") + "_" + sanitizeFilename(name) + "_x4.bmp";
   }
 
   async function fetchJson(url) {
@@ -722,7 +606,7 @@
       showHp: showHpInput.checked,
       showEvolution: showEvolutionInput.checked,
       showAbilities: showAbilitiesInput.checked,
-      fontFamily: getFontFamily(),
+      fontFamily: getFontFamily()
     };
   }
 
@@ -859,17 +743,7 @@
     tc.height = drawHeight;
     const tctx = tc.getContext("2d", { willReadFrequently: true });
     tctx.imageSmoothingEnabled = !pixelated;
-    tctx.drawImage(
-      sprite,
-      bounds.x,
-      bounds.y,
-      bounds.width,
-      bounds.height,
-      0,
-      0,
-      drawWidth,
-      drawHeight
-    );
+    tctx.drawImage(sprite, bounds.x, bounds.y, bounds.width, bounds.height, 0, 0, drawWidth, drawHeight);
 
     const imageData = tctx.getImageData(0, 0, drawWidth, drawHeight);
     const data = imageData.data;
@@ -884,13 +758,13 @@
   }
 
   function drawHpBars(pokemon, startY, fontFamily, boldText) {
-    const wanted = { 
-      hp: "HP", 
-      attack: "ATK", 
-      defense: "DEF", 
-      "special-attack": "SATK", 
-      "special-defense": "SDEF", 
-      speed: "SPD" 
+    const wanted = {
+      hp: "HP",
+      attack: "ATK",
+      defense: "DEF",
+      "special-attack": "SATK",
+      "special-defense": "SDEF",
+      speed: "SPD"
     };
     const stats = (pokemon.stats || []).filter(function(entry) { return wanted[entry.stat && entry.stat.name]; });
     let y = startY;
@@ -1260,7 +1134,6 @@
     }
 
     if (options.spriteOverlay) drawSprite();
-
   }
 
   async function drawWallpaper(bundle, sprite, options) {
@@ -1329,550 +1202,6 @@
     await ensureFolder("/sleep", "pokedex");
   }
 
-  async function ensurePartySleepFolder() {
-    await ensurePokedexFolder();
-    await ensureFolder("/sleep/pokedex", "party");
-  }
-
-  function hashString(value) {
-    let hash = 2166136261;
-    const text = String(value || "");
-    for (let i = 0; i < text.length; i++) {
-      hash ^= text.charCodeAt(i);
-      hash = Math.imul(hash, 16777619);
-    }
-    return (hash >>> 0).toString(16).padStart(8, "0");
-  }
-
-  function getPartySleepImageFilename(bookPath) {
-    return "party_" + hashString(bookPath) + ".bmp";
-  }
-
-  function getPartyVisualFilename(bookPath) {
-    return "party_visual_" + hashString(bookPath) + ".bmp";
-  }
-
-  function drawImageContained(targetCtx, image, x, y, width, height) {
-    const imageWidth = image.naturalWidth || image.width;
-    const imageHeight = image.naturalHeight || image.height;
-    if (!imageWidth || !imageHeight) return;
-
-    const scale = Math.min(width / imageWidth, height / imageHeight);
-    const drawWidth = Math.max(1, Math.round(imageWidth * scale));
-    const drawHeight = Math.max(1, Math.round(imageHeight * scale));
-    const drawX = Math.round(x + ((width - drawWidth) / 2));
-    const drawY = Math.round(y + ((height - drawHeight) / 2));
-    targetCtx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
-  }
-
-  function drawImageCover(targetCtx, image, x, y, width, height) {
-    const imageWidth = image.naturalWidth || image.width;
-    const imageHeight = image.naturalHeight || image.height;
-    if (!imageWidth || !imageHeight) return;
-
-    const scale = Math.max(width / imageWidth, height / imageHeight);
-    const drawWidth = Math.max(1, Math.round(imageWidth * scale));
-    const drawHeight = Math.max(1, Math.round(imageHeight * scale));
-    const drawX = Math.round(x + ((width - drawWidth) / 2));
-    const drawY = Math.round(y + ((height - drawHeight) / 2));
-    targetCtx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
-  }
-
-  function buildPartyCompositeCanvas(options) {
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = options.width;
-    tempCanvas.height = options.height;
-    const tempCtx = tempCanvas.getContext("2d");
-    tempCtx.fillStyle = "#ffffff";
-    tempCtx.fillRect(0, 0, options.width, options.height);
-    const drawCover = options.coverMode === "cover" ? drawImageCover : drawImageContained;
-    drawCover(
-      tempCtx,
-      options.coverImage,
-      options.coverPadding,
-      options.coverPadding,
-      options.width - (options.coverPadding * 2),
-      options.height - (options.coverPadding * 2)
-    );
-
-    const spriteScale = Math.min(
-      options.spriteTarget / options.spriteBounds.width,
-      options.spriteTarget / options.spriteBounds.height
-    );
-    const spriteWidth = Math.max(1, Math.round(options.spriteBounds.width * spriteScale));
-    const spriteHeight = Math.max(1, Math.round(options.spriteBounds.height * spriteScale));
-    const spriteX = options.width - spriteWidth - options.spritePadding;
-    const spriteY = options.height - spriteHeight - options.spritePadding;
-    drawGrayscaleSprite(
-      tempCtx,
-      options.spriteImage,
-      options.spriteBounds,
-      spriteX,
-      spriteY,
-      spriteWidth,
-      spriteHeight,
-      options.pixelated
-    );
-
-    return tempCanvas;
-  }
-
-  async function uploadCanvasBmp(uploadPath, filename, sourceCanvas) {
-    const formData = new FormData();
-    formData.append("file", canvasToBmpBlob(sourceCanvas), filename);
-    const uploadResponse = await fetch("/upload?path=" + encodeURIComponent(uploadPath), {
-      method: "POST",
-      body: formData
-    });
-    if (!uploadResponse.ok) {
-      throw new Error(await uploadResponse.text());
-    }
-    return uploadPath + "/" + filename;
-  }
-
-  async function bakePartyAssets(bookPath, bundle) {
-    const result = {
-      sleepImagePath: "",
-      partyVisualPath: "",
-      warnings: []
-    };
-    const book = getPartyBook(bookPath);
-    if (!book || !book.hasCover || !bundle || !bundle.pokemon) {
-      result.warnings.push("book cover unavailable");
-      return result;
-    }
-
-    const coverResponse = await fetch("/api/cover?path=" + encodeURIComponent(bookPath));
-    if (!coverResponse.ok) {
-      result.warnings.push("could not load book cover");
-      return result;
-    }
-
-    const pixelSpriteUrl = getSpriteUrl(bundle.pokemon, "pixel");
-    const spriteUrl =
-      pixelSpriteUrl ||
-      getSpriteUrl(bundle.pokemon, "home") ||
-      getSpriteUrl(bundle.pokemon, "official");
-    if (!spriteUrl) {
-      result.warnings.push("Pokemon sprite unavailable");
-      return result;
-    }
-
-    const coverBlob = await coverResponse.blob();
-    const coverObjectUrl = URL.createObjectURL(coverBlob);
-    try {
-      const coverImage = await loadImage(coverObjectUrl);
-      const spriteImage = await loadImage(spriteUrl);
-      const spriteBounds = getSpriteBounds(spriteImage);
-      await ensurePartySleepFolder();
-
-      try {
-        const sleepCanvas = buildPartyCompositeCanvas({
-          width: SCREEN_WIDTH,
-          height: SCREEN_HEIGHT,
-          coverMode: "contain",
-          coverPadding: 20,
-          coverImage: coverImage,
-          spriteImage: spriteImage,
-          spriteBounds: spriteBounds,
-          spriteTarget: 176,
-          spritePadding: 18,
-          pixelated: spriteUrl === pixelSpriteUrl
-        });
-        result.sleepImagePath = await uploadCanvasBmp(
-          PARTY_SLEEP_UPLOAD_PATH,
-          getPartySleepImageFilename(bookPath),
-          sleepCanvas
-        );
-      } catch (error) {
-        console.error(error);
-        result.warnings.push("sleep image bake skipped: " + error.message);
-      }
-
-      try {
-        const partyVisualCanvas = buildPartyCompositeCanvas({
-          width: PARTY_VISUAL_WIDTH,
-          height: PARTY_VISUAL_HEIGHT,
-          coverMode: "cover",
-          coverPadding: 0,
-          coverImage: coverImage,
-          spriteImage: spriteImage,
-          spriteBounds: spriteBounds,
-          spriteTarget: 132,
-          spritePadding: 8,
-          pixelated: spriteUrl === pixelSpriteUrl
-        });
-        result.partyVisualPath = await uploadCanvasBmp(
-          PARTY_SLEEP_UPLOAD_PATH,
-          getPartyVisualFilename(bookPath),
-          partyVisualCanvas
-        );
-      } catch (error) {
-        console.error(error);
-        result.warnings.push("party slot image bake skipped: " + error.message);
-      }
-
-      return result;
-    } finally {
-      URL.revokeObjectURL(coverObjectUrl);
-    }
-  }
-
-  async function deleteUploadedFile(path) {
-    if (!path) {
-      return;
-    }
-    const body = "path=" + encodeURIComponent(path);
-    const response = await fetch("/delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body
-    });
-    if (response.ok) {
-      return;
-    }
-
-    const message = await response.text();
-    if (message.toLowerCase().includes("not found")) {
-      return;
-    }
-    throw new Error(message || "Unknown delete error");
-  }
-
-  function buildPokemonAssignmentPayload(bundle) {
-    const pokemon = bundle && bundle.pokemon;
-    if (!pokemon) {
-      throw new Error("Render a Pokemon before assigning it to a book");
-    }
-
-    const species = bundle.species || null;
-    return {
-      id: pokemon.id,
-      name: pokemon.name || "",
-      speciesId: (species && species.id) || extractResourceId(species && species.url),
-      speciesName: (species && species.name) || (pokemon.name || ""),
-      types: (pokemon.types || []).map(function(entry) {
-        return entry && entry.type && entry.type.name;
-      }).filter(Boolean),
-      sprites: {
-        pixel: getSpriteUrl(pokemon, "pixel") || "",
-        official: getSpriteUrl(pokemon, "official") || "",
-        home: getSpriteUrl(pokemon, "home") || ""
-      },
-      evolutionChain: getLinearEvolutionStages(bundle.evolution).map(function(stage, index) {
-        return {
-          order: index + 1,
-          speciesId: extractResourceId(stage.url),
-          name: stage.name || "",
-          minLevel: stage.details && typeof stage.details.min_level === "number" ? stage.details.min_level : null,
-          trigger: stage.details && stage.details.trigger && stage.details.trigger.name || null,
-          text: index === 0 ? null : getEvolutionText(stage.details)
-        };
-      }),
-      assignedAt: new Date().toISOString()
-    };
-  }
-
-  function getPartyBook(path) {
-    return partyBooks.find(function(book) { return book && book.path === path; }) || null;
-  }
-
-  function getAssignedSpriteUrl(assigned) {
-    if (!assigned || !assigned.sprites) {
-      return "";
-    }
-    return assigned.sprites.pixel || assigned.sprites.home || assigned.sprites.official || "";
-  }
-
-  function getProgressState(book) {
-    const progress = book && book.progress;
-    if (!progress || typeof progress !== "object") {
-      return null;
-    }
-
-    const rawPercent = Number(progress.percent);
-    if (!Number.isFinite(rawPercent)) {
-      return null;
-    }
-
-    return {
-      percent: Math.max(0, Math.min(100, rawPercent)),
-      percentLabel: String(Math.round(Math.max(0, Math.min(100, rawPercent)))) + "%",
-      level: Math.max(1, Math.round(Math.max(0, Math.min(100, rawPercent)))),
-      position: progress.position ? String(progress.position) : ""
-    };
-  }
-
-  function getEvolutionState(assigned, level) {
-    if (!assigned || !Array.isArray(assigned.evolutionChain) || !Number.isFinite(level)) {
-      return null;
-    }
-
-    const chain = assigned.evolutionChain.filter(Boolean);
-    if (!chain.length) {
-      return null;
-    }
-
-    let current = chain[0];
-    let next = null;
-
-    chain.slice(1).forEach(function(entry) {
-      const minLevel = entry && typeof entry.minLevel === "number" ? entry.minLevel : null;
-      if (minLevel !== null && level >= minLevel) {
-        current = entry;
-        return;
-      }
-      if (!next) {
-        next = entry;
-      }
-    });
-
-    return { current: current, next: next };
-  }
-
-  function renderParty() {
-    if (!partyFeatureEnabled) {
-      partyCard.style.display = "none";
-      return;
-    }
-
-    partyCard.style.display = "";
-
-    if (!partyBooks.length) {
-      partyGrid.innerHTML = "";
-      setPartyStatus("No recent books yet. Open a few books first and the first 6 will become the party.", false);
-      syncPartyActionButtons();
-      return;
-    }
-
-    const html = partyBooks.map(function(book) {
-      const title = escapeHtml(book.title || "Untitled");
-      const author = book.author ? escapeHtml(book.author) : "";
-      const assigned = book.pokemon || null;
-      const progress = getProgressState(book);
-      const level = progress ? progress.level : 1;
-      const pokemonName = assigned && assigned.name ? titleCase(assigned.name) : "";
-      const spriteUrl = getAssignedSpriteUrl(assigned);
-      const progressLine = "Lv " + level;
-
-      const evoState = assigned ? getEvolutionState(assigned, level) : null;
-      let evoChipsHtml = "";
-      if (evoState) {
-        const chips = [];
-        if (evoState.next) {
-          const nextName = titleCase(evoState.next.name || "");
-          const nextText = evoState.next.text ? escapeHtml(evoState.next.text) : "";
-          const label = "\u2192 " + (nextName || "Next") + (nextText ? " \u2014 " + nextText : "");
-          chips.push('<span class="party-chip">' + label + '</span>');
-        } else if (assigned.evolutionChain && assigned.evolutionChain.length > 1) {
-          chips.push('<span class="party-chip">Final form</span>');
-        }
-        if (chips.length) {
-          evoChipsHtml = '<div class="party-chip-row">' + chips.join("") + '</div>';
-        }
-      }
-
-      const pokemonSection = assigned
-        ? '<div class="party-pokemon"><div class="party-pokemon-name">' + escapeHtml(pokemonName) + '</div>' + evoChipsHtml + '</div>'
-        : '<div class="party-pokemon"><div class="party-pokemon-empty">No Pok\u00e9mon assigned yet.</div></div>';
-
-      return [
-        '<div class="party-slot">',
-        '  <div class="party-book">',
-        '    <div class="party-cover">',
-               book.hasCover
-                 ? '<img src="/api/cover?path=' + encodeURIComponent(book.path) + '" alt="' + title + '" loading="lazy">'
-                 : '<span>Book</span>',
-               assigned && spriteUrl
-                 ? '<img class="party-sprite" src="' + escapeHtml(spriteUrl) + '" alt="' + escapeHtml(pokemonName) + '" loading="lazy">'
-                 : '',
-        '    </div>',
-        '    <div class="party-meta">',
-        '      <div class="party-book-title">' + title + '</div>',
-               author ? '      <div class="party-book-author">' + author + '</div>' : '',
-        '      <div class="party-book-progress">' + escapeHtml(progressLine) + '</div>',
-        '      ' + pokemonSection,
-        '    </div>',
-        '  </div>',
-        '  <div class="party-actions">',
-        '    <button class="btn" data-party-action="assign" data-path="' + encodeURIComponent(book.path) + '" data-needs-rendered="1" data-has-assigned="1" type="button">Assign Current</button>',
-        '    <button class="btn secondary" data-party-action="use" data-path="' + encodeURIComponent(book.path) + '" data-has-assigned="' + (assigned ? "1" : "0") + '" type="button">Use Assigned</button>',
-        '    <button class="btn secondary" data-party-action="clear" data-path="' + encodeURIComponent(book.path) + '" data-has-assigned="' + (assigned ? "1" : "0") + '" type="button">Clear</button>',
-        '  </div>',
-        '</div>'
-      ].join("");
-    }).join("");
-
-    partyGrid.innerHTML = html;
-
-    Array.from(partyGrid.querySelectorAll("[data-party-action='assign']")).forEach(function(button) {
-      button.addEventListener("click", function() {
-        assignCurrentPokemonToBook(decodeURIComponent(button.getAttribute("data-path") || ""));
-      });
-    });
-
-    Array.from(partyGrid.querySelectorAll("[data-party-action='use']")).forEach(function(button) {
-      button.addEventListener("click", function() {
-        useAssignedPokemon(decodeURIComponent(button.getAttribute("data-path") || ""));
-      });
-    });
-
-    Array.from(partyGrid.querySelectorAll("[data-party-action='clear']")).forEach(function(button) {
-      button.addEventListener("click", function() {
-        clearAssignedPokemon(decodeURIComponent(button.getAttribute("data-path") || ""));
-      });
-    });
-
-    setPartyStatus("Party ready. Recent books are ordered by recency and capped at 6 slots.", false);
-    syncPartyActionButtons();
-  }
-
-  async function loadPartyBooks() {
-    if (!partyFeatureEnabled) {
-      partyCard.style.display = "none";
-      return;
-    }
-
-    try {
-      setPartyStatus("Loading recent books...", false);
-      const response = await fetch("/api/recent");
-      if (!response.ok) {
-        throw new Error("Recent books request failed (" + response.status + ")");
-      }
-      const books = await response.json();
-      partyBooks = Array.isArray(books) ? books.slice(0, 6) : [];
-      renderParty();
-    } catch (error) {
-      console.error(error);
-      partyGrid.innerHTML = "";
-      setPartyStatus("Could not load recent books: " + error.message, true);
-    }
-  }
-
-  async function detectPokemonPartyApi() {
-    try {
-      const response = await fetch("/api/book-pokemon");
-      if (response.status === 404) return false;
-      if (response.status !== 400) return false;
-      const body = await response.text();
-      return body.indexOf("Missing path") !== -1;
-    } catch (error) {
-      console.error(error);
-      return false;
-    }
-  }
-
-  async function assignCurrentPokemonToBook(path) {
-    if (!lastRendered || !lastRendered.bundle) {
-      setPartyStatus("Preview a Pokemon first, then assign it to a book.", true);
-      return;
-    }
-
-    const book = getPartyBook(path);
-    let bakedPaths = [];
-    let saveSucceeded = false;
-    try {
-      setBusy(true);
-      setPartyStatus("Saving Pokemon for " + (book && book.title ? book.title : path) + "...", false);
-      const pokemonPayload = buildPokemonAssignmentPayload(lastRendered.bundle);
-      const bakeResult = await bakePartyAssets(path, lastRendered.bundle);
-      if (bakeResult.sleepImagePath) {
-        pokemonPayload.sleepImagePath = bakeResult.sleepImagePath;
-        bakedPaths.push(bakeResult.sleepImagePath);
-      }
-      if (bakeResult.partyVisualPath) {
-        pokemonPayload.partyVisualPath = bakeResult.partyVisualPath;
-        bakedPaths.push(bakeResult.partyVisualPath);
-      }
-      const response = await fetch("/api/book-pokemon", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          path: path,
-          pokemon: pokemonPayload
-        })
-      });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-      saveSucceeded = true;
-      await loadPartyBooks();
-      const saveMessage = "Saved " + titleCase(lastRendered.bundle.pokemon.name) + " to " +
-        (book && book.title ? book.title : path) + ".";
-      const warningMessage = bakeResult.warnings.join(" ");
-      setPartyStatus(warningMessage ? saveMessage + " " + warningMessage : saveMessage, !!warningMessage);
-    } catch (error) {
-      if (!saveSucceeded) {
-        for (const bakedPath of bakedPaths) {
-          try {
-            await deleteUploadedFile(bakedPath);
-          } catch (deleteError) {
-            console.warn("Could not clean up baked asset after save failure", deleteError);
-          }
-        }
-      }
-      console.error(error);
-      setPartyStatus("Save failed: " + error.message, true);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function useAssignedPokemon(path) {
-    const book = getPartyBook(path);
-    if (!book || !book.pokemon) {
-      setPartyStatus("This book does not have an assigned Pokemon yet.", true);
-      return;
-    }
-
-    input.value = String(book.pokemon.id || book.pokemon.name || "");
-    renderCurrentPokemon();
-  }
-
-  async function clearAssignedPokemon(path) {
-    const book = getPartyBook(path);
-    try {
-      setBusy(true);
-      setPartyStatus("Removing Pokemon for " + (book && book.title ? book.title : path) + "...", false);
-      const response = await fetch("/api/book-pokemon?path=" + encodeURIComponent(path), {
-        method: "DELETE"
-      });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-      const pathsToDelete = [
-        book && book.pokemon && book.pokemon.sleepImagePath,
-        book && book.pokemon && book.pokemon.partyVisualPath,
-        PARTY_SLEEP_UPLOAD_PATH + "/" + getPartySleepImageFilename(path),
-        PARTY_SLEEP_UPLOAD_PATH + "/" + getPartyVisualFilename(path)
-      ].filter(Boolean);
-      for (const assetPath of Array.from(new Set(pathsToDelete))) {
-        try {
-          await deleteUploadedFile(assetPath);
-        } catch (error) {
-          console.warn("Could not delete baked party asset", error);
-        }
-      }
-      await loadPartyBooks();
-      setPartyStatus("Pokemon removed from " + (book && book.title ? book.title : path) + ".", false);
-    } catch (error) {
-      console.error(error);
-      setPartyStatus("Delete failed: " + error.message, true);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function bootParty() {
-    partyFeatureEnabled = await detectPokemonPartyApi();
-    if (!partyFeatureEnabled) {
-      partyCard.style.display = "none";
-      return;
-    }
-    partyCard.style.display = "";
-    await loadPartyBooks();
-  }
-
   async function renderPokemonByInput(rawInput, options) {
     const pokemon = await fetchJson("https://pokeapi.co/api/v2/pokemon/" + encodeURIComponent(rawInput.toLowerCase()));
     const species = await fetchJson(pokemon.species.url).catch(function() { return null; });
@@ -1894,9 +1223,8 @@
     lastRendered = {
       id: pokemon.id,
       name: sanitizeFilename(pokemon.name),
-      bundle: bundle,
+      bundle: bundle
     };
-    syncPartyActionButtons();
     return pokemon;
   }
 
@@ -1911,7 +1239,6 @@
       setBusy(true);
       setStatus("Loading Pokemon data...");
       const pokemon = await renderPokemonByInput(rawInput, getRenderOptions());
-
       setStatus("Ready: #" + String(pokemon.id).padStart(4, "0") + " " + titleCase(pokemon.name));
     } catch (error) {
       console.error(error);
@@ -1925,7 +1252,7 @@
     if (!lastRendered) {
       return "pokedex_wallpaper_x4.bmp";
     }
-    return getPokemonFilename(lastRendered.id, lastRendered.name);
+    return "pokedex_" + String(lastRendered.id).padStart(4, "0") + "_" + sanitizeFilename(lastRendered.name) + "_x4.bmp";
   }
 
   async function downloadCurrentWallpaper() {
@@ -1962,7 +1289,7 @@
       setStatus("Uploading to " + UPLOAD_PATH + "...");
       const response = await fetch("/upload?path=" + encodeURIComponent(UPLOAD_PATH), {
         method: "POST",
-        body: formData,
+        body: formData
       });
 
       if (!response.ok) {
@@ -2031,7 +1358,7 @@
           const pokemon = await renderPokemonByInput(String(id), getRenderOptions());
           const blob = canvasToBmpBlob();
           const formData = new FormData();
-          formData.append("file", blob, getPokemonFilename(pokemon.id, pokemon.name));
+          formData.append("file", blob, "pokedex_" + String(pokemon.id).padStart(4, "0") + "_" + sanitizeFilename(pokemon.name) + "_x4.bmp");
           const response = await fetch("/upload?path=" + encodeURIComponent(UPLOAD_PATH), {
             method: "POST",
             body: formData
@@ -2070,41 +1397,72 @@
     renderCurrentPokemon();
   }
 
-  previewBtn.addEventListener("click", renderCurrentPokemon);
-  downloadBtn.addEventListener("click", downloadCurrentWallpaper);
-  uploadBtn.addEventListener("click", uploadCurrentWallpaper);
-  randomBtn.addEventListener("click", setRandomPokemon);
-  batchPreviewBtn.addEventListener("click", previewBatchStart);
-  batchUploadBtn.addEventListener("click", runBatchUpload);
-  refreshPartyBtn.addEventListener("click", loadPartyBooks);
-  
-  // Re-render preview when settings change
-  [layoutStyleSelect, artStyleSelect, fontModeSelect, bgStyleSelect, spriteScaleInput, spriteOverlayInput,
-   showTypesInput, showFlavorInput, showHpInput, showEvolutionInput, showAbilitiesInput].forEach(el => {
-    el.addEventListener("change", renderCurrentPokemon);
-  });
-  customFontInput.addEventListener("change", function() {
-    if (fontModeSelect.value === "custom") renderCurrentPokemon();
-  });
-  customFontInput.addEventListener("input", function() {
-    if (fontModeSelect.value === "custom") renderCurrentPokemon();
-  });
+  function setCheckboxLock(label, inputEl, locked, title) {
+    inputEl.disabled = locked;
+    inputEl.title = locked ? title : "";
+    label.classList.toggle("locked-by-hp", locked);
+    label.title = locked ? title : "";
+  }
 
-  spriteScaleInput.addEventListener("input", function() {
-    spriteScaleLabel.textContent = "Current scale: " + (parseFloat(spriteScaleInput.value) || 1.0).toFixed(1) + "x";
-  });
-  openFolderBtn.addEventListener("click", function() {
-    window.location.href = "/files?path=" + encodeURIComponent(UPLOAD_PATH);
-  });
-  input.addEventListener("keydown", function(event) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      renderCurrentPokemon();
+  function syncOverlayExclusivity() {
+    if (showHpInput.checked) {
+      showFlavorInput.checked = false;
+      showEvolutionInput.checked = false;
+      showAbilitiesInput.checked = false;
+    } else if (showFlavorInput.checked || showEvolutionInput.checked || showAbilitiesInput.checked) {
+      showHpInput.checked = false;
     }
-  });
 
-  bootParty();
-  renderCurrentPokemon();
+    const hpChecked = showHpInput.checked;
+    const otherDataChecked = showFlavorInput.checked || showEvolutionInput.checked || showAbilitiesInput.checked;
+    const hpLockTitle = "Disabled while HP/Stats is on — bottom panel can only show one data block.";
+    const otherLockTitle = "Disabled while another data block is on — bottom panel can only show one data block.";
+
+    setCheckboxLock(document.getElementById("showFlavorLabel"), showFlavorInput, hpChecked, hpLockTitle);
+    setCheckboxLock(document.getElementById("showEvolutionLabel"), showEvolutionInput, hpChecked, hpLockTitle);
+    setCheckboxLock(document.getElementById("showAbilitiesLabel"), showAbilitiesInput, hpChecked, hpLockTitle);
+    setCheckboxLock(document.getElementById("showHpLabel"), showHpInput, !hpChecked && otherDataChecked, otherLockTitle);
+  }
+
+  document.addEventListener("DOMContentLoaded", function() {
+    previewBtn.addEventListener("click", renderCurrentPokemon);
+    downloadBtn.addEventListener("click", downloadCurrentWallpaper);
+    uploadBtn.addEventListener("click", uploadCurrentWallpaper);
+    randomBtn.addEventListener("click", setRandomPokemon);
+    batchPreviewBtn.addEventListener("click", previewBatchStart);
+    batchUploadBtn.addEventListener("click", runBatchUpload);
+
+    [showHpInput, showFlavorInput, showEvolutionInput, showAbilitiesInput].forEach(function(el) {
+      el.addEventListener("change", syncOverlayExclusivity);
+    });
+
+    [layoutStyleSelect, artStyleSelect, fontModeSelect, bgStyleSelect, spriteScaleInput, spriteOverlayInput,
+     showTypesInput, showFlavorInput, showHpInput, showEvolutionInput, showAbilitiesInput].forEach(function(el) {
+      el.addEventListener("change", renderCurrentPokemon);
+    });
+
+    customFontInput.addEventListener("change", function() {
+      if (fontModeSelect.value === "custom") renderCurrentPokemon();
+    });
+    customFontInput.addEventListener("input", function() {
+      if (fontModeSelect.value === "custom") renderCurrentPokemon();
+    });
+    spriteScaleInput.addEventListener("input", function() {
+      spriteScaleLabel.textContent = "Current scale: " + (parseFloat(spriteScaleInput.value) || 1.0).toFixed(1) + "x";
+    });
+    openFolderBtn.addEventListener("click", function() {
+      window.location.href = "/files?path=" + encodeURIComponent(UPLOAD_PATH);
+    });
+    input.addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        renderCurrentPokemon();
+      }
+    });
+
+    syncOverlayExclusivity();
+    renderCurrentPokemon();
+  });
 </script>
 </body>
 </html>

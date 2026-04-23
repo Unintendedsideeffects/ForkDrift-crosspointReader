@@ -100,11 +100,11 @@ FEATURES = {
         size_kb=0,
         description='Streamlined home UI with horizontal book shelf + vertical menu'
     ),
-    'web_pokedex_plugin': Feature(
-        name='Pokedex',
-        flag='ENABLE_WEB_POKEDEX_PLUGIN',
+    'pokemon_wallpaper_plugin': Feature(
+        name='Pokemon Wallpaper',
+        flag='ENABLE_POKEMON_WALLPAPER_PLUGIN',
         size_kb=22,
-        description='Browser-side Pokemon wallpaper generator at /plugins/pokedex'
+        description='Browser-side Pokemon wallpaper generator at /plugins/pokemon-wallpaper'
     ),
     'pokemon_party': Feature(
         name='Pokemon Party',
@@ -304,7 +304,7 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=[]
     ),
-    'web_pokedex_plugin': FeatureMetadata(
+    'pokemon_wallpaper_plugin': FeatureMetadata(
         implemented=True,
         stable=True,
         requires=['image_sleep'],
@@ -314,7 +314,7 @@ FEATURE_METADATA = {
     'pokemon_party': FeatureMetadata(
         implemented=True,
         stable=True,
-        requires=['web_pokedex_plugin'],
+        requires=[],
         conflicts=[],
         recommends=[]
     ),
@@ -553,7 +553,7 @@ PROFILES = {
             'background_server_on_charge': True,
             'background_server_always': True,
             'home_media_picker': True,
-            'web_pokedex_plugin': True,
+            'pokemon_wallpaper_plugin': True,
             'pokemon_party': True,
             'remote_keyboard_input': True,
             'dark_mode': True,
