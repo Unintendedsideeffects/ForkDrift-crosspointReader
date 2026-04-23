@@ -206,7 +206,7 @@ String formatFirmwareSize(const uint32_t bytes) {
   return String(static_cast<unsigned long>(bytes)) + " B";
 }
 
-void renderLocalUpdatePrompt(GfxRenderer& renderer, MappedInputManager& mappedInput, const int selectedIndex,
+void renderLocalUpdatePrompt(GfxRenderer& renderer, const MappedInputManager& mappedInput, const int selectedIndex,
                              const LocalUpdateFingerprint& fingerprint) {
   renderer.clearScreen();
 
@@ -313,7 +313,7 @@ void FirmwareUpdateUtil::handleLocalUpdateBootFlow(GfxRenderer& renderer, Mapped
   }
 }
 
-bool FirmwareUpdateUtil::performLocalUpdate(GfxRenderer& renderer) {
+bool FirmwareUpdateUtil::performLocalUpdate(const GfxRenderer& renderer) {
   LOG_INF("FWUPD", "Starting local firmware update from %s", kFirmwareBinPath);
 
   FsFile firmwareFile;
