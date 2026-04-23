@@ -6,6 +6,7 @@
 #include <HalStorage.h>
 #include <I18n.h>
 #include <Utf8.h>
+#include <WiFi.h>
 
 #include <algorithm>
 #include <cstring>
@@ -15,18 +16,16 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
-#include "util/RecentBooksStore.h"
-#include "components/ScreenComponents.h"
 #include "SpiBusMutex.h"
 #include "activities/TaskShutdown.h"
+#include "components/ScreenComponents.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "core/registries/HomeActionRegistry.h"
 #include "fontIds.h"
 #include "util/ForkDriftNavigation.h"
+#include "util/RecentBooksStore.h"
 #include "util/StringUtils.h"
-
-#include <WiFi.h>
 
 // Static cover cache state
 bool HomeActivity::coverRendered = false;
@@ -904,8 +903,9 @@ void HomeActivity::render(RenderLock&&) {
     renderer.drawText(SMALL_FONT_ID, 5, wifiY, wifiStr);
   }
 
-  // First render: full e-ink refresh to clear any ghosting left by a reader or dark-mode activity.
-  renderer.displayBuffer(firstRenderDone ? HalDisplay::FAST_REFRESH : HalDisplay::FULL_REFRESH);
+  const bool doFull = !firstRenderDone && APP_STATE.pendingHomeFullRefresh;
+  if (doFull) APP_STATE.pendingHomeFullRefresh = false;
+  renderer.displayBuffer(doFull ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
 
   if (!firstRenderDone) {
     firstRenderDone = true;

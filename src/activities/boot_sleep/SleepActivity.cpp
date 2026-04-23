@@ -688,11 +688,17 @@ void SleepActivity::renderImageSleepScreen(const std::string& imagePath) const {
 
   LOG_INF("SLP", "Image %dx%d, screen %dx%d", dims.width, dims.height, pageWidth, pageHeight);
 
-  // Calculate scale and position
-  float scaleX = (dims.width > pageWidth) ? static_cast<float>(pageWidth) / dims.width : 1.0f;
-  float scaleY = (dims.height > pageHeight) ? static_cast<float>(pageHeight) / dims.height : 1.0f;
-  float scale = (scaleX < scaleY) ? scaleX : scaleY;
-  if (scale > 1.0f) scale = 1.0f;
+  // Calculate scale and position. Crop mode uses cover semantics so Pokedex
+  // and other sleep art can fill the full display like BMP sleep images do.
+  const float scaleX = static_cast<float>(pageWidth) / static_cast<float>(dims.width);
+  const float scaleY = static_cast<float>(pageHeight) / static_cast<float>(dims.height);
+  float scale;
+  if (SETTINGS.sleepScreenCoverMode == CrossPointSettings::SLEEP_SCREEN_COVER_MODE::CROP) {
+    scale = std::max(scaleX, scaleY);
+  } else {
+    scale = std::min(scaleX, scaleY);
+    if (scale > 1.0f) scale = 1.0f;
+  }
 
   int displayWidth = static_cast<int>(dims.width * scale);
   int displayHeight = static_cast<int>(dims.height * scale);
@@ -717,6 +723,11 @@ void SleepActivity::renderImageSleepScreen(const std::string& imagePath) const {
   config.maxHeight = pageHeight;
   config.useGrayscale = useGrayscale;
   config.useDithering = true;
+  if (SETTINGS.sleepScreenCoverMode == CrossPointSettings::SLEEP_SCREEN_COVER_MODE::CROP) {
+    config.maxWidth = displayWidth;
+    config.maxHeight = displayHeight;
+    config.useExactDimensions = true;
+  }
 
   // Render the image to framebuffer (BW pass)
   renderer.setRenderMode(GfxRenderer::BW);

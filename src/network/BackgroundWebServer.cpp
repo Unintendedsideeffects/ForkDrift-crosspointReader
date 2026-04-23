@@ -9,6 +9,7 @@
 #include <freertos/task.h>
 
 #include <algorithm>
+#include <new>
 
 #include "CrossPointSettings.h"
 #include "CrossPointWebServer.h"
@@ -124,7 +125,11 @@ void BackgroundWebServer::startServer() {
     LOG_ERR("BWS", "Failed to start time sync task");
   }
   if (!server) {
-    server.reset(new CrossPointWebServer());
+    server.reset(new (std::nothrow) CrossPointWebServer());
+    if (!server) {
+      scheduleRetry("server alloc failed");
+      return;
+    }
   }
   server->begin();
   if (!server->isRunning()) {

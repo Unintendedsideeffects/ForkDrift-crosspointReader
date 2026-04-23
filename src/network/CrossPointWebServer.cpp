@@ -13,10 +13,10 @@
 #include <cctype>
 #include <cmath>
 #include <cstring>
+#include <new>
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
-#include "util/RecentBooksStore.h"
 #include "SettingsList.h"
 #include "SpiBusMutex.h"
 #include "WebDAVHandler.h"
@@ -37,6 +37,7 @@
 #include "util/DateUtils.h"
 #include "util/InputValidation.h"
 #include "util/PathUtils.h"
+#include "util/RecentBooksStore.h"
 
 namespace {
 constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
@@ -266,7 +267,7 @@ void CrossPointWebServer::begin() {
   LOG_DBG("WEB", "Network mode: %s", apMode ? "AP" : "STA");
 
   LOG_DBG("WEB", "Creating web server on port %d...", port);
-  server.reset(new WebServer(port));
+  server.reset(new (std::nothrow) WebServer(port));
 
   // Disable WiFi sleep to improve responsiveness and prevent 'unreachable' errors.
   // This is critical for reliable web server operation on ESP32.
@@ -346,8 +347,15 @@ void CrossPointWebServer::begin() {
 
   // Start WebSocket server for fast binary uploads
   LOG_DBG("WEB", "Starting WebSocket server on port %d...", wsPort);
-  wsServer.reset(new WebSocketsServer(wsPort));
-  wsInstance = const_cast<CrossPointWebServer*>(this);
+  wsServer.reset(new (std::nothrow) WebSocketsServer(wsPort));
+  if (!wsServer) {
+    LOG_ERR("WEB", "Failed to create WebSocket server");
+    server->stop();
+    server.reset();
+    return;
+  }
+
+  wsInstance = this;
   wsServer->begin();
   wsServer->onEvent(wsEventCallback);
   LOG_DBG("WEB", "WebSocket server started");
@@ -816,8 +824,8 @@ void CrossPointWebServer::scanFiles(const char* path, const std::function<void(F
       file.getName(name, sizeof(name));
       auto fileName = String(name);
 
-      shouldHide = (!SETTINGS.showHiddenFiles && fileName.startsWith(".")) ||
-                   PathUtils::isProtectedWebComponent(fileName);
+      shouldHide =
+          (!SETTINGS.showHiddenFiles && fileName.startsWith(".")) || PathUtils::isProtectedWebComponent(fileName);
 
       if (!shouldHide) {
         info.name = fileName;

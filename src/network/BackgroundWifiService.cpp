@@ -6,6 +6,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include <new>
+
 #include "network/CrossPointWebServer.h"
 
 BackgroundWifiService BackgroundWifiService::instance;
@@ -66,7 +68,12 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
     connected = true;
 
     // ── Start web server ──────────────────────────────────────────────────
-    server = new CrossPointWebServer();
+    server = new (std::nothrow) CrossPointWebServer();
+    if (server == nullptr) {
+      LOG_ERR("BGWIFI", "Failed to allocate CrossPointWebServer");
+      goto cleanup;
+    }
+
     server->begin();
 
     if (!server->isRunning()) {
@@ -129,7 +136,12 @@ void BackgroundWifiService::start(const char* ssid, const char* password) {
   requestCount = 0;
 
   // Heap-allocate params so the pointers remain valid after this function returns
-  auto* params = new WifiTaskParams();
+  auto* params = new (std::nothrow) WifiTaskParams();
+  if (params == nullptr) {
+    LOG_ERR("BGWIFI", "Failed to allocate WiFi task params");
+    return;
+  }
+
   strncpy(params->ssid, ssid, sizeof(params->ssid) - 1);
   params->ssid[sizeof(params->ssid) - 1] = '\0';
   strncpy(params->password, password ? password : "", sizeof(params->password) - 1);
@@ -160,7 +172,12 @@ void BackgroundWifiService::startUsingCurrentConnection() {
   wifiOwned = false;
   requestCount = 0;
 
-  auto* params = new WifiTaskParams();
+  auto* params = new (std::nothrow) WifiTaskParams();
+  if (params == nullptr) {
+    LOG_ERR("BGWIFI", "Failed to allocate WiFi task params");
+    return;
+  }
+
   params->ssid[0] = '\0';
   params->password[0] = '\0';
   params->useCurrentConnection = true;

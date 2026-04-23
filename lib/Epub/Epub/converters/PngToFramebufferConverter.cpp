@@ -194,6 +194,16 @@ int pngDrawCallback(PNGDRAW* pDraw) {
   bool useDithering = ctx->config->useDithering;
   bool caching = ctx->caching;
 
+  int dstXStart = 0;
+  if (outXBase < 0) {
+    dstXStart = -outXBase;
+  }
+  int dstXEnd = dstWidth;
+  if (outXBase + dstWidth > screenWidth) {
+    dstXEnd = screenWidth - outXBase;
+  }
+  if (dstXStart >= dstXEnd) return 1;
+
   // Pre-compute orientation and render-mode state once per row
   DirectPixelWriter pw;
   pw.init(*ctx->renderer);
@@ -207,22 +217,27 @@ int pngDrawCallback(PNGDRAW* pDraw) {
 
   int srcX = 0;
   int error = 0;
-
-  for (int dstX = 0; dstX < dstWidth; dstX++) {
-    int outX = outXBase + dstX;
-    if (outX < screenWidth) {
-      uint8_t gray = ctx->grayLineBuffer[srcX];
-
-      uint8_t ditheredGray;
-      if (useDithering) {
-        ditheredGray = applyBayerDither4Level(gray, outX, outY);
-      } else {
-        ditheredGray = gray / 85;
-        if (ditheredGray > 3) ditheredGray = 3;
-      }
-      pw.writePixel(outX, ditheredGray);
-      if (caching) cw.writePixel(outX, ditheredGray);
+  for (int dstX = 0; dstX < dstXStart; dstX++) {
+    error += srcWidth;
+    while (error >= dstWidth) {
+      error -= dstWidth;
+      srcX++;
     }
+  }
+
+  for (int dstX = dstXStart; dstX < dstXEnd; dstX++) {
+    int outX = outXBase + dstX;
+    uint8_t gray = ctx->grayLineBuffer[srcX];
+
+    uint8_t ditheredGray;
+    if (useDithering) {
+      ditheredGray = applyBayerDither4Level(gray, outX, outY);
+    } else {
+      ditheredGray = gray / 85;
+      if (ditheredGray > 3) ditheredGray = 3;
+    }
+    pw.writePixel(outX, ditheredGray);
+    if (caching) cw.writePixel(outX, ditheredGray);
 
     // Bresenham-style stepping: advance srcX based on ratio srcWidth/dstWidth
     error += srcWidth;

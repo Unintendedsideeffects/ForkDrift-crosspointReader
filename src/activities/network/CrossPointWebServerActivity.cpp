@@ -9,13 +9,14 @@
 #include <qrcode.h>
 
 #include <cstddef>
+#include <new>
 
 #include "CalibreConnectActivity.h"
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "NetworkModeSelectionActivity.h"
-#include "components/ScreenComponents.h"
 #include "WifiSelectionActivity.h"
+#include "components/ScreenComponents.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "network/BackgroundWifiService.h"
@@ -137,12 +138,12 @@ void CrossPointWebServerActivity::onNetworkModeSelected(const NetworkMode mode) 
 
           startActivityForResult(std::make_unique<NetworkModeSelectionActivity>(renderer, mappedInput),
                                  [this](const ActivityResult& result) {
-                                    if (result.isCancelled) {
-                                      activityManager.goHome();
-                                    } else {
-                                      onNetworkModeSelected(std::get<NetworkModeResult>(result.data).mode);
-                                    }
-                                  });
+                                   if (result.isCancelled) {
+                                     activityManager.goHome();
+                                   } else {
+                                     onNetworkModeSelected(std::get<NetworkModeResult>(result.data).mode);
+                                   }
+                                 });
         });
     return;
   }
@@ -271,10 +272,14 @@ void CrossPointWebServerActivity::startAccessPoint() {
 
   // Start DNS server for captive portal behavior
   // This redirects all DNS queries to our IP, making any domain typed resolve to us
-  dnsServer = new DNSServer();
-  dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
-  dnsServer->start(DNS_PORT, "*", apIP);
-  LOG_DBG("WEBACT", "DNS server started for captive portal");
+  dnsServer = new (std::nothrow) DNSServer();
+  if (dnsServer) {
+    dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
+    dnsServer->start(DNS_PORT, "*", apIP);
+    LOG_DBG("WEBACT", "DNS server started for captive portal");
+  } else {
+    LOG_ERR("WEBACT", "Failed to allocate DNS server; continuing without captive portal DNS");
+  }
 
   LOG_DBG("WEBACT", "Free heap after AP start: %d bytes", ESP.getFreeHeap());
 
@@ -286,7 +291,13 @@ void CrossPointWebServerActivity::startWebServer() {
   LOG_DBG("WEBACT", "Starting web server...");
 
   // Create the web server instance
-  webServer.reset(new CrossPointWebServer());
+  webServer.reset(new (std::nothrow) CrossPointWebServer());
+  if (!webServer) {
+    LOG_ERR("WEBACT", "ERROR: Failed to allocate web server");
+    activityManager.goHome();
+    return;
+  }
+
   webServer->begin();
 
   if (webServer->isRunning()) {

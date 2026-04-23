@@ -29,6 +29,9 @@ class CrossPointState {
   uint8_t wifiAutoConnectSkipCount = 0;
   uint8_t wifiAutoConnectBackoffLevel = 0;
   bool wifiAutoConnectWaitingForNewCredential = false;
+  // Set by reader activities on exit so HomeActivity knows to do a full e-ink
+  // refresh on its first render. Not persisted — runtime only.
+  bool pendingHomeFullRefresh = false;
   ~CrossPointState() = default;
 
   // Get singleton instance
