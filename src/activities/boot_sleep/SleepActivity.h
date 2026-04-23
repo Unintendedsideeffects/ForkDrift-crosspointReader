@@ -17,9 +17,11 @@ class SleepActivity final : public Activity {
  private:
   void renderDefaultSleepScreen() const;
   void renderCustomSleepScreen() const;
+  void renderSmartSleepScreen() const;
   void renderBitmapSleepScreen(const Bitmap& bitmap) const;
   void renderImageSleepScreen(const std::string& imagePath) const;
   void renderTransparentSleepScreen() const;
+  bool tryRenderImagePath(const std::string& path) const;
 
   void drawLockIcon(int cx, int cy) const;
 

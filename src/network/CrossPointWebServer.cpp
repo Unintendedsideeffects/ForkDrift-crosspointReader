@@ -365,6 +365,7 @@ void CrossPointWebServer::begin() {
   LOG_DBG("WEB", "[MEM] Free heap after server.begin(): %d bytes", ESP.getFreeHeap());
 }
 
+#if 0  // Duplicated by src/network/WsUploadHandlers.cpp
 void CrossPointWebServer::abortWsUpload(const char* tag) {
   {
     SpiBusMutex::Guard guard;
@@ -387,6 +388,7 @@ void CrossPointWebServer::abortWsUpload(const char* tag) {
   wsUploadClientNum = 255;
   wsLastProgressSent = 0;
 }
+#endif
 
 void CrossPointWebServer::stop() {
   if (!running || !server) {
@@ -508,6 +510,7 @@ static bool parseStrictSize(const String& token, size_t& outValue) {
   return InputValidation::parseStrictPositiveSize(token.c_str(), token.length(), WS_UPLOAD_MAX_BYTES, outValue);
 }
 
+#if 0  // Duplicated by split handler files in src/network/
 void CrossPointWebServer::handleRoot() const {
   sendPrecompressedHtml(server.get(), HomePageHtml, HomePageHtmlCompressedSize);
   LOG_DBG("WEB", "Served root page");
@@ -567,6 +570,7 @@ void CrossPointWebServer::handleStatus() const {
 void CrossPointWebServer::handlePlugins() const {
   server->send(200, "application/json", core::FeatureModules::getFeatureMapJson());
 }
+#endif
 
 void CrossPointWebServer::handleTodoEntry() {
   if (!core::FeatureCatalog::isEnabled("todo_planner")) {
@@ -847,6 +851,7 @@ void CrossPointWebServer::scanFiles(const char* path, const std::function<void(F
 
 bool CrossPointWebServer::isEpubFile(const String& filename) const { return FsHelpers::hasEpubExtension(filename); }
 
+#if 0  // Duplicated by src/network/StaticHandlers.cpp and FileReadHandlers.cpp
 void CrossPointWebServer::handleFileList() const {
   sendPrecompressedHtml(server.get(), FilesPageHtml, FilesPageHtmlCompressedSize);
 }
@@ -1029,6 +1034,7 @@ void CrossPointWebServer::handleDownload() const {
     file.close();
   }
 }
+#endif
 
 void CrossPointWebServer::handleUpload() {
   if (!running || !server) {
@@ -1051,6 +1057,7 @@ void CrossPointWebServer::handleUploadPost() {
   }
 }
 
+#if 0  // Duplicated by src/network/FileMutationHandlers.cpp
 void CrossPointWebServer::handleCreateFolder() const {
   // Get folder name from form data
   if (!server->hasArg("name")) {
@@ -1578,7 +1585,9 @@ void CrossPointWebServer::handleDelete() const {
     server->send(200, "text/plain", "All items deleted successfully");
   }
 }
+#endif
 
+#if 0  // Duplicated by src/network/StaticHandlers.cpp and SettingsHandlers.cpp
 void CrossPointWebServer::handleSettingsPage() const {
   sendPrecompressedHtml(server.get(), SettingsPageHtml, SettingsPageHtmlCompressedSize);
   LOG_DBG("WEB", "Served settings page");
@@ -1783,6 +1792,7 @@ void CrossPointWebServer::handlePostSettings() {
   LOG_DBG("WEB", "Applied %d setting(s)", applied);
   server->send(200, "text/plain", String("Applied ") + String(applied) + " setting(s)");
 }
+#endif
 
 void CrossPointWebServer::handleRecentBooks() const {
   const auto& books = RECENT_BOOKS.getBooks();
@@ -1850,6 +1860,7 @@ void CrossPointWebServer::handleGetBookProgress() const {
   server->send(200, "application/json", json);
 }
 
+#if 0  // Duplicated by src/network/AssetReadHandlers.cpp
 void CrossPointWebServer::handleCover() const {
   if (!server->hasArg("path")) {
     server->send(400, "text/plain", "Missing path");
@@ -2033,6 +2044,7 @@ void CrossPointWebServer::handleSleepImages() const {
   server->sendContent("]");
   server->sendContent("");
 }
+#endif
 
 void CrossPointWebServer::handleSleepCoverGet() const {
   JsonDocument doc;
@@ -2199,6 +2211,7 @@ void CrossPointWebServer::handleRemoteButton() {
   server->send(result.statusCode, result.contentType, result.body);
 }
 
+#if 0  // Duplicated by src/network/StaticHandlers.cpp and StatusHandlers.cpp
 void CrossPointWebServer::handleScreenshot() {
   APP_STATE.pendingScreenshot = true;
   server->send(202, "application/json", "{\"status\":\"ok\"}");
@@ -2259,6 +2272,7 @@ void CrossPointWebServer::handleGetSettingsRaw() const {
   serializeJson(doc, json);
   server->send(200, "application/json", json);
 }
+#endif
 
 // WebSocket callback trampoline
 void CrossPointWebServer::wsEventCallback(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
@@ -2273,6 +2287,7 @@ void CrossPointWebServer::wsEventCallback(uint8_t num, WStype_t type, uint8_t* p
 //   2. Client sends BINARY messages with file data chunks
 //   3. Server sends TEXT "PROGRESS:<received>:<total>" after each chunk
 //   4. Server sends TEXT "DONE" or "ERROR:<message>" when complete
+#if 0  // Duplicated by src/network/WsUploadHandlers.cpp
 void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
   auto buildWsUploadFilePath = [this]() {
     String filePath = wsUploadPath;
@@ -2576,5 +2591,6 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
       break;
   }
 }
+#endif
 
 #include "util/WifiCredentialStore.h"

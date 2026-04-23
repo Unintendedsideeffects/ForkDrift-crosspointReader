@@ -89,11 +89,15 @@ void begin() {
 void checkPanic() {
   if (isRebootFromPanic()) {
     auto panicInfo = getPanicInfo(true);
-    auto file = Storage.open("/crash_report.txt", O_WRITE | O_CREAT | O_TRUNC);
+    auto file = Storage.open("/crash_report.txt", O_WRITE | O_CREAT | O_APPEND);
     if (file) {
+      static constexpr char kSeparator[] = "\n---\n\n";
+      if (file.fileSize() > 0) {
+        file.write(kSeparator, sizeof(kSeparator) - 1);
+      }
       file.write(panicInfo.c_str(), panicInfo.size());
       file.close();
-      LOG_INF("SYS", "Dumped panic info to SD card");
+      LOG_INF("SYS", "Appended panic info to crash_report.txt");
     } else {
       LOG_ERR("SYS", "Failed to open crash_report.txt for writing");
     }

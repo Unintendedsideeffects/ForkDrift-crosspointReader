@@ -35,9 +35,17 @@ using CrossPointUdpType = WiFiUDP;
 #endif
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
+
+struct FileInfo {
+  String name;
+  size_t size = 0;
+  bool isEpub = false;
+  bool isDirectory = false;
+};
 
 class CrossPointWebServer {
  public:
@@ -128,6 +136,8 @@ class CrossPointWebServer {
   void handleFileList() const;
   void handleFileListData() const;
   void handleDownload() const;
+  void scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const;
+  bool isEpubFile(const String& filename) const;
   void handleUpload();
   void handleUploadPost();
   void handleCreateFolder() const;

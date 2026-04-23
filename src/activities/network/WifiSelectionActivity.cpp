@@ -9,6 +9,7 @@
 #include <map>
 
 #include "MappedInputManager.h"
+#include "network/BackgroundWifiService.h"
 #include "util/WifiCredentialStore.h"
 #include "activities/TaskShutdown.h"
 #include "activities/util/KeyboardEntryActivity.h"
@@ -19,6 +20,12 @@
 
 void WifiSelectionActivity::onEnter() {
   Activity::onEnter();
+
+  // Stop any background WiFi service — it conflicts with foreground scan/connect
+  if (BG_WIFI.isRunning()) {
+    LOG_DBG("WIFISEL", "Stopping background WiFi service for foreground use");
+    BG_WIFI.stop(true);
+  }
 
   // Load saved WiFi credentials
   WIFI_STORE.loadFromFile();

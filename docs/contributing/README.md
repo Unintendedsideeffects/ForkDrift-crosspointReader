@@ -15,6 +15,19 @@ If you are new to the project, we recommend following this reading order to buil
 
 All Pull Requests should be targeted at the **`fork-drift`** branch. This is our active development branch where new features and fixes are integrated before being merged into `master`.
 
+## Local Git hooks
+
+To use the repository-managed hooks, point Git at `scripts/hooks`:
+
+```sh
+git config core.hooksPath scripts/hooks
+```
+
+The current hooks do the following:
+
+- `pre-commit`: regenerates staged generated assets, auto-formats staged C/C++ files, and runs a firmware build.
+- `pre-push`: runs the heavier local CI checks (`cppcheck` + firmware build) before push.
+
 ## Additional Resources
 
 - **[Project Scope](../../SCOPE.md)**: What is and isn't in scope for CrossPoint Reader.

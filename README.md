@@ -152,6 +152,20 @@ git clone --recursive --branch fork-drift https://github.com/Unintendedsideeffec
 git submodule update --init --recursive
 ```
 
+### Devcontainer and local CI
+
+This repo now ships with a devcontainer that installs the toolchain used by the online workflows and a local CI runner that mirrors the same workflow commands.
+
+```sh
+# Open the repository in the devcontainer, then run:
+scripts/ci/run-local.sh ci-build
+scripts/ci/run-local.sh build-workflow
+scripts/ci/run-local.sh profile-matrix
+scripts/ci/run-local.sh update-screen-previews
+```
+
+The local runner intentionally skips GitHub-only steps such as artifact reuse, artifact upload, and release publishing, but it uses the same build, test, and generation commands as the corresponding workflows under `.github/workflows/`.
+
 ### Flashing your device
 
 Connect your Xteink X4 to your computer via USB-C and run the following command.

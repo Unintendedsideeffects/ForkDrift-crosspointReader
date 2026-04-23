@@ -115,17 +115,26 @@ const char* const LANGUAGE_NAMES[] = {
     "Lietuvi\xC5"
     "\xB3"
     "",
+    "Sloven\xC5"
+    "\xA1"
+    "\xC4"
+    "\x8D"
+    "ina",
 };
 
 // Character sets for each language
 const char* const CHARACTER_SETS[] = {
-    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWXY[]abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWXY[]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "",  // English
-    "\n !\"%'()*+,-./012356:?ABCDEFGHIJKLMNOPQRSTUVWXY[]abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./012356:?ABCDEFGHIJKLMNOPQRSTUVWXY[]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xA1"
     "\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xC2"
     "\xBF"
     "\xC3"
@@ -141,8 +150,10 @@ const char* const CHARACTER_SETS[] = {
     "\xC3"
     "\xBA"
     "",  // Español
-    " !%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[\\]abcdefghijklmnopqrstuvwxyz|\xC2"
+    " !%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[\\]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\x89"
     "\xC3"
@@ -169,8 +180,10 @@ const char* const CHARACTER_SETS[] = {
     "\x80"
     "\xA6"
     "",  // Français
-    "\n !\"%&'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]abcdefghiklmnopqrstuvwxyz|\xC2"
+    "\n !\"%&'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_abcdefghiklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\x84"
     "\xC3"
@@ -189,8 +202,10 @@ const char* const CHARACTER_SETS[] = {
     "\x80"
     "\xA6"
     "",  // Deutsch
-    "\n !%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\n !%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\x81"
     "\xC3"
@@ -245,10 +260,12 @@ const char* const CHARACTER_SETS[] = {
     "\x80"
     "\xA6"
     "",  // Čeština
-    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xAB"
     "\xC2"
     "\xBA"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\xA1"
     "\xC3"
@@ -269,7 +286,7 @@ const char* const CHARACTER_SETS[] = {
     "\x80"
     "\x91"
     "",  // Português (Brasil)
-    "\n !%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUWX[]abcdefghiklmnopqrstuvwxyz|\xC2"
+    "\n !%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUWX[]_abcdefghiklmnopqrstuvwxyz|\xC2"
     "\xAB"
     "\xC2"
     "\xBB"
@@ -384,8 +401,10 @@ const char* const CHARACTER_SETS[] = {
     "\xD1"
     "\x91"
     "",  // Русский
-    "\n !%'()*+,-./012356:;=?ABCDEFGHIJKLMNOPQRSTUVWX[]abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\n !%'()*+,-./012356:;=?ABCDEFGHIJKLMNOPQRSTUVWX[]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\x84"
     "\xC3"
@@ -405,8 +424,10 @@ const char* const CHARACTER_SETS[] = {
     "\x80"
     "\xA6"
     "",  // Svenska
-    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\x8E"
     "\xC3"
@@ -424,10 +445,12 @@ const char* const CHARACTER_SETS[] = {
     "\xC8"
     "\x9B"
     "",  // Română
-    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xAB"
     "\xC2"
     "\xB7"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\x92"
     "\xC3"
@@ -449,8 +472,10 @@ const char* const CHARACTER_SETS[] = {
     "\xC3"
     "\xBC"
     "",  // Català
-    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUWX[]abcdefghiklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUWX[]_abcdefghiklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xD0"
     "\x86"
     "\xD0"
@@ -570,7 +595,7 @@ const char* const CHARACTER_SETS[] = {
     "\xD1"
     "\x97"
     "",  // Українська
-    "\n !%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUWX[]abcdefghiklmnopqrstuvwxyz|\xC2"
+    "\n !%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUWX[]_abcdefghiklmnopqrstuvwxyz|\xC2"
     "\xAB"
     "\xC2"
     "\xBB"
@@ -685,10 +710,12 @@ const char* const CHARACTER_SETS[] = {
     "\xD1"
     "\x9E"
     "",  // Беларуская
-    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]abcdefghiklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]_abcdefghiklmnopqrstuvwxyz|\xC2"
     "\xAB"
     "\xC2"
     "\xB0"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\x80"
     "\xC3"
@@ -706,8 +733,10 @@ const char* const CHARACTER_SETS[] = {
     "\x86"
     "\xBB"
     "",  // Italiano
-    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUWXZ[]abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUWXZ[]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\xB3"
     "\xC4"
@@ -733,8 +762,10 @@ const char* const CHARACTER_SETS[] = {
     "\xC5"
     "\xBC"
     "",  // Polski
-    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWXY[]abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWXY[]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\x84"
     "\xC3"
@@ -742,8 +773,10 @@ const char* const CHARACTER_SETS[] = {
     "\xC3"
     "\xB6"
     "",  // Suomi
-    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\x85"
     "\xC3"
@@ -755,8 +788,10 @@ const char* const CHARACTER_SETS[] = {
     "\xC3"
     "\xB8"
     "",  // Dansk
-    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWXZ[]abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWXZ[]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\xAB"
     "\xC3"
@@ -764,8 +799,10 @@ const char* const CHARACTER_SETS[] = {
     "\xC3"
     "\xBC"
     "",  // Nederlands
-    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]abcdefghiklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_abcdefghiklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\x87"
     "\xC3"
@@ -787,8 +824,10 @@ const char* const CHARACTER_SETS[] = {
     "\xC5"
     "\x9F"
     "",  // Türkçe
-    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]abcdefghiklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]_abcdefghiklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xD0"
     "\x86"
     "\xD0"
@@ -916,8 +955,10 @@ const char* const CHARACTER_SETS[] = {
     "\xD3"
     "\xA9"
     "",  // Қазақша
-    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xC3"
     "\x81"
     "\xC3"
@@ -945,8 +986,10 @@ const char* const CHARACTER_SETS[] = {
     "\xC5"
     "\xB1"
     "",  // Magyar
-    "\n !%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\n !%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWX[]_abcdefghijklmnopqrstuvwxyz|\xC2"
     "\xAB"
+    "\xC2"
+    "\xBB"
     "\xC4"
     "\x85"
     "\xC4"
@@ -978,6 +1021,23 @@ const char* const CHARACTER_SETS[] = {
     "\x80"
     "\x9E"
     "",  // Lietuvių
+    "\n !\"%'()*+,-./0123456:=?ABCDEFGHIJKLMNOPQRSTUVWXZ[]_abcdefghijklmnopqrstuvwxyz|\xC2"
+    "\xAB"
+    "\xC2"
+    "\xBB"
+    "\xC4"
+    "\x8C"
+    "\xC4"
+    "\x8D"
+    "\xC5"
+    "\xA0"
+    "\xC5"
+    "\xA1"
+    "\xC5"
+    "\xBD"
+    "\xC5"
+    "\xBE"
+    "",  // Slovenščina
 };
 
 namespace i18n_strings {
@@ -1037,7 +1097,7 @@ const char* const STRINGS_EN[] = {
     "or http://",
     "or scan QR code with your phone:",
     "Calibre Wireless",
-    "Calibre Web URL",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = Encrypted | + = Saved",
     "MAC address:",
@@ -1068,6 +1128,7 @@ const char* const STRINGS_EN[] = {
     "Controls",
     "System",
     "Sleep Screen",
+    "Smart",
     "Sleep Screen Cover Mode",
     "Status Bar",
     "Hide Battery %",
@@ -1153,6 +1214,7 @@ const char* const STRINGS_EN[] = {
     "Ignore",
     "Sleep",
     "Page Turn",
+    "Refresh Screen",
     "Portrait",
     "Landscape CW",
     "Inverted",
@@ -1206,6 +1268,12 @@ const char* const STRINGS_EN[] = {
     "No server URL configured",
     "Failed to fetch feed",
     "Failed to parse feed",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "Network: ",
     "IP Address: ",
     "or scan QR code with your phone to connect to Wifi.",
@@ -1282,6 +1350,7 @@ const char* const STRINGS_EN[] = {
     "Sunlight Fading Fix",
     "Remap Front Buttons",
     "OPDS Browser",
+    "Search",
     "Cover + Custom",
     "Recents",
     "Recent Books",
@@ -1375,6 +1444,10 @@ const char* const STRINGS_EN[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_ES[] = {
@@ -1464,7 +1537,7 @@ const char* const STRINGS_ES[] = {
     "Calibre inal\xC3"
     "\xA1"
     "mbrico",
-    "URL del sitio web de Calibre",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* (Cifrado) | + (Guardado)",
     "MAC Address:",
@@ -1503,6 +1576,7 @@ const char* const STRINGS_ES[] = {
     "Pantalla de suspensi\xC3"
     "\xB3"
     "n",
+    "Smart",
     "Modo de pantalla de suspensi\xC3"
     "\xB3"
     "n",
@@ -1658,6 +1732,7 @@ const char* const STRINGS_ES[] = {
     "Pasar p\xC3"
     "\xA1"
     "gina",
+    "Refresh Screen",
     "Vertical",
     "Horizontal (horario)",
     "Invertido",
@@ -1741,6 +1816,12 @@ const char* const STRINGS_ES[] = {
     " URL de servidor",
     "Fallo al obtener el feed",
     "Fallo al procesar el feed",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "Red: ",
     "IP: ",
     "or scan QR code with your phone to connect to Wifi.",
@@ -1843,6 +1924,7 @@ const char* const STRINGS_ES[] = {
     "n de desvanecimiento",
     "Reconfigurar botones frontales",
     "Navegador OPDS",
+    "Search",
     "Portada + Pers.",
     "Recents",
     "Libros recientes",
@@ -2000,6 +2082,10 @@ const char* const STRINGS_ES[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_FR[] = {
@@ -2149,15 +2235,9 @@ const char* const STRINGS_FR[] = {
     "seau WiFi",
     "Ouvrez cette URL dans votre navigateur",
     "ou http://",
-    "ou scannez le QR code avec votre t\xC3"
-    "\xA9"
-    "l\xC3"
-    "\xA9"
-    "phone",
-    "Connexion \xC3"
-    "\xA0"
-    " Calibre sans fil",
-    "URL Web Calibre",
+    "ou scannez le QR code :",
+    "Connexion Calibre sans fil",
+    "OPDS URL",
     "Se connecter comme appareil sans fil",
     "* = S\xC3"
     "\xA9"
@@ -2268,6 +2348,7 @@ const char* const STRINGS_FR[] = {
     "\xC3"
     "\x89"
     "cran de veille",
+    "Smart",
     "Mode d\xE2"
     "\x80"
     "\x99"
@@ -2454,6 +2535,7 @@ const char* const STRINGS_FR[] = {
     "Ignorer",
     "Mise en veille",
     "Page suivante",
+    "Refresh Screen",
     "Portrait",
     "Paysage",
     "Invers\xC3"
@@ -2580,6 +2662,12 @@ const char* const STRINGS_FR[] = {
     "\x80"
     "\x99"
     "analyse du flux",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "R\xC3"
     "\xA9"
     "seau : ",
@@ -2702,6 +2790,7 @@ const char* const STRINGS_FR[] = {
     "\xA9"
     "assigner les boutons avant",
     "Navigateur OPDS",
+    "Search",
     "Couverture + Custom",
     "R\xC3"
     "\xA9"
@@ -2879,6 +2968,10 @@ const char* const STRINGS_FR[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_DE[] = {
@@ -2954,7 +3047,7 @@ const char* const STRINGS_DE[] = {
     "oder http://",
     "oder QR-Code mit dem Handy scannen:",
     "Calibre Wireless",
-    "Calibre-Web-URL",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = Verschl\xC3"
     "\xBC"
@@ -2994,6 +3087,7 @@ const char* const STRINGS_DE[] = {
     "Bedienung",
     "System",
     "Standby-Bild",
+    "Smart",
     "Standby-Bildmodus",
     "Status Bar",
     "Batterie % ausblenden",
@@ -3115,6 +3209,7 @@ const char* const STRINGS_DE[] = {
     "Umbl\xC3"
     "\xA4"
     "ttern",
+    "Refresh Screen",
     "Hochformat",
     "Querformat rechts",
     "Invertiert",
@@ -3195,6 +3290,12 @@ const char* const STRINGS_DE[] = {
     "Feed-Format ung\xC3"
     "\xBC"
     "ltig",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "Netzwerk:",
     "IP-Adresse:",
     "or scan QR code with your phone to connect to Wifi.",
@@ -3287,6 +3388,7 @@ const char* const STRINGS_DE[] = {
     "Anti-Verblassen",
     "Vordere Tasten belegen",
     "OPDS-Browser",
+    "Search",
     "Umschlag + Eigenes",
     "Zuletzt",
     "Zuletzt gelesen",
@@ -3418,6 +3520,10 @@ const char* const STRINGS_DE[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_CS[] = {
@@ -3693,7 +3799,7 @@ const char* const STRINGS_CS[] = {
     "\xB3"
     "d telefonem:",
     "Calibre Wireless",
-    "URL webu Calibre",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = \xC5"
     "\xA0"
@@ -3782,6 +3888,7 @@ const char* const STRINGS_CS[] = {
     "Obrazovka sp\xC3"
     "\xA1"
     "nku",
+    "Smart",
     "Obrazovka sp\xC3"
     "\xA1"
     "nku Re\xC5"
@@ -4169,6 +4276,7 @@ const char* const STRINGS_CS[] = {
     " str\xC3"
     "\xA1"
     "nek",
+    "Refresh Screen",
     "Na v\xC3"
     "\xBD"
     "\xC5"
@@ -4381,6 +4489,12 @@ const char* const STRINGS_CS[] = {
     "lu se nezda\xC5"
     "\x99"
     "ilo",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "S\xC3"
     "\xAD"
     "\xC5"
@@ -4559,6 +4673,7 @@ const char* const STRINGS_CS[] = {
     "e\xC4"
     "\x8D"
     " OPDS",
+    "Search",
     "Ob\xC3"
     "\xA1"
     "lka + Vlastn\xC3"
@@ -4928,6 +5043,10 @@ const char* const STRINGS_CS[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_PO[] = {
@@ -5017,7 +5136,7 @@ const char* const STRINGS_PO[] = {
     "ou http://",
     "ou escaneie o QR code com seu celular:",
     "Calibre sem fio",
-    "URL do Calibre Web",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = Criptografada | + = Salva",
     "Endere\xC3"
@@ -5059,6 +5178,7 @@ const char* const STRINGS_PO[] = {
     "Controles",
     "Sistema",
     "Tela de repouso",
+    "Smart",
     "Modo capa tela repouso",
     "Status Bar",
     "Ocultar % da bateria",
@@ -5233,6 +5353,7 @@ const char* const STRINGS_PO[] = {
     "Virar p\xC3"
     "\xA1"
     "gina",
+    "Refresh Screen",
     "Retrato",
     "Paisagem H",
     "Invertido",
@@ -5334,6 +5455,12 @@ const char* const STRINGS_PO[] = {
     "Nenhum URL servidor configurado",
     "Falha ao buscar o feed",
     "Falha ao interpretar o feed",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "Rede:",
     "Endere\xC3"
     "\xA7"
@@ -5446,6 +5573,7 @@ const char* const STRINGS_PO[] = {
     "\xB5"
     "es frontais",
     "Navegador OPDS",
+    "Search",
     "Capa + personalizado",
     "Recents",
     "Livros recentes",
@@ -5613,6 +5741,10 @@ const char* const STRINGS_PO[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_RU[] = {
@@ -6848,17 +6980,7 @@ const char* const STRINGS_RU[] = {
     "\xD0"
     "\xBE"
     " Wi-Fi",
-    "Web-\xD0"
-    "\xB0"
-    "\xD0"
-    "\xB4"
-    "\xD1"
-    "\x80"
-    "\xD0"
-    "\xB5"
-    "\xD1"
-    "\x81"
-    " Calibre",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = \xD0"
     "\x97"
@@ -7295,6 +7417,7 @@ const char* const STRINGS_RU[] = {
     "\xD0"
     "\xB0"
     "",
+    "Smart",
     "\xD0"
     "\xA0"
     "\xD0"
@@ -9212,6 +9335,7 @@ const char* const STRINGS_RU[] = {
     "\xD0"
     "\xB5"
     "",
+    "Refresh Screen",
     "\xD0"
     "\x9F"
     "\xD0"
@@ -10187,6 +10311,12 @@ const char* const STRINGS_RU[] = {
     "\xD1"
     "\x83"
     "",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "\xD0"
     "\xA1"
     "\xD0"
@@ -11235,6 +11365,7 @@ const char* const STRINGS_RU[] = {
     "\xD1"
     "\x80"
     "",
+    "Search",
     "\xD0"
     "\x9E"
     "\xD0"
@@ -13328,6 +13459,10 @@ const char* const STRINGS_RU[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_SV[] = {
@@ -13478,7 +13613,7 @@ const char* const STRINGS_SV[] = {
     "dl\xC3"
     "\xB6"
     "st",
-    "Calibre webbadress",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = Krypterad | + = Sparad",
     "MAC-adress:",
@@ -13552,6 +13687,7 @@ const char* const STRINGS_SV[] = {
     "Vilosk\xC3"
     "\xA4"
     "rm",
+    "Smart",
     "Vilosk\xC3"
     "\xA4"
     "rmens omslagsl\xC3"
@@ -13731,6 +13867,7 @@ const char* const STRINGS_SV[] = {
     "Sidv\xC3"
     "\xA4"
     "ndning",
+    "Refresh Screen",
     "Portr\xC3"
     "\xA4"
     "tt",
@@ -13833,6 +13970,12 @@ const char* const STRINGS_SV[] = {
     "Misslyckades att analysera fl\xC3"
     "\xB6"
     "de",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "N\xC3"
     "\xA4"
     "tverk:",
@@ -13955,6 +14098,7 @@ const char* const STRINGS_SV[] = {
     "OPDS-webbl\xC3"
     "\xA4"
     "sare",
+    "Search",
     "Omslag + Valfri",
     "Recents",
     "Senaste b\xC3"
@@ -14148,6 +14292,10 @@ const char* const STRINGS_SV[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_RO[] = {
@@ -14323,7 +14471,7 @@ const char* const STRINGS_RO[] = {
     "\xA3"
     "i codul QR cu telefonul dvs.:",
     "Calibre Wireless",
-    "Calibre URL",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = Criptat | + = Salvat",
     "Adres\xC4"
@@ -14382,6 +14530,7 @@ const char* const STRINGS_RO[] = {
     "Controale",
     "Sistem",
     "Ecran de repaus",
+    "Smart",
     "Mod ecran de repaus cu copert\xC4"
     "\x83"
     "",
@@ -14625,6 +14774,7 @@ const char* const STRINGS_RO[] = {
     "sfoire pagin\xC4"
     "\x83"
     "",
+    "Refresh Screen",
     "Vertical",
     "Orizontal dreapta",
     "Invers",
@@ -14748,6 +14898,12 @@ const char* const STRINGS_RO[] = {
     "E\xC5"
     "\x9F"
     "ec la analizarea feed-ului",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "Re\xC5"
     "\xA3"
     "ea: ",
@@ -14884,6 +15040,7 @@ const char* const STRINGS_RO[] = {
     "",
     "Remapare butoane frontale",
     "Browser OPDS",
+    "Search",
     "Copert\xC4"
     "\x83"
     " + Personalizat",
@@ -15115,6 +15272,10 @@ const char* const STRINGS_RO[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_CA[] = {
@@ -15216,7 +15377,7 @@ const char* const STRINGS_CA[] = {
     "\xA8"
     "fon:",
     "Calibre sense fils",
-    "URL web del Calibre",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = Encriptat | + = Desat",
     "Adre\xC3"
@@ -15261,6 +15422,7 @@ const char* const STRINGS_CA[] = {
     "Pantalla de rep\xC3"
     "\xB2"
     "s",
+    "Smart",
     "Mode de pantalla de rep\xC3"
     "\xB2"
     "s",
@@ -15422,6 +15584,7 @@ const char* const STRINGS_CA[] = {
     "Canvi de p\xC3"
     "\xA0"
     "gina",
+    "Refresh Screen",
     "Vertical",
     "Horitzontal horari",
     "Invertit",
@@ -15511,6 +15674,12 @@ const char* const STRINGS_CA[] = {
     "Ha fallat l'an\xC3"
     "\xA0"
     "lisi del feed",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "Xarxa: ",
     "Adre\xC3"
     "\xA7"
@@ -15625,6 +15794,7 @@ const char* const STRINGS_CA[] = {
     "ment pel sol",
     "Reassigna els botons frontals",
     "Navegador OPDS",
+    "Search",
     "Portada + Personalitzat",
     "Recents",
     "Llibres recents",
@@ -15800,6 +15970,10 @@ const char* const STRINGS_CA[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_UK[] = {
@@ -17247,7 +17421,7 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xB9"
     "",
-    "URL Calibre Web",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = \xD0"
     "\x97"
@@ -17686,6 +17860,7 @@ const char* const STRINGS_UK[] = {
     "\xD1"
     "\x83"
     "",
+    "Smart",
     "\xD0"
     "\xA0"
     "\xD0"
@@ -19915,6 +20090,7 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xB8"
     "",
+    "Refresh Screen",
     "\xD0"
     "\x9F"
     "\xD0"
@@ -21026,6 +21202,12 @@ const char* const STRINGS_UK[] = {
     "\xD1"
     "\x83"
     "",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "\xD0"
     "\x9C"
     "\xD0"
@@ -22124,6 +22306,7 @@ const char* const STRINGS_UK[] = {
     "\xD1"
     "\x80"
     " OPDS",
+    "Search",
     "\xD0"
     "\x9E"
     "\xD0"
@@ -24437,6 +24620,10 @@ const char* const STRINGS_UK[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_BE[] = {
@@ -25712,23 +25899,7 @@ const char* const STRINGS_BE[] = {
     "\xD0"
     "\xB0"
     " Wi-Fi",
-    "\xD0"
-    "\x92"
-    "\xD1"
-    "\x8D"
-    "\xD0"
-    "\xB1"
-    "-\xD0"
-    "\xB0"
-    "\xD0"
-    "\xB4"
-    "\xD1"
-    "\x80"
-    "\xD0"
-    "\xB0"
-    "\xD1"
-    "\x81"
-    " Calibre",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = \xD0"
     "\x90"
@@ -26161,6 +26332,7 @@ const char* const STRINGS_BE[] = {
     "\xD1"
     "\x83"
     "",
+    "Smart",
     "\xD0"
     "\xA0"
     "\xD1"
@@ -28112,6 +28284,7 @@ const char* const STRINGS_BE[] = {
     "\xD0"
     "\xB5"
     "",
+    "Refresh Screen",
     "\xD0"
     "\x9F"
     "\xD0"
@@ -29113,6 +29286,12 @@ const char* const STRINGS_BE[] = {
     "\xD1"
     "\x83"
     "",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "\xD0"
     "\xA1"
     "\xD0"
@@ -30173,6 +30352,7 @@ const char* const STRINGS_BE[] = {
     "\xD1"
     "\x80"
     "",
+    "Search",
     "\xD0"
     "\x92"
     "\xD0"
@@ -32334,6 +32514,10 @@ const char* const STRINGS_BE[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_IT[] = {
@@ -32397,7 +32581,7 @@ const char* const STRINGS_IT[] = {
     "o http://",
     "o scansiona il codice QR con il tuo telefono:",
     "Calibre Wireless",
-    "URL Web Calibre",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = Criptata | + = Salvata",
     "Indirizzo MAC:",
@@ -32428,6 +32612,7 @@ const char* const STRINGS_IT[] = {
     "Controlli",
     "Sistema",
     "Schermata di sospensione",
+    "Smart",
     "Modalit\xC3"
     "\xA0"
     " copertina in sleep",
@@ -32517,6 +32702,7 @@ const char* const STRINGS_IT[] = {
     "Ignora",
     "Sospendi",
     "Volta pagina",
+    "Refresh Screen",
     "Verticale",
     "Orizzontale \xE2"
     "\x86"
@@ -32576,6 +32762,12 @@ const char* const STRINGS_IT[] = {
     "Nessun URL del server configurato",
     "Recupero feed fallito",
     "Parsing feed fallito",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "Rete: ",
     "Indirizzo IP: ",
     "or scan QR code with your phone to connect to Wifi.",
@@ -32658,6 +32850,7 @@ const char* const STRINGS_IT[] = {
     "Fix Sbiadimento da Luce Solare",
     "Rimappa Pulsanti Frontali",
     "Browser OPDS",
+    "Search",
     "Copertina + Personalizzato",
     "Recents",
     "Libri Recenti",
@@ -32767,6 +32960,10 @@ const char* const STRINGS_IT[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_PL[] = {
@@ -32944,7 +33141,7 @@ const char* const STRINGS_PL[] = {
     "\xC4"
     "\x85"
     "czenie z Calibre",
-    "Calibre Web URL",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = Zaszyfrowane | + = Zapisane",
     "Adres MAC:",
@@ -32991,6 +33188,7 @@ const char* const STRINGS_PL[] = {
     "Sterowanie",
     "System",
     "Wygaszacz ekranu",
+    "Smart",
     "Ok\xC5"
     "\x82"
     "adki wygaszacza",
@@ -33234,6 +33432,7 @@ const char* const STRINGS_PL[] = {
     "\x9B"
     "pienie",
     "Nast. str.",
+    "Refresh Screen",
     "Pionowo",
     "Poziomo P",
     "Odwr\xC3"
@@ -33349,6 +33548,12 @@ const char* const STRINGS_PL[] = {
     " kana\xC5"
     "\x82"
     "u",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "Sie\xC4"
     "\x87"
     ": ",
@@ -33519,6 +33724,7 @@ const char* const STRINGS_PL[] = {
     "ca",
     "Skonfiguruj przednie przyciski",
     "OPDS Browser",
+    "Search",
     "Ok\xC5"
     "\x82"
     "adka + W\xC5"
@@ -33754,6 +33960,10 @@ const char* const STRINGS_PL[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_FI[] = {
@@ -33859,7 +34069,7 @@ const char* const STRINGS_FI[] = {
     "tai http://",
     "tai skannaa QR-koodi puhelimellasi:",
     "Calibre langaton",
-    "Calibre-verkko-osoite",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = Salattu | + = Tallennettu",
     "MAC-osoite:",
@@ -33924,6 +34134,7 @@ const char* const STRINGS_FI[] = {
     "ytt\xC3"
     "\xB6"
     "",
+    "Smart",
     "Lepotilan\xC3"
     "\xA4"
     "yt\xC3"
@@ -34107,6 +34318,7 @@ const char* const STRINGS_FI[] = {
     "nt\xC3"
     "\xB6"
     "",
+    "Refresh Screen",
     "Pysty",
     "Vaaka my\xC3"
     "\xB6"
@@ -34242,6 +34454,12 @@ const char* const STRINGS_FI[] = {
     "sittely ep\xC3"
     "\xA4"
     "onnistui",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "Verkko: ",
     "IP-osoite: ",
     "or scan QR code with your phone to connect to Wifi.",
@@ -34360,6 +34578,7 @@ const char* const STRINGS_FI[] = {
     "\xA4"
     " etupainikkeet",
     "OPDS-selain",
+    "Search",
     "Kansi + mukautettu",
     "Recents",
     "Viimeisimm\xC3"
@@ -34561,6 +34780,10 @@ const char* const STRINGS_FI[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_DA[] = {
@@ -34668,7 +34891,7 @@ const char* const STRINGS_DA[] = {
     "eller http://",
     "eller scan QR-kode med din telefon:",
     "Calibre Wireless",
-    "Calibre Web URL",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = Krypteret | + = Gemt",
     "MAC-adresse:",
@@ -34715,6 +34938,7 @@ const char* const STRINGS_DA[] = {
     "Hvile-sk\xC3"
     "\xA6"
     "rm",
+    "Smart",
     "Hvile-sk\xC3"
     "\xA6"
     "rm omslag-tilstand",
@@ -34846,6 +35070,7 @@ const char* const STRINGS_DA[] = {
     "Ignorer",
     "Hvile",
     "Sideskift",
+    "Refresh Screen",
     "Portr\xC3"
     "\xA6"
     "t",
@@ -34923,6 +35148,12 @@ const char* const STRINGS_DA[] = {
     "Ingen server-URL konfigureret",
     "Kunne ikke hente feed",
     "Kunne ikke fortolke feed",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "Netv\xC3"
     "\xA6"
     "rk: ",
@@ -35023,6 +35254,7 @@ const char* const STRINGS_DA[] = {
     "Sollysfading-rettelse",
     "Omtildel frontknapper",
     "OPDS Browser",
+    "Search",
     "Omslag + Brugerdefineret",
     "Recents",
     "Seneste b\xC3"
@@ -35154,6 +35386,10 @@ const char* const STRINGS_DA[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_NL[] = {
@@ -35211,7 +35447,7 @@ const char* const STRINGS_NL[] = {
     "of http://",
     "of scan de QR-code met je telefoon:",
     "Calibre Wireless",
-    "Calibre Web URL",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = Beveiligd | + = Opgeslagen",
     "MAC-adres:",
@@ -35242,6 +35478,7 @@ const char* const STRINGS_NL[] = {
     "Bediening",
     "Systeem",
     "Slaapscherm",
+    "Smart",
     "Slaapscherm omslag-modus",
     "Status Bar",
     "Batterij % verbergen",
@@ -35331,6 +35568,7 @@ const char* const STRINGS_NL[] = {
     "Negeren",
     "Slaap",
     "Pagina omslaan",
+    "Refresh Screen",
     "Staand",
     "Liggend (rechtsom)",
     "Omgekeerd",
@@ -35384,6 +35622,12 @@ const char* const STRINGS_NL[] = {
     "Geen server-URL ingesteld",
     "Ophalen feed mislukt",
     "Verwerken feed mislukt",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "Netwerk: ",
     "IP-adres: ",
     "or scan QR code with your phone to connect to Wifi.",
@@ -35460,6 +35704,7 @@ const char* const STRINGS_NL[] = {
     "Zonlicht vervaging fix",
     "Knoppen voorzijde wijzigen",
     "OPDS-browser",
+    "Search",
     "Omslag + Aangepast",
     "Recents",
     "Recente boeken",
@@ -35555,6 +35800,10 @@ const char* const STRINGS_NL[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_TR[] = {
@@ -35786,7 +36035,7 @@ const char* const STRINGS_TR[] = {
     "\xB1"
     "n:",
     "Calibre Kablosuz",
-    "Calibre Web Adresi",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = \xC5"
     "\x9E"
@@ -35857,6 +36106,7 @@ const char* const STRINGS_TR[] = {
     "Uyku Ekran\xC4"
     "\xB1"
     "",
+    "Smart",
     "Uyku Ekran\xC4"
     "\xB1"
     " Kapak Modu",
@@ -36174,6 +36424,7 @@ const char* const STRINGS_TR[] = {
     "Sayfa \xC3"
     "\x87"
     "evirme",
+    "Refresh Screen",
     "Dikey",
     "Yatay (Saat Y\xC3"
     "\xB6"
@@ -36345,6 +36596,12 @@ const char* const STRINGS_TR[] = {
     "lamad\xC4"
     "\xB1"
     "",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "A\xC4"
     "\x9F"
     ": ",
@@ -36579,6 +36836,7 @@ const char* const STRINGS_TR[] = {
     "c\xC4"
     "\xB1"
     "",
+    "Search",
     "Kapak + \xC3"
     "\x96"
     "zel",
@@ -36836,6 +37094,10 @@ const char* const STRINGS_TR[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_KK[] = {
@@ -38057,7 +38319,7 @@ const char* const STRINGS_KK[] = {
     "\xD0"
     "\xB7"
     "",
-    "Calibre Web URL",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = \xD0"
     "\xA8"
@@ -38490,6 +38752,7 @@ const char* const STRINGS_KK[] = {
     "\xD1"
     "\x8B"
     "",
+    "Smart",
     "\xD2"
     "\xB0"
     "\xD0"
@@ -40459,6 +40722,7 @@ const char* const STRINGS_KK[] = {
     "\xD1"
     "\x83"
     "",
+    "Refresh Screen",
     "\xD0"
     "\xA2"
     "\xD1"
@@ -41408,6 +41672,12 @@ const char* const STRINGS_KK[] = {
     "\xD0"
     "\xB7"
     "",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "\xD0"
     "\x96"
     "\xD0"
@@ -42472,6 +42742,7 @@ const char* const STRINGS_KK[] = {
     "\xD1"
     "\x8B"
     "",
+    "Search",
     "\xD0"
     "\x9C"
     "\xD2"
@@ -44645,6 +44916,10 @@ const char* const STRINGS_KK[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_HU[] = {
@@ -44874,7 +45149,7 @@ const char* const STRINGS_HU[] = {
     "\xB3"
     "dot a telefonoddal:",
     "Calibre Wireless",
-    "Calibre Web URL",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = Titkos\xC3"
     "\xAD"
@@ -44957,6 +45232,7 @@ const char* const STRINGS_HU[] = {
     "perny\xC5"
     "\x91"
     "",
+    "Smart",
     "Alv\xC3"
     "\xA1"
     "sk\xC3"
@@ -45328,6 +45604,7 @@ const char* const STRINGS_HU[] = {
     "Lapoz\xC3"
     "\xA1"
     "s",
+    "Refresh Screen",
     "\xC3"
     "\x81"
     "ll\xC3"
@@ -45501,6 +45778,12 @@ const char* const STRINGS_HU[] = {
     "rcsatorna feldolgoz\xC3"
     "\xA1"
     "sa sikertelen",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "H\xC3"
     "\xA1"
     "l\xC3"
@@ -45743,6 +46026,7 @@ const char* const STRINGS_HU[] = {
     "sz\xC5"
     "\x91"
     "",
+    "Search",
     "Bor\xC3"
     "\xAD"
     "t\xC3"
@@ -46098,6 +46382,10 @@ const char* const STRINGS_HU[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 const char* const STRINGS_LT[] = {
@@ -46231,7 +46519,7 @@ const char* const STRINGS_LT[] = {
     "\x85"
     ":",
     "Calibre belaidis",
-    "Calibre Web URL",
+    "OPDS URL",
     "Connect as Wireless Device",
     "* = U\xC5"
     "\xBE"
@@ -46292,6 +46580,7 @@ const char* const STRINGS_LT[] = {
     "Valdymas",
     "Sistema",
     "Miego ekranas",
+    "Smart",
     "Vir\xC5"
     "\xA1"
     "elio re\xC5"
@@ -46463,6 +46752,7 @@ const char* const STRINGS_LT[] = {
     "Nepaisyti",
     "Miegas",
     "Versti psl.",
+    "Refresh Screen",
     "Sta\xC4"
     "\x8D"
     "ias",
@@ -46554,6 +46844,12 @@ const char* const STRINGS_LT[] = {
     "\xB3"
     "",
     "Apdorojimo klaida",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
     "Tinklas: ",
     "IP: ",
     "or scan QR code with your phone to connect to Wifi.",
@@ -46678,6 +46974,7 @@ const char* const STRINGS_LT[] = {
     "ykl\xC4"
     "\x97"
     "",
+    "Search",
     "Vir\xC5"
     "\xA1"
     "elis + Kita",
@@ -46867,6 +47164,602 @@ const char* const STRINGS_LT[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
+};
+
+const char* const STRINGS_SI[] = {
+    "CrossPoint",
+    "ZAGON",
+    "SPANJE",
+    "Prehajanje v spanje",
+    "Prebrskaj datoteke",
+    "Prenos datotek",
+    "Nastavitve",
+    "Calibre Library",
+    "Nadaljuj z branjem",
+    "Ni odprte knjige",
+    "Za\xC4"
+    "\x8D"
+    "ni brati spodaj",
+    "Books",
+    "Ni najdenih datotek",
+    "Izberi poglavje",
+    "Ni poglavij",
+    "Konec knjige",
+    "Prazno poglavje",
+    "Indeksiranje",
+    "Napaka pomnilnika",
+    "Napaka pri nalaganju strani",
+    "Prazna datoteka",
+    "Izven meja",
+    "Nalaganje...",
+    "Nalaganje",
+    "Failed to load XTC",
+    "Failed to load TXT",
+    "Failed to load EPUB",
+    "SD card error",
+    "WiFi omre\xC5"
+    "\xBE"
+    "ja",
+    "Ni najdenih omre\xC5"
+    "\xBE"
+    "ij",
+    "Najdenih omre\xC5"
+    "\xBE"
+    "ij: %zu",
+    "Iskanje...",
+    "Povezovanje...",
+    "Povezano!",
+    "Povezava ni uspela",
+    "Connection timeout",
+    "Pozabi omre\xC5"
+    "\xBE"
+    "je?",
+    "Shranim geslo za naslednji\xC4"
+    "\x8D"
+    "?",
+    "Remove saved password?",
+    "Pritisni OK za ponovno iskanje",
+    "Press any button to continue",
+    "LEFT/RIGHT: Select | OK: Confirm",
+    "How would you like to connect?",
+    "Pove\xC5"
+    "\xBE"
+    "i se v omre\xC5"
+    "\xBE"
+    "je",
+    "Ustvari dostopno to\xC4"
+    "\x8D"
+    "ko",
+    "Pove\xC5"
+    "\xBE"
+    "i se v obstoje\xC4"
+    "\x8D"
+    "e WiFi omre\xC5"
+    "\xBE"
+    "je",
+    "Ustvari WiFi omre\xC5"
+    "\xBE"
+    "je, v katerega se lahko pove\xC5"
+    "\xBE"
+    "ejo drugi",
+    "Zaganjanje dostopne to\xC4"
+    "\x8D"
+    "ke...",
+    "Na\xC4"
+    "\x8D"
+    "in dostopne to\xC4"
+    "\x8D"
+    "ke",
+    "Pove\xC5"
+    "\xBE"
+    "i svojo napravo v to WiFi omre\xC5"
+    "\xBE"
+    "je",
+    "Odpri ta URL v svojem brskalniku",
+    "ali http://",
+    "ali skeniraj QR kodo s telefonom:",
+    "Brez\xC5"
+    "\xBE"
+    "i\xC4"
+    "\x8D"
+    "ni Calibre",
+    "Calibre Web URL",
+    "Connect as Wireless Device",
+    "* = \xC5"
+    "\xA0"
+    "ifrirano | + = Shranjeno",
+    "MAC naslov:",
+    "Preverjanje WiFi-ja...",
+    "Vnesi WiFi geslo",
+    "Enter Text",
+    "v ",
+    "Discovering Calibre...",
+    "Connecting to ",
+    "Connected to ",
+    "Waiting for commands...",
+    "(Connection failed, retrying)",
+    "Calibre disconnected",
+    "Waiting for transfer...",
+    "If transfer fails, enable\n'Ignore free space' in Calibre's\nSmartDevice plugin settings.",
+    "Prejemanje: ",
+    "Prejeto: ",
+    "Waiting for more...",
+    "Failed to create file",
+    "Password required",
+    "Transfer interrupted",
+    "1) Namesti vti\xC4"
+    "\x8D"
+    "nik CrossPoint Reader",
+    "2) Bodi v istem WiFi omre\xC5"
+    "\xBE"
+    "ju",
+    "3) V Calibre: \"Po\xC5"
+    "\xA1"
+    "lji v napravo\"",
+    "\"Med po\xC5"
+    "\xA1"
+    "iljanjem pusti ta zaslon odprt\"",
+    "Zaslon",
+    "Bralnik",
+    "Kontrole",
+    "Sistem",
+    "Zaslon za spanje",
+    "Smart",
+    "Na\xC4"
+    "\x8D"
+    "in naslovnice v spanju",
+    "Status Bar",
+    "Skrij % baterije",
+    "Dodaten razmik med odstavki",
+    "Glajenje besedila (AA)",
+    "Slike",
+    "Prika\xC5"
+    "\xBE"
+    "i",
+    "Oznaka mesta",
+    "Zatdi",
+    "Kratek pritisk na gumb za vklop",
+    "Orientacija branja",
+    "Front Button Layout",
+    "Razpored stranskih gumbov",
+    "Dolgi pritisk za preskok poglavja",
+    "Pisava bralnika",
+    "External Reader Font",
+    "Reader Font",
+    "UI Font",
+    "Velikost pisave",
+    "Razmik med vrsticami",
+    "ASCII Letter Spacing",
+    "ASCII Digit Spacing",
+    "CJK Spacing",
+    "Color Mode",
+    "Robovi zaslona",
+    "Poravnava odstavkov",
+    "Deljenje besed",
+    "\xC4"
+    "\x8C"
+    "as do spanja",
+    "Prika\xC5"
+    "\xBE"
+    "i skrite datoteke",
+    "Pogostost osve\xC5"
+    "\xBE"
+    "evanja",
+    "Calibre Settings",
+    "KOReader sinhronizacija",
+    "Preveri posodobitve",
+    "Jezik",
+    "Select Wallpaper",
+    "Factory Reset",
+    "Switch to TRMNL",
+    "Po\xC4"
+    "\x8D"
+    "isti predpomnilnik branja",
+    "Calibre",
+    "Uporabni\xC5"
+    "\xA1"
+    "ko ime",
+    "Geslo",
+    "URL stre\xC5"
+    "\xBE"
+    "nika za sinhronizacijo",
+    "Ujemanje dokumentov",
+    "Avtentikacija",
+    "KOReader uporabnik",
+    "KOReader geslo",
+    "Ime datoteke",
+    "Binarno",
+    "Najprej nastavi podatke za prijavo",
+    "WiFi povezava ni uspela",
+    "Preverjanje...",
+    "Uspe\xC5"
+    "\xA1"
+    "na prijava!",
+    "KOReader avtentikacija",
+    "KOReader sinhronizacija je pripravljena",
+    "Prijava ni uspela",
+    "Kon\xC4"
+    "\x8D"
+    "ano",
+    "To bo izbrisalo vse predpomnjene podatke o knjigah.",
+    "Ves napredek pri branju bo izgubljen!",
+    "Knjige bo treba ob ponovnem odpiranju",
+    "ponovno indeksirati.",
+    "\xC4"
+    "\x8C"
+    "i\xC5"
+    "\xA1"
+    "\xC4"
+    "\x8D"
+    "enje predpomnilnika...",
+    "Predpomnilnik o\xC4"
+    "\x8D"
+    "i\xC5"
+    "\xA1"
+    "\xC4"
+    "\x8D"
+    "en",
+    "elementov odstranjenih",
+    "ni uspelo",
+    "\xC4"
+    "\x8C"
+    "i\xC5"
+    "\xA1"
+    "\xC4"
+    "\x8D"
+    "enje predpomnilnika ni uspelo",
+    "Za podrobnosti preveri serijski izhod",
+    "Temno",
+    "Svetlo",
+    "Follow Theme",
+    "Po meri",
+    "Image Source",
+    "Pokedex",
+    "All",
+    "Naslovnica",
+    "Brez",
+    "Prilagodi",
+    "Obre\xC5"
+    "\xBE"
+    "i",
+    "No Progress",
+    "Full",
+    "Nikoli",
+    "V bralniku",
+    "Vedno",
+    "Prezri",
+    "Spanje",
+    "Obra\xC4"
+    "\x8D"
+    "anje strani",
+    "Refresh Screen",
+    "Pokon\xC4"
+    "\x8D"
+    "no",
+    "Le\xC5"
+    "\xBE"
+    "e\xC4"
+    "\x8D"
+    "e (v smeri urinega kazalca)",
+    "Obrnjeno",
+    "Le\xC5"
+    "\xBE"
+    "e\xC4"
+    "\x8D"
+    "e (proti smeri urinega kazalca)",
+    "Bck, Cnfrm, Lft, Rght",
+    "Lft, Rght, Bck, Cnfrm",
+    "Lft, Bck, Cnfrm, Rght",
+    "Nazaj/Naprej",
+    "Naprej/Nazaj",
+    "Bookerly",
+    "Noto Sans",
+    "Open Dyslexic",
+    "Majhno",
+    "Srednje",
+    "Veliko",
+    "Zelo veliko",
+    "Tesno",
+    "Normalno",
+    "\xC5"
+    "\xA0"
+    "iroko",
+    "Obojestransko",
+    "Levo",
+    "Sredinsko",
+    "Desno",
+    "1 min",
+    "5 min",
+    "10 min",
+    "15 min",
+    "30 min",
+    "1 stran",
+    "5 strani",
+    "10 strani",
+    "15 strani",
+    "30 strani",
+    "Posodobi",
+    "Preverjanje posodobitev...",
+    "Na voljo je nova posodobitev!",
+    "Trenutna razli\xC4"
+    "\x8D"
+    "ica: ",
+    "Nova razli\xC4"
+    "\x8D"
+    "ica: ",
+    "Posodabljanje...",
+    "Ni novih posodobitev",
+    "Posodobitev ni uspela",
+    "Posodobitev kon\xC4"
+    "\x8D"
+    "ana",
+    "Pridr\xC5"
+    "\xBE"
+    "i gumb za vklop, da napravo znova vklopi\xC5"
+    "\xA1"
+    "",
+    "External Font",
+    "Built-in (Disabled)",
+    "Ni najdenih vnosov",
+    "Prena\xC5"
+    "\xA1"
+    "anje...",
+    "Prenos ni uspel",
+    "Napaka:",
+    "Neimenovano",
+    "URL stre\xC5"
+    "\xBE"
+    "nika ni nastavljen",
+    "Nalaganje vira ni uspelo",
+    "Raz\xC4"
+    "\x8D"
+    "lenjevanje vira ni uspelo",
+    "Next Page \xC2"
+    "\xBB"
+    "",
+    "\xC2"
+    "\xAB"
+    " Previous Page",
+    "Omre\xC5"
+    "\xBE"
+    "je: ",
+    "IP naslov: ",
+    "or scan QR code with your phone to connect to Wifi.",
+    "Napaka: Splo\xC5"
+    "\xA1"
+    "na napaka",
+    "Napaka: Omre\xC5"
+    "\xBE"
+    "je ni najdeno",
+    "Napaka: \xC4"
+    "\x8C"
+    "asovna omejitev povezave",
+    "SD kartica",
+    "\xC2"
+    "\xAB"
+    " Nazaj",
+    "\xC2"
+    "\xAB"
+    " Izhod",
+    "\xC2"
+    "\xAB"
+    " Domov",
+    "\xC2"
+    "\xAB"
+    " Save",
+    "Izberi",
+    "Izbrano",
+    "Preklopi",
+    "Potrdi",
+    "Prekli\xC4"
+    "\x8D"
+    "i",
+    "Pove\xC5"
+    "\xBE"
+    "i",
+    "Odpri",
+    "Prenesi",
+    "Poskusi znova",
+    "Da",
+    "Ne",
+    "Prika\xC5"
+    "\xBE"
+    "i",
+    "Skrij",
+    "VKLOP",
+    "IZKLOP",
+    "Ni nastavljeno",
+    "Levo",
+    "Desno",
+    "Gor",
+    "Dol",
+    "CAPS",
+    "caps",
+    "[ON]",
+    "V redu",
+    "Filter naslovnice v spanju",
+    "Image Cycle Mode",
+    "Random",
+    "Sequential",
+    "Kontrast",
+    "Prilagodi vrstico stanja",
+    "\xC5"
+    "\xA0"
+    "tevilo strani v poglavju",
+    "Odstotek napredka v knjigi",
+    "Vrstica napredka",
+    "Debelina vrstice napredka",
+    "Tanko",
+    "Srednje",
+    "Debelo",
+    "Knjiga",
+    "Poglavje",
+    "Poglavje 21",
+    "Naslov knjige",
+    "Predogled",
+    "Naslov",
+    "Baterija",
+    "Tema uporabni\xC5"
+    "\xA1"
+    "kega vmesnika",
+    "Klasi\xC4"
+    "\x8D"
+    "na",
+    "Lyra",
+    "Lyra raz\xC5"
+    "\xA1"
+    "irjena",
+    "Fork Drift",
+    "Pokemon Party",
+    "Party",
+    "6 recent books with Pokemon progress",
+    "Open books to build your party",
+    "Lv",
+    "Popravek bledenja na soncu",
+    "Prenastavi sprednje gumbe",
+    "OPDS brskalnik",
+    "Search",
+    "Naslovnica + po meri",
+    "Recents",
+    "Zadnje knjige",
+    "Ni zadnjih knjig",
+    "Uporabi brez\xC5"
+    "\xBE"
+    "i\xC4"
+    "\x8D"
+    "ni prenos Calibre",
+    "Pozabi omre\xC5"
+    "\xBE"
+    "je in odstrani shranjeno geslo?",
+    "Pozabi",
+    "Zaganjanje Calibre...",
+    "Nastavitev",
+    "Stanje",
+    "Po\xC4"
+    "\x8D"
+    "isti",
+    "Privzeto",
+    "Pritisni sprednji gumb za vsako vlogo",
+    "Nedodeljeno",
+    "\xC5"
+    "\xBD"
+    "e dodeljeno",
+    "Stranski gumb gor: Ponastavi na privzeto",
+    "Stranski gumb dol: Prekli\xC4"
+    "\x8D"
+    "i nastavljanje",
+    "Nazaj (1. gumb)",
+    "Potrdi (2. gumb)",
+    "Levo (3. gumb)",
+    "Desno (4. gumb)",
+    "Pojdi na %",
+    "Pojdi domov",
+    "Sinhroniziraj napredek",
+    "Izbri\xC5"
+    "\xA1"
+    "i predpomnilnik knjige",
+    "Izbri\xC5"
+    "\xA1"
+    "i",
+    "Prika\xC5"
+    "\xBE"
+    "i stran kot QR",
+    "Poglavje: ",
+    " strani  |  ",
+    "Knjiga: ",
+    "shift",
+    "SHIFT",
+    "LOCK",
+    "Za Calibre dodaj /opds svojemu URL-ju",
+    "Levo/desno: 1%  Gor/dol: 10%",
+    "Sinhronizacija \xC4"
+    "\x8D"
+    "asa...",
+    "Izra\xC4"
+    "\x8D"
+    "unavanje podpisa dokumenta...",
+    "Izra\xC4"
+    "\x8D"
+    "un podpisa dokumenta ni uspel",
+    "Pridobivanje napredka iz oblaka...",
+    "Nalaganje napredka...",
+    "Podatki za prijavo niso nastavljeni",
+    "Nastavi KOReader ra\xC4"
+    "\x8D"
+    "un v nastavitvah",
+    "Najden napredek!",
+    "Oddaljeno:",
+    "Lokalno:",
+    "Stran %d, %.2f%% skupno",
+    "Stran %d/%d, %.2f%% skupno",
+    "  Iz: %s",
+    "Uporabi oddaljen napredek",
+    "Nalo\xC5"
+    "\xBE"
+    "i lokalni napredek",
+    "Oddaljen napredek ni bil najden",
+    "Nalo\xC5"
+    "\xBE"
+    "im trenutno pozicijo?",
+    "Napredek nalo\xC5"
+    "\xBE"
+    "en!",
+    "Sinhronizacija ni uspela",
+    "Razdelek ",
+    "Nalo\xC5"
+    "\xBE"
+    "i",
+    "Slog knjige",
+    "Vgrajen slog",
+    "URL OPDS stre\xC5"
+    "\xBE"
+    "nika",
+    "Dark Mode",
+    "Background Server",
+    "Background Server on Charge",
+    "Only on Charge",
+    "Much More Battery Use",
+    "Always keeps WiFi on while awake.",
+    "Validate Sleep Images",
+    "Device Name",
+    "Opombe",
+    "Na tej strani ni opomb",
+    "[povezava]",
+    "Naredi posnetek zaslona",
+    "Samodejno obra\xC4"
+    "\x8D"
+    "anje: ",
+    "Samodejno obra\xC4"
+    "\x8D"
+    "anje (strani na minuto)",
+    "Transparent",
+    "Notes",
+    "No notes yet. Add one below.",
+    "+ Add Note",
+    "WiFi Auto-Connect",
+    "Add to Anki",
+    "Anki Cards",
+    "No cards found.",
+    "Add cards from the reader menu.",
+    "FRONT",
+    "BACK",
+    "Source: %s",
+    "Saved!",
+    "Press OK to save card",
+    "Global Status Bar",
+    "Status Bar Position",
+    "Top",
+    "Bottom",
+    "No WiFi",
+    "Hotspot",
+    "System Crash",
+    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
+    "Crash reason:",
+    "(No reason was recorded)",
 };
 
 }  // namespace i18n_strings
@@ -46935,3 +47828,6 @@ static_assert(sizeof(i18n_strings::STRINGS_HU) / sizeof(i18n_strings::STRINGS_HU
 static_assert(sizeof(i18n_strings::STRINGS_LT) / sizeof(i18n_strings::STRINGS_LT[0]) ==
                   static_cast<size_t>(StrId::_COUNT),
               "STRINGS_LT size mismatch");
+static_assert(sizeof(i18n_strings::STRINGS_SI) / sizeof(i18n_strings::STRINGS_SI[0]) ==
+                  static_cast<size_t>(StrId::_COUNT),
+              "STRINGS_SI size mismatch");

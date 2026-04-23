@@ -16,6 +16,7 @@
 #include "SleepExtensionHooks.h"
 #include "SpiBusMutex.h"
 #include "components/UITheme.h"
+#include "core/features/FeatureModules.h"
 #include "fontIds.h"
 #include "images/Logo120.h"
 #include "network/BackgroundWifiService.h"
@@ -332,22 +333,20 @@ void SleepActivity::onEnter() {
 
   // Transparent mode: preserve current screen content, just overlay lock icon
   if (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::TRANSPARENT) {
-    return renderTransparentSleepScreen();
+    renderTransparentSleepScreen();
+    return;
   }
 
   switch (SETTINGS.sleepScreen) {
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::SMART):
+      renderSmartSleepScreen();
+      return;
     case (CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM):
-      return renderCustomSleepScreen();
-    case (CrossPointSettings::SLEEP_SCREEN_MODE::COVER):
-      return renderCoverSleepScreen();
-    case (CrossPointSettings::SLEEP_SCREEN_MODE::COVER_CUSTOM):
-      if (APP_STATE.lastSleepFromReader) {
-        return renderCoverSleepScreen();
-      } else {
-        return renderCustomSleepScreen();
-      }
+      renderCustomSleepScreen();
+      return;
     default:
-      return renderDefaultSleepScreen();
+      renderDefaultSleepScreen();
+      return;
   }
 }
 
@@ -359,7 +358,8 @@ void SleepActivity::renderCustomSleepScreen() const {
   if (SETTINGS.sleepPinnedPath[0] != '\0') {
     const std::string pinnedPath(SETTINGS.sleepPinnedPath);
     LOG_INF("SLP", "Using pinned sleep cover: %s", pinnedPath.c_str());
-    if (isBmpFile(pinnedPath)) {      FsFile file;
+    if (isBmpFile(pinnedPath)) {
+      FsFile file;
       if (Storage.openFileForRead("SLP", pinnedPath, file)) {
         Bitmap bitmap(file, true);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
@@ -482,6 +482,72 @@ void SleepActivity::renderCustomSleepScreen() const {
   }
 
   renderDefaultSleepScreen();
+}
+
+bool SleepActivity::tryRenderImagePath(const std::string& path) const {
+  SpiBusMutex::Guard guard;
+  if (isBmpFile(path)) {
+    FsFile file;
+    if (Storage.openFileForRead("SLP", path, file)) {
+      Bitmap bitmap(file, true);
+      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+        renderBitmapSleepScreen(bitmap);
+        file.close();
+        return true;
+      }
+      file.close();
+      LOG_WRN("SLP", "BMP header invalid: %s", path.c_str());
+    }
+  } else {
+#if ENABLE_IMAGE_SLEEP
+    const ImageToFramebufferDecoder* decoder = ImageDecoderFactory::getDecoder(path.c_str());
+    if (decoder) {
+      ImageDimensions dims = {0, 0};
+      if (decoder->getDimensions(path.c_str(), dims) && dims.width > 0 && dims.height > 0) {
+        renderImageSleepScreen(path);
+        return true;
+      }
+      LOG_WRN("SLP", "Image dimensions invalid: %s", path.c_str());
+    } else {
+      LOG_WRN("SLP", "No decoder for: %s", path.c_str());
+    }
+#else
+    LOG_WRN("SLP", "Non-BMP image not supported in this build: %s", path.c_str());
+#endif
+  }
+  return false;
+}
+
+void SleepActivity::renderSmartSleepScreen() const {
+  // Reader context: preserve last-rendered page, just overlay the lock icon.
+  if (APP_STATE.lastSleepFromReader) {
+    renderTransparentSleepScreen();
+    return;
+  }
+
+  // Home context: pinned → current book cover → sleep folder → default.
+
+  // 1) Pinned cover (if configured)
+  if (SETTINGS.sleepPinnedPath[0] != '\0') {
+    const std::string pinnedPath(SETTINGS.sleepPinnedPath);
+    LOG_INF("SLP", "Smart: trying pinned cover: %s", pinnedPath.c_str());
+    if (tryRenderImagePath(pinnedPath)) return;
+    LOG_WRN("SLP", "Smart: pinned failed, trying current book cover");
+  }
+
+  // 2) Current book cover (if a book is open and its file still exists)
+  if (!APP_STATE.openEpubPath.empty() && Storage.exists(APP_STATE.openEpubPath.c_str())) {
+    const auto homeCardData =
+        core::FeatureModules::resolveHomeCardData(APP_STATE.openEpubPath, renderer.getScreenHeight());
+    if (!homeCardData.coverPath.empty() && Storage.exists(homeCardData.coverPath.c_str())) {
+      LOG_INF("SLP", "Smart: trying current book cover: %s", homeCardData.coverPath.c_str());
+      if (tryRenderImagePath(homeCardData.coverPath)) return;
+      LOG_WRN("SLP", "Smart: book cover failed, falling back to sleep folder");
+    }
+  }
+
+  // 3) Sleep folder (+ legacy root /sleep.bmp + default)
+  renderCustomSleepScreen();
 }
 
 void SleepActivity::drawLockIcon(const int cx, const int cy) const {

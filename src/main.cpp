@@ -420,8 +420,10 @@ void setup() {
     activityManager.goToReader(path);
   }
 
-  // WiFi auto-connect on wake from sleep (background, silent)
-  if (wokeFromSleep && SETTINGS.keepsBackgroundServerOnWifiWhileAwake()) {
+  // WiFi auto-connect on boot or wake from sleep (background, silent).
+  // keepsBackgroundServerOnWifiWhileAwake() is true only for BACKGROUND_SERVER_ALWAYS,
+  // so the wokeFromSleep guard is intentionally omitted here — "always on" means every boot.
+  if (SETTINGS.keepsBackgroundServerOnWifiWhileAwake()) {
     if (APP_STATE.wifiAutoConnectWaitingForNewCredential) {
       LOG_DBG("MAIN", "WiFi auto-connect disabled until a new credential is added");
     } else if (APP_STATE.wifiAutoConnectSkipCount > 0) {

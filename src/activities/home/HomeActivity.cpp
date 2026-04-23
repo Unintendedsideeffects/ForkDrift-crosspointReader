@@ -26,6 +26,8 @@
 #include "util/ForkDriftNavigation.h"
 #include "util/StringUtils.h"
 
+#include <WiFi.h>
+
 // Static cover cache state
 bool HomeActivity::coverRendered = false;
 bool HomeActivity::coverBufferStored = false;
@@ -891,7 +893,19 @@ void HomeActivity::render(RenderLock&&) {
     GUI.drawButtonHints(renderer, hints.btn1, hints.btn2, hints.btn3, hints.btn4);
   }
 
-  renderer.displayBuffer();
+  // WiFi connection indicator — drawn in the left hint-bar slot (btn1 is empty on home screen).
+  // Shown only when the device has a live WiFi connection so the user knows the file server is reachable.
+  if (WiFi.status() == WL_CONNECTED) {
+    char wifiStr[22];
+    const IPAddress ip = WiFi.localIP();
+    snprintf(wifiStr, sizeof(wifiStr), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+    const int wifiY = pageHeight - metrics.buttonHintsHeight +
+                      (metrics.buttonHintsHeight - renderer.getLineHeight(SMALL_FONT_ID)) / 2;
+    renderer.drawText(SMALL_FONT_ID, 5, wifiY, wifiStr);
+  }
+
+  // First render: full e-ink refresh to clear any ghosting left by a reader or dark-mode activity.
+  renderer.displayBuffer(firstRenderDone ? HalDisplay::FAST_REFRESH : HalDisplay::FULL_REFRESH);
 
   if (!firstRenderDone) {
     firstRenderDone = true;

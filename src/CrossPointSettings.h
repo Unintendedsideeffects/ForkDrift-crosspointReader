@@ -24,7 +24,9 @@ class CrossPointSettings {
     CUSTOM = 2,
     TRANSPARENT = 3,
     FOLLOW_THEME = 4,
-    SLEEP_SCREEN_MODE_COUNT,
+    // NOTE: 5 and 6 are intercepted as legacy migrations in validateAndClamp(). Do not use.
+    SMART = 7,
+    SLEEP_SCREEN_MODE_COUNT = 8,
     // Legacy raw values — never assigned via UI; handled in validateAndClamp().
     COVER = 9,          // was 3
     BLANK = 10,         // was 4
@@ -167,11 +169,7 @@ class CrossPointSettings {
   enum IMAGE_RENDERING { IMAGES_DISPLAY = 0, IMAGES_PLACEHOLDER = 1, IMAGES_SUPPRESS = 2, IMAGE_RENDERING_COUNT };
 
   // Global status bar overlay position
-  enum GLOBAL_STATUS_BAR_POSITION {
-    STATUS_BAR_TOP = 0,
-    STATUS_BAR_BOTTOM = 1,
-    GLOBAL_STATUS_BAR_POSITION_COUNT
-  };
+  enum GLOBAL_STATUS_BAR_POSITION { STATUS_BAR_TOP = 0, STATUS_BAR_BOTTOM = 1, GLOBAL_STATUS_BAR_POSITION_COUNT };
 
   // Sleep screen settings
   uint8_t sleepScreen = DARK;
@@ -265,7 +263,7 @@ class CrossPointSettings {
   // Image rendering mode in EPUB reader
   uint8_t imageRendering = IMAGES_DISPLAY;
   // Global status bar overlay (battery + WiFi, always visible across all screens)
-  uint8_t globalStatusBar = 0;          // 0 = disabled, 1 = enabled
+  uint8_t globalStatusBar = 0;                       // 0 = disabled, 1 = enabled
   uint8_t globalStatusBarPosition = STATUS_BAR_TOP;  // 0 = top, 1 = bottom
 
   ~CrossPointSettings() = default;

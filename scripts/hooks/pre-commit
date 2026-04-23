@@ -1,11 +1,114 @@
 #!/bin/bash
-# Pre-commit hook to auto-format C/C++ files with clang-format
-# This runs BEFORE the commit is created, so changes are included in the commit
+# Pre-commit hook to auto-format staged C/C++ files and block commits on a failed build.
+# This runs BEFORE the commit is created, so formatting changes are included in the commit.
 #
 # Install: git config core.hooksPath scripts/hooks
 # (or copy to .git/hooks/ manually)
 
-set -e
+set -euo pipefail
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+prune_old_local_artifacts() {
+    # Keep current build caches intact, but drop stale local CI output and logs.
+    find . -maxdepth 1 \
+        \( -name '.pio-*-ci' -o -name '.pio-lean-local*' -o -name '.pio-size-*' -o -name '.pio-codex*' \) \
+        -type d -mtime +14 -prune -exec rm -rf {} +
+    find . -maxdepth 1 \
+        \( -name '.pio-*.log' -o -name 'pio.log' \) \
+        -type f -mtime +14 -delete
+    find . -maxdepth 2 \
+        \( -path './.plans/*' -o -path './.copilot-logs/*' \) \
+        -mtime +14 -exec rm -rf {} +
+}
+
+stage_deleted_tracked_files() {
+    git ls-files --deleted -z -- "$@" | xargs -0 -r git add -u --
+}
+
+prune_stale_generated_html_headers() {
+    if ! command -v python3 &> /dev/null; then
+        return
+    fi
+
+    python3 - <<'PY'
+from pathlib import Path
+import re
+
+src_dir = Path("src/network/html")
+if not src_dir.exists():
+    raise SystemExit
+
+
+def sanitize_identifier(value: str) -> str:
+    value = re.sub(r"[^A-Za-z0-9_]", "_", value)
+    if not value or value[0].isdigit():
+        value = f"_{value}"
+    return value
+
+
+expected_headers = set()
+for source in src_dir.rglob("*"):
+    if source.suffix == ".html":
+        expected_headers.add(source.with_name(f"{sanitize_identifier(source.stem + 'Html')}.generated.h"))
+    elif source.suffix == ".js":
+        expected_headers.add(source.with_name(f"{sanitize_identifier(source.stem + 'Js')}.generated.h"))
+
+removed = []
+for header in src_dir.rglob("*.generated.h"):
+    if header not in expected_headers:
+        header.unlink()
+        removed.append(str(header))
+
+if removed:
+    print("Pruned stale generated header(s):")
+    for path in removed:
+        print(f"  {path}")
+PY
+
+    stage_deleted_tracked_files src/network/html
+}
+
+prune_stale_screen_previews() {
+    if ! command -v python3 &> /dev/null; then
+        return
+    fi
+
+    python3 - <<'PY'
+from pathlib import Path
+
+out_dir = Path("docs/configurator/screen-previews")
+if not out_dir.exists():
+    raise SystemExit
+
+expected_stems = {
+    "01_boot",
+    "02_home_mock",
+    "03_settings_mock",
+    "04_factory_reset_mock",
+    "05_reader_mock",
+    "06_feature_store_mock",
+}
+
+removed = []
+for png in out_dir.glob("*.png"):
+    if png.stem not in expected_stems:
+        png.unlink()
+        removed.append(str(png))
+
+if removed:
+    print("Pruned stale screen preview(s):")
+    for path in removed:
+        print(f"  {path}")
+PY
+
+    stage_deleted_tracked_files docs/configurator/screen-previews
+}
+
+prune_old_local_artifacts
+prune_stale_generated_html_headers
+prune_stale_screen_previews
 
 # Guard: block staging I18nStrings.cpp without a matching translation YAML change.
 # I18nStrings.cpp is generated from YAML — committing it as a side-effect of
@@ -44,22 +147,33 @@ fi
 # Get staged C/C++ files (excluding lib/EpdFont/builtinFonts/ which are generated)
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(c|cpp|h|hpp)$' | grep -v -E '^lib/EpdFont/builtinFonts/' | grep -v -E '\.generated\.h$' || true)
 
-if [ -z "$STAGED_FILES" ]; then
-    exit 0
-fi
+if [ -n "$STAGED_FILES" ]; then
+    # Check if clang-format is available
+    if ! command -v clang-format &> /dev/null; then
+        echo "Warning: clang-format not found, skipping auto-format"
+    else
+        # Format each staged file and re-stage it
+        for FILE in $STAGED_FILES; do
+            if [ -f "$FILE" ]; then
+                clang-format -style=file -i "$FILE"
+                git add "$FILE"
+            fi
+        done
 
-# Check if clang-format is available
-if ! command -v clang-format &> /dev/null; then
-    echo "Warning: clang-format not found, skipping auto-format"
-    exit 0
-fi
-
-# Format each staged file and re-stage it
-for FILE in $STAGED_FILES; do
-    if [ -f "$FILE" ]; then
-        clang-format -style=file -i "$FILE"
-        git add "$FILE"
+        echo "Auto-formatted $(echo "$STAGED_FILES" | wc -w) file(s) with clang-format"
     fi
-done
+fi
 
-echo "Auto-formatted $(echo "$STAGED_FILES" | wc -w) file(s) with clang-format"
+if command -v uv &> /dev/null; then
+    BUILD_CMD=(uv run pio run -e default)
+elif command -v pio &> /dev/null; then
+    BUILD_CMD=(pio run -e default)
+else
+    echo "Error: neither 'uv' nor 'pio' is available in PATH, so the pre-commit build cannot run."
+    exit 1
+fi
+
+echo "Running pre-commit build..."
+"${BUILD_CMD[@]}"
+
+echo "Pre-commit checks passed"
