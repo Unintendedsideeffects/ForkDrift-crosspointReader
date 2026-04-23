@@ -139,7 +139,7 @@ FEATURES = {
     'ota_updates': Feature(
         name='OTA Updates',
         flag='ENABLE_OTA_UPDATES',
-        size_kb=2,
+        size_kb=3,
         description='Over-the-air firmware updates via WiFi'
     ),
     'todo_planner': Feature(
@@ -584,7 +584,7 @@ def resolve_profile_name(profile_name: str) -> str:
 
 def calculate_size(enabled_features: Dict[str, bool]) -> float:
     """Calculate estimated firmware size in MB."""
-    base_size_mb = 2.43  # Lean profile size baseline (measured)
+    base_size_mb = 2.44  # Lean profile size baseline (measured)
 
     for feature_key, enabled in enabled_features.items():
         if enabled:
