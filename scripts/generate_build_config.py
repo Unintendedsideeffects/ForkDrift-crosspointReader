@@ -103,13 +103,13 @@ FEATURES = {
     'pokemon_wallpaper_plugin': Feature(
         name='Pokemon Wallpaper',
         flag='ENABLE_POKEMON_WALLPAPER_PLUGIN',
-        size_kb=22,
+        size_kb=13,
         description='Browser-side Pokemon wallpaper generator at /plugins/pokemon-wallpaper'
     ),
     'pokemon_party': Feature(
         name='Pokemon Party',
         flag='ENABLE_POKEMON_PARTY',
-        size_kb=23,
+        size_kb=10,
         description='Per-book Pokemon metadata and REST API for recent-book party views'
     ),
     'epub_support': Feature(
