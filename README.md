@@ -131,6 +131,8 @@ Each channel publishes five firmware variants plus one shared partitions file:
 2. Download `firmware.bin` from the [releases page](https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases)
 3. Flash it via [xteink.dve.al](https://xteink.dve.al/) (OTA fast flash controls)
 
+You can also copy `firmware.bin` to the SD card root. On boot, the reader now shows a vertical menu to install it, skip for now, skip that firmware version, or delete the file.
+
 ## Development
 
 ### Prerequisites

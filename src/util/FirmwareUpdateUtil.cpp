@@ -6,18 +6,314 @@
 #include <I18n.h>
 #include <Logging.h>
 #include <ScopedBuffer.h>
+#include <Serialization.h>
 #include <SpiBusMutex.h>
 
-// cppcheck-suppress missingInclude
-#include "esp_ota_ops.h"
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstdio>
+
+#include "MappedInputManager.h"
+#include "components/UITheme.h"
+#include "esp_ota_ops.h"  // cppcheck-suppress missingInclude
 #include "fontIds.h"
+#include "util/ButtonNavigator.h"
+
+namespace {
+constexpr char kSkippedLocalUpdatePath[] = "/.crosspoint/local-update-skip.bin";
+constexpr uint8_t kSkippedLocalUpdateVersion = 1;
+constexpr size_t kFingerprintSampleBytes = 4096;
+constexpr int kPromptItemCount = 4;
+
+enum class LocalUpdatePromptAction : uint8_t { Install = 0, SkipForNow, SkipThisVersion, DeleteIt };
+
+struct LocalUpdateFingerprint {
+  uint32_t fileSize = 0;
+  uint32_t sampleHash = 0;
+};
+
+uint32_t fnv1aUpdate(uint32_t hash, const uint8_t* data, const size_t length) {
+  for (size_t i = 0; i < length; ++i) {
+    hash ^= data[i];
+    hash *= 16777619u;
+  }
+  return hash;
+}
+
+bool removeLocalUpdateFile() {
+  SpiBusMutex::Guard guard;
+  return Storage.remove(FirmwareUpdateUtil::kFirmwareBinPath);
+}
+
+void clearSkippedLocalUpdate() {
+  SpiBusMutex::Guard guard;
+  if (Storage.exists(kSkippedLocalUpdatePath) && !Storage.remove(kSkippedLocalUpdatePath)) {
+    LOG_WRN("FWUPD", "Failed to clear skipped local update marker");
+  }
+}
+
+bool saveSkippedLocalUpdate(const LocalUpdateFingerprint& fingerprint) {
+  SpiBusMutex::Guard guard;
+  Storage.mkdir("/.crosspoint");
+
+  FsFile file;
+  if (!Storage.openFileForWrite("FWUPD", kSkippedLocalUpdatePath, file)) {
+    LOG_ERR("FWUPD", "Failed to open skip marker file for write");
+    return false;
+  }
+
+  serialization::writePod(file, kSkippedLocalUpdateVersion);
+  serialization::writePod(file, fingerprint.fileSize);
+  serialization::writePod(file, fingerprint.sampleHash);
+  file.close();
+  return true;
+}
+
+bool loadSkippedLocalUpdate(LocalUpdateFingerprint& fingerprint) {
+  FsFile file;
+  {
+    SpiBusMutex::Guard guard;
+    if (!Storage.openFileForRead("FWUPD", kSkippedLocalUpdatePath, file)) {
+      return false;
+    }
+  }
+
+  uint8_t version = 0;
+  const bool ok = serialization::readPod(file, version) && version == kSkippedLocalUpdateVersion &&
+                  serialization::readPod(file, fingerprint.fileSize) &&
+                  serialization::readPod(file, fingerprint.sampleHash);
+  file.close();
+
+  if (!ok) {
+    LOG_WRN("FWUPD", "Invalid skip marker file, removing it");
+    clearSkippedLocalUpdate();
+    return false;
+  }
+
+  return true;
+}
+
+bool hashLocalUpdateSample(const size_t firmwareSize, const size_t offset, LocalUpdateFingerprint& fingerprint,
+                           FsFile& file, uint8_t* buffer, const size_t bufferSize) {
+  if (!file.seekSet(offset)) {
+    LOG_ERR("FWUPD", "Failed to seek firmware file to %zu", offset);
+    return false;
+  }
+
+  const size_t bytesToRead = firmwareSize > offset ? std::min(bufferSize, firmwareSize - offset) : 0;
+  if (bytesToRead == 0) {
+    return true;
+  }
+
+  const size_t bytesRead = file.read(buffer, bytesToRead);
+  if (bytesRead != bytesToRead) {
+    LOG_ERR("FWUPD", "Failed to read firmware sample at %zu (%zu / %zu bytes)", offset, bytesRead, bytesToRead);
+    return false;
+  }
+
+  fingerprint.sampleHash = fnv1aUpdate(fingerprint.sampleHash, buffer, bytesRead);
+  return true;
+}
+
+bool computeLocalUpdateFingerprint(LocalUpdateFingerprint& fingerprint) {
+  FsFile file;
+  {
+    SpiBusMutex::Guard guard;
+    if (!Storage.openFileForRead("FWUPD", FirmwareUpdateUtil::kFirmwareBinPath, file)) {
+      LOG_ERR("FWUPD", "Failed to open firmware file for fingerprint");
+      return false;
+    }
+    fingerprint.fileSize = static_cast<uint32_t>(file.size());
+  }
+
+  fingerprint.sampleHash = 2166136261u;
+  fingerprint.sampleHash = fnv1aUpdate(fingerprint.sampleHash, reinterpret_cast<const uint8_t*>(&fingerprint.fileSize),
+                                       sizeof(fingerprint.fileSize));
+
+  ScopedBuffer buffer(kFingerprintSampleBytes);
+  if (!buffer) {
+    LOG_ERR("FWUPD", "Failed to allocate fingerprint buffer");
+    file.close();
+    return false;
+  }
+
+  std::array<size_t, 3> offsets = {
+      0, fingerprint.fileSize > kFingerprintSampleBytes ? (fingerprint.fileSize - kFingerprintSampleBytes) / 2 : 0,
+      fingerprint.fileSize > kFingerprintSampleBytes
+          ? static_cast<size_t>(fingerprint.fileSize) - kFingerprintSampleBytes
+          : 0};
+
+  for (size_t i = 0; i < offsets.size(); ++i) {
+    const size_t offset = offsets[i];
+    bool alreadyHasOffset = false;
+    for (size_t j = 0; j < i; ++j) {
+      if (offsets[j] == offset) {
+        alreadyHasOffset = true;
+        break;
+      }
+    }
+    if (alreadyHasOffset) {
+      continue;
+    }
+    if (!hashLocalUpdateSample(fingerprint.fileSize, offset, fingerprint, file, buffer.data(),
+                               kFingerprintSampleBytes)) {
+      file.close();
+      return false;
+    }
+  }
+
+  file.close();
+  return true;
+}
+
+bool isCurrentLocalUpdateSkipped(LocalUpdateFingerprint& currentFingerprint) {
+  if (!computeLocalUpdateFingerprint(currentFingerprint)) {
+    return false;
+  }
+
+  LocalUpdateFingerprint skippedFingerprint;
+  if (!loadSkippedLocalUpdate(skippedFingerprint)) {
+    return false;
+  }
+
+  return skippedFingerprint.fileSize == currentFingerprint.fileSize &&
+         skippedFingerprint.sampleHash == currentFingerprint.sampleHash;
+}
+
+const char* promptTitle(const int index) {
+  switch (static_cast<LocalUpdatePromptAction>(index)) {
+    case LocalUpdatePromptAction::Install:
+      return tr(STR_INSTALL);
+    case LocalUpdatePromptAction::SkipForNow:
+      return tr(STR_SKIP_FOR_NOW);
+    case LocalUpdatePromptAction::SkipThisVersion:
+      return tr(STR_SKIP_THIS_VERSION);
+    case LocalUpdatePromptAction::DeleteIt:
+      return tr(STR_DELETE_IT);
+  }
+
+  return "";
+}
+
+String formatFirmwareSize(const uint32_t bytes) {
+  if (bytes >= 1024 * 1024) {
+    return String(static_cast<unsigned long>(bytes / (1024 * 1024))) + " MB";
+  }
+  if (bytes >= 1024) {
+    return String(static_cast<unsigned long>(bytes / 1024)) + " KB";
+  }
+  return String(static_cast<unsigned long>(bytes)) + " B";
+}
+
+void renderLocalUpdatePrompt(GfxRenderer& renderer, MappedInputManager& mappedInput, const int selectedIndex,
+                             const LocalUpdateFingerprint& fingerprint) {
+  renderer.clearScreen();
+
+  const auto pageWidth = renderer.getScreenWidth();
+  const auto pageHeight = renderer.getScreenHeight();
+  const auto& metrics = UITheme::getInstance().getMetrics();
+
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_UPDATE));
+
+  int infoY = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing + 4;
+  renderer.drawCenteredText(UI_10_FONT_ID, infoY, tr(STR_LOCAL_UPDATE_FOUND), true, EpdFontFamily::BOLD);
+  infoY += renderer.getLineHeight(UI_10_FONT_ID) + 6;
+  renderer.drawCenteredText(UI_10_FONT_ID, infoY, tr(STR_LOCAL_UPDATE_PROMPT), true);
+  infoY += renderer.getLineHeight(UI_10_FONT_ID) + 6;
+  renderer.drawCenteredText(UI_10_FONT_ID, infoY, formatFirmwareSize(fingerprint.fileSize).c_str(), true);
+
+  const int contentTop = infoY + renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing + 8;
+  const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
+  GUI.drawList(renderer, Rect{0, contentTop, pageWidth, contentHeight}, kPromptItemCount, selectedIndex,
+               [](const int index) { return std::string(promptTitle(index)); });
+
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
+  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.displayBuffer();
+}
+
+LocalUpdatePromptAction promptForLocalUpdate(GfxRenderer& renderer, MappedInputManager& mappedInput,
+                                             const LocalUpdateFingerprint& fingerprint) {
+  ButtonNavigator buttonNavigator;
+  int selectedIndex = 0;
+
+  mappedInput.clearTransientState();
+  renderLocalUpdatePrompt(renderer, mappedInput, selectedIndex, fingerprint);
+
+  while (true) {
+    mappedInput.update();
+
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+      return LocalUpdatePromptAction::SkipForNow;
+    }
+
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+      return static_cast<LocalUpdatePromptAction>(selectedIndex);
+    }
+
+    bool selectionChanged = false;
+    buttonNavigator.onNextRelease([&] {
+      selectedIndex = ButtonNavigator::nextIndex(selectedIndex, kPromptItemCount);
+      selectionChanged = true;
+    });
+    buttonNavigator.onPreviousRelease([&] {
+      selectedIndex = ButtonNavigator::previousIndex(selectedIndex, kPromptItemCount);
+      selectionChanged = true;
+    });
+
+    if (selectionChanged) {
+      renderLocalUpdatePrompt(renderer, mappedInput, selectedIndex, fingerprint);
+    }
+
+    delay(20);
+  }
+}
+}  // namespace
 
 bool FirmwareUpdateUtil::checkForLocalUpdate() {
   SpiBusMutex::Guard guard;
   return Storage.exists(kFirmwareBinPath);
 }
 
-bool FirmwareUpdateUtil::performLocalUpdate(const GfxRenderer& renderer) {
+void FirmwareUpdateUtil::handleLocalUpdateBootFlow(GfxRenderer& renderer, MappedInputManager& mappedInput) {
+  if (!checkForLocalUpdate()) {
+    return;
+  }
+
+  LocalUpdateFingerprint fingerprint;
+  if (isCurrentLocalUpdateSkipped(fingerprint)) {
+    LOG_INF("FWUPD", "Skipping boot prompt for previously skipped firmware.bin");
+    return;
+  }
+
+  if (fingerprint.fileSize == 0 && !computeLocalUpdateFingerprint(fingerprint)) {
+    return;
+  }
+
+  switch (promptForLocalUpdate(renderer, mappedInput, fingerprint)) {
+    case LocalUpdatePromptAction::Install:
+      clearSkippedLocalUpdate();
+      performLocalUpdate(renderer);
+      break;
+    case LocalUpdatePromptAction::SkipForNow:
+      LOG_INF("FWUPD", "User skipped local update for now");
+      break;
+    case LocalUpdatePromptAction::SkipThisVersion:
+      if (saveSkippedLocalUpdate(fingerprint)) {
+        LOG_INF("FWUPD", "User skipped this local firmware version");
+      }
+      break;
+    case LocalUpdatePromptAction::DeleteIt:
+      clearSkippedLocalUpdate();
+      if (!removeLocalUpdateFile()) {
+        LOG_ERR("FWUPD", "Failed to delete %s", kFirmwareBinPath);
+      }
+      break;
+  }
+}
+
+bool FirmwareUpdateUtil::performLocalUpdate(GfxRenderer& renderer) {
   LOG_INF("FWUPD", "Starting local firmware update from %s", kFirmwareBinPath);
 
   FsFile firmwareFile;
@@ -101,14 +397,12 @@ bool FirmwareUpdateUtil::performLocalUpdate(const GfxRenderer& renderer) {
       lastProgress = progress;
       LOG_INF("FWUPD", "Progress: %d%%", progress);
 
-      // Display progress
       renderer.clearScreen();
       renderer.drawCenteredText(UI_12_FONT_ID, 200, tr(STR_UPDATING), true, EpdFontFamily::BOLD);
       char progressText[32];
       snprintf(progressText, sizeof(progressText), "%d%%", progress);
       renderer.drawCenteredText(UI_10_FONT_ID, 240, progressText, true);
 
-      // Draw progress bar
       const int barWidth = 300;
       const int barHeight = 20;
       const int barX = (renderer.getScreenWidth() - barWidth) / 2;
@@ -145,7 +439,7 @@ bool FirmwareUpdateUtil::performLocalUpdate(const GfxRenderer& renderer) {
 
   LOG_INF("FWUPD", "Firmware update successful. Deleting %s and rebooting...", kFirmwareBinPath);
 
-  // Success! Delete the file so we don't update again on next boot.
+  clearSkippedLocalUpdate();
   {
     SpiBusMutex::Guard guard;
     Storage.remove(kFirmwareBinPath);

@@ -1249,6 +1249,7 @@ const char* const STRINGS_EN[] = {
     "15 pages",
     "30 pages",
     "Update",
+    "Install",
     "Checking for update...",
     "New update available!",
     "Current Version: ",
@@ -1257,6 +1258,11 @@ const char* const STRINGS_EN[] = {
     "No update available",
     "Update failed",
     "Update complete",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Press and hold power button to turn back on",
     "External Font",
     "Built-in (Disabled)",
@@ -1779,6 +1785,7 @@ const char* const STRINGS_ES[] = {
     "\xA1"
     "g.",
     "Actualizar",
+    "Install",
     "Verificando actualizaci\xC3"
     "\xB3"
     "n...",
@@ -1801,6 +1808,11 @@ const char* const STRINGS_ES[] = {
     "Actualizaci\xC3"
     "\xB3"
     "n completada",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Reinicie manteniendo pulsado bot\xC3"
     "\xB3"
     "n de encendido",
@@ -2578,6 +2590,7 @@ const char* const STRINGS_FR[] = {
     "Mise \xC3"
     "\xA0"
     " jour",
+    "Install",
     "Recherche de mises \xC3"
     "\xA0"
     " jour en cours\xE2"
@@ -2608,6 +2621,11 @@ const char* const STRINGS_FR[] = {
     " jour effectu\xC3"
     "\xA9"
     "e",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Maintenir le bouton d\xE2"
     "\x80"
     "\x99"
@@ -3252,6 +3270,7 @@ const char* const STRINGS_DE[] = {
     "15 Seiten",
     "30 Seiten",
     "Update",
+    "Install",
     "Update suchen\xE2"
     "\x80"
     "\xA6"
@@ -3270,6 +3289,11 @@ const char* const STRINGS_DE[] = {
     "gbar",
     "Updatefehler",
     "Update fertig",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "An-Knopf lang dr\xC3"
     "\xBC"
     "cken, um neuzustarten",
@@ -4393,6 +4417,7 @@ const char* const STRINGS_CS[] = {
     "\xA1"
     "nek",
     "Aktualizace",
+    "Install",
     "Kontrola aktualizac\xC3"
     "\xAD"
     "\xE2"
@@ -4422,6 +4447,11 @@ const char* const STRINGS_CS[] = {
     "Aktualizace dokon\xC4"
     "\x8D"
     "ena",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Stiskn\xC4"
     "\x9B"
     "te a podr\xC5"
@@ -5404,6 +5434,7 @@ const char* const STRINGS_PO[] = {
     "\xA1"
     "ginas",
     "Atualizar",
+    "Install",
     "Verificando atualiza\xC3"
     "\xA7"
     "\xC3"
@@ -5442,6 +5473,11 @@ const char* const STRINGS_PO[] = {
     "o conclu\xC3"
     "\xAD"
     "da",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Pressione e segure o bot\xC3"
     "\xA3"
     "o energia ligar novamente",
@@ -9746,6 +9782,7 @@ const char* const STRINGS_RU[] = {
     "\xD0"
     "\xB5"
     "",
+    "Install",
     "\xD0"
     "\x9F"
     "\xD1"
@@ -10000,6 +10037,11 @@ const char* const STRINGS_RU[] = {
     "\xD0"
     "\xBE"
     "",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "\xD0"
     "\xA3"
     "\xD0"
@@ -13918,6 +13960,7 @@ const char* const STRINGS_SV[] = {
     "15 sidor",
     "30 sidor",
     "Uppdatera",
+    "Install",
     "S\xC3"
     "\xB6"
     "ker uppdatering\xE2"
@@ -13940,6 +13983,11 @@ const char* const STRINGS_SV[] = {
     "Uppdatering f\xC3"
     "\xA4"
     "rdig",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Tryck och h\xC3"
     "\xA5"
     "ll str\xC3"
@@ -14825,6 +14873,7 @@ const char* const STRINGS_RO[] = {
     "15 pagini",
     "30 pagini",
     "Actualizare",
+    "Install",
     "Se verific\xC4"
     "\x83"
     " actualiz\xC4"
@@ -14853,6 +14902,11 @@ const char* const STRINGS_RO[] = {
     "Actualizare complet\xC4"
     "\x83"
     "",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Ap\xC4"
     "\x83"
     "sa\xC5"
@@ -15633,6 +15687,7 @@ const char* const STRINGS_CA[] = {
     "\xA0"
     "gines",
     "Actualitza",
+    "Install",
     "S'est\xC3"
     "\xA0"
     " comprovant si hi ha actualitzacions...",
@@ -15655,6 +15710,11 @@ const char* const STRINGS_CA[] = {
     "Actualitzaci\xC3"
     "\xB3"
     " completada",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Premeu i manteniu premut el bot\xC3"
     "\xB3"
     " d'encesa per tornar a engegar",
@@ -20585,6 +20645,7 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xB8"
     "",
+    "Install",
     "\xD0"
     "\x9F"
     "\xD0"
@@ -20831,6 +20892,11 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xBE"
     "",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "\xD0"
     "\x9D"
     "\xD0"
@@ -28691,6 +28757,7 @@ const char* const STRINGS_BE[] = {
     "\xD0"
     "\xB5"
     "",
+    "Install",
     "\xD0"
     "\x9F"
     "\xD1"
@@ -28953,6 +29020,11 @@ const char* const STRINGS_BE[] = {
     "\xD0"
     "\xB0"
     "",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "\xD0"
     "\xA3"
     "\xD1"
@@ -32743,6 +32815,7 @@ const char* const STRINGS_IT[] = {
     "15 pagine",
     "30 pagine",
     "Aggiorna",
+    "Install",
     "Ricerca aggiornamenti...",
     "Nuovo aggiornamento disponibile!",
     "Versione attuale: ",
@@ -32751,6 +32824,11 @@ const char* const STRINGS_IT[] = {
     "Nessun aggiornamento disponibile",
     "Aggiornamento fallito",
     "Aggiornamento completato",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Tenere premuto il pulsante d'accensione per riaccendere",
     "External Font",
     "Built-in (Disabled)",
@@ -33487,6 +33565,7 @@ const char* const STRINGS_PL[] = {
     "15 stron",
     "30 stron",
     "Uaktualnij",
+    "Install",
     "Sprawdzanie aktualizacji...",
     "Aktualizacja dost\xC4"
     "\x99"
@@ -33503,6 +33582,11 @@ const char* const STRINGS_PL[] = {
     "Aktualizacja zako\xC5"
     "\x84"
     "czona",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Przyci\xC5"
     "\x9B"
     "nij i przytrzymaj przycisk zasilania aby w\xC5"
@@ -34381,6 +34465,7 @@ const char* const STRINGS_FI[] = {
     "ivit\xC3"
     "\xA4"
     "",
+    "Install",
     "Tarkistetaan p\xC3"
     "\xA4"
     "ivityst\xC3"
@@ -34411,6 +34496,11 @@ const char* const STRINGS_FI[] = {
     "P\xC3"
     "\xA4"
     "ivitys valmis",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Pid\xC3"
     "\xA4"
     " virtapainiketta pohjassa k\xC3"
@@ -35115,6 +35205,7 @@ const char* const STRINGS_DA[] = {
     "15 sider",
     "30 sider",
     "Opdater",
+    "Install",
     "S\xC3"
     "\xB8"
     "ger efter opdatering...",
@@ -35133,6 +35224,11 @@ const char* const STRINGS_DA[] = {
     "Opdatering f\xC3"
     "\xA6"
     "rdig",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Hold t\xC3"
     "\xA6"
     "nd/sluk-knappen nede for at t\xC3"
@@ -35603,6 +35699,7 @@ const char* const STRINGS_NL[] = {
     "15 pagina's",
     "30 pagina's",
     "Update",
+    "Install",
     "Controleren op update...",
     "Nieuwe update beschikbaar!",
     "Huidige versie: ",
@@ -35611,6 +35708,11 @@ const char* const STRINGS_NL[] = {
     "Geen update beschikbaar",
     "Update mislukt",
     "Update voltooid",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Houd de aan/uit-knop ingedrukt om in te schakelen",
     "External Font",
     "Built-in (Disabled)",
@@ -36495,6 +36597,7 @@ const char* const STRINGS_TR[] = {
     "G\xC3"
     "\xBC"
     "ncelle",
+    "Install",
     "G\xC3"
     "\xBC"
     "ncelleme denetleniyor...",
@@ -36531,6 +36634,11 @@ const char* const STRINGS_TR[] = {
     "ncelleme tamamland\xC4"
     "\xB1"
     "",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "A\xC3"
     "\xA7"
     "mak i\xC3"
@@ -41143,6 +41251,7 @@ const char* const STRINGS_KK[] = {
     "\xD1"
     "\x83"
     "",
+    "Install",
     "\xD0"
     "\x96"
     "\xD0"
@@ -41357,6 +41466,11 @@ const char* const STRINGS_KK[] = {
     "\xD1"
     "\x8B"
     "",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "\xD2"
     "\x9A"
     "\xD0"
@@ -45683,6 +45797,7 @@ const char* const STRINGS_HU[] = {
     "t\xC3"
     "\xA9"
     "s",
+    "Install",
     "Friss\xC3"
     "\xAD"
     "t\xC3"
@@ -45735,6 +45850,11 @@ const char* const STRINGS_HU[] = {
     "s k\xC3"
     "\xA9"
     "sz",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Tartsd nyomva a bekapcsol\xC3"
     "\xB3"
     "gombot a bekapcsol\xC3"
@@ -46801,6 +46921,7 @@ const char* const STRINGS_LT[] = {
     "15 psl.",
     "30 psl.",
     "Atnaujinti",
+    "Install",
     "Ie\xC5"
     "\xA1"
     "koma...",
@@ -46815,6 +46936,11 @@ const char* const STRINGS_LT[] = {
     "ra",
     "Klaida",
     "Baigta",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Laikykite Power mygtuk\xC4"
     "\x85"
     " \xC4"
@@ -47483,6 +47609,7 @@ const char* const STRINGS_SI[] = {
     "15 strani",
     "30 strani",
     "Posodobi",
+    "Install",
     "Preverjanje posodobitev...",
     "Na voljo je nova posodobitev!",
     "Trenutna razli\xC4"
@@ -47497,6 +47624,11 @@ const char* const STRINGS_SI[] = {
     "Posodobitev kon\xC4"
     "\x8D"
     "ana",
+    "Found /firmware.bin",
+    "Choose what to do",
+    "Skip for now",
+    "Skip this version",
+    "Delete it",
     "Pridr\xC5"
     "\xBE"
     "i gumb za vklop, da napravo znova vklopi\xC5"

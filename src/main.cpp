@@ -19,9 +19,7 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
-#include "util/RecentBooksStore.h"
 #include "UsbSerialProtocol.h"
-#include "util/WifiCredentialStore.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
 #include "activities/RenderLock.h"
@@ -36,8 +34,10 @@
 #include "util/ButtonNavigator.h"
 #include "util/FactoryResetUtils.h"
 #include "util/FirmwareUpdateUtil.h"
+#include "util/RecentBooksStore.h"
 #include "util/ScreenshotUtil.h"
 #include "util/UsbMscPrompt.h"
+#include "util/WifiCredentialStore.h"
 
 MappedInputManager mappedInputManager(gpio);
 GfxRenderer renderer(display);
@@ -395,9 +395,7 @@ void setup() {
     return;
   }
 
-  if (FirmwareUpdateUtil::checkForLocalUpdate()) {
-    FirmwareUpdateUtil::performLocalUpdate(renderer);
-  }
+  FirmwareUpdateUtil::handleLocalUpdateBootFlow(renderer, mappedInputManager);
 
   activityManager.goToBoot();
 
@@ -445,7 +443,9 @@ void setup() {
           APP_STATE.wifiAutoConnectSkipCount = 0;
           APP_STATE.wifiAutoConnectBackoffLevel = 0;
           APP_STATE.saveToFile();
-          LOG_DBG("MAIN", "Saved WiFi credentials missing for last SSID; auto-connect disabled until a new credential is added");
+          LOG_DBG(
+              "MAIN",
+              "Saved WiFi credentials missing for last SSID; auto-connect disabled until a new credential is added");
         }
       }
     }
