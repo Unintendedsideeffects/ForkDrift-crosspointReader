@@ -43,6 +43,7 @@ namespace {
 constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
 constexpr uint8_t CROSSPOINT_PROTOCOL_VERSION = 1;
 constexpr uint16_t LOCAL_UDP_PORT = 8134;
+constexpr uint32_t WEB_SERVER_MIN_SAFE_HEAP_BYTES = 12 * 1024;
 constexpr size_t TODO_ENTRY_MAX_TEXT_LENGTH = 300;
 constexpr size_t WS_CONTROL_MESSAGE_MAX_BYTES = 1024;
 constexpr size_t WS_UPLOAD_MAX_BYTES = 512UL * 1024UL * 1024UL;
@@ -333,7 +334,14 @@ void CrossPointWebServer::begin() {
   server->on("/api/remote/button", HTTP_POST, [this] { handleRemoteButton(); });
   server->on("/api/screenshot", HTTP_POST, [this] { handleScreenshot(); });
   server->onNotFound([this] { handleNotFound(); });
-  LOG_DBG("WEB", "[MEM] Free heap after route setup: %d bytes", ESP.getFreeHeap());
+  const uint32_t freeHeapAfterRouteSetup = ESP.getFreeHeap();
+  LOG_DBG("WEB", "[MEM] Free heap after route setup: %d bytes", freeHeapAfterRouteSetup);
+
+  if (freeHeapAfterRouteSetup < WEB_SERVER_MIN_SAFE_HEAP_BYTES) {
+    LOG_ERR("WEB", "Aborting server startup: only %u bytes free after route setup", freeHeapAfterRouteSetup);
+    server.reset();
+    return;
+  }
 
 #if CROSSPOINT_HAS_NETWORKUDP
   // Collect WebDAV headers and register handler
@@ -363,6 +371,23 @@ void CrossPointWebServer::begin() {
   udpActive = udp.begin(LOCAL_UDP_PORT);
   LOG_DBG("WEB", "Discovery UDP %s on port %d", udpActive ? "enabled" : "failed", LOCAL_UDP_PORT);
 
+  const uint32_t freeHeapAfterStartup = ESP.getFreeHeap();
+  if (freeHeapAfterStartup < WEB_SERVER_MIN_SAFE_HEAP_BYTES) {
+    LOG_ERR("WEB", "Aborting server startup: only %u bytes free after startup", freeHeapAfterStartup);
+    if (wsServer) {
+      wsServer->close();
+      wsServer.reset();
+      wsInstance = nullptr;
+    }
+    if (udpActive) {
+      udp.stop();
+      udpActive = false;
+    }
+    server->stop();
+    server.reset();
+    return;
+  }
+
   running = true;
 
   LOG_DBG("WEB", "Web server started on port %d", port);
@@ -370,7 +395,7 @@ void CrossPointWebServer::begin() {
   const String ipAddr = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
   LOG_DBG("WEB", "Access at http://%s/", ipAddr.c_str());
   LOG_DBG("WEB", "WebSocket at ws://%s:%d/", ipAddr.c_str(), wsPort);
-  LOG_DBG("WEB", "[MEM] Free heap after server.begin(): %d bytes", ESP.getFreeHeap());
+  LOG_DBG("WEB", "[MEM] Free heap after server.begin(): %d bytes", freeHeapAfterStartup);
 }
 
 #if 0  // Duplicated by src/network/WsUploadHandlers.cpp
