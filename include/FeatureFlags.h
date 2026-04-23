@@ -98,6 +98,16 @@
 #define ENABLE_IMAGE_SLEEP 1
 #endif
 
+// Allowed sleep-image extensions, gated by decoder availability.
+// PNG/JPEG decoders are not linked when ENABLE_IMAGE_SLEEP=0 — only .bmp is
+// valid. Code that needs this list should use the macro rather than repeating
+// the ENABLE_IMAGE_SLEEP guard outside an approved location.
+#if ENABLE_IMAGE_SLEEP
+#define SLEEP_IMAGE_ALLOWED_EXTS {".bmp", ".png", ".jpg", ".jpeg"}
+#else
+#define SLEEP_IMAGE_ALLOWED_EXTS {".bmp"}
+#endif
+
 #ifndef ENABLE_BOOK_IMAGES
 #define ENABLE_BOOK_IMAGES 1
 #endif
@@ -253,7 +263,8 @@
 #define ENABLE_POKEMON_PARTY 0
 #endif
 
-#if !ENABLE_BOOKERLY_FONTS && !ENABLE_NOTOSANS_FONTS && FEATURE_OVERRIDE_ENABLE_OPENDYSLEXIC_FONTS && ENABLE_OPENDYSLEXIC_FONTS
+#if !ENABLE_BOOKERLY_FONTS && !ENABLE_NOTOSANS_FONTS && FEATURE_OVERRIDE_ENABLE_OPENDYSLEXIC_FONTS && \
+    ENABLE_OPENDYSLEXIC_FONTS
 #error "ENABLE_OPENDYSLEXIC_FONTS requires ENABLE_BOOKERLY_FONTS=1 or ENABLE_NOTOSANS_FONTS=1"
 #endif
 

@@ -77,20 +77,21 @@ void CrossPointWebServer::handleDownload() const {
     return;
   }
 
-  server->setContentLength(result.fileSize);
-  server->sendHeader("Content-Disposition", "attachment; filename=\"" + result.filename + "\"");
-  server->send(200, result.contentType.c_str(), "");
-
-  WiFiClient client = server->client();
   constexpr size_t chunkSize = 8192;
   auto* buffer = static_cast<uint8_t*>(malloc(chunkSize));
   if (!buffer) {
     LOG_ERR("WEB", "Download: malloc failed for %u byte buffer", static_cast<unsigned int>(chunkSize));
     SpiBusMutex::Guard guard;
     file.close();
+    server->send(500, "text/plain", "Insufficient memory for download");
     return;
   }
 
+  server->setContentLength(result.fileSize);
+  server->sendHeader("Content-Disposition", "attachment; filename=\"" + result.filename + "\"");
+  server->send(200, result.contentType.c_str(), "");
+
+  WiFiClient client = server->client();
   bool downloadOk = true;
   while (downloadOk) {
     // Reset WDT before acquiring the SPI mutex — the display may hold the bus

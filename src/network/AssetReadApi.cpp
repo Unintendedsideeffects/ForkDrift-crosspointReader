@@ -1,6 +1,7 @@
 #include "network/AssetReadApi.h"
 
 #include <ArduinoJson.h>
+#include <FeatureFlags.h>
 #include <HalStorage.h>
 
 #include <algorithm>
@@ -57,11 +58,7 @@ AssetReadResult resolveCoverAssetPath(const String& rawPath, const std::vector<R
 }
 
 String buildSleepImagesJson() {
-#if ENABLE_IMAGE_SLEEP
-  const char* allowedExts[] = {".bmp", ".png", ".jpg", ".jpeg"};
-#else
-  const char* allowedExts[] = {".bmp"};
-#endif
+  const char* allowedExts[] = SLEEP_IMAGE_ALLOWED_EXTS;
   constexpr int numAllowed = sizeof(allowedExts) / sizeof(allowedExts[0]);
   const char* sleepDirs[] = {"/sleep", "/.sleep"};
 

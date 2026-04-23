@@ -409,6 +409,9 @@ void setup() {
              mappedInputManager.isPressed(MappedInputManager::Button::Back) || APP_STATE.readerActivityLoadCount > 0) {
     // Boot to home screen if no book is open, last sleep was not from reader, back button is held, or reader activity
     // crashed (indicated by readerActivityLoadCount > 0)
+    if (APP_STATE.lastSleepFromReader) {
+      APP_STATE.pendingHomeFullRefresh = true;
+    }
     activityManager.goHome();
   } else {
     const auto path = APP_STATE.openEpubPath;
