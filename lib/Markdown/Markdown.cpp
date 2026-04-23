@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "MarkdownParser.h"
+#include "MarkdownPreprocessor.h"
 
 extern "C" {
 #include <md4c-html.h>
@@ -382,33 +383,7 @@ bool findBlockLine(const std::vector<std::string>& lines, const std::string& blo
       }
     }
     outLine = line;
-    if (!outLine.empty()) {
-      size_t caret = outLine.find_last_of('^');
-      if (caret != std::string::npos && caret > 0) {
-        if (isspace(static_cast<unsigned char>(outLine[caret - 1]))) {
-          size_t i = caret + 1;
-          while (i < outLine.size()) {
-            char c = outLine[i];
-            if (c == ' ' || c == '\t' || c == '\r') {
-              break;
-            }
-            if (!isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') {
-              break;
-            }
-            i++;
-          }
-          size_t end = i;
-          while (end < outLine.size() && (outLine[end] == ' ' || outLine[end] == '\t' || outLine[end] == '\r')) {
-            end++;
-          }
-          size_t trim = caret - 1;
-          while (trim > 0 && outLine[trim - 1] == ' ') {
-            trim--;
-          }
-          outLine = outLine.substr(0, trim) + outLine.substr(end);
-        }
-      }
-    }
+    outLine = markdown::preprocess::stripBlockId(outLine);
     return true;
   }
   return false;
@@ -433,16 +408,16 @@ std::string extractSectionByHeading(const std::string& content, const std::strin
     start = end + 1;
   }
 
-  const std::string targetSlug = normalizeSlug(heading);
+  const std::string targetSlug = markdown::preprocess::normalizeSlug(heading);
   size_t startIndex = std::string::npos;
   uint8_t targetLevel = 0;
   for (size_t i = 0; i < lines.size(); i++) {
     uint8_t level = 0;
     std::string text;
-    if (!isHeadingLine(lines[i], level, text)) {
+    if (!markdown::preprocess::isHeadingLine(lines[i], level, text)) {
       continue;
     }
-    if (normalizeSlug(text) == targetSlug) {
+    if (markdown::preprocess::normalizeSlug(text) == targetSlug) {
       startIndex = i;
       targetLevel = level;
       break;
@@ -457,7 +432,7 @@ std::string extractSectionByHeading(const std::string& content, const std::strin
   for (size_t i = startIndex + 1; i < lines.size(); i++) {
     uint8_t level = 0;
     std::string text;
-    if (isHeadingLine(lines[i], level, text) && level <= targetLevel) {
+    if (markdown::preprocess::isHeadingLine(lines[i], level, text) && level <= targetLevel) {
       endIndex = i;
       break;
     }
@@ -630,365 +605,6 @@ bool Markdown::renderToHtmlFile(const std::string& htmlPath) const {
   return result == 0 && htmlOut.ok;
 }
 
-std::string Markdown::stripFrontmatter(const std::string& content) {
-  size_t pos = 0;
-  size_t lineEnd = content.find('\n');
-  if (lineEnd == std::string::npos) {
-    return content;
-  }
-
-  std::string firstLine = content.substr(0, lineEnd);
-  if (firstLine != "---" && firstLine != "---\r") {
-    return content;
-  }
-
-  pos = lineEnd + 1;
-  while (pos < content.size()) {
-    lineEnd = content.find('\n', pos);
-    const size_t len = (lineEnd == std::string::npos) ? content.size() - pos : lineEnd - pos;
-    std::string line = content.substr(pos, len);
-    if (line == "---" || line == "---\r") {
-      if (lineEnd == std::string::npos) {
-        return "";
-      }
-      return content.substr(lineEnd + 1);
-    }
-    if (lineEnd == std::string::npos) {
-      break;
-    }
-    pos = lineEnd + 1;
-  }
-
-  return content;
-}
-
-std::string Markdown::stripComments(const std::string& content) {
-  std::string output;
-  output.reserve(content.size());
-  size_t i = 0;
-  while (i < content.size()) {
-    if (i + 1 < content.size() && content[i] == '%' && content[i + 1] == '%') {
-      const size_t end = content.find("%%", i + 2);
-      if (end == std::string::npos) {
-        break;
-      }
-      i = end + 2;
-      continue;
-    }
-    output.push_back(content[i]);
-    i++;
-  }
-  return output;
-}
-
-std::string Markdown::processLine(const std::string& line) {
-  std::string trimmed = line;
-  if (!trimmed.empty() && trimmed.back() == '\r') {
-    trimmed.pop_back();
-  }
-  std::string formatted = stripCustomHeadingId(trimmed);
-  formatted = formatCalloutLine(formatted);
-  formatted = processInline(formatted);
-  formatted = stripBlockId(formatted);
-  return formatted;
-}
-
-std::string Markdown::formatCalloutLine(const std::string& line) {
-  size_t i = 0;
-  while (i < line.size() && line[i] == ' ') {
-    i++;
-  }
-  if (i >= line.size() || line[i] != '>') {
-    return line;
-  }
-  size_t j = i + 1;
-  while (j < line.size() && (line[j] == ' ' || line[j] == '\t')) {
-    j++;
-  }
-  if (j + 2 >= line.size() || line[j] != '[' || line[j + 1] != '!') {
-    return line;
-  }
-  size_t typeStart = j + 2;
-  size_t typeEnd = line.find(']', typeStart);
-  if (typeEnd == std::string::npos) {
-    return line;
-  }
-  std::string type = line.substr(typeStart, typeEnd - typeStart);
-  if (type.empty()) {
-    return line;
-  }
-  size_t titleStart = typeEnd + 1;
-  char foldState = '\0';
-  if (titleStart < line.size() && (line[titleStart] == '-' || line[titleStart] == '+')) {
-    foldState = line[titleStart];
-    titleStart++;
-  }
-  while (titleStart < line.size() && (line[titleStart] == ' ' || line[titleStart] == '\t')) {
-    titleStart++;
-  }
-  std::string title = line.substr(titleStart);
-
-  std::string out;
-  out.reserve(line.size() + 8);
-  out.append(line.substr(0, i + 1));
-  out.append(" **");
-  out.append(type);
-  out.append("**");
-  if (foldState == '-' || foldState == '+') {
-    out.append(" [");
-    out.push_back(foldState);
-    out.append("]");
-  }
-  if (!title.empty()) {
-    out.push_back(' ');
-    out.append(title);
-  }
-  return out;
-}
-
-std::string Markdown::processInline(const std::string& line) {
-  std::string out;
-  out.reserve(line.size());
-  bool inCode = false;
-  size_t codeFence = 0;
-
-  auto isTagChar = [](char c) -> bool { return isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-'; };
-
-  size_t i = 0;
-  while (i < line.size()) {
-    if (line[i] == '`') {
-      size_t tickCount = 0;
-      while (i + tickCount < line.size() && line[i + tickCount] == '`') {
-        tickCount++;
-      }
-      if (!inCode) {
-        inCode = true;
-        codeFence = tickCount;
-      } else if (tickCount == codeFence) {
-        inCode = false;
-        codeFence = 0;
-      }
-      out.append(line.substr(i, tickCount));
-      i += tickCount;
-      continue;
-    }
-
-    if (inCode) {
-      out.push_back(line[i]);
-      i++;
-      continue;
-    }
-
-    if (line[i] == '[' && i + 1 < line.size() && line[i + 1] == '^') {
-      const size_t end = line.find(']', i + 2);
-      if (end != std::string::npos && end > i + 2) {
-        std::string inner = line.substr(i + 2, end - (i + 2));
-        if (inner.find(' ') == std::string::npos) {
-          out.append("^");
-          out.append(inner);
-          out.append("^");
-          i = end + 1;
-          continue;
-        }
-      }
-    }
-
-    if (i + 2 < line.size() && line[i] == '!' && line[i + 1] == '[' && line[i + 2] == '[') {
-      const size_t end = line.find("]]", i + 3);
-      if (end != std::string::npos) {
-        std::string inner = line.substr(i + 3, end - (i + 3));
-        std::string target = inner;
-        std::string alias;
-        const size_t pipePos = inner.find('|');
-        if (pipePos != std::string::npos) {
-          target = inner.substr(0, pipePos);
-          alias = inner.substr(pipePos + 1);
-        }
-        target = trimSpaces(target);
-        alias = trimSpaces(alias);
-        if (hasImageExtension(target)) {
-          int dimWidth = 0;
-          int dimHeight = 0;
-          const bool hasDims = (!alias.empty() && parseDimensionToken(alias, dimWidth, dimHeight));
-          std::string altText = hasDims ? fileStemFromPath(target) : alias;
-          if (altText.empty()) {
-            altText = fileStemFromPath(target);
-          }
-          out.append("![");
-          out.append(altText);
-          out.append("](");
-          out.append(formatLinkTarget(target));
-          if (hasDims) {
-            out.append(" \"");
-            out.append(alias);
-            out.append("\"");
-          }
-          out.append(")");
-        } else {
-          std::string label = alias.empty() ? target : alias;
-          std::string linkTarget = target;
-          std::string baseTarget;
-          if (stripBlockReferenceTarget(target, baseTarget) && !baseTarget.empty()) {
-            linkTarget = baseTarget;
-            if (alias.empty()) {
-              label = baseTarget;
-            }
-          }
-          out.append("[");
-          out.append(label);
-          out.append("](");
-          out.append(formatLinkTarget(linkTarget));
-          out.append(")");
-        }
-        i = end + 2;
-        continue;
-      }
-    }
-
-    if (i + 1 < line.size() && line[i] == '[' && line[i + 1] == '[') {
-      const size_t end = line.find("]]", i + 2);
-      if (end != std::string::npos) {
-        std::string inner = line.substr(i + 2, end - (i + 2));
-        std::string target = inner;
-        std::string alias;
-        const size_t pipePos = inner.find('|');
-        if (pipePos != std::string::npos) {
-          target = inner.substr(0, pipePos);
-          alias = inner.substr(pipePos + 1);
-        }
-        target = trimSpaces(target);
-        alias = trimSpaces(alias);
-        std::string label = alias.empty() ? target : alias;
-        std::string linkTarget = target;
-        std::string baseTarget;
-        if (stripBlockReferenceTarget(target, baseTarget) && !baseTarget.empty()) {
-          linkTarget = baseTarget;
-          if (alias.empty()) {
-            label = baseTarget;
-          }
-        }
-        out.append("[");
-        out.append(label);
-        out.append("](");
-        out.append(formatLinkTarget(linkTarget));
-        out.append(")");
-        i = end + 2;
-        continue;
-      }
-    }
-
-    if (i + 1 < line.size() && line[i] == '=' && line[i + 1] == '=') {
-      const size_t end = line.find("==", i + 2);
-      if (end != std::string::npos && end > i + 2) {
-        std::string inner = line.substr(i + 2, end - (i + 2));
-        out.append("<mark>");
-        out.append(inner);
-        out.append("</mark>");
-        i = end + 2;
-        continue;
-      }
-    }
-
-    if (line[i] == '#' && (i == 0 || !(isalnum(static_cast<unsigned char>(line[i - 1])) || line[i - 1] == '_'))) {
-      size_t j = i + 1;
-      if (j < line.size() && isTagChar(line[j])) {
-        while (j < line.size() && isTagChar(line[j])) {
-          j++;
-        }
-        std::string tag = line.substr(i + 1, j - (i + 1));
-        out.append("*#");
-        out.append(tag);
-        out.append("*");
-        i = j;
-        continue;
-      }
-    }
-
-    if (i + 1 < line.size() && line[i] == '~' && line[i + 1] == '~') {
-      out.append("~~");
-      i += 2;
-      continue;
-    }
-
-    if (line[i] == '~' && (i + 1 < line.size()) && line[i + 1] != '~') {
-      const size_t end = line.find('~', i + 1);
-      if (end != std::string::npos && end > i + 1) {
-        std::string inner = line.substr(i + 1, end - (i + 1));
-        if (inner.find(' ') == std::string::npos) {
-          out.append("<sub>");
-          out.append(inner);
-          out.append("</sub>");
-          i = end + 1;
-          continue;
-        }
-      }
-    }
-
-    if (line[i] == '^') {
-      const size_t end = line.find('^', i + 1);
-      if (end != std::string::npos && end > i + 1) {
-        std::string inner = line.substr(i + 1, end - (i + 1));
-        // Superscript requires non-empty content (subscript already gated by end > i + 1).
-        if (!inner.empty() && inner.find(' ') == std::string::npos) {
-          out.append("<sup>");
-          out.append(inner);
-          out.append("</sup>");
-          i = end + 1;
-          continue;
-        }
-      }
-    }
-
-    out.push_back(line[i]);
-    i++;
-  }
-
-  return out;
-}
-
-std::string Markdown::stripBlockId(const std::string& line) {
-  if (line.empty()) {
-    return line;
-  }
-
-  size_t caret = line.find_last_of('^');
-  if (caret == std::string::npos || caret == 0) {
-    return line;
-  }
-
-  if (!isspace(static_cast<unsigned char>(line[caret - 1]))) {
-    return line;
-  }
-
-  size_t i = caret + 1;
-  if (i >= line.size()) {
-    return line;
-  }
-
-  while (i < line.size()) {
-    char c = line[i];
-    if (c == ' ' || c == '\t' || c == '\r') {
-      break;
-    }
-    if (!isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') {
-      return line;
-    }
-    i++;
-  }
-
-  size_t end = i;
-  while (end < line.size() && (line[end] == ' ' || line[end] == '\t' || line[end] == '\r')) {
-    end++;
-  }
-
-  size_t trim = caret - 1;
-  while (trim > 0 && line[trim - 1] == ' ') {
-    trim--;
-  }
-
-  return line.substr(0, trim) + line.substr(end);
-}
-
 std::string Markdown::getContent() const {
   if (!loaded) {
     return "";
@@ -1018,19 +634,6 @@ std::string Markdown::preprocessContent(std::string content, int depth, std::vec
   if (depth > MAX_EMBED_DEPTH) {
     return "[Embedded note omitted]";
   }
-
-  std::string processed = stripFrontmatter(content);
-
-  // Release the raw content now — stripFrontmatter returned an independent copy
-  // and we no longer need the original.  On memory-constrained devices this
-  // avoids holding two full copies of the file simultaneously.
-  content.clear();
-  content.shrink_to_fit();
-
-  processed = stripComments(processed);
-
-  bool inFence = false;
-  std::string fence;
 
   auto resolveEmbed = [&](const std::string& inner, std::string& expansion) -> bool {
     std::string target = inner;
@@ -1063,8 +666,8 @@ std::string Markdown::preprocessContent(std::string content, int depth, std::vec
       return false;
     }
 
-    const std::string fileTrimmed = trimSpaces(filePart);
-    if (!fileTrimmed.empty() && hasImageExtension(fileTrimmed)) {
+    const std::string fileTrimmed = markdown::preprocess::trimSpaces(filePart);
+    if (!fileTrimmed.empty() && markdown::preprocess::hasImageExtension(fileTrimmed)) {
       return false;
     }
 
@@ -1186,7 +789,7 @@ std::string Markdown::preprocessContent(std::string content, int depth, std::vec
         if (resolveEmbed(inner, expansion)) {
           found = true;
           if (i > segmentStart) {
-            const std::string segment = processLine(line.substr(segmentStart, i - segmentStart));
+            const std::string segment = markdown::preprocess::processLine(line.substr(segmentStart, i - segmentStart));
             if (segment.find_first_not_of(" \t\r") != std::string::npos) {
               if (pendingBreak && !expandedLine.empty() && expandedLine.back() != '\n') {
                 expandedLine.push_back('\n');
@@ -1213,7 +816,7 @@ std::string Markdown::preprocessContent(std::string content, int depth, std::vec
     }
 
     if (found && segmentStart < line.size()) {
-      const std::string segment = processLine(line.substr(segmentStart));
+      const std::string segment = markdown::preprocess::processLine(line.substr(segmentStart));
       if (segment.find_first_not_of(" \t\r") != std::string::npos) {
         if (pendingBreak && !expandedLine.empty() && expandedLine.back() != '\n') {
           expandedLine.push_back('\n');
@@ -1224,145 +827,7 @@ std::string Markdown::preprocessContent(std::string content, int depth, std::vec
 
     return found;
   };
-
-  std::vector<std::string> lines;
-  lines.reserve(256);
-  size_t start = 0;
-  while (start <= processed.size()) {
-    const size_t end = processed.find('\n', start);
-    const bool hasNewline = end != std::string::npos;
-    const size_t lineLen = hasNewline ? (end - start) : (processed.size() - start);
-    lines.emplace_back(processed.substr(start, lineLen));
-    if (!hasNewline) {
-      break;
-    }
-    start = end + 1;
-  }
-
-  const bool endsWithNewline = !processed.empty() && processed.back() == '\n';
-
-  // Release processed now that lines have been extracted — on memory-constrained
-  // devices holding both the full string and the line vector simultaneously can
-  // push past the available heap for large files.
-  processed.clear();
-  processed.shrink_to_fit();
-
-  std::vector<std::string> outLines;
-  outLines.reserve(lines.size() + 16);
-
-  auto appendLinesFromString = [&](const std::string& text) {
-    size_t pos = 0;
-    while (pos <= text.size()) {
-      const size_t end = text.find('\n', pos);
-      const bool hasNewline = end != std::string::npos;
-      const size_t len = hasNewline ? (end - pos) : (text.size() - pos);
-      outLines.emplace_back(text.substr(pos, len));
-      if (!hasNewline) {
-        break;
-      }
-      pos = end + 1;
-    }
-  };
-
-  auto appendProcessedLine = [&](const std::string& line) {
-    std::string expandedLine;
-    if (expandEmbedsInLine(line, expandedLine)) {
-      appendLinesFromString(expandedLine);
-    } else {
-      outLines.push_back(processLine(line));
-    }
-  };
-
-  for (size_t i = 0; i < lines.size();) {
-    const std::string& line = lines[i];
-
-    if (!inFence) {
-      std::string newFence;
-      if (isFenceStart(line, newFence)) {
-        inFence = true;
-        fence = newFence;
-        outLines.push_back(line);
-        i++;
-        continue;
-      }
-
-      std::string caption;
-      if (isTableCaptionLine(line, caption) && i + 1 < lines.size() && isTableLine(lines[i + 1])) {
-        appendProcessedLine("*" + caption + "*");
-        i++;
-        continue;
-      }
-
-      std::string defIndent;
-      std::string defText;
-      if (i + 1 < lines.size() && isDefinitionTermCandidate(line) &&
-          isDefinitionLine(lines[i + 1], defIndent, defText)) {
-        size_t termIndentEnd = line.find_first_not_of(" \t");
-        if (termIndentEnd == std::string::npos) {
-          termIndentEnd = line.size();
-        }
-        const std::string termIndent = line.substr(0, termIndentEnd);
-        const std::string termText = trimSpaces(line);
-        appendProcessedLine(termIndent + "**" + termText + "**");
-        i++;
-        while (i < lines.size()) {
-          std::string lineIndent;
-          std::string lineDef;
-          if (!isDefinitionLine(lines[i], lineIndent, lineDef)) {
-            break;
-          }
-          std::string bulletIndent = lineIndent;
-          if (bulletIndent.size() < termIndent.size()) {
-            bulletIndent = termIndent;
-          }
-          appendProcessedLine(bulletIndent + "- " + lineDef);
-          i++;
-        }
-        continue;
-      }
-
-      appendProcessedLine(line);
-      i++;
-      continue;
-    }
-
-    outLines.push_back(line);
-    if (isFenceEnd(line, fence)) {
-      inFence = false;
-      fence.clear();
-    }
-    i++;
-  }
-
-  // Release lines now that outLines has been built.
-  lines.clear();
-  lines.shrink_to_fit();
-
-  std::string output;
-  {
-    // Estimate output size from outLines content.
-    size_t estimatedSize = 0;
-    for (const auto& line : outLines) {
-      estimatedSize += line.size() + 1;
-    }
-    output.reserve(estimatedSize);
-  }
-  for (size_t i = 0; i < outLines.size(); i++) {
-    output.append(outLines[i]);
-    if (output.size() >= MarkdownParser::MAX_INPUT_SIZE) {
-      output.resize(MarkdownParser::MAX_INPUT_SIZE);
-      break;
-    }
-    if (i + 1 < outLines.size() || endsWithNewline) {
-      output.push_back('\n');
-    }
-    if (output.size() >= MarkdownParser::MAX_INPUT_SIZE) {
-      output.resize(MarkdownParser::MAX_INPUT_SIZE);
-      break;
-    }
-  }
-
-  return output;
+  return markdown::preprocess::preprocessDocument(content, expandEmbedsInLine, MarkdownParser::MAX_INPUT_SIZE);
 }
 
 bool Markdown::parseToAst() {

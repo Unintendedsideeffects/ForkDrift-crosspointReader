@@ -45,11 +45,5 @@ class Markdown {
   std::unique_ptr<MarkdownNavigation> navigation;
 
   bool renderToHtmlFile(const std::string& htmlPath) const;
-  static std::string stripFrontmatter(const std::string& content);
-  static std::string stripComments(const std::string& content);
-  static std::string processLine(const std::string& line);
-  static std::string processInline(const std::string& line);
-  static std::string stripBlockId(const std::string& line);
-  static std::string formatCalloutLine(const std::string& line);
   std::string preprocessContent(std::string content, int depth, std::vector<std::string>& stack) const;
 };

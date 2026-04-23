@@ -16,7 +16,8 @@
 
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
-#include "esp_ota_ops.h"  // cppcheck-suppress missingInclude
+#include "esp_app_format.h"  // cppcheck-suppress missingInclude
+#include "esp_ota_ops.h"     // cppcheck-suppress missingInclude
 #include "fontIds.h"
 #include "util/ButtonNavigator.h"
 
@@ -31,6 +32,11 @@ enum class LocalUpdatePromptAction : uint8_t { Install = 0, SkipForNow, SkipThis
 struct LocalUpdateFingerprint {
   uint32_t fileSize = 0;
   uint32_t sampleHash = 0;
+};
+
+struct LocalUpdateMetadata {
+  LocalUpdateFingerprint fingerprint;
+  String candidateVersion;
 };
 
 uint32_t fnv1aUpdate(uint32_t hash, const uint8_t* data, const size_t length) {
@@ -116,6 +122,27 @@ bool hashLocalUpdateSample(const size_t firmwareSize, const size_t offset, Local
   return true;
 }
 
+bool readFirmwareAppDescription(FsFile& file, esp_app_desc_t& appDesc) {
+  const size_t appDescOffset = sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t);
+  if (!file.seekSet(appDescOffset)) {
+    LOG_ERR("FWUPD", "Failed to seek firmware file to app description");
+    return false;
+  }
+
+  const size_t bytesRead = file.read(reinterpret_cast<uint8_t*>(&appDesc), sizeof(appDesc));
+  if (bytesRead != sizeof(appDesc)) {
+    LOG_ERR("FWUPD", "Failed to read app description (%zu / %zu bytes)", bytesRead, sizeof(appDesc));
+    return false;
+  }
+
+  if (appDesc.magic_word != ESP_APP_DESC_MAGIC_WORD) {
+    LOG_WRN("FWUPD", "Firmware file missing valid app description");
+    return false;
+  }
+
+  return true;
+}
+
 bool computeLocalUpdateFingerprint(LocalUpdateFingerprint& fingerprint) {
   FsFile file;
   {
@@ -167,8 +194,42 @@ bool computeLocalUpdateFingerprint(LocalUpdateFingerprint& fingerprint) {
   return true;
 }
 
-bool isCurrentLocalUpdateSkipped(LocalUpdateFingerprint& currentFingerprint) {
-  if (!computeLocalUpdateFingerprint(currentFingerprint)) {
+bool readLocalUpdateVersion(String& version) {
+  FsFile file;
+  {
+    SpiBusMutex::Guard guard;
+    if (!Storage.openFileForRead("FWUPD", FirmwareUpdateUtil::kFirmwareBinPath, file)) {
+      LOG_ERR("FWUPD", "Failed to open firmware file for version read");
+      return false;
+    }
+  }
+
+  esp_app_desc_t appDesc{};
+  const bool ok = readFirmwareAppDescription(file, appDesc);
+  file.close();
+  if (!ok) {
+    return false;
+  }
+
+  version = appDesc.version;
+  version.trim();
+  return !version.isEmpty();
+}
+
+bool loadLocalUpdateMetadata(LocalUpdateMetadata& metadata) {
+  if (!computeLocalUpdateFingerprint(metadata.fingerprint)) {
+    return false;
+  }
+
+  if (!readLocalUpdateVersion(metadata.candidateVersion)) {
+    metadata.candidateVersion = "Unknown";
+  }
+
+  return true;
+}
+
+bool isCurrentLocalUpdateSkipped(LocalUpdateMetadata& currentMetadata) {
+  if (!loadLocalUpdateMetadata(currentMetadata)) {
     return false;
   }
 
@@ -177,8 +238,8 @@ bool isCurrentLocalUpdateSkipped(LocalUpdateFingerprint& currentFingerprint) {
     return false;
   }
 
-  return skippedFingerprint.fileSize == currentFingerprint.fileSize &&
-         skippedFingerprint.sampleHash == currentFingerprint.sampleHash;
+  return skippedFingerprint.fileSize == currentMetadata.fingerprint.fileSize &&
+         skippedFingerprint.sampleHash == currentMetadata.fingerprint.sampleHash;
 }
 
 const char* promptTitle(const int index) {
@@ -207,7 +268,7 @@ String formatFirmwareSize(const uint32_t bytes) {
 }
 
 void renderLocalUpdatePrompt(GfxRenderer& renderer, const MappedInputManager& mappedInput, const int selectedIndex,
-                             const LocalUpdateFingerprint& fingerprint) {
+                             const LocalUpdateMetadata& metadata) {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
@@ -221,7 +282,17 @@ void renderLocalUpdatePrompt(GfxRenderer& renderer, const MappedInputManager& ma
   infoY += renderer.getLineHeight(UI_10_FONT_ID) + 6;
   renderer.drawCenteredText(UI_10_FONT_ID, infoY, tr(STR_LOCAL_UPDATE_PROMPT), true);
   infoY += renderer.getLineHeight(UI_10_FONT_ID) + 6;
-  renderer.drawCenteredText(UI_10_FONT_ID, infoY, formatFirmwareSize(fingerprint.fileSize).c_str(), true);
+  renderer.drawCenteredText(UI_10_FONT_ID, infoY, formatFirmwareSize(metadata.fingerprint.fileSize).c_str(), true);
+  infoY += renderer.getLineHeight(UI_10_FONT_ID) + 6;
+
+  const esp_app_desc_t* currentApp = esp_ota_get_app_description();
+  String currentVersion = currentApp ? String(currentApp->version) : String(CROSSPOINT_VERSION);
+  currentVersion.trim();
+  const String currentVersionLine = String(tr(STR_CURRENT_VERSION)) + currentVersion;
+  const String newVersionLine = String(tr(STR_NEW_VERSION)) + metadata.candidateVersion;
+  renderer.drawCenteredText(UI_10_FONT_ID, infoY, currentVersionLine.c_str(), true);
+  infoY += renderer.getLineHeight(UI_10_FONT_ID) + 4;
+  renderer.drawCenteredText(UI_10_FONT_ID, infoY, newVersionLine.c_str(), true);
 
   const int contentTop = infoY + renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing + 8;
   const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
@@ -234,12 +305,12 @@ void renderLocalUpdatePrompt(GfxRenderer& renderer, const MappedInputManager& ma
 }
 
 LocalUpdatePromptAction promptForLocalUpdate(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                             const LocalUpdateFingerprint& fingerprint) {
+                                             const LocalUpdateMetadata& metadata) {
   ButtonNavigator buttonNavigator;
   int selectedIndex = 0;
 
   mappedInput.clearTransientState();
-  renderLocalUpdatePrompt(renderer, mappedInput, selectedIndex, fingerprint);
+  renderLocalUpdatePrompt(renderer, mappedInput, selectedIndex, metadata);
 
   while (true) {
     mappedInput.update();
@@ -263,7 +334,7 @@ LocalUpdatePromptAction promptForLocalUpdate(GfxRenderer& renderer, MappedInputM
     });
 
     if (selectionChanged) {
-      renderLocalUpdatePrompt(renderer, mappedInput, selectedIndex, fingerprint);
+      renderLocalUpdatePrompt(renderer, mappedInput, selectedIndex, metadata);
     }
 
     delay(20);
@@ -281,17 +352,17 @@ void FirmwareUpdateUtil::handleLocalUpdateBootFlow(GfxRenderer& renderer, Mapped
     return;
   }
 
-  LocalUpdateFingerprint fingerprint;
-  if (isCurrentLocalUpdateSkipped(fingerprint)) {
+  LocalUpdateMetadata metadata;
+  if (isCurrentLocalUpdateSkipped(metadata)) {
     LOG_INF("FWUPD", "Skipping boot prompt for previously skipped firmware.bin");
     return;
   }
 
-  if (fingerprint.fileSize == 0 && !computeLocalUpdateFingerprint(fingerprint)) {
+  if (metadata.fingerprint.fileSize == 0 && !loadLocalUpdateMetadata(metadata)) {
     return;
   }
 
-  switch (promptForLocalUpdate(renderer, mappedInput, fingerprint)) {
+  switch (promptForLocalUpdate(renderer, mappedInput, metadata)) {
     case LocalUpdatePromptAction::Install:
       clearSkippedLocalUpdate();
       performLocalUpdate(renderer);
@@ -300,7 +371,7 @@ void FirmwareUpdateUtil::handleLocalUpdateBootFlow(GfxRenderer& renderer, Mapped
       LOG_INF("FWUPD", "User skipped local update for now");
       break;
     case LocalUpdatePromptAction::SkipThisVersion:
-      if (saveSkippedLocalUpdate(fingerprint)) {
+      if (saveSkippedLocalUpdate(metadata.fingerprint)) {
         LOG_INF("FWUPD", "User skipped this local firmware version");
       }
       break;

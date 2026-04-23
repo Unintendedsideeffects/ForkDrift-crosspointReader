@@ -49,6 +49,7 @@ g++ -std=c++20 -O2 -Wno-narrowing \
   "$ROOT_DIR/src/network/FileReadApi.cpp" \
   "$ROOT_DIR/src/network/UploadApi.cpp" \
   "$ROOT_DIR/lib/FsHelpers/FsHelpers.cpp" \
+  "$ROOT_DIR/lib/Markdown/MarkdownPreprocessor.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownParser.cpp" \
   "$ROOT_DIR/src/core/features/FeatureCatalog.cpp" \
   "$ROOT_DIR/src/network/ReadingDataApi.cpp" \

@@ -179,6 +179,26 @@ pio run --target upload
 
 After flashing the new features, it’s recommended to capture detailed logs from the serial port.
 
+For a simple local workflow that uploads first, then starts the monitor and saves
+everything to a timestamped log file under `.logs/serial/`, use:
+
+```sh
+./scripts/pio_debug.sh
+```
+
+This is the more practical option when you are connected over SSH or Cursor,
+because the serial output is also persisted to disk for later inspection.
+
+Useful variants:
+
+```sh
+# Skip flashing and just attach the monitor
+./scripts/pio_debug.sh --no-upload
+
+# Pin a specific serial device
+./scripts/pio_debug.sh --port /dev/ttyACM0
+```
+
 First, make sure all required Python packages are installed:
 
 ```python

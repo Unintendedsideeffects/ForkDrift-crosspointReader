@@ -59,15 +59,4 @@ class MarkdownParser {
   bool checkDepthLimit(size_t nextDepth);
   bool appendChildNode(MdNode* parent, std::unique_ptr<MdNode> node);
   bool appendTextNode(MdNode* parent, std::string text);
-
-  // Preprocessing helpers (shared with Markdown.cpp but reimplemented here)
-  static std::string preprocessMarkdown(const std::string& input);
-  static std::string stripFrontmatter(const std::string& content);
-  static std::string stripComments(const std::string& content);
-  static std::string processLine(const std::string& line);
-  static std::string processInline(const std::string& line);
-  static std::string stripBlockId(const std::string& line);
-  static std::string formatCalloutLine(const std::string& line);
-  static bool isFenceStart(const std::string& line, std::string& fence);
-  static bool isFenceEnd(const std::string& line, const std::string& fence);
 };
