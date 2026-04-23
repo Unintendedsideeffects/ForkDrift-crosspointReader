@@ -1,11 +1,10 @@
-#include "CrossPointWebServer.h"
-
 #include <ArduinoJson.h>
 #include <HalStorage.h>
 #include <Logging.h>
 #include <esp_task_wdt.h>
 
 #include "CrossPointSettings.h"
+#include "CrossPointWebServer.h"
 #include "SpiBusMutex.h"
 #include "network/FileListApi.h"
 #include "network/FileReadApi.h"
@@ -39,8 +38,7 @@ void CrossPointWebServer::handleFileListData() const {
 
                            const size_t written = serializeJson(doc, output, outputSize);
                            if (written >= outputSize) {
-                             LOG_DBG("WEB", "Skipping file entry with oversized JSON for name: %s",
-                                     entry.name.c_str());
+                             LOG_DBG("WEB", "Skipping file entry with oversized JSON for name: %s", entry.name.c_str());
                              return;
                            }
 
@@ -84,11 +82,21 @@ void CrossPointWebServer::handleDownload() const {
   server->send(200, result.contentType.c_str(), "");
 
   WiFiClient client = server->client();
-  constexpr size_t chunkSize = 4096;
-  uint8_t buffer[chunkSize];
-  bool downloadOk = true;
+  constexpr size_t chunkSize = 8192;
+  auto* buffer = static_cast<uint8_t*>(malloc(chunkSize));
+  if (!buffer) {
+    LOG_ERR("WEB", "Download: malloc failed for %u byte buffer", static_cast<unsigned int>(chunkSize));
+    SpiBusMutex::Guard guard;
+    file.close();
+    return;
+  }
 
+  bool downloadOk = true;
   while (downloadOk) {
+    // Reset WDT before acquiring the SPI mutex — the display may hold the bus
+    // for up to ~2 s during an e-ink refresh, and the mutex uses portMAX_DELAY.
+    esp_task_wdt_reset();
+
     size_t bytesRead = 0;
     {
       SpiBusMutex::Guard guard;
@@ -109,6 +117,8 @@ void CrossPointWebServer::handleDownload() const {
       totalWritten += wrote;
     }
   }
+
+  free(buffer);
 
   {
     SpiBusMutex::Guard guard;

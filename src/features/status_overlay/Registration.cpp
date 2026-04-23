@@ -3,12 +3,14 @@
 #include <FeatureFlags.h>
 #include <GfxRenderer.h>
 #include <HalPowerManager.h>
-#include <I18n.h>
 #include <WiFi.h>
+
+#include <algorithm>
 
 #include "CrossPointSettings.h"
 #include "core/registries/LifecycleRegistry.h"
 #include "fontIds.h"
+#include "network/BackgroundWebServer.h"
 
 namespace features::status_overlay {
 
@@ -16,24 +18,27 @@ namespace features::status_overlay {
 
 namespace {
 
-// Draw 1–4 vertical bars representing WiFi signal strength.
-// barH: total bar strip height (used to scale individual bars).
-void drawSignalBars(const GfxRenderer& renderer, const int x, const int barY, const int barH, const int8_t rssi) {
-  // Map RSSI to 1-4 bars: >= -60 = 4, >= -70 = 3, >= -80 = 2, else 1.
-  const int bars = rssi >= -60 ? 4 : rssi >= -70 ? 3 : rssi >= -80 ? 2 : 1;
-  constexpr int barWidth = 3;
-  constexpr int barGap = 2;
-  for (int i = 0; i < 4; ++i) {
-    const int bx = x + i * (barWidth + barGap);
-    // Each bar is taller than the previous: min 30%, scaling up to 100% of barH.
-    const int bh = (barH * (3 + i)) / (4 + 2);  // proportional heights
-    const int by = barY + barH - bh;
-    if (i < bars) {
-      renderer.fillRect(bx, by, barWidth, bh, true);
-    } else {
-      renderer.drawRect(bx, by, barWidth, bh, true);
-    }
-  }
+constexpr int kStatusIconSize = 16;
+constexpr int kStatusIconGap = 4;
+
+void drawWifiIcon(const GfxRenderer& renderer, const int x, const int y) {
+  constexpr int cx = 7;
+  constexpr int cy = 13;
+  renderer.drawArc(7, x + cx, y + cy, -1, -1, 2, true);
+  renderer.drawArc(7, x + cx, y + cy, 1, -1, 2, true);
+  renderer.drawArc(4, x + cx, y + cy, -1, -1, 2, true);
+  renderer.drawArc(4, x + cx, y + cy, 1, -1, 2, true);
+  renderer.fillRect(x + cx - 1, y + cy - 1, 3, 3, true);
+}
+
+void drawSyncIcon(const GfxRenderer& renderer, const int x, const int y) {
+  renderer.drawLine(x + 4, y + 5, x + 11, y + 5, 2, true);
+  renderer.drawLine(x + 11, y + 5, x + 8, y + 2, 2, true);
+  renderer.drawLine(x + 11, y + 5, x + 8, y + 8, 2, true);
+
+  renderer.drawLine(x + 11, y + 11, x + 4, y + 11, 2, true);
+  renderer.drawLine(x + 4, y + 11, x + 7, y + 8, 2, true);
+  renderer.drawLine(x + 4, y + 11, x + 7, y + 14, 2, true);
 }
 
 void drawStatusOverlay(const GfxRenderer& renderer) {
@@ -46,12 +51,10 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
   const int lineH = renderer.getLineHeight(SMALL_FONT_ID);
   constexpr int kPadV = 2;
   constexpr int kPadH = 4;
-  const int barH = lineH + 2 * kPadV;
-  const int barY = (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM)
-                       ? screenH - barH
-                       : 0;
+  const int barH = std::max(lineH + 2 * kPadV, kStatusIconSize + 2 * kPadV);
+  const int barY = (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? screenH - barH : 0;
   const int sepY = (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? barY : barY + barH - 1;
-  const int textY = barY + kPadV;
+  const int textY = barY + (barH - lineH) / 2;
 
   // White background strip.
   renderer.fillRect(0, barY, screenW, barH, false);
@@ -63,29 +66,24 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
   snprintf(batBuf, sizeof(batBuf), "%u%%", static_cast<unsigned>(powerManager.getBatteryPercentage()));
   renderer.drawText(SMALL_FONT_ID, kPadH, textY, batBuf, true);
 
-  // --- WiFi (right side) ---
+  // --- Status icons (right side) ---
   const wifi_mode_t mode = WiFi.getMode();
-  const bool isSta = (mode & WIFI_MODE_STA) && (WiFi.status() == WL_CONNECTED);
-  const bool isAp = (mode & WIFI_MODE_AP);
+  const bool isWifiConnected = (mode & WIFI_MODE_STA) && (WiFi.status() == WL_CONNECTED);
+  const bool isFileServerRunning = BackgroundWebServer::getInstance().isRunning();
+  int iconRight = screenW - kPadH;
+  const int iconY = barY + (barH - kStatusIconSize) / 2;
 
-  if (isSta) {
-    constexpr int kBarsW = 4 * (3 + 2) - 2;  // 4 bars * (barWidth+gap) - last gap
-    const int barsX = screenW - kBarsW - kPadH;
-    drawSignalBars(renderer, barsX, barY + kPadV, lineH, WiFi.RSSI());
-  } else if (isAp) {
-    const char* apStr = tr(STR_WIFI_AP);
-    const int apW = renderer.getTextWidth(SMALL_FONT_ID, apStr);
-    renderer.drawText(SMALL_FONT_ID, screenW - apW - kPadH, textY, apStr, true);
-  } else {
-    const char* noWifi = tr(STR_NO_WIFI);
-    const int nwW = renderer.getTextWidth(SMALL_FONT_ID, noWifi);
-    renderer.drawText(SMALL_FONT_ID, screenW - nwW - kPadH, textY, noWifi, true);
+  if (isWifiConnected) {
+    iconRight -= kStatusIconSize;
+    drawWifiIcon(renderer, iconRight, iconY);
+  }
+  if (isFileServerRunning) {
+    iconRight -= isWifiConnected ? kStatusIconGap + kStatusIconSize : kStatusIconSize;
+    drawSyncIcon(renderer, iconRight, iconY);
   }
 }
 
-void onSettingsLoaded(GfxRenderer& renderer) {
-  renderer.setPostRenderHook(drawStatusOverlay);
-}
+void onSettingsLoaded(GfxRenderer& renderer) { renderer.setPostRenderHook(drawStatusOverlay); }
 
 }  // namespace
 
