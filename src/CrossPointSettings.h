@@ -228,7 +228,7 @@ class CrossPointSettings {
   // Hide battery percentage
   uint8_t hideBatteryPercentage = HIDE_NEVER;
   // UI theme
-  uint8_t uiTheme = LYRA;
+  uint8_t uiTheme = FORK_DRIFT;
   // Sunlight fading compensation
   uint8_t fadingFix = 0;
   // Long-press chapter skip on side buttons

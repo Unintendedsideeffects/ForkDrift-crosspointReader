@@ -199,17 +199,18 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.lastTimeSyncEpoch = doc["lastTimeSyncEpoch"] | (uint32_t)0;
   s.releaseChannel =
       clamp(doc["releaseChannel"] | (uint8_t)S::RELEASE_STABLE, S::RELEASE_CHANNEL_COUNT, S::RELEASE_STABLE);
-  s.uiTheme = clamp(doc["uiTheme"] | (uint8_t)S::LYRA, static_cast<uint8_t>(S::POKEMON_PARTY + 1), S::LYRA);
+  s.uiTheme = clamp(doc["uiTheme"] | (uint8_t)S::FORK_DRIFT, static_cast<uint8_t>(S::POKEMON_PARTY + 1), S::FORK_DRIFT);
   s.fadingFix = doc["fadingFix"] | (uint8_t)0;
   s.darkMode = doc["darkMode"] | (uint8_t)0;
   s.embeddedStyle = doc["embeddedStyle"] | (uint8_t)1;
   s.usbMscPromptOnConnect = doc["usbMscPromptOnConnect"] | (uint8_t)0;
   s.wifiAutoConnect = doc["wifiAutoConnect"] | (uint8_t)0;
   s.showHiddenFiles = doc["showHiddenFiles"] | (uint8_t)0;
-  s.imageRendering = clamp(doc["imageRendering"] | (uint8_t)S::IMAGES_DISPLAY, S::IMAGE_RENDERING_COUNT, S::IMAGES_DISPLAY);
+  s.imageRendering =
+      clamp(doc["imageRendering"] | (uint8_t)S::IMAGES_DISPLAY, S::IMAGE_RENDERING_COUNT, S::IMAGES_DISPLAY);
   s.globalStatusBar = doc["globalStatusBar"] | (uint8_t)0;
-  s.globalStatusBarPosition =
-      clamp(doc["globalStatusBarPosition"] | (uint8_t)S::STATUS_BAR_TOP, S::GLOBAL_STATUS_BAR_POSITION_COUNT, S::STATUS_BAR_TOP);
+  s.globalStatusBarPosition = clamp(doc["globalStatusBarPosition"] | (uint8_t)S::STATUS_BAR_TOP,
+                                    S::GLOBAL_STATUS_BAR_POSITION_COUNT, S::STATUS_BAR_TOP);
 
   const char* url = doc["opdsServerUrl"] | "";
   strncpy(s.opdsServerUrl, url, sizeof(s.opdsServerUrl) - 1);
