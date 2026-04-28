@@ -31,20 +31,20 @@ def get_short_sha(project_dir: Path) -> str:
         return "0000000"
 
 
-def copy_named_firmware(source, target, env):
-    source_path = Path(str(source[0]))
-    if not source_path.exists():
+def copy_named_firmware(_source, _target, env):
+    build_dir = Path(env.subst("$BUILD_DIR"))
+    firmware_path = build_dir / "firmware.bin"
+    if not firmware_path.exists():
         return
 
     project_dir = Path(env["PROJECT_DIR"])
-    build_dir = Path(env.subst("$BUILD_DIR"))
     artifact_name = f"firmware-{get_build_date()}-{get_short_sha(project_dir)}.bin"
     artifact_path = build_dir / artifact_name
 
-    if source_path.resolve() == artifact_path.resolve():
+    if firmware_path.resolve() == artifact_path.resolve():
         return
 
-    shutil.copy2(source_path, artifact_path)
+    shutil.copy2(firmware_path, artifact_path)
     print(f">> firmware artifact: {artifact_path}")
 
 
