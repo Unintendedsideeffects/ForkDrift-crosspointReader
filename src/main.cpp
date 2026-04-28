@@ -210,6 +210,20 @@ void reconcileBackgroundWifiServer() {
   }
 }
 
+void refreshGlobalStatusBarOnWifiChange() {
+  static bool lastStaConnected = hasStaWifiConnection();
+
+  const bool staConnected = hasStaWifiConnection();
+  if (staConnected == lastStaConnected) {
+    return;
+  }
+
+  lastStaConnected = staConnected;
+  if (SETTINGS.globalStatusBar) {
+    activityManager.requestUpdate();
+  }
+}
+
 void verifyPowerButtonDuration() {
   if (SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP) {
     return;
@@ -572,6 +586,7 @@ void loop() {
   }
 
   reconcileBackgroundWifiServer();
+  refreshGlobalStatusBarOnWifiChange();
 
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || activityManager.preventAutoSleep() ||
       backgroundServer.shouldPreventAutoSleep()) {
