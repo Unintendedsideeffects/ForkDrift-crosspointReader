@@ -1258,7 +1258,7 @@ const char* const STRINGS_EN[] = {
     "No update available",
     "Update failed",
     "Update complete",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -1808,7 +1808,7 @@ const char* const STRINGS_ES[] = {
     "Actualizaci\xC3"
     "\xB3"
     "n completada",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -2621,7 +2621,7 @@ const char* const STRINGS_FR[] = {
     " jour effectu\xC3"
     "\xA9"
     "e",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -3289,7 +3289,7 @@ const char* const STRINGS_DE[] = {
     "gbar",
     "Updatefehler",
     "Update fertig",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -4447,7 +4447,7 @@ const char* const STRINGS_CS[] = {
     "Aktualizace dokon\xC4"
     "\x8D"
     "ena",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -5473,7 +5473,7 @@ const char* const STRINGS_PO[] = {
     "o conclu\xC3"
     "\xAD"
     "da",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -10037,7 +10037,7 @@ const char* const STRINGS_RU[] = {
     "\xD0"
     "\xBE"
     "",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -13983,7 +13983,7 @@ const char* const STRINGS_SV[] = {
     "Uppdatering f\xC3"
     "\xA4"
     "rdig",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -14902,7 +14902,7 @@ const char* const STRINGS_RO[] = {
     "Actualizare complet\xC4"
     "\x83"
     "",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -15710,7 +15710,7 @@ const char* const STRINGS_CA[] = {
     "Actualitzaci\xC3"
     "\xB3"
     " completada",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -20892,7 +20892,7 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xBE"
     "",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -29020,7 +29020,7 @@ const char* const STRINGS_BE[] = {
     "\xD0"
     "\xB0"
     "",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -32824,7 +32824,7 @@ const char* const STRINGS_IT[] = {
     "Nessun aggiornamento disponibile",
     "Aggiornamento fallito",
     "Aggiornamento completato",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -33582,7 +33582,7 @@ const char* const STRINGS_PL[] = {
     "Aktualizacja zako\xC5"
     "\x84"
     "czona",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -34496,7 +34496,7 @@ const char* const STRINGS_FI[] = {
     "P\xC3"
     "\xA4"
     "ivitys valmis",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -35224,7 +35224,7 @@ const char* const STRINGS_DA[] = {
     "Opdatering f\xC3"
     "\xA6"
     "rdig",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -35708,7 +35708,7 @@ const char* const STRINGS_NL[] = {
     "Geen update beschikbaar",
     "Update mislukt",
     "Update voltooid",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -36634,7 +36634,7 @@ const char* const STRINGS_TR[] = {
     "ncelleme tamamland\xC4"
     "\xB1"
     "",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -41466,7 +41466,7 @@ const char* const STRINGS_KK[] = {
     "\xD1"
     "\x8B"
     "",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -45850,7 +45850,7 @@ const char* const STRINGS_HU[] = {
     "s k\xC3"
     "\xA9"
     "sz",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -46936,7 +46936,7 @@ const char* const STRINGS_LT[] = {
     "ra",
     "Klaida",
     "Baigta",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
@@ -47624,7 +47624,7 @@ const char* const STRINGS_SI[] = {
     "Posodobitev kon\xC4"
     "\x8D"
     "ana",
-    "Found /firmware.bin",
+    "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",

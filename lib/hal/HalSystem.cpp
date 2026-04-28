@@ -69,6 +69,8 @@ void IRAM_ATTR __wrap_panic_print_backtrace(const void* frame, int core) {
 
 namespace HalSystem {
 
+static std::string pendingPanicReport;
+
 void begin() {
   // This is mostly for the first boot, we need to initialize the panic info and logs to empty state
   // If we reboot from a panic state, we want to keep the panic info until we successfully dump it to the SD card, use
@@ -83,12 +85,13 @@ void begin() {
     if (sanitizeLogHead()) {
       clearLastLogs();
     }
+    pendingPanicReport = getPanicInfo(true);
   }
 }
 
 void checkPanic() {
   if (isRebootFromPanic()) {
-    auto panicInfo = getPanicInfo(true);
+    const auto panicInfo = pendingPanicReport.empty() ? getPanicInfo(true) : pendingPanicReport;
     auto file = Storage.open("/crash_report.txt", O_WRITE | O_CREAT | O_APPEND);
     if (file) {
       static constexpr char kSeparator[] = "\n---\n\n";
@@ -109,6 +112,7 @@ void clearPanic() {
   for (size_t i = 0; i < MAX_PANIC_STACK_DEPTH; i++) {
     panicStack[i].sp = 0;
   }
+  pendingPanicReport.clear();
   clearLastLogs();
 }
 

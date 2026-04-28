@@ -31,7 +31,7 @@ def get_short_sha(project_dir: Path) -> str:
         return "0000000"
 
 
-def copy_named_firmware(_source, _target, env):
+def copy_named_firmware(target, source, env):
     build_dir = Path(env.subst("$BUILD_DIR"))
     firmware_path = build_dir / "firmware.bin"
     if not firmware_path.exists():

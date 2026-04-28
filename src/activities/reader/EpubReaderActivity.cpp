@@ -3,6 +3,7 @@
 #include <Epub/Page.h>
 #include <Epub/blocks/TextBlock.h>
 #include <FontCacheManager.h>
+#include <FontDecompressor.h>
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
@@ -36,6 +37,8 @@ constexpr unsigned long skipChapterMs = 700;
 const std::vector<int> PAGE_TURN_LABELS = {1, 1, 3, 6, 12};
 constexpr uint8_t maxPageLoadRetryCount = 1;
 constexpr uint32_t minHeapForFontPrewarm = 16000;
+
+extern FontDecompressor fontDecompressor;
 
 int clampPercent(int percent) {
   if (percent < 0) {
@@ -110,6 +113,9 @@ void EpubReaderActivity::onEnter() {
 
 void EpubReaderActivity::onExit() {
   Activity::onExit();
+
+  // Free all cached font glyphs to reduce memory pressure
+  fontDecompressor.clearCache();
 
   // Reset orientation back to portrait for the rest of the UI
   renderer.setOrientation(GfxRenderer::Orientation::Portrait);
