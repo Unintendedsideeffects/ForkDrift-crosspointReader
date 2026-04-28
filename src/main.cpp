@@ -31,6 +31,7 @@
 #include "fontIds.h"
 #include "network/BackgroundWebServer.h"
 #include "network/BackgroundWifiService.h"
+#include "util/AgentDebugLog.h"
 #include "util/ButtonNavigator.h"
 #include "util/FactoryResetUtils.h"
 #include "util/FirmwareUpdateUtil.h"
@@ -185,6 +186,23 @@ void reconcileBackgroundWifiServer() {
   const bool blockedByActivity = activityManager.blocksBackgroundServer();
   const bool staConnected = hasStaWifiConnection();
   const bool autoConnectInFlight = BG_WIFI.isRunning() && wifiAutoConnectAttempted && !staConnected;
+
+  // #region agent log
+  static unsigned long lastAgentReconcileLogMs = 0;
+  if (millis() - lastAgentReconcileLogMs >= 3000 || blockedByActivity) {
+    lastAgentReconcileLogMs = millis();
+    char data[240];
+    snprintf(data, sizeof(data),
+             "{\"enabled\":%s,\"blockedByActivity\":%s,\"staConnected\":%s,\"bgWebRunning\":%s,"
+             "\"bgWifiRunning\":%s,\"autoConnectInFlight\":%s,\"wifiStatus\":%d}",
+             backgroundWifiEnabled ? "true" : "false", blockedByActivity ? "true" : "false",
+             staConnected ? "true" : "false", backgroundServer.isRunning() ? "true" : "false",
+             BG_WIFI.isRunning() ? "true" : "false", autoConnectInFlight ? "true" : "false",
+             static_cast<int>(WiFi.status()));
+    agentDebugLog("initial", "H1,H2,H3", "main.cpp:reconcileBackgroundWifiServer", "background wifi reconcile state",
+                  data);
+  }
+  // #endregion
 
   if (backgroundServer.isRunning()) {
     return;

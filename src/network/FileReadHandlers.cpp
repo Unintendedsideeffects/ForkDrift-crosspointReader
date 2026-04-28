@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HalStorage.h>
 #include <Logging.h>
@@ -8,9 +9,19 @@
 #include "SpiBusMutex.h"
 #include "network/FileListApi.h"
 #include "network/FileReadApi.h"
+#include "util/AgentDebugLog.h"
 
 void CrossPointWebServer::handleFileListData() const {
   const String rawPath = server->hasArg("path") ? server->arg("path") : "";
+  // #region agent log
+  {
+    char data[160];
+    snprintf(data, sizeof(data), "{\"heap\":%u,\"rawPathLen\":%u}", static_cast<unsigned int>(ESP.getFreeHeap()),
+             static_cast<unsigned int>(rawPath.length()));
+    agentDebugLog("initial", "H4,H5,H6", "FileReadHandlers.cpp:handleFileListData", "files API handler entry", data);
+  }
+  // #endregion
+
   const auto pathResult = network::resolveFileListPath(rawPath);
   if (!pathResult.ok()) {
     server->send(pathResult.statusCode, pathResult.contentType, pathResult.body);
@@ -35,6 +46,7 @@ void CrossPointWebServer::handleFileListData() const {
   server->sendContent("[");
 
   bool seenFirst = false;
+  size_t entryCount = 0;
   char jsonBuf[kJsonMax];
   JsonDocument doc;
 
@@ -73,12 +85,22 @@ void CrossPointWebServer::handleFileListData() const {
                            }
                            memcpy(batch + batchLen, jsonBuf, jsonLen);
                            batchLen += jsonLen;
+                           entryCount++;
                          });
 
   flushBatch();
   free(batch);
 
   server->sendContent("]");
+  server->sendContent("");
+  // #region agent log
+  {
+    char data[160];
+    snprintf(data, sizeof(data), "{\"heap\":%u,\"entries\":%u}", static_cast<unsigned int>(ESP.getFreeHeap()),
+             static_cast<unsigned int>(entryCount));
+    agentDebugLog("initial", "H4,H5,H6", "FileReadHandlers.cpp:handleFileListData", "files API handler exit", data);
+  }
+  // #endregion
   LOG_DBG("WEB", "Served file listing for path: %s", pathResult.normalizedPath.c_str());
 }
 

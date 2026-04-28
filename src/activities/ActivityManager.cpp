@@ -4,6 +4,8 @@
 #include <HalStorage.h>
 #include <Logging.h>
 
+#include <algorithm>
+
 #include "CrossPointState.h"
 #include "boot_sleep/BootActivity.h"
 #include "boot_sleep/SleepActivity.h"
@@ -344,7 +346,21 @@ bool ActivityManager::hasBackgroundWebServer() const { return backgroundServer &
 CrossPointWebServer* ActivityManager::getBackgroundWebServer() const { return backgroundServer.get(); }
 
 bool ActivityManager::blocksBackgroundServer() const {
-  return currentActivity && currentActivity->blocksBackgroundServer();
+  if (currentActivity && currentActivity->blocksBackgroundServer()) {
+    return true;
+  }
+
+  return std::any_of(stackActivities.begin(), stackActivities.end(),
+                     [](const auto& activity) { return activity && activity->blocksBackgroundServer(); });
+}
+
+bool ActivityManager::showsStatusBarIp() const {
+  if (currentActivity && currentActivity->showsStatusBarIp()) {
+    return true;
+  }
+
+  return std::any_of(stackActivities.begin(), stackActivities.end(),
+                     [](const auto& activity) { return activity && activity->showsStatusBarIp(); });
 }
 
 void ActivityManager::requestUpdate(bool immediate) {

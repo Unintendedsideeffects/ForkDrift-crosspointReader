@@ -72,4 +72,5 @@ class CrossPointWebServerActivity final : public Activity {
   bool skipLoopDelay() override { return webServer && webServer->isRunning(); }
   bool preventAutoSleep() override { return webServer && webServer->isRunning(); }
   bool blocksBackgroundServer() override { return true; }
+  bool showsStatusBarIp() const override { return true; }
 };

@@ -21,6 +21,7 @@ class BackgroundWebServer {
   bool shouldPreventAutoSleep() const;
   bool wantsFastLoop() const;
   void invalidateCredentialsCache();
+  void stop(bool keepWifi);
 
  private:
   BackgroundWebServer() = default;
@@ -34,7 +35,7 @@ class BackgroundWebServer {
   void startConnect(const std::string& ssid, const std::string& password);
   void startServer();
   void scheduleRetry(const char* reason);
-  void stopAll();
+  void stopAll(bool keepWifi = false);
   unsigned long computeBackoffMs() const;
   bool hasSessionExpired() const;
   void resetSession();

@@ -54,6 +54,7 @@ class Activity {
   virtual bool preventAutoSleep() { return false; }
   virtual bool blocksBackgroundServer() { return false; }
   virtual bool isReaderActivity() const { return false; }
+  virtual bool showsStatusBarIp() const { return false; }
 
   // Start a new activity without destroying the current one
   // Note: requestUpdate() will be invoked automatically once resultHandler finishes
@@ -64,5 +65,4 @@ class Activity {
 
   // Finish this activity and return to the previous one on the stack (if any)
   void finish();
-
 };

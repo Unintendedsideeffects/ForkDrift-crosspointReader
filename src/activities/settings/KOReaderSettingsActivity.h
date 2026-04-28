@@ -15,6 +15,7 @@ class KOReaderSettingsActivity final : public Activity {
   void onExit() override;
   void loop() override;
   void render(RenderLock&&) override;
+  bool showsStatusBarIp() const override { return true; }
 
  private:
   size_t selectedIndex = 0;

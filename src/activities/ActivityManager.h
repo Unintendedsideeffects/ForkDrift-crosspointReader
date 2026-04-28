@@ -101,6 +101,7 @@ class ActivityManager {
   bool isReaderActivity() const;
   bool skipLoopDelay() const;
   bool blocksBackgroundServer() const;
+  bool showsStatusBarIp() const;
 
   // If immediate is true, the update will be triggered immediately.
   // Otherwise, it will be deferred until the end of the current loop iteration.

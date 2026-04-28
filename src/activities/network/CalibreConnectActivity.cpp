@@ -10,6 +10,7 @@
 #include "WifiSelectionActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "network/BackgroundWebServer.h"
 #include "network/BackgroundWifiService.h"
 #include "util/NetworkNames.h"
 
@@ -27,6 +28,8 @@ void CalibreConnectActivity::onEnter() {
   lastCompleteAt = 0;
   lastProcessedCompleteAt = 0;
   exitRequested = false;
+
+  BackgroundWebServer::getInstance().stop(true);
 
   if (BG_WIFI.isRunning()) {
     BG_WIFI.stop(true);

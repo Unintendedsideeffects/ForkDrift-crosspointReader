@@ -19,7 +19,9 @@
 #include "components/ScreenComponents.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "network/BackgroundWebServer.h"
 #include "network/BackgroundWifiService.h"
+#include "util/AgentDebugLog.h"
 #include "util/NetworkNames.h"
 #include "util/TimeSync.h"
 
@@ -44,6 +46,20 @@ void CrossPointWebServerActivity::onEnter() {
   Activity::onEnter();
 
   LOG_DBG("WEBACT", "Free heap at onEnter: %d bytes", ESP.getFreeHeap());
+
+  // #region agent log
+  {
+    char data[220];
+    snprintf(
+        data, sizeof(data), "{\"heap\":%u,\"bgWebRunning\":%s,\"bgWifiRunning\":%s,\"wifiStatus\":%d,\"wifiMode\":%d}",
+        static_cast<unsigned int>(ESP.getFreeHeap()), BackgroundWebServer::getInstance().isRunning() ? "true" : "false",
+        BG_WIFI.isRunning() ? "true" : "false", static_cast<int>(WiFi.status()), static_cast<int>(WiFi.getMode()));
+    agentDebugLog("initial", "H1,H2,H3", "CrossPointWebServerActivity.cpp:onEnter", "foreground file transfer entered",
+                  data);
+  }
+  // #endregion
+
+  BackgroundWebServer::getInstance().stop(true);
 
   // Stop any background WiFi service — it would conflict on port 80
   if (BG_WIFI.isRunning()) {
@@ -76,6 +92,19 @@ void CrossPointWebServerActivity::onExit() {
   Activity::onExit();
 
   LOG_DBG("WEBACT", "Free heap at onExit start: %d bytes", ESP.getFreeHeap());
+
+  // #region agent log
+  {
+    char data[220];
+    snprintf(data, sizeof(data),
+             "{\"heap\":%u,\"isApMode\":%s,\"keepAlways\":%s,\"wifiStatus\":%d,\"wifiMode\":%d,\"serverRunning\":%s}",
+             static_cast<unsigned int>(ESP.getFreeHeap()), isApMode ? "true" : "false",
+             SETTINGS.keepsBackgroundServerOnWifiWhileAwake() ? "true" : "false", static_cast<int>(WiFi.status()),
+             static_cast<int>(WiFi.getMode()), (webServer && webServer->isRunning()) ? "true" : "false");
+    agentDebugLog("initial", "H2,H3,H4", "CrossPointWebServerActivity.cpp:onExit", "foreground file transfer exiting",
+                  data);
+  }
+  // #endregion
 
   state = WebServerActivityState::SHUTTING_DOWN;
 
@@ -290,6 +319,21 @@ void CrossPointWebServerActivity::startAccessPoint() {
 void CrossPointWebServerActivity::startWebServer() {
   LOG_DBG("WEBACT", "Starting web server...");
 
+  // #region agent log
+  {
+    char data[220];
+    snprintf(data, sizeof(data),
+             "{\"heap\":%u,\"bgWebRunning\":%s,\"bgWifiRunning\":%s,\"wifiStatus\":%d,\"wifiMode\":%d,"
+             "\"localIpNonZero\":%s}",
+             static_cast<unsigned int>(ESP.getFreeHeap()),
+             BackgroundWebServer::getInstance().isRunning() ? "true" : "false", BG_WIFI.isRunning() ? "true" : "false",
+             static_cast<int>(WiFi.status()), static_cast<int>(WiFi.getMode()),
+             WiFi.localIP() != IPAddress(0, 0, 0, 0) ? "true" : "false");
+    agentDebugLog("initial", "H1,H3,H5", "CrossPointWebServerActivity.cpp:startWebServer",
+                  "foreground startWebServer entry", data);
+  }
+  // #endregion
+
   // Create the web server instance
   webServer.reset(new (std::nothrow) CrossPointWebServer());
   if (!webServer) {
@@ -394,6 +438,19 @@ void CrossPointWebServerActivity::loop() {
 
     // Handle web server requests - maximize throughput with watchdog safety
     if (webServer && webServer->isRunning()) {
+      // #region agent log
+      static unsigned long lastAgentForegroundLoopLogMs = 0;
+      if (millis() - lastAgentForegroundLoopLogMs >= 3000) {
+        lastAgentForegroundLoopLogMs = millis();
+        char data[200];
+        snprintf(data, sizeof(data), "{\"heap\":%u,\"wifiStatus\":%d,\"rssi\":%d,\"bgWebRunning\":%s}",
+                 static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<int>(WiFi.status()), WiFi.RSSI(),
+                 BackgroundWebServer::getInstance().isRunning() ? "true" : "false");
+        agentDebugLog("initial", "H1,H4,H5", "CrossPointWebServerActivity.cpp:loop.SERVER_RUNNING",
+                      "foreground server loop heartbeat", data);
+      }
+      // #endregion
+
       const unsigned long timeSinceLastHandleClient = millis() - lastHandleClientTime;
 
       // Log if there's a significant gap between handleClient calls (>100ms)
