@@ -21,7 +21,7 @@ The companion page can also export a stripped `pokemon_cache.json` for the devic
 
 ```bash
 python scripts/inject_pokemon_cache.py /path/to/pokemon_cache.json
-pio run
+uv run pio run
 ```
 
 Use `python scripts/inject_pokemon_cache.py --clear` to remove the local baked cache sidecar.

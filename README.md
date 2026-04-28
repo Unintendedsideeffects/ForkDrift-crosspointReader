@@ -80,7 +80,7 @@ For scope/constraints, see [SCOPE.md](SCOPE.md).
 
 1. Go to the **[Build Configurator](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/)**.
 2. Select features and click **Build on GitHub**.
-3. Once the build completes, download the `firmware.bin` or use the browser-based flasher.
+3. Once the build completes, download the named `firmware-YYYYMMDD-SHA.bin` or use the browser-based flasher.
 
 ### Quick Flash (Latest Stable)
 
@@ -97,7 +97,7 @@ To revert to official firmware, use the "Swap boot partition" button at [xteink.
 ```bash
 pip install esptool
 ```
-2. Download the `firmware.bin` file from the release of your choice via the [releases page](https://github.com/crosspoint-reader/crosspoint-reader/releases)
+2. Download the named `firmware-YYYYMMDD-SHA.bin` file from the release of your choice via the [releases page](https://github.com/crosspoint-reader/crosspoint-reader/releases)
 3. Connect your Xteink X4 to your computer via USB-C.
 4. Note the device location. On Linux, run `dmesg` after connecting. On MacOS, run :
 ```bash
@@ -105,7 +105,7 @@ log stream --predicate 'subsystem == "com.apple.iokit"' --info
 ```
 5. Flash the firmware :
 ```bash
-esptool.py --chip esp32c3 --port /dev/ttyACM0 --baud 921600 write_flash 0x10000 /path/to/firmware.bin
+esptool.py --chip esp32c3 --port /dev/ttyACM0 --baud 921600 write_flash 0x10000 /path/to/firmware-YYYYMMDD-SHA.bin
 ```
 Change `/dev/ttyACM0` to the device for your system.
 
@@ -128,17 +128,17 @@ Each channel publishes five firmware variants plus one shared partitions file:
 ### Web (Specific Firmware Version)
 
 1. Connect your Xteink X4 via USB-C
-2. Download `firmware.bin` from the [releases page](https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases)
+2. Download the named `firmware-YYYYMMDD-SHA.bin` from the [releases page](https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases)
 3. Flash it via [xteink.dve.al](https://xteink.dve.al/) (OTA fast flash controls)
 
-You can also copy `firmware.bin` to the SD card root. On boot, the reader now shows a vertical menu to install it, skip for now, skip that firmware version, or delete the file.
+You can also copy the named firmware file to the SD card root. On boot, the reader shows a vertical menu to install it, skip for now, skip that firmware version, or delete the file.
 
 ## Development
 
 ### Prerequisites
 
-* **PlatformIO Core** (`pio`) or **VS Code + PlatformIO IDE**
-* Python 3.8+
+* **uv** (used to run the pinned Python and PlatformIO toolchain)
+* Python 3.11+
 * USB-C cable for flashing the ESP32-C3
 * Xteink X4
 
@@ -173,7 +173,7 @@ The local runner intentionally skips GitHub-only steps such as artifact reuse, a
 Connect your Xteink X4 to your computer via USB-C and run the following command.
 
 ```sh
-pio run --target upload
+uv run pio run --target upload
 ```
 ### Debugging
 

@@ -10,6 +10,8 @@
 #include <Logging.h>
 #include <esp_system.h>
 
+#include <optional>
+
 #include "AnkiAddActivity.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
@@ -21,10 +23,10 @@
 #include "MappedInputManager.h"
 #include "QrDisplayActivity.h"
 #include "ReaderUtils.h"
-#include "util/RecentBooksStore.h"
 #include "SpiBusMutex.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/RecentBooksStore.h"
 #include "util/ScreenshotUtil.h"
 
 namespace {
@@ -33,6 +35,7 @@ constexpr unsigned long skipChapterMs = 700;
 // pages per minute, first item is 1 to prevent division by zero if accessed
 const std::vector<int> PAGE_TURN_LABELS = {1, 1, 3, 6, 12};
 constexpr uint8_t maxPageLoadRetryCount = 1;
+constexpr uint32_t minHeapForFontPrewarm = 16000;
 
 int clampPercent(int percent) {
   if (percent < 0) {
@@ -608,7 +611,6 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     LOG_DBG("ERS", "Loading file: %s, index: %d", filepath.c_str(), currentSpineIndex);
     section = std::unique_ptr<Section>(new Section(epub, currentSpineIndex, renderer));
 
-
     if (!section->loadSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                   SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                   viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.embeddedStyle,
@@ -798,9 +800,14 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
 
   // Font prewarm: scan pass accumulates text, then prewarm, then real render
   const uint32_t heapBefore = esp_get_free_heap_size();
-  auto scope = fcm->createPrewarmScope();
-  page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);  // scan pass
-  scope.endScanAndPrewarm();
+  std::optional<FontCacheManager::PrewarmScope> prewarmScope;
+  if (heapBefore >= minHeapForFontPrewarm) {
+    prewarmScope.emplace(fcm->createPrewarmScope());
+    page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);  // scan pass
+    prewarmScope->endScanAndPrewarm();
+  } else {
+    LOG_WRN("ERS", "Skipping font prewarm: heap=%lu", heapBefore);
+  }
   const uint32_t heapAfter = esp_get_free_heap_size();
   fcm->logStats("prewarm");
   const auto tPrewarm = millis();
@@ -840,16 +847,22 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   }
   const auto tDisplay = millis();
 
-  // Save bw buffer to reset buffer state after grayscale data sync
-  renderer.storeBwBuffer();
-  const auto tBwStore = millis();
-
   // Grayscale rendering - only for fonts that include grayscale glyph data.
   // Skipped in dark mode: the EPD grayscale LUT assumes a normal-polarity starting state;
   // after a dark-mode BW refresh the pixel polarity is inverted, which confuses the waveform
   // and produces ghosting artefacts.
   const int fontId = SETTINGS.getReaderFontId();
   if (SETTINGS.textAntiAliasing && !renderer.isDarkMode() && renderer.fontSupportsGrayscale(fontId)) {
+    const bool bwBufferStored = renderer.storeBwBuffer();
+    const auto tBwStore = millis();
+    if (!bwBufferStored) {
+      const auto tEnd = millis();
+      LOG_WRN("ERS", "Skipping grayscale render: BW buffer allocation failed");
+      LOG_DBG("ERS", "Page render: prewarm=%lums bw_render=%lums display=%lums bw_store=%lums total=%lums",
+              tPrewarm - t0, tBwRender - tPrewarm, tDisplay - tBwRender, tBwStore - tDisplay, tEnd - t0);
+      return;
+    }
+
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
     page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
@@ -880,15 +893,9 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
             tPrewarm - t0, tBwRender - tPrewarm, tDisplay - tBwRender, tBwStore - tDisplay, tGrayLsb - tBwStore,
             tGrayMsb - tGrayLsb, tGrayDisplay - tGrayMsb, tBwRestore - tGrayDisplay, tEnd - t0);
   } else {
-    // restore the bw data
-    renderer.restoreBwBuffer();
-    const auto tBwRestore = millis();
-
     const auto tEnd = millis();
-    LOG_DBG("ERS",
-            "Page render: prewarm=%lums bw_render=%lums display=%lums bw_store=%lums bw_restore=%lums total=%lums",
-            tPrewarm - t0, tBwRender - tPrewarm, tDisplay - tBwRender, tBwStore - tDisplay, tBwRestore - tBwStore,
-            tEnd - t0);
+    LOG_DBG("ERS", "Page render: prewarm=%lums bw_render=%lums display=%lums total=%lums", tPrewarm - t0,
+            tBwRender - tPrewarm, tDisplay - tBwRender, tEnd - t0);
   }
 }
 

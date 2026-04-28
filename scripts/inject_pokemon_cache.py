@@ -12,7 +12,7 @@ It maps PokeAPI URLs → stripped response objects so the firmware page works of
 
 This script writes a local sidecar file shared by PokemonWallpaperPluginPage.html
 and PokemonPartyPluginPage.html. The normal build_html.py pre-step consumes that
-sidecar automatically during `pio run`, so the source HTML stays unchanged.
+sidecar automatically during `uv run pio run`, so the source HTML stays unchanged.
 """
 
 import json
@@ -56,7 +56,7 @@ def main():
     cache_kb = CACHE_OUTPUT_PATH.stat().st_size / 1024
     print(f"Stored {len(cache_data)} cache entries in {CACHE_OUTPUT_PATH}")
     print(f"  Sidecar size: {cache_kb:.1f} KB")
-    print("Run `pio run` to rebuild the firmware with the baked cache.")
+    print("Run `uv run pio run` to rebuild the firmware with the baked cache.")
 
 
 if __name__ == "__main__":

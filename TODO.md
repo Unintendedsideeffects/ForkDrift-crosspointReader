@@ -1,6 +1,6 @@
 ## Pre-ship / branch hygiene
 
-- [ ] Flash `fork-drift` to hardware device (`pio run --target upload` or OTA from Android app)
+- [ ] Flash `fork-drift` to hardware device (`uv run pio run --target upload` or OTA from Android app)
 - [ ] Smoke-test with Android app after flash: Wi-Fi API, USB serial, sleep cover pin/clear
   - Android app (ForkDriftApp) is now in shape for testing: release signing, API 34 CI, custom icon, improved empty states
 - [ ] Merge `fork-drift` → `master` once device smoke test passes (1173 commits ahead of master)

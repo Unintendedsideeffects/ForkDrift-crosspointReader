@@ -61,12 +61,13 @@ FEATURES = [
     'usb_mass_storage',
 ]
 
-HAS_UV = shutil.which("uv") is not None
+if shutil.which("uv") is None:
+    raise SystemExit("uv is required so feature-size builds use the pinned toolchain")
 
 
 def maybe_uv_command(cmd: list[str]) -> list[str]:
-    """Route Python/PlatformIO commands through uv when available."""
-    if not HAS_UV or not cmd:
+    """Route Python/PlatformIO commands through uv."""
+    if not cmd:
         return cmd
     if cmd[0] in ("python", "pio"):
         return ["uv", "run", *cmd]

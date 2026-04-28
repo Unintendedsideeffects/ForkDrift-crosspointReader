@@ -32,11 +32,6 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Ensure pip for PlatformIO
-        run: |
-          uv run python -m ensurepip --upgrade || true
-          uv run python -m pip --version
-
       - name: Cache PlatformIO
         uses: actions/cache@v5
         with:
@@ -67,7 +62,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          asset_ids="$(gh api repos/${{ github.repository }}/releases/tags/nightly --jq '.assets[] | select(.name=="firmware.bin" or .name=="partitions.bin" or .name=="bootloader.bin") | .id' 2>/dev/null || true)"
+          asset_ids="$(gh api repos/${{ github.repository }}/releases/tags/nightly --jq '.assets[] | select((.name | test("^firmware-[0-9]{8}-[0-9a-fA-F]{7,40}\\.bin$")) or .name=="partitions.bin" or .name=="bootloader.bin") | .id' 2>/dev/null || true)"
           if [ -z "$asset_ids" ]; then
             echo "No existing nightly assets to remove."
             exit 0
@@ -85,7 +80,7 @@ jobs:
           draft: false
           prerelease: true
           files: |
-            .pio/build/gh_nightly/firmware.bin
+            .pio/build/gh_nightly/firmware-*.bin
             .pio/build/gh_nightly/partitions.bin
             .pio/build/gh_nightly/bootloader.bin
 

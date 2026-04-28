@@ -49,8 +49,8 @@ chmod +x .git/hooks/*
   - Guards against manual edits to `I18nStrings.cpp` (which is generated).
   - Validates HTML headers in the web server source.
 - **`pre-push`**:
-  - Runs `pio check` (static analysis).
-  - Performs a local `pio run` build to ensure compilation success.
+  - Runs `uv run pio check` (static analysis).
+  - Performs a local `uv run pio run` build to ensure compilation success.
 
 ## 5) Manual Local Checks
 
@@ -58,8 +58,8 @@ If you don't use the hooks, run these manually before pushing:
 
 ```sh
 ./bin/clang-format-fix
-pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
-pio run
+uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
+uv run pio run
 ```
 
 ## 6) Open the PR

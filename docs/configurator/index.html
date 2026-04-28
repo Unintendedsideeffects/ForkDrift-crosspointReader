@@ -2510,7 +2510,7 @@
               <span class="feat-off">&#x25A0; Media Picker</span>
             </div>
             <div class="preset-dl-actions">
-              <a class="btn btn-solid" id="dl-btn-lean" href="#" download>&#x2193; firmware.bin</a>
+              <a class="btn btn-solid" id="dl-btn-lean" href="#" download>&#x2193; crosspoint-lean.bin</a>
               <a class="btn btn-outline" id="dl-releases-lean" href="#" target="_blank" rel="noopener">Releases</a>
             </div>
           </div>
@@ -2527,7 +2527,7 @@
               <span>&#x25A0; Media Picker</span>
             </div>
             <div class="preset-dl-actions">
-              <a class="btn btn-solid" id="dl-btn-standard" href="#" download>&#x2193; firmware.bin</a>
+              <a class="btn btn-solid" id="dl-btn-standard" href="#" download>&#x2193; crosspoint-standard.bin</a>
               <a class="btn btn-outline" id="dl-releases-standard" href="#" target="_blank" rel="noopener">Releases</a>
             </div>
           </div>
@@ -2544,7 +2544,7 @@
               <span>&#x25A0; KOReader + Calibre</span>
             </div>
             <div class="preset-dl-actions">
-              <a class="btn btn-solid" id="dl-btn-full" href="#" download>&#x2193; firmware.bin</a>
+              <a class="btn btn-solid" id="dl-btn-full" href="#" download>&#x2193; crosspoint-full.bin</a>
               <a class="btn btn-outline" id="dl-releases-full" href="#" target="_blank" rel="noopener">Releases</a>
             </div>
           </div>
@@ -4101,8 +4101,8 @@
             if (updatedRun.conclusion === "success") {
               setGhBuildStatus(
                 "\u2714 Build complete! <a href=\"" + safeUrl + "\" target=\"_blank\" rel=\"noopener\">Open Actions run</a><br>" +
-                "Download <strong>firmware.bin</strong> from the Artifacts section of the run page.<br>" +
-                "Flash with: <code>esptool.py write_flash 0x10000 firmware.bin</code>"
+                "Download the named <strong>firmware-YYYYMMDD-SHA.bin</strong> file from the Artifacts section of the run page.<br>" +
+                "Flash with: <code>esptool.py write_flash 0x10000 firmware-YYYYMMDD-SHA.bin</code>"
               );
             } else {
               setGhBuildStatus(

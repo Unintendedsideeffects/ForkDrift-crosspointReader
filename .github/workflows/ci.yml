@@ -68,8 +68,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install PlatformIO Core
-        run: python -m pip install -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --frozen
 
       - name: Run host tests
         run: bash test/run_host_tests.sh
@@ -102,11 +105,6 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --frozen
-
-      - name: Ensure pip for PlatformIO
-        run: |
-          uv run python -m ensurepip --upgrade || true
-          uv run python -m pip --version
 
       - name: Cache PlatformIO
         uses: actions/cache@v5
@@ -146,11 +144,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install PlatformIO Core
-        run: python -m pip install -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --frozen
 
       - name: Run cppcheck
-        run: pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
+        run: uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
 
   clang-tidy:
     # Non-blocking: intentionally NOT in test-status.needs during rollout.
@@ -166,11 +167,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install PlatformIO Core
-        run: python -m pip install -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --frozen
 
       - name: Generate compile_commands.json
-        run: pio run -t compiledb
+        run: uv run pio run -t compiledb
 
       - name: Run clang-tidy on src/
         run: |
@@ -193,7 +197,7 @@ jobs:
         id: reuse
         env:
           GH_TOKEN: ${{ github.token }}
-          ARTIFACT_NAME: firmware.bin
+          ARTIFACT_NAME: firmware-default
         run: python3 scripts/ci/check_reusable_artifact.py
 
       - name: Download reused artifact
@@ -209,20 +213,24 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install PlatformIO Core
+      - name: Setup uv
         if: steps.reuse.outputs.found != 'true'
-        run: python -m pip install -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        if: steps.reuse.outputs.found != 'true'
+        run: uv sync --frozen
 
       - name: Build CrossPoint
         if: steps.reuse.outputs.found != 'true'
         run: |
           set -euo pipefail
-          pio run | tee pio.log
+          uv run pio run | tee pio.log
 
       - name: Enforce flash headroom
         if: steps.reuse.outputs.found != 'true'
         run: |
-          python scripts/check_flash_headroom.py \
+          uv run python scripts/check_flash_headroom.py \
             --log pio.log \
             --firmware .pio/build/default/firmware.bin \
             --min-headroom-kb 64
@@ -252,12 +260,12 @@ jobs:
             echo "Reused artifact from run [#${{ steps.reuse.outputs.source_run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ steps.reuse.outputs.source_run_id }})."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload firmware.bin artifact
+      - name: Upload firmware artifact
         if: steps.reuse.outputs.found != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: firmware.bin
-          path: .pio/build/default/firmware.bin
+          name: firmware-default
+          path: .pio/build/default/firmware-*.bin
           retention-days: 7
           if-no-files-found: error
 

@@ -50,13 +50,13 @@ If you need to customize your build (e.g., set custom serial ports or build flag
 ### Build
 
 ```sh
-pio run
+uv run pio run
 ```
 
 ### Flash
 
 ```sh
-pio run --target upload
+uv run pio run --target upload
 ```
 
 ## First checks before opening a PR
@@ -65,8 +65,8 @@ Before submitting any changes, ensure your code passes these local checks:
 
 ```sh
 ./bin/clang-format-fix
-pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
-pio run
+uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
+uv run pio run
 ```
 
 ## What to read next

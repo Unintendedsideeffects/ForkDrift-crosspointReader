@@ -77,7 +77,7 @@ Run the most relevant checks before push:
 
 ```bash
 bash scripts/check_feature_boundaries.sh
-.venv/bin/pio check -e default
+uv run pio check -e default
 git diff --submodule=log -- open-x4-sdk
 git -C open-x4-sdk status --short --branch
 ```

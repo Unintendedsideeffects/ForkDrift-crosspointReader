@@ -76,11 +76,6 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Ensure pip for PlatformIO
-        run: |
-          uv run python -m ensurepip --upgrade || true
-          uv run python -m pip --version
-
       - name: Generate build configuration
         run: |
           echo "Generating profile='${{ matrix.profile }}' overrides='${{ matrix.extra_args }}'"
@@ -138,7 +133,7 @@ jobs:
         with:
           name: profile-test-${{ matrix.id }}
           path: |
-            .pio-${{ matrix.id }}/custom/firmware.bin
+            .pio-${{ matrix.id }}/custom/firmware-*.bin
             platformio-custom.ini
           retention-days: 3
 
@@ -192,11 +187,6 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --frozen
-
-      - name: Ensure pip for PlatformIO
-        run: |
-          uv run python -m ensurepip --upgrade || true
-          uv run python -m pip --version
 
       - name: Measure feature sizes
         run: uv run python scripts/measure_feature_sizes.py --quick

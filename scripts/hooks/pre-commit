@@ -166,10 +166,8 @@ fi
 
 if command -v uv &> /dev/null; then
     BUILD_CMD=(uv run pio run -e default)
-elif command -v pio &> /dev/null; then
-    BUILD_CMD=(pio run -e default)
 else
-    echo "Error: neither 'uv' nor 'pio' is available in PATH, so the pre-commit build cannot run."
+    echo "Error: uv is required in PATH so the pre-commit build can use the pinned toolchain."
     exit 1
 fi
 

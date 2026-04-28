@@ -44,11 +44,6 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Ensure pip for PlatformIO
-        run: |
-          uv run python -m ensurepip --upgrade || true
-          uv run python -m pip --version
-
       - name: Generate custom build configuration
         id: config
         run: |
@@ -133,7 +128,9 @@ jobs:
                   raise SystemExit(f"Required file '{filename}' not found in reusable artifact")
               return matches[0]
 
-          shutil.copy2(first_match("firmware.bin"), package_root / "firmware.bin")
+          for named_firmware in extract_root.rglob("firmware-*.bin"):
+              if named_firmware.is_file():
+                  shutil.copy2(named_firmware, package_root / named_firmware.name)
           shutil.copy2(first_match("partitions.bin"), package_root / "partitions.bin")
           shutil.copy2(first_match("platformio-custom.ini"), package_root / "platformio-custom.ini")
           print("Reused artifact payload extracted to dist/custom-firmware-package")
@@ -164,7 +161,7 @@ jobs:
           mkdir -p dist/custom-firmware-package
 
           if [ "${REUSED}" != "true" ]; then
-            cp .pio/build/custom/firmware.bin dist/custom-firmware-package/firmware.bin
+            cp .pio/build/custom/firmware-*.bin dist/custom-firmware-package/
             cp .pio/build/custom/partitions.bin dist/custom-firmware-package/partitions.bin
             cp platformio-custom.ini dist/custom-firmware-package/platformio-custom.ini
           fi
@@ -176,12 +173,14 @@ jobs:
           from pathlib import Path
 
           package = Path("dist/custom-firmware-package")
+          named_firmware = sorted(package.glob("firmware-*.bin"))
           required = [
-              package / "firmware.bin",
               package / "partitions.bin",
               package / "platformio-custom.ini",
           ]
           missing = [str(path) for path in required if not path.exists()]
+          if not named_firmware:
+              missing.append("firmware-*.bin")
           if missing:
               raise SystemExit(f"Package assembly failed; missing files: {missing}")
 
@@ -207,7 +206,7 @@ jobs:
           ENABLE_FEATURES_INPUT: ${{ inputs.enable_features }}
           DISABLE_FEATURES_INPUT: ${{ inputs.disable_features }}
         run: |
-          FIRMWARE_PATH="dist/custom-firmware-package/firmware.bin"
+          FIRMWARE_PATH="$(find dist/custom-firmware-package -maxdepth 1 -name 'firmware-*.bin' -type f | sort | tail -n1)"
           CONFIG_PATH="dist/custom-firmware-package/platformio-custom.ini"
 
           if [ -n "${ENABLE_FEATURES_INPUT}" ]; then
@@ -244,7 +243,7 @@ jobs:
           echo "### Firmware Size" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          if [ -f "${FIRMWARE_PATH}" ]; then
+          if [ -n "${FIRMWARE_PATH}" ] && [ -f "${FIRMWARE_PATH}" ]; then
             SIZE=$(stat -c%s "${FIRMWARE_PATH}")
             SIZE_MB=$(echo "scale=2; $SIZE / 1024 / 1024" | bc)
             ls -lh "${FIRMWARE_PATH}" >> $GITHUB_STEP_SUMMARY
@@ -255,7 +254,7 @@ jobs:
             PERCENT=$(echo "scale=1; $SIZE_MB * 100 / 6.4" | bc)
             echo "Flash usage: ${PERCENT}%" >> $GITHUB_STEP_SUMMARY
           else
-            echo "ERROR: No firmware.bin found!" >> $GITHUB_STEP_SUMMARY
+            echo "ERROR: No firmware-*.bin found!" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
           echo '```' >> $GITHUB_STEP_SUMMARY
@@ -278,4 +277,4 @@ jobs:
           echo "✅ Custom firmware build complete!"
           echo ""
           echo "Download artifact '${{ steps.identity.outputs.artifact_name }}' from the Actions tab."
-          echo "Flash using: esptool.py write_flash 0x10000 firmware.bin"
+          echo "Flash using: esptool.py write_flash 0x10000 firmware-YYYYMMDD-SHA.bin"

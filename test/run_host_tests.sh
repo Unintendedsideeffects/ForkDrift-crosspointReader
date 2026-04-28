@@ -7,17 +7,22 @@ ARDUINOJSON_DIR="$ROOT_DIR/.pio/libdeps/default/ArduinoJson/src"
 
 mkdir -p "$BUILD_DIR"
 
-if [ ! -d "$ARDUINOJSON_DIR" ] && command -v pio >/dev/null 2>&1; then
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv is required for host-test dependency bootstrapping" >&2
+  exit 1
+fi
+
+if [ ! -d "$ARDUINOJSON_DIR" ]; then
   echo "Bootstrapping ArduinoJson for host tests..."
   (
     cd "$ROOT_DIR"
-    pio pkg install -e default --library "bblanchon/ArduinoJson@7.4.2"
+    uv run pio pkg install -e default --library "bblanchon/ArduinoJson@7.4.2"
   )
 fi
 
 if [ ! -d "$ARDUINOJSON_DIR" ]; then
   echo "ArduinoJson headers not found: $ARDUINOJSON_DIR" >&2
-  echo "Install them with: pio pkg install -e default --library \"bblanchon/ArduinoJson@7.4.2\"" >&2
+  echo "Install them with: uv run pio pkg install -e default --library \"bblanchon/ArduinoJson@7.4.2\"" >&2
   exit 1
 fi
 

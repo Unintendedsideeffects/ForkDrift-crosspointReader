@@ -17,12 +17,6 @@ sync_env() {
   uv sync --frozen --python "$version"
 }
 
-ensure_pio_python() {
-  local version="$1"
-  uv run --python "$version" python -m ensurepip --upgrade || true
-  uv run --python "$version" python -m pip --version >/dev/null
-}
-
 run_py() {
   local version="$1"
   shift
@@ -47,7 +41,6 @@ run_feature_sync_check() {
 
 run_host_tests() {
   sync_env "$PY_BUILD"
-  ensure_pio_python "$PY_BUILD"
   bash test/run_host_tests.sh
 }
 
@@ -63,7 +56,6 @@ run_hardware_pattern_check() {
 
 run_cleanup_checks() {
   sync_env "$PY_BUILD"
-  ensure_pio_python "$PY_BUILD"
   run_py "$PY_BUILD" vulture scripts
   bash scripts/check_feature_boundaries.sh
   run_py "$PY_BUILD" pio check -e default
@@ -71,7 +63,6 @@ run_cleanup_checks() {
 
 run_cppcheck() {
   sync_env "$PY_BUILD"
-  ensure_pio_python "$PY_BUILD"
   run_py "$PY_BUILD" pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
 }
 

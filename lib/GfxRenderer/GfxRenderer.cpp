@@ -594,7 +594,7 @@ void GfxRenderer::drawImage(const uint8_t bitmap[], const int x, const int y, co
   // Determine output dimensions and pixel mapping based on rotation
   int outW, outH;
   if (orientation == LandscapeClockwise) {
-    outW = width;   // 180° — same dimensions
+    outW = width;  // 180° — same dimensions
     outH = height;
   } else {
     outW = height;  // 90° — dimensions swap
@@ -929,7 +929,16 @@ void GfxRenderer::invertScreen() const {
 void GfxRenderer::displayBuffer(const HalDisplay::RefreshMode refreshMode) const {
   auto elapsed = millis() - start_ms;
   LOG_DBG("GFX", "Time = %lu ms from clearScreen to displayBuffer", elapsed);
+  if (postRenderHook != nullptr) {
+    postRenderHook(*this);
+  }
+  if (darkMode) {
+    invertScreen();
+  }
   display.displayBuffer(refreshMode, fadingFix);
+  if (darkMode) {
+    invertScreen();
+  }
 }
 
 std::string GfxRenderer::truncatedText(const int fontId, const char* text, const int maxWidth,

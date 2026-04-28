@@ -288,7 +288,7 @@ Optional baked cache workflow:
 
 1. Export `pokemon_cache.json` from the companion `pokedex.html` tool.
 2. Run `python scripts/inject_pokemon_cache.py /path/to/pokemon_cache.json`
-3. Build normally with `pio run`
+3. Build normally with `uv run pio run`
 
 The cache is stored in a local sidecar file and injected during `scripts/build_html.py`;
 the source `PokedexPluginPage.html` stays unchanged.
@@ -511,7 +511,7 @@ GitHub Actions provides cloud-based builds without requiring local build tools.
 ### Artifact Contents
 
 The downloaded artifact contains:
-- `firmware.bin` - Flash this to your device
+- `firmware-YYYYMMDD-SHA.bin` - Flash this to your device
 - `partitions.bin` - Partition table (usually not needed for OTA)
 - `platformio-custom.ini` - Configuration used for this build
 

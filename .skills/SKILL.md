@@ -73,11 +73,10 @@ find src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
    * Configuration: `.vscode/c_cpp_properties.json`, `.vscode/tasks.json`
    * Usage: Click Build (✓), Upload (→), or Monitor (🔌) buttons
 
-2. **CLI Tool** (`pio` command):
-   * **Installation**: Python package (typically `pip install platformio`)
-   * **Windows Location**: `C:\Users\<user>\AppData\Local\Programs\Python\Python3xx\Scripts\pio.exe`
-   * **Verify**: `which pio` (Git Bash) or `where.exe pio` (cmd)
-   * **Usage**: `pio run`, `pio run -t upload`, etc.
+2. **CLI Tool** (`uv run pio` command):
+   * **Installation**: `uv sync --frozen` installs the pinned PlatformIO toolchain
+   * **Verify**: `uv run pio --version`
+   * **Usage**: `uv run pio run`, `uv run pio run -t upload`, etc.
 
 **Configuration Files**:
 * `platformio.ini`: Main build configuration (committed to git)
@@ -461,19 +460,19 @@ renderer.drawText(FONT_UI_MEDIUM, x, y, "Hello", true);
 **Via CLI**:
 ```bash
 # Build firmware (default environment)
-pio run
+uv run pio run
 
 # Build and upload to device
-pio run -t upload
+uv run pio run -t upload
 
 # Build specific environment
-pio run -e gh_release
+uv run pio run -e gh_release
 
 # Clean build artifacts
-pio run -t clean
+uv run pio run -t clean
 
 # Upload filesystem data (if using SPIFFS/LittleFS)
-pio run -t uploadfs
+uv run pio run -t uploadfs
 ```
 
 **Via VS Code**:
@@ -487,10 +486,10 @@ pio run -t uploadfs
 python3 scripts/debugging_monitor.py
 
 # Standard PlatformIO monitor
-pio device monitor
+uv run pio device monitor
 
 # Combined upload + monitor
-pio run -t upload && pio device monitor
+uv run pio run -t upload && uv run pio device monitor
 ```
 
 **Via VS Code**: Click Monitor (🔌) button in PlatformIO toolbar
@@ -499,7 +498,7 @@ pio run -t upload && pio device monitor
 
 ```bash
 # Static analysis (cppcheck)
-pio check
+uv run pio check
 
 # Format code (clang-format) - Windows Git Bash
 find src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
@@ -624,7 +623,7 @@ git config core.hooksPath scripts/hooks
 | Hook | Purpose |
 |------|---------|
 | `pre-commit` | Guards `I18nStrings.cpp` (see below), auto-runs `clang-format`, regenerates HTML headers |
-| `pre-push` | Runs `pio check` (cppcheck) + `pio run` (firmware build) via `uv` |
+| `pre-push` | Runs `uv run pio check` (cppcheck) + `uv run pio run` (firmware build) |
 
 **`I18nStrings.cpp` guard** (in `pre-commit`):
 - Blocks the commit if `lib/I18n/I18nStrings.cpp` is staged **without** any `lib/I18n/translations/*.yaml` also staged.
@@ -678,7 +677,7 @@ Tested in all 4 orientations with 5MB+ files.
 - Feature is complete and tested on device
 - Bug fix is verified working
 - Refactoring preserves all functionality
-- All tests pass (`pio run` succeeds)
+- All tests pass (`uv run pio run` succeeds)
 
 **DO NOT commit when**:
 - Changes are untested on actual hardware
@@ -720,7 +719,7 @@ Tested in all 4 orientations with 5MB+ files.
 
 **To change HTML pages**:
 1. Edit source: `data/html/<pagename>.html`
-2. Build: `pio run` (auto-triggers `scripts/build_html.py`)
+2. Build: `uv run pio run` (auto-triggers `scripts/build_html.py`)
 3. Generated headers update: `src/network/html/<pagename>Html.generated.h`
 4. **Commit ONLY** source HTML, NOT generated `.generated.h` files
 
@@ -789,8 +788,8 @@ build_flags =
 ### Testing Checklist
 
 **AI agent scope** (what you CAN verify):
-1. ✅ **Build**: `pio run -t clean && pio run` (0 errors/warnings)
-2. ✅ **Quality**: `pio check` + `find src -name "*.cpp" -o -name "*.h" | xargs clang-format -i`
+1. ✅ **Build**: `uv run pio run -t clean && uv run pio run` (0 errors/warnings)
+2. ✅ **Quality**: `uv run pio check` + `find src -name "*.cpp" -o -name "*.h" | xargs clang-format -i`
 3. ✅ **Format**: Commit messages (`feat:`/`fix:`), no `.gitignore`-excluded files staged (e.g., `*.generated.h`, `.pio/`, `platformio.local.ini`)
 4. ✅ **CI**: Fix GitHub Actions failures before review
 5. ✅ **Code review**: Ensure orientation-aware logic is correct in all 4 modes by inspecting switch/case coverage

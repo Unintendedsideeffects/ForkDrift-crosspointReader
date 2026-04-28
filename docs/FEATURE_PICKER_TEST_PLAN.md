@@ -108,10 +108,10 @@ uv run pio run -e custom
 5. [  ] Wait for build completion
 6. [  ] Download artifact
 7. [  ] Verify artifact contains:
-   - firmware.bin
+   - firmware-YYYYMMDD-SHA.bin
    - partitions.bin
    - platformio-custom.ini
-8. [  ] Flash firmware.bin to device
+8. [  ] Flash the named firmware file to device
 9. [  ] Verify features match standard profile
 
 > **Note:** Most active development and build testing should be performed on the `fork-drift` branch. See [docs/fork-strategy.md](fork-strategy.md) for more details.
@@ -180,7 +180,7 @@ uv run pio run -e custom
 
 ## Regression Tests
 
-Run with default build (`pio run -e default`) to ensure no breakage:
+Run with default build (`uv run pio run -e default`) to ensure no breakage:
 
 - [  ] All features work as before
 - [  ] No new compilation warnings

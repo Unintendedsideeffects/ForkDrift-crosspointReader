@@ -32,11 +32,6 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Ensure pip for PlatformIO
-        run: |
-          uv run python -m ensurepip --upgrade || true
-          uv run python -m pip --version
-
       - name: Validate feature key synchronization
         run: uv run python scripts/check_feature_key_sync.py
 
@@ -102,12 +97,6 @@ jobs:
         if: steps.reuse.outputs.found != 'true'
         run: uv sync --frozen
 
-      - name: Ensure pip for PlatformIO
-        if: steps.reuse.outputs.found != 'true'
-        run: |
-          uv run python -m ensurepip --upgrade || true
-          uv run python -m pip --version
-
       - name: Cache PlatformIO
         if: steps.reuse.outputs.found != 'true'
         uses: actions/cache@v5
@@ -171,7 +160,7 @@ jobs:
         if: steps.reuse.outputs.found != 'true'
         run: |
           mkdir -p artifact
-          cp .pio/build/custom/firmware.bin artifact/
+          cp .pio/build/custom/firmware-*.bin artifact/
           cp .pio/build/custom/partitions.bin artifact/
 
       - name: Report reused build
@@ -247,12 +236,6 @@ jobs:
         if: steps.reuse.outputs.found != 'true'
         run: uv sync --frozen
 
-      - name: Ensure pip for PlatformIO
-        if: steps.reuse.outputs.found != 'true'
-        run: |
-          uv run python -m ensurepip --upgrade || true
-          uv run python -m pip --version
-
       - name: Cache PlatformIO
         if: steps.reuse.outputs.found != 'true'
         uses: actions/cache@v5
@@ -305,7 +288,7 @@ jobs:
         with:
           name: firmware-latest
           path: |
-            .pio/build/gh_latest/firmware.bin
+            .pio/build/gh_latest/firmware-*.bin
             .pio/build/gh_latest/partitions.bin
           retention-days: 7
 
@@ -341,13 +324,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p channel
-          cp artifacts/latest-standard/firmware.bin channel/firmware.bin
-          cp artifacts/latest-standard/firmware.bin channel/crosspoint-standard.bin
+          standard_firmware="$(find artifacts/latest-standard -name 'firmware-*.bin' -type f | sort | tail -n1)"
+          lean_firmware="$(find artifacts/lean -name 'firmware-*.bin' -type f | sort | tail -n1)"
+          full_firmware="$(find artifacts/full -name 'firmware-*.bin' -type f | sort | tail -n1)"
+          cp "$standard_firmware" "channel/$(basename "$standard_firmware")"
+          cp "$standard_firmware" channel/crosspoint-standard.bin
           cp artifacts/latest-standard/partitions.bin channel/crosspoint-partitions.bin
-          cp artifacts/lean/firmware.bin channel/crosspoint-lean.bin
-          cp artifacts/full/firmware.bin channel/crosspoint-full.bin
-          cp artifacts/lean/firmware.bin channel/crosspoint-lean-reset.bin
-          cp artifacts/full/firmware.bin channel/crosspoint-full-reset.bin
+          cp "$lean_firmware" channel/crosspoint-lean.bin
+          cp "$full_firmware" channel/crosspoint-full.bin
+          cp "$lean_firmware" channel/crosspoint-lean-reset.bin
+          cp "$full_firmware" channel/crosspoint-full-reset.bin
           ls -lh channel
 
       - name: Remove existing latest assets
@@ -397,35 +383,35 @@ jobs:
           VER="${TAG#v}"  # strip leading 'v' for the rolling release channel name
           echo "ver=${VER}" >> $GITHUB_OUTPUT
 
+          standard_firmware="$(find artifacts/firmware-standard -name 'firmware-*.bin' -type f | sort | tail -n1)"
+          lean_firmware="$(find artifacts/firmware-lean -name 'firmware-*.bin' -type f | sort | tail -n1)"
+          full_firmware="$(find artifacts/firmware-full -name 'firmware-*.bin' -type f | sort | tail -n1)"
+
           # Standard firmware (default names)
-          cp artifacts/firmware-standard/firmware.bin firmware.bin
+          cp "$standard_firmware" "$(basename "$standard_firmware")"
           cp artifacts/firmware-standard/partitions.bin partitions.bin
-          cp firmware.bin "crosspoint-${TAG}.bin"
+          cp "$standard_firmware" "crosspoint-${TAG}.bin"
           cp partitions.bin "crosspoint-${TAG}-partitions.bin"
 
           # Lean firmware
-          cp artifacts/firmware-lean/firmware.bin firmware-lean.bin
-          cp firmware-lean.bin "crosspoint-${TAG}-lean.bin"
+          cp "$lean_firmware" "crosspoint-${TAG}-lean.bin"
 
           # Lean reset firmware (same payload as lean, separate distribution target)
-          cp firmware-lean.bin firmware-lean-reset.bin
-          cp firmware-lean-reset.bin "crosspoint-${TAG}-lean-reset.bin"
+          cp "$lean_firmware" "crosspoint-${TAG}-lean-reset.bin"
 
           # Full firmware
-          cp artifacts/firmware-full/firmware.bin firmware-full.bin
-          cp firmware-full.bin "crosspoint-${TAG}-full.bin"
+          cp "$full_firmware" "crosspoint-${TAG}-full.bin"
 
           # Full reset firmware (same payload as full, separate distribution target)
-          cp firmware-full.bin firmware-full-reset.bin
-          cp firmware-full-reset.bin "crosspoint-${TAG}-full-reset.bin"
+          cp "$full_firmware" "crosspoint-${TAG}-full-reset.bin"
 
           # Stable channel rolling assets (tag: stable)
-          cp firmware.bin crosspoint-standard.bin
+          cp "$standard_firmware" crosspoint-standard.bin
           cp partitions.bin crosspoint-partitions.bin
-          cp firmware-lean.bin crosspoint-lean.bin
-          cp firmware-full.bin crosspoint-full.bin
-          cp firmware-lean-reset.bin crosspoint-lean-reset.bin
-          cp firmware-full-reset.bin crosspoint-full-reset.bin
+          cp "$lean_firmware" crosspoint-lean.bin
+          cp "$full_firmware" crosspoint-full.bin
+          cp "$lean_firmware" crosspoint-lean-reset.bin
+          cp "$full_firmware" crosspoint-full-reset.bin
 
           echo "Release assets:"
           ls -lh *.bin
@@ -434,12 +420,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            firmware.bin
+            firmware-*.bin
             partitions.bin
-            firmware-lean.bin
-            firmware-full.bin
-            firmware-lean-reset.bin
-            firmware-full-reset.bin
             crosspoint-${{ github.ref_name }}.bin
             crosspoint-${{ github.ref_name }}-partitions.bin
             crosspoint-${{ github.ref_name }}-lean.bin
@@ -494,7 +476,7 @@ jobs:
           generate_release_notes: false
           make_latest: false
           files: |
-            firmware.bin
+            firmware-*.bin
             crosspoint-standard.bin
             crosspoint-partitions.bin
             crosspoint-lean.bin
@@ -512,7 +494,7 @@ jobs:
           draft: false
           generate_release_notes: false
           files: |
-            firmware.bin
+            firmware-*.bin
             crosspoint-standard.bin
             crosspoint-partitions.bin
             crosspoint-lean.bin

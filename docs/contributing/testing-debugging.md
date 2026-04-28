@@ -8,8 +8,8 @@ Before flashing, run the built-in static analysis tools to catch common errors:
 
 ```sh
 ./bin/clang-format-fix
-pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
-pio run
+uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
+uv run pio run
 ```
 
 ## Logging and Monitoring

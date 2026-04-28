@@ -46,33 +46,48 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
     return;
   }
 
+  const wifi_mode_t mode = WiFi.getMode();
+  const bool isWifiConnected =
+      (mode & WIFI_MODE_STA) && WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0);
+  const bool isFileServerRunning = BackgroundWebServer::getInstance().isRunning();
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
   const int lineH = renderer.getLineHeight(SMALL_FONT_ID);
   constexpr int kPadV = 2;
   constexpr int kPadH = 4;
+  constexpr int kTextGap = 12;
   const int barH = std::max(lineH + 2 * kPadV, kStatusIconSize + 2 * kPadV);
   const int barY = (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? screenH - barH : 0;
   const int sepY = (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? barY : barY + barH - 1;
   const int textY = barY + (barH - lineH) / 2;
 
-  // White background strip.
   renderer.fillRect(0, barY, screenW, barH, false);
-  // 1px separator line.
   renderer.drawLine(0, sepY, screenW - 1, sepY, true);
 
-  // --- Battery (left side) ---
+  int textRightLimit = screenW - kPadH;
+  const int iconY = barY + (barH - kStatusIconSize) / 2;
+  if (isWifiConnected) {
+    textRightLimit -= kStatusIconSize;
+  }
+  if (isFileServerRunning) {
+    textRightLimit -= isWifiConnected ? kStatusIconGap + kStatusIconSize : kStatusIconSize;
+  }
+
   char batBuf[8];
   snprintf(batBuf, sizeof(batBuf), "%u%%", static_cast<unsigned>(powerManager.getBatteryPercentage()));
   renderer.drawText(SMALL_FONT_ID, kPadH, textY, batBuf, true);
 
-  // --- Status icons (right side) ---
-  const wifi_mode_t mode = WiFi.getMode();
-  const bool isWifiConnected = (mode & WIFI_MODE_STA) && (WiFi.status() == WL_CONNECTED);
-  const bool isFileServerRunning = BackgroundWebServer::getInstance().isRunning();
-  int iconRight = screenW - kPadH;
-  const int iconY = barY + (barH - kStatusIconSize) / 2;
+  if (isWifiConnected) {
+    char ipBuf[22];
+    const IPAddress ip = WiFi.localIP();
+    snprintf(ipBuf, sizeof(ipBuf), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+    const int ipX = kPadH + renderer.getTextWidth(SMALL_FONT_ID, batBuf) + kTextGap;
+    if (ipX + renderer.getTextWidth(SMALL_FONT_ID, ipBuf) < textRightLimit - kTextGap) {
+      renderer.drawText(SMALL_FONT_ID, ipX, textY, ipBuf, true);
+    }
+  }
 
+  int iconRight = screenW - kPadH;
   if (isWifiConnected) {
     iconRight -= kStatusIconSize;
     drawWifiIcon(renderer, iconRight, iconY);

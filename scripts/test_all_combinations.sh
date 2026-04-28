@@ -4,13 +4,13 @@
 
 set -e
 
-if command -v uv >/dev/null 2>&1; then
-  PYTHON_CMD="uv run python"
-  PIO_CMD="uv run pio"
-else
-  PYTHON_CMD="python"
-  PIO_CMD="pio"
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv is required so all build combinations use the pinned toolchain." >&2
+  exit 1
 fi
+
+PYTHON_CMD="uv run python"
+PIO_CMD="uv run pio"
 
 FEATURES=("bookerly_fonts" "notosans_fonts" "opendyslexic_fonts" "image_sleep" "book_images" "markdown" "integrations" "koreader_sync" "calibre_sync" "background_server" "background_server_on_charge" "background_server_always" "home_media_picker" "pokemon_wallpaper_plugin" "pokemon_party" "epub_support" "hyphenation" "xtc_support" "lyra_theme" "ota_updates" "todo_planner" "anki_support" "remote_keyboard_input" "dark_mode" "visual_cover_picker" "ble_wifi_provisioning" "user_fonts" "web_wifi_setup" "usb_mass_storage")
 TOTAL=$((2 ** ${#FEATURES[@]}))

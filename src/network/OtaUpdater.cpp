@@ -27,7 +27,7 @@ constexpr char latestChannelUrl[] =
     "https://api.github.com/repos/Unintendedsideeffects/ForkDrift-crosspointReader/releases/tags/latest";
 // Override at build time via -DFEATURE_STORE_CATALOG_URL='"..."' in platformio.ini build_flags.
 #ifndef FEATURE_STORE_CATALOG_URL
-#define FEATURE_STORE_CATALOG_URL                                                                  \
+#define FEATURE_STORE_CATALOG_URL                                                                           \
   "https://raw.githubusercontent.com/Unintendedsideeffects/ForkDrift-crosspointReader/fork-drift/docs/ota/" \
   "feature-store-catalog.json"
 #endif
@@ -39,6 +39,38 @@ constexpr uint8_t otaMaxAttempts = 3;
 constexpr uint32_t otaRetryBackoffBaseMs = 1000;
 
 constexpr size_t sha256DigestBytes = 32;
+
+bool isFirmwareAssetName(const char* name) {
+  constexpr char prefix[] = "firmware-";
+  constexpr char suffix[] = ".bin";
+  constexpr size_t dateLength = 8;
+  constexpr size_t minShaLength = 7;
+  const size_t prefixLength = strlen(prefix);
+  const size_t suffixLength = strlen(suffix);
+  const size_t nameLength = name ? strlen(name) : 0;
+  const size_t minLength = prefixLength + dateLength + 1 + minShaLength + suffixLength;
+
+  if (nameLength < minLength || strncmp(name, prefix, prefixLength) != 0 ||
+      strcmp(name + nameLength - suffixLength, suffix) != 0 || name[prefixLength + dateLength] != '-') {
+    return false;
+  }
+
+  for (size_t i = prefixLength; i < prefixLength + dateLength; ++i) {
+    if (name[i] < '0' || name[i] > '9') {
+      return false;
+    }
+  }
+
+  for (size_t i = prefixLength + dateLength + 1; i < nameLength - suffixLength; ++i) {
+    const char ch = name[i];
+    const bool isHex = (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');
+    if (!isHex) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 bool otaCanceled(const std::atomic<bool>* cancelFlag) {
   return cancelFlag != nullptr && cancelFlag->load(std::memory_order_acquire);
@@ -303,9 +335,7 @@ ReleaseFetchResult fetchReleaseJson(const char* url, JsonDocument& doc, const Js
   if (esp_err != ESP_OK) {
     LOG_ERR("OTA", "esp_http_client_set_header Failed : %s", esp_err_to_name(esp_err));
     esp_http_client_cleanup(client_handle);
-    return {OtaUpdater::INTERNAL_UPDATE_ERROR,
-            0,
-            esp_err,
+    return {OtaUpdater::INTERNAL_UPDATE_ERROR, 0, esp_err,
             String("Failed to prepare OTA request for ") + url + ": " + esp_err_to_name(esp_err)};
   }
 
@@ -313,19 +343,14 @@ ReleaseFetchResult fetchReleaseJson(const char* url, JsonDocument& doc, const Js
   if (esp_err != ESP_OK) {
     LOG_ERR("OTA", "esp_http_client_perform Failed : %s", esp_err_to_name(esp_err));
     esp_http_client_cleanup(client_handle);
-    return {OtaUpdater::HTTP_ERROR,
-            0,
-            esp_err,
-            String("Request to ") + url + " failed: " + esp_err_to_name(esp_err)};
+    return {OtaUpdater::HTTP_ERROR, 0, esp_err, String("Request to ") + url + " failed: " + esp_err_to_name(esp_err)};
   }
 
   const int httpStatus = esp_http_client_get_status_code(client_handle);
   esp_err = esp_http_client_cleanup(client_handle);
   if (esp_err != ESP_OK) {
     LOG_ERR("OTA", "esp_http_client_cleanup Failed : %s", esp_err_to_name(esp_err));
-    return {OtaUpdater::INTERNAL_UPDATE_ERROR,
-            httpStatus,
-            esp_err,
+    return {OtaUpdater::INTERNAL_UPDATE_ERROR, httpStatus, esp_err,
             String("Failed to close OTA request for ") + url + ": " + esp_err_to_name(esp_err)};
   }
 
@@ -359,9 +384,7 @@ ReleaseFetchResult fetchReleaseJson(const char* url, JsonDocument& doc, const Js
   const DeserializationError error = deserializeJson(doc, httpBuf.data, DeserializationOption::Filter(filter));
   if (error) {
     LOG_ERR("OTA", "JSON parse failed: %s (body: %.120s)", error.c_str(), httpBuf.data);
-    return {OtaUpdater::JSON_PARSE_ERROR,
-            httpStatus,
-            ESP_OK,
+    return {OtaUpdater::JSON_PARSE_ERROR, httpStatus, ESP_OK,
             String("Invalid OTA metadata from ") + url + ": " + error.c_str()};
   }
 
@@ -499,10 +522,11 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   const std::string releaseName = doc["name"] | "";
   latestVersion = releaseName.empty() ? doc["tag_name"].as<std::string>() : releaseName;
 
-  for (int i = 0; i < doc["assets"].size(); i++) {
-    if (doc["assets"][i]["name"] == "firmware.bin") {
-      otaUrl = doc["assets"][i]["browser_download_url"].as<std::string>();
-      otaSize = doc["assets"][i]["size"].as<size_t>();
+  for (JsonObject asset : doc["assets"].as<JsonArray>()) {
+    const char* assetName = asset["name"] | "";
+    if (isFirmwareAssetName(assetName)) {
+      otaUrl = asset["browser_download_url"].as<std::string>();
+      otaSize = asset["size"].as<size_t>();
       totalSize = otaSize;
       updateAvailable = true;
       break;
@@ -510,7 +534,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   }
 
   if (!updateAvailable) {
-    LOG_ERR("OTA", "No firmware.bin asset found");
+    LOG_ERR("OTA", "No named firmware asset found");
     lastError = "Release missing firmware package";
     return NO_UPDATE;
   }

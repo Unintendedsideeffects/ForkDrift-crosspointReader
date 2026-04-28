@@ -13,6 +13,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
@@ -36,6 +37,7 @@ struct LocalUpdateFingerprint {
 
 struct LocalUpdateMetadata {
   LocalUpdateFingerprint fingerprint;
+  String path;
   String candidateVersion;
 };
 
@@ -47,9 +49,91 @@ uint32_t fnv1aUpdate(uint32_t hash, const uint8_t* data, const size_t length) {
   return hash;
 }
 
-bool removeLocalUpdateFile() {
+bool isDecimalDigit(const char ch) { return ch >= '0' && ch <= '9'; }
+
+bool isHexDigit(const char ch) {
+  return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');
+}
+
+bool isNamedFirmwareFile(const char* name) {
+  constexpr char prefix[] = "firmware-";
+  constexpr char suffix[] = ".bin";
+  constexpr size_t dateLength = 8;
+  constexpr size_t minShaLength = 7;
+  const size_t prefixLength = strlen(prefix);
+  const size_t suffixLength = strlen(suffix);
+  const size_t nameLength = name ? strlen(name) : 0;
+  const size_t minLength = prefixLength + dateLength + 1 + minShaLength + suffixLength;
+
+  if (nameLength < minLength || strncmp(name, prefix, prefixLength) != 0 ||
+      strcmp(name + nameLength - suffixLength, suffix) != 0) {
+    return false;
+  }
+
+  const size_t dateStart = prefixLength;
+  const size_t shaStart = dateStart + dateLength + 1;
+  const size_t shaEnd = nameLength - suffixLength;
+  if (name[dateStart + dateLength] != '-') {
+    return false;
+  }
+
+  for (size_t i = dateStart; i < dateStart + dateLength; ++i) {
+    if (!isDecimalDigit(name[i])) {
+      return false;
+    }
+  }
+
+  for (size_t i = shaStart; i < shaEnd; ++i) {
+    if (!isHexDigit(name[i])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+String findNamedLocalUpdatePath() {
   SpiBusMutex::Guard guard;
-  return Storage.remove(FirmwareUpdateUtil::kFirmwareBinPath);
+  FsFile root = Storage.open("/");
+  if (!root || !root.isDirectory()) {
+    return "";
+  }
+
+  String bestName;
+  while (true) {
+    FsFile entry = root.openNextFile();
+    if (!entry) {
+      break;
+    }
+
+    char name[96] = "";
+    const bool hasName = !entry.isDirectory() && entry.getName(name, sizeof(name));
+    entry.close();
+    if (hasName && isNamedFirmwareFile(name)) {
+      if (bestName.isEmpty() || strcmp(name, bestName.c_str()) > 0) {
+        bestName = name;
+      }
+    }
+  }
+
+  root.close();
+  return bestName.isEmpty() ? String("") : String("/") + bestName;
+}
+
+String findLocalUpdatePath() {
+  {
+    SpiBusMutex::Guard guard;
+    if (Storage.exists(FirmwareUpdateUtil::kFirmwareBinPath)) {
+      return FirmwareUpdateUtil::kFirmwareBinPath;
+    }
+  }
+
+  return findNamedLocalUpdatePath();
+}
+
+bool removeLocalUpdateFile(const String& path) {
+  SpiBusMutex::Guard guard;
+  return Storage.remove(path.c_str());
 }
 
 void clearSkippedLocalUpdate() {
@@ -143,11 +227,11 @@ bool readFirmwareAppDescription(FsFile& file, esp_app_desc_t& appDesc) {
   return true;
 }
 
-bool computeLocalUpdateFingerprint(LocalUpdateFingerprint& fingerprint) {
+bool computeLocalUpdateFingerprint(const String& path, LocalUpdateFingerprint& fingerprint) {
   FsFile file;
   {
     SpiBusMutex::Guard guard;
-    if (!Storage.openFileForRead("FWUPD", FirmwareUpdateUtil::kFirmwareBinPath, file)) {
+    if (!Storage.openFileForRead("FWUPD", path, file)) {
       LOG_ERR("FWUPD", "Failed to open firmware file for fingerprint");
       return false;
     }
@@ -194,11 +278,11 @@ bool computeLocalUpdateFingerprint(LocalUpdateFingerprint& fingerprint) {
   return true;
 }
 
-bool readLocalUpdateVersion(String& version) {
+bool readLocalUpdateVersion(const String& path, String& version) {
   FsFile file;
   {
     SpiBusMutex::Guard guard;
-    if (!Storage.openFileForRead("FWUPD", FirmwareUpdateUtil::kFirmwareBinPath, file)) {
+    if (!Storage.openFileForRead("FWUPD", path, file)) {
       LOG_ERR("FWUPD", "Failed to open firmware file for version read");
       return false;
     }
@@ -217,22 +301,23 @@ bool readLocalUpdateVersion(String& version) {
 }
 
 bool loadLocalUpdateMetadata(LocalUpdateMetadata& metadata) {
-  if (!computeLocalUpdateFingerprint(metadata.fingerprint)) {
+  metadata.path = findLocalUpdatePath();
+  if (metadata.path.isEmpty()) {
     return false;
   }
 
-  if (!readLocalUpdateVersion(metadata.candidateVersion)) {
+  if (!computeLocalUpdateFingerprint(metadata.path, metadata.fingerprint)) {
+    return false;
+  }
+
+  if (!readLocalUpdateVersion(metadata.path, metadata.candidateVersion)) {
     metadata.candidateVersion = "Unknown";
   }
 
   return true;
 }
 
-bool isCurrentLocalUpdateSkipped(LocalUpdateMetadata& currentMetadata) {
-  if (!loadLocalUpdateMetadata(currentMetadata)) {
-    return false;
-  }
-
+bool isCurrentLocalUpdateSkipped(const LocalUpdateMetadata& currentMetadata) {
   LocalUpdateFingerprint skippedFingerprint;
   if (!loadSkippedLocalUpdate(skippedFingerprint)) {
     return false;
@@ -342,10 +427,7 @@ LocalUpdatePromptAction promptForLocalUpdate(GfxRenderer& renderer, MappedInputM
 }
 }  // namespace
 
-bool FirmwareUpdateUtil::checkForLocalUpdate() {
-  SpiBusMutex::Guard guard;
-  return Storage.exists(kFirmwareBinPath);
-}
+bool FirmwareUpdateUtil::checkForLocalUpdate() { return !findLocalUpdatePath().isEmpty(); }
 
 void FirmwareUpdateUtil::handleLocalUpdateBootFlow(GfxRenderer& renderer, MappedInputManager& mappedInput) {
   if (!checkForLocalUpdate()) {
@@ -353,12 +435,12 @@ void FirmwareUpdateUtil::handleLocalUpdateBootFlow(GfxRenderer& renderer, Mapped
   }
 
   LocalUpdateMetadata metadata;
-  if (isCurrentLocalUpdateSkipped(metadata)) {
-    LOG_INF("FWUPD", "Skipping boot prompt for previously skipped firmware.bin");
+  if (!loadLocalUpdateMetadata(metadata)) {
     return;
   }
 
-  if (metadata.fingerprint.fileSize == 0 && !loadLocalUpdateMetadata(metadata)) {
+  if (isCurrentLocalUpdateSkipped(metadata)) {
+    LOG_INF("FWUPD", "Skipping boot prompt for previously skipped firmware: %s", metadata.path.c_str());
     return;
   }
 
@@ -377,21 +459,27 @@ void FirmwareUpdateUtil::handleLocalUpdateBootFlow(GfxRenderer& renderer, Mapped
       break;
     case LocalUpdatePromptAction::DeleteIt:
       clearSkippedLocalUpdate();
-      if (!removeLocalUpdateFile()) {
-        LOG_ERR("FWUPD", "Failed to delete %s", kFirmwareBinPath);
+      if (!removeLocalUpdateFile(metadata.path)) {
+        LOG_ERR("FWUPD", "Failed to delete %s", metadata.path.c_str());
       }
       break;
   }
 }
 
 bool FirmwareUpdateUtil::performLocalUpdate(const GfxRenderer& renderer) {
-  LOG_INF("FWUPD", "Starting local firmware update from %s", kFirmwareBinPath);
+  const String firmwarePath = findLocalUpdatePath();
+  if (firmwarePath.isEmpty()) {
+    LOG_ERR("FWUPD", "No local firmware file found");
+    return false;
+  }
+
+  LOG_INF("FWUPD", "Starting local firmware update from %s", firmwarePath.c_str());
 
   FsFile firmwareFile;
   size_t firmwareSize = 0;
   {
     SpiBusMutex::Guard guard;
-    if (!Storage.openFileForRead("FWUPD", kFirmwareBinPath, firmwareFile)) {
+    if (!Storage.openFileForRead("FWUPD", firmwarePath, firmwareFile)) {
       LOG_ERR("FWUPD", "Failed to open firmware file");
       return false;
     }
@@ -508,12 +596,12 @@ bool FirmwareUpdateUtil::performLocalUpdate(const GfxRenderer& renderer) {
     return false;
   }
 
-  LOG_INF("FWUPD", "Firmware update successful. Deleting %s and rebooting...", kFirmwareBinPath);
+  LOG_INF("FWUPD", "Firmware update successful. Deleting %s and rebooting...", firmwarePath.c_str());
 
   clearSkippedLocalUpdate();
   {
     SpiBusMutex::Guard guard;
-    Storage.remove(kFirmwareBinPath);
+    Storage.remove(firmwarePath.c_str());
   }
 
   renderer.clearScreen();

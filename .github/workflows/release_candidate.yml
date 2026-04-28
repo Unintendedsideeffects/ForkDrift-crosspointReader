@@ -22,8 +22,8 @@ jobs:
           version: "latest"
           enable-cache: false
 
-      - name: Install PlatformIO Core
-        run: uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
+      - name: Install dependencies
+        run: uv sync --frozen
 
       - name: Extract env
         run: |
@@ -33,7 +33,7 @@ jobs:
       - name: Build CrossPoint Release Candidate
         env:
           CROSSPOINT_RC_HASH: ${{ env.SHORT_SHA }}
-        run: pio run -e gh_release_rc
+        run: uv run pio run -e gh_release_rc
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7
@@ -42,7 +42,7 @@ jobs:
           retention-days: 14
           path: |
             .pio/build/gh_release_rc/bootloader.bin
-            .pio/build/gh_release_rc/firmware.bin
+            .pio/build/gh_release_rc/firmware-*.bin
             .pio/build/gh_release_rc/firmware.elf
             .pio/build/gh_release_rc/firmware.map
             .pio/build/gh_release_rc/partitions.bin
