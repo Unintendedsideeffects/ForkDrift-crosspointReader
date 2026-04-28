@@ -26,6 +26,8 @@ namespace {
 constexpr char kSkippedLocalUpdatePath[] = "/.crosspoint/local-update-skip.bin";
 constexpr uint8_t kSkippedLocalUpdateVersion = 1;
 constexpr size_t kFingerprintSampleBytes = 4096;
+constexpr size_t kVersionScanChunkBytes = 1024;
+constexpr size_t kMaxFirmwareVersionLength = 96;
 constexpr int kPromptItemCount = 4;
 
 enum class LocalUpdatePromptAction : uint8_t { Install = 0, SkipForNow, SkipThisVersion, DeleteIt };
@@ -53,6 +55,17 @@ bool isDecimalDigit(const char ch) { return ch >= '0' && ch <= '9'; }
 
 bool isHexDigit(const char ch) {
   return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');
+}
+
+bool isFirmwareVersionChar(const char ch) { return ch >= '!' && ch <= '~' && ch != '"' && ch != '\\'; }
+
+void advanceMarkerMatch(const char ch, const char* marker, size_t& matchLength) {
+  if (ch == marker[matchLength]) {
+    ++matchLength;
+    return;
+  }
+
+  matchLength = ch == marker[0] ? 1 : 0;
 }
 
 bool isNamedFirmwareFile(const char* name) {
@@ -227,6 +240,58 @@ bool readFirmwareAppDescription(FsFile& file, esp_app_desc_t& appDesc) {
   return true;
 }
 
+bool readCrossPointVersionMarker(FsFile& file, String& version) {
+  constexpr char userAgentMarker[] = "CrossPoint-ESP32-";
+  constexpr char bootLogMarker[] = "Starting CrossPoint version ";
+
+  if (!file.seekSet(0)) {
+    LOG_ERR("FWUPD", "Failed to seek firmware file for version scan");
+    return false;
+  }
+
+  ScopedBuffer buffer(kVersionScanChunkBytes);
+  if (!buffer) {
+    LOG_ERR("FWUPD", "Failed to allocate version scan buffer");
+    return false;
+  }
+
+  size_t userAgentMatchLength = 0;
+  size_t bootLogMatchLength = 0;
+  bool readingVersion = false;
+  version = "";
+
+  while (true) {
+    const size_t bytesRead = file.read(buffer.data(), kVersionScanChunkBytes);
+    if (bytesRead == 0) {
+      break;
+    }
+
+    for (size_t i = 0; i < bytesRead; ++i) {
+      const char ch = static_cast<char>(buffer.data()[i]);
+      if (readingVersion) {
+        if (ch != '\0' && isFirmwareVersionChar(ch) && version.length() < kMaxFirmwareVersionLength) {
+          version += ch;
+          continue;
+        }
+        version.trim();
+        return !version.isEmpty();
+      }
+
+      advanceMarkerMatch(ch, userAgentMarker, userAgentMatchLength);
+      advanceMarkerMatch(ch, bootLogMarker, bootLogMatchLength);
+      if (userAgentMarker[userAgentMatchLength] == '\0' || bootLogMarker[bootLogMatchLength] == '\0') {
+        readingVersion = true;
+        version = "";
+        userAgentMatchLength = 0;
+        bootLogMatchLength = 0;
+      }
+    }
+  }
+
+  version.trim();
+  return !version.isEmpty();
+}
+
 bool computeLocalUpdateFingerprint(const String& path, LocalUpdateFingerprint& fingerprint) {
   FsFile file;
   {
@@ -286,6 +351,11 @@ bool readLocalUpdateVersion(const String& path, String& version) {
       LOG_ERR("FWUPD", "Failed to open firmware file for version read");
       return false;
     }
+  }
+
+  if (readCrossPointVersionMarker(file, version)) {
+    file.close();
+    return true;
   }
 
   esp_app_desc_t appDesc{};
@@ -370,8 +440,7 @@ void renderLocalUpdatePrompt(GfxRenderer& renderer, const MappedInputManager& ma
   renderer.drawCenteredText(UI_10_FONT_ID, infoY, formatFirmwareSize(metadata.fingerprint.fileSize).c_str(), true);
   infoY += renderer.getLineHeight(UI_10_FONT_ID) + 6;
 
-  const esp_app_desc_t* currentApp = esp_ota_get_app_description();
-  String currentVersion = currentApp ? String(currentApp->version) : String(CROSSPOINT_VERSION);
+  String currentVersion = CROSSPOINT_VERSION;
   currentVersion.trim();
   const String currentVersionLine = String(tr(STR_CURRENT_VERSION)) + currentVersion;
   const String newVersionLine = String(tr(STR_NEW_VERSION)) + metadata.candidateVersion;
