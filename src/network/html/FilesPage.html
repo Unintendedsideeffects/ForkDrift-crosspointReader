@@ -21,10 +21,9 @@
       background-size: 4px 4px;
     }
     h1 {
-      font-family: var(--font-display);
-      font-weight: 700;
-      color: var(--black);
-      margin-bottom: 5px;
+      color: var(--title-color);
+      border-bottom: 2px solid var(--accent-color);
+      padding-bottom: 10px;
     }
     h2 {
       color: var(--gray-2);
@@ -45,10 +44,8 @@
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
-      gap: 12px;
-      padding: 12px 16px;
-      border-bottom: 2px solid var(--black);
-      background: var(--white);
+      gap: 15px;
+      margin-bottom: 20px;
     }
     .page-header-left {
       display: flex;
@@ -1625,15 +1622,17 @@
   </style>
 </head>
 <body>
-<nav class="nav">
-  <a href="/">[Home]</a>
-  <a href="/files" class="active">[Files]</a>
-  <a href="/settings">[Settings]</a>
-</nav>
+<h1>📚 CrossPoint Reader</h1>
+
+<div class="nav-links">
+  <a href="/">Home</a>
+  <a href="/files" class="active">File Manager</a>
+  <a href="/settings">Settings</a>
+</div>
 
 <div class="page-header">
   <div class="page-header-left">
-    <h1>📁 File Manager</h1>
+    <h2>📁 File Manager</h2>
     <div class="breadcrumb-inline" id="directory-breadcrumbs"></div>
   </div>
 
@@ -1933,6 +1932,11 @@
     if (leaf) document.title = leaf + ' - Files - CrossPoint Reader';
   }
 
+  if (currentPath !== '/') {
+    const leaf = currentPath.split('/').filter(Boolean).pop();
+    if (leaf) document.title = leaf + ' - Files - CrossPoint Reader';
+  }
+
   // Network status monitoring
   let isNetworkOnline = navigator.onLine;
 
@@ -2078,7 +2082,10 @@
       totalSize += file.size;
     });
 
-    document.getElementById('folder-summary').innerHTML = `${folderCount} folders, ${files.length - folderCount} files, ${formatFileSize(totalSize)}`;
+    const fileCount = files.length - folderCount;
+    const folderLabel = folderCount === 1 ? 'folder' : 'folders';
+    const fileLabel = fileCount === 1 ? 'file' : 'files';
+    document.getElementById('folder-summary').innerHTML = `${folderCount} ${folderLabel}, ${fileCount} ${fileLabel}, ${formatFileSize(totalSize)}`;
 
     if (files.length === 0) {
       fileTable.innerHTML = '<div class="no-files">This folder is empty</div>';

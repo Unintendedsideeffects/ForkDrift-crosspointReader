@@ -41,13 +41,14 @@ git checkout fork-drift
 git submodule update --init --recursive
 ```
 
-## Local Configuration
+Enable the repository-managed Git hooks (required once per clone):
 
-If you need to customize your build (e.g., set custom serial ports or build flags), you can create a `platformio.local.ini` file. This file is ignored by git and can be used to override settings in `platformio.ini` without modifying the shared project configuration.
+```sh
+git config core.hooksPath .githooks
+chmod +x .githooks/pre-commit
+```
 
-## Build and Flash
-
-### Build
+## Build
 
 ```sh
 uv run pio run

@@ -1,6 +1,7 @@
 #include "HttpDownloader.h"
 
 #include <HTTPClient.h>
+#include <Logging.h>
 #include <StreamString.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
@@ -10,8 +11,6 @@
 #include <memory>
 #include <utility>
 
-#include "CrossPointSettings.h"
-#include "Logging.h"
 #include "SpiBusMutex.h"
 #include "util/UrlUtils.h"
 
@@ -57,7 +56,8 @@ class FileWriteStream final : public Stream {
 };
 }  // namespace
 
-bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent) {
+bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const std::string& username,
+                              const std::string& password) {
   std::unique_ptr<WiFiClient> client;
   if (UrlUtils::isHttpsUrl(url)) {
     auto* secureClient = new WiFiClientSecure();
@@ -74,9 +74,9 @@ bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent) {
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
 
-  if (strlen(SETTINGS.opdsUsername) > 0 && strlen(SETTINGS.opdsPassword) > 0) {
-    const std::string credentials = std::string(SETTINGS.opdsUsername) + ":" + SETTINGS.opdsPassword;
-    const String encoded = base64::encode(credentials.c_str());
+  if (!username.empty() && !password.empty()) {
+    std::string credentials = username + ":" + password;
+    String encoded = base64::encode(credentials.c_str());
     http.addHeader("Authorization", "Basic " + encoded);
   }
 
@@ -94,9 +94,10 @@ bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent) {
   return true;
 }
 
-bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent) {
+bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent, const std::string& username,
+                              const std::string& password) {
   StreamString stream;
-  if (!fetchUrl(url, stream)) {
+  if (!fetchUrl(url, stream, username, password)) {
     return false;
   }
   outContent = stream.c_str();
@@ -104,7 +105,8 @@ bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent) {
 }
 
 HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& url, const std::string& destPath,
-                                                             ProgressCallback progress) {
+                                                             ProgressCallback progress, const std::string& username,
+                                                             const std::string& password) {
   std::unique_ptr<WiFiClient> client;
   if (UrlUtils::isHttpsUrl(url)) {
     auto* secureClient = new WiFiClientSecure();
@@ -122,9 +124,9 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
 
-  if (strlen(SETTINGS.opdsUsername) > 0 && strlen(SETTINGS.opdsPassword) > 0) {
-    const std::string credentials = std::string(SETTINGS.opdsUsername) + ":" + SETTINGS.opdsPassword;
-    const String encoded = base64::encode(credentials.c_str());
+  if (!username.empty() && !password.empty()) {
+    std::string credentials = username + ":" + password;
+    String encoded = base64::encode(credentials.c_str());
     http.addHeader("Authorization", "Basic " + encoded);
   }
 

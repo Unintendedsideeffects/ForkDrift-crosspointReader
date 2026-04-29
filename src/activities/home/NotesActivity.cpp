@@ -75,24 +75,24 @@ void NotesActivity::saveNotes() const {
 }
 
 void NotesActivity::addNote() {
-  startActivityForResult(
-      std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_ADD_NOTE), "", MAX_NOTE_LENGTH, true),
-      [this](const ActivityResult& result) {
-        if (!result.isCancelled) {
-          const auto& text = std::get<KeyboardResult>(result.data).text;
-          if (!text.empty()) {
-            notes.insert(notes.begin(), text);  // newest at top
-            if (static_cast<int>(notes.size()) > MAX_NOTES) {
-              notes.resize(MAX_NOTES);
-            }
-            selectedIndex = 0;
-            dirty = true;
-            saveNotes();
-            dirty = false;
-          }
-        }
-        requestUpdate();
-      });
+  startActivityForResult(std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_ADD_NOTE), "",
+                                                                 MAX_NOTE_LENGTH, InputType::Text),
+                         [this](const ActivityResult& result) {
+                           if (!result.isCancelled) {
+                             const auto& text = std::get<KeyboardResult>(result.data).text;
+                             if (!text.empty()) {
+                               notes.insert(notes.begin(), text);  // newest at top
+                               if (static_cast<int>(notes.size()) > MAX_NOTES) {
+                                 notes.resize(MAX_NOTES);
+                               }
+                               selectedIndex = 0;
+                               dirty = true;
+                               saveNotes();
+                               dirty = false;
+                             }
+                           }
+                           requestUpdate();
+                         });
 }
 
 void NotesActivity::deleteSelectedNote() {

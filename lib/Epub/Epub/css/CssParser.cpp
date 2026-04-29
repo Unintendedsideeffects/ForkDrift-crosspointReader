@@ -667,9 +667,7 @@ CssStyle CssParser::parseInlineStyle(const std::string& styleValue) { return par
 // Cache file name (version is CssParser::CSS_CACHE_VERSION)
 constexpr char rulesCache[] = "/css_rules.cache";
 
-bool CssParser::hasCache() const {
-  return !cacheDir_.empty() && Storage.exists((cacheDir_ + rulesCache).c_str());
-}
+bool CssParser::hasCache() const { return !cacheDir_.empty() && Storage.exists((cacheDir_ + rulesCache).c_str()); }
 
 void CssParser::deleteCache() const {
   if (hasCache()) Storage.remove((cacheDir_ + rulesCache).c_str());
@@ -772,6 +770,11 @@ bool CssParser::loadFromCache(FsFile& file) {
   if (file.read(&version, 1) != 1 || version != CssParser::CSS_CACHE_VERSION) {
     LOG_DBG("CSS", "Cache version mismatch (got %u, expected %u), removing stale cache for rebuild", version,
             CssParser::CSS_CACHE_VERSION);
+    // Explicitly close() file before calling Storage.remove()
+    file.close();
+    if (!cacheDir_.empty()) {
+      Storage.remove((cacheDir_ + rulesCache).c_str());
+    }
     return false;
   }
 

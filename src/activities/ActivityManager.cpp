@@ -4,11 +4,11 @@
 #include <HalStorage.h>
 #include <Logging.h>
 
-#include <algorithm>
-
 #include "CrossPointState.h"
+#include "OpdsServerStore.h"
 #include "boot_sleep/BootActivity.h"
 #include "boot_sleep/SleepActivity.h"
+#include "browser/OpdsBookBrowserActivity.h"
 #include "core/registries/HomeActionRegistry.h"
 #include "core/registries/ReaderRegistry.h"
 #include "home/CrashActivity.h"
@@ -19,6 +19,7 @@
 #include "network/CrossPointWebServer.h"
 #include "network/CrossPointWebServerActivity.h"
 #include "reader/ReaderActivity.h"
+#include "settings/OpdsServerListActivity.h"
 #include "settings/SettingsActivity.h"
 #include "util/FullScreenMessageActivity.h"
 
@@ -232,6 +233,14 @@ void ActivityManager::goToRecentBooks() {
   replaceActivity(std::make_unique<RecentBooksActivity>(renderer, mappedInput));
 }
 
+void ActivityManager::goToTodo() {
+  static const auto onBackCallback = [](void* ctx) { static_cast<ActivityManager*>(ctx)->goHome(); };
+  if (Activity* todo =
+          core::HomeActionRegistry::create("todo_planner", renderer, mappedInput, {false}, this, onBackCallback)) {
+    replaceActivity(std::unique_ptr<Activity>(todo));
+  }
+}
+
 void ActivityManager::goToNotes() { replaceActivity(std::make_unique<NotesActivity>(renderer, mappedInput)); }
 
 void ActivityManager::goToAnki() {
@@ -241,21 +250,12 @@ void ActivityManager::goToAnki() {
 }
 
 void ActivityManager::goToBrowser() {
-  // hasOpdsUrl=true: navigation already confirmed by the caller; bypass the display gate.
-  if (Activity* browser =
-          core::HomeActionRegistry::create("opds_browser", renderer, mappedInput, {true}, nullptr, nullptr)) {
-    replaceActivity(std::unique_ptr<Activity>(browser));
-  }
-}
-
-void ActivityManager::goToTodo() {
-  static const auto onBackCallback = [](void* ctx) { static_cast<ActivityManager*>(ctx)->goHome(); };
-  const core::HomeActionEntry::HomeActionContext ctx{false};
-  if (Activity* todo =
-          core::HomeActionRegistry::create("todo_planner", renderer, mappedInput, ctx, this, onBackCallback)) {
-    replaceActivity(std::unique_ptr<Activity>(todo));
+  const auto& servers = OPDS_STORE.getServers();
+  // Skip the server picker when there's only one server configured
+  if (servers.size() == 1) {
+    replaceActivity(std::make_unique<OpdsBookBrowserActivity>(renderer, mappedInput, servers[0]));
   } else {
-    goHome();
+    replaceActivity(std::make_unique<OpdsServerListActivity>(renderer, mappedInput, true));
   }
 }
 

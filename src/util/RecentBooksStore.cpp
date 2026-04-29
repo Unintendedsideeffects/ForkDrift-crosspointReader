@@ -98,75 +98,65 @@ bool RecentBooksStore::loadFromBinaryFile() {
   }
 
   uint8_t version;
-  if (!serialization::readPod(inputFile, version)) {
-    LOG_ERR("RBS", "Failed to read version");
-    inputFile.close();
-    return false;
-  }
+  serialization::readPod(inputFile, version);
+  if (version == 1 || version == 2) {
+    // Old version, just read paths
+    uint8_t count;
+    serialization::readPod(inputFile, count);
+    recentBooks.clear();
+    recentBooks.reserve(count);
+    for (uint8_t i = 0; i < count; i++) {
+      std::string path;
+      serialization::readString(inputFile, path);
 
-  if (version != RECENT_BOOKS_FILE_VERSION) {
-    if (version == 1 || version == 2) {
-      // Old version, just read paths
-      uint8_t count;
-      if (!serialization::readPod(inputFile, count)) {
-        LOG_ERR("RBS", "Failed to read count");
-        inputFile.close();
-        return false;
-      }
-      recentBooks.clear();
-      recentBooks.reserve(count);
-      for (uint8_t i = 0; i < count; i++) {
-        std::string path;
-        if (!serialization::readString(inputFile, path)) {
-          LOG_ERR("RBS", "Failed to read path");
-          inputFile.close();
-          return false;
-        }
-
-        // Try to recover metadata from the book file itself
-        RecentBook book = getDataFromBook(path);
-
-        // If version 2, we might have title/author in the file, but getDataFromBook is fresher
-        if (version == 2) {
-          std::string title, author;
-          if (serialization::readString(inputFile, title) && serialization::readString(inputFile, author)) {
-            // Only use file data if book lookup failed (e.g. file deleted)
-            if (book.title.empty()) book.title = title;
-            if (book.author.empty()) book.author = author;
-          }
-        }
-
+      // load book to get missing data
+      RecentBook book = getDataFromBook(path);
+      if (book.title.empty() && book.author.empty() && version == 2) {
+        // Fall back to loading what we can from the store
+        std::string title, author;
+        serialization::readString(inputFile, title);
+        serialization::readString(inputFile, author);
+        recentBooks.push_back({path, title, author, ""});
+      } else {
         recentBooks.push_back(book);
       }
-    } else {
-      LOG_ERR("RBS", "Deserialization failed: Unknown version %u", version);
-      inputFile.close();
-      return false;
     }
-  } else {
+  } else if (version == 3) {
     uint8_t count;
-    if (!serialization::readPod(inputFile, count)) {
-      LOG_ERR("RBS", "Failed to read count");
-      inputFile.close();
-      return false;
-    }
+    serialization::readPod(inputFile, count);
 
     recentBooks.clear();
     recentBooks.reserve(count);
+    uint8_t omitted = 0;
 
     for (uint8_t i = 0; i < count; i++) {
       std::string path, title, author, coverBmpPath;
-      if (!serialization::readString(inputFile, path) || !serialization::readString(inputFile, title) ||
-          !serialization::readString(inputFile, author) || !serialization::readString(inputFile, coverBmpPath)) {
-        LOG_ERR("RBS", "Failed to read book entry %d", i);
-        inputFile.close();
-        return false;
+      serialization::readString(inputFile, path);
+      serialization::readString(inputFile, title);
+      serialization::readString(inputFile, author);
+      serialization::readString(inputFile, coverBmpPath);
+
+      // Omit books with missing title (e.g. saved before metadata was available)
+      if (title.empty()) {
+        omitted++;
+        continue;
       }
+
       recentBooks.push_back({path, title, author, coverBmpPath});
     }
+
+    if (omitted > 0) {
+      // Explicitly close() file before saveToFile() rewrites the same file
+      inputFile.close();
+      saveToFile();
+      LOG_DBG("RBS", "Omitted %u recent book(s) with missing title", omitted);
+      return true;
+    }
+  } else {
+    LOG_ERR("RBS", "Deserialization failed: Unknown version %u", version);
+    return false;
   }
 
-  inputFile.close();
-  LOG_DBG("RBS", "Recent books loaded from binary file (%d entries)", recentBooks.size());
+  LOG_DBG("RBS", "Recent books loaded from binary file (%d entries)", static_cast<int>(recentBooks.size()));
   return true;
 }

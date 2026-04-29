@@ -12,13 +12,17 @@
 
 #include "CrossPointSettings.h"
 #include "SpiBusMutex.h"
-#include "util/UserFontManager.h"
 #include "core/features/FeatureCatalog.h"
 #include "core/registries/LifecycleRegistry.h"
 #include "core/registries/WebRouteRegistry.h"
 #include "fontIds.h"
 #include "network/BufferedHttpUpload.h"
 #include "util/PathUtils.h"
+#include "util/UserFontManager.h"
+
+#ifndef USER_SD_FONT_ID
+#define USER_SD_FONT_ID (123456789)
+#endif
 
 namespace features::user_fonts {
 namespace {

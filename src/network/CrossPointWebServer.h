@@ -136,6 +136,16 @@ class CrossPointWebServer {
   void handleFileList() const;
   void handleFileListData() const;
   void handleDownload() const;
+  void handleCover() const;
+  void handleSleepImages() const;
+  void handleRecentBooks() const;
+  void handleGetBookProgress() const;
+  void handleSleepCoverGet() const;
+  void handleSleepCoverPin();
+  void handleOpenBook();
+  void handleRemoteButton();
+  void handleScreenshot();
+  void handleGetSettingsRaw() const;
   void scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const;
   bool isEpubFile(const String& filename) const;
   void handleUpload();
@@ -150,17 +160,8 @@ class CrossPointWebServer {
   void handleGetSettings() const;
   void handlePostSettings();
 
-  // API handlers for web UI
-  void handleRecentBooks() const;
-  void handleGetBookProgress() const;
-  void handleCover() const;
-  void handleSleepImages() const;
-  void handleSleepCoverGet() const;
-  void handleSleepCoverPin();
-
-  // Remote control
-  void handleOpenBook();
-  void handleRemoteButton();
-  void handleScreenshot();
-  void handleGetSettingsRaw() const;
+  // OPDS server handlers
+  void handleGetOpdsServers() const;
+  void handlePostOpdsServer();
+  void handleDeleteOpdsServer();
 };

@@ -1,7 +1,7 @@
 #pragma once
 #include <atomic>
+#include <climits>
 #include <cstdint>
-#include <iosfwd>
 #include <string>
 
 class CrossPointState {
@@ -9,29 +9,28 @@ class CrossPointState {
   static CrossPointState instance;
 
  public:
+  static constexpr uint8_t SLEEP_RECENT_COUNT = 16;
+
   std::string openEpubPath;
-  // Set by USB/HTTP open_book command; drained by main loop to navigate to the book.
-  // Not persisted — cleared on every boot.
   std::string pendingOpenPath;
-  // Remote page turn: +1 = forward, -1 = back, 0 = none.
-  // Written by WiFi/USB handler tasks, read and cleared by main loop.
-  // volatile guarantees the main loop re-reads after a task switch.
-  volatile int8_t pendingPageTurn = 0;
-  // Remote screenshot trigger. Written by WiFi handler task, read and cleared by main loop.
-  std::atomic<bool> pendingScreenshot{false};
-  uint8_t lastSleepImage = UINT8_MAX;  // UINT8_MAX = unset sentinel
-  uint8_t readerActivityLoadCount = 0;
-  bool lastSleepFromReader = false;
-  // Exponential backoff for WiFi auto-connect.
-  // skipCount: remaining wakes to skip before next attempt (decremented each wake).
-  // backoffLevel: exponent for next skip window; skip = (1 << backoffLevel) - 1.
-  // Reset both to 0 when a successful API call is observed.
+  int8_t pendingPageTurn = 0;
+  bool pendingScreenshot = false;
+  bool pendingHomeFullRefresh = false;
+  uint8_t lastSleepImage = UINT8_MAX;
   uint8_t wifiAutoConnectSkipCount = 0;
   uint8_t wifiAutoConnectBackoffLevel = 0;
   bool wifiAutoConnectWaitingForNewCredential = false;
-  // Set by reader activities on exit so HomeActivity knows to do a full e-ink
-  // refresh on its first render. Not persisted — runtime only.
-  bool pendingHomeFullRefresh = false;
+  uint16_t recentSleepImages[SLEEP_RECENT_COUNT] = {};  // circular buffer of recent wallpaper indices
+  uint8_t recentSleepPos = 0;                           // next write slot
+  uint8_t recentSleepFill = 0;                          // valid entries (0..SLEEP_RECENT_COUNT)
+  uint8_t readerActivityLoadCount = 0;
+  bool lastSleepFromReader = false;
+
+  // Returns true if idx was shown within the last checkCount picks.
+  // Walks backwards from the most recently written slot.
+  bool isRecentSleep(uint16_t idx, uint8_t checkCount) const;
+
+  void pushRecentSleep(uint16_t idx);
   ~CrossPointState() = default;
 
   // Get singleton instance

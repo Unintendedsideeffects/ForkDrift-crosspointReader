@@ -80,8 +80,7 @@ bool WifiCredentialStore::loadFromBinaryFile() {
     return false;
   }
   if (version > WIFI_FILE_VERSION) {
-    LOG_ERR("WCS", "Unknown file version: %u", version);
-    file.close();
+    LOG_DBG("WCS", "Unknown file version: %u", version);
     return false;
   }
 
@@ -122,8 +121,7 @@ bool WifiCredentialStore::loadFromBinaryFile() {
     credentials.push_back(cred);
   }
 
-  file.close();
-  LOG_INF("WCS", "Loaded %zu WiFi credentials from binary file", credentials.size());
+  // LOG_DBG("WCS", "Loaded %zu WiFi credentials from binary file", credentials.size());
   return true;
 }
 

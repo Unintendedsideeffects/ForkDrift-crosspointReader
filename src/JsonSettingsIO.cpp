@@ -10,6 +10,7 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "KOReaderCredentialStore.h"
+#include "OpdsServerStore.h"
 #include "util/RecentBooksStore.h"
 #include "util/WifiCredentialStore.h"
 
@@ -178,7 +179,7 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   } else {
     s.applyFrontButtonLayoutPreset(static_cast<S::FRONT_BUTTON_LAYOUT>(s.frontButtonLayout));
   }
-  s.fontFamily = clamp(doc["fontFamily"] | (uint8_t)S::BOOKERLY, S::FONT_FAMILY_COUNT, S::BOOKERLY);
+  s.fontFamily = clamp(doc["fontFamily"] | (uint8_t)S::NOTOSERIF, S::FONT_FAMILY_COUNT, S::NOTOSERIF);
   s.fontSize = clamp(doc["fontSize"] | (uint8_t)S::MEDIUM, S::FONT_SIZE_COUNT, S::MEDIUM);
   s.lineSpacing = clamp(doc["lineSpacing"] | (uint8_t)S::NORMAL, S::LINE_COMPRESSION_COUNT, S::NORMAL);
   s.paragraphAlignment =
@@ -378,5 +379,57 @@ bool JsonSettingsIO::loadRecentBooks(RecentBooksStore& store, const char* json) 
   }
 
   LOG_DBG("RBS", "Recent books loaded from file (%d entries)", store.getCount());
+  return true;
+}
+
+bool JsonSettingsIO::saveOpds(const OpdsServerStore& store, const char* path) {
+  JsonDocument doc;
+  JsonArray arr = doc["servers"].to<JsonArray>();
+  for (const auto& srv : store.servers) {
+    JsonObject obj = arr.add<JsonObject>();
+    obj["name"] = srv.name;
+    obj["url"] = srv.url;
+    obj["username"] = srv.username;
+    obj["password_obf"] = obfuscation::obfuscateToBase64(srv.password);
+  }
+
+  String json;
+  serializeJson(doc, json);
+  return Storage.writeFile(path, json);
+}
+
+bool JsonSettingsIO::loadOpds(OpdsServerStore& store, const char* json, bool* needsResave) {
+  if (needsResave) {
+    *needsResave = false;
+  }
+  JsonDocument doc;
+  auto error = deserializeJson(doc, json);
+  if (error) {
+    LOG_ERR("OPS", "JSON parse error: %s", error.c_str());
+    return false;
+  }
+
+  store.servers.clear();
+  JsonArray arr = doc["servers"].as<JsonArray>();
+  for (JsonObject obj : arr) {
+    if (store.servers.size() >= OpdsServerStore::MAX_SERVERS) {
+      break;
+    }
+    OpdsServer srv;
+    srv.name = obj["name"] | std::string("");
+    srv.url = obj["url"] | std::string("");
+    srv.username = obj["username"] | std::string("");
+    bool ok = false;
+    srv.password = obfuscation::deobfuscateFromBase64(obj["password_obf"] | "", &ok);
+    if (!ok || srv.password.empty()) {
+      srv.password = obj["password"] | std::string("");
+      if (!srv.password.empty() && needsResave) {
+        *needsResave = true;
+      }
+    }
+    store.servers.push_back(std::move(srv));
+  }
+
+  LOG_DBG("OPS", "Loaded %zu OPDS servers from file", store.servers.size());
   return true;
 }

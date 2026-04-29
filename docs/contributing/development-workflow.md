@@ -4,14 +4,9 @@ This page defines the expected local workflow before opening a pull request.
 
 ## 1) Fork and Create a Focused Branch
 
-- Fork the repository to your own GitHub account.
-- Clone your fork locally and add the upstream repository.
-- **Target Branch**: All PRs must target the **`fork-drift`** branch.
-- **Branch Naming**: Use descriptive prefixes for your branches:
-  - `feature/` for new functionality.
-  - `fix/` for bug fixes.
-  - `refactor/` for code restructuring.
-  - `docs/` for documentation updates.
+- Fork the repository to your own GitHub account
+- Clone your fork locally and add the upstream repository if needed
+- Enable repo hooks once per clone: `git config core.hooksPath .githooks && chmod +x .githooks/pre-commit`
 
 Example: `git checkout -b feature/anki-sync-integration`
 

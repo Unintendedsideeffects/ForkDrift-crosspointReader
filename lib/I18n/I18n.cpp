@@ -62,9 +62,10 @@ void I18n::loadSettings() {
     return;
   }
 
-  uint8_t version = 0;
-  if (!serialization::readPod(file, version) || version != SETTINGS_VERSION) {
-    file.close();
+  uint8_t version;
+  serialization::readPod(file, version);
+  if (version != SETTINGS_VERSION) {
+    Serial.printf("[I18N] Settings version mismatch\n");
     return;
   }
 
@@ -73,7 +74,6 @@ void I18n::loadSettings() {
     file.close();
     return;
   }
-  file.close();
 
   if (languageValue < static_cast<uint8_t>(Language::_COUNT)) {
     _language = static_cast<Language>(languageValue);

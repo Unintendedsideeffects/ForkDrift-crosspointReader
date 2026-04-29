@@ -20,7 +20,8 @@ Welcome to the **CrossPoint** firmware. This guide outlines the hardware control
       - [3.6.2 Reader](#362-reader)
       - [3.6.3 Controls](#363-controls)
       - [3.6.4 System](#364-system)
-      - [3.6.5 KOReader Sync Quick Setup](#365-koreader-sync-quick-setup)
+      - [3.6.5 OPDS Servers (Multiple Libraries)](#365-opds-servers-multiple-libraries)
+      - [3.6.6 KOReader Sync Quick Setup](#366-koreader-sync-quick-setup)
     - [3.7 Sleep Screen](#37-sleep-screen)
       - [3.7.1 Pinning a Sleep Cover Image](#371-pinning-a-sleep-cover-image)
     - [3.8 Remote Keyboard Input](#38-remote-keyboard-input)
@@ -157,7 +158,7 @@ The Settings screen allows you to configure the device's behavior. There are a f
 
 #### 3.6.2 Reader
 - **Reader Font Family**: Choose the font used for reading:
-  - "Bookerly" (default) - Amazon's reading font
+  - "Noto Serif" (default) - Google's serif font
   - "Noto Sans" - Google's sans-serif font
   - "Open Dyslexic" - Font designed for readers with dyslexia
 - **Reader Font Size**: Adjust the text size for reading; options are "Small", "Medium" (default), "Large", or "X Large".
@@ -197,12 +198,35 @@ The Settings screen allows you to configure the device's behavior. There are a f
 
 - **WiFi Networks**: Connect to WiFi networks for file transfers and firmware updates.
 - **KOReader Sync**: Options for setting up KOReader for syncing book progress.
-- **OPDS Browser**: Configure OPDS server settings for browsing and downloading books. Set the server URL (for Calibre Content Server, add `/opds` to the end), and optionally configure username and password for servers requiring authentication. Note: Only HTTP Basic authentication is supported. If using Calibre Content Server with authentication enabled, you must set it to use Basic authentication instead of the default Digest authentication.
+- **OPDS Servers**: Manage one or more OPDS libraries for browsing and downloading books. See [OPDS Servers (Multiple Libraries)](#365-opds-servers-multiple-libraries) below.
 - **Clear Reading Cache**: Clear the internal SD card cache.
 - **Check for updates**: Check for Crosspoint firmware updates over WiFi.
 - **Language**: Set the system language (see **[Supported Languages](#supported-languages)** for more information).
 
-#### 3.6.5 KOReader Sync Quick Setup
+#### 3.6.5 OPDS Servers (Multiple Libraries)
+
+CrossPoint supports saving multiple OPDS servers and switching between them when browsing catalogs.
+
+1. Open **Settings -> System -> OPDS Servers**.
+2. Select **Add Server** to create a new entry, or select an existing server to edit it.
+3. Configure these fields:
+  - **Server Name**: Optional display name (for example, "Home Calibre" or "Public Catalog").
+  - **OPDS Server URL**: Full catalog root URL (for Calibre Content Server, usually ends with `/opds`).
+  - **Username / Password**: Optional credentials for authenticated servers.
+4. Use **Delete Server** inside a server entry to remove it.
+
+Behavior notes:
+
+- You can store up to 8 OPDS servers.
+- OPDS authentication supports HTTP Basic auth. If you use Calibre Content Server with authentication enabled, set it to Basic (not Digest).
+
+You can also manage OPDS servers from the web interface while in File Transfer mode:
+
+1. Connect to the device web UI.
+2. Open `http://<device-ip>/settings`.
+3. Use the **OPDS Servers** card to add, edit, or delete entries.
+
+#### 3.6.6 KOReader Sync Quick Setup
 
 CrossPoint can sync reading progress with KOReader-compatible sync servers.
 It also interoperates with KOReader apps/devices when they use the same server and credentials.
@@ -341,43 +365,6 @@ To use custom sleep images, set the sleep screen mode to **Custom** or **Cover +
 > - Use uncompressed BMP files with 24-bit color depth
 > - X4: Use a resolution of 480x800 pixels to match the device's screen resolution.
 > - X3: Use a resolution of 528x792 pixels to match the device's screen resolution.
-
-#### 3.7.1 Pinning a Sleep Cover Image
-
-You can choose to pin a specific image or book cover to always be shown when the device is sleeping, instead of the random rotation.
-
-- **Requirement:** Set the **Sleep Screen** setting to **Custom** in the **[Display Settings](#361-display)**.
-- **How to Use:**
-  1. Open the device's web UI by going to the **File Transfer** screen.
-  2. Navigate to **Settings** in the web interface.
-  3. A **Sleep Cover - Pinned Image** card will appear when **Custom** is selected.
-  4. You will see two tabs:
-     - **Sleep Folder:** Images currently located in the `/sleep/` folder on your SD card.
-     - **Book Covers:** Covers from your recently read books.
-  5. Click the **Pin** button on any image to set it as your sleep cover.
-- **Clearing the Pin:** Click the **Clear** button on the pinned image card to revert to the default behavior (random rotation from the `/sleep/` folder).
-- **Book Cover Pinning:** When you pin a book cover, the device automatically copies it to a file named `/sleep/.pinned-cover.bmp`.
-- **Note:** If the pinned image file is deleted from the SD card, the device will automatically fall back to the random rotation behavior without crashing.
-
----
-
-### 3.8 Remote Keyboard Input
-
-Whenever a text input field appears (such as for entering a WiFi password or search query), you can use a remote device (phone or computer) for faster typing if the **Remote Keyboard** feature is enabled.
-
-### How it works:
-1. **Focus a text field**: When the on-device keyboard appears, the device will check for a remote connection.
-2. **Priority**:
-   - **Android App**: If the Android companion app is connected (via WiFi or USB), it will immediately take control of the input.
-   - **Browser Fallback**: If no app is connected, the device will display a **QR code** on the screen.
-3. **Typing**:
-   - Scan the QR code with your phone (or enter the URL shown on-device in your computer's browser).
-   - A real-time typing page will open.
-   - Type your text and click **Done** or **Submit** on the remote device.
-4. **Completion**: The text will be sent to the CrossPoint Reader, the input screen will close, and your action will continue.
-
-### Automatic Hotspot
-If your device is not connected to WiFi and you don't have an Android app connected via USB, the CrossPoint Reader will automatically start its own WiFi hotspot when the keyboard opens. Connect your phone to this hotspot to access the remote typing page.
 
 ---
 

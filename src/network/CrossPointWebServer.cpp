@@ -17,6 +17,7 @@
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "OpdsServerStore.h"
 #include "SettingsList.h"
 #include "SpiBusMutex.h"
 #include "WebDAVHandler.h"
@@ -322,17 +323,11 @@ void CrossPointWebServer::begin() {
   server->on("/api/settings", HTTP_GET, [this] { handleGetSettings(); });
   server->on("/api/settings", HTTP_POST, [this] { handlePostSettings(); });
 
-  // API endpoints for web UI (recent books, cover images, sleep cover picker)
-  server->on("/api/book-progress", HTTP_GET, [this] { handleGetBookProgress(); });
-  server->on("/api/recent", HTTP_GET, [this] { handleRecentBooks(); });
-  server->on("/api/cover", HTTP_GET, [this] { handleCover(); });
-  server->on("/api/sleep-images", HTTP_GET, [this] { handleSleepImages(); });
-  server->on("/api/sleep-cover", HTTP_GET, [this] { handleSleepCoverGet(); });
-  server->on("/api/sleep-cover/pin", HTTP_POST, [this] { handleSleepCoverPin(); });
-  server->on("/api/open-book", HTTP_POST, [this] { handleOpenBook(); });
-  server->on("/api/settings/raw", HTTP_GET, [this] { handleGetSettingsRaw(); });
-  server->on("/api/remote/button", HTTP_POST, [this] { handleRemoteButton(); });
-  server->on("/api/screenshot", HTTP_POST, [this] { handleScreenshot(); });
+  // OPDS server endpoints
+  server->on("/api/opds", HTTP_GET, [this] { handleGetOpdsServers(); });
+  server->on("/api/opds", HTTP_POST, [this] { handlePostOpdsServer(); });
+  server->on("/api/opds/delete", HTTP_POST, [this] { handleDeleteOpdsServer(); });
+
   server->onNotFound([this] { handleNotFound(); });
   const uint32_t freeHeapAfterRouteSetup = ESP.getFreeHeap();
   LOG_DBG("WEB", "[MEM] Free heap after route setup: %d bytes", freeHeapAfterRouteSetup);
@@ -400,10 +395,8 @@ void CrossPointWebServer::begin() {
 
 #if 0  // Duplicated by src/network/WsUploadHandlers.cpp
 void CrossPointWebServer::abortWsUpload(const char* tag) {
-  {
-    SpiBusMutex::Guard guard;
-    wsUploadFile.close();
-  }
+  // Explicit close() required: file-scope global persists beyond function scope
+  wsUploadFile.close();
   String filePath = wsUploadPath;
   if (!filePath.endsWith("/")) filePath += "/";
   filePath += wsUploadFileName;
@@ -2307,6 +2300,122 @@ void CrossPointWebServer::handleGetSettingsRaw() const {
 }
 #endif
 
+// ---- OPDS Server API ----
+
+void CrossPointWebServer::handleGetOpdsServers() const {
+  const auto& servers = OPDS_STORE.getServers();
+
+  // Stream JSON array incrementally to avoid allocating the full response in memory
+  server->setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server->send(200, "application/json", "");
+  server->sendContent("[");
+
+  char output[512];
+  constexpr size_t outputSize = sizeof(output);
+  JsonDocument doc;
+
+  for (size_t i = 0; i < servers.size(); i++) {
+    doc.clear();
+    doc["index"] = i;
+    doc["name"] = servers[i].name;
+    doc["url"] = servers[i].url;
+    doc["username"] = servers[i].username;
+    // Never expose passwords over the API — only indicate whether one is set
+    doc["hasPassword"] = !servers[i].password.empty();
+
+    const size_t written = serializeJson(doc, output, outputSize);
+    if (written >= outputSize) continue;
+
+    if (i > 0) server->sendContent(",");
+    server->sendContent(output);
+  }
+
+  server->sendContent("]");
+  server->sendContent("");
+  LOG_DBG("WEB", "Served OPDS servers API (%zu servers)", servers.size());
+}
+
+void CrossPointWebServer::handlePostOpdsServer() {
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+
+  const String body = server->arg("plain");
+  JsonDocument doc;
+  const DeserializationError err = deserializeJson(doc, body);
+  if (err) {
+    server->send(400, "text/plain", String("Invalid JSON: ") + err.c_str());
+    return;
+  }
+
+  OpdsServer opdsServer;
+  opdsServer.name = doc["name"] | std::string("");
+  opdsServer.url = doc["url"] | std::string("");
+  opdsServer.username = doc["username"] | std::string("");
+
+  // The password field is optional in the JSON payload. When absent (vs. present but empty),
+  // we preserve the existing password — the web UI omits it when the user hasn't changed it.
+  bool hasPasswordField = doc["password"].is<const char*>() || doc["password"].is<std::string>();
+  std::string password = doc["password"] | std::string("");
+
+  if (doc["index"].is<int>()) {
+    int idx = doc["index"].as<int>();
+    if (idx < 0 || idx >= static_cast<int>(OPDS_STORE.getCount())) {
+      server->send(400, "text/plain", "Invalid server index");
+      return;
+    }
+    // Preserve existing password if not explicitly provided
+    if (!hasPasswordField) {
+      const auto* existing = OPDS_STORE.getServer(static_cast<size_t>(idx));
+      if (existing) password = existing->password;
+    }
+    opdsServer.password = password;
+    OPDS_STORE.updateServer(static_cast<size_t>(idx), opdsServer);
+    LOG_DBG("WEB", "Updated OPDS server at index %d", idx);
+  } else {
+    opdsServer.password = password;
+    if (!OPDS_STORE.addServer(opdsServer)) {
+      server->send(400, "text/plain", "Cannot add server (limit reached)");
+      return;
+    }
+    LOG_DBG("WEB", "Added new OPDS server: %s", opdsServer.name.c_str());
+  }
+
+  server->send(200, "text/plain", "OK");
+}
+
+// Uses POST (not HTTP DELETE) because ESP32 WebServer doesn't support DELETE with body.
+void CrossPointWebServer::handleDeleteOpdsServer() {
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+
+  const String body = server->arg("plain");
+  JsonDocument doc;
+  const DeserializationError err = deserializeJson(doc, body);
+  if (err) {
+    server->send(400, "text/plain", String("Invalid JSON: ") + err.c_str());
+    return;
+  }
+
+  if (!doc["index"].is<int>()) {
+    server->send(400, "text/plain", "Missing index");
+    return;
+  }
+
+  int idx = doc["index"].as<int>();
+  if (idx < 0 || idx >= static_cast<int>(OPDS_STORE.getCount())) {
+    server->send(400, "text/plain", "Invalid server index");
+    return;
+  }
+
+  OPDS_STORE.removeServer(static_cast<size_t>(idx));
+  LOG_DBG("WEB", "Deleted OPDS server at index %d", idx);
+  server->send(200, "text/plain", "OK");
+}
+
 // WebSocket callback trampoline
 void CrossPointWebServer::wsEventCallback(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
   if (wsInstance) {
@@ -2473,15 +2582,19 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
         resetWsUploadState();
       }
 
-      wsUploadFileName = requestedFileName;
-      wsUploadPath = requestedPath;
-      wsUploadSize = requestedSize;
-      wsUploadReceived = 0;
-      wsLastProgressSent = 0;
-      wsUploadStartTime = millis();
-      wsUploadClientNum = num;
-      wsUploadOwnerClient = num;
-      wsUploadOwnerValid = true;
+          // Zero-byte upload: complete immediately without waiting for BIN frames
+          if (wsUploadSize == 0) {
+            // Explicit close() required: file-scope global persists beyond function scope
+            wsUploadFile.close();
+            wsLastCompleteName = wsUploadFileName;
+            wsLastCompleteSize = 0;
+            wsLastCompleteAt = millis();
+            LOG_DBG("WS", "Zero-byte upload complete: %s", filePath.c_str());
+            clearEpubCacheIfNeeded(filePath);
+            wsServer->sendTXT(num, "DONE");
+            wsLastProgressSent = 0;
+            break;
+          }
 
       const String filePath = buildWsUploadFilePath();
       LOG_DBG("WS", "Starting upload: %s (%u bytes) to %s", wsUploadFileName.c_str(),
@@ -2588,11 +2701,9 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
       }
 
       // Check if upload complete
-      if (wsUploadReceived == wsUploadSize) {
-        {
-          SpiBusMutex::Guard guard;
-          wsUploadFile.close();
-        }
+      if (wsUploadReceived >= wsUploadSize) {
+        // Explicit close() required: file-scope global persists beyond function scope
+        wsUploadFile.close();
         wsUploadInProgress = false;
         wsUploadClientNum = 255;
 

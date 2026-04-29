@@ -717,8 +717,6 @@ const char* const CHARACTER_SETS[] = {
     "\xC2"
     "\xBB"
     "\xC3"
-    "\x80"
-    "\xC3"
     "\xA0"
     "\xC3"
     "\xA8"
@@ -1224,7 +1222,7 @@ const char* const STRINGS_EN[] = {
     "Lft, Bck, Cnfrm, Rght",
     "Prev/Next",
     "Next/Prev",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Small",
@@ -1346,6 +1344,7 @@ const char* const STRINGS_EN[] = {
     "UI Theme",
     "Classic",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extended",
     "Fork Drift",
     "Pokemon Party",
@@ -1428,6 +1427,12 @@ const char* const STRINGS_EN[] = {
     "No footnotes on this page",
     "[link]",
     "Take screenshot",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Auto Turn Enabled: ",
     "Auto Turn (Pages Per Minute)",
     "Transparent",
@@ -1454,6 +1459,21 @@ const char* const STRINGS_EN[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_ES[] = {
@@ -1748,7 +1768,7 @@ const char* const STRINGS_ES[] = {
     "Lft, Bck, Cnfrm, Rght",
     "Ant./Sig.",
     "Sig./Ant.",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Peque\xC3"
@@ -1924,6 +1944,7 @@ const char* const STRINGS_ES[] = {
     "\xA1"
     "sico",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extendido",
     "Fork Drift",
     "Pokemon Party",
@@ -2068,12 +2089,16 @@ const char* const STRINGS_ES[] = {
     "gina",
     "[enlace]",
     "Tomar captura de pantalla",
-    "P\xC3"
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
+    "Avance activado: ",
+    "Avance auto. (p\xC3"
     "\xA1"
-    "ginas por minuto: ",
-    "Leer p\xC3"
-    "\xA1"
-    "ginas por minuto",
+    "g./min)",
     "Transparent",
     "Notes",
     "No notes yet. Add one below.",
@@ -2098,6 +2123,21 @@ const char* const STRINGS_ES[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_FR[] = {
@@ -2556,12 +2596,16 @@ const char* const STRINGS_FR[] = {
     "Paysage invers\xC3"
     "\xA9"
     "",
-    "Ret, OK, Gauche, Droite",
-    "Gauche, Droite, Ret, OK",
-    "Gauche, Ret, OK, Droite",
-    "Prec/Suiv",
-    "Suiv/Prec",
-    "Bookerly",
+    "Bck, Cnfrm, Lft, Rght",
+    "Lft, Rght, Bck, Cnfrm",
+    "Lft, Bck, Cnfrm, Rght",
+    "Pr\xC3"
+    "\xA9"
+    "c/Suiv",
+    "Suiv/Pr\xC3"
+    "\xA9"
+    "c",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Petite",
@@ -2792,6 +2836,7 @@ const char* const STRINGS_FR[] = {
     "me interface",
     "Classique",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extended",
     "Fork Drift",
     "Pokemon Party",
@@ -2964,6 +3009,12 @@ const char* const STRINGS_FR[] = {
     "Capture d'\xC3"
     "\xA9"
     "cran",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Tourne-page auto : ",
     "Tourne-page auto (pages par minute)",
     "Transparent",
@@ -2990,6 +3041,21 @@ const char* const STRINGS_FR[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_DE[] = {
@@ -3241,7 +3307,7 @@ const char* const STRINGS_DE[] = {
     "Weiter/Zur\xC3"
     "\xBC"
     "ck",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Klein",
@@ -3402,6 +3468,7 @@ const char* const STRINGS_DE[] = {
     "System-Design",
     "Klassisch",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extended",
     "Fork Drift",
     "Pokemon Party",
@@ -3518,6 +3585,12 @@ const char* const STRINGS_DE[] = {
     "noten auf dieser Seite",
     "[Link]",
     "Screenshot aufnehmen",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Auto-Umbl\xC3"
     "\xA4"
     "ttern aktiv: ",
@@ -3548,6 +3621,21 @@ const char* const STRINGS_DE[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_CS[] = {
@@ -4356,7 +4444,7 @@ const char* const STRINGS_CS[] = {
     "edchoz\xC3"
     "\xAD"
     "",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Mal\xC3"
@@ -4675,6 +4763,7 @@ const char* const STRINGS_CS[] = {
     "\xA1"
     "",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extended",
     "Fork Drift",
     "Pokemon Party",
@@ -5051,6 +5140,12 @@ const char* const STRINGS_CS[] = {
     "No footnotes on this page",
     "[link]",
     "Take screenshot",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Auto Turn Enabled: ",
     "Auto Turn (Pages Per Minute)",
     "Transparent",
@@ -5077,6 +5172,21 @@ const char* const STRINGS_CS[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_PO[] = {
@@ -5397,7 +5507,7 @@ const char* const STRINGS_PO[] = {
     "Pr\xC3"
     "\xB3"
     "x/Ant",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Pequeno",
@@ -5597,6 +5707,7 @@ const char* const STRINGS_PO[] = {
     "\xA1"
     "ssico",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extended",
     "Fork Drift",
     "Pokemon Party",
@@ -5755,6 +5866,12 @@ const char* const STRINGS_PO[] = {
     "No footnotes on this page",
     "[link]",
     "Take screenshot",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Auto Turn Enabled: ",
     "Auto Turn (Pages Per Minute)",
     "Transparent",
@@ -5781,6 +5898,21 @@ const char* const STRINGS_PO[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_RU[] = {
@@ -9487,7 +9619,7 @@ const char* const STRINGS_RU[] = {
     "\xD0"
     "\xB4"
     "",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "\xD0"
@@ -11287,6 +11419,7 @@ const char* const STRINGS_RU[] = {
     "\x8F"
     "",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extended",
     "Fork Drift",
     "Pokemon Party",
@@ -13396,6 +13529,178 @@ const char* const STRINGS_RU[] = {
     "\xB0"
     "",
     "\xD0"
+    "\x94"
+    "\xD0"
+    "\xBE"
+    "\xD0"
+    "\xB1"
+    "\xD0"
+    "\xB0"
+    "\xD0"
+    "\xB2"
+    "\xD0"
+    "\xB8"
+    "\xD1"
+    "\x82"
+    "\xD1"
+    "\x8C"
+    " \xD1"
+    "\x81"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x80"
+    "\xD0"
+    "\xB2"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x80"
+    "",
+    "\xD0"
+    "\x98"
+    "\xD0"
+    "\xBC"
+    "\xD1"
+    "\x8F"
+    " \xD1"
+    "\x81"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x80"
+    "\xD0"
+    "\xB2"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x80"
+    "\xD0"
+    "\xB0"
+    "",
+    "\xD0"
+    "\x9D"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x82"
+    " \xD0"
+    "\xBD"
+    "\xD0"
+    "\xB0"
+    "\xD1"
+    "\x81"
+    "\xD1"
+    "\x82"
+    "\xD1"
+    "\x80"
+    "\xD0"
+    "\xBE"
+    "\xD0"
+    "\xB5"
+    "\xD0"
+    "\xBD"
+    "\xD0"
+    "\xBD"
+    "\xD1"
+    "\x8B"
+    "\xD1"
+    "\x85"
+    " \xD1"
+    "\x81"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x80"
+    "\xD0"
+    "\xB2"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x80"
+    "\xD0"
+    "\xBE"
+    "\xD0"
+    "\xB2"
+    " OPDS",
+    "\xD0"
+    "\xA3"
+    "\xD0"
+    "\xB4"
+    "\xD0"
+    "\xB0"
+    "\xD0"
+    "\xBB"
+    "\xD0"
+    "\xB8"
+    "\xD1"
+    "\x82"
+    "\xD1"
+    "\x8C"
+    " \xD1"
+    "\x81"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x80"
+    "\xD0"
+    "\xB2"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x80"
+    "",
+    "\xD0"
+    "\xA3"
+    "\xD0"
+    "\xB4"
+    "\xD0"
+    "\xB0"
+    "\xD0"
+    "\xBB"
+    "\xD0"
+    "\xB8"
+    "\xD1"
+    "\x82"
+    "\xD1"
+    "\x8C"
+    " \xD1"
+    "\x8D"
+    "\xD1"
+    "\x82"
+    "\xD0"
+    "\xBE"
+    "\xD1"
+    "\x82"
+    " \xD1"
+    "\x81"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x80"
+    "\xD0"
+    "\xB2"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x80"
+    "?",
+    "\xD0"
+    "\xA1"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x80"
+    "\xD0"
+    "\xB2"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x80"
+    "\xD1"
+    "\x8B"
+    " OPDS",
+    "\xD0"
     "\x90"
     "\xD0"
     "\xB2"
@@ -13505,10 +13810,25 @@ const char* const STRINGS_RU[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_SV[] = {
-    "Crosspoint",
+    "CrossPoint",
     "STARTAR",
     "VILA",
     "G\xC3"
@@ -13884,9 +14204,7 @@ const char* const STRINGS_SV[] = {
     "Ljus",
     "Follow Theme",
     "Valfri",
-    "Bildk\xC3"
-    "\xA4"
-    "lla",
+    "Image Source",
     "Pokedex",
     "All",
     "Omslag",
@@ -13909,7 +14227,9 @@ const char* const STRINGS_SV[] = {
     "Sidv\xC3"
     "\xA4"
     "ndning",
-    "Refresh Screen",
+    "Uppdatera sk\xC3"
+    "\xA4"
+    "rmen",
     "Portr\xC3"
     "\xA4"
     "tt",
@@ -13929,11 +14249,9 @@ const char* const STRINGS_SV[] = {
     "sta/F\xC3"
     "\xB6"
     "rra",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
-    "\xC3"
-    "\x96"
-    "ppen dyslektisk",
+    "Open Dyslexic",
     "Liten",
     "Medium",
     "Stor",
@@ -14018,12 +14336,18 @@ const char* const STRINGS_SV[] = {
     "Misslyckades att analysera fl\xC3"
     "\xB6"
     "de",
-    "Next Page \xC2"
+    "N\xC3"
+    "\xA4"
+    "sta sida \xC2"
     "\xBB"
     "",
     "\xC2"
     "\xAB"
-    " Previous Page",
+    " F\xC3"
+    "\xB6"
+    "reg\xC3"
+    "\xA5"
+    "ende sida",
     "N\xC3"
     "\xA4"
     "tverk:",
@@ -14128,6 +14452,7 @@ const char* const STRINGS_SV[] = {
     "nssnittstema",
     "Klassisk",
     "Lyra",
+    "RoundedRaff",
     "Lyra ut\xC3"
     "\xB6"
     "kad",
@@ -14146,7 +14471,9 @@ const char* const STRINGS_SV[] = {
     "OPDS-webbl\xC3"
     "\xA4"
     "sare",
-    "Search",
+    "S\xC3"
+    "\xB6"
+    "k",
     "Omslag + Valfri",
     "Recents",
     "Senaste b\xC3"
@@ -14298,9 +14625,7 @@ const char* const STRINGS_SV[] = {
     "Only on Charge",
     "Much More Battery Use",
     "Always keeps WiFi on while awake.",
-    "Validera vilol\xC3"
-    "\xA4"
-    "gesbilder",
+    "Validate Sleep Images",
     "Device Name",
     "Fotnoter",
     "Inga fotnoter p\xC3"
@@ -14314,6 +14639,16 @@ const char* const STRINGS_SV[] = {
     "Ta en sk\xC3"
     "\xA4"
     "rmdump",
+    "L\xC3"
+    "\xA4"
+    "gg till server",
+    "Servernamn",
+    "Inga OPDS-servrar konfigurerade",
+    "Ta bort server",
+    "Vill du ta bort den h\xC3"
+    "\xA4"
+    "r servern?",
+    "OPDS-servrar",
     "Automatisk v\xC3"
     "\xA4"
     "ndning aktiverad: ",
@@ -14340,10 +14675,133 @@ const char* const STRINGS_SV[] = {
     "Bottom",
     "No WiFi",
     "Hotspot",
-    "System Crash",
-    "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
-    "Crash reason:",
-    "(No reason was recorded)",
+    "Systemkrasch",
+    "En detaljerad rapport sparades till crash_report.txt. V\xC3"
+    "\xA4"
+    "nligen inkludera den h\xC3"
+    "\xA4"
+    "r filen i din felrapport.",
+    "Orsak till kraschen:",
+    "(Ingen orsak registrerades)",
+    "Tryck V\xC3"
+    "\x84"
+    "NSTER eller H\xC3"
+    "\x96"
+    "GER f\xC3"
+    "\xB6"
+    "r att flytta mark\xC3"
+    "\xB6"
+    "ren",
+    "Tryck V\xC3"
+    "\x84"
+    "NSTER f\xC3"
+    "\xB6"
+    "r att \xC3"
+    "\xA5"
+    "terg\xC3"
+    "\xA5"
+    " till mark\xC3"
+    "\xB6"
+    "rpositionen",
+    "H\xC3"
+    "\xA5"
+    "ll H\xC3"
+    "\x96"
+    "GER och tryck sedan p\xC3"
+    "\xA5"
+    " [***] f\xC3"
+    "\xB6"
+    "r att d\xC3"
+    "\xB6"
+    "lja l\xC3"
+    "\xB6"
+    "senordet",
+    "H\xC3"
+    "\xA5"
+    "ll H\xC3"
+    "\x96"
+    "GER och tryck sedan p\xC3"
+    "\xA5"
+    " [abc] f\xC3"
+    "\xB6"
+    "r att visa l\xC3"
+    "\xB6"
+    "senordet",
+    "Tryck p\xC3"
+    "\xA5"
+    " [***] f\xC3"
+    "\xB6"
+    "r att d\xC3"
+    "\xB6"
+    "lja l\xC3"
+    "\xB6"
+    "senordet",
+    "Tryck p\xC3"
+    "\xA5"
+    " [abc] f\xC3"
+    "\xB6"
+    "r att visa l\xC3"
+    "\xB6"
+    "senordet",
+    "H\xC3"
+    "\xA5"
+    "ll UPP f\xC3"
+    "\xB6"
+    "r att redigera f\xC3"
+    "\xA4"
+    "ltet",
+    "Tips:",
+    "Tryck NER f\xC3"
+    "\xB6"
+    "r att \xC3"
+    "\xA5"
+    "terg\xC3"
+    "\xA5"
+    " till tangentbordet",
+    "Tryck p\xC3"
+    "\xA5"
+    " ABC f\xC3"
+    "\xB6"
+    "r att avsluta URL-l\xC3"
+    "\xA4"
+    "get",
+    "H\xC3"
+    "\xA5"
+    "ll DEL f\xC3"
+    "\xB6"
+    "r att rensa all text",
+    "H\xC3"
+    "\xA5"
+    "ll V\xC3"
+    "\x84"
+    "LJ f\xC3"
+    "\xB6"
+    "r sekund\xC3"
+    "\xA4"
+    "rt tecken",
+    "H\xC3"
+    "\xA5"
+    "ll V\xC3"
+    "\x84"
+    "LJ f\xC3"
+    "\xB6"
+    "r VERSALER eller sekund\xC3"
+    "\xA4"
+    "rt tecken",
+    "H\xC3"
+    "\xA5"
+    "ll V\xC3"
+    "\x84"
+    "LJ f\xC3"
+    "\xB6"
+    "r gemener eller sekund\xC3"
+    "\xA4"
+    "rt tecken",
+    "Tryck p\xC3"
+    "\xA5"
+    " URL f\xC3"
+    "\xB6"
+    "r URL-fragment",
 };
 
 const char* const STRINGS_RO[] = {
@@ -14842,7 +15300,7 @@ const char* const STRINGS_RO[] = {
     "napoi/\xC3"
     "\x8E"
     "nainte",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Mic",
@@ -15080,6 +15538,7 @@ const char* const STRINGS_RO[] = {
     "Tema UI",
     "Clasic",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extended",
     "Fork Drift",
     "Pokemon Party",
@@ -15300,6 +15759,12 @@ const char* const STRINGS_RO[] = {
     "Captur\xC4"
     "\x83"
     " ecran",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "R\xC4"
     "\x83"
     "sfoire automat\xC4"
@@ -15330,6 +15795,21 @@ const char* const STRINGS_RO[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_CA[] = {
@@ -15652,7 +16132,7 @@ const char* const STRINGS_CA[] = {
     "Seg\xC3"
     "\xBC"
     "ent/Anterior",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Petita",
@@ -15840,6 +16320,7 @@ const char* const STRINGS_CA[] = {
     "\xA0"
     "ssic",
     "Lyra",
+    "RoundedRaff",
     "Lyra Ampliat",
     "Fork Drift",
     "Pokemon Party",
@@ -16002,6 +16483,12 @@ const char* const STRINGS_CA[] = {
     "\xA7"
     "]",
     "Fes una captura de pantalla",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Passar autom\xC3"
     "\xA0"
     "tic activat: ",
@@ -16034,6 +16521,21 @@ const char* const STRINGS_CA[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_UK[] = {
@@ -16692,22 +17194,6 @@ const char* const STRINGS_UK[] = {
     "\xBE"
     "",
     "\xD0"
-    "\xB7"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xB0"
-    "\xD0"
-    "\xB9"
-    "\xD0"
-    "\xB4"
-    "\xD0"
-    "\xB5"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xBE"
-    " %zu \xD0"
     "\xBC"
     "\xD0"
     "\xB5"
@@ -16717,7 +17203,7 @@ const char* const STRINGS_UK[] = {
     "\xB5"
     "\xD0"
     "\xB6"
-    "",
+    " %zu ",
     "\xD0"
     "\xA1"
     "\xD0"
@@ -17110,57 +17596,33 @@ const char* const STRINGS_UK[] = {
     "\x96"
     " WiFi",
     "\xD0"
-    "\xA1"
-    "\xD1"
-    "\x82"
+    "\x94"
+    "\xD0"
+    "\xBE"
+    "\xD0"
+    "\xB7"
     "\xD0"
     "\xB2"
     "\xD0"
     "\xBE"
-    "\xD1"
-    "\x80"
+    "\xD0"
+    "\xBB"
     "\xD0"
     "\xB8"
     "\xD1"
     "\x82"
     "\xD0"
     "\xB8"
-    " \xD0"
-    "\xBC"
-    "\xD0"
-    "\xB5"
-    "\xD1"
-    "\x80"
-    "\xD0"
-    "\xB5"
-    "\xD0"
-    "\xB6"
-    "\xD1"
-    "\x83"
-    " WiFi, \xD0"
-    "\xB4"
-    "\xD0"
-    "\xBE"
     " \xD1"
-    "\x8F"
+    "\x96"
     "\xD0"
-    "\xBA"
-    "\xD0"
-    "\xBE"
+    "\xBD"
     "\xD1"
-    "\x97"
-    " \xD0"
+    "\x88"
+    "\xD0"
+    "\xB8"
+    "\xD0"
     "\xBC"
-    "\xD0"
-    "\xBE"
-    "\xD0"
-    "\xB6"
-    "\xD1"
-    "\x83"
-    "\xD1"
-    "\x82"
-    "\xD1"
-    "\x8C"
     " \xD0"
     "\xBF"
     "\xD1"
@@ -17176,24 +17638,18 @@ const char* const STRINGS_UK[] = {
     "\xD1"
     "\x87"
     "\xD0"
-    "\xB8"
-    "\xD1"
-    "\x82"
+    "\xB5"
     "\xD0"
-    "\xB8"
-    "\xD1"
-    "\x81"
-    "\xD1"
-    "\x8F"
-    " \xD1"
-    "\x96"
+    "\xBD"
     "\xD0"
     "\xBD"
     "\xD1"
-    "\x88"
-    "\xD1"
-    "\x96"
-    "",
+    "\x8F"
+    " \xD0"
+    "\xBF"
+    "\xD0"
+    "\xBE"
+    " Wi-Fi",
     "\xD0"
     "\x97"
     "\xD0"
@@ -17287,12 +17743,6 @@ const char* const STRINGS_UK[] = {
     "\xD1"
     "\x8C"
     " \xD0"
-    "\xB2"
-    "\xD0"
-    "\xB0"
-    "\xD1"
-    "\x88"
-    " \xD0"
     "\xBF"
     "\xD1"
     "\x80"
@@ -17312,8 +17762,8 @@ const char* const STRINGS_UK[] = {
     "\xB4"
     "\xD0"
     "\xBE"
-    " \xD1"
-    "\x86"
+    " \xD0"
+    "\xA6"
     "\xD1"
     "\x96"
     "\xD1"
@@ -17351,32 +17801,34 @@ const char* const STRINGS_UK[] = {
     "\x82"
     "\xD0"
     "\xB5"
-    " \xD1"
-    "\x86"
-    "\xD1"
-    "\x8E"
-    " URL-\xD0"
-    "\xB0"
-    "\xD0"
-    "\xB4"
-    "\xD1"
-    "\x80"
-    "\xD0"
-    "\xB5"
-    "\xD1"
-    "\x81"
-    "\xD1"
-    "\x83"
-    " \xD1"
-    "\x83"
     " \xD0"
-    "\xB2"
-    "\xD0"
-    "\xB0"
-    "\xD1"
-    "\x88"
+    "\xBF"
     "\xD0"
     "\xBE"
+    "\xD1"
+    "\x81"
+    "\xD0"
+    "\xB8"
+    "\xD0"
+    "\xBB"
+    "\xD0"
+    "\xB0"
+    "\xD0"
+    "\xBD"
+    "\xD0"
+    "\xBD"
+    "\xD1"
+    "\x8F"
+    " \xD1"
+    "\x83"
+    " \xD1"
+    "\x81"
+    "\xD0"
+    "\xB2"
+    "\xD0"
+    "\xBE"
+    "\xD1"
+    "\x94"
     "\xD0"
     "\xBC"
     "\xD1"
@@ -17458,29 +17910,25 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xBC"
     ":",
-    "Calibre \xD0"
-    "\xB1"
     "\xD0"
-    "\xB5"
-    "\xD0"
-    "\xB7"
-    "\xD0"
-    "\xB4"
+    "\x9E"
+    "\xD1"
+    "\x82"
     "\xD1"
     "\x80"
     "\xD0"
-    "\xBE"
+    "\xB8"
+    "\xD0"
+    "\xBC"
+    "\xD0"
+    "\xB0"
     "\xD1"
     "\x82"
     "\xD0"
-    "\xBE"
-    "\xD0"
-    "\xB2"
-    "\xD0"
     "\xB8"
-    "\xD0"
-    "\xB9"
-    "",
+    " \xD0"
+    "\xB7"
+    " Calibre",
     "OPDS URL",
     "Connect as Wireless Device",
     "* = \xD0"
@@ -17872,21 +18320,15 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\x9A"
     "\xD0"
-    "\xB5"
-    "\xD1"
-    "\x80"
-    "\xD1"
-    "\x83"
-    "\xD0"
-    "\xB2"
-    "\xD0"
-    "\xB0"
-    "\xD0"
     "\xBD"
     "\xD0"
-    "\xBD"
-    "\xD1"
-    "\x8F"
+    "\xBE"
+    "\xD0"
+    "\xBF"
+    "\xD0"
+    "\xBA"
+    "\xD0"
+    "\xB8"
     "",
     "\xD0"
     "\xA1"
@@ -17914,6 +18356,20 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xBD"
     " \xD1"
+    "\x83"
+    " \xD1"
+    "\x80"
+    "\xD0"
+    "\xB5"
+    "\xD0"
+    "\xB6"
+    "\xD0"
+    "\xB8"
+    "\xD0"
+    "\xBC"
+    "\xD1"
+    "\x96"
+    " \xD1"
     "\x81"
     "\xD0"
     "\xBD"
@@ -17932,43 +18388,25 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xBC"
     " \xD0"
+    "\xB7"
+    "\xD0"
+    "\xB0"
+    "\xD0"
+    "\xBF"
+    "\xD0"
     "\xBE"
     "\xD0"
-    "\xB1"
-    "\xD0"
-    "\xBA"
-    "\xD0"
-    "\xBB"
-    "\xD0"
-    "\xB0"
-    "\xD0"
-    "\xB4"
-    "\xD0"
-    "\xB8"
+    "\xB2"
     "\xD0"
     "\xBD"
     "\xD0"
-    "\xBA"
-    "\xD0"
-    "\xB8"
-    " \xD0"
     "\xB5"
     "\xD0"
-    "\xBA"
-    "\xD1"
-    "\x80"
-    "\xD0"
-    "\xB0"
-    "\xD0"
     "\xBD"
-    "\xD0"
-    "\xB0"
-    " \xD1"
-    "\x81"
     "\xD0"
     "\xBD"
     "\xD1"
-    "\x83"
+    "\x8F"
     "",
     "Status Bar",
     "\xD0"
@@ -18187,7 +18625,9 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xBA"
     "\xD0"
-    "\xB5"
+    "\xB8"
+    "\xD0"
+    "\xB9"
     " \xD0"
     "\xBD"
     "\xD0"
@@ -18200,27 +18640,11 @@ const char* const STRINGS_UK[] = {
     "\x81"
     "\xD0"
     "\xBA"
-    "\xD0"
-    "\xB0"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xBD"
-    "\xD1"
-    "\x8F"
     " \xD0"
     "\xBA"
     "\xD0"
     "\xBD"
-    "\xD0"
-    "\xBE"
-    "\xD0"
-    "\xBF"
-    "\xD0"
-    "\xBA"
-    "\xD0"
-    "\xB8"
-    " \xD0"
+    ". \xD0"
     "\xB6"
     "\xD0"
     "\xB8"
@@ -18228,15 +18652,7 @@ const char* const STRINGS_UK[] = {
     "\xB2"
     "\xD0"
     "\xBB"
-    "\xD0"
-    "\xB5"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xBD"
-    "\xD1"
-    "\x8F"
-    "",
+    ".",
     "\xD0"
     "\x9E"
     "\xD1"
@@ -18274,29 +18690,15 @@ const char* const STRINGS_UK[] = {
     "",
     "Front Button Layout",
     "\xD0"
-    "\xA0"
-    "\xD0"
-    "\xBE"
-    "\xD0"
-    "\xB7"
+    "\xA1"
     "\xD1"
-    "\x82"
+    "\x85"
+    "\xD0"
+    "\xB5"
+    "\xD0"
+    "\xBC"
     "\xD0"
     "\xB0"
-    "\xD1"
-    "\x88"
-    "\xD1"
-    "\x83"
-    "\xD0"
-    "\xB2"
-    "\xD0"
-    "\xB0"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xBD"
-    "\xD1"
-    "\x8F"
     " \xD0"
     "\xB1"
     "\xD1"
@@ -18321,32 +18723,20 @@ const char* const STRINGS_UK[] = {
     "\xBE"
     "\xD0"
     "\xBA"
-    " (\xD1"
-    "\x87"
+    "",
     "\xD0"
-    "\xB8"
-    "\xD1"
-    "\x82"
+    "\x9D"
     "\xD0"
     "\xB0"
     "\xD1"
-    "\x87"
-    ")",
-    "\xD0"
-    "\x9F"
+    "\x81"
     "\xD1"
-    "\x80"
-    "\xD0"
-    "\xBE"
-    "\xD0"
-    "\xBF"
+    "\x82"
     "\xD1"
     "\x83"
-    "\xD1"
-    "\x81"
     "\xD0"
-    "\xBA"
-    " \xD1"
+    "\xBF"
+    ". \xD1"
     "\x80"
     "\xD0"
     "\xBE"
@@ -18358,69 +18748,23 @@ const char* const STRINGS_UK[] = {
     "\x96"
     "\xD0"
     "\xBB"
-    "\xD1"
+    " (\xD1"
     "\x83"
-    " \xD0"
-    "\xBF"
+    "\xD1"
+    "\x82"
     "\xD1"
     "\x80"
     "\xD0"
     "\xB8"
-    " \xD0"
-    "\xB4"
-    "\xD0"
-    "\xBE"
-    "\xD0"
-    "\xB2"
-    "\xD0"
-    "\xB3"
-    "\xD0"
-    "\xBE"
     "\xD0"
     "\xBC"
     "\xD1"
     "\x83"
-    " \xD0"
-    "\xBD"
-    "\xD0"
-    "\xB0"
-    "\xD1"
-    "\x82"
-    "\xD0"
-    "\xB8"
-    "\xD1"
-    "\x81"
-    "\xD0"
-    "\xBA"
-    "\xD0"
-    "\xB0"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xBD"
-    "\xD1"
-    "\x96"
-    "",
-    "\xD0"
-    "\xA1"
-    "\xD1"
-    "\x96"
-    "\xD0"
-    "\xBC"
-    "\xD0"
-    "\xB5"
-    "\xD0"
-    "\xB9"
-    "\xD1"
-    "\x81"
-    "\xD1"
-    "\x82"
     "\xD0"
     "\xB2"
+    ".)",
     "\xD0"
-    "\xBE"
-    " \xD1"
-    "\x88"
+    "\xA8"
     "\xD1"
     "\x80"
     "\xD0"
@@ -18429,10 +18773,6 @@ const char* const STRINGS_UK[] = {
     "\x84"
     "\xD1"
     "\x82"
-    "\xD1"
-    "\x96"
-    "\xD0"
-    "\xB2"
     "",
     "External Reader Font",
     "Reader Font",
@@ -18459,26 +18799,6 @@ const char* const STRINGS_UK[] = {
     "\x84"
     "\xD1"
     "\x82"
-    "\xD1"
-    "\x83"
-    " \xD1"
-    "\x96"
-    "\xD0"
-    "\xBD"
-    "\xD1"
-    "\x82"
-    "\xD0"
-    "\xB5"
-    "\xD1"
-    "\x80"
-    "\xD1"
-    "\x84"
-    "\xD0"
-    "\xB5"
-    "\xD0"
-    "\xB9"
-    "\xD1"
-    "\x81"
     "\xD1"
     "\x83"
     "",
@@ -18526,25 +18846,37 @@ const char* const STRINGS_UK[] = {
     "CJK Spacing",
     "Color Mode",
     "\xD0"
-    "\x9F"
+    "\x92"
+    "\xD1"
+    "\x96"
     "\xD0"
-    "\xBE"
+    "\xB4"
+    "\xD1"
+    "\x81"
+    "\xD1"
+    "\x82"
+    "\xD1"
+    "\x83"
     "\xD0"
-    "\xBB"
+    "\xBF"
     "\xD0"
-    "\xB5"
+    "\xB8"
     " \xD0"
-    "\xB5"
+    "\xB2"
+    "\xD1"
+    "\x96"
     "\xD0"
+    "\xB4"
+    " \xD0"
     "\xBA"
     "\xD1"
     "\x80"
     "\xD0"
     "\xB0"
+    "\xD1"
+    "\x97"
     "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xB0"
+    "\xB2"
     "",
     "\xD0"
     "\x92"
@@ -18570,16 +18902,45 @@ const char* const STRINGS_UK[] = {
     "\xBD"
     "\xD1"
     "\x8F"
-    " \xD0"
-    "\xB0"
+    " \xD1"
+    "\x82"
     "\xD0"
-    "\xB1"
+    "\xB5"
     "\xD0"
-    "\xB7"
-    "\xD0"
-    "\xB0"
+    "\xBA"
     "\xD1"
-    "\x86"
+    "\x81"
+    "\xD1"
+    "\x82"
+    "\xD1"
+    "\x83"
+    "",
+    "\xD0"
+    "\x9F"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x80"
+    "\xD0"
+    "\xB5"
+    "\xD0"
+    "\xBD"
+    "\xD0"
+    "\xB5"
+    "\xD1"
+    "\x81"
+    "\xD0"
+    "\xB5"
+    "\xD0"
+    "\xBD"
+    "\xD0"
+    "\xBD"
+    "\xD1"
+    "\x8F"
+    " \xD1"
+    "\x81"
+    "\xD0"
+    "\xBB"
     "\xD1"
     "\x96"
     "\xD0"
@@ -18593,31 +18954,24 @@ const char* const STRINGS_UK[] = {
     "\x80"
     "\xD0"
     "\xB5"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xBE"
     "\xD1"
-    "\x81"
-    " \xD1"
-    "\x81"
-    "\xD0"
-    "\xBB"
+    "\x85"
     "\xD1"
     "\x96"
     "\xD0"
-    "\xB2"
-    "",
-    "\xD0"
-    "\xA7"
-    "\xD0"
-    "\xB0"
-    "\xD1"
-    "\x81"
-    " \xD0"
     "\xB4"
+    " \xD0"
+    "\xB2"
+    " \xD1"
+    "\x80"
     "\xD0"
-    "\xBE"
+    "\xB5"
+    "\xD0"
+    "\xB6"
+    "\xD0"
+    "\xB8"
+    "\xD0"
+    "\xBC"
     " \xD1"
     "\x81"
     "\xD0"
@@ -18702,6 +19056,18 @@ const char* const STRINGS_UK[] = {
     "\xBD"
     "\xD1"
     "\x8F"
+    " \xD0"
+    "\xB5"
+    "\xD0"
+    "\xBA"
+    "\xD1"
+    "\x80"
+    "\xD0"
+    "\xB0"
+    "\xD0"
+    "\xBD"
+    "\xD1"
+    "\x83"
     "",
     "Calibre Settings",
     "\xD0"
@@ -18844,20 +19210,14 @@ const char* const STRINGS_UK[] = {
     "\xB5"
     "\xD1"
     "\x88"
-    " \xD1"
-    "\x87"
+    " \xD0"
+    "\xBA"
+    "\xD0"
+    "\xBD"
     "\xD0"
     "\xB8"
-    "\xD1"
-    "\x82"
     "\xD0"
-    "\xB0"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xBD"
-    "\xD1"
-    "\x8F"
+    "\xB3"
     "",
     "Calibre",
     "\xD0"
@@ -19575,22 +19935,6 @@ const char* const STRINGS_UK[] = {
     "\xB5"
     " \xD0"
     "\xBF"
-    "\xD0"
-    "\xBE"
-    "\xD0"
-    "\xB2"
-    "\xD1"
-    "\x82"
-    "\xD0"
-    "\xBE"
-    "\xD1"
-    "\x80"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xBE"
-    " \xD0"
-    "\xBF"
     "\xD1"
     "\x80"
     "\xD0"
@@ -19884,9 +20228,23 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xBD"
     "\xD0"
-    "\xB8"
+    "\xB0"
+    " \xD0"
+    "\xB7"
     "\xD0"
-    "\xB9"
+    "\xB0"
+    "\xD1"
+    "\x81"
+    "\xD1"
+    "\x82"
+    "\xD0"
+    "\xB0"
+    "\xD0"
+    "\xB2"
+    "\xD0"
+    "\xBA"
+    "\xD0"
+    "\xB0"
     "",
     "\xD0"
     "\xA1"
@@ -19899,40 +20257,50 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xBB"
     "\xD0"
-    "\xB8"
+    "\xB0"
+    " \xD0"
+    "\xB7"
     "\xD0"
-    "\xB9"
-    "",
-    "Follow Theme",
-    "\xD0"
-    "\x9A"
-    "\xD0"
-    "\xBE"
-    "\xD1"
-    "\x80"
-    "\xD0"
-    "\xB8"
+    "\xB0"
     "\xD1"
     "\x81"
     "\xD1"
     "\x82"
-    "\xD1"
-    "\x83"
+    "\xD0"
+    "\xB0"
     "\xD0"
     "\xB2"
     "\xD0"
-    "\xB0"
-    "\xD1"
-    "\x86"
-    "\xD1"
-    "\x8C"
-    "\xD0"
     "\xBA"
     "\xD0"
-    "\xB8"
-    "\xD0"
-    "\xB9"
+    "\xB0"
     "",
+    "Follow Theme",
+    "\xD0"
+    "\x92"
+    "\xD0"
+    "\xBB"
+    "\xD0"
+    "\xB0"
+    "\xD1"
+    "\x81"
+    "\xD0"
+    "\xBD"
+    "\xD0"
+    "\xB5"
+    " \xD0"
+    "\xB7"
+    "\xD0"
+    "\xBE"
+    "\xD0"
+    "\xB1"
+    "\xD1"
+    "\x80"
+    "\xD0"
+    "\xB0"
+    "\xD0"
+    "\xB6"
+    ".",
     "\xD0"
     "\x94"
     "\xD0"
@@ -19988,6 +20356,16 @@ const char* const STRINGS_UK[] = {
     "\xBA"
     "\xD0"
     "\xB0"
+    " \xD0"
+    "\xBA"
+    "\xD0"
+    "\xBD"
+    "\xD0"
+    "\xB8"
+    "\xD0"
+    "\xB3"
+    "\xD0"
+    "\xB8"
     "",
     "\xD0"
     "\x9D"
@@ -20110,30 +20488,14 @@ const char* const STRINGS_UK[] = {
     "\xBD"
     "",
     "\xD0"
-    "\x9F"
-    "\xD0"
-    "\xB5"
-    "\xD1"
-    "\x80"
-    "\xD0"
-    "\xB5"
-    "\xD0"
-    "\xB3"
-    "\xD0"
-    "\xBE"
-    "\xD1"
-    "\x80"
-    "\xD1"
-    "\x82"
+    "\x9D"
     "\xD0"
     "\xB0"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xBD"
     "\xD1"
-    "\x8F"
-    " \xD1"
+    "\x81"
+    "\xD1"
+    "\x82"
+    ". \xD1"
     "\x81"
     "\xD1"
     "\x82"
@@ -20148,23 +20510,49 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xBA"
     "\xD0"
-    "\xB8"
+    "\xB0"
     "",
-    "Refresh Screen",
     "\xD0"
-    "\x9F"
+    "\x9E"
+    "\xD0"
+    "\xBD"
     "\xD0"
     "\xBE"
-    "\xD1"
-    "\x80"
+    "\xD0"
+    "\xB2"
+    "\xD0"
+    "\xB8"
     "\xD1"
     "\x82"
+    "\xD0"
+    "\xB8"
+    " \xD0"
+    "\xB5"
+    "\xD0"
+    "\xBA"
     "\xD1"
     "\x80"
     "\xD0"
-    "\xB5"
-    "\xD1"
-    "\x82"
+    "\xB0"
+    "\xD0"
+    "\xBD"
+    "",
+    "\xD0"
+    "\x9A"
+    "\xD0"
+    "\xBD"
+    "\xD0"
+    "\xB8"
+    "\xD0"
+    "\xB6"
+    "\xD0"
+    "\xBA"
+    "\xD0"
+    "\xBE"
+    "\xD0"
+    "\xB2"
+    "\xD0"
+    "\xB0"
     "",
     "\xD0"
     "\x90"
@@ -20178,13 +20566,7 @@ const char* const STRINGS_UK[] = {
     "\xBE"
     "\xD0"
     "\xBC"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xB8"
-    "\xD0"
-    "\xB9"
-    " \xD0"
+    ". \xD0"
     "\xB7"
     "\xD0"
     "\xB0"
@@ -20194,25 +20576,7 @@ const char* const STRINGS_UK[] = {
     "\xBE"
     "\xD0"
     "\xB4"
-    "\xD0"
-    "\xB8"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xB8"
-    "\xD0"
-    "\xBA"
-    "\xD0"
-    "\xBE"
-    "\xD0"
-    "\xB2"
-    "\xD0"
-    "\xBE"
-    "\xD1"
-    "\x8E"
-    "",
+    ".",
     "\xD0"
     "\x9F"
     "\xD0"
@@ -20250,13 +20614,7 @@ const char* const STRINGS_UK[] = {
     "\xBE"
     "\xD0"
     "\xBC"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xB8"
-    "\xD0"
-    "\xB9"
-    " \xD0"
+    ". \xD0"
     "\xBF"
     "\xD1"
     "\x80"
@@ -20272,25 +20630,7 @@ const char* const STRINGS_UK[] = {
     "\xBE"
     "\xD0"
     "\xB4"
-    "\xD0"
-    "\xB8"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xB8"
-    "\xD0"
-    "\xBA"
-    "\xD0"
-    "\xBE"
-    "\xD0"
-    "\xB2"
-    "\xD0"
-    "\xBE"
-    "\xD1"
-    "\x97"
-    "",
+    ".",
     "Bck, Cnfrm, Lft, Rght",
     "Lft, Rght, Bck, Cnfrm",
     "Lft, Bck, Cnfrm, Rght",
@@ -20332,7 +20672,7 @@ const char* const STRINGS_UK[] = {
     "\xD1"
     "\x80"
     "",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "\xD0"
@@ -20453,38 +20793,46 @@ const char* const STRINGS_UK[] = {
     "\xB9"
     "",
     "\xD0"
-    "\x92"
+    "\x9F"
+    "\xD0"
+    "\xBE"
+    " \xD1"
+    "\x88"
     "\xD0"
     "\xB8"
     "\xD1"
     "\x80"
-    "\xD1"
-    "\x96"
     "\xD0"
-    "\xB2"
+    "\xB8"
     "\xD0"
     "\xBD"
     "\xD1"
-    "\x8F"
-    "\xD1"
-    "\x82"
-    "\xD0"
-    "\xB8"
+    "\x96"
     "",
     "\xD0"
-    "\x9B"
+    "\x97"
+    "\xD0"
+    "\xB0"
+    " \xD0"
+    "\xBB"
     "\xD1"
     "\x96"
     "\xD0"
     "\xB2"
     "\xD0"
-    "\xBE"
+    "\xB8"
+    "\xD0"
+    "\xBC"
+    " \xD0"
+    "\xBA"
     "\xD1"
     "\x80"
+    "\xD0"
+    "\xB0"
     "\xD1"
-    "\x83"
-    "\xD1"
-    "\x87"
+    "\x94"
+    "\xD0"
+    "\xBC"
     "",
     "\xD0"
     "\x9F"
@@ -20504,7 +20852,11 @@ const char* const STRINGS_UK[] = {
     "\x83"
     "",
     "\xD0"
-    "\x9F"
+    "\x97"
+    "\xD0"
+    "\xB0"
+    " \xD0"
+    "\xBF"
     "\xD1"
     "\x80"
     "\xD0"
@@ -20512,13 +20864,19 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xB2"
     "\xD0"
-    "\xBE"
+    "\xB8"
+    "\xD0"
+    "\xBC"
+    " \xD0"
+    "\xBA"
     "\xD1"
     "\x80"
+    "\xD0"
+    "\xB0"
     "\xD1"
-    "\x83"
-    "\xD1"
-    "\x87"
+    "\x94"
+    "\xD0"
+    "\xBC"
     "",
     "1 \xD1"
     "\x85"
@@ -21778,55 +22136,31 @@ const char* const STRINGS_UK[] = {
     "[ON]",
     "OK",
     "\xD0"
-    "\xA4"
+    "\x95"
     "\xD1"
-    "\x96"
+    "\x84"
     "\xD0"
-    "\xBB"
-    "\xD1"
-    "\x8C"
-    "\xD1"
-    "\x82"
-    "\xD1"
-    "\x80"
-    " \xD0"
-    "\xBE"
-    "\xD0"
-    "\xB1"
-    "\xD0"
-    "\xBA"
-    "\xD0"
-    "\xBB"
-    "\xD0"
-    "\xB0"
-    "\xD0"
-    "\xB4"
-    "\xD0"
-    "\xB8"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xBA"
-    "\xD0"
-    "\xB8"
-    " \xD0"
     "\xB5"
     "\xD0"
     "\xBA"
     "\xD1"
-    "\x80"
+    "\x82"
+    " \xD0"
+    "\xB7"
     "\xD0"
     "\xB0"
-    "\xD0"
-    "\xBD"
-    "\xD0"
-    "\xB0"
-    " \xD1"
-    "\x81"
-    "\xD0"
-    "\xBD"
     "\xD1"
-    "\x83"
+    "\x81"
+    "\xD1"
+    "\x82"
+    "\xD0"
+    "\xB0"
+    "\xD0"
+    "\xB2"
+    "\xD0"
+    "\xBA"
+    "\xD0"
+    "\xB8"
     "",
     "Image Cycle Mode",
     "Random",
@@ -21926,6 +22260,8 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xBA"
     " \xD1"
+    "\x83"
+    " \xD1"
     "\x80"
     "\xD0"
     "\xBE"
@@ -21938,7 +22274,7 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xBB"
     "\xD1"
-    "\x83"
+    "\x96"
     "",
     "\xD0"
     "\x92"
@@ -22244,6 +22580,7 @@ const char* const STRINGS_UK[] = {
     "\xB0"
     "",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extended",
     "Fork Drift",
     "Pokemon Party",
@@ -22381,44 +22718,18 @@ const char* const STRINGS_UK[] = {
     "\xBA"
     "\xD0"
     "\xBB"
+    ". + \xD0"
+    "\xB2"
+    "\xD0"
+    "\xBB"
     "\xD0"
     "\xB0"
-    "\xD0"
-    "\xB4"
-    "\xD0"
-    "\xB8"
+    "\xD1"
+    "\x81"
     "\xD0"
     "\xBD"
     "\xD0"
-    "\xBA"
-    "\xD0"
-    "\xB0"
-    " + \xD0"
-    "\x9A"
-    "\xD0"
-    "\xBE"
-    "\xD1"
-    "\x80"
-    "\xD0"
-    "\xB8"
-    "\xD1"
-    "\x81"
-    "\xD1"
-    "\x82"
-    "\xD1"
-    "\x83"
-    "\xD0"
-    "\xB2"
-    "\xD0"
-    "\xB0"
-    "\xD1"
-    "\x86"
-    "\xD1"
-    "\x8C"
-    "\xD0"
-    "\xBA"
-    "\xD0"
-    "\xB0"
+    "\xB5"
     "",
     "Recents",
     "\xD0"
@@ -22482,37 +22793,7 @@ const char* const STRINGS_UK[] = {
     "\xB3"
     "",
     "\xD0"
-    "\x92"
-    "\xD0"
-    "\xB8"
-    "\xD0"
-    "\xBA"
-    "\xD0"
-    "\xBE"
-    "\xD1"
-    "\x80"
-    "\xD0"
-    "\xB8"
-    "\xD1"
-    "\x81"
-    "\xD1"
-    "\x82"
-    "\xD0"
-    "\xBE"
-    "\xD0"
-    "\xB2"
-    "\xD1"
-    "\x83"
-    "\xD0"
-    "\xB2"
-    "\xD0"
-    "\xB0"
-    "\xD1"
-    "\x82"
-    "\xD0"
-    "\xB8"
-    " \xD0"
-    "\xB1"
+    "\x91"
     "\xD0"
     "\xB5"
     "\xD0"
@@ -22529,8 +22810,8 @@ const char* const STRINGS_UK[] = {
     "\xBE"
     "\xD0"
     "\xB2"
-    "\xD1"
-    "\x83"
+    "\xD0"
+    "\xB0"
     " \xD0"
     "\xBF"
     "\xD0"
@@ -22545,8 +22826,12 @@ const char* const STRINGS_UK[] = {
     "\xB0"
     "\xD1"
     "\x87"
-    "\xD1"
-    "\x83"
+    "\xD0"
+    "\xB0"
+    " \xD0"
+    "\xBD"
+    "\xD0"
+    "\xB0"
     " \xD0"
     "\xBF"
     "\xD1"
@@ -22559,12 +22844,14 @@ const char* const STRINGS_UK[] = {
     "\x82"
     "\xD1"
     "\x80"
-    "\xD0"
-    "\xBE"
     "\xD1"
-    "\x97"
+    "\x96"
     "\xD0"
-    "\xB2"
+    "\xB9"
+    " \xD1"
+    "\x96"
+    "\xD0"
+    "\xB7"
     " Calibre",
     "\xD0"
     "\x97"
@@ -24582,6 +24869,12 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xB0"
     "",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "\xD0"
     "\x90"
     "\xD0"
@@ -24690,6 +24983,21 @@ const char* const STRINGS_UK[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_BE[] = {
@@ -28470,7 +28778,7 @@ const char* const STRINGS_BE[] = {
     "\xD0"
     "\xB4"
     "",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "\xD0"
@@ -30304,6 +30612,7 @@ const char* const STRINGS_BE[] = {
     "\x8F"
     "",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extended",
     "Fork Drift",
     "Pokemon Party",
@@ -32462,6 +32771,12 @@ const char* const STRINGS_BE[] = {
     "\xD0"
     "\xB0"
     "",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "\xD0"
     "\x90"
     "\xD1"
@@ -32590,17 +32905,28 @@ const char* const STRINGS_BE[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_IT[] = {
     "CrossPoint",
     "AVVIO IN CORSO",
-    "MODALIT\xC3"
-    "\x80"
-    " SLEEP",
-    "Modalit\xC3"
-    "\xA0"
-    " Sleep",
+    "SOSPENSIONE",
+    "Sospensione...",
     "Sfoglia file",
     "Trasferimento file",
     "Impostazioni",
@@ -32614,12 +32940,12 @@ const char* const STRINGS_IT[] = {
     "Nessun capitolo",
     "Fine del libro",
     "Capitolo vuoto",
-    "Indicizzazione",
+    "Indicizzazione...",
     "Errore di memoria",
-    "Errore di caricamento pagina",
+    "Errore caricamento pagina",
     "File vuoto",
     "Fuori dai limiti",
-    "Caricamento in corso...",
+    "Caricamento...",
     "Caricamento",
     "Failed to load XTC",
     "Failed to load TXT",
@@ -32629,36 +32955,36 @@ const char* const STRINGS_IT[] = {
     "Nessuna rete trovata",
     "%zu reti trovate",
     "Scansione...",
-    "Connessione in corso...",
+    "Connessione...",
     "Connesso!",
-    "Connessione fallita",
+    "Connessione non riuscita",
     "Connection timeout",
-    "Dimenticare la rete?",
-    "Salvare la password per la prossima volta?",
+    "Eliminare la rete?",
+    "Salvare la password?",
     "Remove saved password?",
-    "Premi OK per scansionare di nuovo",
+    "Premere OK per ripetere scansione",
     "Press any button to continue",
     "LEFT/RIGHT: Select | OK: Confirm",
     "How would you like to connect?",
-    "Connettiti a una rete",
+    "Connetti a una rete",
     "Crea Hotspot",
-    "Connettiti a una rete WiFi esistente",
-    "Crea una rete WiFi a cui altri possono unirsi",
-    "Avvio Hotspot in corso...",
+    "Connessione ad una rete WiFi",
+    "Creazione di una rete WiFi",
+    "Avvio Hotspot...",
     "Modalit\xC3"
     "\xA0"
     " Hotspot",
-    "Connetti il tuo dispositivo a questa rete WiFi",
-    "Apri questo URL nel tuo browser",
+    "Connettere il dispositivo a questa rete WiFi",
+    "Aprire questo URL nel browser",
     "o http://",
-    "o scansiona il codice QR con il tuo telefono:",
-    "Calibre Wireless",
-    "OPDS URL",
+    "oppure scansionare il codice QR col telefono:",
+    "Calibre wireless",
+    "URL Web Calibre",
     "Connect as Wireless Device",
-    "* = Criptata | + = Salvata",
+    "* = Protetta | + = Salvata",
     "Indirizzo MAC:",
-    "Controllo WiFi in corso...",
-    "Inserisci password WiFi",
+    "Verifica WiFi...",
+    "Inserire password WiFi",
     "Enter Text",
     "a ",
     "Discovering Calibre...",
@@ -32669,60 +32995,58 @@ const char* const STRINGS_IT[] = {
     "Calibre disconnected",
     "Waiting for transfer...",
     "If transfer fails, enable\n'Ignore free space' in Calibre's\nSmartDevice plugin settings.",
-    "Ricezione in corso: ",
+    "Ricezione: ",
     "Ricevuto: ",
     "Waiting for more...",
     "Failed to create file",
     "Password required",
     "Transfer interrupted",
-    "1) Installa il plugin CrossPoint Reader",
-    "2) Assicurati di essere sulla stessa rete WiFi",
+    "1) Installare il plugin CrossPoint Reader",
+    "2) Collegarsi sulla stessa rete WiFi",
     "3) In Calibre: \"Invia al dispositivo\"",
-    "\"Tieni questa schermata aperta durante l'invio\"",
+    "\"Tenere questa schermata aperta durante l'invio\"",
     "Schermo",
     "Lettore",
     "Controlli",
     "Sistema",
     "Schermata di sospensione",
     "Smart",
-    "Modalit\xC3"
-    "\xA0"
-    " copertina in sleep",
+    "Copertina in sospensione",
     "Status Bar",
     "Nascondi % batteria",
     "Spaziatura extra paragrafi",
-    "Anti-Aliasing testo",
-    "Images",
-    "Display",
-    "Placeholder",
-    "Suppress",
+    "Anti-aliasing testo",
+    "Immagini",
+    "Visualizza",
+    "Segnaposto",
+    "Nascondi",
     "Pressione breve tasto accensione",
-    "Orientamento di lettura",
+    "Orientamento lettura",
     "Front Button Layout",
-    "Layout pulsanti laterali (lettore)",
-    "Pressione lunga salta capitolo",
-    "Famiglia di font del lettore",
+    "Pulsanti laterali (lettore)",
+    "Pressione lunga: salta capitolo",
+    "Font lettore",
     "External Reader Font",
     "Reader Font",
     "UI Font",
-    "Dimensione font UI",
+    "Dimensione font lettore",
     "Interlinea lettore",
     "ASCII Letter Spacing",
     "ASCII Digit Spacing",
     "CJK Spacing",
     "Color Mode",
     "Margine schermo lettore",
-    "Allineamento paragrafo lettore",
+    "Allineamento paragrafo",
     "Sillabazione",
-    "Tempo prima di sospensione",
-    "Show Hidden Files",
+    "Timeout sospensione",
+    "Mostra file nascosti",
     "Frequenza di aggiornamento",
     "Calibre Settings",
     "Sincronizzazione KOReader",
     "Cerca aggiornamenti",
     "Lingua",
     "Select Wallpaper",
-    "Ripristino di fabbrica",
+    "Factory Reset",
     "Switch to TRMNL",
     "Svuota cache di lettura",
     "Calibre",
@@ -32735,31 +33059,29 @@ const char* const STRINGS_IT[] = {
     "Password KOReader",
     "Nome file",
     "Binario",
-    "Imposta prima le credenziali",
-    "Connessione WiFi fallita",
-    "Autenticazione in corso...",
-    "Autenticazione completata con successo!",
+    "Impostare prima le credenziali",
+    "Connessione WiFi non riuscita",
+    "Autenticazione...",
+    "Autenticazione riuscita!",
     "Autenticazione KOReader",
-    "La sincronizzazione KOReader \xC3"
-    "\xA8"
-    " pronta",
-    "Autenticazione fallita",
+    "Sincronizzazione KOReader pronta",
+    "Autenticazione non riuscita",
     "Fatto",
-    "Verranno cancellati tutti i dati in cache dei libri.",
-    "I progressi di lettura andranno persi!",
-    "I libri dovranno essere re-indicizzati",
-    "quando aperti di nuovo.",
-    "Svuotamento cache in corso...",
+    "Verranno cancellati tutti i dati in cache.",
+    "Gli avanzamenti di lettura andranno persi!",
+    "I libri dovranno essere reindicizzati",
+    "alla riapertura.",
+    "Svuotamento cache...",
     "Cache svuotata",
     "elementi rimossi",
-    "fallito",
+    "non riuscito",
     "Impossibile svuotare la cache",
-    "Controlla l'output seriale per i dettagli",
+    "Controllare l'output seriale per dettagli",
     "Scuro",
     "Chiaro",
     "Follow Theme",
-    "Personalizzato",
-    "Sorgente immagini",
+    "Wallpaper",
+    "Image Source",
     "Pokedex",
     "All",
     "Copertina",
@@ -32773,7 +33095,7 @@ const char* const STRINGS_IT[] = {
     "Sempre",
     "Ignora",
     "Sospendi",
-    "Volta pagina",
+    "Cambio pagina",
     "Refresh Screen",
     "Verticale",
     "Orizzontale \xE2"
@@ -32790,20 +33112,20 @@ const char* const STRINGS_IT[] = {
     "Lft, Bck, Cnfrm, Rght",
     "Prec/Succ",
     "Succ/Prec",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Piccolo",
     "Medio",
     "Grande",
-    "X Grande",
+    "Molto grande",
     "Stretto",
     "Normale",
     "Largo",
     "Giustificato",
-    "Sinist.",
+    "Sinistra",
     "Centrato",
-    "Dest.",
+    "Destra",
     "1 min",
     "5 min",
     "10 min",
@@ -32820,26 +33142,26 @@ const char* const STRINGS_IT[] = {
     "Nuovo aggiornamento disponibile!",
     "Versione attuale: ",
     "Nuova versione: ",
-    "Aggiornamento in corso...",
+    "Aggiornamento...",
     "Nessun aggiornamento disponibile",
-    "Aggiornamento fallito",
+    "Aggiornamento non riuscito",
     "Aggiornamento completato",
     "Found firmware update",
     "Choose what to do",
     "Skip for now",
     "Skip this version",
     "Delete it",
-    "Tenere premuto il pulsante d'accensione per riaccendere",
+    "Tenere premuto il tasto di accensione per riavviare",
     "External Font",
     "Built-in (Disabled)",
     "Nessuna voce trovata",
-    "Download in corso...",
-    "Download fallito",
+    "Download...",
+    "Download non riuscito",
     "Errore:",
     "Senza nome",
-    "Nessun URL del server configurato",
-    "Recupero feed fallito",
-    "Parsing feed fallito",
+    "Nessun Server configurato",
+    "Impossibile recuperare il feed",
+    "Impossibile analizzare il feed",
     "Next Page \xC2"
     "\xBB"
     "",
@@ -32849,9 +33171,9 @@ const char* const STRINGS_IT[] = {
     "Rete: ",
     "Indirizzo IP: ",
     "or scan QR code with your phone to connect to Wifi.",
-    "Errore: Fallimento generico",
-    "Errore: Rete non trovata",
-    "Errore: Timeout di connessione",
+    "Errore: operazione non riuscita",
+    "Errore: rete non trovata",
+    "Errore: timeout connessione",
     "Scheda SD",
     "\xC2"
     "\xAB"
@@ -32867,7 +33189,7 @@ const char* const STRINGS_IT[] = {
     " Save",
     "Seleziona",
     "Selezionato",
-    "Attiva/Disattiva",
+    "Cambia",
     "Conferma",
     "Annulla",
     "Connetti",
@@ -32883,8 +33205,8 @@ const char* const STRINGS_IT[] = {
     "ON",
     "OFF",
     "Non impostato",
-    "Sinist.",
-    "Dest.",
+    "Sinistra",
+    "Destra",
     "Su",
     "Gi\xC3"
     "\xB9"
@@ -32893,21 +33215,19 @@ const char* const STRINGS_IT[] = {
     "caps",
     "[ON]",
     "OK",
-    "Filtro copertina modalit\xC3"
-    "\xA0"
-    " sleep",
+    "Filtro copertina",
     "Image Cycle Mode",
     "Random",
     "Sequential",
     "Contrasto",
     "Personalizza barra di stato",
-    "Pagine del capitolo",
-    "Percentuale avanzamento libro",
+    "Conteggio pagine capitolo",
+    "Percentuale avanzamento lettura",
     "Barra di avanzamento",
     "Spessore barra di avanzamento",
     "Sottile",
-    "Media",
-    "Spessa",
+    "Medio",
+    "Spesso",
     "Libro",
     "Capitolo",
     "Capitolo 21",
@@ -32915,41 +33235,42 @@ const char* const STRINGS_IT[] = {
     "Anteprima",
     "Titolo",
     "Batteria",
-    "Tema UI",
+    "Tema interfaccia",
     "Classico",
     "Lyra",
-    "Lyra Esteso",
+    "RoundedRaff",
+    "Lyra esteso",
     "Fork Drift",
     "Pokemon Party",
     "Party",
     "6 recent books with Pokemon progress",
     "Open books to build your party",
     "Lv",
-    "Fix Sbiadimento da Luce Solare",
-    "Rimappa Pulsanti Frontali",
+    "Correzione luce solare",
+    "Rimappa pulsanti frontali",
     "Browser OPDS",
     "Search",
-    "Copertina + Personalizzato",
+    "Copertina + Wallpaper",
     "Recents",
-    "Libri Recenti",
+    "Libri recenti",
     "Nessun libro recente",
-    "Usa i trasferimenti wireless del dispositivo di Calibre",
-    "Dimenticare la rete e rimuovere la password salvata?",
-    "Dimentica",
-    "Avvio Calibre in corso...",
+    "Trasferimento wireless con Calibre",
+    "Eliminare la rete e la password salvata?",
+    "Elimina",
+    "Avvio Calibre...",
     "Configurazione",
     "Stato",
-    "Pulisci",
+    "Elimina",
     "Predefinito",
-    "Premi un pulsante frontale per ogni funzione",
+    "Premere un pulsante frontale per ogni funzione",
     "Non assegnato",
     "Gi\xC3"
     "\xA0"
     " assegnato",
-    "Pulsante laterale Su: Ripristina layout predefinito",
-    "Pulsante laterale Gi\xC3"
+    "Laterale Su: ripristina layout predefinito",
+    "Laterale Gi\xC3"
     "\xB9"
-    ": Annulla mappatura",
+    ": annulla rimappatura",
     "Indietro (1\xC2"
     "\xB0"
     " pulsante)",
@@ -32963,10 +33284,10 @@ const char* const STRINGS_IT[] = {
     "\xB0"
     " pulsante)",
     "Vai al %",
-    "Vai alla Home",
-    "Sincronizza Progressi",
-    "Elimina Cache Libro",
-    "Delete",
+    "Vai alla home",
+    "Sincronizza avanzamento",
+    "Elimina cache libro",
+    "Elimina",
     "Mostra pagina come QR",
     "Capitolo: ",
     " pagine  |  ",
@@ -32974,50 +33295,56 @@ const char* const STRINGS_IT[] = {
     "shift",
     "SHIFT",
     "LOCK",
-    "Per Calibre, aggiungi /opds all'URL",
+    "Per Calibre, aggiungere /opds all'URL",
     "Sinistra/Destra: 1%  Su/Gi\xC3"
     "\xB9"
     ": 10%",
     "Sincronizzazione orario...",
-    "Calcolo dell'hash del documento...",
-    "Impossibile calcolare hash del documento",
-    "Recupero progressi remoti...",
-    "Caricamento progressi...",
-    "Nessuna credenziale configurata",
-    "Configura account KOReader nelle Impostazioni",
-    "Progressi trovati!",
+    "Calcolo hash documento...",
+    "Impossibile calcolare l'hash del documento",
+    "Recupero avanzamenti...",
+    "Invio avanzamenti...",
+    "Nessuna credenziale impostata",
+    "Configurare account KOReader in Impostazioni",
+    "Avanzamenti trovati!",
     "Remoto:",
     "Locale:",
-    "Pagina %d, %.2f%% in totale",
-    "Pagina %d/%d, %.2f%% in totale",
+    "Pagina %d, %.2f%% totale",
+    "Pagina %d/%d, %.2f%% totale",
     "  Da: %s",
-    "Applica progressi remoti",
-    "Carica progressi locali",
-    "Nessun progresso remoto trovato",
-    "Caricare la posizione attuale?",
-    "Progressi caricati!",
-    "Sincronizzazione fallita",
+    "Applica avanzamenti remoti",
+    "Invia avanzamenti locali",
+    "Nessun avanzamento remoto trovato",
+    "Inviare la posizione attuale?",
+    "Avanzamenti inviati!",
+    "Sincronizzazione non riuscita",
     "Sezione ",
     "Carica",
-    "Stile del Libro",
-    "Stile Integrato",
-    "URL del Server OPDS",
-    "Modalit\xC3"
-    "\xA0"
-    " scura",
+    "Stile libro",
+    "Stile integrato dell'epub",
+    "Server OPDS",
+    "Dark Mode",
     "Background Server",
-    "Server in background in carica",
+    "Background Server on Charge",
     "Only on Charge",
     "Much More Battery Use",
     "Always keeps WiFi on while awake.",
-    "Convalida immagini sospensione",
+    "Validate Sleep Images",
     "Device Name",
-    "Footnotes",
-    "No footnotes on this page",
+    "Note a pi\xC3"
+    "\xA8"
+    " pagina",
+    "Nessuna nota in questa pagina",
     "[link]",
-    "Take screenshot",
-    "Auto Turn Enabled: ",
-    "Auto Turn (Pages Per Minute)",
+    "Screenshot",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
+    "Cambio pagina automatico: ",
+    "Cambio pagina automatico (pag/min)",
     "Transparent",
     "Notes",
     "No notes yet. Add one below.",
@@ -33042,6 +33369,21 @@ const char* const STRINGS_IT[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_PL[] = {
@@ -33522,7 +33864,7 @@ const char* const STRINGS_PL[] = {
     "Lft, Bck, Cnfrm, Rght",
     "Poprz./Nast.",
     "Nast./Poprz.",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Ma\xC5"
@@ -33790,6 +34132,7 @@ const char* const STRINGS_PL[] = {
     "rka UI",
     "Classic",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extended",
     "Fork Drift",
     "Pokemon Party",
@@ -34022,6 +34365,12 @@ const char* const STRINGS_PL[] = {
     "Zr\xC3"
     "\xB3"
     "b zrzut ekranu",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Auto-kartkowanie: ",
     "Auto-kartkowanie (str./min)",
     "Transparent",
@@ -34048,6 +34397,21 @@ const char* const STRINGS_PL[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_FI[] = {
@@ -34432,7 +34796,7 @@ const char* const STRINGS_FI[] = {
     "Lft, Bck, Cnfrm, Rght",
     "Edell/Seur",
     "Seur/Edell",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Pieni",
@@ -34652,6 +35016,7 @@ const char* const STRINGS_FI[] = {
     "teema",
     "Klassinen",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extended",
     "Fork Drift",
     "Pokemon Party",
@@ -34848,6 +35213,12 @@ const char* const STRINGS_FI[] = {
     "No footnotes on this page",
     "[link]",
     "Take screenshot",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Auto Turn Enabled: ",
     "Auto Turn (Pages Per Minute)",
     "Transparent",
@@ -34874,6 +35245,21 @@ const char* const STRINGS_FI[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_DA[] = {
@@ -35176,7 +35562,7 @@ const char* const STRINGS_DA[] = {
     "N\xC3"
     "\xA6"
     "ste/Forrige",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Lille",
@@ -35340,6 +35726,7 @@ const char* const STRINGS_DA[] = {
     "nseflade tema",
     "Klassisk",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extended",
     "Fork Drift",
     "Pokemon Party",
@@ -35460,6 +35847,12 @@ const char* const STRINGS_DA[] = {
     "Tag sk\xC3"
     "\xA6"
     "rmbillede",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Automatisk sidevendning aktiveret: ",
     "Automatisk vending (sider per minut)",
     "Transparent",
@@ -35486,6 +35879,21 @@ const char* const STRINGS_DA[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_NL[] = {
@@ -35674,7 +36082,7 @@ const char* const STRINGS_NL[] = {
     "Lft, Bck, Cnfrm, Rght",
     "Vorige/Volgende",
     "Volgende/Vorige",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Klein",
@@ -35796,6 +36204,7 @@ const char* const STRINGS_NL[] = {
     "UI Thema",
     "Klassiek",
     "Lyra",
+    "RoundedRaff",
     "Lyra Uitgebreid",
     "Fork Drift",
     "Pokemon Party",
@@ -35880,6 +36289,12 @@ const char* const STRINGS_NL[] = {
     "Geen voetnoten op deze pagina",
     "[link]",
     "Screenshot maken",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Automatisch omslaan ingeschakeld: ",
     "Autom. omslaan (pagina's per minuut)",
     "Transparent",
@@ -35906,6 +36321,21 @@ const char* const STRINGS_NL[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_TR[] = {
@@ -36548,7 +36978,7 @@ const char* const STRINGS_TR[] = {
     "Sonraki/\xC3"
     "\x96"
     "nceki",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "K\xC3"
@@ -36906,6 +37336,7 @@ const char* const STRINGS_TR[] = {
     "",
     "Klasik",
     "Lyra",
+    "RoundedRaff",
     "Lyra Geni\xC5"
     "\x9F"
     "letilmi\xC5"
@@ -37176,6 +37607,12 @@ const char* const STRINGS_TR[] = {
     "s\xC3"
     "\xBC"
     " al",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Otomatik \xC3"
     "\x87"
     "evirme Etkin: ",
@@ -37206,6 +37643,21 @@ const char* const STRINGS_TR[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_KK[] = {
@@ -41024,7 +41476,7 @@ const char* const STRINGS_KK[] = {
     "\xD1"
     "\x8B"
     "",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "\xD0"
@@ -42708,6 +43160,7 @@ const char* const STRINGS_KK[] = {
     "\x9B"
     "",
     "Lyra",
+    "RoundedRaff",
     "Lyra \xD0"
     "\xBA"
     "\xD0"
@@ -44894,6 +45347,12 @@ const char* const STRINGS_KK[] = {
     "\xD1"
     "\x83"
     "",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "\xD0"
     "\x90"
     "\xD0"
@@ -45034,6 +45493,21 @@ const char* const STRINGS_KK[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_HU[] = {
@@ -45754,7 +46228,7 @@ const char* const STRINGS_HU[] = {
     "z\xC5"
     "\x91"
     "",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Kicsi",
@@ -46108,6 +46582,7 @@ const char* const STRINGS_HU[] = {
     "ma",
     "Klasszikus",
     "Lyra",
+    "RoundedRaff",
     "Lyra Extended",
     "Fork Drift",
     "Pokemon Party",
@@ -46476,6 +46951,12 @@ const char* const STRINGS_HU[] = {
     "t\xC3"
     "\xA9"
     "se",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Automatikus lapoz\xC3"
     "\xA1"
     "s bekapcsolva: ",
@@ -46506,6 +46987,21 @@ const char* const STRINGS_HU[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_LT[] = {
@@ -46888,7 +47384,7 @@ const char* const STRINGS_LT[] = {
     "Lft, Bck, Cnfrm, Rght",
     "Atgal/Pirmyn",
     "Pirmyn/Atgal",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "O. Dyslexic",
     "Ma\xC5"
@@ -47084,6 +47580,7 @@ const char* const STRINGS_LT[] = {
     "\x97"
     "",
     "Lyra",
+    "RoundedRaff",
     "Lyra Ext.",
     "Fork Drift",
     "Pokemon Party",
@@ -47268,6 +47765,12 @@ const char* const STRINGS_LT[] = {
     "ra",
     "[nuoroda]",
     "Ekrano nuotrauka",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Auto-vertimas: ",
     "Auto-vertimas (psl/min)",
     "Transparent",
@@ -47294,6 +47797,21 @@ const char* const STRINGS_LT[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 const char* const STRINGS_SI[] = {
@@ -47582,7 +48100,7 @@ const char* const STRINGS_SI[] = {
     "Lft, Bck, Cnfrm, Rght",
     "Nazaj/Naprej",
     "Naprej/Nazaj",
-    "Bookerly",
+    "Noto Serif",
     "Noto Sans",
     "Open Dyslexic",
     "Majhno",
@@ -47742,6 +48260,7 @@ const char* const STRINGS_SI[] = {
     "\x8D"
     "na",
     "Lyra",
+    "RoundedRaff",
     "Lyra raz\xC5"
     "\xA1"
     "irjena",
@@ -47862,6 +48381,12 @@ const char* const STRINGS_SI[] = {
     "Na tej strani ni opomb",
     "[povezava]",
     "Naredi posnetek zaslona",
+    "Add Server",
+    "Server Name",
+    "No OPDS servers configured",
+    "Delete Server",
+    "Delete this server?",
+    "OPDS Servers",
     "Samodejno obra\xC4"
     "\x8D"
     "anje: ",
@@ -47892,6 +48417,21 @@ const char* const STRINGS_SI[] = {
     "A detailed report was saved to crash_report.txt. Please include this file in your bug report.",
     "Crash reason:",
     "(No reason was recorded)",
+    "Press LEFT or RIGHT to move cursor",
+    "Press LEFT to return to cursor position",
+    "Hold RIGHT then press [***] to hide password",
+    "Hold RIGHT then press [abc] to show password",
+    "Press [***] to hide password",
+    "Press [abc] to show password",
+    "Hold UP to edit entry",
+    "Tips:",
+    "Press DOWN to return to keyboard",
+    "Press ABC to exit URL mode",
+    "Hold DEL to clear all text",
+    "Hold SELECT for secondary char",
+    "Hold SELECT for UPPERCASE or secondary char",
+    "Hold SELECT for lowercase or secondary char",
+    "Press URL for snippets",
 };
 
 }  // namespace i18n_strings

@@ -531,7 +531,7 @@ int CrossPointSettings::getTimeZoneOffsetSeconds() const {
 
 int CrossPointSettings::getReaderFontId() const {
 #if !ENABLE_EXTENDED_FONTS
-  return BOOKERLY_14_FONT_ID;
+  return NOTOSERIF_14_FONT_ID;
 #else
   uint8_t effectiveFamily = fontFamily;
 #if !ENABLE_OPENDYSLEXIC_FONTS
@@ -549,24 +549,24 @@ int CrossPointSettings::getReaderFontId() const {
 #if ENABLE_USER_FONTS
       return USER_SD_FONT_ID;
 #else
-      return BOOKERLY_14_FONT_ID;
+      return NOTOSERIF_14_FONT_ID;
 #endif
     case BOOKERLY:
     default:
 #if ENABLE_BOOKERLY_FONTS
       switch (fontSize) {
         case SMALL:
-          return BOOKERLY_12_FONT_ID;
+          return NOTOSERIF_12_FONT_ID;
         case MEDIUM:
         default:
-          return BOOKERLY_14_FONT_ID;
+          return NOTOSERIF_14_FONT_ID;
         case LARGE:
-          return BOOKERLY_16_FONT_ID;
+          return NOTOSERIF_16_FONT_ID;
         case EXTRA_LARGE:
-          return BOOKERLY_18_FONT_ID;
+          return NOTOSERIF_18_FONT_ID;
       }
 #else
-      return BOOKERLY_14_FONT_ID;
+      return NOTOSERIF_14_FONT_ID;
 #endif
     case NOTOSANS:
 #if ENABLE_NOTOSANS_FONTS
@@ -582,7 +582,7 @@ int CrossPointSettings::getReaderFontId() const {
           return NOTOSANS_18_FONT_ID;
       }
 #else
-      return BOOKERLY_14_FONT_ID;
+      return NOTOSERIF_14_FONT_ID;
 #endif
     case OPENDYSLEXIC:
 #if ENABLE_OPENDYSLEXIC_FONTS
@@ -598,7 +598,7 @@ int CrossPointSettings::getReaderFontId() const {
           return OPENDYSLEXIC_14_FONT_ID;
       }
 #else
-      return BOOKERLY_14_FONT_ID;
+      return NOTOSERIF_14_FONT_ID;
 #endif
   }
 #endif
