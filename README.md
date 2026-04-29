@@ -9,6 +9,10 @@ This is the **`fork-drift`** branch. It tracks upstream while adding fork-specif
 
 <img width="959" height="1008" alt="image" src="https://github.com/user-attachments/assets/b787388b-9dc6-43eb-9fcb-24b4d8fee604" />
 
+E-paper devices are fantastic for reading, but most commercially available readers are closed systems with limited 
+customisation. The **Xteink X4** is an affordable, e-paper device, however the official firmware remains closed.
+CrossPoint exists partly as a fun side-project and partly to open up the ecosystem and truly unlock the device's
+potential.
 
 ## Build Configurator
 
@@ -257,7 +261,7 @@ If you are new to the codebase, start with the [contributing docs](./docs/contri
 If you're looking for a way to help out, take a look at the [ideas discussion board](https://github.com/crosspoint-reader/crosspoint-reader/discussions/categories/ideas).
 If there's something there you'd like to work on, leave a comment so that we can avoid duplicated effort.
 
-Everyone here is a volunteer, so please be respectful and patient. For more details on our governance and community
+Everyone here is a volunteer, so please be respectful and patient. For more details on our governance and community 
 principles, please see [GOVERNANCE.md](GOVERNANCE.md).
 
 ### To submit a contribution:
