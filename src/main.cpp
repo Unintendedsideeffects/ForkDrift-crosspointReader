@@ -682,16 +682,22 @@ void loop() {
     activityManager.requestUpdate();
   }
 
+#if LOG_LEVEL >= 2
   const unsigned long activityStartTime = millis();
+#endif
   activityManager.loop();
+#if LOG_LEVEL >= 2
   const unsigned long activityDuration = millis() - activityStartTime;
+#endif
 
   const unsigned long loopDuration = millis() - loopStartTime;
   if (loopDuration > maxLoopDuration) {
     maxLoopDuration = loopDuration;
+#if LOG_LEVEL >= 2
     if (maxLoopDuration > 50) {
       LOG_DBG("LOOP", "New max loop duration: %lu ms (activity: %lu ms)", maxLoopDuration, activityDuration);
     }
+#endif
   }
 
   if (activityManager.skipLoopDelay() || backgroundServer.wantsFastLoop()) {

@@ -143,6 +143,7 @@ void BufferedHttpUploadSession::handleUpload(WebServer* server, const BufferedHt
 
       uploadSize += upload.currentSize;
 
+#if LOG_LEVEL >= 2
       if (config.logProgress && uploadSize - uploadLastLoggedSize >= 102400) {
         const unsigned long elapsed = millis() - uploadStartTime;
         const float kbps = (elapsed > 0) ? (uploadSize / 1024.0F) / (elapsed / 1000.0F) : 0.0F;
@@ -150,6 +151,7 @@ void BufferedHttpUploadSession::handleUpload(WebServer* server, const BufferedHt
                 uploadSize / 1024.0F, kbps, static_cast<unsigned int>(writeCount));
         uploadLastLoggedSize = uploadSize;
       }
+#endif
     }
     return;
   }
@@ -166,6 +168,7 @@ void BufferedHttpUploadSession::handleUpload(WebServer* server, const BufferedHt
 
       if (uploadError[0] == '\0') {
         uploadSuccess = true;
+#if LOG_LEVEL >= 2
         const unsigned long elapsed = millis() - uploadStartTime;
         const float avgKbps = (elapsed > 0) ? (uploadSize / 1024.0F) / (elapsed / 1000.0F) : 0.0F;
         const float writePercent = (elapsed > 0) ? (totalWriteTime * 100.0F / elapsed) : 0.0F;
@@ -173,6 +176,7 @@ void BufferedHttpUploadSession::handleUpload(WebServer* server, const BufferedHt
                 static_cast<unsigned int>(uploadSize), elapsed, avgKbps);
         LOG_DBG("WEB", "[%s] Diagnostics: %u writes, total write time: %lu ms (%.1f%%)", logLabel,
                 static_cast<unsigned int>(writeCount), totalWriteTime, writePercent);
+#endif
       }
     }
     return;

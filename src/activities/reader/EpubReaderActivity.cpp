@@ -841,12 +841,14 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   } else {
     LOG_WRN("ERS", "Skipping font prewarm: heap=%lu", heapBefore);
   }
-  const uint32_t heapAfter = esp_get_free_heap_size();
   fcm->logStats("prewarm");
   const auto tPrewarm = millis();
 
+#if LOG_LEVEL >= 2
+  const uint32_t heapAfter = esp_get_free_heap_size();
   LOG_DBG("ERS", "Heap: before=%lu after=%lu delta=%ld", heapBefore, heapAfter,
           (int32_t)heapAfter - (int32_t)heapBefore);
+#endif
 
   // Force special handling for pages with images when anti-aliasing is on
   bool imagePageWithAA = page->hasImages() && SETTINGS.textAntiAliasing;
