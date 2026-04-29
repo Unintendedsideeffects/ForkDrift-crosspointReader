@@ -147,7 +147,7 @@ curl http://crosspoint.local/api/plugins
   "remote_open_book": true,
   "remote_page_turn": true,
   "todo_planner": true,
-  "web_pokedex_plugin": false
+  "pokemon_wallpaper_plugin": false
 }
 ```
 

@@ -135,3 +135,6 @@ ruby -rdigest -e 'puts [
   "./notosans_8_regular.h",
 ].map{|f| Digest::SHA256.hexdigest(File.read(f)).to_i(16) }.sum % (2 ** 32) - (2 ** 31)'
 ))"
+
+# Runtime-loaded SD fonts are registered under a stable synthetic ID.
+echo "#define USER_SD_FONT_ID (123456789)"

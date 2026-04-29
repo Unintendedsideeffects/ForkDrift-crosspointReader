@@ -2213,8 +2213,8 @@
                   <div class="card-toggle"><span class="toggle-box"></span></div>
                 </label>
                 <div class="dep-children">
-                  <label class="skill-card dep-child" data-feature="web_pokedex_plugin" data-node-id="web_pokedex_plugin">
-                    <input type="checkbox" id="web_pokedex_plugin" data-feature="web_pokedex_plugin" />
+                  <label class="skill-card dep-child" data-feature="pokemon_wallpaper_plugin" data-node-id="pokemon_wallpaper_plugin">
+                    <input type="checkbox" id="pokemon_wallpaper_plugin" data-feature="pokemon_wallpaper_plugin" />
                     <div class="card-icon"><span>&#x26A1;</span></div>
                     <div class="card-body">
                       <div class="card-name">Pokedex</div>
@@ -2892,7 +2892,7 @@
                   <strong>Studio</strong> tab; the device-side plugin is at <code>/plugins/pokedex</code>.
                 </div>
                 <div class="companion-desc" style="margin-top: 8px; font-size: 0.85rem; color: #888;">
-                  Requires <code>web_pokedex_plugin</code> in the feature grid. Enable <code>pokemon_party</code>
+                  Requires <code>pokemon_wallpaper_plugin</code> in the feature grid. Enable <code>pokemon_party</code>
                   for per-book party assignments.
                 </div>
                 <div class="actions" style="margin-top: 12px;">
@@ -3392,9 +3392,9 @@
           flag: "ENABLE_HOME_MEDIA_PICKER",
           default: true,
         },
-        web_pokedex_plugin: {
-          sizeKb: 22,
-          flag: "ENABLE_WEB_POKEDEX_PLUGIN",
+        pokemon_wallpaper_plugin: {
+          sizeKb: 13,
+          flag: "ENABLE_POKEMON_WALLPAPER_PLUGIN",
           default: false,
         },
         pokemon_party: {
@@ -3488,8 +3488,8 @@
         background_server_on_charge: "Automatically starts the Background Server whenever the device is connected to a charger. Lets the device act as a wireless book-drop station with no manual steps while it sits on your desk.",
         background_server_always: "Keeps the Background Server running continuously — on battery or on charge. Maximises availability for remote control and file transfer at the cost of increased WiFi radio power draw.",
         home_media_picker: "Replaces the plain text file list on the Home screen with a visual grid of cover thumbnails. Covers are cached to the SD card on first render; subsequent loads are instant.",
-        web_pokedex_plugin: "Installs the X4 Pokédex web plugin. Browsable via the Background Server's web UI. Demonstrates the plugin architecture and doubles as a reference for building custom web tools. Requires Image Sleep.",
-        pokemon_party: "Displays your Pokémon party as a sleep-screen overlay sourced from the Pokédex plugin. A cosmetic feature; purely for fun. Requires Web Pokédex Plugin.",
+        pokemon_wallpaper_plugin: "Installs the X4 Pokédex web plugin. Browsable via the Background Server's web UI. Demonstrates the plugin architecture and doubles as a reference for building custom web tools. Requires Image Sleep.",
+        pokemon_party: "Displays your Pokémon party as a sleep-screen overlay sourced from the Pokemon Wallpaper plugin. A cosmetic feature; purely for fun. Requires Pokemon Wallpaper Plugin.",
         epub_support: "The core EPUB 2/3 parser and renderer. Handles ZIP extraction, NCX/OPF navigation, CSS-subset styling, and multi-section layout with an aggressive on-disk cache (.crosspoint/). Disabling this removes book reading entirely.",
         hyphenation: "Automatic hyphenation using a compressed Knuth–Liang dictionary. Reduces excessive whitespace in justified text, particularly noticeable in narrow columns or landscape mode. Adds ~545 KB for the dictionary data.",
         xtc_support: "Reads .xtc (CrossPoint Theme Config) sidecar files placed alongside books on the SD card. Overrides per-book font, margins, and theme without changing global settings. Lightweight but niche.",
@@ -3528,13 +3528,12 @@
         ble_wifi_provisioning: ["web_wifi_setup"],
         lyra_theme: ["home_media_picker"],
         visual_cover_picker: ["home_media_picker"],
-        web_pokedex_plugin: ["image_sleep"],
-        pokemon_party: ["web_pokedex_plugin"],
+        pokemon_wallpaper_plugin: ["image_sleep"],
       };
 
       const HUB_FEATURES = {
         reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "anki_support"],
-        interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "web_pokedex_plugin", "pokemon_party", "dark_mode", "user_fonts"],
+        interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts"],
         network_hub: ["background_server", "background_server_on_charge", "background_server_always", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
         storage_hub: ["usb_mass_storage"],
       };
@@ -3585,7 +3584,7 @@
           background_server_on_charge: true,
           background_server_always: true,
           home_media_picker: true,
-          web_pokedex_plugin: true,
+          pokemon_wallpaper_plugin: true,
           pokemon_party: true,
           dark_mode: true,
           visual_cover_picker: true,
@@ -5205,7 +5204,7 @@
           visual_cover_picker:             'grid-2x2',
           fork_drift_note:                 'git-fork',
           image_sleep:                     'moon',
-          web_pokedex_plugin:              'zap',
+          pokemon_wallpaper_plugin:              'zap',
           pokemon_party:                   'gamepad-2',
           dark_mode:                       'contrast',
           user_fonts:                      'folder-open',
@@ -5745,7 +5744,7 @@
               <text x="240" y="496" text-anchor="middle" font-family="Courier New, monospace" font-size="18" fill="#444">Grass · Poison</text>
               <text x="240" y="568" text-anchor="middle" font-family="Courier New, monospace" font-size="18" fill="#111">Default Pokédex sleep preview</text>
               <rect x="48" y="592" width="384" height="136" fill="#ece6d9" stroke="#111" stroke-width="3"/>
-              <text x="240" y="648" text-anchor="middle" font-family="Courier New, monospace" font-size="18" fill="#111">Generate from the Pokédex plugin</text>
+              <text x="240" y="648" text-anchor="middle" font-family="Courier New, monospace" font-size="18" fill="#111">Generate from the Pokemon Wallpaper plugin</text>
               <text x="240" y="680" text-anchor="middle" font-family="Courier New, monospace" font-size="18" fill="#111">or assign a party image on-device</text>
             </svg>`;
           const pokedexPreviewPath = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(pokedexPreviewSvg)}`;

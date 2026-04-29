@@ -1,6 +1,6 @@
 #include <EpdFont.h>
-#include <FontDecompressor.h>
 #include <FontCacheManager.h>
+#include <FontDecompressor.h>
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
 #include <SPI.h>
@@ -29,17 +29,17 @@ void installFonts(GfxRenderer& renderer) {
   static EpdFont ui12BoldFont(&ubuntu_12_bold);
   static EpdFontFamily ui12FontFamily(&ui12RegularFont, &ui12BoldFont);
 
-  static EpdFont bookerly14RegularFont(&bookerly_14_regular);
-  static EpdFont bookerly14BoldFont(&bookerly_14_bold);
-  static EpdFont bookerly14ItalicFont(&bookerly_14_italic);
-  static EpdFont bookerly14BoldItalicFont(&bookerly_14_bolditalic);
-  static EpdFontFamily bookerly14FontFamily(&bookerly14RegularFont, &bookerly14BoldFont, &bookerly14ItalicFont,
-                                            &bookerly14BoldItalicFont);
+  static EpdFont notoserif14RegularFont(&notoserif_14_regular);
+  static EpdFont notoserif14BoldFont(&notoserif_14_bold);
+  static EpdFont notoserif14ItalicFont(&notoserif_14_italic);
+  static EpdFont notoserif14BoldItalicFont(&notoserif_14_bolditalic);
+  static EpdFontFamily notoserif14FontFamily(&notoserif14RegularFont, &notoserif14BoldFont, &notoserif14ItalicFont,
+                                             &notoserif14BoldItalicFont);
 
   renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
   renderer.insertFont(UI_10_FONT_ID, ui10FontFamily);
   renderer.insertFont(UI_12_FONT_ID, ui12FontFamily);
-  renderer.insertFont(BOOKERLY_14_FONT_ID, bookerly14FontFamily);
+  renderer.insertFont(NOTOSERIF_14_FONT_ID, notoserif14FontFamily);
 }
 
 void saveSnapshot(HalDisplay& display, const std::filesystem::path& outDir, const std::string& name) {
@@ -140,7 +140,7 @@ void drawSettingsMock(GfxRenderer& renderer) {
   };
 
   drawGroupLabel(60, "Reading");
-  drawRow(76, "Font Family", "Bookerly");
+  drawRow(76, "Font Family", "Noto Serif");
   drawRow(122, "Font Size", "14 pt");
   drawRow(168, "Line Spacing", "Normal");
   drawRow(214, "Screen Margin", "Medium");
@@ -230,13 +230,13 @@ void drawReaderMock(GfxRenderer& renderer) {
   renderer.clearScreen();
   drawHeader(renderer, "Reader");
 
-  renderer.drawText(BOOKERLY_14_FONT_ID, 28, 62, "We walked through the quiet city as", true);
-  renderer.drawText(BOOKERLY_14_FONT_ID, 28, 88, "the daylight thinned into a pale", true);
-  renderer.drawText(BOOKERLY_14_FONT_ID, 28, 114, "silver dusk over the harbor.", true);
-  renderer.drawText(BOOKERLY_14_FONT_ID, 28, 140, "", true);
-  renderer.drawText(BOOKERLY_14_FONT_ID, 28, 166, "No one spoke. The only sound was", true);
-  renderer.drawText(BOOKERLY_14_FONT_ID, 28, 192, "the wind pressing at the shutters", true);
-  renderer.drawText(BOOKERLY_14_FONT_ID, 28, 218, "and the pages turning in my hand.", true);
+  renderer.drawText(NOTOSERIF_14_FONT_ID, 28, 62, "We walked through the quiet city as", true);
+  renderer.drawText(NOTOSERIF_14_FONT_ID, 28, 88, "the daylight thinned into a pale", true);
+  renderer.drawText(NOTOSERIF_14_FONT_ID, 28, 114, "silver dusk over the harbor.", true);
+  renderer.drawText(NOTOSERIF_14_FONT_ID, 28, 140, "", true);
+  renderer.drawText(NOTOSERIF_14_FONT_ID, 28, 166, "No one spoke. The only sound was", true);
+  renderer.drawText(NOTOSERIF_14_FONT_ID, 28, 192, "the wind pressing at the shutters", true);
+  renderer.drawText(NOTOSERIF_14_FONT_ID, 28, 218, "and the pages turning in my hand.", true);
 
   renderer.drawRect(28, 760, 424, 10, 1, true);
   renderer.fillRect(30, 762, 242, 6, true);
