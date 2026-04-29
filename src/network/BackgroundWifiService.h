@@ -29,14 +29,20 @@ class BackgroundWifiService {
   volatile bool connected = false;
   volatile bool wifiOwned = false;
   volatile uint32_t requestCount = 0;
+  volatile unsigned long nextStartAllowedMs = 0;
 
   // FreeRTOS task entry point
   static void taskEntry(void* arg);
   void run(const char* ssid, const char* password, bool useCurrentConnection);
+  bool canStartNow();
+  bool startRetryActive() const;
+  void deferStartRetry(const char* reason);
 
   // Stack size: 4096 bytes — WiFi connect + WebServer + handler parsing
   static constexpr uint32_t TASK_STACK = 4096;
   static constexpr uint32_t CONNECT_TIMEOUT_MS = 15000;
+  static constexpr uint32_t START_RETRY_MS = 30000;
+  static constexpr uint32_t MIN_START_HEAP_BYTES = 60000;
 
  public:
   BackgroundWifiService() = default;

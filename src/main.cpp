@@ -189,7 +189,7 @@ void reconcileBackgroundWifiServer() {
 
   // #region agent log
   static unsigned long lastAgentReconcileLogMs = 0;
-  if (millis() - lastAgentReconcileLogMs >= 3000 || blockedByActivity) {
+  if (millis() - lastAgentReconcileLogMs >= 3000) {
     lastAgentReconcileLogMs = millis();
     char data[240];
     snprintf(data, sizeof(data),

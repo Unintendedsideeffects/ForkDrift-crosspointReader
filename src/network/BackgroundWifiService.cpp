@@ -1,5 +1,6 @@
 #include "BackgroundWifiService.h"
 
+#include <Arduino.h>
 #include <Logging.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
@@ -26,8 +27,31 @@ void BackgroundWifiService::taskEntry(void* arg) {
   delete params;
 }
 
+bool BackgroundWifiService::startRetryActive() const {
+  const unsigned long retryAt = nextStartAllowedMs;
+  return retryAt != 0 && static_cast<int32_t>(millis() - retryAt) < 0;
+}
+
+void BackgroundWifiService::deferStartRetry(const char* reason) {
+  nextStartAllowedMs = millis() + START_RETRY_MS;
+  LOG_DBG("BGWIFI", "Background server start deferred (%s, heap: %u)", reason,
+          static_cast<unsigned int>(ESP.getFreeHeap()));
+}
+
+bool BackgroundWifiService::canStartNow() {
+  if (startRetryActive()) {
+    return false;
+  }
+  if (ESP.getFreeHeap() < MIN_START_HEAP_BYTES) {
+    deferStartRetry("low heap");
+    return false;
+  }
+  return true;
+}
+
 void BackgroundWifiService::run(const char* ssid, const char* password, const bool useCurrentConnection) {
   wifiOwned = false;
+  bool serverStartFailed = false;
 
   if (useCurrentConnection) {
     LOG_DBG("BGWIFI", "Starting background web server on existing WiFi connection");
@@ -71,6 +95,7 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
     server = new (std::nothrow) CrossPointWebServer();
     if (server == nullptr) {
       LOG_ERR("BGWIFI", "Failed to allocate CrossPointWebServer");
+      serverStartFailed = true;
       goto cleanup;
     }
 
@@ -80,9 +105,11 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
       LOG_ERR("BGWIFI", "Web server failed to start");
       delete server;
       server = nullptr;
+      serverStartFailed = true;
       goto cleanup;
     }
 
+    nextStartAllowedMs = 0;
     LOG_DBG("BGWIFI", "Background web server running on port %d", server->getPort());
 
     // ── Service loop ──────────────────────────────────────────────────────
@@ -107,6 +134,10 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
   }
 
 cleanup:
+  if (serverStartFailed && !stopRequested) {
+    deferStartRetry("server start failed");
+  }
+
   if (wifiOwned && !(stopRequested && keepWifiOnStop)) {
     WiFi.disconnect(false);
     delay(30);
@@ -128,6 +159,9 @@ void BackgroundWifiService::start(const char* ssid, const char* password) {
     LOG_DBG("BGWIFI", "Already running, ignoring start()");
     return;
   }
+  if (!canStartNow()) {
+    return;
+  }
 
   stopRequested = false;
   keepWifiOnStop = false;
@@ -139,6 +173,7 @@ void BackgroundWifiService::start(const char* ssid, const char* password) {
   auto* params = new (std::nothrow) WifiTaskParams();
   if (params == nullptr) {
     LOG_ERR("BGWIFI", "Failed to allocate WiFi task params");
+    deferStartRetry("params alloc failed");
     return;
   }
 
@@ -155,6 +190,7 @@ void BackgroundWifiService::start(const char* ssid, const char* password) {
     LOG_ERR("BGWIFI", "Failed to create task (heap: %d bytes free)", ESP.getFreeHeap());
     delete params;
     taskHandle = nullptr;
+    deferStartRetry("task create failed");
   } else {
     LOG_DBG("BGWIFI", "Background WiFi task started");
   }
@@ -163,6 +199,9 @@ void BackgroundWifiService::start(const char* ssid, const char* password) {
 void BackgroundWifiService::startUsingCurrentConnection() {
   if (taskHandle != nullptr) {
     LOG_DBG("BGWIFI", "Already running, ignoring startUsingCurrentConnection()");
+    return;
+  }
+  if (!canStartNow()) {
     return;
   }
 
@@ -175,6 +214,7 @@ void BackgroundWifiService::startUsingCurrentConnection() {
   auto* params = new (std::nothrow) WifiTaskParams();
   if (params == nullptr) {
     LOG_ERR("BGWIFI", "Failed to allocate WiFi task params");
+    deferStartRetry("params alloc failed");
     return;
   }
 
@@ -189,6 +229,7 @@ void BackgroundWifiService::startUsingCurrentConnection() {
     LOG_ERR("BGWIFI", "Failed to create task (heap: %d bytes free)", ESP.getFreeHeap());
     delete params;
     taskHandle = nullptr;
+    deferStartRetry("task create failed");
   } else {
     LOG_DBG("BGWIFI", "Background WiFi task started on existing connection");
   }

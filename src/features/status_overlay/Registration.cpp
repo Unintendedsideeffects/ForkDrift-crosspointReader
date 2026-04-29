@@ -22,7 +22,7 @@ namespace {
 constexpr int kStatusIconSize = 16;
 constexpr int kStatusIconGap = 4;
 constexpr int kStatusBarPadTop = 3;
-constexpr int kStatusBarPadBottom = 2;
+constexpr int kStatusBarPadBottom = 4;
 constexpr int kStatusBarPadH = 6;
 
 void drawWifiIcon(const GfxRenderer& renderer, const int x, const int y) {
