@@ -143,8 +143,8 @@ Behavior:
 | KOReader Sync | `ENABLE_KOREADER_SYNC` | ~2KB | ✅ Stable | `ENABLE_INTEGRATIONS` |
 | Calibre Sync | `ENABLE_CALIBRE_SYNC` | ~17KB | ✅ Stable | `ENABLE_INTEGRATIONS` |
 | Background Server | `ENABLE_BACKGROUND_SERVER` | ~4KB | ✅ Stable | None |
-| Web Pokedex Plugin | `ENABLE_WEB_POKEDEX_PLUGIN` | ~34KB | ✅ Stable | None |
-| Pokemon Party | `ENABLE_POKEMON_PARTY` | ~4KB | ✅ Stable | `ENABLE_WEB_POKEDEX_PLUGIN` |
+| Pokemon Wallpaper Plugin | `ENABLE_POKEMON_WALLPAPER_PLUGIN` | ~34KB | ✅ Stable | `ENABLE_IMAGE_SLEEP` |
+| Pokemon Party | `ENABLE_POKEMON_PARTY` | ~4KB | ✅ Stable | None |
 
 **Pokemon Party Behavior:**
 The Pokemon Party feature transforms the "Recent Books" view into a persistent

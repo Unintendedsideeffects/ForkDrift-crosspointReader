@@ -271,13 +271,13 @@ Replaces the classic Home list selector with a streamlined media-style layout:
 
 ---
 
-### Web Pokedex Plugin
+### Pokemon Wallpaper Plugin
 
-**Flag:** `ENABLE_WEB_POKEDEX_PLUGIN`
+**Flag:** `ENABLE_POKEMON_WALLPAPER_PLUGIN`
 **Size Impact:** ~34KB
 **Default:** Disabled
 
-Adds an optional browser-side wallpaper generator page at `/plugins/pokedex`:
+Adds an optional browser-side Pokemon wallpaper generator page at `/plugins/pokemon-wallpaper`:
 
 - Runs in the browser, not on the device CPU
 - Generates grayscale X4 wallpapers from PokeAPI data
@@ -291,13 +291,13 @@ Optional baked cache workflow:
 3. Build normally with `uv run pio run`
 
 The cache is stored in a local sidecar file and injected during `scripts/build_html.py`;
-the source `PokedexPluginPage.html` stays unchanged.
+the source `PokemonWallpaperPluginPage.html` stays unchanged.
 
 **When disabled:**
-- `/plugins/pokedex` route is not registered
+- `/plugins/pokemon-wallpaper` route is not registered
 - Files page does not show the Pokedex plugin launcher button
 
-**Use case:** Enable when you want integrated Pokedex wallpaper creation in the device web UI.
+**Use case:** Enable when you want integrated Pokemon wallpaper creation in the device web UI.
 
 ---
 
@@ -306,9 +306,9 @@ the source `PokedexPluginPage.html` stays unchanged.
 **Flag:** `ENABLE_POKEMON_PARTY`
 **Size Impact:** ~4KB
 **Default:** Disabled
-**Depends on:** `ENABLE_WEB_POKEDEX_PLUGIN`
+**Depends on:** None
 
-Builds on the web Pokedex plugin and recent-books cache to create a lightweight
+Builds on the recent-books cache to create a lightweight
 Pokemon companion layer:
 
 - Adds per-book `pokemon.json` sidecars in the existing book cache
@@ -320,7 +320,7 @@ Pokemon companion layer:
 **When disabled:**
 - `/api/book-pokemon` routes are not registered
 - The device Settings `Pokedex` shortcut is hidden
-- `/plugins/pokedex` remains just the wallpaper/plugin surface when the web plugin is enabled
+- `/plugins/pokemon-wallpaper` remains just the wallpaper/plugin surface when the wallpaper plugin is enabled
 
 **Use case:** Enable when you want recent books to behave like a Pokemon party,
 with reading progress driving level and evolution state.
@@ -344,7 +344,7 @@ uv run python scripts/generate_build_config.py --profile lean
 - ✗ Background Server
 - ✗ Remote Keyboard Input
 - ✗ Home Media Picker
-- ✗ Web Pokedex Plugin
+- ✗ Pokemon Wallpaper Plugin
 - ✗ Pokemon Party
 
 **Best for:**
@@ -372,7 +372,7 @@ uv run python scripts/generate_build_config.py --profile standard
 - ✓ Background Server
 - ✓ Remote Keyboard Input
 - ✓ Home Media Picker
-- ✗ Web Pokedex Plugin
+- ✗ Pokemon Wallpaper Plugin
 - ✗ Pokemon Party
 
 **Best for:**
@@ -400,7 +400,7 @@ uv run python scripts/generate_build_config.py --profile full
 - ✓ Background Server
 - ✓ Remote Keyboard Input
 - ✓ Home Media Picker
-- ✓ Web Pokedex Plugin
+- ✓ Pokemon Wallpaper Plugin
 - ✓ Pokemon Party
 
 **Best for:**
@@ -645,7 +645,7 @@ build_flags =
   -DENABLE_CALIBRE_SYNC=0
   -DENABLE_BACKGROUND_SERVER=0
   -DENABLE_HOME_MEDIA_PICKER=1
-  -DENABLE_WEB_POKEDEX_PLUGIN=0
+  -DENABLE_POKEMON_WALLPAPER_PLUGIN=0
 ```
 
 ### Adding Your Own Feature Flags
