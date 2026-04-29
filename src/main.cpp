@@ -292,11 +292,15 @@ void enterDeepSleep() {
     if (BG_WIFI.isRunning()) {
       BG_WIFI.stop();
     }
-    if (hadActivity) {
-      // Successful sync: reset backoff — try again next wake
+    if (hadActivity || SETTINGS.keepsBackgroundServerOnWifiWhileAwake()) {
+      // Successful sync, OR user explicitly chose Always mode: reset backoff
+      // so the server is available on the very next wake. Backing off in
+      // Always mode is the "not always on" bug — the user opted in to the
+      // battery cost; quiet wakes must not silently disable auto-connect.
       APP_STATE.wifiAutoConnectBackoffLevel = 0;
       APP_STATE.wifiAutoConnectSkipCount = 0;
-      LOG_DBG("MAIN", "WiFi had API activity — backoff reset");
+      LOG_DBG("MAIN", "WiFi auto-connect backoff reset (hadActivity=%d, always=%d)", hadActivity ? 1 : 0,
+              SETTINGS.keepsBackgroundServerOnWifiWhileAwake() ? 1 : 0);
     } else {
       // No push/pull received: increase backoff exponentially (cap at level 4 = 15 skips)
       if (APP_STATE.wifiAutoConnectBackoffLevel < 4) {
