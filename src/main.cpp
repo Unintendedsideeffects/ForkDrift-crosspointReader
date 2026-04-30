@@ -127,7 +127,9 @@ void renderUsbMscLockedScreen() {
 
 void enterUsbMscSession() {
   LOG_INF("USBMSC", "Entering USB mass storage lock mode");
-  APP_STATE.saveToFile();
+  if (!APP_STATE.saveToFile()) {
+    LOG_WRN("USBMSC", "Failed to persist app state before USB MSC session");
+  }
   if (!SETTINGS.saveToFile()) {
     LOG_WRN("USBMSC", "Failed to persist settings before USB MSC session");
   }
@@ -316,7 +318,9 @@ void enterDeepSleep() {
     BG_WIFI.stop();
   }
 
-  APP_STATE.saveToFile();
+  if (!APP_STATE.saveToFile()) {
+    LOG_WRN("MAIN", "Failed to persist app state before deep sleep");
+  }
 
   activityManager.goToSleep();
 
@@ -455,7 +459,9 @@ void setup() {
     const auto path = APP_STATE.openEpubPath;
     APP_STATE.openEpubPath.clear();
     APP_STATE.readerActivityLoadCount++;
-    APP_STATE.saveToFile();
+    if (!APP_STATE.saveToFile()) {
+      LOG_WRN("MAIN", "Failed to persist reader resume state");
+    }
     activityManager.goToReader(path);
   }
 
@@ -468,7 +474,9 @@ void setup() {
     } else if (APP_STATE.wifiAutoConnectSkipCount > 0) {
       // Still in backoff — consume one skip cycle
       APP_STATE.wifiAutoConnectSkipCount--;
-      APP_STATE.saveToFile();
+      if (!APP_STATE.saveToFile()) {
+        LOG_WRN("MAIN", "Failed to persist WiFi auto-connect backoff state");
+      }
       LOG_DBG("MAIN", "WiFi auto-connect skipped (backoff remaining: %d)", APP_STATE.wifiAutoConnectSkipCount);
     } else {
       // Attempt silent background connect using last known credentials
@@ -483,7 +491,9 @@ void setup() {
           APP_STATE.wifiAutoConnectWaitingForNewCredential = true;
           APP_STATE.wifiAutoConnectSkipCount = 0;
           APP_STATE.wifiAutoConnectBackoffLevel = 0;
-          APP_STATE.saveToFile();
+          if (!APP_STATE.saveToFile()) {
+            LOG_WRN("MAIN", "Failed to persist WiFi credential recovery state");
+          }
           LOG_DBG(
               "MAIN",
               "Saved WiFi credentials missing for last SSID; auto-connect disabled until a new credential is added");

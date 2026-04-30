@@ -1825,6 +1825,8 @@ void CrossPointWebServer::handlePostSettings() {
   SETTINGS.enforceButtonLayoutConstraints();
   if (!SETTINGS.saveToFile()) {
     LOG_WRN("WEB", "Failed to persist settings to SD card");
+    server->send(500, "text/plain", "Failed to persist settings");
+    return;
   }
 
   LOG_DBG("WEB", "Applied %d setting(s)", applied);

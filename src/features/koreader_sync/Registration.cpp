@@ -41,22 +41,22 @@ uint8_t getMatchMethod() { return static_cast<uint8_t>(KOREADER_STORE.getMatchMe
 
 void setUsername(const char* value, const bool save) {
   KOREADER_STORE.setCredentials(value != nullptr ? value : "", KOREADER_STORE.getPassword());
-  if (save) {
-    KOREADER_STORE.saveToFile();
+  if (save && !KOREADER_STORE.saveToFile()) {
+    LOG_WRN("KRS", "Failed to persist KOReader username");
   }
 }
 
 void setPassword(const char* value, const bool save) {
   KOREADER_STORE.setCredentials(KOREADER_STORE.getUsername(), value != nullptr ? value : "");
-  if (save) {
-    KOREADER_STORE.saveToFile();
+  if (save && !KOREADER_STORE.saveToFile()) {
+    LOG_WRN("KRS", "Failed to persist KOReader password");
   }
 }
 
 void setServerUrl(const char* value, const bool save) {
   KOREADER_STORE.setServerUrl(value != nullptr ? value : "");
-  if (save) {
-    KOREADER_STORE.saveToFile();
+  if (save && !KOREADER_STORE.saveToFile()) {
+    LOG_WRN("KRS", "Failed to persist KOReader server URL");
   }
 }
 
@@ -65,12 +65,16 @@ void setMatchMethod(const uint8_t method, const bool save) {
                                   ? DocumentMatchMethod::BINARY
                                   : DocumentMatchMethod::FILENAME;
   KOREADER_STORE.setMatchMethod(selectedMethod);
-  if (save) {
-    KOREADER_STORE.saveToFile();
+  if (save && !KOREADER_STORE.saveToFile()) {
+    LOG_WRN("KRS", "Failed to persist KOReader match method");
   }
 }
 
-void saveSettings() { KOREADER_STORE.saveToFile(); }
+void saveSettings() {
+  if (!KOREADER_STORE.saveToFile()) {
+    LOG_WRN("KRS", "Failed to persist KOReader settings");
+  }
+}
 
 bool isSettingsActionSupported() { return core::FeatureCatalog::isEnabled("koreader_sync"); }
 

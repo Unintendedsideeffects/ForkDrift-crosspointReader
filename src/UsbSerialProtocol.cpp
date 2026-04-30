@@ -844,7 +844,10 @@ static void handleWifiConnect(const char* ssid, const char* password) {
     return;
   }
   WIFI_STORE.addCredential(ssid, password ? password : "");
-  WIFI_STORE.saveToFile();
+  if (!WIFI_STORE.saveToFile()) {
+    sendError("wifi credential save failed");
+    return;
+  }
   sendOk();
 }
 
