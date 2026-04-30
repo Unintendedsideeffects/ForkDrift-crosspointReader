@@ -362,6 +362,13 @@ bool ActivityManager::showsStatusBarIp() const {
                      [](const auto& activity) { return activity && activity->showsStatusBarIp(); });
 }
 
+ScreenshotInfo ActivityManager::getScreenshotInfo() const {
+  if (currentActivity) {
+    return currentActivity->getScreenshotInfo();
+  }
+  return {};
+}
+
 void ActivityManager::requestUpdate(bool immediate) {
   if (immediate) {
     if (renderTaskHandle) {
