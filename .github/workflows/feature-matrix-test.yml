@@ -76,6 +76,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
+      - name: Ensure pip is available for PlatformIO tool installs
+        run: |
+          uv run python -m ensurepip --upgrade
+          uv run python -m pip --version
+
       - name: Generate build configuration
         run: |
           echo "Generating profile='${{ matrix.profile }}' overrides='${{ matrix.extra_args }}'"
