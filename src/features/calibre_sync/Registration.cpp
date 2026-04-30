@@ -5,6 +5,7 @@
 #if ENABLE_INTEGRATIONS && ENABLE_CALIBRE_SYNC
 #include "activities/browser/OpdsBookBrowserActivity.h"
 #endif
+#include "CrossPointSettings.h"
 #include "activities/settings/CalibreSettingsActivity.h"
 #include "core/features/FeatureCatalog.h"
 #include "core/registries/HomeActionRegistry.h"
@@ -32,7 +33,12 @@ static Activity* createOpdsBrowserHomeActionActivity(GfxRenderer& renderer, Mapp
                                                      void* callbackCtx, void (*onBack)(void* ctx)) {
   (void)callbackCtx;
   (void)onBack;
-  return new OpdsBookBrowserActivity(renderer, mappedInput);
+  OpdsServer server;
+  server.name = "OPDS Server";
+  server.url = SETTINGS.opdsServerUrl;
+  server.username = SETTINGS.opdsUsername;
+  server.password = SETTINGS.opdsPassword;
+  return new OpdsBookBrowserActivity(renderer, mappedInput, std::move(server));
 }
 #endif
 
