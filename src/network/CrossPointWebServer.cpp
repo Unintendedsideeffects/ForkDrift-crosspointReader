@@ -8,9 +8,6 @@
 #include <Logging.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
-#include <freertos/portmacro.h>
-
-extern portMUX_TYPE g_appStateMux;
 
 #include <algorithm>
 #include <cctype>
@@ -2239,9 +2236,7 @@ void CrossPointWebServer::handleSleepCoverPin() {
 void CrossPointWebServer::handleOpenBook() {
   const auto result = network::parseOpenBookHttpRequest(server->hasArg("plain"), server->arg("plain"));
   if (result.statusCode == 202) {
-    portENTER_CRITICAL(&g_appStateMux);
-    APP_STATE.pendingOpenPath = result.path;
-    portEXIT_CRITICAL(&g_appStateMux);
+    APP_STATE.setPendingOpenPath(result.path);
   }
   server->send(result.statusCode, result.contentType, result.body);
 }
@@ -2249,9 +2244,7 @@ void CrossPointWebServer::handleOpenBook() {
 void CrossPointWebServer::handleRemoteButton() {
   const auto result = network::parseRemoteButtonHttpRequest(server->hasArg("plain"), server->arg("plain"));
   if (result.statusCode == 202) {
-    portENTER_CRITICAL(&g_appStateMux);
-    APP_STATE.pendingPageTurn = result.pageTurn;
-    portEXIT_CRITICAL(&g_appStateMux);
+    APP_STATE.setPendingPageTurn(result.pageTurn);
   }
   server->send(result.statusCode, result.contentType, result.body);
 }
@@ -2533,16 +2526,12 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
 
       // Remote page-turn commands — handled before upload guard so they work during idle.
       if (msg.equalsIgnoreCase("PAGE:NEXT") || msg.equalsIgnoreCase("PAGE:FORWARD")) {
-        portENTER_CRITICAL(&g_appStateMux);
-        APP_STATE.pendingPageTurn = 1;
-        portEXIT_CRITICAL(&g_appStateMux);
+        APP_STATE.setPendingPageTurn(1);
         wsServer->sendTXT(num, "OK");
         return;
       }
       if (msg.equalsIgnoreCase("PAGE:PREV") || msg.equalsIgnoreCase("PAGE:BACK")) {
-        portENTER_CRITICAL(&g_appStateMux);
-        APP_STATE.pendingPageTurn = -1;
-        portEXIT_CRITICAL(&g_appStateMux);
+        APP_STATE.setPendingPageTurn(-1);
         wsServer->sendTXT(num, "OK");
         return;
       }

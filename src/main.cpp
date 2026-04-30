@@ -11,7 +11,6 @@
 #include <Logging.h>
 #include <SPI.h>
 #include <WiFi.h>
-#include <freertos/portmacro.h>
 
 #include <cstring>
 #include <string>
@@ -48,10 +47,6 @@ ActivityManager activityManager(renderer, mappedInputManager);
 BackgroundWebServer& backgroundServer = BackgroundWebServer::getInstance();
 FontDecompressor fontDecompressor;
 FontCacheManager fontCacheManager(renderer.getFontMap());
-
-// Synchronization for data race on APP_STATE.pendingOpenPath and pendingPageTurn
-// Used in main loop and WiFi task
-static portMUX_TYPE g_appStateMux = portMUX_INITIALIZER_UNLOCKED;
 
 // measurement of power button press duration calibration value
 unsigned long t1 = 0;
@@ -659,32 +654,16 @@ void loop() {
   }
 
   // Remote open-book: USB or HTTP set pendingOpenPath; drain it here on the main loop.
-  {
-    portENTER_CRITICAL(&g_appStateMux);
-    if (!APP_STATE.pendingOpenPath.empty()) {
-      std::string path = std::move(APP_STATE.pendingOpenPath);
-      APP_STATE.pendingPageTurn = 0;
-      portEXIT_CRITICAL(&g_appStateMux);
-
-      activityManager.goToReader(std::move(path));
-      return;
-    }
-    portEXIT_CRITICAL(&g_appStateMux);
+  if (std::string path = APP_STATE.takePendingOpenPath(); !path.empty()) {
+    activityManager.goToReader(std::move(path));
+    return;
   }
 
   // Remote page turn: translate cross-task volatile signal into a virtual button injection.
-  {
-    portENTER_CRITICAL(&g_appStateMux);
-    const int8_t pageTurn = APP_STATE.pendingPageTurn;
-    if (pageTurn != 0) {
-      APP_STATE.pendingPageTurn = 0;
-      portEXIT_CRITICAL(&g_appStateMux);
-
-      mappedInputManager.injectVirtualActivation(pageTurn > 0 ? MappedInputManager::Button::PageForward
-                                                              : MappedInputManager::Button::PageBack);
-    } else {
-      portEXIT_CRITICAL(&g_appStateMux);
-    }
+  const int8_t pageTurn = APP_STATE.takePendingPageTurn();
+  if (pageTurn != 0) {
+    mappedInputManager.injectVirtualActivation(pageTurn > 0 ? MappedInputManager::Button::PageForward
+                                                            : MappedInputManager::Button::PageBack);
   }
 
   // Refresh screen when power button is short-pressed with FORCE_REFRESH setting.

@@ -12,17 +12,17 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "JsonSettingsIO.h"
-#include "util/RecentBooksStore.h"
 #include "SpiBusMutex.h"
-#include "util/WifiCredentialStore.h"
 #include "activities/todo/TodoPlannerStorage.h"
 #include "core/features/FeatureModules.h"
-#include "network/RemoteKeyboardSession.h"
-#include "network/RemoteControlApi.h"
 #include "esp_ota_ops.h"
+#include "network/RemoteControlApi.h"
+#include "network/RemoteKeyboardSession.h"
 #include "util/BookProgressDataStore.h"
 #include "util/DateUtils.h"
 #include "util/PathUtils.h"
+#include "util/RecentBooksStore.h"
+#include "util/WifiCredentialStore.h"
 
 namespace {
 
@@ -176,7 +176,7 @@ static void handleOpenBook(const char* path) {
     sendError(network::toUsbError(decision.error));
     return;
   }
-  APP_STATE.pendingOpenPath = decision.path;
+  APP_STATE.setPendingOpenPath(decision.path);
   sendOk();
 }
 
@@ -207,7 +207,7 @@ static void handleRemoteButton(const char* btn) {
     sendError(network::toUsbError(decision.error));
     return;
   }
-  APP_STATE.pendingPageTurn = decision.pageTurn;
+  APP_STATE.setPendingPageTurn(decision.pageTurn);
   sendOk();
 }
 

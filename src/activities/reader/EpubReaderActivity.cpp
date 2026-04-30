@@ -1044,6 +1044,6 @@ void EpubReaderActivity::restoreSavedPosition() {
 }
 
 void EpubReaderActivity::showLoadingPopupTrampoline(void* ctx) {
-  auto* const self = static_cast<EpubReaderActivity*>(ctx);
+  const auto* const self = static_cast<EpubReaderActivity*>(ctx);
   GUI.drawPopup(self->renderer, tr(STR_INDEXING));
 }

@@ -57,11 +57,24 @@ bool OpdsServerStore::migrateFromSettings() {
   servers.push_back(std::move(server));
 
   if (saveToFile()) {
+    char legacyUrl[sizeof(SETTINGS.opdsServerUrl)];
+    char legacyUsername[sizeof(SETTINGS.opdsUsername)];
+    char legacyPassword[sizeof(SETTINGS.opdsPassword)];
+    memcpy(legacyUrl, SETTINGS.opdsServerUrl, sizeof(legacyUrl));
+    memcpy(legacyUsername, SETTINGS.opdsUsername, sizeof(legacyUsername));
+    memcpy(legacyPassword, SETTINGS.opdsPassword, sizeof(legacyPassword));
+
     // Clear legacy fields so migration won't run again on next boot
     SETTINGS.opdsServerUrl[0] = '\0';
     SETTINGS.opdsUsername[0] = '\0';
     SETTINGS.opdsPassword[0] = '\0';
-    SETTINGS.saveToFile();
+    if (!SETTINGS.saveToFile()) {
+      memcpy(SETTINGS.opdsServerUrl, legacyUrl, sizeof(SETTINGS.opdsServerUrl));
+      memcpy(SETTINGS.opdsUsername, legacyUsername, sizeof(SETTINGS.opdsUsername));
+      memcpy(SETTINGS.opdsPassword, legacyPassword, sizeof(SETTINGS.opdsPassword));
+      LOG_WRN("OPS", "Migrated OPDS server, but failed to persist cleared legacy settings");
+      return true;
+    }
     LOG_DBG("OPS", "Migrated single-server OPDS config to opds.json");
     return true;
   }

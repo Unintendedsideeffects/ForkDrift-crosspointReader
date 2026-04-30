@@ -12,8 +12,6 @@ class CrossPointState {
   static constexpr uint8_t SLEEP_RECENT_COUNT = 16;
 
   std::string openEpubPath;
-  std::string pendingOpenPath;
-  int8_t pendingPageTurn = 0;
   bool pendingScreenshot = false;
   bool pendingHomeFullRefresh = false;
   uint8_t lastSleepImage = UINT8_MAX;
@@ -40,7 +38,15 @@ class CrossPointState {
 
   bool loadFromFile();
 
+  void setPendingOpenPath(std::string path);
+  std::string takePendingOpenPath();
+  void setPendingPageTurn(int8_t pageTurn);
+  int8_t takePendingPageTurn();
+
  private:
+  std::string pendingOpenPath;
+  int8_t pendingPageTurn = 0;
+
   bool loadFromBinaryFile();
 };
 

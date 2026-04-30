@@ -4,14 +4,44 @@
 #include <JsonSettingsIO.h>
 #include <Logging.h>
 #include <Serialization.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 #include <algorithm>
+#include <utility>
 
 namespace {
 constexpr uint8_t STATE_FILE_VERSION = 4;
 constexpr char STATE_FILE_BIN[] = "/.crosspoint/state.bin";
 constexpr char STATE_FILE_JSON[] = "/.crosspoint/state.json";
 constexpr char STATE_FILE_BAK[] = "/.crosspoint/state.bin.bak";
+
+SemaphoreHandle_t pendingStateMutex() {
+  static StaticSemaphore_t mutexStorage;
+  static SemaphoreHandle_t mutex = xSemaphoreCreateMutexStatic(&mutexStorage);
+  return mutex;
+}
+
+class PendingStateLock {
+ public:
+  PendingStateLock() : mutex_(pendingStateMutex()) {
+    if (mutex_ != nullptr) {
+      xSemaphoreTake(mutex_, portMAX_DELAY);
+    }
+  }
+
+  ~PendingStateLock() {
+    if (mutex_ != nullptr) {
+      xSemaphoreGive(mutex_);
+    }
+  }
+
+  PendingStateLock(const PendingStateLock&) = delete;
+  PendingStateLock& operator=(const PendingStateLock&) = delete;
+
+ private:
+  SemaphoreHandle_t mutex_;
+};
 }  // namespace
 
 CrossPointState CrossPointState::instance;
@@ -59,6 +89,33 @@ bool CrossPointState::loadFromFile() {
   }
 
   return false;
+}
+
+void CrossPointState::setPendingOpenPath(std::string path) {
+  PendingStateLock lock;
+  pendingOpenPath = std::move(path);
+}
+
+std::string CrossPointState::takePendingOpenPath() {
+  PendingStateLock lock;
+  std::string path = std::move(pendingOpenPath);
+  pendingOpenPath.clear();
+  if (!path.empty()) {
+    pendingPageTurn = 0;
+  }
+  return path;
+}
+
+void CrossPointState::setPendingPageTurn(const int8_t pageTurn) {
+  PendingStateLock lock;
+  pendingPageTurn = pageTurn;
+}
+
+int8_t CrossPointState::takePendingPageTurn() {
+  PendingStateLock lock;
+  const int8_t pageTurn = pendingPageTurn;
+  pendingPageTurn = 0;
+  return pageTurn;
 }
 
 bool CrossPointState::loadFromBinaryFile() {

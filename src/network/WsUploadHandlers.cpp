@@ -1,10 +1,9 @@
-#include "CrossPointWebServer.h"
-
 #include <HalStorage.h>
 #include <Logging.h>
 #include <esp_task_wdt.h>
 
 #include "CrossPointState.h"
+#include "CrossPointWebServer.h"
 #include "SpiBusMutex.h"
 #include "network/CacheInvalidation.h"
 #include "util/InputValidation.h"
@@ -136,12 +135,12 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
 
       // Remote page-turn commands — handled before upload guard so they work during idle.
       if (msg.equalsIgnoreCase("PAGE:NEXT") || msg.equalsIgnoreCase("PAGE:FORWARD")) {
-        APP_STATE.pendingPageTurn = 1;
+        APP_STATE.setPendingPageTurn(1);
         wsServer->sendTXT(num, "OK");
         return;
       }
       if (msg.equalsIgnoreCase("PAGE:PREV") || msg.equalsIgnoreCase("PAGE:BACK")) {
-        APP_STATE.pendingPageTurn = -1;
+        APP_STATE.setPendingPageTurn(-1);
         wsServer->sendTXT(num, "OK");
         return;
       }

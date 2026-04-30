@@ -238,9 +238,7 @@ bool HalGPIO::peekReleased(uint8_t buttonIndex) const {
   if (virtualButtonMask & bit) {
     return true;
   }
-  // Note: InputManager only exposes a consuming wasReleased() API.
-  // peekReleased only checks the virtual mask to avoid consuming inputMgr state.
-  return false;
+  return inputMgr.peekReleased(buttonIndex);
 }
 
 bool HalGPIO::wasAnyReleased() const { return virtualButtonMask != 0 || inputMgr.wasAnyReleased(); }
