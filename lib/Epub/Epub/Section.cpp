@@ -5,6 +5,8 @@
 #include <Logging.h>
 #include <Serialization.h>
 
+#include <functional>
+
 #include "Epub/css/CssParser.h"
 #include "Page.h"
 #if ENABLE_HYPHENATION
@@ -148,7 +150,7 @@ bool Section::clearCache() const {
 bool Section::createSectionFile(const int fontId, const float lineCompression, const bool extraParagraphSpacing,
                                 const uint8_t paragraphAlignment, const uint16_t viewportWidth,
                                 const uint16_t viewportHeight, const bool hyphenationEnabled, const bool embeddedStyle,
-                                const uint8_t imageRendering, const std::function<void()>& popupFn) {
+                                const uint8_t imageRendering, PopupCallback popupFn) {
   const auto localPath = epub->getSpineItem(spineIndex).href;
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
 
@@ -223,7 +225,9 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
       [this, &lut](std::unique_ptr<Page> page, const uint16_t paragraphIndex) {
         lut.push_back({this->onPageComplete(std::move(page)), paragraphIndex});
       },
-      embeddedStyle, contentBase, imageBasePath, imageRendering, popupFn, cssParser);
+      embeddedStyle, contentBase, imageBasePath, imageRendering,
+      popupFn.fn ? std::function<void()>([&popupFn]() { popupFn.fn(popupFn.ctx); }) : std::function<void()>(),
+      cssParser);
 #if ENABLE_HYPHENATION
   Hyphenator::setPreferredLanguage(epub->getLanguage());
 #endif
@@ -296,6 +300,11 @@ std::unique_ptr<Page> Section::loadPageFromSectionFile() {
   file.seek(HEADER_SIZE - sizeof(uint32_t) * 3);
   uint32_t lutOffset;
   serialization::readPod(file, lutOffset);
+  if (lutOffset == 0 || lutOffset >= file.size()) {
+    LOG_ERR("SECTION", "invalid lutOffset=%u in section file", (unsigned)lutOffset);
+    file.close();
+    return nullptr;
+  }
   file.seek(lutOffset + sizeof(uint32_t) * currentPage);
   uint32_t pagePos;
   serialization::readPod(file, pagePos);
@@ -318,6 +327,7 @@ std::optional<uint16_t> Section::getPageForAnchor(const std::string& anchor) con
   uint32_t anchorMapOffset;
   serialization::readPod(f, anchorMapOffset);
   if (anchorMapOffset == 0 || anchorMapOffset >= fileSize) {
+    f.close();
     return std::nullopt;
   }
 
@@ -330,10 +340,12 @@ std::optional<uint16_t> Section::getPageForAnchor(const std::string& anchor) con
     serialization::readString(f, key);
     serialization::readPod(f, page);
     if (key == anchor) {
+      f.close();
       return page;
     }
   }
 
+  f.close();
   return std::nullopt;
 }
 
@@ -348,6 +360,7 @@ std::optional<uint16_t> Section::getPageForParagraphIndex(const uint16_t pIndex)
   uint32_t paragraphLutOffset;
   serialization::readPod(f, paragraphLutOffset);
   if (paragraphLutOffset == 0 || paragraphLutOffset >= fileSize) {
+    f.close();
     return std::nullopt;
   }
 
@@ -355,11 +368,13 @@ std::optional<uint16_t> Section::getPageForParagraphIndex(const uint16_t pIndex)
   uint16_t count;
   serialization::readPod(f, count);
   if (count == 0) {
+    f.close();
     return std::nullopt;
   }
 
   const uint32_t lutEnd = paragraphLutOffset + sizeof(uint16_t) + count * sizeof(uint16_t);
   if (lutEnd > fileSize) {
+    f.close();
     return std::nullopt;
   }
 
@@ -373,6 +388,7 @@ std::optional<uint16_t> Section::getPageForParagraphIndex(const uint16_t pIndex)
     }
   }
 
+  f.close();
   return resultPage;
 }
 
@@ -387,6 +403,7 @@ std::optional<uint16_t> Section::getParagraphIndexForPage(const uint16_t page) c
   uint32_t paragraphLutOffset;
   serialization::readPod(f, paragraphLutOffset);
   if (paragraphLutOffset == 0 || paragraphLutOffset >= fileSize) {
+    f.close();
     return std::nullopt;
   }
 
@@ -394,16 +411,19 @@ std::optional<uint16_t> Section::getParagraphIndexForPage(const uint16_t page) c
   uint16_t count;
   serialization::readPod(f, count);
   if (count == 0 || page >= count) {
+    f.close();
     return std::nullopt;
   }
 
   const uint32_t entryEnd = paragraphLutOffset + sizeof(uint16_t) + (page + 1) * sizeof(uint16_t);
   if (entryEnd > fileSize) {
+    f.close();
     return std::nullopt;
   }
 
   f.seek(paragraphLutOffset + sizeof(uint16_t) + page * sizeof(uint16_t));
   uint16_t pIdx;
   serialization::readPod(f, pIdx);
+  f.close();
   return pIdx;
 }

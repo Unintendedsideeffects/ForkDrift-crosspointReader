@@ -233,6 +233,16 @@ bool HalGPIO::wasReleased(uint8_t buttonIndex) const {
   return inputMgr.wasReleased(buttonIndex);
 }
 
+bool HalGPIO::peekReleased(uint8_t buttonIndex) const {
+  const uint8_t bit = static_cast<uint8_t>(1u << buttonIndex);
+  if (virtualButtonMask & bit) {
+    return true;
+  }
+  // Note: InputManager only exposes a consuming wasReleased() API.
+  // peekReleased only checks the virtual mask to avoid consuming inputMgr state.
+  return false;
+}
+
 bool HalGPIO::wasAnyReleased() const { return virtualButtonMask != 0 || inputMgr.wasAnyReleased(); }
 
 void HalGPIO::injectVirtualButton(uint8_t buttonIndex) { virtualButtonMask |= static_cast<uint8_t>(1u << buttonIndex); }

@@ -8,6 +8,9 @@
 #include <Logging.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
+#include <freertos/portmacro.h>
+
+extern portMUX_TYPE g_appStateMux;
 
 #include <algorithm>
 #include <cctype>
@@ -327,6 +330,18 @@ void CrossPointWebServer::begin() {
   server->on("/api/opds", HTTP_GET, [this] { handleGetOpdsServers(); });
   server->on("/api/opds", HTTP_POST, [this] { handlePostOpdsServer(); });
   server->on("/api/opds/delete", HTTP_POST, [this] { handleDeleteOpdsServer(); });
+
+  // Fork-drift HTTP endpoints — restored after upstream merge bd4f8033 dropped them.
+  server->on("/api/book-progress", HTTP_GET, [this] { handleGetBookProgress(); });
+  server->on("/api/recent", HTTP_GET, [this] { handleRecentBooks(); });
+  server->on("/api/cover", HTTP_GET, [this] { handleCover(); });
+  server->on("/api/sleep-images", HTTP_GET, [this] { handleSleepImages(); });
+  server->on("/api/sleep-cover", HTTP_GET, [this] { handleSleepCoverGet(); });
+  server->on("/api/sleep-cover/pin", HTTP_POST, [this] { handleSleepCoverPin(); });
+  server->on("/api/open-book", HTTP_POST, [this] { handleOpenBook(); });
+  server->on("/api/settings/raw", HTTP_GET, [this] { handleGetSettingsRaw(); });
+  server->on("/api/remote/button", HTTP_POST, [this] { handleRemoteButton(); });
+  server->on("/api/screenshot", HTTP_POST, [this] { handleScreenshot(); });
 
   server->onNotFound([this] { handleNotFound(); });
   const uint32_t freeHeapAfterRouteSetup = ESP.getFreeHeap();
@@ -2224,7 +2239,9 @@ void CrossPointWebServer::handleSleepCoverPin() {
 void CrossPointWebServer::handleOpenBook() {
   const auto result = network::parseOpenBookHttpRequest(server->hasArg("plain"), server->arg("plain"));
   if (result.statusCode == 202) {
+    portENTER_CRITICAL(&g_appStateMux);
     APP_STATE.pendingOpenPath = result.path;
+    portEXIT_CRITICAL(&g_appStateMux);
   }
   server->send(result.statusCode, result.contentType, result.body);
 }
@@ -2232,7 +2249,9 @@ void CrossPointWebServer::handleOpenBook() {
 void CrossPointWebServer::handleRemoteButton() {
   const auto result = network::parseRemoteButtonHttpRequest(server->hasArg("plain"), server->arg("plain"));
   if (result.statusCode == 202) {
+    portENTER_CRITICAL(&g_appStateMux);
     APP_STATE.pendingPageTurn = result.pageTurn;
+    portEXIT_CRITICAL(&g_appStateMux);
   }
   server->send(result.statusCode, result.contentType, result.body);
 }
@@ -2514,12 +2533,16 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
 
       // Remote page-turn commands — handled before upload guard so they work during idle.
       if (msg.equalsIgnoreCase("PAGE:NEXT") || msg.equalsIgnoreCase("PAGE:FORWARD")) {
+        portENTER_CRITICAL(&g_appStateMux);
         APP_STATE.pendingPageTurn = 1;
+        portEXIT_CRITICAL(&g_appStateMux);
         wsServer->sendTXT(num, "OK");
         return;
       }
       if (msg.equalsIgnoreCase("PAGE:PREV") || msg.equalsIgnoreCase("PAGE:BACK")) {
+        portENTER_CRITICAL(&g_appStateMux);
         APP_STATE.pendingPageTurn = -1;
+        portEXIT_CRITICAL(&g_appStateMux);
         wsServer->sendTXT(num, "OK");
         return;
       }

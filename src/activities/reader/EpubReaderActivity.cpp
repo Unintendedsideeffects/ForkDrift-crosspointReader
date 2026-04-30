@@ -115,6 +115,13 @@ void EpubReaderActivity::onEnter() {
 }
 
 void EpubReaderActivity::onExit() {
+  // Flush any pending progress save before cleanup
+  if (section && (lastSavedSpineIndex != currentSpineIndex || lastSavedPage != section->currentPage)) {
+    saveProgress(currentSpineIndex, section->currentPage, section->pageCount);
+    lastSavedSpineIndex = currentSpineIndex;
+    lastSavedPage = section->currentPage;
+  }
+
   Activity::onExit();
 
   if (auto* fcm = renderer.getFontCacheManager()) {
@@ -225,7 +232,7 @@ void EpubReaderActivity::loop() {
   const bool skipChapter = SETTINGS.longPressChapterSkip && mappedInput.getHeldTime() > skipChapterMs;
 
   // Don't skip chapter after screenshot
-  if (gpio.wasReleased(HalGPIO::BTN_POWER) && gpio.wasReleased(HalGPIO::BTN_DOWN)) {
+  if (gpio.peekReleased(HalGPIO::BTN_POWER) && gpio.peekReleased(HalGPIO::BTN_DOWN)) {
     return;
   }
 
@@ -630,8 +637,8 @@ void EpubReaderActivity::render(RenderLock&& lock) {
   const uint16_t viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
 
   if (!section) {
-    const auto filepath = epub->getSpineItem(currentSpineIndex).href;
-    LOG_DBG("ERS", "Loading file: %s, index: %d", filepath.c_str(), currentSpineIndex);
+    LOG_DBG("ERS", "Loading file: %s, index: %d", epub->getSpineItem(currentSpineIndex).href.c_str(),
+            currentSpineIndex);
     section = std::unique_ptr<Section>(new Section(epub, currentSpineIndex, renderer));
 
     if (!section->loadSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
@@ -640,12 +647,11 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                                   SETTINGS.imageRendering)) {
       LOG_DBG("ERS", "Cache not found, building...");
 
-      const auto popupFn = [this]() { GUI.drawPopup(renderer, tr(STR_INDEXING)); };
-
       if (!section->createSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                       SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, viewportWidth,
                                       viewportHeight, SETTINGS.hyphenationEnabled, SETTINGS.embeddedStyle,
-                                      SETTINGS.imageRendering, popupFn)) {
+                                      SETTINGS.imageRendering,
+                                      {this, &EpubReaderActivity::showLoadingPopupTrampoline})) {
         LOG_ERR("ERS", "Failed to persist page data to SD");
         section.reset();
         resetPageLoadRetryState();
@@ -766,7 +772,12 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     LOG_DBG("ERS", "Rendered page in %dms", millis() - start);
   }
   silentIndexNextChapterIfNeeded(viewportWidth, viewportHeight);
-  saveProgress(currentSpineIndex, section->currentPage, section->pageCount);
+
+  if (currentSpineIndex != lastSavedSpineIndex || section->currentPage != lastSavedPage) {
+    saveProgress(currentSpineIndex, section->currentPage, section->pageCount);
+    lastSavedSpineIndex = currentSpineIndex;
+    lastSavedPage = section->currentPage;
+  }
 
   if (pendingScreenshot) {
     pendingScreenshot = false;
@@ -1030,4 +1041,9 @@ void EpubReaderActivity::restoreSavedPosition() {
     section.reset();
   }
   requestUpdate();
+}
+
+void EpubReaderActivity::showLoadingPopupTrampoline(void* ctx) {
+  auto* const self = static_cast<EpubReaderActivity*>(ctx);
+  GUI.drawPopup(self->renderer, tr(STR_INDEXING));
 }

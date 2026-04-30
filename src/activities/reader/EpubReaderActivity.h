@@ -40,6 +40,9 @@ class EpubReaderActivity final : public Activity {
   SavedPosition savedPositions[MAX_FOOTNOTE_DEPTH] = {};
   int footnoteDepth = 0;
 
+  int lastSavedSpineIndex = -1;
+  int lastSavedPage = -1;
+
   void renderContents(std::unique_ptr<Page> page, int orientedMarginTop, int orientedMarginRight,
                       int orientedMarginBottom, int orientedMarginLeft);
   void renderStatusBar() const;
@@ -54,6 +57,7 @@ class EpubReaderActivity final : public Activity {
   void renderReaderError(StrId messageId);
   void navigateToHref(const std::string& href, bool savePosition = false);
   void restoreSavedPosition();
+  static void showLoadingPopupTrampoline(void* ctx);
 
  public:
   explicit EpubReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::unique_ptr<Epub> epub)
