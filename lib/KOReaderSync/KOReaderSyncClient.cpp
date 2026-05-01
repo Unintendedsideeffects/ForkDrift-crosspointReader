@@ -22,6 +22,8 @@ constexpr char DEVICE_ID[] = "crosspoint-reader";
 // Default 16KB buffers cause OOM during TLS handshake.
 constexpr int HTTP_BUF_SIZE = 2048;
 
+extern "C" esp_err_t arduino_esp_crt_bundle_attach(void* conf);
+
 // Response buffer for reading HTTP body
 struct ResponseBuffer {
   char* data = nullptr;
@@ -66,7 +68,7 @@ esp_http_client_handle_t createClient(const char* url, ResponseBuffer* buf,
   config.timeout_ms = 15000;
   config.buffer_size = HTTP_BUF_SIZE;
   config.buffer_size_tx = HTTP_BUF_SIZE;
-  config.crt_bundle_attach = esp_crt_bundle_attach;
+  config.crt_bundle_attach = arduino_esp_crt_bundle_attach;
 
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (!client) return nullptr;
