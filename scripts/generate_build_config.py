@@ -73,7 +73,7 @@ FEATURES = {
     'calibre_sync': Feature(
         name='Calibre Sync',
         flag='ENABLE_CALIBRE_SYNC',
-        size_kb=0,
+        size_kb=2,
         description='Calibre OPDS browser and metadata sync settings'
     ),
     'background_server': Feature(
@@ -109,13 +109,13 @@ FEATURES = {
     'pokemon_party': Feature(
         name='Pokemon Party',
         flag='ENABLE_POKEMON_PARTY',
-        size_kb=12,
+        size_kb=10,
         description='Per-book Pokemon metadata and REST API for recent-book party views'
     ),
     'epub_support': Feature(
         name='EPUB Support',
         flag='ENABLE_EPUB_SUPPORT',
-        size_kb=132,
+        size_kb=133,
         description='EPUB e-book reader with CSS and chapter navigation'
     ),
     'hyphenation': Feature(
@@ -187,13 +187,13 @@ FEATURES = {
     'remote_keyboard_input': Feature(
         name='Remote Keyboard Input',
         flag='ENABLE_REMOTE_KEYBOARD_INPUT',
-        size_kb=7,
+        size_kb=6,
         description='Android-first remote text entry with browser QR and hotspot fallback'
     ),
     'usb_mass_storage': Feature(
         name='USB Mass Storage',
         flag='ENABLE_USB_MASS_STORAGE',
-        size_kb=19,
+        size_kb=17,
         description='On-device prompt for USB SD card access as mass storage'
     ),
 }
@@ -584,7 +584,7 @@ def resolve_profile_name(profile_name: str) -> str:
 
 def calculate_size(enabled_features: Dict[str, bool]) -> float:
     """Calculate estimated firmware size in MB."""
-    base_size_mb = 2.50  # Lean profile size baseline (measured)
+    base_size_mb = 2.52  # Lean profile size baseline (measured)
 
     for feature_key, enabled in enabled_features.items():
         if enabled:
