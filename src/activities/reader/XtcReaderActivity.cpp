@@ -13,14 +13,14 @@
 #include <Logging.h>
 
 #include "CrossPointSettings.h"
-#include "ScopedBuffer.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
-#include "util/RecentBooksStore.h"
+#include "ScopedBuffer.h"
 #include "SpiBusMutex.h"
 #include "XtcReaderChapterSelectionActivity.h"
 #include "activities/TaskShutdown.h"
 #include "fontIds.h"
+#include "util/RecentBooksStore.h"
 
 namespace {
 constexpr unsigned long skipPageMs = 700;
@@ -178,7 +178,8 @@ void XtcReaderActivity::renderPage() {
   // Load page data
   size_t bytesRead = xtc->loadPage(currentPage, pageBuffer.data(), pageBufferSize);
   if (bytesRead == 0) {
-    LOG_ERR("XTR", "Failed to load page %lu", currentPage);
+    LOG_ERR("XTR", "Failed to load page %lu: bufferSize=%lu bitDepth=%u error=%s", currentPage, pageBufferSize,
+            bitDepth, xtc::errorToString(xtc->getLastError()));
     renderer.clearScreen();
     renderer.drawCenteredText(UI_12_FONT_ID, 300, "Page load error", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
@@ -203,7 +204,7 @@ void XtcReaderActivity::renderPage() {
     const size_t planeSize = (static_cast<size_t>(pageWidth) * pageHeight + 7) / 8;
     const uint8_t* plane1 = pageBuffer.data();              // Bit1 plane
     const uint8_t* plane2 = pageBuffer.data() + planeSize;  // Bit2 plane
-    const size_t colBytes = (pageHeight + 7) / 8;    // Bytes per column (100 for 800 height)
+    const size_t colBytes = (pageHeight + 7) / 8;           // Bytes per column (100 for 800 height)
 
     // Lambda to get pixel value at (x, y)
     auto getPixelValue = [&](uint16_t x, uint16_t y) -> uint8_t {
