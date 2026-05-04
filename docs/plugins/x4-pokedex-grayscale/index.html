@@ -586,8 +586,10 @@
     const openDevicePluginLink = document.getElementById("openDevicePlugin");
     const openDeviceFilesLink = document.getElementById("openDeviceFiles");
 
+    const BATCH_PREFETCH_CONCURRENCY = 12;
+    const jsonRequestCache = new Map();
+    const imageRequestCache = new Map();
     const pokemonBundleCache = new Map();
-    const spriteCache = new Map();
     const spriteBoundsCache = new Map();
     const speciesDefaultPokemonCache = new Map();
     let lastRendered = null;
@@ -624,21 +626,44 @@
     }
 
     async function fetchJson(url) {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error("Request failed: " + response.status);
+      if (jsonRequestCache.has(url)) {
+        return jsonRequestCache.get(url);
       }
-      return await response.json();
+
+      const request = fetch(url)
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error("Request failed: " + response.status);
+          }
+          return response.json();
+        })
+        .catch(function(error) {
+          jsonRequestCache.delete(url);
+          throw error;
+        });
+
+      jsonRequestCache.set(url, request);
+      return request;
     }
 
     async function loadImage(url) {
-      return await new Promise(function(resolve, reject) {
+      if (imageRequestCache.has(url)) {
+        return imageRequestCache.get(url);
+      }
+
+      const request = new Promise(function(resolve, reject) {
         const img = new Image();
         img.crossOrigin = "anonymous";
         img.onload = function() { resolve(img); };
         img.onerror = function() { reject(new Error("Failed to load image")); };
         img.src = url;
+      }).catch(function(error) {
+        imageRequestCache.delete(url);
+        throw error;
       });
+
+      imageRequestCache.set(url, request);
+      return request;
     }
 
     async function getPokemonBundle(rawInput) {
@@ -650,18 +675,35 @@
         return pokemonBundleCache.get(key);
       }
 
-      const pokemon = await fetchJson("https://pokeapi.co/api/v2/pokemon/" + encodeURIComponent(key));
-      const species = await fetchJson(pokemon.species.url).catch(function() { return null; });
-      const evolution = species && species.evolution_chain && species.evolution_chain.url
-        ? await fetchJson(species.evolution_chain.url).catch(function() { return null; })
-        : null;
-      const encounters = await fetchJson("https://pokeapi.co/api/v2/pokemon/" + encodeURIComponent(String(pokemon.id)) + "/encounters").catch(function() { return []; });
-      const bundle = { pokemon: pokemon, species: species, evolution: evolution, encounters: encounters };
+      const bundleRequest = (async function() {
+        const pokemon = await fetchJson("https://pokeapi.co/api/v2/pokemon/" + encodeURIComponent(key));
+        const speciesPromise = pokemon.species && pokemon.species.url
+          ? fetchJson(pokemon.species.url).catch(function() { return null; })
+          : Promise.resolve(null);
+        const encountersPromise = fetchJson("https://pokeapi.co/api/v2/pokemon/" + encodeURIComponent(String(pokemon.id)) + "/encounters")
+          .catch(function() { return []; });
+        const species = await speciesPromise;
+        const evolutionPromise = species && species.evolution_chain && species.evolution_chain.url
+          ? fetchJson(species.evolution_chain.url).catch(function() { return null; })
+          : Promise.resolve(null);
+        const result = await Promise.all([evolutionPromise, encountersPromise]);
+        const bundle = {
+          pokemon: pokemon,
+          species: species,
+          evolution: result[0],
+          encounters: result[1]
+        };
 
-      pokemonBundleCache.set(key, bundle);
-      pokemonBundleCache.set(String(pokemon.id), bundle);
-      pokemonBundleCache.set(String(pokemon.name || "").toLowerCase(), bundle);
-      return bundle;
+        pokemonBundleCache.set(String(pokemon.id), Promise.resolve(bundle));
+        pokemonBundleCache.set(String(pokemon.name || "").toLowerCase(), Promise.resolve(bundle));
+        return bundle;
+      })().catch(function(error) {
+        pokemonBundleCache.delete(key);
+        throw error;
+      });
+
+      pokemonBundleCache.set(key, bundleRequest);
+      return bundleRequest;
     }
 
     function getFlavorText(species) {
@@ -822,13 +864,19 @@
         return speciesDefaultPokemonCache.get(speciesUrl);
       }
 
-      const speciesData = await fetchJson(speciesUrl);
-      const defaultVariety = (speciesData.varieties || []).find(function(entry) { return entry && entry.is_default; });
-      const pokemon = defaultVariety && defaultVariety.pokemon && defaultVariety.pokemon.url
-        ? await fetchJson(defaultVariety.pokemon.url)
-        : null;
-      speciesDefaultPokemonCache.set(speciesUrl, pokemon);
-      return pokemon;
+      const request = (async function() {
+        const speciesData = await fetchJson(speciesUrl);
+        const defaultVariety = (speciesData.varieties || []).find(function(entry) { return entry && entry.is_default; });
+        return defaultVariety && defaultVariety.pokemon && defaultVariety.pokemon.url
+          ? fetchJson(defaultVariety.pokemon.url)
+          : null;
+      })().catch(function(error) {
+        speciesDefaultPokemonCache.delete(speciesUrl);
+        throw error;
+      });
+
+      speciesDefaultPokemonCache.set(speciesUrl, request);
+      return request;
     }
 
     function getSpriteBounds(sprite) {
@@ -913,13 +961,23 @@
         throw new Error("Pokemon sprite not available");
       }
 
-      if (spriteCache.has(spriteUrl)) {
-        return spriteCache.get(spriteUrl);
-      }
+      return loadImage(spriteUrl);
+    }
 
-      const image = await loadImage(spriteUrl);
-      spriteCache.set(spriteUrl, image);
-      return image;
+    async function prefetchBatchAssets(ids, options, onProgress) {
+      let completed = 0;
+
+      for (let index = 0; index < ids.length; index += BATCH_PREFETCH_CONCURRENCY) {
+        const chunk = ids.slice(index, index + BATCH_PREFETCH_CONCURRENCY);
+        await Promise.all(chunk.map(async function(id) {
+          const bundle = await getPokemonBundle(String(id));
+          await getSpriteForPokemon(bundle.pokemon, options.artStyle);
+          completed += 1;
+          if (onProgress) {
+            onProgress(completed, ids.length);
+          }
+        }));
+      }
     }
 
     function drawTypeAccentBackground(accent) {
@@ -1490,8 +1548,11 @@
         if (!ids.length) {
           throw new Error("No Pokemon found for selected generation/type filters");
         }
+        const options = getRenderOptions();
+        setStatus("Preloading batch preview...");
+        await prefetchBatchAssets(ids.slice(0, 1), options);
         input.value = String(ids[0]);
-        const pokemon = await renderPokemonByInput(String(ids[0]), getRenderOptions());
+        const pokemon = await renderPokemonByInput(String(ids[0]), options);
         setStatus("Batch preview ready for #" + pokemon.id + " (" + ids.length + " matches)");
       } catch (error) {
         console.error(error);
@@ -1512,6 +1573,10 @@
         const zip = new JSZip();
         const folder = zip.folder("pokedex_x4");
         const options = getRenderOptions();
+        setStatus("Preloading Pokemon data (0/" + ids.length + ")...");
+        await prefetchBatchAssets(ids, options, function(done, total) {
+          setStatus("Preloading Pokemon data (" + done + "/" + total + ")...");
+        });
 
         for (let i = 0; i < ids.length; i++) {
           const id = ids[i];

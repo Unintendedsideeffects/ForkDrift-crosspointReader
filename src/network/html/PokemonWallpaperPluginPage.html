@@ -497,6 +497,10 @@
   const batchPreviewBtn = document.getElementById("batchPreviewBtn");
   const batchUploadBtn = document.getElementById("batchUploadBtn");
 
+  const BATCH_PREFETCH_CONCURRENCY = 12;
+  const jsonRequestCache = new Map();
+  const imageRequestCache = new Map();
+  const pokemonBundleCache = new Map();
   const spriteBoundsCache = new Map();
   const speciesDefaultPokemonCache = new Map();
   let lastRendered = null;
@@ -532,21 +536,95 @@
     if (POKEMON_CACHE[url] !== undefined) {
       return POKEMON_CACHE[url];
     }
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error("Request failed: " + response.status);
+    if (jsonRequestCache.has(url)) {
+      return jsonRequestCache.get(url);
     }
-    return await response.json();
+
+    const request = fetch(url)
+      .then(function(response) {
+        if (!response.ok) {
+          throw new Error("Request failed: " + response.status);
+        }
+        return response.json();
+      })
+      .catch(function(error) {
+        jsonRequestCache.delete(url);
+        throw error;
+      });
+
+    jsonRequestCache.set(url, request);
+    return request;
   }
 
   async function loadImage(url) {
-    return await new Promise(function(resolve, reject) {
+    if (imageRequestCache.has(url)) {
+      return imageRequestCache.get(url);
+    }
+
+    const request = new Promise(function(resolve, reject) {
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.onload = function() { resolve(img); };
       img.onerror = function() { reject(new Error("Failed to load image")); };
       img.src = url;
+    }).catch(function(error) {
+      imageRequestCache.delete(url);
+      throw error;
     });
+
+    imageRequestCache.set(url, request);
+    return request;
+  }
+
+  async function getPokemonBundle(rawInput) {
+    const key = String(rawInput || "").trim().toLowerCase();
+    if (!key) {
+      throw new Error("Enter a Pokemon name or ID.");
+    }
+    if (pokemonBundleCache.has(key)) {
+      return pokemonBundleCache.get(key);
+    }
+
+    const bundleRequest = (async function() {
+      const pokemon = await fetchJson("https://pokeapi.co/api/v2/pokemon/" + encodeURIComponent(key));
+      const speciesPromise = pokemon.species && pokemon.species.url
+        ? fetchJson(pokemon.species.url).catch(function() { return null; })
+        : Promise.resolve(null);
+      const encountersPromise = fetchJson("https://pokeapi.co/api/v2/pokemon/" + encodeURIComponent(String(pokemon.id)) + "/encounters")
+        .catch(function() { return []; });
+      const species = await speciesPromise;
+      const evolutionPromise = species && species.evolution_chain && species.evolution_chain.url
+        ? fetchJson(species.evolution_chain.url).catch(function() { return null; })
+        : Promise.resolve(null);
+      const result = await Promise.all([evolutionPromise, encountersPromise]);
+      const bundle = {
+        pokemon: pokemon,
+        species: species,
+        evolution: result[0],
+        encounters: result[1]
+      };
+      pokemonBundleCache.set(String(pokemon.id), Promise.resolve(bundle));
+      pokemonBundleCache.set(String(pokemon.name || "").toLowerCase(), Promise.resolve(bundle));
+      return bundle;
+    })().catch(function(error) {
+      pokemonBundleCache.delete(key);
+      throw error;
+    });
+
+    pokemonBundleCache.set(key, bundleRequest);
+    return bundleRequest;
+  }
+
+  async function getSpriteForPokemon(pokemon, style) {
+    const spriteUrl =
+      getSpriteUrl(pokemon, style) ||
+      getSpriteUrl(pokemon, "official") ||
+      getSpriteUrl(pokemon, "home") ||
+      getSpriteUrl(pokemon, "pixel");
+    if (!spriteUrl) {
+      throw new Error("Pokemon sprite not available");
+    }
+    return loadImage(spriteUrl);
   }
 
   function getFlavorText(species) {
@@ -688,13 +766,35 @@
       return speciesDefaultPokemonCache.get(speciesUrl);
     }
 
-    const speciesData = await fetchJson(speciesUrl);
-    const defaultVariety = (speciesData.varieties || []).find(function(entry) { return entry && entry.is_default; });
-    const pokemon = defaultVariety && defaultVariety.pokemon && defaultVariety.pokemon.url
-      ? await fetchJson(defaultVariety.pokemon.url)
-      : null;
-    speciesDefaultPokemonCache.set(speciesUrl, pokemon);
-    return pokemon;
+    const request = (async function() {
+      const speciesData = await fetchJson(speciesUrl);
+      const defaultVariety = (speciesData.varieties || []).find(function(entry) { return entry && entry.is_default; });
+      return defaultVariety && defaultVariety.pokemon && defaultVariety.pokemon.url
+        ? fetchJson(defaultVariety.pokemon.url)
+        : null;
+    })().catch(function(error) {
+      speciesDefaultPokemonCache.delete(speciesUrl);
+      throw error;
+    });
+
+    speciesDefaultPokemonCache.set(speciesUrl, request);
+    return request;
+  }
+
+  async function prefetchBatchAssets(ids, options, onProgress) {
+    let completed = 0;
+
+    for (let index = 0; index < ids.length; index += BATCH_PREFETCH_CONCURRENCY) {
+      const chunk = ids.slice(index, index + BATCH_PREFETCH_CONCURRENCY);
+      await Promise.all(chunk.map(async function(id) {
+        const bundle = await getPokemonBundle(String(id));
+        await getSpriteForPokemon(bundle.pokemon, options.artStyle);
+        completed += 1;
+        if (onProgress) {
+          onProgress(completed, ids.length);
+        }
+      }));
+    }
   }
 
   function getSpriteBounds(sprite) {
@@ -1203,22 +1303,9 @@
   }
 
   async function renderPokemonByInput(rawInput, options) {
-    const pokemon = await fetchJson("https://pokeapi.co/api/v2/pokemon/" + encodeURIComponent(rawInput.toLowerCase()));
-    const species = await fetchJson(pokemon.species.url).catch(function() { return null; });
-    const evolution = species && species.evolution_chain && species.evolution_chain.url
-      ? await fetchJson(species.evolution_chain.url).catch(function() { return null; })
-      : null;
-    const encounters = await fetchJson("https://pokeapi.co/api/v2/pokemon/" + encodeURIComponent(String(pokemon.id)) + "/encounters").catch(function() { return []; });
-    const spriteUrl =
-      getSpriteUrl(pokemon, options.artStyle) ||
-      getSpriteUrl(pokemon, "official") ||
-      getSpriteUrl(pokemon, "home") ||
-      getSpriteUrl(pokemon, "pixel");
-    if (!spriteUrl) {
-      throw new Error("Pokemon sprite not available");
-    }
-    const sprite = await loadImage(spriteUrl);
-    const bundle = { pokemon: pokemon, species: species, evolution: evolution, encounters: encounters };
+    const bundle = await getPokemonBundle(rawInput);
+    const pokemon = bundle.pokemon;
+    const sprite = await getSpriteForPokemon(pokemon, options.artStyle);
     await drawWallpaper(bundle, sprite, options);
     lastRendered = {
       id: pokemon.id,
@@ -1334,8 +1421,11 @@
     try {
       const ids = await resolveBatchIds();
       if (!ids.length) throw new Error("No Pokemon found for selected generation/type filters");
+      const options = getRenderOptions();
+      setStatus("Preloading batch preview...");
+      await prefetchBatchAssets(ids.slice(0, 1), options);
       input.value = String(ids[0]);
-      await renderCurrentPokemon();
+      await renderPokemonByInput(String(ids[0]), options);
       setStatus("Batch preview ready for #" + ids[0] + " (" + ids.length + " matches)");
     } catch (error) {
       setStatus("Batch preview failed: " + error.message, true);
@@ -1347,6 +1437,11 @@
       setBusy(true);
       const ids = await resolveBatchIds();
       if (!ids.length) throw new Error("No Pokemon found for selected generation/type filters");
+      const options = getRenderOptions();
+      setStatus("Preloading Pokemon data (0/" + ids.length + ")...");
+      await prefetchBatchAssets(ids, options, function(done, total) {
+        setStatus("Preloading Pokemon data (" + done + "/" + total + ")...");
+      });
       setStatus("Ensuring /sleep/pokedex exists...");
       await ensurePokedexFolder();
       const failures = [];
@@ -1355,7 +1450,7 @@
         const id = ids[i];
         setStatus("Batch " + (i + 1) + "/" + ids.length + ": #" + id);
         try {
-          const pokemon = await renderPokemonByInput(String(id), getRenderOptions());
+          const pokemon = await renderPokemonByInput(String(id), options);
           const blob = canvasToBmpBlob();
           const formData = new FormData();
           formData.append("file", blob, "pokedex_" + String(pokemon.id).padStart(4, "0") + "_" + sanitizeFilename(pokemon.name) + "_x4.bmp");
