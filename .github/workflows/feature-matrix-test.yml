@@ -79,7 +79,7 @@ jobs:
       - name: Ensure pip is available for PlatformIO tool installs
         run: |
           uv run python -m ensurepip --upgrade
-          uv run python -m pip --version
+          uv run python -c "import pip; print(pip.__version__)"
 
       - name: Generate build configuration
         run: |
@@ -192,6 +192,11 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --frozen
+
+      - name: Ensure pip is available for PlatformIO tool installs
+        run: |
+          uv run python -m ensurepip --upgrade
+          uv run python -m pip --version
 
       - name: Measure feature sizes
         run: uv run python scripts/measure_feature_sizes.py --quick
