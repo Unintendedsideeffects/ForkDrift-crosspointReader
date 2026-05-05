@@ -228,6 +228,42 @@ void handleStatus(HostWebServer& server) {
               "\"rssi\":0,\"freeHeap\":0,\"uptime\":0,\"mode\":\"HOST\"}");
 }
 
+void appendRecentBook(JsonArray out, JsonObject source) {
+  JsonObject book = out.add<JsonObject>();
+  book["path"] = source["path"] | "";
+  book["title"] = source["title"] | "";
+  book["author"] = source["author"] | "";
+  book["last_position"] = "";
+  book["last_opened"] = 0;
+  const char* coverPath = source["coverBmpPath"] | "";
+  book["hasCover"] = coverPath[0] != '\0';
+  book["progress"] = nullptr;
+}
+
+void handleRecentBooks(HostWebServer& server) {
+  JsonDocument response;
+  JsonArray out = response.to<JsonArray>();
+
+  const String saved = Storage.readFile("/.crosspoint/recent.json");
+  if (!saved.isEmpty()) {
+    JsonDocument doc;
+    const auto err = deserializeJson(doc, saved.c_str());
+    if (err) {
+      server.send(500, "text/plain", String("Invalid recent books JSON: ") + err.c_str());
+      return;
+    }
+
+    JsonArray books = doc["books"].as<JsonArray>();
+    for (JsonObject book : books) {
+      appendRecentBook(out, book);
+    }
+  }
+
+  String body;
+  serializeJson(response, body);
+  server.send(200, "application/json", body);
+}
+
 }  // namespace
 
 void mountStubApiRoutes(HostWebServer& server, const std::string&) {
@@ -238,6 +274,7 @@ void mountStubApiRoutes(HostWebServer& server, const std::string&) {
   server.on("/api/opds", HTTP_POST, [&server] { handlePostOpds(server); });
   server.on("/api/opds/delete", HTTP_POST, [&server] { handleDeleteOpds(server); });
   server.on("/api/status", HTTP_GET, [&server] { handleStatus(server); });
+  server.on("/api/recent", HTTP_GET, [&server] { handleRecentBooks(server); });
 }
 
 }  // namespace host

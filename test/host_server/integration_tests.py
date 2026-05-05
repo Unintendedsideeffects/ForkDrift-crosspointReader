@@ -42,6 +42,17 @@ class HostServerTest(unittest.TestCase):
         with open(os.path.join(cls.temp_dir, "subdir", "subfile.txt"), "w") as f:
             f.write("sub content")
 
+        os.makedirs(os.path.join(cls.temp_dir, ".crosspoint"))
+        with open(os.path.join(cls.temp_dir, ".crosspoint", "recent.json"), "w") as f:
+            json.dump({
+                "books": [{
+                    "path": "/test.txt",
+                    "title": "Test Book",
+                    "author": "Host",
+                    "coverBmpPath": ""
+                }]
+            }, f)
+
         # Launch binary
         cls.base_url = f"http://127.0.0.1:{cls.port}"
         # --root and --port flags as shown in main.cpp
@@ -219,6 +230,19 @@ class HostServerTest(unittest.TestCase):
         
         self.assertEqual(code, 200)
         self.assertEqual(headers.get("Content-Type"), "image/bmp")
+
+    def test_09_recent_books(self):
+        """GET /api/recent — host shim returns device-compatible recent-book JSON"""
+        code, body, headers = self._request("GET", "/api/recent")
+        self.assertEqual(code, 200)
+        self.assertEqual(headers.get("Content-Type"), "application/json")
+        books = json.loads(body)
+        self.assertEqual(len(books), 1)
+        self.assertEqual(books[0]["path"], "/test.txt")
+        self.assertEqual(books[0]["title"], "Test Book")
+        self.assertEqual(books[0]["author"], "Host")
+        self.assertFalse(books[0]["hasCover"])
+        self.assertIsNone(books[0]["progress"])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Host Firmware Server Integration Tests")

@@ -87,6 +87,10 @@ export ASAN_OPTIONS="detect_leaks=1:halt_on_error=1"
 export UBSAN_OPTIONS="halt_on_error=1:print_stacktrace=1"
 
 touch "$TMP_ROOT/hello.txt"
+mkdir -p "$TMP_ROOT/.crosspoint"
+cat >"$TMP_ROOT/.crosspoint/recent.json" <<'JSON'
+{"books":[{"path":"/hello.txt","title":"Hello","author":"Host","coverBmpPath":""}]}
+JSON
 
 "$BINARY" --port "$PORT" --root "$TMP_ROOT" >"$BUILD_DIR/server.log" 2>&1 &
 SERVER_PID="$!"
@@ -116,6 +120,12 @@ curl -fsS -X POST -H "Content-Type: application/json" -D "$HEADER_FILE" -o "$BUI
 grep -q "^HTTP/.* 200" "$HEADER_FILE"
 grep -q '"sleepScreen":3' "$TMP_ROOT/settings.json"
 grep -q '"deviceName":"host-test"' "$TMP_ROOT/settings.json"
+
+curl -fsS -D "$HEADER_FILE" -o "$BODY_FILE" "http://127.0.0.1:$PORT/api/recent" >/dev/null
+grep -q "^HTTP/.* 200" "$HEADER_FILE"
+grep -qi "^Content-Type: application/json" "$HEADER_FILE"
+grep -q '"path":"/hello.txt"' "$BODY_FILE"
+grep -q '"hasCover":false' "$BODY_FILE"
 
 curl -fsS -D "$HEADER_FILE" -o "$BODY_FILE" "http://127.0.0.1:$PORT/api/files?path=/" >/dev/null
 grep -q "^HTTP/.* 200" "$HEADER_FILE"
