@@ -254,8 +254,11 @@ void handleRecentBooks(HostWebServer& server) {
     }
 
     JsonArray books = doc["books"].as<JsonArray>();
+    int emitted = 0;
     for (JsonObject book : books) {
+      if (emitted >= 10) break;
       appendRecentBook(out, book);
+      ++emitted;
     }
   }
 

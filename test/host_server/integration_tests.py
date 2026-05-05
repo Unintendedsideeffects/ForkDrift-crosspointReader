@@ -43,15 +43,16 @@ class HostServerTest(unittest.TestCase):
             f.write("sub content")
 
         os.makedirs(os.path.join(cls.temp_dir, ".crosspoint"))
+        recent_books = [{
+            "path": f"/test-{idx}.txt",
+            "title": f"Test Book {idx}",
+            "author": "Host",
+            "coverBmpPath": ""
+        } for idx in range(12)]
+        recent_books[0]["path"] = "/test.txt"
+        recent_books[0]["title"] = "Test Book"
         with open(os.path.join(cls.temp_dir, ".crosspoint", "recent.json"), "w") as f:
-            json.dump({
-                "books": [{
-                    "path": "/test.txt",
-                    "title": "Test Book",
-                    "author": "Host",
-                    "coverBmpPath": ""
-                }]
-            }, f)
+            json.dump({"books": recent_books}, f)
 
         # Launch binary
         cls.base_url = f"http://127.0.0.1:{cls.port}"
@@ -237,12 +238,13 @@ class HostServerTest(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertEqual(headers.get("Content-Type"), "application/json")
         books = json.loads(body)
-        self.assertEqual(len(books), 1)
+        self.assertEqual(len(books), 10)
         self.assertEqual(books[0]["path"], "/test.txt")
         self.assertEqual(books[0]["title"], "Test Book")
         self.assertEqual(books[0]["author"], "Host")
         self.assertFalse(books[0]["hasCover"])
         self.assertIsNone(books[0]["progress"])
+        self.assertEqual(books[-1]["path"], "/test-9.txt")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Host Firmware Server Integration Tests")

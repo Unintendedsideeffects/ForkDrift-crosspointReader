@@ -89,7 +89,7 @@ export UBSAN_OPTIONS="halt_on_error=1:print_stacktrace=1"
 touch "$TMP_ROOT/hello.txt"
 mkdir -p "$TMP_ROOT/.crosspoint"
 cat >"$TMP_ROOT/.crosspoint/recent.json" <<'JSON'
-{"books":[{"path":"/hello.txt","title":"Hello","author":"Host","coverBmpPath":""}]}
+{"books":[{"path":"/hello.txt","title":"Hello","author":"Host","coverBmpPath":""},{"path":"/book-1.txt","title":"Book 1","author":"Host","coverBmpPath":""},{"path":"/book-2.txt","title":"Book 2","author":"Host","coverBmpPath":""},{"path":"/book-3.txt","title":"Book 3","author":"Host","coverBmpPath":""},{"path":"/book-4.txt","title":"Book 4","author":"Host","coverBmpPath":""},{"path":"/book-5.txt","title":"Book 5","author":"Host","coverBmpPath":""},{"path":"/book-6.txt","title":"Book 6","author":"Host","coverBmpPath":""},{"path":"/book-7.txt","title":"Book 7","author":"Host","coverBmpPath":""},{"path":"/book-8.txt","title":"Book 8","author":"Host","coverBmpPath":""},{"path":"/book-9.txt","title":"Book 9","author":"Host","coverBmpPath":""},{"path":"/book-10.txt","title":"Book 10","author":"Host","coverBmpPath":""},{"path":"/book-11.txt","title":"Book 11","author":"Host","coverBmpPath":""}]}
 JSON
 
 "$BINARY" --port "$PORT" --root "$TMP_ROOT" >"$BUILD_DIR/server.log" 2>&1 &
@@ -126,6 +126,8 @@ grep -q "^HTTP/.* 200" "$HEADER_FILE"
 grep -qi "^Content-Type: application/json" "$HEADER_FILE"
 grep -q '"path":"/hello.txt"' "$BODY_FILE"
 grep -q '"hasCover":false' "$BODY_FILE"
+grep -q '"path":"/book-9.txt"' "$BODY_FILE"
+! grep -q '"path":"/book-10.txt"' "$BODY_FILE"
 
 curl -fsS -D "$HEADER_FILE" -o "$BODY_FILE" "http://127.0.0.1:$PORT/api/files?path=/" >/dev/null
 grep -q "^HTTP/.* 200" "$HEADER_FILE"
