@@ -1,7 +1,10 @@
-#include <ArduinoJson.h>
+#include "network/FileRoutes.h"
 
-#include "HostStorage.h"
-#include "HostWebServer.h"
+#include <ArduinoJson.h>
+#include <HalStorage.h>
+
+#include <vector>
+
 #include "network/FileMutationApi.h"
 #include "network/FileReadApi.h"
 #include "network/UploadApi.h"
@@ -14,18 +17,18 @@ struct RequestArg {
   String value;
 };
 
-void sendText(HostWebServer& server, int statusCode, const String& body) {
+void sendText(WebServer& server, const int statusCode, const String& body) {
   server.send(statusCode, "text/plain", body);
 }
 
-RequestArg requestArg(HostWebServer& server, const char* name) {
+RequestArg requestArg(WebServer& server, const char* name) {
   if (server.hasArg(name)) return {true, server.arg(name)};
   if (!server.hasArg("plain")) return {};
 
   const String plain = server.arg("plain");
   if (plain.startsWith("{") || plain.startsWith("[")) return {};
 
-  const std::string body = plain.toStdString();
+  const std::string body(plain.c_str(), plain.length());
   size_t start = 0;
   while (start <= body.size()) {
     const size_t end = body.find('&', start);
@@ -42,7 +45,7 @@ RequestArg requestArg(HostWebServer& server, const char* name) {
   return {};
 }
 
-bool parseJsonBody(HostWebServer& server, JsonDocument& body, const char* missingMessage, const char* invalidMessage) {
+bool parseJsonBody(WebServer& server, JsonDocument& body, const char* missingMessage, const char* invalidMessage) {
   if (!server.hasArg("plain")) {
     sendText(server, 400, missingMessage);
     return false;
@@ -55,15 +58,13 @@ bool parseJsonBody(HostWebServer& server, JsonDocument& body, const char* missin
   return true;
 }
 
-void invalidatePath(const String&) {}
-
-void handleFileList(HostWebServer& server) {
+void handleFileList(WebServer& server, const network::FileRouteOptions& options) {
   const auto path = requestArg(server, "path");
-  const auto result = network::buildFileListJson(path.present ? path.value : String(), false);
+  const auto result = network::buildFileListJson(path.present ? path.value : String(), options.showHiddenFiles);
   server.send(result.statusCode, result.contentType, result.body);
 }
 
-void handleDownload(HostWebServer& server) {
+void handleDownload(WebServer& server) {
   if (!server.hasArg("path")) {
     sendText(server, 400, "Missing path");
     return;
@@ -94,7 +95,7 @@ void handleDownload(HostWebServer& server) {
   file.close();
 }
 
-void handleMkdir(HostWebServer& server) {
+void handleMkdir(WebServer& server) {
   const auto name = requestArg(server, "name");
   if (!name.present) {
     sendText(server, 400, "Missing folder name");
@@ -105,7 +106,7 @@ void handleMkdir(HostWebServer& server) {
   sendText(server, result.statusCode, result.body);
 }
 
-void handleRename(HostWebServer& server) {
+void handleRename(WebServer& server, const network::FileRouteOptions& options) {
   String itemPath;
   String target;
   bool treatTargetAsName = false;
@@ -124,11 +125,11 @@ void handleRename(HostWebServer& server) {
     treatTargetAsName = target.indexOf('/') < 0 && target.indexOf('\\') < 0;
   }
 
-  const auto result = network::renameFile(itemPath, target, treatTargetAsName, invalidatePath);
+  const auto result = network::renameFile(itemPath, target, treatTargetAsName, options.onPathChanged);
   sendText(server, result.statusCode, result.body);
 }
 
-void handleMove(HostWebServer& server) {
+void handleMove(WebServer& server, const network::FileRouteOptions& options) {
   String itemPath;
   String target;
 
@@ -144,11 +145,11 @@ void handleMove(HostWebServer& server) {
     target = String(body["to"] | "");
   }
 
-  const auto result = network::moveFile(itemPath, target, invalidatePath);
+  const auto result = network::moveFile(itemPath, target, options.onPathChanged);
   sendText(server, result.statusCode, result.body);
 }
 
-void handleDelete(HostWebServer& server) {
+void handleDelete(WebServer& server, const network::FileRouteOptions& options) {
   const auto path = requestArg(server, "path");
   const auto pathsArg = requestArg(server, "paths");
   const bool hasPathArg = path.present;
@@ -179,26 +180,32 @@ void handleDelete(HostWebServer& server) {
     for (const auto& value : array) paths.push_back(String(value.as<const char*>() ? value.as<const char*>() : ""));
   }
 
-  const auto result = network::deletePaths(paths, invalidatePath);
+  const auto result = network::deletePaths(paths, options.onPathChanged);
   sendText(server, result.statusCode, result.body);
 }
 
-void handleUploadPost(HostWebServer& server) {
+void handleUploadPost(WebServer& server) {
   const auto result = network::buildUploadPostResult();
   network::resetUploadSession();
   sendText(server, result.statusCode, result.body);
 }
 
-void handleUploadStream(HostWebServer& server) { network::startUpload(&server); }
+void handleUploadStream(WebServer& server) {
+  network::startUpload(&server);
+}
 
 }  // namespace
 
-void registerFileRoutes(HostWebServer& server) {
-  server.on("/api/files", HTTP_GET, [&server] { handleFileList(server); });
+namespace network {
+
+void mountFileRoutes(WebServer& server, FileRouteOptions options) {
+  server.on("/api/files", HTTP_GET, [&server, options] { handleFileList(server, options); });
   server.on("/download", HTTP_GET, [&server] { handleDownload(server); });
   server.on("/mkdir", HTTP_POST, [&server] { handleMkdir(server); });
-  server.on("/rename", HTTP_POST, [&server] { handleRename(server); });
-  server.on("/move", HTTP_POST, [&server] { handleMove(server); });
-  server.on("/delete", HTTP_POST, [&server] { handleDelete(server); });
+  server.on("/rename", HTTP_POST, [&server, options] { handleRename(server, options); });
+  server.on("/move", HTTP_POST, [&server, options] { handleMove(server, options); });
+  server.on("/delete", HTTP_POST, [&server, options] { handleDelete(server, options); });
   server.on("/upload", HTTP_POST, [&server] { handleUploadPost(server); }, [&server] { handleUploadStream(server); });
 }
+
+}  // namespace network

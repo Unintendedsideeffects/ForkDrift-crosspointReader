@@ -2,9 +2,10 @@
 
 This prototype runs a tiny host-only HTTP server that exposes the same Arduino-style callback surface the firmware handlers use, but translates real TCP requests through `cpp-httplib` on Linux/macOS host builds.
 
-**Wired route:** `GET /api/settings/raw`
+**Wired routes:** `GET /api/settings/raw` plus the shared file-management routes mounted by
+`src/network/CoreWebRoutes.cpp` and `src/network/FileRoutes.cpp`.
 
-That route is intentionally minimal for step 1: it reuses the real firmware JSON builder in `src/network/SettingsSnapshotApi.cpp`, serves a real HTTP response, and avoids SD-card or ESP32-only dependencies.
+The host harness still avoids device lifecycle work such as Wi-Fi, UDP discovery, WebSockets, and WebDAV, but the mounted routes now live in production-owned `src/network` files instead of test-only adapters.
 
 ## Build and run
 
@@ -12,7 +13,7 @@ That route is intentionally minimal for step 1: it reuses the real firmware JSON
 bash test/run_host_server.sh
 ```
 
-The script builds `build/host_server/HostServer`, launches it on a random high port, curls `/api/settings/raw`, and exits non-zero if the smoke test fails.
+The script builds `build/host_server/HostServer`, launches it on a random high port, curls the settings and file-management routes, and exits non-zero if the smoke test fails.
 
 ## Running integration tests
 
@@ -37,8 +38,8 @@ If a route is not yet implemented by the server, the test will be marked as `ski
 
 ## Adding more routes later
 
-1. Register another path in `test/host_server/main.cpp` with `server.on(...)`.
-2. Reuse the real handler helper or extracted route logic from `src/network/*Api.cpp`.
+1. Prefer adding portable route adapters under `src/network/*Routes.cpp`.
+2. Mount them from `src/network/CoreWebRoutes.cpp` when the host harness should exercise them.
 3. If that handler needs more Arduino `WebServer` surface, extend `test/host_server/HostWebServer.{h,cpp}` instead of inventing a parallel API.
 
 `HostWebServer` already handles the common request/response pieces (`on`, `hasArg`, `arg`, `send`, `sendHeader`, `send_P`, `uri`, `method`). More specialized firmware paths such as upload streaming and socket-level client writes are left as explicit TODO stubs for the next step.

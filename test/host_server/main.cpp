@@ -8,13 +8,12 @@
 
 #include "HostStorage.h"
 #include "HostWebServer.h"
+#include "network/CoreWebRoutes.h"
 #include "network/SettingsSnapshotApi.h"
 #include "src/CrossPointSettings.h"
 
 MockESP ESP;
 CrossPointSettings CrossPointSettings::instance;
-
-void registerFileRoutes(HostWebServer& server);
 
 namespace {
 
@@ -63,9 +62,9 @@ int main(int argc, char** argv) {
   std::signal(SIGINT, handleSignal);
   std::signal(SIGTERM, handleSignal);
 
-  server.on("/api/settings/raw", HTTP_GET,
-            [&server] { server.send(200, "application/json", network::buildSettingsSnapshotJson(SETTINGS)); });
-  registerFileRoutes(server);
+  network::CoreWebRouteOptions routeOptions;
+  routeOptions.settingsSnapshot = [] { return network::buildSettingsSnapshotJson(SETTINGS); };
+  network::mountCoreWebRoutes(server, routeOptions);
   server.onNotFound([&server] { server.send(404, "text/plain", "Not found"); });
 
   std::cout << "HostWebServer listening on http://127.0.0.1:" << port << '\n';

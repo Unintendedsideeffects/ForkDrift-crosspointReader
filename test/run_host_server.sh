@@ -49,10 +49,11 @@ g++ -std=c++20 -O2 -Wno-narrowing \
   "$ROOT_DIR/test/host_server/main.cpp" \
   "$ROOT_DIR/test/host_server/HostWebServer.cpp" \
   "$ROOT_DIR/test/host_server/HostStorage.cpp" \
-  "$ROOT_DIR/test/host_server/routes/files.cpp" \
   "$ROOT_DIR/test/mock/FeatureModuleHooks.cpp" \
+  "$ROOT_DIR/src/network/CoreWebRoutes.cpp" \
   "$ROOT_DIR/src/network/FileListApi.cpp" \
   "$ROOT_DIR/src/network/FileMutationApi.cpp" \
+  "$ROOT_DIR/src/network/FileRoutes.cpp" \
   "$ROOT_DIR/src/network/FileReadApi.cpp" \
   "$ROOT_DIR/src/network/UploadApi.cpp" \
   "$ROOT_DIR/src/network/SettingsSnapshotApi.cpp" \

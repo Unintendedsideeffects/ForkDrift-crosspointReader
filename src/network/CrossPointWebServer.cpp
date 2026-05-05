@@ -287,60 +287,7 @@ void CrossPointWebServer::begin() {
 
   // Setup routes
   LOG_DBG("WEB", "Setting up routes...");
-  server->on("/", HTTP_GET, [this] { handleRoot(); });
-  server->on("/files", HTTP_GET, [this] { handleFileList(); });
-  server->on("/js/jszip.min.js", HTTP_GET, [this] { handleJszip(); });
-
-  server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
-  server->on("/api/plugins", HTTP_GET, [this] { handlePlugins(); });
-  // Backward-compatible alias while tooling migrates terminology.
-  server->on("/api/features", HTTP_GET, [this] { handlePlugins(); });
-  server->on("/api/todo/entry", HTTP_POST, [this] { handleTodoEntry(); });
-  server->on("/api/todo/today", HTTP_GET, [this] { handleTodoTodayGet(); });
-  server->on("/api/todo/today", HTTP_POST, [this] { handleTodoTodaySave(); });
-  server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
-  server->on("/download", HTTP_GET, [this] { handleDownload(); });
-
-  // Upload endpoint with special handling for multipart form data
-  server->on("/upload", HTTP_POST, [this] { handleUploadPost(); }, [this] { handleUpload(); });
-
-  // Create folder endpoint
-  server->on("/mkdir", HTTP_POST, [this] { handleCreateFolder(); });
-
-  // Rename file endpoint
-  server->on("/rename", HTTP_POST, [this] { handleRename(); });
-
-  // Move file endpoint
-  server->on("/move", HTTP_POST, [this] { handleMove(); });
-
-  // Delete file/folder endpoint
-  server->on("/delete", HTTP_POST, [this] { handleDelete(); });
-
-  // Settings endpoints
-  server->on("/settings", HTTP_GET, [this] { handleSettingsPage(); });
-  // Plugin pages and their API routes are mounted by feature Registration.cpp via WebRouteRegistry.
-  core::WebRouteRegistry::mountAll(server.get());
-  server->on("/api/settings", HTTP_GET, [this] { handleGetSettings(); });
-  server->on("/api/settings", HTTP_POST, [this] { handlePostSettings(); });
-
-  // OPDS server endpoints
-  server->on("/api/opds", HTTP_GET, [this] { handleGetOpdsServers(); });
-  server->on("/api/opds", HTTP_POST, [this] { handlePostOpdsServer(); });
-  server->on("/api/opds/delete", HTTP_POST, [this] { handleDeleteOpdsServer(); });
-
-  // Fork-drift HTTP endpoints — restored after upstream merge bd4f8033 dropped them.
-  server->on("/api/book-progress", HTTP_GET, [this] { handleGetBookProgress(); });
-  server->on("/api/recent", HTTP_GET, [this] { handleRecentBooks(); });
-  server->on("/api/cover", HTTP_GET, [this] { handleCover(); });
-  server->on("/api/sleep-images", HTTP_GET, [this] { handleSleepImages(); });
-  server->on("/api/sleep-cover", HTTP_GET, [this] { handleSleepCoverGet(); });
-  server->on("/api/sleep-cover/pin", HTTP_POST, [this] { handleSleepCoverPin(); });
-  server->on("/api/open-book", HTTP_POST, [this] { handleOpenBook(); });
-  server->on("/api/settings/raw", HTTP_GET, [this] { handleGetSettingsRaw(); });
-  server->on("/api/remote/button", HTTP_POST, [this] { handleRemoteButton(); });
-  server->on("/api/screenshot", HTTP_POST, [this] { handleScreenshot(); });
-
-  server->onNotFound([this] { handleNotFound(); });
+  mountRoutes();
   const uint32_t freeHeapAfterRouteSetup = ESP.getFreeHeap();
   LOG_DBG("WEB", "[MEM] Free heap after route setup: %d bytes", freeHeapAfterRouteSetup);
 
@@ -403,6 +350,67 @@ void CrossPointWebServer::begin() {
   LOG_DBG("WEB", "Access at http://%s/", ipAddr.c_str());
   LOG_DBG("WEB", "WebSocket at ws://%s:%d/", ipAddr.c_str(), wsPort);
   LOG_DBG("WEB", "[MEM] Free heap after server.begin(): %d bytes", freeHeapAfterStartup);
+}
+
+void CrossPointWebServer::mountRoutes() {
+  if (!server) {
+    return;
+  }
+
+  server->on("/", HTTP_GET, [this] { handleRoot(); });
+  server->on("/files", HTTP_GET, [this] { handleFileList(); });
+  server->on("/js/jszip.min.js", HTTP_GET, [this] { handleJszip(); });
+
+  server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
+  server->on("/api/plugins", HTTP_GET, [this] { handlePlugins(); });
+  // Backward-compatible alias while tooling migrates terminology.
+  server->on("/api/features", HTTP_GET, [this] { handlePlugins(); });
+  server->on("/api/todo/entry", HTTP_POST, [this] { handleTodoEntry(); });
+  server->on("/api/todo/today", HTTP_GET, [this] { handleTodoTodayGet(); });
+  server->on("/api/todo/today", HTTP_POST, [this] { handleTodoTodaySave(); });
+  server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
+  server->on("/download", HTTP_GET, [this] { handleDownload(); });
+
+  // Upload endpoint with special handling for multipart form data
+  server->on("/upload", HTTP_POST, [this] { handleUploadPost(); }, [this] { handleUpload(); });
+
+  // Create folder endpoint
+  server->on("/mkdir", HTTP_POST, [this] { handleCreateFolder(); });
+
+  // Rename file endpoint
+  server->on("/rename", HTTP_POST, [this] { handleRename(); });
+
+  // Move file endpoint
+  server->on("/move", HTTP_POST, [this] { handleMove(); });
+
+  // Delete file/folder endpoint
+  server->on("/delete", HTTP_POST, [this] { handleDelete(); });
+
+  // Settings endpoints
+  server->on("/settings", HTTP_GET, [this] { handleSettingsPage(); });
+  // Plugin pages and their API routes are mounted by feature Registration.cpp via WebRouteRegistry.
+  core::WebRouteRegistry::mountAll(server.get());
+  server->on("/api/settings", HTTP_GET, [this] { handleGetSettings(); });
+  server->on("/api/settings", HTTP_POST, [this] { handlePostSettings(); });
+
+  // OPDS server endpoints
+  server->on("/api/opds", HTTP_GET, [this] { handleGetOpdsServers(); });
+  server->on("/api/opds", HTTP_POST, [this] { handlePostOpdsServer(); });
+  server->on("/api/opds/delete", HTTP_POST, [this] { handleDeleteOpdsServer(); });
+
+  // Fork-drift HTTP endpoints — restored after upstream merge bd4f8033 dropped them.
+  server->on("/api/book-progress", HTTP_GET, [this] { handleGetBookProgress(); });
+  server->on("/api/recent", HTTP_GET, [this] { handleRecentBooks(); });
+  server->on("/api/cover", HTTP_GET, [this] { handleCover(); });
+  server->on("/api/sleep-images", HTTP_GET, [this] { handleSleepImages(); });
+  server->on("/api/sleep-cover", HTTP_GET, [this] { handleSleepCoverGet(); });
+  server->on("/api/sleep-cover/pin", HTTP_POST, [this] { handleSleepCoverPin(); });
+  server->on("/api/open-book", HTTP_POST, [this] { handleOpenBook(); });
+  server->on("/api/settings/raw", HTTP_GET, [this] { handleGetSettingsRaw(); });
+  server->on("/api/remote/button", HTTP_POST, [this] { handleRemoteButton(); });
+  server->on("/api/screenshot", HTTP_POST, [this] { handleScreenshot(); });
+
+  server->onNotFound([this] { handleNotFound(); });
 }
 
 #if 0  // Duplicated by src/network/WsUploadHandlers.cpp

@@ -89,6 +89,8 @@ class CrossPointWebServer {
   void setApRedirectPath(std::string path);
 
  private:
+  void mountRoutes();
+
   std::unique_ptr<WebServer> server = nullptr;
   std::unique_ptr<WebSocketsServer> wsServer = nullptr;
   bool running = false;
