@@ -4,7 +4,7 @@
 # Rebuild + restart only when C++ files change (use --watch with entr installed).
 #
 # Usage:
-#   bash test/run_host_server_dev.sh [--port N] [--root DIR] [--html-root DIR] [--watch]
+#   bash test/run_host_server_dev.sh [--host HOST] [--port N] [--root DIR] [--html-root DIR] [--watch]
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -13,12 +13,15 @@ ARDUINOJSON_DIR="$ROOT_DIR/.pio/libdeps/default/ArduinoJson/src"
 BINARY="$BUILD_DIR/HostServer"
 
 PORT=8080
+HOST=127.0.0.1
 DATA_ROOT="$BUILD_DIR/dev_root"
 HTML_ROOT="$ROOT_DIR/src/network/html"
 WATCH=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --host) HOST="$2"; shift 2 ;;
+    --host=*) HOST="${1#--host=}"; shift ;;
     --port) PORT="$2"; shift 2 ;;
     --port=*) PORT="${1#--port=}"; shift ;;
     --root) DATA_ROOT="$2"; shift 2 ;;
@@ -91,9 +94,9 @@ build
 
 echo ""
 echo "  CrossPoint Host Dev Server"
-echo "  http://127.0.0.1:$PORT/"
-echo "  http://127.0.0.1:$PORT/files"
-echo "  http://127.0.0.1:$PORT/settings"
+echo "  http://$HOST:$PORT/"
+echo "  http://$HOST:$PORT/files"
+echo "  http://$HOST:$PORT/settings"
 echo ""
 echo "  Files root : $DATA_ROOT"
 echo "  HTML root  : $HTML_ROOT"
@@ -119,7 +122,7 @@ if [ "$WATCH" -eq 1 ]; then
   find "$ROOT_DIR/test/host_server" "$ROOT_DIR/src/network" "$ROOT_DIR/src/util" \
        "$ROOT_DIR/lib/FsHelpers" \
     -name "*.cpp" -o -name "*.h" | \
-    entr -r bash -c 'build && exec "$BINARY" --port "$PORT" --root "$DATA_ROOT" --html-root "$HTML_ROOT"'
+    entr -r bash -c 'build && exec "$BINARY" --host "$HOST" --port "$PORT" --root "$DATA_ROOT" --html-root "$HTML_ROOT"'
 else
-  exec "$BINARY" --port "$PORT" --root "$DATA_ROOT" --html-root "$HTML_ROOT"
+  exec "$BINARY" --host "$HOST" --port "$PORT" --root "$DATA_ROOT" --html-root "$HTML_ROOT"
 fi

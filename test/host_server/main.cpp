@@ -45,6 +45,14 @@ std::string parseHtmlRoot(int argc, char** argv) {
   return {};
 }
 
+std::string parseHost(int argc, char** argv) {
+  for (int i = 1; i < argc; ++i) {
+    if (std::strncmp(argv[i], "--host=", 7) == 0) return argv[i] + 7;
+    if (std::strcmp(argv[i], "--host") == 0 && i + 1 < argc) return argv[i + 1];
+  }
+  return "127.0.0.1";
+}
+
 std::string loadThemeTokens(const std::string& htmlRoot) {
   std::ifstream f(htmlRoot + "/../../../scripts/theme.css");
   if (!f) return {};
@@ -86,6 +94,7 @@ void handleSignal(int) {
 
 int main(int argc, char** argv) {
   const int port = parsePort(argc, argv);
+  const std::string host = parseHost(argc, argv);
   const std::string root = parseRoot(argc, argv);
   const std::string htmlRoot = parseHtmlRoot(argc, argv);
   if (port <= 0 || port > 65535) {
@@ -121,9 +130,9 @@ int main(int argc, char** argv) {
 
   server.onNotFound([&server] { server.send(404, "text/plain", "Not found"); });
 
-  std::cout << "HostWebServer listening on http://127.0.0.1:" << port << '\n';
+  std::cout << "HostWebServer listening on http://" << host << ":" << port << '\n';
   if (!htmlRoot.empty()) std::cout << "  HTML served from " << htmlRoot << '\n';
-  const bool ok = server.listen("127.0.0.1", port);
+  const bool ok = server.listen(host.c_str(), port);
   gServer = nullptr;
   return ok ? 0 : 1;
 }
