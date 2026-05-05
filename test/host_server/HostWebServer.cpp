@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <fstream>
 
 #include "util/PathUtils.h"
 
@@ -58,8 +59,23 @@ void populateMultipartArgs(const httplib::MultipartFormData& form, std::map<std:
   }
 }
 
+std::string staticMimeType(const std::string& path) {
+  const size_t dot = path.rfind('.');
+  if (dot != std::string::npos) {
+    const std::string ext = path.substr(dot);
+    if (ext == ".html") return "text/html; charset=utf-8";
+    if (ext == ".js") return "application/javascript";
+    if (ext == ".css") return "text/css";
+    if (ext == ".svg") return "image/svg+xml";
+    if (ext == ".ico") return "image/x-icon";
+    if (ext == ".json") return "application/json";
+  }
+  return "application/octet-stream";
+}
+
 void writeResponse(const WebServer::Response& response, size_t contentLength, httplib::Response& res) {
   res.status = response.statusCode >= 0 ? response.statusCode : 500;
+  res.set_header("Access-Control-Allow-Origin", "*");
   if (!response.contentType.isEmpty()) {
     res.set_content(response.body.c_str(), response.body.length(), response.contentType.c_str());
   } else {
@@ -155,6 +171,12 @@ void WebServer::ensureServer() {
     writeResponse(response, contentLength_, res);
   };
 
+  impl_->server.Options(R"(.*)", [](const httplib::Request&, httplib::Response& res) {
+    res.set_header("Access-Control-Allow-Origin", "*");
+    res.set_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.set_header("Access-Control-Allow-Headers", "Content-Type");
+    res.status = 204;
+  });
   impl_->server.Get(R"(.*)", handler);
   impl_->server.Post(R"(.*)", handler);
   impl_->server.Put(R"(.*)", handler);
@@ -213,6 +235,22 @@ bool WebServer::dispatch(const httplib::Request& req, Response& out) {
     }
   }
 
+  if (!htmlRoot_.empty() && request_.method == HTTP_GET) {
+    const std::string uriStr = request_.uri.toStdString();
+    if (uriStr.find("..") == std::string::npos) {
+      std::ifstream file(htmlRoot_ + uriStr, std::ios::binary);
+      if (file) {
+        const std::string content((std::istreambuf_iterator<char>(file)), {});
+        response_.statusCode = 200;
+        response_.contentType = String(staticMimeType(uriStr).c_str());
+        response_.body = String();
+        response_.body.write(reinterpret_cast<const uint8_t*>(content.data()), content.size());
+        out = response_;
+        return true;
+      }
+    }
+  }
+
   if (notFoundHandler_) {
     notFoundHandler_();
   } else {
@@ -220,6 +258,13 @@ bool WebServer::dispatch(const httplib::Request& req, Response& out) {
   }
   out = response_;
   return false;
+}
+
+bool WebServer::serveDirectory(const char* fsPath) {
+  if (!fsPath || !*fsPath) return false;
+  htmlRoot_ = fsPath;
+  while (!htmlRoot_.empty() && htmlRoot_.back() == '/') htmlRoot_.pop_back();
+  return true;
 }
 
 bool WebServer::listen(const char* host, int port) {

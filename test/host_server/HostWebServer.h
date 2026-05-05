@@ -83,6 +83,8 @@ class WebServer {
   bool listen(int port);
   void stop();
 
+  bool serveDirectory(const char* fsPath);
+
   const Response& response() const { return response_; }
 
  private:
@@ -108,6 +110,7 @@ class WebServer {
   Response response_;
   size_t contentLength_ = 0;
   HTTPUpload upload_;
+  std::string htmlRoot_;
   class Impl;
   std::unique_ptr<Impl> impl_;
 };
