@@ -40,11 +40,9 @@ std::string Txt::getTitle() const {
   size_t lastSlash = filepath.find_last_of('/');
   std::string filename = (lastSlash != std::string::npos) ? filepath.substr(lastSlash + 1) : filepath;
 
-  // Remove .txt or .md extension
+  // Remove .txt extension
   if (FsHelpers::hasTxtExtension(filename)) {
     filename = filename.substr(0, filename.length() - 4);
-  } else if (filename.length() >= 3 && filename.substr(filename.length() - 3) == ".md") {
-    filename = filename.substr(0, filename.length() - 3);
   }
 
   return filename;

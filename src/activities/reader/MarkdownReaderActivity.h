@@ -56,4 +56,5 @@ class MarkdownReaderActivity final : public ActivityWithSubactivity {
   void onEnter() override;
   void onExit() override;
   void loop() override;
+  bool isReaderActivity() const override { return true; }
 };

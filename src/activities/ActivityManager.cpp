@@ -18,7 +18,6 @@
 #include "home/RecentBooksActivity.h"
 #include "network/CrossPointWebServer.h"
 #include "network/CrossPointWebServerActivity.h"
-#include "reader/ReaderActivity.h"
 #include "settings/OpdsServerListActivity.h"
 #include "settings/SettingsActivity.h"
 #include "util/FullScreenMessageActivity.h"

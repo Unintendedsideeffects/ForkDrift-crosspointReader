@@ -145,9 +145,8 @@ void FileBrowserActivity::onSelectBook(const std::string& fullPath) { activityMa
 void FileBrowserActivity::onGoHome() { activityManager.goHome(); }
 
 void FileBrowserActivity::loop() {
-  // Long press BACK (1s+) goes to root folder
-  // but Long press BACK (1s+) from ReaderActivity sends us here with the MappedInput already set.
-  // So ignore it the first time.
+  // Long press BACK (1s+) goes to root folder.
+  // If a reader sends us here with the MappedInput already set, ignore it the first time.
   if (mappedInput.isPressed(MappedInputManager::Button::Back) && mappedInput.getHeldTime() >= GO_HOME_MS &&
       basepath != "/" && !lockLongPressBack) {
     basepath = "/";

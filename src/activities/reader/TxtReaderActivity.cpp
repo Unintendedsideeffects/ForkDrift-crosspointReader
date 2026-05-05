@@ -17,7 +17,6 @@
 #include "activities/TaskShutdown.h"
 #include "components/ScreenComponents.h"
 #include "components/UITheme.h"
-#include "features/markdown/MarkdownLineProcessor.h"
 #include "fontIds.h"
 #include "util/RecentBooksStore.h"
 
@@ -25,7 +24,7 @@ namespace {
 constexpr size_t CHUNK_SIZE = 8 * 1024;  // 8KB chunk for reading
 // Cache file magic and version
 constexpr uint32_t CACHE_MAGIC = 0x54585449;  // "TXTI"
-constexpr uint8_t CACHE_VERSION = 3;          // Increment when cache format changes
+constexpr uint8_t CACHE_VERSION = 4;          // Increment when cache format changes
 
 }  // namespace
 
@@ -37,10 +36,6 @@ void TxtReaderActivity::onEnter() {
   }
 
   ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
-
-  // Detect markdown mode from file extension
-  isMarkdown = features::markdown::isMarkdownPath(txt->getPath());
-  LOG_DBG("TRS", "File: %s, markdown mode: %s", txt->getPath().c_str(), isMarkdown ? "yes" : "no");
 
   txt->setupCacheDir();
 
@@ -234,22 +229,10 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<StyledLine>&
     // Extract raw line content (without CR/LF)
     std::string rawLine(reinterpret_cast<char*>(buffer.data() + pos), displayLen);
 
-    // Apply markdown block-level preprocessing if needed.
-    // Inline markers (**, *, `code`, etc.) are left in the text here and stripped at render
-    // time, so word-wrap width measurements remain accurate.
-    StyledLine processed = features::markdown::processLine(isMarkdown, rawLine);
+    std::string lineText = rawLine;
+    const EpdFontFamily::Style lineStyle = EpdFontFamily::REGULAR;
 
-    // Horizontal rules occupy exactly one display line; advance past raw line and continue.
-    if (processed.isHRule) {
-      outLines.push_back(processed);
-      pos = lineEnd + 1;
-      continue;
-    }
-
-    std::string& lineText = processed.text;
-    const EpdFontFamily::Style lineStyle = processed.style;
-
-    // Track position within this source line (in bytes from pos) for non-markdown mode.
+    // Track position within this source line (in bytes from pos).
     size_t lineBytePos = 0;
 
     // Word wrap if needed
@@ -296,15 +279,8 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<StyledLine>&
       lineText = lineText.substr(skipChars);
     }
 
-    // Determine how much of the source buffer we consumed.
-    // In markdown mode, always advance past the full raw line — inline stripping means
-    // lineBytePos would be measured in cleaned-text bytes, which don't map to raw positions.
-    if (isMarkdown || lineText.empty()) {
+    if (lineText.empty()) {
       pos = lineEnd + 1;
-      if (!lineText.empty()) {
-        // Markdown: page filled before finishing a long wrapped line; remaining text is skipped.
-        break;
-      }
     } else {
       // Plain text, partial line — page is full mid-line
       pos = pos + lineBytePos;
@@ -367,10 +343,6 @@ void TxtReaderActivity::renderPage() {
   const int lineHeight = renderer.getLineHeight(cachedFontId);
   const int contentWidth = viewportWidth;
 
-  // Render text lines with alignment.
-  // Inline markdown markers are stripped from each line before rendering so that
-  // `**bold**` displays as `bold` while word-wrap measurements (done on the raw text)
-  // remain unaffected.
   auto renderLines = [&]() {
     int y = cachedOrientedMarginTop;
     for (const auto& sline : currentPageLines) {
@@ -379,7 +351,6 @@ void TxtReaderActivity::renderPage() {
         const int midY = y + lineHeight / 2;
         renderer.drawLine(cachedOrientedMarginLeft, midY, cachedOrientedMarginLeft + contentWidth, midY, true);
       } else if (!sline.text.empty()) {
-        const std::string display = features::markdown::stripInline(isMarkdown, sline.text);
         int x = cachedOrientedMarginLeft;
 
         // Apply text alignment
@@ -389,12 +360,12 @@ void TxtReaderActivity::renderPage() {
             // x already set to left margin
             break;
           case CrossPointSettings::CENTER_ALIGN: {
-            int textWidth = renderer.getTextWidth(cachedFontId, display.c_str(), sline.style);
+            int textWidth = renderer.getTextWidth(cachedFontId, sline.text.c_str(), sline.style);
             x = cachedOrientedMarginLeft + (contentWidth - textWidth) / 2;
             break;
           }
           case CrossPointSettings::RIGHT_ALIGN: {
-            int textWidth = renderer.getTextWidth(cachedFontId, display.c_str(), sline.style);
+            int textWidth = renderer.getTextWidth(cachedFontId, sline.text.c_str(), sline.style);
             x = cachedOrientedMarginLeft + contentWidth - textWidth;
             break;
           }
@@ -403,7 +374,7 @@ void TxtReaderActivity::renderPage() {
             break;
         }
 
-        renderer.drawText(cachedFontId, x, y, display.c_str(), true, sline.style);
+        renderer.drawText(cachedFontId, x, y, sline.text.c_str(), true, sline.style);
       }
       y += lineHeight;
     }
@@ -477,7 +448,6 @@ bool TxtReaderActivity::loadPageIndexCache() {
   // - int32_t: font ID (to invalidate cache on font change)
   // - int32_t: screen margin (to invalidate cache on margin change)
   // - uint8_t: paragraph alignment (to invalidate cache on alignment change)
-  // - uint8_t: markdown flag (1 = markdown mode, 0 = plain text)
   // - uint32_t: total pages count
   // - N * uint32_t: page offsets
 
@@ -546,14 +516,6 @@ bool TxtReaderActivity::loadPageIndexCache() {
     return false;
   }
 
-  uint8_t markdownFlag;
-  serialization::readPod(f, markdownFlag);
-  if (static_cast<bool>(markdownFlag) != isMarkdown) {
-    LOG_DBG("TRS", "Cache markdown flag mismatch, rebuilding");
-    f.close();
-    return false;
-  }
-
   uint32_t numPages;
   serialization::readPod(f, numPages);
 
@@ -590,7 +552,6 @@ void TxtReaderActivity::savePageIndexCache() const {
   serialization::writePod(f, static_cast<int32_t>(cachedFontId));
   serialization::writePod(f, static_cast<int32_t>(cachedScreenMargin));
   serialization::writePod(f, cachedParagraphAlignment);
-  serialization::writePod(f, static_cast<uint8_t>(isMarkdown ? 1 : 0));
   serialization::writePod(f, static_cast<uint32_t>(pageOffsets.size()));
 
   // Write page offsets

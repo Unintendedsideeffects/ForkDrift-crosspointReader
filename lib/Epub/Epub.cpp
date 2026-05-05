@@ -359,20 +359,28 @@ void Epub::parseCssFiles() const {
         // Explicitly close() file before calling Storage.remove()
         tempCssFile.close();
         Storage.remove(tmpCssPath.c_str());
+        continue;
       }
       // Explicitly close() file before reopening for reading
       tempCssFile.close();
 
-      // Save to cache for next time
-      FsFile cssCacheFile;
-      if (Storage.openFileForWrite("EBP", getCssRulesCache(), cssCacheFile)) {
-        cssParser->saveToCache(cssCacheFile);
-        cssCacheFile.close();
+      FsFile cssReadFile;
+      if (!Storage.openFileForRead("EBP", tmpCssPath, cssReadFile)) {
+        LOG_ERR("EBP", "Could not reopen temp CSS file: %s", cssPath.c_str());
+        Storage.remove(tmpCssPath.c_str());
+        continue;
       }
-      cssParser->loadFromStream(tempCssFile);
+      cssParser->loadFromStream(cssReadFile);
       // Explicitly close() file before calling Storage.remove()
-      tempCssFile.close();
+      cssReadFile.close();
       Storage.remove(tmpCssPath.c_str());
+    }
+
+    // Save parsed CSS rules to cache for next time
+    FsFile cssCacheFile;
+    if (Storage.openFileForWrite("EBP", getCssRulesCache(), cssCacheFile)) {
+      cssParser->saveToCache(cssCacheFile);
+      cssCacheFile.close();
     }
 
     LOG_DBG("EBP", "Loaded %zu CSS style rules from %zu files", cssParser->ruleCount(), cssFiles.size());
