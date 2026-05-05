@@ -55,7 +55,7 @@ FEATURES = {
     'markdown': Feature(
         name='Markdown/Obsidian',
         flag='ENABLE_MARKDOWN',
-        size_kb=165,
+        size_kb=176,
         description='Markdown and Obsidian vault reading support'
     ),
     'integrations': Feature(
