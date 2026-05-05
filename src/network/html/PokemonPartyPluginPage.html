@@ -155,17 +155,84 @@
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
-      align-items: stretch;
+      align-items: flex-start;
     }
 
-    .assign-row input {
-      flex: 1 1 100px;
+    .pokemon-picker {
+      position: relative;
+      flex: 1 1 180px;
+      min-width: 0;
+    }
+
+    .pokemon-picker input {
+      width: 100%;
       min-width: 0;
       padding: 8px;
       border: 2px solid var(--black);
       font-family: var(--font-mono);
       font-size: 0.9em;
       background: var(--white);
+    }
+
+    .pokemon-picker-results {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      border: 2px solid var(--black);
+      background: var(--white);
+      max-height: 220px;
+      overflow-y: auto;
+      z-index: 10;
+    }
+
+    .pokemon-picker-results.is-open {
+      display: block;
+    }
+
+    .pokemon-picker-option,
+    .pokemon-picker-empty {
+      display: block;
+      width: 100%;
+      padding: 8px 10px;
+      border: 0;
+      border-bottom: 1px solid var(--gray-8);
+      background: var(--white);
+      color: var(--black);
+      text-align: left;
+      font-family: var(--font-mono);
+      font-size: 0.76em;
+      line-height: 1.35;
+    }
+
+    .pokemon-picker-option {
+      cursor: pointer;
+    }
+
+    .pokemon-picker-option:hover,
+    .pokemon-picker-option.is-active {
+      background: var(--black);
+      color: var(--white);
+    }
+
+    .pokemon-picker-option:last-child,
+    .pokemon-picker-empty:last-child {
+      border-bottom: 0;
+    }
+
+    .pokemon-picker-option-name {
+      font-weight: 700;
+    }
+
+    .pokemon-picker-option-meta,
+    .pokemon-picker-empty {
+      color: var(--gray-4);
+    }
+
+    .pokemon-picker-option:hover .pokemon-picker-option-meta,
+    .pokemon-picker-option.is-active .pokemon-picker-option-meta {
+      color: var(--white);
     }
 
     .btn {
@@ -233,7 +300,7 @@
 
 <div class="card">
   <h1>Pokemon Party</h1>
-  <p class="subtitle">The six most recent books become the active roster. Assign a Pokemon by numeric ID, store it on the book cache, or clear the slot.</p>
+  <p class="subtitle">The six most recent books become the active roster. Search for a Pokemon, store it on the book cache, or clear the slot.</p>
   <div class="status" id="statusBox">Loading recent books...</div>
 </div>
 
@@ -243,6 +310,8 @@
 
 <script>
   const POKEMON_CACHE = /* POKEMON_CACHE_INJECT_START */ {} /* POKEMON_CACHE_INJECT_END */;
+  const MAX_POKEMON_ID = 1025;
+  const POKEMON_NAMES = ["bulbasaur","ivysaur","venusaur","charmander","charmeleon","charizard","squirtle","wartortle","blastoise","caterpie","metapod","butterfree","weedle","kakuna","beedrill","pidgey","pidgeotto","pidgeot","rattata","raticate","spearow","fearow","ekans","arbok","pikachu","raichu","sandshrew","sandslash","nidoran-f","nidorina","nidoqueen","nidoran-m","nidorino","nidoking","clefairy","clefable","vulpix","ninetales","jigglypuff","wigglytuff","zubat","golbat","oddish","gloom","vileplume","paras","parasect","venonat","venomoth","diglett","dugtrio","meowth","persian","psyduck","golduck","mankey","primeape","growlithe","arcanine","poliwag","poliwhirl","poliwrath","abra","kadabra","alakazam","machop","machoke","machamp","bellsprout","weepinbell","victreebel","tentacool","tentacruel","geodude","graveler","golem","ponyta","rapidash","slowpoke","slowbro","magnemite","magneton","farfetchd","doduo","dodrio","seel","dewgong","grimer","muk","shellder","cloyster","gastly","haunter","gengar","onix","drowzee","hypno","krabby","kingler","voltorb","electrode","exeggcute","exeggutor","cubone","marowak","hitmonlee","hitmonchan","lickitung","koffing","weezing","rhyhorn","rhydon","chansey","tangela","kangaskhan","horsea","seadra","goldeen","seaking","staryu","starmie","mr-mime","scyther","jynx","electabuzz","magmar","pinsir","tauros","magikarp","gyarados","lapras","ditto","eevee","vaporeon","jolteon","flareon","porygon","omanyte","omastar","kabuto","kabutops","aerodactyl","snorlax","articuno","zapdos","moltres","dratini","dragonair","dragonite","mewtwo","mew","chikorita","bayleef","meganium","cyndaquil","quilava","typhlosion","totodile","croconaw","feraligatr","sentret","furret","hoothoot","noctowl","ledyba","ledian","spinarak","ariados","crobat","chinchou","lanturn","pichu","cleffa","igglybuff","togepi","togetic","natu","xatu","mareep","flaaffy","ampharos","bellossom","marill","azumarill","sudowoodo","politoed","hoppip","skiploom","jumpluff","aipom","sunkern","sunflora","yanma","wooper","quagsire","espeon","umbreon","murkrow","slowking","misdreavus","unown","wobbuffet","girafarig","pineco","forretress","dunsparce","gligar","steelix","snubbull","granbull","qwilfish","scizor","shuckle","heracross","sneasel","teddiursa","ursaring","slugma","magcargo","swinub","piloswine","corsola","remoraid","octillery","delibird","mantine","skarmory","houndour","houndoom","kingdra","phanpy","donphan","porygon2","stantler","smeargle","tyrogue","hitmontop","smoochum","elekid","magby","miltank","blissey","raikou","entei","suicune","larvitar","pupitar","tyranitar","lugia","ho-oh","celebi","treecko","grovyle","sceptile","torchic","combusken","blaziken","mudkip","marshtomp","swampert","poochyena","mightyena","zigzagoon","linoone","wurmple","silcoon","beautifly","cascoon","dustox","lotad","lombre","ludicolo","seedot","nuzleaf","shiftry","taillow","swellow","wingull","pelipper","ralts","kirlia","gardevoir","surskit","masquerain","shroomish","breloom","slakoth","vigoroth","slaking","nincada","ninjask","shedinja","whismur","loudred","exploud","makuhita","hariyama","azurill","nosepass","skitty","delcatty","sableye","mawile","aron","lairon","aggron","meditite","medicham","electrike","manectric","plusle","minun","volbeat","illumise","roselia","gulpin","swalot","carvanha","sharpedo","wailmer","wailord","numel","camerupt","torkoal","spoink","grumpig","spinda","trapinch","vibrava","flygon","cacnea","cacturne","swablu","altaria","zangoose","seviper","lunatone","solrock","barboach","whiscash","corphish","crawdaunt","baltoy","claydol","lileep","cradily","anorith","armaldo","feebas","milotic","castform","kecleon","shuppet","banette","duskull","dusclops","tropius","chimecho","absol","wynaut","snorunt","glalie","spheal","sealeo","walrein","clamperl","huntail","gorebyss","relicanth","luvdisc","bagon","shelgon","salamence","beldum","metang","metagross","regirock","regice","registeel","latias","latios","kyogre","groudon","rayquaza","jirachi","deoxys-normal","turtwig","grotle","torterra","chimchar","monferno","infernape","piplup","prinplup","empoleon","starly","staravia","staraptor","bidoof","bibarel","kricketot","kricketune","shinx","luxio","luxray","budew","roserade","cranidos","rampardos","shieldon","bastiodon","burmy","wormadam-plant","mothim","combee","vespiquen","pachirisu","buizel","floatzel","cherubi","cherrim","shellos","gastrodon","ambipom","drifloon","drifblim","buneary","lopunny","mismagius","honchkrow","glameow","purugly","chingling","stunky","skuntank","bronzor","bronzong","bonsly","mime-jr","happiny","chatot","spiritomb","gible","gabite","garchomp","munchlax","riolu","lucario","hippopotas","hippowdon","skorupi","drapion","croagunk","toxicroak","carnivine","finneon","lumineon","mantyke","snover","abomasnow","weavile","magnezone","lickilicky","rhyperior","tangrowth","electivire","magmortar","togekiss","yanmega","leafeon","glaceon","gliscor","mamoswine","porygon-z","gallade","probopass","dusknoir","froslass","rotom","uxie","mesprit","azelf","dialga","palkia","heatran","regigigas","giratina-altered","cresselia","phione","manaphy","darkrai","shaymin-land","arceus","victini","snivy","servine","serperior","tepig","pignite","emboar","oshawott","dewott","samurott","patrat","watchog","lillipup","herdier","stoutland","purrloin","liepard","pansage","simisage","pansear","simisear","panpour","simipour","munna","musharna","pidove","tranquill","unfezant","blitzle","zebstrika","roggenrola","boldore","gigalith","woobat","swoobat","drilbur","excadrill","audino","timburr","gurdurr","conkeldurr","tympole","palpitoad","seismitoad","throh","sawk","sewaddle","swadloon","leavanny","venipede","whirlipede","scolipede","cottonee","whimsicott","petilil","lilligant","basculin-red-striped","sandile","krokorok","krookodile","darumaka","darmanitan-standard","maractus","dwebble","crustle","scraggy","scrafty","sigilyph","yamask","cofagrigus","tirtouga","carracosta","archen","archeops","trubbish","garbodor","zorua","zoroark","minccino","cinccino","gothita","gothorita","gothitelle","solosis","duosion","reuniclus","ducklett","swanna","vanillite","vanillish","vanilluxe","deerling","sawsbuck","emolga","karrablast","escavalier","foongus","amoonguss","frillish-male","jellicent-male","alomomola","joltik","galvantula","ferroseed","ferrothorn","klink","klang","klinklang","tynamo","eelektrik","eelektross","elgyem","beheeyem","litwick","lampent","chandelure","axew","fraxure","haxorus","cubchoo","beartic","cryogonal","shelmet","accelgor","stunfisk","mienfoo","mienshao","druddigon","golett","golurk","pawniard","bisharp","bouffalant","rufflet","braviary","vullaby","mandibuzz","heatmor","durant","deino","zweilous","hydreigon","larvesta","volcarona","cobalion","terrakion","virizion","tornadus-incarnate","thundurus-incarnate","reshiram","zekrom","landorus-incarnate","kyurem","keldeo-ordinary","meloetta-aria","genesect","chespin","quilladin","chesnaught","fennekin","braixen","delphox","froakie","frogadier","greninja","bunnelby","diggersby","fletchling","fletchinder","talonflame","scatterbug","spewpa","vivillon","litleo","pyroar-male","flabebe","floette","florges","skiddo","gogoat","pancham","pangoro","furfrou","espurr","meowstic-male","honedge","doublade","aegislash-shield","spritzee","aromatisse","swirlix","slurpuff","inkay","malamar","binacle","barbaracle","skrelp","dragalge","clauncher","clawitzer","helioptile","heliolisk","tyrunt","tyrantrum","amaura","aurorus","sylveon","hawlucha","dedenne","carbink","goomy","sliggoo","goodra","klefki","phantump","trevenant","pumpkaboo-average","gourgeist-average","bergmite","avalugg","noibat","noivern","xerneas","yveltal","zygarde-50","diancie","hoopa","volcanion","rowlet","dartrix","decidueye","litten","torracat","incineroar","popplio","brionne","primarina","pikipek","trumbeak","toucannon","yungoos","gumshoos","grubbin","charjabug","vikavolt","crabrawler","crabominable","oricorio-baile","cutiefly","ribombee","rockruff","lycanroc-midday","wishiwashi-solo","mareanie","toxapex","mudbray","mudsdale","dewpider","araquanid","fomantis","lurantis","morelull","shiinotic","salandit","salazzle","stufful","bewear","bounsweet","steenee","tsareena","comfey","oranguru","passimian","wimpod","golisopod","sandygast","palossand","pyukumuku","type-null","silvally","minior-red-meteor","komala","turtonator","togedemaru","mimikyu-disguised","bruxish","drampa","dhelmise","jangmo-o","hakamo-o","kommo-o","tapu-koko","tapu-lele","tapu-bulu","tapu-fini","cosmog","cosmoem","solgaleo","lunala","nihilego","buzzwole","pheromosa","xurkitree","celesteela","kartana","guzzlord","necrozma","magearna","marshadow","poipole","naganadel","stakataka","blacephalon","zeraora","meltan","melmetal","grookey","thwackey","rillaboom","scorbunny","raboot","cinderace","sobble","drizzile","inteleon","skwovet","greedent","rookidee","corvisquire","corviknight","blipbug","dottler","orbeetle","nickit","thievul","gossifleur","eldegoss","wooloo","dubwool","chewtle","drednaw","yamper","boltund","rolycoly","carkol","coalossal","applin","flapple","appletun","silicobra","sandaconda","cramorant","arrokuda","barraskewda","toxel","toxtricity-amped","sizzlipede","centiskorch","clobbopus","grapploct","sinistea","polteageist","hatenna","hattrem","hatterene","impidimp","morgrem","grimmsnarl","obstagoon","perrserker","cursola","sirfetchd","mr-rime","runerigus","milcery","alcremie","falinks","pincurchin","snom","frosmoth","stonjourner","eiscue-ice","indeedee-male","morpeko-full-belly","cufant","copperajah","dracozolt","arctozolt","dracovish","arctovish","duraludon","dreepy","drakloak","dragapult","zacian","zamazenta","eternatus","kubfu","urshifu-single-strike","zarude","regieleki","regidrago","glastrier","spectrier","calyrex","wyrdeer","kleavor","ursaluna","basculegion-male","sneasler","overqwil","enamorus-incarnate","sprigatito","floragato","meowscarada","fuecoco","crocalor","skeledirge","quaxly","quaxwell","quaquaval","lechonk","oinkologne-male","tarountula","spidops","nymble","lokix","pawmi","pawmo","pawmot","tandemaus","maushold-family-of-four","fidough","dachsbun","smoliv","dolliv","arboliva","squawkabilly-green-plumage","nacli","naclstack","garganacl","charcadet","armarouge","ceruledge","tadbulb","bellibolt","wattrel","kilowattrel","maschiff","mabosstiff","shroodle","grafaiai","bramblin","brambleghast","toedscool","toedscruel","klawf","capsakid","scovillain","rellor","rabsca","flittle","espathra","tinkatink","tinkatuff","tinkaton","wiglett","wugtrio","bombirdier","finizen","palafin-zero","varoom","revavroom","cyclizar","orthworm","glimmet","glimmora","greavard","houndstone","flamigo","cetoddle","cetitan","veluza","dondozo","tatsugiri-curly","annihilape","clodsire","farigiraf","dudunsparce-two-segment","kingambit","great-tusk","scream-tail","brute-bonnet","flutter-mane","slither-wing","sandy-shocks","iron-treads","iron-bundle","iron-hands","iron-jugulis","iron-moth","iron-thorns","frigibax","arctibax","baxcalibur","gimmighoul","gholdengo","wo-chien","chien-pao","ting-lu","chi-yu","roaring-moon","iron-valiant","koraidon","miraidon","walking-wake","iron-leaves","dipplin","poltchageist","sinistcha","okidogi","munkidori","fezandipiti","ogerpon","archaludon","hydrapple","gouging-fire","raging-bolt","iron-boulder","iron-crown","terapagos","pecharunt"];
 
   const statusBox = document.getElementById("statusBox");
   const partyGrid = document.getElementById("partyGrid");
@@ -273,6 +342,60 @@
   function extractResourceId(url) {
     const match = String(url || "").match(/\/(\d+)\/?$/);
     return match ? parseInt(match[1], 10) : null;
+  }
+
+  function normalizeSearchTerm(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
+  }
+
+  function buildPokemonCatalog() {
+    const catalog = POKEMON_NAMES.map(function(name, index) {
+      return {
+        id: index + 1,
+        name: name,
+        displayName: titleCase(name),
+        label: "#" + (index + 1) + " " + titleCase(name),
+        searchKey: normalizeSearchTerm(name),
+        searchTokens: String(name).split(/[^a-z0-9]+/i).filter(Boolean).map(normalizeSearchTerm)
+      };
+    });
+
+    Object.keys(POKEMON_CACHE || {}).forEach(function(key) {
+      if (!/\/api\/v2\/pokemon\/\d+\/?$/.test(key)) {
+        return;
+      }
+      const data = POKEMON_CACHE[key];
+      if (!data || typeof data.id !== "number" || !data.name || data.id < 1 || data.id > catalog.length) {
+        return;
+      }
+      catalog[data.id - 1] = {
+        id: data.id,
+        name: data.name,
+        displayName: titleCase(data.name),
+        label: "#" + data.id + " " + titleCase(data.name),
+        searchKey: normalizeSearchTerm(data.name),
+        searchTokens: String(data.name).split(/[^a-z0-9]+/i).filter(Boolean).map(normalizeSearchTerm)
+      };
+    });
+
+    return catalog;
+  }
+
+  function computeSubsequenceGap(query, target) {
+    let targetIndex = 0;
+    let gap = 0;
+    for (let queryIndex = 0; queryIndex < query.length; queryIndex++) {
+      const nextIndex = target.indexOf(query[queryIndex], targetIndex);
+      if (nextIndex === -1) {
+        return Infinity;
+      }
+      gap += nextIndex - targetIndex;
+      targetIndex = nextIndex + 1;
+    }
+    gap += target.length - targetIndex;
+    return gap;
   }
 
   async function fetchJson(url) {
@@ -362,25 +485,30 @@
     };
   }
 
-  function buildPokemonNameIndex() {
-    const index = new Map();
-    Object.keys(POKEMON_CACHE || {}).forEach(function(key) {
-      if (!/\/api\/v2\/pokemon\/\d+\/?$/.test(key)) {
-        return;
-      }
-      const data = POKEMON_CACHE[key];
-      if (data && typeof data.id === "number" && data.name) {
-        index.set(data.id, titleCase(data.name));
-      }
-    });
-    return index;
+  function buildFallbackPokemonAssignment(entry) {
+    return {
+      id: entry.id,
+      name: entry.name,
+      speciesId: entry.id,
+      speciesName: entry.name,
+      types: [],
+      sprites: {
+        pixel: "",
+        official: "",
+        home: ""
+      },
+      evolutionChain: [],
+      assignedAt: new Date().toISOString()
+    };
   }
 
-  const pokemonNameIndex = buildPokemonNameIndex();
+  const pokemonCatalog = buildPokemonCatalog();
+  const pokemonCatalogById = new Map(pokemonCatalog.map(function(entry) { return [entry.id, entry]; }));
+  const pokemonCatalogByName = new Map(pokemonCatalog.map(function(entry) { return [entry.searchKey, entry]; }));
 
   function lookupPokemonName(id, fallbackName) {
-    if (typeof id === "number" && pokemonNameIndex.has(id)) {
-      return pokemonNameIndex.get(id);
+    if (typeof id === "number" && pokemonCatalogById.has(id)) {
+      return pokemonCatalogById.get(id).displayName;
     }
     if (fallbackName) {
       return titleCase(fallbackName);
@@ -395,6 +523,9 @@
     Array.from(document.querySelectorAll("input[data-assign-input]")).forEach(function(input) {
       input.disabled = busy;
     });
+    if (busy) {
+      closeAllPickerResults();
+    }
   }
 
   async function fetchAssignedPokemon(path) {
@@ -412,6 +543,194 @@
     return partyBooks.find(function(book) { return book && book.path === path; }) || null;
   }
 
+  function getPokemonEntryById(id) {
+    return typeof id === "number" ? pokemonCatalogById.get(id) || null : null;
+  }
+
+  function parsePokemonId(value) {
+    const match = String(value || "").trim().match(/^#?\s*(\d{1,4})(?:\s|$)/);
+    if (!match) {
+      return null;
+    }
+    const numericId = parseInt(match[1], 10);
+    if (!Number.isFinite(numericId) || numericId < 1 || numericId > MAX_POKEMON_ID) {
+      return null;
+    }
+    return numericId;
+  }
+
+  function scorePokemonMatch(entry, rawQuery, normalizedQuery) {
+    if (!entry || !normalizedQuery) {
+      return -1;
+    }
+
+    const parsedId = parsePokemonId(rawQuery);
+    if (parsedId && entry.id === parsedId) {
+      return 100000 - entry.id;
+    }
+    if (entry.searchKey === normalizedQuery) {
+      return 90000 - entry.id;
+    }
+    if (entry.searchKey.indexOf(normalizedQuery) === 0) {
+      return 80000 - entry.id;
+    }
+    for (let i = 0; i < entry.searchTokens.length; i++) {
+      if (entry.searchTokens[i].indexOf(normalizedQuery) === 0) {
+        return 70000 - (i * 100) - entry.id;
+      }
+    }
+    const containsIndex = entry.searchKey.indexOf(normalizedQuery);
+    if (containsIndex !== -1) {
+      return 60000 - (containsIndex * 10) - entry.id;
+    }
+    const subsequenceGap = computeSubsequenceGap(normalizedQuery, entry.searchKey);
+    if (Number.isFinite(subsequenceGap)) {
+      return 40000 - (subsequenceGap * 10) - entry.id;
+    }
+    return -1;
+  }
+
+  function getPokemonMatches(rawQuery, limit) {
+    const trimmedQuery = String(rawQuery || "").trim();
+    if (!trimmedQuery) {
+      return [];
+    }
+
+    const parsedId = parsePokemonId(trimmedQuery);
+    if (parsedId) {
+      const entry = getPokemonEntryById(parsedId);
+      return entry ? [entry] : [];
+    }
+
+    const normalizedQuery = normalizeSearchTerm(trimmedQuery);
+    if (!normalizedQuery) {
+      return [];
+    }
+
+    return pokemonCatalog
+      .map(function(entry) {
+        return { entry: entry, score: scorePokemonMatch(entry, trimmedQuery, normalizedQuery) };
+      })
+      .filter(function(result) { return result.score >= 0; })
+      .sort(function(lhs, rhs) {
+        if (rhs.score !== lhs.score) {
+          return rhs.score - lhs.score;
+        }
+        return lhs.entry.id - rhs.entry.id;
+      })
+      .slice(0, limit)
+      .map(function(result) { return result.entry; });
+  }
+
+  function isExactPokemonQuery(rawQuery, entry) {
+    if (!entry) {
+      return false;
+    }
+    const trimmedQuery = String(rawQuery || "").trim();
+    if (!trimmedQuery) {
+      return false;
+    }
+    const parsedId = parsePokemonId(trimmedQuery);
+    if (parsedId) {
+      return parsedId === entry.id;
+    }
+    const normalizedQuery = normalizeSearchTerm(trimmedQuery);
+    return normalizedQuery === entry.searchKey || normalizedQuery === normalizeSearchTerm(entry.label);
+  }
+
+  function getPickerResultsBox(encodedPath) {
+    return partyGrid.querySelector('[data-picker-results][data-book-path="' + encodedPath + '"]');
+  }
+
+  function closePickerResults(encodedPath) {
+    const resultsBox = getPickerResultsBox(encodedPath);
+    if (!resultsBox) {
+      return;
+    }
+    resultsBox.innerHTML = "";
+    resultsBox.classList.remove("is-open");
+  }
+
+  function closeAllPickerResults() {
+    Array.from(partyGrid.querySelectorAll("[data-picker-results]")).forEach(function(resultsBox) {
+      resultsBox.innerHTML = "";
+      resultsBox.classList.remove("is-open");
+    });
+  }
+
+  function setPickerInputValue(input, entry) {
+    input.value = entry.label;
+    input.dataset.selectedPokemonId = String(entry.id);
+  }
+
+  function renderPickerResults(input) {
+    const encodedPath = input.getAttribute("data-book-path") || "";
+    const resultsBox = getPickerResultsBox(encodedPath);
+    if (!resultsBox || busy) {
+      return;
+    }
+
+    const rawQuery = String(input.value || "").trim();
+    if (!rawQuery) {
+      closePickerResults(encodedPath);
+      return;
+    }
+
+    const matches = getPokemonMatches(rawQuery, 8);
+    if (!matches.length) {
+      resultsBox.innerHTML = '<div class="pokemon-picker-empty">No Pokemon match.</div>';
+      resultsBox.classList.add("is-open");
+      return;
+    }
+
+    resultsBox.innerHTML = matches.map(function(entry, index) {
+      return [
+        '<button class="pokemon-picker-option' + (index === 0 ? ' is-active' : '') + '" type="button" data-party-action="pick-pokemon" data-book-path="' + encodedPath + '" data-pokemon-id="' + entry.id + '">',
+        '  <div class="pokemon-picker-option-name">' + escapeHtml(entry.label) + '</div>',
+        '  <div class="pokemon-picker-option-meta">' + escapeHtml(entry.name) + '</div>',
+        '</button>'
+      ].join("");
+    }).join("");
+    resultsBox.classList.add("is-open");
+  }
+
+  function resolvePokemonSelection(input) {
+    const rawQuery = String(input && input.value || "").trim();
+    if (!rawQuery) {
+      throw new Error("Search for a Pokemon before confirming.");
+    }
+
+    const selectedId = parseInt(input.dataset.selectedPokemonId || "", 10);
+    if (Number.isFinite(selectedId)) {
+      const selectedEntry = getPokemonEntryById(selectedId);
+      if (selectedEntry && input.value === selectedEntry.label) {
+        return selectedEntry;
+      }
+    }
+
+    const parsedId = parsePokemonId(rawQuery);
+    if (parsedId) {
+      const idMatch = getPokemonEntryById(parsedId);
+      if (idMatch) {
+        return idMatch;
+      }
+    }
+
+    const normalizedQuery = normalizeSearchTerm(rawQuery);
+    if (normalizedQuery && pokemonCatalogByName.has(normalizedQuery)) {
+      return pokemonCatalogByName.get(normalizedQuery);
+    }
+
+    const matches = getPokemonMatches(rawQuery, 8);
+    if (!matches.length) {
+      throw new Error("No Pokemon matched that search.");
+    }
+    if (matches.length > 1 && !isExactPokemonQuery(rawQuery, matches[0])) {
+      throw new Error("Choose a Pokemon from the search results before confirming.");
+    }
+    return matches[0];
+  }
+
   function renderParty() {
     if (!partyBooks.length) {
       partyGrid.innerHTML = "";
@@ -427,6 +746,10 @@
       const assigned = book.pokemon || null;
       const assignedId = assigned && typeof assigned.id === "number" ? assigned.id : "";
       const assignedName = assigned ? lookupPokemonName(assigned.id, assigned.name) : "";
+      const assignedEntry = assignedId ? getPokemonEntryById(assignedId) : null;
+      const inputValue = assignedEntry
+        ? assignedEntry.label
+        : (assignedId && assignedName ? "#" + assignedId + " " + assignedName : "");
       const assignedText = assigned
         ? '<div class="party-pokemon-name">#' + assignedId + (assignedName ? " " + escapeHtml(assignedName) : "") + '</div>'
         : '<div class="party-empty">No Pokemon assigned yet.</div>';
@@ -445,14 +768,17 @@
                author ? '      <div class="party-book-author">' + author + '</div>' : '',
         '      <div class="party-book-path">' + path + '</div>',
         '      <div class="party-assigned-line">Assigned Pokemon</div>',
-        '      ' + assignedText,
-        '    </div>',
-        '  </div>',
-        '  <div class="assign-row">',
-        '    <input type="number" min="1" max="1025" step="1" data-assign-input="1" data-book-path="' + encodedPath + '" value="' + assignedId + '" placeholder="Pokemon ID" />',
-        '    <button class="btn" type="button" data-book-path="' + encodedPath + '" data-party-action="assign">Confirm</button>',
-        '  </div>',
-        '  <div class="party-actions">',
+         '      ' + assignedText,
+         '    </div>',
+         '  </div>',
+         '  <div class="assign-row">',
+         '    <div class="pokemon-picker">',
+         '      <input type="text" data-assign-input="1" data-book-path="' + encodedPath + '" data-selected-pokemon-id="' + (assignedId || "") + '" value="' + escapeHtml(inputValue) + '" placeholder="Search Pokemon by name or #id" autocomplete="off" spellcheck="false" />',
+         '      <div class="pokemon-picker-results" data-picker-results="1" data-book-path="' + encodedPath + '"></div>',
+         '    </div>',
+         '    <button class="btn" type="button" data-book-path="' + encodedPath + '" data-party-action="assign">Confirm</button>',
+         '  </div>',
+         '  <div class="party-actions">',
         '    <button class="btn secondary" type="button" data-book-path="' + encodedPath + '" data-party-action="clear">Clear</button>',
         '  </div>',
         '</div>'
@@ -472,11 +798,42 @@
     });
 
     Array.from(partyGrid.querySelectorAll("input[data-assign-input]")).forEach(function(input) {
+      input.addEventListener("input", function() {
+        delete input.dataset.selectedPokemonId;
+        renderPickerResults(input);
+      });
+      input.addEventListener("focus", function() {
+        renderPickerResults(input);
+      });
+      input.addEventListener("blur", function() {
+        const encodedPath = input.getAttribute("data-book-path") || "";
+        setTimeout(function() {
+          closePickerResults(encodedPath);
+        }, 120);
+      });
       input.addEventListener("keydown", function(event) {
         if (event.key === "Enter") {
           event.preventDefault();
+          const matches = getPokemonMatches(input.value, 1);
+          if (matches.length) {
+            setPickerInputValue(input, matches[0]);
+          }
           assignPokemonToBook(decodeURIComponent(input.getAttribute("data-book-path") || ""));
         }
+      });
+    });
+
+    Array.from(partyGrid.querySelectorAll("[data-party-action='pick-pokemon']")).forEach(function(button) {
+      button.addEventListener("click", function() {
+        const encodedPath = button.getAttribute("data-book-path") || "";
+        const input = partyGrid.querySelector('input[data-book-path="' + encodedPath + '"]');
+        const pokemonId = parseInt(button.getAttribute("data-pokemon-id") || "", 10);
+        const entry = getPokemonEntryById(pokemonId);
+        if (!input || !entry) {
+          return;
+        }
+        setPickerInputValue(input, entry);
+        closePickerResults(encodedPath);
       });
     });
 
@@ -523,10 +880,11 @@
   async function assignPokemonToBook(path) {
     const encodedPath = encodeURIComponent(path);
     const input = partyGrid.querySelector('input[data-book-path="' + encodedPath + '"]');
-    const rawId = input ? String(input.value || "").trim() : "";
-    const numericId = parseInt(rawId, 10);
-    if (!Number.isFinite(numericId) || numericId < 1 || numericId > 1025) {
-      setStatus("Enter a Pokemon ID from 1 to 1025 before confirming.", true);
+    let selection = null;
+    try {
+      selection = resolvePokemonSelection(input);
+    } catch (error) {
+      setStatus(error.message, true);
       return;
     }
 
@@ -534,21 +892,27 @@
     try {
       busy = true;
       syncButtons();
-      setStatus("Assigning #" + numericId + " to " + (book && book.title ? book.title : path) + "...", false);
-      const bundle = await fetchPokemonBundleById(numericId);
+      setStatus("Assigning " + selection.label + " to " + (book && book.title ? book.title : path) + "...", false);
+      let payload = buildFallbackPokemonAssignment(selection);
+      try {
+        const bundle = await fetchPokemonBundleById(selection.id);
+        payload = buildPokemonAssignmentPayload(bundle);
+      } catch (fetchError) {
+        console.error(fetchError);
+      }
       const response = await fetch("/api/book-pokemon", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           path: path,
-          pokemon: buildPokemonAssignmentPayload(bundle)
+          pokemon: payload
         })
       });
       if (!response.ok) {
         throw new Error(await response.text());
       }
       await loadPartyBooks();
-      setStatus("Assigned #" + bundle.pokemon.id + " " + titleCase(bundle.pokemon.name) + " to " + (book && book.title ? book.title : path) + ".", false);
+      setStatus("Assigned " + selection.label + " to " + (book && book.title ? book.title : path) + ".", false);
     } catch (error) {
       console.error(error);
       setStatus("Assign failed: " + error.message, true);
