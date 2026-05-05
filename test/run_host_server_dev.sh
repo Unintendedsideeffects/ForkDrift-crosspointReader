@@ -71,6 +71,7 @@ build() {
     "$ROOT_DIR/test/host_server/main.cpp" \
     "$ROOT_DIR/test/host_server/HostWebServer.cpp" \
     "$ROOT_DIR/test/host_server/HostStorage.cpp" \
+    "$ROOT_DIR/test/host_server/HostSettingsApi.cpp" \
     "$ROOT_DIR/test/mock/FeatureModuleHooks.cpp" \
     "$ROOT_DIR/src/network/CoreWebRoutes.cpp" \
     "$ROOT_DIR/src/network/FileRoutes.cpp" \
