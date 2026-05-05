@@ -152,6 +152,10 @@
       gap: 8px;
     }
 
+    .single-action .btn {
+      width: 100%;
+    }
+
     label {
       font-size: 12px;
       font-weight: 700;
@@ -332,12 +336,11 @@
     <section class="card headline">
       <div class="headline-top">
         <h1>X4 Grayscale Pokedex Wallpaper</h1>
-        <span class="badge">GitHub Pages Companion</span>
       </div>
       <p class="subtitle">
         Updated companion version for CrossPoint Reader. This page mirrors the newer Pokedex layout and control set,
         but keeps the GitHub Pages workflow download-first: generate XTEink X4 (480 x 800) BMP files here, then copy
-        them to <code>/sleep/pokedex</code> on the SD card, or open the device-hosted page for direct upload.
+        them to <code>/sleep/pokedex</code> on the SD card.
       </p>
     </section>
 
@@ -412,7 +415,7 @@
             <label><input id="showEvolution" type="checkbox" checked /> Evolution</label>
             <label><input id="showAbilities" type="checkbox" checked /> Abilities</label>
           </div>
-          <p class="hint">HP / stats works best if Flavor, Evolution, or Abilities is disabled.</p>
+          <p class="hint">Choose which details appear in the bottom panel.</p>
         </section>
 
         <section class="card control-block">
@@ -428,6 +431,9 @@
             <option value="810,905">Gen 8 (810-905)</option>
             <option value="906,1025">Gen 9 (906-1025)</option>
           </select>
+          <div class="option-grid">
+            <button class="btn secondary" id="selectAllBatchGens" type="button">Select All</button>
+          </div>
           <p class="hint">Tip: use Ctrl/Cmd + click to select multiple generations.</p>
 
           <label for="batchType">Batch Type Filter</label>
@@ -459,26 +465,9 @@
             <button class="btn" id="previewBtn" type="button">Preview</button>
             <button class="btn secondary" id="downloadBtn" type="button">Download BMP</button>
           </div>
-          <div class="action-grid">
-            <button class="btn secondary" id="batchPreviewBtn" type="button">Preview Batch Start</button>
+          <div class="single-action">
             <button class="btn" id="batchDownloadBtn" type="button">Batch Download ZIP</button>
           </div>
-        </section>
-
-        <section class="card control-block">
-          <label for="deviceHost">Optional Device Host</label>
-          <div class="split-row">
-            <input id="deviceHost" type="text" value="crosspoint.local" placeholder="crosspoint.local or 192.168.1.123" />
-            <a class="btn secondary" id="openDevicePlugin" href="http://crosspoint.local/plugins/pokedex" target="_blank" rel="noopener">Open Device Plugin</a>
-          </div>
-          <div class="action-grid">
-            <a class="btn secondary" id="openDeviceFiles" href="http://crosspoint.local/files?path=%2Fsleep%2Fpokedex" target="_blank" rel="noopener">Open Device Files</a>
-          </div>
-          <p class="hint">
-            GitHub Pages is served over HTTPS, so browsers block direct uploads from this page to local
-            <code>http://</code> device endpoints. Use this companion page for downloads, or open the device-hosted
-            plugin for upload actions.
-          </p>
         </section>
 
         <section class="card control-block">
@@ -496,21 +485,6 @@
           <canvas id="previewCanvas" width="480" height="800"></canvas>
         </section>
 
-        <section class="card meta-list">
-          <div>
-            <strong>Locked Output</strong>
-            480 x 800 XTEink X4 BMP wallpaper, grayscale final output.
-          </div>
-          <div>
-            <strong>Batch Output</strong>
-            ZIP archive containing BMP files for the selected generations and type filter.
-          </div>
-          <div>
-            <strong>Deploy Note</strong>
-            GitHub Pages will only show updates from the static file in
-            <code>docs/plugins/x4-pokedex-grayscale/index.html</code>.
-          </div>
-        </section>
       </aside>
     </section>
   </div>
@@ -564,7 +538,6 @@
     const previewBtn = document.getElementById("previewBtn");
     const downloadBtn = document.getElementById("downloadBtn");
     const randomBtn = document.getElementById("randomBtn");
-    const batchPreviewBtn = document.getElementById("batchPreviewBtn");
     const batchDownloadBtn = document.getElementById("batchDownloadBtn");
     const layoutStyleSelect = document.getElementById("layoutStyle");
     const artStyleSelect = document.getElementById("artStyle");
@@ -581,10 +554,8 @@
     const showEvolutionInput = document.getElementById("showEvolution");
     const showAbilitiesInput = document.getElementById("showAbilities");
     const batchGensSelect = document.getElementById("batchGens");
+    const selectAllBatchGensBtn = document.getElementById("selectAllBatchGens");
     const batchTypeSelect = document.getElementById("batchType");
-    const deviceHostInput = document.getElementById("deviceHost");
-    const openDevicePluginLink = document.getElementById("openDevicePlugin");
-    const openDeviceFilesLink = document.getElementById("openDeviceFiles");
 
     const BATCH_PREFETCH_CONCURRENCY = 12;
     const jsonRequestCache = new Map();
@@ -603,7 +574,6 @@
       previewBtn.disabled = isBusy;
       downloadBtn.disabled = isBusy;
       randomBtn.disabled = isBusy;
-      batchPreviewBtn.disabled = isBusy;
       batchDownloadBtn.disabled = isBusy;
     }
 
@@ -1016,7 +986,7 @@
       }
     }
 
-    function drawHpBars(pokemon, startY, fontFamily, boldText) {
+    function drawHpBars(pokemon, startY, fontFamily, boldText, metrics) {
       const wanted = {
         hp: "HP",
         attack: "ATK",
@@ -1029,8 +999,17 @@
         return entry && entry.stat && wanted[entry.stat.name];
       });
       const isPixel = fontFamily.indexOf("Press Start 2P") !== -1;
-      const barW = isPixel ? 138 : 180;
-      const barX = isPixel ? 140 : 102;
+      const settings = Object.assign({
+        barWidth: isPixel ? 138 : 180,
+        barX: isPixel ? 140 : 102,
+        labelX: 36,
+        labelFontSize: isPixel ? 11 : 16,
+        valueFontSize: isPixel ? 10 : 14,
+        barYOffset: 13,
+        barHeight: 12,
+        rowSpacing: isPixel ? 18 : 22,
+        valueGap: 8
+      }, metrics || {});
       let y = startY;
 
       for (let i = 0; i < stats.length; i++) {
@@ -1039,15 +1018,20 @@
         const value = Math.max(0, Math.min(255, stat.base_stat || 0));
         ctx.fillStyle = "#111111";
         ctx.textAlign = "left";
-        ctx.font = getFontSpec(isPixel ? 11 : 16, fontFamily, boldText);
-        ctx.fillText(wanted[key], 36, y);
+        ctx.font = getFontSpec(settings.labelFontSize, fontFamily, boldText);
+        ctx.fillText(wanted[key], settings.labelX, y);
         ctx.strokeStyle = "#111111";
-        ctx.strokeRect(barX, y - 13, barW, 12);
+        ctx.strokeRect(settings.barX, y - settings.barYOffset, settings.barWidth, settings.barHeight);
         ctx.fillStyle = "#111111";
-        ctx.fillRect(barX, y - 13, Math.round((value / 255) * barW), 12);
-        ctx.font = getFontSpec(isPixel ? 10 : 14, fontFamily, boldText);
-        ctx.fillText(String(value), barX + barW + 8, y);
-        y += isPixel ? 18 : 22;
+        ctx.fillRect(
+          settings.barX,
+          y - settings.barYOffset,
+          Math.round((value / 255) * settings.barWidth),
+          settings.barHeight
+        );
+        ctx.font = getFontSpec(settings.valueFontSize, fontFamily, boldText);
+        ctx.fillText(String(value), settings.barX + settings.barWidth + settings.valueGap, y);
+        y += settings.rowSpacing;
       }
 
       return y;
@@ -1096,7 +1080,25 @@
     }
 
     function drawClassicFooter(pokemon, species, flavorText, startY, scaleUnit, ink, options) {
-      const lineHeight = options.fontFamily.indexOf("Press Start 2P") !== -1 ? 18 * scaleUnit : 24 * scaleUnit;
+      const isPixel = options.fontFamily.indexOf("Press Start 2P") !== -1;
+      const footerBottomPadding = 18 * scaleUnit;
+      const availableHeight = Math.max(0, SCREEN_HEIGHT - startY - footerBottomPadding);
+      const sectionCount = [options.showFlavor, options.showHp, options.showAbilities].filter(Boolean).length;
+      const compact = sectionCount >= 3 || availableHeight < (isPixel ? 170 * scaleUnit : 225 * scaleUnit);
+      const flavorLineHeight = (isPixel ? 18 : 24) * scaleUnit * (compact ? 0.88 : 1);
+      const flavorFontSize = 26 * scaleUnit * (compact ? 0.9 : 1);
+      const flavorGap = (compact ? 8 : 12) * scaleUnit;
+      const abilityLineHeight = 20 * scaleUnit * (compact ? 0.9 : 1);
+      const abilityFontSize = 18 * scaleUnit * (compact ? 0.9 : 1);
+      const hpMetrics = compact ? {
+        barWidth: isPixel ? 132 : 168,
+        barX: isPixel ? 136 : 108,
+        labelFontSize: isPixel ? 10 : 14,
+        valueFontSize: isPixel ? 9 : 12,
+        barYOffset: isPixel ? 12 : 11,
+        barHeight: isPixel ? 10 : 10,
+        rowSpacing: isPixel ? 16 : 18
+      } : null;
       let currentY = startY;
 
       ctx.textAlign = "center";
@@ -1104,24 +1106,24 @@
       ctx.fillStyle = ink;
 
       if (options.showFlavor) {
-        ctx.font = getFontSpec(26 * scaleUnit, options.fontFamily, options.boldText);
-        const flavorLines = wrapTextLines(flavorText || "No Data.", SCREEN_WIDTH * 0.85, 4);
-        drawWrappedBlock(flavorLines, SCREEN_WIDTH / 2, currentY, lineHeight);
-        currentY += (flavorLines.length * lineHeight) + (12 * scaleUnit);
+        ctx.font = getFontSpec(flavorFontSize, options.fontFamily, options.boldText);
+        const flavorLines = wrapTextLines(flavorText || "No Data.", SCREEN_WIDTH * 0.85, compact ? 3 : 4);
+        drawWrappedBlock(flavorLines, SCREEN_WIDTH / 2, currentY, flavorLineHeight);
+        currentY += (flavorLines.length * flavorLineHeight) + flavorGap;
       }
 
       if (options.showHp) {
-        currentY = drawHpBars(pokemon, currentY, options.fontFamily, options.boldText) + (8 * scaleUnit);
+        currentY = drawHpBars(pokemon, currentY, options.fontFamily, options.boldText, hpMetrics) + ((compact ? 6 : 8) * scaleUnit);
       }
 
       if (options.showAbilities) {
         ctx.textAlign = "center";
-        ctx.font = getFontSpec(18 * scaleUnit, options.fontFamily, options.boldText);
+        ctx.font = getFontSpec(abilityFontSize, options.fontFamily, options.boldText);
         const abilityText = "Abilities: " + (pokemon.abilities || []).map(function(entry) {
           return titleCase(entry.ability && entry.ability.name);
         }).filter(Boolean).join(", ");
         const abilityLines = wrapTextLines(abilityText, SCREEN_WIDTH * 0.85, MAX_ABILITY_TEXT_LINES);
-        drawWrappedBlock(abilityLines, SCREEN_WIDTH / 2, currentY, 20 * scaleUnit);
+        drawWrappedBlock(abilityLines, SCREEN_WIDTH / 2, currentY, abilityLineHeight);
       }
     }
 
@@ -1275,20 +1277,25 @@
         ? formatLocation(encounters[0].location_area.name)
         : "Special / Event";
       const dataTopY = currentY + (15 * scaleUnit);
+      const dataRowGap = 25 * scaleUnit;
+      const primaryDataFontSize = 22 * scaleUnit;
+      const secondaryDataFontSize = 18 * scaleUnit;
+      const secondRowY = dataTopY + dataRowGap;
       const clippedLocation = location.length > 25 ? location.slice(0, 22) + "..." : location;
 
       ctx.fillStyle = ink;
       ctx.textAlign = "left";
-      ctx.font = getFontSpec(22 * scaleUnit, options.fontFamily, options.boldText);
+      ctx.font = getFontSpec(primaryDataFontSize, options.fontFamily, options.boldText);
       ctx.fillText("Region: " + region, 40 * scaleUnit, dataTopY);
-      ctx.font = getFontSpec(18 * scaleUnit, options.fontFamily, options.boldText);
-      ctx.fillText("Find: " + clippedLocation, 40 * scaleUnit, dataTopY + (25 * scaleUnit));
+      ctx.font = getFontSpec(secondaryDataFontSize, options.fontFamily, options.boldText);
+      ctx.fillText("Find: " + clippedLocation, 40 * scaleUnit, secondRowY);
 
       ctx.textAlign = "right";
-      ctx.font = getFontSpec(22 * scaleUnit, options.fontFamily, options.boldText);
+      ctx.font = getFontSpec(primaryDataFontSize, options.fontFamily, options.boldText);
       ctx.fillText("Height: " + (pokemon.height / 10).toFixed(1) + "m", SCREEN_WIDTH - (40 * scaleUnit), dataTopY);
-      ctx.fillText("Weight: " + (pokemon.weight / 10).toFixed(1) + "kg", SCREEN_WIDTH - (40 * scaleUnit), dataTopY + (25 * scaleUnit));
-      currentY = dataTopY + (25 * scaleUnit);
+      ctx.font = getFontSpec(secondaryDataFontSize, options.fontFamily, options.boldText);
+      ctx.fillText("Weight: " + (pokemon.weight / 10).toFixed(1) + "kg", SCREEN_WIDTH - (40 * scaleUnit), secondRowY);
+      currentY = secondRowY + secondaryDataFontSize + (8 * scaleUnit);
 
       if (options.showEvolution) {
         const evolutionCenterY = currentY + (55 * scaleUnit);
@@ -1604,31 +1611,28 @@
       renderCurrentPokemon();
     }
 
-    function normalizeDeviceOrigin(rawValue) {
-      const raw = String(rawValue || "").trim();
-      if (!raw) return null;
-      const withScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(raw) ? raw : "http://" + raw;
-      try {
-        const parsed = new URL(withScheme);
-        if (!/^https?:$/.test(parsed.protocol)) return null;
-        return parsed.origin;
-      } catch (_) {
-        return null;
+    function selectAllBatchGenerations() {
+      Array.from(batchGensSelect.options || []).forEach(function(option) {
+        option.selected = true;
+      });
+    }
+
+    function hasBatchGenerationSelection() {
+      return Array.from(batchGensSelect.selectedOptions || []).length > 0;
+    }
+
+    function previewSelection() {
+      if (hasBatchGenerationSelection()) {
+        return previewBatchStart();
       }
+      return renderCurrentPokemon();
     }
 
-    function updateDeviceLinks() {
-      const origin = normalizeDeviceOrigin(deviceHostInput.value) || "http://crosspoint.local";
-      openDevicePluginLink.href = origin + "/plugins/pokedex";
-      openDeviceFilesLink.href = origin + "/files?path=" + encodeURIComponent("/sleep/pokedex");
-    }
-
-    previewBtn.addEventListener("click", renderCurrentPokemon);
+    previewBtn.addEventListener("click", previewSelection);
     downloadBtn.addEventListener("click", downloadCurrentWallpaper);
     randomBtn.addEventListener("click", setRandomPokemon);
-    batchPreviewBtn.addEventListener("click", previewBatchStart);
     batchDownloadBtn.addEventListener("click", runBatchDownload);
-    deviceHostInput.addEventListener("input", updateDeviceLinks);
+    selectAllBatchGensBtn.addEventListener("click", selectAllBatchGenerations);
 
     [
       layoutStyleSelect,
@@ -1655,12 +1659,11 @@
     input.addEventListener("keydown", function(event) {
       if (event.key === "Enter") {
         event.preventDefault();
-        renderCurrentPokemon();
+        previewSelection();
       }
     });
 
-    updateDeviceLinks();
-    renderCurrentPokemon();
+    previewSelection();
   </script>
 </body>
 </html>
