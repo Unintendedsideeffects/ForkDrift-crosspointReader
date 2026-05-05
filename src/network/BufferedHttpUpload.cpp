@@ -11,6 +11,63 @@
 
 namespace network {
 
+namespace {
+
+bool appendUploadSuffix(const char* basePath, const char* suffix, char* out, size_t outSize) {
+  if (basePath == nullptr || suffix == nullptr || out == nullptr || outSize == 0) {
+    return false;
+  }
+
+  const int written = snprintf(out, outSize, "%s%s", basePath, suffix);
+  return written >= 0 && static_cast<size_t>(written) < outSize;
+}
+
+void cleanupUploadArtifact(const char* path) {
+  if (path == nullptr || path[0] == '\0') {
+    return;
+  }
+
+  SpiBusMutex::Guard guard;
+  Storage.remove(path);
+}
+
+bool finalizeUploadReplace(const char* targetPath, const char* tempPath, const char* backupPath,
+                           const bool hadExistingFile) {
+  if (targetPath == nullptr || tempPath == nullptr || targetPath[0] == '\0' || tempPath[0] == '\0') {
+    return false;
+  }
+
+  SpiBusMutex::Guard guard;
+  bool movedOriginalToBackup = false;
+
+  if (hadExistingFile) {
+    if (backupPath == nullptr || backupPath[0] == '\0') {
+      return false;
+    }
+    Storage.remove(backupPath);
+    if (!Storage.rename(targetPath, backupPath)) {
+      return false;
+    }
+    movedOriginalToBackup = true;
+  }
+
+  if (!Storage.rename(tempPath, targetPath)) {
+    if (movedOriginalToBackup) {
+      Storage.rename(backupPath, targetPath);
+    }
+    Storage.remove(tempPath);
+    return false;
+  }
+
+  if (movedOriginalToBackup) {
+    Storage.remove(backupPath);
+  }
+
+  return true;
+}
+
+}  // namespace
+
 BufferedHttpUploadSession& sharedBufferedHttpUploadSession() {
   static BufferedHttpUploadSession session;
   return session;
@@ -58,8 +115,11 @@ void BufferedHttpUploadSession::handleUpload(WebServer* server, const BufferedHt
     uploadPathValue[0] = '/';
     uploadPathValue[1] = '\0';
     targetFilePath[0] = '\0';
+    tempFilePath[0] = '\0';
+    backupFilePath[0] = '\0';
     uploadSize = 0;
     uploadSuccess = false;
+    targetExisted = false;
     uploadError[0] = '\0';
     uploadBufferPos = 0;
     uploadStartTime = millis();
@@ -81,37 +141,40 @@ void BufferedHttpUploadSession::handleUpload(WebServer* server, const BufferedHt
       snprintf(uploadError, sizeof(uploadError), "Missing upload target");
       return;
     }
+    if (!appendUploadSuffix(targetFilePath, ".part", tempFilePath, sizeof(tempFilePath)) ||
+        !appendUploadSuffix(targetFilePath, ".bak", backupFilePath, sizeof(backupFilePath))) {
+      snprintf(uploadError, sizeof(uploadError), "Path too long");
+      return;
+    }
 
     LOG_DBG("WEB", "[%s] START: %s to path: %s", logLabel, uploadFileName, uploadPathValue);
     LOG_DBG("WEB", "[%s] Free heap: %d bytes", logLabel, ESP.getFreeHeap());
 
-    bool hadExistingFile = false;
     esp_task_wdt_reset();
     {
       SpiBusMutex::Guard guard;
-      hadExistingFile = Storage.exists(targetFilePath);
-      if (hadExistingFile) {
-        Storage.remove(targetFilePath);
-      }
+      targetExisted = Storage.exists(targetFilePath);
+      Storage.remove(tempFilePath);
+      Storage.remove(backupFilePath);
     }
-    if (hadExistingFile) {
-      LOG_DBG("WEB", "[%s] Overwriting existing file: %s", logLabel, targetFilePath);
+    if (targetExisted) {
+      LOG_DBG("WEB", "[%s] Replacing existing file after successful upload: %s", logLabel, targetFilePath);
     }
 
     esp_task_wdt_reset();
     bool opened = false;
     {
       SpiBusMutex::Guard guard;
-      opened = Storage.openFileForWrite(storageTag, targetFilePath, uploadFile);
+      opened = Storage.openFileForWrite(storageTag, tempFilePath, uploadFile);
     }
     if (!opened) {
       snprintf(uploadError, sizeof(uploadError), "%s", config.createFileError);
-      LOG_DBG("WEB", "[%s] FAILED to create file: %s", logLabel, targetFilePath);
+      LOG_DBG("WEB", "[%s] FAILED to create temp file: %s", logLabel, tempFilePath);
       return;
     }
     esp_task_wdt_reset();
 
-    LOG_DBG("WEB", "[%s] File created successfully: %s", logLabel, targetFilePath);
+    LOG_DBG("WEB", "[%s] Temp file created successfully: %s", logLabel, tempFilePath);
     return;
   }
 
@@ -136,6 +199,7 @@ void BufferedHttpUploadSession::handleUpload(WebServer* server, const BufferedHt
               SpiBusMutex::Guard guard;
               uploadFile.close();
             }
+            cleanupUploadArtifact(tempFilePath);
             return;
           }
         }
@@ -167,7 +231,19 @@ void BufferedHttpUploadSession::handleUpload(WebServer* server, const BufferedHt
       }
 
       if (uploadError[0] == '\0') {
-        uploadSuccess = true;
+        if (!finalizeUploadReplace(targetFilePath, tempFilePath, backupFilePath, targetExisted)) {
+          snprintf(uploadError, sizeof(uploadError), "Failed to finalize upload");
+        } else {
+          uploadSuccess = true;
+        }
+      }
+
+      if (!uploadSuccess) {
+        cleanupUploadArtifact(tempFilePath);
+        cleanupUploadArtifact(backupFilePath);
+      }
+
+      if (uploadSuccess) {
 #if LOG_LEVEL >= 2
         const unsigned long elapsed = millis() - uploadStartTime;
         const float avgKbps = (elapsed > 0) ? (uploadSize / 1024.0F) / (elapsed / 1000.0F) : 0.0F;
@@ -187,10 +263,9 @@ void BufferedHttpUploadSession::handleUpload(WebServer* server, const BufferedHt
     if (uploadFile) {
       SpiBusMutex::Guard guard;
       uploadFile.close();
-      if (targetFilePath[0] != '\0') {
-        Storage.remove(targetFilePath);
-      }
     }
+    cleanupUploadArtifact(tempFilePath);
+    cleanupUploadArtifact(backupFilePath);
     snprintf(uploadError, sizeof(uploadError), "%s", config.abortedError);
     LOG_DBG("WEB", "[%s] Upload aborted", logLabel);
   }
@@ -206,8 +281,11 @@ void BufferedHttpUploadSession::reset() {
   uploadPathValue[0] = '/';
   uploadPathValue[1] = '\0';
   targetFilePath[0] = '\0';
+  tempFilePath[0] = '\0';
+  backupFilePath[0] = '\0';
   uploadSize = 0;
   uploadSuccess = false;
+  targetExisted = false;
   uploadError[0] = '\0';
   uploadBufferPos = 0;
   uploadStartTime = 0;

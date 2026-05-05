@@ -25,6 +25,34 @@ FileListDescriptor resolveFileListPath(const String& rawPath) {
     }
   }
 
+  bool exists = false;
+  {
+    SpiBusMutex::Guard guard;
+    exists = Storage.exists(currentPath.c_str());
+  }
+  if (!exists) {
+    return {404, "text/plain", "Item not found", ""};
+  }
+
+  FsFile file;
+  {
+    SpiBusMutex::Guard guard;
+    file = Storage.open(currentPath.c_str());
+  }
+  if (!file) {
+    return {500, "text/plain", "Failed to open directory", ""};
+  }
+
+  bool isDirectory = false;
+  {
+    SpiBusMutex::Guard guard;
+    isDirectory = file.isDirectory();
+    file.close();
+  }
+  if (!isDirectory) {
+    return {400, "text/plain", "Path is not a directory", ""};
+  }
+
   return {200, "application/json", "", currentPath};
 }
 

@@ -8,6 +8,8 @@
 #include <Logging.h>
 #include <esp_task_wdt.h>
 
+#include "SpiBusMutex.h"
+
 namespace {
 const char* HIDDEN_ITEMS[] = {"System Volume Information", "XTCache"};
 constexpr size_t HIDDEN_ITEMS_COUNT = sizeof(HIDDEN_ITEMS) / sizeof(HIDDEN_ITEMS[0]);
@@ -50,6 +52,8 @@ void WebDAVHandler::raw(WebServer& server, const String& uri, HTTPRaw& raw) {
   (void)uri;
   if (raw.status == RAW_START) {
     _putPath = getRequestPath(server);
+    _putTempPath = _putPath + ".davtmp";
+    _putBackupPath = _putPath + ".davbak";
     if (isProtectedPath(_putPath)) {
       _putOk = false;
       return;
@@ -59,60 +63,62 @@ void WebDAVHandler::raw(WebServer& server, const String& uri, HTTPRaw& raw) {
     int lastSlash = _putPath.lastIndexOf('/');
     if (lastSlash > 0) {
       String parentPath = _putPath.substring(0, lastSlash);
-      if (!Storage.exists(parentPath.c_str())) {
+      if (!existsLocked(parentPath)) {
         _putOk = false;
         return;
       }
     }
 
-    if (_putFile) _putFile.close();
-    _putExisted = Storage.exists(_putPath.c_str());
+    if (_putFile) closeLocked(_putFile);
+    _putExisted = existsLocked(_putPath);
 
     if (_putExisted) {
-      FsFile existing = Storage.open(_putPath.c_str());
-      if (existing && existing.isDirectory()) {
-        existing.close();
+      FsFile existing = openLocked(_putPath);
+      bool existingIsDirectory = false;
+      if (existing) {
+        SpiBusMutex::Guard guard;
+        existingIsDirectory = existing.isDirectory();
+      }
+      if (existing) closeLocked(existing);
+      if (existingIsDirectory) {
         _putOk = false;
         return;
       }
-      if (existing) existing.close();
     }
 
     // Write to a temp file to avoid destroying the original on failed upload
-    String tempPath = _putPath + ".davtmp";
-    Storage.remove(tempPath.c_str());
-    _putOk = Storage.openFileForWrite("DAV", tempPath, _putFile);
+    removeLocked(_putTempPath);
+    removeLocked(_putBackupPath);
+    {
+      SpiBusMutex::Guard guard;
+      _putOk = Storage.openFileForWrite("DAV", _putTempPath, _putFile);
+    }
     LOG_DBG("DAV", "PUT START: %s", _putPath.c_str());
 
   } else if (raw.status == RAW_WRITE) {
     if (_putFile && _putOk) {
       esp_task_wdt_reset();
-      size_t written = _putFile.write(raw.buf, raw.currentSize);
+      size_t written = 0;
+      {
+        SpiBusMutex::Guard guard;
+        written = _putFile.write(raw.buf, raw.currentSize);
+      }
       if (written != raw.currentSize) {
         _putOk = false;
       }
     }
 
   } else if (raw.status == RAW_END) {
-    if (_putFile) _putFile.close();
+    if (_putFile) closeLocked(_putFile);
     if (_putOk) {
-      String tempPath = _putPath + ".davtmp";
-      if (_putExisted) Storage.remove(_putPath.c_str());
-      FsFile tmp = Storage.open(tempPath.c_str());
-      if (tmp) {
-        _putOk = tmp.rename(_putPath.c_str());
-        tmp.close();
-      } else {
-        _putOk = false;
-      }
-      if (!_putOk) Storage.remove(tempPath.c_str());
+      _putOk = finalizePutTarget();
     }
     LOG_DBG("DAV", "PUT END: %u bytes, ok=%d", raw.totalSize, _putOk);
 
   } else if (raw.status == RAW_ABORTED) {
-    if (_putFile) _putFile.close();
-    String tempPath = _putPath + ".davtmp";
-    Storage.remove(tempPath.c_str());
+    if (_putFile) closeLocked(_putFile);
+    removeLocked(_putTempPath);
+    removeLocked(_putBackupPath);
     _putOk = false;
   }
 }
@@ -179,12 +185,12 @@ void WebDAVHandler::handlePropfind(WebServer& s) {
   LOG_DBG("DAV", "PROPFIND %s depth=%d", path.c_str(), depth);
 
   // Check if path exists
-  if (!Storage.exists(path.c_str()) && path != "/") {
+  if (!existsLocked(path) && path != "/") {
     s.send(404, "text/plain", "Not Found");
     return;
   }
 
-  FsFile root = Storage.open(path.c_str());
+  FsFile root = openLocked(path);
   if (!root) {
     if (path == "/") {
       // Root should always work — send minimal response
@@ -202,7 +208,15 @@ void WebDAVHandler::handlePropfind(WebServer& s) {
     return;
   }
 
-  bool isDir = root.isDirectory();
+  bool isDir = false;
+  size_t fileSize = 0;
+  {
+    SpiBusMutex::Guard guard;
+    isDir = root.isDirectory();
+    if (!isDir) {
+      fileSize = root.size();
+    }
+  }
 
   s.setContentLength(CONTENT_LENGTH_UNKNOWN);
   s.send(207, "application/xml; charset=\"utf-8\"", "");
@@ -214,8 +228,8 @@ void WebDAVHandler::handlePropfind(WebServer& s) {
   if (isDir) {
     sendPropEntry(s, path, true, 0, FIXED_DATE);
   } else {
-    sendPropEntry(s, path, false, root.size(), FIXED_DATE);
-    root.close();
+    sendPropEntry(s, path, false, fileSize, FIXED_DATE);
+    closeLocked(root);
     s.sendContent("</D:multistatus>\n");
     s.sendContent("");
     return;
@@ -223,21 +237,44 @@ void WebDAVHandler::handlePropfind(WebServer& s) {
 
   // If depth > 0 and it's a directory, list children
   if (depth > 0) {
-    FsFile file = root.openNextFile();
-    char name[500];
-    while (file) {
-      file.getName(name, sizeof(name));
-      String fileName(name);
+    while (true) {
+      String fileName;
+      bool childIsDirectory = false;
+      size_t childSize = 0;
+      bool shouldHide = false;
 
-      // Skip hidden/protected items
-      bool shouldHide = fileName.startsWith(".");
-      if (!shouldHide) {
-        for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
-          if (fileName.equals(HIDDEN_ITEMS[i])) {
-            shouldHide = true;
-            break;
+      {
+        SpiBusMutex::Guard guard;
+        FsFile file = root.openNextFile();
+        if (!file) {
+          break;
+        }
+
+        char name[500];
+        if (!file.getName(name, sizeof(name))) {
+          file.close();
+          continue;
+        }
+        fileName = String(name);
+
+        shouldHide = fileName.startsWith(".");
+        if (!shouldHide) {
+          for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
+            if (fileName.equals(HIDDEN_ITEMS[i])) {
+              shouldHide = true;
+              break;
+            }
           }
         }
+
+        if (!shouldHide) {
+          childIsDirectory = file.isDirectory();
+          if (!childIsDirectory) {
+            childSize = file.size();
+          }
+        }
+
+        file.close();
       }
 
       if (!shouldHide) {
@@ -245,21 +282,19 @@ void WebDAVHandler::handlePropfind(WebServer& s) {
         if (!childPath.endsWith("/")) childPath += "/";
         childPath += fileName;
 
-        if (file.isDirectory()) {
+        if (childIsDirectory) {
           sendPropEntry(s, childPath, true, 0, FIXED_DATE);
         } else {
-          sendPropEntry(s, childPath, false, file.size(), FIXED_DATE);
+          sendPropEntry(s, childPath, false, childSize, FIXED_DATE);
         }
       }
 
-      file.close();
       yield();
       esp_task_wdt_reset();
-      file = root.openNextFile();
     }
   }
 
-  root.close();
+  closeLocked(root);
   s.sendContent("</D:multistatus>\n");
   s.sendContent("");
 }
@@ -308,30 +343,62 @@ void WebDAVHandler::handleGet(WebServer& s) {
     return;
   }
 
-  if (!Storage.exists(path.c_str())) {
+  if (!existsLocked(path)) {
     s.send(404, "text/plain", "Not Found");
     return;
   }
 
-  FsFile file = Storage.open(path.c_str());
+  FsFile file = openLocked(path);
   if (!file) {
     s.send(500, "text/plain", "Failed to open file");
     return;
   }
-  if (file.isDirectory()) {
-    file.close();
+
+  bool isDirectory = false;
+  size_t fileSize = 0;
+  {
+    SpiBusMutex::Guard guard;
+    isDirectory = file.isDirectory();
+    if (!isDirectory) {
+      fileSize = file.size();
+    }
+  }
+  if (isDirectory) {
+    closeLocked(file);
     // For directories, return a PROPFIND-like response or redirect
     s.send(405, "text/plain", "Method Not Allowed");
     return;
   }
 
   String contentType = getMimeType(path);
-  s.setContentLength(file.size());
+  s.setContentLength(fileSize);
   s.send(200, contentType.c_str(), "");
 
+  uint8_t buffer[4096];
   WiFiClient client = s.client();
-  client.write(file);
-  file.close();
+  while (true) {
+    esp_task_wdt_reset();
+    size_t bytesRead = 0;
+    {
+      SpiBusMutex::Guard guard;
+      bytesRead = file.read(buffer, sizeof(buffer));
+    }
+    if (bytesRead == 0) {
+      break;
+    }
+
+    size_t totalWritten = 0;
+    while (totalWritten < bytesRead) {
+      esp_task_wdt_reset();
+      const size_t written = client.write(buffer + totalWritten, bytesRead - totalWritten);
+      if (written == 0) {
+        closeLocked(file);
+        return;
+      }
+      totalWritten += written;
+    }
+  }
+  closeLocked(file);
 }
 
 // ── HEAD ─────────────────────────────────────────────────────────────────────
@@ -345,27 +412,37 @@ void WebDAVHandler::handleHead(WebServer& s) {
     return;
   }
 
-  if (!Storage.exists(path.c_str())) {
+  if (!existsLocked(path)) {
     s.send(404, "text/plain", "");
     return;
   }
 
-  FsFile file = Storage.open(path.c_str());
+  FsFile file = openLocked(path);
   if (!file) {
     s.send(500, "text/plain", "");
     return;
   }
 
-  if (file.isDirectory()) {
-    file.close();
+  bool isDirectory = false;
+  size_t fileSize = 0;
+  {
+    SpiBusMutex::Guard guard;
+    isDirectory = file.isDirectory();
+    if (!isDirectory) {
+      fileSize = file.size();
+    }
+  }
+
+  if (isDirectory) {
+    closeLocked(file);
     s.send(200, "text/html", "");
     return;
   }
 
   String contentType = getMimeType(path);
-  s.setContentLength(file.size());
+  s.setContentLength(fileSize);
   s.send(200, contentType.c_str(), "");
-  file.close();
+  closeLocked(file);
 }
 
 // ── PUT ──────────────────────────────────────────────────────────────────────
@@ -381,8 +458,8 @@ void WebDAVHandler::handlePut(WebServer& s) {
   }
 
   if (!_putOk) {
-    String tempPath = path + ".davtmp";
-    Storage.remove(tempPath.c_str());
+    removeLocked(_putTempPath);
+    removeLocked(_putBackupPath);
     s.send(500, "text/plain", "Write failed - incomplete upload or disk full");
     return;
   }
@@ -408,36 +485,46 @@ void WebDAVHandler::handleDelete(WebServer& s) {
     return;
   }
 
-  if (!Storage.exists(path.c_str())) {
+  if (!existsLocked(path)) {
     s.send(404, "text/plain", "Not Found");
     return;
   }
 
-  FsFile file = Storage.open(path.c_str());
+  FsFile file = openLocked(path);
   if (!file) {
     s.send(500, "text/plain", "Failed to open");
     return;
   }
 
-  if (file.isDirectory()) {
+  bool isDirectory = false;
+  {
+    SpiBusMutex::Guard guard;
+    isDirectory = file.isDirectory();
+  }
+
+  if (isDirectory) {
     // Check if directory is empty
-    FsFile entry = file.openNextFile();
+    FsFile entry;
+    {
+      SpiBusMutex::Guard guard;
+      entry = file.openNextFile();
+    }
     if (entry) {
-      entry.close();
-      file.close();
+      closeLocked(entry);
+      closeLocked(file);
       s.send(409, "text/plain", "Directory not empty");
       return;
     }
-    file.close();
-    if (Storage.rmdir(path.c_str())) {
+    closeLocked(file);
+    if (rmdirLocked(path)) {
       s.send(204);
     } else {
       s.send(500, "text/plain", "Failed to remove directory");
     }
   } else {
-    file.close();
+    closeLocked(file);
     clearEpubCacheIfNeeded(path);
-    if (Storage.remove(path.c_str())) {
+    if (removeLocked(path)) {
       s.send(204);
     } else {
       s.send(500, "text/plain", "Failed to delete file");
@@ -462,7 +549,7 @@ void WebDAVHandler::handleMkcol(WebServer& s) {
     return;
   }
 
-  if (Storage.exists(path.c_str())) {
+  if (existsLocked(path)) {
     s.send(405, "text/plain", "Already exists");
     return;
   }
@@ -471,13 +558,13 @@ void WebDAVHandler::handleMkcol(WebServer& s) {
   int lastSlash = path.lastIndexOf('/');
   if (lastSlash > 0) {
     String parentPath = path.substring(0, lastSlash);
-    if (!parentPath.isEmpty() && !Storage.exists(parentPath.c_str())) {
+    if (!parentPath.isEmpty() && !existsLocked(parentPath)) {
       s.send(409, "text/plain", "Parent directory does not exist");
       return;
     }
   }
 
-  if (Storage.mkdir(path.c_str())) {
+  if (mkdirLocked(path)) {
     s.send(201);
     LOG_DBG("DAV", "Created directory: %s", path.c_str());
   } else {
@@ -514,7 +601,7 @@ void WebDAVHandler::handleMove(WebServer& s) {
     return;
   }
 
-  if (!Storage.exists(srcPath.c_str())) {
+  if (!existsLocked(srcPath)) {
     s.send(404, "text/plain", "Source not found");
     return;
   }
@@ -523,31 +610,25 @@ void WebDAVHandler::handleMove(WebServer& s) {
   int lastSlash = dstPath.lastIndexOf('/');
   if (lastSlash > 0) {
     String parentPath = dstPath.substring(0, lastSlash);
-    if (!parentPath.isEmpty() && !Storage.exists(parentPath.c_str())) {
+    if (!parentPath.isEmpty() && !existsLocked(parentPath)) {
       s.send(409, "text/plain", "Destination parent does not exist");
       return;
     }
   }
 
-  bool dstExists = Storage.exists(dstPath.c_str());
+  bool dstExists = existsLocked(dstPath);
   if (dstExists && !overwrite) {
     s.send(412, "text/plain", "Destination exists and Overwrite is F");
     return;
   }
 
-  if (dstExists) {
-    Storage.remove(dstPath.c_str());
-  }
-
-  FsFile file = Storage.open(srcPath.c_str());
-  if (!file) {
-    s.send(500, "text/plain", "Failed to open source");
+  if (dstExists && !removeLocked(dstPath)) {
+    s.send(500, "text/plain", "Failed to remove destination");
     return;
   }
 
   clearEpubCacheIfNeeded(srcPath);
-  bool success = file.rename(dstPath.c_str());
-  file.close();
+  const bool success = renameLocked(srcPath, dstPath);
 
   if (success) {
     s.send(dstExists ? 204 : 201);
@@ -580,19 +661,24 @@ void WebDAVHandler::handleCopy(WebServer& s) {
     return;
   }
 
-  if (!Storage.exists(srcPath.c_str())) {
+  if (!existsLocked(srcPath)) {
     s.send(404, "text/plain", "Source not found");
     return;
   }
 
-  FsFile srcFile = Storage.open(srcPath.c_str());
+  FsFile srcFile = openLocked(srcPath);
   if (!srcFile) {
     s.send(500, "text/plain", "Failed to open source");
     return;
   }
 
-  if (srcFile.isDirectory()) {
-    srcFile.close();
+  bool srcIsDirectory = false;
+  {
+    SpiBusMutex::Guard guard;
+    srcIsDirectory = srcFile.isDirectory();
+  }
+  if (srcIsDirectory) {
+    closeLocked(srcFile);
     s.send(403, "text/plain", "Cannot copy directories");
     return;
   }
@@ -601,52 +687,68 @@ void WebDAVHandler::handleCopy(WebServer& s) {
   int lastSlash = dstPath.lastIndexOf('/');
   if (lastSlash > 0) {
     String parentPath = dstPath.substring(0, lastSlash);
-    if (!parentPath.isEmpty() && !Storage.exists(parentPath.c_str())) {
-      srcFile.close();
+    if (!parentPath.isEmpty() && !existsLocked(parentPath)) {
+      closeLocked(srcFile);
       s.send(409, "text/plain", "Destination parent does not exist");
       return;
     }
   }
 
-  bool dstExists = Storage.exists(dstPath.c_str());
+  bool dstExists = existsLocked(dstPath);
   if (dstExists && !overwrite) {
-    srcFile.close();
+    closeLocked(srcFile);
     s.send(412, "text/plain", "Destination exists and Overwrite is F");
     return;
   }
 
-  if (dstExists) {
-    Storage.remove(dstPath.c_str());
+  if (dstExists && !removeLocked(dstPath)) {
+    closeLocked(srcFile);
+    s.send(500, "text/plain", "Failed to remove destination");
+    return;
   }
 
   FsFile dstFile;
-  if (!Storage.openFileForWrite("DAV", dstPath, dstFile)) {
-    srcFile.close();
-    s.send(500, "text/plain", "Failed to create destination");
-    return;
+  {
+    SpiBusMutex::Guard guard;
+    if (!Storage.openFileForWrite("DAV", dstPath, dstFile)) {
+      closeLocked(srcFile);
+      s.send(500, "text/plain", "Failed to create destination");
+      return;
+    }
   }
 
   // Streaming copy with 4KB buffer on stack
   uint8_t buf[4096];
   bool copyOk = true;
-  while (srcFile.available()) {
+  while (copyOk) {
     esp_task_wdt_reset();
-    int bytesRead = srcFile.read(buf, sizeof(buf));
+    int bytesRead = 0;
+    {
+      SpiBusMutex::Guard guard;
+      if (!srcFile.available()) {
+        break;
+      }
+      bytesRead = srcFile.read(buf, sizeof(buf));
+    }
     if (bytesRead <= 0) break;
-    size_t written = dstFile.write(buf, bytesRead);
+    size_t written = 0;
+    {
+      SpiBusMutex::Guard guard;
+      written = dstFile.write(buf, bytesRead);
+    }
     if (written != (size_t)bytesRead) {
       copyOk = false;
       break;
     }
   }
 
-  srcFile.close();
-  dstFile.close();
+  closeLocked(srcFile);
+  closeLocked(dstFile);
 
   if (copyOk) {
     s.send(dstExists ? 204 : 201);
   } else {
-    Storage.remove(dstPath.c_str());
+    removeLocked(dstPath);
     s.send(500, "text/plain", "Copy failed - disk full?");
   }
 }
@@ -798,6 +900,68 @@ bool WebDAVHandler::getOverwrite(WebServer& s) const {
   String ow = s.header("Overwrite");
   if (ow == "F" || ow == "f") return false;
   return true;  // Default is T
+}
+
+bool WebDAVHandler::existsLocked(const String& path) const {
+  SpiBusMutex::Guard guard;
+  return Storage.exists(path.c_str());
+}
+
+FsFile WebDAVHandler::openLocked(const String& path) const {
+  SpiBusMutex::Guard guard;
+  return Storage.open(path.c_str());
+}
+
+bool WebDAVHandler::removeLocked(const String& path) const {
+  SpiBusMutex::Guard guard;
+  return Storage.remove(path.c_str());
+}
+
+bool WebDAVHandler::renameLocked(const String& from, const String& to) const {
+  SpiBusMutex::Guard guard;
+  return Storage.rename(from.c_str(), to.c_str());
+}
+
+bool WebDAVHandler::mkdirLocked(const String& path) const {
+  SpiBusMutex::Guard guard;
+  return Storage.mkdir(path.c_str());
+}
+
+bool WebDAVHandler::rmdirLocked(const String& path) const {
+  SpiBusMutex::Guard guard;
+  return Storage.rmdir(path.c_str());
+}
+
+void WebDAVHandler::closeLocked(FsFile& file) const {
+  SpiBusMutex::Guard guard;
+  file.close();
+}
+
+bool WebDAVHandler::finalizePutTarget() {
+  bool movedOriginalToBackup = false;
+
+  if (_putExisted) {
+    removeLocked(_putBackupPath);
+    if (!renameLocked(_putPath, _putBackupPath)) {
+      removeLocked(_putTempPath);
+      return false;
+    }
+    movedOriginalToBackup = true;
+  }
+
+  if (!renameLocked(_putTempPath, _putPath)) {
+    if (movedOriginalToBackup) {
+      renameLocked(_putBackupPath, _putPath);
+    }
+    removeLocked(_putTempPath);
+    return false;
+  }
+
+  if (movedOriginalToBackup) {
+    removeLocked(_putBackupPath);
+  }
+
+  return true;
 }
 
 void WebDAVHandler::clearEpubCacheIfNeeded(const String& path) const {

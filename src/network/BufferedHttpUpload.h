@@ -25,6 +25,7 @@ class BufferedHttpUploadSession {
   static constexpr size_t kMaxFileNameLen = 256;
   static constexpr size_t kMaxUploadPathLen = 256;
   static constexpr size_t kMaxTargetFilePathLen = 512;
+  static constexpr size_t kMaxWorkingFilePathLen = kMaxTargetFilePathLen + 16;
   static constexpr size_t kMaxErrorLen = 128;
 
   void handleUpload(WebServer* server, const BufferedHttpUploadConfig& config);
@@ -44,8 +45,11 @@ class BufferedHttpUploadSession {
   char uploadFileName[kMaxFileNameLen] = {};
   char uploadPathValue[kMaxUploadPathLen] = "/";
   char targetFilePath[kMaxTargetFilePathLen] = {};
+  char tempFilePath[kMaxWorkingFilePathLen] = {};
+  char backupFilePath[kMaxWorkingFilePathLen] = {};
   size_t uploadSize = 0;
   bool uploadSuccess = false;
+  bool targetExisted = false;
   char uploadError[kMaxErrorLen] = {};
   uint8_t uploadBuffer[kBufferSize] = {};
   size_t uploadBufferPos = 0;

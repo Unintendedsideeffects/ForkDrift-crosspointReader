@@ -1,9 +1,8 @@
-#include "doctest/doctest.h"
-
 #include <ArduinoJson.h>
 
 #include <string>
 
+#include "doctest/doctest.h"
 #include "network/FileReadApi.h"
 #include "test/mock/HalStorage.h"
 
@@ -38,6 +37,25 @@ TEST_CASE("file read api builds file list json for visible entries") {
 TEST_CASE("file read api rejects protected list paths") {
   const auto result = network::buildFileListJson("/.crosspoint", true);
   CHECK(result.statusCode == 403);
+}
+
+TEST_CASE("file read api rejects missing list paths") {
+  Storage.reset();
+
+  const auto result = network::buildFileListJson("/missing", false);
+
+  CHECK(result.statusCode == 404);
+  CHECK(result.body == "Item not found");
+}
+
+TEST_CASE("file read api rejects listing a file path") {
+  Storage.reset();
+  CHECK(Storage.writeFile("/books/demo.epub", "epub-data"));
+
+  const auto result = network::buildFileListJson("/books/demo.epub", false);
+
+  CHECK(result.statusCode == 400);
+  CHECK(result.body == "Path is not a directory");
 }
 
 TEST_CASE("file read api resolves download metadata for epub files") {

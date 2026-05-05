@@ -129,6 +129,14 @@ class HostServerTest(unittest.TestCase):
         files = json.loads(body)
         self.assertEqual(files[0]["name"], "subfile.txt")
 
+    def test_01b_list_files_rejects_missing_path(self):
+        """GET /api/files?path=/missing — should report missing directories"""
+        code, body, _ = self._request("GET", "/api/files?path=/missing")
+        if code == 404:
+            self.assertEqual(body.decode("utf-8"), "Item not found")
+            return
+        self.fail(f"Expected missing path to return 404, got {code}: {body!r}")
+
     def test_02_download_file(self):
         """GET /download?path=X — file content"""
         code, body, _ = self._request("GET", "/download?path=/test.txt")
