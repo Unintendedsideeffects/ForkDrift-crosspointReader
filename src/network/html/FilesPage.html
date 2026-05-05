@@ -73,6 +73,35 @@
       font-weight: 600;
     }
     /* Nav bar matching home page */
+    .masthead {
+      text-align: center;
+      padding: 24px 16px 16px;
+      border-bottom: 4px double var(--black);
+    }
+    .masthead-rule {
+      display: block;
+      border: none;
+      border-top: 1px solid var(--black);
+      margin: 0 auto 8px;
+      width: 60%;
+    }
+    .masthead h1 {
+      font-family: var(--font-display);
+      font-weight: 900;
+      font-size: 2.2em;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      text-transform: none;
+    }
+    .masthead-sub {
+      font-family: var(--font-mono);
+      font-size: 0.7em;
+      color: var(--gray-4);
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
     .nav {
       display: flex;
       border-bottom: 2px solid var(--black);
@@ -1622,13 +1651,19 @@
   </style>
 </head>
 <body>
-<h1>📚 CrossPoint Reader</h1>
+  <!-- MASTHEAD -->
+  <header class="masthead">
+    <hr class="masthead-rule">
+    <h1>CrossPoint Reader</h1>
+    <div class="masthead-sub">Personal E-Reader &middot; Open Source</div>
+  </header>
 
-<div class="nav-links">
-  <a href="/">Home</a>
-  <a href="/files" class="active">File Manager</a>
-  <a href="/settings">Settings</a>
-</div>
+  <!-- NAV -->
+  <nav class="nav">
+    <a href="/">[Home]</a>
+    <a href="/files" class="active">[Files]</a>
+    <a href="/settings">[Settings]</a>
+  </nav>
 
 <div class="page-header">
   <div class="page-header-left">

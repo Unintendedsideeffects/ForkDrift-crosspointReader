@@ -44,14 +44,37 @@ std::string parseHtmlRoot(int argc, char** argv) {
   return {};
 }
 
-void serveHtmlFile(HostWebServer& server, const std::string& htmlRoot, const char* filename) {
+std::string loadThemeTokens(const std::string& htmlRoot) {
+  std::ifstream f(htmlRoot + "/../../../scripts/theme.css");
+  if (!f) return {};
+  const std::string css((std::istreambuf_iterator<char>(f)), {});
+  const size_t open = css.find('{');
+  const size_t close = css.rfind('}');
+  if (open == std::string::npos || close == std::string::npos) return {};
+  return css.substr(open + 1, close - open - 1);
+}
+
+std::string injectThemeTokens(std::string html, const std::string& tokens) {
+  static constexpr std::string_view kStart = "/* THEME_TOKENS_START */";
+  static constexpr std::string_view kEnd = "/* THEME_TOKENS_END */";
+  const size_t s = html.find(kStart);
+  if (s == std::string::npos) return html;
+  const size_t e = html.find(kEnd, s);
+  if (e == std::string::npos) return html;
+  html.replace(s + kStart.size(), e - (s + kStart.size()), tokens);
+  return html;
+}
+
+void serveHtmlFile(HostWebServer& server, const std::string& htmlRoot, const char* filename,
+                   const std::string& themeTokens) {
   std::ifstream f(htmlRoot + "/" + filename, std::ios::binary);
   if (!f) {
     server.send(404, "text/plain", "Not found");
     return;
   }
-  const std::string body((std::istreambuf_iterator<char>(f)), {});
-  server.send(200, "text/html; charset=utf-8", String(body.c_str()));
+  std::string body((std::istreambuf_iterator<char>(f)), {});
+  if (!themeTokens.empty()) body = injectThemeTokens(std::move(body), themeTokens);
+  server.send_P(200, "text/html; charset=utf-8", body.data(), body.size());
 }
 
 void handleSignal(int) {
@@ -86,10 +109,11 @@ int main(int argc, char** argv) {
   routeOptions.settingsSnapshot = [] { return network::buildSettingsSnapshotJson(SETTINGS); };
   network::mountCoreWebRoutes(server, routeOptions);
 
+  const std::string themeTokens = htmlRoot.empty() ? std::string{} : loadThemeTokens(htmlRoot);
   if (!htmlRoot.empty()) {
-    server.on("/", HTTP_GET, [&] { serveHtmlFile(server, htmlRoot, "HomePage.html"); });
-    server.on("/files", HTTP_GET, [&] { serveHtmlFile(server, htmlRoot, "FilesPage.html"); });
-    server.on("/settings", HTTP_GET, [&] { serveHtmlFile(server, htmlRoot, "SettingsPage.html"); });
+    server.on("/", HTTP_GET, [&] { serveHtmlFile(server, htmlRoot, "HomePage.html", themeTokens); });
+    server.on("/files", HTTP_GET, [&] { serveHtmlFile(server, htmlRoot, "FilesPage.html", themeTokens); });
+    server.on("/settings", HTTP_GET, [&] { serveHtmlFile(server, htmlRoot, "SettingsPage.html", themeTokens); });
     server.serveDirectory(htmlRoot.c_str());
   }
 
