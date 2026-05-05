@@ -9,6 +9,7 @@
 #include <cctype>
 #include <functional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "MarkdownParser.h"
@@ -23,6 +24,14 @@ constexpr uint32_t META_MAGIC = 0x4D44544D;  // "MDTM"
 constexpr uint8_t META_VERSION = 2;
 constexpr int MAX_EMBED_DEPTH = 3;
 constexpr size_t MAX_EMBED_BYTES = 256 * 1024;
+
+struct SourceVersion {
+  size_t fileSize = 0;
+  uint16_t modifyDate = 0;
+  uint16_t modifyTime = 0;
+};
+
+std::unordered_map<std::string, SourceVersion> knownBadParseFailures;
 
 bool isHeadingLine(const std::string& line, uint8_t& outLevel, std::string& outText);
 
@@ -46,6 +55,25 @@ uint32_t hashFileContents(const std::string& path) {
   }
   file.close();
   return hash;
+}
+
+bool readSourceVersion(const std::string& path, SourceVersion& outVersion) {
+  FsFile file;
+  if (!Storage.openFileForRead("MD ", path, file)) {
+    return false;
+  }
+
+  outVersion.fileSize = file.size();
+  if (!file.getModifyDateTime(&outVersion.modifyDate, &outVersion.modifyTime)) {
+    outVersion.modifyDate = 0;
+    outVersion.modifyTime = 0;
+  }
+  file.close();
+  return true;
+}
+
+bool sourceVersionMatches(const SourceVersion& lhs, const SourceVersion& rhs) {
+  return lhs.fileSize == rhs.fileSize && lhs.modifyDate == rhs.modifyDate && lhs.modifyTime == rhs.modifyTime;
 }
 
 struct HtmlOutput {
@@ -509,8 +537,42 @@ std::string Markdown::getContentBasePath() const {
   return filepath.substr(0, lastSlash + 1);
 }
 
+bool Markdown::shouldSkipKnownBadParseFailure() const {
+  const auto it = knownBadParseFailures.find(filepath);
+  if (it == knownBadParseFailures.end()) {
+    return false;
+  }
+
+  SourceVersion currentVersion;
+  if (!readSourceVersion(filepath, currentVersion)) {
+    knownBadParseFailures.erase(it);
+    return false;
+  }
+
+  if (!sourceVersionMatches(it->second, currentVersion)) {
+    knownBadParseFailures.erase(it);
+    return false;
+  }
+
+  return true;
+}
+
+void Markdown::markKnownBadParseFailure() const {
+  SourceVersion currentVersion;
+  if (readSourceVersion(filepath, currentVersion)) {
+    knownBadParseFailures[filepath] = currentVersion;
+  }
+}
+
+void Markdown::clearKnownBadParseFailure() const { knownBadParseFailures.erase(filepath); }
+
 bool Markdown::ensureHtml() {
   if (!loaded) {
+    return false;
+  }
+
+  if (shouldSkipKnownBadParseFailure()) {
+    LOG_WRN("MD", "Skipping known-bad markdown source: %s", filepath.c_str());
     return false;
   }
 
@@ -546,6 +608,7 @@ bool Markdown::ensureHtml() {
   }
 
   if (!renderToHtmlFile(htmlPath)) {
+    markKnownBadParseFailure();
     Storage.remove(htmlPath.c_str());
     return false;
   }
@@ -832,6 +895,11 @@ std::string Markdown::preprocessContent(std::string content, int depth, std::vec
 
 bool Markdown::parseToAst() {
   if (!loaded) {
+    return false;
+  }
+
+  if (shouldSkipKnownBadParseFailure()) {
+    LOG_WRN("MD", "Skipping known-bad markdown AST parse: %s", filepath.c_str());
     return false;
   }
 

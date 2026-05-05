@@ -11,17 +11,35 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
-#include "util/RecentBooksStore.h"
-#include "components/ScreenComponents.h"
 #include "SpiBusMutex.h"
 #include "TocActivity.h"
 #include "activities/TaskShutdown.h"
+#include "components/ScreenComponents.h"
 #include "fontIds.h"
+#include "util/RecentBooksStore.h"
 
 namespace {
 constexpr unsigned long goHomeMs = 1000;
 constexpr int statusBarMargin = 19;
 constexpr int progressBarMarginTop = 1;
+
+uint32_t computeParseFailureSettingsSignature() {
+  uint32_t signature = 2166136261u;
+  auto mix = [&signature](uint32_t value) {
+    signature ^= value;
+    signature *= 16777619u;
+  };
+
+  mix(static_cast<uint32_t>(SETTINGS.getReaderFontId()));
+  mix(static_cast<uint32_t>(SETTINGS.getReaderLineCompression() * 1000.0f));
+  mix(static_cast<uint32_t>(SETTINGS.extraParagraphSpacing));
+  mix(static_cast<uint32_t>(SETTINGS.paragraphAlignment));
+  mix(static_cast<uint32_t>(SETTINGS.hyphenationEnabled));
+  mix(static_cast<uint32_t>(SETTINGS.orientation));
+  mix(static_cast<uint32_t>(SETTINGS.screenMargin));
+  mix(static_cast<uint32_t>(SETTINGS.statusBar));
+  return signature;
+}
 }  // namespace
 
 void MarkdownReaderActivity::onEnter() {
@@ -30,6 +48,9 @@ void MarkdownReaderActivity::onEnter() {
   if (!markdown) {
     return;
   }
+
+  markdown->clearKnownBadParseFailure();
+  parseFailureSettingsSignature = computeParseFailureSettingsSignature();
 
   switch (SETTINGS.orientation) {
     case CrossPointSettings::ORIENTATION::PORTRAIT:
@@ -165,6 +186,12 @@ void MarkdownReaderActivity::renderScreen() {
     return;
   }
 
+  const uint32_t currentSettingsSignature = computeParseFailureSettingsSignature();
+  if (currentSettingsSignature != parseFailureSettingsSignature) {
+    markdown->clearKnownBadParseFailure();
+    parseFailureSettingsSignature = currentSettingsSignature;
+  }
+
   if (useAstRenderer.load()) {
     if (!astReady.load() || !markdown->getAst()) {
       renderer.clearScreen();
@@ -198,6 +225,14 @@ void MarkdownReaderActivity::renderScreen() {
   const uint16_t viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
 
   bool sectionInitialized = false;
+
+  if (((useAstRenderer.load() && !mdSection) || (!useAstRenderer.load() && !htmlSection)) &&
+      markdown->shouldSkipKnownBadParseFailure()) {
+    renderer.clearScreen();
+    renderer.drawCenteredText(UI_12_FONT_ID, 300, "Markdown error", true, EpdFontFamily::BOLD);
+    renderer.displayBuffer();
+    return;
+  }
 
   auto progressSetup = [this] {
     constexpr int barWidth = 200;
@@ -258,6 +293,7 @@ void MarkdownReaderActivity::renderScreen() {
                                           SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
                                           SETTINGS.hyphenationEnabled, static_cast<uint32_t>(markdown->getFileSize()),
                                           progressSetup, progressCallback)) {
+          markdown->markKnownBadParseFailure();
           LOG_ERR("MDR", "Failed to build markdown AST cache, falling back to HTML");
           mdSection.reset();
           useAstRenderer.store(false);
@@ -330,6 +366,7 @@ void MarkdownReaderActivity::renderScreen() {
                 SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(), SETTINGS.extraParagraphSpacing,
                 SETTINGS.paragraphAlignment, viewportWidth, viewportHeight, SETTINGS.hyphenationEnabled,
                 static_cast<uint32_t>(markdown->getFileSize()), progressSetup, progressCallback)) {
+          markdown->markKnownBadParseFailure();
           LOG_ERR("MDR", "Failed to build markdown cache");
           htmlSection.reset();
           return;

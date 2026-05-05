@@ -20,6 +20,7 @@ class MarkdownReaderActivity final : public ActivityWithSubactivity {
   std::atomic<bool> astReady{false};  // AST parsed for navigation
   int savedPage = 0;
   bool hasSavedPage = false;
+  uint32_t parseFailureSettingsSignature = 0;
   void* callbackCtx;
   void (*onBackToLibraryFn)(void* ctx, const std::string& path);
   void (*onBackHomeFn)(void* ctx);

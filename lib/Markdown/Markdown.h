@@ -25,6 +25,9 @@ class Markdown {
 
   // AST-based pipeline
   bool parseToAst();
+  bool shouldSkipKnownBadParseFailure() const;
+  void markKnownBadParseFailure() const;
+  void clearKnownBadParseFailure() const;
   bool hasAst() const { return ast != nullptr; }
   const MdNode* getAst() const { return ast.get(); }
   MarkdownNavigation* getNavigation() { return navigation.get(); }

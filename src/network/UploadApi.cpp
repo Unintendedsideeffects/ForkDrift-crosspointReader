@@ -193,11 +193,10 @@ void resetUploadSession() { uploadSession().reset(); }
 
 }  // namespace network
 
-// The full upload implementation requires Arduino HTTP upload types (HTTPUpload,
-// UPLOAD_FILE_START, etc.) which are only available in Arduino/ESP32 builds.
-// On host test builds we compile no-op stubs so other API modules can still be
-// tested without bringing in the full firmware toolchain.
-#if defined(ARDUINO)
+// The full upload implementation requires Arduino-compatible HTTP upload types
+// (HTTPUpload, UPLOAD_FILE_START, etc.). The host shim provides compatible
+// definitions so the same upload state machine can run in host builds.
+#if defined(ARDUINO) || defined(CROSSPOINT_HOST_BUILD)
 
 bool UploadSession::flushBuffer(const char* logLabel) {
   if (uploadBufferPos > 0 && uploadFile) {

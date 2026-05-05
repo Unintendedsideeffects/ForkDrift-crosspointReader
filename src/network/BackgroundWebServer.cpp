@@ -397,6 +397,11 @@ void BackgroundWebServer::loop(const bool usbConnected, const bool allowRun) {
     }
     // #endregion
 
+    if (ESP.getFreeHeap() < MIN_FREE_HEAP_BYTES) {
+      scheduleRetry("low heap");
+      return;
+    }
+
     if (server) {
       server->handleClient();
     }
