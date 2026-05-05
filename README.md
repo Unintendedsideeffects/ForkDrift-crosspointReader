@@ -54,22 +54,14 @@ For the full rationale, see [`docs/fork-strategy.md`](./docs/fork-strategy.md).
 
 ## Features & Usage
 
-- [x] EPUB parsing and rendering (EPUB 2 and EPUB 3)
-- [x] Image support within EPUB
-- [x] Saved reading position
-- [x] File explorer with file picker
-  - [x] Basic EPUB picker from root directory
-  - [x] Support nested folders
-  - [ ] EPUB picker with cover art
-- [x] Custom sleep screen
-  - [x] Cover sleep screen
-- [x] Wifi book upload
-- [x] Wifi OTA updates
-- [x] KOReader Sync integration for cross-device reading progress
-- [x] Configurable font, layout, and display options
-  - [ ] User provided fonts
-  - [ ] Full UTF support
-- [x] Screen rotation
+- [x] EPUB, TXT, and XTC reading
+- [x] Optional Markdown/Obsidian reader support
+- [x] Inline book images and cover-based sleep screens
+- [x] Saved reading position and SD-card-backed cache
+- [x] Wi-Fi upload, OTA updates, and optional background web server
+- [x] Optional KOReader Sync and Calibre/OPDS integrations
+- [x] Configurable fonts, layout, display options, and screen rotation
+- [x] User-font pipeline and USB mass-storage support
 
 Multi-language support: Read EPUBs in various languages, including English, Spanish, French, German, Italian, Portuguese, Russian, Ukrainian, Polish, Swedish, Norwegian, [and more](./USER_GUIDE.md#supported-languages).
 
@@ -86,7 +78,7 @@ For scope/constraints, see [SCOPE.md](SCOPE.md).
 2. Select features and click **Build on GitHub**.
 3. Once the build completes, download the named `firmware-YYYYMMDD-SHA.bin` or use the browser-based flasher.
 
-### Quick Flash (Latest Stable)
+### Quick Flash (Browser Flasher)
 
 1. Connect your Xteink X4 to your computer via USB-C.
 2. Go to [xteink.dve.al](https://xteink.dve.al/) and click **"Flash CrossPoint firmware"**.
@@ -101,7 +93,7 @@ To revert to official firmware, use the "Swap boot partition" button at [xteink.
 ```bash
 pip install esptool
 ```
-2. Download the named `firmware-YYYYMMDD-SHA.bin` file from the release of your choice via the [releases page](https://github.com/crosspoint-reader/crosspoint-reader/releases)
+2. Download the named `firmware-YYYYMMDD-SHA.bin` file from the release of your choice via the [releases page](https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases)
 3. Connect your Xteink X4 to your computer via USB-C.
 4. Note the device location. On Linux, run `dmesg` after connecting. On MacOS, run :
 ```bash
@@ -113,21 +105,32 @@ esptool.py --chip esp32c3 --port /dev/ttyACM0 --baud 921600 write_flash 0x10000 
 ```
 Change `/dev/ttyACM0` to the device for your system.
 
-Firmware is published as two rolling channel tags:
+This fork currently publishes:
 
-- `latest` (auto-updated from green `fork-drift` pushes)
-- `stable` (updated on stable version tags)
+- rolling `latest` channel assets on the `latest` tag
+- rolling `stable` channel assets on clean version tags
+- `nightly` prerelease assets on the `nightly` tag
+- tagged releases and release-candidate artifacts from the dedicated release workflows
 
 ### Manual
 
-Each channel publishes five firmware variants plus one shared partitions file:
+Rolling `latest` and `stable` tags publish the channel-friendly assets:
 
 - `crosspoint-standard.bin`
 - `crosspoint-lean.bin`
 - `crosspoint-full.bin`
-- `crosspoint-lean-reset.bin`
-- `crosspoint-full-reset.bin`
 - `crosspoint-partitions.bin`
+
+Nightly, tagged release, and release-candidate outputs publish the raw build artifacts:
+
+- `firmware-YYYYMMDD-SHA.bin`
+- `partitions.bin`
+- `bootloader.bin`
+
+Custom GitHub Actions builds also include:
+
+- `platformio-custom.ini`
+- `build-metadata.json`
 
 ### Web (Specific Firmware Version)
 
@@ -156,6 +159,12 @@ git clone --recursive --branch fork-drift https://github.com/Unintendedsideeffec
 
 # Or, if you've already cloned without --recursive:
 git submodule update --init --recursive
+```
+
+Then install the pinned local toolchain:
+
+```sh
+uv sync --frozen
 ```
 
 ### Devcontainer and local CI

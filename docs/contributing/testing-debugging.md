@@ -4,11 +4,13 @@ CrossPoint runs on real hardware, so debugging usually combines local build chec
 
 ## Local Static Analysis
 
-Before flashing, run the built-in static analysis tools to catch common errors:
+Before flashing, run the same local checks used by the current workflows:
 
 ```sh
-./bin/clang-format-fix
+uv run ./bin/clang-format-fix
 uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
+bash test/run_host_tests.sh
+python3 scripts/validate_contract_server.py
 uv run pio run
 ```
 
@@ -28,7 +30,7 @@ The `origin` parameter is a short string identifying the module (e.g., `"EPUB"`,
 ### Standard Serial Monitor
 
 ```sh
-pio device monitor
+uv run pio device monitor
 ```
 
 ### Enhanced Debugging Monitor
@@ -58,7 +60,7 @@ If you notice inconsistent behavior in the reader or library, try clearing the o
 
 ```sh
 # Remove the cache directory
-rm -rf /sdcard/.crosspoint/
+rm -rf /path/to/sd/.crosspoint/
 ```
 
 The firmware will automatically recreate the necessary structures on the next boot.
@@ -67,8 +69,9 @@ The firmware will automatically recreate the necessary structures on the next bo
 
 The project uses GitHub Actions for Continuous Integration. Every PR triggers several workflows:
 - **Build**: Verifies that the code compiles for the target hardware.
-- **CI**: Runs static analysis and formatting checks.
+- **CI (build)**: Runs formatting, host tests, contract validation, and static analysis checks.
 - **Feature Matrix**: Tests various combinations of build flags.
+- **PR Formatting Check**: Verifies the repository formatting rules.
 
 You can view the status of these workflows in the **Actions** tab of the repository.
 

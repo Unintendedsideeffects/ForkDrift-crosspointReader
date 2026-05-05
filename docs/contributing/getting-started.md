@@ -4,9 +4,10 @@ This guide helps you build and run CrossPoint locally.
 
 ## Prerequisites
 
-- **PlatformIO**: PlatformIO Core (`pio`) or VS Code + PlatformIO IDE.
+- **uv**: Used to install and run the pinned Python and PlatformIO toolchain.
+- **PlatformIO**: VS Code + PlatformIO IDE is optional for editor integration.
 - **Microcontroller**: Target hardware is **ESP32-C3** with **C++20** support.
-- **Python**: Python 3.8+ for utility scripts.
+- **Python**: Python 3.11+.
 - **Clang-format**: `clang-format` 21+ in your `PATH` (CI uses clang-format 21).
 - **USB-C cable**: For flashing and serial monitoring.
 - **Hardware**: Xteink X4 device for physical testing.
@@ -44,8 +45,13 @@ git submodule update --init --recursive
 Enable the repository-managed Git hooks (required once per clone):
 
 ```sh
-git config core.hooksPath .githooks
-chmod +x .githooks/pre-commit
+git config core.hooksPath scripts/hooks
+```
+
+Install the pinned local toolchain before building:
+
+```sh
+uv sync --frozen
 ```
 
 ## Build
@@ -65,8 +71,10 @@ uv run pio run --target upload
 Before submitting any changes, ensure your code passes these local checks:
 
 ```sh
-./bin/clang-format-fix
+uv run ./bin/clang-format-fix
 uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
+bash test/run_host_tests.sh
+python3 scripts/validate_contract_server.py
 uv run pio run
 ```
 

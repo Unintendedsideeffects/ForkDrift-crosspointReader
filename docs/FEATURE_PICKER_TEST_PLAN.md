@@ -6,7 +6,7 @@
 - [x] All profiles generate valid configurations (lean, standard, full)
 - [x] Custom feature selection works
 - [x] Profile overrides work (e.g., `--profile full --disable markdown`)
-- [x] Feature size estimates are calculated correctly
+- [x] Feature size estimates are refreshed from the nightly measurement data
 - [x] Build flags are formatted correctly in output
 
 ## Build Tests
@@ -20,17 +20,16 @@ uv run pio run -e custom
 
 **Expected:**
 - [  ] Build completes successfully
-- [  ] Firmware size ~2.6MB
+- [  ] Firmware size is close to the current script estimate (~1.7MB)
 - [  ] No compilation errors
-- [  ] All feature flags set to 0
+- [  ] All optional feature flags are set to 0
 
 **Verify on device:**
-- [  ] EPUB reading works (14pt only)
 - [  ] TXT reading works
 - [  ] BMP sleep screens work
 - [  ] PNG/JPEG sleep screens are ignored or show error
 - [  ] Opening .md files shows "not supported" message
-- [  ] Font size settings only show 14pt option
+- [  ] Optional web/integration surfaces are absent
 
 ### Standard Profile Build
 
@@ -41,17 +40,16 @@ uv run pio run -e custom
 
 **Expected:**
 - [  ] Build completes successfully
-- [  ] Firmware size ~6.2MB
+- [  ] Firmware size is close to the current script estimate (~5.0MB)
 - [  ] No compilation errors
-- [  ] Extended fonts and image sleep enabled
+- [  ] Bookerly, Noto Sans, image sleep, user fonts, BLE WiFi provisioning, and USB mass storage are enabled
 
 **Verify on device:**
-- [  ] EPUB reading works with multiple font sizes (12, 14, 16, 18pt)
-- [  ] OpenDyslexic fonts available in settings
+- [  ] EPUB reading works with multiple Bookerly/Noto Sans sizes
 - [  ] PNG/JPEG sleep screens work
 - [  ] BMP sleep screens work
 - [  ] Opening .md files shows "not supported" message
-- [  ] Todo defaults to .txt format
+- [  ] `/api/plugins` reports the standard feature set accurately
 
 ### Full Profile Build
 
@@ -62,13 +60,12 @@ uv run pio run -e custom
 
 **Expected:**
 - [  ] Build completes successfully
-- [  ] Firmware size ~6.4MB (tight headroom)
+- [  ] Firmware size is close to the current script estimate (~5.9MB)
 - [  ] No compilation errors
-- [  ] All features enabled
+- [  ] Full-profile features are enabled, except OpenDyslexic and BLE WiFi provisioning
 
 **Verify on device:**
-- [  ] All font sizes work (12-18pt)
-- [  ] OpenDyslexic fonts work
+- [  ] Bookerly and Noto Sans font packs work
 - [  ] PNG/JPEG/BMP sleep screens work
 - [  ] Markdown files render correctly
 - [  ] Obsidian features work (wikilinks, callouts, etc.)
@@ -77,9 +74,9 @@ uv run pio run -e custom
 
 ### Custom Build Tests
 
-#### Test: Extended Fonts Only
+#### Test: Bookerly + Noto Sans Fonts Only
 ```bash
-uv run python scripts/generate_build_config.py --enable extended_fonts
+uv run python scripts/generate_build_config.py --enable bookerly_fonts --enable notosans_fonts
 uv run pio run -e custom
 ```
 
@@ -111,6 +108,7 @@ uv run pio run -e custom
    - firmware-YYYYMMDD-SHA.bin
    - partitions.bin
    - platformio-custom.ini
+   - build-metadata.json
 8. [  ] Flash the named firmware file to device
 9. [  ] Verify features match standard profile
 
@@ -154,12 +152,12 @@ uv run pio run -e custom
 - [  ] BMP files work normally
 - [  ] Sleep screen displays correctly
 
-### Extended Fonts Disabled
+### Bookerly/Noto Sans Disabled
 
 **Test font settings:**
-- [  ] Only shows available font sizes (14pt)
-- [  ] Doesn't show unavailable options
-- [  ] Can't accidentally select unavailable fonts
+- [  ] Disabled font families do not appear as selectable reader fonts
+- [  ] The remaining built-in families still work
+- [  ] Generated custom profiles that enable OpenDyslexic also resolve both parent font packs
 
 ### Background Server Disabled
 
@@ -185,7 +183,7 @@ Run with default build (`uv run pio run -e default`) to ensure no breakage:
 - [  ] All features work as before
 - [  ] No new compilation warnings
 - [  ] No size increase in default build
-- [  ] All unit tests pass (if any exist)
+- [  ] Host tests pass (`bash test/run_host_tests.sh`)
 
 ## Performance Tests
 
@@ -197,7 +195,7 @@ Run with default build (`uv run pio run -e default`) to ensure no breakage:
 ## Known Issues / Notes
 
 - Full profile has tight headroom on the 6.4MB partition - verify on hardware
-- Feature detection at runtime not yet implemented (future enhancement)
+- Runtime feature detection is available via `/api/plugins` and `/api/features`
 - Web configurator assumes standard GitHub repository structure
 
 ## Sign-Off

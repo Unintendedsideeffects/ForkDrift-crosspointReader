@@ -417,10 +417,9 @@ Accessible by pressing **Confirm** while inside a book.
 
 ## 6. Current Limitations & Roadmap
 
-Please note that this firmware is currently in active development. The following features are **not yet supported** but are planned for future updates:
+Please note that this firmware is currently in active development. Current practical limitations include:
 
-* **Images:** Embedded images in e-books will not render.
-* **Cover Images:** Large cover images embedded into EPUB require several seconds (~10s for ~2000 pixel tall image) to convert for sleep screen and home screen thumbnail. Consider optimizing the EPUB with e.g. https://github.com/bigbag/epub-to-xtc-converter to speed this up.
+* **Large cover images:** Large covers embedded in EPUB files can still take several seconds to convert for sleep screen and home screen thumbnails. Consider optimizing oversized covers if library browsing feels slow.
 
 ---
 
@@ -428,8 +427,8 @@ Please note that this firmware is currently in active development. The following
 
 If an issue or crash is encountered while using Crosspoint, feel free to raise an issue ticket and attach the serial monitor logs. The logs can be obtained by connecting the device to a computer and starting a serial monitor. Either [Serial Monitor](https://www.serialmonitor.org/) or the following command can be used:
 
-```
-pio device monitor
+```sh
+uv run pio device monitor
 ```
 
 If the device is stuck in a bootloop, press and release the Reset button. Then, press and hold on to the configured Back button and the Power Button to boot to the Home Screen.

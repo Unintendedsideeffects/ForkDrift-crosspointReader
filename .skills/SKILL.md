@@ -87,8 +87,8 @@ find src -name "*.cpp" -o -name "*.h" | xargs clang-format -i
 * **Standard**: C++20 (`-std=c++2a`). No Exceptions, No RTTI.
 * **Logging**: ALWAYS use `LOG_INF`, `LOG_DBG`, or `LOG_ERR` from `Logging.h`. Raw Serial output is deprecated.
 * **Environments** (in `platformio.ini`):
-  * `default`: Development (LOG_LEVEL=2, serial enabled)
-  * `gh_release`: Production (LOG_LEVEL=0)
+  * `default`: Development (LOG_LEVEL=0, serial enabled)
+  * `gh_release`: Production (LOG_LEVEL=1)
   * `gh_release_rc`: Release candidate (LOG_LEVEL=1)
   * `slim`: Minimal build (no serial logging)
 
@@ -824,7 +824,7 @@ build_flags =
 ### Serial Monitor Options
 
 1. **Enhanced**: `python3 scripts/debugging_monitor.py` (color-coded, recommended)
-2. **Standard**: `pio device monitor` (basic, no colors)
+2. **Standard**: `uv run pio device monitor` (basic, no colors)
 3. **VS Code**: Monitor (🔌) button (IDE-integrated)
 
 ### Live Debugging Patterns

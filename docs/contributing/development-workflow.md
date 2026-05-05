@@ -6,7 +6,7 @@ This page defines the expected local workflow before opening a pull request.
 
 - Fork the repository to your own GitHub account
 - Clone your fork locally and add the upstream repository if needed
-- Enable repo hooks once per clone: `git config core.hooksPath .githooks && chmod +x .githooks/pre-commit`
+- Enable repo hooks once per clone: `git config core.hooksPath scripts/hooks`
 
 Example: `git checkout -b feature/anki-sync-integration`
 
@@ -34,15 +34,14 @@ Example: `feat: add support for custom user fonts`
 The project includes git hooks in `scripts/hooks/` to automate checks. You should install them to ensure your changes meet project standards:
 
 ```sh
-# Install hooks (from project root)
-cp scripts/hooks/* .git/hooks/
-chmod +x .git/hooks/*
+git config core.hooksPath scripts/hooks
 ```
 
 - **`pre-commit`**:
-  - Automatically runs `clang-format`.
+  - Regenerates staged generated assets when needed.
+  - Automatically formats staged C/C++ files with `clang-format`.
   - Guards against manual edits to `I18nStrings.cpp` (which is generated).
-  - Validates HTML headers in the web server source.
+  - Runs a local firmware build.
 - **`pre-push`**:
   - Runs `uv run pio check` (static analysis).
   - Performs a local `uv run pio run` build to ensure compilation success.
@@ -52,8 +51,10 @@ chmod +x .git/hooks/*
 If you don't use the hooks, run these manually before pushing:
 
 ```sh
-./bin/clang-format-fix
+uv run ./bin/clang-format-fix
 uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
+bash test/run_host_tests.sh
+python3 scripts/validate_contract_server.py
 uv run pio run
 ```
 

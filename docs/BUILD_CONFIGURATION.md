@@ -37,28 +37,49 @@ uv run pio run -e custom --target upload
 
 ## Feature Reference
 
-### Extended Fonts
+### Bookerly Fonts
 
-**Flag:** `ENABLE_EXTENDED_FONTS`
-**Size Impact:** ~1.9MB
-**Default:** Enabled
+**Flag:** `ENABLE_BOOKERLY_FONTS`  
+**Size Impact:** ~803KB  
+**Default:** Enabled in `standard` and `full`
 
-Includes additional Bookerly and Noto Sans font sizes.
+Adds the larger Bookerly reading sizes.
 
 **What's included when enabled:**
 - Bookerly 12pt, 16pt, 18pt (Regular, Bold, Italic, Bold-Italic)
+
+**What's always included:**
+- Noto Serif reading fonts
+- Ubuntu 10pt, 12pt (UI fonts)
+
+**When disabled:**
+- Bookerly does not appear as a selectable reading family
+- The remaining built-in font families continue to work
+
+**Use case:** Disable if you do not use Bookerly and want to save about 800KB.
+
+---
+
+### Noto Sans Fonts
+
+**Flag:** `ENABLE_NOTOSANS_FONTS`  
+**Size Impact:** ~1009KB  
+**Default:** Enabled in `standard` and `full`
+
+Adds the larger Noto Sans reading sizes.
+
+**What's included when enabled:**
 - Noto Sans 12pt, 14pt, 16pt, 18pt (Regular, Bold, Italic, Bold-Italic)
 
 **What's always included:**
-- Bookerly 14pt (default reading font)
+- Noto Serif reading fonts
 - Ubuntu 10pt, 12pt (UI fonts)
-- Noto Sans 8pt (small UI text)
 
 **When disabled:**
-- Only the default 14pt reading size and UI fonts are available
-- Settings will not show unavailable font sizes
+- Noto Sans does not appear as a selectable reading family
+- The remaining built-in font families continue to work
 
-**Use case:** Disable if you only read at 14pt and want maximum space savings.
+**Use case:** Disable if you prefer the serif defaults and want to save about 1MB.
 
 ---
 
@@ -67,7 +88,7 @@ Includes additional Bookerly and Noto Sans font sizes.
 **Flag:** `ENABLE_OPENDYSLEXIC_FONTS`
 **Size Impact:** ~2.6MB
 **Default:** Disabled
-**Depends on:** `ENABLE_EXTENDED_FONTS`
+**Depends on:** compile guard accepts `ENABLE_BOOKERLY_FONTS` or `ENABLE_NOTOSANS_FONTS`; the current generator metadata for generated custom profiles treats both parent packs as required
 
 Adds OpenDyslexic 8pt, 10pt, 12pt, and 14pt fonts.
 
@@ -78,7 +99,7 @@ Adds OpenDyslexic 8pt, 10pt, 12pt, and 14pt fonts.
 ### PNG/JPEG Sleep Images
 
 **Flag:** `ENABLE_IMAGE_SLEEP`
-**Size Impact:** ~33KB
+**Size Impact:** ~0KB in current measurements
 **Default:** Enabled
 
 Enables PNG and JPEG format support for custom sleep screen images.
@@ -124,8 +145,8 @@ Controls inline image rendering inside EPUB and Markdown books.
 ### Markdown/Obsidian
 
 **Flag:** `ENABLE_MARKDOWN`
-**Size Impact:** ~240KB
-**Default:** Enabled
+**Size Impact:** ~176KB
+**Default:** Disabled in `standard`, enabled in `full`
 
 Full Markdown rendering with Obsidian vault compatibility.
 
@@ -217,7 +238,7 @@ Keeps the WiFi file management server running in the background while reading.
 
 **Sub-features:**
 
-- **On Charge (`ENABLE_BACKGROUND_SERVER_ON_CHARGE`):** Automatically starts the background server whenever USB power is connected, even if it was manually stopped.
+- **On Charge (`ENABLE_BACKGROUND_SERVER_ON_CHARGE`):** Automatically starts the background server whenever USB power is connected, even if it was manually stopped, and keeps it running until USB power is removed or connectivity fails.
 - **Always On (`ENABLE_BACKGROUND_SERVER_ALWAYS`):** Auto-connects to WiFi on wake even when not charging. This ensures the server is always reachable but increases battery drain during active use.
 
 **When disabled:**
@@ -331,47 +352,47 @@ with reading progress driving level and evolution state.
 
 ### Lean Profile
 
-**Size:** ~2.3MB (~3.7MB savings from full profile)
+**Size:** ~1.7MB
 
 ```bash
 uv run python scripts/generate_build_config.py --profile lean
 ```
 
-**Features:**
-- ✗ Extended Fonts
-- ✗ PNG/JPEG Sleep
-- ✗ Markdown/Obsidian
-- ✗ Background Server
-- ✗ Remote Keyboard Input
-- ✗ Home Media Picker
-- ✗ Pokemon Wallpaper Plugin
-- ✗ Pokemon Party
+**Profile behavior:** Starts from a minimal `custom` environment with every optional feature flag disabled.
 
 **Best for:**
-- Devices with very limited flash space
-- Users who only need basic EPUB reading at 14pt
-- Maximum storage for books
+- A smallest-possible baseline
+- Custom builds where you want to add features back explicitly
+- Maximum flash headroom
 
 ---
 
 ### Standard Profile (Recommended)
 
-**Size:** ~5.5MB
+**Size:** ~5.0MB
 
 ```bash
 uv run python scripts/generate_build_config.py --profile standard
 ```
 
 **Features:**
-- ✓ Extended Fonts
+- ✓ Bookerly Fonts
+- ✓ Noto Sans Fonts
 - ✓ PNG/JPEG Sleep
 - ✗ Markdown/Obsidian
 - ✗ Integrations Base
 - ✗ KOReader Sync
 - ✗ Calibre Sync
 - ✓ Background Server
+- ✓ Background Server On Charge
+- ✗ Background Server Always
+- ✓ Web WiFi Setup
 - ✓ Remote Keyboard Input
 - ✓ Home Media Picker
+- ✓ BLE WiFi Provisioning
+- ✓ User Fonts
+- ✓ USB Mass Storage
+- ✓ Dark Mode
 - ✗ Pokemon Wallpaper Plugin
 - ✗ Pokemon Party
 
@@ -384,22 +405,34 @@ uv run python scripts/generate_build_config.py --profile standard
 
 ### Full Profile
 
-**Size:** ~6.0MB (feature-rich build, tight fit)
+**Size:** ~5.9MB (feature-rich build, still within the 6MB app slot)
 
 ```bash
 uv run python scripts/generate_build_config.py --profile full
 ```
 
 **Features:**
-- ✓ Extended Fonts
+- ✓ Bookerly Fonts
+- ✓ Noto Sans Fonts
+- ✗ OpenDyslexic Font Pack
 - ✓ PNG/JPEG Sleep
 - ✓ Markdown/Obsidian
 - ✓ Integrations Base
 - ✓ KOReader Sync
 - ✓ Calibre Sync
+- ✓ Todo Planner
+- ✓ Anki Support
 - ✓ Background Server
+- ✓ Background Server On Charge
+- ✓ Background Server Always
 - ✓ Remote Keyboard Input
 - ✓ Home Media Picker
+- ✓ Visual Covers
+- ✓ User Fonts
+- ✓ Web WiFi Setup
+- ✓ USB Mass Storage
+- ✓ Dark Mode
+- ✗ BLE WiFi Provisioning
 - ✓ Pokemon Wallpaper Plugin
 - ✓ Pokemon Party
 
@@ -414,7 +447,8 @@ uv run python scripts/generate_build_config.py --profile full
 
 ### Prerequisites
 
-- PlatformIO Core or VS Code with PlatformIO IDE
+- `uv` plus the pinned Python/PlatformIO toolchain (`uv sync --frozen`)
+- VS Code + PlatformIO IDE is optional for editor integration
 - Python 3.11+
 - USB-C cable for flashing
 
@@ -437,7 +471,7 @@ uv run python scripts/generate_build_config.py --profile full
 **Custom feature selection:**
 ```bash
 # Start from lean, add specific features
-uv run python scripts/generate_build_config.py --profile lean --enable extended_fonts --enable image_sleep
+uv run python scripts/generate_build_config.py --profile lean --enable bookerly_fonts --enable notosans_fonts
 
 # Start from full, remove specific features
 uv run python scripts/generate_build_config.py --profile full --disable markdown
@@ -453,6 +487,8 @@ uv run python scripts/generate_build_config.py --enable koreader_sync
 ```bash
 uv run python scripts/generate_build_config.py --list-features
 ```
+
+**Profile naming behavior:** `--profile <name>` starts from that preset; adding `--enable` or `--disable` writes a generated `<profile>+overrides` custom profile to `platformio-custom.ini`. If you only pass feature toggles, the generated profile is `custom`. In the current generator, enabling `opendyslexic_fonts` in a generated custom profile also resolves both `bookerly_fonts` and `notosans_fonts`.
 
 ### Build and Flash
 
@@ -506,7 +542,7 @@ GitHub Actions provides cloud-based builds without requiring local build tools.
 5. Choose profile or toggle individual features
 6. Click "Run workflow"
 7. Wait for completion
-8. Download the `custom-firmware` artifact
+8. Download the generated custom-firmware artifact package
 
 ### Artifact Contents
 
@@ -514,6 +550,7 @@ The downloaded artifact contains:
 - `firmware-YYYYMMDD-SHA.bin` - Flash this to your device
 - `partitions.bin` - Partition table (usually not needed for OTA)
 - `platformio-custom.ini` - Configuration used for this build
+- `build-metadata.json` - Commit/profile/feature-set metadata for the package
 
 ---
 
@@ -531,9 +568,9 @@ The ESP32-C3 in the Xteink X4 has:
 
 | Build Type | Size | Flash Usage | Books Space |
 |------------|------|-------------|-------------|
-| Lean | ~2.3MB | 36% | Maximum |
-| Standard | ~5.5MB | 86% | Good |
-| Full | ~6.0MB | 94% | Tight |
+| Lean | ~1.7MB | 27% | Maximum |
+| Standard | ~5.0MB | 78% | Good |
+| Full | ~5.9MB | 92% | Tight |
 
 *Note: Full build currently fits, but leaves very little headroom. Test before deploying.
 
@@ -542,7 +579,7 @@ The ESP32-C3 in the Xteink X4 has:
 1. **Start with Standard profile** - best balance for most users
 2. **Disable unused features** - save space for more books
 3. **Use BMP sleep images** - if you don't need PNG/JPEG
-4. **Skip Extended Fonts** - largest single feature at ~2.5MB
+4. **Skip OpenDyslexic first** - it is the largest single optional font pack at ~2.6MB
 5. **Monitor OTA updates** - custom builds may be larger than default
 
 ---
@@ -556,7 +593,7 @@ The ESP32-C3 in the Xteink X4 has:
 **Solutions:**
 1. Disable one or more features
 2. Use a smaller profile (Standard instead of Full)
-3. Specifically disable large features like Extended Fonts (~2.5MB)
+3. Specifically disable large optional packs such as OpenDyslexic or BLE provisioning
 
 Example:
 ```bash
@@ -614,13 +651,11 @@ uv run pio run -e custom --target upload
 
 ### How to Check Current Build Configuration
 
-Unfortunately, there's no runtime feature detection yet. To know what features are in your current firmware:
+Current ways to inspect the active feature set:
 
-1. Check the GitHub Actions build summary (if built on Actions)
+1. Query `GET /api/plugins` (or the compatibility alias `GET /api/features`) while the web server is running
 2. Check your local `platformio-custom.ini` file
-3. Try using a feature - disabled features show error messages
-
-*Future enhancement: Settings → About screen will show enabled features*
+3. Check the GitHub Actions build summary or `build-metadata.json` from a custom build artifact
 
 ---
 
@@ -636,7 +671,8 @@ extends = base
 build_flags =
   ${base.build_flags}
   -DCROSSPOINT_VERSION="${crosspoint.version}-custom"
-  -DENABLE_EXTENDED_FONTS=1
+  -DENABLE_BOOKERLY_FONTS=1
+  -DENABLE_NOTOSANS_FONTS=1
   -DENABLE_IMAGE_SLEEP=1
   -DENABLE_BOOK_IMAGES=1
   -DENABLE_MARKDOWN=0
@@ -703,10 +739,10 @@ The Feature Store provides over-the-air firmware bundles with different feature 
 ### Catalog Format
 
 Each bundle entry contains:
-- `id` — Unique bundle identifier (e.g., `stable-default`)
+- `id` — Unique bundle identifier (e.g., `latest-standard`)
 - `displayName` — Human-readable name shown in the OTA picker UI
 - `version` — Version tag or `latest`/`nightly`
-- `board` — Target board (must match device, e.g., `esp32s3`)
+- `board` — Target board (must match device, e.g., `esp32c3`)
 - `featureFlags` — Comma-separated compile-time feature flags included in the bundle
 - `downloadUrl` — Direct URL to the firmware binary
 - `checksum` — SHA-256 of the binary (empty string if not yet computed)
