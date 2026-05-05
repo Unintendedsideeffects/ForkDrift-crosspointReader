@@ -7,6 +7,7 @@
 #include <iostream>
 #include <string>
 
+#include "HostSettingsApi.h"
 #include "HostStorage.h"
 #include "HostWebServer.h"
 #include "network/CoreWebRoutes.h"
@@ -108,6 +109,7 @@ int main(int argc, char** argv) {
   network::CoreWebRouteOptions routeOptions;
   routeOptions.settingsSnapshot = [] { return network::buildSettingsSnapshotJson(SETTINGS); };
   network::mountCoreWebRoutes(server, routeOptions);
+  host::mountStubApiRoutes(server, root);
 
   const std::string themeTokens = htmlRoot.empty() ? std::string{} : loadThemeTokens(htmlRoot);
   if (!htmlRoot.empty()) {

@@ -2,7 +2,8 @@
 
 This prototype runs a tiny host-only HTTP server that exposes the same Arduino-style callback surface the firmware handlers use, but translates real TCP requests through `cpp-httplib` on Linux/macOS host builds.
 
-**Wired routes:** `GET /api/settings/raw` plus the shared file-management routes mounted by
+**Wired routes:** `GET /api/settings/raw`, host-backed `GET/POST /api/settings`,
+minimal `GET/POST /api/opds`, and the shared file-management routes mounted by
 `src/network/CoreWebRoutes.cpp` and `src/network/FileRoutes.cpp`.
 
 The host harness still avoids device lifecycle work such as Wi-Fi, UDP discovery, WebSockets, and WebDAV, but the mounted routes now live in production-owned `src/network` files instead of test-only adapters.

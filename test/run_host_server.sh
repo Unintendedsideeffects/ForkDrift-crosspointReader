@@ -49,6 +49,7 @@ g++ -std=c++20 -O2 -Wno-narrowing \
   "$ROOT_DIR/test/host_server/main.cpp" \
   "$ROOT_DIR/test/host_server/HostWebServer.cpp" \
   "$ROOT_DIR/test/host_server/HostStorage.cpp" \
+  "$ROOT_DIR/test/host_server/HostSettingsApi.cpp" \
   "$ROOT_DIR/test/mock/FeatureModuleHooks.cpp" \
   "$ROOT_DIR/src/network/CoreWebRoutes.cpp" \
   "$ROOT_DIR/src/network/FileListApi.cpp" \
@@ -103,6 +104,18 @@ curl -fsS -D "$HEADER_FILE" -o "$BODY_FILE" "http://127.0.0.1:$PORT/api/settings
 
 grep -q "^HTTP/.* 200" "$HEADER_FILE"
 grep -qi "^Content-Type: application/json" "$HEADER_FILE"
+
+curl -fsS -D "$HEADER_FILE" -o "$BODY_FILE" "http://127.0.0.1:$PORT/api/settings" >/dev/null
+grep -q "^HTTP/.* 200" "$HEADER_FILE"
+grep -qi "^Content-Type: application/json" "$HEADER_FILE"
+grep -q '"key":"sleepScreen"' "$BODY_FILE"
+
+curl -fsS -X POST -H "Content-Type: application/json" -D "$HEADER_FILE" -o "$BUILD_DIR/settings-post.txt" \
+  --data '{"sleepScreen":3,"deviceName":"host-test"}' \
+  "http://127.0.0.1:$PORT/api/settings" >/dev/null
+grep -q "^HTTP/.* 200" "$HEADER_FILE"
+grep -q '"sleepScreen":3' "$TMP_ROOT/settings.json"
+grep -q '"deviceName":"host-test"' "$TMP_ROOT/settings.json"
 
 curl -fsS -D "$HEADER_FILE" -o "$BODY_FILE" "http://127.0.0.1:$PORT/api/files?path=/" >/dev/null
 grep -q "^HTTP/.* 200" "$HEADER_FILE"
