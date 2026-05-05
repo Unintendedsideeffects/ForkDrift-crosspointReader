@@ -51,6 +51,30 @@
         padding: 32px 16px 64px;
       }
 
+      .nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .nav a {
+        border: var(--px) solid var(--blk);
+        background: var(--white);
+        color: var(--blk);
+        text-decoration: none;
+        padding: 8px 12px;
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .nav a.active,
+      .nav a:hover {
+        background: var(--blk);
+        color: var(--white);
+      }
+
       /* ── Pixel bevel ── */
       .bevel {
         border: var(--px) solid var(--blk);
@@ -1974,6 +1998,12 @@
   </head>
   <body>
     <div class="page">
+      <nav class="nav">
+        <a href="../">Pages Home</a>
+        <a class="active" href="./">Configurator</a>
+        <a href="../plugins/x4-pokedex-grayscale/">Pokedex</a>
+      </nav>
+
       <div class="header bevel">
         <div class="header-eyebrow">CrossPoint Reader</div>
         <h1>Build Configurator</h1>
@@ -2560,11 +2590,9 @@
       <!-- Right drawer: navigation column (row 1, col 2) -->
       <div class="sidebar-drawer" id="sidebar-drawer">
         <button class="drawer-item active" data-tab="output">Output</button>
-        <button class="drawer-item" data-tab="build">Build</button>
-        <button class="drawer-item" data-tab="device">Device</button>
         <button class="drawer-item" data-tab="wifi">WiFi</button>
         <button class="drawer-item" data-tab="settings">Settings</button>
-        <button class="drawer-item" data-tab="fonts">Fonts</button>
+        <button class="drawer-item" data-tab="fonts">Custom Font Manager</button>
         <button class="drawer-item" data-tab="studio">Studio</button>
         <button class="drawer-item" data-tab="preview">Preview</button>
         <button class="drawer-item" data-tab="plugins">Plugins</button>
@@ -2617,80 +2645,13 @@
           </div>
           </div><!-- /.folder-pane#tab-output -->
 
-          <!-- tab: build -->
-          <div class="folder-pane" id="tab-build">
-          <div class="panel">
-            <div class="panel-heading">Build &amp; Download</div>
-            <div class="companion-desc" style="line-height: 1.6">
-              Trigger a GitHub Actions build with your current configuration and track it here.
-              Requires a <strong>fine-grained PAT</strong> with <code>Actions: Read and write</code>
-              permission, or a classic PAT with <code>workflow</code> scope. Your token is held
-              in memory only and never stored.
-            </div>
-            <div class="gh-token-row">
-              <input
-                id="gh-token"
-                type="password"
-                class="device-input"
-                placeholder="github_pat_... or ghp_..."
-                style="flex: 1; min-width: 220px;"
-                autocomplete="off"
-                spellcheck="false"
-              />
-              <button class="btn btn-solid" id="gh-trigger-btn">Trigger Build</button>
-            </div>
-            <div id="gh-build-status" class="info-bar" style="display: none; margin-top: 10px; line-height: 1.8;"></div>
-          </div>
-          </div><!-- /.folder-pane#tab-build -->
-
-          <!-- tab: device -->
-          <div class="folder-pane" id="tab-device">
-          <div class="panel">
-            <div class="panel-heading">Device Access (Optional)</div>
-            <div class="companion-row">
-              <div style="flex: 1">
-                <div class="companion-title">USB Serial Tools (Fork)</div>
-                <div class="companion-desc">
-                  Safer path: use the forked web tools for flashing and debug over USB serial.
-                </div>
-                <div class="actions">
-                  <a class="btn btn-solid" href="https://unintendedsideeffects.github.io/xteink-flasher/" target="_blank" rel="noopener">Open Xteink Flash</a>
-                  <a class="btn btn-outline" href="https://unintendedsideeffects.github.io/xteink-flasher/debug/" target="_blank" rel="noopener">Open Xteink Debug</a>
-                </div>
-              </div>
-            </div>
-            <div class="companion-row" style="margin-top: 14px;">
-              <div style="flex: 1">
-                <div class="companion-title">Detect File Manager on Local Network</div>
-                <div class="companion-desc">
-                  Best-effort probe for a running CrossPoint web server, then jump straight to <code>/files</code>.
-                </div>
-                <div class="device-inline">
-                  <input
-                    id="file-manager-host"
-                    class="device-input"
-                    type="text"
-                    placeholder="crosspoint.local or 192.168.1.123"
-                    aria-label="CrossPoint host"
-                  />
-                  <button class="btn btn-outline" id="detect-file-manager">Detect</button>
-                  <a class="btn btn-outline" id="open-detected-file-manager" data-file-manager-link="files" href="http://crosspoint.local/files" target="_blank" rel="noopener">
-                    Open /files
-                  </a>
-                </div>
-                <div id="file-manager-status" class="info-bar">Not checked yet.</div>
-              </div>
-            </div>
-          </div>
-          </div><!-- /.folder-pane#tab-device -->
-
           <!-- tab: fonts -->
           <div class="folder-pane" id="tab-fonts">
           <div class="panel">
-            <div class="panel-heading">Font Converter</div>
+            <div class="panel-heading">Custom Font Manager</div>
             <div class="companion-row">
               <div style="flex: 1">
-                <div class="companion-title">Pre-convert TTF/OTF for User Fonts</div>
+                <div class="companion-title">Custom Font Manager</div>
                 <div class="companion-desc">
                   Select a font file to convert it to the <code>.cpf</code> format and save to <code>/fonts</code> on SD card.
                   Canonical names are <code>&lt;Family&gt;-Regular.cpf</code>, optional
@@ -4936,160 +4897,6 @@
         clearWallpaperSelection();
       }
 
-      function normalizeFileManagerOrigin(rawValue, defaultScheme = "http") {
-        const raw = (rawValue || "").trim();
-        if (!raw) return null;
-        const withScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(raw) ? raw : `${defaultScheme}://${raw}`;
-        try {
-          const parsed = new URL(withScheme);
-          if (!/^https?:$/.test(parsed.protocol)) return null;
-          return parsed.origin;
-        } catch (_) {
-          return null;
-        }
-      }
-
-      function shouldSkipProbe(origin) {
-        if (!origin) return true;
-        try {
-          const target = new URL(origin);
-          return location.protocol === "https:" && target.protocol === "http:";
-        } catch (_) {
-          return true;
-        }
-      }
-
-      async function probeOrigin(origin, timeoutMs = 1200) {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-          await fetch(`${origin}/api/status`, {
-            method: "GET",
-            cache: "no-store",
-            mode: "no-cors",
-            signal: controller.signal,
-          });
-          return true;
-        } catch (_) {
-          return false;
-        } finally {
-          clearTimeout(timer);
-        }
-      }
-
-      function setFileManagerStatus(message, isError = false) {
-        const status = document.getElementById("file-manager-status");
-        status.textContent = message;
-        status.style.borderLeftColor = isError ? "var(--md)" : "var(--blk)";
-      }
-
-      function setDetectedFileManagerUrl(origin) {
-        document.querySelectorAll('[data-file-manager-link="files"]').forEach((link) => {
-          link.href = `${origin}/files`;
-        });
-      }
-
-      function setDetectedDeviceLinkUrls(origin) {
-        document.querySelectorAll("[data-device-link-path]").forEach((link) => {
-          const path = link.dataset.deviceLinkPath;
-          if (!path) return;
-          link.href = `${origin}${path}`;
-        });
-      }
-
-      function buildProbeOrigins(hostValue) {
-        const origins = [];
-        const addOrigin = (origin) => {
-          if (!origin) return;
-          if (!origins.includes(origin)) origins.push(origin);
-        };
-
-        const preferredScheme = location.protocol === "https:" ? "https" : "http";
-        const alternateScheme = preferredScheme === "https" ? "http" : "https";
-        const appendInputOrigins = (value) => {
-          const raw = (value || "").trim();
-          if (!raw) return;
-          const hasScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(raw);
-          if (hasScheme) {
-            addOrigin(normalizeFileManagerOrigin(raw));
-            return;
-          }
-          addOrigin(normalizeFileManagerOrigin(raw, preferredScheme));
-          addOrigin(normalizeFileManagerOrigin(raw, alternateScheme));
-        };
-
-        appendInputOrigins(hostValue);
-        appendInputOrigins(new URLSearchParams(location.search).get("host"));
-
-        addOrigin("http://crosspoint.local");
-        addOrigin("https://crosspoint.local");
-
-        const localHostPattern = /(^localhost$)|(^127\.)|(^10\.)|(^192\.168\.)|(^172\.(1[6-9]|2[0-9]|3[0-1])\.)|(\.local$)/;
-        if (localHostPattern.test(location.hostname)) {
-          addOrigin(location.origin);
-        }
-
-        return origins;
-      }
-
-      async function detectFileManager() {
-        const hostInput = document.getElementById("file-manager-host");
-        const inputOrigin = normalizeFileManagerOrigin(hostInput.value);
-        if (hostInput.value.trim() && !inputOrigin) {
-          setFileManagerStatus("Invalid host. Use crosspoint.local, 192.168.x.x, or a full http(s) URL.", true);
-          return;
-        }
-
-        const candidates = buildProbeOrigins(hostInput.value);
-        if (inputOrigin) {
-          setDetectedFileManagerUrl(inputOrigin);
-          setDetectedDeviceLinkUrls(inputOrigin);
-        }
-        setFileManagerStatus(`Probing ${candidates.length} candidate endpoint(s)...`);
-
-        let skippedMixedContent = false;
-        let firstSkippedOrigin = null;
-        for (const origin of candidates) {
-          if (shouldSkipProbe(origin)) {
-            skippedMixedContent = true;
-            if (!firstSkippedOrigin) firstSkippedOrigin = origin;
-            continue;
-          }
-          if (await probeOrigin(origin)) {
-            setDetectedFileManagerUrl(origin);
-            setDetectedDeviceLinkUrls(origin);
-            setFileManagerStatus(`Detected endpoint at ${origin}.`);
-            return;
-          }
-        }
-
-        const fallbackOrigin = firstSkippedOrigin || inputOrigin || "http://crosspoint.local";
-        setDetectedFileManagerUrl(fallbackOrigin);
-        setDetectedDeviceLinkUrls(fallbackOrigin);
-        if (skippedMixedContent) {
-          setFileManagerStatus(
-            `Active probing is blocked by browser mixed-content policy on HTTPS pages for ${firstSkippedOrigin || "http:// hosts"}. Use Open /files to navigate directly, or run this page from http:// for active probing.`,
-            true
-          );
-        } else {
-          setFileManagerStatus("No running file manager detected. Try entering the device IP manually.", true);
-        }
-      }
-
-      function setupDeviceTools() {
-        const detectBtn = document.getElementById("detect-file-manager");
-        const hostInput = document.getElementById("file-manager-host");
-        if (!detectBtn || !hostInput) return;
-
-        detectBtn.addEventListener("click", detectFileManager);
-        hostInput.addEventListener("keydown", (event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            detectFileManager();
-          }
-        });
-      }
-
       function setupPrebuiltToggle() {
         const panel = document.querySelector('.prebuilt-panel');
         if (!panel) return;
@@ -6449,7 +6256,6 @@
       setupEvents();
       setupFontConverter();
       setupWallpaperStudio();
-      setupDeviceTools();
       setupGitHubBuildTrigger();
       setupWifiTab();
       setupSettingsTab();
