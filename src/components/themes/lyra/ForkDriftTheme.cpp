@@ -10,7 +10,6 @@
 #include <string>
 
 #include "CrossPointSettings.h"
-#include "util/RecentBooksStore.h"
 #include "components/UITheme.h"
 #include "components/icons/cover.h"
 #include "components/icons/folder.h"
@@ -19,6 +18,7 @@
 #include "components/icons/transfer.h"
 #include "components/icons/wifi.h"
 #include "fontIds.h"
+#include "util/RecentBooksStore.h"
 
 namespace {
 constexpr int hPadding = 8;
@@ -74,13 +74,17 @@ void ForkDriftTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const
           if (Storage.openFileForRead("HOME", path, file)) {
             Bitmap bitmap(file);
             if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-              float imgW = static_cast<float>(bitmap.getWidth());
-              float imgH = static_cast<float>(bitmap.getHeight());
-              float ratio = imgW / imgH;
-              const float tileRatio = static_cast<float>(tileWidth - 2 * hPadding) / static_cast<float>(coverHeight);
-              float cropX = 1.0f - (tileRatio / ratio);
-              renderer.drawBitmap(bitmap, tileX + hPadding, tileY + hPadding, tileWidth - 2 * hPadding, coverHeight,
-                                  cropX);
+              const float imgW = static_cast<float>(bitmap.getWidth());
+              const float imgH = static_cast<float>(bitmap.getHeight());
+              const int drawWidth = tileWidth - 2 * hPadding;
+              if (imgW > 0.0f && imgH > 0.0f && drawWidth > 0 && coverHeight > 0) {
+                const float ratio = imgW / imgH;
+                const float tileRatio = static_cast<float>(drawWidth) / static_cast<float>(coverHeight);
+                const float cropX = 1.0f - (tileRatio / ratio);
+                renderer.drawBitmap(bitmap, tileX + hPadding, tileY + hPadding, drawWidth, coverHeight, cropX);
+              } else {
+                hasCover = false;
+              }
             } else {
               hasCover = false;
             }
@@ -98,7 +102,7 @@ void ForkDriftTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const
         }
       }
       coverBufferStored = storeCoverBuffer();
-      coverRendered = true;
+      coverRendered = coverBufferStored;
     }
 
     for (int i = 0; i < std::min(static_cast<int>(recentBooks.size()), maxCells); i++) {

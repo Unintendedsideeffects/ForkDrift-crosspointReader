@@ -24,6 +24,8 @@ constexpr ThemeMetrics values = {.batteryWidth = 16,
                                  .homeCoverHeight = 120,
                                  .homeCoverTileHeight = 436,
                                  .homeRecentBooksCount = 6,
+                                 .homeContinueReadingInMenu = false,
+                                 .homeMenuTopOffset = 16,
                                  .buttonHintsHeight = 40,
                                  .sideButtonHintsWidth = 30,
                                  .progressBarHeight = 16,
@@ -33,8 +35,14 @@ constexpr ThemeMetrics values = {.batteryWidth = 16,
                                  .keyboardKeyWidth = 31,
                                  .keyboardKeyHeight = 50,
                                  .keyboardKeySpacing = 0,
+                                 .keyboardBottomKeyHeight = 35,
+                                 .keyboardBottomKeySpacing = 5,
                                  .keyboardBottomAligned = true,
-                                 .keyboardCenteredText = true};
+                                 .keyboardCenteredText = true,
+                                 .keyboardVerticalOffset = -7,
+                                 .keyboardTextFieldWidthPercent = 85,
+                                 .keyboardWidthPercent = 90,
+                                 .keyboardKeyCornerRadius = 6};
 }
 
 class ForkDriftTheme : public LyraTheme {

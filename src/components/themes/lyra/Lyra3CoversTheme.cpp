@@ -7,10 +7,10 @@
 #include <string>
 #include <vector>
 
-#include "util/RecentBooksStore.h"
 #include "components/UITheme.h"
 #include "components/icons/cover.h"
 #include "fontIds.h"
+#include "util/RecentBooksStore.h"
 
 // Internal constants
 namespace {
@@ -46,16 +46,21 @@ void Lyra3CoversTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, con
           if (Storage.openFileForRead("HOME", coverBmpPath, file)) {
             Bitmap bitmap(file);
             if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-              float coverHeight = static_cast<float>(bitmap.getHeight());
-              float coverWidth = static_cast<float>(bitmap.getWidth());
-              float ratio = coverWidth / coverHeight;
-              const float tileRatio = static_cast<float>(tileWidth - 2 * hPaddingInSelection) /
-                                      static_cast<float>(Lyra3CoversMetrics::values.homeCoverHeight);
-              float cropX = 1.0f - (tileRatio / ratio);
+              const float coverHeight = static_cast<float>(bitmap.getHeight());
+              const float coverWidth = static_cast<float>(bitmap.getWidth());
+              const int drawWidth = tileWidth - 2 * hPaddingInSelection;
+              if (coverWidth > 0.0f && coverHeight > 0.0f && drawWidth > 0 &&
+                  Lyra3CoversMetrics::values.homeCoverHeight > 0) {
+                const float ratio = coverWidth / coverHeight;
+                const float tileRatio =
+                    static_cast<float>(drawWidth) / static_cast<float>(Lyra3CoversMetrics::values.homeCoverHeight);
+                const float cropX = 1.0f - (tileRatio / ratio);
 
-              renderer.drawBitmap(bitmap, tileX + hPaddingInSelection, tileY + hPaddingInSelection,
-                                  tileWidth - 2 * hPaddingInSelection, Lyra3CoversMetrics::values.homeCoverHeight,
-                                  cropX);
+                renderer.drawBitmap(bitmap, tileX + hPaddingInSelection, tileY + hPaddingInSelection, drawWidth,
+                                    Lyra3CoversMetrics::values.homeCoverHeight, cropX);
+              } else {
+                hasCover = false;
+              }
             } else {
               hasCover = false;
             }
