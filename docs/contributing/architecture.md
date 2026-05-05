@@ -107,20 +107,23 @@ The following singletons provide global access to system-wide state and services
 
 ## Reader and content pipeline
 
-Reader orchestration starts in `src/activities/reader/ReaderActivity.h` and dispatches to format-specific readers.
+Reader orchestration starts in `ActivityManager::goToReader()` and dispatches through `ReaderRegistry::open()`.
+See [[Project State Machine]] / `docs/project-state-machine.md` for the full project state machine and current registry-based reader flow.
 EPUB processing is implemented in `lib/Epub/`.
 
 ```mermaid
 flowchart LR
-    A[Select book] --> B[ReaderActivity]
-    B --> C{Format}
-    C -->|EPUB| D[lib/Epub/Epub]
-    C -->|XTC| E[lib/Xtc reader]
-    C -->|TXT| F[lib/Txt reader]
-    D --> G[Parse OPF/TOC/CSS]
-    G --> H[Layout pages/sections]
-    H --> I[Write section and metadata caches]
-    I --> J[Render current page via GfxRenderer]
+    A[Select book] --> B[ActivityManager::goToReader]
+    B --> C[ReaderRegistry::open]
+    C --> D{Format}
+    D -->|EPUB| E[lib/Epub/Epub]
+    D -->|Markdown| F[lib/Markdown reader]
+    D -->|XTC| G[lib/Xtc reader]
+    D -->|TXT| H[lib/Txt reader]
+    E --> I[Parse OPF/TOC/CSS]
+    I --> J[Layout pages/sections]
+    J --> K[Write section and metadata caches]
+    K --> L[Render current page via GfxRenderer]
 ```
 
 Why caching matters:
@@ -134,31 +137,33 @@ This diagram zooms into the EPUB path to show the main control and data flow fro
 
 ```mermaid
 flowchart TD
-    A[ReaderActivity onEnter] --> B{File type}
-    B -->|EPUB| C[Create Epub object]
-    B -->|XTC/TXT| Z[Use format-specific reader]
+    A[ActivityManager::goToReader] --> B[ReaderRegistry::open]
+    B --> C{Registered extension}
+    C -->|EPUB| D[features::epub factory]
+    C -->|Markdown| MD[features::markdown factory]
+    C -->|XTC/TXT| Z[Use format-specific factory]
 
-    C --> D[Epub load]
-    D --> E[Locate container and OPF]
-    E --> F[Build or load BookMetadataCache]
-    F --> G[Load TOC and spine]
-    G --> H[Load or parse CSS rules]
+    D --> E[Epub load]
+    E --> F[Locate container and OPF]
+    F --> G[Build or load BookMetadataCache]
+    G --> H[Load TOC and spine]
+    H --> I[Load or parse CSS rules]
 
-    H --> I[EpubReaderActivity]
-    I --> J{Section cache exists for current settings?}
-    J -->|Yes| K[Read section bin from SD cache]
-    J -->|No| L[Parse chapter HTML and layout text]
-    L --> M[Apply typography settings and hyphenation]
-    M --> N[Write section cache bin]
+    I --> J[EpubReaderActivity]
+    J --> K{Section cache exists for current settings?}
+    K -->|Yes| L[Read section bin from SD cache]
+    K -->|No| N[Parse chapter HTML and layout text]
+    N --> TYPO[Apply typography settings and hyphenation]
+    TYPO --> CACHE[Write section cache bin]
 
-    K --> O[Build page model]
-    N --> O
-    O --> P[GfxRenderer draw calls]
-    P --> Q[HAL display framebuffer update]
-    Q --> R[E-ink refresh policy]
+    L --> MODEL[Build page model]
+    CACHE --> MODEL
+    MODEL --> DRAW[GfxRenderer draw calls]
+    DRAW --> FB[HAL display framebuffer update]
+    FB --> REFRESH[E-ink refresh policy]
 
     S[SETTINGS singleton] -. influences .-> J
-    S -. influences .-> M
+    S -. influences .-> TYPO
     T[APP_STATE singleton] -. persists .-> U[Reading progress and resume context]
     U -. used by .-> I
 ```
