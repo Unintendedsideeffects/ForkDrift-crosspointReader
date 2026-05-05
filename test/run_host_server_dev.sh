@@ -13,7 +13,7 @@ ARDUINOJSON_DIR="$ROOT_DIR/.pio/libdeps/default/ArduinoJson/src"
 BINARY="$BUILD_DIR/HostServer"
 
 PORT=8080
-HOST=127.0.0.1
+HOST=0.0.0.0
 DATA_ROOT="$BUILD_DIR/dev_root"
 HTML_ROOT="$ROOT_DIR/src/network/html"
 WATCH=0
