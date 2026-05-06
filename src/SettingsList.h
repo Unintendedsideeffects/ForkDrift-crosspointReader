@@ -1,5 +1,6 @@
 #pragma once
 
+#include <FeatureFlags.h>
 #include <I18n.h>
 
 #include <vector>
@@ -49,6 +50,24 @@ inline void setBackgroundServerModeSettingIndex(const uint8_t index) {
   SETTINGS.setBackgroundServerMode(index == 1 ? CrossPointSettings::BACKGROUND_SERVER_ON_CHARGE
                                               : CrossPointSettings::BACKGROUND_SERVER_NEVER);
 }
+
+#if ENABLE_WIFI_CLOCK
+inline std::vector<std::string> timezoneOffsetOptions() {
+  std::vector<std::string> opts;
+  opts.reserve(27);
+  for (int i = 0; i <= 26; ++i) {
+    const int offset = i - 12;
+    char buf[8];
+    if (offset >= 0) {
+      snprintf(buf, sizeof(buf), "UTC+%d", offset);
+    } else {
+      snprintf(buf, sizeof(buf), "UTC%d", offset);
+    }
+    opts.emplace_back(buf);
+  }
+  return opts;
+}
+#endif
 
 // Shared settings list used by both the device settings UI and the web settings API.
 // Each entry has a key (for JSON API) and category (for grouping).
@@ -250,6 +269,17 @@ inline std::vector<SettingInfo> getSettingsList() {
   // Input is sanitized to [a-z0-9-], max 24 chars, via validateAndClamp() on save.
   list.push_back(SettingInfo::String(StrId::STR_DEVICE_NAME, SETTINGS.deviceName, sizeof(SETTINGS.deviceName),
                                      "deviceName", StrId::STR_CAT_SYSTEM));
+
+#if ENABLE_WIFI_CLOCK
+  list.push_back(SettingInfo::Enum(StrId::STR_TIME_MODE, &CrossPointSettings::timeMode,
+                                   {StrId::STR_TIME_UTC, StrId::STR_TIME_LOCAL, StrId::STR_TIME_MANUAL}, "timeMode",
+                                   StrId::STR_CAT_TIME));
+  list.push_back(SettingInfo::DynamicEnum(
+                     StrId::STR_TIMEZONE_OFFSET, {}, [] { return SETTINGS.timeZoneOffset; },
+                     [](uint8_t v) { SETTINGS.timeZoneOffset = std::min(v, uint8_t{26}); }, "timeZoneOffset",
+                     StrId::STR_CAT_TIME, timezoneOffsetOptions)
+                     .withVisibleWhen("timeMode", CrossPointSettings::TIME_MODE_LOCAL));
+#endif
 
   if (core::FeatureModules::hasCapability(core::Capability::KoreaderSync)) {
     // --- KOReader Sync (web-only, persisted via FeatureModules) ---

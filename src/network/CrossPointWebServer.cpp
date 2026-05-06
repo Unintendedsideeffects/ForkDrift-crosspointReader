@@ -420,6 +420,9 @@ void CrossPointWebServer::mountRoutes() {
   server->on("/api/settings/raw", HTTP_GET, [this] { handleGetSettingsRaw(); });
   server->on("/api/remote/button", HTTP_POST, [this] { handleRemoteButton(); });
   server->on("/api/screenshot", HTTP_POST, [this] { handleScreenshot(); });
+#if ENABLE_WIFI_CLOCK
+  server->on("/api/time", HTTP_POST, [this] { handleSetTime(); });
+#endif
 
   server->onNotFound([this] { handleNotFound(); });
 }
@@ -626,6 +629,34 @@ void CrossPointWebServer::handleStatus() const {
 
 void CrossPointWebServer::handlePlugins() const {
   server->send(200, "application/json", core::FeatureModules::getFeatureMapJson());
+}
+
+}
+#endif
+
+#if ENABLE_WIFI_CLOCK
+void CrossPointWebServer::handleSetTime() {
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing body");
+    return;
+  }
+  JsonDocument doc;
+  if (deserializeJson(doc, server->arg("plain"))) {
+    server->send(400, "text/plain", "Invalid JSON");
+    return;
+  }
+  if (doc["epoch"].isNull()) {
+    server->send(400, "text/plain", "Missing epoch");
+    return;
+  }
+  constexpr std::time_t kMinValidTime = 1577836800;  // 2020-01-01 UTC
+  const auto epoch = static_cast<std::time_t>(doc["epoch"].as<uint32_t>());
+  if (epoch < kMinValidTime) {
+    server->send(400, "text/plain", "epoch out of range");
+    return;
+  }
+  TimeSync::setManualTime(epoch);
+  server->send(200, "application/json", "{\"ok\":true}");
 }
 #endif
 

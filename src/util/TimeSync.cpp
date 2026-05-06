@@ -153,5 +153,16 @@ void noteWebUiAccess(const bool wifiConnected) {
   lastWebAccessSyncMs = nowMs;
   syncRequested = true;
 }
+
+void setManualTime(const std::time_t epoch) {
+  timeval tv{};
+  tv.tv_sec = epoch;
+  settimeofday(&tv, nullptr);
+  SETTINGS.lastTimeSyncEpoch = static_cast<uint32_t>(epoch);
+  if (!SETTINGS.saveToFile()) {
+    LOG_WRN("TIMESYNC", "Failed to persist manual time");
+  }
+  LOG_INF("TIMESYNC", "Manual time set: %lu", static_cast<unsigned long>(epoch));
+}
 #endif
 }  // namespace TimeSync

@@ -162,6 +162,7 @@ class CrossPointWebServer {
   void handleSettingsPage() const;
   void handleGetSettings() const;
   void handlePostSettings();
+  void handleSetTime();
 
   // OPDS server handlers
   void handleGetOpdsServers() const;

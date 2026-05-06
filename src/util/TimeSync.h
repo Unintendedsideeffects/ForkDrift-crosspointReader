@@ -21,5 +21,9 @@ void loop(bool wifiConnected);
 // Called when the fileserver web UI is actively used. It schedules a rate-limited
 // immediate NTP refresh so the clock is corrected when a user is connected.
 void noteWebUiAccess(bool wifiConnected);
+
+// Sets the system clock to the given epoch and persists it.
+// Used by the /api/time endpoint (manual time mode).
+void setManualTime(std::time_t epoch);
 #endif
 }  // namespace TimeSync
