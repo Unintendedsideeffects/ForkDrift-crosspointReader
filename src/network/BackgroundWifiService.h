@@ -62,6 +62,9 @@ class BackgroundWifiService {
   void stop(bool keepWifi = false);
 
   bool isRunning() const { return taskHandle != nullptr; }
+  // Returns true while the task is active OR while a deferred start retry is pending.
+  // Use this in reconcile loops to suppress repeated start attempts during the retry window.
+  bool isPendingOrRunning() const { return taskHandle != nullptr || startRetryActive(); }
   bool isConnected() const { return connected; }
   uint32_t getRequestCount() const { return requestCount; }
   bool hadApiActivity() const { return requestCount > 0; }

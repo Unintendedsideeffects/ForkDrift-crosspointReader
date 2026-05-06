@@ -225,8 +225,7 @@ void reconcileBackgroundWifiServer() {
   }
 
   if (staConnected) {
-    if (!BG_WIFI.isRunning()) {
-      LOG_DBG("MAIN", "WiFi connected; starting background file server");
+    if (!BG_WIFI.isPendingOrRunning()) {
       BG_WIFI.startUsingCurrentConnection();
     }
     return;
