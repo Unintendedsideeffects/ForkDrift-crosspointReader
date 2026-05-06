@@ -10,6 +10,7 @@
 #include <cstring>
 
 #include "CrossPointSettings.h"
+#include "ReleaseJsonParser.h"
 #include "SpiBusMutex.h"
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
@@ -297,6 +298,17 @@ esp_err_t event_handler(esp_http_client_event_t* event) {
   return ESP_OK;
 }
 
+size_t totalBytesReceived = 0;
+
+esp_err_t release_event_handler(esp_http_client_event_t* event) {
+  if (event->event_id != HTTP_EVENT_ON_DATA) return ESP_OK;
+
+  totalBytesReceived += static_cast<size_t>(event->data_len);
+  auto* parser = static_cast<ReleaseJsonParser*>(event->user_data);
+  parser->feed(static_cast<const char*>(event->data), static_cast<size_t>(event->data_len));
+  return ESP_OK;
+}
+
 /**
  * Fetch JSON from a URL into ArduinoJson doc.
  * Returns OtaUpdater::OK on success, or an error code.
@@ -391,6 +403,63 @@ ReleaseFetchResult fetchReleaseJson(const char* url, JsonDocument& doc, const Js
   return {OtaUpdater::OK, httpStatus, ESP_OK, ""};
 }
 
+ReleaseFetchResult fetchReleaseStream(const char* url, ReleaseJsonParser& parser) {
+  parser.reset();
+
+  esp_http_client_config_t client_config = {
+      .url = url,
+      .timeout_ms = 20000,
+      .event_handler = release_event_handler,
+      .buffer_size = 8192,
+      .buffer_size_tx = 8192,
+      .user_data = &parser,
+      .crt_bundle_attach = esp_crt_bundle_attach,
+      .keep_alive_enable = true,
+  };
+
+  totalBytesReceived = 0;
+  esp_http_client_handle_t client_handle = esp_http_client_init(&client_config);
+  if (!client_handle) {
+    LOG_ERR("OTA", "HTTP Client Handle Failed");
+    return {OtaUpdater::INTERNAL_UPDATE_ERROR, 0, ESP_FAIL, String("Failed to initialize HTTP client for ") + url};
+  }
+
+  esp_err_t esp_err = esp_http_client_set_header(client_handle, "User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
+  if (esp_err != ESP_OK) {
+    LOG_ERR("OTA", "esp_http_client_set_header Failed : %s", esp_err_to_name(esp_err));
+    esp_http_client_cleanup(client_handle);
+    return {OtaUpdater::INTERNAL_UPDATE_ERROR, 0, esp_err,
+            String("Failed to prepare OTA request for ") + url + ": " + esp_err_to_name(esp_err)};
+  }
+
+  esp_err = esp_http_client_perform(client_handle);
+  const int httpStatus = esp_http_client_get_status_code(client_handle);
+  if (esp_err != ESP_OK) {
+    LOG_ERR("OTA", "esp_http_client_perform Failed : %s", esp_err_to_name(esp_err));
+    esp_http_client_cleanup(client_handle);
+    return {OtaUpdater::HTTP_ERROR, httpStatus, esp_err,
+            String("Request to ") + url + " failed: " + esp_err_to_name(esp_err)};
+  }
+
+  esp_err = esp_http_client_cleanup(client_handle);
+  if (esp_err != ESP_OK) {
+    LOG_ERR("OTA", "esp_http_client_cleanup Failed : %s", esp_err_to_name(esp_err));
+    return {OtaUpdater::INTERNAL_UPDATE_ERROR, httpStatus, esp_err,
+            String("Failed to close OTA request for ") + url + ": " + esp_err_to_name(esp_err)};
+  }
+
+  if (httpStatus != 200) {
+    if (httpStatus == 404) {
+      return {OtaUpdater::NO_UPDATE, httpStatus, ESP_OK, String("No release found at ") + url + " (HTTP 404)"};
+    }
+    return {OtaUpdater::HTTP_ERROR, httpStatus, ESP_OK,
+            String("OTA server returned HTTP ") + httpStatus + " for " + url};
+  }
+
+  LOG_DBG("OTA", "Release metadata streamed: %zu bytes from %s", totalBytesReceived, url);
+  return {OtaUpdater::OK, httpStatus, ESP_OK, ""};
+}
+
 size_t getMaxOtaPartitionSize() {
   const esp_partition_t* partition = esp_ota_get_next_update_partition(NULL);
   if (partition) {
@@ -473,26 +542,29 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   }
   factoryResetOnInstall = channel.factoryResetOnInstall;
 
-  JsonDocument filter;
-  JsonDocument doc;
-  filter["tag_name"] = true;
-  filter["name"] = true;  // release title — CI sets this to the build version string
-  filter["assets"][0]["name"] = true;
-  filter["assets"][0]["browser_download_url"] = true;
-  filter["assets"][0]["size"] = true;
-
   ReleaseFetchResult fetchResult;
+  bool foundTag = false;
+  bool foundFirmware = false;
+  String parsedTag;
+  String parsedReleaseName;
+  String parsedFirmwareUrl;
+  size_t parsedFirmwareSize = 0;
   for (size_t i = 0; i < channel.candidateCount; ++i) {
     const auto& candidate = channel.candidates[i];
-    doc.clear();
-    fetchResult = fetchReleaseJson(candidate.url, doc, filter);
+    ReleaseJsonParser streamedParser;
+    fetchResult = fetchReleaseStream(candidate.url, streamedParser);
     if (fetchResult.error == HTTP_ERROR) {
       LOG_WRN("OTA", "%s check failed, retrying after 2s: %s", candidate.label, fetchResult.message.c_str());
       vTaskDelay(2000 / portTICK_PERIOD_MS);
-      doc.clear();
-      fetchResult = fetchReleaseJson(candidate.url, doc, filter);
+      fetchResult = fetchReleaseStream(candidate.url, streamedParser);
     }
     if (fetchResult.error == OK) {
+      foundTag = streamedParser.foundTag();
+      foundFirmware = streamedParser.foundFirmware();
+      parsedTag = streamedParser.getTagName();
+      parsedReleaseName = streamedParser.getReleaseName();
+      parsedFirmwareUrl = streamedParser.getFirmwareUrl();
+      parsedFirmwareSize = streamedParser.getFirmwareSize();
       LOG_DBG("OTA", "Resolved %s OTA metadata from %s", channel.channelName, candidate.url);
       break;
     }
@@ -504,40 +576,26 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
     return fetchResult.error;
   }
 
-  if (!doc["tag_name"].is<std::string>()) {
+  if (!foundTag) {
     LOG_ERR("OTA", "No tag_name found");
     lastError = "Update metadata missing tag";
     return JSON_PARSE_ERROR;
   }
 
-  if (!doc["assets"].is<JsonArray>()) {
-    LOG_ERR("OTA", "No assets found");
+  if (!foundFirmware) {
+    LOG_ERR("OTA", "No named firmware asset found");
     lastError = "Update metadata missing assets";
-    return JSON_PARSE_ERROR;
+    return NO_UPDATE;
   }
 
   // Use the release title (name) as the build version identifier — it carries
   // meaningful version strings like "12345-dev", "20240218", or "1.0.0".
   // Fall back to tag_name for older releases that predate this convention.
-  const std::string releaseName = doc["name"] | "";
-  latestVersion = releaseName.empty() ? doc["tag_name"].as<std::string>() : releaseName;
-
-  for (JsonObject asset : doc["assets"].as<JsonArray>()) {
-    const char* assetName = asset["name"] | "";
-    if (isFirmwareAssetName(assetName)) {
-      otaUrl = asset["browser_download_url"].as<std::string>();
-      otaSize = asset["size"].as<size_t>();
-      totalSize = otaSize;
-      updateAvailable = true;
-      break;
-    }
-  }
-
-  if (!updateAvailable) {
-    LOG_ERR("OTA", "No named firmware asset found");
-    lastError = "Release missing firmware package";
-    return NO_UPDATE;
-  }
+  latestVersion = parsedReleaseName.isEmpty() ? parsedTag.c_str() : parsedReleaseName.c_str();
+  otaUrl = parsedFirmwareUrl.c_str();
+  otaSize = parsedFirmwareSize;
+  totalSize = otaSize;
+  updateAvailable = true;
 
   LOG_DBG("OTA", "Found update: %s", latestVersion.c_str());
   return OK;

@@ -7,16 +7,12 @@
 #include <memory>
 
 #include "MappedInputManager.h"
-#include "util/RecentBooksStore.h"
 #include "components/themes/BaseTheme.h"
 #include "components/themes/lyra/ForkDriftTheme.h"
 #include "components/themes/lyra/Lyra3CoversTheme.h"
 #include "components/themes/lyra/LyraTheme.h"
 #include "core/features/FeatureCatalog.h"
-
-namespace {
-constexpr int SKIP_PAGE_MS = 700;
-}  // namespace
+#include "util/RecentBooksStore.h"
 
 UITheme UITheme::instance;
 

@@ -13,19 +13,15 @@
 #include <Logging.h>
 
 #include "CrossPointSettings.h"
-#include "ScopedBuffer.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
-#include "util/RecentBooksStore.h"
+#include "ReaderUtils.h"
+#include "ScopedBuffer.h"
 #include "SpiBusMutex.h"
 #include "XtcReaderChapterSelectionActivity.h"
 #include "activities/TaskShutdown.h"
 #include "fontIds.h"
-
-namespace {
-constexpr unsigned long skipPageMs = 700;
-constexpr unsigned long goHomeMs = 1000;
-}  // namespace
+#include "util/RecentBooksStore.h"
 
 void XtcReaderActivity::onEnter() {
   Activity::onEnter();
@@ -68,15 +64,16 @@ void XtcReaderActivity::loop() {
     }
   }
 
-  // Long press BACK (1s+) goes directly to home
-  if (mappedInput.isPressed(MappedInputManager::Button::Back) && mappedInput.getHeldTime() >= goHomeMs) {
+  // Long press BACK (1s+) goes to file selection
+  if (mappedInput.isPressed(MappedInputManager::Button::Back) && mappedInput.getHeldTime() >= ReaderUtils::GO_HOME_MS) {
     activityManager.goToFileBrowser(xtc ? xtc->getPath() : "");
     return;
   }
 
-  // Short press BACK goes to home
-  if (mappedInput.wasReleased(MappedInputManager::Button::Back) && mappedInput.getHeldTime() < goHomeMs) {
-    activityManager.goHome();
+  // Short press BACK goes directly to home
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back) &&
+      mappedInput.getHeldTime() < ReaderUtils::GO_HOME_MS) {
+    onGoHome();
     return;
   }
 
@@ -84,20 +81,7 @@ void XtcReaderActivity::loop() {
     return;
   }
 
-  // When long-press chapter skip is disabled, turn pages on press instead of release.
-  const bool usePressForPageTurn = !SETTINGS.longPressChapterSkip;
-  const bool prevTriggered = usePressForPageTurn ? (mappedInput.wasPressed(MappedInputManager::Button::PageBack) ||
-                                                    mappedInput.wasPressed(MappedInputManager::Button::Left))
-                                                 : (mappedInput.wasReleased(MappedInputManager::Button::PageBack) ||
-                                                    mappedInput.wasReleased(MappedInputManager::Button::Left));
-  const bool powerPageTurn = SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::PAGE_TURN &&
-                             mappedInput.wasReleased(MappedInputManager::Button::Power);
-  const bool nextTriggered = usePressForPageTurn
-                                 ? (mappedInput.wasPressed(MappedInputManager::Button::PageForward) || powerPageTurn ||
-                                    mappedInput.wasPressed(MappedInputManager::Button::Right))
-                                 : (mappedInput.wasReleased(MappedInputManager::Button::PageForward) || powerPageTurn ||
-                                    mappedInput.wasReleased(MappedInputManager::Button::Right));
-
+  const auto [prevTriggered, nextTriggered] = ReaderUtils::detectPageTurn(mappedInput);
   if (!prevTriggered && !nextTriggered) {
     return;
   }
@@ -113,7 +97,8 @@ void XtcReaderActivity::loop() {
     return;
   }
 
-  const bool skipPages = SETTINGS.longPressChapterSkip && mappedInput.getHeldTime() > skipPageMs;
+  const bool skipPages = SETTINGS.longPressButtonBehavior == SETTINGS.CHAPTER_SKIP &&
+                         mappedInput.getHeldTime() > ReaderUtils::SKIP_HOLD_MS;
   const int skipAmount = skipPages ? 10 : 1;
 
   if (prevTriggered) {
@@ -178,7 +163,8 @@ void XtcReaderActivity::renderPage() {
   // Load page data
   size_t bytesRead = xtc->loadPage(currentPage, pageBuffer.data(), pageBufferSize);
   if (bytesRead == 0) {
-    LOG_ERR("XTR", "Failed to load page %lu", currentPage);
+    LOG_ERR("XTR", "Failed to load page %lu: bufferSize=%lu bitDepth=%u error=%s", currentPage, pageBufferSize,
+            bitDepth, xtc::errorToString(xtc->getLastError()));
     renderer.clearScreen();
     renderer.drawCenteredText(UI_12_FONT_ID, 300, "Page load error", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
@@ -203,7 +189,7 @@ void XtcReaderActivity::renderPage() {
     const size_t planeSize = (static_cast<size_t>(pageWidth) * pageHeight + 7) / 8;
     const uint8_t* plane1 = pageBuffer.data();              // Bit1 plane
     const uint8_t* plane2 = pageBuffer.data() + planeSize;  // Bit2 plane
-    const size_t colBytes = (pageHeight + 7) / 8;    // Bytes per column (100 for 800 height)
+    const size_t colBytes = (pageHeight + 7) / 8;           // Bytes per column (100 for 800 height)
 
     // Lambda to get pixel value at (x, y)
     auto getPixelValue = [&](uint16_t x, uint16_t y) -> uint8_t {
@@ -238,14 +224,7 @@ void XtcReaderActivity::renderPage() {
       }
     }
 
-    // Display BW with conditional refresh based on pagesUntilFullRefresh
-    if (pagesUntilFullRefresh <= 1) {
-      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-      pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
-    } else {
-      renderer.displayBuffer();
-      pagesUntilFullRefresh--;
-    }
+    ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
 
     // Pass 2: LSB buffer - mark DARK gray only (XTH value 1)
     // In LUT: 0 bit = apply gray effect, 1 bit = untouched
@@ -313,14 +292,7 @@ void XtcReaderActivity::renderPage() {
 
   // XTC pages already have status bar pre-rendered, no need to add our own
 
-  // Display with appropriate refresh
-  if (pagesUntilFullRefresh <= 1) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-    pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
-  } else {
-    renderer.displayBuffer();
-    pagesUntilFullRefresh--;
-  }
+  ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
 
   LOG_INF("XTR", "Rendered page %lu/%lu (%u-bit)", currentPage + 1, xtc->getPageCount(), bitDepth);
 }
@@ -355,4 +327,22 @@ void XtcReaderActivity::loadProgress() {
     }
     f.close();
   }
+}
+
+ScreenshotInfo XtcReaderActivity::getScreenshotInfo() const {
+  ScreenshotInfo info;
+  info.readerType = ScreenshotInfo::ReaderType::Xtc;
+  if (xtc) {
+    const std::string t = xtc->getTitle();
+    snprintf(info.title, sizeof(info.title), "%s", t.c_str());
+    const uint32_t pageCount = xtc->getPageCount();
+    info.totalPages = pageCount;
+    // Clamp to last valid page to avoid sentinel value (currentPage == pageCount)
+    uint32_t clampedPage = (pageCount > 0 && currentPage >= pageCount) ? pageCount - 1 : currentPage;
+    info.progressPercent = pageCount > 0 ? xtc->calculateProgress(clampedPage) : 0;
+    info.currentPage = static_cast<int>(clampedPage) + 1;
+  } else {
+    info.currentPage = currentPage + 1;
+  }
+  return info;
 }
