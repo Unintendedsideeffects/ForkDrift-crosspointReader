@@ -199,7 +199,7 @@ FEATURES = {
     'wifi_clock': Feature(
         name='WiFi Clock',
         flag='ENABLE_WIFI_CLOCK',
-        size_kb=1,
+        size_kb=2,
         description='NTP-backed 24-hour Roman numeral clock label that refreshes every 15 minutes while WiFi is connected'
     ),
 }
