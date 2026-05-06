@@ -27,7 +27,7 @@
     }
     h2 {
       color: var(--gray-2);
-      margin-top: 0;
+      margin: 0;
       font-size: 1em;
       font-weight: 700;
       text-transform: uppercase;
@@ -49,7 +49,7 @@
     }
     .page-header-left {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 10px;
       flex-wrap: wrap;
     }
@@ -305,7 +305,6 @@
       color: var(--white);
       font-size: 0.7em;
       font-weight: 600;
-      margin-left: 6px;
       letter-spacing: 0.04em;
     }
     .folder-badge {
@@ -315,7 +314,6 @@
       color: var(--white);
       font-size: 0.7em;
       font-weight: 600;
-      margin-left: 6px;
       letter-spacing: 0.04em;
     }
     .file-icon {
@@ -1460,7 +1458,6 @@
       .folder-badge {
         padding: 1px 4px;
         font-size: 0.6em;
-        margin-left: 3px;
       }
       .contents-header {
         margin-bottom: 6px;
@@ -2149,8 +2146,8 @@
          // Checkbox cell + folder row
           fileTableContent += `<tr class="folder-row">`;
           fileTableContent += `<td><input type="checkbox" class="select-item" data-path="${encodeURIComponent(folderPath)}" data-name="${escapeHtml(file.name)}" data-type="folder"></td>`;
-          fileTableContent += `<td><span class="file-icon">📁</span><a href="/files?path=${encodeURIComponent(folderPath)}" class="folder-link">${escapeHtml(file.name)}</a><span class="folder-badge">FOLDER</span></td>`;
-          fileTableContent += '<td>Folder</td>';
+          fileTableContent += `<td><span class="file-icon">📁</span><a href="/files?path=${encodeURIComponent(folderPath)}" class="folder-link">${escapeHtml(file.name)}</a></td>`;
+          fileTableContent += '<td><span class="folder-badge">FOLDER</span></td>';
           fileTableContent += '<td>-</td>';
           fileTableContent += `<td class="actions-col"><div class="action-icon-group"><button class="delete-btn" onclick="openDeleteModal('${file.name.replaceAll("'", "\\'")}', '${folderPath.replaceAll("'", "\\'")}', true)" title="Delete folder">🗑️</button></div></td>`;
           fileTableContent += '</tr>';
@@ -2164,9 +2161,8 @@
           fileTableContent += `<td><input type="checkbox" class="select-item" data-path="${encodeURIComponent(filePath)}" data-name="${escapeHtml(file.name)}" data-type="file"></td>`;
           fileTableContent += `<td><span class="file-icon">${file.isEpub ? '📗' : '📄'}</span>`;
           fileTableContent += `<a rel="noopener noreferrer" target="_blank" href="/download?path=${encodeURIComponent(filePath)}" class="file-link">${escapeHtml(file.name)}</a>`;
-          if (file.isEpub) fileTableContent += '<span class="epub-badge">EPUB</span>';
           fileTableContent += '</td>';
-          fileTableContent += `<td>${file.name.split('.').pop().toUpperCase()}</td>`;
+          fileTableContent += file.isEpub ? '<td><span class="epub-badge">EPUB</span></td>' : `<td>${escapeHtml(file.name.split('.').pop().toUpperCase())}</td>`;
           fileTableContent += `<td>${formatFileSize(file.size)}</td>`;
           fileTableContent += `<td class="actions-col"><div class="action-icon-group">`;
           fileTableContent += `<button class="move-btn" onclick="openMoveModal('${file.name.replaceAll("'", "\\'")}', '${filePath.replaceAll("'", "\\'")}' )" title="Move file">📂</button>`;

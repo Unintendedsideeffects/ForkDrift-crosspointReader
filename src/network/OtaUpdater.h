@@ -39,6 +39,8 @@ class OtaUpdater {
   String lastError;
 
  public:
+  using ProgressCallback = void (*)(void* ctx);
+
   enum OtaUpdaterError {
     OK = 0,
     NO_UPDATE,

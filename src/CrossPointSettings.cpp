@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include "FeatureFlags.h"
+#include "I18nKeys.h"
 #include "fontIds.h"
 
 CrossPointSettings CrossPointSettings::instance;
@@ -81,6 +82,8 @@ constexpr uint8_t SETTINGS_COUNT = 39;
 constexpr char SETTINGS_FILE_BIN[] = "/.crosspoint/settings.bin";
 constexpr char SETTINGS_FILE_JSON[] = "/.crosspoint/settings.json";
 constexpr char SETTINGS_FILE_BAK[] = "/.crosspoint/settings.bin.bak";
+constexpr char LANG_FILE_BIN[] = "/.crosspoint/language.bin";
+constexpr char LANG_FILE_BAK[] = "/.crosspoint/language.bin.bak";
 
 void applyLegacyFrontButtonLayout(CrossPointSettings& settings) {
   settings.applyFrontButtonLayoutPreset(
@@ -127,6 +130,7 @@ bool CrossPointSettings::loadFromFile() {
           }
         }
       }
+      migrateLanguageBinaryFile();
       return result;
     }
   }
@@ -134,6 +138,7 @@ bool CrossPointSettings::loadFromFile() {
   // Fall back to binary migration
   if (Storage.exists(SETTINGS_FILE_BIN)) {
     if (loadFromBinaryFile()) {
+      migrateLanguageBinaryFile();
       if (saveToFile()) {
         Storage.rename(SETTINGS_FILE_BIN, SETTINGS_FILE_BAK);
         LOG_DBG("CPS", "Migrated settings.bin to settings.json");
@@ -144,7 +149,31 @@ bool CrossPointSettings::loadFromFile() {
     }
   }
 
-  return false;
+  // No settings files at all -- check for standalone language.bin
+  return migrateLanguageBinaryFile();
+}
+
+bool CrossPointSettings::migrateLanguageBinaryFile() {
+  // V1_LANGUAGES / V1_LANGUAGE_COUNT are emitted by gen_i18n.py with the
+  // frozen enum order from 2f969a9.
+  if (!Storage.exists(LANG_FILE_BIN)) return false;
+
+  FsFile f;
+  if (Storage.openFileForRead("CPS", LANG_FILE_BIN, f)) {
+    uint8_t version;
+    serialization::readPod(f, version);
+    if (version == 1) {
+      uint8_t oldIndex;
+      serialization::readPod(f, oldIndex);
+      if (oldIndex < V1_LANGUAGE_COUNT) {
+        language = static_cast<uint8_t>(V1_LANGUAGES[oldIndex]);
+      }
+    }
+  }
+  Storage.rename(LANG_FILE_BIN, LANG_FILE_BAK);
+  saveToFile();
+  LOG_DBG("CPS", "Migrated language.bin into settings.json");
+  return true;
 }
 
 bool CrossPointSettings::loadFromBinaryFile() {
@@ -220,7 +249,7 @@ bool CrossPointSettings::loadFromBinaryFile() {
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, hideBatteryPercentage, HIDE_BATTERY_PERCENTAGE_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
-    serialization::readPod(inputFile, longPressChapterSkip);
+    readAndValidate(inputFile, longPressButtonBehavior, LONG_PRESS_BUTTON_BEHAVIOR_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, hyphenationEnabled);
     if (++settingsRead >= fileSettingsCount) break;
@@ -394,6 +423,8 @@ void CrossPointSettings::validateAndClamp() {
   if (timeMode > TIME_MODE_MANUAL) timeMode = TIME_MODE_UTC;
   if (todoFallbackCover > 1) todoFallbackCover = 0;
   if (releaseChannel >= RELEASE_CHANNEL_COUNT) releaseChannel = RELEASE_STABLE;
+  if (language >= getLanguageCount()) language = static_cast<uint8_t>(Language::EN);
+  if (longPressButtonBehavior >= LONG_PRESS_BUTTON_BEHAVIOR_COUNT) longPressButtonBehavior = CHAPTER_SKIP;
 
   if (uiTheme > POKEMON_PARTY) uiTheme = LYRA;
 #if !ENABLE_LYRA_THEME
@@ -406,7 +437,7 @@ void CrossPointSettings::validateAndClamp() {
   extraParagraphSpacing = extraParagraphSpacing ? 1 : 0;
   textAntiAliasing = textAntiAliasing ? 1 : 0;
   hyphenationEnabled = hyphenationEnabled ? 1 : 0;
-  longPressChapterSkip = longPressChapterSkip ? 1 : 0;
+  longPressChapterSkip = (longPressButtonBehavior == CHAPTER_SKIP) ? 1 : 0;
   statusBarChapterPageCount = statusBarChapterPageCount ? 1 : 0;
   statusBarBookProgressPercentage = statusBarBookProgressPercentage ? 1 : 0;
   statusBarBattery = statusBarBattery ? 1 : 0;

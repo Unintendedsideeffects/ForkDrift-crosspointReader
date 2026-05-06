@@ -9,6 +9,8 @@
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "I18n.h"
+#include "I18nKeys.h"
 #include "KOReaderCredentialStore.h"
 #include "OpdsServerStore.h"
 #include "util/RecentBooksStore.h"
@@ -88,7 +90,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["opdsUsername"] = s.opdsUsername;
   doc["opdsPassword_obf"] = obfuscation::obfuscateToBase64(s.opdsPassword);
   doc["hideBatteryPercentage"] = s.hideBatteryPercentage;
-  doc["longPressChapterSkip"] = s.longPressChapterSkip;
+  doc["longPressButtonBehavior"] = s.longPressButtonBehavior;
   doc["hyphenationEnabled"] = s.hyphenationEnabled;
   doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
   doc["todoFallbackCover"] = s.todoFallbackCover;
@@ -112,6 +114,10 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["imageRendering"] = s.imageRendering;
   doc["globalStatusBar"] = s.globalStatusBar;
   doc["globalStatusBarPosition"] = s.globalStatusBarPosition;
+
+  // Language -- managed by LanguageSelectActivity, not in SettingsList.
+  // Stored as ISO code string ("EN", "DE", ...) for stability across enum reorders.
+  doc["language"] = (s.language < getLanguageCount()) ? LANGUAGE_CODES[s.language] : "EN";
 
   String json;
   serializeJson(doc, json);
@@ -191,7 +197,15 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.screenMargin = doc["screenMargin"] | (uint8_t)5;
   s.hideBatteryPercentage =
       clamp(doc["hideBatteryPercentage"] | (uint8_t)S::HIDE_NEVER, S::HIDE_BATTERY_PERCENTAGE_COUNT, S::HIDE_NEVER);
-  s.longPressChapterSkip = doc["longPressChapterSkip"] | (uint8_t)1;
+  if (doc["longPressButtonBehavior"].isNull()) {
+    const uint8_t oldSkip = doc["longPressChapterSkip"] | (uint8_t)1;
+    s.longPressButtonBehavior = oldSkip ? S::CHAPTER_SKIP : S::OFF;
+    if (needsResave) *needsResave = true;
+  } else {
+    s.longPressButtonBehavior = clamp(doc["longPressButtonBehavior"] | (uint8_t)S::CHAPTER_SKIP,
+                                      S::LONG_PRESS_BUTTON_BEHAVIOR_COUNT, S::CHAPTER_SKIP);
+  }
+  s.longPressChapterSkip = (s.longPressButtonBehavior == S::CHAPTER_SKIP) ? 1 : 0;
   s.hyphenationEnabled = doc["hyphenationEnabled"] | (uint8_t)0;
   s.backgroundServerOnCharge = doc["backgroundServerOnCharge"] | (uint8_t)0;
   s.todoFallbackCover = doc["todoFallbackCover"] | (uint8_t)0;
@@ -251,6 +265,11 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   const char* deviceName = doc["deviceName"] | "";
   strncpy(s.deviceName, deviceName, sizeof(s.deviceName) - 1);
   s.deviceName[sizeof(s.deviceName) - 1] = '\0';
+
+  // Language -- stored as code string for stability across enum reorders.
+  if (doc["language"].is<const char*>()) {
+    s.language = static_cast<uint8_t>(I18n::languageFromCode(doc["language"].as<const char*>()));
+  }
 
   LOG_DBG("CPS", "Settings loaded from file");
   return true;

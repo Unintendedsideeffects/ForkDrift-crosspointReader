@@ -1,16 +1,11 @@
 #include "I18n.h"
 
-#include <HalStorage.h>
-#include <Serialization.h>
+#include <cstddef>
+#include <cstring>
 
 #include "I18nStrings.h"
 
 using namespace i18n_strings;
-
-namespace {
-constexpr const char* SETTINGS_FILE = "/.crosspoint/language.bin";
-constexpr uint8_t SETTINGS_VERSION = 1;
-}  // namespace
 
 I18n& I18n::getInstance() {
   static I18n instance;
@@ -23,8 +18,13 @@ const char* I18n::get(const StrId id) const {
     return "???";
   }
 
-  const char* const* strings = getStringArray(_language);
-  return strings[index];
+  // Use generated helper function - no hardcoded switch needed!
+  const LangStrings lang = getLanguageStrings(_language);
+
+  // If bit 15 of the offset is set, apply the offset to the English lookup table
+  const uint16_t off = lang.offsets[index];
+  if (off & 0x8000) return STRINGS_EN_DATA + (off & 0x7FFF);
+  return lang.data + off;
 }
 
 void I18n::setLanguage(const Language lang) {
@@ -32,7 +32,6 @@ void I18n::setLanguage(const Language lang) {
     return;
   }
   _language = lang;
-  saveSettings();
 }
 
 const char* I18n::getLanguageName(const Language lang) const {
@@ -43,41 +42,11 @@ const char* I18n::getLanguageName(const Language lang) const {
   return LANGUAGE_NAMES[index];
 }
 
-void I18n::saveSettings() {
-  Storage.mkdir("/.crosspoint");
-
-  FsFile file;
-  if (!Storage.openFileForWrite("I18N", SETTINGS_FILE, file)) {
-    return;
+Language I18n::languageFromCode(const char* code) {
+  for (uint8_t i = 0; i < getLanguageCount(); i++) {
+    if (strcmp(code, LANGUAGE_CODES[i]) == 0) return static_cast<Language>(i);
   }
-
-  serialization::writePod(file, SETTINGS_VERSION);
-  serialization::writePod(file, static_cast<uint8_t>(_language));
-  file.close();
-}
-
-void I18n::loadSettings() {
-  FsFile file;
-  if (!Storage.openFileForRead("I18N", SETTINGS_FILE, file)) {
-    return;
-  }
-
-  uint8_t version;
-  serialization::readPod(file, version);
-  if (version != SETTINGS_VERSION) {
-    Serial.printf("[I18N] Settings version mismatch\n");
-    return;
-  }
-
-  uint8_t languageValue = 0;
-  if (!serialization::readPod(file, languageValue)) {
-    file.close();
-    return;
-  }
-
-  if (languageValue < static_cast<uint8_t>(Language::_COUNT)) {
-    _language = static_cast<Language>(languageValue);
-  }
+  return Language::EN;
 }
 
 const char* I18n::getCharacterSet(const Language lang) {

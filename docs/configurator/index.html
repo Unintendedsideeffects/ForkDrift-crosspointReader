@@ -1999,7 +1999,7 @@
   <body>
     <div class="page">
       <nav class="nav">
-        <a href="../">Pages Home</a>
+        <a href="https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader#readme" target="_blank" rel="noopener">Project README</a>
         <a class="active" href="./">Configurator</a>
         <a href="../plugins/x4-pokedex-grayscale/">Pokedex</a>
       </nav>
@@ -2600,13 +2600,11 @@
 
       <!-- Right drawer: navigation column (row 1, col 2) -->
       <div class="sidebar-drawer" id="sidebar-drawer">
-        <button class="drawer-item active" data-tab="output">Output</button>
-        <button class="drawer-item" data-tab="wifi">WiFi</button>
-        <button class="drawer-item" data-tab="settings">Settings</button>
-        <button class="drawer-item" data-tab="fonts">Custom Font Manager</button>
-        <button class="drawer-item" data-tab="studio">Studio</button>
+        <button class="drawer-item active" data-tab="settings">Settings</button>
+        <button class="drawer-item" data-tab="studio">Wallpaper Studio</button>
         <button class="drawer-item" data-tab="preview">Preview</button>
         <button class="drawer-item" data-tab="plugins">Plugins</button>
+        <button class="drawer-item" data-tab="output">Build Output</button>
       </div><!-- /.sidebar-drawer -->
 
       <!-- Active folder pane (row 2, full width) -->
@@ -2614,7 +2612,7 @@
 
         <!-- Dark titlebar: current tab name + close button -->
         <div class="folder-titlebar">
-          <span class="folder-titlebar-name" id="folder-titlebar-name">Output</span>
+          <span class="folder-titlebar-name" id="folder-titlebar-name">Settings</span>
           <button class="folder-close" id="folder-close" title="Close">&#xD7;</button>
         </div>
 
@@ -2622,7 +2620,7 @@
         <div class="folder-content-area">
 
           <!-- tab: output -->
-          <div class="folder-pane active" id="tab-output">
+          <div class="folder-pane" id="tab-output">
           <div class="panel">
             <div class="panel-heading">Build Output</div>
             <div class="outputs-grid">
@@ -2655,52 +2653,6 @@
             </div>
           </div>
           </div><!-- /.folder-pane#tab-output -->
-
-          <!-- tab: fonts -->
-          <div class="folder-pane" id="tab-fonts">
-          <div class="panel">
-            <div class="panel-heading">Custom Font Manager</div>
-            <div class="companion-row">
-              <div style="flex: 1">
-                <div class="companion-title">Custom Font Manager</div>
-                <div class="companion-desc">
-                  Select a font file to convert it to the <code>.cpf</code> format and save to <code>/fonts</code> on SD card.
-                  Canonical names are <code>&lt;Family&gt;-Regular.cpf</code>, optional
-                  <code>&lt;Family&gt;-Bold.cpf</code>/<code>-Italic.cpf</code>/<code>-BoldItalic.cpf</code>, with
-                  legacy fallback <code>&lt;Family&gt;.cpf</code>.
-                </div>
-                <div class="actions" style="margin-top: 15px; align-items: center; gap: 12px;">
-                  <input type="file" id="font-upload" accept=".ttf,.otf" style="display:none" />
-                  <button class="btn btn-outline" onclick="document.getElementById('font-upload').click()">Select Font</button>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="output-label" style="margin:0">Family:</span>
-                    <input type="text" id="font-family" value="" placeholder="Bookerly" style="width: 110px; background: var(--fog); border: 1px solid var(--bone); padding: 2px 4px; font-family: inherit; font-size: 10px;" />
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="output-label" style="margin:0">Style:</span>
-                    <select id="font-style" style="width: 98px; background: var(--fog); border: 1px solid var(--bone); padding: 2px 4px; font-family: inherit; font-size: 10px;">
-                      <option value="Regular">Regular</option>
-                      <option value="Bold">Bold</option>
-                      <option value="Italic">Italic</option>
-                      <option value="BoldItalic">BoldItalic</option>
-                      <option value="Fallback">Fallback (&lt;Family&gt;.cpf)</option>
-                    </select>
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="output-label" style="margin:0">Size:</span>
-                    <input type="number" id="font-size" value="14" min="6" max="48" style="width: 50px; background: var(--fog); border: 1px solid var(--bone); padding: 2px 4px; font-family: inherit; font-size: 10px;" />
-                  </div>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                    <input type="checkbox" id="font-2bit" checked style="cursor: pointer" />
-                    <span class="output-label" style="margin:0">2-bit grayscale</span>
-                  </label>
-                  <button class="btn btn-solid" id="convert-font-btn" disabled>Convert & Download</button>
-                </div>
-                <div id="font-status" class="info-bar" style="display:none; margin-top: 12px;"></div>
-              </div>
-            </div>
-          </div>
-          </div><!-- /.folder-pane#tab-fonts -->
 
           <!-- tab: studio -->
           <div class="folder-pane" id="tab-studio">
@@ -2861,7 +2813,7 @@
                 <div class="companion-title">Pokédex Wallpaper</div>
                 <div class="companion-desc">
                   Generate Pokémon wallpapers for sleep screens. The browser-side generator lives in the
-                  <strong>Studio</strong> tab; the device-side plugin is at <code>/plugins/pokemon-wallpaper</code>.
+                  <strong>Wallpaper Studio</strong> tab; the device-side plugin is at <code>/plugins/pokemon-wallpaper</code>.
                 </div>
                 <div class="companion-desc" style="margin-top: 8px; font-size: 0.85rem; color: #888;">
                   Requires <code>pokemon_wallpaper_plugin</code> in the feature grid. Enable <code>pokemon_party</code>
@@ -2877,32 +2829,8 @@
           </div>
           </div><!-- /.folder-pane#tab-plugins -->
 
-          <!-- tab: wifi -->
-          <div class="folder-pane" id="tab-wifi">
-          <div class="panel">
-            <div class="panel-heading">WiFi Credentials</div>
-            <div class="companion-desc" style="line-height: 1.6; margin-bottom: 4px;">
-              Add up to 8 networks. Download <code>wifi.json</code> and place it at
-              <code>/.crosspoint/wifi.json</code> on the SD card. The device imports on first boot,
-              connects to a matching network, then re-saves with device-specific obfuscation.
-            </div>
-            <div class="wifi-network-list" id="wifi-network-list">
-              <div class="wifi-empty-hint" id="wifi-empty-hint">No networks added yet. Click + Add Network.</div>
-            </div>
-            <div class="actions">
-              <button class="btn btn-outline" id="wifi-add-btn">+ Add Network</button>
-              <button class="btn btn-solid" id="wifi-download-btn" disabled>&#x2193; wifi.json</button>
-            </div>
-            <div class="info-bar" style="margin-top: 10px;">
-              Passwords are stored as plaintext in this file. The device XOR-obfuscates them with its
-              MAC address on import — the file on SD is not long-term sensitive, but treat it like a
-              password file.
-            </div>
-          </div>
-          </div><!-- /.folder-pane#tab-wifi -->
-
           <!-- tab: settings -->
-          <div class="folder-pane" id="tab-settings">
+          <div class="folder-pane active" id="tab-settings">
           <div class="panel">
             <div class="panel-heading">Baked Settings</div>
             <div class="companion-desc" style="line-height: 1.6; margin-bottom: 4px;">
@@ -3279,6 +3207,70 @@
             <div class="info-bar" style="margin-top: 10px;">
               Only changed/non-default values are included. The device merges this file with its
               existing settings on load — fields not present keep their current values.
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top: 12px;">
+            <div class="panel-heading">WiFi</div>
+            <div class="companion-desc" style="line-height: 1.6; margin-bottom: 4px;">
+              Add up to 8 networks. Download <code>wifi.json</code> and place it at
+              <code>/.crosspoint/wifi.json</code> on the SD card. The device imports on first boot,
+              connects to a matching network, then re-saves with device-specific obfuscation.
+            </div>
+            <div class="wifi-network-list" id="wifi-network-list">
+              <div class="wifi-empty-hint" id="wifi-empty-hint">No networks added yet. Click + Add Network.</div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-outline" id="wifi-add-btn">+ Add Network</button>
+              <button class="btn btn-solid" id="wifi-download-btn" disabled>&#x2193; wifi.json</button>
+            </div>
+            <div class="info-bar" style="margin-top: 10px;">
+              Passwords are stored as plaintext in this file. The device XOR-obfuscates them with its
+              MAC address on import — the file on SD is not long-term sensitive, but treat it like a
+              password file.
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top: 12px;">
+            <div class="panel-heading">Custom Font Manager</div>
+            <div class="companion-row">
+              <div style="flex: 1">
+                <div class="companion-title">Custom Font Manager</div>
+                <div class="companion-desc">
+                  Select a font file to convert it to the <code>.cpf</code> format and save to <code>/fonts</code> on SD card.
+                  Canonical names are <code>&lt;Family&gt;-Regular.cpf</code>, optional
+                  <code>&lt;Family&gt;-Bold.cpf</code>/<code>-Italic.cpf</code>/<code>-BoldItalic.cpf</code>, with
+                  legacy fallback <code>&lt;Family&gt;.cpf</code>.
+                </div>
+                <div class="actions" style="margin-top: 15px; align-items: center; gap: 12px;">
+                  <input type="file" id="font-upload" accept=".ttf,.otf" style="display:none" />
+                  <button class="btn btn-outline" onclick="document.getElementById('font-upload').click()">Select Font</button>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="output-label" style="margin:0">Family:</span>
+                    <input type="text" id="font-family" value="" placeholder="Bookerly" style="width: 110px; background: var(--fog); border: 1px solid var(--bone); padding: 2px 4px; font-family: inherit; font-size: 10px;" />
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="output-label" style="margin:0">Style:</span>
+                    <select id="font-style" style="width: 98px; background: var(--fog); border: 1px solid var(--bone); padding: 2px 4px; font-family: inherit; font-size: 10px;">
+                      <option value="Regular">Regular</option>
+                      <option value="Bold">Bold</option>
+                      <option value="Italic">Italic</option>
+                      <option value="BoldItalic">BoldItalic</option>
+                      <option value="Fallback">Fallback (&lt;Family&gt;.cpf)</option>
+                    </select>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="output-label" style="margin:0">Size:</span>
+                    <input type="number" id="font-size" value="14" min="6" max="48" style="width: 50px; background: var(--fog); border: 1px solid var(--bone); padding: 2px 4px; font-family: inherit; font-size: 10px;" />
+                  </div>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="checkbox" id="font-2bit" checked style="cursor: pointer" />
+                    <span class="output-label" style="margin:0">2-bit grayscale</span>
+                  </label>
+                  <button class="btn btn-solid" id="convert-font-btn" disabled>Convert & Download</button>
+                </div>
+                <div id="font-status" class="info-bar" style="display:none; margin-top: 12px;"></div>
+              </div>
             </div>
           </div>
           </div><!-- /.folder-pane#tab-settings -->

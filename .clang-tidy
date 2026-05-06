@@ -5,6 +5,7 @@
 # - bugprone-*: catch common logic errors
 # - performance-*: avoid unnecessary copies/allocations (critical at 380KB RAM)
 # - modernize-use-nullptr: prefer nullptr over NULL/0
+# - misc-no-recursion: catch unbounded recursion (8KB task stack on ESP32-C3)
 # - readability-redundant-*: remove dead code noise
 #
 # Excluded modernize checks that are too opinionated for embedded:
@@ -19,6 +20,7 @@ Checks: >
   -bugprone-narrowing-conversions,
   performance-*,
   modernize-use-nullptr,
+  misc-no-recursion,
   readability-redundant-control-flow,
   readability-redundant-declaration,
   readability-redundant-string-cstr
