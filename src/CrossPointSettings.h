@@ -260,6 +260,8 @@ class CrossPointSettings {
   uint8_t wifiAutoConnect = ENABLE_BACKGROUND_SERVER_ALWAYS;
   // Show hidden files/directories (starting with '.') in the file browser (0 = hidden, 1 = show)
   uint8_t showHiddenFiles = 0;
+  // Mirror firmware logs to /crosspoint-debug.log on the SD card.
+  uint8_t developerMode = 0;
   // Image rendering mode in EPUB reader
   uint8_t imageRendering = IMAGES_DISPLAY;
   // Global status bar overlay (battery + WiFi, always visible across all screens)

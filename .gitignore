@@ -17,6 +17,7 @@
 .pio-size-*/
 build
 firmware.bin
+firmware-latest.bin
 partitions.bin
 platformio-custom.ini
 platformio.local.ini

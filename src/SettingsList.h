@@ -214,6 +214,8 @@ inline std::vector<SettingInfo> getSettingsList() {
                         "sleepTimeout", StrId::STR_CAT_SYSTEM));
   list.push_back(SettingInfo::Toggle(StrId::STR_SHOW_HIDDEN_FILES, &CrossPointSettings::showHiddenFiles,
                                      "showHiddenFiles", StrId::STR_CAT_SYSTEM));
+  list.push_back(SettingInfo::Toggle(StrId::STR_DEVELOPER_MODE, &CrossPointSettings::developerMode, "developerMode",
+                                     StrId::STR_CAT_SYSTEM));
 
   if (core::FeatureModules::hasCapability(core::Capability::TrmnlSwitch)) {
     list.push_back(SettingInfo::Action(StrId::STR_SWITCH_TO_TRMNL, SettingAction::SwitchToTrmnl));

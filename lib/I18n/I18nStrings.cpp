@@ -1156,6 +1156,7 @@ const char* const STRINGS_EN[] = {
     "Hyphenation",
     "Time to Sleep",
     "Show Hidden Files",
+    "Developer Mode",
     "Refresh Frequency",
     "Calibre Settings",
     "KOReader Sync",
@@ -1660,6 +1661,7 @@ const char* const STRINGS_ES[] = {
     "\xB3"
     "n",
     "Mostrar archivos ocultos",
+    "Developer Mode",
     "Frecuencia de refresco",
     "Calibre Settings",
     "Sincronizaci\xC3"
@@ -2461,6 +2463,7 @@ const char* const STRINGS_FR[] = {
     "Afficher les fichiers cach\xC3"
     "\xA9"
     "s",
+    "Developer Mode",
     "Fr\xC3"
     "\xA9"
     "quence rafra\xC3"
@@ -3215,6 +3218,7 @@ const char* const STRINGS_DE[] = {
     "Silbentrennung",
     "Standby nach",
     "Versteckte Dateien anzeigen",
+    "Developer Mode",
     "Anti-Ghosting nach",
     "Calibre Settings",
     "KOReader-Synchr.",
@@ -4128,6 +4132,7 @@ const char* const STRINGS_CS[] = {
     "\xAD"
     "",
     "Show Hidden Files",
+    "Developer Mode",
     "Frekvence obnoven\xC3"
     "\xAD"
     "",
@@ -5380,6 +5385,7 @@ const char* const STRINGS_PO[] = {
     "o",
     "Tempo para repousar",
     "Show Hidden Files",
+    "Developer Mode",
     "Frequ\xC3"
     "\xAA"
     "ncia atualiza\xC3"
@@ -8177,6 +8183,7 @@ const char* const STRINGS_RU[] = {
     "\xD1"
     "\x8B"
     "",
+    "Developer Mode",
     "\xD0"
     "\xA7"
     "\xD0"
@@ -14115,6 +14122,7 @@ const char* const STRINGS_SV[] = {
     "\xA5"
     " i vila",
     "Visa dolda filer",
+    "Developer Mode",
     "Uppdateringsfrekvens",
     "Calibre Settings",
     "KOReader-synkronisering",
@@ -15114,6 +15122,7 @@ const char* const STRINGS_RO[] = {
     " fi\xC5"
     "\x9F"
     "ierele ascunse",
+    "Developer Mode",
     "Frecven\xC5"
     "\xA3"
     "\xC4"
@@ -16010,6 +16019,7 @@ const char* const STRINGS_CA[] = {
     "\xB2"
     "s",
     "Mostra fitxers ocults",
+    "Developer Mode",
     "Freq\xC3"
     "\xBC"
     "\xC3"
@@ -19024,6 +19034,7 @@ const char* const STRINGS_UK[] = {
     "\xD0"
     "\xB8"
     "",
+    "Developer Mode",
     "\xD0"
     "\xA7"
     "\xD0"
@@ -27326,6 +27337,7 @@ const char* const STRINGS_BE[] = {
     "\xD1"
     "\x8B"
     "",
+    "Developer Mode",
     "\xD0"
     "\xA7"
     "\xD0"
@@ -33040,6 +33052,7 @@ const char* const STRINGS_IT[] = {
     "Sillabazione",
     "Timeout sospensione",
     "Mostra file nascosti",
+    "Developer Mode",
     "Frequenza di aggiornamento",
     "Calibre Settings",
     "Sincronizzazione KOReader",
@@ -33674,6 +33687,7 @@ const char* const STRINGS_PL[] = {
     "Poka\xC5"
     "\xBC"
     " ukryte pliki",
+    "Developer Mode",
     "Cz\xC4"
     "\x99"
     "stotliwo\xC5"
@@ -34634,6 +34648,7 @@ const char* const STRINGS_FI[] = {
     "Tavutus",
     "Aika lepotilaan",
     "Show Hidden Files",
+    "Developer Mode",
     "P\xC3"
     "\xA4"
     "ivitystaajuus",
@@ -35464,6 +35479,7 @@ const char* const STRINGS_DA[] = {
     "Orddeling",
     "Tid til hvile",
     "Vis skjulte filer",
+    "Developer Mode",
     "Opdateringsfrekvens",
     "Calibre Settings",
     "KOReader Sync",
@@ -36012,6 +36028,7 @@ const char* const STRINGS_NL[] = {
     "Woordafbreking",
     "Tijd tot slaapstand",
     "Toon verborgen bestanden",
+    "Developer Mode",
     "Verversingsfrequentie",
     "Calibre Settings",
     "KOReader Sync",
@@ -36740,6 +36757,7 @@ const char* const STRINGS_TR[] = {
     " G\xC3"
     "\xB6"
     "ster",
+    "Developer Mode",
     "Yenileme S\xC4"
     "\xB1"
     "kl\xC4"
@@ -39938,6 +39956,7 @@ const char* const STRINGS_KK[] = {
     "\x8B"
     "",
     "Show Hidden Files",
+    "Developer Mode",
     "\xD0"
     "\x96"
     "\xD0"
@@ -45958,6 +45977,7 @@ const char* const STRINGS_HU[] = {
     "t\xC3"
     "\xA9"
     "se",
+    "Developer Mode",
     "Friss\xC3"
     "\xAD"
     "t\xC3"
@@ -47262,6 +47282,7 @@ const char* const STRINGS_LT[] = {
     "Rod. pasl\xC4"
     "\x97"
     "ptus failus",
+    "Developer Mode",
     "Atnaujinimo da\xC5"
     "\xBE"
     "nis",
@@ -47990,6 +48011,7 @@ const char* const STRINGS_SI[] = {
     "Prika\xC5"
     "\xBE"
     "i skrite datoteke",
+    "Developer Mode",
     "Pogostost osve\xC5"
     "\xBE"
     "evanja",

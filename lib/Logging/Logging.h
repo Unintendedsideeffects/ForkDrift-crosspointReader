@@ -30,6 +30,8 @@ won't trigger deprecation warnings.
 static HWCDC& logSerial = Serial;
 
 void logPrintf(const char* level, const char* origin, const char* format, ...);
+bool isDeveloperModeLoggingEnabled();
+void setDeveloperModeLoggingEnabled(bool enabled);
 
 #ifdef ENABLE_SERIAL_LOG
 #if LOG_LEVEL >= 0
@@ -38,23 +40,26 @@ void logPrintf(const char* level, const char* origin, const char* format, ...);
 #define LOG_ERR(origin, format, ...)
 #endif
 
-#if LOG_LEVEL >= 1
-#define LOG_INF(origin, format, ...) logPrintf("INF", origin, format "\n", ##__VA_ARGS__)
-#else
-#define LOG_INF(origin, format, ...)
-#endif
+#define LOG_INF(origin, format, ...)                         \
+  do {                                                       \
+    if (LOG_LEVEL >= 1 || isDeveloperModeLoggingEnabled()) { \
+      logPrintf("INF", origin, format "\n", ##__VA_ARGS__);  \
+    }                                                        \
+  } while (0)
 
-#if LOG_LEVEL >= 1
-#define LOG_WRN(origin, format, ...) logPrintf("[WRN]", origin, format "\n", ##__VA_ARGS__)
-#else
-#define LOG_WRN(origin, format, ...)
-#endif
+#define LOG_WRN(origin, format, ...)                          \
+  do {                                                        \
+    if (LOG_LEVEL >= 1 || isDeveloperModeLoggingEnabled()) {  \
+      logPrintf("[WRN]", origin, format "\n", ##__VA_ARGS__); \
+    }                                                         \
+  } while (0)
 
-#if LOG_LEVEL >= 2
-#define LOG_DBG(origin, format, ...) logPrintf("DBG", origin, format "\n", ##__VA_ARGS__)
-#else
-#define LOG_DBG(origin, format, ...)
-#endif
+#define LOG_DBG(origin, format, ...)                         \
+  do {                                                       \
+    if (LOG_LEVEL >= 2 || isDeveloperModeLoggingEnabled()) { \
+      logPrintf("DBG", origin, format "\n", ##__VA_ARGS__);  \
+    }                                                        \
+  } while (0)
 #else
 #define LOG_DBG(origin, format, ...)
 #define LOG_ERR(origin, format, ...)

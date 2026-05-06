@@ -33,6 +33,16 @@ The `origin` parameter is a short string identifying the module (e.g., `"EPUB"`,
 uv run pio device monitor
 ```
 
+### On-Device Developer Mode
+
+Settings -> System -> Developer Mode mirrors firmware logs to `/crosspoint-debug.log`
+on the SD card. This is useful when WiFi file transfer or other on-device flows
+are slow and serial capture is not practical.
+
+Developer Mode can only write log calls that are present in the firmware image;
+serial-enabled builds keep `LOG_INF`, `LOG_WRN`, and `LOG_DBG` available for the
+runtime switch, while slim builds strip logging with `-UENABLE_SERIAL_LOG`.
+
 ### Enhanced Debugging Monitor
 
 For a more powerful monitoring experience, including colorized logs and potential visualization, use the custom monitor script:

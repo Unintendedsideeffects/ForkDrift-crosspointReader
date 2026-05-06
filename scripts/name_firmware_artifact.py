@@ -6,6 +6,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
+MAX_NAMED_FIRMWARE_ARTIFACTS = 3
+LATEST_FIRMWARE_LINK = "firmware-latest.bin"
+
 
 def get_build_date() -> str:
     build_date = os.environ.get("BUILD_DATE")
@@ -31,6 +34,31 @@ def get_short_sha(project_dir: Path) -> str:
         return "0000000"
 
 
+def prune_old_named_firmware(build_dir: Path) -> None:
+    artifacts = sorted(
+        build_dir.glob("firmware-*.bin"),
+        key=lambda path: (path.stat().st_mtime, path.name),
+        reverse=True,
+    )
+    for artifact in artifacts[MAX_NAMED_FIRMWARE_ARTIFACTS:]:
+        artifact.unlink()
+        print(f">> removed old firmware artifact: {artifact}")
+
+
+def update_latest_firmware_link(project_dir: Path, artifact_path: Path) -> None:
+    link_path = project_dir / LATEST_FIRMWARE_LINK
+    link_target = os.path.relpath(artifact_path, project_dir)
+
+    if link_path.is_symlink() or not link_path.exists():
+        if link_path.exists() or link_path.is_symlink():
+            link_path.unlink()
+        link_path.symlink_to(link_target)
+        print(f">> latest firmware symlink: {link_path} -> {link_target}")
+        return
+
+    print(f">> skipped latest firmware symlink; path exists and is not a symlink: {link_path}")
+
+
 def copy_named_firmware(target, source, env):
     build_dir = Path(env.subst("$BUILD_DIR"))
     firmware_path = build_dir / "firmware.bin"
@@ -46,6 +74,8 @@ def copy_named_firmware(target, source, env):
 
     shutil.copy2(firmware_path, artifact_path)
     print(f">> firmware artifact: {artifact_path}")
+    update_latest_firmware_link(project_dir, artifact_path)
+    prune_old_named_firmware(build_dir)
 
 
 firmware_path = Path(env.subst("$BUILD_DIR")) / "firmware.bin"

@@ -5,6 +5,13 @@
 #include <cstring>
 #include <string>
 
+#if __has_include("SDCardManager.h")
+#include <SDCardManager.h>
+#define LOGGING_HAS_SD_CARD_MANAGER 1
+#else
+#define LOGGING_HAS_SD_CARD_MANAGER 0
+#endif
+
 #if __has_include("esp_attr.h")
 #include "esp_attr.h"
 #endif
@@ -26,6 +33,33 @@ RTC_NOINIT_ATTR size_t logHead = 0;
 // never properly initialized.
 RTC_NOINIT_ATTR uint32_t rtcLogMagic;
 static constexpr uint32_t LOG_RTC_MAGIC = 0xDEADBEEF;
+namespace {
+constexpr char DEVELOPER_LOG_FILE[] = "/crosspoint-debug.log";
+bool developerModeLoggingEnabled = false;
+bool developerLogWriteInProgress = false;
+}  // namespace
+
+bool isDeveloperModeLoggingEnabled() { return developerModeLoggingEnabled; }
+
+void setDeveloperModeLoggingEnabled(const bool enabled) { developerModeLoggingEnabled = enabled; }
+
+void appendDeveloperLogLine(const char* message) {
+#if LOGGING_HAS_SD_CARD_MANAGER
+  if (!developerModeLoggingEnabled || developerLogWriteInProgress || message == nullptr || !SdMan.ready()) {
+    return;
+  }
+
+  developerLogWriteInProgress = true;
+  FsFile file = SdMan.open(DEVELOPER_LOG_FILE, O_WRITE | O_CREAT | O_APPEND);
+  if (file) {
+    file.write(message, strnlen(message, MAX_ENTRY_LEN));
+    file.close();
+  }
+  developerLogWriteInProgress = false;
+#else
+  (void)message;
+#endif
+}
 
 void addToLogRingBuffer(const char* message) {
   // Add the message to the ring buffer, overwriting old messages if necessary.
@@ -96,6 +130,7 @@ void logPrintf(const char* level, const char* origin, const char* format, ...) {
     logSerial.print(buf);
   }
   addToLogRingBuffer(buf);
+  appendDeveloperLogLine(buf);
 }
 
 std::string getLastLogs() {

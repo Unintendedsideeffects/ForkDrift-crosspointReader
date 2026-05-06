@@ -107,6 +107,7 @@ void CrossPointSettings::validateFrontButtonMapping(CrossPointSettings& settings
 
 bool CrossPointSettings::saveToFile() const {
   Storage.mkdir("/.crosspoint");
+  setDeveloperModeLoggingEnabled(developerMode != 0);
   return JsonSettingsIO::saveSettings(*this, SETTINGS_FILE_JSON);
 }
 
@@ -421,6 +422,8 @@ void CrossPointSettings::validateAndClamp() {
     backgroundServerOnCharge = 1;
   }
   usbMscPromptOnConnect = usbMscPromptOnConnect ? 1 : 0;
+  developerMode = developerMode ? 1 : 0;
+  setDeveloperModeLoggingEnabled(developerMode != 0);
 
   // Sanitize deviceName: keep only [a-z0-9-], lowercase, max 24 usable chars.
   {

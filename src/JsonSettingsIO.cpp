@@ -108,6 +108,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["deviceName"] = s.deviceName;
   doc["wifiAutoConnect"] = s.wifiAutoConnect;
   doc["showHiddenFiles"] = s.showHiddenFiles;
+  doc["developerMode"] = s.developerMode;
   doc["imageRendering"] = s.imageRendering;
   doc["globalStatusBar"] = s.globalStatusBar;
   doc["globalStatusBarPosition"] = s.globalStatusBarPosition;
@@ -207,6 +208,7 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.usbMscPromptOnConnect = doc["usbMscPromptOnConnect"] | (uint8_t)0;
   s.wifiAutoConnect = doc["wifiAutoConnect"] | (uint8_t)0;
   s.showHiddenFiles = doc["showHiddenFiles"] | (uint8_t)0;
+  s.developerMode = doc["developerMode"] | (uint8_t)0;
   s.imageRendering =
       clamp(doc["imageRendering"] | (uint8_t)S::IMAGES_DISPLAY, S::IMAGE_RENDERING_COUNT, S::IMAGES_DISPLAY);
   s.globalStatusBar = doc["globalStatusBar"] | (uint8_t)0;
