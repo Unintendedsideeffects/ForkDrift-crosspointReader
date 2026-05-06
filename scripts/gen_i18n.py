@@ -560,12 +560,23 @@ def generate_keys_header(
 
     # V1 language.bin migration table -- frozen enum order from commit 2f969a9.
     # Maps the old uint8_t index stored on disk to the current Language enum.
-    # If a Language enum value listed here is ever removed, this will fail to
-    # compile, signalling that the migration table needs updating.
-    v1_codes = [
+    v1_disk_codes = [
         "EN", "ES", "FR", "DE", "CS", "PT", "RU", "SV", "RO", "CA", "UK",
         "BE", "IT", "PL", "FI", "DA", "NL", "TR", "KK", "HU", "LT", "SI",
     ]
+    v1_code_aliases = {
+        "FR": "FRENCH",
+        "CS": "CZECH",
+        "PT": "PORTUGUESE",
+        "RU": "RUSSIAN",
+    }
+    v1_codes = [v1_code_aliases.get(code, code) for code in v1_disk_codes]
+    missing_v1_codes = [code for code in v1_codes if code not in languages]
+    if missing_v1_codes:
+        raise ValueError(
+            "V1 language migration references missing current languages: "
+            + ", ".join(missing_v1_codes)
+        )
     lines.append("// V1 language.bin migration table (frozen enum order from 2f969a9)")
     lines.append("constexpr Language V1_LANGUAGES[] = {")
     lines.append("    " + ", ".join(f"Language::{c}" for c in v1_codes) + ",")
