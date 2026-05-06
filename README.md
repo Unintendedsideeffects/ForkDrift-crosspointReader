@@ -7,6 +7,8 @@ This is the **`fork-drift`** branch. It tracks upstream while adding fork-specif
 
 [![Build](https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/actions/workflows/build.yml/badge.svg?branch=fork-drift)](https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/actions/workflows/build.yml)
 
+**Live preview:** [Build Configurator](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/)
+
 <img width="959" height="1008" alt="image" src="https://github.com/user-attachments/assets/b787388b-9dc6-43eb-9fcb-24b4d8fee604" />
 
 E-paper devices are fantastic for reading, but most commercially available readers are closed systems with limited 

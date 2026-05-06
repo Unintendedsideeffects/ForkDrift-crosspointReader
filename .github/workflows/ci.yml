@@ -176,13 +176,37 @@ jobs:
       - name: Generate compile_commands.json
         run: uv run pio run -t compiledb
 
+      - name: Patch compile_commands.json for clang
+        # Strip GCC-only flags that abort clang's parser. Without this the
+        # compile DB is unusable and every check (including misc-no-recursion)
+        # silently produces no findings.
+        run: |
+          sed -i \
+            -e 's/-fno-tree-switch-conversion//g' \
+            -e 's/-fstrict-volatile-bitfields//g' \
+            -e 's/-mlongcalls//g' \
+            -e 's/-free//g' \
+            -e 's/-fno-shrink-wrap//g' \
+            compile_commands.json
+
       - name: Run clang-tidy on src/
         run: |
           set -euo pipefail
+          # Locate riscv32-esp toolchain libstdc++ headers (clang doesn't find
+          # them on its own; without these <algorithm>, <vector>, etc. fail to
+          # parse and call-graph checks produce false negatives).
+          TC_CXX=$(find ~/.platformio/packages/toolchain-riscv32-esp/riscv32-esp-elf/include/c++ \
+            -maxdepth 1 -mindepth 1 -type d | head -1)
+          if [ -z "$TC_CXX" ]; then
+            echo "::error::riscv32-esp toolchain headers not found"
+            exit 1
+          fi
+          EXTRA=(--extra-arg=-isystem "--extra-arg=$TC_CXX"
+                 --extra-arg=-isystem "--extra-arg=$TC_CXX/riscv32-esp-elf")
           # Find all first-party source files (exclude lib/ third-party code)
           find src \( -name '*.cpp' -o -name '*.h' \) | sort | while read -r f; do
             echo "::group::$f"
-            clang-tidy -p .pio/build/default "$f" --quiet 2>&1 || true
+            clang-tidy -p . "${EXTRA[@]}" "$f" --quiet 2>&1 || true
             echo "::endgroup::"
           done
 
