@@ -14,7 +14,7 @@ class UITheme {
   UITheme();
   static UITheme& getInstance() { return instance; }
 
-  const ThemeMetrics& getMetrics() const { return *currentMetrics; }
+  const ThemeMetrics& getMetrics() const;
   const BaseTheme& getTheme() const { return *currentTheme; }
   void reload();
   void setTheme(CrossPointSettings::UI_THEME type);
@@ -27,6 +27,7 @@ class UITheme {
 
  private:
   const ThemeMetrics* currentMetrics;
+  mutable ThemeMetrics adjustedMetrics = {};
   std::unique_ptr<BaseTheme> currentTheme;
 };
 

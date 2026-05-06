@@ -172,6 +172,13 @@ class CrossPointSettings {
     BACKGROUND_SERVER_MODE_COUNT
   };
 
+  enum GLOBAL_STATUS_BAR_MODE {
+    GLOBAL_STATUS_BAR_OFF = 0,
+    GLOBAL_STATUS_BAR_ON = 1,
+    GLOBAL_STATUS_BAR_NO_SLEEP = 2,
+    GLOBAL_STATUS_BAR_MODE_COUNT
+  };
+
   // Image rendering in EPUB reader
   enum IMAGE_RENDERING { IMAGES_DISPLAY = 0, IMAGES_PLACEHOLDER = 1, IMAGES_SUPPRESS = 2, IMAGE_RENDERING_COUNT };
 
@@ -274,7 +281,7 @@ class CrossPointSettings {
   // Image rendering mode in EPUB reader
   uint8_t imageRendering = IMAGES_DISPLAY;
   // Global status bar overlay (battery + WiFi, always visible across all screens)
-  uint8_t globalStatusBar = 0;                       // 0 = disabled, 1 = enabled
+  uint8_t globalStatusBar = GLOBAL_STATUS_BAR_OFF;
   uint8_t globalStatusBarPosition = STATUS_BAR_TOP;  // 0 = top, 1 = bottom
   // Language setting (Language enum index, default 0 = EN)
   uint8_t language = 0;
@@ -289,6 +296,10 @@ class CrossPointSettings {
   }
 
   static constexpr bool supportsBackgroundServerAlwaysMode() { return ENABLE_BACKGROUND_SERVER_ALWAYS != 0; }
+
+  bool isGlobalStatusBarEnabled() const { return globalStatusBar != GLOBAL_STATUS_BAR_OFF; }
+
+  bool globalStatusBarPreventsAutoSleep() const { return globalStatusBar == GLOBAL_STATUS_BAR_NO_SLEEP; }
 
   uint8_t getBackgroundServerMode() const {
     if (supportsBackgroundServerAlwaysMode() && wifiAutoConnect) {

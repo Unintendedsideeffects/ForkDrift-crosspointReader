@@ -10,7 +10,9 @@
 
 #include "CrossPointSettings.h"
 #include "activities/ActivityManager.h"
+#include "components/UITheme.h"
 #include "core/registries/LifecycleRegistry.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "network/BackgroundWebServer.h"
 #if ENABLE_WIFI_CLOCK
@@ -22,12 +24,6 @@ namespace features::status_overlay {
 #if ENABLE_GLOBAL_STATUS_BAR
 
 namespace {
-
-constexpr int kStatusIconSize = 16;
-constexpr int kStatusIconGap = 4;
-constexpr int kStatusBarPadTop = 3;
-constexpr int kStatusBarPadBottom = 4;
-constexpr int kStatusBarPadH = 6;
 
 void drawWifiIcon(const GfxRenderer& renderer, const int x, const int y) {
   constexpr int cx = 7;
@@ -50,7 +46,7 @@ void drawSyncIcon(const GfxRenderer& renderer, const int x, const int y) {
 }
 
 void drawStatusOverlay(const GfxRenderer& renderer) {
-  if (!SETTINGS.globalStatusBar) {
+  if (!isEnabled()) {
     return;
   }
 
@@ -59,19 +55,25 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
       (mode & WIFI_MODE_STA) && WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0);
   const bool shouldShowIp = isWifiConnected && activityManager.showsStatusBarIp();
   const bool isFileServerRunning = BackgroundWebServer::getInstance().isRunning();
+  const auto& metrics = UITheme::getInstance().getMetrics();
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
-  const int lineH = renderer.getLineHeight(SMALL_FONT_ID);
   constexpr int kTextGap = 12;
-  const int barH = std::max(lineH, kStatusIconSize) + kStatusBarPadTop + kStatusBarPadBottom;
-  const int barY = (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? screenH - barH : 0;
-  const int sepY = (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? barY : barY + barH - 1;
+  const int barY =
+      (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? screenH - kStatusBarHeight : 0;
+  const int sepY =
+      (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? barY : barY + kStatusBarHeight - 1;
   const int textY = barY + kStatusBarPadTop;
 
-  renderer.fillRect(0, barY, screenW, barH, false);
+  renderer.fillRect(0, barY, screenW, kStatusBarHeight, false);
   renderer.drawLine(0, sepY, screenW - 1, sepY, true);
 
-  int textRightLimit = screenW - kStatusBarPadH;
+  const bool showBatteryPercentage =
+      SETTINGS.hideBatteryPercentage != CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
+  const int batteryGroupWidth =
+      metrics.batteryWidth +
+      (showBatteryPercentage ? renderer.getTextWidth(SMALL_FONT_ID, "100%") + BaseTheme::batteryPercentSpacing : 0);
+  int textRightLimit = screenW - kStatusBarPadH - batteryGroupWidth;
   const int iconY = barY + kStatusBarPadTop;
   if (isWifiConnected) {
     textRightLimit -= kStatusIconSize;
@@ -79,18 +81,15 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
   if (isFileServerRunning) {
     textRightLimit -= isWifiConnected ? kStatusIconGap + kStatusIconSize : kStatusIconSize;
   }
-
-  char batBuf[8];
-  snprintf(batBuf, sizeof(batBuf), "%u%%", static_cast<unsigned>(powerManager.getBatteryPercentage()));
-  renderer.drawText(SMALL_FONT_ID, kStatusBarPadH, textY, batBuf, true);
+  const int leftTextX = kStatusBarPadH;
+  const int leftTextW = shouldShowIp ? renderer.getTextWidth(SMALL_FONT_ID, "255.255.255.255") : 0;
 
 #if ENABLE_WIFI_CLOCK
   const std::string clockText = DateUtils::currentClockLabel();
   if (!clockText.empty()) {
     const int clockW = renderer.getTextWidth(SMALL_FONT_ID, clockText.c_str());
     const int clockX = (screenW - clockW) / 2;
-    const int batRight = kStatusBarPadH + renderer.getTextWidth(SMALL_FONT_ID, batBuf);
-    if (clockX > batRight + kTextGap && clockX + clockW < textRightLimit - kTextGap) {
+    if (clockX > leftTextX + leftTextW + kTextGap && clockX + clockW < textRightLimit - kTextGap) {
       renderer.drawText(SMALL_FONT_ID, clockX, textY, clockText.c_str(), true);
     }
   }
@@ -100,13 +99,16 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
     char ipBuf[22];
     const IPAddress ip = WiFi.localIP();
     snprintf(ipBuf, sizeof(ipBuf), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-    const int ipX = kStatusBarPadH + renderer.getTextWidth(SMALL_FONT_ID, batBuf) + kTextGap;
-    if (ipX + renderer.getTextWidth(SMALL_FONT_ID, ipBuf) < textRightLimit - kTextGap) {
-      renderer.drawText(SMALL_FONT_ID, ipX, textY, ipBuf, true);
+    if (leftTextX + renderer.getTextWidth(SMALL_FONT_ID, ipBuf) < textRightLimit - kTextGap) {
+      renderer.drawText(SMALL_FONT_ID, leftTextX, textY, ipBuf, true);
     }
   }
 
-  int iconRight = screenW - kStatusBarPadH;
+  const int batteryX = screenW - kStatusBarPadH - metrics.batteryWidth;
+  GUI.drawBatteryRight(renderer, Rect{batteryX, barY + 5, metrics.batteryWidth, metrics.batteryHeight},
+                       showBatteryPercentage);
+
+  int iconRight = batteryX - kStatusIconGap;
   if (isWifiConnected) {
     iconRight -= kStatusIconSize;
     drawWifiIcon(renderer, iconRight, iconY);

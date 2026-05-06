@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <WebServer.h>
 
 namespace network {
 
@@ -32,6 +33,11 @@ FileListDescriptor resolveFileListPath(const String& rawPath);
 
 // Build the complete JSON file listing in memory (used by host tests).
 FileListDescriptor buildFileListJson(const String& rawPath, bool showHiddenFiles);
+
+// Stream the JSON file listing directly to the client to avoid building a
+// large in-memory response for big directories.
+bool streamFileListJson(WebServer& server, const String& rawPath, bool showHiddenFiles,
+                        String* normalizedPath = nullptr, size_t* entryCount = nullptr);
 
 DownloadDescriptor resolveDownload(const String& rawPath);
 

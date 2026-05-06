@@ -60,8 +60,7 @@ bool parseJsonBody(WebServer& server, JsonDocument& body, const char* missingMes
 
 void handleFileList(WebServer& server, const network::FileRouteOptions& options) {
   const auto path = requestArg(server, "path");
-  const auto result = network::buildFileListJson(path.present ? path.value : String(), options.showHiddenFiles);
-  server.send(result.statusCode, result.contentType, result.body);
+  network::streamFileListJson(server, path.present ? path.value : String(), options.showHiddenFiles);
 }
 
 void handleDownload(WebServer& server) {
@@ -190,9 +189,7 @@ void handleUploadPost(WebServer& server) {
   sendText(server, result.statusCode, result.body);
 }
 
-void handleUploadStream(WebServer& server) {
-  network::startUpload(&server);
-}
+void handleUploadStream(WebServer& server) { network::startUpload(&server); }
 
 }  // namespace
 

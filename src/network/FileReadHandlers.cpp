@@ -1,13 +1,8 @@
 #include <Arduino.h>
-#include <ArduinoJson.h>
-#include <HalStorage.h>
 #include <Logging.h>
-#include <esp_task_wdt.h>
 
 #include "CrossPointSettings.h"
 #include "CrossPointWebServer.h"
-#include "SpiBusMutex.h"
-#include "network/FileListApi.h"
 #include "network/FileReadApi.h"
 #include "util/AgentDebugLog.h"
 
@@ -23,77 +18,11 @@ void CrossPointWebServer::handleFileListData() const {
   }
   // #endregion
 
-  const auto pathResult = network::resolveFileListPath(rawPath);
-  if (!pathResult.ok()) {
-    server->send(pathResult.statusCode, pathResult.contentType, pathResult.body);
-    return;
-  }
-
-  // Batch JSON entries into a heap-allocated buffer to reduce TCP segment count.
-  // Without batching, each entry causes two sendContent() calls (comma + JSON),
-  // each flushing a TCP segment. With batching, ~N/20 segments replace 2*N.
-  constexpr size_t kBatchCapacity = 2048;
-  constexpr size_t kJsonMax = 512;
-  char* const batch = static_cast<char*>(malloc(kBatchCapacity));
-  if (!batch) {
-    LOG_ERR("WEB", "File list: failed to malloc %u byte batch buffer", (unsigned)kBatchCapacity);
-    server->send(500, "text/plain", "Insufficient memory");
-    return;
-  }
-  size_t batchLen = 0;
-
-  server->setContentLength(CONTENT_LENGTH_UNKNOWN);
-  server->send(200, "application/json", "");
-  server->sendContent("[");
-
-  bool seenFirst = false;
+  String normalizedPath;
   size_t entryCount = 0;
-  char jsonBuf[kJsonMax];
-  JsonDocument doc;
-
-  auto flushBatch = [&]() {
-    if (batchLen > 0) {
-      server->sendContent(batch, batchLen);
-      batchLen = 0;
-    }
-  };
-
-  network::scanDirectory(pathResult.normalizedPath.c_str(), SETTINGS.showHiddenFiles,
-                         [&](const network::DirEntry& entry) {
-                           doc.clear();
-                           doc["name"] = entry.name;
-                           doc["size"] = entry.size;
-                           doc["isDirectory"] = entry.isDirectory;
-                           doc["isEpub"] = entry.isEpub;
-                           doc["modified"] = 0;
-
-                           const size_t jsonLen = serializeJson(doc, jsonBuf, kJsonMax);
-                           if (jsonLen >= kJsonMax) {
-                             LOG_DBG("WEB", "Skipping file entry with oversized JSON for name: %s", entry.name.c_str());
-                             return;
-                           }
-
-                           // +1 for leading comma if not first entry
-                           const size_t needed = jsonLen + (seenFirst ? 1 : 0);
-                           if (batchLen + needed > kBatchCapacity) {
-                             flushBatch();
-                           }
-
-                           if (seenFirst) {
-                             batch[batchLen++] = ',';
-                           } else {
-                             seenFirst = true;
-                           }
-                           memcpy(batch + batchLen, jsonBuf, jsonLen);
-                           batchLen += jsonLen;
-                           entryCount++;
-                         });
-
-  flushBatch();
-  free(batch);
-
-  server->sendContent("]");
-  server->sendContent("");
+  if (!network::streamFileListJson(*server, rawPath, SETTINGS.showHiddenFiles, &normalizedPath, &entryCount)) {
+    return;
+  }
   // #region agent log
   {
     char data[160];
@@ -102,7 +31,7 @@ void CrossPointWebServer::handleFileListData() const {
     agentDebugLog("initial", "H4,H5,H6", "FileReadHandlers.cpp:handleFileListData", "files API handler exit", data);
   }
   // #endregion
-  LOG_DBG("WEB", "Served file listing for path: %s", pathResult.normalizedPath.c_str());
+  LOG_DBG("WEB", "Served file listing for path: %s", normalizedPath.c_str());
 }
 
 void CrossPointWebServer::handleDownload() const {

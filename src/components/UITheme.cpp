@@ -12,6 +12,7 @@
 #include "components/themes/lyra/Lyra3CoversTheme.h"
 #include "components/themes/lyra/LyraTheme.h"
 #include "core/features/FeatureCatalog.h"
+#include "features/status_overlay/Layout.h"
 #include "util/RecentBooksStore.h"
 
 UITheme UITheme::instance;
@@ -19,6 +20,14 @@ UITheme UITheme::instance;
 UITheme::UITheme() {
   auto themeType = static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme);
   setTheme(themeType);
+}
+
+const ThemeMetrics& UITheme::getMetrics() const {
+  adjustedMetrics = *currentMetrics;
+  adjustedMetrics.topPadding += features::status_overlay::topInset();
+  adjustedMetrics.homeTopPadding += features::status_overlay::topInset();
+  adjustedMetrics.buttonHintsHeight += features::status_overlay::bottomInset();
+  return adjustedMetrics;
 }
 
 void UITheme::reload() {

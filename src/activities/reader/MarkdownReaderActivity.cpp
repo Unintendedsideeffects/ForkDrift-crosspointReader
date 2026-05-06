@@ -15,6 +15,7 @@
 #include "TocActivity.h"
 #include "activities/TaskShutdown.h"
 #include "components/ScreenComponents.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "util/RecentBooksStore.h"
 
@@ -209,10 +210,10 @@ void MarkdownReaderActivity::renderScreen() {
   int orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft;
   renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
                                    &orientedMarginLeft);
-  orientedMarginTop += SETTINGS.screenMargin;
+  orientedMarginTop += SETTINGS.screenMargin + features::status_overlay::topInset();
   orientedMarginLeft += SETTINGS.screenMargin;
   orientedMarginRight += SETTINGS.screenMargin;
-  orientedMarginBottom += SETTINGS.screenMargin;
+  orientedMarginBottom += SETTINGS.screenMargin + features::status_overlay::bottomInset();
 
   if (SETTINGS.statusBar != CrossPointSettings::STATUS_BAR_MODE::NONE) {
     const bool showProgressBar = SETTINGS.statusBar == CrossPointSettings::STATUS_BAR_MODE::BOOK_PROGRESS_BAR ||

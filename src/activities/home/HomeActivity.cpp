@@ -22,6 +22,7 @@
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "core/registries/HomeActionRegistry.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "util/ForkDriftNavigation.h"
 #include "util/RecentBooksStore.h"
@@ -589,6 +590,8 @@ void HomeActivity::render(RenderLock&&) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
+  const int topInset = features::status_overlay::topInset();
+  const int usablePageHeight = pageHeight - topInset;
 
   renderer.clearScreen();
   bool bufferRestored = coverBufferStored && restoreCoverBuffer();
@@ -606,10 +609,10 @@ void HomeActivity::render(RenderLock&&) {
     // Without this, landscape orientation (480px) with 2 cover rows (436px) yields
     // a negative menu rect height: 480 − (436 + verticalSpacing×2 + buttonHintsHeight) = −28.
     const int menuMinH = metrics.verticalSpacing * 2 + metrics.buttonHintsHeight + metrics.menuRowHeight;
-    const int coverTileH = forkDrift ? std::min(coverTileH_raw, pageHeight - menuMinH) : coverTileH_raw;
+    const int coverTileH = forkDrift ? std::min(coverTileH_raw, usablePageHeight - menuMinH) : coverTileH_raw;
 
-    GUI.drawRecentBookCover(renderer, Rect(0, 0, pageWidth, coverTileH), recentBooks, coverSelector, coverRendered,
-                            coverBufferStored, bufferRestored, [this]() { return storeCoverBuffer(); });
+    GUI.drawRecentBookCover(renderer, Rect(0, topInset, pageWidth, coverTileH), recentBooks, coverSelector,
+                            coverRendered, coverBufferStored, bufferRestored, [this]() { return storeCoverBuffer(); });
 
     std::vector<std::string> menuLabels;
     std::vector<UIIcon> menuIcons;
@@ -664,8 +667,8 @@ void HomeActivity::render(RenderLock&&) {
 
     GUI.drawButtonMenu(
         renderer,
-        Rect{0, coverTileH + metrics.verticalSpacing, pageWidth,
-             pageHeight - (coverTileH + metrics.verticalSpacing * 2 + metrics.buttonHintsHeight)},
+        Rect{0, topInset + coverTileH + metrics.verticalSpacing, pageWidth,
+             usablePageHeight - (coverTileH + metrics.verticalSpacing * 2 + metrics.buttonHintsHeight)},
         static_cast<int>(menuLabels.size()), menuSelector, [&menuLabels](const int index) { return menuLabels[index]; },
         [&menuIcons](const int index) { return menuIcons[index]; });
 
@@ -679,7 +682,7 @@ void HomeActivity::render(RenderLock&&) {
     const int bookWidth = pageWidth / 2;
     const int bookHeight = pageHeight / 2;
     const int bookX = (pageWidth - bookWidth) / 2;
-    constexpr int bookY = 30;
+    const int bookY = topInset + 30;
     const bool bookSelected = hasContinueReading && selectorIndex == 0;
 
     // Bookmark dimensions (used in multiple places)
@@ -892,7 +895,7 @@ void HomeActivity::render(RenderLock&&) {
     GUI.drawButtonHints(renderer, hints.btn1, hints.btn2, hints.btn3, hints.btn4);
   }
 
-  if (!SETTINGS.globalStatusBar && WiFi.status() == WL_CONNECTED) {
+  if (!SETTINGS.isGlobalStatusBarEnabled() && WiFi.status() == WL_CONNECTED) {
     char wifiStr[22];
     const IPAddress ip = WiFi.localIP();
     snprintf(wifiStr, sizeof(wifiStr), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);

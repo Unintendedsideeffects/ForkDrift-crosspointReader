@@ -31,6 +31,7 @@
 #include "core/features/FeatureLifecycle.h"
 #include "core/features/FeatureModules.h"
 #include "core/fonts/BuiltinFontRegistry.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "network/BackgroundWebServer.h"
 #include "network/BackgroundWifiService.h"
@@ -245,7 +246,7 @@ void refreshGlobalStatusBarOnWifiChange() {
   }
 
   lastStaConnected = staConnected;
-  if (SETTINGS.globalStatusBar) {
+  if (SETTINGS.isGlobalStatusBarEnabled()) {
     activityManager.requestUpdate();
   }
 }
@@ -679,7 +680,7 @@ void loop() {
 #endif
 
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || activityManager.preventAutoSleep() ||
-      backgroundServer.shouldPreventAutoSleep()) {
+      features::status_overlay::preventsAutoSleep() || backgroundServer.shouldPreventAutoSleep()) {
     lastActivityTime = millis();
     powerManager.setPowerSaving(false);
   }

@@ -5,6 +5,13 @@
 #include <HalStorage.h>
 #include <Logging.h>
 
+#if __has_include(<esp_task_wdt.h>)
+#include <esp_task_wdt.h>
+#define FILEREAD_HAS_TASK_WDT 1
+#else
+#define FILEREAD_HAS_TASK_WDT 0
+#endif
+
 #include "SpiBusMutex.h"
 #include "network/FileListApi.h"
 #include "util/PathUtils.h"
@@ -92,6 +99,96 @@ FileListDescriptor buildFileListJson(const String& rawPath, const bool showHidde
 
   json += "]";
   return {200, "application/json", json, currentPath};
+}
+
+bool streamFileListJson(WebServer& server, const String& rawPath, const bool showHiddenFiles, String* normalizedPath,
+                        size_t* entryCount) {
+  const auto pathResult = resolveFileListPath(rawPath);
+  if (!pathResult.ok()) {
+    server.send(pathResult.statusCode, pathResult.contentType, pathResult.body);
+    return false;
+  }
+
+  if (normalizedPath) {
+    *normalizedPath = pathResult.normalizedPath;
+  }
+
+  constexpr size_t kBatchCapacity = 2048;
+  constexpr size_t kJsonMax = 512;
+  char* const batch = static_cast<char*>(malloc(kBatchCapacity));
+  if (!batch) {
+    LOG_ERR("WEB", "File list: failed to malloc %u byte batch buffer", static_cast<unsigned>(kBatchCapacity));
+    server.send(500, "text/plain", "Insufficient memory");
+    return false;
+  }
+
+  size_t batchLen = 0;
+  bool seenFirst = false;
+  size_t sentEntries = 0;
+  char jsonBuf[kJsonMax];
+  JsonDocument doc;
+
+  auto flushBatch = [&]() {
+    if (batchLen == 0) {
+      return;
+    }
+#if FILEREAD_HAS_TASK_WDT
+    esp_task_wdt_reset();
+#endif
+    server.sendContent(batch, batchLen);
+    batchLen = 0;
+#if defined(ARDUINO)
+    yield();
+#if FILEREAD_HAS_TASK_WDT
+    esp_task_wdt_reset();
+#endif
+#endif
+  };
+
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "application/json", "");
+  server.sendContent("[");
+
+  scanDirectory(pathResult.normalizedPath.c_str(), showHiddenFiles, [&](const DirEntry& entry) {
+    doc.clear();
+    doc["name"] = entry.name;
+    doc["size"] = entry.size;
+    doc["isDirectory"] = entry.isDirectory;
+    doc["isEpub"] = entry.isEpub;
+    doc["modified"] = 0;
+
+    const size_t jsonLen = serializeJson(doc, jsonBuf, kJsonMax);
+    if (jsonLen >= kJsonMax) {
+      LOG_DBG("WEB", "Skipping file entry with oversized JSON for name: %s", entry.name.c_str());
+      return;
+    }
+
+    const size_t needed = jsonLen + (seenFirst ? 1 : 0);
+    if (batchLen + needed > kBatchCapacity) {
+      flushBatch();
+    }
+
+    if (seenFirst) {
+      batch[batchLen++] = ',';
+    } else {
+      seenFirst = true;
+    }
+
+    memcpy(batch + batchLen, jsonBuf, jsonLen);
+    batchLen += jsonLen;
+    sentEntries++;
+  });
+
+  flushBatch();
+  free(batch);
+
+  server.sendContent("]");
+  server.sendContent("");
+
+  if (entryCount) {
+    *entryCount = sentEntries;
+  }
+  return true;
 }
 
 DownloadDescriptor resolveDownload(const String& rawPath) {

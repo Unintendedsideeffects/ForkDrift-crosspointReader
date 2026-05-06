@@ -12,6 +12,7 @@
 
 #include "components/UITheme.h"
 #include "components/icons/cover.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "util/RecentBooksStore.h"
 
@@ -108,30 +109,34 @@ void RoundedRaffTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const 
   const int titleX = rect.x + sidePadding;
   const int titleY = rect.y + 14;
 
-  const bool showBatteryPercentage =
-      SETTINGS.hideBatteryPercentage != CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
-  const uint16_t percentage = powerManager.getBatteryPercentage();
+  const bool showHeaderBattery = !features::status_overlay::isEnabled();
   const int batteryIconX = rect.x + rect.width - sidePadding - RoundedRaffMetrics::values.batteryWidth;
   int batteryGroupLeftX = batteryIconX;
-  if (showBatteryPercentage) {
-    const auto percentageText = std::to_string(percentage) + "%";
-    batteryGroupLeftX -= renderer.getTextWidth(SMALL_FONT_ID, percentageText.c_str()) + batteryPercentSpacing;
+  if (showHeaderBattery) {
+    const bool showBatteryPercentage =
+        SETTINGS.hideBatteryPercentage != CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
+    const uint16_t percentage = powerManager.getBatteryPercentage();
+    if (showBatteryPercentage) {
+      const auto percentageText = std::to_string(percentage) + "%";
+      batteryGroupLeftX -= renderer.getTextWidth(SMALL_FONT_ID, percentageText.c_str()) + batteryPercentSpacing;
 
-    // Clear a fixed-width area for the battery percentage to avoid ghosting when digit count changes (e.g. 100% ->
-    // 99%).
-    const int maxTextWidth = renderer.getTextWidth(SMALL_FONT_ID, "100%");
-    const int clearW = maxTextWidth + batteryPercentSpacing + RoundedRaffMetrics::values.batteryWidth;
-    const int clearH = std::max(renderer.getTextHeight(SMALL_FONT_ID), RoundedRaffMetrics::values.batteryHeight + 8);
-    renderer.fillRect(batteryIconX - maxTextWidth - batteryPercentSpacing, rect.y + 14, clearW, clearH, false);
+      // Clear a fixed-width area for the battery percentage to avoid ghosting when digit count changes (e.g. 100% ->
+      // 99%).
+      const int maxTextWidth = renderer.getTextWidth(SMALL_FONT_ID, "100%");
+      const int clearW = maxTextWidth + batteryPercentSpacing + RoundedRaffMetrics::values.batteryWidth;
+      const int clearH = std::max(renderer.getTextHeight(SMALL_FONT_ID), RoundedRaffMetrics::values.batteryHeight + 8);
+      renderer.fillRect(batteryIconX - maxTextWidth - batteryPercentSpacing, rect.y + 14, clearW, clearH, false);
+    }
+
+    drawBatteryRightStable(renderer,
+                           Rect{batteryIconX, rect.y + 14, RoundedRaffMetrics::values.batteryWidth,
+                                RoundedRaffMetrics::values.batteryHeight},
+                           percentage, showBatteryPercentage);
   }
 
   const int maxTextWidth = std::max(0, batteryGroupLeftX - 20 - titleX);
   auto headerTitle = renderer.truncatedText(kTitleFontId, title, maxTextWidth, EpdFontFamily::BOLD);
   renderer.drawText(kTitleFontId, titleX, titleY, headerTitle.c_str(), true, EpdFontFamily::BOLD);
-  drawBatteryRightStable(renderer,
-                         Rect{batteryIconX, rect.y + 14, RoundedRaffMetrics::values.batteryWidth,
-                              RoundedRaffMetrics::values.batteryHeight},
-                         percentage, showBatteryPercentage);
 }
 
 void RoundedRaffTheme::drawTabBar(const GfxRenderer& renderer, Rect rect, const std::vector<TabInfo>& tabs,
@@ -367,12 +372,14 @@ void RoundedRaffTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, 
 
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
+  const auto& metrics = UITheme::getInstance().getMetrics();
   const int sidePadding = 20;
   const int groupGap = 10;
   const int bottomMargin = 10;
   const int hintHeight = RoundedRaffMetrics::values.buttonHintsHeight - 10;  // 30px total guide height
   const int groupWidth = (pageWidth - sidePadding * 2 - groupGap) / 2;
-  const int hintY = pageHeight - hintHeight - bottomMargin;
+  const int hintY = pageHeight - metrics.buttonHintsHeight +
+                    (RoundedRaffMetrics::values.buttonHintsHeight - hintHeight) - bottomMargin;
   const int textY = hintY + (hintHeight - renderer.getLineHeight(kGuideFontId)) / 2;
 
   const bool backDisabled = (btn1 == nullptr || btn1[0] == '\0');
