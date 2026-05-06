@@ -1,11 +1,10 @@
-#include "CrossPointWebServer.h"
-
 #include <ArduinoJson.h>
 #include <FeatureFlags.h>
 #include <WiFi.h>
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "CrossPointWebServer.h"
 #include "core/features/FeatureModules.h"
 #include "network/SettingsSnapshotApi.h"
 
@@ -15,6 +14,7 @@ constexpr uint8_t CROSSPOINT_STATUS_PROTOCOL_VERSION = 1;
 
 void CrossPointWebServer::handleStatus() const {
   requestCount++;
+  noteWebUiAccess();
   // Get correct IP based on AP vs STA mode
   const String ipAddr = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
   const bool staConnected = WiFi.status() == WL_CONNECTED;

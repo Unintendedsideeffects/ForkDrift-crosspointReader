@@ -16,6 +16,7 @@ static_assert(FilesPageHtmlCompressedSize == sizeof(FilesPageHtml), "Files page 
 static_assert(SettingsPageHtmlCompressedSize == sizeof(SettingsPageHtml), "Settings page compressed size mismatch");
 
 void CrossPointWebServer::handleRoot() const {
+  noteWebUiAccess();
   // #region agent log
   {
     char data[120];
@@ -52,6 +53,7 @@ void CrossPointWebServer::handleNotFound() const {
 }
 
 void CrossPointWebServer::handleFileList() const {
+  noteWebUiAccess();
   // #region agent log
   {
     char data[120];
@@ -64,6 +66,7 @@ void CrossPointWebServer::handleFileList() const {
 }
 
 void CrossPointWebServer::handleSettingsPage() const {
+  noteWebUiAccess();
   // #region agent log
   {
     char data[120];

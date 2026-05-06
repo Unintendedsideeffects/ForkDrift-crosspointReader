@@ -12,6 +12,7 @@
 #include "util/AgentDebugLog.h"
 
 void CrossPointWebServer::handleFileListData() const {
+  noteWebUiAccess();
   const String rawPath = server->hasArg("path") ? server->arg("path") : "";
   // #region agent log
   {
@@ -106,6 +107,7 @@ void CrossPointWebServer::handleFileListData() const {
 
 void CrossPointWebServer::handleDownload() const {
   requestCount++;
+  noteWebUiAccess();
   if (!server->hasArg("path")) {
     server->send(400, "text/plain", "Missing path");
     return;

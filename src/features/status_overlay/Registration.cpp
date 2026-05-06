@@ -6,12 +6,16 @@
 #include <WiFi.h>
 
 #include <algorithm>
+#include <string>
 
 #include "CrossPointSettings.h"
 #include "activities/ActivityManager.h"
 #include "core/registries/LifecycleRegistry.h"
 #include "fontIds.h"
 #include "network/BackgroundWebServer.h"
+#if ENABLE_WIFI_CLOCK
+#include "util/DateUtils.h"
+#endif
 
 namespace features::status_overlay {
 
@@ -79,6 +83,18 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
   char batBuf[8];
   snprintf(batBuf, sizeof(batBuf), "%u%%", static_cast<unsigned>(powerManager.getBatteryPercentage()));
   renderer.drawText(SMALL_FONT_ID, kStatusBarPadH, textY, batBuf, true);
+
+#if ENABLE_WIFI_CLOCK
+  const std::string clockText = DateUtils::currentClockLabel();
+  if (!clockText.empty()) {
+    const int clockW = renderer.getTextWidth(SMALL_FONT_ID, clockText.c_str());
+    const int clockX = (screenW - clockW) / 2;
+    const int batRight = kStatusBarPadH + renderer.getTextWidth(SMALL_FONT_ID, batBuf);
+    if (clockX > batRight + kTextGap && clockX + clockW < textRightLimit - kTextGap) {
+      renderer.drawText(SMALL_FONT_ID, clockX, textY, clockText.c_str(), true);
+    }
+  }
+#endif
 
   if (shouldShowIp) {
     char ipBuf[22];

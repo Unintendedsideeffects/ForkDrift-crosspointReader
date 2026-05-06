@@ -39,6 +39,9 @@
 #include "util/InputValidation.h"
 #include "util/PathUtils.h"
 #include "util/RecentBooksStore.h"
+#if ENABLE_WIFI_CLOCK
+#include "util/TimeSync.h"
+#endif
 
 namespace {
 constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
@@ -244,6 +247,14 @@ void CrossPointWebServer::setApRedirectPath(std::string path) {
     path.insert(path.begin(), '/');
   }
   apRedirectPath = std::move(path);
+}
+
+void CrossPointWebServer::noteWebUiAccess() const {
+#if ENABLE_WIFI_CLOCK
+  if (!apMode && WiFi.status() == WL_CONNECTED) {
+    TimeSync::noteWebUiAccess(true);
+  }
+#endif
 }
 
 void CrossPointWebServer::begin() {

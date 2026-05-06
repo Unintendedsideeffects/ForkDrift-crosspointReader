@@ -196,6 +196,12 @@ FEATURES = {
         size_kb=17,
         description='On-device prompt for USB SD card access as mass storage'
     ),
+    'wifi_clock': Feature(
+        name='WiFi Clock',
+        flag='ENABLE_WIFI_CLOCK',
+        size_kb=1,
+        description='NTP-backed 24-hour Roman numeral clock label that refreshes every 15 minutes while WiFi is connected'
+    ),
 }
 
 
@@ -416,6 +422,13 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=[]
     ),
+    'wifi_clock': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=[],
+        conflicts=[],
+        recommends=['background_server_always']
+    ),
 }
 
 
@@ -528,6 +541,7 @@ PROFILES = {
             'ble_wifi_provisioning': True,
             'user_fonts': True,
             'usb_mass_storage': True,
+            'wifi_clock': True,
         },
     },
     'full': {
@@ -562,6 +576,7 @@ PROFILES = {
             'user_fonts': True,
             'web_wifi_setup': True,
             'usb_mass_storage': True,
+            'wifi_clock': True,
         },
     },
 }

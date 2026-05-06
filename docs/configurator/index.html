@@ -2374,6 +2374,17 @@
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
 
+              <label class="skill-card" data-feature="wifi_clock" data-node-id="wifi_clock">
+                <input type="checkbox" id="wifi_clock" data-feature="wifi_clock" />
+                <div class="card-icon"><span>&#x25F4;</span></div>
+                <div class="card-body">
+                  <div class="card-name">WiFi Clock</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">24-hour Roman numeral clock label that refreshes every 15 minutes on WiFi</div>
+                </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
               <div class="dep-group">
                 <div class="skill-card dep-parent static-card always-enabled" data-node-id="remote_control">
                   <div class="card-icon"><span>&#x25CF;</span></div>
@@ -3433,6 +3444,11 @@
           flag: "ENABLE_USB_MASS_STORAGE",
           default: true,
         },
+        wifi_clock: {
+          sizeKb: 1,
+          flag: "ENABLE_WIFI_CLOCK",
+          default: true,
+        },
       };
 
       const FEATURE_DOCS = {
@@ -3465,6 +3481,7 @@
         user_fonts: "Load custom TTF/OTF fonts from a /fonts folder on the SD card. The companion web tool (Font Converter panel) pre-converts fonts to the device's binary format. Fonts appear in the font picker alongside built-ins.",
         web_wifi_setup: "A captive-portal style WiFi setup wizard served from the Background Server. Scan a QR code, enter credentials, and the device connects — no app required. Small footprint (~5 KB).",
         usb_mass_storage: "Exposes the SD card as a USB mass-storage device when connected to a computer. Lets you drag-and-drop books without a network. The SD card is unmounted from the firmware while in this mode.",
+        wifi_clock: "Shows a 24-hour Roman-numeral quarter-hour clock label in the ForkDrift home header and global status bar when system time is available. The minute marker is blank for :00, I for :15, II for :30, and III for :45. While connected to WiFi, it syncs time by NTP and refreshes the display every 15 minutes.",
         remote_control: "The Android companion app discovers available remote-control capabilities at runtime by reading plugin flags from the device. No compile-time flag — always advertised. Open Book and Page Turn are always enabled; Keyboard Input is optional.",
         remote_open_book: "Lets the Android app send a 'open this book' command to the device over WiFi or USB. The device finds the book on the SD card by filename and opens it immediately. Always compiled in.",
         remote_page_turn: "Lets the Android app send forward/back page commands to the device. Implemented via virtual button injection so it's fully orientation-aware. Always compiled in.",
@@ -3495,7 +3512,7 @@
       const HUB_FEATURES = {
         reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "anki_support"],
         interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts"],
-        network_hub: ["background_server", "background_server_on_charge", "background_server_always", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
+        network_hub: ["background_server", "background_server_on_charge", "background_server_always", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
         storage_hub: ["usb_mass_storage"],
       };
 
@@ -3514,6 +3531,7 @@
           lyra_theme: true,
           ota_updates: true,
           remote_keyboard_input: true,
+          wifi_clock: true,
           background_server: true,
           background_server_on_charge: true,
           web_wifi_setup: true,
@@ -3539,6 +3557,7 @@
           lyra_theme: true,
           ota_updates: true,
           remote_keyboard_input: true,
+          wifi_clock: true,
           todo_planner: true,
           anki_support: true,
           background_server: true,
@@ -5022,6 +5041,7 @@
           web_wifi_setup:                  'wifi',
           ble_wifi_provisioning:           'bluetooth',
           ota_updates:                     'cloud-download',
+          wifi_clock:                      'clock',
           remote_control:                  'smartphone',
           remote_open_book:                'book-marked',
           remote_page_turn:                'arrow-right',

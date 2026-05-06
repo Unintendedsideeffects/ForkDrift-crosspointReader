@@ -5,8 +5,6 @@
 #include <HardwareSerial.h>
 #include <Logging.h>
 #include <WiFi.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 
 #include <algorithm>
 #include <new>
@@ -18,14 +16,8 @@
 #include "core/features/FeatureModules.h"
 #include "util/AgentDebugLog.h"
 #include "util/NetworkNames.h"
-#include "util/TimeSync.h"
 
 namespace {
-
-void ntpSyncTask(void* /*param*/) {
-  TimeSync::syncTimeWithNtpLowMemory();
-  vTaskDelete(nullptr);
-}
 
 bool findBestCredential(const std::vector<WifiCredential>& credentials, const int16_t scanCount, std::string& outSsid,
                         std::string& outPassword) {
@@ -132,17 +124,6 @@ void BackgroundWebServer::startServer() {
   if (ESP.getFreeHeap() < MIN_FREE_HEAP_BYTES) {
     scheduleRetry("low heap");
     return;
-  }
-  // NTP sync is one-shot per boot. The previous code respawned this 4KB-stack
-  // task on every server (re)start; combined with the 2-minute SERVER_WINDOW_MS
-  // teardown, overlapping NTP tasks could exhaust heap on slow DNS responses.
-  static bool ntpSyncStartedThisBoot = false;
-  if (!ntpSyncStartedThisBoot) {
-    if (xTaskCreate(ntpSyncTask, "TimeSyncTask", 4096, nullptr, 1, nullptr) == pdPASS) {
-      ntpSyncStartedThisBoot = true;
-    } else {
-      LOG_ERR("BWS", "Failed to start time sync task");
-    }
   }
   if (!server) {
     server.reset(new (std::nothrow) CrossPointWebServer());

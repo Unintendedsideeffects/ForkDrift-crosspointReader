@@ -59,6 +59,7 @@ FEATURES = [
     'user_fonts',
     'web_wifi_setup',
     'usb_mass_storage',
+    'wifi_clock',
 ]
 
 if shutil.which("uv") is None:

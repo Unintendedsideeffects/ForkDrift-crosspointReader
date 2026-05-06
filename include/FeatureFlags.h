@@ -220,6 +220,10 @@
 #define ENABLE_GLOBAL_STATUS_BAR 1
 #endif
 
+#ifndef ENABLE_WIFI_CLOCK
+#define ENABLE_WIFI_CLOCK 1
+#endif
+
 // Enforce downstream dependencies at compile time.
 #if !ENABLE_INTEGRATIONS && FEATURE_OVERRIDE_ENABLE_KOREADER_SYNC && ENABLE_KOREADER_SYNC
 #error "ENABLE_KOREADER_SYNC requires ENABLE_INTEGRATIONS=1"

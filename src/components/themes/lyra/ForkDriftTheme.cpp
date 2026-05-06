@@ -1,5 +1,6 @@
 #include "ForkDriftTheme.h"
 
+#include <FeatureFlags.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
@@ -18,6 +19,9 @@
 #include "components/icons/transfer.h"
 #include "components/icons/wifi.h"
 #include "fontIds.h"
+#if ENABLE_WIFI_CLOCK
+#include "util/DateUtils.h"
+#endif
 #include "util/RecentBooksStore.h"
 
 namespace {
@@ -147,6 +151,18 @@ void ForkDriftTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const
   const int textY = rect.y + (headerH - renderer.getLineHeight(SMALL_FONT_ID)) / 2;
   auto truncName = renderer.truncatedText(SMALL_FONT_ID, devName, rect.width / 2);
   renderer.drawText(SMALL_FONT_ID, rect.x + pad, textY, truncName.c_str(), true);
+
+#if ENABLE_WIFI_CLOCK
+  const std::string clockText = DateUtils::currentClockLabel();
+  if (!clockText.empty()) {
+    const int clockW = renderer.getTextWidth(SMALL_FONT_ID, clockText.c_str());
+    const int clockX = rect.x + (rect.width - clockW) / 2;
+    const int nameRight = rect.x + pad + renderer.getTextWidth(SMALL_FONT_ID, truncName.c_str());
+    if (clockX > nameRight + hPadding && clockX + clockW < battX - hPadding) {
+      renderer.drawText(SMALL_FONT_ID, clockX, textY, clockText.c_str(), true);
+    }
+  }
+#endif
 
   // WiFi icon when connected.
   if (WiFi.status() == WL_CONNECTED) {

@@ -17,6 +17,7 @@
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "FeatureFlags.h"
 #include "KOReaderCredentialStore.h"
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
@@ -38,6 +39,9 @@
 #include "util/FirmwareUpdateUtil.h"
 #include "util/RecentBooksStore.h"
 #include "util/ScreenshotUtil.h"
+#if ENABLE_WIFI_CLOCK
+#include "util/TimeSync.h"
+#endif
 #include "util/UsbMscPrompt.h"
 #include "util/WifiCredentialStore.h"
 
@@ -246,6 +250,25 @@ void refreshGlobalStatusBarOnWifiChange() {
   }
 }
 
+#if ENABLE_WIFI_CLOCK
+void refreshClockOnTick() {
+  static unsigned long lastClockRefreshMs = 0;
+  constexpr unsigned long kClockRefreshIntervalMs = 15UL * 60UL * 1000UL;
+
+  if (!hasStaWifiConnection()) {
+    return;
+  }
+
+  const unsigned long nowMs = millis();
+  if (lastClockRefreshMs != 0 && nowMs - lastClockRefreshMs < kClockRefreshIntervalMs) {
+    return;
+  }
+
+  lastClockRefreshMs = nowMs;
+  activityManager.requestUpdate();
+}
+#endif
+
 void verifyPowerButtonDuration() {
   if (SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP) {
     return;
@@ -405,6 +428,9 @@ void setup() {
   }
 
   SETTINGS.loadFromFile();
+#if ENABLE_WIFI_CLOCK
+  TimeSync::restorePersistedTime();
+#endif
   core::FeatureLifecycle::onSettingsLoaded(renderer);
   I18N.loadSettings();
   WIFI_STORE.loadFromFile();
@@ -620,7 +646,13 @@ void loop() {
   }
 
   reconcileBackgroundWifiServer();
+#if ENABLE_WIFI_CLOCK
+  TimeSync::loop(hasStaWifiConnection());
+#endif
   refreshGlobalStatusBarOnWifiChange();
+#if ENABLE_WIFI_CLOCK
+  refreshClockOnTick();
+#endif
 
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || activityManager.preventAutoSleep() ||
       backgroundServer.shouldPreventAutoSleep()) {
