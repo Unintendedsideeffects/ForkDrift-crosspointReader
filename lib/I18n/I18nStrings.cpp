@@ -1426,6 +1426,7 @@ const char* const STRINGS_EN[] = {
     "Always keeps WiFi on while awake.",
     "Validate Sleep Images",
     "Device Name",
+    "Set Cover",
     "Footnotes",
     "No footnotes on this page",
     "[link]",
@@ -2091,6 +2092,7 @@ const char* const STRINGS_ES[] = {
     "Always keeps WiFi on while awake.",
     "Validate Sleep Images",
     "Device Name",
+    "Set Cover",
     "Pie de p\xC3"
     "\xA1"
     "gina",
@@ -3020,6 +3022,7 @@ const char* const STRINGS_FR[] = {
     "Always keeps WiFi on while awake.",
     "Valider les images de veille",
     "Device Name",
+    "Set Cover",
     "Notes de bas de page",
     "Aucune note sur cette page",
     "[lien]",
@@ -3601,6 +3604,7 @@ const char* const STRINGS_DE[] = {
     "Always keeps WiFi on while awake.",
     "Schlafbilder validieren",
     "Device Name",
+    "Set Cover",
     "Fu\xC3"
     "\x9F"
     "noten",
@@ -5167,6 +5171,7 @@ const char* const STRINGS_CS[] = {
     "\xA1"
     "nku",
     "Device Name",
+    "Set Cover",
     "Footnotes",
     "No footnotes on this page",
     "[link]",
@@ -5900,6 +5905,7 @@ const char* const STRINGS_PO[] = {
     "Always keeps WiFi on while awake.",
     "Validar imagens de sono",
     "Device Name",
+    "Set Cover",
     "Footnotes",
     "No footnotes on this page",
     "[link]",
@@ -13441,6 +13447,7 @@ const char* const STRINGS_RU[] = {
     "\xB0"
     "",
     "Device Name",
+    "Set Cover",
     "\xD0"
     "\x9F"
     "\xD1"
@@ -14679,6 +14686,7 @@ const char* const STRINGS_SV[] = {
     "Always keeps WiFi on while awake.",
     "Validate Sleep Images",
     "Device Name",
+    "Set Cover",
     "Fotnoter",
     "Inga fotnoter p\xC3"
     "\xA5"
@@ -15810,6 +15818,7 @@ const char* const STRINGS_RO[] = {
     "Always keeps WiFi on while awake.",
     "Validare imagini repaus",
     "Device Name",
+    "Set Cover",
     "Note de subsol",
     "Nicio not\xC4"
     "\x83"
@@ -16541,6 +16550,7 @@ const char* const STRINGS_CA[] = {
     "\xB2"
     "s",
     "Device Name",
+    "Set Cover",
     "Notes al peu",
     "No hi ha notes al peu en aquesta p\xC3"
     "\xA0"
@@ -24852,6 +24862,7 @@ const char* const STRINGS_UK[] = {
     "\x83"
     "",
     "Device Name",
+    "Set Cover",
     "\xD0"
     "\x9F"
     "\xD1"
@@ -34083,6 +34094,7 @@ const char* const STRINGS_BE[] = {
     "\x83"
     "",
     "Device Name",
+    "Set Cover",
     "\xD0"
     "\x97"
     "\xD0"
@@ -34770,6 +34782,7 @@ const char* const STRINGS_IT[] = {
     "Always keeps WiFi on while awake.",
     "Validate Sleep Images",
     "Device Name",
+    "Set Cover",
     "Note a pi\xC3"
     "\xA8"
     " pagina",
@@ -35803,6 +35816,7 @@ const char* const STRINGS_PL[] = {
     "\x9B"
     "pienia",
     "Device Name",
+    "Set Cover",
     "Przypisy",
     "Brak przypis\xC3"
     "\xB3"
@@ -36662,6 +36676,7 @@ const char* const STRINGS_FI[] = {
     "\xB6"
     "kuvat",
     "Device Name",
+    "Set Cover",
     "Footnotes",
     "No footnotes on this page",
     "[link]",
@@ -37299,6 +37314,7 @@ const char* const STRINGS_DA[] = {
     "Always keeps WiFi on while awake.",
     "Valider hvile-billeder",
     "Device Name",
+    "Set Cover",
     "Fodnoter",
     "Ingen fodnoter p\xC3"
     "\xA5"
@@ -37752,6 +37768,7 @@ const char* const STRINGS_NL[] = {
     "Always keeps WiFi on while awake.",
     "Validate Sleep Images",
     "Device Name",
+    "Set Cover",
     "Voetnoten",
     "Geen voetnoten op deze pagina",
     "[link]",
@@ -39065,6 +39082,7 @@ const char* const STRINGS_TR[] = {
     "Always keeps WiFi on while awake.",
     "Validate Sleep Images",
     "Device Name",
+    "Set Cover",
     "Dipnotlar",
     "Bu sayfada dipnot yok",
     "[ba\xC4"
@@ -46688,6 +46706,7 @@ const char* const STRINGS_KK[] = {
     "Always keeps WiFi on while awake.",
     "Validate Sleep Images",
     "Device Name",
+    "Set Cover",
     "\xD0"
     "\xA2"
     "\xD2"
@@ -48419,6 +48438,7 @@ const char* const STRINGS_HU[] = {
     "Always keeps WiFi on while awake.",
     "Validate Sleep Images",
     "Device Name",
+    "Set Cover",
     "L\xC3"
     "\xA1"
     "bjegyzetek",
@@ -49242,6 +49262,7 @@ const char* const STRINGS_LT[] = {
     "Always keeps WiFi on while awake.",
     "Validate Sleep Images",
     "Device Name",
+    "Set Cover",
     "I\xC5"
     "\xA1"
     "na\xC5"
@@ -49879,6 +49900,7 @@ const char* const STRINGS_SI[] = {
     "Always keeps WiFi on while awake.",
     "Validate Sleep Images",
     "Device Name",
+    "Set Cover",
     "Opombe",
     "Na tej strani ni opomb",
     "[povezava]",
