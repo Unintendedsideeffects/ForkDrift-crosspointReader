@@ -55,7 +55,7 @@ FEATURES = {
     'markdown': Feature(
         name='Markdown/Obsidian',
         flag='ENABLE_MARKDOWN',
-        size_kb=176,
+        size_kb=174,
         description='Markdown and Obsidian vault reading support'
     ),
     'integrations': Feature(
@@ -109,7 +109,7 @@ FEATURES = {
     'pokemon_party': Feature(
         name='Pokemon Party',
         flag='ENABLE_POKEMON_PARTY',
-        size_kb=10,
+        size_kb=18,
         description='Per-book Pokemon metadata and REST API for recent-book party views'
     ),
     'epub_support': Feature(
