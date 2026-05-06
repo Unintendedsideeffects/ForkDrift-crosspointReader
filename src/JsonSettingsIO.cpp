@@ -90,7 +90,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["opdsUsername"] = s.opdsUsername;
   doc["opdsPassword_obf"] = obfuscation::obfuscateToBase64(s.opdsPassword);
   doc["hideBatteryPercentage"] = s.hideBatteryPercentage;
-  doc["longPressChapterSkip"] = s.longPressChapterSkip;
+  doc["longPressButtonBehavior"] = s.longPressButtonBehavior;
   doc["hyphenationEnabled"] = s.hyphenationEnabled;
   doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
   doc["todoFallbackCover"] = s.todoFallbackCover;
@@ -197,7 +197,15 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.screenMargin = doc["screenMargin"] | (uint8_t)5;
   s.hideBatteryPercentage =
       clamp(doc["hideBatteryPercentage"] | (uint8_t)S::HIDE_NEVER, S::HIDE_BATTERY_PERCENTAGE_COUNT, S::HIDE_NEVER);
-  s.longPressChapterSkip = doc["longPressChapterSkip"] | (uint8_t)1;
+  if (doc["longPressButtonBehavior"].isNull()) {
+    const uint8_t oldSkip = doc["longPressChapterSkip"] | (uint8_t)1;
+    s.longPressButtonBehavior = oldSkip ? S::CHAPTER_SKIP : S::OFF;
+    if (needsResave) *needsResave = true;
+  } else {
+    s.longPressButtonBehavior = clamp(doc["longPressButtonBehavior"] | (uint8_t)S::CHAPTER_SKIP,
+                                      S::LONG_PRESS_BUTTON_BEHAVIOR_COUNT, S::CHAPTER_SKIP);
+  }
+  s.longPressChapterSkip = (s.longPressButtonBehavior == S::CHAPTER_SKIP) ? 1 : 0;
   s.hyphenationEnabled = doc["hyphenationEnabled"] | (uint8_t)0;
   s.backgroundServerOnCharge = doc["backgroundServerOnCharge"] | (uint8_t)0;
   s.todoFallbackCover = doc["todoFallbackCover"] | (uint8_t)0;

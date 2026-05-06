@@ -147,6 +147,13 @@ class CrossPointSettings {
   enum HIDE_BATTERY_PERCENTAGE { HIDE_NEVER = 0, HIDE_READER = 1, HIDE_ALWAYS = 2, HIDE_BATTERY_PERCENTAGE_COUNT };
   enum UI_THEME { CLASSIC = 0, LYRA = 1, LYRA_EXTENDED = 2, FORK_DRIFT = 3, POKEMON_PARTY = 4 };
 
+  // Page turn button long press behavior
+  enum LONG_PRESS_BUTTON_BEHAVIOR {
+    OFF = 0,
+    CHAPTER_SKIP = 1,
+    ORIENTATION_CHANGE = 2,
+    LONG_PRESS_BUTTON_BEHAVIOR_COUNT
+  };
   // Time mode options
   enum TIME_MODE { TIME_MODE_UTC = 0, TIME_MODE_LOCAL = 1, TIME_MODE_MANUAL = 2 };
 
@@ -227,11 +234,13 @@ class CrossPointSettings {
   char opdsPassword[64] = "";
   // Hide battery percentage
   uint8_t hideBatteryPercentage = HIDE_NEVER;
+  // Long-press page turn button behavior
+  uint8_t longPressButtonBehavior = CHAPTER_SKIP;
   // UI theme
   uint8_t uiTheme = FORK_DRIFT;
   // Sunlight fading compensation
   uint8_t fadingFix = 0;
-  // Long-press chapter skip on side buttons
+  // Deprecated JSON migration fallback for old boolean long-press chapter skip.
   uint8_t longPressChapterSkip = 1;
   // Use book's embedded CSS styles for EPUB rendering
   uint8_t embeddedStyle = 1;

@@ -249,7 +249,7 @@ bool CrossPointSettings::loadFromBinaryFile() {
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, hideBatteryPercentage, HIDE_BATTERY_PERCENTAGE_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
-    serialization::readPod(inputFile, longPressChapterSkip);
+    readAndValidate(inputFile, longPressButtonBehavior, LONG_PRESS_BUTTON_BEHAVIOR_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, hyphenationEnabled);
     if (++settingsRead >= fileSettingsCount) break;
@@ -424,6 +424,7 @@ void CrossPointSettings::validateAndClamp() {
   if (todoFallbackCover > 1) todoFallbackCover = 0;
   if (releaseChannel >= RELEASE_CHANNEL_COUNT) releaseChannel = RELEASE_STABLE;
   if (language >= getLanguageCount()) language = static_cast<uint8_t>(Language::EN);
+  if (longPressButtonBehavior >= LONG_PRESS_BUTTON_BEHAVIOR_COUNT) longPressButtonBehavior = CHAPTER_SKIP;
 
   if (uiTheme > POKEMON_PARTY) uiTheme = LYRA;
 #if !ENABLE_LYRA_THEME
@@ -436,7 +437,7 @@ void CrossPointSettings::validateAndClamp() {
   extraParagraphSpacing = extraParagraphSpacing ? 1 : 0;
   textAntiAliasing = textAntiAliasing ? 1 : 0;
   hyphenationEnabled = hyphenationEnabled ? 1 : 0;
-  longPressChapterSkip = longPressChapterSkip ? 1 : 0;
+  longPressChapterSkip = (longPressButtonBehavior == CHAPTER_SKIP) ? 1 : 0;
   statusBarChapterPageCount = statusBarChapterPageCount ? 1 : 0;
   statusBarBookProgressPercentage = statusBarBookProgressPercentage ? 1 : 0;
   statusBarBattery = statusBarBattery ? 1 : 0;

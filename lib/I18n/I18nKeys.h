@@ -153,7 +153,10 @@ enum class StrId : uint16_t {
   STR_SHORT_PWR_BTN,
   STR_ORIENTATION,
   STR_SIDE_BTN_LAYOUT,
-  STR_LONG_PRESS_SKIP,
+  STR_LONG_PRESS_BEHAVIOR,
+  STR_LONG_PRESS_BEHAVIOR_OFF,
+  STR_LONG_PRESS_BEHAVIOR_SKIP,
+  STR_LONG_PRESS_BEHAVIOR_ORIENTATION,
   STR_FONT_FAMILY,
   STR_FONT_SIZE,
   STR_LINE_SPACING,
@@ -518,6 +521,9 @@ static_assert(sizeof(SORTED_LANGUAGE_INDICES) / sizeof(SORTED_LANGUAGE_INDICES[0
 
 // V1 language.bin migration table (frozen enum order from 2f969a9)
 constexpr Language V1_LANGUAGES[] = {
-    Language::EN, Language::ES, Language::FRENCH, Language::DE, Language::CZECH, Language::PORTUGUESE, Language::RUSSIAN, Language::SV, Language::RO, Language::CA, Language::UK, Language::BE, Language::IT, Language::PL, Language::FI, Language::DA, Language::NL, Language::TR, Language::KK, Language::HU, Language::LT, Language::SI,
+    Language::EN,      Language::ES, Language::FRENCH, Language::DE, Language::CZECH, Language::PORTUGUESE,
+    Language::RUSSIAN, Language::SV, Language::RO,     Language::CA, Language::UK,    Language::BE,
+    Language::IT,      Language::PL, Language::FI,     Language::DA, Language::NL,    Language::TR,
+    Language::KK,      Language::HU, Language::LT,     Language::SI,
 };
 constexpr uint8_t V1_LANGUAGE_COUNT = 22;

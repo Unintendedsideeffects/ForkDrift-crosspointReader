@@ -36,7 +36,7 @@ struct PageTurnResult {
 };
 
 inline PageTurnResult detectPageTurn(MappedInputManager& input) {
-  const bool usePress = !SETTINGS.longPressChapterSkip;
+  const bool usePress = SETTINGS.longPressButtonBehavior == SETTINGS.OFF;
   const bool prev = usePress ? (input.wasPressed(MappedInputManager::Button::PageBack) ||
                                 input.wasPressed(MappedInputManager::Button::Left))
                              : (input.wasReleased(MappedInputManager::Button::PageBack) ||

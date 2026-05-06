@@ -97,7 +97,8 @@ void XtcReaderActivity::loop() {
     return;
   }
 
-  const bool skipPages = SETTINGS.longPressChapterSkip && mappedInput.getHeldTime() > ReaderUtils::SKIP_HOLD_MS;
+  const bool skipPages = SETTINGS.longPressButtonBehavior == SETTINGS.CHAPTER_SKIP &&
+                         mappedInput.getHeldTime() > ReaderUtils::SKIP_HOLD_MS;
   const int skipAmount = skipPages ? 10 : 1;
 
   if (prevTriggered) {
