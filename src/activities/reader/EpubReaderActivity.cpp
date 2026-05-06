@@ -32,7 +32,6 @@
 
 namespace {
 // pagesPerRefresh now comes from SETTINGS.getRefreshFrequency()
-constexpr unsigned long skipChapterMs = 700;
 // pages per minute, first item is 1 to prevent division by zero if accessed
 constexpr uint8_t maxPageLoadRetryCount = 1;
 constexpr uint32_t minHeapForFontPrewarm = 16000;
@@ -230,7 +229,7 @@ void EpubReaderActivity::loop() {
     return;
   }
 
-  const bool skipChapter = SETTINGS.longPressChapterSkip && mappedInput.getHeldTime() > skipChapterMs;
+  const bool skipChapter = SETTINGS.longPressChapterSkip && mappedInput.getHeldTime() > ReaderUtils::SKIP_HOLD_MS;
 
   // Don't skip chapter after screenshot
   if (gpio.peekReleased(HalGPIO::BTN_POWER) && gpio.peekReleased(HalGPIO::BTN_DOWN)) {
