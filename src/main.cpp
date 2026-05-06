@@ -428,11 +428,11 @@ void setup() {
   }
 
   SETTINGS.loadFromFile();
+  I18N.setLanguage(static_cast<Language>(SETTINGS.language));
 #if ENABLE_WIFI_CLOCK
   TimeSync::restorePersistedTime();
 #endif
   core::FeatureLifecycle::onSettingsLoaded(renderer);
-  I18N.loadSettings();
   WIFI_STORE.loadFromFile();
   KOREADER_STORE.loadFromFile();
   OPDS_STORE.loadFromFile();

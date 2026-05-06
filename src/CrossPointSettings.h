@@ -267,6 +267,8 @@ class CrossPointSettings {
   // Global status bar overlay (battery + WiFi, always visible across all screens)
   uint8_t globalStatusBar = 0;                       // 0 = disabled, 1 = enabled
   uint8_t globalStatusBarPosition = STATUS_BAR_TOP;  // 0 = top, 1 = bottom
+  // Language setting (Language enum index, default 0 = EN)
+  uint8_t language = 0;
 
   ~CrossPointSettings() = default;
 
@@ -336,7 +338,7 @@ class CrossPointSettings {
 
  private:
   bool loadFromBinaryFile();
-  uint8_t writeSettings(FsFile& file, bool count_only = false) const;
+  bool migrateLanguageBinaryFile();
 
  public:
   float getReaderLineCompression() const;
