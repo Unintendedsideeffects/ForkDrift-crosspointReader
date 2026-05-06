@@ -30,7 +30,8 @@ gcc -c "$ROOT_DIR/lib/third_party/md4c/md4c.c" -I"$ROOT_DIR/lib/third_party/md4c
 gcc -c "$ROOT_DIR/lib/third_party/md4c/entity.c" -I"$ROOT_DIR/lib/third_party/md4c" -o "$BUILD_DIR/entity.o"
 
 # Enable the web pokedex/pokemon party routes so host tests compile and exercise them.
-g++ -std=c++20 -O2 -Wno-narrowing \
+g++ -std=c++20 -O0 -g -Wno-narrowing \
+  -DCROSSPOINT_HOST_BUILD=1 \
   -fsanitize=address,undefined \
   -fno-omit-frame-pointer \
   -DENABLE_POKEMON_WALLPAPER_PLUGIN=1 \
@@ -40,6 +41,7 @@ g++ -std=c++20 -O2 -Wno-narrowing \
   -I"$ROOT_DIR/test" \
   -I"$ROOT_DIR/test/mock" \
   -I"$ROOT_DIR/lib/I18n" \
+  -I"$ROOT_DIR/lib/Logging" \
   -I"$ROOT_DIR/lib/FsHelpers" \
   -I"$ROOT_DIR/lib/Markdown" \
   -I"$ROOT_DIR/lib/third_party/md4c" \
@@ -52,8 +54,8 @@ g++ -std=c++20 -O2 -Wno-narrowing \
   "$ROOT_DIR/src/network/FileListApi.cpp" \
   "$ROOT_DIR/src/network/FileMutationApi.cpp" \
   "$ROOT_DIR/src/network/FileReadApi.cpp" \
-  "$ROOT_DIR/src/network/UploadApi.cpp" \
   "$ROOT_DIR/lib/FsHelpers/FsHelpers.cpp" \
+  "$ROOT_DIR/lib/Logging/Logging.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownPreprocessor.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownParser.cpp" \
   "$ROOT_DIR/src/core/features/FeatureCatalog.cpp" \

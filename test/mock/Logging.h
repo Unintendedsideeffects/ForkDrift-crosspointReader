@@ -14,3 +14,6 @@ inline void logPrintf(const char* level, const char* origin, const char* format,
 #define LOG_INF(origin, format, ...) logPrintf("[INF]", origin, format, ##__VA_ARGS__)
 #define LOG_WRN(origin, format, ...) logPrintf("[WRN]", origin, format, ##__VA_ARGS__)
 #define LOG_DBG(origin, format, ...) logPrintf("[DBG]", origin, format, ##__VA_ARGS__)
+
+inline bool isDeveloperModeLoggingEnabled() { return false; }
+inline void setDeveloperModeLoggingEnabled(bool enabled) { (void)enabled; }

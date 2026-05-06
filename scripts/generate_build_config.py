@@ -545,7 +545,7 @@ PROFILES = {
         },
     },
     'full': {
-        'description': 'Feature-rich build (~5.9MB, fits in flash)',
+        'description': 'Feature-rich build (strict superset of standard)',
         'features': {
             'bookerly_fonts': True,
             'notosans_fonts': True,
@@ -572,7 +572,7 @@ PROFILES = {
             'remote_keyboard_input': True,
             'dark_mode': True,
             'visual_cover_picker': True,
-            'ble_wifi_provisioning': False,  # 673 KB — available via standard profile or configurator
+            'ble_wifi_provisioning': True,
             'user_fonts': True,
             'web_wifi_setup': True,
             'usb_mass_storage': True,

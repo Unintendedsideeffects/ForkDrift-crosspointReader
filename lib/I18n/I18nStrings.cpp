@@ -1475,6 +1475,12 @@ const char* const STRINGS_EN[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_ES[] = {
@@ -2140,6 +2146,12 @@ const char* const STRINGS_ES[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_FR[] = {
@@ -3059,6 +3071,12 @@ const char* const STRINGS_FR[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_DE[] = {
@@ -3640,6 +3658,12 @@ const char* const STRINGS_DE[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_CS[] = {
@@ -5192,6 +5216,12 @@ const char* const STRINGS_CS[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_PO[] = {
@@ -5919,6 +5949,12 @@ const char* const STRINGS_PO[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_RU[] = {
@@ -13832,6 +13868,12 @@ const char* const STRINGS_RU[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_SV[] = {
@@ -14810,6 +14852,12 @@ const char* const STRINGS_SV[] = {
     " URL f\xC3"
     "\xB6"
     "r URL-fragment",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_RO[] = {
@@ -15819,6 +15867,12 @@ const char* const STRINGS_RO[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_CA[] = {
@@ -16546,6 +16600,12 @@ const char* const STRINGS_CA[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_UK[] = {
@@ -25009,6 +25069,12 @@ const char* const STRINGS_UK[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_BE[] = {
@@ -32932,6 +32998,12 @@ const char* const STRINGS_BE[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_IT[] = {
@@ -33397,6 +33469,12 @@ const char* const STRINGS_IT[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_PL[] = {
@@ -34426,6 +34504,12 @@ const char* const STRINGS_PL[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_FI[] = {
@@ -35275,6 +35359,12 @@ const char* const STRINGS_FI[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_DA[] = {
@@ -35910,6 +36000,12 @@ const char* const STRINGS_DA[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_NL[] = {
@@ -36353,6 +36449,12 @@ const char* const STRINGS_NL[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_TR[] = {
@@ -37676,6 +37778,12 @@ const char* const STRINGS_TR[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_KK[] = {
@@ -45527,6 +45635,12 @@ const char* const STRINGS_KK[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_HU[] = {
@@ -47022,6 +47136,12 @@ const char* const STRINGS_HU[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_LT[] = {
@@ -47833,6 +47953,12 @@ const char* const STRINGS_LT[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 const char* const STRINGS_SI[] = {
@@ -48454,6 +48580,12 @@ const char* const STRINGS_SI[] = {
     "Hold SELECT for UPPERCASE or secondary char",
     "Hold SELECT for lowercase or secondary char",
     "Press URL for snippets",
+    "Time",
+    "Time Mode",
+    "Network (UTC)",
+    "Network (Local)",
+    "Manual",
+    "Timezone",
 };
 
 }  // namespace i18n_strings

@@ -3568,7 +3568,7 @@
           pokemon_party: true,
           dark_mode: true,
           visual_cover_picker: true,
-          ble_wifi_provisioning: false,
+          ble_wifi_provisioning: true,
           user_fonts: true,
           web_wifi_setup: true,
           usb_mass_storage: true,
@@ -3821,22 +3821,34 @@
         return `~${sizeKb} KB`;
       }
 
+      function formatFlashTotal(sizeMb) {
+        return `${sizeMb.toFixed(2)} MB`;
+      }
+
+      function formatFlashPercentage(percentage) {
+        return `${percentage.toFixed(1)}%`;
+      }
+
+      function formatFlashFree(sizeMb) {
+        return `${sizeMb.toFixed(2)} MB free`;
+      }
+
       function updateSizeDisplay(size) {
         const percentage = (size / MAX_FLASH_MB) * 100;
         const sizeValue = document.getElementById("size-value");
         const sizeBar = document.getElementById("size-bar");
         const sizeContext = document.getElementById("size-context");
 
-        sizeValue.textContent = `${size.toFixed(1)} MB`;
+        sizeValue.textContent = formatFlashTotal(size);
         sizeBar.style.width = `${Math.min(percentage, 100)}%`;
 
         if (size > MAX_FLASH_MB) {
-          sizeContext.textContent = `${percentage.toFixed(0)}% \u2014 over capacity`;
+          sizeContext.textContent = `${formatFlashPercentage(percentage)} \u2014 over capacity`;
           sizeValue.style.color = "#111";
           sizeBar.classList.add("over");
         } else {
           const remaining = MAX_FLASH_MB - size;
-          sizeContext.textContent = `${percentage.toFixed(0)}% of 6.4 MB \u2014 ${remaining.toFixed(1)} MB free`;
+          sizeContext.textContent = `${formatFlashPercentage(percentage)} of ${MAX_FLASH_MB.toFixed(1)} MB \u2014 ${formatFlashFree(remaining)}`;
           sizeValue.style.color = "var(--blk)";
           sizeBar.classList.remove("over");
         }

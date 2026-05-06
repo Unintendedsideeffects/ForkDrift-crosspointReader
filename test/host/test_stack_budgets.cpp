@@ -47,8 +47,8 @@ TEST_CASE("network task stack budgets stay above safe minimums") {
   const StackBudgetExpectation expectations[] = {
       {"src/network/BackgroundWifiService.h", "background WiFi task stack", std::regex(R"(TASK_STACK\s*=\s*(\d+))"),
        4096},
-      {"src/network/BackgroundWebServer.cpp", "background web server NTP task stack",
-       std::regex(R"(xTaskCreate\(\s*ntpSyncTask\s*,\s*"TimeSyncTask"\s*,\s*(\d+))"), 4096},
+      {"src/util/TimeSync.cpp", "background NTP sync task stack",
+       std::regex(R"(xTaskCreate\(\s*backgroundSyncTask\s*,\s*"TimeSyncTask"\s*,\s*(\d+))"), 4096},
       {"src/network/RemoteKeyboardManager.cpp", "remote keyboard hotspot task stack",
        std::regex(R"(xTaskCreate\(\s*&RemoteKeyboardManager::hotspotTaskEntry\s*,\s*"kbhotspot"\s*,\s*(\d+))"), 6144},
   };

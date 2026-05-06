@@ -1,6 +1,12 @@
 #pragma once
 
+#ifndef CROSSPOINT_HOST_BUILD
 #include <HardwareSerial.h>
+#else
+#include <cstdarg>
+#include <cstdint>
+#include <cstdio>
+#endif
 
 #include <string>
 
@@ -27,7 +33,21 @@ won't trigger deprecation warnings.
 #define LOG_LEVEL 0
 #endif
 
+#ifndef CROSSPOINT_HOST_BUILD
 static HWCDC& logSerial = Serial;
+#else
+struct HostSerial {
+  template <typename T>
+  size_t print(T val) {
+    return printf("%s", std::to_string(val).c_str());
+  }
+  size_t print(const char* val) { return printf("%s", val); }
+  size_t print(char* val) { return printf("%s", val); }
+  void flush() {}
+  operator bool() const { return true; }
+};
+static HostSerial logSerial;
+#endif
 
 void logPrintf(const char* level, const char* origin, const char* format, ...);
 bool isDeveloperModeLoggingEnabled();
@@ -75,7 +95,7 @@ void clearLastLogs();
 // this returns true so getLastLogs() does not dump corrupt data into crash reports.
 bool sanitizeLogHead();
 
-#ifndef HOST_BUILD
+#if !defined(HOST_BUILD) && !defined(CROSSPOINT_HOST_BUILD)
 
 class MySerialImpl : public Print {
  public:
