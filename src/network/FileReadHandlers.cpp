@@ -1,8 +1,10 @@
 #include <Arduino.h>
 #include <Logging.h>
+#include <esp_task_wdt.h>
 
 #include "CrossPointSettings.h"
 #include "CrossPointWebServer.h"
+#include "SpiBusMutex.h"
 #include "network/FileReadApi.h"
 #include "util/AgentDebugLog.h"
 
