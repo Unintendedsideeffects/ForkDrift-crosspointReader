@@ -18,6 +18,7 @@
 build
 firmware.bin
 firmware-latest.bin
+firmware/
 partitions.bin
 platformio-custom.ini
 platformio.local.ini

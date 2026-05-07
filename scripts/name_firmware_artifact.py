@@ -8,6 +8,7 @@ from pathlib import Path
 
 MAX_NAMED_FIRMWARE_ARTIFACTS = 3
 LATEST_FIRMWARE_LINK = "firmware-latest.bin"
+FIRMWARE_OUTPUT_DIR = "firmware"
 
 
 def get_build_date() -> str:
@@ -34,9 +35,9 @@ def get_short_sha(project_dir: Path) -> str:
         return "0000000"
 
 
-def prune_old_named_firmware(build_dir: Path) -> None:
+def prune_old_named_firmware(output_dir: Path) -> None:
     artifacts = sorted(
-        build_dir.glob("firmware-*.bin"),
+        output_dir.glob("firmware-*.bin"),
         key=lambda path: (path.stat().st_mtime, path.name),
         reverse=True,
     )
@@ -66,16 +67,16 @@ def copy_named_firmware(target, source, env):
         return
 
     project_dir = Path(env["PROJECT_DIR"])
-    artifact_name = f"firmware-{get_build_date()}-{get_short_sha(project_dir)}.bin"
-    artifact_path = build_dir / artifact_name
+    output_dir = project_dir / FIRMWARE_OUTPUT_DIR
+    output_dir.mkdir(exist_ok=True)
 
-    if firmware_path.resolve() == artifact_path.resolve():
-        return
+    artifact_name = f"firmware-{get_build_date()}-{get_short_sha(project_dir)}.bin"
+    artifact_path = output_dir / artifact_name
 
     shutil.copy2(firmware_path, artifact_path)
     print(f">> firmware artifact: {artifact_path}")
     update_latest_firmware_link(project_dir, artifact_path)
-    prune_old_named_firmware(build_dir)
+    prune_old_named_firmware(output_dir)
 
 
 firmware_path = Path(env.subst("$BUILD_DIR")) / "firmware.bin"
