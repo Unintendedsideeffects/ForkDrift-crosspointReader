@@ -1,12 +1,12 @@
-#include "doctest/doctest.h"
 #include <cstring>
+#include <string>
+
+#include "doctest/doctest.h"
 #include "lib/Serialization/Serialization.h"
 #include "src/CrossPointSettings.h"
 #include "test/mock/HalStorage.h"
-#include <string>
 
 TEST_CASE("testSettingsRoundTrip") {
-
   // Reset in-memory filesystem between tests.
   Storage.reset();
 
@@ -45,6 +45,7 @@ TEST_CASE("testSettingsRoundTrip") {
   strncpy(s.opdsPassword, "s3cr3t!", sizeof(s.opdsPassword) - 1);
   s.hideBatteryPercentage = CrossPointSettings::HIDE_READER;
   s.uiTheme = CrossPointSettings::LYRA;
+  s.longPressButtonBehavior = CrossPointSettings::OFF;
   s.longPressChapterSkip = 0;
   s.backgroundServerOnCharge = CrossPointSettings::supportsBackgroundServerOnChargeMode() ? 1 : 0;
   s.todoFallbackCover = 1;
@@ -91,6 +92,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.opdsPassword[0] = '\0';
   s.hideBatteryPercentage = CrossPointSettings::HIDE_NEVER;
   s.uiTheme = CrossPointSettings::LYRA;
+  s.longPressButtonBehavior = CrossPointSettings::CHAPTER_SKIP;
   s.longPressChapterSkip = 1;
   s.backgroundServerOnCharge = 0;
   s.todoFallbackCover = 0;
@@ -129,6 +131,7 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(std::string(s.opdsUsername) == "testuser");
   CHECK(std::string(s.opdsPassword) == "s3cr3t!");
   CHECK(s.hideBatteryPercentage == CrossPointSettings::HIDE_READER);
+  CHECK(s.longPressButtonBehavior == CrossPointSettings::OFF);
   CHECK(s.longPressChapterSkip == 0);
   CHECK(s.backgroundServerOnCharge == (CrossPointSettings::supportsBackgroundServerOnChargeMode() ? 1 : 0));
   CHECK(s.todoFallbackCover == 1);
@@ -153,7 +156,6 @@ TEST_CASE("testSettingsRoundTrip") {
 }
 
 TEST_CASE("testBackgroundServerModeClamping") {
-
   CrossPointSettings& s = CrossPointSettings::getInstance();
 
   s.backgroundServerOnCharge = 1;
@@ -184,7 +186,6 @@ TEST_CASE("testBackgroundServerModeClamping") {
 }
 
 TEST_CASE("testSettingsTruncatedLoad") {
-
   Storage.reset();
   CrossPointSettings& s = CrossPointSettings::getInstance();
 
