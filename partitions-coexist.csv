@@ -1,0 +1,17 @@
+# Coexistence partition layout for ForkDrift ↔ TRMNL dual-boot.
+# See plan-trmnl-coexistence.md for the full rationale.
+#
+# Differences from partitions.csv:
+#   - app0/app1 shrink from 6.25 MB to 6.00 MB each (-256 KB each)
+#   - new factory partition (256 KB) holds the recovery shim
+#   - spiffs grows by 256 KB to absorb the slack
+#   - coredump unchanged
+#
+# Name,    Type, SubType,  Offset,    Size,     Flags
+nvs,       data, nvs,      0x9000,    0x5000,
+otadata,   data, ota,      0xe000,    0x2000,
+app0,      app,  ota_0,    0x10000,   0x600000,
+app1,      app,  ota_1,    0x610000,  0x600000,
+factory,   app,  factory,  0xc10000,  0x40000,
+spiffs,    data, spiffs,   0xc50000,  0x3a0000,
+coredump,  data, coredump, 0xff0000,  0x10000,

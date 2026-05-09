@@ -26,6 +26,7 @@ DYNAMIC_ENVS = {
     "default": "local_dev",
     "gh_latest": "commit_dev",
     "gh_nightly": "date",
+    "default_coexist": "local_dev",
 }
 
 env_name = env["PIOENV"]  # noqa: F821
