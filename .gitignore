@@ -23,7 +23,7 @@ partitions.bin
 platformio-custom.ini
 platformio.local.ini
 build_size_measurements.json
-/compile_commands.json
+/compile_commands*.json
 
 # Generated source and caches
 **/__pycache__/
