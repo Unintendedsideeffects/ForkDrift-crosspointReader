@@ -255,7 +255,6 @@ void BackgroundWifiService::stop(const bool keepWifi) {
   if (taskHandle != nullptr) {
     // Task didn't exit cleanly — force-delete as last resort
     LOG_ERR("BGWIFI", "Task did not exit within timeout, force-deleting");
-#if CROSSPOINT_DEBUG_MUTEX_TASKS
     // Diagnostic: force-killing a task that holds a non-recursive mutex leaves
     // FreeRTOS believing the now-dead task still owns it. The next Give from
     // any other task then trips xQueueGenericSend assert at queue.c:832.
@@ -263,7 +262,6 @@ void BackgroundWifiService::stop(const bool keepWifi) {
     if (debugPendingStateMutexHolder() == taskHandle) {
       LOG_ERR("BGWIFI", "force-delete: bgwifi task still holds pendingStateMutex");
     }
-#endif
     vTaskDelete(taskHandle);
     taskHandle = nullptr;
     connected = false;

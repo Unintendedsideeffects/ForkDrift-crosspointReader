@@ -10,6 +10,7 @@
 #include "String.h"
 
 enum HTTPMethod { HTTP_ANY, HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_DELETE };
+inline constexpr size_t CONTENT_LENGTH_UNKNOWN = static_cast<size_t>(-1);
 
 class WebServer {
  public:
@@ -99,6 +100,18 @@ class WebServer {
     }
   }
 
+  void setContentLength(const size_t length) { contentLength_ = length; }
+
+  void sendContent(const char* body) { sendContent(body, body ? std::char_traits<char>::length(body) : 0); }
+
+  void sendContent(const char* body, const size_t length) {
+    if (body != nullptr && length > 0) {
+      response_.body.write(reinterpret_cast<const uint8_t*>(body), length);
+    }
+  }
+
+  void sendContent(const String& body) { sendContent(body.c_str(), body.length()); }
+
   const Response& response() const { return response_; }
 
  private:
@@ -113,4 +126,5 @@ class WebServer {
   std::map<std::string, String> requestArgs_;
   std::vector<Route> routes_;
   Response response_;
+  size_t contentLength_ = 0;
 };
