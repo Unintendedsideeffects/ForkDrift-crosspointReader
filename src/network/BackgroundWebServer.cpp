@@ -55,7 +55,11 @@ bool BackgroundWebServer::shouldPreventAutoSleep() const {
   if (!usbConnectedCached || !allowRunCached) {
     return false;
   }
-  return state == State::SCANNING || state == State::CONNECTING || state == State::RUNNING;
+  // Only block sleep during brief transient states where interrupting would abort
+  // the operation entirely. RUNNING is intentionally excluded: the server is idle
+  // most of the time, and allowing sleep while running means the device can dim
+  // normally; a client request from the user will wake it.
+  return state == State::SCANNING || state == State::CONNECTING;
 }
 
 bool BackgroundWebServer::wantsFastLoop() const { return isRunning(); }

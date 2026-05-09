@@ -727,8 +727,11 @@ void loop() {
   }
 
   // Remote page turn: translate cross-task volatile signal into a virtual button injection.
+  // Also reset lastActivityTime here so a remote page turn prevents sleep even though
+  // the sleep check runs before injection in the same frame.
   const int8_t pageTurn = APP_STATE.takePendingPageTurn();
   if (pageTurn != 0) {
+    lastActivityTime = millis();
     mappedInputManager.injectVirtualActivation(pageTurn > 0 ? MappedInputManager::Button::PageForward
                                                             : MappedInputManager::Button::PageBack);
   }
@@ -751,6 +754,9 @@ void loop() {
   const unsigned long activityStartTime = millis();
 #endif
   activityManager.loop();
+  // Clear unconsumed virtual bits — activities that don't call wasPressed(idx) would otherwise
+  // leave bits set forever, causing wasAnyPressed() to permanently block auto-sleep.
+  gpio.drainVirtualMask();
 #if LOG_LEVEL >= 2
   const unsigned long activityDuration = millis() - activityStartTime;
 #endif

@@ -77,6 +77,11 @@ class HalGPIO {
   // Safe to call from any task; consuming the bit happens only in the main-loop task.
   void injectVirtualButton(uint8_t buttonIndex);
 
+  // Clear all pending virtual button bits. Call at the end of each main loop
+  // iteration so unconsumed bits from activities that don't handle them cannot
+  // accumulate and falsely prevent auto-sleep on subsequent frames.
+  void drainVirtualMask() { virtualButtonMask = 0; }
+
   // Setup wake up GPIO and enter deep sleep
   void startDeepSleep();
 
