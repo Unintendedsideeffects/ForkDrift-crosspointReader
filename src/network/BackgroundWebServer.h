@@ -53,6 +53,7 @@ class BackgroundWebServer {
   unsigned long allowRunStartMs = 0;
   bool credentialsLoaded = false;
   bool wifiOwned = false;
+  uint8_t scanFailureBurst = 0;
 
   std::vector<WifiCredential> credentials;
   std::string targetSsid;
@@ -68,4 +69,5 @@ class BackgroundWebServer {
   static constexpr unsigned long SESSION_MAX_MS = 20UL * 60 * 1000;
   static constexpr unsigned long MIN_FREE_HEAP_BYTES = 60000;
   static constexpr unsigned long ALLOW_RUN_GRACE_MS = 500;
+  static constexpr uint8_t SCAN_FAILURE_BURST_MAX = 4;
 };

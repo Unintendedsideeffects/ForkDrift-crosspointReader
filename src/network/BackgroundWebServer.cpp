@@ -86,6 +86,7 @@ void BackgroundWebServer::startScan() {
   stateStartMs = millis();
   targetSsid.clear();
   targetPassword.clear();
+  scanFailureBurst = 0;
 
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
@@ -331,9 +332,19 @@ void BackgroundWebServer::loop(const bool usbConnected, const bool allowRun) {
       return;
     }
     if (scanResult == WIFI_SCAN_FAILED) {
+      if (scanFailureBurst < SCAN_FAILURE_BURST_MAX) {
+        scanFailureBurst++;
+        delay(250);
+        WiFi.scanDelete();
+        WiFi.scanNetworks(true);
+        stateStartMs = millis();
+        return;
+      }
+      scanFailureBurst = 0;
       scheduleRetry("scan failed");
       return;
     }
+    scanFailureBurst = 0;
 
     std::string ssid;
     std::string password;
