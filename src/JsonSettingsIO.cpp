@@ -93,6 +93,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["longPressButtonBehavior"] = s.longPressButtonBehavior;
   doc["hyphenationEnabled"] = s.hyphenationEnabled;
   doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
+  doc["bootToTrmnlOnCharge"] = s.bootToTrmnlOnCharge;
   doc["todoFallbackCover"] = s.todoFallbackCover;
   doc["timeMode"] = s.timeMode;
   doc["timeZoneOffset"] = s.timeZoneOffset;
@@ -220,6 +221,7 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.darkMode = doc["darkMode"] | (uint8_t)0;
   s.embeddedStyle = doc["embeddedStyle"] | (uint8_t)1;
   s.usbMscPromptOnConnect = doc["usbMscPromptOnConnect"] | (uint8_t)0;
+  s.bootToTrmnlOnCharge = doc["bootToTrmnlOnCharge"] | (uint8_t)0;
   s.wifiAutoConnect = doc["wifiAutoConnect"] | (uint8_t)0;
   s.showHiddenFiles = doc["showHiddenFiles"] | (uint8_t)0;
   s.developerMode = doc["developerMode"] | (uint8_t)0;

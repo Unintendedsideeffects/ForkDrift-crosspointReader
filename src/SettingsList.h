@@ -240,6 +240,8 @@ inline std::vector<SettingInfo> getSettingsList() {
 
   if (core::FeatureModules::hasCapability(core::Capability::TrmnlSwitch)) {
     list.push_back(SettingInfo::Action(StrId::STR_SWITCH_TO_TRMNL, SettingAction::SwitchToTrmnl));
+    list.push_back(SettingInfo::Toggle(StrId::STR_BOOT_TO_TRMNL_ON_CHARGE, &CrossPointSettings::bootToTrmnlOnCharge,
+                                       "bootToTrmnlOnCharge", StrId::STR_CAT_SYSTEM));
   }
 
   if (core::FeatureModules::hasCapability(core::Capability::DarkMode)) {

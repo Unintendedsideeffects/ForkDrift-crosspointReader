@@ -253,6 +253,8 @@ class CrossPointSettings {
   uint8_t embeddedStyle = 1;
   // Persisted background server flag for charge-only and always-on modes.
   uint8_t backgroundServerOnCharge = ENABLE_BACKGROUND_SERVER_ON_CHARGE || ENABLE_BACKGROUND_SERVER_ALWAYS;
+  // Boot into the TRMNL OTA partition when the device is plugged in at startup.
+  uint8_t bootToTrmnlOnCharge = 0;
   // Deprecated: persisted for backward compat, not consumed at runtime
   uint8_t todoFallbackCover = 0;
   // Time settings

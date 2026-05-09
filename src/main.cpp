@@ -32,6 +32,7 @@
 #include "core/features/FeatureModules.h"
 #include "core/fonts/BuiltinFontRegistry.h"
 #include "features/status_overlay/Layout.h"
+#include "features/trmnl_switch/Registration.h"
 #include "fontIds.h"
 #include "network/BackgroundWebServer.h"
 #include "network/BackgroundWifiService.h"
@@ -201,10 +202,12 @@ void reconcileBackgroundWifiServer() {
   static unsigned long lastAgentReconcileLogMs = 0;
   if (millis() - lastAgentReconcileLogMs >= 3000) {
     lastAgentReconcileLogMs = millis();
-    char data[240];
+    // Keys abbreviated to fit within the 256-byte log line budget:
+    // blocked=blockedByActivity, bgWeb=bgWebRunning, bgWifi=bgWifiRunning, autoConn=autoConnectInFlight
+    char data[128];
     snprintf(data, sizeof(data),
-             "{\"enabled\":%s,\"blockedByActivity\":%s,\"staConnected\":%s,\"bgWebRunning\":%s,"
-             "\"bgWifiRunning\":%s,\"autoConnectInFlight\":%s,\"wifiStatus\":%d}",
+             "{\"enabled\":%s,\"blocked\":%s,\"staConnected\":%s,\"bgWeb\":%s,"
+             "\"bgWifi\":%s,\"autoConn\":%s,\"wifiStatus\":%d}",
              backgroundWifiEnabled ? "true" : "false", blockedByActivity ? "true" : "false",
              staConnected ? "true" : "false", backgroundServer.isRunning() ? "true" : "false",
              BG_WIFI.isRunning() ? "true" : "false", autoConnectInFlight ? "true" : "false",
@@ -483,6 +486,8 @@ void setup() {
   if (!setupDisplayAndFonts()) {
     return;
   }
+
+  features::trmnl_switch::maybeBootToTrmnl(usbConnectedAtBoot, renderer);
 
   FirmwareUpdateUtil::handleLocalUpdateBootFlow(renderer, mappedInputManager);
 
