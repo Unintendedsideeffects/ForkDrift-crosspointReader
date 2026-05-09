@@ -28,6 +28,7 @@
 #include "components/UITheme.h"
 #include "features/status_overlay/Layout.h"
 #include "fontIds.h"
+#include "network/BackgroundWifiService.h"
 #include "util/RecentBooksStore.h"
 #include "util/ScreenshotUtil.h"
 
@@ -64,6 +65,10 @@ void EpubReaderActivity::renderReaderError(StrId messageId) {
 
 void EpubReaderActivity::onEnter() {
   Activity::onEnter();
+
+  if (BG_WIFI.isRunning()) {
+    BG_WIFI.stop(true);
+  }
 
   if (!epub) {
     return;

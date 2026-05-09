@@ -24,6 +24,7 @@
 #include "core/registries/HomeActionRegistry.h"
 #include "features/status_overlay/Layout.h"
 #include "fontIds.h"
+#include "network/BackgroundWifiService.h"
 #include "util/ForkDriftNavigation.h"
 #include "util/RecentBooksStore.h"
 #include "util/StringUtils.h"
@@ -262,6 +263,10 @@ bool HomeActivity::drawCoverAt(const std::string& coverPath, const int x, const 
 
 void HomeActivity::onEnter() {
   Activity::onEnter();
+
+  if (BG_WIFI.isRunning()) {
+    BG_WIFI.stop(true);
+  }
 
   // Check if OPDS browser URL is configured
   hasOpdsUrl = strlen(SETTINGS.opdsServerUrl) > 0;

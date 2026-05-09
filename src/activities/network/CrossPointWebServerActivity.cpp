@@ -372,12 +372,11 @@ void CrossPointWebServerActivity::startWebServer() {
 }
 
 void CrossPointWebServerActivity::stopWebServer() {
-  if (webServer && webServer->isRunning()) {
+  if (webServer) {
     LOG_DBG("WEBACT", "Stopping web server...");
-    webServer->stop();
+    webServer.reset();  // destructor calls stop(); no-op if not running
     LOG_DBG("WEBACT", "Web server stopped");
   }
-  webServer.reset();
 }
 
 void CrossPointWebServerActivity::updateUploadProgress() {
