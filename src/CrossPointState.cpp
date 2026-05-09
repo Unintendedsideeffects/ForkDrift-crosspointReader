@@ -26,12 +26,25 @@ class PendingStateLock {
  public:
   PendingStateLock() : mutex_(pendingStateMutex()) {
     if (mutex_ != nullptr) {
+#if CROSSPOINT_DEBUG_MUTEX_TASKS
+      const TaskHandle_t prevHolder = xSemaphoreGetMutexHolder(mutex_);
+      const char* prevName = prevHolder ? pcTaskGetName(prevHolder) : "<none>";
+      LOG_DBG("PSL", "take by '%s' (prev holder='%s')", pcTaskGetName(nullptr), prevName);
+#endif
       xSemaphoreTake(mutex_, portMAX_DELAY);
     }
   }
 
   ~PendingStateLock() {
     if (mutex_ != nullptr) {
+#if CROSSPOINT_DEBUG_MUTEX_TASKS
+      const TaskHandle_t holder = xSemaphoreGetMutexHolder(mutex_);
+      const TaskHandle_t self = xTaskGetCurrentTaskHandle();
+      if (holder != self) {
+        LOG_ERR("PSL", "give from wrong task: self='%s' holder='%s'", pcTaskGetName(self),
+                holder ? pcTaskGetName(holder) : "<none>");
+      }
+#endif
       xSemaphoreGive(mutex_);
     }
   }
@@ -45,6 +58,15 @@ class PendingStateLock {
 }  // namespace
 
 CrossPointState CrossPointState::instance;
+
+#if CROSSPOINT_DEBUG_MUTEX_TASKS
+// Debug-only: exposed for BackgroundWifiService to check whether a task it's
+// about to vTaskDelete still holds this mutex (which would brick later Gives).
+TaskHandle_t debugPendingStateMutexHolder() {
+  SemaphoreHandle_t m = pendingStateMutex();
+  return m ? xSemaphoreGetMutexHolder(m) : nullptr;
+}
+#endif
 
 bool CrossPointState::isRecentSleep(uint16_t idx, uint8_t checkCount) const {
   const uint8_t effectiveCount = std::min(checkCount, recentSleepFill);
