@@ -141,8 +141,7 @@ void OtaUpdateActivity::onEnter() {
   workerCmd.store(OtaWorkerCmd::NONE);
   updater.setCancelFlag(&workerExitRequested);
 
-  xTaskCreate(&OtaUpdateActivity::otaWorkerTrampoline, "OtaWorkerTask",
-              4096,                 // Stack size — HTTP + JSON parsing needs headroom
+  xTaskCreate(&OtaUpdateActivity::otaWorkerTrampoline, "OtaWorkerTask", 16384,
               this,                 // Parameters
               1,                    // Priority
               &otaWorkerTaskHandle  // Task handle

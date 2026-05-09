@@ -14,6 +14,8 @@
 
 namespace {
 
+constexpr uint32_t kOtaWebCheckStackBytes = 12288;
+
 enum class OtaWebCheckState { Idle, Checking, Done };
 
 struct OtaWebCheckData {
@@ -72,7 +74,7 @@ OtaWebStartResult OtaWebCheck::start() {
   otaWebCheckData.state.store(OtaWebCheckState::Checking, std::memory_order_release);
 
   auto* updater = new OtaUpdater();
-  if (xTaskCreate(otaWebCheckTask, "OtaWebCheckTask", 4096, updater, 1, nullptr) != pdPASS) {
+  if (xTaskCreate(otaWebCheckTask, "OtaWebCheckTask", kOtaWebCheckStackBytes, updater, 1, nullptr) != pdPASS) {
     delete updater;
     otaWebCheckData.state.store(OtaWebCheckState::Idle, std::memory_order_release);
     return OtaWebStartResult::StartTaskFailed;
