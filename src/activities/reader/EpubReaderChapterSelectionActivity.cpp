@@ -7,6 +7,7 @@
 
 #include "KOReaderSyncActivity.h"
 #include "MappedInputManager.h"
+#include "ProgressMapper.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "fontIds.h"
@@ -70,16 +71,22 @@ void EpubReaderChapterSelectionActivity::onSyncPosition(int newSpineIndex, int n
 }
 
 void EpubReaderChapterSelectionActivity::launchSyncActivity() {
-  startActivityForResult(std::make_unique<KOReaderSyncActivity>(renderer, mappedInput, epub, epubPath,
-                                                                currentSpineIndex, currentPage, totalPagesInSpine),
-                         [this](const ActivityResult& result) {
-                           if (!result.isCancelled) {
-                             const auto& sync = std::get<SyncResult>(result.data);
-                             onSyncPosition(sync.spineIndex, sync.page);
-                           } else {
-                             requestUpdate();
-                           }
-                         });
+  CrossPointPosition localPos = {currentSpineIndex, currentPage, totalPagesInSpine};
+  KOReaderPosition localKoPos = ProgressMapper::toKOReader(epub, localPos);
+  const int tocIdx = epub->getTocIndexForSpineIndex(currentSpineIndex);
+  std::string localChapterName = (tocIdx >= 0) ? epub->getTocItem(tocIdx).title : "";
+
+  startActivityForResult(
+      std::make_unique<KOReaderSyncActivity>(renderer, mappedInput, epubPath, currentSpineIndex, currentPage,
+                                             totalPagesInSpine, std::move(localKoPos), std::move(localChapterName)),
+      [this](const ActivityResult& result) {
+        if (!result.isCancelled) {
+          const auto& sync = std::get<SyncResult>(result.data);
+          onSyncPosition(sync.spineIndex, sync.page);
+        } else {
+          requestUpdate();
+        }
+      });
 }
 
 void EpubReaderChapterSelectionActivity::loop() {

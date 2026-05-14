@@ -483,6 +483,19 @@ void CrossPointSettings::validateAndClamp() {
 }
 
 float CrossPointSettings::getReaderLineCompression() const {
+  // SD card fonts use same compression as Bookerly (the most neutral values)
+  if (sdFontFamilyName[0] != '\0') {
+    switch (lineSpacing) {
+      case TIGHT:
+        return 0.95f;
+      case NORMAL:
+      default:
+        return 1.0f;
+      case WIDE:
+        return 1.1f;
+    }
+  }
+
   switch (fontFamily) {
     case BOOKERLY:
     default:
@@ -569,6 +582,11 @@ int CrossPointSettings::getReaderFontId() const {
 #if !ENABLE_EXTENDED_FONTS
   return NOTOSERIF_14_FONT_ID;
 #else
+  if (sdFontFamilyName[0] != '\0' && sdFontIdResolver) {
+    const int id = sdFontIdResolver(sdFontResolverCtx, sdFontFamilyName, fontSize);
+    if (id != 0) return id;
+  }
+
   uint8_t effectiveFamily = fontFamily;
 #if !ENABLE_OPENDYSLEXIC_FONTS
   if (effectiveFamily == OPENDYSLEXIC) effectiveFamily = NOTOSANS;
@@ -587,7 +605,6 @@ int CrossPointSettings::getReaderFontId() const {
 #else
       return NOTOSERIF_14_FONT_ID;
 #endif
-    case BOOKERLY:
     default:
 #if ENABLE_BOOKERLY_FONTS
       switch (fontSize) {

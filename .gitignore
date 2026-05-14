@@ -38,3 +38,8 @@ lib/EpdFont/fontsrc
 # Crash dumps
 core.*
 *.core
+*.local*
+*.cpfont
+lib/EpdFont/scripts/downloaded_fonts/
+lib/EpdFont/scripts/instanced_fonts/
+lib/EpdFont/scripts/output/

@@ -2,10 +2,9 @@
 #include <functional>
 #include <vector>
 
-#include "../Activity.h"
-#include "./MyLibraryActivity.h"
-#include "util/RecentBooksStore.h"
+#include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
+#include "util/RecentBooksStore.h"
 
 struct Rect;
 
@@ -53,7 +52,7 @@ class HomeActivity final : public Activity {
   void onTodoOpen();
   void onAnkiOpen();
 
-  void freeCoverBuffer();         // Free the stored cover buffer
+  void freeCoverBuffer();          // Free the stored cover buffer
   bool isCoverCacheValid() const;  // True if static cover buffer matches current recent books
 
  protected:

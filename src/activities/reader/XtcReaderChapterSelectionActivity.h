@@ -3,7 +3,8 @@
 
 #include <memory>
 
-#include "../Activity.h"
+#include "activities/Activity.h"
+#include "util/ButtonNavigator.h"
 
 class XtcReaderChapterSelectionActivity final : public Activity {
   std::shared_ptr<Xtc> xtc;

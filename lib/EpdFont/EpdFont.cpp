@@ -213,26 +213,30 @@ uint32_t EpdFont::applyLigatures(uint32_t cp, const char*& text) const {
 const EpdGlyph* EpdFont::getGlyph(const uint32_t cp) const {
   const EpdUnicodeInterval* intervals = data->intervals;
   const int count = data->intervalCount;
+  if (count == 0 && !data->glyphMissHandler) return nullptr;
 
-  if (count == 0) return nullptr;
+  if (count > 0) {
+    const EpdUnicodeInterval* intervals = data->intervals;
+    const auto* end = intervals + count;
 
-  // Binary search for O(log n) lookup instead of O(n)
-  // Critical for Korean fonts with many unicode intervals
-  int left = 0;
-  int right = count - 1;
+    // upper_bound: range lookup. Finds the first interval with first > cp, so the
+    // interval just before it is the last one with first <= cp. That's the only
+    // candidate that could contain cp. Then we verify cp <= candidate.last.
+    const auto it = std::upper_bound(
+        intervals, end, cp, [](uint32_t value, const EpdUnicodeInterval& interval) { return value < interval.first; });
 
-  while (left <= right) {
-    const int mid = left + (right - left) / 2;
-    const EpdUnicodeInterval* interval = &intervals[mid];
-
-    if (cp < interval->first) {
-      right = mid - 1;
-    } else if (cp > interval->last) {
-      left = mid + 1;
-    } else {
-      // Found: cp >= interval->first && cp <= interval->last
-      return &data->glyph[interval->offset + (cp - interval->first)];
+    if (it != intervals) {
+      const auto& interval = *(it - 1);
+      if (cp <= interval.last) {
+        return &data->glyph[interval.offset + (cp - interval.first)];
+      }
     }
+  }
+
+  // Codepoint not in interval table — try on-demand loading (SD card fonts).
+  if (data->glyphMissHandler) {
+    const EpdGlyph* loaded = data->glyphMissHandler(data->glyphMissCtx, cp);
+    if (loaded) return loaded;
   }
   if (cp != REPLACEMENT_GLYPH) {
     return getGlyph(REPLACEMENT_GLYPH);

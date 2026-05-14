@@ -26,7 +26,8 @@ class EpubReaderActivity final : public Activity {
   bool pendingPercentJump = false;
   float pendingSpineProgress = 0.0f;
   bool pendingScreenshot = false;
-  bool skipNextButtonCheck = false;
+  bool pendingSyncSaveError = false;
+  bool skipNextButtonCheck = false;  // Skip button processing for one frame after subactivity exit
   bool automaticPageTurnActive = false;
   int pageLoadRetrySpineIndex = -1;
   uint8_t pageLoadRetryCount = 0;
@@ -47,7 +48,8 @@ class EpubReaderActivity final : public Activity {
                       int orientedMarginBottom, int orientedMarginLeft);
   void renderStatusBar() const;
   void silentIndexNextChapterIfNeeded(uint16_t viewportWidth, uint16_t viewportHeight);
-  void saveProgress(int spineIndex, int currentPage, int pageCount);
+  bool saveProgress(int spineIndex, int currentPage, int pageCount);
+  // Jump to a percentage of the book (0-100), mapping it to spine and page.
   void jumpToPercent(int percent);
   void onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction action);
   void applyOrientation(uint8_t orientation);

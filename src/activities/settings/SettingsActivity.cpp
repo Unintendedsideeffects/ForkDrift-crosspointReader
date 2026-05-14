@@ -10,11 +10,14 @@
 #include "ClearCacheActivity.h"
 #include "CrossPointSettings.h"
 #include "FactoryResetActivity.h"
+#include "FontDownloadActivity.h"
+#include "FontSelectionActivity.h"
 #include "KOReaderSettingsActivity.h"
 #include "LanguageSelectActivity.h"
 #include "MappedInputManager.h"
 #include "OpdsServerListActivity.h"
 #include "OtaUpdateActivity.h"
+#include "SdCardFontSystem.h"
 #include "SdFirmwareUpdateActivity.h"
 #include "SettingsList.h"
 #include "StatusBarSettingsActivity.h"
@@ -33,16 +36,17 @@ constexpr char kBackgroundServerModeKey[] = "backgroundServerMode";
 const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_READER,
                                                               StrId::STR_CAT_CONTROLS, StrId::STR_CAT_SYSTEM};
 
-void SettingsActivity::onEnter() {
-  Activity::onEnter();
-
-  // Build per-category vectors from the shared settings list
+void SettingsActivity::rebuildSettingsLists() {
   displaySettings.clear();
   readerSettings.clear();
   controlsSettings.clear();
   systemSettings.clear();
 
-  for (const auto& setting : getSettingsList()) {
+  // Pick up any fonts uploaded/deleted over the web server since the last
+  // reader activity ran — otherwise the font-family picker shows stale list.
+  sdFontSystem.refreshIfDirty();
+
+  for (auto& setting : getSettingsList(&sdFontSystem.registry())) {
     if (setting.category == StrId::STR_NONE_OPT) continue;
     if (setting.category == StrId::STR_CAT_DISPLAY) {
       displaySettings.push_back(setting);
@@ -53,7 +57,6 @@ void SettingsActivity::onEnter() {
     } else if (setting.category == StrId::STR_CAT_SYSTEM) {
       systemSettings.push_back(setting);
     }
-    // Web-only categories (KOReader Sync, OPDS Browser) are skipped for device UI
   }
 
   // Append device-only ACTION items
@@ -71,15 +74,38 @@ void SettingsActivity::onEnter() {
   if (core::FeatureModules::supportsSettingAction(SettingAction::Language)) {
     systemSettings.push_back(SettingInfo::Action(StrId::STR_LANGUAGE, SettingAction::Language));
   }
+  if (!readerSettings.empty()) {
+    readerSettings.insert(readerSettings.begin() + 1,
+                          SettingInfo::Action(StrId::STR_MANAGE_FONTS, SettingAction::DownloadFonts));
+  }
   readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
+
+  // Update currentSettings pointer and count for the active category
+  switch (selectedCategoryIndex) {
+    case 0:
+      currentSettings = &displaySettings;
+      break;
+    case 1:
+      currentSettings = &readerSettings;
+      break;
+    case 2:
+      currentSettings = &controlsSettings;
+      break;
+    case 3:
+      currentSettings = &systemSettings;
+      break;
+  }
+  settingsCount = static_cast<int>(currentSettings->size());
+}
+
+void SettingsActivity::onEnter() {
+  Activity::onEnter();
 
   // Reset selection to first category
   selectedCategoryIndex = 0;
   selectedSettingIndex = 0;
 
-  // Initialize with first category (Display)
-  currentSettings = &displaySettings;
-  settingsCount = static_cast<int>(displaySettings.size());
+  rebuildSettingsLists();
 
   // Trigger first update
   requestUpdate();
@@ -224,8 +250,21 @@ void SettingsActivity::toggleCurrentSetting() {
     const bool currentValue = SETTINGS.*(setting.valuePtr);
     SETTINGS.*(setting.valuePtr) = !currentValue;
   } else if (setting.type == SettingType::ENUM) {
+    if (setting.nameId == StrId::STR_FONT_FAMILY) {
+      startActivityForResult(std::make_unique<FontSelectionActivity>(renderer, mappedInput, &sdFontSystem.registry()),
+                             [this](const ActivityResult&) {
+                               core::FeatureModules::onFontFamilySettingChanged(SETTINGS.fontFamily);
+                               SETTINGS.saveToFile();
+                               rebuildSettingsLists();
+                               requestUpdate();
+                             });
+      return;
+    }
+
     std::vector<std::string> values;
-    if (setting.dynamicValuesGetter) {
+    if (!setting.enumStringValues.empty()) {
+      values = setting.enumStringValues;
+    } else if (setting.dynamicValuesGetter) {
       values = setting.dynamicValuesGetter();
     } else {
       values.reserve(setting.enumValues.size());
@@ -342,6 +381,13 @@ void SettingsActivity::toggleCurrentSetting() {
       case SettingAction::SdFirmwareUpdate:
         startActivityForResult(std::make_unique<SdFirmwareUpdateActivity>(renderer, mappedInput), resultHandler);
         break;
+      case SettingAction::DownloadFonts:
+        startActivityForResult(std::make_unique<FontDownloadActivity>(renderer, mappedInput),
+                               [this](const ActivityResult&) {
+                                 SETTINGS.saveToFile();
+                                 rebuildSettingsLists();
+                               });
+        break;
       case SettingAction::Language:
         startActivityForResult(std::make_unique<LanguageSelectActivity>(renderer, mappedInput), resultHandler);
         break;
@@ -420,7 +466,10 @@ void SettingsActivity::render(RenderLock&&) {
           }
 
           if (hasValue) {
-            if (setting.dynamicValuesGetter) {
+            if (!setting.enumStringValues.empty()) {
+              const size_t valueIndex = std::min(static_cast<size_t>(value), setting.enumStringValues.size() - 1);
+              valueText = setting.enumStringValues[valueIndex];
+            } else if (setting.dynamicValuesGetter) {
               const auto dynamicValues = setting.dynamicValuesGetter();
               if (!dynamicValues.empty()) {
                 const size_t valueIndex = std::min(static_cast<size_t>(value), dynamicValues.size() - 1);

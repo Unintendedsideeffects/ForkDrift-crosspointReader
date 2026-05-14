@@ -21,6 +21,7 @@
 #include "KOReaderCredentialStore.h"
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
+#include "SdCardFontSystem.h"
 #include "UsbSerialProtocol.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
@@ -52,7 +53,8 @@ GfxRenderer renderer(display);
 ActivityManager activityManager(renderer, mappedInputManager);
 BackgroundWebServer& backgroundServer = BackgroundWebServer::getInstance();
 FontDecompressor fontDecompressor;
-FontCacheManager fontCacheManager(renderer.getFontMap());
+SdCardFontSystem sdFontSystem;
+FontCacheManager fontCacheManager(renderer.getFontMap(), renderer.getSdCardFonts());
 
 // measurement of power button press duration calibration value
 unsigned long t1 = 0;
@@ -382,6 +384,7 @@ bool setupDisplayAndFonts() {
 
   core::FeatureLifecycle::onFontSetup(renderer);
   displayAndFontsReady = true;
+  sdFontSystem.begin(renderer);
   LOG_DBG("MAIN", "Fonts setup");
   return true;
 }
@@ -562,6 +565,7 @@ void loop() {
   static unsigned long lastMemPrint = 0;
   static unsigned long lastActivityTime = millis();
   static bool screenshotButtonsReleased = true;
+  static bool screenshotComboActive = false;
 
   if (safeModeActive) {
     gpio.update();
@@ -685,24 +689,29 @@ void loop() {
     powerManager.setPowerSaving(false);
   }
 
-  const bool screenshotChordPressed = gpio.isPressed(HalGPIO::BTN_POWER) && gpio.isPressed(HalGPIO::BTN_DOWN);
-  if (screenshotChordPressed) {
+  if (gpio.isPressed(HalGPIO::BTN_POWER) && gpio.isPressed(HalGPIO::BTN_DOWN)) {
+    screenshotComboActive = true;
     if (screenshotButtonsReleased) {
       screenshotButtonsReleased = false;
       APP_STATE.pendingScreenshot = true;
     }
-  } else {
+    return;
+  }
+  if (screenshotComboActive) {
+    if (gpio.isPressed(HalGPIO::BTN_POWER)) return;
+    if (gpio.wasReleased(HalGPIO::BTN_POWER)) {
+      screenshotButtonsReleased = true;
+      screenshotComboActive = false;
+      return;
+    }
     screenshotButtonsReleased = true;
+    screenshotComboActive = false;
   }
 
   if (APP_STATE.pendingScreenshot) {
     APP_STATE.pendingScreenshot = false;
     RenderLock lock;
     ScreenshotUtil::takeScreenshot(renderer);
-  }
-
-  if (screenshotChordPressed) {
-    return;
   }
 
   const unsigned long sleepTimeoutMs = SETTINGS.getSleepTimeoutMs();

@@ -5,7 +5,7 @@
 #include <MD5Builder.h>
 #include <Serialization.h>
 
-#include "../../src/JsonSettingsIO.h"
+#include "KOReaderJsonIO.h"
 
 // Initialize the static instance
 KOReaderCredentialStore KOReaderCredentialStore::instance;
@@ -35,7 +35,7 @@ void legacyDeobfuscate(std::string& data) {
 
 bool KOReaderCredentialStore::saveToFile() const {
   Storage.mkdir("/.crosspoint");
-  return JsonSettingsIO::saveKOReader(*this, KOREADER_FILE_JSON);
+  return KOReaderJsonIO::save(*this, KOREADER_FILE_JSON);
 }
 
 bool KOReaderCredentialStore::loadFromFile() {
@@ -44,7 +44,7 @@ bool KOReaderCredentialStore::loadFromFile() {
     String json = Storage.readFile(KOREADER_FILE_JSON);
     if (!json.isEmpty()) {
       bool resave = false;
-      bool result = JsonSettingsIO::loadKOReader(*this, json.c_str(), &resave);
+      bool result = KOReaderJsonIO::load(*this, json.c_str(), &resave);
       if (result && resave) {
         if (saveToFile()) {
           LOG_DBG("KRS", "Resaved KOReader credentials to update format");

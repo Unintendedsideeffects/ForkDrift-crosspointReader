@@ -6,8 +6,8 @@
 #include <Logging.h>
 #include <Serialization.h>
 
-#include "../converters/DirectPixelWriter.h"
-#include "../converters/ImageDecoderFactory.h"
+#include "Epub/converters/DirectPixelWriter.h"
+#include "Epub/converters/ImageDecoderFactory.h"
 #include "SpiBusMutex.h"
 
 // Cache file format:

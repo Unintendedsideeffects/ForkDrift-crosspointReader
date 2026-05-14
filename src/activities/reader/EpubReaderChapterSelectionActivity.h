@@ -3,8 +3,8 @@
 
 #include <memory>
 
-#include "../Activity.h"
 #include "../ActivityResult.h"
+#include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
 
 class EpubReaderChapterSelectionActivity final : public Activity {

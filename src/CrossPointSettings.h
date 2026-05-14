@@ -71,6 +71,12 @@ class CrossPointSettings {
     STATUS_BAR_PROGRESS_BAR_THICKNESS_COUNT
   };
   enum STATUS_BAR_TITLE { BOOK_TITLE = 0, CHAPTER_TITLE = 1, HIDE_TITLE = 2, STATUS_BAR_TITLE_COUNT };
+  enum XTC_STATUS_BAR_MODE {
+    XTC_STATUS_BAR_HIDE = 0,
+    XTC_STATUS_BAR_BOTTOM = 1,
+    XTC_STATUS_BAR_TOP = 2,
+    XTC_STATUS_BAR_MODE_COUNT
+  };
 
   enum ORIENTATION {
     PORTRAIT = 0,       // 480x800 logical coordinates (current default)
@@ -106,8 +112,10 @@ class CrossPointSettings {
   // Swapped: Next, Previous
   enum SIDE_BUTTON_LAYOUT { PREV_NEXT = 0, NEXT_PREV = 1, SIDE_BUTTON_LAYOUT_COUNT };
 
-  // Font family options
+  // Font family options (built-in fonts plus fork/user-managed external fonts).
+  // sdFontFamilyName selects an SD-card family when non-empty.
   enum FONT_FAMILY { BOOKERLY = 0, NOTOSERIF = 0, NOTOSANS = 1, OPENDYSLEXIC = 2, USER_SD = 3, FONT_FAMILY_COUNT };
+  static constexpr uint8_t BUILTIN_FONT_COUNT = USER_SD;
   // Font size options
   enum FONT_SIZE { SMALL = 0, MEDIUM = 1, LARGE = 2, EXTRA_LARGE = 3, FONT_SIZE_COUNT };
   enum LINE_COMPRESSION { TIGHT = 0, NORMAL = 1, WIDE = 2, LINE_COMPRESSION_COUNT };
@@ -205,6 +213,7 @@ class CrossPointSettings {
   uint8_t statusBarProgressBarThickness = PROGRESS_BAR_NORMAL;
   uint8_t statusBarTitle = CHAPTER_TITLE;
   uint8_t statusBarBattery = 1;
+  uint8_t xtcStatusBarMode = XTC_STATUS_BAR_HIDE;
   // Text rendering settings
   uint8_t extraParagraphSpacing = 1;
   uint8_t textAntiAliasing = 1;
@@ -274,6 +283,10 @@ class CrossPointSettings {
   char deviceName[32] = "";
   // Persisted background server flag for always-on mode while the device is awake.
   uint8_t wifiAutoConnect = ENABLE_BACKGROUND_SERVER_ALWAYS;
+  // Focus Reading - emphasizes the first part of words with bold
+  uint8_t focusReadingEnabled = 0;
+  // SD card font family name (empty = use built-in fontFamily)
+  char sdFontFamilyName[32] = "";
   // Show hidden files/directories (starting with '.') in the file browser (0 = hidden, 1 = show)
   uint8_t showHiddenFiles = 0;
   // Mirror firmware logs to /crosspoint-debug.log on the SD card.
@@ -336,6 +349,12 @@ class CrossPointSettings {
   }
 
   bool keepsBackgroundServerOnWifiWhileAwake() const { return getBackgroundServerMode() == BACKGROUND_SERVER_ALWAYS; }
+
+  // Callback to resolve SD card font IDs. Set by SdCardFontSystem::begin().
+  // Returns font ID or 0 if not found.
+  using SdFontIdResolver = int (*)(void* ctx, const char* familyName, uint8_t fontSize);
+  SdFontIdResolver sdFontIdResolver = nullptr;
+  void* sdFontResolverCtx = nullptr;
 
   uint16_t getPowerButtonDuration() const {
     // Dual-side front layout uses short power taps for Confirm/Back.

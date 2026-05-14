@@ -11,7 +11,6 @@
 #include "CrossPointState.h"
 #include "I18n.h"
 #include "I18nKeys.h"
-#include "KOReaderCredentialStore.h"
 #include "OpdsServerStore.h"
 #include "util/RecentBooksStore.h"
 #include "util/WifiCredentialStore.h"
@@ -80,6 +79,9 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["frontButtonLeft"] = s.frontButtonLeft;
   doc["frontButtonRight"] = s.frontButtonRight;
   doc["fontFamily"] = s.fontFamily;
+  if (s.sdFontFamilyName[0] != '\0') {
+    doc["sdFontFamilyName"] = s.sdFontFamilyName;
+  }
   doc["fontSize"] = s.fontSize;
   doc["lineSpacing"] = s.lineSpacing;
   doc["paragraphAlignment"] = s.paragraphAlignment;
@@ -102,6 +104,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["fadingFix"] = s.fadingFix;
   doc["darkMode"] = s.darkMode;
   doc["embeddedStyle"] = s.embeddedStyle;
+  doc["focusReadingEnabled"] = s.focusReadingEnabled;
   doc["usbMscPromptOnConnect"] = s.usbMscPromptOnConnect;
   doc["userFontPath"] = s.userFontPath;
   doc["selectedOtaBundle"] = s.selectedOtaBundle;
@@ -112,6 +115,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["showHiddenFiles"] = s.showHiddenFiles;
   doc["developerMode"] = s.developerMode;
   doc["imageRendering"] = s.imageRendering;
+  doc["xtcStatusBarMode"] = s.xtcStatusBarMode;
   doc["globalStatusBar"] = s.globalStatusBar;
   doc["globalStatusBarPosition"] = s.globalStatusBarPosition;
 
@@ -207,6 +211,7 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   }
   s.longPressChapterSkip = (s.longPressButtonBehavior == S::CHAPTER_SKIP) ? 1 : 0;
   s.hyphenationEnabled = doc["hyphenationEnabled"] | (uint8_t)0;
+  s.focusReadingEnabled = doc["focusReadingEnabled"] | (uint8_t)0;
   s.backgroundServerOnCharge = doc["backgroundServerOnCharge"] | (uint8_t)0;
   s.todoFallbackCover = doc["todoFallbackCover"] | (uint8_t)0;
   s.timeMode = clamp(doc["timeMode"] | (uint8_t)S::TIME_MODE_UTC, static_cast<uint8_t>(S::TIME_MODE_MANUAL + 1),
@@ -225,6 +230,8 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.developerMode = doc["developerMode"] | (uint8_t)0;
   s.imageRendering =
       clamp(doc["imageRendering"] | (uint8_t)S::IMAGES_DISPLAY, S::IMAGE_RENDERING_COUNT, S::IMAGES_DISPLAY);
+  s.xtcStatusBarMode = clamp(doc["xtcStatusBarMode"] | (uint8_t)S::XTC_STATUS_BAR_HIDE, S::XTC_STATUS_BAR_MODE_COUNT,
+                             S::XTC_STATUS_BAR_HIDE);
   s.globalStatusBar = clamp(doc["globalStatusBar"] | (uint8_t)S::GLOBAL_STATUS_BAR_OFF, S::GLOBAL_STATUS_BAR_MODE_COUNT,
                             S::GLOBAL_STATUS_BAR_OFF);
   s.globalStatusBarPosition = clamp(doc["globalStatusBarPosition"] | (uint8_t)S::STATUS_BAR_TOP,
@@ -267,50 +274,19 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   strncpy(s.deviceName, deviceName, sizeof(s.deviceName) - 1);
   s.deviceName[sizeof(s.deviceName) - 1] = '\0';
 
+  // Font family — uses dynamic getter/setter in SettingsList so the generic loop skips it.
+  s.fontFamily = clamp(doc["fontFamily"] | (uint8_t)0, CrossPointSettings::BUILTIN_FONT_COUNT, 0);
+  // SD card font family name — not in SettingsList, load manually
+  const char* sfn = doc["sdFontFamilyName"] | "";
+  strncpy(s.sdFontFamilyName, sfn, sizeof(s.sdFontFamilyName) - 1);
+  s.sdFontFamilyName[sizeof(s.sdFontFamilyName) - 1] = '\0';
+
   // Language -- stored as code string for stability across enum reorders.
   if (doc["language"].is<const char*>()) {
     s.language = static_cast<uint8_t>(I18n::languageFromCode(doc["language"].as<const char*>()));
   }
 
   LOG_DBG("CPS", "Settings loaded from file");
-  return true;
-}
-
-// ---- KOReaderCredentialStore ----
-
-bool JsonSettingsIO::saveKOReader(const KOReaderCredentialStore& store, const char* path) {
-  JsonDocument doc;
-  doc["username"] = store.getUsername();
-  doc["password_obf"] = obfuscation::obfuscateToBase64(store.getPassword());
-  doc["serverUrl"] = store.getServerUrl();
-  doc["matchMethod"] = static_cast<uint8_t>(store.getMatchMethod());
-
-  String json;
-  serializeJson(doc, json);
-  return Storage.writeFile(path, json);
-}
-
-bool JsonSettingsIO::loadKOReader(KOReaderCredentialStore& store, const char* json, bool* needsResave) {
-  if (needsResave) *needsResave = false;
-  JsonDocument doc;
-  auto error = deserializeJson(doc, json);
-  if (error) {
-    LOG_ERR("KRS", "JSON parse error: %s", error.c_str());
-    return false;
-  }
-
-  store.username = doc["username"] | std::string("");
-  bool ok = false;
-  store.password = obfuscation::deobfuscateFromBase64(doc["password_obf"] | "", &ok);
-  if (!ok || store.password.empty()) {
-    store.password = doc["password"] | std::string("");
-    if (!store.password.empty() && needsResave) *needsResave = true;
-  }
-  store.serverUrl = doc["serverUrl"] | std::string("");
-  uint8_t method = doc["matchMethod"] | (uint8_t)0;
-  store.matchMethod = static_cast<DocumentMatchMethod>(method);
-
-  LOG_DBG("KRS", "Loaded KOReader credentials for user: %s", store.username.c_str());
   return true;
 }
 

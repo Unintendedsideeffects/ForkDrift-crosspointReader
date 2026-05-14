@@ -4,10 +4,10 @@
 #include <string>
 #include <vector>
 
-#include "../Activity.h"
-#include "util/RecentBooksStore.h"
+#include "activities/Activity.h"
 #include "util/BookProgressDataStore.h"
 #include "util/ButtonNavigator.h"
+#include "util/RecentBooksStore.h"
 
 class RecentBooksActivity final : public Activity {
  private:

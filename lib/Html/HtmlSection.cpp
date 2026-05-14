@@ -192,12 +192,11 @@ bool HtmlSection::createSectionFile(int fontId, float lineCompression, bool extr
 
   ChapterHtmlSlimParser visitor(
       nullptr, htmlPath, renderer, fontId, lineCompression, extraParagraphSpacing, paragraphAlignment, viewportWidth,
-      viewportHeight, hyphenationEnabled,
-      [this, &lut](std::unique_ptr<Page> page, uint16_t /*paragraphIndex*/) {
+      viewportHeight, hyphenationEnabled, false,
+      [this, &lut](std::unique_ptr<Page> page, uint16_t /*paragraphIndex*/, uint16_t /*liIndex*/) {
         lut.emplace_back(this->onPageComplete(std::move(page)));
       },
-      false,
-      contentBasePath, cachePath + "/img_");
+      false, contentBasePath, cachePath + "/img_");
 
   bool success = visitor.parseAndBuildPages();
   if (!success) {

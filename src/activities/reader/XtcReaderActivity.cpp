@@ -12,6 +12,8 @@
 #include <HalStorage.h>
 #include <Logging.h>
 
+#include <algorithm>
+
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
@@ -289,8 +291,6 @@ void XtcReaderActivity::renderPage() {
     }
   }
   // White pixels are already cleared by clearScreen()
-
-  // XTC pages already have status bar pre-rendered, no need to add our own
 
   ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
 

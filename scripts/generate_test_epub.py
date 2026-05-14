@@ -10,8 +10,14 @@ Creates EPUBs with annotated JPEG and PNG images to verify:
 - Page serialization
 """
 
+import os
+import sys
 import zipfile
 from pathlib import Path
+
+if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
+    print(__doc__.strip())
+    sys.exit(0)
 
 try:
     from PIL import Image, ImageDraw, ImageFont

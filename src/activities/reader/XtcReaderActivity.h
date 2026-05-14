@@ -13,6 +13,8 @@
 #include <freertos/task.h>
 
 #include <atomic>
+#include <string>
+#include <utility>
 
 #include "activities/Activity.h"
 
