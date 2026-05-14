@@ -245,23 +245,26 @@ void BackgroundWifiService::stop(const bool keepWifi) {
   keepWifiOnStop = keepWifi;
   stopRequested = true;
 
-  // Wait for the task to exit (max 3 seconds)
-  constexpr unsigned long STOP_TIMEOUT_MS = 3000;
+  // Wait for the task to exit. The bg loop checks stopRequested between
+  // handleClient() iterations, so the only way to exceed this is a single
+  // request handler blocking for >STOP_TIMEOUT_MS (e.g. a large upload).
+  // 30 s is enough for normal upload completion; force-delete below is a
+  // last resort that orphans pendingStateMutex and bricks subsequent Gives.
+  constexpr unsigned long STOP_TIMEOUT_MS = 30000;
   const unsigned long deadline = millis() + STOP_TIMEOUT_MS;
   while (taskHandle != nullptr && millis() < deadline) {
     delay(10);
   }
 
   if (taskHandle != nullptr) {
-    // Task didn't exit cleanly — force-delete as last resort
-    LOG_ERR("BGWIFI", "Task did not exit within timeout, force-deleting");
-    // Diagnostic: force-killing a task that holds a non-recursive mutex leaves
+    // Task didn't exit cleanly — force-delete as last resort.
+    // WARNING: force-killing a task that holds a non-recursive mutex leaves
     // FreeRTOS believing the now-dead task still owns it. The next Give from
     // any other task then trips xQueueGenericSend assert at queue.c:832.
     extern TaskHandle_t debugPendingStateMutexHolder();
-    if (debugPendingStateMutexHolder() == taskHandle) {
-      LOG_ERR("BGWIFI", "force-delete: bgwifi task still holds pendingStateMutex");
-    }
+    const bool heldMutex = (debugPendingStateMutexHolder() == taskHandle);
+    LOG_ERR("BGWIFI", "Task did not exit within %lu ms, force-deleting (held pendingStateMutex=%d)", STOP_TIMEOUT_MS,
+            heldMutex ? 1 : 0);
     vTaskDelete(taskHandle);
     taskHandle = nullptr;
     connected = false;

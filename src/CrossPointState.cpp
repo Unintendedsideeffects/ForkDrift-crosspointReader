@@ -27,32 +27,33 @@ class PendingStateLock {
   PendingStateLock() : mutex_(pendingStateMutex()) {
     if (mutex_ != nullptr) {
       const TaskHandle_t prevHolder = xSemaphoreGetMutexHolder(mutex_);
-      LOG_DBG("PSL", "take by '%s' (prev holder='%s')", pcTaskGetName(nullptr),
-              prevHolder ? pcTaskGetName(prevHolder) : "<none>");
-      xSemaphoreTake(mutex_, portMAX_DELAY);
+      if (prevHolder != nullptr) {
+        LOG_DBG("PSL", "take by '%s' (prev holder='%s')", pcTaskGetName(nullptr), pcTaskGetName(prevHolder));
+      }
+      held_ = (xSemaphoreTake(mutex_, portMAX_DELAY) == pdTRUE);
     }
   }
 
   ~PendingStateLock() {
-    if (mutex_ != nullptr) {
-      const TaskHandle_t holder = xSemaphoreGetMutexHolder(mutex_);
-      const TaskHandle_t self = xTaskGetCurrentTaskHandle();
-      // Permanent canary: this is exactly the precondition that trips the
-      // FreeRTOS xQueueGenericSend assert at queue.c:832. Catching it here
-      // emits a clean error line before the panic and survives in release.
-      if (holder != self) {
-        LOG_ERR("PSL", "give from wrong task: self='%s' holder='%s'", pcTaskGetName(self),
-                holder ? pcTaskGetName(holder) : "<none>");
-      }
-      xSemaphoreGive(mutex_);
+    if (mutex_ == nullptr || !held_) {
+      return;
     }
+    const TaskHandle_t self = xTaskGetCurrentTaskHandle();
+    if (xSemaphoreGetMutexHolder(mutex_) != self) {
+      const TaskHandle_t holder = xSemaphoreGetMutexHolder(mutex_);
+      LOG_ERR("PSL", "skip give (not holder): self='%s' holder='%s'", pcTaskGetName(self),
+              holder ? pcTaskGetName(holder) : "<none>");
+      return;
+    }
+    xSemaphoreGive(mutex_);
   }
 
   PendingStateLock(const PendingStateLock&) = delete;
   PendingStateLock& operator=(const PendingStateLock&) = delete;
 
  private:
-  SemaphoreHandle_t mutex_;
+  SemaphoreHandle_t mutex_{};
+  bool held_{false};
 };
 }  // namespace
 
