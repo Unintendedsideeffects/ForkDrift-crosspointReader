@@ -67,7 +67,7 @@ FEATURES = {
     'koreader_sync': Feature(
         name='KOReader Sync',
         flag='ENABLE_KOREADER_SYNC',
-        size_kb=1,
+        size_kb=0,
         description='Sync reading progress with KOReader'
     ),
     'calibre_sync': Feature(
@@ -121,7 +121,7 @@ FEATURES = {
     'hyphenation': Feature(
         name='Hyphenation',
         flag='ENABLE_HYPHENATION',
-        size_kb=452,
+        size_kb=468,
         description='Language-aware hyphenation for justified EPUB text'
     ),
     'xtc_support': Feature(
