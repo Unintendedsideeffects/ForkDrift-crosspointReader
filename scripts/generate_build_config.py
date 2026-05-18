@@ -25,25 +25,25 @@ FEATURES = {
     'bookerly_fonts': Feature(
         name='Bookerly Fonts',
         flag='ENABLE_BOOKERLY_FONTS',
-        size_kb=799,
+        size_kb=804,
         description='12/16/18pt Bookerly family'
     ),
     'notosans_fonts': Feature(
         name='Noto Sans Fonts',
         flag='ENABLE_NOTOSANS_FONTS',
-        size_kb=1005,
+        size_kb=1009,
         description='12/16/18pt Noto Sans family'
     ),
     'opendyslexic_fonts': Feature(
         name='OpenDyslexic Font Pack',
         flag='ENABLE_OPENDYSLEXIC_FONTS',
-        size_kb=2613,
+        size_kb=2617,
         description='Optional OpenDyslexic 8/10/12/14pt family (requires Bookerly + Noto Sans)'
     ),
     'image_sleep': Feature(
         name='PNG/JPEG Sleep Images',
         flag='ENABLE_IMAGE_SLEEP',
-        size_kb=-4,
+        size_kb=0,
         description='PNG and JPEG sleep screen support (BMP always included)'
     ),
     'book_images': Feature(
@@ -55,7 +55,7 @@ FEATURES = {
     'markdown': Feature(
         name='Markdown/Obsidian',
         flag='ENABLE_MARKDOWN',
-        size_kb=177,
+        size_kb=182,
         description='Markdown and Obsidian vault reading support'
     ),
     'integrations': Feature(
@@ -73,7 +73,7 @@ FEATURES = {
     'calibre_sync': Feature(
         name='Calibre Sync',
         flag='ENABLE_CALIBRE_SYNC',
-        size_kb=-2,
+        size_kb=2,
         description='Calibre OPDS browser and metadata sync settings'
     ),
     'background_server': Feature(
@@ -91,7 +91,7 @@ FEATURES = {
     'background_server_always': Feature(
         name='Background Server Always',
         flag='ENABLE_BACKGROUND_SERVER_ALWAYS',
-        size_kb=-2,
+        size_kb=1,
         description='Auto-connect to WiFi on wake even when not charging'
     ),
     'home_media_picker': Feature(
@@ -103,31 +103,31 @@ FEATURES = {
     'pokemon_wallpaper_plugin': Feature(
         name='Pokemon Wallpaper',
         flag='ENABLE_POKEMON_WALLPAPER_PLUGIN',
-        size_kb=8,
+        size_kb=13,
         description='Browser-side Pokemon wallpaper generator at /plugins/pokemon-wallpaper'
     ),
     'pokemon_party': Feature(
         name='Pokemon Party',
         flag='ENABLE_POKEMON_PARTY',
-        size_kb=13,
+        size_kb=18,
         description='Per-book Pokemon metadata and REST API for recent-book party views'
     ),
     'epub_support': Feature(
         name='EPUB Support',
         flag='ENABLE_EPUB_SUPPORT',
-        size_kb=140,
+        size_kb=145,
         description='EPUB e-book reader with CSS and chapter navigation'
     ),
     'hyphenation': Feature(
         name='Hyphenation',
         flag='ENABLE_HYPHENATION',
-        size_kb=468,
+        size_kb=472,
         description='Language-aware hyphenation for justified EPUB text'
     ),
     'xtc_support': Feature(
         name='XTC Support',
         flag='ENABLE_XTC_SUPPORT',
-        size_kb=7,
+        size_kb=11,
         description='XTC format reader with chapter navigation'
     ),
     'lyra_theme': Feature(
@@ -139,19 +139,19 @@ FEATURES = {
     'ota_updates': Feature(
         name='OTA Updates',
         flag='ENABLE_OTA_UPDATES',
-        size_kb=0,
+        size_kb=4,
         description='Over-the-air firmware updates via WiFi'
     ),
     'todo_planner': Feature(
         name='Todo Planner',
         flag='ENABLE_TODO_PLANNER',
-        size_kb=1,
+        size_kb=6,
         description='Standalone daily TODO/agenda planner with .md/.txt fallback and web quick-entry'
     ),
     'anki_support': Feature(
         name='Anki Support',
         flag='ENABLE_ANKI_SUPPORT',
-        size_kb=5,
+        size_kb=10,
         description='Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop.'
     ),
     'dark_mode': Feature(
@@ -169,37 +169,37 @@ FEATURES = {
     'ble_wifi_provisioning': Feature(
         name='BLE WiFi Provisioning',
         flag='ENABLE_BLE_WIFI_PROVISIONING',
-        size_kb=625,
+        size_kb=630,
         description='Initial WiFi setup via Bluetooth LE'
     ),
     'user_fonts': Feature(
         name='User Fonts',
         flag='ENABLE_USER_FONTS',
-        size_kb=3,
+        size_kb=7,
         description='Load custom .ttf/.otf fonts from SD card (pre-converted)'
     ),
     'web_wifi_setup': Feature(
         name='Web WiFi Setup',
         flag='ENABLE_WEB_WIFI_SETUP',
-        size_kb=-1,
+        size_kb=3,
         description='Manage WiFi networks directly from the web interface'
     ),
     'remote_keyboard_input': Feature(
         name='Remote Keyboard Input',
         flag='ENABLE_REMOTE_KEYBOARD_INPUT',
-        size_kb=2,
+        size_kb=7,
         description='Android-first remote text entry with browser QR and hotspot fallback'
     ),
     'usb_mass_storage': Feature(
         name='USB Mass Storage',
         flag='ENABLE_USB_MASS_STORAGE',
-        size_kb=12,
+        size_kb=16,
         description='On-device prompt for USB SD card access as mass storage'
     ),
     'wifi_clock': Feature(
         name='WiFi Clock',
         flag='ENABLE_WIFI_CLOCK',
-        size_kb=-2,
+        size_kb=2,
         description='NTP-backed 24-hour Roman numeral clock label that refreshes every 15 minutes while WiFi is connected'
     ),
 }
