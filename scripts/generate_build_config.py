@@ -103,7 +103,7 @@ FEATURES = {
     'pokemon_wallpaper_plugin': Feature(
         name='Pokemon Wallpaper',
         flag='ENABLE_POKEMON_WALLPAPER_PLUGIN',
-        size_kb=13,
+        size_kb=16,
         description='Browser-side Pokemon wallpaper generator at /plugins/pokemon-wallpaper'
     ),
     'pokemon_party': Feature(
