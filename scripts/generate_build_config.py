@@ -67,7 +67,7 @@ FEATURES = {
     'koreader_sync': Feature(
         name='KOReader Sync',
         flag='ENABLE_KOREADER_SYNC',
-        size_kb=0,
+        size_kb=1,
         description='Sync reading progress with KOReader'
     ),
     'calibre_sync': Feature(
