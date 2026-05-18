@@ -273,6 +273,18 @@
       line-height: 1.45;
     }
 
+    .search-live-name {
+      min-height: 14px;
+      font-size: 12px;
+      color: var(--gray-4);
+      line-height: 1.2;
+      opacity: 0.55;
+    }
+
+    .search-live-name[hidden] {
+      display: none;
+    }
+
     .search-suggestions {
       display: grid;
       gap: 6px;
@@ -413,7 +425,8 @@
               <input id="pokemonInput" type="text" value="1" placeholder="e.g. 25 or pikachu" />
               <button class="btn secondary" id="randomBtn" type="button">Random</button>
             </div>
-            <div class="search-meta" id="pokemonSearchMeta">Fuzzy search, accents and punctuation are ignored.</div>
+            <div class="search-live-name" id="pokemonResolvedName" hidden aria-live="polite"></div>
+            <div class="search-meta" id="pokemonSearchMeta">Search ignores accents and punctuation.</div>
             <div class="search-suggestions" id="pokemonSuggestions" hidden></div>
           </div>
         </section>
@@ -592,6 +605,7 @@
     const ctx = canvas.getContext("2d");
     const statusBox = document.getElementById("statusBox");
     const input = document.getElementById("pokemonInput");
+    const resolvedName = document.getElementById("pokemonResolvedName");
     const searchMeta = document.getElementById("pokemonSearchMeta");
     const suggestionsBox = document.getElementById("pokemonSuggestions");
     const previewBtn = document.getElementById("previewBtn");
@@ -911,13 +925,13 @@
       if (query.isNumeric) {
         if (entry.idText === query.digits) return "Exact ID";
         if (query.digits.startsWith(entry.idText)) return "ID prefix";
-        if (entry.idText.startsWith(query.digits)) return "Extended ID";
+        if (entry.idText.startsWith(query.digits)) return "Numeric match";
         return "Numeric match";
       }
       if (entry.compactName === query.compact || entry.normalizedName === query.normalized) return "Exact name";
       if (entry.compactName.indexOf(query.compact) === 0) return "Name prefix";
       if (entry.compactName.indexOf(query.compact) !== -1 || entry.normalizedName.indexOf(query.normalized) !== -1) return "Name match";
-      return "Fuzzy match";
+      return "Close match";
     }
 
     function setSearchMeta(message) {
@@ -926,10 +940,46 @@
       }
     }
 
+    function setResolvedPokemonName(message) {
+      if (!resolvedName) return;
+      if (!message) {
+        resolvedName.hidden = true;
+        resolvedName.textContent = "";
+        return;
+      }
+      resolvedName.hidden = false;
+      resolvedName.textContent = message;
+    }
+
     function hidePokemonSuggestions() {
       suggestionsBox.hidden = true;
       suggestionsBox.innerHTML = "";
-      setSearchMeta("Fuzzy search, accents and punctuation are ignored.");
+      setSearchMeta("Search ignores accents and punctuation.");
+    }
+
+    async function refreshResolvedPokemonName(rawInput, token) {
+      const query = buildSearchQuery(rawInput);
+      if (!query.isNumeric || !query.digits) {
+        if (token === suggestionToken) setResolvedPokemonName("");
+        return;
+      }
+
+      const numericId = parseInt(query.digits, 10);
+      if (!(numericId >= 1 && numericId <= MAX_POKEMON_ID)) {
+        if (token === suggestionToken) setResolvedPokemonName("");
+        return;
+      }
+
+      try {
+        const entries = await ensurePokemonSearchIndex();
+        if (token !== suggestionToken) return;
+        const exactEntry = entries.find(function(entry) {
+          return entry.id === numericId;
+        });
+        setResolvedPokemonName(exactEntry ? titleCase(exactEntry.name) : "");
+      } catch (_error) {
+        if (token === suggestionToken) setResolvedPokemonName("");
+      }
     }
 
     function renderPokemonSuggestions(rawInput, results) {
@@ -942,7 +992,7 @@
       if (!results.length) {
         suggestionsBox.hidden = false;
         suggestionsBox.innerHTML = '<div class="search-empty">No matching Pokemon yet.</div>';
-        setSearchMeta("Fuzzy search stays accent-insensitive.");
+        setSearchMeta("Search ignores accents and punctuation.");
         return;
       }
 
@@ -961,14 +1011,16 @@
     async function refreshPokemonSuggestions() {
       const rawInput = input.value.trim();
       const token = ++suggestionToken;
+      refreshResolvedPokemonName(rawInput, token);
 
       if (!rawInput) {
+        setResolvedPokemonName("");
         hidePokemonSuggestions();
         return;
       }
 
       suggestionsBox.hidden = false;
-      suggestionsBox.innerHTML = '<div class="search-empty">Loading fuzzy matches...</div>';
+      suggestionsBox.innerHTML = '<div class="search-empty">Loading matches...</div>';
 
       try {
         const results = await findPokemonMatches(rawInput, SEARCH_RESULT_LIMIT);
@@ -1936,6 +1988,9 @@
     function setRandomPokemon() {
       const randomId = Math.floor(Math.random() * MAX_POKEMON_ID) + 1;
       input.value = String(randomId);
+      suggestionToken += 1;
+      hidePokemonSuggestions();
+      refreshResolvedPokemonName(input.value, suggestionToken);
       renderCurrentPokemon();
     }
 
@@ -2008,12 +2063,14 @@
     suggestionsBox.addEventListener("click", function(event) {
       const button = event.target.closest(".search-suggestion");
       if (!button) return;
-      input.value = button.querySelector(".search-suggestion-label").textContent;
+      input.value = button.dataset.id || button.querySelector(".search-suggestion-label").textContent;
       suggestionToken += 1;
       hidePokemonSuggestions();
+      refreshResolvedPokemonName(input.value, suggestionToken);
       previewSelection();
     });
 
+    refreshResolvedPokemonName(input.value, suggestionToken);
     previewSelection();
   </script>
 </body>
