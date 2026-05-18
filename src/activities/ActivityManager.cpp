@@ -412,18 +412,21 @@ void ActivityManager::requestUpdateAndWait() {
 }
 // RenderLock
 
-RenderLock::RenderLock() {
-  xSemaphoreTake(activityManager.renderingMutex, portMAX_DELAY);
-  isLocked = true;
-}
+RenderLock::RenderLock() { isLocked = (xSemaphoreTake(activityManager.renderingMutex, portMAX_DELAY) == pdTRUE); }
 
 RenderLock::RenderLock([[maybe_unused]] Activity&) {
-  xSemaphoreTake(activityManager.renderingMutex, portMAX_DELAY);
-  isLocked = true;
+  isLocked = (xSemaphoreTake(activityManager.renderingMutex, portMAX_DELAY) == pdTRUE);
 }
 
 RenderLock::~RenderLock() {
   if (isLocked) {
+    const TaskHandle_t self = xTaskGetCurrentTaskHandle();
+    const TaskHandle_t holder = xSemaphoreGetMutexHolder(activityManager.renderingMutex);
+    if (holder != self) {
+      LOG_ERR("RDL", "skip give (not holder): self='%s' holder='%s'", pcTaskGetName(self),
+              holder ? pcTaskGetName(holder) : "<none>");
+      return;
+    }
     xSemaphoreGive(activityManager.renderingMutex);
     isLocked = false;
   }
@@ -431,6 +434,13 @@ RenderLock::~RenderLock() {
 
 void RenderLock::unlock() {
   if (isLocked) {
+    const TaskHandle_t self = xTaskGetCurrentTaskHandle();
+    const TaskHandle_t holder = xSemaphoreGetMutexHolder(activityManager.renderingMutex);
+    if (holder != self) {
+      LOG_ERR("RDL", "skip unlock give (not holder): self='%s' holder='%s'", pcTaskGetName(self),
+              holder ? pcTaskGetName(holder) : "<none>");
+      return;
+    }
     xSemaphoreGive(activityManager.renderingMutex);
     isLocked = false;
   }

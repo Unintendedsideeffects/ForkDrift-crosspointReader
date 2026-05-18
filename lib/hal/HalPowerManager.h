@@ -49,6 +49,7 @@ class HalPowerManager {
   class Lock {
     friend class HalPowerManager;
     bool valid = false;
+    bool held = false;
 
    public:
     explicit Lock();

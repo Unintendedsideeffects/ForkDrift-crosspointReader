@@ -67,7 +67,10 @@ class BackgroundWebServer {
   static constexpr unsigned long RETRY_MAX_MS = 5UL * 60 * 1000;
   static constexpr unsigned long SERVER_WINDOW_MS = 2UL * 60 * 1000;
   static constexpr unsigned long SESSION_MAX_MS = 20UL * 60 * 1000;
-  static constexpr unsigned long MIN_FREE_HEAP_BYTES = 60000;
+  // Starting the full web stack costs roughly 16-18 KB on device. Below this
+  // floor we reliably fall under the running low-heap guard immediately after
+  // startup and thrash through start/stop/retry cycles.
+  static constexpr unsigned long MIN_FREE_HEAP_BYTES = 76000;
   static constexpr unsigned long ALLOW_RUN_GRACE_MS = 500;
   static constexpr uint8_t SCAN_FAILURE_BURST_MAX = 4;
 };

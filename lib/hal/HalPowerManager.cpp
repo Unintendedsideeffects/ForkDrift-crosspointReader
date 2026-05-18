@@ -130,10 +130,15 @@ HalPowerManager::Lock::Lock() {
     return;
   }
 
-  xSemaphoreTake(powerManager.modeMutex, portMAX_DELAY);
+  held = (xSemaphoreTake(powerManager.modeMutex, portMAX_DELAY) == pdTRUE);
+  if (!held) {
+    LOG_ERR("PWR", "Failed to take mode mutex");
+    return;
+  }
   powerManager.lockCount++;
   valid = true;
   xSemaphoreGive(powerManager.modeMutex);
+  held = false;
 
   // Immediately restore normal CPU frequency if currently in low-power mode
   powerManager.setPowerSaving(false);
@@ -145,14 +150,26 @@ HalPowerManager::Lock::~Lock() {
   }
 
   bool shouldReEnable = false;
-  xSemaphoreTake(powerManager.modeMutex, portMAX_DELAY);
+  held = (xSemaphoreTake(powerManager.modeMutex, portMAX_DELAY) == pdTRUE);
+  if (!held) {
+    LOG_ERR("PWR", "Failed to retake mode mutex during unlock");
+    return;
+  }
   if (valid) {
     if (powerManager.lockCount > 0) {
       powerManager.lockCount--;
     }
     shouldReEnable = (powerManager.lockCount == 0);
   }
+  const TaskHandle_t self = xTaskGetCurrentTaskHandle();
+  const TaskHandle_t holder = xSemaphoreGetMutexHolder(powerManager.modeMutex);
+  if (holder != self) {
+    LOG_ERR("PWR", "skip give (not holder): self='%s' holder='%s'", pcTaskGetName(self),
+            holder ? pcTaskGetName(holder) : "<none>");
+    return;
+  }
   xSemaphoreGive(powerManager.modeMutex);
+  held = false;
 
   if (shouldReEnable) {
     powerManager.setPowerSaving(true);
