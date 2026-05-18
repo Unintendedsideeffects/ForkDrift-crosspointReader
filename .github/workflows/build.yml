@@ -160,7 +160,9 @@ jobs:
         if: steps.reuse.outputs.found != 'true'
         run: |
           mkdir -p artifact
-          cp .pio/build/custom/firmware-*.bin artifact/
+          # name_firmware_artifact.py (post: extra_script) writes the versioned
+          # binary to the top-level firmware/ dir, not .pio/build/custom/.
+          cp firmware/firmware-*.bin artifact/
           cp .pio/build/custom/partitions.bin artifact/
 
       - name: Report reused build
