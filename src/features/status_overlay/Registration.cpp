@@ -89,7 +89,6 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
   // When a reader page is shown the band prioritises book info (progress + title)
   // over clock/IP to keep one uncluttered bar.
   const ReaderContext& rc = ReaderContext::get();
-  int leftTextW = 0;
 
   if (rc.active) {
     int progressW = 0;
@@ -99,7 +98,6 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
         renderer.drawText(SMALL_FONT_ID, leftTextX, textY, rc.progress, true);
       }
     }
-    leftTextW = progressW;
 
     if (rc.title[0] != '\0') {
       const int titleLeft = leftTextX + (progressW > 0 ? progressW + kTextGap : 0);
@@ -123,7 +121,7 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
     }
   } else {
     const bool showIp = shouldShowIp;
-    leftTextW = showIp ? renderer.getTextWidth(SMALL_FONT_ID, "255.255.255.255") : 0;
+    const int leftTextW = showIp ? renderer.getTextWidth(SMALL_FONT_ID, "255.255.255.255") : 0;
 
 #if ENABLE_WIFI_CLOCK
     const std::string clockText = DateUtils::currentClockLabel();
