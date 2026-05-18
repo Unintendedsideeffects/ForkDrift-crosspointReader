@@ -1,2 +1,19 @@
 CompileFlags:
-    Add: [-std=c++2a]
+  # Match PlatformIO's language mode for header-only analysis and fallback parses.
+  Add: [-std=gnu++2a]
+  # Strip GCC-only flags that clangd can't interpret, otherwise they show up as
+  # driver noise instead of actionable firmware diagnostics.
+  Remove: [-fstrict-volatile-bitfields, -fno-tree-switch-conversion]
+  # Use the GCC toolchain's builtin headers when clangd is launched through
+  # scripts/clangd.sh (or an editor configured with the same --query-driver).
+  BuiltinHeaders: QueryDriver
+
+---
+If:
+  PathMatch:
+    - ^(lib/third_party|open-x4-sdk|\.pio)/.*
+    - ^lib/I18n/I18nStrings\.cpp$
+Diagnostics:
+  Suppress: '*'
+Index:
+  Background: Skip

@@ -19,6 +19,7 @@ Checks: >
   -bugprone-easily-swappable-parameters,
   -bugprone-narrowing-conversions,
   performance-*,
+  -performance-enum-size,
   modernize-use-nullptr,
   misc-no-recursion,
   readability-redundant-control-flow,
@@ -28,7 +29,8 @@ Checks: >
 # Treat warnings as non-fatal (CI job is non-blocking during rollout)
 WarningsAsErrors: ''
 
-HeaderFilterRegex: 'src/.*\.h$'
+HeaderFilterRegex: '^(src|lib)/.*\.(h|hpp)$'
+ExcludeHeaderFilterRegex: '^(\.pio|lib/third_party|open-x4-sdk)/'
 
 CheckOptions:
   - key: bugprone-argument-comment.StrictMode
