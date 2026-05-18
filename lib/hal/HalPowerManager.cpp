@@ -10,6 +10,31 @@
 
 HalPowerManager powerManager;  // Singleton instance
 
+namespace {
+// Voltage-based SoC on the X4 ADC path sags hard while the device is under load
+// (e-ink refresh, full CPU frequency, WiFi). A single reading taken at the moment
+// of a button press reports a falsely low charge. Take a few quick samples and use
+// the median to reject the load-induced outliers. N is tiny: 5 uint16_t on the
+// stack (10 bytes), manual insertion sort, no heap and no <algorithm> dependency.
+uint16_t readPercentageMedian(const BatteryMonitor& battery) {
+  constexpr int N = 5;
+  uint16_t s[N];
+  for (int i = 0; i < N; ++i) {
+    s[i] = battery.readPercentage();
+  }
+  for (int i = 1; i < N; ++i) {
+    const uint16_t v = s[i];
+    int j = i - 1;
+    while (j >= 0 && s[j] > v) {
+      s[j + 1] = s[j];
+      --j;
+    }
+    s[j + 1] = v;
+  }
+  return s[N / 2];
+}
+}  // namespace
+
 void HalPowerManager::begin() {
   if (gpio.deviceIsX3()) {
     // X3 uses an I2C fuel gauge for battery monitoring.
@@ -114,11 +139,24 @@ uint16_t HalPowerManager::getBatteryPercentage() const {
   }
   static const BatteryMonitor battery = BatteryMonitor(BAT_GPIO0);
 
+  // Throttle ADC sampling exactly like the I2C path above: the status bar redraws
+  // on every input/page-turn, so without this gate every button press feeds a
+  // fresh (load-sagged) sample into the EMA and the displayed % chases input
+  // activity instead of charge. On this path _batteryCachedPercent is stored at
+  // 10x scale, so the cached early-return must divide by 10.
+  const unsigned long now = millis();
+  if (_batteryLastPollMs != 0 && (now - _batteryLastPollMs) < BATTERY_POLL_MS) {
+    return _batteryCachedPercent / 10;
+  }
+  _batteryLastPollMs = now;
+
+  const uint16_t sample = readPercentageMedian(battery);
+
   // smooth the battery %.
   if (_batteryCachedPercent == 0) {
-    _batteryCachedPercent = 10 * battery.readPercentage();
+    _batteryCachedPercent = 10 * sample;
   } else {
-    _batteryCachedPercent = (_batteryCachedPercent * 9 + battery.readPercentage() * 10) / 10;
+    _batteryCachedPercent = (_batteryCachedPercent * 9 + sample * 10) / 10;
   }
   return _batteryCachedPercent / 10;
 }
