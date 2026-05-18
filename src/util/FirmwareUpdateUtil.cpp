@@ -21,6 +21,7 @@
 #include "esp_ota_ops.h"     // cppcheck-suppress missingInclude
 #include "fontIds.h"
 #include "util/ButtonNavigator.h"
+#include "util/FirmwareArtifactName.h"
 
 namespace {
 constexpr char kSkippedLocalUpdatePath[] = "/.crosspoint/local-update-skip.bin";
@@ -51,12 +52,6 @@ uint32_t fnv1aUpdate(uint32_t hash, const uint8_t* data, const size_t length) {
   return hash;
 }
 
-bool isDecimalDigit(const char ch) { return ch >= '0' && ch <= '9'; }
-
-bool isHexDigit(const char ch) {
-  return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');
-}
-
 bool isFirmwareVersionChar(const char ch) { return ch >= '!' && ch <= '~' && ch != '"' && ch != '\\'; }
 
 void advanceMarkerMatch(const char ch, const char* marker, size_t& matchLength) {
@@ -66,43 +61,6 @@ void advanceMarkerMatch(const char ch, const char* marker, size_t& matchLength) 
   }
 
   matchLength = ch == marker[0] ? 1 : 0;
-}
-
-bool isNamedFirmwareFile(const char* name) {
-  constexpr char prefix[] = "firmware-";
-  constexpr char suffix[] = ".bin";
-  constexpr size_t dateLength = 8;
-  constexpr size_t minShaLength = 7;
-  const size_t prefixLength = strlen(prefix);
-  const size_t suffixLength = strlen(suffix);
-  const size_t nameLength = name ? strlen(name) : 0;
-  const size_t minLength = prefixLength + dateLength + 1 + minShaLength + suffixLength;
-
-  if (nameLength < minLength || strncmp(name, prefix, prefixLength) != 0 ||
-      strcmp(name + nameLength - suffixLength, suffix) != 0) {
-    return false;
-  }
-
-  const size_t dateStart = prefixLength;
-  const size_t shaStart = dateStart + dateLength + 1;
-  const size_t shaEnd = nameLength - suffixLength;
-  if (name[dateStart + dateLength] != '-') {
-    return false;
-  }
-
-  for (size_t i = dateStart; i < dateStart + dateLength; ++i) {
-    if (!isDecimalDigit(name[i])) {
-      return false;
-    }
-  }
-
-  for (size_t i = shaStart; i < shaEnd; ++i) {
-    if (!isHexDigit(name[i])) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 String findNamedLocalUpdatePath() {
@@ -122,7 +80,7 @@ String findNamedLocalUpdatePath() {
     char name[96] = "";
     const bool hasName = !entry.isDirectory() && entry.getName(name, sizeof(name));
     entry.close();
-    if (hasName && isNamedFirmwareFile(name)) {
+    if (hasName && firmware_artifact::isMatchingName(name)) {
       if (bestName.isEmpty() || strcmp(name, bestName.c_str()) > 0) {
         bestName = name;
       }
