@@ -311,7 +311,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   installFonts(renderer);
-  FontCacheManager fontCacheManager(renderer.getFontMap());
+  FontCacheManager fontCacheManager(renderer.getFontMap(), renderer.getSdCardFonts());
   fontCacheManager.setFontDecompressor(&fontDecompressor);
   renderer.setFontCacheManager(&fontCacheManager);
 

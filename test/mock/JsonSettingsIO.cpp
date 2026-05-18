@@ -186,14 +186,11 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
 
 class CrossPointState;
 class WifiCredentialStore;
-class KOReaderCredentialStore;
 class RecentBooksStore;
 
 bool JsonSettingsIO::saveState(const CrossPointState&, const char*) { return true; }
 bool JsonSettingsIO::loadState(CrossPointState&, const char*) { return false; }
 bool JsonSettingsIO::saveWifi(const WifiCredentialStore&, const char*) { return true; }
 bool JsonSettingsIO::loadWifi(WifiCredentialStore&, const char*, bool*) { return false; }
-bool JsonSettingsIO::saveKOReader(const KOReaderCredentialStore&, const char*) { return true; }
-bool JsonSettingsIO::loadKOReader(KOReaderCredentialStore&, const char*, bool*) { return false; }
 bool JsonSettingsIO::saveRecentBooks(const RecentBooksStore&, const char*) { return true; }
 bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, const char*) { return false; }
