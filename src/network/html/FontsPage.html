@@ -6,146 +6,261 @@
     <title>CrossPoint Reader - Fonts</title>
     <style>
       :root {
-        --font-color: #333;
-        --bg: #f5f5f5;
-        --title-color: #2c3e50;
-        --card-bg: #FFF;
-        --label-color: #7f8c8d;
-        --border-color: #eee;
-        --accent-color: rgb(110, 154, 130);
-        --accent-hover-color: #5a8c73;
-        --danger-color: #e74c3c;
-        --danger-hover: #c0392b;
+        --theme-token-placeholder: 0;
+        /* THEME_TOKENS_START */
+        /* THEME_TOKENS_END */
       }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --font-color: #f5f5f5;
-          --bg: #333;
-          --title-color: #ecf0f1;
-          --card-bg: #444;
-          --label-color: #bdc3c7;
-          --border-color: #555;
-          color-scheme: dark;
-        }
-      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          Oxygen, Ubuntu, sans-serif;
+        font-family: var(--font-mono);
         max-width: 800px;
         margin: 0 auto;
-        padding: 20px;
-        background-color: var(--bg);
-        color: var(--font-color);
+        background-color: var(--gray-10);
+        color: var(--black);
+        background-image: radial-gradient(circle, var(--gray-8) 1px, transparent 1px);
+        background-size: 4px 4px;
       }
-      h1 {
-        color: var(--title-color);
-        border-bottom: 2px solid var(--accent-color);
-        padding-bottom: 10px;
+      .masthead {
+        text-align: center;
+        padding: 24px 16px 16px;
+        border-bottom: 4px double var(--black);
       }
-      h2 { color: var(--title-color); margin-top: 0; }
-      h3 { margin: 0 0 8px 0; }
-      .card {
-        background: var(--card-bg);
-        border-radius: 8px;
-        padding: 20px;
-        margin: 15px 0;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      .masthead-rule {
+        display: block;
+        border: none;
+        border-top: 1px solid var(--black);
+        margin: 0 auto 8px;
+        width: 60%;
       }
-      .nav-links {
-        margin: 20px 0;
+      .masthead h1 {
+        font-family: var(--font-display);
+        font-weight: 900;
+        font-size: 2.2em;
+        letter-spacing: 0.04em;
+        line-height: 1;
+      }
+      .masthead-sub {
+        font-family: var(--font-mono);
+        font-size: 0.7em;
+        color: var(--gray-4);
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+        margin-top: 4px;
+      }
+      .nav {
         display: flex;
-        gap: 10px;
+        border-bottom: 2px solid var(--black);
+        background: var(--white);
       }
-      .nav-links a {
-        padding: 10px 20px;
-        color: var(--font-color);
+      .nav a {
+        flex: 1;
+        text-align: center;
+        padding: 10px 0;
         text-decoration: none;
-        border-radius: 4px;
+        color: var(--black);
+        font-family: var(--font-mono);
+        font-size: 0.8em;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        border-right: 1px solid var(--gray-7);
+        transition: background 0.1s;
       }
-      .nav-links a.active {
-        background-color: var(--accent-color);
-        color: white;
+      .nav a:last-child { border-right: none; }
+      .nav a:hover, .nav a.active {
+        background: var(--black);
+        color: var(--white);
       }
-      .nav-links a:not(.active):hover {
-        background-color: var(--accent-hover-color);
-        color: white;
+      .page-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--black);
+        font-size: 1.55em;
+        line-height: 1;
+        padding: 18px 16px 8px;
+      }
+      .header-rule {
+        height: 2px;
+        background: var(--black);
+        margin: 0 16px 16px;
+      }
+      .card {
+        background: var(--white);
+        border: 2px solid var(--black);
+        padding: 16px;
+        margin: 12px 16px;
+      }
+      h2 {
+        color: var(--gray-2);
+        margin-bottom: 10px;
+        font-size: 0.95em;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      h3 {
+        margin: 0 0 6px 0;
+        color: var(--black);
+        font-size: 1em;
+      }
+      .body-copy {
+        font-size: 0.8em;
+        color: var(--gray-4);
+        line-height: 1.5;
+        margin-bottom: 14px;
+      }
+      .body-copy code {
+        background: var(--gray-9);
+        color: var(--black);
+        padding: 0 3px;
       }
       .family {
-        border-bottom: 1px solid var(--border-color);
+        border-bottom: 1px solid var(--gray-7);
         padding: 12px 0;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 12px;
       }
       .family:last-child { border-bottom: none; }
       .family-info { flex: 1; }
-      .family-meta { color: var(--label-color); font-size: 0.9em; }
+      .family-meta {
+        color: var(--gray-4);
+        font-size: 0.8em;
+        line-height: 1.4;
+      }
       .btn {
-        padding: 6px 16px;
-        border: none;
-        border-radius: 4px;
+        padding: 8px 14px;
+        border: 2px solid var(--black);
         cursor: pointer;
-        font-size: 0.9em;
+        font-family: var(--font-mono);
+        font-size: 0.8em;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        transition: background 0.1s, color 0.1s;
       }
       .btn-danger {
-        background: var(--danger-color);
-        color: white;
+        background: var(--white);
+        color: var(--black);
       }
-      .btn-danger:hover { background: var(--danger-hover); }
+      .btn-danger:hover { background: var(--gray-9); }
       .btn-primary {
-        background: var(--accent-color);
-        color: white;
+        background: var(--black);
+        color: var(--white);
       }
-      .btn-primary:hover { background: var(--accent-hover-color); }
+      .btn-primary:hover {
+        background: var(--white);
+        color: var(--black);
+      }
       .upload-form {
         display: flex;
         gap: 10px;
         align-items: center;
         flex-wrap: wrap;
       }
-      .upload-form input[type="text"] {
-        padding: 6px 10px;
-        border: 1px solid var(--border-color);
-        border-radius: 4px;
-        background: var(--bg);
-        color: var(--font-color);
+      .upload-form input[type="file"] {
+        flex: 1;
+        min-width: 220px;
+        font-family: var(--font-mono);
+        font-size: 0.8em;
+        color: var(--black);
       }
-      .upload-form input[type="file"] { flex: 1; min-width: 200px; }
+      .picked-info { margin-top: 10px; }
       #status {
-        margin-top: 10px;
-        padding: 8px;
-        border-radius: 4px;
         display: none;
+        margin-top: 12px;
+        padding: 10px;
+        border: 1px solid var(--black);
+        font-size: 0.85em;
       }
-      .status-ok { background: #d4edda; color: #155724; display: block !important; }
-      .status-err { background: #f8d7da; color: #721c24; display: block !important; }
-      .empty { color: var(--label-color); text-align: center; padding: 20px; }
+      .status-ok {
+        background: var(--gray-9);
+        color: var(--black);
+        display: block !important;
+      }
+      .status-err {
+        background: var(--white);
+        color: var(--black);
+        border-style: double;
+        display: block !important;
+      }
+      .empty {
+        color: var(--gray-5);
+        text-align: center;
+        padding: 20px;
+        border: 1px dashed var(--gray-7);
+      }
+      .footer {
+        text-align: center;
+        padding: 12px 16px 20px;
+        font-size: 0.65em;
+        color: var(--gray-5);
+        border-top: 1px solid var(--gray-7);
+        margin: 0 16px;
+        letter-spacing: 0.06em;
+      }
+      @media (max-width: 560px) {
+        .masthead h1 { font-size: 1.7em; }
+        .nav { flex-wrap: wrap; }
+        .nav a {
+          flex: 1 1 50%;
+          border-bottom: 1px solid var(--gray-7);
+        }
+        .nav a:nth-child(2n) { border-right: none; }
+        .page-title { font-size: 1.35em; }
+        .family {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .btn { width: 100%; }
+        .upload-form {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .upload-form input[type="file"] { min-width: 0; }
+      }
     </style>
   </head>
   <body>
-    <h1>📚 CrossPoint Reader</h1>
+    <header class="masthead">
+      <hr class="masthead-rule">
+      <h1>CrossPoint Reader</h1>
+      <div class="masthead-sub">Personal E-Reader &middot; Open Source</div>
+    </header>
 
-    <div class="nav-links">
-      <a href="/">Home</a>
-      <a href="/files">File Manager</a>
-      <a href="/settings">Settings</a>
-      <a href="/fonts" class="active">Fonts</a>
-    </div>
+    <nav class="nav">
+      <a href="/">[Home]</a>
+      <a href="/files">[Files]</a>
+      <a href="/settings">[Settings]</a>
+      <a href="/fonts" class="active">[Fonts]</a>
+    </nav>
+
+    <h1 class="page-title">Fonts</h1>
+    <div class="header-rule"></div>
 
     <div class="card">
       <h2>Installed Fonts</h2>
+      <p class="body-copy">
+        Manage converted <code>.cpfont</code> families stored on the SD card.
+      </p>
       <div id="families"><p class="empty">Loading...</p></div>
     </div>
 
     <div class="card">
-      <h2>Upload Font</h2>
+      <h2>Install Font Family</h2>
+      <p class="body-copy">
+        Select one folder containing the converted files for a single font family.
+      </p>
       <form class="upload-form" id="uploadForm">
         <input type="file" id="fontFiles" webkitdirectory directory multiple required />
         <button type="submit" class="btn btn-primary">Upload</button>
       </form>
-      <p id="pickedInfo" class="family-meta" style="margin: 8px 0 0;"></p>
+      <p id="pickedInfo" class="family-meta picked-info"></p>
       <div id="status"></div>
     </div>
+
+    <div class="footer">CrossPoint &middot; Open Source &middot; Built for Reading</div>
 
   <script>
     function formatSize(bytes) {

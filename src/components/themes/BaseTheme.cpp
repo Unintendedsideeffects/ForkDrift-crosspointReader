@@ -449,7 +449,7 @@ Rect BaseTheme::computeBookCardRect(GfxRenderer& renderer, Rect area, const std:
 void BaseTheme::drawBookCard(const GfxRenderer& renderer, Rect area, Rect bookRect,
                              const std::vector<RecentBook>& recentBooks, bool bookSelected, bool hasCoverImage,
                              bool& coverRendered, bool& coverBufferStored, const bool& bufferRestored,
-                             std::function<bool()> storeCoverBuffer) const {
+                             const std::function<bool()>& storeCoverBuffer) const {
   const bool hasContinueReading = !recentBooks.empty();
 
   // Render cover image from SD on first draw, then rely on stored buffer
@@ -590,7 +590,7 @@ void BaseTheme::drawBookMetadata(const GfxRenderer& renderer, Rect area, Rect bo
 // Draw the "Recent Book" cover card on the home screen.
 void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                                     const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
-                                    bool& bufferRestored, std::function<bool()> storeCoverBuffer) const {
+                                    bool& bufferRestored, const std::function<bool()>& storeCoverBuffer) const {
   SpiBusMutex::Guard guard;
   const bool hasContinueReading = !recentBooks.empty();
   const bool bookSelected = hasContinueReading && selectorIndex == 0;

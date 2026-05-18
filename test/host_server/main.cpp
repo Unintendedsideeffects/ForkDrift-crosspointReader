@@ -125,6 +125,7 @@ int main(int argc, char** argv) {
     server.on("/", HTTP_GET, [&] { serveHtmlFile(server, htmlRoot, "HomePage.html", themeTokens); });
     server.on("/files", HTTP_GET, [&] { serveHtmlFile(server, htmlRoot, "FilesPage.html", themeTokens); });
     server.on("/settings", HTTP_GET, [&] { serveHtmlFile(server, htmlRoot, "SettingsPage.html", themeTokens); });
+    server.on("/fonts", HTTP_GET, [&] { serveHtmlFile(server, htmlRoot, "FontsPage.html", themeTokens); });
     server.serveDirectory(htmlRoot.c_str());
   }
 

@@ -21,12 +21,6 @@
 void WifiSelectionActivity::onEnter() {
   Activity::onEnter();
 
-  // Stop any background WiFi service — it conflicts with foreground scan/connect
-  if (BG_WIFI.isRunning()) {
-    LOG_DBG("WIFISEL", "Stopping background WiFi service for foreground use");
-    BG_WIFI.stop(true);
-  }
-
   // Load saved WiFi credentials
   WIFI_STORE.loadFromFile();
 
@@ -51,10 +45,19 @@ void WifiSelectionActivity::onEnter() {
            mac[3], mac[4], mac[5]);
   cachedMacAddress = std::string(macStr);
 
-  // Trigger first update to show scanning message
-  requestUpdate();
+  // Let the screen render before stopping the background service, otherwise
+  // entering WiFi setup can appear to do nothing while stop() waits.
+  if (BG_WIFI.isRunning()) {
+    LOG_DBG("WIFISEL", "Stopping background WiFi service for foreground use");
+    state = WifiSelectionState::STOPPING_BACKGROUND;
+    requestUpdate();
+    return;
+  }
 
-  // Attempt to auto-connect to the last network
+  beginForegroundFlow();
+}
+
+void WifiSelectionActivity::beginForegroundFlow() {
   if (allowAutoConnect) {
     const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
     if (!lastSsid.empty()) {
@@ -73,7 +76,6 @@ void WifiSelectionActivity::onEnter() {
     }
   }
 
-  // Fallback to scanning
   startWifiScan();
 }
 
@@ -344,6 +346,14 @@ void WifiSelectionActivity::checkConnectionStatus() {
 }
 
 void WifiSelectionActivity::loop() {
+  if (state == WifiSelectionState::STOPPING_BACKGROUND) {
+    if (BG_WIFI.isRunning()) {
+      BG_WIFI.stop(true);
+    }
+    beginForegroundFlow();
+    return;
+  }
+
   // Check scan progress
   if (state == WifiSelectionState::SCANNING) {
     processWifiScanResults();
@@ -555,6 +565,9 @@ void WifiSelectionActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   switch (state) {
+    case WifiSelectionState::STOPPING_BACKGROUND:
+      renderConnecting();
+      break;
     case WifiSelectionState::AUTO_CONNECTING:
       renderConnecting();
       break;
@@ -713,7 +726,10 @@ void WifiSelectionActivity::renderConnecting() const {
   const auto height = renderer.getLineHeight(UI_10_FONT_ID);
   const auto top = (pageHeight - height) / 2;
 
-  if (state == WifiSelectionState::SCANNING) {
+  if (state == WifiSelectionState::STOPPING_BACKGROUND) {
+    renderer.drawCenteredText(UI_12_FONT_ID, top - 20, "Preparing WiFi", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(SMALL_FONT_ID, top + 15, "Stopping background server");
+  } else if (state == WifiSelectionState::SCANNING) {
     renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_SCANNING));
   } else {
     renderer.drawCenteredText(UI_12_FONT_ID, top - 40, tr(STR_CONNECTING), true, EpdFontFamily::BOLD);

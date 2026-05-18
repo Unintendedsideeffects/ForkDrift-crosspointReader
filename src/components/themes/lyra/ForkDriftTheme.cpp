@@ -52,7 +52,7 @@ const uint8_t* iconFor(UIIcon icon, int size) {
 
 void ForkDriftTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                                          const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
-                                         bool& bufferRestored, std::function<bool()> storeCoverBuffer) const {
+                                         bool& bufferRestored, const std::function<bool()>& storeCoverBuffer) const {
   const int pad = ForkDriftMetrics::values.contentSidePadding;
   const int headerH = ForkDriftMetrics::values.homeTopPadding;
   const int tileWidth = (rect.width - 2 * pad) / gridCols;

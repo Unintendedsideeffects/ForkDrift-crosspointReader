@@ -260,7 +260,7 @@ void ActivityManager::goToBrowser() {
   }
 }
 
-void ActivityManager::goToReader(std::string path) {
+void ActivityManager::goToReader(const std::string& path) {
   // Non-capturing lambdas: activityManager is an extern global, no context needed.
   static const auto onBackToLibrary = +[](void*, const std::string& bookPath) {
     const auto slash = bookPath.rfind('/');

@@ -10,6 +10,7 @@
 #include <Logging.h>
 #include <esp_system.h>
 
+#include <cmath>
 #include <iterator>
 #include <limits>
 
@@ -51,6 +52,8 @@ int clampPercent(int percent) {
   }
   return percent;
 }
+
+int roundPercent(float percent) { return clampPercent(static_cast<int>(std::lround(percent))); }
 
 }  // namespace
 
@@ -190,7 +193,7 @@ void EpubReaderActivity::loop() {
       const float chapterProgress = static_cast<float>(section->currentPage) / static_cast<float>(section->pageCount);
       bookProgress = epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f;
     }
-    const int bookProgressPercent = clampPercent(static_cast<int>(bookProgress + 0.5f));
+    const int bookProgressPercent = roundPercent(bookProgress);
     startActivityForResult(std::make_unique<EpubReaderMenuActivity>(
                                renderer, mappedInput, epub->getTitle(), currentPage, totalPages, bookProgressPercent,
                                SETTINGS.orientation, !currentPageFootnotes.empty()),
@@ -382,7 +385,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
         const float chapterProgress = static_cast<float>(section->currentPage) / static_cast<float>(section->pageCount);
         bookProgress = epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f;
       }
-      const int initialPercent = clampPercent(static_cast<int>(bookProgress + 0.5f));
+      const int initialPercent = roundPercent(bookProgress);
       startActivityForResult(
           std::make_unique<EpubReaderPercentSelectionActivity>(renderer, mappedInput, initialPercent),
           [this](const ActivityResult& result) {
@@ -392,6 +395,10 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
           });
       break;
     }
+    case EpubReaderMenuActivity::MenuAction::AUTO_PAGE_TURN:
+    case EpubReaderMenuActivity::MenuAction::ROTATE_SCREEN:
+      // These are applied when the menu closes, before onReaderMenuConfirm() runs.
+      break;
     case EpubReaderMenuActivity::MenuAction::DISPLAY_QR: {
       if (section && section->currentPage >= 0 && section->currentPage < section->pageCount) {
         auto p = section->loadPageFromSectionFile();
@@ -490,7 +497,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
           const uint16_t paragraphPage =
               currentPage > 0 ? static_cast<uint16_t>(currentPage - 1) : static_cast<uint16_t>(currentPage);
           if (const auto pIdx = section->getParagraphIndexForPage(paragraphPage)) {
-            paragraphIndex = *pIdx;
+            paragraphIndex = pIdx;
           }
         }
 
@@ -1098,10 +1105,7 @@ ScreenshotInfo EpubReaderActivity::getScreenshotInfo() const {
     info.totalPages = section->pageCount;
     if (epub && epub->getBookSize() > 0 && section->pageCount > 0) {
       const float chapterProgress = static_cast<float>(section->currentPage) / static_cast<float>(section->pageCount);
-      int pct = static_cast<int>(epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f + 0.5f);
-      if (pct < 0) pct = 0;
-      if (pct > 100) pct = 100;
-      info.progressPercent = pct;
+      info.progressPercent = roundPercent(epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f);
     }
   }
   return info;

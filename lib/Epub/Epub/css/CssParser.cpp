@@ -3,8 +3,6 @@
 #include <Arduino.h>
 #include <Logging.h>
 
-#include <algorithm>
-#include <array>
 #include <cctype>
 #include <string_view>
 

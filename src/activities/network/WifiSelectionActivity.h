@@ -21,16 +21,17 @@ struct WifiNetworkInfo {
 
 // WiFi selection states
 enum class WifiSelectionState {
-  AUTO_CONNECTING,    // Trying to connect to the last known network
-  SCANNING,           // Scanning for networks
-  NETWORK_LIST,       // Displaying available networks
-  PASSWORD_ENTRY,     // Entering password for selected network
-  BLE_PROVISIONING,   // Waiting for credentials over BLE
-  CONNECTING,         // Attempting to connect
-  CONNECTED,          // Successfully connected
-  SAVE_PROMPT,        // Asking user if they want to save the password
-  CONNECTION_FAILED,  // Connection failed
-  FORGET_PROMPT       // Asking user if they want to forget the network
+  STOPPING_BACKGROUND,  // Waiting for the background WiFi service to stop
+  AUTO_CONNECTING,      // Trying to connect to the last known network
+  SCANNING,             // Scanning for networks
+  NETWORK_LIST,         // Displaying available networks
+  PASSWORD_ENTRY,       // Entering password for selected network
+  BLE_PROVISIONING,     // Waiting for credentials over BLE
+  CONNECTING,           // Attempting to connect
+  CONNECTED,            // Successfully connected
+  SAVE_PROMPT,          // Asking user if they want to save the password
+  CONNECTION_FAILED,    // Connection failed
+  FORGET_PROMPT         // Asking user if they want to forget the network
 };
 
 /**
@@ -94,6 +95,7 @@ class WifiSelectionActivity final : public Activity {
   void renderConnectionFailed() const;
   void renderForgetPrompt() const;
 
+  void beginForegroundFlow();
   void startWifiScan();
   void processWifiScanResults();
   void selectNetwork(int index);

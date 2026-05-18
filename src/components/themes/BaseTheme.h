@@ -72,9 +72,9 @@ struct ThemeMetrics {
   int keyboardKeyCornerRadius;
 };
 
-enum UIIcon { Folder, Text, Image, Book, File, Recent, Settings, Transfer, Library, Wifi, Hotspot };
+enum UIIcon : std::uint8_t { Folder, Text, Image, Book, File, Recent, Settings, Transfer, Library, Wifi, Hotspot };
 
-enum class KeyboardKeyType { Normal, Shift, Mode, Space, Del, Ok, Disabled };
+enum class KeyboardKeyType : std::uint8_t { Normal, Shift, Mode, Space, Del, Ok, Disabled };
 
 // Default theme implementation (Classic Theme)
 // Additional themes can inherit from this and override methods as needed
@@ -127,7 +127,7 @@ class BaseTheme {
                            bool& hasCoverImage) const;
   void drawBookCard(const GfxRenderer& renderer, Rect area, Rect bookRect, const std::vector<RecentBook>& recentBooks,
                     bool bookSelected, bool hasCoverImage, bool& coverRendered, bool& coverBufferStored,
-                    const bool& bufferRestored, std::function<bool()> storeCoverBuffer) const;
+                    const bool& bufferRestored, const std::function<bool()>& storeCoverBuffer) const;
   void drawBookMetadata(const GfxRenderer& renderer, Rect area, Rect bookRect,
                         const std::vector<RecentBook>& recentBooks, bool bookSelected, bool coverRendered) const;
 
@@ -158,7 +158,7 @@ class BaseTheme {
                           bool selected) const;
   virtual void drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                                    const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
-                                   bool& bufferRestored, std::function<bool()> storeCoverBuffer) const;
+                                   bool& bufferRestored, const std::function<bool()>& storeCoverBuffer) const;
   virtual void drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                               const std::function<std::string(int index)>& buttonLabel,
                               const std::function<UIIcon(int index)>& rowIcon) const;

@@ -183,6 +183,24 @@ scripts/ci/run-local.sh update-screen-previews
 
 The local runner intentionally skips GitHub-only steps such as artifact reuse, artifact upload, and release publishing, but it uses the same build, test, and generation commands as the corresponding workflows under `.github/workflows/`.
 
+### Clang / clangd
+
+To keep Clang diagnostics focused on the firmware code instead of PlatformIO's
+cross-toolchain internals, launch `clangd` through the wrapper script:
+
+```sh
+./scripts/clangd.sh --refresh-db
+```
+
+That wrapper regenerates `compile_commands.json` on demand and passes
+`--query-driver` for the PlatformIO GCC toolchains so standard library and
+sysroot headers resolve correctly. If your editor lets you choose the clangd
+binary, point it at `scripts/clangd.sh`.
+
+The checked-in `.clangd` and `.clang-tidy` configs also suppress diagnostics for
+generated or vendored code (`.pio/`, `lib/third_party/`, `open-x4-sdk/`) so the
+remaining findings are more actionable.
+
 ### Flashing your device
 
 Connect your Xteink X4 to your computer via USB-C and run the following command.

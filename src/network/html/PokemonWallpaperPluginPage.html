@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
   <style>
     :root {
+      --theme-token-placeholder: 0;
       /* THEME_TOKENS_START */
       /* THEME_TOKENS_END */
     }
@@ -100,6 +101,10 @@
 
     .row > * {
       flex: 1 1 0;
+    }
+
+    .input-stack {
+      position: relative;
     }
 
     label {
@@ -212,6 +217,61 @@
       padding: 1px 4px;
     }
 
+    .search-meta {
+      font-size: 0.74em;
+      color: var(--gray-4);
+      line-height: 1.45;
+    }
+
+    .search-suggestions {
+      display: grid;
+      gap: 6px;
+    }
+
+    .search-suggestions[hidden] {
+      display: none;
+    }
+
+    .search-suggestion {
+      width: 100%;
+      border: 2px solid var(--black);
+      background: var(--white);
+      color: var(--black);
+      padding: 8px 10px;
+      cursor: pointer;
+      text-align: left;
+      font-family: var(--font-mono);
+    }
+
+    .search-suggestion:hover,
+    .search-suggestion:focus {
+      background: var(--gray-10);
+      outline: none;
+    }
+
+    .search-suggestion-label {
+      display: block;
+      font-size: 0.92em;
+      font-weight: 700;
+    }
+
+    .search-suggestion small {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.72em;
+      color: var(--gray-4);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .search-empty {
+      padding: 8px 10px;
+      border: 1px dashed var(--gray-8);
+      background: var(--gray-10);
+      font-size: 0.78em;
+      color: var(--gray-4);
+    }
+
     details.advanced {
       border: 2px solid var(--black);
       padding: 10px 12px 12px;
@@ -298,9 +358,13 @@
       <div class="controls">
         <div>
           <label for="pokemonInput">Pokemon Name or ID</label>
-          <div class="row">
-            <input id="pokemonInput" type="text" value="1" placeholder="e.g. 25 or pikachu" />
-            <button class="btn secondary" id="randomBtn" type="button">Random</button>
+          <div class="stack input-stack">
+            <div class="row">
+              <input id="pokemonInput" type="text" value="1" placeholder="e.g. 25 or pikachu" />
+              <button class="btn secondary" id="randomBtn" type="button">Random</button>
+            </div>
+            <div class="search-meta" id="pokemonSearchMeta">Fuzzy search, accents and punctuation are ignored.</div>
+            <div class="search-suggestions" id="pokemonSuggestions" hidden></div>
           </div>
         </div>
 
@@ -314,14 +378,7 @@
           <summary>Advanced</summary>
           <div class="advanced-grid">
             <div class="advanced-section">
-              <div class="advanced-section-title">Render Style</div>
-              <div>
-                <label for="layoutStyle">Layout Style</label>
-                <select id="layoutStyle">
-                  <option value="classic" selected>Classic</option>
-                  <option value="boxed">Boxed Panels</option>
-                </select>
-              </div>
+              <div class="advanced-section-title">Artwork</div>
               <div>
                 <label for="artStyle">Art Style</label>
                 <select id="artStyle">
@@ -454,10 +511,12 @@
   const UPLOAD_PATH = "/sleep/pokedex";
   const MIN_SPRITE_SCALE = 0.5;
   const MAX_SPRITE_SCALE = 3.0;
-  const MAX_EVOLUTION_CHAIN_LENGTH = 5;
   const MAX_FLAVOR_TEXT_LINES = 4;
   const MAX_EVOLUTION_TEXT_LINES = 2;
   const MAX_ABILITY_TEXT_LINES = 2;
+  const SEARCH_RESULT_LIMIT = 8;
+  const SEARCH_INDEX_URL = "https://pokeapi.co/api/v2/pokemon?limit=" + MAX_POKEMON_ID;
+  const SEARCH_BLOOM_SEEDS = [0x811c9dc5, 0x9e3779b9, 0x27d4eb2d];
   const GENERATIONS = {
     "generation-i": "Kanto",
     "generation-ii": "Johto",
@@ -474,12 +533,13 @@
   const ctx = canvas.getContext("2d");
   const statusBox = document.getElementById("statusBox");
   const input = document.getElementById("pokemonInput");
+  const searchMeta = document.getElementById("pokemonSearchMeta");
+  const suggestionsBox = document.getElementById("pokemonSuggestions");
   const previewBtn = document.getElementById("previewBtn");
   const downloadBtn = document.getElementById("downloadBtn");
   const uploadBtn = document.getElementById("uploadBtn");
   const randomBtn = document.getElementById("randomBtn");
   const openFolderBtn = document.getElementById("openFolderBtn");
-  const layoutStyleSelect = document.getElementById("layoutStyle");
   const artStyleSelect = document.getElementById("artStyle");
   const fontModeSelect = document.getElementById("fontMode");
   const customFontInput = document.getElementById("customFont");
@@ -503,6 +563,8 @@
   const pokemonBundleCache = new Map();
   const spriteBoundsCache = new Map();
   const speciesDefaultPokemonCache = new Map();
+  let pokemonSearchIndexPromise = null;
+  let suggestionToken = 0;
   let lastRendered = null;
   let busy = false;
 
@@ -530,6 +592,358 @@
 
   function sanitizeFilename(value) {
     return String(value).toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+  }
+
+  function escapeHtml(value) {
+    return String(value || "").replace(/[&<>"']/g, function(ch) {
+      return {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[ch];
+    });
+  }
+
+  function normalizeSearchText(value) {
+    return String(value || "")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/♀/g, " female ")
+      .replace(/♂/g, " male ")
+      .replace(/[’']/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  }
+
+  function compactSearchText(value) {
+    return normalizeSearchText(value).replace(/\s+/g, "");
+  }
+
+  function getSearchBloomTokens(value) {
+    const normalized = normalizeSearchText(value);
+    const compact = normalized.replace(/\s+/g, "");
+    if (!compact) return [];
+
+    const tokens = new Set();
+    tokens.add(compact);
+    normalized.split(/\s+/).filter(Boolean).forEach(function(part) {
+      tokens.add(part);
+    });
+
+    const sizes = compact.length > 4 ? [2, 3] : [2];
+    sizes.forEach(function(size) {
+      if (compact.length < size) return;
+      for (let i = 0; i <= compact.length - size; i++) {
+        tokens.add(compact.slice(i, i + size));
+      }
+    });
+
+    if (/^\d+$/.test(compact)) {
+      for (let i = 1; i <= compact.length; i++) {
+        tokens.add(compact.slice(0, i));
+      }
+    }
+
+    return Array.from(tokens);
+  }
+
+  function hashBloomToken(token, seed) {
+    let hash = seed >>> 0;
+    for (let i = 0; i < token.length; i++) {
+      hash ^= token.charCodeAt(i);
+      hash = Math.imul(hash, 16777619) >>> 0;
+    }
+    return hash >>> 0;
+  }
+
+  function buildBloomFilter(value) {
+    const bits = [0, 0, 0, 0];
+    getSearchBloomTokens(value).forEach(function(token) {
+      SEARCH_BLOOM_SEEDS.forEach(function(seed) {
+        const hash = hashBloomToken(token, seed);
+        const bucket = hash & 3;
+        const bit = 1 << ((hash >>> 2) & 31);
+        bits[bucket] |= bit;
+      });
+    });
+    return bits;
+  }
+
+  function bloomMatches(entryBloom, queryBloom) {
+    for (let i = 0; i < entryBloom.length; i++) {
+      if ((entryBloom[i] & queryBloom[i]) !== queryBloom[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function getOrderedSubsequenceScore(query, target) {
+    if (!query || !target) return 0;
+    let qIndex = 0;
+    let gapPenalty = 0;
+    let lastHit = -1;
+
+    for (let i = 0; i < target.length && qIndex < query.length; i++) {
+      if (target[i] !== query[qIndex]) continue;
+      gapPenalty += lastHit === -1 ? i : (i - lastHit - 1);
+      lastHit = i;
+      qIndex += 1;
+    }
+
+    if (qIndex !== query.length) return 0;
+    return Math.max(1, (query.length * 120) - (gapPenalty * 6));
+  }
+
+  function buildSearchEntry(id, name) {
+    const label = String(id) + " - " + titleCase(name);
+    return {
+      id: id,
+      idText: String(id),
+      name: String(name),
+      label: label,
+      normalizedName: normalizeSearchText(name),
+      compactName: compactSearchText(name),
+      labelNormalized: normalizeSearchText(label),
+      labelCompact: compactSearchText(label),
+      bloom: buildBloomFilter(String(id) + " " + name + " " + label)
+    };
+  }
+
+  function collectCachedPokemonEntries() {
+    const entries = new Map();
+    if (typeof POKEMON_CACHE !== "object" || !POKEMON_CACHE) {
+      return entries;
+    }
+
+    Object.keys(POKEMON_CACHE).forEach(function(url) {
+      const match = String(url).match(/\/pokemon\/([^/]+)\/?$/);
+      if (!match) return;
+      const pokemon = POKEMON_CACHE[url];
+      const id = parseInt(pokemon && pokemon.id, 10);
+      const name = pokemon && pokemon.name;
+      if (!id || !name) return;
+      entries.set(id, { id: id, name: String(name) });
+    });
+
+    return entries;
+  }
+
+  async function ensurePokemonSearchIndex() {
+    if (pokemonSearchIndexPromise) {
+      return pokemonSearchIndexPromise;
+    }
+
+    pokemonSearchIndexPromise = (async function() {
+      const byId = collectCachedPokemonEntries();
+
+      if (byId.size < MAX_POKEMON_ID) {
+        try {
+          const listData = await fetchJson(SEARCH_INDEX_URL);
+          (listData.results || []).forEach(function(entry) {
+            const match = String(entry && entry.url || "").match(/\/pokemon\/(\d+)\/?$/);
+            if (!match) return;
+            const id = parseInt(match[1], 10);
+            if (!id) return;
+            byId.set(id, { id: id, name: String(entry.name || "") });
+          });
+        } catch (error) {
+          if (!byId.size) {
+            throw new Error("Pokemon search index unavailable: " + error.message);
+          }
+        }
+      }
+
+      return Array.from(byId.values())
+        .sort(function(a, b) { return a.id - b.id; })
+        .map(function(entry) { return buildSearchEntry(entry.id, entry.name); });
+    })().catch(function(error) {
+      pokemonSearchIndexPromise = null;
+      throw error;
+    });
+
+    return pokemonSearchIndexPromise;
+  }
+
+  function buildSearchQuery(rawInput) {
+    const raw = String(rawInput || "").trim();
+    const normalized = normalizeSearchText(raw);
+    const compact = normalized.replace(/\s+/g, "");
+    const digits = compact.replace(/\D/g, "");
+    return {
+      raw: raw,
+      normalized: normalized,
+      compact: compact,
+      digits: digits,
+      isNumeric: !!compact && /^\d+$/.test(compact),
+      bloom: buildBloomFilter(raw)
+    };
+  }
+
+  function scorePokemonEntry(entry, query) {
+    if (!query.compact) return 0;
+
+    const bloomHit = bloomMatches(entry.bloom, query.bloom);
+    let score = 0;
+
+    if (query.isNumeric) {
+      if (entry.idText === query.digits) score += 10000;
+      if (query.digits.startsWith(entry.idText)) score += 7000 + (entry.idText.length * 80);
+      if (entry.idText.startsWith(query.digits)) score += 5600 + (query.digits.length * 60);
+      if (entry.idText.indexOf(query.digits) !== -1) score += 2800;
+      if (entry.labelCompact === query.compact) score += 1200;
+      if (bloomHit) score += 60;
+      return score >= 1000 ? score : 0;
+    }
+
+    if (entry.compactName === query.compact || entry.normalizedName === query.normalized) score += 10000;
+    if (entry.labelCompact === query.compact || entry.labelNormalized === query.normalized) score += 9500;
+
+    const compactIndex = entry.compactName.indexOf(query.compact);
+    if (compactIndex === 0) {
+      score += 7000 - Math.min(1200, Math.max(0, entry.compactName.length - query.compact.length) * 10);
+    } else if (compactIndex !== -1) {
+      score += 5200 - Math.min(600, compactIndex * 12);
+    }
+
+    const normalizedIndex = query.normalized ? entry.normalizedName.indexOf(query.normalized) : -1;
+    if (normalizedIndex !== -1) {
+      score += 3400 - Math.min(500, normalizedIndex * 10);
+    }
+
+    if (query.compact.length >= 2) {
+      const subsequenceScore = getOrderedSubsequenceScore(query.compact, entry.compactName);
+      if (subsequenceScore) {
+        score += 1400 + subsequenceScore;
+      }
+    }
+
+    if (bloomHit) score += 900;
+
+    query.normalized.split(/\s+/).filter(Boolean).forEach(function(word) {
+      if (entry.normalizedName.indexOf(word) !== -1) {
+        score += 180;
+      }
+    });
+
+    return score >= (query.compact.length <= 2 ? 1500 : 900) ? score : 0;
+  }
+
+  async function findPokemonMatches(rawInput, limit) {
+    const query = buildSearchQuery(rawInput);
+    if (!query.compact) return [];
+
+    const entries = await ensurePokemonSearchIndex();
+    return entries
+      .map(function(entry) {
+        return { entry: entry, score: scorePokemonEntry(entry, query) };
+      })
+      .filter(function(result) { return result.score > 0; })
+      .sort(function(a, b) {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.entry.id - b.entry.id;
+      })
+      .slice(0, limit || SEARCH_RESULT_LIMIT)
+      .map(function(result) { return result.entry; });
+  }
+
+  function describeSuggestion(entry, query) {
+    if (query.isNumeric) {
+      if (entry.idText === query.digits) return "Exact ID";
+      if (query.digits.startsWith(entry.idText)) return "ID prefix";
+      if (entry.idText.startsWith(query.digits)) return "Extended ID";
+      return "Numeric match";
+    }
+    if (entry.compactName === query.compact || entry.normalizedName === query.normalized) return "Exact name";
+    if (entry.compactName.indexOf(query.compact) === 0) return "Name prefix";
+    if (entry.compactName.indexOf(query.compact) !== -1 || entry.normalizedName.indexOf(query.normalized) !== -1) return "Name match";
+    return "Fuzzy match";
+  }
+
+  function setSearchMeta(message) {
+    if (searchMeta) {
+      searchMeta.textContent = message;
+    }
+  }
+
+  function hidePokemonSuggestions() {
+    suggestionsBox.hidden = true;
+    suggestionsBox.innerHTML = "";
+    setSearchMeta("Fuzzy search, accents and punctuation are ignored.");
+  }
+
+  function renderPokemonSuggestions(rawInput, results) {
+    const query = buildSearchQuery(rawInput);
+    if (!query.compact) {
+      hidePokemonSuggestions();
+      return;
+    }
+
+    if (!results.length) {
+      suggestionsBox.hidden = false;
+      suggestionsBox.innerHTML = '<div class="search-empty">No matching Pokemon yet.</div>';
+      setSearchMeta("Fuzzy search stays accent-insensitive.");
+      return;
+    }
+
+    suggestionsBox.hidden = false;
+    suggestionsBox.innerHTML = results.map(function(entry) {
+      return (
+        '<button class="search-suggestion" type="button" data-id="' + entry.idText + '">' +
+          '<span class="search-suggestion-label">' + escapeHtml(entry.label) + '</span>' +
+          '<small>' + escapeHtml(describeSuggestion(entry, query)) + '</small>' +
+        '</button>'
+      );
+    }).join("");
+    setSearchMeta(results.length + " suggestion" + (results.length === 1 ? "" : "s") + " ready.");
+  }
+
+  async function refreshPokemonSuggestions() {
+    const rawInput = input.value.trim();
+    const token = ++suggestionToken;
+
+    if (!rawInput) {
+      hidePokemonSuggestions();
+      return;
+    }
+
+    suggestionsBox.hidden = false;
+    suggestionsBox.innerHTML = '<div class="search-empty">Loading fuzzy matches...</div>';
+
+    try {
+      const results = await findPokemonMatches(rawInput, SEARCH_RESULT_LIMIT);
+      if (token !== suggestionToken) return;
+      renderPokemonSuggestions(rawInput, results);
+    } catch (error) {
+      if (token !== suggestionToken) return;
+      suggestionsBox.hidden = false;
+      suggestionsBox.innerHTML = '<div class="search-empty">' + escapeHtml(error.message) + '</div>';
+      setSearchMeta("Pokemon search unavailable.");
+    }
+  }
+
+  async function resolvePokemonLookup(rawInput) {
+    const query = buildSearchQuery(rawInput);
+    if (!query.compact) {
+      throw new Error("Enter a Pokemon name or ID.");
+    }
+
+    if (query.isNumeric && query.digits) {
+      const numericId = parseInt(query.digits, 10);
+      if (numericId >= 1 && numericId <= MAX_POKEMON_ID) {
+        const directMatches = await findPokemonMatches(String(numericId), 1).catch(function() { return []; });
+        return directMatches[0] || buildSearchEntry(numericId, String(numericId));
+      }
+    }
+
+    const results = await findPokemonMatches(rawInput, 1);
+    if (!results.length) {
+      throw new Error("No Pokemon matched '" + rawInput + "'.");
+    }
+    return results[0];
   }
 
   async function fetchJson(url) {
@@ -576,17 +990,12 @@
     return request;
   }
 
-  async function getPokemonBundle(rawInput) {
-    const key = String(rawInput || "").trim().toLowerCase();
-    if (!key) {
-      throw new Error("Enter a Pokemon name or ID.");
-    }
-    if (pokemonBundleCache.has(key)) {
-      return pokemonBundleCache.get(key);
-    }
+  async function fetchPokemonBundleByKey(lookupKey, aliasKeys) {
+    const cacheKeys = Array.from(new Set([lookupKey].concat(aliasKeys || []).filter(Boolean)));
+    let bundleRequest;
 
-    const bundleRequest = (async function() {
-      const pokemon = await fetchJson("https://pokeapi.co/api/v2/pokemon/" + encodeURIComponent(key));
+    bundleRequest = (async function() {
+      const pokemon = await fetchJson("https://pokeapi.co/api/v2/pokemon/" + encodeURIComponent(lookupKey));
       const speciesPromise = pokemon.species && pokemon.species.url
         ? fetchJson(pokemon.species.url).catch(function() { return null; })
         : Promise.resolve(null);
@@ -603,16 +1012,58 @@
         evolution: result[0],
         encounters: result[1]
       };
-      pokemonBundleCache.set(String(pokemon.id), Promise.resolve(bundle));
-      pokemonBundleCache.set(String(pokemon.name || "").toLowerCase(), Promise.resolve(bundle));
+      const canonicalKeys = [
+        String(pokemon.id),
+        String(pokemon.name || "").toLowerCase(),
+        compactSearchText(pokemon.name)
+      ];
+      cacheKeys.concat(canonicalKeys).forEach(function(cacheKey) {
+        if (cacheKey) {
+          pokemonBundleCache.set(cacheKey, Promise.resolve(bundle));
+        }
+      });
       return bundle;
     })().catch(function(error) {
-      pokemonBundleCache.delete(key);
+      cacheKeys.forEach(function(cacheKey) {
+        if (pokemonBundleCache.get(cacheKey) === bundleRequest) {
+          pokemonBundleCache.delete(cacheKey);
+        }
+      });
       throw error;
     });
 
-    pokemonBundleCache.set(key, bundleRequest);
+    cacheKeys.forEach(function(cacheKey) {
+      pokemonBundleCache.set(cacheKey, bundleRequest);
+    });
     return bundleRequest;
+  }
+
+  async function getPokemonBundle(rawInput) {
+    const rawKey = String(rawInput || "").trim().toLowerCase();
+    if (!rawKey) {
+      throw new Error("Enter a Pokemon name or ID.");
+    }
+    if (pokemonBundleCache.has(rawKey)) {
+      return pokemonBundleCache.get(rawKey);
+    }
+
+    const query = buildSearchQuery(rawInput);
+    let lookupKey = rawKey;
+    const aliases = [rawKey, query.compact];
+
+    if (query.isNumeric && query.digits) {
+      lookupKey = String(parseInt(query.digits, 10));
+    } else {
+      try {
+        const resolved = await resolvePokemonLookup(rawInput);
+        lookupKey = resolved.idText;
+        aliases.push(resolved.compactName, resolved.labelCompact);
+      } catch (_) {
+        lookupKey = rawKey;
+      }
+    }
+
+    return fetchPokemonBundleByKey(lookupKey, aliases);
   }
 
   async function getSpriteForPokemon(pokemon, style) {
@@ -674,7 +1125,6 @@
 
   function getRenderOptions() {
     return {
-      layoutStyle: layoutStyleSelect.value,
       artStyle: artStyleSelect.value,
       background: bgStyleSelect.value,
       spriteScale: Math.max(MIN_SPRITE_SCALE, Math.min(MAX_SPRITE_SCALE, parseFloat(spriteScaleInput.value) || 1.0)),
@@ -692,19 +1142,6 @@
     if (style === "pixel") return pokemon.sprites && pokemon.sprites.front_default;
     if (style === "home") return pokemon.sprites && pokemon.sprites.other && pokemon.sprites.other.home && pokemon.sprites.other.home.front_default;
     return pokemon.sprites && pokemon.sprites.other && pokemon.sprites.other["official-artwork"] && pokemon.sprites.other["official-artwork"].front_default;
-  }
-
-  function getEvolutionNames(evolutionData) {
-    if (!evolutionData || !evolutionData.chain) return [];
-    const names = [];
-    const queue = [evolutionData.chain];
-    while (queue.length && names.length < MAX_EVOLUTION_CHAIN_LENGTH) {
-      const node = queue.shift();
-      if (node && node.species && node.species.name) names.push(titleCase(node.species.name));
-      const next = (node && node.evolves_to) || [];
-      for (let i = 0; i < next.length; i++) queue.push(next[i]);
-    }
-    return names;
   }
 
   function formatLocation(locationName) {
@@ -1142,108 +1579,9 @@
     }
   }
 
-  function drawBoxedWallpaper(pokemon, sprite, flavorText, evolutionNames, options) {
-    const isBlack = options.background === "black";
-    const ink = isBlack ? "#ffffff" : "#111111";
-    const paper = isBlack ? "#000000" : "#ffffff";
-    const panel = isBlack ? "#ffffff" : "#111111";
-    const panelText = isBlack ? "#000000" : "#ffffff";
-    const isPixel = options.fontFamily.includes("Press Start 2P");
-
-    ctx.fillStyle = paper;
-    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-
-    if (options.background === "diagonal") {
-      ctx.strokeStyle = "#dddddd";
-      ctx.lineWidth = 1;
-      for (let x = -SCREEN_HEIGHT; x < SCREEN_WIDTH; x += 18) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x + SCREEN_HEIGHT, SCREEN_HEIGHT);
-        ctx.stroke();
-      }
-    }
-
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillStyle = panel;
-    ctx.fillRect(24, 24, SCREEN_WIDTH - 48, 82);
-    ctx.fillStyle = panelText;
-    ctx.font = (isPixel ? "24px" : "bold 34px") + " " + options.fontFamily;
-    ctx.fillText("#" + String(pokemon.id).padStart(4, "0"), 42, 62);
-    ctx.font = (isPixel ? "22px" : "bold 30px") + " " + options.fontFamily;
-    ctx.fillText(titleCase(pokemon.name), 42, 92);
-
-    const spriteBounds = getSpriteBounds(sprite);
-    const baseSpriteSize = options.artStyle === "pixel" ? 220 : 280;
-    const spriteTarget = Math.max(96, Math.round(baseSpriteSize * options.spriteScale));
-    const scale = Math.min(spriteTarget / spriteBounds.width, spriteTarget / spriteBounds.height);
-    const spriteW = Math.max(1, Math.round(spriteBounds.width * scale));
-    const spriteH = Math.max(1, Math.round(spriteBounds.height * scale));
-    const spriteX = Math.round((SCREEN_WIDTH - spriteW) / 2);
-    const spriteCenterY = 330;
-    const spriteY = Math.round(spriteCenterY - (spriteH / 2));
-    const pixelatedSprite = options.artStyle === "pixel";
-    const drawSprite = function() {
-      drawGrayscaleSprite(ctx, sprite, spriteBounds, spriteX, spriteY, spriteW, spriteH, pixelatedSprite);
-    };
-    if (!options.spriteOverlay) drawSprite();
-
-    let currentY = 620;
-    if (options.showTypes) {
-      const typeNames = (pokemon.types || []).map(function(entry) { return titleCase(entry.type.name); }).join(" / ");
-      ctx.fillStyle = panel;
-      ctx.fillRect(24, 540, SCREEN_WIDTH - 48, 48);
-      ctx.fillStyle = panelText;
-      ctx.font = (isPixel ? "16px" : "bold 24px") + " " + options.fontFamily;
-      ctx.fillText(typeNames || "Unknown", 36, 571);
-    } else {
-      currentY = 580;
-    }
-
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillStyle = ink;
-    if (options.showFlavor) {
-      ctx.font = (isPixel ? "12px" : "18px") + " " + options.fontFamily;
-      const wrapped = wrapText(flavorText || "No flavor text available for this Pokemon.", SCREEN_WIDTH - 72, MAX_FLAVOR_TEXT_LINES);
-      for (let i = 0; i < wrapped.length; i++) {
-        ctx.fillText(wrapped[i], 36, currentY + (i * (isPixel ? 18 : 24)));
-      }
-      currentY += (wrapped.length * (isPixel ? 18 : 24)) + 10;
-    }
-
-    if (options.showHp) {
-      currentY = drawHpBars(pokemon, currentY, options.fontFamily, true) + 6;
-    }
-
-    if (options.showEvolution) {
-      const text = evolutionNames.length ? ("Evolution: " + evolutionNames.join(" > ")) : "Evolution: Unknown";
-      ctx.font = (isPixel ? "10px" : "16px") + " " + options.fontFamily;
-      const evoLines = wrapText(text, SCREEN_WIDTH - 72, MAX_EVOLUTION_TEXT_LINES);
-      for (let i = 0; i < evoLines.length; i++) {
-        ctx.fillText(evoLines[i], 36, currentY + (i * (isPixel ? 16 : 20)));
-      }
-      currentY += (evoLines.length * (isPixel ? 16 : 20)) + 6;
-    }
-
-    if (options.showAbilities) {
-      const abilities = (pokemon.abilities || []).map(function(a) { return titleCase(a.ability.name); }).join(", ");
-      ctx.font = (isPixel ? "10px" : "16px") + " " + options.fontFamily;
-      ctx.fillText("Ability: " + abilities, 36, currentY);
-    }
-
-    if (options.spriteOverlay) drawSprite();
-  }
-
   async function drawWallpaper(bundle, sprite, options) {
     const flavorText = getFlavorText(bundle.species);
-    const evolutionNames = getEvolutionNames(bundle.evolution);
-    if (options.layoutStyle === "classic") {
-      await drawClassicWallpaper(bundle, sprite, flavorText, options);
-      return;
-    }
-    drawBoxedWallpaper(bundle.pokemon, sprite, flavorText, evolutionNames, options);
+    await drawClassicWallpaper(bundle, sprite, flavorText, options);
   }
 
   function canvasToBmpBlob(sourceCanvas) {
@@ -1326,6 +1664,8 @@
       setBusy(true);
       setStatus("Loading Pokemon data...");
       const pokemon = await renderPokemonByInput(rawInput, getRenderOptions());
+      input.value = String(pokemon.id) + " - " + titleCase(pokemon.name);
+      hidePokemonSuggestions();
       setStatus("Ready: #" + String(pokemon.id).padStart(4, "0") + " " + titleCase(pokemon.name));
     } catch (error) {
       console.error(error);
@@ -1531,7 +1871,7 @@
       el.addEventListener("change", syncOverlayExclusivity);
     });
 
-    [layoutStyleSelect, artStyleSelect, fontModeSelect, bgStyleSelect, spriteScaleInput, spriteOverlayInput,
+    [artStyleSelect, fontModeSelect, bgStyleSelect, spriteScaleInput, spriteOverlayInput,
      showTypesInput, showFlavorInput, showHpInput, showEvolutionInput, showAbilitiesInput].forEach(function(el) {
       el.addEventListener("change", renderCurrentPokemon);
     });
@@ -1548,11 +1888,35 @@
     openFolderBtn.addEventListener("click", function() {
       window.location.href = "/files?path=" + encodeURIComponent(UPLOAD_PATH);
     });
+    input.addEventListener("input", refreshPokemonSuggestions);
+    input.addEventListener("focus", function() {
+      ensurePokemonSearchIndex().catch(function() {});
+      refreshPokemonSuggestions();
+    });
+    input.addEventListener("blur", function() {
+      const currentToken = ++suggestionToken;
+      window.setTimeout(function() {
+        if (currentToken === suggestionToken) {
+          hidePokemonSuggestions();
+        }
+      }, 120);
+    });
     input.addEventListener("keydown", function(event) {
       if (event.key === "Enter") {
         event.preventDefault();
         renderCurrentPokemon();
       }
+    });
+    suggestionsBox.addEventListener("mousedown", function(event) {
+      event.preventDefault();
+    });
+    suggestionsBox.addEventListener("click", function(event) {
+      const button = event.target.closest(".search-suggestion");
+      if (!button) return;
+      input.value = button.querySelector(".search-suggestion-label").textContent;
+      suggestionToken += 1;
+      hidePokemonSuggestions();
+      renderCurrentPokemon();
     });
 
     syncOverlayExclusivity();
