@@ -18,6 +18,7 @@
 #include "components/ScreenComponents.h"
 #include "components/UITheme.h"
 #include "features/status_overlay/Layout.h"
+#include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
 #include "util/RecentBooksStore.h"
 
@@ -51,6 +52,7 @@ void TxtReaderActivity::onEnter() {
 }
 
 void TxtReaderActivity::onExit() {
+  features::status_overlay::clearReaderContext();
   Activity::onExit();
 
   // Reset orientation back to portrait for the rest of the UI

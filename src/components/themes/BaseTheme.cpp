@@ -13,6 +13,7 @@
 #include "SpiBusMutex.h"
 #include "components/UITheme.h"
 #include "features/status_overlay/Layout.h"
+#include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
 #include "util/RecentBooksStore.h"
 
@@ -668,6 +669,44 @@ void BaseTheme::fillPopupProgress(const GfxRenderer& renderer, const Rect& layou
 void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, const int currentPage,
                               const int pageCount, std::string title, const int paddingBottom,
                               const int textYOffset) const {
+  // When the global status bar is enabled it is the single status-bar entity:
+  // it owns the band and (as a post-render hook clearing the band last) is the
+  // only path that can draw into it. Publish reading context for it instead of
+  // drawing a second bottom bar, then bail out.
+  if (features::status_overlay::isEnabled()) {
+    auto& rc = features::status_overlay::ReaderContext::get();
+    rc.active = true;
+
+    if (SETTINGS.statusBarBookProgressPercentage && SETTINGS.statusBarChapterPageCount) {
+      snprintf(rc.progress, sizeof(rc.progress), "%d/%d  %.0f%%", currentPage, pageCount, bookProgress);
+    } else if (SETTINGS.statusBarBookProgressPercentage) {
+      snprintf(rc.progress, sizeof(rc.progress), "%.0f%%", bookProgress);
+    } else if (SETTINGS.statusBarChapterPageCount) {
+      snprintf(rc.progress, sizeof(rc.progress), "%d/%d", currentPage, pageCount);
+    } else {
+      rc.progress[0] = '\0';
+    }
+
+    if (!title.empty()) {
+      snprintf(rc.title, sizeof(rc.title), "%s", title.c_str());
+    } else {
+      rc.title[0] = '\0';
+    }
+
+    if (SETTINGS.statusBarProgressBar != CrossPointSettings::STATUS_BAR_PROGRESS_BAR::HIDE_PROGRESS) {
+      if (SETTINGS.statusBarProgressBar == CrossPointSettings::STATUS_BAR_PROGRESS_BAR::BOOK_PROGRESS) {
+        rc.progressBarPercent = static_cast<int>(bookProgress);
+      } else {
+        rc.progressBarPercent =
+            (pageCount > 0) ? static_cast<int>((static_cast<float>(currentPage) / pageCount) * 100) : 0;
+      }
+      rc.progressBarThicknessPx = (SETTINGS.statusBarProgressBarThickness + 1) * 2;
+    } else {
+      rc.progressBarPercent = -1;
+    }
+    return;
+  }
+
   auto metrics = UITheme::getInstance().getMetrics();
   int orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft;
   renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,

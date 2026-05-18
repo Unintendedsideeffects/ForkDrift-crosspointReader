@@ -29,6 +29,7 @@
 #include "SpiBusMutex.h"
 #include "components/UITheme.h"
 #include "features/status_overlay/Layout.h"
+#include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
 #include "network/BackgroundWifiService.h"
 #include "util/RecentBooksStore.h"
@@ -123,6 +124,8 @@ void EpubReaderActivity::onEnter() {
 }
 
 void EpubReaderActivity::onExit() {
+  features::status_overlay::clearReaderContext();
+
   // Flush any pending progress save before cleanup
   if (section && (lastSavedSpineIndex != currentSpineIndex || lastSavedPage != section->currentPage)) {
     saveProgress(currentSpineIndex, section->currentPage, section->pageCount);

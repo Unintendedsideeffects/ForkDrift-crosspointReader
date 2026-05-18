@@ -111,6 +111,13 @@ UIIcon UITheme::getFileIcon(const std::string& filename) {
 }
 
 int UITheme::getStatusBarHeight() {
+  // When the global status bar is enabled it is the single status-bar entity and
+  // its band is reserved separately via status_overlay::topInset()/bottomInset().
+  // The reader's own bottom bar is not drawn, so it must not reserve space too.
+  if (features::status_overlay::isEnabled()) {
+    return 0;
+  }
+
   const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();
 
   // Add status bar margin

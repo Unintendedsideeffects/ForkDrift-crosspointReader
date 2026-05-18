@@ -16,6 +16,7 @@
 #include "activities/TaskShutdown.h"
 #include "components/ScreenComponents.h"
 #include "features/status_overlay/Layout.h"
+#include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
 #include "util/RecentBooksStore.h"
 
@@ -87,6 +88,7 @@ void MarkdownReaderActivity::onEnter() {
 }
 
 void MarkdownReaderActivity::onExit() {
+  features::status_overlay::clearReaderContext();
   ActivityWithSubactivity::onExit();
 
   renderer.setOrientation(GfxRenderer::Orientation::Portrait);

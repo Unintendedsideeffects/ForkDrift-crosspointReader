@@ -8,17 +8,17 @@
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
+#include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
 
 namespace {
-constexpr int MENU_ITEMS = 7;
+constexpr int MENU_ITEMS = 6;
 const StrId menuNames[MENU_ITEMS] = {StrId::STR_CHAPTER_PAGE_COUNT,
                                      StrId::STR_BOOK_PROGRESS_PERCENTAGE,
                                      StrId::STR_PROGRESS_BAR,
                                      StrId::STR_PROGRESS_BAR_THICKNESS,
                                      StrId::STR_TITLE,
-                                     StrId::STR_BATTERY,
-                                     StrId::STR_XTC_STATUS_BAR};
+                                     StrId::STR_BATTERY};
 constexpr int PROGRESS_BAR_ITEMS = 3;
 const StrId progressBarNames[PROGRESS_BAR_ITEMS] = {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE};
 
@@ -28,9 +28,6 @@ const StrId progressBarThicknessNames[PROGRESS_BAR_THICKNESS_ITEMS] = {
 
 constexpr int TITLE_ITEMS = 3;
 const StrId titleNames[TITLE_ITEMS] = {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE};
-
-constexpr int XTC_STATUS_BAR_ITEMS = 3;
-const StrId xtcStatusBarNames[XTC_STATUS_BAR_ITEMS] = {StrId::STR_HIDE, StrId::STR_BOTTOM, StrId::STR_TOP};
 
 const int widthMargin = 10;
 const int verticalPreviewPadding = 50;
@@ -55,14 +52,16 @@ void StatusBarSettingsActivity::onEnter() {
     SETTINGS.statusBarTitle = CrossPointSettings::STATUS_BAR_TITLE::HIDE_TITLE;
   }
 
-  if (SETTINGS.xtcStatusBarMode >= XTC_STATUS_BAR_ITEMS) {
-    SETTINGS.xtcStatusBarMode = CrossPointSettings::XTC_STATUS_BAR_MODE::XTC_STATUS_BAR_HIDE;
-  }
-
   requestUpdate();
 }
 
-void StatusBarSettingsActivity::onExit() { Activity::onExit(); }
+void StatusBarSettingsActivity::onExit() {
+  // The live preview calls GUI.drawStatusBar(), which (with the global bar on)
+  // publishes preview values into the shared ReaderContext. Clear it so the
+  // overlay never renders stale preview data on non-reader screens.
+  features::status_overlay::clearReaderContext();
+  Activity::onExit();
+}
 
 void StatusBarSettingsActivity::loop() {
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
@@ -118,9 +117,6 @@ void StatusBarSettingsActivity::handleSelection() {
   } else if (selectedIndex == 5) {
     // Show Battery
     SETTINGS.statusBarBattery = (SETTINGS.statusBarBattery + 1) % 2;
-  } else if (selectedIndex == 6) {
-    // XTC Status Bar
-    SETTINGS.xtcStatusBarMode = (SETTINGS.xtcStatusBarMode + 1) % XTC_STATUS_BAR_ITEMS;
   }
   const bool saved = SETTINGS.saveToFile();
   if (!saved) {
@@ -157,8 +153,6 @@ void StatusBarSettingsActivity::render(RenderLock&&) {
           return I18N.get(titleNames[SETTINGS.statusBarTitle]);
         } else if (index == 5) {
           return SETTINGS.statusBarBattery ? tr(STR_SHOW) : tr(STR_HIDE);
-        } else if (index == 6) {
-          return I18N.get(xtcStatusBarNames[SETTINGS.xtcStatusBarMode]);
         } else {
           return tr(STR_HIDE);
         }

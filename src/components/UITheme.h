@@ -15,6 +15,10 @@ class UITheme {
   static UITheme& getInstance() { return instance; }
 
   const ThemeMetrics& getMetrics() const;
+  // Raw theme metrics WITHOUT the status-overlay inset adjustment. Use this from
+  // status_overlay geometry accessors: getMetrics() calls topInset()/bottomInset(),
+  // so routing barHeight()/padH() through getMetrics() would recurse infinitely.
+  const ThemeMetrics& getBaseMetrics() const { return *currentMetrics; }
   const BaseTheme& getTheme() const { return *currentTheme; }
   void reload();
   void setTheme(CrossPointSettings::UI_THEME type);

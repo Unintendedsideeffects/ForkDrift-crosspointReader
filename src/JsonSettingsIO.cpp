@@ -115,7 +115,6 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["showHiddenFiles"] = s.showHiddenFiles;
   doc["developerMode"] = s.developerMode;
   doc["imageRendering"] = s.imageRendering;
-  doc["xtcStatusBarMode"] = s.xtcStatusBarMode;
   doc["globalStatusBar"] = s.globalStatusBar;
   doc["globalStatusBarPosition"] = s.globalStatusBarPosition;
 
@@ -230,8 +229,6 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.developerMode = doc["developerMode"] | (uint8_t)0;
   s.imageRendering =
       clamp(doc["imageRendering"] | (uint8_t)S::IMAGES_DISPLAY, S::IMAGE_RENDERING_COUNT, S::IMAGES_DISPLAY);
-  s.xtcStatusBarMode = clamp(doc["xtcStatusBarMode"] | (uint8_t)S::XTC_STATUS_BAR_HIDE, S::XTC_STATUS_BAR_MODE_COUNT,
-                             S::XTC_STATUS_BAR_HIDE);
   s.globalStatusBar = clamp(doc["globalStatusBar"] | (uint8_t)S::GLOBAL_STATUS_BAR_OFF, S::GLOBAL_STATUS_BAR_MODE_COUNT,
                             S::GLOBAL_STATUS_BAR_OFF);
   s.globalStatusBarPosition = clamp(doc["globalStatusBarPosition"] | (uint8_t)S::STATUS_BAR_TOP,
