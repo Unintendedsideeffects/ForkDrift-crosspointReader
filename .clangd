@@ -10,6 +10,14 @@ CompileFlags:
 
 ---
 If:
+  PathMatch: .*\.c$
+CompileFlags:
+  # The compile database already carries the correct C standard; don't force the
+  # global C++ fallback flag onto C translation units.
+  Remove: [-std=gnu++2a]
+
+---
+If:
   PathMatch:
     - ^(lib/third_party|open-x4-sdk|\.pio)/.*
     - ^lib/I18n/I18nStrings\.cpp$
