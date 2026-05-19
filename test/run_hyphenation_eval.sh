@@ -24,6 +24,7 @@ CXXFLAGS=(
   -pedantic
   -I"$ROOT_DIR"
   -I"$ROOT_DIR/lib"
+  -I"$ROOT_DIR/lib/Epub"
   -I"$ROOT_DIR/lib/Utf8"
 )
 
