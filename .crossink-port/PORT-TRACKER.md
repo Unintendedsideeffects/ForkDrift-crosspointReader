@@ -130,7 +130,12 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
       + SectionHeader factory; controls tab restructured with General/In-Reader headers;
       isHeader param propagated to all 4 theme drawList overrides (Base/Lyra/Minimal/RoundedRaff)
       with variable-Y rendering; I18n 380→387 keys. Build SUCCESS, RAM 44.5%.
-- [ ] 1662fd86 more short power button options
+- [x] 1662fd86 more short power button options — SHORT_PWRBTN extended with
+      TOGGLE_GUIDE_DOTS/TOGGLE_BIONIC_READING/TOGGLE_BOOKMARK/SYNC_PROGRESS/
+      MARK_FINISHED/READING_STATS/SCREENSHOT/CYCLE_PAGE_TURN; LONG_MENU_CYCLE_PAGE_TURN
+      added; executeReaderQuickAction(action) refactor unifies short-power + long-press;
+      CYCLE_PAGE_TURN toggles auto page turn on/off; Phase-3 cases no-op.
+      I18n 389 keys. Build SUCCESS, RAM 44.5%.
 - [ ] bf54096d long press power button customization + reorder controls
 - [ ] 9c20a784 short power press = Confirm outside reader
 - [ ] fe7e8554 short power = Confirm when no global action consumes it

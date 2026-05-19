@@ -470,7 +470,9 @@ enum class StrId : uint16_t {
   STR_TOGGLE_GUIDE_DOTS,
   STR_TOGGLE_BIONIC_READING,
   STR_TOGGLE_BOOKMARK,
+  STR_MARK_FINISHED,
   STR_READING_STATS,
+  STR_CYCLE_PAGE_TURN,
   // Sentinel - must be last
   _COUNT
 };

@@ -274,16 +274,7 @@ void EpubReaderActivity::loop() {
     }
   }
 
-  // Short power button: cycle font family
-  if (SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::TOGGLE_FONT &&
-      mappedInput.wasReleased(MappedInputManager::Button::Power)) {
-    SETTINGS.fontFamily = (SETTINGS.fontFamily + 1) % CrossPointSettings::FONT_FAMILY_COUNT;
-    SETTINGS.saveToFile();
-    {
-      RenderLock lock(*this);
-      section.reset();
-    }
-    requestUpdate();
+  if (executeShortPowerButtonAction()) {
     return;
   }
 
@@ -413,32 +404,94 @@ void EpubReaderActivity::jumpToPercent(int percent) {
   }
 }
 
-void EpubReaderActivity::executeLongPressMenuAction() {
+void EpubReaderActivity::reindexCurrentSection() {
+  SETTINGS.saveToFile();
+  {
+    RenderLock lock(*this);
+    GUI.drawPopup(renderer, tr(STR_INDEXING));
+    if (section) {
+      cachedSpineIndex = currentSpineIndex;
+      cachedChapterTotalPageCount = section->pageCount;
+      nextPageNumber = section->currentPage;
+    }
+    section.reset();
+  }
+  requestUpdate();
+}
+
+void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS_MENU_ACTION action) {
   using S = CrossPointSettings;
-  switch (SETTINGS.longPressMenuAction) {
-    case S::LONG_PRESS_MENU_ACTION::LONG_MENU_CHANGE_FONT:
+  switch (action) {
+    case S::LONG_MENU_CHANGE_FONT:
       SETTINGS.fontFamily = (SETTINGS.fontFamily + 1) % S::FONT_FAMILY_COUNT;
-      SETTINGS.saveToFile();
-      {
-        RenderLock lock(*this);
-        section.reset();
-      }
-      requestUpdate();
+      reindexCurrentSection();
       break;
-    case S::LONG_PRESS_MENU_ACTION::LONG_MENU_REFRESH_SCREEN:
+    case S::LONG_MENU_REFRESH_SCREEN:
       pagesUntilFullRefresh = 1;
       requestUpdate();
       break;
-    case S::LONG_PRESS_MENU_ACTION::LONG_MENU_SYNC_PROGRESS:
+    case S::LONG_MENU_SYNC_PROGRESS:
       onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::SYNC);
       break;
-    case S::LONG_PRESS_MENU_ACTION::LONG_MENU_SCREENSHOT:
+    case S::LONG_MENU_SCREENSHOT:
       onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::SCREENSHOT);
       break;
-    default:
-      // LONG_MENU_OFF, TOGGLE_GUIDE_DOTS, TOGGLE_BIONIC, TOGGLE_BOOKMARK,
-      // MARK_FINISHED, READING_STATS: no-op until those features are ported.
+    case S::LONG_MENU_CYCLE_PAGE_TURN:
+      // Toggle auto page turn on/off; more granular cycling requires PAGE_TURN_INTERVALS (Phase 4 follow-up)
+      if (automaticPageTurnActive) {
+        setAutoPageTurnIntervalSeconds(0);
+      } else {
+        setAutoPageTurnIntervalSeconds(DEFAULT_AUTO_PAGE_TURN_INTERVAL_S);
+      }
+      requestUpdate();
       break;
+    case S::LONG_MENU_OFF:
+    default:
+      // TOGGLE_GUIDE_DOTS, TOGGLE_BIONIC, TOGGLE_BOOKMARK, MARK_FINISHED,
+      // READING_STATS: no-op until Phase 3 features are ported.
+      break;
+  }
+}
+
+void EpubReaderActivity::executeLongPressMenuAction() {
+  executeReaderQuickAction(static_cast<CrossPointSettings::LONG_PRESS_MENU_ACTION>(SETTINGS.longPressMenuAction));
+}
+
+bool EpubReaderActivity::executeShortPowerButtonAction() {
+  if (!mappedInput.wasReleased(MappedInputManager::Button::Power)) {
+    return false;
+  }
+  using S = CrossPointSettings;
+  switch (SETTINGS.shortPwrBtn) {
+    case S::TOGGLE_FONT:
+      executeReaderQuickAction(S::LONG_MENU_CHANGE_FONT);
+      return true;
+    case S::TOGGLE_GUIDE_DOTS:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_GUIDE_DOTS);
+      return true;
+    case S::TOGGLE_BIONIC_READING:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_BIONIC);
+      return true;
+    case S::TOGGLE_BOOKMARK:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_BOOKMARK);
+      return true;
+    case S::SYNC_PROGRESS:
+      executeReaderQuickAction(S::LONG_MENU_SYNC_PROGRESS);
+      return true;
+    case S::MARK_FINISHED:
+      executeReaderQuickAction(S::LONG_MENU_MARK_FINISHED);
+      return true;
+    case S::READING_STATS:
+      executeReaderQuickAction(S::LONG_MENU_READING_STATS);
+      return true;
+    case S::SCREENSHOT:
+      executeReaderQuickAction(S::LONG_MENU_SCREENSHOT);
+      return true;
+    case S::CYCLE_PAGE_TURN:
+      executeReaderQuickAction(S::LONG_MENU_CYCLE_PAGE_TURN);
+      return true;
+    default:
+      return false;
   }
 }
 
