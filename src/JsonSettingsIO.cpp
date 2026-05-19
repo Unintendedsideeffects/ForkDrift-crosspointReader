@@ -5,6 +5,7 @@
 #include <Logging.h>
 #include <ObfuscationUtils.h>
 
+#include <algorithm>
 #include <cstring>
 
 #include "CrossPointSettings.h"
@@ -86,6 +87,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["lineSpacing"] = s.lineSpacing;
   doc["paragraphAlignment"] = s.paragraphAlignment;
   doc["sleepTimeout"] = s.sleepTimeout;
+  doc["sleepTimeoutMinutes"] = s.sleepTimeoutMinutes;
   doc["refreshFrequency"] = s.refreshFrequency;
   doc["screenMargin"] = s.screenMargin;
   doc["opdsServerUrl"] = s.opdsServerUrl;
@@ -196,6 +198,13 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.paragraphAlignment =
       clamp(doc["paragraphAlignment"] | (uint8_t)S::JUSTIFIED, S::PARAGRAPH_ALIGNMENT_COUNT, S::JUSTIFIED);
   s.sleepTimeout = clamp(doc["sleepTimeout"] | (uint8_t)S::SLEEP_10_MIN, S::SLEEP_TIMEOUT_COUNT, S::SLEEP_10_MIN);
+  if (doc["sleepTimeoutMinutes"].isNull()) {
+    s.sleepTimeoutMinutes = S::sleepTimeoutEnumToMinutes(s.sleepTimeout);
+    if (needsResave) *needsResave = true;
+  } else {
+    s.sleepTimeoutMinutes = std::clamp(
+        doc["sleepTimeoutMinutes"] | (uint8_t)10, S::MIN_SLEEP_TIMEOUT_MINUTES, S::MAX_SLEEP_TIMEOUT_MINUTES);
+  }
   s.refreshFrequency =
       clamp(doc["refreshFrequency"] | (uint8_t)S::REFRESH_15, S::REFRESH_FREQUENCY_COUNT, S::REFRESH_15);
   s.screenMargin = doc["screenMargin"] | (uint8_t)5;

@@ -17,7 +17,7 @@
 #include "AnkiAddActivity.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
-#include "EpubReaderAutoPageTurnIntervalActivity.h"
+#include "activities/util/IntervalSelectionActivity.h"
 #include "EpubReaderChapterSelectionActivity.h"
 #include "EpubReaderFootnotesActivity.h"
 #include "EpubReaderPercentSelectionActivity.h"
@@ -408,11 +408,15 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
     }
     case EpubReaderMenuActivity::MenuAction::AUTO_PAGE_TURN:
       startActivityForResult(
-          std::make_unique<EpubReaderAutoPageTurnIntervalActivity>(renderer, mappedInput,
-                                                                   getAutoPageTurnIntervalSeconds()),
+          std::make_unique<IntervalSelectionActivity>(
+              renderer, mappedInput, "AutoPageTurnInterval", StrId::STR_AUTO_TURN_PAGES_PER_MIN,
+              StrId::STR_AUTO_TURN_STEP_HINT, getAutoPageTurnIntervalSeconds(),
+              MIN_AUTO_PAGE_TURN_INTERVAL_S, MAX_AUTO_PAGE_TURN_INTERVAL_S, 1, 5,
+              StrId::STR_NONE_OPT, true, true),
           [this](const ActivityResult& result) {
             if (!result.isCancelled) {
-              setAutoPageTurnIntervalSeconds(static_cast<uint16_t>(std::get<AutoPageTurnResult>(result.data).seconds));
+              setAutoPageTurnIntervalSeconds(
+                  static_cast<uint16_t>(std::get<IntervalResult>(result.data).value));
             }
             requestUpdate();
           });

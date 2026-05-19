@@ -30,8 +30,8 @@ struct PercentResult {
   int percent = 0;
 };
 
-struct AutoPageTurnResult {
-  int seconds = 0;
+struct IntervalResult {
+  uint32_t value = 0;
 };
 
 struct PageResult {
@@ -58,7 +58,7 @@ struct FilePathResult {
 };
 
 using ResultVariant = std::variant<std::monostate, WifiResult, KeyboardResult, MenuResult, ChapterResult, PercentResult,
-                                   AutoPageTurnResult, PageResult, SyncResult, NetworkModeResult, FootnoteResult,
+                                   IntervalResult, PageResult, SyncResult, NetworkModeResult, FootnoteResult,
                                    FilePathResult>;
 
 struct ActivityResult {

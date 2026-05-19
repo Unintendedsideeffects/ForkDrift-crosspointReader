@@ -131,6 +131,9 @@ class CrossPointSettings {
     SLEEP_30_MIN = 4,
     SLEEP_TIMEOUT_COUNT
   };
+  static constexpr uint8_t MIN_SLEEP_TIMEOUT_MINUTES = 1;
+  static constexpr uint8_t MAX_SLEEP_TIMEOUT_MINUTES = 30;
+  static uint8_t sleepTimeoutEnumToMinutes(uint8_t legacyValue);
 
   // E-ink refresh frequency (pages between full refreshes)
   enum REFRESH_FREQUENCY {
@@ -231,7 +234,8 @@ class CrossPointSettings {
   uint8_t lineSpacing = NORMAL;
   uint8_t paragraphAlignment = JUSTIFIED;
   // Auto-sleep timeout setting (default 10 minutes)
-  uint8_t sleepTimeout = SLEEP_10_MIN;
+  uint8_t sleepTimeout = SLEEP_10_MIN;  // legacy enum retained for binary/JSON migration
+  uint8_t sleepTimeoutMinutes = 10;
   // E-ink refresh frequency (default 15 pages)
   uint8_t refreshFrequency = REFRESH_15;
   uint8_t hyphenationEnabled = 0;
