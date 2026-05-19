@@ -34,19 +34,39 @@ separate attention.
 - [≈] c0a56228 style: minimal theme category font size — MinimalTheme.cpp tab-bar
       UI_12→UI_10 already in tip port (d8853c6d). HomeActivity/fontIds churn is
       CrossInk font-id restructuring, out of scope (ForkDrift has own font system).
-- [ ] 642402f8 home progress bar for current book (Lyra) #28
-- [ ] 971a62ee LyraCarouselTheme carousel style tweak
-- [ ] 8154c9a5 stats on lyra carousel home, title above cover
-- [ ] 9a9054cb perf: reduce Lyra Carousel RAM frame cache
-- [ ] bdc65f27 update Lyra Carousel progress footer
-- [ ] 0c7e11a3 style: lyra reading stat bar width
+### Lyra Carousel cluster — DEFERRED (hard prerequisites)
+CrossInk LyraCarouselTheme is not standalone: overrides a `drawCarouselBorder`
+virtual absent from ForkDrift BaseTheme, needs `setPreRenderIndex` + exact-
+thumbnail plumbing in HomeActivity, and a stats footer (BookReadingStats::
+sessionCount). Port AFTER: (1) Phase 3 reading-stats; (2) drawRecentBookCover
+stats/progress signature extension across all themes (642402f8/8154c9a5);
+(3) HomeActivity carousel integration. Resequenced below Phase 1 independents.
+- [ ] 642402f8 home progress bar for current book (Lyra) #28 — extends
+      drawRecentBookCover signature (stats/progressPercent) across ALL themes
+      (BaseTheme+Lyra+ForkDrift+Minimal); do before carousel + with Phase 3.
+- [ ] 971a62ee LyraCarouselTheme carousel style tweak [carousel-dep]
+- [ ] 8154c9a5 stats on lyra carousel home, title above cover [carousel-dep, P3]
+- [ ] 9a9054cb perf: reduce Lyra Carousel RAM frame cache [carousel-dep]
+- [ ] bdc65f27 update Lyra Carousel progress footer [carousel-dep, P3]
+- [ ] 0c7e11a3 style: lyra reading stat bar width [carousel-dep]
 - [x] 684946c5 fix(theme): roundedraff padding — applied exact deltas manually
       (forks diverged 124/63 but patched regions pristine): contentSidePadding
       20→15, kInteractiveInsetX 20→15, +kHomeMenuSidePadding/kListSidePadding/
       kTabHorizontalInset, even-distribution tab bar, menu rowHeight +20→+15,
       kRowPaddingX 40→30, list sidePadding→kListSidePadding.
-- [ ] 8ab81889 resize menu items to fit homescreen without scrolling
-- [ ] 004b893e remove text overlay on current book in base theme
+- [x] 8ab81889 resize menu items to fit homescreen without scrolling — metric
+      reductions applied: BaseTheme.h 45/8→38/6, LyraTheme.h + ForkDriftTheme.h
+      64/8→56/6. Lyra3CoversTheme inherits LyraMetrics (auto-follows). The
+      maxVisibleItems 6→7 part is N/A: ForkDrift drawButtonMenu has no item cap
+      (no scrolling problem). ForkDriftTheme matched for intent consistency.
+NOTE: commits may land inside concurrent user commits (e.g. 004b893e landed in
+b243c895) — verify each port is in git history, not necessarily as own commit.
+- [x] 004b893e remove text overlay on current book in base theme — ForkDrift
+      relocated this into BaseTheme::drawBookMetadata (drawRecentBookCover
+      refactored into computeBookCardRect/drawBookCard/drawBookMetadata).
+      Re-expressed intent: keep empty-state placeholder, drop the title/author/
+      box/Continue-Reading overlay. Affects Classic theme only (Lyra/ForkDrift/
+      Minimal override drawRecentBookCover).
 - [ ] ea9568c3 toggleable recent books grid view
 - [ ] a45de2df show progress in recent books grid title
 

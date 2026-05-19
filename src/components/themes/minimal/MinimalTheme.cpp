@@ -478,6 +478,6 @@ void MinimalTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCo
     const std::string label = buttonLabel(i);
     const int labelW = renderer.getTextWidth(UI_12_FONT_ID, label.c_str());
     const int labelY = rowY + (kMenuRowHeight - renderer.getLineHeight(UI_12_FONT_ID)) / 2;
-    renderer.drawText(UI_12_FONT_ID, panelX + (panelW - labelW) / 2, label.empty() ? labelY : labelY, label.c_str());
+    renderer.drawText(UI_12_FONT_ID, panelX + (panelW - labelW) / 2, labelY, label.c_str());
   }
 }
