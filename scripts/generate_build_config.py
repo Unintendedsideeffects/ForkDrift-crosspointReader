@@ -71,10 +71,10 @@ FEATURES = {
         description='Sync reading progress with KOReader'
     ),
     'calibre_sync': Feature(
-        name='Calibre Sync',
+        name='OPDS Support',
         flag='ENABLE_CALIBRE_SYNC',
         size_kb=2,
-        description='Calibre OPDS browser and metadata sync settings'
+        description='OPDS catalog browser for Calibre wireless libraries and other OPDS servers'
     ),
     'background_server': Feature(
         name='Background Server',

@@ -13,7 +13,7 @@ namespace {
 constexpr const char* kRequiresBookImagesAny[] = {"epub_support", "markdown"};
 constexpr const char* kRequiresKOReaderSyncAll[] = {"integrations"};
 constexpr const char* kRequiresCalibreSyncAll[] = {"integrations"};
-constexpr const char* kRequiresOpdsAll[] = {"background_server_always"};
+constexpr const char* kRequiresOpdsAll[] = {"calibre_sync"};
 constexpr const char* kRequiresPokemonWallpaperPluginAll[] = {"image_sleep"};
 constexpr const char* kRequiresPokemonPartyAll[] = {};
 constexpr const char* kRequiresHyphenationAll[] = {"epub_support"};
@@ -34,14 +34,14 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"integrations", "Integrations", ENABLE_INTEGRATIONS != 0, nullptr, 0, nullptr, 0},
     {"koreader_sync", "KOReader Sync", ENABLE_KOREADER_SYNC != 0, kRequiresKOReaderSyncAll,
      sizeof(kRequiresKOReaderSyncAll) / sizeof(kRequiresKOReaderSyncAll[0]), nullptr, 0},
-    {"calibre_sync", "Calibre Sync", ENABLE_CALIBRE_SYNC != 0, kRequiresCalibreSyncAll,
+    {"calibre_sync", "OPDS Support", ENABLE_CALIBRE_SYNC != 0, kRequiresCalibreSyncAll,
      sizeof(kRequiresCalibreSyncAll) / sizeof(kRequiresCalibreSyncAll[0]), nullptr, 0},
     {"background_server", "Background Server", ENABLE_BACKGROUND_SERVER != 0, nullptr, 0, nullptr, 0},
     {"background_server_on_charge", "Background Server On Charge", ENABLE_BACKGROUND_SERVER_ON_CHARGE != 0, nullptr, 0,
      nullptr, 0},
     {"background_server_always", "Background Server Always", ENABLE_BACKGROUND_SERVER_ALWAYS != 0, nullptr, 0, nullptr,
      0},
-    {"opds", "OPDS / Booklore", ENABLE_OPDS != 0, kRequiresOpdsAll,
+    {"opds", "BookLore Support", ENABLE_OPDS != 0, kRequiresOpdsAll,
      sizeof(kRequiresOpdsAll) / sizeof(kRequiresOpdsAll[0]), nullptr, 0},
     {"home_media_picker", "Home Media Picker", ENABLE_HOME_MEDIA_PICKER != 0, nullptr, 0, nullptr, 0},
     {"pokemon_wallpaper_plugin", "Pokemon Wallpaper", ENABLE_POKEMON_WALLPAPER_PLUGIN != 0,
