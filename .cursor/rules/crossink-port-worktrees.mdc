@@ -1,0 +1,25 @@
+---
+description: CrossInk port subagents must use per-lane git worktrees and port-build.sh
+alwaysApply: true
+---
+
+# CrossInk port — git worktree mandate
+
+Before any CrossInk port edit, read `.crossink-port/SUBAGENT.md`.
+
+1. **One lane = one worktree** — never port in parallel on `feature/absorb-crossink` main tree.
+   Create: `./.crossink-port/port-worktree.sh create <lane>` (`home`, `reader`, `file`, `web`,
+   `settings`, `renderer`, `integration`). Work at
+   `/home/malcolm/Code/ForkDrift/worktrees/crosspoint-reader-<lane>` on `port/<lane>`.
+
+2. **Build only** with `./.crossink-port/port-build.sh` in that worktree (not raw `pio run`).
+
+3. **One** `port(crossink): <subject> [<hash>]` commit per feature; push the lane branch.
+
+4. **Integration only** merges `port/<lane>` into `feature/absorb-crossink` one branch at a
+   time; run `port-build.sh` after each merge.
+
+5. **Do not** mark `PORT-TRACKER.md` `[x]` until the commit is on `feature/absorb-crossink`.
+
+6. Do not edit the main integration tree for feature ports while another agent uses a lane
+   worktree.
