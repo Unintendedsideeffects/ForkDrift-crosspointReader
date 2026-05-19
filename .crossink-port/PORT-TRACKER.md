@@ -9,7 +9,8 @@ CrossInk lacks; themes are renamed: ForkDrift `ForkDriftTheme`/`LyraTheme` vs Cr
 RAM-justified (380KB ceiling), and build-tested before commit.
 
 Per-commit: `git -C . show <hash>` to read intent, adapt to ForkDrift, build
-(`bash -c 'cd <repo> && uv run pio run'`), commit with `port(crossink): <subj> [<hash>]`.
+(`./.crossink-port/port-build.sh` — see `BUILD-COORDINATOR.md`), commit with
+`port(crossink): <subj> [<hash>].
 
 Legend: [ ] todo  [~] in progress  [x] done  [-] skipped (reason)  [≈] subsumed
 
