@@ -78,19 +78,24 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
 - [x] a45de2df show progress in recent books grid title
 
 ## Phase 2 — Fonts & text rendering
-- [ ] e742d76f add DM Sans UI font
-- [ ] e6a02fa9 add emoji support
-- [ ] b4299ecf no-emoji build variant
-- [ ] 2b06b34c 3 build variants (font/emoji)
-- [ ] 8723f154 strikethrough + wider underline
+- [-] e742d76f add DM Sans UI font — ForkDrift uses Ubuntu UI fonts; DM Sans binary assets absent
+- [-] e6a02fa9 add emoji support — requires binary emoji font asset; no conversion pipeline
+- [-] b4299ecf no-emoji build variant — depends on e6a02fa9 emoji
+- [-] 2b06b34c 3 build variants (font/emoji) — depends on DM Sans + emoji
+- [x] 8723f154 strikethrough + wider underline — STRIKETHROUGH=8 bit in EpdFontFamily::Style;
+      LineThrough in CssTextDecoration; line-through in CssParser::interpretDecoration;
+      strikethrough fields in StyleStackEntry + effectiveStrikethrough; all 3 startElement
+      CSS-decoration sites + STRIKETHROUGH_TAGS handler; endElement willClearStrikethrough
+      + shouldFlush + reset; TextBlock draws 3px strike at mid-ascender (mirrors underline
+      em-space logic); underline widened 1→3px; Section version 23→24. Build SUCCESS.
 - [≈] 97c39de7 reduce wide line-heights — ForkDrift WIDE already 1.0–1.1 (CrossInk post-change target 1.2–1.3)
-- [ ] be13d667 PHM unicode range
-- [ ] 9ca4b058 full PHM special-char support
-- [ ] 0b8d4e8e fonts --pnum
-- [ ] 426c9998 darker fonts via conversion
-- [ ] ab07283b teensy font size
-- [ ] 3302d4bb inter for teensy size
-- [ ] 11be5470 huge font size
+- [-] be13d667 PHM unicode range — requires font binary recompilation; no fontsrc pipeline
+- [-] 9ca4b058 full PHM special-char support — font binary; same as above
+- [-] 0b8d4e8e fonts --pnum — font conversion flag; no pipeline in ForkDrift
+- [-] 426c9998 darker fonts via conversion — font conversion; no pipeline
+- [-] ab07283b teensy font size — new font binaries required
+- [-] 3302d4bb inter for teensy size — uses Inter font not present in ForkDrift
+- [-] 11be5470 huge font size — new font binaries required
 - [ ] ade89cdf force paragraph indentation when none
 - [ ] 250b24c3 add guide dots
 - [ ] 05a6691a guide dots when justify
