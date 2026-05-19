@@ -86,7 +86,7 @@ void EpubReaderPercentSelectionActivity::render(RenderLock&&) {
 
   // Button hints follow the current front button layout.
   const auto labels = mappedInput.mapLabels("« Back", "Select", "-", "+");
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
 
   renderer.displayBuffer();
 }

@@ -27,6 +27,7 @@
 
 void XtcReaderActivity::onEnter() {
   Activity::onEnter();
+  mappedInput.setReaderMode(true);
 
   if (!xtc) {
     return;
@@ -46,6 +47,7 @@ void XtcReaderActivity::onEnter() {
 }
 
 void XtcReaderActivity::onExit() {
+  mappedInput.setReaderMode(false);
   Activity::onExit();
 
   xtc.reset();

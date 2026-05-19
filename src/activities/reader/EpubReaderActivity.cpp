@@ -86,6 +86,7 @@ void EpubReaderActivity::renderReaderError(StrId messageId) {
 
 void EpubReaderActivity::onEnter() {
   Activity::onEnter();
+  mappedInput.setReaderMode(true);
 
   if (BG_WIFI.isRunning()) {
     BG_WIFI.stop(true);
@@ -142,6 +143,7 @@ void EpubReaderActivity::onEnter() {
 }
 
 void EpubReaderActivity::onExit() {
+  mappedInput.setReaderMode(false);
   features::status_overlay::clearReaderContext();
 
   // Flush any pending progress save before cleanup

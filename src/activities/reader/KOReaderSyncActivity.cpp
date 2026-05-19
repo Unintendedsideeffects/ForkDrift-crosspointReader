@@ -352,7 +352,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
     renderer.drawCenteredText(UI_10_FONT_ID, 320, tr(STR_KOREADER_SETUP_HINT));
 
     const auto labels = mappedInput.mapLabels("Back", "", "", "");
-    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
     renderer.displayBuffer();
     return;
   }
@@ -420,7 +420,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
 
     // Bottom button hints: show Back and Select
     const auto labels = mappedInput.mapLabels("Back", "Select", "", "");
-    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
     renderer.displayBuffer();
     return;
   }
@@ -430,7 +430,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
     renderer.drawCenteredText(UI_10_FONT_ID, 320, tr(STR_UPLOAD_PROMPT));
 
     const auto labels = mappedInput.mapLabels("Back", tr(STR_UPLOAD), "", "");
-    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
     renderer.displayBuffer();
     return;
   }
@@ -439,7 +439,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
     renderer.drawCenteredText(UI_10_FONT_ID, 300, tr(STR_UPLOAD_SUCCESS), true, EpdFontFamily::BOLD);
 
     const auto labels = mappedInput.mapLabels("Back", "", "", "");
-    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
     renderer.displayBuffer();
     return;
   }
@@ -449,7 +449,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
     renderer.drawCenteredText(UI_10_FONT_ID, 320, statusMessage.c_str());
 
     const auto labels = mappedInput.mapLabels("Back", "", "", "");
-    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
     renderer.displayBuffer();
     return;
   }
