@@ -125,18 +125,18 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
 - [ ] ae547416 tilt page turn shortcuts
 - [ ] 84505799 file transfer shortcut option
 - [ ] 30e0523d in-reader controls shortcut
-- [ ] 49c123f9 file browser long-press on delay not release
+- [x] 49c123f9 file browser long-press on delay not release
 - [ ] c924a36d additional page turn intervals
 - [ ] ac42b24e custom auto page turn interval picker
 - [ ] 0cb91c3d custom sleep timer picker
-- [ ] e803b890 toggle hidden files in file browser
+- [x] e803b890 toggle hidden files in file browser
 
 ## Phase 5 — Web/WiFi/misc
 - [ ] f9be757b focus reading
 - [ ] 07bb45b4 status bar padding (CAUTION: ForkDrift reworked status bar — adapt, see memory)
 - [ ] 41209464 bookmark menu + scrollbar >6 items
-- [ ] 4c3aaa30 delete bookmarks from list
-- [ ] f17569ad delete book cache from file browser
+- [-] 4c3aaa30 delete bookmarks from list — deferred: no BookmarkStore/BookmarksHomeActivity in ForkDrift
+- [-] f17569ad delete book cache from file browser — skipped per lane scope
 - [ ] 95d76b14 WiFi network management API + UI
 - [ ] a66863ef user guide: web WiFi/OPDS settings
 - [ ] 3cc346a1 gray out disabled shift key on URL entry
