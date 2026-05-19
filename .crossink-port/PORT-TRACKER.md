@@ -11,7 +11,13 @@ RAM-justified (380KB ceiling), and build-tested before commit.
 Per-commit: `git -C . show <hash>` to read intent, adapt to ForkDrift, build
 (`bash -c 'cd <repo> && uv run pio run'`), commit with `port(crossink): <subj> [<hash>]`.
 
-Legend: [ ] todo  [~] in progress  [x] done  [-] skipped (reason)
+Legend: [ ] todo  [~] in progress  [x] done  [-] skipped (reason)  [≈] subsumed
+
+PORTING PRINCIPLE: theme/component files are ported from `crossink/main` TIP
+(cumulative state), so later commits that only tweak an already-ported file are
+subsumed by the initial port — mark [≈], don't re-apply. Per-commit items remain
+listed for audit; only their non-ported-file churn (if any feature-relevant) needs
+separate attention.
 
 ## Skipped (not features / inappropriate for ForkDrift)
 - [-] 29a05602 OTA url → points at CrossInk's repo; ForkDrift has own OTA target
@@ -25,14 +31,20 @@ Legend: [ ] todo  [~] in progress  [x] done  [-] skipped (reason)
       adapted to ForkDrift vtable (no isHeader/allowInvertedText/stats-on-cover;
       localized iconForName + compact-row helper; 2-arg getCoverThumbPath).
       Build SUCCESS, RAM 44.5%.
-- [ ] c0a56228 style: minimal theme category font size
+- [≈] c0a56228 style: minimal theme category font size — MinimalTheme.cpp tab-bar
+      UI_12→UI_10 already in tip port (d8853c6d). HomeActivity/fontIds churn is
+      CrossInk font-id restructuring, out of scope (ForkDrift has own font system).
 - [ ] 642402f8 home progress bar for current book (Lyra) #28
 - [ ] 971a62ee LyraCarouselTheme carousel style tweak
 - [ ] 8154c9a5 stats on lyra carousel home, title above cover
 - [ ] 9a9054cb perf: reduce Lyra Carousel RAM frame cache
 - [ ] bdc65f27 update Lyra Carousel progress footer
 - [ ] 0c7e11a3 style: lyra reading stat bar width
-- [ ] 684946c5 fix(theme): roundedraff padding
+- [x] 684946c5 fix(theme): roundedraff padding — applied exact deltas manually
+      (forks diverged 124/63 but patched regions pristine): contentSidePadding
+      20→15, kInteractiveInsetX 20→15, +kHomeMenuSidePadding/kListSidePadding/
+      kTabHorizontalInset, even-distribution tab bar, menu rowHeight +20→+15,
+      kRowPaddingX 40→30, list sidePadding→kListSidePadding.
 - [ ] 8ab81889 resize menu items to fit homescreen without scrolling
 - [ ] 004b893e remove text overlay on current book in base theme
 - [ ] ea9568c3 toggleable recent books grid view
