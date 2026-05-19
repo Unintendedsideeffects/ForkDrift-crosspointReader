@@ -37,6 +37,9 @@
 #include "util/RecentBooksStore.h"
 #include "util/ScreenshotUtil.h"
 
+// Defined in main.cpp — triggers deep sleep immediately.
+void enterDeepSleep();
+
 namespace {
 // pagesPerRefresh now comes from SETTINGS.getRefreshFrequency()
 constexpr uint8_t maxPageLoadRetryCount = 1;
@@ -274,6 +277,9 @@ void EpubReaderActivity::loop() {
     }
   }
 
+  if (executeLongPowerButtonAction()) {
+    return;
+  }
   if (executeShortPowerButtonAction()) {
     return;
   }
@@ -422,6 +428,9 @@ void EpubReaderActivity::reindexCurrentSection() {
 void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS_MENU_ACTION action) {
   using S = CrossPointSettings;
   switch (action) {
+    case S::LONG_MENU_SLEEP:
+      enterDeepSleep();
+      break;
     case S::LONG_MENU_CHANGE_FONT:
       SETTINGS.fontFamily = (SETTINGS.fontFamily + 1) % S::FONT_FAMILY_COUNT;
       reindexCurrentSection();
@@ -458,11 +467,54 @@ void EpubReaderActivity::executeLongPressMenuAction() {
 }
 
 bool EpubReaderActivity::executeShortPowerButtonAction() {
-  if (!mappedInput.wasReleased(MappedInputManager::Button::Power)) {
+  if (!mappedInput.wasReleased(MappedInputManager::Button::Power) ||
+      mappedInput.getHeldTime() >= SETTINGS.getPowerButtonLongPressDuration()) {
     return false;
   }
   using S = CrossPointSettings;
   switch (SETTINGS.shortPwrBtn) {
+    case S::TOGGLE_FONT:
+      executeReaderQuickAction(S::LONG_MENU_CHANGE_FONT);
+      return true;
+    case S::TOGGLE_GUIDE_DOTS:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_GUIDE_DOTS);
+      return true;
+    case S::TOGGLE_BIONIC_READING:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_BIONIC);
+      return true;
+    case S::TOGGLE_BOOKMARK:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_BOOKMARK);
+      return true;
+    case S::SYNC_PROGRESS:
+      executeReaderQuickAction(S::LONG_MENU_SYNC_PROGRESS);
+      return true;
+    case S::MARK_FINISHED:
+      executeReaderQuickAction(S::LONG_MENU_MARK_FINISHED);
+      return true;
+    case S::READING_STATS:
+      executeReaderQuickAction(S::LONG_MENU_READING_STATS);
+      return true;
+    case S::SCREENSHOT:
+      executeReaderQuickAction(S::LONG_MENU_SCREENSHOT);
+      return true;
+    case S::CYCLE_PAGE_TURN:
+      executeReaderQuickAction(S::LONG_MENU_CYCLE_PAGE_TURN);
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool EpubReaderActivity::executeLongPowerButtonAction() {
+  if (!mappedInput.wasReleased(MappedInputManager::Button::Power) ||
+      mappedInput.getHeldTime() < SETTINGS.getPowerButtonLongPressDuration()) {
+    return false;
+  }
+  using S = CrossPointSettings;
+  switch (SETTINGS.longPwrBtn) {
+    case S::SLEEP:
+      enterDeepSleep();
+      return true;
     case S::TOGGLE_FONT:
       executeReaderQuickAction(S::LONG_MENU_CHANGE_FONT);
       return true;

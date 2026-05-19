@@ -136,7 +136,14 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
       added; executeReaderQuickAction(action) refactor unifies short-power + long-press;
       CYCLE_PAGE_TURN toggles auto page turn on/off; Phase-3 cases no-op.
       I18n 389 keys. Build SUCCESS, RAM 44.5%.
-- [ ] bf54096d long press power button customization + reorder controls
+- [x] bf54096d long press power button customization + reorder controls —
+      longPwrBtn field (SHORT_PWRBTN enum); LONG_MENU_SLEEP=1 inserted into
+      LONG_PRESS_MENU_ACTION (shifts all values +1); POWER_BUTTON_WAKE_SHORT_MS +
+      POWER_BUTTON_LONG_PRESS_MS constants; getPowerButtonWakeDuration() +
+      getPowerButtonLongPressDuration(); executeLongPowerButtonAction(); short-press
+      gated to held < longPressDuration; detectPageTurn short+long power differentiation;
+      controls tab restructured: Power Button / Front Buttons / Side Buttons sections;
+      I18n 393 keys. Build SUCCESS, RAM 44.5%.
 - [ ] 9c20a784 short power press = Confirm outside reader
 - [ ] fe7e8554 short power = Confirm when no global action consumes it
 - [ ] 1a3f9a86 short power = Confirm in reader menus

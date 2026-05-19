@@ -215,16 +215,17 @@ class CrossPointSettings {
   // Long-press Confirm (menu button) quick action in reader
   enum LONG_PRESS_MENU_ACTION {
     LONG_MENU_OFF = 0,
-    LONG_MENU_CHANGE_FONT = 1,
-    LONG_MENU_TOGGLE_GUIDE_DOTS = 2,
-    LONG_MENU_TOGGLE_BIONIC = 3,
-    LONG_MENU_TOGGLE_BOOKMARK = 4,
-    LONG_MENU_REFRESH_SCREEN = 5,
-    LONG_MENU_SYNC_PROGRESS = 6,
-    LONG_MENU_MARK_FINISHED = 7,
-    LONG_MENU_READING_STATS = 8,
-    LONG_MENU_SCREENSHOT = 9,
-    LONG_MENU_CYCLE_PAGE_TURN = 10,
+    LONG_MENU_SLEEP = 1,
+    LONG_MENU_CHANGE_FONT = 2,
+    LONG_MENU_TOGGLE_GUIDE_DOTS = 3,
+    LONG_MENU_TOGGLE_BIONIC = 4,
+    LONG_MENU_TOGGLE_BOOKMARK = 5,
+    LONG_MENU_REFRESH_SCREEN = 6,
+    LONG_MENU_SYNC_PROGRESS = 7,
+    LONG_MENU_MARK_FINISHED = 8,
+    LONG_MENU_READING_STATS = 9,
+    LONG_MENU_SCREENSHOT = 10,
+    LONG_MENU_CYCLE_PAGE_TURN = 11,
     LONG_PRESS_MENU_ACTION_COUNT
   };
 
@@ -334,6 +335,8 @@ class CrossPointSettings {
   uint8_t developerMode = 0;
   // Image rendering mode in EPUB reader
   uint8_t imageRendering = IMAGES_DISPLAY;
+  // Long-press power button action in reader (uses SHORT_PWRBTN enum; default = sleep)
+  uint8_t longPwrBtn = SLEEP;
   // Long-press Confirm (menu button) quick action in reader (0 = off)
   uint8_t longPressMenuAction = LONG_MENU_OFF;
   // Global status bar overlay (battery + WiFi, always visible across all screens)
@@ -399,14 +402,25 @@ class CrossPointSettings {
   SdFontIdResolver sdFontIdResolver = nullptr;
   void* sdFontResolverCtx = nullptr;
 
-  uint16_t getPowerButtonDuration() const {
+  static constexpr uint16_t POWER_BUTTON_WAKE_SHORT_MS = 10;
+  static constexpr uint16_t POWER_BUTTON_LONG_PRESS_MS = 400;
+
+  // Wake detection threshold: how long power must be held to trigger sleep/wake.
+  uint16_t getPowerButtonWakeDuration() const {
     // Dual-side front layout uses short power taps for Confirm/Back.
     // Keep long-press threshold so short taps are not interpreted as sleep.
     if (frontButtonLayout == CrossPointSettings::LEFT_LEFT_RIGHT_RIGHT) {
-      return 400;
+      return POWER_BUTTON_LONG_PRESS_MS;
     }
-    return (shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP) ? 10 : 400;
+    return (shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP) ? POWER_BUTTON_WAKE_SHORT_MS
+                                                                    : POWER_BUTTON_LONG_PRESS_MS;
   }
+
+  // Threshold separating short-press from long-press power button in reader.
+  uint16_t getPowerButtonLongPressDuration() const { return POWER_BUTTON_LONG_PRESS_MS; }
+
+  // Keep old name as alias so callers outside the reader can be migrated incrementally.
+  uint16_t getPowerButtonDuration() const { return getPowerButtonWakeDuration(); }
   int getReaderFontId() const;
 
   bool saveToFile() const;

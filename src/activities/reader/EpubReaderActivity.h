@@ -57,6 +57,7 @@ class EpubReaderActivity final : public Activity {
   void executeReaderQuickAction(CrossPointSettings::LONG_PRESS_MENU_ACTION action);
   void executeLongPressMenuAction();
   bool executeShortPowerButtonAction();
+  bool executeLongPowerButtonAction();
   void applyOrientation(uint8_t orientation);
   void setAutoPageTurnIntervalSeconds(uint16_t seconds);
   uint16_t getAutoPageTurnIntervalSeconds() const;
