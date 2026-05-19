@@ -22,8 +22,9 @@ EpubReaderMenuActivity::EpubReaderMenuActivity(GfxRenderer& renderer, MappedInpu
 
 std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuItems(bool hasFootnotes) {
   std::vector<MenuItem> items;
-  items.reserve(10);
+  items.reserve(11);
   items.push_back({MenuAction::SELECT_CHAPTER, StrId::STR_SELECT_CHAPTER});
+  items.push_back({MenuAction::CONTROLS_OPTIONS, StrId::STR_CAT_CONTROLS});
   if (hasFootnotes) {
     items.push_back({MenuAction::FOOTNOTES, StrId::STR_FOOTNOTES});
   }
@@ -66,6 +67,18 @@ void EpubReaderMenuActivity::loop() {
       // Cycle orientation preview locally; actual rotation happens on menu exit.
       pendingOrientation = (pendingOrientation + 1) % orientationLabels.size();
       requestUpdate();
+      return;
+    }
+
+    if (selectedAction == MenuAction::CONTROLS_OPTIONS) {
+      startActivityForResult(std::make_unique<ControlsOptionsActivity>(renderer, mappedInput),
+                             [this](const ActivityResult&) {
+                               ActivityResult result;
+                               result.isCancelled = true;
+                               result.data = MenuResult{-1, pendingOrientation};
+                               setResult(std::move(result));
+                               finish();
+                             });
       return;
     }
 

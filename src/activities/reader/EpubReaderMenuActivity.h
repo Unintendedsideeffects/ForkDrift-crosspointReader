@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "ControlsOptionsActivity.h"
 #include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
 
@@ -12,6 +13,7 @@ class EpubReaderMenuActivity final : public Activity {
  public:
   enum class MenuAction {
     SELECT_CHAPTER,
+    CONTROLS_OPTIONS,
     FOOTNOTES,
     GO_TO_PERCENT,
     AUTO_PAGE_TURN,

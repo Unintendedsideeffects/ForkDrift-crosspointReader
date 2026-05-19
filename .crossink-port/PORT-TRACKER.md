@@ -156,14 +156,18 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
       to MappedInputManager; orientation-aware helpers in mapButton/mapLabels;
       drawButtonHints allowInvertedText across all 4 themes; reader activities pass true.
       Build SUCCESS, RAM 44.5%.
-- [ ] ae547416 tilt page turn shortcuts
+- [-] ae547416 tilt page turn shortcuts — X4 has no IMU (halTiltSensor/tiltPageTurn absent from ForkDrift)
 - [x] 84505799 file transfer shortcut option — FILE_TRANSFER=14/LONG_MENU_FILE_TRANSFER=12
       in CrossPointSettings; suppressNextBackRelease + suppressBackRelease in MappedInputManager;
       goToFileTransfer(returnBookPath)/goToReader(suppressBackRelease) in ActivityManager;
       exitToOrigin()/returnBookPath in CrossPointWebServerActivity; openFileTransfer() in
       EpubReaderActivity; FILE_TRANSFER in all 3 action dispatchers; SettingsList lists updated.
       Build SUCCESS, RAM 44.5%.
-- [ ] 30e0523d in-reader controls shortcut
+- [x] 30e0523d in-reader controls shortcut — ControlsOptionsActivity (12-item controls
+      list: Power Button / Front Buttons / Side Buttons sections; reuses SettingsList +
+      GUI.drawList + ButtonNavigator); wired into EpubReaderMenuActivity as CONTROLS_OPTIONS
+      item after SELECT_CHAPTER; handler uses startActivityForResult + isCancelled result
+      to suppress menu action on return. No reader-remap or tilt (ForkDrift lacks both).
 - [x] 49c123f9 file browser long-press on delay not release
 - [≈] c924a36d additional page turn intervals — subsumed by ac42b24e custom picker
 - [x] ac42b24e custom auto page turn interval picker
