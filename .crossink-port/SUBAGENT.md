@@ -3,6 +3,17 @@
 You are porting CrossInk commits into ForkDrift (`crosspoint-reader`). **One lane = one git
 worktree.** Never implement ports on the integration checkout while another agent ports.
 
+## Exit when done
+
+When your scoped port task is **complete** (commit pushed **or** explicit skip documented in your handoff), **stop immediately**. Do not linger.
+
+- **Stop polling:** Do not wait on `.crossink-port/.sprint-ready` or `.crossink-port/.cleanup-done` for more than **3 minutes total**. The parent coordinator deletes those markers when the sprint phase ends; they are not a long-running queue.
+- **STOP_SPRINT:** If `.crossink-port/STOP_SPRINT` exists, **exit now** — do not start or resume builds, merges, or new tracker items.
+- **Scope:** Do not start unrelated ports "while you're here."
+- **No long sleeps:** Do not run `sleep` loops longer than **60s** (including `while pgrep …; do sleep …; done`).
+- **No background builds:** Do not run background `pio` / `port-build.sh` after you report done.
+- **Handoff:** Return your final report (lane, SHA or skip reason, tracker notes) and **exit**.
+
 ## Six rules (non-negotiable)
 
 1. **One lane = one git worktree.** Do not run parallel port implementation on the main
@@ -93,3 +104,4 @@ clone only has `.git/hooks/pre-commit`, run:
 | `PORT-TRACKER.md` | Per-commit checklist |
 | `port-worktree.sh` | Create / list / remove worktrees |
 | `port-build.sh` | Locked, fingerprinted builds |
+| `STOP_SPRINT` | Coordinator abort sentinel (gitignored; see `STOP_SPRINT.example`) |

@@ -1,0 +1,13 @@
+2026-05-19T13:10:00+02:00 crossink process audit
+repo=/home/malcolm/Code/ForkDrift/crosspoint-reader
+worktrees=/home/malcolm/Code/ForkDrift/worktrees/crosspoint-reader-*
+
+criteria: kill only if pio/platformio/xtensa tied to crosspoint-reader AND (parent dead OR build lock age >30m)
+
+results:
+  killed_pids=none
+  reason=no qualifying orphans; locks under 30 minutes; active pio treated as in-flight agent work
+
+notes:
+  STOP_SPRINT on disk is coordinator-local (gitignored); do not commit while sprint is active
+  parent deletes .sprint-ready and .cleanup-done when sprint phase ends

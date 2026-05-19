@@ -181,3 +181,27 @@ Future subagents must **NOT** redo:
 | Lane worktrees created | **0** |
 | Unpushed local commits | **3** |
 | Port-related stashes | **10** (most superseded or mixed) |
+
+
+---
+
+## Appendix: process cleanup (2026-05-19)
+
+Scan scope: `/home/malcolm/Code/ForkDrift/crosspoint-reader` and `/home/malcolm/Code/ForkDrift/worktrees/crosspoint-reader-*`.
+
+| Action | Detail |
+|--------|--------|
+| Killed | **None** — no process met orphan criteria (parent dead or `.build.lock` held >30 min). |
+| Observed | Concurrent `uv run pio run` on integration checkout from parallel subagents; none orphaned at audit time. |
+| Locks | `.build.lock` mtimes under 30 minutes at scan. |
+| Poll loops | Transient `sleep 10` / `while pgrep … pio` shells; not killed (live parent or already exited). |
+
+Full log: `.crossink-port/PROCESS-CLEANUP.log`
+
+### Sprint poll markers (post-fix)
+
+| Marker | Role |
+|--------|--------|
+| `.sprint-ready` | Coordinator-only; **deleted when sprint phase ends**. Subagents must not poll >3 min (see `SUBAGENT.md`). |
+| `.cleanup-done` | Same as above. |
+| `STOP_SPRINT` | Coordinator `touch .crossink-port/STOP_SPRINT` → all port subagents **exit immediately** if present (gitignored; template `STOP_SPRINT.example`). |
