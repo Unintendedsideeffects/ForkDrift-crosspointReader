@@ -11,6 +11,7 @@
 #include "components/themes/lyra/ForkDriftTheme.h"
 #include "components/themes/lyra/Lyra3CoversTheme.h"
 #include "components/themes/lyra/LyraTheme.h"
+#include "components/themes/minimal/MinimalTheme.h"
 #include "core/features/FeatureCatalog.h"
 #include "features/status_overlay/Layout.h"
 #include "util/RecentBooksStore.h"
@@ -64,6 +65,11 @@ void UITheme::setTheme(CrossPointSettings::UI_THEME type) {
       LOG_DBG("UI", "Using Pokemon Party theme");
       currentTheme = std::make_unique<ForkDriftTheme>();
       currentMetrics = &ForkDriftMetrics::values;
+      break;
+    case CrossPointSettings::UI_THEME::MINIMAL:
+      LOG_DBG("UI", "Using Minimal theme");
+      currentTheme = std::make_unique<MinimalTheme>();
+      currentMetrics = &MinimalMetrics::values;
       break;
   }
 }

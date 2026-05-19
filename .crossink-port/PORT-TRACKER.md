@@ -21,7 +21,10 @@ Legend: [ ] todo  [~] in progress  [x] done  [-] skipped (reason)
 - [-] 3195e385 simulator sleep shortcut → ForkDrift host-sim harness differs (see memory)
 
 ## Phase 1 — Themes & home screen (foundational; later Lyra commits depend on it)
-- [ ] 91f11a03 add minimal theme
+- [x] 91f11a03 add minimal theme — ported as MinimalTheme:LyraTheme, UI_THEME::MINIMAL=5,
+      adapted to ForkDrift vtable (no isHeader/allowInvertedText/stats-on-cover;
+      localized iconForName + compact-row helper; 2-arg getCoverThumbPath).
+      Build SUCCESS, RAM 44.5%.
 - [ ] c0a56228 style: minimal theme category font size
 - [ ] 642402f8 home progress bar for current book (Lyra) #28
 - [ ] 971a62ee LyraCarouselTheme carousel style tweak
