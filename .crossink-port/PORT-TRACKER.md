@@ -179,7 +179,9 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
 - [x] e803b890 toggle hidden files in file browser
 
 ## Phase 5 — Web/WiFi/misc
-- [ ] f9be757b focus reading
+- [≈] f9be757b focus reading — engine fully in ForkDrift tip (ParsedText/Section/
+      ChapterHtmlSlimParser/CrossPointSettings/EpubReaderActivity). Ported only
+      the missing settings UI: STR_FOCUS_READING key + SettingsList Toggle entry.
 - [x] 07bb45b4 status bar padding (CAUTION: ForkDrift reworked status bar — adapt, see memory)
 - [ ] 41209464 bookmark menu + scrollbar >6 items
 - [-] 4c3aaa30 delete bookmarks from list — deferred: no BookmarkStore/BookmarksHomeActivity in ForkDrift
