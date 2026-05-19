@@ -571,28 +571,60 @@ void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
 void BaseTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                                const std::function<std::string(int index)>& buttonLabel,
                                const std::function<UIIcon(int index)>& rowIcon) const {
-  for (int i = 0; i < buttonCount; ++i) {
+  constexpr int maxVisibleItems = 6;
+  const int totalPages = (buttonCount + maxVisibleItems - 1) / maxVisibleItems;
+
+  if (totalPages > 1) {
+    constexpr int indicatorWidth = 20;
+    constexpr int arrowSize = 6;
+    constexpr int margin = 15;
+
+    const int centerX = rect.x + rect.width - indicatorWidth / 2 - margin;
+    const int menuHeight =
+        maxVisibleItems * (BaseMetrics::values.menuRowHeight + BaseMetrics::values.menuSpacing) - BaseMetrics::values.menuSpacing;
+    const int indicatorTop = rect.y + BaseMetrics::values.verticalSpacing;
+    const int indicatorBottom = indicatorTop + menuHeight - arrowSize;
+
+    for (int i = 0; i < arrowSize; ++i) {
+      const int lineWidth = 1 + i * 2;
+      const int startX = centerX - i;
+      renderer.drawLine(startX, indicatorTop + i, startX + lineWidth - 1, indicatorTop + i);
+    }
+    for (int i = 0; i < arrowSize; ++i) {
+      const int lineWidth = 1 + (arrowSize - 1 - i) * 2;
+      const int startX = centerX - (arrowSize - 1 - i);
+      renderer.drawLine(startX, indicatorBottom - arrowSize + 1 + i, startX + lineWidth - 1,
+                        indicatorBottom - arrowSize + 1 + i);
+    }
+  }
+
+  const int pageStartIndex = (selectedIndex / maxVisibleItems) * maxVisibleItems;
+
+  for (int i = pageStartIndex; i < buttonCount && i < pageStartIndex + maxVisibleItems; ++i) {
+    const int displayIndex = i - pageStartIndex;
     const int tileY = BaseMetrics::values.verticalSpacing + rect.y +
-                      static_cast<int>(i) * (BaseMetrics::values.menuRowHeight + BaseMetrics::values.menuSpacing);
+                      static_cast<int>(displayIndex) * (BaseMetrics::values.menuRowHeight + BaseMetrics::values.menuSpacing);
+    int tileWidth = rect.width - BaseMetrics::values.contentSidePadding * 2;
+    if (totalPages > 1) {
+      tileWidth -= 30;
+    }
 
     const bool selected = selectedIndex == i;
 
     if (selected) {
-      renderer.fillRect(rect.x + BaseMetrics::values.contentSidePadding, tileY,
-                        rect.width - BaseMetrics::values.contentSidePadding * 2, BaseMetrics::values.menuRowHeight);
+      renderer.fillRect(rect.x + BaseMetrics::values.contentSidePadding, tileY, tileWidth,
+                        BaseMetrics::values.menuRowHeight);
     } else {
-      renderer.drawRect(rect.x + BaseMetrics::values.contentSidePadding, tileY,
-                        rect.width - BaseMetrics::values.contentSidePadding * 2, BaseMetrics::values.menuRowHeight);
+      renderer.drawRect(rect.x + BaseMetrics::values.contentSidePadding, tileY, tileWidth,
+                        BaseMetrics::values.menuRowHeight);
     }
 
     std::string labelStr = buttonLabel(i);
     const char* label = labelStr.c_str();
     const int textWidth = renderer.getTextWidth(UI_10_FONT_ID, label);
-    const int textX = rect.x + (rect.width - textWidth) / 2;
+    const int textX = rect.x + BaseMetrics::values.contentSidePadding + (tileWidth - textWidth) / 2;
     const int lineHeight = renderer.getLineHeight(UI_10_FONT_ID);
-    const int textY =
-        tileY + (BaseMetrics::values.menuRowHeight - lineHeight) / 2;  // vertically centered assuming y is top of text
-    // Invert text when the tile is selected, to contrast with the filled background
+    const int textY = tileY + (BaseMetrics::values.menuRowHeight - lineHeight) / 2;
     renderer.drawText(UI_10_FONT_ID, textX, textY, label, selectedIndex != i);
   }
 }

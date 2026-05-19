@@ -555,11 +555,34 @@ void LyraTheme::drawEmptyRecents(const GfxRenderer& renderer, const Rect rect) c
 void LyraTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                                const std::function<std::string(int index)>& buttonLabel,
                                const std::function<UIIcon(int index)>& rowIcon) const {
-  for (int i = 0; i < buttonCount; ++i) {
+  const auto& menuMetrics = UITheme::getInstance().getMetrics();
+
+  constexpr int maxVisibleItems = 6;
+  const int totalPages = (buttonCount + maxVisibleItems - 1) / maxVisibleItems;
+
+  if (totalPages > 1) {
+    const int scrollAreaHeight =
+        maxVisibleItems * (menuMetrics.menuRowHeight + menuMetrics.menuSpacing) - menuMetrics.menuSpacing;
+    const int scrollBarHeight = (scrollAreaHeight * maxVisibleItems) / buttonCount;
+    const int currentPage = selectedIndex / maxVisibleItems;
+    const int scrollBarY = rect.y + ((scrollAreaHeight - scrollBarHeight) * currentPage) / (totalPages - 1);
+    const int scrollBarX = rect.x + rect.width - LyraMetrics::values.scrollBarRightOffset;
+    renderer.drawLine(scrollBarX, rect.y, scrollBarX, rect.y + scrollAreaHeight, true);
+    renderer.fillRect(scrollBarX - LyraMetrics::values.scrollBarWidth, scrollBarY, LyraMetrics::values.scrollBarWidth,
+                      scrollBarHeight, true);
+  }
+
+  const int pageStartIndex = (selectedIndex / maxVisibleItems) * maxVisibleItems;
+
+  for (int i = pageStartIndex; i < buttonCount && i < pageStartIndex + maxVisibleItems; ++i) {
+    const int displayIndex = i - pageStartIndex;
     int tileWidth = rect.width - LyraMetrics::values.contentSidePadding * 2;
+    if (totalPages > 1) {
+      tileWidth -= (LyraMetrics::values.scrollBarWidth + LyraMetrics::values.scrollBarRightOffset);
+    }
     Rect tileRect = Rect{rect.x + LyraMetrics::values.contentSidePadding,
-                         rect.y + i * (LyraMetrics::values.menuRowHeight + LyraMetrics::values.menuSpacing), tileWidth,
-                         LyraMetrics::values.menuRowHeight};
+                         rect.y + displayIndex * (LyraMetrics::values.menuRowHeight + LyraMetrics::values.menuSpacing),
+                         tileWidth, LyraMetrics::values.menuRowHeight};
 
     const bool selected = selectedIndex == i;
 

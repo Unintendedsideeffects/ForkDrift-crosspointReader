@@ -183,7 +183,11 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
       ChapterHtmlSlimParser/CrossPointSettings/EpubReaderActivity). Ported only
       the missing settings UI: STR_FOCUS_READING key + SettingsList Toggle entry.
 - [x] 07bb45b4 status bar padding (CAUTION: ForkDrift reworked status bar — adapt, see memory)
-- [ ] 41209464 bookmark menu + scrollbar >6 items
+- [≈] 41209464 bookmark menu + scrollbar >6 items — bookmark parts skipped (no
+      BookmarkStore/BookmarksHomeActivity/EpubReaderBookmarkListActivity in ForkDrift).
+      Scrollbar/paging ported to BaseTheme+LyraTheme+ForkDriftTheme drawButtonMenu
+      (maxVisibleItems=6, arrow indicators; RoundedRaff already had paging).
+      Build SUCCESS, RAM 44.5%.
 - [-] 4c3aaa30 delete bookmarks from list — deferred: no BookmarkStore/BookmarksHomeActivity in ForkDrift
 - [-] f17569ad delete book cache from file browser — skipped per lane scope
 - [ ] 95d76b14 WiFi network management API + UI
