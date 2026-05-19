@@ -211,6 +211,12 @@ bool MappedInputManager::wasPressed(const Button button) {
 }
 
 bool MappedInputManager::wasReleased(const Button button) {
+  if (button == Button::Back && suppressBackRelease) {
+    if (mapButton(button, &HalGPIO::wasReleased)) {
+      suppressBackRelease = false;
+      return false;
+    }
+  }
   if (button == Button::Confirm && consumePowerConfirm()) {
     return true;
   }
@@ -244,6 +250,7 @@ void MappedInputManager::clearTransientState() {
   pendingPowerRelease = false;
   doubleTapReady = false;
   powerReleaseConsumed = false;
+  suppressBackRelease = false;
 }
 
 void MappedInputManager::injectVirtualActivation(const Button button) {

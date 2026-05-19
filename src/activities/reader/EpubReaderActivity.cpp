@@ -456,6 +456,9 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
       }
       requestUpdate();
       break;
+    case S::LONG_MENU_FILE_TRANSFER:
+      openFileTransfer();
+      break;
     case S::LONG_MENU_OFF:
     default:
       // TOGGLE_GUIDE_DOTS, TOGGLE_BIONIC, TOGGLE_BOOKMARK, MARK_FINISHED,
@@ -502,6 +505,9 @@ bool EpubReaderActivity::executeShortPowerButtonAction() {
     case S::CYCLE_PAGE_TURN:
       executeReaderQuickAction(S::LONG_MENU_CYCLE_PAGE_TURN);
       return true;
+    case S::FILE_TRANSFER:
+      executeReaderQuickAction(S::LONG_MENU_FILE_TRANSFER);
+      return true;
     default:
       return false;
   }
@@ -544,9 +550,19 @@ bool EpubReaderActivity::executeLongPowerButtonAction() {
     case S::CYCLE_PAGE_TURN:
       executeReaderQuickAction(S::LONG_MENU_CYCLE_PAGE_TURN);
       return true;
+    case S::FILE_TRANSFER:
+      executeReaderQuickAction(S::LONG_MENU_FILE_TRANSFER);
+      return true;
     default:
       return false;
   }
+}
+
+void EpubReaderActivity::openFileTransfer() {
+  if (epub && section) {
+    saveProgress(currentSpineIndex, section->currentPage, section->pageCount);
+  }
+  activityManager.goToFileTransfer(epub ? epub->getPath() : std::string{});
 }
 
 void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction action) {

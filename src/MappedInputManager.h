@@ -17,6 +17,7 @@ class MappedInputManager {
 
   void update() { gpio.update(); }
   void setReaderMode(bool enabled) { readerMode = enabled; }
+  void suppressNextBackRelease() { suppressBackRelease = true; }
   bool wasPressed(Button button);
   bool wasReleased(Button button);
   bool isPressed(Button button) const;
@@ -35,6 +36,7 @@ class MappedInputManager {
  private:
   HalGPIO& gpio;
   bool readerMode = false;
+  mutable bool suppressBackRelease = false;
   unsigned long pendingPowerReleaseMs = 0;
   unsigned long doubleTapReadyMs = 0;
   bool pendingPowerRelease = false;

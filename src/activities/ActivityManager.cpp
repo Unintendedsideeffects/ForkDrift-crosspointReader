@@ -220,8 +220,8 @@ void ActivityManager::replaceActivity(std::unique_ptr<Activity>&& newActivity) {
   }
 }
 
-void ActivityManager::goToFileTransfer() {
-  replaceActivity(std::make_unique<CrossPointWebServerActivity>(renderer, mappedInput));
+void ActivityManager::goToFileTransfer(std::string returnBookPath) {
+  replaceActivity(std::make_unique<CrossPointWebServerActivity>(renderer, mappedInput, std::move(returnBookPath)));
 }
 
 void ActivityManager::goToSettings() { replaceActivity(std::make_unique<SettingsActivity>(renderer, mappedInput)); }
@@ -266,7 +266,10 @@ void ActivityManager::goToBrowser() {
   }
 }
 
-void ActivityManager::goToReader(const std::string& path) {
+void ActivityManager::goToReader(std::string path, const bool suppressBackRelease) {
+  if (suppressBackRelease) {
+    mappedInput.suppressNextBackRelease();
+  }
   // Non-capturing lambdas: activityManager is an extern global, no context needed.
   static const auto onBackToLibrary = +[](void*, const std::string& bookPath) {
     const auto slash = bookPath.rfind('/');

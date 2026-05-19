@@ -144,12 +144,25 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
       gated to held < longPressDuration; detectPageTurn short+long power differentiation;
       controls tab restructured: Power Button / Front Buttons / Side Buttons sections;
       I18n 393 keys. Build SUCCESS, RAM 44.5%.
-- [ ] 9c20a784 short power press = Confirm outside reader
-- [ ] fe7e8554 short power = Confirm when no global action consumes it
-- [ ] 1a3f9a86 short power = Confirm in reader menus
-- [ ] 30916203 granular front button orientation modes
+- [≈] 9c20a784 short power press = Confirm outside reader — ForkDrift already has
+      consumePowerConfirm() (single-tap=Confirm, double-tap=Back) via isPowerTapSelectEnabled()
+      / isDualSideLayout(); works in all activities with no reader-mode gating. CrossInk's
+      IGNORE-based fallback approach is architecturally different but subsumed.
+- [≈] fe7e8554 short power = Confirm when no global action consumes it — subsumed by above
+- [≈] 1a3f9a86 short power = Confirm in reader menus — subsumed; ForkDrift consumePowerConfirm
+      has no reader-mode gate so already fires in reader sub-menus
+- [x] 30916203 granular front button orientation modes — FRONT_BUTTON_ORIENTATION_AWARE
+      enum + sideButtonOrientationAware bool; readerMode field + setReaderMode() added
+      to MappedInputManager; orientation-aware helpers in mapButton/mapLabels;
+      drawButtonHints allowInvertedText across all 4 themes; reader activities pass true.
+      Build SUCCESS, RAM 44.5%.
 - [ ] ae547416 tilt page turn shortcuts
-- [ ] 84505799 file transfer shortcut option
+- [x] 84505799 file transfer shortcut option — FILE_TRANSFER=14/LONG_MENU_FILE_TRANSFER=12
+      in CrossPointSettings; suppressNextBackRelease + suppressBackRelease in MappedInputManager;
+      goToFileTransfer(returnBookPath)/goToReader(suppressBackRelease) in ActivityManager;
+      exitToOrigin()/returnBookPath in CrossPointWebServerActivity; openFileTransfer() in
+      EpubReaderActivity; FILE_TRANSFER in all 3 action dispatchers; SettingsList lists updated.
+      Build SUCCESS, RAM 44.5%.
 - [ ] 30e0523d in-reader controls shortcut
 - [x] 49c123f9 file browser long-press on delay not release
 - [≈] c924a36d additional page turn intervals — subsumed by ac42b24e custom picker
