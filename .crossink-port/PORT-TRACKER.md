@@ -190,10 +190,15 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
       Build SUCCESS, RAM 44.5%.
 - [-] 4c3aaa30 delete bookmarks from list — deferred: no BookmarkStore/BookmarksHomeActivity in ForkDrift
 - [-] f17569ad delete book cache from file browser — skipped per lane scope
-- [ ] 95d76b14 WiFi network management API + UI
-- [ ] a66863ef user guide: web WiFi/OPDS settings
+- [≈] 95d76b14 WiFi network management API + UI — already in ForkDrift tip
+      (WifiCredentialStore + handleGet/Post/DeleteWifiNetwork in CrossPointWebServer).
+- [≈] a66863ef user guide: web WiFi/OPDS settings — already in ForkDrift USER_GUIDE.md
+      (section 3.6.6 Web Settings WiFi + OPDS).
 - [x] 3cc346a1 gray out disabled shift key on URL entry
-- [ ] 071da53f web ui style tweak
-- [ ] 66c8a9ec vietnamese language support (regenerate i18n properly)
+- [-] 071da53f web ui style tweak — skipped; ForkDrift HTML diverged substantially
+      (different page structure + branding); CSS-only, no feature impact.
+- [x] 66c8a9ec vietnamese language support — vietnamese.yaml added (183 own keys,
+      214 English fallback); STR_CROSSPOINT/STR_CROSSINK adapted to "CrossPoint Reader".
+      I18n: 397 keys, 23 languages.
 
 Full ordered list with hashes: `.crossink-port/feature-commits.txt`
