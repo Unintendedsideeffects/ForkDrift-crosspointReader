@@ -24,9 +24,11 @@ class FileBrowserActivity final : public Activity {
   size_t selectorIndex = 0;
   bool lockLongPressBack = false;
   bool longPressBackHandled = false;
+  bool longPressConfirmHandled = false;
 
   void loadFiles();
   void toggleHiddenFiles();
+  void confirmDeleteEntry(const std::string& entry);
   void clearFileMetadata(const std::string& fullPath);
   void onSelectBook(const std::string& fullPath);
   void onGoHome();

@@ -119,6 +119,41 @@ void FileBrowserActivity::onSelectBook(const std::string& fullPath) { activityMa
 void FileBrowserActivity::onGoHome() { activityManager.goHome(); }
 
 
+void FileBrowserActivity::confirmDeleteEntry(const std::string& entry) {
+  const bool isDirectory = (entry.back() == '/');
+  std::string cleanBasePath = basepath;
+  if (cleanBasePath.back() != '/') cleanBasePath += "/";
+  const std::string fullPath = cleanBasePath + entry;
+
+  auto handler = [this, fullPath, isDirectory](const ActivityResult& res) {
+    longPressConfirmHandled = false;
+    if (!res.isCancelled) {
+      LOG_DBG("FileBrowser", "Attempting to delete: %s", fullPath.c_str());
+      if (!isDirectory) {
+        clearFileMetadata(fullPath);
+      }
+      const bool deleted = isDirectory ? Storage.removeDir(fullPath.c_str()) : Storage.remove(fullPath.c_str());
+      if (deleted) {
+        LOG_DBG("FileBrowser", "Deleted successfully");
+        loadFiles();
+        if (files.empty()) {
+          selectorIndex = 0;
+        } else if (selectorIndex >= files.size()) {
+          selectorIndex = files.size() - 1;
+        }
+        requestUpdate(true);
+      } else {
+        LOG_ERR("FileBrowser", "Failed to delete: %s", fullPath.c_str());
+      }
+    } else {
+      LOG_DBG("FileBrowser", "Delete cancelled by user");
+    }
+  };
+
+  const std::string heading = tr(STR_DELETE) + std::string("? ");
+  startActivityForResult(std::make_unique<ConfirmationActivity>(renderer, mappedInput, heading, entry), handler);
+}
+
 void FileBrowserActivity::toggleHiddenFiles() {
   const std::string currentEntry =
       (!files.empty() && selectorIndex < files.size()) ? files[selectorIndex] : std::string();
@@ -155,6 +190,22 @@ void FileBrowserActivity::loop() {
   const int pathReserved = renderer.getLineHeight(SMALL_FONT_ID) + UITheme::getInstance().getMetrics().verticalSpacing;
   const int pageItems = UITheme::getNumberOfItemsPerPage(renderer, true, false, true, false, pathReserved);
 
+  if (mode == Mode::Books && !files.empty() && !longPressConfirmHandled) {
+    const std::string& entry = files[selectorIndex];
+    const bool isDirectory = (entry.back() == '/');
+    if (!isDirectory && mappedInput.isPressed(MappedInputManager::Button::Confirm) &&
+        mappedInput.getHeldTime() >= GO_HOME_MS) {
+      longPressConfirmHandled = true;
+      confirmDeleteEntry(entry);
+      return;
+    }
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    if (longPressConfirmHandled) {
+      longPressConfirmHandled = false;
+      return;
+    }
     if (lockNextConfirmRelease) {
       lockNextConfirmRelease = false;
       return;
@@ -175,29 +226,8 @@ void FileBrowserActivity::loop() {
       return;
     }
 
-    if (mode == Mode::Books && mappedInput.getHeldTime() >= GO_HOME_MS) {
-      std::string cleanBasePath = basepath;
-      if (cleanBasePath.back() != '/') cleanBasePath += "/";
-      const std::string fullPath = cleanBasePath + entry;
-      auto handler = [this, fullPath, isDirectory](const ActivityResult& res) {
-        if (!res.isCancelled) {
-          LOG_DBG("FileBrowser", "Attempting to delete: %s", fullPath.c_str());
-          if (!isDirectory) clearFileMetadata(fullPath);
-          const bool deleted = isDirectory ? Storage.removeDir(fullPath.c_str()) : Storage.remove(fullPath.c_str());
-          if (deleted) {
-            loadFiles();
-            if (files.empty()) selectorIndex = 0;
-            else if (selectorIndex >= files.size()) selectorIndex = files.size() - 1;
-            requestUpdate(true);
-          } else {
-            LOG_ERR("FileBrowser", "Failed to delete: %s", fullPath.c_str());
-          }
-        }
-      };
-      startActivityForResult(std::make_unique<ConfirmationActivity>(renderer, mappedInput, tr(STR_DELETE) + std::string("? "), entry), handler);
-      return;
-    }
     if (basepath.back() != '/') basepath += "/";
+
     if (isDirectory) {
       basepath += entry.substr(0, entry.length() - 1);
       loadFiles();
