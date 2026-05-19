@@ -520,77 +520,18 @@ void BaseTheme::drawBookMetadata(const GfxRenderer& renderer, Rect area, Rect bo
     renderer.drawCenteredText(UI_10_FONT_ID, y + renderer.getLineHeight(UI_12_FONT_ID), tr(STR_START_READING));
     return;
   }
-
-  const std::string& lastBookTitle = recentBooks[0].title;
-  const std::string& lastBookAuthor = recentBooks[0].author;
-
-  auto lines = renderer.wrappedText(UI_12_FONT_ID, lastBookTitle.c_str(), bookRect.width - 40, 3);
-
-  int totalTextHeight = renderer.getLineHeight(UI_12_FONT_ID) * static_cast<int>(lines.size());
-  if (!lastBookAuthor.empty()) {
-    totalTextHeight += renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2;
-  }
-
-  int titleYStart = bookRect.y + (bookRect.height - totalTextHeight) / 2;
-
-  const auto truncatedAuthor = lastBookAuthor.empty()
-                                   ? std::string{}
-                                   : renderer.truncatedText(UI_10_FONT_ID, lastBookAuthor.c_str(), bookRect.width - 40);
-
-  // Draw background box behind text when cover image is shown
-  if (coverRendered) {
-    constexpr int boxPadding = 8;
-    int maxTextWidth = 0;
-    for (const auto& line : lines) {
-      const int lineWidth = renderer.getTextWidth(UI_12_FONT_ID, line.c_str());
-      if (lineWidth > maxTextWidth) maxTextWidth = lineWidth;
-    }
-    if (!truncatedAuthor.empty()) {
-      const int authorWidth = renderer.getTextWidth(UI_10_FONT_ID, truncatedAuthor.c_str());
-      if (authorWidth > maxTextWidth) maxTextWidth = authorWidth;
-    }
-
-    const int boxWidth = maxTextWidth + boxPadding * 2;
-    const int boxHeight = totalTextHeight + boxPadding * 2;
-    const int boxX = area.x + (area.width - boxWidth) / 2;
-    const int boxY = titleYStart - boxPadding;
-
-    renderer.fillRect(boxX, boxY, boxWidth, boxHeight, bookSelected);
-    renderer.drawRect(boxX, boxY, boxWidth, boxHeight, !bookSelected);
-  }
-
-  for (const auto& line : lines) {
-    renderer.drawCenteredText(UI_12_FONT_ID, titleYStart, line.c_str(), !bookSelected);
-    titleYStart += renderer.getLineHeight(UI_12_FONT_ID);
-  }
-
-  if (!truncatedAuthor.empty()) {
-    titleYStart += renderer.getLineHeight(UI_10_FONT_ID) / 2;
-    renderer.drawCenteredText(UI_10_FONT_ID, titleYStart, truncatedAuthor.c_str(), !bookSelected);
-  }
-
-  // "Continue Reading" label at the bottom
-  const int continueY = bookRect.y + bookRect.height - renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2;
-  if (coverRendered) {
-    const char* continueText = tr(STR_CONTINUE_READING);
-    const int continueTextWidth = renderer.getTextWidth(UI_10_FONT_ID, continueText);
-    constexpr int continuePadding = 6;
-    const int continueBoxWidth = continueTextWidth + continuePadding * 2;
-    const int continueBoxHeight = renderer.getLineHeight(UI_10_FONT_ID) + continuePadding;
-    const int continueBoxX = area.x + (area.width - continueBoxWidth) / 2;
-    const int continueBoxY = continueY - continuePadding / 2;
-    renderer.fillRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, bookSelected);
-    renderer.drawRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, !bookSelected);
-    renderer.drawCenteredText(UI_10_FONT_ID, continueY, continueText, !bookSelected);
-  } else {
-    renderer.drawCenteredText(UI_10_FONT_ID, continueY, tr(STR_CONTINUE_READING), !bookSelected);
-  }
+  (void)renderer;
+  (void)area;
+  (void)bookRect;
+  (void)bookSelected;
+  (void)coverRendered;
 }
 
 // Draw the "Recent Book" cover card on the home screen.
 void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                                     const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
-                                    bool& bufferRestored, const std::function<bool()>& storeCoverBuffer) const {
+                                    bool& bufferRestored, const std::function<bool()>& storeCoverBuffer,
+                                    float /*progressPercent*/) const {
   SpiBusMutex::Guard guard;
   const bool hasContinueReading = !recentBooks.empty();
   const bool bookSelected = hasContinueReading && selectorIndex == 0;
