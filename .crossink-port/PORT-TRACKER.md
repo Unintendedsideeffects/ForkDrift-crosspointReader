@@ -1,5 +1,7 @@
 # CrossInk → ForkDrift feature absorption tracker
 
+> **Subagents:** read `.crossink-port/SUBAGENT.md` before any edit.
+
 Branch: `feature/absorb-crossink` (off `fork-drift`)
 Source: `crossink/main` (https://github.com/uxjulia/CrossInk), CrossInk own commits since upstream merge-base `43b20bd8`.
 Strategy: **Curated manual port**, NOT bulk merge. Forks diverged 1100+ files. Cherry-picks
@@ -81,7 +83,7 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
 - [ ] b4299ecf no-emoji build variant
 - [ ] 2b06b34c 3 build variants (font/emoji)
 - [ ] 8723f154 strikethrough + wider underline
-- [ ] 97c39de7 reduce wide line-heights
+- [≈] 97c39de7 reduce wide line-heights — ForkDrift WIDE already 1.0–1.1 (CrossInk post-change target 1.2–1.3)
 - [ ] be13d667 PHM unicode range
 - [ ] 9ca4b058 full PHM special-char support
 - [ ] 0b8d4e8e fonts --pnum
