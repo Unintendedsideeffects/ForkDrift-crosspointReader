@@ -196,6 +196,15 @@ void EpubReaderActivity::loop() {
     }
   }
 
+  // Long-press Confirm: execute quick action instead of opening reader menu.
+  constexpr unsigned long longPressMenuMs = 600;
+  if (SETTINGS.longPressMenuAction != CrossPointSettings::LONG_PRESS_MENU_ACTION::LONG_MENU_OFF &&
+      mappedInput.wasReleased(MappedInputManager::Button::Confirm) &&
+      mappedInput.getHeldTime() >= longPressMenuMs) {
+    executeLongPressMenuAction();
+    return;
+  }
+
   // Enter reader menu activity.
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     const int currentPage = section ? section->currentPage + 1 : 0;
@@ -401,6 +410,35 @@ void EpubReaderActivity::jumpToPercent(int percent) {
     nextPageNumber = 0;
     pendingPercentJump = true;
     section.reset();
+  }
+}
+
+void EpubReaderActivity::executeLongPressMenuAction() {
+  using S = CrossPointSettings;
+  switch (SETTINGS.longPressMenuAction) {
+    case S::LONG_PRESS_MENU_ACTION::LONG_MENU_CHANGE_FONT:
+      SETTINGS.fontFamily = (SETTINGS.fontFamily + 1) % S::FONT_FAMILY_COUNT;
+      SETTINGS.saveToFile();
+      {
+        RenderLock lock(*this);
+        section.reset();
+      }
+      requestUpdate();
+      break;
+    case S::LONG_PRESS_MENU_ACTION::LONG_MENU_REFRESH_SCREEN:
+      pagesUntilFullRefresh = 1;
+      requestUpdate();
+      break;
+    case S::LONG_PRESS_MENU_ACTION::LONG_MENU_SYNC_PROGRESS:
+      onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::SYNC);
+      break;
+    case S::LONG_PRESS_MENU_ACTION::LONG_MENU_SCREENSHOT:
+      onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::SCREENSHOT);
+      break;
+    default:
+      // LONG_MENU_OFF, TOGGLE_GUIDE_DOTS, TOGGLE_BIONIC, TOGGLE_BOOKMARK,
+      // MARK_FINISHED, READING_STATS: no-op until those features are ported.
+      break;
   }
 }
 

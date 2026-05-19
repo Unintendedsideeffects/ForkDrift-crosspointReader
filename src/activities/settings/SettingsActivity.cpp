@@ -48,22 +48,37 @@ void SettingsActivity::rebuildSettingsLists() {
   // reader activity ran — otherwise the font-family picker shows stale list.
   sdFontSystem.refreshIfDirty();
 
-  for (auto& setting : getSettingsList(&sdFontSystem.registry())) {
-    if (setting.category == StrId::STR_NONE_OPT) continue;
+  const auto& allSettings = getSettingsList(&sdFontSystem.registry());
+  auto addControlSetting = [&](StrId nameId) {
+    for (const auto& s : allSettings) {
+      if (s.nameId == nameId) {
+        controlsSettings.push_back(s);
+        break;
+      }
+    }
+  };
+
+  for (auto& setting : allSettings) {
+    if (setting.category == StrId::STR_NONE_OPT || setting.category == StrId::STR_CAT_CONTROLS) continue;
     if (setting.category == StrId::STR_CAT_DISPLAY) {
       displaySettings.push_back(setting);
     } else if (setting.category == StrId::STR_CAT_READER) {
       readerSettings.push_back(setting);
-    } else if (setting.category == StrId::STR_CAT_CONTROLS) {
-      controlsSettings.push_back(setting);
     } else if (setting.category == StrId::STR_CAT_SYSTEM) {
       systemSettings.push_back(setting);
     }
   }
 
-  // Append device-only ACTION items
-  controlsSettings.insert(controlsSettings.begin(),
-                          SettingInfo::Action(StrId::STR_REMAP_FRONT_BUTTONS, SettingAction::RemapFrontButtons));
+  // Build controls settings with section headers in desired display order
+  controlsSettings.reserve(10);
+  controlsSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CONTROLS_GENERAL));
+  controlsSettings.push_back(SettingInfo::Action(StrId::STR_REMAP_FRONT_BUTTONS, SettingAction::RemapFrontButtons));
+  addControlSetting(StrId::STR_SHORT_PWR_BTN);
+  controlsSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CONTROLS_IN_READER));
+  addControlSetting(StrId::STR_SIDE_BTN_LAYOUT);
+  addControlSetting(StrId::STR_LONG_PRESS_BEHAVIOR);
+  addControlSetting(StrId::STR_SIDE_BTN_LONG_PRESS);
+  addControlSetting(StrId::STR_LONG_PRESS_MENU_ACTION);
   systemSettings.push_back(SettingInfo::Action(StrId::STR_WIFI_NETWORKS, SettingAction::Network));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser));
@@ -151,11 +166,19 @@ void SettingsActivity::loop() {
   // Handle navigation
   buttonNavigator.onNextRelease([this] {
     selectedSettingIndex = ButtonNavigator::nextIndex(selectedSettingIndex, settingsCount + 1);
+    while (selectedSettingIndex > 0 && selectedSettingIndex <= settingsCount &&
+           (*currentSettings)[selectedSettingIndex - 1].type == SettingType::SECTION_HEADER) {
+      selectedSettingIndex = ButtonNavigator::nextIndex(selectedSettingIndex, settingsCount + 1);
+    }
     requestUpdate();
   });
 
   buttonNavigator.onPreviousRelease([this] {
     selectedSettingIndex = ButtonNavigator::previousIndex(selectedSettingIndex, settingsCount + 1);
+    while (selectedSettingIndex > 0 && selectedSettingIndex <= settingsCount &&
+           (*currentSettings)[selectedSettingIndex - 1].type == SettingType::SECTION_HEADER) {
+      selectedSettingIndex = ButtonNavigator::previousIndex(selectedSettingIndex, settingsCount + 1);
+    }
     requestUpdate();
   });
 
@@ -188,6 +211,11 @@ void SettingsActivity::loop() {
         break;
     }
     settingsCount = static_cast<int>(currentSettings->size());
+    // Advance past any leading section headers
+    while (selectedSettingIndex > 0 && selectedSettingIndex <= settingsCount &&
+           (*currentSettings)[selectedSettingIndex - 1].type == SettingType::SECTION_HEADER) {
+      selectedSettingIndex++;
+    }
   }
 }
 
@@ -521,7 +549,7 @@ void SettingsActivity::render(RenderLock&&) {
         }
         return valueText;
       },
-      true);
+      true, [&settings](int i) { return settings[i].type == SettingType::SECTION_HEADER; });
 
   // Draw help text
   const bool isSleepSetting = selectedSettingIndex > 0 &&

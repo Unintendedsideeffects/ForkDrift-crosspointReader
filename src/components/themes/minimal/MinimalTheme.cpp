@@ -223,11 +223,12 @@ void MinimalTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCoun
                             const std::function<std::string(int index)>& rowSubtitle,
                             const std::function<UIIcon(int index)>& rowIcon,
                             const std::function<std::string(int index)>& rowValue, bool highlightValue,
-                            const std::function<bool(int index)>& rowDimmed) const {
+                            const std::function<bool(int index)>& rowDimmed,
+                            const std::function<bool(int index)>& isHeader) const {
   const bool compactFileRows = rowSubtitle != nullptr && rowIcon != nullptr && rowValue != nullptr;
   if (!compactFileRows) {
     LyraTheme::drawList(renderer, rect, itemCount, selectedIndex, rowTitle, rowSubtitle, rowIcon, rowValue,
-                        highlightValue, rowDimmed);
+                        highlightValue, rowDimmed, isHeader);
     return;
   }
 

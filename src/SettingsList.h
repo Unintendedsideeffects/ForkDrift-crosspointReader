@@ -321,6 +321,12 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
       {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_PAGE_TURN, StrId::STR_SELECT, StrId::STR_FORCE_REFRESH,
        StrId::STR_CHANGE_FONT},
       "shortPwrBtn", StrId::STR_CAT_CONTROLS));
+  list.push_back(SettingInfo::Enum(
+      StrId::STR_LONG_PRESS_MENU_ACTION, &CrossPointSettings::longPressMenuAction,
+      {StrId::STR_IGNORE, StrId::STR_CHANGE_FONT, StrId::STR_TOGGLE_GUIDE_DOTS, StrId::STR_TOGGLE_BIONIC_READING,
+       StrId::STR_TOGGLE_BOOKMARK, StrId::STR_FORCE_REFRESH, StrId::STR_SYNC_PROGRESS, StrId::STR_READING_STATS,
+       StrId::STR_SCREENSHOT_BUTTON},
+      "longPressMenuAction", StrId::STR_CAT_CONTROLS));
 
   // --- System ---
   list.push_back(SettingInfo::Value(

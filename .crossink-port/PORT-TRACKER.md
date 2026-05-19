@@ -120,8 +120,16 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
 - [ ] 9689ea5c page overlay logging
 
 ## Phase 4 — Controls, power button, pickers
-- [ ] efe9a5c1 quick font size/family via side buttons
-- [ ] 8ba6be19 long press menu action
+- [x] efe9a5c1 quick font size/family via side buttons — sideButtonLongPress enum
+      (SIDE_LONG_CHAPTER_SKIP/FONT_SIZE/OFF) in CrossPointSettings; fromSideBtn added
+      to PageTurnResult / detectPageTurn; SIDE_LONG_FONT_SIZE handler in Epub+XtcReader;
+      chapter-skip and orientation-change gated on fromSideBtn; SettingsList entry added.
+- [x] 8ba6be19 long press menu action + settings section headers — LONG_PRESS_MENU_ACTION
+      enum + longPressMenuAction field; executeLongPressMenuAction() in EpubReaderActivity
+      (CHANGE_FONT/REFRESH/SYNC/SCREENSHOT; Phase-3 cases no-op); SECTION_HEADER SettingType
+      + SectionHeader factory; controls tab restructured with General/In-Reader headers;
+      isHeader param propagated to all 4 theme drawList overrides (Base/Lyra/Minimal/RoundedRaff)
+      with variable-Y rendering; I18n 380→387 keys. Build SUCCESS, RAM 44.5%.
 - [ ] 1662fd86 more short power button options
 - [ ] bf54096d long press power button customization + reorder controls
 - [ ] 9c20a784 short power press = Confirm outside reader
@@ -134,7 +142,11 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
 - [x] 49c123f9 file browser long-press on delay not release
 - [≈] c924a36d additional page turn intervals — subsumed by ac42b24e custom picker
 - [x] ac42b24e custom auto page turn interval picker
-- [ ] 0cb91c3d custom sleep timer picker
+- [x] 0cb91c3d custom sleep timer picker — IntervalSelectionActivity (generic picker,
+      replaces EpubReaderAutoPageTurnIntervalActivity); sleepTimeoutMinutes uint8_t
+      field added to CrossPointSettings with binary/JSON migration; SettingsList
+      converts sleep from Enum to Value; SettingsActivity opens picker on select.
+      Build SUCCESS, RAM 44.5%.
 - [x] e803b890 toggle hidden files in file browser
 
 ## Phase 5 — Web/WiFi/misc

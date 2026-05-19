@@ -196,6 +196,21 @@ class CrossPointSettings {
   // Image rendering in EPUB reader
   enum IMAGE_RENDERING { IMAGES_DISPLAY = 0, IMAGES_PLACEHOLDER = 1, IMAGES_SUPPRESS = 2, IMAGE_RENDERING_COUNT };
 
+  // Long-press Confirm (menu button) quick action in reader
+  enum LONG_PRESS_MENU_ACTION {
+    LONG_MENU_OFF = 0,
+    LONG_MENU_CHANGE_FONT = 1,
+    LONG_MENU_TOGGLE_GUIDE_DOTS = 2,
+    LONG_MENU_TOGGLE_BIONIC = 3,
+    LONG_MENU_TOGGLE_BOOKMARK = 4,
+    LONG_MENU_REFRESH_SCREEN = 5,
+    LONG_MENU_SYNC_PROGRESS = 6,
+    LONG_MENU_MARK_FINISHED = 7,
+    LONG_MENU_READING_STATS = 8,
+    LONG_MENU_SCREENSHOT = 9,
+    LONG_PRESS_MENU_ACTION_COUNT
+  };
+
   // Global status bar overlay position
   enum GLOBAL_STATUS_BAR_POSITION { STATUS_BAR_TOP = 0, STATUS_BAR_BOTTOM = 1, GLOBAL_STATUS_BAR_POSITION_COUNT };
 
@@ -302,6 +317,8 @@ class CrossPointSettings {
   uint8_t developerMode = 0;
   // Image rendering mode in EPUB reader
   uint8_t imageRendering = IMAGES_DISPLAY;
+  // Long-press Confirm (menu button) quick action in reader (0 = off)
+  uint8_t longPressMenuAction = LONG_MENU_OFF;
   // Global status bar overlay (battery + WiFi, always visible across all screens)
   uint8_t globalStatusBar = GLOBAL_STATUS_BAR_OFF;
   uint8_t globalStatusBarPosition = STATUS_BAR_TOP;  // 0 = top, 1 = bottom
