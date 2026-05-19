@@ -1,0 +1,81 @@
+5331fe82|Julia Nguyen|feat: improve reading stats display
+081f170d|Julia Nguyen|feat: improve cover rendering
+e6a02fa9|Julia Nguyen|feat: add emoji support
+07bb45b4|Julia Nguyen|feat: add additional padding to bottom status bar in reader
+e742d76f|Julia Nguyen|feat: add DM Sans as UI font
+b4299ecf|Julia Nguyen|feat: add build variant without emoji support to reduce size
+8723f154|Julia Nguyen|feat: add strikethrough support and increase underline width
+29a05602|Julia Nguyen|feat: modify OTA update url to point to this repo
+97c39de7|Julia Nguyen|feat: reduce wide line-heights
+2b06b34c|Julia Nguyen|feat: adds 3 new build variants with various font and emoji support
+f9be757b|Vincent Politzer|feat: focus reading
+c924a36d|Julia Nguyen|feat: add additional page turn intervals
+b03c834d|Julia Nguyen|feat: update UI for reading stats
+be13d667|Julia Nguyen|feat: add additional unicode range to properly display all symbols in Project Hail Mary :)
+7f4705e0|Julia Nguyen|feat: global book stats now match per book stats
+41209464|Julia Nguyen|feat: add bookmark menu and scrollbar when more than 6 menu items exist
+1b31168c|Julia Nguyen|feat: adds crossink logo, removes crosspoint version numbers to reduce confusion
+8ab81889|Julia Nguyen|feat: resized menu items to fit on homescreen without scrolling
+004b893e|Julia Nguyen|feat: remove ugly text overlay on current book in base theme
+3cc346a1|Julia|feat: gray out disabled shift key when entering URLs for better UX
+0b8d4e8e|Julia|feat: update fonts with --pnum flag
+c5a615b5|Julia|feat: implement improved css parser for descendent elements
+95d76b14|Arthur Tazhitdinov|feat: Implement Wi-Fi network management API and UI integration
+a66863ef|Arthur Tazhitdinov|feat: Update user guide with web settings for WiFi and OPDS management
+642402f8|Julia|feat: Adds a percent progress bar on the home screen for the current book (Lyra theme only) #28)
+cebb6cbf|Julia|feat: allowing marking books as finished and track the stats
+60415e57|Julia|feat: ask user if book is finished at 99%
+815f2fbd|Julia|feat: move epubs to read folder when marked as finished
+ecf19d3e|Julia|feat: grayscale images even when AA is off
+ade89cdf|Julia|feat: force paragraph indentations when none exist
+efe9a5c1|Julia|feat: quickly change font size and font family with side buttons
+250b24c3|Julia|feat: add guide dots
+66c8a9ec|Julia|feat: add vietnamese language support
+8ba6be19|Julia|feat: add long press menu action
+1662fd86|Julia|feat: add additional options to short power button action
+bf54096d|Julia|feat: add long press power button customization feat: reorder controls menu
+0ac24e61|Julia|feat: hide battery (and subsequently bookmarks) when transparent overlay is enabled and screen is sleeping
+996c37c9|Julia|feat: add translations for Page Overlay
+426c9998|Julia|feat: make fonts render darker by darkening during the font conversion process
+d4f644eb|Julia|feat: only count a book session after 60 seconds inside the reader feat: bumped up the threshold to 10 seconds before reading time is counted
+3535f228|Julia|feat: add sleep screen option for reading stats
+9689ea5c|Julia|feat: add more detailed page overlay logging
+05a6691a|Julia|feat: guide dots when paragraph alignment is justify
+993215b8|Julia|feat: allow pinning a favorite sleep image
+49c123f9|Julia|feat: long-press inside file browser works on delay instead of release now
+3302d4bb|Julia|feat: add inter only for teensy font size TODO: block other font sizes from using inter and inter from using other font sizes
+ab07283b|Julia|feat: add teensy font size
+11be5470|Julia|feat: add huge font size
+9ca4b058|Julia|feat: add full project hail mary special character support
+e4bb4439|Julia|feat: add catalog with all 3 build variants
+071da53f|Julia|feat: minor tweak to web ui style
+9c20a784|Julia|feat: map the short-press power button to act as a confirm action outside of the reader
+fe7e8554|Julia|feat: Map short power press to Confirm outside reader when no global action consumes it
+84505799|Julia|feat: add file transfer as a shortcut option
+7aca0245|Julia|feat: display asterisk for favorited sleep images
+1a3f9a86|Julia|feat: map short power press to Confirm in reader menus as well
+61c8d78f|Julia|feat: improve table rendering (#89)
+32e189ef|Julia|feat: draw borders for simple tables
+971a62ee|Julia|feat: minor tweak to LyraCarouselTheme's carousel style
+8154c9a5|Julia|feat: add stats to lyra carousel home page, move book title above cover
+431430aa|Julia|feat: handle colSpan in tables when they act as header or footer rows (#90)
+b34b4448|Julia|feat: display <hr> tags instead of ignoring them
+ea9568c3|Julia|feat: add toggleable recent books grid view
+ac42b24e|Julia|feat: add custom auto page turn interval picker
+a45de2df|Julia|feat: show progress in recent books grid title
+e803b890|Julia|feat: allow toggling hidden files from within the file browser
+3195e385|Julia|feat: add simulator sleep shortcut
+684946c5|Julia|fix(theme): improve padding in roundedraff
+30916203|Julia|feat(controls): add more granular front button orientation modes
+ae547416|Julia|feat: add tilt page turn reader shortcuts
+9a9054cb|Julia|perf(home): reduce Lyra Carousel RAM frame cache
+bdc65f27|Julia|feat(home): update Lyra Carousel progress footer
+0cb91c3d|Julia|feat: add custom sleep timer picker
+91f11a03|Julia|feat: add minimal theme
+0c7e11a3|Julia|style(theme): adjust width of reading stat bar in lyra carousel
+c0a56228|Julia|style(theme): reduce font size of setting categories in minimal theme
+30e0523d|Julia|feat: add in-reader controls options shortcut
+4c3aaa30|Julia|feat: allow deleting bookmarks from the bookmarks list
+f17569ad|Julia|feat: allow deleting a book's cache from the file browser
+f39a11fe|broemp|feat: improve progressive jpeg cover support
+a27ee056|Julia|feat(file-browser): add mark finished action
