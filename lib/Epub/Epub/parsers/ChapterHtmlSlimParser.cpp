@@ -151,7 +151,8 @@ void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
     anchorData.push_back({std::move(pendingAnchorId), static_cast<uint16_t>(completedPageCount)});
     pendingAnchorId.clear();
   }
-  currentTextBlock.reset(new ParsedText(extraParagraphSpacing, hyphenationEnabled, focusReadingEnabled, blockStyle));
+  currentTextBlock.reset(
+      new ParsedText(extraParagraphSpacing, forceParagraphIndents, hyphenationEnabled, focusReadingEnabled, blockStyle));
   wordsExtractedInBlock = 0;
 }
 
@@ -649,8 +650,40 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   }
 
   const float emSize = static_cast<float>(self->renderer.getFontAscenderSize(self->fontId));
-  const auto userAlignmentBlockStyle = BlockStyle::fromCssStyle(
-      cssStyle, emSize, static_cast<CssTextAlign>(self->paragraphAlignment), self->viewportWidth);
+
+  CssTextAlign resolvedAlign = static_cast<CssTextAlign>(self->paragraphAlignment);
+  if (self->embeddedStyle && cssStyle.hasTextAlign()) {
+    resolvedAlign = cssStyle.textAlign;
+  }
+  auto userAlignmentBlockStyle = BlockStyle::fromCssStyle(cssStyle, emSize, resolvedAlign, self->viewportWidth);
+  userAlignmentBlockStyle.textAlignDefined = true;
+  userAlignmentBlockStyle.alignment = resolvedAlign;
+
+  if (!self->embeddedStyle) {
+    userAlignmentBlockStyle.marginLeft = 0;
+    userAlignmentBlockStyle.marginRight = 0;
+    userAlignmentBlockStyle.marginTop = 0;
+    userAlignmentBlockStyle.marginBottom = 0;
+    userAlignmentBlockStyle.paddingLeft = 0;
+    userAlignmentBlockStyle.paddingRight = 0;
+    userAlignmentBlockStyle.paddingTop = 0;
+    userAlignmentBlockStyle.paddingBottom = 0;
+    userAlignmentBlockStyle.textIndentDefined = false;
+    userAlignmentBlockStyle.textIndent = 0;
+  }
+
+  // Force paragraph indent to prevent unreadable walls of text.
+  // Applies if publisher set text-indent:0, omitted it, or embedded styles are off.
+  if (self->forceParagraphIndents && strcmp(name, "p") == 0) {
+    if (userAlignmentBlockStyle.alignment == CssTextAlign::Left ||
+        userAlignmentBlockStyle.alignment == CssTextAlign::Justify ||
+        userAlignmentBlockStyle.alignment == CssTextAlign::None) {
+      if (!userAlignmentBlockStyle.textIndentDefined || userAlignmentBlockStyle.textIndent == 0) {
+        userAlignmentBlockStyle.textIndentDefined = true;
+        userAlignmentBlockStyle.textIndent = static_cast<int16_t>(emSize * 1.5f);
+      }
+    }
+  }
 
   if (matches(name, HEADER_TAGS, std::size(HEADER_TAGS))) {
     self->currentCssStyle = cssStyle;
@@ -658,6 +691,18 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     headerBlockStyle.textAlignDefined = true;
     if (self->embeddedStyle && cssStyle.hasTextAlign()) {
       headerBlockStyle.alignment = cssStyle.textAlign;
+    }
+    if (!self->embeddedStyle) {
+      headerBlockStyle.marginLeft = 0;
+      headerBlockStyle.marginRight = 0;
+      headerBlockStyle.marginTop = 0;
+      headerBlockStyle.marginBottom = 0;
+      headerBlockStyle.paddingLeft = 0;
+      headerBlockStyle.paddingRight = 0;
+      headerBlockStyle.paddingTop = 0;
+      headerBlockStyle.paddingBottom = 0;
+      headerBlockStyle.textIndentDefined = false;
+      headerBlockStyle.textIndent = 0;
     }
     const auto accumulated =
         self->blockStyleStack.back().getCombinedBlockStyle(headerBlockStyle, BlockStyle::CombineAxis::Horizontal);

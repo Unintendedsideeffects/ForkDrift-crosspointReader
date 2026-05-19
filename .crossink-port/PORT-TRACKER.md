@@ -96,7 +96,15 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
 - [-] ab07283b teensy font size — new font binaries required
 - [-] 3302d4bb inter for teensy size — uses Inter font not present in ForkDrift
 - [-] 11be5470 huge font size — new font binaries required
-- [ ] ade89cdf force paragraph indentation when none
+- [x] ade89cdf force paragraph indentation when none — forceParagraphIndents bool in
+      CrossPointSettings + SettingsList + STR_FORCE_PARAGRAPH_INDENTS; ParsedText constructor
+      + 3 firstLineIndent sites + applyParagraphIndent use forceParagraphIndents;
+      ChapterHtmlSlimParser: constructor param, startNewTextBlock, force-indent on <p>,
+      strip margins/padding when !embeddedStyle (paragraphs + headers); Section h/cpp
+      version 24→25 + header field; HtmlSection h/cpp version 1→2 + field + ChapterHtmlSlimParser;
+      MarkdownSection h/cpp version 1→2 + field (cache key); EpubReaderActivity 4 sites;
+      MarkdownReaderActivity 5 sites + hash; MarkdownRenderer ParsedText call fixed.
+      Build SUCCESS, RAM 44.5%.
 - [ ] 250b24c3 add guide dots
 - [ ] 05a6691a guide dots when justify
 - [ ] c5a615b5 improved css parser for descendant elements

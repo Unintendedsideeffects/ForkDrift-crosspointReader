@@ -17,11 +17,12 @@ class MarkdownSection {
   MarkdownSection(const std::string& cachePath, const std::string& contentBasePath, GfxRenderer& renderer);
   ~MarkdownSection();
 
-  bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
-                       uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled, uint32_t sourceSize);
+  bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
+                       uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
+                       bool hyphenationEnabled, uint32_t sourceSize);
   bool createSectionFile(const MdNode& root, int fontId, float lineCompression, bool extraParagraphSpacing,
-                         uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
-                         bool hyphenationEnabled, uint32_t sourceSize,
+                         bool forceParagraphIndents, uint8_t paragraphAlignment, uint16_t viewportWidth,
+                         uint16_t viewportHeight, bool hyphenationEnabled, uint32_t sourceSize,
                          const std::function<void()>& progressSetupFn = nullptr,
                          const std::function<void(int)>& progressFn = nullptr);
   std::unique_ptr<Page> loadPageFromSectionFile();
@@ -42,9 +43,9 @@ class MarkdownSection {
   bool fileOpenForReading = false;
   std::vector<size_t> nodeToPageMap;
 
-  void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
-                              uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled,
-                              uint32_t sourceSize);
+  void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
+                              uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
+                              bool hyphenationEnabled, uint32_t sourceSize);
   uint32_t onPageComplete(std::unique_ptr<Page> page);
   void closeSectionFile();
 };

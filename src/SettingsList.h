@@ -300,6 +300,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                         "orientation", StrId::STR_CAT_READER));
   list.push_back(SettingInfo::Toggle(StrId::STR_EXTRA_SPACING, &CrossPointSettings::extraParagraphSpacing,
                                      "extraParagraphSpacing", StrId::STR_CAT_READER));
+  list.push_back(SettingInfo::Toggle(StrId::STR_FORCE_PARAGRAPH_INDENTS, &CrossPointSettings::forceParagraphIndents,
+                                     "forceParagraphIndents", StrId::STR_CAT_READER));
   list.push_back(SettingInfo::Toggle(StrId::STR_TEXT_AA, &CrossPointSettings::textAntiAliasing, "textAntiAliasing",
                                      StrId::STR_CAT_READER));
   list.push_back(
