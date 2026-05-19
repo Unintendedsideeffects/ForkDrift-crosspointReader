@@ -74,8 +74,8 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
       Re-expressed intent: keep empty-state placeholder, drop the title/author/
       box/Continue-Reading overlay. Affects Classic theme only (Lyra/ForkDrift/
       Minimal override drawRecentBookCover).
-- [ ] ea9568c3 toggleable recent books grid view
-- [ ] a45de2df show progress in recent books grid title
+- [x] ea9568c3 toggleable recent books grid view
+- [x] a45de2df show progress in recent books grid title
 
 ## Phase 2 — Fonts & text rendering
 - [ ] e742d76f add DM Sans UI font
@@ -132,20 +132,20 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
 - [ ] 84505799 file transfer shortcut option
 - [ ] 30e0523d in-reader controls shortcut
 - [x] 49c123f9 file browser long-press on delay not release
-- [ ] c924a36d additional page turn intervals
-- [ ] ac42b24e custom auto page turn interval picker
+- [≈] c924a36d additional page turn intervals — subsumed by ac42b24e custom picker
+- [x] ac42b24e custom auto page turn interval picker
 - [ ] 0cb91c3d custom sleep timer picker
 - [x] e803b890 toggle hidden files in file browser
 
 ## Phase 5 — Web/WiFi/misc
 - [ ] f9be757b focus reading
-- [ ] 07bb45b4 status bar padding (CAUTION: ForkDrift reworked status bar — adapt, see memory)
+- [x] 07bb45b4 status bar padding (CAUTION: ForkDrift reworked status bar — adapt, see memory)
 - [ ] 41209464 bookmark menu + scrollbar >6 items
 - [-] 4c3aaa30 delete bookmarks from list — deferred: no BookmarkStore/BookmarksHomeActivity in ForkDrift
 - [-] f17569ad delete book cache from file browser — skipped per lane scope
 - [ ] 95d76b14 WiFi network management API + UI
 - [ ] a66863ef user guide: web WiFi/OPDS settings
-- [ ] 3cc346a1 gray out disabled shift key on URL entry
+- [x] 3cc346a1 gray out disabled shift key on URL entry
 - [ ] 071da53f web ui style tweak
 - [ ] 66c8a9ec vietnamese language support (regenerate i18n properly)
 
