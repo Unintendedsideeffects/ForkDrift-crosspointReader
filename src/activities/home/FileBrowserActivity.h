@@ -23,8 +23,10 @@ class FileBrowserActivity final : public Activity {
   std::vector<std::string> files;
   size_t selectorIndex = 0;
   bool lockLongPressBack = false;
+  bool longPressBackHandled = false;
 
   void loadFiles();
+  void toggleHiddenFiles();
   void clearFileMetadata(const std::string& fullPath);
   void onSelectBook(const std::string& fullPath);
   void onGoHome();
