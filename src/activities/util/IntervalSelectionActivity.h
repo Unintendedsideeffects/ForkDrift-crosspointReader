@@ -32,7 +32,7 @@ class IntervalSelectionActivity final : public Activity {
   void loop() override;
   void render(RenderLock&&) override;
   bool isReaderActivity() const override { return readerActivity; }
-  bool allowPowerAsConfirmInReaderMode() const override { return allowPowerAsConfirm; }
+  bool allowPowerAsConfirmInReaderMode() const { return allowPowerAsConfirm; }
 
  private:
   StrId titleId;
