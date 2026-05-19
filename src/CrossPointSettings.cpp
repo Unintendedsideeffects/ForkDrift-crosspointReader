@@ -429,6 +429,7 @@ void CrossPointSettings::validateAndClamp() {
   if (globalStatusBarPosition >= GLOBAL_STATUS_BAR_POSITION_COUNT) globalStatusBarPosition = STATUS_BAR_TOP;
 
   if (uiTheme > POKEMON_PARTY) uiTheme = LYRA;
+  if (recentBooksView >= RECENT_BOOKS_VIEW_COUNT) recentBooksView = RECENT_BOOKS_LIST;
 #if !ENABLE_LYRA_THEME
   uiTheme = CLASSIC;
 #endif

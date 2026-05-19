@@ -268,6 +268,9 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         },
         "uiTheme", StrId::STR_CAT_DISPLAY);
   }());
+  list.push_back(SettingInfo::Enum(StrId::STR_RECENT_BOOKS_VIEW, &CrossPointSettings::recentBooksView,
+                                   {StrId::STR_LIST_VIEW, StrId::STR_GRID_VIEW}, "recentBooksView",
+                                   StrId::STR_CAT_DISPLAY));
   list.push_back(SettingInfo::Toggle(StrId::STR_SUNLIGHT_FADING_FIX, &CrossPointSettings::fadingFix, "fadingFix",
                                      StrId::STR_CAT_DISPLAY));
 
