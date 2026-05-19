@@ -6,6 +6,7 @@
 #include <I18n.h>
 #include <Logging.h>
 #include <OpdsStream.h>
+#include <OpenSearchParser.h>
 #include <WiFi.h>
 
 #include "MappedInputManager.h"
@@ -209,6 +210,22 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
   }
 
   searchTemplate = parser.getSearchTemplate();
+  if (searchTemplate.empty()) {
+    // OPDS 1.2 / OpenSearch: the feed pointed at a description document rather
+    // than inlining a {searchTerms} template. Fetch & parse it to recover the
+    // real search URL. The doc is small and fixed-size, so a one-shot
+    // string fetch is used instead of streaming. Skipped entirely on OPDS 1.1
+    // servers (no description URL) — no extra request in that case.
+    const std::string& descRef = parser.getSearchDescriptionUrl();
+    if (!descRef.empty()) {
+      const std::string descUrl = (descRef.find("http") == 0) ? descRef : UrlUtils::buildUrl(url, descRef);
+      std::string descDoc;
+      if (HttpDownloader::fetchUrl(descUrl, descDoc, server.username, server.password)) {
+        searchTemplate = OpenSearchParser::extractSearchTemplate(descDoc);
+        LOG_DBG("OPDS", "OpenSearch search template: %s", searchTemplate.c_str());
+      }
+    }
+  }
   const auto& nextUrl = parser.getNextPageUrl();
   const auto& prevUrl = parser.getPrevPageUrl();
   entries = std::move(parser).getEntries();

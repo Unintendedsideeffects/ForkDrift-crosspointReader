@@ -50,6 +50,10 @@ class OpdsParser final : public Print {
 
   // Disable copy
   const std::string& getSearchTemplate() const { return searchTemplate; }
+  // OpenSearch description-document URL, set only when the feed advertised
+  // search via a description doc instead of an inline {searchTerms} template.
+  // Empty if getSearchTemplate() is non-empty or no search link was present.
+  const std::string& getSearchDescriptionUrl() const { return searchDescriptionUrl; }
   const std::string& getNextPageUrl() const { return nextPageUrl; }
   const std::string& getPrevPageUrl() const { return prevPageUrl; }
   OpdsParser(const OpdsParser&) = delete;
@@ -89,6 +93,7 @@ class OpdsParser final : public Print {
   static void XMLCALL characterData(void* userData, const XML_Char* s, int len);
 
   std::string searchTemplate;
+  std::string searchDescriptionUrl;
   std::string nextPageUrl;
   std::string prevPageUrl;
   // Helper to find attribute value

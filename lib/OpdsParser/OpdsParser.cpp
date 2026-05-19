@@ -65,6 +65,7 @@ bool OpdsParser::error() const { return errorOccured; }
 void OpdsParser::clear() {
   entries.clear();
   searchTemplate.clear();
+  searchDescriptionUrl.clear();
   nextPageUrl.clear();
   prevPageUrl.clear();
   currentEntry = OpdsEntry{};
@@ -99,7 +100,13 @@ void XMLCALL OpdsParser::startElement(void* userData, const XML_Char* name, cons
       if (rel && strcmp(rel, "search") == 0) {
         std::string sHref(href);
         if (sHref.find("{searchTerms}") != std::string::npos) {
+          // OPDS 1.1: search link carries the templated URL inline.
           self->searchTemplate = sHref;
+        } else if (type && strstr(type, "opensearchdescription") != nullptr) {
+          // OPDS 1.2 / OpenSearch 1.1: link points at a separate description
+          // document that holds the real template. Fetched & parsed by the
+          // caller only if no inline template was found.
+          self->searchDescriptionUrl = std::move(sHref);
         }
       } else if (rel && strcmp(rel, "next") == 0 && !self->inEntry) {
         self->nextPageUrl = href;

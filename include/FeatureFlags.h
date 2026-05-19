@@ -45,6 +45,12 @@
 #define FEATURE_OVERRIDE_ENABLE_CALIBRE_SYNC 0
 #endif
 
+#ifdef ENABLE_OPDS
+#define FEATURE_OVERRIDE_ENABLE_OPDS 1
+#else
+#define FEATURE_OVERRIDE_ENABLE_OPDS 0
+#endif
+
 #ifdef ENABLE_EPUB_SUPPORT
 #define FEATURE_OVERRIDE_ENABLE_EPUB_SUPPORT 1
 #else
@@ -140,6 +146,13 @@
 #define ENABLE_BACKGROUND_SERVER_ALWAYS 1
 #endif
 
+// The OPDS / Booklore browser is always compiled in. The flag exists so the
+// configurator can express its dependency on the always-on background server
+// (OPDS catalogs are only reachable when WiFi auto-connects while awake).
+#ifndef ENABLE_OPDS
+#define ENABLE_OPDS 1
+#endif
+
 #ifndef ENABLE_HOME_MEDIA_PICKER
 #define ENABLE_HOME_MEDIA_PICKER 1
 #endif
@@ -231,6 +244,10 @@
 
 #if !ENABLE_INTEGRATIONS && FEATURE_OVERRIDE_ENABLE_CALIBRE_SYNC && ENABLE_CALIBRE_SYNC
 #error "ENABLE_CALIBRE_SYNC requires ENABLE_INTEGRATIONS=1"
+#endif
+
+#if !ENABLE_BACKGROUND_SERVER_ALWAYS && FEATURE_OVERRIDE_ENABLE_OPDS && ENABLE_OPDS
+#error "ENABLE_OPDS requires ENABLE_BACKGROUND_SERVER_ALWAYS=1"
 #endif
 
 #if !ENABLE_INTEGRATIONS

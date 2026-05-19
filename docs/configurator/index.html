@@ -2385,6 +2385,17 @@
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
 
+              <label class="skill-card" data-feature="opds" data-node-id="opds">
+                <input type="checkbox" id="opds" data-feature="opds" />
+                <div class="card-icon"><span>&#x2630;</span></div>
+                <div class="card-body">
+                  <div class="card-name">OPDS / Booklore</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">Browse and download books from OPDS catalogs (e.g. Booklore). Requires Auto-start: Always so WiFi is up when you open a catalog.</div>
+                </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
               <div class="dep-group">
                 <div class="skill-card dep-parent static-card always-enabled" data-node-id="remote_control">
                   <div class="card-icon"><span>&#x25CF;</span></div>
@@ -3351,6 +3362,11 @@
           flag: "ENABLE_BACKGROUND_SERVER_ALWAYS",
           default: false,
         },
+        opds: {
+          sizeKb: 6,
+          flag: "ENABLE_OPDS",
+          default: true,
+        },
         home_media_picker: {
           sizeKb: 0,
           flag: "ENABLE_HOME_MEDIA_PICKER",
@@ -3492,6 +3508,7 @@
       const FEATURE_DEPENDENCIES = {
         koreader_sync: ["integrations"],
         calibre_sync: ["integrations"],
+        opds: ["background_server_always"],
         opendyslexic_fonts: ["bookerly_fonts", "notosans_fonts"],
         hyphenation: ["epub_support"],
         web_wifi_setup: ["background_server"],
@@ -3504,7 +3521,7 @@
       const HUB_FEATURES = {
         reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "anki_support"],
         interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts"],
-        network_hub: ["background_server", "background_server_on_charge", "background_server_always", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
+        network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
         storage_hub: ["usb_mass_storage"],
       };
 
