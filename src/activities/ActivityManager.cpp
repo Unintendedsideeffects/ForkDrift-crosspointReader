@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "OpdsServerStore.h"
 #include "boot_sleep/BootActivity.h"
@@ -18,6 +19,7 @@
 #include "home/MyLibraryActivity.h"
 #include "home/NotesActivity.h"
 #include "home/RecentBooksActivity.h"
+#include "home/RecentBooksGridActivity.h"
 #include "network/CrossPointWebServer.h"
 #include "network/CrossPointWebServerActivity.h"
 #include "settings/OpdsServerListActivity.h"
@@ -231,7 +233,11 @@ void ActivityManager::goToMyLibrary(std::string path) {
 }
 
 void ActivityManager::goToRecentBooks() {
-  replaceActivity(std::make_unique<RecentBooksActivity>(renderer, mappedInput));
+  if (SETTINGS.recentBooksView == CrossPointSettings::RECENT_BOOKS_GRID) {
+    replaceActivity(std::make_unique<RecentBooksGridActivity>(renderer, mappedInput));
+  } else {
+    replaceActivity(std::make_unique<RecentBooksActivity>(renderer, mappedInput));
+  }
 }
 
 void ActivityManager::goToTodo() {
