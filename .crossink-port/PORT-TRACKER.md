@@ -42,7 +42,7 @@ thumbnail plumbing in HomeActivity, and a stats footer (BookReadingStats::
 sessionCount). Port AFTER: (1) Phase 3 reading-stats; (2) drawRecentBookCover
 stats/progress signature extension across all themes (642402f8/8154c9a5);
 (3) HomeActivity carousel integration. Resequenced below Phase 1 independents.
-- [ ] 642402f8 home progress bar for current book (Lyra) #28 — extends
+- [x] 642402f8 home progress bar for current book (Lyra) #28 — extends
       drawRecentBookCover signature (stats/progressPercent) across ALL themes
       (BaseTheme+Lyra+ForkDrift+Minimal); do before carousel + with Phase 3.
 - [ ] 971a62ee LyraCarouselTheme carousel style tweak [carousel-dep]

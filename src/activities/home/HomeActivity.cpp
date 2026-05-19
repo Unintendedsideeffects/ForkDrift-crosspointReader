@@ -25,6 +25,7 @@
 #include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "network/BackgroundWifiService.h"
+#include "util/BookProgressDataStore.h"
 #include "util/ForkDriftNavigation.h"
 #include "util/RecentBooksStore.h"
 #include "util/StringUtils.h"
@@ -274,6 +275,13 @@ void HomeActivity::onEnter() {
 
   if (mediaPickerEnabled) {
     loadRecentBooks();
+    currentBookProgressPercent = -1.0f;
+    if (!recentBooks.empty()) {
+      BookProgressDataStore::ProgressData progress{};
+      if (BookProgressDataStore::loadProgress(recentBooks[0].path, progress)) {
+        currentBookProgressPercent = progress.percent;
+      }
+    }
     rebuildMenuLayout();
     selectedMenuIndex = 0;
     inButtonGrid = (SETTINGS.uiTheme == CrossPointSettings::FORK_DRIFT && recentBooks.empty());
@@ -617,7 +625,8 @@ void HomeActivity::render(RenderLock&&) {
     const int coverTileH = forkDrift ? std::min(coverTileH_raw, usablePageHeight - menuMinH) : coverTileH_raw;
 
     GUI.drawRecentBookCover(renderer, Rect(0, topInset, pageWidth, coverTileH), recentBooks, coverSelector,
-                            coverRendered, coverBufferStored, bufferRestored, [this]() { return storeCoverBuffer(); });
+                            coverRendered, coverBufferStored, bufferRestored, [this]() { return storeCoverBuffer(); },
+                            currentBookProgressPercent);
 
     std::vector<std::string> menuLabels;
     std::vector<UIIcon> menuIcons;

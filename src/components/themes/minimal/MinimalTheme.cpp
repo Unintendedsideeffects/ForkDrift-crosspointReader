@@ -389,7 +389,8 @@ void MinimalTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, cons
 
 void MinimalTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                                        const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
-                                       bool& bufferRestored, const std::function<bool()>& storeCoverBuffer) const {
+                                       bool& bufferRestored, const std::function<bool()>& storeCoverBuffer,
+                                       float /*progressPercent*/) const {
   (void)selectorIndex;
   (void)bufferRestored;
 

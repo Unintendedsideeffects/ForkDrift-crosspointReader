@@ -42,6 +42,7 @@ class HomeActivity final : public Activity {
   std::string lastBookTitle;
   std::string lastBookAuthor;
   std::string coverBmpPath;
+  float currentBookProgressPercent = -1.0f;
   std::vector<RecentBook> recentBooks;
   void onContinueReading();
   void onMyLibraryOpen();

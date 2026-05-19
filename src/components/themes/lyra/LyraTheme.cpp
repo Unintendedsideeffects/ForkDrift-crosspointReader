@@ -6,6 +6,7 @@
 #include <HalStorage.h>
 #include <I18n.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -405,7 +406,8 @@ void LyraTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* top
 
 void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                                     const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
-                                    bool& bufferRestored, const std::function<bool()>& storeCoverBuffer) const {
+                                    bool& bufferRestored, const std::function<bool()>& storeCoverBuffer,
+                                    float progressPercent) const {
   const int tileWidth = rect.width - 2 * LyraMetrics::values.contentSidePadding;
   const int tileHeight = rect.height;
   const int tileY = rect.y;
@@ -480,9 +482,12 @@ void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
     auto titleLines = renderer.wrappedText(UI_12_FONT_ID, book.title.c_str(), textWidth, 3, EpdFontFamily::BOLD);
 
     const int titleLineHeight = renderer.getLineHeight(UI_12_FONT_ID);
+    const int progressLineHeight = renderer.getLineHeight(UI_10_FONT_ID);
     const int titleBlockHeight = titleLineHeight * static_cast<int>(titleLines.size());
     const int authorHeight = book.author.empty() ? 0 : (renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2);
-    const int totalBlockHeight = titleBlockHeight + authorHeight;
+    const bool hasProgress = progressPercent >= 0.0f;
+    const int progressBlockHeight = hasProgress ? (progressLineHeight + 12) : 0;
+    const int totalBlockHeight = titleBlockHeight + authorHeight + progressBlockHeight;
     int titleY = tileY + tileHeight / 2 - totalBlockHeight / 2;
     const int textX = tileX + hPaddingInSelection + coverWidth + LyraMetrics::values.verticalSpacing;
     for (const auto& line : titleLines) {
@@ -493,6 +498,22 @@ void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
       const auto author = renderer.truncatedText(UI_10_FONT_ID, book.author.c_str(), textWidth);
       titleY += renderer.getLineHeight(UI_10_FONT_ID) / 2;
       renderer.drawText(UI_10_FONT_ID, textX, titleY, author.c_str(), true);
+      titleY += renderer.getLineHeight(UI_10_FONT_ID);
+    }
+    if (hasProgress) {
+      titleY += 8;
+      constexpr int progressBarHeight = 4;
+      const int progressBarWidth = textWidth;
+      const int progressBarY = titleY + progressLineHeight + 2;
+      const int filledWidth =
+          std::clamp(static_cast<int>((progressPercent / 100.0f) * progressBarWidth), 0, progressBarWidth);
+      char progressLabel[16];
+      snprintf(progressLabel, sizeof(progressLabel), "%.0f%%", progressPercent);
+      renderer.drawText(UI_10_FONT_ID, textX, titleY, progressLabel, true, EpdFontFamily::BOLD);
+      renderer.drawRect(textX, progressBarY, progressBarWidth, progressBarHeight, true);
+      if (filledWidth > 0) {
+        renderer.fillRect(textX + 1, progressBarY + 1, std::max(0, filledWidth - 2), std::max(0, progressBarHeight - 2));
+      }
     }
   } else {
     drawEmptyRecents(renderer, rect);
