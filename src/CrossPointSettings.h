@@ -106,6 +106,14 @@ class CrossPointSettings {
   // Swapped: Next, Previous
   enum SIDE_BUTTON_LAYOUT { PREV_NEXT = 0, NEXT_PREV = 1, SIDE_BUTTON_LAYOUT_COUNT };
 
+  // Side button long-press action options
+  enum SIDE_LONG_PRESS {
+    SIDE_LONG_CHAPTER_SKIP = 0,
+    SIDE_LONG_FONT_SIZE = 1,
+    SIDE_LONG_OFF = 2,
+    SIDE_LONG_PRESS_COUNT
+  };
+
   // Font family options (built-in fonts plus fork/user-managed external fonts).
   // sdFontFamilyName selects an SD-card family when non-empty.
   enum FONT_FAMILY { BOOKERLY = 0, NOTOSERIF = 0, NOTOSANS = 1, OPENDYSLEXIC = 2, USER_SD = 3, FONT_FAMILY_COUNT };
@@ -146,7 +154,7 @@ class CrossPointSettings {
   };
 
   // Short power button press actions
-  enum SHORT_PWRBTN { IGNORE = 0, SLEEP = 1, PAGE_TURN = 2, SELECT = 3, FORCE_REFRESH = 4, SHORT_PWRBTN_COUNT };
+  enum SHORT_PWRBTN { IGNORE = 0, SLEEP = 1, PAGE_TURN = 2, SELECT = 3, FORCE_REFRESH = 4, TOGGLE_FONT = 5, SHORT_PWRBTN_COUNT };
 
   // Hide battery percentage
   enum HIDE_BATTERY_PERCENTAGE { HIDE_NEVER = 0, HIDE_READER = 1, HIDE_ALWAYS = 2, HIDE_BATTERY_PERCENTAGE_COUNT };
@@ -222,6 +230,8 @@ class CrossPointSettings {
   // Button layouts
   uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;
   uint8_t sideButtonLayout = PREV_NEXT;
+  // Action performed when side buttons are long-pressed in reader
+  uint8_t sideButtonLongPress = SIDE_LONG_CHAPTER_SKIP;
   // Front button remap (logical -> hardware)
   // Used by MappedInputManager to translate logical buttons into physical front buttons.
   uint8_t frontButtonBack = FRONT_HW_BACK;

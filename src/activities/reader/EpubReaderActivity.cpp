@@ -236,7 +236,49 @@ void EpubReaderActivity::loop() {
     return;
   }
 
-  auto [prevTriggered, nextTriggered] = ReaderUtils::detectPageTurn(mappedInput);
+  // Side button long-press: change font size (handled before page turn detection)
+  if (SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_FONT_SIZE &&
+      mappedInput.getHeldTime() > ReaderUtils::SKIP_HOLD_MS) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::PageForward)) {
+      if (SETTINGS.fontSize < CrossPointSettings::FONT_SIZE_COUNT - 1) {
+        SETTINGS.fontSize++;
+        SETTINGS.saveToFile();
+        {
+          RenderLock lock(*this);
+          section.reset();
+        }
+        requestUpdate();
+      }
+      return;
+    }
+    if (mappedInput.wasReleased(MappedInputManager::Button::PageBack)) {
+      if (SETTINGS.fontSize > 0) {
+        SETTINGS.fontSize--;
+        SETTINGS.saveToFile();
+        {
+          RenderLock lock(*this);
+          section.reset();
+        }
+        requestUpdate();
+      }
+      return;
+    }
+  }
+
+  // Short power button: cycle font family
+  if (SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::TOGGLE_FONT &&
+      mappedInput.wasReleased(MappedInputManager::Button::Power)) {
+    SETTINGS.fontFamily = (SETTINGS.fontFamily + 1) % CrossPointSettings::FONT_FAMILY_COUNT;
+    SETTINGS.saveToFile();
+    {
+      RenderLock lock(*this);
+      section.reset();
+    }
+    requestUpdate();
+    return;
+  }
+
+  auto [prevTriggered, nextTriggered, fromSideBtn] = ReaderUtils::detectPageTurn(mappedInput);
   if (!prevTriggered && !nextTriggered) {
     return;
   }
@@ -261,7 +303,10 @@ void EpubReaderActivity::loop() {
     return;
   }
 
-  if (longPress && SETTINGS.longPressButtonBehavior == SETTINGS.CHAPTER_SKIP) {
+  const bool chapterSkip = fromSideBtn
+      ? SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_CHAPTER_SKIP
+      : SETTINGS.longPressButtonBehavior == SETTINGS.CHAPTER_SKIP;
+  if (longPress && chapterSkip) {
     // We don't want to delete the section mid-render, so grab the semaphore
     lastPageTurnTime = millis();
     {
@@ -274,7 +319,7 @@ void EpubReaderActivity::loop() {
     return;
   }
 
-  if (longPress && SETTINGS.longPressButtonBehavior == SETTINGS.ORIENTATION_CHANGE) {
+  if (longPress && !fromSideBtn && SETTINGS.longPressButtonBehavior == SETTINGS.ORIENTATION_CHANGE) {
     const uint8_t newOrientation =
         nextTriggered ? (SETTINGS.orientation - 1 + SETTINGS.ORIENTATION_COUNT) % SETTINGS.ORIENTATION_COUNT
                       : (SETTINGS.orientation + 1) % SETTINGS.ORIENTATION_COUNT;

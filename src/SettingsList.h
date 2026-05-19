@@ -309,13 +309,17 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
   list.push_back(SettingInfo::Enum(StrId::STR_SIDE_BTN_LAYOUT, &CrossPointSettings::sideButtonLayout,
                                    {StrId::STR_PREV_NEXT, StrId::STR_NEXT_PREV}, "sideButtonLayout",
                                    StrId::STR_CAT_CONTROLS));
+  list.push_back(SettingInfo::Enum(StrId::STR_SIDE_BTN_LONG_PRESS, &CrossPointSettings::sideButtonLongPress,
+                                   {StrId::STR_CHAPTER_SKIP_OPT, StrId::STR_CHANGE_FONT_SIZE, StrId::STR_OFF},
+                                   "sideButtonLongPress", StrId::STR_CAT_CONTROLS));
   list.push_back(SettingInfo::Enum(StrId::STR_LONG_PRESS_BEHAVIOR, &CrossPointSettings::longPressButtonBehavior,
                                    {StrId::STR_LONG_PRESS_BEHAVIOR_OFF, StrId::STR_LONG_PRESS_BEHAVIOR_SKIP,
                                     StrId::STR_LONG_PRESS_BEHAVIOR_ORIENTATION},
                                    "longPressButtonBehavior", StrId::STR_CAT_CONTROLS));
   list.push_back(SettingInfo::Enum(
       StrId::STR_SHORT_PWR_BTN, &CrossPointSettings::shortPwrBtn,
-      {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_PAGE_TURN, StrId::STR_SELECT, StrId::STR_FORCE_REFRESH},
+      {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_PAGE_TURN, StrId::STR_SELECT, StrId::STR_FORCE_REFRESH,
+       StrId::STR_CHANGE_FONT},
       "shortPwrBtn", StrId::STR_CAT_CONTROLS));
 
   // --- System ---
