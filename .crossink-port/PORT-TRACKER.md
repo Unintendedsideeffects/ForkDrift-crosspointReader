@@ -12,6 +12,10 @@ Per-commit: `git -C . show <hash>` to read intent, adapt to ForkDrift, build
 (`./.crossink-port/port-build.sh` — see `BUILD-COORDINATOR.md`), commit with
 `port(crossink): <subj> [<hash>].
 
+**Parallel port agents MUST use a git worktree per lane** — see `WORKTREES.md` and
+`./.crossink-port/port-worktree.sh create <lane>` (`home|reader|file|web|settings`).
+Integration merges happen only on `feature/absorb-crossink` in the parent repo.
+
 Legend: [ ] todo  [~] in progress  [x] done  [-] skipped (reason)  [≈] subsumed
 
 PORTING PRINCIPLE: theme/component files are ported from `crossink/main` TIP
