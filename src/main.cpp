@@ -57,13 +57,16 @@ SdCardFontSystem sdFontSystem;
 FontCacheManager fontCacheManager(renderer.getFontMap(), renderer.getSdCardFonts());
 
 // Built-in fonts are registered directly, matching upstream's current font stack.
+#if ENABLE_BOOKERLY_FONTS
 EpdFont notoserif14RegularFont(&notoserif_14_regular);
 EpdFont notoserif14BoldFont(&notoserif_14_bold);
 EpdFont notoserif14ItalicFont(&notoserif_14_italic);
 EpdFont notoserif14BoldItalicFont(&notoserif_14_bolditalic);
 EpdFontFamily notoserif14FontFamily(&notoserif14RegularFont, &notoserif14BoldFont, &notoserif14ItalicFont,
                                     &notoserif14BoldItalicFont);
+#endif  // ENABLE_BOOKERLY_FONTS
 #ifndef OMIT_FONTS
+#if ENABLE_BOOKERLY_FONTS
 EpdFont notoserif12RegularFont(&notoserif_12_regular);
 EpdFont notoserif12BoldFont(&notoserif_12_bold);
 EpdFont notoserif12ItalicFont(&notoserif_12_italic);
@@ -82,7 +85,9 @@ EpdFont notoserif18ItalicFont(&notoserif_18_italic);
 EpdFont notoserif18BoldItalicFont(&notoserif_18_bolditalic);
 EpdFontFamily notoserif18FontFamily(&notoserif18RegularFont, &notoserif18BoldFont, &notoserif18ItalicFont,
                                     &notoserif18BoldItalicFont);
+#endif  // ENABLE_BOOKERLY_FONTS
 
+#if ENABLE_NOTOSANS_FONTS
 EpdFont notosans12RegularFont(&notosans_12_regular);
 EpdFont notosans12BoldFont(&notosans_12_bold);
 EpdFont notosans12ItalicFont(&notosans_12_italic);
@@ -107,7 +112,9 @@ EpdFont notosans18ItalicFont(&notosans_18_italic);
 EpdFont notosans18BoldItalicFont(&notosans_18_bolditalic);
 EpdFontFamily notosans18FontFamily(&notosans18RegularFont, &notosans18BoldFont, &notosans18ItalicFont,
                                    &notosans18BoldItalicFont);
+#endif  // ENABLE_NOTOSANS_FONTS
 
+#if ENABLE_OPENDYSLEXIC_FONTS
 EpdFont opendyslexic8RegularFont(&opendyslexic_8_regular);
 EpdFont opendyslexic8BoldFont(&opendyslexic_8_bold);
 EpdFont opendyslexic8ItalicFont(&opendyslexic_8_italic);
@@ -132,6 +139,7 @@ EpdFont opendyslexic14ItalicFont(&opendyslexic_14_italic);
 EpdFont opendyslexic14BoldItalicFont(&opendyslexic_14_bolditalic);
 EpdFontFamily opendyslexic14FontFamily(&opendyslexic14RegularFont, &opendyslexic14BoldFont, &opendyslexic14ItalicFont,
                                        &opendyslexic14BoldItalicFont);
+#endif  // ENABLE_OPENDYSLEXIC_FONTS
 #endif  // OMIT_FONTS
 
 #if ENABLE_LEXENDDECA_FONTS
@@ -215,7 +223,7 @@ EpdFontFamily charein18FontFamily(&charein18RegularFont, &charein18BoldFont, &ch
                                   &charein18BoldItalicFont);
 #endif  // ENABLE_CHAREINK_FONTS
 
-EpdFont smallFont(&notosans_8_regular);
+EpdFont smallFont(&ubuntu_10_regular);
 EpdFontFamily smallFontFamily(&smallFont);
 EpdFont ui10RegularFont(&ubuntu_10_regular);
 EpdFont ui10BoldFont(&ubuntu_10_bold);
@@ -562,19 +570,27 @@ bool setupDisplayAndFonts() {
   }
   fontCacheManager.setFontDecompressor(&fontDecompressor);
   renderer.setFontCacheManager(&fontCacheManager);
+#if ENABLE_BOOKERLY_FONTS
   renderer.insertFont(NOTOSERIF_14_FONT_ID, notoserif14FontFamily);
+#endif  // ENABLE_BOOKERLY_FONTS
 #ifndef OMIT_FONTS
+#if ENABLE_BOOKERLY_FONTS
   renderer.insertFont(NOTOSERIF_12_FONT_ID, notoserif12FontFamily);
   renderer.insertFont(NOTOSERIF_16_FONT_ID, notoserif16FontFamily);
   renderer.insertFont(NOTOSERIF_18_FONT_ID, notoserif18FontFamily);
+#endif  // ENABLE_BOOKERLY_FONTS
+#if ENABLE_NOTOSANS_FONTS
   renderer.insertFont(NOTOSANS_12_FONT_ID, notosans12FontFamily);
   renderer.insertFont(NOTOSANS_14_FONT_ID, notosans14FontFamily);
   renderer.insertFont(NOTOSANS_16_FONT_ID, notosans16FontFamily);
   renderer.insertFont(NOTOSANS_18_FONT_ID, notosans18FontFamily);
+#endif  // ENABLE_NOTOSANS_FONTS
+#if ENABLE_OPENDYSLEXIC_FONTS
   renderer.insertFont(OPENDYSLEXIC_8_FONT_ID, opendyslexic8FontFamily);
   renderer.insertFont(OPENDYSLEXIC_10_FONT_ID, opendyslexic10FontFamily);
   renderer.insertFont(OPENDYSLEXIC_12_FONT_ID, opendyslexic12FontFamily);
   renderer.insertFont(OPENDYSLEXIC_14_FONT_ID, opendyslexic14FontFamily);
+#endif  // ENABLE_OPENDYSLEXIC_FONTS
 #endif  // OMIT_FONTS
 #if ENABLE_LEXENDDECA_FONTS
   renderer.insertFont(LEXENDDECA_12_FONT_ID, lexenddeca12FontFamily);

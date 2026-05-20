@@ -28,6 +28,8 @@ static constexpr uint8_t kFirstAvailableFont = CrossPointSettings::BITTER;
 static constexpr uint8_t kFirstAvailableFont = CrossPointSettings::CHAREINK;
 #elif ENABLE_OPENDYSLEXIC_FONTS
 static constexpr uint8_t kFirstAvailableFont = CrossPointSettings::OPENDYSLEXIC;
+#else
+static constexpr uint8_t kFirstAvailableFont = CrossPointSettings::BOOKERLY;
 #endif
 
 static int getDefaultFontId(uint8_t fontSize) {
@@ -72,6 +74,13 @@ static int getDefaultFontId(uint8_t fontSize) {
     case CrossPointSettings::LARGE: return OPENDYSLEXIC_12_FONT_ID;
     case CrossPointSettings::EXTRA_LARGE: return OPENDYSLEXIC_14_FONT_ID;
     default: return OPENDYSLEXIC_10_FONT_ID;
+  }
+#else
+  switch (fontSize) {
+    case CrossPointSettings::SMALL: return UI_10_FONT_ID;
+    case CrossPointSettings::LARGE: return UI_12_FONT_ID;
+    case CrossPointSettings::EXTRA_LARGE: return UI_12_FONT_ID;
+    default: return UI_10_FONT_ID;
   }
 #endif
 }

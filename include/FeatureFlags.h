@@ -125,12 +125,6 @@
 #define ENABLE_EXTENDED_FONTS 0
 #endif
 
-// At least one built-in font family must be present. SD card custom fonts are
-// loaded at runtime and cannot satisfy this check at compile time.
-#if !ENABLE_EXTENDED_FONTS
-#error "No font family enabled. Set at least one of: ENABLE_BOOKERLY_FONTS, ENABLE_NOTOSANS_FONTS, ENABLE_OPENDYSLEXIC_FONTS, ENABLE_LEXENDDECA_FONTS, ENABLE_BITTER_FONTS, ENABLE_CHAREINK_FONTS"
-#endif
-
 #ifndef ENABLE_IMAGE_SLEEP
 #define ENABLE_IMAGE_SLEEP 1
 #endif
