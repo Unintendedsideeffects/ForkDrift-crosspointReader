@@ -1153,14 +1153,19 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   LOG_DBG("ERS", "Heap: before=%lu after=%lu delta=%ld", heapBefore, heapAfter,
           (int32_t)heapAfter - (int32_t)heapBefore);
 #endif
-  // Force special handling for pages with images when anti-aliasing is on
-  bool imagePageWithAA = page->hasImages() && SETTINGS.textAntiAliasing;
 
-  page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
+  const int fontId = SETTINGS.getReaderFontId();
+  const bool pageHasImages = page->hasImages();
+  const bool needsTextGrayscale =
+      SETTINGS.textAntiAliasing && !renderer.isDarkMode() && renderer.fontSupportsGrayscale(fontId);
+  const bool needsImageGrayscale = pageHasImages;
+  const bool needsAnyGrayscale = needsTextGrayscale || needsImageGrayscale;
+
+  page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
   renderStatusBar();
   const auto tBwRender = millis();
 
-  if (imagePageWithAA) {
+  if (pageHasImages) {
     // Double FAST_REFRESH with selective image blanking (pablohc's technique):
     // HALF_REFRESH sets particles too firmly for the grayscale LUT to adjust.
     // Instead, blank only the image area and do two fast refreshes.
@@ -1184,12 +1189,7 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   }
   const auto tDisplay = millis();
 
-  // Grayscale rendering - only for fonts that include grayscale glyph data.
-  // Skipped in dark mode: the EPD grayscale LUT assumes a normal-polarity starting state;
-  // after a dark-mode BW refresh the pixel polarity is inverted, which confuses the waveform
-  // and produces ghosting artefacts.
-  const int fontId = SETTINGS.getReaderFontId();
-  if (SETTINGS.textAntiAliasing && !renderer.isDarkMode() && renderer.fontSupportsGrayscale(fontId)) {
+  if (needsAnyGrayscale) {
     const bool bwBufferStored = renderer.storeBwBuffer();
     const auto tBwStore = millis();
     if (!bwBufferStored) {
@@ -1202,14 +1202,21 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
 
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+    if (needsTextGrayscale) {
+      page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+    } else {
+      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+    }
     renderer.copyGrayscaleLsbBuffers();
     const auto tGrayLsb = millis();
 
-    // Render and copy to MSB buffer
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+    if (needsTextGrayscale) {
+      page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+    } else {
+      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+    }
     renderer.copyGrayscaleMsbBuffers();
     const auto tGrayMsb = millis();
 
