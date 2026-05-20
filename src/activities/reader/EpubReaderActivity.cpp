@@ -144,6 +144,10 @@ void EpubReaderActivity::onEnter() {
   sessionStartMs = millis();
   stats.save(epub->getCachePath());
 
+  globalStats = GlobalReadingStats::load();
+  globalStats.totalSessions++;
+  globalStats.save();
+
   // Trigger first update
   requestUpdate();
 }
@@ -174,9 +178,12 @@ void EpubReaderActivity::onExit() {
   if (epub) {
     const unsigned long elapsedMs = millis() - sessionStartMs;
     if (elapsedMs >= 3000UL) {
-      stats.totalReadingSeconds += static_cast<uint32_t>(elapsedMs / 1000UL);
+      const uint32_t elapsedSecs = static_cast<uint32_t>(elapsedMs / 1000UL);
+      stats.totalReadingSeconds += elapsedSecs;
+      globalStats.totalReadingSeconds += elapsedSecs;
     }
     stats.save(epub->getCachePath());
+    globalStats.save();
   }
 
   section.reset();
@@ -479,7 +486,7 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
       displayStats.totalReadingSeconds +=
           static_cast<uint32_t>((millis() - sessionStartMs) / 1000UL);
       startActivityForResult(
-          std::make_unique<BookStatsActivity>(renderer, mappedInput, epub->getTitle(), displayStats),
+          std::make_unique<BookStatsActivity>(renderer, mappedInput, epub->getTitle(), displayStats, globalStats),
           [this](const ActivityResult&) { requestUpdate(); });
       break;
     }
@@ -882,6 +889,7 @@ void EpubReaderActivity::pageTurn(bool isForwardTurn) {
     }
   }
   stats.totalPagesTurned++;
+  globalStats.totalPagesTurned++;
   lastPageTurnTime = millis();
   requestUpdate();
 }
