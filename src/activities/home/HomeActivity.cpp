@@ -819,7 +819,7 @@ void HomeActivity::renderCarouselFrameToCurrentBuffer(int bookIdx, float* outPro
   std::vector<UIIcon> menuIcons;
   menuLabels.reserve(4);
   menuIcons.reserve(4);
-  menuLabels.push_back(recentBooks.empty() ? "Open Book" : "Open Book");
+  menuLabels.push_back("Open Book");
   menuIcons.push_back(Book);
   menuLabels.push_back("My Library");
   menuIcons.push_back(Folder);
@@ -1168,7 +1168,7 @@ void HomeActivity::loop() {
         const int opdsIdx = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsUrl}) ? midx++ : -1;
         const int fileTransferIdx = midx++;
         const int settingsIdx = midx;
-        if (menuIdx == openBookIdx && !recentBooks.empty()) {
+        if (menuIdx == openBookIdx) {
           selectedBookIndex = lastCarouselBookIndex;
           openSelectedBook();
         } else if (menuIdx == myLibraryIdx) {
@@ -1355,7 +1355,7 @@ void HomeActivity::render(RenderLock&&) {
           std::vector<UIIcon> menuIcons;
           menuLabels.reserve(5);
           menuIcons.reserve(5);
-          menuLabels.push_back(recentBooks.empty() ? "Open Book" : "Open Book");
+          menuLabels.push_back("Open Book");
           menuIcons.push_back(Book);
           menuLabels.push_back("My Library");
           menuIcons.push_back(Folder);
