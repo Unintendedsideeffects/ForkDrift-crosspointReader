@@ -20,7 +20,6 @@
       --gray-10: #f5f5f5;
       --gray-11: #f0f0f0;
       --gray-12: #e8e8e8;
-      --paper: #efede7;
       --ok: #f5f5f5;
       --warn: #fff;
     }
@@ -34,11 +33,9 @@
     body {
       font-family: "Courier New", Courier, monospace;
       color: var(--black);
-      background: var(--paper);
-      background-image:
-        radial-gradient(circle at 20% 20%, rgba(0, 0, 0, 0.04) 0, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
-        linear-gradient(135deg, rgba(0, 0, 0, 0.02), transparent 45%);
-      background-size: 14px 14px, 100% 100%;
+      background-color: var(--gray-10);
+      background-image: radial-gradient(circle, var(--gray-8) 1px, transparent 1px);
+      background-size: 4px 4px;
       min-height: 100vh;
     }
 
@@ -533,10 +530,10 @@
         <section class="card control-block">
           <label for="spriteScale">Sprite Size</label>
           <div class="split-row split-row-scale">
-            <input id="spriteScale" type="range" min="0.5" max="3.0" step="0.1" value="1.2" />
+            <input id="spriteScale" type="range" min="0.5" max="3.0" step="0.1" value="1" />
             <button class="btn secondary" id="resetSpriteScaleBtn" type="button">Reset</button>
           </div>
-          <p class="hint" id="spriteScaleLabel">Current scale: 1.2x</p>
+          <p class="hint" id="spriteScaleLabel">Current scale: 1.0x</p>
           <div class="option-groups">
             <div class="option-group">
               <div class="group-label">Display</div>
@@ -642,7 +639,7 @@
     const SCREEN_HEIGHT = 800;
     const MAX_POKEMON_ID = 1025;
     const MIN_SPRITE_SCALE = 0.5;
-    const DEFAULT_SPRITE_SCALE = 1.2;
+    const DEFAULT_SPRITE_SCALE = 1;
     const MAX_SPRITE_SCALE = 3.0;
     const MAX_FLAVOR_TEXT_LINES = 3;
     const MAX_EVOLUTION_TEXT_LINES = 2;
@@ -1374,6 +1371,31 @@
       return lines;
     }
 
+    function wrapTextLinesFull(text, maxWidth) {
+      const words = String(text || "").split(/\s+/).filter(Boolean);
+      if (!words.length) return [];
+
+      const lines = [];
+      let current = "";
+
+      for (let i = 0; i < words.length; i++) {
+        const candidate = current ? current + " " + words[i] : words[i];
+        if (!current || ctx.measureText(candidate).width <= maxWidth) {
+          current = candidate;
+          continue;
+        }
+
+        lines.push(current);
+        current = words[i];
+      }
+
+      if (current) {
+        lines.push(current);
+      }
+
+      return lines;
+    }
+
     function syncCustomFontField() {
       customFontInput.hidden = fontModeSelect.value !== "custom";
     }
@@ -1737,6 +1759,65 @@
       }
     }
 
+    function drawBottomAnchoredBlock(lines, x, bottomY, lineHeight, fontSize, fontFamily, boldText) {
+      if (!lines.length) {
+        return;
+      }
+      const prevBaseline = ctx.textBaseline;
+      const prevAlign = ctx.textAlign;
+      ctx.font = getFontSpec(fontSize, fontFamily, boldText);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      for (let i = 0; i < lines.length; i++) {
+        const lineBottom = bottomY - ((lines.length - 1 - i) * lineHeight);
+        ctx.fillText(lines[i], x, lineBottom);
+      }
+      ctx.textBaseline = prevBaseline;
+      ctx.textAlign = prevAlign;
+    }
+
+    function measureBottomAnchoredZoneTop(lines, lineHeight, bottomY, fontSize, fontFamily, boldText) {
+      if (!lines.length) {
+        return bottomY;
+      }
+      ctx.font = getFontSpec(fontSize, fontFamily, boldText);
+      const metrics = ctx.measureText(lines[0] || "Ay");
+      const ascent = metrics.actualBoundingBoxAscent || fontSize * 0.92;
+      const topLineBottom = bottomY - ((lines.length - 1) * lineHeight);
+      return topLineBottom - ascent - 4;
+    }
+
+    function buildAbilityLines(pokemon, maxWidth) {
+      const abilityText = "Abilities: " + (pokemon.abilities || []).map(function(entry) {
+        return titleCase(entry.ability && entry.ability.name);
+      }).filter(Boolean).join(", ");
+      return wrapTextLines(abilityText, maxWidth, MAX_ABILITY_TEXT_LINES);
+    }
+
+    function paintClassicAbilitiesBottom(pokemon, scaleUnit, ink, options, compact) {
+      const abilityFontSize = 18 * scaleUnit * (compact ? 0.9 : 1);
+      const abilityLineHeight = Math.max(
+        20 * scaleUnit * (compact ? 0.9 : 1),
+        abilityFontSize * 1.12
+      );
+      const abilityBottomY = canvas.height - 4;
+      ctx.font = getFontSpec(abilityFontSize, options.fontFamily, options.boldText);
+      const abilityLines = buildAbilityLines(pokemon, SCREEN_WIDTH * 0.85);
+      if (!abilityLines.length) {
+        return;
+      }
+      ctx.fillStyle = ink;
+      drawBottomAnchoredBlock(
+        abilityLines,
+        SCREEN_WIDTH / 2,
+        abilityBottomY,
+        abilityLineHeight,
+        abilityFontSize,
+        options.fontFamily,
+        options.boldText
+      );
+    }
+
     function drawClassicCardInfoFields(pokemon, region, clippedLocation, dataTopY, scaleUnit, ink, options) {
       const margin = 40 * scaleUnit;
       const dataRowGap = 25 * scaleUnit;
@@ -1873,19 +1954,14 @@
       const showHp = options.showHp;
       const showAbilities = options.showAbilities;
       const sectionCount = [showFlavor, showHp, showAbilities].filter(Boolean).length;
-      const compact = sectionCount >= 3 || footerHeight < (isPixel ? 170 * scaleUnit : 225 * scaleUnit);
-      const flavorFontSize = 26 * scaleUnit * (compact ? 0.9 : 1);
-      const flavorLineHeight = Math.max(
-        (isPixel ? 18 : 24) * scaleUnit * (compact ? 0.88 : 1),
-        flavorFontSize * 1.12
-      );
+      const compact = footerHeight < (isPixel ? 170 * scaleUnit : 225 * scaleUnit);
       const flavorGap = (compact ? 10 : 14) * scaleUnit;
       const abilityFontSize = 18 * scaleUnit * (compact ? 0.9 : 1);
       const abilityLineHeight = Math.max(
         20 * scaleUnit * (compact ? 0.9 : 1),
         abilityFontSize * 1.12
       );
-      const abilityBottomInset = 4;
+      const abilityBottomY = canvas.height - 4;
       const hpSectionGap = (compact ? 10 : 14) * scaleUnit;
       const hpMetrics = compact ? {
         barWidth: isPixel ? 132 : 168,
@@ -1897,7 +1973,6 @@
       } : null;
       let currentY = footerTop;
       let abilityLines = [];
-      let abilityBlockHeight = 0;
 
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
@@ -1907,18 +1982,54 @@
         return footerTop + Math.max(0, Math.round((footerHeight - blockHeight) / 2));
       }
 
-      function abilityBlockY() {
-        return SCREEN_HEIGHT - abilityBottomInset - abilityBlockHeight;
+      function abilityZoneTop() {
+        return measureBottomAnchoredZoneTop(
+          abilityLines,
+          abilityLineHeight,
+          abilityBottomY,
+          abilityFontSize,
+          options.fontFamily,
+          options.boldText
+        );
       }
 
-      function isLongFlavorBlock(flavorLines, maxFlavorLines) {
-        if (!flavorLines.length) {
-          return false;
+      function buildFlavorLayout(text, zoneHeight) {
+        const baseFontSize = 26 * scaleUnit;
+        const minScale = isPixel ? 0.55 : 0.62;
+        const scaleSteps = compact
+          ? [0.9, 0.84, 0.78, 0.72, 0.66, minScale]
+          : [1, 0.96, 0.92, 0.88, 0.84, 0.8, 0.76, 0.72, 0.68, minScale];
+        let best = null;
+
+        for (let i = 0; i < scaleSteps.length; i++) {
+          const size = baseFontSize * scaleSteps[i];
+          const lineHeight = Math.max(
+            (isPixel ? 18 : 24) * scaleUnit * scaleSteps[i],
+            size * 1.12
+          );
+          ctx.font = getFontSpec(size, options.fontFamily, options.boldText);
+          const lines = wrapTextLinesFull(text || "No Data.", SCREEN_WIDTH * 0.85);
+          const blockHeight = measureWrappedBlockHeight(
+            lines,
+            lineHeight,
+            size,
+            options.fontFamily,
+            options.boldText
+          );
+          const layout = {
+            lines: lines,
+            fontSize: size,
+            lineHeight: lineHeight,
+            blockHeight: blockHeight,
+            maxLines: lines.length
+          };
+          best = layout;
+          if (blockHeight <= zoneHeight) {
+            return layout;
+          }
         }
-        if (flavorLines.length >= maxFlavorLines) {
-          return true;
-        }
-        return /\.\.\.$/.test(flavorLines[flavorLines.length - 1]);
+
+        return best;
       }
 
       function computeFlavorY(zoneTop, zoneBottom, blockHeight, flavorLines, maxFlavorLines) {
@@ -1926,7 +2037,7 @@
         if (zoneBottom <= zoneTop) {
           return zoneTop;
         }
-        if (blockHeight >= zoneHeight || isLongFlavorBlock(flavorLines, maxFlavorLines)) {
+        if (blockHeight >= zoneHeight) {
           return Math.max(zoneTop, zoneBottom - blockHeight);
         }
         const centered = zoneTop + Math.round((zoneHeight - blockHeight) / 2);
@@ -1935,74 +2046,61 @@
 
       if (showAbilities) {
         ctx.font = getFontSpec(abilityFontSize, options.fontFamily, options.boldText);
-        const abilityText = "Abilities: " + (pokemon.abilities || []).map(function(entry) {
-          return titleCase(entry.ability && entry.ability.name);
-        }).filter(Boolean).join(", ");
-        abilityLines = wrapTextLines(abilityText, SCREEN_WIDTH * 0.85, MAX_ABILITY_TEXT_LINES);
-        abilityBlockHeight = measureWrappedBlockHeight(
-          abilityLines,
-          abilityLineHeight,
-          abilityFontSize,
-          options.fontFamily,
-          options.boldText
-        );
+        abilityLines = buildAbilityLines(pokemon, SCREEN_WIDTH * 0.85);
       }
 
       if (sectionCount === 1) {
         if (showFlavor) {
-          ctx.font = getFontSpec(flavorFontSize, options.fontFamily, options.boldText);
-          const maxFlavorLines = compact ? 3 : 4;
-          const flavorLines = wrapTextLines(flavorText || "No Data.", SCREEN_WIDTH * 0.85, maxFlavorLines);
-          const blockHeight = measureWrappedBlockHeight(
-            flavorLines,
-            flavorLineHeight,
-            flavorFontSize,
-            options.fontFamily,
-            options.boldText
+          const flavorLayout = buildFlavorLayout(flavorText || "No Data.", footerHeight);
+          ctx.font = getFontSpec(flavorLayout.fontSize, options.fontFamily, options.boldText);
+          const flavorY = computeFlavorY(
+            footerTop,
+            footerBottom,
+            flavorLayout.blockHeight,
+            flavorLayout.lines,
+            flavorLayout.maxLines
           );
-          const flavorY = computeFlavorY(footerTop, footerBottom, blockHeight, flavorLines, maxFlavorLines);
-          drawWrappedBlock(flavorLines, SCREEN_WIDTH / 2, flavorY, flavorLineHeight);
-          return;
+          drawWrappedBlock(flavorLayout.lines, SCREEN_WIDTH / 2, flavorY, flavorLayout.lineHeight);
+          return { firstContentTop: flavorY };
         }
         if (showHp) {
           const blockHeight = measureHpBlockHeight(pokemon, options.fontFamily, hpMetrics);
-          drawHpBars(pokemon, centerBlock(blockHeight), options.fontFamily, options.boldText, hpMetrics);
-          return;
+          const hpY = centerBlock(blockHeight);
+          drawHpBars(pokemon, hpY, options.fontFamily, options.boldText, hpMetrics);
+          return { firstContentTop: hpY };
         }
-        if (showAbilities) {
-          drawWrappedBlock(abilityLines, SCREEN_WIDTH / 2, abilityBlockY(), abilityLineHeight);
-        }
-        return;
+        return { firstContentTop: footerTop };
       }
 
+      let firstContentTop = currentY;
       if (showFlavor) {
-        ctx.font = getFontSpec(flavorFontSize, options.fontFamily, options.boldText);
-        const maxFlavorLines = compact ? 3 : 4;
-        const flavorLines = wrapTextLines(flavorText || "No Data.", SCREEN_WIDTH * 0.85, maxFlavorLines);
-        const blockHeight = measureWrappedBlockHeight(
-          flavorLines,
-          flavorLineHeight,
-          flavorFontSize,
-          options.fontFamily,
-          options.boldText
-        );
         let flavorZoneBottom = footerBottom;
         if (showAbilities) {
-          flavorZoneBottom = abilityBlockY() - (12 * scaleUnit);
+          flavorZoneBottom = abilityZoneTop() - (12 * scaleUnit);
         }
-        const flavorY = computeFlavorY(currentY, flavorZoneBottom, blockHeight, flavorLines, maxFlavorLines);
-        drawWrappedBlock(flavorLines, SCREEN_WIDTH / 2, flavorY, flavorLineHeight);
-        currentY = flavorY + blockHeight + flavorGap;
+        const flavorZoneHeight = Math.max(0, flavorZoneBottom - currentY);
+        const flavorLayout = buildFlavorLayout(flavorText || "No Data.", flavorZoneHeight);
+        ctx.font = getFontSpec(flavorLayout.fontSize, options.fontFamily, options.boldText);
+        const flavorY = computeFlavorY(
+          currentY,
+          flavorZoneBottom,
+          flavorLayout.blockHeight,
+          flavorLayout.lines,
+          flavorLayout.maxLines
+        );
+        drawWrappedBlock(flavorLayout.lines, SCREEN_WIDTH / 2, flavorY, flavorLayout.lineHeight);
+        firstContentTop = flavorY;
+        currentY = flavorY + flavorLayout.blockHeight + flavorGap;
       }
 
       if (showHp) {
+        if (!showFlavor) {
+          firstContentTop = currentY;
+        }
         currentY = drawHpBars(pokemon, currentY, options.fontFamily, options.boldText, hpMetrics) + hpSectionGap;
       }
 
-      if (showAbilities) {
-        ctx.font = getFontSpec(abilityFontSize, options.fontFamily, options.boldText);
-        drawWrappedBlock(abilityLines, SCREEN_WIDTH / 2, abilityBlockY(), abilityLineHeight);
-      }
+      return { firstContentTop: firstContentTop };
     }
 
     async function drawClassicEvolutionRow(evolutionData, centerY, scaleUnit, ink, fontFamily, boldText) {
@@ -2156,13 +2254,17 @@
 
       function drawSectionDivider(padBelow) {
         currentY += dividerPadAbove;
+        drawDividerAt(currentY);
+        currentY += padBelow !== undefined ? padBelow : dividerPadBelow;
+      }
+
+      function drawDividerAt(y) {
         ctx.lineWidth = 3 * scaleUnit;
         ctx.strokeStyle = ink;
         ctx.beginPath();
-        ctx.moveTo(30 * scaleUnit, currentY);
-        ctx.lineTo(SCREEN_WIDTH - (30 * scaleUnit), currentY);
+        ctx.moveTo(30 * scaleUnit, y);
+        ctx.lineTo(SCREEN_WIDTH - (30 * scaleUnit), y);
         ctx.stroke();
-        currentY += padBelow !== undefined ? padBelow : dividerPadBelow;
       }
 
       if (hasMiddleContent) {
@@ -2179,13 +2281,35 @@
         }
       }
 
+      let footerTop = currentY;
+      let footerCompact = false;
       if (hasFooterContent) {
-        drawSectionDivider(10 * scaleUnit);
-        drawClassicFooter(pokemon, species, flavorText, currentY, scaleUnit, ink, options);
+        const dividerSourceBottom = currentY;
+        const flavorOnlyFooter = !hasMiddleContent && options.showFlavor && !options.showHp && !options.showAbilities;
+        if (flavorOnlyFooter) {
+          footerTop = currentY + dividerPadAbove + (10 * scaleUnit);
+          const footerLayout = drawClassicFooter(pokemon, species, flavorText, footerTop, scaleUnit, ink, options) || {};
+          if (footerLayout.firstContentTop > dividerSourceBottom) {
+            drawDividerAt(Math.round((dividerSourceBottom + footerLayout.firstContentTop) / 2));
+          }
+          currentY = footerTop;
+        } else {
+          drawSectionDivider(10 * scaleUnit);
+          footerTop = currentY;
+          drawClassicFooter(pokemon, species, flavorText, footerTop, scaleUnit, ink, options);
+        }
+        const footerIsPixel = options.fontFamily.indexOf("Press Start 2P") !== -1;
+        const footerBottom = SCREEN_HEIGHT - (18 * scaleUnit);
+        const footerHeight = Math.max(0, footerBottom - footerTop);
+        footerCompact = footerHeight < (footerIsPixel ? 170 * scaleUnit : 225 * scaleUnit);
       }
 
       if (options.spriteOverlay) {
         drawMainSprite();
+      }
+
+      if (options.showAbilities && hasFooterContent) {
+        paintClassicAbilitiesBottom(pokemon, scaleUnit, ink, options, footerCompact);
       }
     }
 

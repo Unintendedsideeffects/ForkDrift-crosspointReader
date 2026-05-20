@@ -31,19 +31,12 @@
 
       body {
         font-family: 'IBM Plex Mono', monospace;
-        background: var(--paper);
+        background-color: var(--gray-10);
         color: var(--blk);
         min-height: 100vh;
         image-rendering: pixelated;
-        background-image:
-          repeating-linear-gradient(
-            0deg, transparent, transparent 7px,
-            rgba(0,0,0,0.015) 7px, rgba(0,0,0,0.015) 8px
-          ),
-          repeating-linear-gradient(
-            90deg, transparent, transparent 7px,
-            rgba(0,0,0,0.015) 7px, rgba(0,0,0,0.015) 8px
-          );
+        background-image: radial-gradient(circle, var(--gray-8) 1px, transparent 1px);
+        background-size: 4px 4px;
       }
 
       .page {
