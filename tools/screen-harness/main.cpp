@@ -31,7 +31,7 @@ namespace {
 std::filesystem::path gSettingsJsonPath;
 
 void installFonts(GfxRenderer& renderer) {
-  static EpdFont smallFont(&notosans_8_regular);
+  static EpdFont smallFont(&ubuntu_10_regular);
   static EpdFontFamily smallFontFamily(&smallFont);
 
   static EpdFont ui10RegularFont(&ubuntu_10_regular);
@@ -192,6 +192,94 @@ void drawLockIcon(GfxRenderer& renderer, int cx, int cy) {
   renderer.fillRect(cx - 9, cy, 18, 12, true);
   renderer.fillRect(cx - 8, cy + 1, 16, 10, false);
   renderer.fillRect(cx - 1, cy + 3, 3, 5, true);
+}
+
+struct RomanClockLabelParts {
+  std::string hour;
+  std::string minute;
+};
+
+RomanClockLabelParts splitRomanClockLabel(const std::string& label) {
+  RomanClockLabelParts parts;
+  const size_t separator = label.find(':');
+  if (separator == std::string::npos) {
+    parts.hour = label;
+    return parts;
+  }
+
+  parts.hour = label.substr(0, separator);
+  parts.minute = label.substr(separator + 1);
+  return parts;
+}
+
+int romanGlyphBoxWidth(int height) { return std::max(20, height / 2); }
+
+int romanGlyphStrokeWidth(int height) { return std::max(6, height / 8); }
+
+int romanGlyphGap(int height) { return std::max(6, height / 12); }
+
+int romanTextWidth(const std::string& text, int height) {
+  if (text.empty()) {
+    return 0;
+  }
+
+  const int boxWidth = romanGlyphBoxWidth(height);
+  const int gap = romanGlyphGap(height);
+  return static_cast<int>(text.size()) * boxWidth + static_cast<int>(text.size() - 1) * gap;
+}
+
+int fitRomanTextHeight(const std::string& text, int maxWidth, int maxHeight) {
+  if (text.empty()) {
+    return 0;
+  }
+
+  for (int height = maxHeight; height >= 48; --height) {
+    if (romanTextWidth(text, height) <= maxWidth) {
+      return height;
+    }
+  }
+
+  return 48;
+}
+
+void drawRomanGlyph(GfxRenderer& renderer, char glyph, int x, int y, int height) {
+  const int width = romanGlyphBoxWidth(height);
+  const int stroke = romanGlyphStrokeWidth(height);
+  const int midX = x + width / 2;
+  const int bottom = y + height - 1;
+  const int left = x + stroke / 2;
+  const int right = x + width - stroke / 2 - 1;
+
+  switch (glyph) {
+    case 'I': {
+      renderer.fillRect(midX - stroke / 2, y, stroke, height, true);
+      const int capW = stroke + stroke / 2;
+      const int capH = std::max(2, stroke / 4);
+      renderer.fillRect(midX - capW / 2, y, capW, capH, true);
+      renderer.fillRect(midX - capW / 2, bottom - capH + 1, capW, capH, true);
+      break;
+    }
+    case 'V':
+      renderer.drawLine(left, y, midX, bottom, stroke, true);
+      renderer.drawLine(right, y, midX, bottom, stroke, true);
+      break;
+    case 'X':
+      renderer.drawLine(left, y, right, bottom, stroke, true);
+      renderer.drawLine(right, y, left, bottom, stroke, true);
+      break;
+    default:
+      break;
+  }
+}
+
+void drawRomanText(GfxRenderer& renderer, const std::string& text, int x, int y, int height) {
+  const int boxWidth = romanGlyphBoxWidth(height);
+  const int gap = romanGlyphGap(height);
+  int cursorX = x;
+  for (char glyph : text) {
+    drawRomanGlyph(renderer, glyph, cursorX, y, height);
+    cursorX += boxWidth + gap;
+  }
 }
 
 void drawBoot(GfxRenderer& renderer, MappedInputManager& mappedInput) {
@@ -461,6 +549,59 @@ void drawSleepTransparentMock(GfxRenderer& renderer) {
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
 
+void drawSleepRomanClockMock(GfxRenderer& renderer, const std::string& labelText) {
+  const RomanClockLabelParts label = splitRomanClockLabel(labelText);
+  if (label.hour.empty()) {
+    drawSleepBrandScreen(renderer, false);
+    return;
+  }
+
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+  renderer.clearScreen();
+
+  static constexpr int kFrameMargin = 28;
+  static constexpr int kFrameRadius = 12;
+  renderer.drawRoundedRect(kFrameMargin, kFrameMargin, pageWidth - kFrameMargin * 2, pageHeight - kFrameMargin * 2, 1,
+                           kFrameRadius, true);
+
+  static constexpr int kInnerPad = 32;
+  const int contentX = kFrameMargin + kInnerPad;
+  const int contentWidth = pageWidth - contentX * 2;
+  const int contentY = kFrameMargin + kInnerPad;
+  const int contentHeight = pageHeight - contentY * 2;
+
+  const bool hasMinute = !label.minute.empty();
+  if (!hasMinute) {
+    const int hourHeight = fitRomanTextHeight(label.hour, contentWidth, contentHeight * 7 / 12);
+    const int hourWidth = romanTextWidth(label.hour, hourHeight);
+    drawRomanText(renderer, label.hour, contentX + (contentWidth - hourWidth) / 2,
+                  contentY + (contentHeight - hourHeight) / 2, hourHeight);
+  } else {
+    const int hourZoneTopY = contentY + contentHeight * 5 / 100;
+    const int hourZoneHeight = contentHeight * 53 / 100;
+    const int ruleY = contentY + contentHeight * 64 / 100;
+    const int minuteZoneY = contentY + contentHeight * 68 / 100;
+    const int minuteZoneHeight = contentHeight * 24 / 100;
+
+    const int hourHeight = fitRomanTextHeight(label.hour, contentWidth, hourZoneHeight);
+    const int hourWidth = romanTextWidth(label.hour, hourHeight);
+    drawRomanText(renderer, label.hour, contentX + (contentWidth - hourWidth) / 2,
+                  hourZoneTopY + (hourZoneHeight - hourHeight) / 2, hourHeight);
+
+    const int ruleWidth = contentWidth * 3 / 10;
+    renderer.fillRect(contentX + (contentWidth - ruleWidth) / 2, ruleY, ruleWidth, 1, true);
+
+    const int minuteMaxHeight = std::min(minuteZoneHeight, hourHeight / 2);
+    const int minuteHeight = fitRomanTextHeight(label.minute, contentWidth, minuteMaxHeight);
+    const int minuteWidth = romanTextWidth(label.minute, minuteHeight);
+    drawRomanText(renderer, label.minute, contentX + (contentWidth - minuteWidth) / 2,
+                  minuteZoneY + (minuteZoneHeight - minuteHeight) / 2, minuteHeight);
+  }
+
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+}
+
 void drawFeatureStoreMock(GfxRenderer& renderer) {
   renderer.clearScreen();
   renderer.drawCenteredText(UI_12_FONT_ID, 15, "Update", true, EpdFontFamily::BOLD);
@@ -565,6 +706,7 @@ int main(int argc, char* argv[]) {
       {"14_sleep_light", [&] { drawSleepBrandScreen(renderer, true); }},
       {"15_sleep_custom", [&] { drawSleepCustomMock(renderer); }},
       {"16_sleep_transparent", [&] { drawSleepTransparentMock(renderer); }},
+      {"17_sleep_roman_clock", [&] { drawSleepRomanClockMock(renderer, "XII:III"); }},
   };
 
   for (const auto& [name, render] : scenarios) {
