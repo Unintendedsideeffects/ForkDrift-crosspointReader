@@ -31,6 +31,7 @@ class CrossPointSettings {
     COVER = 9,          // was 3
     BLANK = 10,         // was 4
     COVER_CUSTOM = 11,  // was 5
+    READING_STATS_SLEEP = 12,
     // Old TRANSPARENT was 6 — migrated to new TRANSPARENT=3 in validateAndClamp().
   };
   enum SLEEP_SCREEN_COVER_MODE { FIT = 0, CROP = 1, SLEEP_SCREEN_COVER_MODE_COUNT };

@@ -390,8 +390,8 @@ void CrossPointSettings::validateAndClamp() {
     sleepScreen = CUSTOM;
   } else if (sleepScreen == 6 /* old TRANSPARENT */) {
     sleepScreen = TRANSPARENT;  // = 3
-  } else if (sleepScreen >= SLEEP_SCREEN_MODE_COUNT) {
-    // SMART=7 is explicitly valid; only values ≥8 (and not 9/10/11 legacy) fall here.
+  } else if (sleepScreen >= SLEEP_SCREEN_MODE_COUNT && sleepScreen != READING_STATS_SLEEP) {
+    // SMART=7 and READING_STATS_SLEEP=12 are explicitly valid; legacy 9/10/11 handled above.
     sleepScreen = DARK;
   }
   if (sleepScreenCoverMode > CROP) sleepScreenCoverMode = FIT;

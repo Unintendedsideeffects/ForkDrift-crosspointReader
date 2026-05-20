@@ -33,6 +33,9 @@ class FileBrowserActivity final : public Activity {
   bool clearBookCache(const std::string& fullPath);
   bool isEpubCompleted(const std::string& fullPath) const;
   void toggleEpubCompleted(const std::string& fullPath, const std::string& entry);
+  void pinSleepFavorite(const std::string& fullPath);
+  void unpinSleepFavorite();
+  bool isPinnedSleepFavorite(const std::string& fullPath) const;
   void showFileActionMenu(const std::string& entry, bool ignoreInitialConfirmRelease = false);
   void onSelectBook(const std::string& fullPath);
   void onGoHome();

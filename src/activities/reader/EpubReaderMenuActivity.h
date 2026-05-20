@@ -22,9 +22,9 @@ class EpubReaderMenuActivity final : public Activity {
     DISPLAY_QR,
     GO_HOME,
     SYNC,
+    TOGGLE_COMPLETED,
     ADD_TO_ANKI,
-    DELETE_CACHE,
-    TOGGLE_COMPLETED
+    DELETE_CACHE
   };
 
   explicit EpubReaderMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const std::string& title,

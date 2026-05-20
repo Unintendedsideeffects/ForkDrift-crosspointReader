@@ -184,8 +184,10 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
   list.push_back([] {
     using M = CrossPointSettings::SLEEP_SCREEN_MODE;
     const std::vector<StrId> ids = {StrId::STR_DARK,   StrId::STR_LIGHT,       StrId::STR_FOLLOW_THEME,
-                                    StrId::STR_CUSTOM, StrId::STR_TRANSPARENT, StrId::STR_SLEEP_SMART};
-    const std::vector<uint8_t> vals = {M::DARK, M::LIGHT, M::FOLLOW_THEME, M::CUSTOM, M::TRANSPARENT, M::SMART};
+                                    StrId::STR_CUSTOM, StrId::STR_TRANSPARENT, StrId::STR_SLEEP_SMART,
+                                    StrId::STR_READING_STATS};
+    const std::vector<uint8_t> vals = {M::DARK, M::LIGHT, M::FOLLOW_THEME, M::CUSTOM, M::TRANSPARENT, M::SMART,
+                                       M::READING_STATS_SLEEP};
     return SettingInfo::DynamicEnum(
         StrId::STR_SLEEP_SCREEN, ids,
         [vals] {

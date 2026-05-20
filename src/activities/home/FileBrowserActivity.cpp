@@ -55,6 +55,12 @@ std::string buildReadFolderDestination(const std::string& srcPath) {
   return dstPath;
 }
 
+bool isSleepFolderPath(const std::string& path) { return path == "/sleep" || path == "/.sleep"; }
+
+bool isSleepImageFile(const std::string& path) {
+  return FsHelpers::hasBmpExtension(path) || FsHelpers::hasPngExtension(path);
+}
+
 bool containsHiddenPathSegment(const std::string& path) {
   if (path.empty()) return false;
   size_t segmentStart = (path.front() == '/') ? 1 : 0;
@@ -231,11 +237,44 @@ void FileBrowserActivity::toggleEpubCompleted(const std::string& fullPath, const
   requestUpdate(true);
 }
 
+void FileBrowserActivity::pinSleepFavorite(const std::string& fullPath) {
+  strncpy(SETTINGS.sleepPinnedPath, fullPath.c_str(), sizeof(SETTINGS.sleepPinnedPath) - 1);
+  SETTINGS.sleepPinnedPath[sizeof(SETTINGS.sleepPinnedPath) - 1] = '\0';
+  if (!SETTINGS.saveToFile()) {
+    LOG_ERR("FileBrowser", "Failed to save pinned sleep image path: %s", fullPath.c_str());
+    return;
+  }
+  LOG_INF("FileBrowser", "Pinned favorite sleep image: %s", fullPath.c_str());
+  requestUpdate();
+}
+
+void FileBrowserActivity::unpinSleepFavorite() {
+  if (SETTINGS.sleepPinnedPath[0] == '\0') {
+    return;
+  }
+
+  SETTINGS.sleepPinnedPath[0] = '\0';
+  if (!SETTINGS.saveToFile()) {
+    LOG_ERR("FileBrowser", "Failed to clear pinned sleep image path");
+    return;
+  }
+  LOG_INF("FileBrowser", "Cleared pinned sleep image");
+  requestUpdate();
+}
+
+bool FileBrowserActivity::isPinnedSleepFavorite(const std::string& fullPath) const {
+  return fullPath == SETTINGS.sleepPinnedPath;
+}
+
 void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool ignoreInitialConfirmRelease) {
   const std::string fullPath = buildFullPath(basepath, entry);
   std::vector<FileBrowserActionActivity::MenuItem> items;
-  items.reserve(3);
+  items.reserve(5);
   items.push_back({FileBrowserAction::Delete, StrId::STR_DELETE});
+  if (isSleepFolderPath(basepath) && isSleepImageFile(fullPath)) {
+    items.push_back({isPinnedSleepFavorite(fullPath) ? FileBrowserAction::UnpinFavorite : FileBrowserAction::PinFavorite,
+                     isPinnedSleepFavorite(fullPath) ? StrId::STR_UNPIN_AS_FAVORITE : StrId::STR_PIN_AS_FAVORITE});
+  }
   if (hasClearableBookCache(fullPath)) {
     items.push_back({FileBrowserAction::DeleteCache, StrId::STR_DELETE_CACHE});
   }
@@ -268,7 +307,20 @@ void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool igno
             toggleEpubCompleted(fullPath, entry);
             return;
           case FileBrowserAction::PinFavorite:
+            if (FsHelpers::hasPngExtension(fullPath)) {
+              startActivityForResult(
+                  std::make_unique<ConfirmationActivity>(renderer, mappedInput, "", tr(STR_PIN_PNG_WARNING)),
+                  [this, fullPath](const ActivityResult& confirmation) {
+                    if (!confirmation.isCancelled) {
+                      pinSleepFavorite(fullPath);
+                    }
+                  });
+            } else {
+              pinSleepFavorite(fullPath);
+            }
+            return;
           case FileBrowserAction::UnpinFavorite:
+            unpinSleepFavorite();
             return;
         }
       });
@@ -295,6 +347,9 @@ void FileBrowserActivity::confirmDeleteEntry(const std::string& entry) {
       const bool deleted = isDirectory ? Storage.removeDir(fullPath.c_str()) : Storage.remove(fullPath.c_str());
       if (deleted) {
         LOG_DBG("FileBrowser", "Deleted successfully");
+        if (isPinnedSleepFavorite(fullPath)) {
+          unpinSleepFavorite();
+        }
         loadFiles();
         if (files.empty()) {
           selectorIndex = 0;
