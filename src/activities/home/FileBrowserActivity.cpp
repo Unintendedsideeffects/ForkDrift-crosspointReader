@@ -9,15 +9,51 @@
 #include <algorithm>
 
 #include "CrossPointSettings.h"
+#include "CrossPointState.h"
+#include "FileBrowserActionActivity.h"
 #include "Logging.h"
 #include "MappedInputManager.h"
+#include "activities/reader/BookReadingStats.h"
+#include "activities/reader/GlobalReadingStats.h"
 #include "activities/util/ConfirmationActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/RecentBooksStore.h"
 
 namespace {
 constexpr unsigned long GO_HOME_MS = 1000;
+constexpr unsigned long COMPLETED_FEEDBACK_MS = 1000;
 constexpr int ROOT_HINT_GAP = 20;
+
+bool hasClearableBookCache(const std::string& path) {
+  return FsHelpers::hasEpubExtension(path) || FsHelpers::hasXtcExtension(path);
+}
+
+std::string buildFullPath(std::string basepath, const std::string& entry) {
+  if (basepath.back() != '/') basepath += "/";
+  return basepath + entry;
+}
+
+std::string buildReadFolderDestination(const std::string& srcPath) {
+  const size_t lastSlash = srcPath.rfind('/');
+  const std::string filename = (lastSlash != std::string::npos) ? srcPath.substr(lastSlash + 1) : srcPath;
+
+  Storage.mkdir("/Read");
+  std::string dstPath = "/Read/" + filename;
+  if (!Storage.exists(dstPath.c_str())) {
+    return dstPath;
+  }
+
+  const size_t dotPos = filename.rfind('.');
+  const std::string base = (dotPos != std::string::npos) ? filename.substr(0, dotPos) : filename;
+  const std::string ext = (dotPos != std::string::npos) ? filename.substr(dotPos) : "";
+  int suffix = 2;
+  do {
+    dstPath = "/Read/" + base + " (" + std::to_string(suffix) + ")" + ext;
+    suffix++;
+  } while (Storage.exists(dstPath.c_str()) && suffix < 100);
+  return dstPath;
+}
 
 bool containsHiddenPathSegment(const std::string& path) {
   if (path.empty()) return false;
@@ -33,6 +69,18 @@ bool containsHiddenPathSegment(const std::string& path) {
   return false;
 }
 }  // namespace
+
+static std::string getFileName(std::string filename) {
+  if (filename.back() == '/') {
+    filename.pop_back();
+    if (!UITheme::getInstance().getTheme().showsFileIcons()) {
+      return "[" + filename + "]";
+    }
+    return filename;
+  }
+  const auto pos = filename.rfind('.');
+  return filename.substr(0, pos);
+}
 
 void FileBrowserActivity::loadFiles() {
   files.clear();
@@ -107,11 +155,123 @@ void FileBrowserActivity::onExit() {
 }
 
 void FileBrowserActivity::clearFileMetadata(const std::string& fullPath) {
-  // Only clear cache for .epub files
   if (FsHelpers::hasEpubExtension(fullPath)) {
     Epub(fullPath, "/.crosspoint").clearCache();
     LOG_DBG("FileBrowser", "Cleared metadata cache for: %s", fullPath.c_str());
   }
+}
+
+bool FileBrowserActivity::clearBookCache(const std::string& fullPath) {
+  if (FsHelpers::hasEpubExtension(fullPath)) {
+    return Epub(fullPath, "/.crosspoint").clearCache();
+  }
+  return false;
+}
+
+bool FileBrowserActivity::isEpubCompleted(const std::string& fullPath) const {
+  const Epub epub(fullPath, "/.crosspoint");
+  return BookReadingStats::load(epub.getCachePath()).isCompleted;
+}
+
+void FileBrowserActivity::toggleEpubCompleted(const std::string& fullPath, const std::string& entry) {
+  Epub epub(fullPath, "/.crosspoint");
+  epub.setupCacheDir();
+
+  BookReadingStats stats = BookReadingStats::load(epub.getCachePath());
+  const bool newCompleted = !stats.isCompleted;
+  stats.isCompleted = newCompleted;
+
+  GlobalReadingStats globalStats = GlobalReadingStats::load();
+  if (newCompleted) {
+    globalStats.completedBooks++;
+  } else if (globalStats.completedBooks > 0) {
+    globalStats.completedBooks--;
+  }
+
+  stats.save(epub.getCachePath());
+  globalStats.save();
+
+  completedFeedbackIsFinished = newCompleted;
+  pendingCompletedFeedback = true;
+  completedFeedbackShowTime = millis();
+
+  if (newCompleted && SETTINGS.moveFinishedToReadFolder && fullPath.rfind("/Read/", 0) != 0) {
+    const std::string oldCachePath = epub.getCachePath();
+    const std::string dstPath = buildReadFolderDestination(fullPath);
+    LOG_INF("FileBrowser", "Moving completed epub: %s -> %s", fullPath.c_str(), dstPath.c_str());
+    if (!Storage.rename(fullPath.c_str(), dstPath.c_str())) {
+      LOG_ERR("FileBrowser", "Failed to move book to 'Read' folder");
+      snprintf(APP_STATE.pendingAlertTitle, sizeof(APP_STATE.pendingAlertTitle), "%s",
+               tr(STR_MOVE_TO_READ_FAILED_TITLE));
+      snprintf(APP_STATE.pendingAlertBody, sizeof(APP_STATE.pendingAlertBody), tr(STR_MOVE_TO_READ_FAILED_BODY),
+               getFileName(entry).c_str());
+      APP_STATE.pendingAlertGoHomeOnBack.store(false, std::memory_order_relaxed);
+      APP_STATE.hasPendingAlert.store(true, std::memory_order_release);
+      requestUpdate();
+      return;
+    }
+
+    const std::string newCachePath = "/.crosspoint/epub_" + std::to_string(std::hash<std::string>{}(dstPath));
+    if (!oldCachePath.empty() && Storage.exists(oldCachePath.c_str())) {
+      if (!Storage.rename(oldCachePath.c_str(), newCachePath.c_str())) {
+        LOG_ERR("FileBrowser", "Failed to rename cache dir %s -> %s (non-fatal)", oldCachePath.c_str(),
+                newCachePath.c_str());
+      }
+    }
+
+    RECENT_BOOKS.updatePath(fullPath, dstPath, oldCachePath, newCachePath);
+    if (APP_STATE.openEpubPath == fullPath) {
+      APP_STATE.openEpubPath = dstPath;
+      APP_STATE.saveToFile();
+    }
+  }
+
+  loadFiles();
+  selectorIndex = files.empty() ? 0 : std::min(selectorIndex, files.size() - 1);
+  requestUpdate(true);
+}
+
+void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool ignoreInitialConfirmRelease) {
+  const std::string fullPath = buildFullPath(basepath, entry);
+  std::vector<FileBrowserActionActivity::MenuItem> items;
+  items.reserve(3);
+  items.push_back({FileBrowserAction::Delete, StrId::STR_DELETE});
+  if (hasClearableBookCache(fullPath)) {
+    items.push_back({FileBrowserAction::DeleteCache, StrId::STR_DELETE_CACHE});
+  }
+  if (FsHelpers::hasEpubExtension(fullPath)) {
+    items.push_back({FileBrowserAction::ToggleCompleted,
+                     isEpubCompleted(fullPath) ? StrId::STR_MARK_UNFINISHED : StrId::STR_MARK_FINISHED});
+  }
+
+  startActivityForResult(
+      std::make_unique<FileBrowserActionActivity>(renderer, mappedInput, getFileName(entry), std::move(items),
+                                                  ignoreInitialConfirmRelease),
+      [this, fullPath, entry](const ActivityResult& result) {
+        longPressConfirmHandled = false;
+        if (result.isCancelled) {
+          return;
+        }
+
+        const auto action = static_cast<FileBrowserAction>(std::get<FileBrowserActionResult>(result.data).action);
+        switch (action) {
+          case FileBrowserAction::Delete:
+            confirmDeleteEntry(entry);
+            return;
+          case FileBrowserAction::DeleteCache:
+            if (!clearBookCache(fullPath)) {
+              LOG_ERR("FileBrowser", "Failed to clear book cache for: %s", fullPath.c_str());
+            }
+            requestUpdate();
+            return;
+          case FileBrowserAction::ToggleCompleted:
+            toggleEpubCompleted(fullPath, entry);
+            return;
+          case FileBrowserAction::PinFavorite:
+          case FileBrowserAction::UnpinFavorite:
+            return;
+        }
+      });
 }
 
 void FileBrowserActivity::onSelectBook(const std::string& fullPath) { activityManager.goToReader(fullPath); }
@@ -175,6 +335,19 @@ void FileBrowserActivity::toggleHiddenFiles() {
 }
 
 void FileBrowserActivity::loop() {
+  if (pendingCompletedFeedback) {
+    const bool timedOut = (millis() - completedFeedbackShowTime) >= COMPLETED_FEEDBACK_MS;
+    const bool navPressed = mappedInput.wasReleased(MappedInputManager::Button::Left) ||
+                            mappedInput.wasReleased(MappedInputManager::Button::Right) ||
+                            mappedInput.wasReleased(MappedInputManager::Button::Up) ||
+                            mappedInput.wasReleased(MappedInputManager::Button::Down);
+    if (timedOut || navPressed) {
+      pendingCompletedFeedback = false;
+      requestUpdate();
+      return;
+    }
+  }
+
   if (mode == Mode::Books && !longPressBackHandled && mappedInput.isPressed(MappedInputManager::Button::Back) &&
       mappedInput.getHeldTime() >= GO_HOME_MS && !lockLongPressBack) {
     longPressBackHandled = true;
@@ -193,10 +366,13 @@ void FileBrowserActivity::loop() {
   if (mode == Mode::Books && !files.empty() && !longPressConfirmHandled) {
     const std::string& entry = files[selectorIndex];
     const bool isDirectory = (entry.back() == '/');
-    if (!isDirectory && mappedInput.isPressed(MappedInputManager::Button::Confirm) &&
-        mappedInput.getHeldTime() >= GO_HOME_MS) {
+    if (mappedInput.isPressed(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() >= GO_HOME_MS) {
       longPressConfirmHandled = true;
-      confirmDeleteEntry(entry);
+      if (isDirectory) {
+        confirmDeleteEntry(entry);
+      } else {
+        showFileActionMenu(entry, true);
+      }
       return;
     }
   }
@@ -291,18 +467,6 @@ void FileBrowserActivity::loop() {
   });
 }
 
-static std::string getFileName(std::string filename) {
-  if (filename.back() == '/') {
-    filename.pop_back();
-    if (!UITheme::getInstance().getTheme().showsFileIcons()) {
-      return "[" + filename + "]";
-    }
-    return filename;
-  }
-  const auto pos = filename.rfind('.');
-  return filename.substr(0, pos);
-}
-
 static std::string getFileExtension(std::string filename) {
   if (filename.back() == '/') {
     return "";
@@ -384,6 +548,10 @@ void FileBrowserActivity::render(RenderLock&&) {
     const auto hint = renderer.truncatedText(SMALL_FONT_ID, tr(STR_TOGGLE_HIDDEN_FILES_HINT), hintMaxWidth);
     const int hintWidth = renderer.getTextWidth(SMALL_FONT_ID, hint.c_str());
     renderer.drawText(SMALL_FONT_ID, pageWidth - metrics.contentSidePadding - hintWidth, pathY, hint.c_str());
+  }
+
+  if (pendingCompletedFeedback) {
+    GUI.drawPopup(renderer, completedFeedbackIsFinished ? tr(STR_MARKED_FINISHED) : tr(STR_MARKED_UNFINISHED));
   }
 
   renderer.displayBuffer();

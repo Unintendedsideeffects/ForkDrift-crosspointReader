@@ -43,6 +43,11 @@ class CrossPointState {
   void setPendingPageTurn(int8_t pageTurn);
   int8_t takePendingPageTurn();
 
+  std::atomic<bool> hasPendingAlert{false};
+  std::atomic<bool> pendingAlertGoHomeOnBack{false};
+  char pendingAlertTitle[64] = {};
+  char pendingAlertBody[256] = {};
+
  private:
   std::string pendingOpenPath;
   int8_t pendingPageTurn = 0;
