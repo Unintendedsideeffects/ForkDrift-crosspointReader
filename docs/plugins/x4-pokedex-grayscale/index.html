@@ -946,29 +946,21 @@
       return pokemonSearchIndexPromise;
     }
 
+    function getActivePokemonSearchInput() {
+      const raw = String(input.value || "");
+      const idNameMatch = raw.match(/^\s*#?\s*(\d+)\s*[-–—]\s*/);
+      if (!idNameMatch) return raw.trim();
+
+      const separatorEnd = idNameMatch[0].length;
+      const caret = typeof input.selectionStart === "number" ? input.selectionStart : raw.length;
+      if (caret <= separatorEnd) {
+        return idNameMatch[1];
+      }
+      return raw.slice(separatorEnd).trim();
+    }
+
     function buildSearchQuery(rawInput) {
       const raw = String(rawInput || "").trim();
-
-      // "NUMBER - NAME" is the format set after a successful render.
-      // When the user edits the name portion, the leading ID is stale — treat
-      // the name portion as the real query so results follow what they typed.
-      const idNameMatch = raw.match(/^\s*#?\s*\d+\s*[-–—]\s*(.+)$/);
-      if (idNameMatch) {
-        const namePortion = idNameMatch[1].trim();
-        const normalized = normalizeSearchText(namePortion);
-        const compact = normalized.replace(/\s+/g, "");
-        return {
-          raw: namePortion,
-          normalized: normalized,
-          compact: compact,
-          digits: "",
-          digitQuery: "",
-          isNumeric: false,
-          hasIdIntent: false,
-          bloom: buildBloomFilter(namePortion)
-        };
-      }
-
       const normalized = normalizeSearchText(raw);
       const compact = normalized.replace(/\s+/g, "");
       const digits = compact.replace(/\D/g, "");
@@ -1166,11 +1158,11 @@
     }
 
     async function refreshPokemonSuggestions() {
-      const rawInput = input.value.trim();
+      const rawInput = getActivePokemonSearchInput();
       const token = ++suggestionToken;
       refreshResolvedPokemonName(rawInput, token);
 
-      if (!rawInput) {
+      if (!input.value.trim() || !rawInput) {
         setResolvedPokemonName("");
         hidePokemonSuggestions();
         return;
@@ -1723,6 +1715,22 @@
       return y;
     }
 
+    function measureWrappedBlockHeight(lines, lineHeight, fontSize, fontFamily, boldText) {
+      if (!lines.length) {
+        return 0;
+      }
+      ctx.font = getFontSpec(fontSize, fontFamily, boldText);
+      const probe = ctx.measureText(lines[lines.length - 1] || "Ay");
+      const lastRowHeight = Math.max(
+        lineHeight,
+        (probe.actualBoundingBoxAscent || fontSize * 0.88) + (probe.actualBoundingBoxDescent || fontSize * 0.25) + 2
+      );
+      if (lines.length === 1) {
+        return Math.ceil(lastRowHeight);
+      }
+      return Math.ceil(((lines.length - 1) * lineHeight) + lastRowHeight);
+    }
+
     function drawWrappedBlock(lines, x, startY, lineHeight) {
       for (let i = 0; i < lines.length; i++) {
         ctx.fillText(lines[i], x, startY + (i * lineHeight));
@@ -1866,11 +1874,18 @@
       const showAbilities = options.showAbilities;
       const sectionCount = [showFlavor, showHp, showAbilities].filter(Boolean).length;
       const compact = sectionCount >= 3 || footerHeight < (isPixel ? 170 * scaleUnit : 225 * scaleUnit);
-      const flavorLineHeight = (isPixel ? 18 : 24) * scaleUnit * (compact ? 0.88 : 1);
       const flavorFontSize = 26 * scaleUnit * (compact ? 0.9 : 1);
+      const flavorLineHeight = Math.max(
+        (isPixel ? 18 : 24) * scaleUnit * (compact ? 0.88 : 1),
+        flavorFontSize * 1.12
+      );
       const flavorGap = (compact ? 10 : 14) * scaleUnit;
-      const abilityLineHeight = 20 * scaleUnit * (compact ? 0.9 : 1);
       const abilityFontSize = 18 * scaleUnit * (compact ? 0.9 : 1);
+      const abilityLineHeight = Math.max(
+        20 * scaleUnit * (compact ? 0.9 : 1),
+        abilityFontSize * 1.12
+      );
+      const abilityBottomInset = 4;
       const hpSectionGap = (compact ? 10 : 14) * scaleUnit;
       const hpMetrics = compact ? {
         barWidth: isPixel ? 132 : 168,
@@ -1893,14 +1908,29 @@
       }
 
       function abilityBlockY() {
-        return SCREEN_HEIGHT - 4 - abilityBlockHeight;
+        return SCREEN_HEIGHT - abilityBottomInset - abilityBlockHeight;
+      }
+
+      function isLongFlavorBlock(flavorLines, maxFlavorLines) {
+        if (!flavorLines.length) {
+          return false;
+        }
+        if (flavorLines.length >= maxFlavorLines) {
+          return true;
+        }
+        return /\.\.\.$/.test(flavorLines[flavorLines.length - 1]);
       }
 
       function computeFlavorY(zoneTop, zoneBottom, blockHeight, flavorLines, maxFlavorLines) {
-        if (flavorLines.length >= maxFlavorLines || zoneBottom <= zoneTop || blockHeight >= zoneBottom - zoneTop) {
+        const zoneHeight = zoneBottom - zoneTop;
+        if (zoneBottom <= zoneTop) {
           return zoneTop;
         }
-        return zoneTop + Math.round((zoneBottom - zoneTop - blockHeight) / 2);
+        if (blockHeight >= zoneHeight || isLongFlavorBlock(flavorLines, maxFlavorLines)) {
+          return Math.max(zoneTop, zoneBottom - blockHeight);
+        }
+        const centered = zoneTop + Math.round((zoneHeight - blockHeight) / 2);
+        return Math.max(zoneTop, Math.min(centered, zoneBottom - blockHeight));
       }
 
       if (showAbilities) {
@@ -1909,7 +1939,13 @@
           return titleCase(entry.ability && entry.ability.name);
         }).filter(Boolean).join(", ");
         abilityLines = wrapTextLines(abilityText, SCREEN_WIDTH * 0.85, MAX_ABILITY_TEXT_LINES);
-        abilityBlockHeight = abilityLines.length * abilityLineHeight;
+        abilityBlockHeight = measureWrappedBlockHeight(
+          abilityLines,
+          abilityLineHeight,
+          abilityFontSize,
+          options.fontFamily,
+          options.boldText
+        );
       }
 
       if (sectionCount === 1) {
@@ -1917,7 +1953,13 @@
           ctx.font = getFontSpec(flavorFontSize, options.fontFamily, options.boldText);
           const maxFlavorLines = compact ? 3 : 4;
           const flavorLines = wrapTextLines(flavorText || "No Data.", SCREEN_WIDTH * 0.85, maxFlavorLines);
-          const blockHeight = flavorLines.length * flavorLineHeight;
+          const blockHeight = measureWrappedBlockHeight(
+            flavorLines,
+            flavorLineHeight,
+            flavorFontSize,
+            options.fontFamily,
+            options.boldText
+          );
           const flavorY = computeFlavorY(footerTop, footerBottom, blockHeight, flavorLines, maxFlavorLines);
           drawWrappedBlock(flavorLines, SCREEN_WIDTH / 2, flavorY, flavorLineHeight);
           return;
@@ -1937,10 +1979,16 @@
         ctx.font = getFontSpec(flavorFontSize, options.fontFamily, options.boldText);
         const maxFlavorLines = compact ? 3 : 4;
         const flavorLines = wrapTextLines(flavorText || "No Data.", SCREEN_WIDTH * 0.85, maxFlavorLines);
-        const blockHeight = flavorLines.length * flavorLineHeight;
+        const blockHeight = measureWrappedBlockHeight(
+          flavorLines,
+          flavorLineHeight,
+          flavorFontSize,
+          options.fontFamily,
+          options.boldText
+        );
         let flavorZoneBottom = footerBottom;
         if (showAbilities) {
-          flavorZoneBottom = abilityBlockY() - (8 * scaleUnit);
+          flavorZoneBottom = abilityBlockY() - (12 * scaleUnit);
         }
         const flavorY = computeFlavorY(currentY, flavorZoneBottom, blockHeight, flavorLines, maxFlavorLines);
         drawWrappedBlock(flavorLines, SCREEN_WIDTH / 2, flavorY, flavorLineHeight);
@@ -2195,7 +2243,7 @@
     }
 
     async function renderCurrentPokemon() {
-      const rawInput = input.value.trim();
+      const rawInput = getActivePokemonSearchInput();
       if (!rawInput) {
         setStatus("Enter a Pokemon name or ID.", true);
         return;

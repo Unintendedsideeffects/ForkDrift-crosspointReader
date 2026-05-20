@@ -790,6 +790,19 @@
     return pokemonSearchIndexPromise;
   }
 
+  function getActivePokemonSearchInput() {
+    const raw = String(input.value || "");
+    const idNameMatch = raw.match(/^\s*#?\s*(\d+)\s*[-–—]\s*/);
+    if (!idNameMatch) return raw.trim();
+
+    const separatorEnd = idNameMatch[0].length;
+    const caret = typeof input.selectionStart === "number" ? input.selectionStart : raw.length;
+    if (caret <= separatorEnd) {
+      return idNameMatch[1];
+    }
+    return raw.slice(separatorEnd).trim();
+  }
+
   function buildSearchQuery(rawInput) {
     const raw = String(rawInput || "").trim();
     const normalized = normalizeSearchText(raw);
@@ -966,11 +979,11 @@
   }
 
   async function refreshPokemonSuggestions() {
-    const rawInput = input.value.trim();
+    const rawInput = getActivePokemonSearchInput();
     const token = ++suggestionToken;
     refreshResolvedPokemonName(rawInput, token);
 
-    if (!rawInput) {
+    if (!input.value.trim() || !rawInput) {
       setResolvedPokemonName("");
       hidePokemonSuggestions();
       return;
@@ -1738,7 +1751,7 @@
   }
 
   async function renderCurrentPokemon() {
-    const rawInput = input.value.trim();
+    const rawInput = getActivePokemonSearchInput();
     if (!rawInput) {
       setStatus("Enter a Pokemon name or ID.", true);
       return;
