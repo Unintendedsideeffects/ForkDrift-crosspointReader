@@ -391,15 +391,24 @@ int fitRomanTextHeight(const std::string& text, const int maxWidth, const int ma
 void drawRomanGlyph(GfxRenderer& renderer, const char glyph, const int x, const int y, const int height) {
   const int width = romanGlyphBoxWidth(height);
   const int stroke = romanGlyphStrokeWidth(height);
-  const int left = x + stroke / 2;
-  const int right = x + width - stroke / 2 - 1;
   const int midX = x + width / 2;
   const int bottom = y + height - 1;
+  // Anchor diagonal strokes so their outer edges align with the bounding box.
+  const int left = x + stroke / 2;
+  const int right = x + width - stroke / 2 - 1;
 
   switch (glyph) {
-    case 'I':
+    case 'I': {
+      // Vertical bar
       renderer.fillRect(midX - stroke / 2, y, stroke, height, true);
+      // Classical serif caps: thin horizontal bars at top and bottom.
+      // capW < width/2 from midX on each side, so caps never overflow the bounding box.
+      const int capW = stroke + stroke / 2;
+      const int capH = std::max(2, stroke / 4);
+      renderer.fillRect(midX - capW / 2, y,                 capW, capH, true);  // top serif
+      renderer.fillRect(midX - capW / 2, bottom - capH + 1, capW, capH, true);  // bottom serif
       break;
+    }
     case 'V':
       renderer.drawLine(left, y, midX, bottom, stroke, true);
       renderer.drawLine(right, y, midX, bottom, stroke, true);
@@ -751,33 +760,73 @@ void SleepActivity::renderRomanClockSleepScreen() const {
     return;
   }
 
-  const int pageWidth = renderer.getScreenWidth();
-  const int pageHeight = renderer.getScreenHeight();
-  const int sideMargin = 36;
-  const int contentGap = 26;
+  const int W = renderer.getScreenWidth();
+  const int H = renderer.getScreenHeight();
+  renderer.clearScreen();
+
+  // ── Decorative outer frame ───────────────────────────────────────────────
+  // A 1px rounded rectangle inset from all four display edges. Provides a
+  // "dial" or "certificate" quality that grounds the Roman numerals.
+  static constexpr int kFrameMargin = 28;
+  static constexpr int kFrameRadius = 12;
+  renderer.drawRoundedRect(kFrameMargin, kFrameMargin,
+                           W - kFrameMargin * 2, H - kFrameMargin * 2,
+                           1, kFrameRadius, true);
+
+  // ── Content area (inside frame with additional inner padding) ────────────
+  static constexpr int kInnerPad = 32;
+  const int cx = kFrameMargin + kInnerPad;
+  const int cw = W - cx * 2;
+  const int cy = kFrameMargin + kInnerPad;
+  const int ch = H - cy * 2;
 
   const bool hasMinute = !label.minute.empty();
-  const int minuteWidthBudget = hasMinute ? std::max(96, pageWidth / 3) : 0;
-  const int hourWidthBudget =
-      std::max(120, pageWidth - sideMargin * 2 - (hasMinute ? minuteWidthBudget + contentGap : 0));
 
-  const int hourHeight = fitRomanTextHeight(label.hour, hourWidthBudget, pageHeight / 3);
-  const int minuteHeight = hasMinute ? fitRomanTextHeight(label.minute, minuteWidthBudget, pageHeight / 4) : 0;
+  if (!hasMinute) {
+    // ── Hour alone: vertically centered, as large as the content area allows ──
+    const int hourH = fitRomanTextHeight(label.hour, cw, ch * 7 / 12);
+    const int hourW = romanTextWidth(label.hour, hourH);
+    drawRomanText(renderer, label.hour, cx + (cw - hourW) / 2, cy + (ch - hourH) / 2, hourH);
+  } else {
+    // ── Stacked layout: hour dominant above a rule, minute subordinate below ─
+    //
+    // Vertical allocation within the content area (percentages of ch):
+    //
+    //  ╔═══════════════════════╗
+    //  ║  5% — top breathing   ║
+    //  ║ 53% — HOUR zone       ║  ← hour glyph centered here
+    //  ║  6% — pre-rule gap    ║
+    //  ║  ─── thin rule ───    ║  at 64%
+    //  ║  4% — post-rule gap   ║
+    //  ║ 24% — MINUTE zone     ║  ← minute glyph centered here
+    //  ║  8% — bottom breath   ║
+    //  ╚═══════════════════════╝
 
-  const int hourWidth = romanTextWidth(label.hour, hourHeight);
-  const int minuteWidth = hasMinute ? romanTextWidth(label.minute, minuteHeight) : 0;
-  const int contentWidth = hourWidth + (hasMinute ? contentGap + minuteWidth : 0);
+    const int hourZoneTopY = cy + ch * 5 / 100;
+    const int hourZoneH    = ch * 53 / 100;
+    const int ruleY        = cy + ch * 64 / 100;
+    const int minuteZoneY  = cy + ch * 68 / 100;
+    const int minuteZoneH  = ch * 24 / 100;
 
-  const int hourX = (pageWidth - contentWidth) / 2;
-  const int hourY = std::max(40, (pageHeight - hourHeight) / 2);
+    // Hour: fit to full content width, capped at zone height, then center.
+    const int hourH = fitRomanTextHeight(label.hour, cw, hourZoneH);
+    const int hourW = romanTextWidth(label.hour, hourH);
+    const int hourX = cx + (cw - hourW) / 2;
+    const int hourY = hourZoneTopY + (hourZoneH - hourH) / 2;
+    drawRomanText(renderer, label.hour, hourX, hourY, hourH);
 
-  renderer.clearScreen();
-  drawRomanText(renderer, label.hour, hourX, hourY, hourHeight);
+    // Thin centered rule — 30% of content width, 1px tall.
+    const int ruleW = cw * 3 / 10;
+    renderer.fillRect(cx + (cw - ruleW) / 2, ruleY, ruleW, 1, true);
 
-  if (hasMinute) {
-    const int minuteX = hourX + hourWidth + contentGap;
-    const int minuteY = hourY + std::max(0, (hourHeight - minuteHeight) / 2);
-    drawRomanText(renderer, label.minute, minuteX, minuteY, minuteHeight);
+    // Minute: hard cap at half the hour height to enforce clear visual hierarchy,
+    // ensuring the hour always reads as the primary element.
+    const int minuteMaxH = std::min(minuteZoneH, hourH / 2);
+    const int minuteH    = fitRomanTextHeight(label.minute, cw, minuteMaxH);
+    const int minuteW    = romanTextWidth(label.minute, minuteH);
+    const int minuteX    = cx + (cw - minuteW) / 2;
+    const int minuteY    = minuteZoneY + (minuteZoneH - minuteH) / 2;
+    drawRomanText(renderer, label.minute, minuteX, minuteY, minuteH);
   }
 
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
