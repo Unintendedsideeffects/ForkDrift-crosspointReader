@@ -172,7 +172,7 @@ void PageTableFragment::render(GfxRenderer& renderer, const int fontId, const in
   const int drawY = yPos + yOffset;
   const uint16_t totalHeight = getHeight();
 
-  std::vector<int16_t> columnStarts(columnCount + 1);
+  int16_t columnStarts[MAX_TABLE_CELLS_PER_ROW + 1] = {};
   for (uint8_t i = 0; i < columnCount; i++) {
     columnStarts[i] = static_cast<int16_t>((static_cast<uint32_t>(width) * i) / columnCount);
   }
