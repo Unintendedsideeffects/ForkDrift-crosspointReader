@@ -4,6 +4,7 @@
 #include <I18n.h>
 
 #include "CrossPointSettings.h"
+#include "FeatureFlags.h"
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
@@ -25,6 +26,15 @@ void FontSelectionActivity::onEnter() {
   fonts_.push_back({I18N.get(StrId::STR_NOTO_SERIF), true, 0});
   fonts_.push_back({I18N.get(StrId::STR_NOTO_SANS), true, 1});
   fonts_.push_back({I18N.get(StrId::STR_OPEN_DYSLEXIC), true, 2});
+#if ENABLE_LEXENDDECA_FONTS
+  fonts_.push_back({I18N.get(StrId::STR_LEXEND_DECA), true, CrossPointSettings::LEXENDDECA});
+#endif
+#if ENABLE_BITTER_FONTS
+  fonts_.push_back({I18N.get(StrId::STR_BITTER), true, CrossPointSettings::BITTER});
+#endif
+#if ENABLE_CHAREINK_FONTS
+  fonts_.push_back({I18N.get(StrId::STR_CHARE_INK), true, CrossPointSettings::CHAREINK});
+#endif
   if (hasUserFonts) {
     fonts_.push_back({I18N.get(StrId::STR_EXTERNAL_FONT), false, CrossPointSettings::USER_SD});
   }

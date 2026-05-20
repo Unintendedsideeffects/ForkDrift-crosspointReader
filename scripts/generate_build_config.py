@@ -214,6 +214,24 @@ FEATURES = {
         size_kb=3,
         description='Optional block-style Roman numeral sleep screen that reuses the WiFi clock time source'
     ),
+    'lexenddeca_fonts': Feature(
+        name='Lexend Deca Fonts',
+        flag='ENABLE_LEXENDDECA_FONTS',
+        size_kb=350,
+        description='Lexend Deca — a reading-optimised sans-serif from the Lexend project. 12–18pt, 4 styles.'
+    ),
+    'bitter_fonts': Feature(
+        name='Bitter Fonts',
+        flag='ENABLE_BITTER_FONTS',
+        size_kb=350,
+        description='Bitter — a serif designed for on-screen reading with sturdy letterforms. 12–18pt, 4 styles.'
+    ),
+    'chareink_fonts': Feature(
+        name='Chare Ink Fonts',
+        flag='ENABLE_CHAREINK_FONTS',
+        size_kb=320,
+        description='Chare Ink — a monospaced-flavoured reading font tuned for e-ink displays. 12–18pt, 4 styles.'
+    ),
     'reading_stats': Feature(
         name='Reading Stats',
         flag='ENABLE_READING_STATS',
@@ -473,6 +491,27 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=[]
     ),
+    'lexenddeca_fonts': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=[],
+        conflicts=[],
+        recommends=[]
+    ),
+    'bitter_fonts': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=[],
+        conflicts=[],
+        recommends=[]
+    ),
+    'chareink_fonts': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=[],
+        conflicts=[],
+        recommends=[]
+    ),
     'reading_stats': FeatureMetadata(
         implemented=True,
         stable=True,
@@ -645,6 +684,9 @@ PROFILES = {
             'web_wifi_setup': True,
             'usb_mass_storage': True,
             'wifi_clock': True,
+            'lexenddeca_fonts': True,
+            'bitter_fonts': True,
+            'chareink_fonts': True,
             'reading_stats': True,
             'minimal_theme': True,
             'focus_reading': True,

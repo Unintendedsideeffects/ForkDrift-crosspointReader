@@ -2301,6 +2301,36 @@
                     </div>
                     <div class="card-toggle"><span class="toggle-box"></span></div>
                   </label>
+                  <label class="skill-card dep-child" data-feature="lexenddeca_fonts" data-node-id="lexenddeca_fonts">
+                    <input type="checkbox" id="lexenddeca_fonts" data-feature="lexenddeca_fonts" />
+                    <div class="card-icon"><span>Lx</span></div>
+                    <div class="card-body">
+                      <div class="card-name">Lexend Deca</div>
+                      <div class="card-size"></div>
+                      <div class="card-desc">Reading-optimised sans-serif from the Lexend project, 12–18pt</div>
+                    </div>
+                    <div class="card-toggle"><span class="toggle-box"></span></div>
+                  </label>
+                  <label class="skill-card dep-child" data-feature="bitter_fonts" data-node-id="bitter_fonts">
+                    <input type="checkbox" id="bitter_fonts" data-feature="bitter_fonts" />
+                    <div class="card-icon"><span>Bt</span></div>
+                    <div class="card-body">
+                      <div class="card-name">Bitter</div>
+                      <div class="card-size"></div>
+                      <div class="card-desc">Slab serif designed for on-screen reading, 12–18pt</div>
+                    </div>
+                    <div class="card-toggle"><span class="toggle-box"></span></div>
+                  </label>
+                  <label class="skill-card dep-child" data-feature="chareink_fonts" data-node-id="chareink_fonts">
+                    <input type="checkbox" id="chareink_fonts" data-feature="chareink_fonts" />
+                    <div class="card-icon"><span>Ch</span></div>
+                    <div class="card-body">
+                      <div class="card-name">Chare Ink</div>
+                      <div class="card-size"></div>
+                      <div class="card-desc">Monospaced reading font tuned for e-ink panels, 12–18pt</div>
+                    </div>
+                    <div class="card-toggle"><span class="toggle-box"></span></div>
+                  </label>
                 </div>
               </div>
 
@@ -3588,6 +3618,21 @@
           flag: "ENABLE_ROMAN_CLOCK_SLEEP",
           default: false,
         },
+        lexenddeca_fonts: {
+          sizeKb: 350,
+          flag: "ENABLE_LEXENDDECA_FONTS",
+          default: false,
+        },
+        bitter_fonts: {
+          sizeKb: 350,
+          flag: "ENABLE_BITTER_FONTS",
+          default: false,
+        },
+        chareink_fonts: {
+          sizeKb: 320,
+          flag: "ENABLE_CHAREINK_FONTS",
+          default: false,
+        },
         reading_stats: {
           sizeKb: 20,
           flag: "ENABLE_READING_STATS",
@@ -3638,6 +3683,9 @@
         usb_mass_storage: "Exposes the SD card as a USB mass-storage device when connected to a computer. Lets you drag-and-drop books without a network. The SD card is unmounted from the firmware while in this mode.",
         wifi_clock: "Shows a 24-hour Roman-numeral quarter-hour clock label in the ForkDrift home header and global status bar when system time is available. The minute marker is blank for :00, I for :15, II for :30, and III for :45. While connected to WiFi, it syncs time by NTP and refreshes the display every 15 minutes.",
         roman_clock_sleep: "Adds a dedicated sleep-screen mode that renders the WiFi Clock time as large block Roman numerals. It reuses the same NTP-backed quarter-hour Roman label as the header/status clock and only appears when both this feature and WiFi Clock are enabled.",
+        lexenddeca_fonts: "Lexend Deca — a variable-width sans-serif from the Lexend project, engineered to reduce visual stress and improve reading fluency. Wider letter spacing and open apertures compared to Noto Sans. 12–18pt, four styles.",
+        bitter_fonts: "Bitter — a serif specifically designed for digital reading. Sturdy slab-like details keep letterforms crisp at small sizes on low-DPI e-ink panels. Pairs well with Noto Sans for mixed serif/sans layouts. 12–18pt, four styles.",
+        chareink_fonts: "Chare Ink — a monospaced reading font optimised for e-ink displays. Distinctly spaced glyphs reduce letter confusion and improve scanning speed. A good fit for code-heavy or technical reading material. 12–18pt, four styles.",
         reading_stats: "Tracks per-book and global reading statistics — total pages turned, session time, and completion status. Adds a reading-stats sleep screen, a completion prompt when you finish a book, and a 'Mark as Finished' shortcut in the reader menu. Stats persist to the SD cache; completion state is also surfaced in the file browser.",
         minimal_theme: "A streamlined UI skin with reduced visual chrome — tighter spacing, no decorative borders, and a simpler icon set. Intended for readers who want fewer distractions and a faster visual cadence on e-ink. Requires Lyra Theme as its base.",
         focus_reading: "Hides the page-number footer, battery indicator, and all status overlays while reading, leaving only the text. A distraction-free mode that mirrors the look of a physical book. Toggle from the reader long-press menu.",
@@ -3673,7 +3721,7 @@
 
       const HUB_FEATURES = {
         reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "anki_support", "reading_stats", "focus_reading"],
-        interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts", "minimal_theme"],
+        interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts", "minimal_theme"],
         network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
         storage_hub: ["usb_mass_storage"],
       };
@@ -3681,7 +3729,7 @@
       const NOTE_FEATURES = {};
 
       // Features ported from the crossink fork — shown with a "crossink" badge.
-      const CROSSINK_FEATURES = new Set(["reading_stats", "minimal_theme", "focus_reading"]);
+      const CROSSINK_FEATURES = new Set(["lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "reading_stats", "minimal_theme", "focus_reading"]);
 
       const PROFILES = {
         lean: {},
@@ -3742,6 +3790,9 @@
           user_fonts: true,
           web_wifi_setup: true,
           usb_mass_storage: true,
+          lexenddeca_fonts: true,
+          bitter_fonts: true,
+          chareink_fonts: true,
           reading_stats: true,
           minimal_theme: true,
           focus_reading: true,

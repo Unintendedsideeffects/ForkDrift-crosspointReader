@@ -428,8 +428,19 @@ void CrossPointSettings::validateAndClamp() {
 #if !ENABLE_EXTENDED_FONTS
   if (fontFamily != USER_SD) fontFamily = BOOKERLY;
   fontSize = MEDIUM;
-#elif !ENABLE_OPENDYSLEXIC_FONTS
+#else
+#if !ENABLE_OPENDYSLEXIC_FONTS
   if (fontFamily == OPENDYSLEXIC) fontFamily = NOTOSANS;
+#endif
+#if !ENABLE_LEXENDDECA_FONTS
+  if (fontFamily == LEXENDDECA) fontFamily = BOOKERLY;
+#endif
+#if !ENABLE_BITTER_FONTS
+  if (fontFamily == BITTER) fontFamily = BOOKERLY;
+#endif
+#if !ENABLE_CHAREINK_FONTS
+  if (fontFamily == CHAREINK) fontFamily = BOOKERLY;
+#endif
 #endif
   if (fontFamily == USER_SD) fontFamily = BOOKERLY;
   if (lineSpacing > WIDE) lineSpacing = NORMAL;
@@ -552,6 +563,36 @@ float CrossPointSettings::getReaderLineCompression() const {
         case WIDE:
           return 1.0f;
       }
+    case LEXENDDECA:
+      switch (lineSpacing) {
+        case TIGHT:
+          return 0.90f;
+        case NORMAL:
+        default:
+          return 0.95f;
+        case WIDE:
+          return 1.0f;
+      }
+    case BITTER:
+      switch (lineSpacing) {
+        case TIGHT:
+          return 0.95f;
+        case NORMAL:
+        default:
+          return 1.0f;
+        case WIDE:
+          return 1.1f;
+      }
+    case CHAREINK:
+      switch (lineSpacing) {
+        case TIGHT:
+          return 0.90f;
+        case NORMAL:
+        default:
+          return 0.95f;
+        case WIDE:
+          return 1.0f;
+      }
     case USER_SD:
       switch (lineSpacing) {
         case TIGHT:
@@ -623,6 +664,15 @@ int CrossPointSettings::getReaderFontId() const {
 #if !ENABLE_NOTOSANS_FONTS
   if (effectiveFamily == NOTOSANS) effectiveFamily = BOOKERLY;
 #endif
+#if !ENABLE_LEXENDDECA_FONTS
+  if (effectiveFamily == LEXENDDECA) effectiveFamily = BOOKERLY;
+#endif
+#if !ENABLE_BITTER_FONTS
+  if (effectiveFamily == BITTER) effectiveFamily = BOOKERLY;
+#endif
+#if !ENABLE_CHAREINK_FONTS
+  if (effectiveFamily == CHAREINK) effectiveFamily = BOOKERLY;
+#endif
   if (effectiveFamily == USER_SD) effectiveFamily = BOOKERLY;
 
   switch (effectiveFamily) {
@@ -672,6 +722,54 @@ int CrossPointSettings::getReaderFontId() const {
           return OPENDYSLEXIC_12_FONT_ID;
         case EXTRA_LARGE:
           return OPENDYSLEXIC_14_FONT_ID;
+      }
+#else
+      return NOTOSERIF_14_FONT_ID;
+#endif
+    case LEXENDDECA:
+#if ENABLE_LEXENDDECA_FONTS
+      switch (fontSize) {
+        case SMALL:
+          return LEXENDDECA_12_FONT_ID;
+        case MEDIUM:
+        default:
+          return LEXENDDECA_14_FONT_ID;
+        case LARGE:
+          return LEXENDDECA_16_FONT_ID;
+        case EXTRA_LARGE:
+          return LEXENDDECA_18_FONT_ID;
+      }
+#else
+      return NOTOSERIF_14_FONT_ID;
+#endif
+    case BITTER:
+#if ENABLE_BITTER_FONTS
+      switch (fontSize) {
+        case SMALL:
+          return BITTER_12_FONT_ID;
+        case MEDIUM:
+        default:
+          return BITTER_14_FONT_ID;
+        case LARGE:
+          return BITTER_16_FONT_ID;
+        case EXTRA_LARGE:
+          return BITTER_18_FONT_ID;
+      }
+#else
+      return NOTOSERIF_14_FONT_ID;
+#endif
+    case CHAREINK:
+#if ENABLE_CHAREINK_FONTS
+      switch (fontSize) {
+        case SMALL:
+          return CHAREINK_12_FONT_ID;
+        case MEDIUM:
+        default:
+          return CHAREINK_14_FONT_ID;
+        case LARGE:
+          return CHAREINK_16_FONT_ID;
+        case EXTRA_LARGE:
+          return CHAREINK_18_FONT_ID;
       }
 #else
       return NOTOSERIF_14_FONT_ID;

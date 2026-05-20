@@ -13,6 +13,18 @@
 #define OPENDYSLEXIC_10_FONT_ID (963754926)
 #define OPENDYSLEXIC_12_FONT_ID (858950283)
 #define OPENDYSLEXIC_14_FONT_ID (1877344218)
+#define LEXENDDECA_12_FONT_ID (112233440)
+#define LEXENDDECA_14_FONT_ID (112233441)
+#define LEXENDDECA_16_FONT_ID (112233442)
+#define LEXENDDECA_18_FONT_ID (112233443)
+#define BITTER_12_FONT_ID (223344550)
+#define BITTER_14_FONT_ID (223344551)
+#define BITTER_16_FONT_ID (223344552)
+#define BITTER_18_FONT_ID (223344553)
+#define CHAREINK_12_FONT_ID (334455660)
+#define CHAREINK_14_FONT_ID (334455661)
+#define CHAREINK_16_FONT_ID (334455662)
+#define CHAREINK_18_FONT_ID (334455663)
 #define UI_10_FONT_ID (22918846)
 #define UI_12_FONT_ID (1635686837)
 #define SMALL_FONT_ID (674098198)
@@ -31,6 +43,18 @@ static_assert(OPENDYSLEXIC_8_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(OPENDYSLEXIC_10_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(OPENDYSLEXIC_12_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(OPENDYSLEXIC_14_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(LEXENDDECA_12_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(LEXENDDECA_14_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(LEXENDDECA_16_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(LEXENDDECA_18_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(BITTER_12_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(BITTER_14_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(BITTER_16_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(BITTER_18_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(CHAREINK_12_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(CHAREINK_14_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(CHAREINK_16_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(CHAREINK_18_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(UI_10_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(UI_12_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(SMALL_FONT_ID != 0, "Font ID collision with sentinel");
