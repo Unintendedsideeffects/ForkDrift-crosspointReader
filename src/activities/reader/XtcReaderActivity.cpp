@@ -91,7 +91,9 @@ void XtcReaderActivity::loop() {
     if (mappedInput.wasReleased(MappedInputManager::Button::PageForward)) {
       if (SETTINGS.fontSize < CrossPointSettings::FONT_SIZE_COUNT - 1) {
         SETTINGS.fontSize++;
-        SETTINGS.saveToFile();
+        if (!SETTINGS.saveToFile()) {
+          LOG_ERR("XTR", "Failed to save settings");
+        }
         requestUpdate();
       }
       return;
@@ -99,7 +101,9 @@ void XtcReaderActivity::loop() {
     if (mappedInput.wasReleased(MappedInputManager::Button::PageBack)) {
       if (SETTINGS.fontSize > 0) {
         SETTINGS.fontSize--;
-        SETTINGS.saveToFile();
+        if (!SETTINGS.saveToFile()) {
+          LOG_ERR("XTR", "Failed to save settings");
+        }
         requestUpdate();
       }
       return;
@@ -122,9 +126,9 @@ void XtcReaderActivity::loop() {
     return;
   }
 
-  const bool chapterSkip = fromSideBtn
-      ? SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_CHAPTER_SKIP
-      : SETTINGS.longPressButtonBehavior == SETTINGS.CHAPTER_SKIP;
+  const bool chapterSkip =
+      fromSideBtn ? SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_CHAPTER_SKIP
+                  : SETTINGS.longPressButtonBehavior == SETTINGS.CHAPTER_SKIP;
   const bool skipPages = chapterSkip && mappedInput.getHeldTime() > ReaderUtils::SKIP_HOLD_MS;
   const int skipAmount = skipPages ? 10 : 1;
 

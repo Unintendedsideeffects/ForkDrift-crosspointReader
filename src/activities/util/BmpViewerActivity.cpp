@@ -5,6 +5,7 @@
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
+#include <Logging.h>
 
 #include <algorithm>
 #include <cstring>
@@ -169,7 +170,9 @@ void BmpViewerActivity::doSetSleepCover() {
     SETTINGS.sleepScreen = CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM;
     strncpy(SETTINGS.sleepPinnedPath, "/sleep.bmp", sizeof(SETTINGS.sleepPinnedPath) - 1);
     SETTINGS.sleepPinnedPath[sizeof(SETTINGS.sleepPinnedPath) - 1] = '\0';
-    SETTINGS.saveToFile();
+    if (!SETTINGS.saveToFile()) {
+      LOG_ERR("BMP", "Failed to save settings");
+    }
     GUI.drawPopup(renderer, tr(STR_DONE));
   } else {
     GUI.drawPopup(renderer, tr(STR_FAILED_LOWER));

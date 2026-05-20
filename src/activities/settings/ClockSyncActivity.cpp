@@ -39,7 +39,9 @@ void ClockSyncActivity::runSync() {
 
   // Mark as synced so the auto-sync hook stops firing on future WiFi connects.
   SETTINGS.clockHasBeenSynced = 1;
-  SETTINGS.saveToFile();
+  if (!SETTINGS.saveToFile()) {
+    LOG_ERR("CLK", "Failed to save settings");
+  }
 
   // Read the freshly synced time back for the user-facing confirmation.
   char buf[9];

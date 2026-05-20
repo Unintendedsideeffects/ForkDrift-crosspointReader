@@ -20,6 +20,7 @@ Usage:
     python scripts/measure_feature_sizes.py --quick  # Skip full combination test
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -39,6 +40,7 @@ FEATURES = [
     'integrations',
     'koreader_sync',
     'calibre_sync',
+    'opds',
     'background_server',
     'background_server_on_charge',
     'background_server_always',
@@ -76,15 +78,22 @@ def maybe_uv_command(cmd: list[str]) -> list[str]:
     return cmd
 
 
-def run_command(cmd: list, capture=False) -> subprocess.CompletedProcess:
+# Use a dedicated build dir for measurement so local platformio.local.ini
+# overrides (e.g. build_dir = /tmp/...) don't interfere with path resolution.
+MEASURE_BUILD_DIR = ".pio-measure"
+
+
+def run_command(cmd: list, capture=False, extra_env: dict | None = None) -> subprocess.CompletedProcess:
     """Run a shell command and return the result."""
     cmd = maybe_uv_command(cmd)
+    env = {**os.environ, **(extra_env or {})}
     try:
         result = subprocess.run(
             cmd,
             capture_output=capture,
             text=True,
-            check=True
+            check=True,
+            env=env,
         )
         return result
     except subprocess.CalledProcessError as e:
@@ -105,11 +114,16 @@ def build_configuration(features: Dict[str, bool], quiet=True) -> int:
 
     run_command(args, capture=quiet)
 
-    # Build firmware
-    run_command(['pio', 'run', '-e', 'custom'], capture=quiet)
+    # Build firmware — force our dedicated build dir so local platformio.local.ini
+    # overrides don't change where firmware.bin lands.
+    run_command(
+        ['pio', 'run', '-e', 'custom'],
+        capture=quiet,
+        extra_env={'PLATFORMIO_BUILD_DIR': MEASURE_BUILD_DIR},
+    )
 
     # Get size
-    firmware_path = Path('.pio/build/custom/firmware.bin')
+    firmware_path = Path(MEASURE_BUILD_DIR) / 'custom' / 'firmware.bin'
     if not firmware_path.exists():
         raise FileNotFoundError(f"Firmware not found at {firmware_path}")
 

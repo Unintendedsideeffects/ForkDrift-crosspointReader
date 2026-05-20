@@ -91,11 +91,15 @@ void ControlsOptionsActivity::toggleCurrentSetting() {
   if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {
     const bool cur = SETTINGS.*(setting.valuePtr);
     SETTINGS.*(setting.valuePtr) = !cur;
-    SETTINGS.saveToFile();
+    if (!SETTINGS.saveToFile()) {
+      LOG_ERR("CTRL", "Failed to save settings");
+    }
   } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
     const uint8_t cur = SETTINGS.*(setting.valuePtr);
     SETTINGS.*(setting.valuePtr) = (cur + 1) % static_cast<uint8_t>(setting.enumValues.size());
-    SETTINGS.saveToFile();
+    if (!SETTINGS.saveToFile()) {
+      LOG_ERR("CTRL", "Failed to save settings");
+    }
   } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
     const int8_t cur = SETTINGS.*(setting.valuePtr);
     if (cur + setting.valueRange.step > setting.valueRange.max) {
@@ -103,7 +107,9 @@ void ControlsOptionsActivity::toggleCurrentSetting() {
     } else {
       SETTINGS.*(setting.valuePtr) = cur + setting.valueRange.step;
     }
-    SETTINGS.saveToFile();
+    if (!SETTINGS.saveToFile()) {
+      LOG_ERR("CTRL", "Failed to save settings");
+    }
   } else if (setting.type == SettingType::ACTION) {
     if (setting.action == SettingAction::RemapFrontButtons) {
       startActivityForResult(std::make_unique<ButtonRemapActivity>(renderer, mappedInput),
@@ -131,7 +137,9 @@ void ControlsOptionsActivity::loop() {
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-    SETTINGS.saveToFile();
+    if (!SETTINGS.saveToFile()) {
+      LOG_ERR("CTRL", "Failed to save settings");
+    }
     finish();
     return;
   }

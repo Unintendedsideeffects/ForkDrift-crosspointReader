@@ -54,6 +54,8 @@ tags:
     description: Over-the-air update check endpoints
   - name: control
     description: Remote control endpoints for opening books and page turns
+  - name: opds
+    description: OPDS catalog server management endpoints
   - name: fonts
     description: User font management endpoints
 paths:
@@ -1069,6 +1071,82 @@ paths:
           $ref: '#/components/responses/BadRequestText'
         '404':
           $ref: '#/components/responses/NotFoundText'
+  /api/opds:
+    get:
+      tags: [opds]
+      operationId: getOpdsServers
+      summary: List configured OPDS servers
+      x-crosspoint-feature-gates: [opds]
+      responses:
+        '200':
+          description: Array of configured OPDS servers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OpdsServer'
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+    post:
+      tags: [opds]
+      operationId: upsertOpdsServer
+      summary: Add or update an OPDS server
+      description: >
+        When `index` is present in the body, updates the server at that position.
+        When absent, appends a new entry. The `password` field is optional on
+        update — omit it to preserve the existing password.
+      x-crosspoint-feature-gates: [opds]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpdsServerUpsert'
+      responses:
+        '200':
+          description: Server added or updated
+          content:
+            text/plain:
+              schema:
+                type: string
+                enum: [OK]
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+  /api/opds/delete:
+    post:
+      tags: [opds]
+      operationId: deleteOpdsServer
+      summary: Remove an OPDS server by index
+      description: >
+        Uses POST rather than HTTP DELETE because the ESP32 web server does not
+        support DELETE requests with a body.
+      x-crosspoint-feature-gates: [opds]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [index]
+              properties:
+                index:
+                  type: integer
+                  minimum: 0
+      responses:
+        '200':
+          description: Server removed
+          content:
+            text/plain:
+              schema:
+                type: string
+                enum: [OK]
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '404':
+          $ref: '#/components/responses/NotFoundText'
 components:
   responses:
     BadRequestText:
@@ -1673,3 +1751,38 @@ components:
           type: integer
         text:
           type: string
+    OpdsServer:
+      type: object
+      required: [index, name, url, username, hasPassword]
+      properties:
+        index:
+          type: integer
+          minimum: 0
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        username:
+          type: string
+        hasPassword:
+          type: boolean
+          description: Whether a password is stored (password value is never returned)
+    OpdsServerUpsert:
+      type: object
+      required: [name, url]
+      properties:
+        index:
+          type: integer
+          minimum: 0
+          description: Omit to append a new server; include to update an existing one
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        username:
+          type: string
+        password:
+          type: string
+          description: Omit on update to preserve the existing stored password

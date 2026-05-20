@@ -51,8 +51,8 @@ void SettingsActivity::rebuildSettingsLists() {
 
   const auto& allSettings = getSettingsList(&sdFontSystem.registry());
   auto addControlSetting = [&](StrId nameId) {
-    const auto it = std::find_if(allSettings.begin(), allSettings.end(),
-                                 [nameId](const auto& s) { return s.nameId == nameId; });
+    const auto it =
+        std::find_if(allSettings.begin(), allSettings.end(), [nameId](const auto& s) { return s.nameId == nameId; });
     if (it != allSettings.end()) {
       controlsSettings.push_back(*it);
     }
@@ -303,7 +303,9 @@ void SettingsActivity::toggleCurrentSetting() {
       startActivityForResult(std::make_unique<FontSelectionActivity>(renderer, mappedInput, &sdFontSystem.registry()),
                              [this](const ActivityResult&) {
                                core::FeatureModules::onFontFamilySettingChanged(SETTINGS.fontFamily);
-                               SETTINGS.saveToFile();
+                               if (!SETTINGS.saveToFile()) {
+                                 LOG_ERR("SET", "Failed to save settings");
+                               }
                                rebuildSettingsLists();
                                requestUpdate();
                              });
@@ -433,7 +435,9 @@ void SettingsActivity::toggleCurrentSetting() {
       case SettingAction::DownloadFonts:
         startActivityForResult(std::make_unique<FontDownloadActivity>(renderer, mappedInput),
                                [this](const ActivityResult&) {
-                                 SETTINGS.saveToFile();
+                                 if (!SETTINGS.saveToFile()) {
+                                   LOG_ERR("SET", "Failed to save settings");
+                                 }
                                  rebuildSettingsLists();
                                });
         break;
@@ -473,14 +477,15 @@ void SettingsActivity::toggleCurrentSetting() {
 void SettingsActivity::openSleepTimeoutPicker() {
   startActivityForResult(
       std::make_unique<IntervalSelectionActivity>(
-          renderer, mappedInput, "SleepTimeoutInterval", StrId::STR_TIME_TO_SLEEP,
-          StrId::STR_SLEEP_TIMER_STEP_HINT, SETTINGS.sleepTimeoutMinutes,
-          CrossPointSettings::MIN_SLEEP_TIMEOUT_MINUTES, CrossPointSettings::MAX_SLEEP_TIMEOUT_MINUTES,
-          1, 5, StrId::STR_SLEEP_TIMER_VALUE_FORMAT),
+          renderer, mappedInput, "SleepTimeoutInterval", StrId::STR_TIME_TO_SLEEP, StrId::STR_SLEEP_TIMER_STEP_HINT,
+          SETTINGS.sleepTimeoutMinutes, CrossPointSettings::MIN_SLEEP_TIMEOUT_MINUTES,
+          CrossPointSettings::MAX_SLEEP_TIMEOUT_MINUTES, 1, 5, StrId::STR_SLEEP_TIMER_VALUE_FORMAT),
       [this](const ActivityResult& result) {
         if (!result.isCancelled) {
           SETTINGS.sleepTimeoutMinutes = static_cast<uint8_t>(std::get<IntervalResult>(result.data).value);
-          SETTINGS.saveToFile();
+          if (!SETTINGS.saveToFile()) {
+            LOG_ERR("SET", "Failed to save settings");
+          }
         }
         requestUpdate();
       });
@@ -566,8 +571,8 @@ void SettingsActivity::render(RenderLock&&) {
       true, [&settings](int i) { return settings[i].type == SettingType::SECTION_HEADER; });
 
   // Draw help text
-  const bool isSleepSetting = selectedSettingIndex > 0 &&
-                               (*currentSettings)[selectedSettingIndex - 1].nameId == StrId::STR_TIME_TO_SLEEP;
+  const bool isSleepSetting =
+      selectedSettingIndex > 0 && (*currentSettings)[selectedSettingIndex - 1].nameId == StrId::STR_TIME_TO_SLEEP;
   const auto confirmLabel = (selectedSettingIndex == 0)
                                 ? I18N.get(categoryNames[(selectedCategoryIndex + 1) % categoryCount])
                                 : (isSleepSetting ? tr(STR_SELECT) : tr(STR_TOGGLE));

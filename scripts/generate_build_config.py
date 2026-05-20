@@ -76,6 +76,12 @@ FEATURES = {
         size_kb=2,
         description='OPDS catalog browser for Calibre wireless libraries and other OPDS servers'
     ),
+    'opds': Feature(
+        name='OPDS',
+        flag='ENABLE_OPDS',
+        size_kb=6,
+        description='BookLore server integration for OPDS browsing and downloads'
+    ),
     'background_server': Feature(
         name='Background Server',
         flag='ENABLE_BACKGROUND_SERVER',
@@ -285,6 +291,13 @@ FEATURE_METADATA = {
         implemented=True,
         stable=True,
         requires=['integrations'],
+        conflicts=[],
+        recommends=[]
+    ),
+    'opds': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=['calibre_sync'],
         conflicts=[],
         recommends=[]
     ),
@@ -569,6 +582,7 @@ PROFILES = {
             'integrations': True,
             'koreader_sync': True,
             'calibre_sync': True,
+            'opds': True,
             'epub_support': True,
             'hyphenation': True,
             'xtc_support': True,

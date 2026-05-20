@@ -2,6 +2,7 @@
 
 #include <GfxRenderer.h>
 #include <I18n.h>
+#include <Logging.h>
 
 #include <algorithm>
 #include <iterator>
@@ -70,7 +71,9 @@ void LanguageSelectActivity::handleSelection() {
   }
 
   SETTINGS.language = langIndex;
-  SETTINGS.saveToFile();
+  if (!SETTINGS.saveToFile()) {
+    LOG_ERR("LANG", "Failed to save settings");
+  }
 
   // Return to previous page
   onBack();

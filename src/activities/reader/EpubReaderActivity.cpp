@@ -19,13 +19,11 @@
 #include "BookStatsActivity.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
-#include "GlobalReadingStats.h"
-#include "activities/util/ConfirmationActivity.h"
-#include "activities/util/IntervalSelectionActivity.h"
 #include "EpubReaderChapterSelectionActivity.h"
 #include "EpubReaderFootnotesActivity.h"
 #include "EpubReaderPercentSelectionActivity.h"
 #include "EpubReaderUtils.h"
+#include "GlobalReadingStats.h"
 #include "KOReaderCredentialStore.h"
 #include "KOReaderSyncActivity.h"
 #include "MappedInputManager.h"
@@ -33,6 +31,8 @@
 #include "QrDisplayActivity.h"
 #include "ReaderUtils.h"
 #include "SpiBusMutex.h"
+#include "activities/util/ConfirmationActivity.h"
+#include "activities/util/IntervalSelectionActivity.h"
 #include "components/UITheme.h"
 #include "features/status_overlay/Layout.h"
 #include "features/status_overlay/ReaderContext.h"
@@ -342,8 +342,7 @@ void EpubReaderActivity::loop() {
   // Long-press Confirm: execute quick action instead of opening reader menu.
   constexpr unsigned long longPressMenuMs = 600;
   if (SETTINGS.longPressMenuAction != CrossPointSettings::LONG_PRESS_MENU_ACTION::LONG_MENU_OFF &&
-      mappedInput.wasReleased(MappedInputManager::Button::Confirm) &&
-      mappedInput.getHeldTime() >= longPressMenuMs) {
+      mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() >= longPressMenuMs) {
     executeLongPressMenuAction();
     return;
   }
@@ -389,7 +388,9 @@ void EpubReaderActivity::loop() {
     if (mappedInput.wasReleased(MappedInputManager::Button::PageForward)) {
       if (SETTINGS.fontSize < CrossPointSettings::FONT_SIZE_COUNT - 1) {
         SETTINGS.fontSize++;
-        SETTINGS.saveToFile();
+        if (!SETTINGS.saveToFile()) {
+          LOG_ERR("ERS", "Failed to save settings");
+        }
         {
           RenderLock lock(*this);
           section.reset();
@@ -401,7 +402,9 @@ void EpubReaderActivity::loop() {
     if (mappedInput.wasReleased(MappedInputManager::Button::PageBack)) {
       if (SETTINGS.fontSize > 0) {
         SETTINGS.fontSize--;
-        SETTINGS.saveToFile();
+        if (!SETTINGS.saveToFile()) {
+          LOG_ERR("ERS", "Failed to save settings");
+        }
         {
           RenderLock lock(*this);
           section.reset();
@@ -444,9 +447,9 @@ void EpubReaderActivity::loop() {
     return;
   }
 
-  const bool chapterSkip = fromSideBtn
-      ? SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_CHAPTER_SKIP
-      : SETTINGS.longPressButtonBehavior == SETTINGS.CHAPTER_SKIP;
+  const bool chapterSkip =
+      fromSideBtn ? SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_CHAPTER_SKIP
+                  : SETTINGS.longPressButtonBehavior == SETTINGS.CHAPTER_SKIP;
   if (longPress && chapterSkip) {
     // We don't want to delete the section mid-render, so grab the semaphore
     lastPageTurnTime = millis();
@@ -547,7 +550,9 @@ void EpubReaderActivity::jumpToPercent(int percent) {
 }
 
 void EpubReaderActivity::reindexCurrentSection() {
-  SETTINGS.saveToFile();
+  if (!SETTINGS.saveToFile()) {
+    LOG_ERR("ERS", "Failed to save settings");
+  }
   {
     RenderLock lock(*this);
     GUI.drawPopup(renderer, tr(STR_INDEXING));
@@ -595,8 +600,7 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
       break;
     case S::LONG_MENU_READING_STATS: {
       BookReadingStats displayStats = stats;
-      displayStats.totalReadingSeconds +=
-          static_cast<uint32_t>((millis() - sessionStartMs) / 1000UL);
+      displayStats.totalReadingSeconds += static_cast<uint32_t>((millis() - sessionStartMs) / 1000UL);
       startActivityForResult(
           std::make_unique<BookStatsActivity>(renderer, mappedInput, epub->getTitle(), displayStats, globalStats),
           [this](const ActivityResult&) { requestUpdate(); });
@@ -761,13 +765,11 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       startActivityForResult(
           std::make_unique<IntervalSelectionActivity>(
               renderer, mappedInput, "AutoPageTurnInterval", StrId::STR_AUTO_TURN_PAGES_PER_MIN,
-              StrId::STR_AUTO_TURN_STEP_HINT, getAutoPageTurnIntervalSeconds(),
-              MIN_AUTO_PAGE_TURN_INTERVAL_S, MAX_AUTO_PAGE_TURN_INTERVAL_S, 1, 5,
-              StrId::STR_NONE_OPT, true, true),
+              StrId::STR_AUTO_TURN_STEP_HINT, getAutoPageTurnIntervalSeconds(), MIN_AUTO_PAGE_TURN_INTERVAL_S,
+              MAX_AUTO_PAGE_TURN_INTERVAL_S, 1, 5, StrId::STR_NONE_OPT, true, true),
           [this](const ActivityResult& result) {
             if (!result.isCancelled) {
-              setAutoPageTurnIntervalSeconds(
-                  static_cast<uint16_t>(std::get<IntervalResult>(result.data).value));
+              setAutoPageTurnIntervalSeconds(static_cast<uint16_t>(std::get<IntervalResult>(result.data).value));
             }
             requestUpdate();
           });
