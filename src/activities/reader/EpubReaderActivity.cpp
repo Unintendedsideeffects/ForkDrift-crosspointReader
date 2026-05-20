@@ -15,6 +15,7 @@
 #include <limits>
 
 #include "AnkiAddActivity.h"
+#include "BookStatsActivity.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "activities/util/IntervalSelectionActivity.h"
@@ -138,6 +139,11 @@ void EpubReaderActivity::onEnter() {
   APP_STATE.saveToFile();
   RECENT_BOOKS.addBook(epub->getPath(), epub->getTitle(), epub->getAuthor(), epub->getThumbBmpPath(240));
 
+  stats = BookReadingStats::load(epub->getCachePath());
+  stats.sessionCount++;
+  sessionStartMs = millis();
+  stats.save(epub->getCachePath());
+
   // Trigger first update
   requestUpdate();
 }
@@ -164,6 +170,15 @@ void EpubReaderActivity::onExit() {
 
   APP_STATE.readerActivityLoadCount = 0;
   APP_STATE.saveToFile();
+
+  if (epub) {
+    const unsigned long elapsedMs = millis() - sessionStartMs;
+    if (elapsedMs >= 3000UL) {
+      stats.totalReadingSeconds += static_cast<uint32_t>(elapsedMs / 1000UL);
+    }
+    stats.save(epub->getCachePath());
+  }
+
   section.reset();
   epub.reset();
 }
@@ -459,10 +474,17 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
     case S::LONG_MENU_FILE_TRANSFER:
       openFileTransfer();
       break;
+    case S::LONG_MENU_READING_STATS: {
+      BookReadingStats displayStats = stats;
+      displayStats.totalReadingSeconds +=
+          static_cast<uint32_t>((millis() - sessionStartMs) / 1000UL);
+      startActivityForResult(
+          std::make_unique<BookStatsActivity>(renderer, mappedInput, epub->getTitle(), displayStats),
+          [this](const ActivityResult&) { requestUpdate(); });
+      break;
+    }
     case S::LONG_MENU_OFF:
     default:
-      // TOGGLE_GUIDE_DOTS, TOGGLE_BIONIC, TOGGLE_BOOKMARK, MARK_FINISHED,
-      // READING_STATS: no-op until Phase 3 features are ported.
       break;
   }
 }
@@ -859,6 +881,7 @@ void EpubReaderActivity::pageTurn(bool isForwardTurn) {
       }
     }
   }
+  stats.totalPagesTurned++;
   lastPageTurnTime = millis();
   requestUpdate();
 }

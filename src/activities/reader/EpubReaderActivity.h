@@ -6,6 +6,7 @@
 
 #include <optional>
 
+#include "BookReadingStats.h"
 #include "CrossPointSettings.h"
 #include "EpubReaderMenuActivity.h"
 #include "activities/Activity.h"
@@ -24,6 +25,8 @@ class EpubReaderActivity final : public Activity {
   int cachedChapterTotalPageCount = 0;
   unsigned long lastPageTurnTime = 0UL;
   unsigned long pageTurnDuration = 0UL;
+  BookReadingStats stats;
+  unsigned long sessionStartMs = 0UL;
   bool pendingPercentJump = false;
   float pendingSpineProgress = 0.0f;
   bool pendingScreenshot = false;
