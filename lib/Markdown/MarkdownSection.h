@@ -19,11 +19,11 @@ class MarkdownSection {
 
   bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
                        uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
-                       bool hyphenationEnabled, uint32_t sourceSize);
+                       bool hyphenationEnabled, uint32_t sourceSize, bool guideReadingEnabled);
   bool createSectionFile(const MdNode& root, int fontId, float lineCompression, bool extraParagraphSpacing,
                          bool forceParagraphIndents, uint8_t paragraphAlignment, uint16_t viewportWidth,
                          uint16_t viewportHeight, bool hyphenationEnabled, uint32_t sourceSize,
-                         const std::function<void()>& progressSetupFn = nullptr,
+                         bool guideReadingEnabled, const std::function<void()>& progressSetupFn = nullptr,
                          const std::function<void(int)>& progressFn = nullptr);
   std::unique_ptr<Page> loadPageFromSectionFile();
   bool clearCache() const;
@@ -45,7 +45,7 @@ class MarkdownSection {
 
   void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
                               uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
-                              bool hyphenationEnabled, uint32_t sourceSize);
+                              bool hyphenationEnabled, uint32_t sourceSize, bool guideReadingEnabled);
   uint32_t onPageComplete(std::unique_ptr<Page> page);
   void closeSectionFile();
 };

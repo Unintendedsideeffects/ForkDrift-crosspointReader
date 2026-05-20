@@ -1063,7 +1063,7 @@ void MarkdownRenderer::startNewTextBlock(uint8_t style) {
   blockStyle.textAlignDefined = true;
   blockStyle.alignment = normalizeAlignment(style);
   currentTextBlock.reset(
-      new ParsedText(extraParagraphSpacing, false, hyphenationEnabled && !isPreformatted, false, blockStyle));
+      new ParsedText(extraParagraphSpacing, false, hyphenationEnabled && !isPreformatted, false, blockStyle, false));
 }
 
 void MarkdownRenderer::flushTextBlock() {

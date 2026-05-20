@@ -23,7 +23,7 @@ class Section {
   void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
                               uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
                               bool hyphenationEnabled, bool embeddedStyle, uint8_t imageRendering,
-                              bool focusReadingEnabled);
+                              bool focusReadingEnabled, bool guideReadingEnabled);
   uint32_t onPageComplete(std::unique_ptr<Page> page);
 
  public:
@@ -38,12 +38,13 @@ class Section {
   ~Section() = default;
   bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
                        uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
-                       bool hyphenationEnabled, bool embeddedStyle, uint8_t imageRendering, bool focusReadingEnabled);
+                       bool hyphenationEnabled, bool embeddedStyle, uint8_t imageRendering, bool focusReadingEnabled,
+                       bool guideReadingEnabled);
   bool clearCache() const;
   bool createSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
                          uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
                          bool hyphenationEnabled, bool embeddedStyle, uint8_t imageRendering, bool focusReadingEnabled,
-                         PopupCallback popupFn = {});
+                         bool guideReadingEnabled, PopupCallback popupFn = {});
   std::unique_ptr<Page> loadPageFromSectionFile();
 
   // Look up the page number for an anchor id from the section cache file.

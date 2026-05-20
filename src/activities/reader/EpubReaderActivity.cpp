@@ -940,7 +940,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                                   SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
                                   SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
                                   SETTINGS.hyphenationEnabled, SETTINGS.embeddedStyle, SETTINGS.imageRendering,
-                                  SETTINGS.focusReadingEnabled)) {
+                                  SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled)) {
       LOG_DBG("ERS", "Cache not found, building...");
 
       GUI.drawPopup(renderer, tr(STR_INDEXING));
@@ -949,7 +949,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                                       SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
                                       SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
                                       SETTINGS.hyphenationEnabled, SETTINGS.embeddedStyle, SETTINGS.imageRendering,
-                                      SETTINGS.focusReadingEnabled,
+                                      SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled,
                                       {this, &EpubReaderActivity::showLoadingPopupTrampoline})) {
         LOG_ERR("ERS", "Failed to persist page data to SD");
         section.reset();
@@ -1110,7 +1110,7 @@ void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportW
                                   SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
                                   SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
                                   SETTINGS.hyphenationEnabled, SETTINGS.embeddedStyle, SETTINGS.imageRendering,
-                                  SETTINGS.focusReadingEnabled)) {
+                                  SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled)) {
     return;
   }
 
@@ -1119,7 +1119,7 @@ void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportW
                                      SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
                                      SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
                                      SETTINGS.hyphenationEnabled, SETTINGS.embeddedStyle, SETTINGS.imageRendering,
-                                     SETTINGS.focusReadingEnabled)) {
+                                     SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled)) {
     LOG_ERR("ERS", "Failed silent indexing for chapter: %d", nextSpineIndex);
   }
 }

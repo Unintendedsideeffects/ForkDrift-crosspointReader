@@ -339,6 +339,8 @@ class CrossPointSettings {
   uint8_t wifiAutoConnect = ENABLE_BACKGROUND_SERVER_ALWAYS;
   // Focus Reading - emphasizes the first part of words with bold
   uint8_t focusReadingEnabled = 0;
+  // Guide Dots - inserts a middle dot between words as a visual reading guide
+  uint8_t guideReadingEnabled = 0;
   // SD card font family name (empty = use built-in fontFamily)
   char sdFontFamilyName[32] = "";
   // Show hidden files/directories (starting with '.') in the file browser (0 = hidden, 1 = show)
