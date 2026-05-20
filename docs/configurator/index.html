@@ -2977,6 +2977,7 @@
                       <option value="0" selected>Dark</option>
                       <option value="1">Light</option>
                       <option value="4">Follow Theme</option>
+                      <option value="8" id="opt-sleep-roman">Roman Clock</option>
                       <option value="2" id="opt-sleep-custom">Custom Image</option>
                       <option value="3">Transparent</option>
                     </select>
@@ -3257,44 +3258,25 @@
           </div>
 
           <div class="panel" style="margin-top: 12px;">
-            <div class="panel-heading">Custom Font Manager</div>
+            <div class="panel-heading">Custom Fonts</div>
             <div class="companion-row">
               <div style="flex: 1">
-                <div class="companion-title">Custom Font Manager</div>
+                <div class="companion-title">Official Font Manager</div>
                 <div class="companion-desc">
-                  Select a font file to convert it to the <code>.cpf</code> format and save to <code>/fonts</code> on SD card.
-                  Canonical names are <code>&lt;Family&gt;-Regular.cpf</code>, optional
-                  <code>&lt;Family&gt;-Bold.cpf</code>/<code>-Italic.cpf</code>/<code>-BoldItalic.cpf</code>, with
-                  legacy fallback <code>&lt;Family&gt;.cpf</code>.
+                  Custom SD-card fonts now use the upstream Font Manager. It converts TTF/OTF font families
+                  into CrossPoint <code>.cpfont</code> files with the current upstream workflow, including
+                  Unicode coverage presets and multi-style family export.
                 </div>
                 <div class="actions" style="margin-top: 15px; align-items: center; gap: 12px;">
-                  <input type="file" id="font-upload" accept=".ttf,.otf" style="display:none" />
-                  <button class="btn btn-outline" onclick="document.getElementById('font-upload').click()">Select Font</button>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="output-label" style="margin:0">Family:</span>
-                    <input type="text" id="font-family" value="" placeholder="Bookerly" style="width: 110px; background: var(--fog); border: 1px solid var(--bone); padding: 2px 4px; font-family: inherit; font-size: 10px;" />
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="output-label" style="margin:0">Style:</span>
-                    <select id="font-style" style="width: 98px; background: var(--fog); border: 1px solid var(--bone); padding: 2px 4px; font-family: inherit; font-size: 10px;">
-                      <option value="Regular">Regular</option>
-                      <option value="Bold">Bold</option>
-                      <option value="Italic">Italic</option>
-                      <option value="BoldItalic">BoldItalic</option>
-                      <option value="Fallback">Fallback (&lt;Family&gt;.cpf)</option>
-                    </select>
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="output-label" style="margin:0">Size:</span>
-                    <input type="number" id="font-size" value="14" min="6" max="48" style="width: 50px; background: var(--fog); border: 1px solid var(--bone); padding: 2px 4px; font-family: inherit; font-size: 10px;" />
-                  </div>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                    <input type="checkbox" id="font-2bit" checked style="cursor: pointer" />
-                    <span class="output-label" style="margin:0">2-bit grayscale</span>
-                  </label>
-                  <button class="btn btn-solid" id="convert-font-btn" disabled>Convert & Download</button>
+                  <a class="btn btn-solid" href="https://crosspointreader.com/fonts" target="_blank" rel="noopener noreferrer">
+                    Open official Font Manager
+                  </a>
                 </div>
-                <div id="font-status" class="info-bar" style="display:none; margin-top: 12px;"></div>
+                <div class="info-bar" style="margin-top: 12px;">
+                  Upstream currently notes that custom SD-card fonts require the beta firmware. After
+                  generating the files, upload them from the device&apos;s <strong>Fonts</strong> page or copy
+                  them to <code>/fonts</code> or <code>/.fonts</code> on the SD card.
+                </div>
               </div>
             </div>
           </div>
@@ -3313,7 +3295,6 @@
       </div><!-- /.page-layout -->
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
     <script>
       const FEATURES = {
         bookerly_fonts: {
@@ -3506,7 +3487,7 @@
         dark_mode: "Inverts the display for night reading — white-on-black instead of black-on-paper. Toggle from the settings menu. Negligible binary cost; the flag controls whether the option is exposed at all.",
         visual_cover_picker: "Lets you choose cover art for books that lack an embedded thumbnail. Opens a scrollable image browser pointed at a configurable folder on the SD card. Requires Home Media Picker.",
         ble_wifi_provisioning: "Configure WiFi credentials by scanning a QR code or using the companion app over Bluetooth LE — no need to type a password on the device keyboard. Large binary cost (~673 KB) due to the BLE stack.",
-        user_fonts: "Load custom TTF/OTF fonts from a /fonts folder on the SD card. The companion web tool (Font Converter panel) pre-converts fonts to the device's binary format. Fonts appear in the font picker alongside built-ins.",
+        user_fonts: "Load custom SD-card fonts from /fonts or /.fonts. Use the official CrossPoint Font Manager to convert TTF/OTF families into .cpfont files, then upload them from the device's Fonts page or copy them to the SD card. Upstream currently marks this flow as beta-firmware only.",
         web_wifi_setup: "A captive-portal style WiFi setup wizard served from the Background Server. Scan a QR code, enter credentials, and the device connects — no app required. Small footprint (~5 KB).",
         usb_mass_storage: "Exposes the SD card as a USB mass-storage device when connected to a computer. Lets you drag-and-drop books without a network. The SD card is unmounted from the firmware while in this mode.",
         wifi_clock: "Shows a 24-hour Roman-numeral quarter-hour clock label in the ForkDrift home header and global status bar when system time is available. The minute marker is blank for :00, I for :15, II for :30, and III for :45. While connected to WiFi, it syncs time by NTP and refreshes the display every 15 minutes.",
@@ -4200,6 +4181,15 @@
           checkbox.addEventListener("change", (event) => {
             const feature = event.target.dataset.feature;
             updateAll(feature, event.target.checked);
+            if (feature === 'roman_clock_sleep' && typeof window._flashConfiguratorFeaturePreview === 'function') {
+              if (event.target.checked) window._flashConfiguratorFeaturePreview(feature);
+              else {
+                window._flashConfiguratorFeaturePreview('');
+                if (typeof window._setConfiguratorFeatureHoverPreview === 'function') {
+                  window._setConfiguratorFeatureHoverPreview('');
+                }
+              }
+            }
           });
         });
 
@@ -4265,246 +4255,6 @@
           grid.innerHTML = '<div class="note-bar">Preview images are publishing. Check back in a minute.</div>';
           meta.textContent = "";
         }
-      }
-
-      function setupFontConverter() {
-        const upload = document.getElementById('font-upload');
-        const btn = document.getElementById('convert-font-btn');
-        const status = document.getElementById('font-status');
-        const familyInput = document.getElementById('font-family');
-        const styleInput = document.getElementById('font-style');
-        let selectedFile = null;
-
-        upload.addEventListener('change', (e) => {
-          selectedFile = e.target.files[0];
-          btn.disabled = !selectedFile;
-          if (selectedFile) {
-            const inferredFamily = selectedFile.name.replace(/\.[^/.]+$/, "").replace(/-(Regular|Bold|Italic|BoldItalic)$/i, "");
-            if (!familyInput.value.trim()) {
-              familyInput.value = inferredFamily;
-            }
-            status.style.display = 'block';
-            status.textContent = `Selected: ${selectedFile.name}`;
-          }
-        });
-
-        btn.addEventListener('click', async () => {
-          if (!selectedFile) return;
-          
-          btn.disabled = true;
-          status.textContent = "Loading font...";
-          
-          try {
-            const buffer = await selectedFile.arrayBuffer();
-            const font = opentype.parse(buffer);
-            const size = parseInt(document.getElementById('font-size').value);
-            const is2Bit = document.getElementById('font-2bit').checked;
-            const familyRaw = familyInput.value.trim() || selectedFile.name.replace(/\.[^/.]+$/, "");
-            const familyName = familyRaw.replace(/[\\/:*?"<>|]/g, '').trim();
-            const style = styleInput.value;
-            if (!familyName) {
-              throw new Error("Please provide a valid font family name.");
-            }
-            
-            status.textContent = "Converting glyphs...";
-            
-            // Define intervals (matching fontconvert.py)
-            const intervals = [
-              [0x0000, 0x007F], [0x0080, 0x00FF], [0x0100, 0x017F], 
-              [0x2000, 0x206F], [0x2010, 0x203A], [0x2040, 0x205F],
-              [0x20A0, 0x20CF], [0x0300, 0x036F], [0x0400, 0x04FF],
-              [0x2070, 0x209F], [0x2200, 0x22FF], [0x2190, 0x21FF],
-              [0xFFFD, 0xFFFD]
-            ];
-
-            const allGlyphs = [];
-            let totalBitmapSize = 0;
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d', { alpha: true });
-
-            for (const [start, end] of intervals) {
-              for (let cp = start; cp <= end; cp++) {
-                const glyph = font.charToGlyph(String.fromCodePoint(cp));
-                // We need to render the glyph to get the bitmap
-                // opentype.js doesn't give us raw bitmaps easily, we'll use a canvas
-                
-                const scale = 1 / font.unitsPerEm * size;
-                const metrics = glyph.getMetrics();
-                const width = Math.ceil((metrics.xMax - metrics.xMin) * scale) || 0;
-                const height = Math.ceil((metrics.yMax - metrics.yMin) * scale) || 0;
-                const left = Math.round(metrics.xMin * scale);
-                const top = Math.round(metrics.yMax * scale);
-                const advanceX = Math.round(glyph.advanceWidth * scale);
-
-                let packedData;
-                if (width > 0 && height > 0) {
-                  canvas.width = width;
-                  canvas.height = height;
-                  ctx.clearRect(0, 0, width, height);
-                  
-                  const path = glyph.getPath(-metrics.xMin * scale, metrics.yMax * scale, size);
-                  ctx.fillStyle = 'black';
-                  path.draw(ctx);
-                  
-                  const imgData = ctx.getImageData(0, 0, width, height).data;
-                  const pixels = [];
-                  for (let i = 3; i < imgData.length; i += 4) {
-                    pixels.push(imgData[i]); // Use alpha channel
-                  }
-
-                  if (is2Bit) {
-                    const packed = [];
-                    let byte = 0;
-                    for (let i = 0; i < pixels.length; i++) {
-                      let val = 0;
-                      if (pixels[i] >= 192) val = 3;
-                      else if (pixels[i] >= 128) val = 2;
-                      else if (pixels[i] >= 64) val = 1;
-                      
-                      byte = (byte << 2) | val;
-                      if (i % 4 === 3) {
-                        packed.push(byte);
-                        byte = 0;
-                      }
-                    }
-                    if (pixels.length % 4 !== 0) {
-                      byte <<= (4 - (pixels.length % 4)) * 2;
-                      packed.push(byte);
-                    }
-                    packedData = new Uint8Array(packed);
-                  } else {
-                    const packed = [];
-                    let byte = 0;
-                    for (let i = 0; i < pixels.length; i++) {
-                      byte = (byte << 1) | (pixels[i] > 127 ? 1 : 0);
-                      if (i % 8 === 7) {
-                        packed.push(byte);
-                        byte = 0;
-                      }
-                    }
-                    if (pixels.length % 8 !== 0) {
-                      byte <<= (8 - (pixels.length % 8));
-                      packed.push(byte);
-                    }
-                    packedData = new Uint8Array(packed);
-                  }
-                } else {
-                  packedData = new Uint8Array(0);
-                }
-
-                allGlyphs.push({
-                  width, height, advanceX, left, top,
-                  dataLength: packedData.length,
-                  dataOffset: totalBitmapSize,
-                  data: packedData
-                });
-                totalBitmapSize += packedData.length;
-              }
-            }
-
-            // Metrics for header
-            const pipeGlyph = font.charToGlyph('|');
-            const scale = 1 / font.unitsPerEm * size;
-            const advanceY = Math.round((font.ascender - font.descender) * scale);
-            const ascender = Math.round(font.ascender * scale);
-            const descender = Math.round(font.descender * scale);
-
-            // Build binary file
-            const headerSize = 4 + 1 + 4 + 4 + 1 + 4 + 4 + 4;
-            const intervalSize = intervals.length * 12;
-            const glyphsSize = allGlyphs.length * 15; // 1+1+1+2+2+2+4 = 13... wait.
-            // EpdGlyph struct: uint8 width, uint8 height, uint8 advanceX, int16 left, int16 top, uint16 dataLength, uint32 dataOffset = 1+1+1+2+2+2+4 = 13 bytes.
-            // Packed with potential padding in C++, but we'll use 13 bytes.
-            // Let's re-verify the struct in EpdFontData.h
-            /*
-            typedef struct {
-              uint8_t width;        
-              uint8_t height;       
-              uint8_t advanceX;     
-              int16_t left;         
-              int16_t top;          
-              uint16_t dataLength;  
-              uint32_t dataOffset;  
-            } EpdGlyph;
-            Total: 1+1+1 + (padding?) + 2+2+2 + (padding?) + 4.
-            On ESP32 (32-bit), it's likely padded to 16 bytes.
-            Let's use 16 bytes to be safe and match compiler alignment (4-byte alignment).
-            Actually, let's look at the struct carefully. 
-            3x uint8 = 3 bytes. 
-            Next is int16_t, which must be 2-byte aligned. So 1 byte padding. (4 total)
-            2 bytes int16_t (left) (6 total)
-            2 bytes int16_t (top) (8 total)
-            2 bytes uint16_t (dataLength) (10 total)
-            Next is uint32_t (dataOffset), which must be 4-byte aligned. So 2 bytes padding. (12 total)
-            4 bytes uint32_t (dataOffset) (16 total)
-            So yes, 16 bytes.
-            */
-
-            const totalSize = headerSize + intervalSize + (allGlyphs.length * 16) + totalBitmapSize;
-            const out = new ArrayBuffer(totalSize);
-            const view = new DataView(out);
-            let offset = 0;
-
-            // Magic "CPF\x01"
-            view.setUint8(offset++, 0x43); // C
-            view.setUint8(offset++, 0x50); // P
-            view.setUint8(offset++, 0x46); // F
-            view.setUint8(offset++, 0x01); // \x01
-
-            view.setUint8(offset++, advanceY);
-            view.setInt32(offset, ascender, true); offset += 4;
-            view.setInt32(offset, descender, true); offset += 4;
-            view.setUint8(offset++, is2Bit ? 1 : 0);
-            view.setUint32(offset, intervals.length, true); offset += 4;
-            view.setUint32(offset, allGlyphs.length, true); offset += 4;
-            view.setUint32(offset, totalBitmapSize, true); offset += 4;
-
-            // Intervals
-            let cpOffset = 0;
-            for (const [start, end] of intervals) {
-              view.setUint32(offset, start, true); offset += 4;
-              view.setUint32(offset, end, true); offset += 4;
-              view.setUint32(offset, cpOffset, true); offset += 4;
-              cpOffset += (end - start + 1);
-            }
-
-            // Glyphs
-            for (const g of allGlyphs) {
-              const glyphStart = offset;
-              view.setUint8(offset++, g.width);
-              view.setUint8(offset++, g.height);
-              view.setUint8(offset++, g.advanceX);
-              offset++; // padding for int16 alignment
-              view.setInt16(offset, g.left, true); offset += 2;
-              view.setInt16(offset, g.top, true); offset += 2;
-              view.setUint16(offset, g.dataLength, true); offset += 2;
-              offset += 2; // padding for uint32 alignment
-              view.setUint32(offset, g.dataOffset, true); offset += 4;
-            }
-
-            // Bitmap data
-            const uint8Out = new Uint8Array(out);
-            for (const g of allGlyphs) {
-              uint8Out.set(g.data, offset);
-              offset += g.data.length;
-            }
-
-            const blob = new Blob([out], { type: 'application/octet-stream' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = style === 'Fallback' ? `${familyName}.cpf` : `${familyName}-${style}.cpf`;
-            a.click();
-            URL.revokeObjectURL(url);
-            
-            status.textContent = `Success! Converted ${allGlyphs.length} glyphs to ${a.download}.`;
-          } catch (err) {
-            console.error(err);
-            status.textContent = `Error: ${err.message}`;
-          } finally {
-            btn.disabled = false;
-          }
-        });
       }
 
       function setupWallpaperStudio() {
@@ -5063,6 +4813,17 @@
 
             docsPlaceholder.style.display = 'none';
             docsContent.style.display = 'block';
+
+            if (nodeId === 'roman_clock_sleep' && isEnabled && typeof window._setConfiguratorFeatureHoverPreview === 'function') {
+              window._setConfiguratorFeatureHoverPreview(nodeId);
+            }
+          });
+
+          card.addEventListener('mouseleave', () => {
+            const nodeId = card.dataset.nodeId;
+            if (nodeId === 'roman_clock_sleep' && typeof window._setConfiguratorFeatureHoverPreview === 'function') {
+              window._setConfiguratorFeatureHoverPreview('');
+            }
           });
         });
       }
@@ -5229,6 +4990,9 @@
 
         let currentSelections = null;
         let sleepPreviewFlashActive = false;
+        let hoveredFeaturePreview = '';
+        let flashedFeaturePreview = '';
+        let featurePreviewFlashTimer = null;
         let frontButtonRemapState = null;
         const FRONT_BUTTON_ROLE_KEYS = ['frontButtonBack', 'frontButtonConfirm', 'frontButtonLeft', 'frontButtonRight'];
         const FRONT_BUTTON_ROLE_NAMES = ['Back', 'Confirm', 'Left', 'Right'];
@@ -5277,6 +5041,39 @@
             if (el.value !== value) el.value = value;
           });
         }
+
+        function clearFeaturePreviewFlashTimer() {
+          if (!featurePreviewFlashTimer) return;
+          window.clearTimeout(featurePreviewFlashTimer);
+          featurePreviewFlashTimer = null;
+        }
+
+        function setHoveredFeaturePreview(feature) {
+          hoveredFeaturePreview = feature || '';
+          drawPreview();
+        }
+
+        function flashFeaturePreview(feature, durationMs = 1800) {
+          clearFeaturePreviewFlashTimer();
+          flashedFeaturePreview = feature || '';
+          drawPreview();
+          if (!feature) return;
+          featurePreviewFlashTimer = window.setTimeout(() => {
+            flashedFeaturePreview = '';
+            featurePreviewFlashTimer = null;
+            drawPreview();
+          }, durationMs);
+        }
+
+        function getFeatureSleepPreviewMode() {
+          if (hoveredFeaturePreview === 'roman_clock_sleep' || flashedFeaturePreview === 'roman_clock_sleep') {
+            return 8;
+          }
+          return null;
+        }
+
+        window._setConfiguratorFeatureHoverPreview = setHoveredFeaturePreview;
+        window._flashConfiguratorFeaturePreview = flashFeaturePreview;
 
         function getFrontButtonLabels(settings = readSettings()) {
           const labels = new Array(4).fill('-');
@@ -5379,6 +5176,7 @@
 
           const supportsCustomSleep = active.image_sleep;
           if (!supportsCustomSleep && normalized.sleepScreen === 2) normalized.sleepScreen = DEFAULTS.sleepScreen;
+          if (!active.roman_clock_sleep && normalized.sleepScreen === 8) normalized.sleepScreen = DEFAULTS.sleepScreen;
           const customSleepActive = normalized.sleepScreen === 2;
           const supportsPokemonSleep = active.pokemon_party;
           if (!supportsPokemonSleep && normalized.sleepScreenSource !== 0) normalized.sleepScreenSource = DEFAULTS.sleepScreenSource;
@@ -5474,6 +5272,11 @@
         // Feature-gate visibility: react to global selections
         function updateSettingsVisibility(selections) {
           currentSelections = selections || null;
+          if (!selections.roman_clock_sleep) {
+            hoveredFeaturePreview = '';
+            flashedFeaturePreview = '';
+            clearFeaturePreviewFlashTimer();
+          }
           const customSleepActive = document.getElementById('s-sleepScreen')?.value === '2';
 
           // Dark mode setting only if feature compiled in
@@ -5506,6 +5309,13 @@
             optSleepCustom.disabled = !selections.image_sleep;
             optSleepCustom.textContent = selections.image_sleep ? 'Custom Image' : 'Custom Image (needs feature)';
           }
+          updateOption(
+            's-sleepScreen',
+            8,
+            selections.roman_clock_sleep,
+            'Roman Clock',
+            'Roman Clock (needs feature)'
+          );
           updateOption(
             's-sleepScreenSource',
             1,
@@ -5601,6 +5411,8 @@
         function getPreviewState() {
           const currentSettings = readSettings();
           const darkMode = currentSettings.darkMode === 1;
+          const featureSleepPreviewMode = getFeatureSleepPreviewMode();
+          const previewSleepMode = featureSleepPreviewMode ?? currentSettings.sleepScreen;
           const fontLabels = ['Bookerly', 'Noto Sans', 'OpenDyslexic', 'External Font'];
           const fontFamilies = [
             'Iowan Old Style, Georgia, "Times New Roman", serif',
@@ -5653,8 +5465,27 @@
           };
           const palette = themePalettes[currentSettings.uiTheme] || themePalettes[0];
           const powerActions = ['Ignore', 'Sleep', 'Page', 'Select'];
-          const sleepModeLabels = ['Dark', 'Light', 'Custom', 'Transparent', 'Follow Theme'];
-          const sleepSourceLabels = ['Sleep Folder', 'Pokédex', 'Sleep + Pokédex'];          const sleepFilterLabels = ['None', 'Contrast', 'Inverted'];
+          const sleepModeLabels = {
+            0: 'Dark',
+            1: 'Light',
+            2: 'Custom',
+            3: 'Transparent',
+            4: 'Follow Theme',
+            8: 'Roman Clock',
+          };
+          const sleepSourceLabels = ['Sleep Folder', 'Pokédex', 'Sleep + Pokédex'];
+          const sleepFilterLabels = ['None', 'Contrast', 'Inverted'];
+          const sleepPreviewFrameClass = previewSleepMode === 1
+            ? 'light'
+            : previewSleepMode === 2
+              ? 'custom'
+              : previewSleepMode === 3
+                ? 'transparent'
+                : previewSleepMode === 4
+                  ? (darkMode ? 'dark' : 'light')
+                  : previewSleepMode === 8
+                    ? 'roman-clock'
+                    : 'dark';
           const studioSelection = window._wallpaperStudioSelection || {};
           const wallpaperFitMode = currentSettings.sleepScreenCoverMode === 1 ? 'fill' : 'fit';
           const wallpaperFilterMode = currentSettings.sleepScreenCoverFilter;
@@ -5686,9 +5517,10 @@
               'scroll-border': palette.border,
             },
             sleepPreview: {
-              visible: sleepPreviewFlashActive,
-              mode: currentSettings.sleepScreen,
-              modeLabel: sleepModeLabels[currentSettings.sleepScreen] || 'Dark',
+              visible: sleepPreviewFlashActive || featureSleepPreviewMode !== null,
+              mode: previewSleepMode,
+              modeLabel: sleepModeLabels[previewSleepMode] || 'Dark',
+              frameClass: sleepPreviewFrameClass,
               sourceLabel: sleepSourceLabels[currentSettings.sleepScreenSource] || 'Sleep Folder',
               filterLabel: sleepFilterLabels[currentSettings.sleepScreenCoverFilter] || 'None',
               coverMode: currentSettings.sleepScreenCoverMode,
@@ -5698,6 +5530,7 @@
               pokedexPreviewPath,
               studioImagePath: renderedStudioImage || studioSelection.previewUrl || '',
               studioFileName: studioSelection.fileName || '',
+              romanClockLabel: 'XII:III',
             },
             reader: {
               fontLabel: fontLabels[currentSettings.fontFamily] || fontLabels[0],
@@ -5811,6 +5644,10 @@
       background: #f3efe6;
       color: #111;
     }
+    .sleep-preview-frame.roman-clock {
+      background: #f3efe6;
+      color: #111;
+    }
     .sleep-preview-frame.custom {
       background:
         linear-gradient(135deg, rgba(0,0,0,0.05) 25%, transparent 25%) -8px 0/16px 16px,
@@ -5892,6 +5729,16 @@
     }
     .sleep-preview-image.filter-inverted {
       filter: grayscale(1) invert(1);
+    }
+    .sleep-preview-roman {
+      width: 100%;
+      height: 100%;
+      padding: 18px 24px;
+    }
+    .sleep-preview-roman svg {
+      width: 100%;
+      height: 100%;
+      display: block;
     }
     .button-hints {
       position: absolute;
@@ -6119,19 +5966,110 @@
     }
     function renderSleepPreview() {
       if (!sleepPreviewOverlay) return;
-      const modeClass = ['dark', 'light', 'custom', 'transparent'][sleepPreview.mode] || 'dark';
+      const modeClass = sleepPreview.frameClass || 'dark';
       const customFilterClass = sleepPreview.filterLabel === 'Contrast'
         ? 'filter-contrast'
         : sleepPreview.filterLabel === 'Inverted'
           ? 'filter-inverted'
           : '';
       const customFitClass = sleepPreview.coverMode === 1 ? '' : 'fit-contain';
+      function splitRomanClockLabel(label) {
+        const separator = String(label || '').indexOf(':');
+        if (separator === -1) return { hour: String(label || ''), minute: '' };
+        return {
+          hour: String(label || '').slice(0, separator),
+          minute: String(label || '').slice(separator + 1),
+        };
+      }
+      function romanGlyphBoxWidth(height) {
+        return Math.max(20, Math.round(height / 2));
+      }
+      function romanGlyphStrokeWidth(height) {
+        return Math.max(6, Math.round(height / 8));
+      }
+      function romanGlyphGap(height) {
+        return Math.max(6, Math.round(height / 12));
+      }
+      function romanTextWidth(text, height) {
+        if (!text) return 0;
+        return text.length * romanGlyphBoxWidth(height) + (text.length - 1) * romanGlyphGap(height);
+      }
+      function fitRomanTextHeight(text, maxWidth, maxHeight) {
+        if (!text) return 0;
+        for (let height = maxHeight; height >= 48; height -= 1) {
+          if (romanTextWidth(text, height) <= maxWidth) return height;
+        }
+        return 48;
+      }
+      function renderRomanGlyphSvg(glyph, x, y, height) {
+        const width = romanGlyphBoxWidth(height);
+        const stroke = romanGlyphStrokeWidth(height);
+        const left = x + stroke / 2;
+        const right = x + width - stroke / 2 - 1;
+        const midX = x + width / 2;
+        const bottom = y + height - 1;
+        if (glyph === 'I') {
+          return '<rect x="' + (midX - stroke / 2) + '" y="' + y + '" width="' + stroke + '" height="' + height + '" fill="currentColor" />';
+        }
+        if (glyph === 'V') {
+          return '<line x1="' + left + '" y1="' + y + '" x2="' + midX + '" y2="' + bottom + '" stroke="currentColor" stroke-width="' + stroke + '" stroke-linecap="square" />' +
+            '<line x1="' + right + '" y1="' + y + '" x2="' + midX + '" y2="' + bottom + '" stroke="currentColor" stroke-width="' + stroke + '" stroke-linecap="square" />';
+        }
+        if (glyph === 'X') {
+          return '<line x1="' + left + '" y1="' + y + '" x2="' + right + '" y2="' + bottom + '" stroke="currentColor" stroke-width="' + stroke + '" stroke-linecap="square" />' +
+            '<line x1="' + right + '" y1="' + y + '" x2="' + left + '" y2="' + bottom + '" stroke="currentColor" stroke-width="' + stroke + '" stroke-linecap="square" />';
+        }
+        return '';
+      }
+      function renderRomanTextSvg(text, x, y, height) {
+        const boxWidth = romanGlyphBoxWidth(height);
+        const gap = romanGlyphGap(height);
+        let cursorX = x;
+        let svg = '';
+        Array.from(text || '').forEach(glyph => {
+          svg += renderRomanGlyphSvg(glyph, cursorX, y, height);
+          cursorX += boxWidth + gap;
+        });
+        return svg;
+      }
+      function renderRomanClockSvg(label, viewportWidth, viewportHeight) {
+        const parts = splitRomanClockLabel(label);
+        if (!parts.hour) return '';
+        const pageWidth = Math.max(320, Math.round(viewportWidth || 480));
+        const pageHeight = Math.max(480, Math.round(viewportHeight || 800));
+        const sideMargin = Math.max(24, Math.round(pageWidth * 0.075));
+        const contentGap = Math.max(18, Math.round(pageWidth * 0.054));
+        const hasMinute = !!parts.minute;
+        const minuteWidthBudget = hasMinute ? Math.max(96, Math.round(pageWidth / 3)) : 0;
+        const hourWidthBudget = Math.max(120, pageWidth - sideMargin * 2 - (hasMinute ? minuteWidthBudget + contentGap : 0));
+        const hourHeight = fitRomanTextHeight(parts.hour, hourWidthBudget, Math.round(pageHeight / 3));
+        const minuteHeight = hasMinute ? fitRomanTextHeight(parts.minute, minuteWidthBudget, Math.round(pageHeight / 4)) : 0;
+        const hourWidth = romanTextWidth(parts.hour, hourHeight);
+        const minuteWidth = hasMinute ? romanTextWidth(parts.minute, minuteHeight) : 0;
+        const contentWidth = hourWidth + (hasMinute ? contentGap + minuteWidth : 0);
+        const hourX = (pageWidth - contentWidth) / 2;
+        const hourY = Math.max(40, (pageHeight - hourHeight) / 2);
+        let svg = renderRomanTextSvg(parts.hour, hourX, hourY, hourHeight);
+        if (hasMinute) {
+          const minuteX = hourX + hourWidth + contentGap;
+          const minuteY = hourY + Math.max(0, (hourHeight - minuteHeight) / 2);
+          svg += renderRomanTextSvg(parts.minute, minuteX, minuteY, minuteHeight);
+        }
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + pageWidth + ' ' + pageHeight + '" preserveAspectRatio="xMidYMid meet" aria-hidden="true">' + svg + '</svg>';
+      }
       let inner = '';
       if (sleepPreview.mode === 2) {
         const usesPokedexSource = sleepPreview.sourceLabel === 'Pokédex' || sleepPreview.sourceLabel === 'Sleep + Pokédex';
         const customSource = sleepPreview.studioImagePath || (usesPokedexSource ? sleepPreview.pokedexPreviewPath : sleepPreview.coverPath);
         inner = '<img class="sleep-preview-image ' + customFitClass + ' ' + customFilterClass + '" src="' + escapeHtml(customSource) + '" alt="' +
           escapeHtml(sleepPreview.studioFileName || 'Custom sleep image') + '" />';
+      } else if (sleepPreview.mode === 8) {
+        const romanSvg = renderRomanClockSvg(
+          sleepPreview.romanClockLabel,
+          sleepPreviewOverlay.clientWidth,
+          sleepPreviewOverlay.clientHeight
+        );
+        inner = '<div class="sleep-preview-roman">' + romanSvg + '</div>';
       } else if (sleepPreview.mode === 3) {
         inner = '';
       } else {
@@ -6333,7 +6271,6 @@
       setupHoverDocs();
       setupCardIcons();
       setupEvents();
-      setupFontConverter();
       setupWallpaperStudio();
       setupGitHubBuildTrigger();
       setupWifiTab();
