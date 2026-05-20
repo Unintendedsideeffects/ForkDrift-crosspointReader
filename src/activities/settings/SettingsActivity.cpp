@@ -51,11 +51,10 @@ void SettingsActivity::rebuildSettingsLists() {
 
   const auto& allSettings = getSettingsList(&sdFontSystem.registry());
   auto addControlSetting = [&](StrId nameId) {
-    for (const auto& s : allSettings) {
-      if (s.nameId == nameId) {
-        controlsSettings.push_back(s);
-        break;
-      }
+    const auto it = std::find_if(allSettings.begin(), allSettings.end(),
+                                 [nameId](const auto& s) { return s.nameId == nameId; });
+    if (it != allSettings.end()) {
+      controlsSettings.push_back(*it);
     }
   };
   auto addControlSettingByKey = [&](const char* key) {

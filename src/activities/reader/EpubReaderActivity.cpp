@@ -103,6 +103,8 @@ void EpubReaderActivity::onEnter() {
   ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
 
   epub->setupCacheDir();
+  stats = BookReadingStats::load(epub->getCachePath());
+  completionPromptShown = stats.isCompleted;
 
   FsFile f;
   if (Storage.openFileForRead("ERS", epub->getCachePath() + "/progress.bin", f)) {
@@ -236,7 +238,7 @@ void EpubReaderActivity::loop() {
     const int bookProgressPercent = roundPercent(bookProgress);
     startActivityForResult(std::make_unique<EpubReaderMenuActivity>(
                                renderer, mappedInput, epub->getTitle(), currentPage, totalPages, bookProgressPercent,
-                               SETTINGS.orientation, !currentPageFootnotes.empty()),
+                               SETTINGS.orientation, !currentPageFootnotes.empty(), stats.isCompleted),
                            [this](const ActivityResult& result) {
                              // Always apply orientation change even if the menu was cancelled
                              const auto& menu = std::get<MenuResult>(result.data);
@@ -723,6 +725,11 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       }
       activityManager.goHome();
       return;
+    }
+    case EpubReaderMenuActivity::MenuAction::TOGGLE_COMPLETED: {
+      setBookCompleted(!stats.isCompleted);
+      requestUpdate();
+      break;
     }
     case EpubReaderMenuActivity::MenuAction::SCREENSHOT: {
       {
