@@ -13,7 +13,7 @@
 enum PageElementTag : uint8_t {
   TAG_PageLine = 1,
   TAG_PageImage = 2,
-  TAG_PageTableFragment = 3,  // reserved for future table fragment port
+  TAG_PageTableFragment = 3,
   TAG_PageHorizontalRule = 4,
 };
 
@@ -73,6 +73,53 @@ class PageHorizontalRule final : public PageElement {
   static std::unique_ptr<PageHorizontalRule> deserialize(FsFile& file);
 };
 
+struct TableFragmentCell {
+  static constexpr uint8_t MAX_SERIALIZED_LINES = 64;
+  bool isHeader = false;
+  std::vector<std::shared_ptr<TextBlock>> lines;
+
+  bool serialize(FsFile& file) const;
+  static bool deserialize(FsFile& file, TableFragmentCell& outCell);
+};
+
+struct TableFragmentRow {
+  static constexpr uint8_t MAX_SERIALIZED_CELLS = 8;
+  uint16_t height = 0;
+  bool headerSeparator = false;
+  std::vector<TableFragmentCell> cells;
+
+  bool serialize(FsFile& file) const;
+  static bool deserialize(FsFile& file, TableFragmentRow& outRow);
+};
+
+class PageTableFragment final : public PageElement {
+ public:
+  static constexpr uint8_t MAX_SERIALIZED_ROWS = 64;
+
+ private:
+  uint16_t width;
+  uint8_t columnCount;
+  uint8_t cellPadding;
+  uint16_t lineHeight;
+  std::vector<TableFragmentRow> rows;
+
+ public:
+  PageTableFragment(uint16_t width, uint8_t columnCount, uint8_t cellPadding, uint16_t lineHeight,
+                    std::vector<TableFragmentRow> rows, int16_t xPos, int16_t yPos)
+      : PageElement(xPos, yPos),
+        width(width),
+        columnCount(columnCount),
+        cellPadding(cellPadding),
+        lineHeight(lineHeight),
+        rows(std::move(rows)) {}
+
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) override;
+  bool serialize(FsFile& file) override;
+  PageElementTag getTag() const override { return TAG_PageTableFragment; }
+  static std::unique_ptr<PageTableFragment> deserialize(FsFile& file);
+  uint16_t getHeight() const;
+};
+
 class Page {
  public:
   // the list of block index and line numbers on this page
@@ -91,6 +138,8 @@ class Page {
   }
 
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) const;
+  void renderText(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) const;
+  void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) const;
   bool serialize(FsFile& file) const;
   static std::unique_ptr<Page> deserialize(FsFile& file);
 
