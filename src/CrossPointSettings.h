@@ -346,6 +346,7 @@ class CrossPointSettings {
   char sdFontFamilyName[32] = "";
   // Show hidden files/directories (starting with '.') in the file browser (0 = hidden, 1 = show)
   uint8_t showHiddenFiles = 0;
+  uint8_t moveFinishedToReadFolder = 0;
   // Mirror firmware logs to /crosspoint-debug.log on the SD card.
   uint8_t developerMode = 0;
   // Image rendering mode in EPUB reader

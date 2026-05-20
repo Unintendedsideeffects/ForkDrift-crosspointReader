@@ -359,6 +359,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
       "sleepTimeoutMinutes", StrId::STR_CAT_SYSTEM));
   list.push_back(SettingInfo::Toggle(StrId::STR_SHOW_HIDDEN_FILES, &CrossPointSettings::showHiddenFiles,
                                      "showHiddenFiles", StrId::STR_CAT_SYSTEM));
+  list.push_back(SettingInfo::Toggle(StrId::STR_MOVE_FINISHED_TO_READ, &CrossPointSettings::moveFinishedToReadFolder,
+                                     "moveFinishedToReadFolder", StrId::STR_CAT_SYSTEM));
   list.push_back(SettingInfo::Toggle(StrId::STR_DEVELOPER_MODE, &CrossPointSettings::developerMode, "developerMode",
                                      StrId::STR_CAT_SYSTEM));
 
