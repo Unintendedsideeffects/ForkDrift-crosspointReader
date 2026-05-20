@@ -114,8 +114,7 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
                          const bool attachToPrevious) {
   if (word.empty()) return;
 
-  if (guideReadingEnabled && !attachToPrevious && !words.empty() &&
-      blockStyle.alignment != CssTextAlign::Justify) {
+  if (guideReadingEnabled && !attachToPrevious && !words.empty()) {
     words.emplace_back("\xc2\xb7");
     wordStyles.push_back(EpdFontFamily::REGULAR);
     wordContinues.push_back(false);
