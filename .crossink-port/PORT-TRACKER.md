@@ -51,11 +51,11 @@ stats/progress signature extension across all themes (642402f8/8154c9a5);
 - [x] 642402f8 home progress bar for current book (Lyra) #28 — extends
       drawRecentBookCover signature (stats/progressPercent) across ALL themes
       (BaseTheme+Lyra+ForkDrift+Minimal); do before carousel + with Phase 3.
-- [ ] 971a62ee LyraCarouselTheme carousel style tweak [carousel-dep]
-- [ ] 8154c9a5 stats on lyra carousel home, title above cover [carousel-dep, P3]
-- [ ] 9a9054cb perf: reduce Lyra Carousel RAM frame cache [carousel-dep]
-- [ ] bdc65f27 update Lyra Carousel progress footer [carousel-dep, P3]
-- [ ] 0c7e11a3 style: lyra reading stat bar width [carousel-dep]
+- [x] 971a62ee LyraCarouselTheme carousel style tweak [carousel-dep]
+- [x] 8154c9a5 stats on lyra carousel home, title above cover [carousel-dep, P3]
+- [x] 9a9054cb perf: reduce Lyra Carousel RAM frame cache [carousel-dep]
+- [x] bdc65f27 update Lyra Carousel progress footer [carousel-dep, P3]
+- [x] 0c7e11a3 style: lyra reading stat bar width [carousel-dep]
 - [x] 684946c5 fix(theme): roundedraff padding — applied exact deltas manually
       (forks diverged 124/63 but patched regions pristine): contentSidePadding
       20→15, kInteractiveInsetX 20→15, +kHomeMenuSidePadding/kListSidePadding/
@@ -143,11 +143,11 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
 - [x] a27ee056 file-browser mark finished action
 - [x] d4f644eb session-count threshold
 - [x] 3535f228 sleep screen reading stats option
-- [ ] 7aca0245 asterisk for favorited sleep images
+- [x] 7aca0245 asterisk for favorited sleep images
 - [x] 993215b8 pin a favorite sleep image
-- [ ] 0ac24e61 hide battery on transparent overlay while sleeping
+- [x] 0ac24e61 hide battery on transparent overlay while sleeping
 - [x] 996c37c9 page overlay translations
-- [ ] 9689ea5c page overlay logging  ← reader lane: remaining Phase 3
+- [≈] 9689ea5c page overlay logging  ← N/A: ForkDrift logging infrastructure differs, diagnostic not portable
 
 ## Phase 4 — Controls, power button, pickers
 - [x] efe9a5c1 quick font size/family via side buttons — sideButtonLongPress enum
