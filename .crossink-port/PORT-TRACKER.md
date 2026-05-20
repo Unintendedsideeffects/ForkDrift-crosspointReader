@@ -126,12 +126,12 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
       viewport centered, 2px thick, lineHeight/2 spacing); <hr> inside table skips
       (ForkDrift has no currentTableBuffer); <hr> outside table calls emitHorizontalRule
       with embedded-style CSS support. Build SUCCESS, RAM 44.5%.
-- [ ] 61c8d78f improve table rendering (#89)
-- [ ] 32e189ef draw borders for simple tables
-- [ ] 431430aa colSpan header/footer rows (#90)
-- [ ] ecf19d3e grayscale images even when AA off
-- [ ] 081f170d improve cover rendering
-- [ ] f39a11fe progressive jpeg cover support
+- [x] 61c8d78f improve table rendering (#89)
+- [x] 32e189ef draw borders for simple tables
+- [x] 431430aa colSpan header/footer rows (#90)
+- [x] ecf19d3e grayscale images even when AA off
+- [x] 081f170d improve cover rendering
+- [x] f39a11fe progressive jpeg cover support
 
 ## Phase 3 — Reading stats & finished tracking
 - [ ] 5331fe82 improve reading stats display
@@ -139,14 +139,14 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
 - [ ] 7f4705e0 global book stats match per-book
 - [ ] cebb6cbf mark books finished + track stats
 - [ ] 60415e57 ask if finished at 99%
-- [ ] 815f2fbd move epubs to read folder when finished
-- [ ] a27ee056 file-browser mark finished action
+- [x] 815f2fbd move epubs to read folder when finished
+- [x] a27ee056 file-browser mark finished action
 - [ ] d4f644eb session-count threshold
 - [ ] 3535f228 sleep screen reading stats option
 - [ ] 7aca0245 asterisk for favorited sleep images
 - [ ] 993215b8 pin a favorite sleep image
 - [ ] 0ac24e61 hide battery on transparent overlay while sleeping
-- [ ] 996c37c9 page overlay translations
+- [x] 996c37c9 page overlay translations
 - [ ] 9689ea5c page overlay logging
 
 ## Phase 4 — Controls, power button, pickers
