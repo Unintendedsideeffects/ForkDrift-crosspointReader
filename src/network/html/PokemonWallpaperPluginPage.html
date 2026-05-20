@@ -787,13 +787,19 @@
     const normalized = normalizeSearchText(raw);
     const compact = normalized.replace(/\s+/g, "");
     const digits = compact.replace(/\D/g, "");
+    const leadingIdMatch = raw.match(/^\s*#?\s*(\d+)(?:\s|[-–—:#.]|$)/);
+    const leadingDigits = leadingIdMatch ? leadingIdMatch[1].replace(/^0+(?=\d)/, "") : "";
+    const isNumeric = !!compact && /^\d+$/.test(compact);
+    const digitQuery = isNumeric ? digits.replace(/^0+(?=\d)/, "") : leadingDigits;
     return {
       raw: raw,
       normalized: normalized,
       compact: compact,
       digits: digits,
-      isNumeric: !!compact && /^\d+$/.test(compact),
-      bloom: buildBloomFilter(raw)
+      digitQuery: digitQuery,
+      isNumeric: isNumeric,
+      hasIdIntent: !!digitQuery,
+      bloom: buildBloomFilter(digitQuery || raw)
     };
   }
 
@@ -803,11 +809,11 @@
     const bloomHit = bloomMatches(entry.bloom, query.bloom);
     let score = 0;
 
-    if (query.isNumeric) {
-      if (entry.idText === query.digits) score += 10000;
-      if (query.digits.startsWith(entry.idText)) score += 7000 + (entry.idText.length * 80);
-      if (entry.idText.startsWith(query.digits)) score += 5600 + (query.digits.length * 60);
-      if (entry.idText.indexOf(query.digits) !== -1) score += 2800;
+    if (query.hasIdIntent) {
+      if (entry.idText === query.digitQuery) score += 10000;
+      if (query.digitQuery.startsWith(entry.idText)) score += 7000 + (entry.idText.length * 80);
+      if (entry.idText.startsWith(query.digitQuery)) score += 5600 + (query.digitQuery.length * 60);
+      if (entry.idText.indexOf(query.digitQuery) !== -1) score += 2800;
       if (entry.labelCompact === query.compact) score += 1200;
       if (bloomHit) score += 60;
       return score >= 1000 ? score : 0;
@@ -865,10 +871,10 @@
   }
 
   function describeSuggestion(entry, query) {
-    if (query.isNumeric) {
-      if (entry.idText === query.digits) return "Exact ID";
-      if (query.digits.startsWith(entry.idText)) return "ID prefix";
-      if (entry.idText.startsWith(query.digits)) return "Numeric match";
+    if (query.hasIdIntent) {
+      if (entry.idText === query.digitQuery) return "Exact ID";
+      if (query.digitQuery.startsWith(entry.idText)) return "ID prefix";
+      if (entry.idText.startsWith(query.digitQuery)) return "Numeric match";
       return "Numeric match";
     }
     if (entry.compactName === query.compact || entry.normalizedName === query.normalized) return "Exact name";
@@ -902,12 +908,12 @@
 
   async function refreshResolvedPokemonName(rawInput, token) {
     const query = buildSearchQuery(rawInput);
-    if (!query.isNumeric || !query.digits) {
+    if (!query.hasIdIntent || !query.digitQuery) {
       if (token === suggestionToken) setResolvedPokemonName("");
       return;
     }
 
-    const numericId = parseInt(query.digits, 10);
+    const numericId = parseInt(query.digitQuery, 10);
     if (!(numericId >= 1 && numericId <= MAX_POKEMON_ID)) {
       if (token === suggestionToken) setResolvedPokemonName("");
       return;
@@ -983,8 +989,8 @@
       throw new Error("Enter a Pokemon name or ID.");
     }
 
-    if (query.isNumeric && query.digits) {
-      const numericId = parseInt(query.digits, 10);
+    if (query.hasIdIntent && query.digitQuery) {
+      const numericId = parseInt(query.digitQuery, 10);
       if (numericId >= 1 && numericId <= MAX_POKEMON_ID) {
         const directMatches = await findPokemonMatches(String(numericId), 1).catch(function() { return []; });
         return directMatches[0] || buildSearchEntry(numericId, String(numericId));
@@ -1103,8 +1109,8 @@
     let lookupKey = rawKey;
     const aliases = [rawKey, query.compact];
 
-    if (query.isNumeric && query.digits) {
-      lookupKey = String(parseInt(query.digits, 10));
+    if (query.hasIdIntent && query.digitQuery) {
+      lookupKey = String(parseInt(query.digitQuery, 10));
     } else {
       try {
         const resolved = await resolvePokemonLookup(rawInput);
