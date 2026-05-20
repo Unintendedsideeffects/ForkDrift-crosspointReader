@@ -223,13 +223,9 @@ void EpubReaderActivity::onEnter() {
   RECENT_BOOKS.addBook(epub->getPath(), epub->getTitle(), epub->getAuthor(), epub->getThumbBmpPath(240));
 
   stats = BookReadingStats::load(epub->getCachePath());
-  stats.sessionCount++;
   sessionStartMs = millis();
-  stats.save(epub->getCachePath());
 
   globalStats = GlobalReadingStats::load();
-  globalStats.totalSessions++;
-  globalStats.save();
 
   initializeCompletionPromptTrigger();
 
@@ -262,7 +258,11 @@ void EpubReaderActivity::onExit() {
 
   if (epub) {
     const unsigned long elapsedMs = millis() - sessionStartMs;
-    if (elapsedMs >= 3000UL) {
+    if (elapsedMs >= 60000UL) {
+      stats.sessionCount++;
+      globalStats.totalSessions++;
+    }
+    if (elapsedMs >= 10000UL) {
       const uint32_t elapsedSecs = static_cast<uint32_t>(elapsedMs / 1000UL);
       stats.totalReadingSeconds += elapsedSecs;
       globalStats.totalReadingSeconds += elapsedSecs;
