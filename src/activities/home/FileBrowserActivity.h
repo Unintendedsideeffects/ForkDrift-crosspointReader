@@ -9,13 +9,10 @@
 
 class FileBrowserActivity final : public Activity {
  public:
-  // Books = standard reader browser; PickFirmware = filter to .bin only and return path via ActivityResult.
   enum class Mode { Books, PickFirmware };
 
  private:
   ButtonNavigator buttonNavigator;
-  // True when this activity was entered while Confirm was already held; we must swallow the next
-  // release so we don't immediately auto-open the first entry.
   bool lockNextConfirmRelease = false;
 
   Mode mode = Mode::Books;
@@ -25,11 +22,18 @@ class FileBrowserActivity final : public Activity {
   bool lockLongPressBack = false;
   bool longPressBackHandled = false;
   bool longPressConfirmHandled = false;
+  bool pendingCompletedFeedback = false;
+  bool completedFeedbackIsFinished = false;
+  unsigned long completedFeedbackShowTime = 0UL;
 
   void loadFiles();
   void toggleHiddenFiles();
   void confirmDeleteEntry(const std::string& entry);
   void clearFileMetadata(const std::string& fullPath);
+  bool clearBookCache(const std::string& fullPath);
+  bool isEpubCompleted(const std::string& fullPath) const;
+  void toggleEpubCompleted(const std::string& fullPath, const std::string& entry);
+  void showFileActionMenu(const std::string& entry, bool ignoreInitialConfirmRelease = false);
   void onSelectBook(const std::string& fullPath);
   void onGoHome();
   size_t findEntry(const std::string& name) const;
