@@ -203,6 +203,7 @@ The Settings screen allows you to configure the device's behavior. There are a f
 - **Clear Reading Cache**: Clear the internal SD card cache.
 - **Check for updates**: Check for Crosspoint firmware updates over WiFi.
 - **Language**: Set the system language (see **[Supported Languages](#supported-languages)** for more information).
+- **Boot to TRMNL when charging** *(builds with TRMNL Switch enabled, only)*: When on, plugging the device in and powering it up boots into the TRMNL firmware in the secondary OTA partition instead of the reader. Unplugged boots stay on the reader. Note: the reader is the only side aware of this policy — TRMNL will not auto-return when you unplug. To get back to the reader, use TRMNL's own switch or boot unplugged. For this to work as expected, the reader should be flashed as the default boot partition; otherwise an unplugged cold boot may still land on TRMNL. A warning is logged if the running partition is not the expected default slot.
 
 #### 3.6.5 OPDS Servers (Multiple Libraries)
 
