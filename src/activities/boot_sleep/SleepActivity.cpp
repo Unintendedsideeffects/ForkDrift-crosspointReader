@@ -28,6 +28,35 @@
 
 namespace {
 
+void hideOverlayBatteryStrip(GfxRenderer& renderer) {
+  if (!SETTINGS.statusBarBattery) {
+    return;
+  }
+
+  const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();
+  int orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft;
+  renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
+                                   &orientedMarginLeft);
+
+  const int statusBarHeight = UITheme::getInstance().getStatusBarHeight();
+  if (statusBarHeight <= 0) {
+    return;
+  }
+
+  const int textY = renderer.getScreenHeight() - statusBarHeight - orientedMarginBottom - 4;
+  const bool showBatteryPercentage =
+      SETTINGS.hideBatteryPercentage == CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_NEVER;
+
+  static constexpr int bookmarkReserveWidth = 13;
+  static constexpr int batteryPercentSpacing = 4;
+  const int clearWidth =
+      bookmarkReserveWidth + metrics.batteryWidth +
+      (showBatteryPercentage ? batteryPercentSpacing + renderer.getTextWidth(SMALL_FONT_ID, "100%") : 0);
+  const int clearHeight = std::max(renderer.getTextHeight(SMALL_FONT_ID), metrics.batteryHeight + 6);
+
+  renderer.fillRect(metrics.statusBarHorizontalMargin + orientedMarginLeft + 1, textY, clearWidth, clearHeight, false);
+}
+
 // Supported image extensions for sleep images
 #if ENABLE_IMAGE_SLEEP
 const char* SLEEP_IMAGE_EXTENSIONS[] = {".bmp", ".png", ".jpg", ".jpeg"};
@@ -610,10 +639,10 @@ void SleepActivity::renderReadingStatsSleepScreen() const {
 }
 
 void SleepActivity::renderTransparentSleepScreen() const {
-  // Preserve current e-ink content: do NOT clear the screen.
-  // Just draw a small lock icon in the bottom status bar area.
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
+
+  hideOverlayBatteryStrip(renderer);
 
   drawLockIcon(pageWidth / 2, pageHeight - 14);
 
