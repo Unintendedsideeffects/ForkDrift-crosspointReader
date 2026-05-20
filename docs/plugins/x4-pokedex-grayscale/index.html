@@ -108,18 +108,15 @@
       line-height: 1.05;
     }
 
-    .subtitle {
-      color: var(--gray-4);
-      font-size: 13px;
-      line-height: 1.5;
-      max-width: 860px;
-    }
-
     .layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 340px;
       gap: 16px;
       align-items: start;
+    }
+
+    .layout > * {
+      min-width: 0;
     }
 
     .controls {
@@ -137,6 +134,48 @@
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 8px;
       align-items: end;
+    }
+
+    .split-row-scale {
+      align-items: center;
+    }
+
+    .style-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      align-items: center;
+    }
+
+    .style-col {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .option-groups {
+      display: grid;
+      gap: 12px;
+    }
+
+    .option-group {
+      padding: 0 14px;
+    }
+
+    .group-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--gray-4);
+      margin-bottom: 6px;
+    }
+
+    .option-grid.two-col {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: 14px;
+      row-gap: 10px;
     }
 
     .input-stack {
@@ -267,12 +306,6 @@
       padding: 0 4px;
     }
 
-    .search-meta {
-      font-size: 11px;
-      color: var(--gray-4);
-      line-height: 1.45;
-    }
-
     .search-live-name {
       min-height: 14px;
       font-size: 12px;
@@ -348,22 +381,15 @@
       position: sticky;
       top: 16px;
       display: grid;
-      gap: 12px;
+      justify-items: center;
     }
 
-    .canvas-wrap {
-      border: 2px solid var(--black);
-      background: var(--white);
-      padding: 12px;
-    }
-
-    canvas {
+    #previewCanvas {
       display: block;
       width: 100%;
       max-width: 312px;
-      margin: 0 auto;
       background: var(--white);
-      border: 1px solid var(--gray-8);
+      border: 2px solid var(--black);
       image-rendering: pixelated;
     }
 
@@ -387,11 +413,45 @@
 
     @media (max-width: 980px) {
       .layout {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
       }
 
       .preview-column {
-        position: static;
+        position: sticky;
+        top: 12px;
+      }
+
+      .controls {
+        gap: 10px;
+      }
+
+      .controls .card {
+        padding: 10px;
+      }
+
+      .controls label {
+        font-size: 10px;
+      }
+
+      .controls input[type="text"],
+      .controls select {
+        padding: 8px;
+        font-size: 12px;
+      }
+
+      .controls .hint {
+        font-size: 11px;
+      }
+
+      .controls .btn {
+        padding: 8px 10px;
+        font-size: 11px;
+      }
+
+      .style-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
       }
     }
 
@@ -419,11 +479,6 @@
       <div class="headline-top">
         <h1>X4 Grayscale Pokedex Wallpaper</h1>
       </div>
-      <p class="subtitle">
-        Updated companion version for CrossPoint Reader. This page mirrors the newer Pokedex layout and control set,
-        but keeps the GitHub Pages workflow download-first: generate XTEink X4 (480 x 800) BMP files here, then copy
-        them to <code>/sleep/pokedex</code> on the SD card.
-      </p>
     </section>
 
     <section class="layout">
@@ -436,56 +491,70 @@
               <button class="btn secondary" id="randomBtn" type="button">Random</button>
             </div>
             <div class="search-live-name" id="pokemonResolvedName" hidden aria-live="polite"></div>
-            <div class="search-meta" id="pokemonSearchMeta">Search ignores accents and punctuation.</div>
             <div class="search-suggestions" id="pokemonSuggestions" hidden></div>
           </div>
         </section>
 
         <section class="card control-block">
-          <label for="artStyle">Art Style</label>
-          <select id="artStyle">
-            <option value="pixel" selected>Classic Pixel</option>
-            <option value="official">Official Artwork</option>
-            <option value="dream">Dream World</option>
-            <option value="home">3D Render</option>
-          </select>
-        </section>
-
-        <section class="card control-block">
-          <label for="fontMode">Text Font</label>
-          <select id="fontMode">
-            <option value="vintage" selected>VT323 (Retro)</option>
-            <option value="clean">Pixelify Sans (Clean)</option>
-            <option value="mono">Courier New</option>
-            <option value="pixel">Press Start 2P</option>
-            <option value="display">Serif Display</option>
-            <option value="sans">Sans Serif</option>
-            <option value="custom">Custom Stack</option>
-          </select>
-          <input id="customFont" type="text" placeholder="Custom CSS font stack (optional)" />
-        </section>
-
-        <section class="card control-block">
-          <label for="bgStyle">Background</label>
-          <select id="bgStyle">
-            <option value="white" selected>All White</option>
-            <option value="diagonal">Classic Diagonal</option>
-            <option value="black">All Black</option>
-          </select>
+          <div class="style-row">
+            <div class="style-col">
+              <label for="artStyle">Art Style</label>
+              <select id="artStyle">
+                <option value="pixel" selected>Classic Pixel</option>
+                <option value="official">Official Artwork</option>
+                <option value="dream">Dream World</option>
+                <option value="home">3D Render</option>
+              </select>
+            </div>
+            <div class="style-col">
+              <label for="fontMode">Text Font</label>
+              <select id="fontMode">
+                <option value="vintage" selected>VT323 (Retro)</option>
+                <option value="clean">Pixelify Sans (Clean)</option>
+                <option value="mono">Courier New</option>
+                <option value="pixel">Press Start 2P</option>
+                <option value="display">Serif Display</option>
+                <option value="sans">Sans Serif</option>
+                <option value="custom">Custom Stack</option>
+              </select>
+              <input id="customFont" type="text" placeholder="Custom CSS font stack (optional)" hidden />
+            </div>
+            <div class="style-col">
+              <label for="bgStyle">Background</label>
+              <select id="bgStyle">
+                <option value="white" selected>All White</option>
+                <option value="diagonal">Classic Diagonal</option>
+                <option value="black">All Black</option>
+              </select>
+            </div>
+          </div>
         </section>
 
         <section class="card control-block">
           <label for="spriteScale">Sprite Size</label>
-          <input id="spriteScale" type="range" min="0.5" max="3.0" step="0.1" value="1.2" />
+          <div class="split-row split-row-scale">
+            <input id="spriteScale" type="range" min="0.5" max="3.0" step="0.1" value="1.2" />
+            <button class="btn secondary" id="resetSpriteScaleBtn" type="button">Reset</button>
+          </div>
           <p class="hint" id="spriteScaleLabel">Current scale: 1.2x</p>
-          <div class="option-grid">
-            <label><input id="boldText" type="checkbox" checked /> Bold text</label>
-            <label><input id="spriteOverlay" type="checkbox" /> Sprite over text layer</label>
-            <label><input id="showTypes" type="checkbox" checked /> Show type pill</label>
-            <label><input id="showRegion" type="checkbox" checked /> Region</label>
-            <label><input id="showFind" type="checkbox" checked /> Find</label>
-            <label><input id="showHeight" type="checkbox" checked /> Height</label>
-            <label><input id="showWeight" type="checkbox" checked /> Weight</label>
+          <div class="option-groups">
+            <div class="option-group">
+              <div class="group-label">Display</div>
+              <div class="option-grid">
+                <label><input id="boldText" type="checkbox" checked /> Bold text</label>
+                <label><input id="spriteOverlay" type="checkbox" /> Sprite over text layer</label>
+                <label><input id="showTypes" type="checkbox" checked /> Show type pill</label>
+              </div>
+            </div>
+            <div class="option-group">
+              <div class="group-label">Card info</div>
+              <div class="option-grid two-col">
+                <label><input id="showRegion" type="checkbox" checked /> Region</label>
+                <label><input id="showHeight" type="checkbox" checked /> Height</label>
+                <label><input id="showFind" type="checkbox" checked /> Find</label>
+                <label><input id="showWeight" type="checkbox" checked /> Weight</label>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -563,10 +632,7 @@
       </div>
 
       <aside class="preview-column">
-        <section class="canvas-wrap">
-          <canvas id="previewCanvas" width="480" height="800"></canvas>
-        </section>
-
+        <canvas id="previewCanvas" width="480" height="800"></canvas>
       </aside>
     </section>
   </div>
@@ -576,6 +642,7 @@
     const SCREEN_HEIGHT = 800;
     const MAX_POKEMON_ID = 1025;
     const MIN_SPRITE_SCALE = 0.5;
+    const DEFAULT_SPRITE_SCALE = 1.2;
     const MAX_SPRITE_SCALE = 3.0;
     const MAX_FLAVOR_TEXT_LINES = 3;
     const MAX_EVOLUTION_TEXT_LINES = 2;
@@ -620,8 +687,8 @@
     const statusBox = document.getElementById("statusBox");
     const input = document.getElementById("pokemonInput");
     const resolvedName = document.getElementById("pokemonResolvedName");
-    const searchMeta = document.getElementById("pokemonSearchMeta");
     const suggestionsBox = document.getElementById("pokemonSuggestions");
+    const resetSpriteScaleBtn = document.getElementById("resetSpriteScaleBtn");
     const previewBtn = document.getElementById("previewBtn");
     const downloadBtn = document.getElementById("downloadBtn");
     const randomBtn = document.getElementById("randomBtn");
@@ -1021,12 +1088,6 @@
       return topExact.concat(fuzzySlice);
     }
 
-    function setSearchMeta(message) {
-      if (searchMeta) {
-        searchMeta.textContent = message;
-      }
-    }
-
     function setResolvedPokemonName(message) {
       if (!resolvedName) return;
       if (!message) {
@@ -1041,7 +1102,6 @@
     function hidePokemonSuggestions() {
       suggestionsBox.hidden = true;
       suggestionsBox.innerHTML = "";
-      setSearchMeta("Search ignores accents and punctuation.");
     }
 
     async function refreshResolvedPokemonName(rawInput, token) {
@@ -1079,7 +1139,6 @@
       if (!results.length) {
         suggestionsBox.hidden = false;
         suggestionsBox.innerHTML = '<div class="search-empty">No matching Pokemon yet.</div>';
-        setSearchMeta("Search ignores accents and punctuation.");
         return;
       }
 
@@ -1104,7 +1163,6 @@
 
       suggestionsBox.hidden = false;
       suggestionsBox.innerHTML = html;
-      setSearchMeta(results.length + " suggestion" + (results.length === 1 ? "" : "s") + " ready.");
     }
 
     async function refreshPokemonSuggestions() {
@@ -1129,7 +1187,6 @@
         if (token !== suggestionToken) return;
         suggestionsBox.hidden = false;
         suggestionsBox.innerHTML = '<div class="search-empty">' + escapeHtml(error.message) + '</div>';
-        setSearchMeta("Pokemon search unavailable.");
       }
     }
 
@@ -1325,6 +1382,20 @@
       return lines;
     }
 
+    function syncCustomFontField() {
+      customFontInput.hidden = fontModeSelect.value !== "custom";
+    }
+
+    function updateSpriteScaleLabel() {
+      spriteScaleLabel.textContent = "Current scale: " + (parseFloat(spriteScaleInput.value) || DEFAULT_SPRITE_SCALE).toFixed(1) + "x";
+    }
+
+    function resetSpriteScale() {
+      spriteScaleInput.value = String(DEFAULT_SPRITE_SCALE);
+      updateSpriteScaleLabel();
+      renderCurrentPokemon();
+    }
+
     function getFontFamily() {
       if (fontModeSelect.value === "pixel") return "'Press Start 2P', cursive";
       if (fontModeSelect.value === "vintage") return "'VT323', monospace";
@@ -1343,7 +1414,7 @@
       return {
         artStyle: artStyleSelect.value,
         background: bgStyleSelect.value,
-        spriteScale: Math.max(MIN_SPRITE_SCALE, Math.min(MAX_SPRITE_SCALE, parseFloat(spriteScaleInput.value) || 1.0)),
+        spriteScale: Math.max(MIN_SPRITE_SCALE, Math.min(MAX_SPRITE_SCALE, parseFloat(spriteScaleInput.value) || DEFAULT_SPRITE_SCALE)),
         spriteOverlay: spriteOverlayInput.checked,
         showTypes: showTypesInput.checked,
         showRegion: showRegionInput.checked,
@@ -1585,42 +1656,70 @@
       const stats = (pokemon.stats || []).filter(function(entry) {
         return entry && entry.stat && wanted[entry.stat.name];
       });
+      if (!stats.length) {
+        return startY;
+      }
+
       const isPixel = fontFamily.indexOf("Press Start 2P") !== -1;
       const settings = Object.assign({
         barWidth: isPixel ? 138 : 180,
-        barX: isPixel ? 140 : 102,
-        labelX: 36,
+        barGap: isPixel ? 10 : 14,
         labelFontSize: isPixel ? 11 : 16,
         valueFontSize: isPixel ? 10 : 14,
-        barYOffset: 13,
         barHeight: 12,
         rowSpacing: isPixel ? 18 : 22,
         valueGap: 8
       }, metrics || {});
+
+      ctx.font = getFontSpec(settings.labelFontSize, fontFamily, boldText);
+      let labelColWidth = 0;
+      for (let i = 0; i < stats.length; i++) {
+        const key = stats[i].stat.name;
+        labelColWidth = Math.max(labelColWidth, ctx.measureText(wanted[key]).width);
+      }
+
+      ctx.font = getFontSpec(settings.valueFontSize, fontFamily, boldText);
+      let valueColWidth = 0;
+      for (let i = 0; i < stats.length; i++) {
+        const value = Math.max(0, Math.min(255, stats[i].base_stat || 0));
+        valueColWidth = Math.max(valueColWidth, ctx.measureText(String(value)).width);
+      }
+
+      const blockWidth = labelColWidth + settings.barGap + settings.barWidth + settings.valueGap + valueColWidth;
+      const blockStartX = Math.round((SCREEN_WIDTH - blockWidth) / 2);
+      const labelX = blockStartX;
+      const barX = blockStartX + labelColWidth + settings.barGap;
+      const valueX = barX + settings.barWidth + settings.valueGap;
+      const prevBaseline = ctx.textBaseline;
       let y = startY;
+
+      ctx.textBaseline = "middle";
 
       for (let i = 0; i < stats.length; i++) {
         const stat = stats[i];
         const key = stat.stat.name;
         const value = Math.max(0, Math.min(255, stat.base_stat || 0));
+        const rowCenterY = y + Math.round(settings.rowSpacing / 2);
+        const barTop = Math.round(rowCenterY - (settings.barHeight / 2));
         ctx.fillStyle = "#111111";
         ctx.textAlign = "left";
         ctx.font = getFontSpec(settings.labelFontSize, fontFamily, boldText);
-        ctx.fillText(wanted[key], settings.labelX, y);
+        ctx.fillText(wanted[key], labelX, rowCenterY);
         ctx.strokeStyle = "#111111";
-        ctx.strokeRect(settings.barX, y - settings.barYOffset, settings.barWidth, settings.barHeight);
+        ctx.strokeRect(barX, barTop, settings.barWidth, settings.barHeight);
         ctx.fillStyle = "#111111";
         ctx.fillRect(
-          settings.barX,
-          y - settings.barYOffset,
+          barX,
+          barTop,
           Math.round((value / 255) * settings.barWidth),
           settings.barHeight
         );
         ctx.font = getFontSpec(settings.valueFontSize, fontFamily, boldText);
-        ctx.fillText(String(value), settings.barX + settings.barWidth + settings.valueGap, y);
+        ctx.fillText(String(value), valueX, rowCenterY);
         y += settings.rowSpacing;
       }
 
+      ctx.textBaseline = prevBaseline;
       return y;
     }
 
@@ -1628,6 +1727,80 @@
       for (let i = 0; i < lines.length; i++) {
         ctx.fillText(lines[i], x, startY + (i * lineHeight));
       }
+    }
+
+    function drawClassicCardInfoFields(pokemon, region, clippedLocation, dataTopY, scaleUnit, ink, options) {
+      const margin = 40 * scaleUnit;
+      const dataRowGap = 25 * scaleUnit;
+      const primaryDataFontSize = 22 * scaleUnit;
+      const secondaryDataFontSize = 18 * scaleUnit;
+      const leftFields = [];
+      const rightFields = [];
+
+      if (options.showRegion) {
+        leftFields.push({ text: "Region: " + region, fontSize: primaryDataFontSize });
+      }
+      if (options.showFind) {
+        leftFields.push({ text: "Find: " + clippedLocation, fontSize: secondaryDataFontSize });
+      }
+      if (options.showHeight) {
+        rightFields.push({ text: "Height: " + (pokemon.height / 10).toFixed(1) + "m", fontSize: primaryDataFontSize });
+      }
+      if (options.showWeight) {
+        rightFields.push({ text: "Weight: " + (pokemon.weight / 10).toFixed(1) + "kg", fontSize: secondaryDataFontSize });
+      }
+
+      if (!leftFields.length && !rightFields.length) {
+        return dataTopY;
+      }
+
+      ctx.fillStyle = ink;
+      ctx.textBaseline = "top";
+
+      function drawField(field, x, y, align) {
+        ctx.textAlign = align;
+        ctx.font = getFontSpec(field.fontSize, options.fontFamily, options.boldText);
+        ctx.fillText(field.text, x, y);
+        return y + field.fontSize;
+      }
+
+      function columnBottom(startY, columnFields) {
+        if (!columnFields.length) {
+          return startY;
+        }
+        let bottom = startY;
+        for (let i = 0; i < columnFields.length; i++) {
+          bottom = startY + (i * dataRowGap) + columnFields[i].fontSize;
+        }
+        return bottom;
+      }
+
+      const rightX = SCREEN_WIDTH - margin;
+      const rightBottom = columnBottom(dataTopY, rightFields);
+      let leftBottom = dataTopY;
+
+      for (let i = 0; i < rightFields.length; i++) {
+        drawField(rightFields[i], rightX, dataTopY + (i * dataRowGap), "right");
+      }
+
+      if (leftFields.length === 1 && rightFields.length >= 2) {
+        const centeredY = dataTopY + Math.round(((rightBottom - dataTopY) - leftFields[0].fontSize) / 2);
+        leftBottom = drawField(leftFields[0], margin, centeredY, "left");
+      } else if (leftFields.length) {
+        for (let i = 0; i < leftFields.length; i++) {
+          leftBottom = Math.max(leftBottom, drawField(leftFields[i], margin, dataTopY + (i * dataRowGap), "left"));
+        }
+      }
+
+      if (!rightFields.length && leftFields.length === 1) {
+        const centeredY = dataTopY;
+        ctx.textAlign = "center";
+        ctx.font = getFontSpec(leftFields[0].fontSize, options.fontFamily, options.boldText);
+        ctx.fillText(leftFields[0].text, SCREEN_WIDTH / 2, centeredY);
+        leftBottom = centeredY + leftFields[0].fontSize;
+      }
+
+      return Math.max(leftBottom, rightBottom) + (8 * scaleUnit);
     }
 
     function drawClassicTypePills(pokemon, centerY, scaleUnit, pillBg, pillText, fontFamily, boldText) {
@@ -1666,51 +1839,121 @@
       }
     }
 
+    function measureHpBlockHeight(pokemon, fontFamily, metrics) {
+      const wanted = { hp: 1, attack: 1, defense: 1, "special-attack": 1, "special-defense": 1, speed: 1 };
+      const stats = (pokemon.stats || []).filter(function(entry) {
+        return entry && entry.stat && wanted[entry.stat.name];
+      });
+      if (!stats.length) {
+        return 0;
+      }
+      const isPixel = fontFamily.indexOf("Press Start 2P") !== -1;
+      const settings = Object.assign({
+        labelFontSize: isPixel ? 11 : 16,
+        rowSpacing: isPixel ? 18 : 22
+      }, metrics || {});
+      return stats.length * settings.rowSpacing;
+    }
+
     function drawClassicFooter(pokemon, species, flavorText, startY, scaleUnit, ink, options) {
       const isPixel = options.fontFamily.indexOf("Press Start 2P") !== -1;
       const footerBottomPadding = 18 * scaleUnit;
-      const availableHeight = Math.max(0, SCREEN_HEIGHT - startY - footerBottomPadding);
-      const sectionCount = [options.showFlavor, options.showHp, options.showAbilities].filter(Boolean).length;
-      const compact = sectionCount >= 3 || availableHeight < (isPixel ? 170 * scaleUnit : 225 * scaleUnit);
+      const footerTop = startY;
+      const footerBottom = SCREEN_HEIGHT - footerBottomPadding;
+      const footerHeight = Math.max(0, footerBottom - footerTop);
+      const showFlavor = options.showFlavor;
+      const showHp = options.showHp;
+      const showAbilities = options.showAbilities;
+      const sectionCount = [showFlavor, showHp, showAbilities].filter(Boolean).length;
+      const compact = sectionCount >= 3 || footerHeight < (isPixel ? 170 * scaleUnit : 225 * scaleUnit);
       const flavorLineHeight = (isPixel ? 18 : 24) * scaleUnit * (compact ? 0.88 : 1);
       const flavorFontSize = 26 * scaleUnit * (compact ? 0.9 : 1);
-      const flavorGap = (compact ? 8 : 12) * scaleUnit;
+      const flavorGap = (compact ? 10 : 14) * scaleUnit;
       const abilityLineHeight = 20 * scaleUnit * (compact ? 0.9 : 1);
       const abilityFontSize = 18 * scaleUnit * (compact ? 0.9 : 1);
+      const hpSectionGap = (compact ? 10 : 14) * scaleUnit;
       const hpMetrics = compact ? {
         barWidth: isPixel ? 132 : 168,
-        barX: isPixel ? 136 : 108,
+        barGap: isPixel ? 8 : 12,
         labelFontSize: isPixel ? 10 : 14,
         valueFontSize: isPixel ? 9 : 12,
-        barYOffset: isPixel ? 12 : 11,
         barHeight: isPixel ? 10 : 10,
         rowSpacing: isPixel ? 16 : 18
       } : null;
-      let currentY = startY;
+      let currentY = footerTop;
+      let abilityLines = [];
+      let abilityBlockHeight = 0;
 
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       ctx.fillStyle = ink;
 
-      if (options.showFlavor) {
-        ctx.font = getFontSpec(flavorFontSize, options.fontFamily, options.boldText);
-        const flavorLines = wrapTextLines(flavorText || "No Data.", SCREEN_WIDTH * 0.85, compact ? 3 : 4);
-        drawWrappedBlock(flavorLines, SCREEN_WIDTH / 2, currentY, flavorLineHeight);
-        currentY += (flavorLines.length * flavorLineHeight) + flavorGap;
+      function centerBlock(blockHeight) {
+        return footerTop + Math.max(0, Math.round((footerHeight - blockHeight) / 2));
       }
 
-      if (options.showHp) {
-        currentY = drawHpBars(pokemon, currentY, options.fontFamily, options.boldText, hpMetrics) + ((compact ? 6 : 8) * scaleUnit);
+      function abilityBlockY() {
+        return SCREEN_HEIGHT - 4 - abilityBlockHeight;
       }
 
-      if (options.showAbilities) {
-        ctx.textAlign = "center";
+      function computeFlavorY(zoneTop, zoneBottom, blockHeight, flavorLines, maxFlavorLines) {
+        if (flavorLines.length >= maxFlavorLines || zoneBottom <= zoneTop || blockHeight >= zoneBottom - zoneTop) {
+          return zoneTop;
+        }
+        return zoneTop + Math.round((zoneBottom - zoneTop - blockHeight) / 2);
+      }
+
+      if (showAbilities) {
         ctx.font = getFontSpec(abilityFontSize, options.fontFamily, options.boldText);
         const abilityText = "Abilities: " + (pokemon.abilities || []).map(function(entry) {
           return titleCase(entry.ability && entry.ability.name);
         }).filter(Boolean).join(", ");
-        const abilityLines = wrapTextLines(abilityText, SCREEN_WIDTH * 0.85, MAX_ABILITY_TEXT_LINES);
-        drawWrappedBlock(abilityLines, SCREEN_WIDTH / 2, currentY, abilityLineHeight);
+        abilityLines = wrapTextLines(abilityText, SCREEN_WIDTH * 0.85, MAX_ABILITY_TEXT_LINES);
+        abilityBlockHeight = abilityLines.length * abilityLineHeight;
+      }
+
+      if (sectionCount === 1) {
+        if (showFlavor) {
+          ctx.font = getFontSpec(flavorFontSize, options.fontFamily, options.boldText);
+          const maxFlavorLines = compact ? 3 : 4;
+          const flavorLines = wrapTextLines(flavorText || "No Data.", SCREEN_WIDTH * 0.85, maxFlavorLines);
+          const blockHeight = flavorLines.length * flavorLineHeight;
+          const flavorY = computeFlavorY(footerTop, footerBottom, blockHeight, flavorLines, maxFlavorLines);
+          drawWrappedBlock(flavorLines, SCREEN_WIDTH / 2, flavorY, flavorLineHeight);
+          return;
+        }
+        if (showHp) {
+          const blockHeight = measureHpBlockHeight(pokemon, options.fontFamily, hpMetrics);
+          drawHpBars(pokemon, centerBlock(blockHeight), options.fontFamily, options.boldText, hpMetrics);
+          return;
+        }
+        if (showAbilities) {
+          drawWrappedBlock(abilityLines, SCREEN_WIDTH / 2, abilityBlockY(), abilityLineHeight);
+        }
+        return;
+      }
+
+      if (showFlavor) {
+        ctx.font = getFontSpec(flavorFontSize, options.fontFamily, options.boldText);
+        const maxFlavorLines = compact ? 3 : 4;
+        const flavorLines = wrapTextLines(flavorText || "No Data.", SCREEN_WIDTH * 0.85, maxFlavorLines);
+        const blockHeight = flavorLines.length * flavorLineHeight;
+        let flavorZoneBottom = footerBottom;
+        if (showAbilities) {
+          flavorZoneBottom = abilityBlockY() - (8 * scaleUnit);
+        }
+        const flavorY = computeFlavorY(currentY, flavorZoneBottom, blockHeight, flavorLines, maxFlavorLines);
+        drawWrappedBlock(flavorLines, SCREEN_WIDTH / 2, flavorY, flavorLineHeight);
+        currentY = flavorY + blockHeight + flavorGap;
+      }
+
+      if (showHp) {
+        currentY = drawHpBars(pokemon, currentY, options.fontFamily, options.boldText, hpMetrics) + hpSectionGap;
+      }
+
+      if (showAbilities) {
+        ctx.font = getFontSpec(abilityFontSize, options.fontFamily, options.boldText);
+        drawWrappedBlock(abilityLines, SCREEN_WIDTH / 2, abilityBlockY(), abilityLineHeight);
       }
     }
 
@@ -1850,65 +2093,48 @@
         currentY += 10 * scaleUnit;
       }
 
-      const dividerOneY = currentY + (15 * scaleUnit);
-      ctx.lineWidth = 3 * scaleUnit;
-      ctx.strokeStyle = ink;
-      ctx.beginPath();
-      ctx.moveTo(30 * scaleUnit, dividerOneY);
-      ctx.lineTo(SCREEN_WIDTH - (30 * scaleUnit), dividerOneY);
-      ctx.stroke();
-      currentY = dividerOneY;
-
       const region = GENERATIONS[species && species.generation && species.generation.name] || "Unknown";
       const location = encounters.length && encounters[0] && encounters[0].location_area
         ? formatLocation(encounters[0].location_area.name)
         : "Special / Event";
-      const dataTopY = currentY + (15 * scaleUnit);
-      const dataRowGap = 25 * scaleUnit;
-      const primaryDataFontSize = 22 * scaleUnit;
-      const secondaryDataFontSize = 18 * scaleUnit;
-      const secondRowY = dataTopY + dataRowGap;
       const clippedLocation = location.length > 25 ? location.slice(0, 22) + "..." : location;
-      const hasTopDataRow = options.showRegion || options.showHeight;
-      const hasBottomDataRow = options.showFind || options.showWeight;
-      const shouldDrawDataBlock = hasTopDataRow || hasBottomDataRow;
+      const shouldDrawDataBlock = options.showRegion || options.showFind || options.showHeight || options.showWeight;
+      const evolutionForms = options.showEvolution ? getLinearEvolutionForms(evolutionData) : [];
+      const hasEvolutionRow = evolutionForms.length >= 2;
+      const hasMiddleContent = shouldDrawDataBlock || hasEvolutionRow;
+      const hasFooterContent = options.showFlavor || options.showHp || options.showAbilities;
+      const dividerPadAbove = 24 * scaleUnit;
+      const dividerPadBelow = 20 * scaleUnit;
 
-      if (shouldDrawDataBlock) {
-        ctx.fillStyle = ink;
-        ctx.textAlign = "left";
-        ctx.font = getFontSpec(primaryDataFontSize, options.fontFamily, options.boldText);
-        if (options.showRegion) {
-          ctx.fillText("Region: " + region, 40 * scaleUnit, dataTopY);
-        }
-        ctx.font = getFontSpec(secondaryDataFontSize, options.fontFamily, options.boldText);
-        if (options.showFind) {
-          ctx.fillText("Find: " + clippedLocation, 40 * scaleUnit, secondRowY);
-        }
-
-        ctx.textAlign = "right";
-        ctx.font = getFontSpec(primaryDataFontSize, options.fontFamily, options.boldText);
-        if (options.showHeight) {
-          ctx.fillText("Height: " + (pokemon.height / 10).toFixed(1) + "m", SCREEN_WIDTH - (40 * scaleUnit), dataTopY);
-        }
-        ctx.font = getFontSpec(secondaryDataFontSize, options.fontFamily, options.boldText);
-        if (options.showWeight) {
-          ctx.fillText("Weight: " + (pokemon.weight / 10).toFixed(1) + "kg", SCREEN_WIDTH - (40 * scaleUnit), secondRowY);
-        }
-        currentY = (hasBottomDataRow ? secondRowY + secondaryDataFontSize : dataTopY + primaryDataFontSize) + (8 * scaleUnit);
+      function drawSectionDivider(padBelow) {
+        currentY += dividerPadAbove;
+        ctx.lineWidth = 3 * scaleUnit;
+        ctx.strokeStyle = ink;
+        ctx.beginPath();
+        ctx.moveTo(30 * scaleUnit, currentY);
+        ctx.lineTo(SCREEN_WIDTH - (30 * scaleUnit), currentY);
+        ctx.stroke();
+        currentY += padBelow !== undefined ? padBelow : dividerPadBelow;
       }
 
-      if (options.showEvolution) {
-        const evolutionCenterY = currentY + (55 * scaleUnit);
-        currentY = await drawClassicEvolutionRow(evolutionData, evolutionCenterY, scaleUnit, ink, options.fontFamily, options.boldText);
+      if (hasMiddleContent) {
+        drawSectionDivider();
+
+        if (shouldDrawDataBlock) {
+          currentY = drawClassicCardInfoFields(pokemon, region, clippedLocation, currentY, scaleUnit, ink, options);
+        }
+
+        if (hasEvolutionRow) {
+          const evolutionGap = shouldDrawDataBlock ? (28 * scaleUnit) : (18 * scaleUnit);
+          const evolutionCenterY = currentY + evolutionGap;
+          currentY = await drawClassicEvolutionRow(evolutionData, evolutionCenterY, scaleUnit, ink, options.fontFamily, options.boldText);
+        }
       }
 
-      const dividerTwoY = currentY + (15 * scaleUnit);
-      ctx.beginPath();
-      ctx.moveTo(30 * scaleUnit, dividerTwoY);
-      ctx.lineTo(SCREEN_WIDTH - (30 * scaleUnit), dividerTwoY);
-      ctx.stroke();
-
-      drawClassicFooter(pokemon, species, flavorText, dividerTwoY + (25 * scaleUnit), scaleUnit, ink, options);
+      if (hasFooterContent) {
+        drawSectionDivider(10 * scaleUnit);
+        drawClassicFooter(pokemon, species, flavorText, currentY, scaleUnit, ink, options);
+      }
 
       if (options.spriteOverlay) {
         drawMainSprite();
@@ -2154,9 +2380,9 @@
       element.addEventListener("change", renderCurrentPokemon);
     });
 
-    spriteScaleInput.addEventListener("input", function() {
-      spriteScaleLabel.textContent = "Current scale: " + (parseFloat(spriteScaleInput.value) || 1.0).toFixed(1) + "x";
-    });
+    spriteScaleInput.addEventListener("input", updateSpriteScaleLabel);
+    resetSpriteScaleBtn.addEventListener("click", resetSpriteScale);
+    fontModeSelect.addEventListener("change", syncCustomFontField);
 
     input.addEventListener("input", refreshPokemonSuggestions);
     input.addEventListener("focus", function() {
@@ -2190,6 +2416,8 @@
       previewSelection();
     });
 
+    syncCustomFontField();
+    updateSpriteScaleLabel();
     refreshResolvedPokemonName(input.value, suggestionToken);
     previewSelection();
   </script>
