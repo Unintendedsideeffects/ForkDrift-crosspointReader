@@ -875,17 +875,9 @@ bool HomeActivity::buildCarouselCacheFile(const std::string& cacheKey, uint64_t 
 
   const size_t bufferSize = renderer.getBufferSize();
   Rect popupRect{};
-  uint8_t* progressFrameBuffer = nullptr;
   if (showProgressPopup) {
-    progressFrameBuffer = static_cast<uint8_t*>(malloc(bufferSize));
-    if (!progressFrameBuffer) {
-      LOG_ERR("HOME", "carousel: failed to allocate progress overlay buffer");
-      showProgressPopup = false;
-    } else {
-      popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
-      GUI.fillPopupProgress(renderer, popupRect, 0);
-      memcpy(progressFrameBuffer, frameBuffer, bufferSize);
-    }
+    popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+    GUI.fillPopupProgress(renderer, popupRect, 0);
   }
 
   const auto start = millis();
@@ -895,6 +887,14 @@ bool HomeActivity::buildCarouselCacheFile(const std::string& cacheKey, uint64_t 
     if (cachedSlot >= 0 && carouselFrames[cachedSlot]) {
       memcpy(frameBuffer, carouselFrames[cachedSlot], bufferSize);
     } else {
+      for (int slot = 0; slot < kCarouselFrameCount; ++slot) {
+        if (gCarouselCache.frames[slot]) {
+          free(gCarouselCache.frames[slot]);
+          gCarouselCache.frames[slot] = nullptr;
+        }
+        gCarouselCache.frameBookIdx[slot] = -1;
+        carouselFrames[slot] = nullptr;
+      }
       renderCarouselFrameToCurrentBuffer(i, nullptr);
     }
     if (file.write(frameBuffer, bufferSize) != bufferSize) {
@@ -902,7 +902,7 @@ bool HomeActivity::buildCarouselCacheFile(const std::string& cacheKey, uint64_t 
       break;
     }
     if (showProgressPopup) {
-      memcpy(frameBuffer, progressFrameBuffer, bufferSize);
+      popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
       GUI.fillPopupProgress(renderer, popupRect, ((i + 1) * 100) / bookCount);
     }
   }
@@ -910,7 +910,6 @@ bool HomeActivity::buildCarouselCacheFile(const std::string& cacheKey, uint64_t 
   file.flush();
   file.close();
 
-  free(progressFrameBuffer);
   if (writeFailed) {
     Storage.remove(CAROUSEL_CACHE_TMP_PATH);
     LOG_ERR("HOME", "carousel: failed to write cache snapshot");
@@ -928,9 +927,15 @@ bool HomeActivity::buildCarouselCacheFile(const std::string& cacheKey, uint64_t 
 }
 
 bool HomeActivity::loadCarouselFrameFromDisk(uint64_t cacheKeyHash, int bookCount, int bookIdx, int slotIdx) {
-  if (slotIdx < 0 || slotIdx >= kCarouselFrameCount || !gCarouselCache.frames[slotIdx] || bookIdx < 0 ||
-      bookIdx >= bookCount) {
+  if (slotIdx < 0 || slotIdx >= kCarouselFrameCount || bookIdx < 0 || bookIdx >= bookCount) {
     return false;
+  }
+  if (!gCarouselCache.frames[slotIdx]) {
+    gCarouselCache.frames[slotIdx] = static_cast<uint8_t*>(malloc(renderer.getBufferSize()));
+    if (!gCarouselCache.frames[slotIdx]) {
+      LOG_ERR("HOME", "carousel: malloc failed for disk slot %d", slotIdx);
+      return false;
+    }
   }
   FsFile file;
   if (!Storage.openFileForRead("HOME", CAROUSEL_CACHE_PATH, file)) return false;
@@ -969,7 +974,7 @@ bool HomeActivity::loadCarouselFrameFromDisk(uint64_t cacheKeyHash, int bookCoun
 int HomeActivity::chooseCarouselEvictionSlot(int centerIdx, int bookCount,
                                              std::optional<int> protectedBookIdx) const {
   for (int i = 0; i < kCarouselFrameCount; ++i) {
-    if (gCarouselCache.frames[i] && gCarouselCache.frameBookIdx[i] < 0) return i;
+    if (gCarouselCache.frameBookIdx[i] < 0) return i;
   }
   int evictSlot = -1;
   int maxDist = -1;
@@ -990,9 +995,26 @@ int HomeActivity::chooseCarouselEvictionSlot(int centerIdx, int bookCount,
 void HomeActivity::renderCarouselFrame(int bookIdx, int slotIdx) {
   const auto start = millis();
   uint8_t* frameBuffer = renderer.getFrameBuffer();
-  if (!frameBuffer || !gCarouselCache.frames[slotIdx]) return;
+  if (!frameBuffer || slotIdx < 0 || slotIdx >= kCarouselFrameCount) return;
+
+  // Free the destination cache slot while drawing. Carousel frames can be a full
+  // framebuffer each; holding one during grayscale rendering can starve the BW
+  // backup chunks and abort the render path on low-heap devices.
+  if (gCarouselCache.frames[slotIdx]) {
+    free(gCarouselCache.frames[slotIdx]);
+    gCarouselCache.frames[slotIdx] = nullptr;
+    gCarouselCache.frameBookIdx[slotIdx] = -1;
+    carouselFrames[slotIdx] = nullptr;
+  }
+
   float progressPercent = -1.0f;
   renderCarouselFrameToCurrentBuffer(bookIdx, &progressPercent);
+
+  gCarouselCache.frames[slotIdx] = static_cast<uint8_t*>(malloc(renderer.getBufferSize()));
+  if (!gCarouselCache.frames[slotIdx]) {
+    LOG_ERR("HOME", "carousel: malloc failed for rendered slot %d", slotIdx);
+    return;
+  }
   memcpy(gCarouselCache.frames[slotIdx], frameBuffer, renderer.getBufferSize());
   gCarouselCache.frameBookIdx[slotIdx] = bookIdx;
   carouselFrames[slotIdx] = gCarouselCache.frames[slotIdx];
