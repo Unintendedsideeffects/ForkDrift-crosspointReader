@@ -334,6 +334,16 @@
       font-size: 11px;
     }
 
+    .search-divider {
+      padding: 4px 10px;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gray-4);
+      border-top: 1px solid var(--gray-8);
+      margin-top: 4px;
+    }
+
     .preview-column {
       position: sticky;
       top: 16px;
@@ -738,6 +748,28 @@
       return hash >>> 0;
     }
 
+    function boundedEditDistance(a, b, maxDist) {
+      const lenA = a.length;
+      const lenB = b.length;
+      if (Math.abs(lenA - lenB) > maxDist) return maxDist + 1;
+      const prev = [];
+      const curr = [];
+      for (let j = 0; j <= lenB; j++) prev[j] = j;
+      for (let i = 1; i <= lenA; i++) {
+        curr[0] = i;
+        let rowMin = i;
+        for (let j = 1; j <= lenB; j++) {
+          curr[j] = a[i - 1] === b[j - 1]
+            ? prev[j - 1]
+            : 1 + Math.min(prev[j], curr[j - 1], prev[j - 1]);
+          if (curr[j] < rowMin) rowMin = curr[j];
+        }
+        if (rowMin > maxDist) return maxDist + 1;
+        for (let j = 0; j <= lenB; j++) prev[j] = curr[j];
+      }
+      return prev[lenB];
+    }
+
     function buildBloomFilter(value) {
       const bits = [0, 0, 0, 0];
       getSearchBloomTokens(value).forEach(function(token) {
@@ -849,6 +881,27 @@
 
     function buildSearchQuery(rawInput) {
       const raw = String(rawInput || "").trim();
+
+      // "NUMBER - NAME" is the format set after a successful render.
+      // When the user edits the name portion, the leading ID is stale — treat
+      // the name portion as the real query so results follow what they typed.
+      const idNameMatch = raw.match(/^\s*#?\s*\d+\s*[-–—]\s*(.+)$/);
+      if (idNameMatch) {
+        const namePortion = idNameMatch[1].trim();
+        const normalized = normalizeSearchText(namePortion);
+        const compact = normalized.replace(/\s+/g, "");
+        return {
+          raw: namePortion,
+          normalized: normalized,
+          compact: compact,
+          digits: "",
+          digitQuery: "",
+          isNumeric: false,
+          hasIdIntent: false,
+          bloom: buildBloomFilter(namePortion)
+        };
+      }
+
       const normalized = normalizeSearchText(raw);
       const compact = normalized.replace(/\s+/g, "");
       const digits = compact.replace(/\D/g, "");
@@ -922,30 +975,50 @@
       if (!query.compact) return [];
 
       const entries = await ensurePokemonSearchIndex();
-      return entries
-        .map(function(entry) {
-          return { entry: entry, score: scorePokemonEntry(entry, query) };
-        })
-        .filter(function(result) { return result.score > 0; })
-        .sort(function(a, b) {
+      const cap = limit || SEARCH_RESULT_LIMIT;
+
+      // Pass 1: exact / prefix / subsequence / bloom scoring
+      const exactResults = [];
+      const seenIds = new Set();
+
+      entries.forEach(function(entry) {
+        const score = scorePokemonEntry(entry, query);
+        if (score > 0) {
+          exactResults.push({ entry: entry, score: score, isFuzzy: false });
+          seenIds.add(entry.id);
+        }
+      });
+
+      exactResults.sort(function(a, b) {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.entry.id - b.entry.id;
+      });
+
+      const topExact = exactResults.slice(0, cap);
+
+      // Pass 2: bounded Levenshtein for spelling variants — name queries only
+      const fuzzyResults = [];
+      const qLen = query.compact.length;
+      const maxDist = qLen <= 4 ? 1 : qLen <= 6 ? 2 : 3;
+
+      if (qLen >= 3 && !query.hasIdIntent) {
+        entries.forEach(function(entry) {
+          if (seenIds.has(entry.id)) return;
+          const dist = boundedEditDistance(query.compact, entry.compactName, maxDist);
+          if (dist <= maxDist) {
+            fuzzyResults.push({ entry: entry, score: maxDist - dist, isFuzzy: true });
+            seenIds.add(entry.id);
+          }
+        });
+
+        fuzzyResults.sort(function(a, b) {
           if (b.score !== a.score) return b.score - a.score;
           return a.entry.id - b.entry.id;
-        })
-        .slice(0, limit || SEARCH_RESULT_LIMIT)
-        .map(function(result) { return result.entry; });
-    }
-
-    function describeSuggestion(entry, query) {
-      if (query.hasIdIntent) {
-        if (entry.idText === query.digitQuery) return "Exact ID";
-        if (query.digitQuery.startsWith(entry.idText)) return "ID prefix";
-        if (entry.idText.startsWith(query.digitQuery)) return "Numeric match";
-        return "Numeric match";
+        });
       }
-      if (entry.compactName === query.compact || entry.normalizedName === query.normalized) return "Exact name";
-      if (entry.compactName.indexOf(query.compact) === 0) return "Name prefix";
-      if (entry.compactName.indexOf(query.compact) !== -1 || entry.normalizedName.indexOf(query.normalized) !== -1) return "Name match";
-      return "Close match";
+
+      const fuzzySlice = fuzzyResults.slice(0, Math.max(0, cap - topExact.length));
+      return topExact.concat(fuzzySlice);
     }
 
     function setSearchMeta(message) {
@@ -1010,15 +1083,27 @@
         return;
       }
 
-      suggestionsBox.hidden = false;
-      suggestionsBox.innerHTML = results.map(function(entry) {
+      const exact = results.filter(function(r) { return !r.isFuzzy; });
+      const fuzzy = results.filter(function(r) { return r.isFuzzy; });
+
+      function renderBtn(r) {
         return (
-          '<button class="search-suggestion" type="button" data-id="' + entry.idText + '">' +
-            '<span class="search-suggestion-label">' + escapeHtml(entry.label) + '</span>' +
-            '<small>' + escapeHtml(describeSuggestion(entry, query)) + '</small>' +
+          '<button class="search-suggestion" type="button" data-id="' + r.entry.idText + '">' +
+            '<span class="search-suggestion-label">' + escapeHtml(r.entry.label) + '</span>' +
           '</button>'
         );
-      }).join("");
+      }
+
+      let html = exact.map(renderBtn).join("");
+      if (fuzzy.length > 0) {
+        if (exact.length > 0) {
+          html += '<div class="search-divider">Close matches</div>';
+        }
+        html += fuzzy.map(renderBtn).join("");
+      }
+
+      suggestionsBox.hidden = false;
+      suggestionsBox.innerHTML = html;
       setSearchMeta(results.length + " suggestion" + (results.length === 1 ? "" : "s") + " ready.");
     }
 
@@ -1058,7 +1143,7 @@
         const numericId = parseInt(query.digitQuery, 10);
         if (numericId >= 1 && numericId <= MAX_POKEMON_ID) {
           const directMatches = await findPokemonMatches(String(numericId), 1).catch(function() { return []; });
-          return directMatches[0] || buildSearchEntry(numericId, String(numericId));
+          return (directMatches[0] && directMatches[0].entry) || buildSearchEntry(numericId, String(numericId));
         }
       }
 
@@ -1066,7 +1151,7 @@
       if (!results.length) {
         throw new Error("No Pokemon matched '" + rawInput + "'.");
       }
-      return results[0];
+      return results[0].entry;
     }
 
     function getPokemonFilename(id, name) {
