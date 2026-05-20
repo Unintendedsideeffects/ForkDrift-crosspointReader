@@ -662,6 +662,40 @@
         display: none;
       }
 
+      .skill-card.wip {
+        border-style: dashed;
+        cursor: not-allowed;
+        opacity: 0.72;
+      }
+
+      .skill-card.wip .card-toggle {
+        border-left-color: var(--bone);
+        opacity: 0.4;
+      }
+
+      .skill-card.wip .toggle-box {
+        border-color: var(--bone);
+        background: var(--fog);
+      }
+
+      .skill-card.wip .toggle-box::after {
+        display: none;
+      }
+
+      .card-wip-badge {
+        display: inline-block;
+        font-family: 'Silkscreen', monospace;
+        font-size: 7px;
+        font-weight: 700;
+        text-transform: uppercase;
+        background: var(--lt);
+        color: var(--white);
+        padding: 1px 3px 2px;
+        letter-spacing: 0.06em;
+        vertical-align: middle;
+        margin-left: 5px;
+      }
+
       /* ── Note items (roadmap/annotations) ── */
       .note-grid {
         display: grid;
@@ -2165,13 +2199,13 @@
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
 
-              <label class="skill-card" data-feature="anki_support" data-node-id="anki_support">
-                <input type="checkbox" id="anki_support" data-feature="anki_support" />
+              <label class="skill-card wip" data-feature="anki_support" data-node-id="anki_support">
+                <input type="checkbox" id="anki_support" data-feature="anki_support" disabled />
                 <div class="card-icon"><span>&#x2660;</span></div>
                 <div class="card-body">
-                  <div class="card-name">Anki Support</div>
+                  <div class="card-name">Anki Support <span class="card-wip-badge">WIP</span></div>
                   <div class="card-size"></div>
-                  <div class="card-desc">Flashcard creation from the reader menu with web UI management and JSON export</div>
+                  <div class="card-desc">Flashcard creation from the reader menu — not yet complete in this build</div>
                 </div>
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
@@ -2328,9 +2362,9 @@
                 <input type="checkbox" id="user_fonts" data-feature="user_fonts" />
                 <div class="card-icon"><span>&#x270E;</span></div>
                 <div class="card-body">
-                  <div class="card-name">User Fonts</div>
+                  <div class="card-name">Custom Fonts</div>
                   <div class="card-size"></div>
-                  <div class="card-desc">Load canonical CPF font families from SD with runtime rescan and safe fallback</div>
+                  <div class="card-desc">Load custom CPF font families from SD with runtime rescan while keeping built-in fonts untouched</div>
                 </div>
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
@@ -2872,20 +2906,17 @@
           <div class="panel">
             <div class="panel-heading">Plugin Modules</div>
 
-            <div class="companion-row" id="plugin-anki">
+            <div class="companion-row" id="plugin-anki" style="opacity: 0.65;">
               <div style="flex: 1">
-                <div class="companion-title">Anki Flashcards</div>
-                <div class="companion-desc">
+                <div class="companion-title">Anki Flashcards <span class="card-wip-badge" style="vertical-align: middle;">WIP</span></div>
+                <div class="companion-desc" style="margin-top: 6px; font-style: italic; color: #888;">
+                  This feature is a work in progress and not yet complete in this build.
+                  Card capture works but the review flow and export are still being built out.
+                </div>
+                <div class="companion-desc" style="margin-top: 8px;">
                   Create flashcards while reading — the reader menu captures the first 10 words of the current page
                   as the card front. Browse, edit card backs, and manage your deck from the device web UI at
                   <code>/plugins/anki</code>. Export as JSON for import into Anki Desktop.
-                </div>
-                <div class="companion-desc" style="margin-top: 8px; font-size: 0.85rem; color: #888;">
-                  Requires <code>anki_support</code> in the feature grid. Cards are stored on the SD card
-                  at <code>/.crosspoint/anki_cards.json</code>.
-                </div>
-                <div class="actions" style="margin-top: 12px;">
-                  <a class="btn btn-outline" id="open-anki-plugin" data-device-link-path="/plugins/anki" href="http://crosspoint.local/plugins/anki" target="_blank" rel="noopener">Open on Device</a>
                 </div>
               </div>
             </div>
@@ -2935,7 +2966,7 @@
                       <option value="0" selected>Bookerly</option>
                       <option value="1">Noto Sans</option>
                       <option value="2">OpenDyslexic</option>
-                      <option value="3">External Font</option>
+                      <option value="3">Custom Font</option>
                     </select>
                   </div>
                   <div class="form-group">
@@ -3167,12 +3198,7 @@
                       <option value="1" selected>On</option>
                     </select>
                   </div>
-                  <div class="form-group" style="grid-column: span 2;">
-                    <label class="form-label">Remap Front Buttons</label>
-                    <button class="btn btn-outline" type="button" id="start-front-button-remap">Use Device Buttons</button>
-                    <div class="companion-desc" id="front-button-remap-status" style="margin-top:8px; font-size:12px;">
-                      Hardware order: Back, Confirm, Left, Right.
-                    </div>
+                  <div hidden aria-hidden="true">
                     <input id="s-frontButtonLayout" type="hidden" value="0" />
                     <input id="s-frontButtonBack" type="hidden" value="0" />
                     <input id="s-frontButtonConfirm" type="hidden" value="1" />
@@ -3603,6 +3629,7 @@
           ota_updates: true,
           remote_keyboard_input: true,
           wifi_clock: true,
+          roman_clock_sleep: true,
           background_server: true,
           background_server_on_charge: true,
           web_wifi_setup: true,
@@ -3630,6 +3657,7 @@
           ota_updates: true,
           remote_keyboard_input: true,
           wifi_clock: true,
+          roman_clock_sleep: true,
           todo_planner: true,
           anki_support: true,
           background_server: true,
@@ -3684,6 +3712,7 @@
       function setSelections(selections) {
         Object.keys(FEATURES).forEach((feature) => {
           const checkbox = document.getElementById(feature);
+          if (checkbox.disabled) return;
           checkbox.checked = Boolean(selections[feature]);
         });
       }
@@ -3774,7 +3803,8 @@
       function readSelections() {
         const selections = {};
         Object.keys(FEATURES).forEach((feature) => {
-          selections[feature] = document.getElementById(feature).checked;
+          const cb = document.getElementById(feature);
+          selections[feature] = cb.disabled ? false : cb.checked;
         });
         return selections;
       }
@@ -5065,7 +5095,6 @@
         let hoveredFeaturePreview = '';
         let flashedFeaturePreview = '';
         let featurePreviewFlashTimer = null;
-        let frontButtonRemapState = null;
         const FRONT_BUTTON_ROLE_KEYS = ['frontButtonBack', 'frontButtonConfirm', 'frontButtonLeft', 'frontButtonRight'];
         const FRONT_BUTTON_ROLE_NAMES = ['Back', 'Confirm', 'Left', 'Right'];
 
@@ -5081,14 +5110,6 @@
             if (typeof window._switchSidebarTab === 'function') {
               window._switchSidebarTab('studio');
             }
-          });
-        }
-
-        const startFrontButtonRemapBtn = document.getElementById('start-front-button-remap');
-        if (startFrontButtonRemapBtn) {
-          startFrontButtonRemapBtn.addEventListener('click', () => {
-            if (frontButtonRemapState) cancelFrontButtonRemap();
-            else beginFrontButtonRemap();
           });
         }
 
@@ -5156,58 +5177,6 @@
             }
           });
           return labels;
-        }
-
-        function updateFrontButtonRemapStatus() {
-          const status = document.getElementById('front-button-remap-status');
-          const trigger = document.getElementById('start-front-button-remap');
-          if (!status || !trigger) return;
-
-          if (frontButtonRemapState) {
-            status.textContent = `Press a front button for ${FRONT_BUTTON_ROLE_NAMES[frontButtonRemapState.step]}.`;
-            trigger.textContent = 'Cancel Remap';
-            return;
-          }
-
-          const labels = getFrontButtonLabels();
-          status.textContent = `Hardware order: ${labels.join(', ')}.`;
-          trigger.textContent = 'Use Device Buttons';
-        }
-
-        function beginFrontButtonRemap() {
-          frontButtonRemapState = {
-            step: 0,
-            assigned: [null, null, null, null],
-          };
-          updateFrontButtonRemapStatus();
-          drawPreview();
-        }
-
-        function cancelFrontButtonRemap() {
-          frontButtonRemapState = null;
-          updateFrontButtonRemapStatus();
-          drawPreview();
-        }
-
-        function assignFrontButtonHardware(hardwareIndex) {
-          if (!frontButtonRemapState) return false;
-          if (frontButtonRemapState.assigned.includes(hardwareIndex)) return true;
-
-          const roleKey = FRONT_BUTTON_ROLE_KEYS[frontButtonRemapState.step];
-          const input = document.getElementById('s-' + roleKey);
-          const layoutInput = document.getElementById('s-frontButtonLayout');
-          if (input) input.value = String(hardwareIndex);
-          if (layoutInput) layoutInput.value = '0';
-          frontButtonRemapState.assigned[frontButtonRemapState.step] = hardwareIndex;
-          frontButtonRemapState.step += 1;
-
-          if (frontButtonRemapState.step >= FRONT_BUTTON_ROLE_KEYS.length) {
-            frontButtonRemapState = null;
-          }
-
-          updateFrontButtonRemapStatus();
-          drawPreview();
-          return true;
         }
 
         function updateOption(selectId, value, enabled, enabledLabel, disabledLabel) {
@@ -5312,10 +5281,6 @@
         let previewScreenMode = 'reader';
 
         function handleSettingsInteraction(key, showSleepPreview = false) {
-          if (frontButtonRemapState && !FRONT_BUTTON_ROLE_KEYS.includes(key)) {
-            frontButtonRemapState = null;
-            updateFrontButtonRemapStatus();
-          }
           previewScreenMode = key === 'uiTheme' ? 'home' : 'reader';
           sleepPreviewFlashActive = showSleepPreview;
           drawPreview();
@@ -5361,7 +5326,7 @@
           updateOption('s-fontFamily', 0, selections.bookerly_fonts, 'Bookerly', 'Bookerly (needs feature)');
           updateOption('s-fontFamily', 1, selections.notosans_fonts, 'Noto Sans', 'Noto Sans (needs feature)');
           updateOption('s-fontFamily', 2, selections.opendyslexic_fonts, 'OpenDyslexic', 'OpenDyslexic (needs feature)');
-          updateOption('s-fontFamily', 3, selections.user_fonts, 'External Font', 'External Font (needs feature)');
+          updateOption('s-fontFamily', 3, selections.user_fonts, 'Custom Font', 'Custom Font (needs feature)');
 
           const rowHyphenation = document.getElementById('row-hyphenationEnabled');
           if (rowHyphenation) rowHyphenation.classList.toggle('settings-row-hidden', !selections.hyphenation);
@@ -5490,7 +5455,7 @@
           const darkMode = currentSettings.darkMode === 1;
           const featureSleepPreviewMode = getFeatureSleepPreviewMode();
           const previewSleepMode = featureSleepPreviewMode ?? currentSettings.sleepScreen;
-          const fontLabels = ['Bookerly', 'Noto Sans', 'OpenDyslexic', 'External Font'];
+          const fontLabels = ['Bookerly', 'Noto Sans', 'OpenDyslexic', 'Custom Font'];
           const fontFamilies = [
             'Iowan Old Style, Georgia, "Times New Roman", serif',
             '"Noto Sans", "Helvetica Neue", Arial, sans-serif',
@@ -6333,7 +6298,6 @@
           frontLabelEls.forEach((el, index) => {
             if (el) el.textContent = frontLabels[index] || '-';
           });
-          updateFrontButtonRemapStatus();
           if (!previewFrame.srcdoc) previewFrame.srcdoc = buildPreviewDoc();
           else pushPreviewState();
           pushReaderStateToGridFrames();
@@ -6358,16 +6322,6 @@
             sleepPreviewFlashActive = false;
             if (currentSelections) updateSettingsVisibility(currentSelections);
             else drawPreview();
-          });
-        });
-
-        document.querySelectorAll('[data-preview-front]').forEach(button => {
-          button.addEventListener('click', () => {
-            const hardwareIndex = parseInt(button.dataset.previewFront || '-1', 10);
-            if (hardwareIndex < 0) return;
-            if (assignFrontButtonHardware(hardwareIndex)) return;
-            sleepPreviewFlashActive = false;
-            drawPreview();
           });
         });
 
