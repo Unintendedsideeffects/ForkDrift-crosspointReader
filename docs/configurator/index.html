@@ -1509,88 +1509,126 @@
         }
       }
 
-      /* ── Pre-built download cards ── */
+      /* ── Pre-built comparison table ── */
       .preset-dl-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 10px;
+        /* col 0 = feature label, cols 1-3 = presets */
+        grid-template-columns: 1fr repeat(3, minmax(0, 1fr));
         margin-top: 10px;
-      }
-
-      .preset-dl-card {
-        aspect-ratio: 9 / 16;
         border: var(--px) solid var(--blk);
-        background: var(--fog);
-        padding: 12px 14px;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
         box-shadow:
           inset var(--px) var(--px) 0 var(--bevel-hi),
           inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 var(--bevel-lo);
+      }
+
+      /* Header cells */
+      .preset-col-head {
+        padding: 8px 6px 6px;
+        background: var(--fog);
+        border-bottom: var(--px) solid var(--blk);
+        border-left: 1px solid var(--bone);
+        text-align: center;
         position: relative;
-        overflow: hidden;
       }
-
-      .preset-dl-card.active-preset {
-        background: var(--white);
-        border-color: var(--blk);
-        box-shadow:
-          inset var(--px) var(--px) 0 var(--bevel-hi),
-          inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 var(--bevel-lo),
-          0 0 0 2px var(--blk);
-      }
-
-      .preset-dl-name {
-        font-family: 'Silkscreen', monospace;
-        font-size: 14px;
-        font-weight: 700;
-        text-transform: uppercase;
-        color: var(--blk);
-      }
-
-      .preset-dl-size {
-        font-size: 11px;
-        color: var(--md);
-        letter-spacing: 0.06em;
-      }
-
-      .preset-dl-features {
-        font-size: 11px;
-        color: var(--dk);
-        line-height: 1.7;
-        flex: 1;
-      }
-
-      .preset-dl-features span {
-        display: block;
-      }
-
-      .preset-dl-features span.feat-off {
-        color: var(--pale);
-        text-decoration: line-through;
-      }
-
-      .preset-dl-actions {
-        display: flex;
-        gap: 6px;
-        margin-top: 4px;
-        flex-wrap: wrap;
-      }
+      .preset-col-head:first-child { border-left: none; }
+      .preset-col-head.active-preset { background: var(--white); }
 
       .preset-dl-badge {
-        position: absolute;
-        top: -1px;
-        right: 8px;
+        display: block;
         font-family: 'Silkscreen', monospace;
-        font-size: 9px;
+        font-size: 7px;
         font-weight: 700;
         text-transform: uppercase;
         background: var(--blk);
         color: var(--white);
-        padding: 1px 5px;
+        padding: 1px 4px 2px;
         letter-spacing: 0.08em;
+        margin-bottom: 3px;
+        white-space: nowrap;
       }
+
+      .preset-dl-name {
+        font-family: 'Silkscreen', monospace;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--blk);
+        display: block;
+      }
+
+      .preset-dl-size {
+        font-size: 9px;
+        color: var(--md);
+        letter-spacing: 0.04em;
+        display: block;
+        margin-top: 2px;
+      }
+
+      /* Feature rows */
+      .preset-feat-label {
+        font-size: 9px;
+        color: var(--dk);
+        padding: 0 6px;
+        height: 26px;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid var(--bone);
+        background: var(--white);
+      }
+      .preset-feat-label:last-of-type { border-bottom: none; }
+
+      .preset-feat-cell {
+        height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-left: 1px solid var(--bone);
+        border-bottom: 1px solid var(--bone);
+        background: var(--white);
+        font-size: 11px;
+      }
+      .preset-feat-cell.active-preset { background: var(--fog); }
+      .preset-feat-cell:last-of-type { border-bottom: none; }
+
+      .feat-on  { color: var(--blk); }
+      .feat-off { color: var(--bone); }
+
+      /* Download row */
+      .preset-dl-foot-label {
+        padding: 8px 6px;
+        background: var(--fog);
+        border-top: var(--px) solid var(--blk);
+      }
+      .preset-dl-foot {
+        padding: 6px 5px;
+        background: var(--fog);
+        border-top: var(--px) solid var(--blk);
+        border-left: 1px solid var(--bone);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+      }
+      .preset-dl-foot.active-preset { background: var(--white); }
+
+      .preset-dl-foot .btn {
+        width: 100%;
+        text-align: center;
+        padding: 4px 6px;
+        font-size: 9px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .dl-releases-link {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 8px;
+        color: var(--md);
+        text-decoration: none;
+        letter-spacing: 0.04em;
+      }
+      .dl-releases-link:hover { color: var(--blk); text-decoration: underline; }
 
       /* ── Cloud build trigger ── */
       .gh-token-row {
@@ -1882,13 +1920,13 @@
           grid-column: 1;
         }
 
-        /* Preset cards: single column, natural height (no portrait aspect ratio) */
-        .preset-dl-grid {
-          grid-template-columns: 1fr;
+        /* Preset table: hide feature label column on narrow screens */
+        .preset-feat-label,
+        .preset-dl-foot-label {
+          display: none;
         }
-
-        .preset-dl-card {
-          aspect-ratio: unset;
+        .preset-dl-grid {
+          grid-template-columns: repeat(3, 1fr);
         }
 
         /* Drawer: full-width vertical list on mobile */
@@ -2573,55 +2611,65 @@
           Grab a preset, or use the <strong>Build &amp; Download</strong> tab for a custom configuration.
         </div>
         <div class="preset-dl-grid">
-          <!-- Lean -->
-          <div class="preset-dl-card" id="dl-card-lean">
-            <div class="preset-dl-name">Lean</div>
-            <div class="preset-dl-size">~2.6 MB &middot; 41% flash</div>
-            <div class="preset-dl-features">
-              <span class="feat-off">&#x25A0; Extended Fonts</span>
-              <span class="feat-off">&#x25A0; PNG/JPEG Sleep</span>
-              <span class="feat-off">&#x25A0; Markdown</span>
-              <span class="feat-off">&#x25A0; Background Server</span>
-              <span class="feat-off">&#x25A0; Media Picker</span>
-            </div>
-            <div class="preset-dl-actions">
-              <a class="btn btn-solid" id="dl-btn-lean" href="#" download>&#x2193; crosspoint-lean.bin</a>
-              <a class="btn btn-outline" id="dl-releases-lean" href="#" target="_blank" rel="noopener">Releases</a>
-            </div>
+          <!-- Header row: label col + 3 preset cols -->
+          <div class="preset-col-head"></div>
+          <div class="preset-col-head" id="dl-card-lean">
+            <span class="preset-dl-name">Lean</span>
+            <span class="preset-dl-size">~2.6 MB · 41%</span>
           </div>
-          <!-- Standard -->
-          <div class="preset-dl-card" id="dl-card-standard">
-            <div class="preset-dl-badge">Recommended</div>
-            <div class="preset-dl-name">Standard</div>
-            <div class="preset-dl-size">~6.2 MB &middot; 97% flash</div>
-            <div class="preset-dl-features">
-              <span>&#x25A0; Extended Fonts</span>
-              <span>&#x25A0; PNG/JPEG Sleep</span>
-              <span class="feat-off">&#x25A0; Markdown</span>
-              <span>&#x25A0; Background Server</span>
-              <span>&#x25A0; Media Picker</span>
-            </div>
-            <div class="preset-dl-actions">
-              <a class="btn btn-solid" id="dl-btn-standard" href="#" download>&#x2193; crosspoint-standard.bin</a>
-              <a class="btn btn-outline" id="dl-releases-standard" href="#" target="_blank" rel="noopener">Releases</a>
-            </div>
+          <div class="preset-col-head active-preset" id="dl-card-standard">
+            <span class="preset-dl-badge">★ Recommended</span>
+            <span class="preset-dl-name">Standard</span>
+            <span class="preset-dl-size">~6.2 MB · 97%</span>
           </div>
-          <!-- Full -->
-          <div class="preset-dl-card" id="dl-card-full">
-            <div class="preset-dl-name">Full</div>
-            <div class="preset-dl-size">~6.4 MB &middot; 99% flash</div>
-            <div class="preset-dl-features">
-              <span>&#x25A0; Extended Fonts</span>
-              <span>&#x25A0; PNG/JPEG Sleep</span>
-              <span>&#x25A0; Markdown</span>
-              <span>&#x25A0; Background Server</span>
-              <span>&#x25A0; Media Picker</span>
-              <span>&#x25A0; KOReader + OPDS</span>
-            </div>
-            <div class="preset-dl-actions">
-              <a class="btn btn-solid" id="dl-btn-full" href="#" download>&#x2193; crosspoint-full.bin</a>
-              <a class="btn btn-outline" id="dl-releases-full" href="#" target="_blank" rel="noopener">Releases</a>
-            </div>
+          <div class="preset-col-head" id="dl-card-full">
+            <span class="preset-dl-name">Full</span>
+            <span class="preset-dl-size">~6.4 MB · 99%</span>
+          </div>
+          <!-- Feature rows (data-preset-col used by highlightProfile JS) -->
+          <div class="preset-feat-label">Ext. Fonts</div>
+          <div class="preset-feat-cell" data-preset-col="lean"><span class="feat-off">○</span></div>
+          <div class="preset-feat-cell active-preset" data-preset-col="standard"><span class="feat-on">●</span></div>
+          <div class="preset-feat-cell" data-preset-col="full"><span class="feat-on">●</span></div>
+
+          <div class="preset-feat-label">Sleep Images</div>
+          <div class="preset-feat-cell" data-preset-col="lean"><span class="feat-off">○</span></div>
+          <div class="preset-feat-cell active-preset" data-preset-col="standard"><span class="feat-on">●</span></div>
+          <div class="preset-feat-cell" data-preset-col="full"><span class="feat-on">●</span></div>
+
+          <div class="preset-feat-label">Markdown</div>
+          <div class="preset-feat-cell" data-preset-col="lean"><span class="feat-off">○</span></div>
+          <div class="preset-feat-cell active-preset" data-preset-col="standard"><span class="feat-off">○</span></div>
+          <div class="preset-feat-cell" data-preset-col="full"><span class="feat-on">●</span></div>
+
+          <div class="preset-feat-label">Background Server</div>
+          <div class="preset-feat-cell" data-preset-col="lean"><span class="feat-off">○</span></div>
+          <div class="preset-feat-cell active-preset" data-preset-col="standard"><span class="feat-on">●</span></div>
+          <div class="preset-feat-cell" data-preset-col="full"><span class="feat-on">●</span></div>
+
+          <div class="preset-feat-label">Media Picker</div>
+          <div class="preset-feat-cell" data-preset-col="lean"><span class="feat-off">○</span></div>
+          <div class="preset-feat-cell active-preset" data-preset-col="standard"><span class="feat-on">●</span></div>
+          <div class="preset-feat-cell" data-preset-col="full"><span class="feat-on">●</span></div>
+
+          <div class="preset-feat-label">KOReader / OPDS</div>
+          <div class="preset-feat-cell" data-preset-col="lean"><span class="feat-off">○</span></div>
+          <div class="preset-feat-cell active-preset" data-preset-col="standard"><span class="feat-off">○</span></div>
+          <div class="preset-feat-cell" data-preset-col="full"><span class="feat-on">●</span></div>
+
+          <!-- Download row -->
+          <div class="preset-dl-foot-label"></div>
+          <div class="preset-dl-foot" data-preset-col="lean">
+            <a class="btn btn-outline" id="dl-btn-lean" href="#" download>&#x2193; lean</a>
+            <a class="dl-releases-link" id="dl-releases-lean" href="#" target="_blank" rel="noopener">releases ↗</a>
+          </div>
+          <div class="preset-dl-foot active-preset" data-preset-col="standard">
+            <a class="btn btn-solid" id="dl-btn-standard" href="#" download>&#x2193; standard</a>
+            <a class="dl-releases-link" id="dl-releases-standard" href="#" target="_blank" rel="noopener">releases ↗</a>
+          </div>
+          <div class="preset-dl-foot" data-preset-col="full">
+            <a class="btn btn-outline" id="dl-btn-full" href="#" download>&#x2193; full</a>
+            <a class="dl-releases-link" id="dl-releases-full" href="#" target="_blank" rel="noopener">releases ↗</a>
           </div>
         </div>
         <div class="info-bar">
@@ -3684,10 +3732,14 @@
         document.querySelectorAll(".preset-btn").forEach((btn) => {
           btn.classList.toggle("active", btn.dataset.preset === profileName);
         });
-        // Mirror highlight on the download cards
+        // Mirror highlight on the comparison table (header, feat cells, footer)
         ["lean", "standard", "full"].forEach((p) => {
-          const card = document.getElementById("dl-card-" + p);
-          if (card) card.classList.toggle("active-preset", p === profileName);
+          const isActive = p === profileName;
+          const head = document.getElementById("dl-card-" + p);
+          if (head) head.classList.toggle("active-preset", isActive);
+          document.querySelectorAll(`[data-preset-col="${p}"]`).forEach(el => {
+            el.classList.toggle("active-preset", isActive);
+          });
         });
       }
 
