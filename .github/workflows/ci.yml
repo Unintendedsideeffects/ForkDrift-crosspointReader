@@ -117,7 +117,7 @@ jobs:
         run: |
           uv run vulture scripts
           bash scripts/check_feature_boundaries.sh
-          uv run pio check -e default
+          uv run pio check -e default --fail-on-defect low --fail-on-defect medium --fail-on-defect high
 
   hardware-patterns:
     runs-on: ubuntu-latest
@@ -132,26 +132,6 @@ jobs:
 
       - name: Check hardware coding patterns
         run: python3 scripts/check_hardware_patterns.py
-
-  cppcheck:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: recursive
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Install dependencies
-        run: uv sync --frozen
-
-      - name: Run cppcheck
-        run: uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
 
   clang-tidy:
     # Non-blocking: intentionally NOT in test-status.needs during rollout.
@@ -304,7 +284,7 @@ jobs:
       - host-tests
       - contract-server
       - hardware-patterns
-      - cppcheck
+      - cleanup-checks
     if: always()
     runs-on: ubuntu-latest
     steps:

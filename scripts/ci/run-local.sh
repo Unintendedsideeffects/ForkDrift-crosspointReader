@@ -17,6 +17,11 @@ sync_env() {
   uv sync --frozen --python "$version"
 }
 
+ensure_pio_python() {
+  # PlatformIO installs some tools via pip internally; make sure pip is present.
+  uv run --python "$PY_BUILD" python -m ensurepip --upgrade >/dev/null 2>&1 || true
+}
+
 run_py() {
   local version="$1"
   shift
@@ -174,6 +179,13 @@ run_profile_matrix() {
   run_profile_matrix_entry standard_sync standard 6.2 --enable koreader_sync --enable calibre_sync
 }
 
+run_feature_sizes() {
+  sync_env "$PY_BUILD"
+  ensure_pio_python
+  run_py "$PY_BUILD" python scripts/measure_feature_sizes.py --quick
+  run_py "$PY_BUILD" python scripts/apply_feature_sizes.py
+}
+
 run_update_screen_previews() {
   ensure_python "$PY_BUILD"
   tools/screen-harness/render_screens.sh build/screen-previews
@@ -190,8 +202,9 @@ Targets:
   ci-build               Run the local equivalent of .github/workflows/ci.yml checks.
   build-workflow         Run the local equivalent of .github/workflows/build.yml.
   profile-matrix         Run the local equivalent of .github/workflows/feature-matrix-test.yml.
+  feature-sizes          Measure and apply feature sizes (equivalent to the nightly job).
   update-screen-previews Run the local equivalent of .github/workflows/update-screen-previews.yml.
-  all                    Run all local CI entrypoints above.
+  all                    Run ci-build + build-workflow + profile-matrix + feature-sizes + update-screen-previews.
 EOF
 }
 
@@ -207,6 +220,9 @@ case "$target" in
   profile-matrix)
     run_profile_matrix
     ;;
+  feature-sizes)
+    run_feature_sizes
+    ;;
   update-screen-previews)
     run_update_screen_previews
     ;;
@@ -214,6 +230,7 @@ case "$target" in
     run_ci_build
     run_build_workflow
     run_profile_matrix
+    run_feature_sizes
     run_update_screen_previews
     ;;
   *)

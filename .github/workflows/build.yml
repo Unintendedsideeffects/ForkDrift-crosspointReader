@@ -2,9 +2,23 @@ name: Build
 
 on:
   push:
-    branches: ['**']
+    branches: [master, fork-drift]
+    paths:
+      - "src/**"
+      - "lib/**"
+      - "open-x4-sdk/**"
+      - "platformio.ini"
+      - "scripts/generate_build_config.py"
+      - ".github/workflows/build.yml"
     tags: ["v*"]
   pull_request:
+    paths:
+      - "src/**"
+      - "lib/**"
+      - "open-x4-sdk/**"
+      - "platformio.ini"
+      - "scripts/generate_build_config.py"
+      - ".github/workflows/build.yml"
   workflow_dispatch:
 
 concurrency:
