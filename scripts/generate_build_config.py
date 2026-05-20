@@ -106,6 +106,12 @@ FEATURES = {
         size_kb=0,
         description='Streamlined home UI with horizontal book shelf + vertical menu'
     ),
+    'web_wallpaper_plugin': Feature(
+        name='Web Wallpaper',
+        flag='ENABLE_WEB_WALLPAPER_PLUGIN',
+        size_kb=3,
+        description='Browser-side wallpaper converter at /plugins/wallpaper — resize, dither, and upload any image as a 1-bit BMP sleep screen'
+    ),
     'pokemon_wallpaper_plugin': Feature(
         name='Pokemon Wallpaper',
         flag='ENABLE_POKEMON_WALLPAPER_PLUGIN',
@@ -373,6 +379,13 @@ FEATURE_METADATA = {
         requires=[],
         conflicts=[],
         recommends=[]
+    ),
+    'web_wallpaper_plugin': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=[],
+        conflicts=[],
+        recommends=['image_sleep', 'background_server']
     ),
     'pokemon_wallpaper_plugin': FeatureMetadata(
         implemented=True,
@@ -699,6 +712,7 @@ PROFILES = {
             'background_server_on_charge': True,
             'background_server_always': True,
             'home_media_picker': True,
+            'web_wallpaper_plugin': True,
             'pokemon_wallpaper_plugin': True,
             'pokemon_party': True,
             'remote_control': True,

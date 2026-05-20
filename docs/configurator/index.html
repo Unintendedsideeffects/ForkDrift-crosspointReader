@@ -2398,6 +2398,16 @@
                   <div class="card-toggle"><span class="toggle-box"></span></div>
                 </label>
                 <div class="dep-children">
+                  <label class="skill-card dep-child" data-feature="web_wallpaper_plugin" data-node-id="web_wallpaper_plugin">
+                    <input type="checkbox" id="web_wallpaper_plugin" data-feature="web_wallpaper_plugin" />
+                    <div class="card-icon"><span>&#x1F5BC;</span></div>
+                    <div class="card-body">
+                      <div class="card-name">Wallpaper Converter</div>
+                      <div class="card-size"></div>
+                      <div class="card-desc">Browser-side image converter at /plugins/wallpaper — dithers any photo to 1-bit BMP for the sleep screen</div>
+                    </div>
+                    <div class="card-toggle"><span class="toggle-box"></span></div>
+                  </label>
                   <label class="skill-card dep-child" data-feature="pokemon_wallpaper_plugin" data-node-id="pokemon_wallpaper_plugin">
                     <input type="checkbox" id="pokemon_wallpaper_plugin" data-feature="pokemon_wallpaper_plugin" />
                     <div class="card-icon"><span>&#x26A1;</span></div>
@@ -3242,6 +3252,11 @@
           flag: "ENABLE_HOME_MEDIA_PICKER",
           default: true,
         },
+        web_wallpaper_plugin: {
+          sizeKb: 3,
+          flag: "ENABLE_WEB_WALLPAPER_PLUGIN",
+          default: false,
+        },
         pokemon_wallpaper_plugin: {
           sizeKb: 16,
           flag: "ENABLE_POKEMON_WALLPAPER_PLUGIN",
@@ -3384,6 +3399,7 @@
         background_server_on_charge: "Automatically starts the Background Server whenever the device is connected to a charger. Lets the device act as a wireless book-drop station with no manual steps while it sits on your desk.",
         background_server_always: "Keeps the Background Server running continuously — on battery or on charge. Maximises availability for remote control and file transfer at the cost of increased WiFi radio power draw.",
         home_media_picker: "Replaces the plain text file list on the Home screen with a visual grid of cover thumbnails. Covers are cached to the SD card on first render; subsequent loads are instant.",
+        web_wallpaper_plugin: "Serves a browser-side wallpaper converter at /plugins/wallpaper. Load any photo, preview it at 480×800, choose a dithering mode (Atkinson, Floyd-Steinberg, or threshold), and upload the result as a 1-bit BMP to /sleep/wallpaper.bmp. No device CPU involved — all processing runs in the browser. Outputs ~48 KB instead of the ~1 MB you'd get from a PNG upload.",
         pokemon_wallpaper_plugin: "Installs the X4 Pokédex web plugin. Browsable via the Background Server's web UI. Demonstrates the plugin architecture and doubles as a reference for building custom web tools. Requires Image Sleep.",
         pokemon_party: "Displays your Pokémon party as a sleep-screen overlay sourced from the Pokemon Wallpaper plugin. A cosmetic feature; purely for fun. Requires Pokemon Wallpaper Plugin.",
         epub_support: "The core EPUB 2/3 parser and renderer. Handles ZIP extraction, NCX/OPF navigation, CSS-subset styling, and multi-section layout with an aggressive on-disk cache (.crosspoint/). Disabling this removes book reading entirely.",
@@ -3446,7 +3462,7 @@
 
       const HUB_FEATURES = {
         reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "anki_support", "reading_stats", "focus_reading"],
-        interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts", "minimal_theme"],
+        interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "web_wallpaper_plugin", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts", "minimal_theme"],
         network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "remote_control", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
         storage_hub: ["usb_mass_storage"],
       };
@@ -3511,6 +3527,7 @@
           background_server_on_charge: true,
           background_server_always: true,
           home_media_picker: true,
+          web_wallpaper_plugin: true,
           pokemon_wallpaper_plugin: true,
           pokemon_party: true,
           dark_mode: true,
@@ -5744,11 +5761,29 @@
     .sleep-preview-roman {
       width: 100%;
       height: 100%;
+      position: relative;
     }
-    .sleep-preview-roman svg {
-      width: 100%;
-      height: 100%;
-      display: block;
+    .sleep-preview-roman-frame {
+      position: absolute;
+      border: 1px solid currentColor;
+      box-sizing: border-box;
+    }
+    .sleep-preview-roman-text {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: Ubuntu, "Helvetica Neue", Arial, sans-serif;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+    .sleep-preview-roman-rule {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      height: 1px;
+      background: currentColor;
     }
     .button-hints {
       position: absolute;
@@ -6024,62 +6059,23 @@
           minute: String(label || '').slice(separator + 1),
         };
       }
-      function romanGlyphBoxWidth(height) {
-        return Math.max(20, Math.round(height / 2));
-      }
-      function romanGlyphStrokeWidth(height) {
-        return Math.max(6, Math.round(height / 8));
-      }
-      function romanGlyphGap(height) {
-        return Math.max(6, Math.round(height / 12));
-      }
-      function romanTextWidth(text, height) {
+      const romanClockFontFamily = 'Ubuntu, "Helvetica Neue", Arial, sans-serif';
+      function measureRomanTextWidth(text, fontSize) {
         if (!text) return 0;
-        return text.length * romanGlyphBoxWidth(height) + (text.length - 1) * romanGlyphGap(height);
+        const canvas = measureRomanTextWidth._canvas || (measureRomanTextWidth._canvas = document.createElement('canvas'));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return 0;
+        ctx.font = '700 ' + fontSize + 'px ' + romanClockFontFamily;
+        return Math.ceil(ctx.measureText(text).width);
       }
-      function fitRomanTextHeight(text, maxWidth, maxHeight) {
+      function fitRomanFontSize(text, maxWidth, maxHeight) {
         if (!text) return 0;
-        for (let height = maxHeight; height >= 48; height -= 1) {
-          if (romanTextWidth(text, height) <= maxWidth) return height;
+        for (let size = maxHeight; size >= 48; size -= 1) {
+          if (measureRomanTextWidth(text, size) <= maxWidth) return size;
         }
         return 48;
       }
-      function renderRomanGlyphSvg(glyph, x, y, height) {
-        const width = romanGlyphBoxWidth(height);
-        const stroke = romanGlyphStrokeWidth(height);
-        const left = x + stroke / 2;
-        const right = x + width - stroke / 2 - 1;
-        const midX = x + width / 2;
-        const bottom = y + height - 1;
-        if (glyph === 'I') {
-          const capW = stroke + stroke / 2;
-          const capH = Math.max(2, Math.round(stroke / 4));
-          return '<rect x="' + (midX - stroke / 2) + '" y="' + y + '" width="' + stroke + '" height="' + height + '" fill="currentColor" />' +
-            '<rect x="' + (midX - capW / 2) + '" y="' + y + '" width="' + capW + '" height="' + capH + '" fill="currentColor" />' +
-            '<rect x="' + (midX - capW / 2) + '" y="' + (bottom - capH + 1) + '" width="' + capW + '" height="' + capH + '" fill="currentColor" />';
-        }
-        if (glyph === 'V') {
-          return '<line x1="' + left + '" y1="' + y + '" x2="' + midX + '" y2="' + bottom + '" stroke="currentColor" stroke-width="' + stroke + '" stroke-linecap="square" />' +
-            '<line x1="' + right + '" y1="' + y + '" x2="' + midX + '" y2="' + bottom + '" stroke="currentColor" stroke-width="' + stroke + '" stroke-linecap="square" />';
-        }
-        if (glyph === 'X') {
-          return '<line x1="' + left + '" y1="' + y + '" x2="' + right + '" y2="' + bottom + '" stroke="currentColor" stroke-width="' + stroke + '" stroke-linecap="square" />' +
-            '<line x1="' + right + '" y1="' + y + '" x2="' + left + '" y2="' + bottom + '" stroke="currentColor" stroke-width="' + stroke + '" stroke-linecap="square" />';
-        }
-        return '';
-      }
-      function renderRomanTextSvg(text, x, y, height) {
-        const boxWidth = romanGlyphBoxWidth(height);
-        const gap = romanGlyphGap(height);
-        let cursorX = x;
-        let svg = '';
-        Array.from(text || '').forEach(glyph => {
-          svg += renderRomanGlyphSvg(glyph, cursorX, y, height);
-          cursorX += boxWidth + gap;
-        });
-        return svg;
-      }
-      function renderRomanClockSvg(label, viewportWidth, viewportHeight) {
+      function renderRomanClockMarkup(label, viewportWidth, viewportHeight) {
         const parts = splitRomanClockLabel(label);
         if (!parts.hour) return '';
         const pageWidth = Math.max(320, Math.round(viewportWidth || 480));
@@ -6092,39 +6088,39 @@
         const contentY = frameMargin + innerPad;
         const contentHeight = Math.max(160, pageHeight - contentY * 2);
         const hasMinute = !!parts.minute;
-        let svg = '<rect x="' + frameMargin + '" y="' + frameMargin + '" width="' + (pageWidth - frameMargin * 2) +
-          '" height="' + (pageHeight - frameMargin * 2) + '" rx="' + frameRadius + '" ry="' + frameRadius +
-          '" fill="none" stroke="currentColor" stroke-width="1" />';
+        let markup = '<div class="sleep-preview-roman">' +
+          '<div class="sleep-preview-roman-frame" style="left:' + frameMargin + 'px; top:' + frameMargin + 'px; width:' +
+          (pageWidth - frameMargin * 2) + 'px; height:' + (pageHeight - frameMargin * 2) + 'px; border-radius:' +
+          frameRadius + 'px;"></div>';
         if (!hasMinute) {
-          const hourHeight = fitRomanTextHeight(parts.hour, contentWidth, Math.round(contentHeight * 7 / 12));
-          const hourWidth = romanTextWidth(parts.hour, hourHeight);
-          const hourX = contentX + (contentWidth - hourWidth) / 2;
+          const hourSize = fitRomanFontSize(parts.hour, contentWidth, Math.round(contentHeight * 7 / 12));
+          const hourHeight = hourSize;
           const hourY = contentY + (contentHeight - hourHeight) / 2;
-          svg += renderRomanTextSvg(parts.hour, hourX, hourY, hourHeight);
+          markup += '<div class="sleep-preview-roman-text" style="top:' + hourY + 'px; font-size:' + hourSize + 'px;">' +
+            escapeHtml(parts.hour) + '</div>';
         } else {
           const hourZoneTopY = contentY + contentHeight * 5 / 100;
           const hourZoneHeight = contentHeight * 53 / 100;
           const ruleY = contentY + contentHeight * 64 / 100;
           const minuteZoneY = contentY + contentHeight * 68 / 100;
           const minuteZoneHeight = contentHeight * 24 / 100;
-          const hourHeight = fitRomanTextHeight(parts.hour, contentWidth, hourZoneHeight);
-          const hourWidth = romanTextWidth(parts.hour, hourHeight);
-          const hourX = contentX + (contentWidth - hourWidth) / 2;
+          const hourSize = fitRomanFontSize(parts.hour, contentWidth, hourZoneHeight);
+          const hourHeight = hourSize;
           const hourY = hourZoneTopY + (hourZoneHeight - hourHeight) / 2;
-          svg += renderRomanTextSvg(parts.hour, hourX, hourY, hourHeight);
+          markup += '<div class="sleep-preview-roman-text" style="top:' + hourY + 'px; font-size:' + hourSize + 'px;">' +
+            escapeHtml(parts.hour) + '</div>';
 
           const ruleWidth = contentWidth * 3 / 10;
-          svg += '<rect x="' + (contentX + (contentWidth - ruleWidth) / 2) + '" y="' + ruleY + '" width="' + ruleWidth +
-            '" height="1" fill="currentColor" />';
+          markup += '<div class="sleep-preview-roman-rule" style="top:' + ruleY + 'px; width:' + ruleWidth + 'px;"></div>';
 
-          const minuteMaxHeight = Math.min(minuteZoneHeight, hourHeight / 2);
-          const minuteHeight = fitRomanTextHeight(parts.minute, contentWidth, minuteMaxHeight);
-          const minuteWidth = romanTextWidth(parts.minute, minuteHeight);
-          const minuteX = contentX + (contentWidth - minuteWidth) / 2;
+          const minuteMaxHeight = Math.min(minuteZoneHeight, Math.round(hourHeight / 2));
+          const minuteSize = fitRomanFontSize(parts.minute, contentWidth, minuteMaxHeight);
+          const minuteHeight = minuteSize;
           const minuteY = minuteZoneY + (minuteZoneHeight - minuteHeight) / 2;
-          svg += renderRomanTextSvg(parts.minute, minuteX, minuteY, minuteHeight);
+          markup += '<div class="sleep-preview-roman-text" style="top:' + minuteY + 'px; font-size:' + minuteSize + 'px;">' +
+            escapeHtml(parts.minute) + '</div>';
         }
-        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + pageWidth + ' ' + pageHeight + '" preserveAspectRatio="xMidYMid meet" aria-hidden="true">' + svg + '</svg>';
+        return markup + '</div>';
       }
       let inner = '';
       if (sleepPreview.mode === 2) {
@@ -6133,12 +6129,12 @@
         inner = '<img class="sleep-preview-image ' + customFitClass + ' ' + customFilterClass + '" src="' + escapeHtml(customSource) + '" alt="' +
           escapeHtml(sleepPreview.studioFileName || 'Custom sleep image') + '" />';
       } else if (sleepPreview.mode === 8) {
-        const romanSvg = renderRomanClockSvg(
+        const romanMarkup = renderRomanClockMarkup(
           sleepPreview.romanClockLabel,
           sleepPreviewOverlay.clientWidth,
           sleepPreviewOverlay.clientHeight
         );
-        inner = '<div class="sleep-preview-roman">' + romanSvg + '</div>';
+        inner = romanMarkup;
       } else if (sleepPreview.mode === 3) {
         inner = '';
       } else {

@@ -3,121 +3,483 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CrossPoint Reader - Wallpaper Converter</title>
+  <title>Wallpaper Converter</title>
   <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 20px; line-height: 1.6; }
-    .card { border: 1px solid #ccc; padding: 20px; border-radius: 8px; }
-    canvas { border: 1px solid #000; max-width: 100%; height: auto; display: block; margin: 10px 0; }
-    .btn { background: #000; color: #fff; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
-    .btn:disabled { background: #ccc; }
-    .status { margin-top: 10px; font-style: italic; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      font-size: 15px;
+      background: #f5f5f5;
+      color: #111;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    .page { max-width: 560px; margin: 0 auto; }
+
+    h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+
+    .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .card-title { font-size: 12px; font-weight: 600; text-transform: uppercase;
+                  letter-spacing: 0.06em; color: #888; margin-bottom: 12px; }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed #ccc;
+      border-radius: 6px;
+      padding: 32px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .drop-zone:hover, .drop-zone.dragging { border-color: #333; background: #fafafa; }
+    .drop-zone input[type="file"] { display: none; }
+    .drop-zone-label { font-size: 14px; color: #555; pointer-events: none; }
+    .drop-zone-label strong { color: #111; }
+
+    /* Options row */
+    .options-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+                   margin-top: 14px; }
+    .options-row label { font-size: 13px; color: #555; }
+    .options-row select {
+      font-size: 13px;
+      padding: 4px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    /* Preview */
+    .preview-wrap {
+      display: none;
+      margin-top: 16px;
+    }
+    .canvases {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+    }
+    .canvas-col { flex: 0 0 auto; text-align: center; }
+    .canvas-label { font-size: 11px; color: #888; margin-bottom: 4px; }
+    canvas {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      display: block;
+      /* Show at 25% — 480×800 → 120×200 */
+      width: 120px;
+      height: 200px;
+      image-rendering: pixelated;
+    }
+
+    /* Actions */
+    .actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px;
+      font-size: 14px; font-weight: 500;
+      border: none; border-radius: 5px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: #111; color: #fff; }
+    .btn-secondary { background: #eee; color: #111; }
+
+    /* Status */
+    .status {
+      font-size: 13px;
+      margin-top: 12px;
+      min-height: 18px;
+      color: #555;
+    }
+    .status.ok  { color: #1a7a2e; }
+    .status.err { color: #c0392b; }
+
+    /* Info box */
+    .info {
+      font-size: 12px;
+      color: #777;
+      margin-top: 10px;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
+<div class="page">
   <h1>Wallpaper Converter</h1>
-  <p>Resize and convert images for Xteink X4 (480x800).</p>
+  <p class="subtitle">Resize, dither, and upload images to /sleep for use as a custom sleep screen.</p>
+
   <div class="card">
-    <input type="file" id="fileInput" accept="image/*" />
-    <div id="previewContainer" style="display:none;">
-      <canvas id="canvas"></canvas>
-      <button id="uploadBtn" class="btn">Upload to /sleep</button>
+    <div class="card-title">Image</div>
+
+    <label class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="image/*" />
+      <div class="drop-zone-label">
+        <strong>Choose a file</strong> or drag it here<br>
+        <span style="font-size:12px;color:#aaa;">Any photo, artwork, or screenshot</span>
+      </div>
+    </label>
+
+    <div class="options-row">
+      <label for="ditherSelect">Dithering:</label>
+      <select id="ditherSelect">
+        <option value="atkinson">Atkinson (recommended)</option>
+        <option value="floyd">Floyd-Steinberg</option>
+        <option value="threshold">Threshold (no dithering)</option>
+      </select>
     </div>
-    <div id="status" class="status"></div>
+
+    <div class="preview-wrap" id="previewWrap">
+      <div class="canvases">
+        <div class="canvas-col">
+          <div class="canvas-label">Grayscale</div>
+          <canvas id="canvasGray" width="480" height="800"></canvas>
+        </div>
+        <div class="canvas-col">
+          <div class="canvas-label">1-bit preview</div>
+          <canvas id="canvas1bit" width="480" height="800"></canvas>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="uploadBtn" class="btn btn-primary" disabled>Upload to /sleep</button>
+        <button id="downloadBtn" class="btn btn-secondary">Download BMP</button>
+      </div>
+      <div class="status" id="status"></div>
+      <div class="info">
+        Output: 480×800, 1-bit monochrome BMP (~48 KB). Uploaded to
+        <code>/sleep/wallpaper.bmp</code> — select "Custom Image" sleep mode in Settings to use it.
+      </div>
+    </div>
   </div>
+</div>
 
-  <script>
-    const fileInput = document.getElementById('fileInput');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const uploadBtn = document.getElementById('uploadBtn');
-    const status = document.getElementById('status');
+<script>
+  'use strict';
 
-    const TARGET_WIDTH = 480;
-    const TARGET_HEIGHT = 800;
+  const TARGET_W = 480;
+  const TARGET_H = 800;
 
-    fileInput.onchange = (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+  const dropZone    = document.getElementById('dropZone');
+  const fileInput   = document.getElementById('fileInput');
+  const ditherSelect = document.getElementById('ditherSelect');
+  const previewWrap = document.getElementById('previewWrap');
+  const canvasGray  = document.getElementById('canvasGray');
+  const canvas1bit  = document.getElementById('canvas1bit');
+  const uploadBtn   = document.getElementById('uploadBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const statusEl    = document.getElementById('status');
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          canvas.width = TARGET_WIDTH;
-          canvas.height = TARGET_HEIGHT;
-          
-          // Cover/Crop logic
-          const scale = Math.max(TARGET_WIDTH / img.width, TARGET_HEIGHT / img.height);
-          const x = (TARGET_WIDTH / 2) - (img.width / 2) * scale;
-          const y = (TARGET_HEIGHT / 2) - (img.height / 2) * scale;
-          
-          ctx.fillStyle = '#fff';
-          ctx.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-          ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-          
-          // Simple Grayscale
-          const imageData = ctx.getImageData(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-          const data = imageData.data;
-          for (let i = 0; i < data.length; i += 4) {
-            const gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
-            data[i] = data[i+1] = data[i+2] = gray;
-          }
-          ctx.putImageData(imageData, 0, 0);
-          
-          document.getElementById('previewContainer').style.display = 'block';
-          status.innerText = 'Image processed. Ready to upload.';
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
+  const ctxGray  = canvasGray.getContext('2d', { willReadFrequently: true });
+  const ctx1bit  = canvas1bit.getContext('2d');
+
+  let grayPixels = null;  // Float32Array of luminance [0-255], length=W*H
+
+  // ── Drop zone wiring ───────────────────────────────────────────────────────
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragging'); });
+  dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('dragging'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragging');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) loadFile(file);
+  });
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) loadFile(e.target.files[0]);
+  });
+
+  ditherSelect.addEventListener('change', () => {
+    if (grayPixels) render1bit();
+  });
+
+  // ── Image loading ──────────────────────────────────────────────────────────
+
+  function loadFile(file) {
+    setStatus('');
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => processImage(img);
+      img.src = ev.target.result;
     };
+    reader.readAsDataURL(file);
+  }
 
-    async function ensureFolder(path, name) {
-      const formData = new FormData();
-      formData.append('path', path);
-      formData.append('name', name);
-      const response = await fetch('/mkdir', { method: 'POST', body: formData });
-      if (response.ok) return;
+  function processImage(img) {
+    // Cover-crop to TARGET_W × TARGET_H
+    const scale = Math.max(TARGET_W / img.width, TARGET_H / img.height);
+    const sw = img.width  * scale;
+    const sh = img.height * scale;
+    const sx = (TARGET_W - sw) / 2;
+    const sy = (TARGET_H - sh) / 2;
 
-      const message = (await response.text()).toLowerCase();
-      if (message.includes('already') && message.includes('exist')) return;
-      if (message.includes('exists')) return;
-      throw new Error("Failed to create folder '" + name + "': " + message);
+    ctxGray.fillStyle = '#fff';
+    ctxGray.fillRect(0, 0, TARGET_W, TARGET_H);
+    ctxGray.drawImage(img, sx, sy, sw, sh);
+
+    // Convert to grayscale in-place and store
+    const id = ctxGray.getImageData(0, 0, TARGET_W, TARGET_H);
+    const src = id.data;
+    grayPixels = new Float32Array(TARGET_W * TARGET_H);
+    for (let i = 0, p = 0; i < src.length; i += 4, p++) {
+      // ITU-R BT.601 luminance (matches the firmware's 0.299/0.587/0.114)
+      const g = 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
+      grayPixels[p] = g;
+      src[i] = src[i + 1] = src[i + 2] = g;
+    }
+    ctxGray.putImageData(id, 0, 0);
+
+    previewWrap.style.display = 'block';
+    uploadBtn.disabled = false;
+    render1bit();
+  }
+
+  // ── Dithering ──────────────────────────────────────────────────────────────
+
+  /** Atkinson 1-bit dithering — matches firmware Atkinson1BitDitherer exactly.
+   *  Distributes 1/8 of error to each of 6 neighbours (total 6/8 = 75%).
+   *  Returns Uint8Array of length W*H, each byte 0 (black) or 1 (white). */
+  function ditherAtkinson(gray, W, H) {
+    const err = new Float32Array((W + 4) * (H + 2));  // padded to avoid bounds checks
+    const stride = W + 4;
+    const out = new Uint8Array(W * H);
+
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const ei  = y * stride + (x + 2);  // +2 offset matches C++ implementation
+        let val   = gray[y * W + x] + err[ei];
+        val = Math.max(0, Math.min(255, val));
+
+        const bit  = val < 128 ? 0 : 1;
+        out[y * W + x] = bit;
+
+        const e = (val - (bit ? 255 : 0)) / 8;  // distribute 1/8 each to 6 neighbours
+        err[ei + 1] += e;                                    // right
+        err[ei + 2] += e;                                    // right+1
+        err[(y + 1) * stride + (x + 1)] += e;               // below-left
+        err[(y + 1) * stride + (x + 2)] += e;               // below
+        err[(y + 1) * stride + (x + 3)] += e;               // below-right
+        err[(y + 2) * stride + (x + 2)] += e;               // two rows down
+      }
+    }
+    return out;
+  }
+
+  /** Floyd-Steinberg 1-bit with serpentine scanning — matches firmware FloydSteinbergDitherer.
+   *  Alternates left-to-right / right-to-left each row to suppress "worm" artifacts. */
+  function ditherFloydSteinberg(gray, W, H) {
+    const cur  = new Float32Array(W + 2);
+    const next = new Float32Array(W + 2);
+    const out  = new Uint8Array(W * H);
+    let reverse = false;
+
+    for (let y = 0; y < H; y++) {
+      cur.fill(0); next.fill(0);  // reset accumulators
+      // Copy current row error (carried from previous row)
+      // (managed by swapping below)
+
+      for (let xi = 0; xi < W; xi++) {
+        const x = reverse ? (W - 1 - xi) : xi;
+        const ei = x + 1;  // +1 offset for boundary
+
+        let val = gray[y * W + x] + cur[ei];
+        val = Math.max(0, Math.min(255, val));
+
+        const bit = val < 128 ? 0 : 1;
+        out[y * W + x] = bit;
+
+        const e = val - (bit ? 255 : 0);
+        if (!reverse) {
+          cur[ei + 1]  += (e * 7) >> 4;  // right 7/16
+          next[ei - 1] += (e * 3) >> 4;  // below-left 3/16
+          next[ei]     += (e * 5) >> 4;  // below 5/16
+          next[ei + 1] += e >> 4;        // below-right 1/16
+        } else {
+          cur[ei - 1]  += (e * 7) >> 4;  // left 7/16
+          next[ei + 1] += (e * 3) >> 4;  // below-right 3/16
+          next[ei]     += (e * 5) >> 4;  // below 5/16
+          next[ei - 1] += e >> 4;        // below-left 1/16
+        }
+      }
+      cur.set(next);
+      next.fill(0);
+      reverse = !reverse;
+    }
+    return out;
+  }
+
+  /** Simple threshold: 0–127 → black, 128–255 → white. No dithering. */
+  function ditherThreshold(gray, W, H) {
+    const out = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) out[i] = gray[i] < 128 ? 0 : 1;
+    return out;
+  }
+
+  function applyDither(gray, W, H, mode) {
+    switch (mode) {
+      case 'atkinson': return ditherAtkinson(gray, W, H);
+      case 'floyd':    return ditherFloydSteinberg(gray, W, H);
+      default:         return ditherThreshold(gray, W, H);
+    }
+  }
+
+  // ── 1-bit preview & BMP generation ────────────────────────────────────────
+
+  function render1bit() {
+    if (!grayPixels) return;
+    const mode = ditherSelect.value;
+    const bits = applyDither(grayPixels, TARGET_W, TARGET_H, mode);
+
+    // Draw preview (1-bit pixels as black/white RGBA)
+    const id = ctx1bit.createImageData(TARGET_W, TARGET_H);
+    const d  = id.data;
+    for (let i = 0; i < TARGET_W * TARGET_H; i++) {
+      const v = bits[i] ? 255 : 0;
+      d[i * 4]     = v;
+      d[i * 4 + 1] = v;
+      d[i * 4 + 2] = v;
+      d[i * 4 + 3] = 255;
+    }
+    ctx1bit.putImageData(id, 0, 0);
+  }
+
+  /** Build a 1-bit monochrome BMP blob.
+   *
+   * Format matches the firmware's createBmpHeader exactly:
+   *   - biBitCount = 1
+   *   - 2-colour palette: index 0 = black, index 1 = white
+   *   - Row stride = ceil(W / 32) * 4 bytes (padded to 32-bit boundary)
+   *   - Bit order: MSB = leftmost pixel  (BMP standard)
+   *   - biHeight > 0  →  bottom-up row order
+   *
+   * Total size for 480×800: 62-byte header + 60×800 = 48,062 bytes (~47 KB).
+   */
+  function buildBmpBlob(bits, W, H) {
+    const rowStride = Math.floor((W + 31) / 32) * 4;  // padded row size in bytes
+    const imageSize = rowStride * H;
+    // Header layout: 14 (file) + 40 (DIB) + 8 (2-colour palette) = 62 bytes
+    const HEADER_SIZE = 62;
+    const fileSize    = HEADER_SIZE + imageSize;
+
+    const buf  = new ArrayBuffer(fileSize);
+    const view = new DataView(buf);
+
+    // ── BITMAPFILEHEADER (14 bytes) ──────────────────────────────────────────
+    view.setUint16( 0, 0x4D42, true);      // bfType  'BM'
+    view.setUint32( 2, fileSize, true);    // bfSize
+    view.setUint16( 6, 0, true);           // bfReserved1
+    view.setUint16( 8, 0, true);           // bfReserved2
+    view.setUint32(10, HEADER_SIZE, true); // bfOffBits
+
+    // ── BITMAPINFOHEADER (40 bytes, offset 14) ────────────────────────────────
+    view.setUint32(14, 40, true);          // biSize
+    view.setInt32 (18, W, true);           // biWidth
+    view.setInt32 (22, H, true);           // biHeight (positive = bottom-up)
+    view.setUint16(26, 1, true);           // biPlanes
+    view.setUint16(28, 1, true);           // biBitCount = 1
+    view.setUint32(30, 0, true);           // biCompression = BI_RGB
+    view.setUint32(34, imageSize, true);   // biSizeImage
+    view.setInt32 (38, 2835, true);        // biXPelsPerMeter (72 DPI)
+    view.setInt32 (42, 2835, true);        // biYPelsPerMeter (72 DPI)
+    view.setUint32(46, 2, true);           // biClrUsed
+    view.setUint32(50, 2, true);           // biClrImportant
+
+    // ── 2-colour palette (8 bytes, offset 54) — RGBQUAD (Blue, Green, Red, Reserved) ─
+    // Colour 0: black
+    view.setUint8(54, 0); view.setUint8(55, 0); view.setUint8(56, 0); view.setUint8(57, 0);
+    // Colour 1: white
+    view.setUint8(58, 255); view.setUint8(59, 255); view.setUint8(60, 255); view.setUint8(61, 0);
+
+    // ── Pixel data (bottom-up: row 0 in file = bottom row of image) ──────────
+    const bytes = new Uint8Array(buf, HEADER_SIZE);
+    for (let y = 0; y < H; y++) {
+      const srcRow  = H - 1 - y;              // flip: row 0 file = bottom of image
+      const rowBase = y * rowStride;
+      for (let x = 0; x < W; x++) {
+        const bit     = bits[srcRow * W + x];  // 0=black, 1=white
+        const byteIdx = rowBase + Math.floor(x / 8);
+        const bitPos  = 7 - (x % 8);           // MSB = leftmost pixel
+        if (bit) bytes[byteIdx] |= (1 << bitPos);
+      }
     }
 
-    uploadBtn.onclick = async () => {
-      uploadBtn.disabled = true;
-      status.innerText = 'Converting to BMP...';
-      
-      try {
-        // This is a placeholder for a proper BMP conversion.
-        // For now we'll just send the PNG/JPG as is, but Crosspoint prefers BMP.
-        // In a real implementation, we'd use a JS BMP library.
-        canvas.toBlob(async (blob) => {
-          const formData = new FormData();
-          formData.append('file', blob, 'custom_wallpaper.png');
-          
-          status.innerText = 'Ensuring /sleep exists...';
-          await ensureFolder('/', 'sleep');
+    return new Blob([buf], { type: 'image/bmp' });
+  }
 
-          status.innerText = 'Uploading to /sleep...';
-          const resp = await fetch('/upload?path=/sleep', {
-            method: 'POST',
-            body: formData
-          });
-          
-          if (resp.ok) {
-            status.innerText = 'Success! Use Custom sleep mode with images in /sleep. A direct SD-card /.sleep folder also works and takes priority.';
-          } else {
-            status.innerText = 'Upload failed: ' + await resp.text();
-          }
-          uploadBtn.disabled = false;
-        }, 'image/png');
-      } catch (err) {
-        status.innerText = 'Error: ' + err.message;
-        uploadBtn.disabled = false;
+  // ── Upload & download ──────────────────────────────────────────────────────
+
+  function currentBmpBlob() {
+    if (!grayPixels) return null;
+    const bits = applyDither(grayPixels, TARGET_W, TARGET_H, ditherSelect.value);
+    return buildBmpBlob(bits, TARGET_W, TARGET_H);
+  }
+
+  function setStatus(msg, type) {
+    statusEl.textContent = msg;
+    statusEl.className = 'status' + (type ? ' ' + type : '');
+  }
+
+  uploadBtn.addEventListener('click', async () => {
+    const blob = currentBmpBlob();
+    if (!blob) return;
+
+    uploadBtn.disabled = true;
+    downloadBtn.disabled = true;
+
+    try {
+      setStatus('Ensuring /sleep folder…');
+      await ensureFolder('/', 'sleep');
+
+      setStatus('Uploading wallpaper.bmp…');
+      const form = new FormData();
+      form.append('file', blob, 'wallpaper.bmp');
+      const resp = await fetch('/upload?path=/sleep', { method: 'POST', body: form });
+
+      if (resp.ok) {
+        setStatus('Uploaded to /sleep/wallpaper.bmp. Select "Custom Image" sleep mode in Settings.', 'ok');
+      } else {
+        setStatus('Upload failed: ' + await resp.text(), 'err');
       }
-    };
-  </script>
+    } catch (err) {
+      setStatus('Error: ' + err.message, 'err');
+    } finally {
+      uploadBtn.disabled = false;
+      downloadBtn.disabled = false;
+    }
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    const blob = currentBmpBlob();
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = 'wallpaper.bmp';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  async function ensureFolder(path, name) {
+    const form = new FormData();
+    form.append('path', path);
+    form.append('name', name);
+    const resp = await fetch('/mkdir', { method: 'POST', body: form });
+    if (resp.ok) return;
+    const msg = (await resp.text()).toLowerCase();
+    if (msg.includes('exist')) return;  // already exists — fine
+    throw new Error("mkdir '" + name + "' failed: " + msg);
+  }
+</script>
 </body>
 </html>

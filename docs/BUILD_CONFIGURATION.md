@@ -358,6 +358,30 @@ Replaces the classic Home list selector with a streamlined media-style layout:
 
 ---
 
+### Wallpaper Converter
+
+**Flag:** `ENABLE_WEB_WALLPAPER_PLUGIN`
+**Size Impact:** ~3KB
+**Default:** Disabled
+
+Serves a browser-side image converter at `/plugins/wallpaper`.
+
+**What it does (all in the browser — no device CPU involved):**
+- Load any photo, artwork, or screenshot from your phone or desktop
+- Resize and center-crop to 480×800
+- Convert to grayscale and apply a dithering algorithm suited to e-ink (Atkinson, Floyd-Steinberg, or simple threshold)
+- Preview the 1-bit result before uploading
+- Upload the result as a proper 1-bit monochrome BMP (~48 KB) to `/sleep/wallpaper.bmp`
+- Or download the BMP directly to flash via USB
+
+**When disabled:**
+- `/plugins/wallpaper` route is not registered
+- Custom image sleep screens still work; you just need to transfer the BMP to the SD card manually
+
+**Use case:** Enable when you want an easy in-browser tool to turn any photo into a sleep screen without needing a separate image editor or manual SD card access.
+
+---
+
 ### Pokemon Wallpaper Plugin
 
 **Flag:** `ENABLE_POKEMON_WALLPAPER_PLUGIN`
@@ -460,6 +484,7 @@ uv run python scripts/generate_build_config.py --profile standard
 - ✓ User Fonts
 - ✓ USB Mass Storage
 - ✓ Dark Mode
+- ✗ Wallpaper Converter
 - ✗ Pokemon Wallpaper Plugin
 - ✗ Pokemon Party
 
@@ -501,6 +526,7 @@ uv run python scripts/generate_build_config.py --profile full
 - ✓ USB Mass Storage
 - ✓ Dark Mode
 - ✗ BLE WiFi Provisioning
+- ✓ Wallpaper Converter
 - ✓ Pokemon Wallpaper Plugin
 - ✓ Pokemon Party
 
