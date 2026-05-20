@@ -15,8 +15,8 @@ constexpr ThemeMetrics values = {.batteryWidth = 16,
                                  .contentSidePadding = 20,
                                  .listRowHeight = 40,
                                  .listWithSubtitleRowHeight = 60,
-                                 .menuRowHeight = 64,
-                                 .menuSpacing = 8,
+                                 .menuRowHeight = 56,
+                                 .menuSpacing = 6,
                                  .tabSpacing = 8,
                                  .tabBarHeight = 40,
                                  .scrollBarWidth = 4,
@@ -59,16 +59,18 @@ class LyraTheme : public BaseTheme {
                 const std::function<std::string(int index)>& rowTitle,
                 const std::function<std::string(int index)>& rowSubtitle,
                 const std::function<UIIcon(int index)>& rowIcon, const std::function<std::string(int index)>& rowValue,
-                bool highlightValue, const std::function<bool(int index)>& rowDimmed = nullptr) const override;
+                bool highlightValue, const std::function<bool(int index)>& rowDimmed = nullptr,
+                const std::function<bool(int index)>& isHeader = nullptr) const override;
   void drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
-                       const char* btn4) const override;
+                       const char* btn4, bool allowInvertedText = false) const override;
   void drawSideButtonHints(const GfxRenderer& renderer, const char* topBtn, const char* bottomBtn) const override;
   void drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                       const std::function<std::string(int index)>& buttonLabel,
                       const std::function<UIIcon(int index)>& rowIcon) const override;
   void drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                            const int selectorIndex, bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
-                           const std::function<bool()>& storeCoverBuffer) const override;
+                           const std::function<bool()>& storeCoverBuffer,
+                           float progressPercent = -1.0f) const override;
   void drawEmptyRecents(const GfxRenderer& renderer, const Rect rect) const;
   Rect drawPopup(const GfxRenderer& renderer, const char* message) const override;
   void fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, const int progress) const override;

@@ -22,6 +22,11 @@ class Epub;
 #define MAX_WORD_SIZE 200
 
 class ChapterHtmlSlimParser {
+  static constexpr uint8_t MAX_SIMPLE_TABLE_COLUMNS = 8;
+  static constexpr uint16_t MAX_SIMPLE_TABLE_CELLS = 64;
+  static constexpr uint16_t MAX_SIMPLE_TABLE_CELL_WORDS = 160;
+  static constexpr uint8_t TABLE_CELL_PADDING = 6;
+
   std::shared_ptr<Epub> epub;
   const std::string& filepath;
   GfxRenderer& renderer;
@@ -32,6 +37,7 @@ class ChapterHtmlSlimParser {
   int boldUntilDepth = INT_MAX;
   int italicUntilDepth = INT_MAX;
   int underlineUntilDepth = INT_MAX;
+  int strikethroughUntilDepth = INT_MAX;
   // buffer for building up words from characters, will auto break if longer than this
   // leave one char at end for null pointer
   char partWordBuffer[MAX_WORD_SIZE + 1] = {};
@@ -43,11 +49,13 @@ class ChapterHtmlSlimParser {
   int fontId;
   float lineCompression;
   bool extraParagraphSpacing;
+  bool forceParagraphIndents;
   uint8_t paragraphAlignment;
   uint16_t viewportWidth;
   uint16_t viewportHeight;
   bool hyphenationEnabled;
   bool focusReadingEnabled;
+  bool guideReadingEnabled;
   const CssParser* cssParser;
   bool embeddedStyle;
   uint8_t imageRendering;
@@ -61,6 +69,7 @@ class ChapterHtmlSlimParser {
     bool hasBold = false, bold = false;
     bool hasItalic = false, italic = false;
     bool hasUnderline = false, underline = false;
+    bool hasStrikethrough = false, strikethrough = false;
   };
   std::vector<StyleStackEntry> inlineStyleStack;
   std::vector<BlockStyle> blockStyleStack;  // accumulated block styles from open ancestor elements
@@ -68,9 +77,36 @@ class ChapterHtmlSlimParser {
   bool effectiveBold = false;
   bool effectiveItalic = false;
   bool effectiveUnderline = false;
+  bool effectiveStrikethrough = false;
+
+  struct BufferedTableCell {
+    std::unique_ptr<ParsedText> text;
+    std::vector<std::pair<int, FootnoteEntry>> footnotes;
+    bool isHeader = false;
+    uint8_t colSpan = 1;
+  };
+
+  struct BufferedTableRow {
+    std::vector<BufferedTableCell> cells;
+    bool hasHeaderCell = false;
+    bool hasDataCell = false;
+    uint16_t effectiveColumnCount = 0;
+  };
+
+  struct BufferedTable {
+    BlockStyle blockStyle;
+    std::vector<BufferedTableRow> rows;
+    uint16_t maxCols = 0;
+    uint16_t totalCells = 0;
+    bool unsupported = false;
+  };
+
   int tableDepth = 0;
   int tableRowIndex = 0;
   int tableColIndex = 0;
+  bool currentTableCellIsHeader = false;
+  uint8_t currentTableCellColSpan = 1;
+  std::unique_ptr<BufferedTable> currentTableBuffer = nullptr;
 
   // Anchor-to-page mapping: tracks which page each HTML id attribute lands on
   int completedPageCount = 0;
@@ -86,11 +122,17 @@ class ChapterHtmlSlimParser {
   int currentFootnoteLinkTextLen = 0;
   std::vector<std::pair<int, FootnoteEntry>> pendingFootnotes;  // <wordIndex, entry>
   int wordsExtractedInBlock = 0;
+  std::vector<CssAncestorEntry> ancestorStack_;
 
   void updateEffectiveInlineStyle();
   void startNewTextBlock(const BlockStyle& blockStyle);
   void flushPartWordBuffer();
   void makePages();
+  void emitHorizontalRule(const BlockStyle& blockStyle);
+  void finalizeCurrentTableCell();
+  void emitBufferedTableAsParagraphs(BufferedTable& table);
+  void emitBufferedTableAsFragments(BufferedTable& table);
+  void emitCurrentTableBuffer();
   // XML callbacks
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void XMLCALL characterData(void* userData, const XML_Char* s, int len);
@@ -100,9 +142,10 @@ class ChapterHtmlSlimParser {
  public:
   explicit ChapterHtmlSlimParser(std::shared_ptr<Epub> epub, const std::string& filepath, GfxRenderer& renderer,
                                  const int fontId, const float lineCompression, const bool extraParagraphSpacing,
-                                 const uint8_t paragraphAlignment, const uint16_t viewportWidth,
-                                 const uint16_t viewportHeight, const bool hyphenationEnabled,
-                                 const bool focusReadingEnabled,
+                                 const bool forceParagraphIndents, const uint8_t paragraphAlignment,
+                                 const uint16_t viewportWidth, const uint16_t viewportHeight,
+                                 const bool hyphenationEnabled, const bool focusReadingEnabled,
+                                 const bool guideReadingEnabled,
                                  const std::function<void(std::unique_ptr<Page>, uint16_t, uint16_t)>& completePageFn,
                                  const bool embeddedStyle, const std::string& contentBase,
                                  const std::string& imageBasePath, const uint8_t imageRendering = 0,
@@ -114,11 +157,13 @@ class ChapterHtmlSlimParser {
         fontId(fontId),
         lineCompression(lineCompression),
         extraParagraphSpacing(extraParagraphSpacing),
+        forceParagraphIndents(forceParagraphIndents),
         paragraphAlignment(paragraphAlignment),
         viewportWidth(viewportWidth),
         viewportHeight(viewportHeight),
         hyphenationEnabled(hyphenationEnabled),
         focusReadingEnabled(focusReadingEnabled),
+        guideReadingEnabled(guideReadingEnabled),
         completePageFn(completePageFn),
         popupFn(popupFn),
         cssParser(cssParser),

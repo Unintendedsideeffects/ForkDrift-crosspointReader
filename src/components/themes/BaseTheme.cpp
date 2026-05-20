@@ -6,6 +6,7 @@
 #include <Logging.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <string>
 
@@ -135,16 +136,17 @@ void BaseTheme::drawProgressBar(const GfxRenderer& renderer, Rect rect, const si
 }
 
 void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
-                                const char* btn4) const {
+                                const char* btn4, const bool allowInvertedText) const {
   const GfxRenderer::Orientation orig_orientation = renderer.getOrientation();
-  renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+  const bool invertText = allowInvertedText && orig_orientation == GfxRenderer::Orientation::PortraitInverted;
+  renderer.setOrientation(invertText ? GfxRenderer::Orientation::PortraitInverted : GfxRenderer::Orientation::Portrait);
 
   const int pageHeight = renderer.getScreenHeight();
   const auto& metrics = UITheme::getInstance().getMetrics();
   constexpr int buttonWidth = 106;
   constexpr int buttonHeight = BaseMetrics::values.buttonHintsHeight;
-  const int buttonY = metrics.buttonHintsHeight;  // Distance from bottom
-  constexpr int textYOffset = 7;                  // Distance from top of button to text baseline
+  const int buttonY = invertText ? pageHeight : metrics.buttonHintsHeight;
+  constexpr int textYOffset = 7;
   // X3 has wider screen in portrait (528 vs 480), use more spacing
   constexpr int x4ButtonPositions[] = {25, 130, 245, 350};
   constexpr int x3ButtonPositions[] = {38, 154, 268, 384};
@@ -154,7 +156,7 @@ void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
   for (int i = 0; i < 4; i++) {
     // Only draw if the label is non-empty
     if (labels[i] != nullptr && labels[i][0] != '\0') {
-      const int x = buttonPositions[i];
+      const int x = buttonPositions[invertText ? 3 - i : i];
       renderer.fillRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, false);
       renderer.drawRect(x, pageHeight - buttonY, buttonWidth, buttonHeight);
       const int textWidth = renderer.getTextWidth(UI_10_FONT_ID, labels[i]);
@@ -236,10 +238,12 @@ void BaseTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, 
                          const std::function<std::string(int index)>& rowSubtitle,
                          const std::function<UIIcon(int index)>& rowIcon,
                          const std::function<std::string(int index)>& rowValue, bool highlightValue,
-                         const std::function<bool(int index)>& rowDimmed) const {
+                         const std::function<bool(int index)>& rowDimmed,
+                         const std::function<bool(int index)>& isHeader) const {
   int rowHeight =
       (rowSubtitle != nullptr) ? BaseMetrics::values.listWithSubtitleRowHeight : BaseMetrics::values.listRowHeight;
   int pageItems = rect.height / rowHeight;
+  constexpr int sectionHeaderTopPadding = 20;
 
   const int totalPages = (itemCount + pageItems - 1) / pageItems;
   if (totalPages > 1) {
@@ -267,18 +271,38 @@ void BaseTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, 
     }
   }
 
-  // Draw selection
+  // Draw selection (skip header rows)
   int contentWidth = rect.width - 5;
-  if (selectedIndex >= 0) {
-    renderer.fillRect(0, rect.y + selectedIndex % pageItems * rowHeight - 2, rect.width, rowHeight);
+  const auto pageStartIndex = selectedIndex / pageItems * pageItems;
+  if (selectedIndex >= 0 && !(isHeader && isHeader(selectedIndex))) {
+    int selY = rect.y;
+    for (int j = pageStartIndex; j < selectedIndex; j++) {
+      selY += rowHeight;
+      if (isHeader && isHeader(j + 1)) selY += sectionHeaderTopPadding;
+    }
+    renderer.fillRect(0, selY - 2, rect.width, rowHeight);
   }
   constexpr int maxValueWidth = 200;
   constexpr int minValueGap = 10;
 
-  // Draw all items
-  const auto pageStartIndex = selectedIndex / pageItems * pageItems;
+  // Draw all items using a running Y to accommodate variable-height section headers
+  int currentY = rect.y;
   for (int i = pageStartIndex; i < itemCount && i < pageStartIndex + pageItems; i++) {
-    const int itemY = rect.y + (i % pageItems) * rowHeight;
+    if (i > pageStartIndex && isHeader && isHeader(i)) currentY += sectionHeaderTopPadding;
+    const int itemY = currentY;
+    currentY += rowHeight;
+
+    if (isHeader && isHeader(i)) {
+      std::string label = rowTitle(i);
+      std::transform(label.begin(), label.end(), label.begin(),
+                     [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+      auto truncated = renderer.truncatedText(
+          UI_10_FONT_ID, label.c_str(), contentWidth - BaseMetrics::values.contentSidePadding * 2, EpdFontFamily::BOLD);
+      renderer.drawText(UI_10_FONT_ID, rect.x + BaseMetrics::values.contentSidePadding, itemY + 5, truncated.c_str(),
+                        true, EpdFontFamily::BOLD);
+      renderer.drawLine(rect.x, itemY + rowHeight - 1, rect.x + contentWidth, itemY + rowHeight - 1, true);
+      continue;
+    }
 
     int rowTextWidth = contentWidth - BaseMetrics::values.contentSidePadding * 2;
     std::string valueText;
@@ -520,77 +544,18 @@ void BaseTheme::drawBookMetadata(const GfxRenderer& renderer, Rect area, Rect bo
     renderer.drawCenteredText(UI_10_FONT_ID, y + renderer.getLineHeight(UI_12_FONT_ID), tr(STR_START_READING));
     return;
   }
-
-  const std::string& lastBookTitle = recentBooks[0].title;
-  const std::string& lastBookAuthor = recentBooks[0].author;
-
-  auto lines = renderer.wrappedText(UI_12_FONT_ID, lastBookTitle.c_str(), bookRect.width - 40, 3);
-
-  int totalTextHeight = renderer.getLineHeight(UI_12_FONT_ID) * static_cast<int>(lines.size());
-  if (!lastBookAuthor.empty()) {
-    totalTextHeight += renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2;
-  }
-
-  int titleYStart = bookRect.y + (bookRect.height - totalTextHeight) / 2;
-
-  const auto truncatedAuthor = lastBookAuthor.empty()
-                                   ? std::string{}
-                                   : renderer.truncatedText(UI_10_FONT_ID, lastBookAuthor.c_str(), bookRect.width - 40);
-
-  // Draw background box behind text when cover image is shown
-  if (coverRendered) {
-    constexpr int boxPadding = 8;
-    int maxTextWidth = 0;
-    for (const auto& line : lines) {
-      const int lineWidth = renderer.getTextWidth(UI_12_FONT_ID, line.c_str());
-      if (lineWidth > maxTextWidth) maxTextWidth = lineWidth;
-    }
-    if (!truncatedAuthor.empty()) {
-      const int authorWidth = renderer.getTextWidth(UI_10_FONT_ID, truncatedAuthor.c_str());
-      if (authorWidth > maxTextWidth) maxTextWidth = authorWidth;
-    }
-
-    const int boxWidth = maxTextWidth + boxPadding * 2;
-    const int boxHeight = totalTextHeight + boxPadding * 2;
-    const int boxX = area.x + (area.width - boxWidth) / 2;
-    const int boxY = titleYStart - boxPadding;
-
-    renderer.fillRect(boxX, boxY, boxWidth, boxHeight, bookSelected);
-    renderer.drawRect(boxX, boxY, boxWidth, boxHeight, !bookSelected);
-  }
-
-  for (const auto& line : lines) {
-    renderer.drawCenteredText(UI_12_FONT_ID, titleYStart, line.c_str(), !bookSelected);
-    titleYStart += renderer.getLineHeight(UI_12_FONT_ID);
-  }
-
-  if (!truncatedAuthor.empty()) {
-    titleYStart += renderer.getLineHeight(UI_10_FONT_ID) / 2;
-    renderer.drawCenteredText(UI_10_FONT_ID, titleYStart, truncatedAuthor.c_str(), !bookSelected);
-  }
-
-  // "Continue Reading" label at the bottom
-  const int continueY = bookRect.y + bookRect.height - renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2;
-  if (coverRendered) {
-    const char* continueText = tr(STR_CONTINUE_READING);
-    const int continueTextWidth = renderer.getTextWidth(UI_10_FONT_ID, continueText);
-    constexpr int continuePadding = 6;
-    const int continueBoxWidth = continueTextWidth + continuePadding * 2;
-    const int continueBoxHeight = renderer.getLineHeight(UI_10_FONT_ID) + continuePadding;
-    const int continueBoxX = area.x + (area.width - continueBoxWidth) / 2;
-    const int continueBoxY = continueY - continuePadding / 2;
-    renderer.fillRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, bookSelected);
-    renderer.drawRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, !bookSelected);
-    renderer.drawCenteredText(UI_10_FONT_ID, continueY, continueText, !bookSelected);
-  } else {
-    renderer.drawCenteredText(UI_10_FONT_ID, continueY, tr(STR_CONTINUE_READING), !bookSelected);
-  }
+  (void)renderer;
+  (void)area;
+  (void)bookRect;
+  (void)bookSelected;
+  (void)coverRendered;
 }
 
 // Draw the "Recent Book" cover card on the home screen.
 void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                                     const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
-                                    bool& bufferRestored, const std::function<bool()>& storeCoverBuffer) const {
+                                    bool& bufferRestored, const std::function<bool()>& storeCoverBuffer,
+                                    float /*progressPercent*/) const {
   SpiBusMutex::Guard guard;
   const bool hasContinueReading = !recentBooks.empty();
   const bool bookSelected = hasContinueReading && selectorIndex == 0;
@@ -607,28 +572,60 @@ void BaseTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
 void BaseTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                                const std::function<std::string(int index)>& buttonLabel,
                                const std::function<UIIcon(int index)>& rowIcon) const {
-  for (int i = 0; i < buttonCount; ++i) {
+  constexpr int maxVisibleItems = 6;
+  const int totalPages = (buttonCount + maxVisibleItems - 1) / maxVisibleItems;
+
+  if (totalPages > 1) {
+    constexpr int indicatorWidth = 20;
+    constexpr int arrowSize = 6;
+    constexpr int margin = 15;
+
+    const int centerX = rect.x + rect.width - indicatorWidth / 2 - margin;
+    const int menuHeight =
+        maxVisibleItems * (BaseMetrics::values.menuRowHeight + BaseMetrics::values.menuSpacing) - BaseMetrics::values.menuSpacing;
+    const int indicatorTop = rect.y + BaseMetrics::values.verticalSpacing;
+    const int indicatorBottom = indicatorTop + menuHeight - arrowSize;
+
+    for (int i = 0; i < arrowSize; ++i) {
+      const int lineWidth = 1 + i * 2;
+      const int startX = centerX - i;
+      renderer.drawLine(startX, indicatorTop + i, startX + lineWidth - 1, indicatorTop + i);
+    }
+    for (int i = 0; i < arrowSize; ++i) {
+      const int lineWidth = 1 + (arrowSize - 1 - i) * 2;
+      const int startX = centerX - (arrowSize - 1 - i);
+      renderer.drawLine(startX, indicatorBottom - arrowSize + 1 + i, startX + lineWidth - 1,
+                        indicatorBottom - arrowSize + 1 + i);
+    }
+  }
+
+  const int pageStartIndex = (selectedIndex / maxVisibleItems) * maxVisibleItems;
+
+  for (int i = pageStartIndex; i < buttonCount && i < pageStartIndex + maxVisibleItems; ++i) {
+    const int displayIndex = i - pageStartIndex;
     const int tileY = BaseMetrics::values.verticalSpacing + rect.y +
-                      static_cast<int>(i) * (BaseMetrics::values.menuRowHeight + BaseMetrics::values.menuSpacing);
+                      static_cast<int>(displayIndex) * (BaseMetrics::values.menuRowHeight + BaseMetrics::values.menuSpacing);
+    int tileWidth = rect.width - BaseMetrics::values.contentSidePadding * 2;
+    if (totalPages > 1) {
+      tileWidth -= 30;
+    }
 
     const bool selected = selectedIndex == i;
 
     if (selected) {
-      renderer.fillRect(rect.x + BaseMetrics::values.contentSidePadding, tileY,
-                        rect.width - BaseMetrics::values.contentSidePadding * 2, BaseMetrics::values.menuRowHeight);
+      renderer.fillRect(rect.x + BaseMetrics::values.contentSidePadding, tileY, tileWidth,
+                        BaseMetrics::values.menuRowHeight);
     } else {
-      renderer.drawRect(rect.x + BaseMetrics::values.contentSidePadding, tileY,
-                        rect.width - BaseMetrics::values.contentSidePadding * 2, BaseMetrics::values.menuRowHeight);
+      renderer.drawRect(rect.x + BaseMetrics::values.contentSidePadding, tileY, tileWidth,
+                        BaseMetrics::values.menuRowHeight);
     }
 
     std::string labelStr = buttonLabel(i);
     const char* label = labelStr.c_str();
     const int textWidth = renderer.getTextWidth(UI_10_FONT_ID, label);
-    const int textX = rect.x + (rect.width - textWidth) / 2;
+    const int textX = rect.x + BaseMetrics::values.contentSidePadding + (tileWidth - textWidth) / 2;
     const int lineHeight = renderer.getLineHeight(UI_10_FONT_ID);
-    const int textY =
-        tileY + (BaseMetrics::values.menuRowHeight - lineHeight) / 2;  // vertically centered assuming y is top of text
-    // Invert text when the tile is selected, to contrast with the filled background
+    const int textY = tileY + (BaseMetrics::values.menuRowHeight - lineHeight) / 2;
     renderer.drawText(UI_10_FONT_ID, textX, textY, label, selectedIndex != i);
   }
 }
@@ -851,6 +848,13 @@ void BaseTheme::drawKeyboardKey(const GfxRenderer& renderer, Rect rect, const ch
   } else if (keyType == KeyboardKeyType::Shift || keyType == KeyboardKeyType::Mode || keyType == KeyboardKeyType::Del ||
              keyType == KeyboardKeyType::Space || keyType == KeyboardKeyType::Ok ||
              keyType == KeyboardKeyType::Disabled) {
+    if (keyType == KeyboardKeyType::Disabled) {
+      if (cr > 0) {
+        renderer.fillRoundedRect(rect.x, rect.y, rect.width, rect.height, cr, Color::LightGray);
+      } else {
+        renderer.fillRectDither(rect.x, rect.y, rect.width, rect.height, Color::LightGray);
+      }
+    }
     if (cr > 0) {
       renderer.drawRoundedRect(rect.x, rect.y, rect.width, rect.height, 1, cr, true);
     } else {

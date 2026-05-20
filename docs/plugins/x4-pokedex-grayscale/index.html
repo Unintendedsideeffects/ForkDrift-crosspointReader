@@ -458,8 +458,8 @@
         <section class="card control-block">
           <label for="bgStyle">Background</label>
           <select id="bgStyle">
-            <option value="diagonal" selected>Classic Diagonal</option>
-            <option value="white">All White</option>
+            <option value="white" selected>All White</option>
+            <option value="diagonal">Classic Diagonal</option>
             <option value="black">All Black</option>
           </select>
         </section>
@@ -472,6 +472,10 @@
             <label><input id="boldText" type="checkbox" checked /> Bold text</label>
             <label><input id="spriteOverlay" type="checkbox" /> Sprite over text layer</label>
             <label><input id="showTypes" type="checkbox" checked /> Show type pill</label>
+            <label><input id="showRegion" type="checkbox" checked /> Region</label>
+            <label><input id="showFind" type="checkbox" checked /> Find</label>
+            <label><input id="showHeight" type="checkbox" checked /> Height</label>
+            <label><input id="showWeight" type="checkbox" checked /> Weight</label>
           </div>
         </section>
 
@@ -621,6 +625,10 @@
     const boldTextInput = document.getElementById("boldText");
     const spriteOverlayInput = document.getElementById("spriteOverlay");
     const showTypesInput = document.getElementById("showTypes");
+    const showRegionInput = document.getElementById("showRegion");
+    const showFindInput = document.getElementById("showFind");
+    const showHeightInput = document.getElementById("showHeight");
+    const showWeightInput = document.getElementById("showWeight");
     const showFlavorInput = document.getElementById("showFlavor");
     const showHpInput = document.getElementById("showHp");
     const showEvolutionInput = document.getElementById("showEvolution");
@@ -844,13 +852,19 @@
       const normalized = normalizeSearchText(raw);
       const compact = normalized.replace(/\s+/g, "");
       const digits = compact.replace(/\D/g, "");
+      const leadingIdMatch = raw.match(/^\s*#?\s*(\d+)(?:\s|[-–—:#.]|$)/);
+      const leadingDigits = leadingIdMatch ? leadingIdMatch[1].replace(/^0+(?=\d)/, "") : "";
+      const isNumeric = !!compact && /^\d+$/.test(compact);
+      const digitQuery = isNumeric ? digits.replace(/^0+(?=\d)/, "") : leadingDigits;
       return {
         raw: raw,
         normalized: normalized,
         compact: compact,
         digits: digits,
-        isNumeric: !!compact && /^\d+$/.test(compact),
-        bloom: buildBloomFilter(raw)
+        digitQuery: digitQuery,
+        isNumeric: isNumeric,
+        hasIdIntent: !!digitQuery,
+        bloom: buildBloomFilter(digitQuery || raw)
       };
     }
 
@@ -860,11 +874,11 @@
       const bloomHit = bloomMatches(entry.bloom, query.bloom);
       let score = 0;
 
-      if (query.isNumeric) {
-        if (entry.idText === query.digits) score += 10000;
-        if (query.digits.startsWith(entry.idText)) score += 7000 + (entry.idText.length * 80);
-        if (entry.idText.startsWith(query.digits)) score += 5600 + (query.digits.length * 60);
-        if (entry.idText.indexOf(query.digits) !== -1) score += 2800;
+      if (query.hasIdIntent) {
+        if (entry.idText === query.digitQuery) score += 10000;
+        if (query.digitQuery.startsWith(entry.idText)) score += 7000 + (entry.idText.length * 80);
+        if (entry.idText.startsWith(query.digitQuery)) score += 5600 + (query.digitQuery.length * 60);
+        if (entry.idText.indexOf(query.digitQuery) !== -1) score += 2800;
         if (entry.labelCompact === query.compact) score += 1200;
         if (bloomHit) score += 60;
         return score >= 1000 ? score : 0;
@@ -922,10 +936,10 @@
     }
 
     function describeSuggestion(entry, query) {
-      if (query.isNumeric) {
-        if (entry.idText === query.digits) return "Exact ID";
-        if (query.digits.startsWith(entry.idText)) return "ID prefix";
-        if (entry.idText.startsWith(query.digits)) return "Numeric match";
+      if (query.hasIdIntent) {
+        if (entry.idText === query.digitQuery) return "Exact ID";
+        if (query.digitQuery.startsWith(entry.idText)) return "ID prefix";
+        if (entry.idText.startsWith(query.digitQuery)) return "Numeric match";
         return "Numeric match";
       }
       if (entry.compactName === query.compact || entry.normalizedName === query.normalized) return "Exact name";
@@ -959,12 +973,12 @@
 
     async function refreshResolvedPokemonName(rawInput, token) {
       const query = buildSearchQuery(rawInput);
-      if (!query.isNumeric || !query.digits) {
+      if (!query.hasIdIntent || !query.digitQuery) {
         if (token === suggestionToken) setResolvedPokemonName("");
         return;
       }
 
-      const numericId = parseInt(query.digits, 10);
+      const numericId = parseInt(query.digitQuery, 10);
       if (!(numericId >= 1 && numericId <= MAX_POKEMON_ID)) {
         if (token === suggestionToken) setResolvedPokemonName("");
         return;
@@ -1040,8 +1054,8 @@
         throw new Error("Enter a Pokemon name or ID.");
       }
 
-      if (query.isNumeric && query.digits) {
-        const numericId = parseInt(query.digits, 10);
+      if (query.hasIdIntent && query.digitQuery) {
+        const numericId = parseInt(query.digitQuery, 10);
         if (numericId >= 1 && numericId <= MAX_POKEMON_ID) {
           const directMatches = await findPokemonMatches(String(numericId), 1).catch(function() { return []; });
           return directMatches[0] || buildSearchEntry(numericId, String(numericId));
@@ -1165,8 +1179,8 @@
       let lookupKey = rawKey;
       const aliases = [rawKey, query.compact];
 
-      if (query.isNumeric && query.digits) {
-        lookupKey = String(parseInt(query.digits, 10));
+      if (query.hasIdIntent && query.digitQuery) {
+        lookupKey = String(parseInt(query.digitQuery, 10));
       } else {
         try {
           const resolved = await resolvePokemonLookup(rawInput);
@@ -1247,6 +1261,10 @@
         spriteScale: Math.max(MIN_SPRITE_SCALE, Math.min(MAX_SPRITE_SCALE, parseFloat(spriteScaleInput.value) || 1.0)),
         spriteOverlay: spriteOverlayInput.checked,
         showTypes: showTypesInput.checked,
+        showRegion: showRegionInput.checked,
+        showFind: showFindInput.checked,
+        showHeight: showHeightInput.checked,
+        showWeight: showWeightInput.checked,
         showFlavor: showFlavorInput.checked,
         showHp: showHpInput.checked,
         showEvolution: showEvolutionInput.checked,
@@ -1766,20 +1784,33 @@
       const secondaryDataFontSize = 18 * scaleUnit;
       const secondRowY = dataTopY + dataRowGap;
       const clippedLocation = location.length > 25 ? location.slice(0, 22) + "..." : location;
+      const hasTopDataRow = options.showRegion || options.showHeight;
+      const hasBottomDataRow = options.showFind || options.showWeight;
+      const shouldDrawDataBlock = hasTopDataRow || hasBottomDataRow;
 
-      ctx.fillStyle = ink;
-      ctx.textAlign = "left";
-      ctx.font = getFontSpec(primaryDataFontSize, options.fontFamily, options.boldText);
-      ctx.fillText("Region: " + region, 40 * scaleUnit, dataTopY);
-      ctx.font = getFontSpec(secondaryDataFontSize, options.fontFamily, options.boldText);
-      ctx.fillText("Find: " + clippedLocation, 40 * scaleUnit, secondRowY);
+      if (shouldDrawDataBlock) {
+        ctx.fillStyle = ink;
+        ctx.textAlign = "left";
+        ctx.font = getFontSpec(primaryDataFontSize, options.fontFamily, options.boldText);
+        if (options.showRegion) {
+          ctx.fillText("Region: " + region, 40 * scaleUnit, dataTopY);
+        }
+        ctx.font = getFontSpec(secondaryDataFontSize, options.fontFamily, options.boldText);
+        if (options.showFind) {
+          ctx.fillText("Find: " + clippedLocation, 40 * scaleUnit, secondRowY);
+        }
 
-      ctx.textAlign = "right";
-      ctx.font = getFontSpec(primaryDataFontSize, options.fontFamily, options.boldText);
-      ctx.fillText("Height: " + (pokemon.height / 10).toFixed(1) + "m", SCREEN_WIDTH - (40 * scaleUnit), dataTopY);
-      ctx.font = getFontSpec(secondaryDataFontSize, options.fontFamily, options.boldText);
-      ctx.fillText("Weight: " + (pokemon.weight / 10).toFixed(1) + "kg", SCREEN_WIDTH - (40 * scaleUnit), secondRowY);
-      currentY = secondRowY + secondaryDataFontSize + (8 * scaleUnit);
+        ctx.textAlign = "right";
+        ctx.font = getFontSpec(primaryDataFontSize, options.fontFamily, options.boldText);
+        if (options.showHeight) {
+          ctx.fillText("Height: " + (pokemon.height / 10).toFixed(1) + "m", SCREEN_WIDTH - (40 * scaleUnit), dataTopY);
+        }
+        ctx.font = getFontSpec(secondaryDataFontSize, options.fontFamily, options.boldText);
+        if (options.showWeight) {
+          ctx.fillText("Weight: " + (pokemon.weight / 10).toFixed(1) + "kg", SCREEN_WIDTH - (40 * scaleUnit), secondRowY);
+        }
+        currentY = (hasBottomDataRow ? secondRowY + secondaryDataFontSize : dataTopY + primaryDataFontSize) + (8 * scaleUnit);
+      }
 
       if (options.showEvolution) {
         const evolutionCenterY = currentY + (55 * scaleUnit);
@@ -2026,6 +2057,10 @@
       boldTextInput,
       spriteOverlayInput,
       showTypesInput,
+      showRegionInput,
+      showFindInput,
+      showHeightInput,
+      showWeightInput,
       showFlavorInput,
       showHpInput,
       showEvolutionInput,

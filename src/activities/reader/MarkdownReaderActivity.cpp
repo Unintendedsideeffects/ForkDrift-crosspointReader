@@ -35,6 +35,8 @@ uint32_t computeParseFailureSettingsSignature() {
   mix(static_cast<uint32_t>(SETTINGS.getReaderFontId()));
   mix(static_cast<uint32_t>(SETTINGS.getReaderLineCompression() * 1000.0f));
   mix(static_cast<uint32_t>(SETTINGS.extraParagraphSpacing));
+  mix(static_cast<uint32_t>(SETTINGS.forceParagraphIndents));
+  mix(static_cast<uint32_t>(SETTINGS.guideReadingEnabled));
   mix(static_cast<uint32_t>(SETTINGS.paragraphAlignment));
   mix(static_cast<uint32_t>(SETTINGS.hyphenationEnabled));
   mix(static_cast<uint32_t>(SETTINGS.orientation));
@@ -281,9 +283,11 @@ void MarkdownReaderActivity::renderScreen() {
       {
         SpiBusMutex::Guard guard;
         sectionLoaded = mdSection->loadSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
-                                                   SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment,
-                                                   viewportWidth, viewportHeight, SETTINGS.hyphenationEnabled,
-                                                   static_cast<uint32_t>(markdown->getFileSize()));
+                                                   SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
+                                                   SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
+                                                   SETTINGS.hyphenationEnabled,
+                                                   static_cast<uint32_t>(markdown->getFileSize()),
+                                                   SETTINGS.guideReadingEnabled);
       }
 
       if (!sectionLoaded) {
@@ -293,9 +297,10 @@ void MarkdownReaderActivity::renderScreen() {
 
         if (!mdSection->createSectionFile(*markdown->getAst(), SETTINGS.getReaderFontId(),
                                           SETTINGS.getReaderLineCompression(), SETTINGS.extraParagraphSpacing,
-                                          SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
-                                          SETTINGS.hyphenationEnabled, static_cast<uint32_t>(markdown->getFileSize()),
-                                          progressSetup, progressCallback)) {
+                                          SETTINGS.forceParagraphIndents, SETTINGS.paragraphAlignment, viewportWidth,
+                                          viewportHeight, SETTINGS.hyphenationEnabled,
+                                          static_cast<uint32_t>(markdown->getFileSize()),
+                                          SETTINGS.guideReadingEnabled, progressSetup, progressCallback)) {
           markdown->markKnownBadParseFailure();
           LOG_ERR("MDR", "Failed to build markdown AST cache, falling back to HTML");
           mdSection.reset();
@@ -355,8 +360,9 @@ void MarkdownReaderActivity::renderScreen() {
       {
         SpiBusMutex::Guard guard;
         sectionLoaded = htmlSection->loadSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
-                                                     SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment,
-                                                     viewportWidth, viewportHeight, SETTINGS.hyphenationEnabled,
+                                                     SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
+                                                     SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
+                                                     SETTINGS.hyphenationEnabled,
                                                      static_cast<uint32_t>(markdown->getFileSize()));
       }
 
@@ -367,8 +373,9 @@ void MarkdownReaderActivity::renderScreen() {
 
         if (!htmlSection->createSectionFile(
                 SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(), SETTINGS.extraParagraphSpacing,
-                SETTINGS.paragraphAlignment, viewportWidth, viewportHeight, SETTINGS.hyphenationEnabled,
-                static_cast<uint32_t>(markdown->getFileSize()), progressSetup, progressCallback)) {
+                SETTINGS.forceParagraphIndents, SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
+                SETTINGS.hyphenationEnabled, static_cast<uint32_t>(markdown->getFileSize()), progressSetup,
+                progressCallback)) {
           markdown->markKnownBadParseFailure();
           LOG_ERR("MDR", "Failed to build markdown cache");
           htmlSection.reset();

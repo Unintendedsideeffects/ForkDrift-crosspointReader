@@ -14,8 +14,8 @@ constexpr ThemeMetrics values = {.batteryWidth = 16,
                                  .contentSidePadding = 20,
                                  .listRowHeight = 40,
                                  .listWithSubtitleRowHeight = 60,
-                                 .menuRowHeight = 64,
-                                 .menuSpacing = 8,
+                                 .menuRowHeight = 56,
+                                 .menuSpacing = 6,
                                  .tabSpacing = 8,
                                  .tabBarHeight = 40,
                                  .scrollBarWidth = 4,
@@ -49,7 +49,8 @@ class ForkDriftTheme : public LyraTheme {
  public:
   void drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                            const int selectorIndex, bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
-                           const std::function<bool()>& storeCoverBuffer) const override;
+                           const std::function<bool()>& storeCoverBuffer,
+                           float progressPercent = -1.0f) const override;
   void drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                       const std::function<std::string(int index)>& buttonLabel,
                       const std::function<UIIcon(int index)>& rowIcon) const override;

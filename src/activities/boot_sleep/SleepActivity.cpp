@@ -3,13 +3,16 @@
 #include <ArduinoJson.h>
 #include <Epub/converters/ImageDecoderFactory.h>
 #include <Epub/converters/ImageToFramebufferDecoder.h>
+#include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
+#include <I18n.h>
 
 #include <algorithm>
 #include <cctype>
 #include <cstring>
 
+#include "../reader/BookStatsView.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "FeatureFlags.h"
@@ -21,8 +24,40 @@
 #include "images/Logo120.h"
 #include "network/BackgroundWifiService.h"
 #include "util/PokemonBookDataStore.h"
+#include "util/RecentBooksStore.h"
 
 namespace {
+
+void hideOverlayBatteryStrip(GfxRenderer& renderer) {
+  if (!SETTINGS.statusBarBattery) {
+    return;
+  }
+
+  const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();
+  int orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft;
+  renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
+                                   &orientedMarginLeft);
+
+  const int statusBarHeight = UITheme::getInstance().getStatusBarHeight();
+  if (statusBarHeight <= 0) {
+    return;
+  }
+
+  const int textY = renderer.getScreenHeight() - statusBarHeight - orientedMarginBottom - 4;
+  const bool showBatteryPercentage =
+      SETTINGS.hideBatteryPercentage == CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_NEVER;
+
+  // Reserve the full left-side status indicator lane used by bookmark + battery.
+  // This keeps chapter/progress text readable while removing the battery glance target.
+  static constexpr int bookmarkReserveWidth = 13;  // bookmark width + gap from BaseTheme::drawStatusBar()
+  static constexpr int batteryPercentSpacing = 4;  // matches BaseTheme::batteryPercentSpacing
+  const int clearWidth =
+      bookmarkReserveWidth + metrics.batteryWidth +
+      (showBatteryPercentage ? batteryPercentSpacing + renderer.getTextWidth(SMALL_FONT_ID, "100%") : 0);
+  const int clearHeight = std::max(renderer.getTextHeight(SMALL_FONT_ID), metrics.batteryHeight + 6);
+
+  renderer.fillRect(metrics.statusBarHorizontalMargin + orientedMarginLeft + 1, textY, clearWidth, clearHeight, false);
+}
 
 // Supported image extensions for sleep images
 #if ENABLE_IMAGE_SLEEP
@@ -314,6 +349,21 @@ void invalidateSleepImageCache() {
   LOG_INF("SLP", "Sleep image cache invalidated");
 }
 
+std::string filenameFromPath(const std::string& path) {
+  const size_t lastSlash = path.find_last_of('/');
+  return lastSlash == std::string::npos ? path : path.substr(lastSlash + 1);
+}
+
+std::string recentTitleForPath(const std::string& path) {
+  const auto& books = RECENT_BOOKS.getBooks();
+  for (const RecentBook& book : books) {
+    if (book.path == path && !book.title.empty()) {
+      return book.title;
+    }
+  }
+  return {};
+}
+
 int validateAndCountSleepImages() {
   invalidateSleepImageCache();
   validateSleepImagesOnce();
@@ -343,6 +393,9 @@ void SleepActivity::onEnter() {
       return;
     case (CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM):
       renderCustomSleepScreen();
+      return;
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::READING_STATS_SLEEP):
+      renderReadingStatsSleepScreen();
       return;
     default:
       renderDefaultSleepScreen();
@@ -567,12 +620,33 @@ void SleepActivity::drawLockIcon(const int cx, const int cy) const {
   renderer.fillRect(cx - 1, cy + 3, 3, 5, true);
 }
 
+void SleepActivity::renderReadingStatsSleepScreen() const {
+  BookReadingStats bookStats;
+  GlobalReadingStats globalStats = GlobalReadingStats::load();
+  std::string bookTitle = tr(STR_READING_STATS);
+
+  const std::string& path = APP_STATE.openEpubPath;
+  if (!path.empty()) {
+    const std::string recentTitle = recentTitleForPath(path);
+    bookTitle = recentTitle.empty() ? filenameFromPath(path) : recentTitle;
+
+    if (FsHelpers::hasEpubExtension(path)) {
+      const std::string cachePath = "/.crosspoint/epub_" + std::to_string(std::hash<std::string>{}(path));
+      bookStats = BookReadingStats::load(cachePath);
+    }
+  }
+
+  renderBookStatsView(renderer, nullptr, bookTitle, bookStats, globalStats, false);
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+}
+
 void SleepActivity::renderTransparentSleepScreen() const {
   // Preserve current e-ink content: do NOT clear the screen.
   // Just draw a small lock icon in the bottom status bar area.
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
+  hideOverlayBatteryStrip(renderer);
   drawLockIcon(pageWidth / 2, pageHeight - 14);
 
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);

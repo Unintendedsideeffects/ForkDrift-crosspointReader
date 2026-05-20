@@ -5,6 +5,7 @@
 #include <Logging.h>
 #include <Serialization.h>
 
+#include <algorithm>
 #include <cstring>
 
 #include "FeatureFlags.h"
@@ -231,6 +232,7 @@ bool CrossPointSettings::loadFromBinaryFile() {
     readAndValidate(inputFile, paragraphAlignment, PARAGRAPH_ALIGNMENT_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, sleepTimeout, SLEEP_TIMEOUT_COUNT);
+    sleepTimeoutMinutes = sleepTimeoutEnumToMinutes(sleepTimeout);
     if (++settingsRead >= fileSettingsCount) break;
     readAndValidate(inputFile, refreshFrequency, REFRESH_FREQUENCY_COUNT);
     if (++settingsRead >= fileSettingsCount) break;
@@ -388,8 +390,8 @@ void CrossPointSettings::validateAndClamp() {
     sleepScreen = CUSTOM;
   } else if (sleepScreen == 6 /* old TRANSPARENT */) {
     sleepScreen = TRANSPARENT;  // = 3
-  } else if (sleepScreen >= SLEEP_SCREEN_MODE_COUNT) {
-    // SMART=7 is explicitly valid; only values ≥8 (and not 9/10/11 legacy) fall here.
+  } else if (sleepScreen >= SLEEP_SCREEN_MODE_COUNT && sleepScreen != READING_STATS_SLEEP) {
+    // SMART=7 and READING_STATS_SLEEP=12 are explicitly valid; legacy 9/10/11 handled above.
     sleepScreen = DARK;
   }
   if (sleepScreenCoverMode > CROP) sleepScreenCoverMode = FIT;
@@ -429,6 +431,7 @@ void CrossPointSettings::validateAndClamp() {
   if (globalStatusBarPosition >= GLOBAL_STATUS_BAR_POSITION_COUNT) globalStatusBarPosition = STATUS_BAR_TOP;
 
   if (uiTheme > POKEMON_PARTY) uiTheme = LYRA;
+  if (recentBooksView >= RECENT_BOOKS_VIEW_COUNT) recentBooksView = RECENT_BOOKS_LIST;
 #if !ENABLE_LYRA_THEME
   uiTheme = CLASSIC;
 #endif
@@ -541,20 +544,25 @@ float CrossPointSettings::getReaderLineCompression() const {
   }
 }
 
-unsigned long CrossPointSettings::getSleepTimeoutMs() const {
-  switch (sleepTimeout) {
+uint8_t CrossPointSettings::sleepTimeoutEnumToMinutes(const uint8_t legacyValue) {
+  switch (legacyValue) {
     case SLEEP_1_MIN:
-      return 1UL * 60 * 1000;
+      return 1;
     case SLEEP_5_MIN:
-      return 5UL * 60 * 1000;
+      return 5;
+    case SLEEP_15_MIN:
+      return 15;
+    case SLEEP_30_MIN:
+      return 30;
     case SLEEP_10_MIN:
     default:
-      return 10UL * 60 * 1000;
-    case SLEEP_15_MIN:
-      return 15UL * 60 * 1000;
-    case SLEEP_30_MIN:
-      return 30UL * 60 * 1000;
+      return 10;
   }
+}
+
+unsigned long CrossPointSettings::getSleepTimeoutMs() const {
+  const uint8_t minutes = std::clamp(sleepTimeoutMinutes, MIN_SLEEP_TIMEOUT_MINUTES, MAX_SLEEP_TIMEOUT_MINUTES);
+  return static_cast<unsigned long>(minutes) * 60UL * 1000UL;
 }
 
 int CrossPointSettings::getRefreshFrequency() const {

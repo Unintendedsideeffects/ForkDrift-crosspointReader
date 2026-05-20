@@ -4,6 +4,8 @@
 #include <Logging.h>
 #include <esp_ota_ops.h>
 
+#include <algorithm>
+#include <cstdio>
 #include <cstring>
 
 #include "ButtonRemapActivity.h"
@@ -24,6 +26,7 @@
 #include "ValidateSleepImagesActivity.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/util/ConfirmationActivity.h"
+#include "activities/util/IntervalSelectionActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
@@ -46,22 +49,50 @@ void SettingsActivity::rebuildSettingsLists() {
   // reader activity ran — otherwise the font-family picker shows stale list.
   sdFontSystem.refreshIfDirty();
 
-  for (auto& setting : getSettingsList(&sdFontSystem.registry())) {
-    if (setting.category == StrId::STR_NONE_OPT) continue;
+  const auto& allSettings = getSettingsList(&sdFontSystem.registry());
+  auto addControlSetting = [&](StrId nameId) {
+    const auto it = std::find_if(allSettings.begin(), allSettings.end(),
+                                 [nameId](const auto& s) { return s.nameId == nameId; });
+    if (it != allSettings.end()) {
+      controlsSettings.push_back(*it);
+    }
+  };
+  auto addControlSettingByKey = [&](const char* key) {
+    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
+      return setting.key && std::strcmp(setting.key, key) == 0;
+    });
+    if (it != allSettings.end()) {
+      controlsSettings.push_back(*it);
+      return;
+    }
+    LOG_ERR("SET", "Missing control setting definition for key=%s", key);
+  };
+
+  for (auto& setting : allSettings) {
+    if (setting.category == StrId::STR_NONE_OPT || setting.category == StrId::STR_CAT_CONTROLS) continue;
     if (setting.category == StrId::STR_CAT_DISPLAY) {
       displaySettings.push_back(setting);
     } else if (setting.category == StrId::STR_CAT_READER) {
       readerSettings.push_back(setting);
-    } else if (setting.category == StrId::STR_CAT_CONTROLS) {
-      controlsSettings.push_back(setting);
     } else if (setting.category == StrId::STR_CAT_SYSTEM) {
       systemSettings.push_back(setting);
     }
   }
 
-  // Append device-only ACTION items
-  controlsSettings.insert(controlsSettings.begin(),
-                          SettingInfo::Action(StrId::STR_REMAP_FRONT_BUTTONS, SettingAction::RemapFrontButtons));
+  // Build controls settings with section headers in desired display order
+  controlsSettings.reserve(15);
+  controlsSettings.push_back(SettingInfo::SectionHeader(StrId::STR_POWER_BUTTON));
+  addControlSetting(StrId::STR_SHORT_PWR_BTN);
+  addControlSetting(StrId::STR_LONG_PRESS_ACTION);
+  controlsSettings.push_back(SettingInfo::SectionHeader(StrId::STR_FRONT_BUTTONS));
+  controlsSettings.push_back(SettingInfo::Action(StrId::STR_REMAP_FRONT_BUTTONS, SettingAction::RemapFrontButtons));
+  addControlSettingByKey("frontButtonOrientationAware");
+  addControlSetting(StrId::STR_LONG_PRESS_BEHAVIOR);
+  addControlSetting(StrId::STR_LONG_PRESS_MENU_ACTION);
+  controlsSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SIDE_BUTTONS));
+  addControlSetting(StrId::STR_SIDE_BTN_LAYOUT);
+  addControlSettingByKey("sideButtonOrientationAware");
+  addControlSetting(StrId::STR_SIDE_BTN_LONG_PRESS);
   systemSettings.push_back(SettingInfo::Action(StrId::STR_WIFI_NETWORKS, SettingAction::Network));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser));
@@ -149,11 +180,19 @@ void SettingsActivity::loop() {
   // Handle navigation
   buttonNavigator.onNextRelease([this] {
     selectedSettingIndex = ButtonNavigator::nextIndex(selectedSettingIndex, settingsCount + 1);
+    while (selectedSettingIndex > 0 && selectedSettingIndex <= settingsCount &&
+           (*currentSettings)[selectedSettingIndex - 1].type == SettingType::SECTION_HEADER) {
+      selectedSettingIndex = ButtonNavigator::nextIndex(selectedSettingIndex, settingsCount + 1);
+    }
     requestUpdate();
   });
 
   buttonNavigator.onPreviousRelease([this] {
     selectedSettingIndex = ButtonNavigator::previousIndex(selectedSettingIndex, settingsCount + 1);
+    while (selectedSettingIndex > 0 && selectedSettingIndex <= settingsCount &&
+           (*currentSettings)[selectedSettingIndex - 1].type == SettingType::SECTION_HEADER) {
+      selectedSettingIndex = ButtonNavigator::previousIndex(selectedSettingIndex, settingsCount + 1);
+    }
     requestUpdate();
   });
 
@@ -186,6 +225,11 @@ void SettingsActivity::loop() {
         break;
     }
     settingsCount = static_cast<int>(currentSettings->size());
+    // Advance past any leading section headers
+    while (selectedSettingIndex > 0 && selectedSettingIndex <= settingsCount &&
+           (*currentSettings)[selectedSettingIndex - 1].type == SettingType::SECTION_HEADER) {
+      selectedSettingIndex++;
+    }
   }
 }
 
@@ -242,6 +286,11 @@ void SettingsActivity::toggleCurrentSetting() {
   // Sleep source only applies when custom sleep screen mode is enabled.
   if (setting.valuePtr == &CrossPointSettings::sleepScreenSource &&
       SETTINGS.sleepScreen != CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM) {
+    return;
+  }
+
+  if (setting.nameId == StrId::STR_TIME_TO_SLEEP) {
+    openSleepTimeoutPicker();
     return;
   }
 
@@ -421,6 +470,22 @@ void SettingsActivity::toggleCurrentSetting() {
   persistSettings();
 }
 
+void SettingsActivity::openSleepTimeoutPicker() {
+  startActivityForResult(
+      std::make_unique<IntervalSelectionActivity>(
+          renderer, mappedInput, "SleepTimeoutInterval", StrId::STR_TIME_TO_SLEEP,
+          StrId::STR_SLEEP_TIMER_STEP_HINT, SETTINGS.sleepTimeoutMinutes,
+          CrossPointSettings::MIN_SLEEP_TIMEOUT_MINUTES, CrossPointSettings::MAX_SLEEP_TIMEOUT_MINUTES,
+          1, 5, StrId::STR_SLEEP_TIMER_VALUE_FORMAT),
+      [this](const ActivityResult& result) {
+        if (!result.isCancelled) {
+          SETTINGS.sleepTimeoutMinutes = static_cast<uint8_t>(std::get<IntervalResult>(result.data).value);
+          SETTINGS.saveToFile();
+        }
+        requestUpdate();
+      });
+}
+
 void SettingsActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
@@ -481,7 +546,14 @@ void SettingsActivity::render(RenderLock&&) {
             }
           }
         } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
-          valueText = std::to_string(SETTINGS.*(setting.valuePtr));
+          if (setting.nameId == StrId::STR_TIME_TO_SLEEP) {
+            char valueBuffer[32];
+            snprintf(valueBuffer, sizeof(valueBuffer), tr(STR_SLEEP_TIMER_VALUE_FORMAT),
+                     static_cast<unsigned int>(SETTINGS.*(setting.valuePtr)));
+            valueText = valueBuffer;
+          } else {
+            valueText = std::to_string(SETTINGS.*(setting.valuePtr));
+          }
         } else if (setting.type == SettingType::STRING) {
           if (setting.stringGetter) {
             valueText = setting.stringGetter();
@@ -491,12 +563,14 @@ void SettingsActivity::render(RenderLock&&) {
         }
         return valueText;
       },
-      true);
+      true, [&settings](int i) { return settings[i].type == SettingType::SECTION_HEADER; });
 
   // Draw help text
+  const bool isSleepSetting = selectedSettingIndex > 0 &&
+                               (*currentSettings)[selectedSettingIndex - 1].nameId == StrId::STR_TIME_TO_SLEEP;
   const auto confirmLabel = (selectedSettingIndex == 0)
                                 ? I18N.get(categoryNames[(selectedCategoryIndex + 1) % categoryCount])
-                                : tr(STR_TOGGLE);
+                                : (isSleepSetting ? tr(STR_SELECT) : tr(STR_TOGGLE));
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), confirmLabel, tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 

@@ -52,7 +52,8 @@ const uint8_t* iconFor(UIIcon icon, int size) {
 
 void ForkDriftTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                                          const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
-                                         bool& bufferRestored, const std::function<bool()>& storeCoverBuffer) const {
+                                         bool& bufferRestored, const std::function<bool()>& storeCoverBuffer,
+                                         float /*progressPercent*/) const {
   const int pad = ForkDriftMetrics::values.contentSidePadding;
   const int headerH = ForkDriftMetrics::values.homeTopPadding;
   const int tileWidth = (rect.width - 2 * pad) / gridCols;
@@ -190,12 +191,18 @@ void ForkDriftTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int button
   // The last button (Settings) is slightly inset to visually distinguish it.
   constexpr int lastInset = hPadding;
 
-  for (int i = 0; i < buttonCount; i++) {
+  constexpr int maxVisibleItems = 6;
+  const int totalPages = (buttonCount + maxVisibleItems - 1) / maxVisibleItems;
+  const int pageStartIndex = (selectedIndex / maxVisibleItems) * maxVisibleItems;
+
+  for (int i = pageStartIndex; i < buttonCount && i < pageStartIndex + maxVisibleItems; i++) {
+    const int displayIndex = i - pageStartIndex;
     const bool isLast = (i == buttonCount - 1);
     const int inset = isLast ? lastInset : 0;
-    const int tileW = rect.width - 2 * pad - 2 * inset;
+    const int scrollReserve = (totalPages > 1) ? 20 : 0;
+    const int tileW = rect.width - 2 * pad - 2 * inset - scrollReserve;
     const int x = rect.x + pad + inset;
-    const int y = rect.y + i * (tileH + ForkDriftMetrics::values.menuSpacing);
+    const int y = rect.y + displayIndex * (tileH + ForkDriftMetrics::values.menuSpacing);
     const bool selected = (selectedIndex == i);
 
     if (selected) {
@@ -213,5 +220,18 @@ void ForkDriftTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int button
     const int lineH = renderer.getLineHeight(UI_10_FONT_ID);
     const int textY = y + (tileH - lineH) / 2;
     renderer.drawText(UI_10_FONT_ID, textX, textY, label.c_str(), true);
+  }
+
+  if (totalPages > 1) {
+    constexpr int arrowSize = 5;
+    const int centerX = rect.x + rect.width - pad / 2;
+    const int menuH = maxVisibleItems * (tileH + ForkDriftMetrics::values.menuSpacing) - ForkDriftMetrics::values.menuSpacing;
+    const int top = rect.y + arrowSize;
+    const int bot = rect.y + menuH - arrowSize * 2;
+    for (int i = 0; i < arrowSize; ++i) {
+      const int w = 1 + i * 2;
+      renderer.drawLine(centerX - i, top + i, centerX - i + w - 1, top + i);
+      renderer.drawLine(centerX - (arrowSize - 1 - i), bot + i, centerX - (arrowSize - 1 - i) + 1 + (arrowSize - 1 - i) * 2 - 1, bot + i);
+    }
   }
 }

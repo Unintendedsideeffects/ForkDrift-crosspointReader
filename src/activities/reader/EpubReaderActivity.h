@@ -3,10 +3,16 @@
 #include <Epub.h>
 #include <Epub/FootnoteEntry.h>
 #include <Epub/Section.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include <optional>
+#include <string>
 
+#include "BookReadingStats.h"
+#include "CrossPointSettings.h"
 #include "EpubReaderMenuActivity.h"
+#include "GlobalReadingStats.h"
 #include "activities/Activity.h"
 
 class EpubReaderActivity final : public Activity {
@@ -23,12 +29,19 @@ class EpubReaderActivity final : public Activity {
   int cachedChapterTotalPageCount = 0;
   unsigned long lastPageTurnTime = 0UL;
   unsigned long pageTurnDuration = 0UL;
+  BookReadingStats stats;
+  GlobalReadingStats globalStats;
+  unsigned long sessionStartMs = 0UL;
   bool pendingPercentJump = false;
   float pendingSpineProgress = 0.0f;
   bool pendingScreenshot = false;
   bool pendingSyncSaveError = false;
   bool skipNextButtonCheck = false;  // Skip button processing for one frame after subactivity exit
   bool automaticPageTurnActive = false;
+  int completionTriggerSpineIndex = -1;
+  float completionTriggerSpineProgress = 1.0f;
+  bool completionPromptQueued = false;
+  bool completionPromptShown = false;
   int pageLoadRetrySpineIndex = -1;
   uint8_t pageLoadRetryCount = 0;
 
@@ -43,6 +56,16 @@ class EpubReaderActivity final : public Activity {
 
   int lastSavedSpineIndex = -1;
   int lastSavedPage = -1;
+  bool pendingReadFolderMove = false;
+
+  struct ReadFolderMoveParams {
+    std::string epubPath;
+    std::string cachePath;
+    std::string title;
+  };
+  static void readFolderMoveTask(void* arg);
+
+  void setBookCompleted(bool isCompleted);
 
   void renderContents(std::unique_ptr<Page> page, int orientedMarginTop, int orientedMarginRight,
                       int orientedMarginBottom, int orientedMarginLeft);
@@ -52,9 +75,20 @@ class EpubReaderActivity final : public Activity {
   // Jump to a percentage of the book (0-100), mapping it to spine and page.
   void jumpToPercent(int percent);
   void onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction action);
+  void reindexCurrentSection();
+  void executeReaderQuickAction(CrossPointSettings::LONG_PRESS_MENU_ACTION action);
+  void executeLongPressMenuAction();
+  bool executeShortPowerButtonAction();
+  bool executeLongPowerButtonAction();
+  void openFileTransfer();
   void applyOrientation(uint8_t orientation);
-  void toggleAutoPageTurn(uint8_t selectedPageTurnOption);
+  void setAutoPageTurnIntervalSeconds(uint16_t seconds);
+  uint16_t getAutoPageTurnIntervalSeconds() const;
   void pageTurn(bool isForwardTurn);
+  float getCurrentBookProgressPercent() const;
+  void initializeCompletionPromptTrigger();
+  bool isAtOrPastCompletionTrigger() const;
+  void queueCompletionPromptIfNeeded();
   void resetPageLoadRetryState();
   void renderReaderError(StrId messageId);
   void navigateToHref(const std::string& href, bool savePosition = false);

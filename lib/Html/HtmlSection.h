@@ -15,10 +15,12 @@ class HtmlSection {
               GfxRenderer& renderer);
   ~HtmlSection();
 
-  bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
-                       uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled, uint32_t sourceSize);
-  bool createSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
-                         uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled, uint32_t sourceSize,
+  bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
+                       uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
+                       bool hyphenationEnabled, uint32_t sourceSize);
+  bool createSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
+                         uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
+                         bool hyphenationEnabled, uint32_t sourceSize,
                          const std::function<void()>& progressSetupFn = nullptr,
                          const std::function<void(int)>& progressFn = nullptr);
   std::unique_ptr<Page> loadPageFromSectionFile();
@@ -36,9 +38,9 @@ class HtmlSection {
   HalFile file;
   bool fileOpenForReading = false;
 
-  void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
-                              uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled,
-                              uint32_t sourceSize);
+  void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
+                              uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
+                              bool hyphenationEnabled, uint32_t sourceSize);
   uint32_t onPageComplete(std::unique_ptr<Page> page);
   void closeSectionFile();
 };

@@ -1,0 +1,129 @@
+# READ THIS FIRST — mandatory for every CrossInk port subagent
+
+You are porting CrossInk commits into ForkDrift (`crosspoint-reader`). **One lane = one git
+worktree.** Never implement ports on the integration checkout while another agent ports.
+
+## Exit when done
+
+When your scoped port task is **complete** (commit pushed **or** explicit skip documented in your handoff), **stop immediately**. Do not linger.
+
+- **Stop polling:** Do not wait on `.crossink-port/.sprint-ready` or `.crossink-port/.cleanup-done` for more than **3 minutes total**. The parent coordinator deletes those markers when the sprint phase ends; they are not a long-running queue.
+- **STOP_SPRINT:** If `.crossink-port/STOP_SPRINT` exists, **exit now** — do not start or resume builds, merges, or new tracker items.
+- **Scope:** Do not start unrelated ports "while you're here."
+- **No long sleeps:** Do not run `sleep` loops longer than **60s** (including `while pgrep …; do sleep …; done`).
+- **No background builds:** Do not run background `pio` / `port-build.sh` after you report done.
+- **Handoff:** Return your final report (lane, SHA or skip reason, tracker notes) and **exit**.
+
+## Six rules (non-negotiable)
+
+1. **One lane = one git worktree.** Do not run parallel port implementation on the main
+   checkout `feature/absorb-crossink`. Create a lane worktree first:
+   ```bash
+   ./.crossink-port/port-worktree.sh create <lane>
+   ```
+   Lanes: `home`, `reader`, `file`, `web`, `settings`, `renderer`, `integration`.
+   Worktrees: `/home/malcolm/Code/ForkDrift/worktrees/crosspoint-reader-<lane>`.
+   Branch per lane: `port/<lane>` from `feature/absorb-crossink` (integration lane uses
+   `feature/absorb-crossink` directly — see `WORKTREES.md`).
+
+2. **Build only via `./.crossink-port/port-build.sh`** inside **that** worktree. Never run
+   raw `pio run` / `uv run pio run`. The build lock is per worktree (`.build.lock`).
+
+3. **One commit per feature:** `port(crossink): <subject> [<crossink-hash>]`. Push
+   `port/<lane>` when the lane item is done.
+
+4. **Merges only in the integration worktree** (or parent repo on `feature/absorb-crossink`):
+   merge `port/<lane>` branches **one at a time**, run `port-build.sh` after each merge.
+   Lane worktrees must not merge into integration themselves.
+
+5. **Do not mark `PORT-TRACKER.md` `[x]`** until the commit exists on `feature/absorb-crossink`.
+   If work is only on `port/<lane>`, note `[~]` or “pending merge” in your handoff.
+
+6. **Why:** Parallel agents on one tree overwrote WIP, broke pre-commit, and marked `[x]`
+   falsely — only 3/82 ports actually landed. Worktrees isolate files, builds, and commits.
+
+## Quick start (lane agent)
+
+```bash
+cd /home/malcolm/Code/ForkDrift/crosspoint-reader
+./.crossink-port/port-worktree.sh create reader
+cd /home/malcolm/Code/ForkDrift/worktrees/crosspoint-reader-reader
+# port all items for this lane — commit each one WITHOUT building
+git add -A
+git commit -m "port(crossink): <subject> [<hash>]"
+# ... repeat for each item ...
+# ONE build at the end, after all lane commits are done:
+./.crossink-port/port-build.sh
+git push -u origin port/reader
+```
+
+**Build once per lane, not per commit.** Each build is ~2 min; the integration agent
+runs the authoritative build after merge anyway. Add an extra mid-lane build only
+when there is real uncertainty: a new API, a cross-file type refactor, or a linker
+dependency change.
+
+Report back: lane, commit SHAs, tracker lines touched (do not flip `[x]` unless merged).
+
+## Quick start (integration agent)
+
+```bash
+./.crossink-port/port-worktree.sh create integration
+cd /home/malcolm/Code/ForkDrift/worktrees/crosspoint-reader-integration
+git fetch origin
+
+# Before merging, manually diff these two files across all lanes for silent collisions:
+#   CrossPointSettings.h  — enum values, new fields
+#   lib/I18n/I18nKeys.h   — StrId enum values
+# A collision here compiles but produces wrong runtime behaviour.
+
+# Merge all lanes (no build between merges):
+git merge --no-ff origin/port/renderer -m "merge port/renderer: tables, grayscale, cover rendering"
+git merge --no-ff origin/port/file     -m "merge port/file: mark finished, move to read, overlay i18n"
+git merge --no-ff origin/port/reader   -m "merge port/reader: reading stats, sleep cover"
+git merge --no-ff origin/port/home     -m "merge port/home: lyra carousel (after reader)"
+# add other lanes as needed
+
+# ONE build for the whole integration:
+./.crossink-port/port-build.sh
+
+# Only after green build: update PORT-TRACKER [x] and push
+git push origin feature/absorb-crossink
+```
+
+Merge order: `renderer` → `file` → `reader` → `home` (see `WORKTREES.md`).
+`home` depends on `reader` (carousel needs stats infrastructure).
+
+## Anti-patterns
+
+- **DO NOT** edit `feature/absorb-crossink` in the parent repo while another subagent ports
+  in a lane worktree (docs-only commits on parent are OK).
+- **DO NOT** run two port subagents in the same worktree.
+- **DO NOT** run `pio` / PlatformIO directly during port work.
+- **DO NOT** merge lane branches from inside a lane worktree.
+- **DO NOT** check `[x]` in `PORT-TRACKER.md` before the commit is on `feature/absorb-crossink`.
+
+
+## Pre-commit (port sprint)
+
+Pre-commit normally runs `uv run pio run` and blocks parallel port agents. **OFF for the
+crossink port sprint** while `.crossink-port/PRE_COMMIT_OFF` exists (committed on
+`feature/absorb-crossink` during the sprint).
+
+- **Disable:** `touch .crossink-port/PRE_COMMIT_OFF` (already present during sprint)
+- **Re-enable:** `rm .crossink-port/PRE_COMMIT_OFF` and commit the removal after the sprint
+- **Still required:** run `./.crossink-port/port-build.sh` before every commit manually
+
+Hooks live in `scripts/hooks/pre-commit` (`git config core.hooksPath scripts/hooks`). If your
+clone only has `.git/hooks/pre-commit`, run:
+`git config core.hooksPath scripts/hooks`
+
+## Reference docs
+
+| File | Purpose |
+|------|---------|
+| `WORKTREES.md` | Lane paths, scope map, merge order |
+| `BUILD-COORDINATOR.md` | Build coordinator behavior |
+| `PORT-TRACKER.md` | Per-commit checklist |
+| `port-worktree.sh` | Create / list / remove worktrees |
+| `port-build.sh` | Locked, fingerprinted builds |
+| `STOP_SPRINT` | Coordinator abort sentinel (gitignored; see `STOP_SPRINT.example`) |

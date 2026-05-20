@@ -27,6 +27,7 @@
 
 void XtcReaderActivity::onEnter() {
   Activity::onEnter();
+  mappedInput.setReaderMode(true);
 
   if (!xtc) {
     return;
@@ -46,6 +47,7 @@ void XtcReaderActivity::onEnter() {
 }
 
 void XtcReaderActivity::onExit() {
+  mappedInput.setReaderMode(false);
   Activity::onExit();
 
   xtc.reset();
@@ -83,7 +85,28 @@ void XtcReaderActivity::loop() {
     return;
   }
 
-  const auto [prevTriggered, nextTriggered] = ReaderUtils::detectPageTurn(mappedInput);
+  // Side button long-press: change font size (handled before page turn detection)
+  if (SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_FONT_SIZE &&
+      mappedInput.getHeldTime() > ReaderUtils::SKIP_HOLD_MS) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::PageForward)) {
+      if (SETTINGS.fontSize < CrossPointSettings::FONT_SIZE_COUNT - 1) {
+        SETTINGS.fontSize++;
+        SETTINGS.saveToFile();
+        requestUpdate();
+      }
+      return;
+    }
+    if (mappedInput.wasReleased(MappedInputManager::Button::PageBack)) {
+      if (SETTINGS.fontSize > 0) {
+        SETTINGS.fontSize--;
+        SETTINGS.saveToFile();
+        requestUpdate();
+      }
+      return;
+    }
+  }
+
+  const auto [prevTriggered, nextTriggered, fromSideBtn] = ReaderUtils::detectPageTurn(mappedInput);
   if (!prevTriggered && !nextTriggered) {
     return;
   }
@@ -99,8 +122,10 @@ void XtcReaderActivity::loop() {
     return;
   }
 
-  const bool skipPages = SETTINGS.longPressButtonBehavior == SETTINGS.CHAPTER_SKIP &&
-                         mappedInput.getHeldTime() > ReaderUtils::SKIP_HOLD_MS;
+  const bool chapterSkip = fromSideBtn
+      ? SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_CHAPTER_SKIP
+      : SETTINGS.longPressButtonBehavior == SETTINGS.CHAPTER_SKIP;
+  const bool skipPages = chapterSkip && mappedInput.getHeldTime() > ReaderUtils::SKIP_HOLD_MS;
   const int skipAmount = skipPages ? 10 : 1;
 
   if (prevTriggered) {

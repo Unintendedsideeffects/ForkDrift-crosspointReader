@@ -2385,17 +2385,6 @@
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
 
-              <label class="skill-card" data-feature="opds" data-node-id="opds">
-                <input type="checkbox" id="opds" data-feature="opds" />
-                <div class="card-icon"><span>&#x2630;</span></div>
-                <div class="card-body">
-                  <div class="card-name">OPDS / Booklore</div>
-                  <div class="card-size"></div>
-                  <div class="card-desc">Browse and download books from OPDS catalogs (e.g. Booklore). Requires Auto-start: Always so WiFi is up when you open a catalog.</div>
-                </div>
-                <div class="card-toggle"><span class="toggle-box"></span></div>
-              </label>
-
               <div class="dep-group">
                 <div class="skill-card dep-parent static-card always-enabled" data-node-id="remote_control">
                   <div class="card-icon"><span>&#x25CF;</span></div>
@@ -2460,16 +2449,30 @@
                     </div>
                     <div class="card-toggle"><span class="toggle-box"></span></div>
                   </label>
-                  <label class="skill-card dep-child" data-feature="calibre_sync" data-node-id="calibre_sync">
-                    <input type="checkbox" id="calibre_sync" data-feature="calibre_sync" />
-                    <div class="card-icon"><span>&#x25C0;</span></div>
-                    <div class="card-body">
-                      <div class="card-name">Calibre Sync</div>
-                      <div class="card-size"></div>
-                      <div class="card-desc">Calibre OPDS browser and metadata sync settings</div>
+                  <div class="dep-group" data-dep-parent="calibre_sync">
+                    <label class="skill-card dep-child dep-parent" data-feature="calibre_sync" data-node-id="calibre_sync">
+                      <input type="checkbox" id="calibre_sync" data-feature="calibre_sync" />
+                      <div class="card-icon"><span>&#x25C0;</span></div>
+                      <div class="card-body">
+                        <div class="card-name">OPDS Support</div>
+                        <div class="card-size"></div>
+                        <div class="card-desc">Browse and download books from OPDS catalogs, including Calibre wireless libraries</div>
+                      </div>
+                      <div class="card-toggle"><span class="toggle-box"></span></div>
+                    </label>
+                    <div class="dep-children">
+                      <div class="skill-card dep-child static-card" data-node-id="opds">
+                        <input type="checkbox" id="opds" data-feature="opds" hidden aria-hidden="true" tabindex="-1" />
+                        <div class="card-icon"><span>&#x2630;</span></div>
+                        <div class="card-body">
+                          <div class="card-name">BookLore Support</div>
+                          <div class="card-size"></div>
+                          <div class="card-desc">BookLore OPDS integration, enabled automatically with OPDS Support</div>
+                        </div>
+                        <div class="card-toggle"><span class="toggle-box"></span></div>
+                      </div>
                     </div>
-                    <div class="card-toggle"><span class="toggle-box"></span></div>
-                  </label>
+                  </div>
                 </div>
               </div>
 
@@ -2593,7 +2596,7 @@
               <span>&#x25A0; Markdown</span>
               <span>&#x25A0; Background Server</span>
               <span>&#x25A0; Media Picker</span>
-              <span>&#x25A0; KOReader + Calibre</span>
+              <span>&#x25A0; KOReader + OPDS</span>
             </div>
             <div class="preset-dl-actions">
               <a class="btn btn-solid" id="dl-btn-full" href="#" download>&#x2193; crosspoint-full.bin</a>
@@ -3365,7 +3368,7 @@
         opds: {
           sizeKb: 6,
           flag: "ENABLE_OPDS",
-          default: true,
+          default: false,
         },
         home_media_picker: {
           sizeKb: 0,
@@ -3466,9 +3469,10 @@
         image_sleep: "Displays a custom image (BMP on the SD card) when the device sleeps instead of a blank screen. Useful for dust-cover art, decorative illustrations, or always-on status displays on the e-ink panel.",
         book_images: "Renders inline images embedded inside EPUB books. Decodes JPEG and PNG figures, scales them to fit the page width, and dithers to 1-bit for the e-ink display. Disabled in minimal builds to save RAM during parsing.",
         markdown: "Adds a lightweight Markdown renderer so plain .md files can be opened and read as if they were books. Supports headings, bold/italic, lists, blockquotes, and code spans. Adds ~296 KB to the binary.",
-        integrations: "Shared runtime layer that enables cloud-service plugins. Required by KOReader Sync and Calibre Wireless — it handles HTTP connections, JSON serialisation, and retry logic. No UI of its own; other features depend on it.",
+        integrations: "Shared runtime layer that enables cloud-service plugins. Required by KOReader Sync and OPDS Support — it handles HTTP connections, JSON serialisation, and retry logic. No UI of its own; other features depend on it.",
         koreader_sync: "Syncs reading position with a KOReader Companion server (e.g. Kavita or a self-hosted KOSync instance). On book open, fetches the last-synced position; on exit, pushes the current page. Requires Integrations.",
-        calibre_sync: "Connects to a Calibre Wireless Library server running on the same network. Browse your Calibre catalogue directly from the device and download books over WiFi. Requires Integrations.",
+        calibre_sync: "OPDS catalog browser on the device for Calibre wireless libraries and other OPDS servers. Requires Integrations; enables BookLore Support automatically.",
+        opds: "BookLore server integration for OPDS browsing and downloads. Always enabled when OPDS Support is on.",
         background_server: "A lightweight HTTP server that runs alongside the reader over WiFi. Powers file transfer, remote control APIs, and the web UI. Launching it takes a few seconds; auto-start modes avoid that delay.",
         background_server_on_charge: "Automatically starts the Background Server whenever the device is connected to a charger. Lets the device act as a wireless book-drop station with no manual steps while it sits on your desk.",
         background_server_always: "Keeps the Background Server running continuously — on battery or on charge. Maximises availability for remote control and file transfer at the cost of increased WiFi radio power draw.",
@@ -3508,7 +3512,7 @@
       const FEATURE_DEPENDENCIES = {
         koreader_sync: ["integrations"],
         calibre_sync: ["integrations"],
-        opds: ["background_server_always"],
+        opds: ["calibre_sync"],
         opendyslexic_fonts: ["bookerly_fonts", "notosans_fonts"],
         hyphenation: ["epub_support"],
         web_wifi_setup: ["background_server"],
@@ -3560,6 +3564,7 @@
           integrations: true,
           koreader_sync: true,
           calibre_sync: true,
+          opds: true,
           epub_support: true,
           hyphenation: true,
           xtc_support: true,
@@ -3645,6 +3650,10 @@
         });
       }
 
+      function applyCoupledFeatures(selections) {
+        selections.opds = Boolean(selections.calibre_sync);
+      }
+
       function applyDependencyRules(selections, changedFeature, enabled) {
         if (changedFeature) {
           if (enabled) {
@@ -3658,6 +3667,7 @@
           const missingParent = parents.some((parent) => !selections[parent]);
           if (missingParent) selections[child] = false;
         });
+        applyCoupledFeatures(selections);
       }
 
       function highlightProfile(profileName) {
@@ -3925,9 +3935,17 @@
         });
       }
 
+      function updateCoupledCards(selections) {
+        const opdsCard = document.querySelector('.skill-card[data-node-id="opds"]');
+        if (opdsCard) {
+          opdsCard.classList.toggle('always-enabled', Boolean(selections.calibre_sync));
+        }
+      }
+
       function updateVisuals(selections) {
         updateSkillCards(selections);
         updateDepGroups(selections);
+        updateCoupledCards(selections);
         updateCategoryStats(selections);
         updateNotes(selections);
       }
@@ -5070,6 +5088,7 @@
           integrations:                    'plug',
           koreader_sync:                   'refresh-cw',
           calibre_sync:                    'library',
+          opds:                            'book-down',
           // Storage
           usb_mass_storage:                'hard-drive',
           serial_access_with_android_note: 'cable',

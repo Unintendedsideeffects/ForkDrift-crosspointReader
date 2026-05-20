@@ -10,7 +10,7 @@
 #include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
 
-enum class SettingType { TOGGLE, ENUM, ACTION, VALUE, STRING };
+enum class SettingType { TOGGLE, ENUM, ACTION, VALUE, STRING, SECTION_HEADER };
 
 enum class SettingAction {
   None,
@@ -110,6 +110,13 @@ struct SettingInfo {
     return s;
   }
 
+  static SettingInfo SectionHeader(StrId nameId) {
+    SettingInfo s;
+    s.nameId = nameId;
+    s.type = SettingType::SECTION_HEADER;
+    return s;
+  }
+
   static SettingInfo Value(StrId nameId, uint8_t CrossPointSettings::* ptr, const ValueRange valueRange,
                            const char* key = nullptr, StrId category = StrId::STR_NONE_OPT) {
     SettingInfo s;
@@ -186,6 +193,7 @@ class SettingsActivity final : public Activity {
   void enterCategory(int categoryIndex);
   void toggleCurrentSetting();
   void rebuildSettingsLists();
+  void openSleepTimeoutPicker();
 
  public:
   explicit SettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)

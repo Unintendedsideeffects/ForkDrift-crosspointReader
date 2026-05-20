@@ -5,6 +5,7 @@
 #include <Logging.h>
 #include <ObfuscationUtils.h>
 
+#include <algorithm>
 #include <cstring>
 
 #include "CrossPointSettings.h"
@@ -86,6 +87,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["lineSpacing"] = s.lineSpacing;
   doc["paragraphAlignment"] = s.paragraphAlignment;
   doc["sleepTimeout"] = s.sleepTimeout;
+  doc["sleepTimeoutMinutes"] = s.sleepTimeoutMinutes;
   doc["refreshFrequency"] = s.refreshFrequency;
   doc["screenMargin"] = s.screenMargin;
   doc["opdsServerUrl"] = s.opdsServerUrl;
@@ -101,6 +103,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["lastTimeSyncEpoch"] = s.lastTimeSyncEpoch;
   doc["releaseChannel"] = s.releaseChannel;
   doc["uiTheme"] = s.uiTheme;
+  doc["recentBooksView"] = s.recentBooksView;
   doc["fadingFix"] = s.fadingFix;
   doc["darkMode"] = s.darkMode;
   doc["embeddedStyle"] = s.embeddedStyle;
@@ -113,6 +116,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["deviceName"] = s.deviceName;
   doc["wifiAutoConnect"] = s.wifiAutoConnect;
   doc["showHiddenFiles"] = s.showHiddenFiles;
+  doc["moveFinishedToReadFolder"] = s.moveFinishedToReadFolder;
   doc["developerMode"] = s.developerMode;
   doc["imageRendering"] = s.imageRendering;
   doc["globalStatusBar"] = s.globalStatusBar;
@@ -195,6 +199,13 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.paragraphAlignment =
       clamp(doc["paragraphAlignment"] | (uint8_t)S::JUSTIFIED, S::PARAGRAPH_ALIGNMENT_COUNT, S::JUSTIFIED);
   s.sleepTimeout = clamp(doc["sleepTimeout"] | (uint8_t)S::SLEEP_10_MIN, S::SLEEP_TIMEOUT_COUNT, S::SLEEP_10_MIN);
+  if (doc["sleepTimeoutMinutes"].isNull()) {
+    s.sleepTimeoutMinutes = S::sleepTimeoutEnumToMinutes(s.sleepTimeout);
+    if (needsResave) *needsResave = true;
+  } else {
+    s.sleepTimeoutMinutes = std::clamp(
+        doc["sleepTimeoutMinutes"] | (uint8_t)10, S::MIN_SLEEP_TIMEOUT_MINUTES, S::MAX_SLEEP_TIMEOUT_MINUTES);
+  }
   s.refreshFrequency =
       clamp(doc["refreshFrequency"] | (uint8_t)S::REFRESH_15, S::REFRESH_FREQUENCY_COUNT, S::REFRESH_15);
   s.screenMargin = doc["screenMargin"] | (uint8_t)5;
@@ -220,12 +231,15 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.releaseChannel =
       clamp(doc["releaseChannel"] | (uint8_t)S::RELEASE_STABLE, S::RELEASE_CHANNEL_COUNT, S::RELEASE_STABLE);
   s.uiTheme = clamp(doc["uiTheme"] | (uint8_t)S::FORK_DRIFT, static_cast<uint8_t>(S::POKEMON_PARTY + 1), S::FORK_DRIFT);
+  s.recentBooksView =
+      clamp(doc["recentBooksView"] | (uint8_t)S::RECENT_BOOKS_LIST, S::RECENT_BOOKS_VIEW_COUNT, S::RECENT_BOOKS_LIST);
   s.fadingFix = doc["fadingFix"] | (uint8_t)0;
   s.darkMode = doc["darkMode"] | (uint8_t)0;
   s.embeddedStyle = doc["embeddedStyle"] | (uint8_t)1;
   s.usbMscPromptOnConnect = doc["usbMscPromptOnConnect"] | (uint8_t)0;
   s.wifiAutoConnect = doc["wifiAutoConnect"] | (uint8_t)0;
   s.showHiddenFiles = doc["showHiddenFiles"] | (uint8_t)0;
+  s.moveFinishedToReadFolder = doc["moveFinishedToReadFolder"] | (uint8_t)0;
   s.developerMode = doc["developerMode"] | (uint8_t)0;
   s.imageRendering =
       clamp(doc["imageRendering"] | (uint8_t)S::IMAGES_DISPLAY, S::IMAGE_RENDERING_COUNT, S::IMAGES_DISPLAY);

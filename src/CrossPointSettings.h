@@ -31,6 +31,7 @@ class CrossPointSettings {
     COVER = 9,          // was 3
     BLANK = 10,         // was 4
     COVER_CUSTOM = 11,  // was 5
+    READING_STATS_SLEEP = 12,
     // Old TRANSPARENT was 6 — migrated to new TRANSPARENT=3 in validateAndClamp().
   };
   enum SLEEP_SCREEN_COVER_MODE { FIT = 0, CROP = 1, SLEEP_SCREEN_COVER_MODE_COUNT };
@@ -106,6 +107,21 @@ class CrossPointSettings {
   // Swapped: Next, Previous
   enum SIDE_BUTTON_LAYOUT { PREV_NEXT = 0, NEXT_PREV = 1, SIDE_BUTTON_LAYOUT_COUNT };
 
+  enum FRONT_BUTTON_ORIENTATION_AWARE {
+    FRONT_ORIENTATION_AWARE_OFF = 0,
+    FRONT_ORIENTATION_AWARE_NAV_BUTTONS = 1,
+    FRONT_ORIENTATION_AWARE_ALL_BUTTONS = 2,
+    FRONT_ORIENTATION_AWARE_COUNT
+  };
+
+  // Side button long-press action options
+  enum SIDE_LONG_PRESS {
+    SIDE_LONG_CHAPTER_SKIP = 0,
+    SIDE_LONG_FONT_SIZE = 1,
+    SIDE_LONG_OFF = 2,
+    SIDE_LONG_PRESS_COUNT
+  };
+
   // Font family options (built-in fonts plus fork/user-managed external fonts).
   // sdFontFamilyName selects an SD-card family when non-empty.
   enum FONT_FAMILY { BOOKERLY = 0, NOTOSERIF = 0, NOTOSANS = 1, OPENDYSLEXIC = 2, USER_SD = 3, FONT_FAMILY_COUNT };
@@ -131,6 +147,9 @@ class CrossPointSettings {
     SLEEP_30_MIN = 4,
     SLEEP_TIMEOUT_COUNT
   };
+  static constexpr uint8_t MIN_SLEEP_TIMEOUT_MINUTES = 1;
+  static constexpr uint8_t MAX_SLEEP_TIMEOUT_MINUTES = 30;
+  static uint8_t sleepTimeoutEnumToMinutes(uint8_t legacyValue);
 
   // E-ink refresh frequency (pages between full refreshes)
   enum REFRESH_FREQUENCY {
@@ -143,11 +162,37 @@ class CrossPointSettings {
   };
 
   // Short power button press actions
-  enum SHORT_PWRBTN { IGNORE = 0, SLEEP = 1, PAGE_TURN = 2, SELECT = 3, FORCE_REFRESH = 4, SHORT_PWRBTN_COUNT };
+  enum SHORT_PWRBTN {
+    IGNORE = 0,
+    SLEEP = 1,
+    PAGE_TURN = 2,
+    SELECT = 3,
+    FORCE_REFRESH = 4,
+    TOGGLE_FONT = 5,
+    TOGGLE_GUIDE_DOTS = 6,
+    TOGGLE_BIONIC_READING = 7,
+    TOGGLE_BOOKMARK = 8,
+    SYNC_PROGRESS = 9,
+    MARK_FINISHED = 10,
+    READING_STATS = 11,
+    SCREENSHOT = 12,
+    CYCLE_PAGE_TURN = 13,
+    FILE_TRANSFER = 14,
+    SHORT_PWRBTN_COUNT
+  };
 
   // Hide battery percentage
   enum HIDE_BATTERY_PERCENTAGE { HIDE_NEVER = 0, HIDE_READER = 1, HIDE_ALWAYS = 2, HIDE_BATTERY_PERCENTAGE_COUNT };
-  enum UI_THEME { CLASSIC = 0, LYRA = 1, LYRA_EXTENDED = 2, FORK_DRIFT = 3, POKEMON_PARTY = 4 };
+  enum UI_THEME {
+    CLASSIC = 0,
+    LYRA = 1,
+    LYRA_EXTENDED = 2,
+    FORK_DRIFT = 3,
+    POKEMON_PARTY = 4,
+    MINIMAL = 5,
+    LYRA_CAROUSEL = 6
+  };
+  enum RECENT_BOOKS_VIEW { RECENT_BOOKS_LIST = 0, RECENT_BOOKS_GRID = 1, RECENT_BOOKS_VIEW_COUNT };
 
   // Page turn button long press behavior
   enum LONG_PRESS_BUTTON_BEHAVIOR {
@@ -184,6 +229,24 @@ class CrossPointSettings {
   // Image rendering in EPUB reader
   enum IMAGE_RENDERING { IMAGES_DISPLAY = 0, IMAGES_PLACEHOLDER = 1, IMAGES_SUPPRESS = 2, IMAGE_RENDERING_COUNT };
 
+  // Long-press Confirm (menu button) quick action in reader
+  enum LONG_PRESS_MENU_ACTION {
+    LONG_MENU_OFF = 0,
+    LONG_MENU_SLEEP = 1,
+    LONG_MENU_CHANGE_FONT = 2,
+    LONG_MENU_TOGGLE_GUIDE_DOTS = 3,
+    LONG_MENU_TOGGLE_BIONIC = 4,
+    LONG_MENU_TOGGLE_BOOKMARK = 5,
+    LONG_MENU_REFRESH_SCREEN = 6,
+    LONG_MENU_SYNC_PROGRESS = 7,
+    LONG_MENU_MARK_FINISHED = 8,
+    LONG_MENU_READING_STATS = 9,
+    LONG_MENU_SCREENSHOT = 10,
+    LONG_MENU_CYCLE_PAGE_TURN = 11,
+    LONG_MENU_FILE_TRANSFER = 12,
+    LONG_PRESS_MENU_ACTION_COUNT
+  };
+
   // Global status bar overlay position
   enum GLOBAL_STATUS_BAR_POSITION { STATUS_BAR_TOP = 0, STATUS_BAR_BOTTOM = 1, GLOBAL_STATUS_BAR_POSITION_COUNT };
 
@@ -209,6 +272,7 @@ class CrossPointSettings {
   uint8_t statusBarBattery = 1;
   // Text rendering settings
   uint8_t extraParagraphSpacing = 1;
+  uint8_t forceParagraphIndents = 0;
   uint8_t textAntiAliasing = 1;
   // Short power button click behaviour
   uint8_t shortPwrBtn = IGNORE;
@@ -218,6 +282,10 @@ class CrossPointSettings {
   // Button layouts
   uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;
   uint8_t sideButtonLayout = PREV_NEXT;
+  uint8_t frontButtonOrientationAware = FRONT_ORIENTATION_AWARE_OFF;
+  uint8_t sideButtonOrientationAware = 0;
+  // Action performed when side buttons are long-pressed in reader
+  uint8_t sideButtonLongPress = SIDE_LONG_CHAPTER_SKIP;
   // Front button remap (logical -> hardware)
   // Used by MappedInputManager to translate logical buttons into physical front buttons.
   uint8_t frontButtonBack = FRONT_HW_BACK;
@@ -230,7 +298,8 @@ class CrossPointSettings {
   uint8_t lineSpacing = NORMAL;
   uint8_t paragraphAlignment = JUSTIFIED;
   // Auto-sleep timeout setting (default 10 minutes)
-  uint8_t sleepTimeout = SLEEP_10_MIN;
+  uint8_t sleepTimeout = SLEEP_10_MIN;  // legacy enum retained for binary/JSON migration
+  uint8_t sleepTimeoutMinutes = 10;
   // E-ink refresh frequency (default 15 pages)
   uint8_t refreshFrequency = REFRESH_15;
   uint8_t hyphenationEnabled = 0;
@@ -247,6 +316,7 @@ class CrossPointSettings {
   uint8_t longPressButtonBehavior = CHAPTER_SKIP;
   // UI theme
   uint8_t uiTheme = FORK_DRIFT;
+  uint8_t recentBooksView = RECENT_BOOKS_LIST;
   // Sunlight fading compensation
   uint8_t fadingFix = 0;
   // Deprecated JSON migration fallback for old boolean long-press chapter skip.
@@ -278,14 +348,21 @@ class CrossPointSettings {
   uint8_t wifiAutoConnect = ENABLE_BACKGROUND_SERVER_ALWAYS;
   // Focus Reading - emphasizes the first part of words with bold
   uint8_t focusReadingEnabled = 0;
+  // Guide Dots - inserts a middle dot between words as a visual reading guide
+  uint8_t guideReadingEnabled = 0;
   // SD card font family name (empty = use built-in fontFamily)
   char sdFontFamilyName[32] = "";
   // Show hidden files/directories (starting with '.') in the file browser (0 = hidden, 1 = show)
   uint8_t showHiddenFiles = 0;
+  uint8_t moveFinishedToReadFolder = 0;
   // Mirror firmware logs to /crosspoint-debug.log on the SD card.
   uint8_t developerMode = 0;
   // Image rendering mode in EPUB reader
   uint8_t imageRendering = IMAGES_DISPLAY;
+  // Long-press power button action in reader (uses SHORT_PWRBTN enum; default = sleep)
+  uint8_t longPwrBtn = SLEEP;
+  // Long-press Confirm (menu button) quick action in reader (0 = off)
+  uint8_t longPressMenuAction = LONG_MENU_OFF;
   // Global status bar overlay (battery + WiFi, always visible across all screens)
   uint8_t globalStatusBar = GLOBAL_STATUS_BAR_OFF;
   uint8_t globalStatusBarPosition = STATUS_BAR_TOP;  // 0 = top, 1 = bottom
@@ -349,14 +426,25 @@ class CrossPointSettings {
   SdFontIdResolver sdFontIdResolver = nullptr;
   void* sdFontResolverCtx = nullptr;
 
-  uint16_t getPowerButtonDuration() const {
+  static constexpr uint16_t POWER_BUTTON_WAKE_SHORT_MS = 10;
+  static constexpr uint16_t POWER_BUTTON_LONG_PRESS_MS = 400;
+
+  // Wake detection threshold: how long power must be held to trigger sleep/wake.
+  uint16_t getPowerButtonWakeDuration() const {
     // Dual-side front layout uses short power taps for Confirm/Back.
     // Keep long-press threshold so short taps are not interpreted as sleep.
     if (frontButtonLayout == CrossPointSettings::LEFT_LEFT_RIGHT_RIGHT) {
-      return 400;
+      return POWER_BUTTON_LONG_PRESS_MS;
     }
-    return (shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP) ? 10 : 400;
+    return (shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP) ? POWER_BUTTON_WAKE_SHORT_MS
+                                                                    : POWER_BUTTON_LONG_PRESS_MS;
   }
+
+  // Threshold separating short-press from long-press power button in reader.
+  uint16_t getPowerButtonLongPressDuration() const { return POWER_BUTTON_LONG_PRESS_MS; }
+
+  // Keep old name as alias so callers outside the reader can be migrated incrementally.
+  uint16_t getPowerButtonDuration() const { return getPowerButtonWakeDuration(); }
   int getReaderFontId() const;
 
   bool saveToFile() const;

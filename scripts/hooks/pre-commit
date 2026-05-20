@@ -10,6 +10,12 @@ set -euo pipefail
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
 
+# TEMPORARY: crossink port parallel sprint — skip pio build when toggle file exists.
+if [ -f ".crossink-port/PRE_COMMIT_OFF" ]; then
+    echo "Pre-commit skipped (.crossink-port/PRE_COMMIT_OFF). Run ./.crossink-port/port-build.sh before commit."
+    exit 0
+fi
+
 prune_old_local_artifacts() {
     # Keep current build caches intact, but drop stale local CI output and logs.
     find . -maxdepth 1 \

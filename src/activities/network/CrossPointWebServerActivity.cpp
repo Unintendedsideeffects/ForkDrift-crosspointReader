@@ -379,6 +379,14 @@ void CrossPointWebServerActivity::stopWebServer() {
   }
 }
 
+void CrossPointWebServerActivity::exitToOrigin() {
+  if (returnBookPath.empty()) {
+    activityManager.goHome();
+    return;
+  }
+  activityManager.goToReader(returnBookPath, true);
+}
+
 void CrossPointWebServerActivity::updateUploadProgress() {
   if (!webServer) return;
 
@@ -446,7 +454,7 @@ void CrossPointWebServerActivity::loop() {
           if (millis() - firstDisconnectAt > WIFI_ABANDON_MS) {
             LOG_DBG("WEBACT", "WiFi unavailable for >%lu s; returning to network selection", WIFI_ABANDON_MS / 1000UL);
             state = WebServerActivityState::SHUTTING_DOWN;
-            onGoHome();
+            exitToOrigin();
             return;
           }
         } else {
@@ -513,7 +521,7 @@ void CrossPointWebServerActivity::loop() {
           mappedInput.update();
           // Check for exit button inside loop for responsiveness
           if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-            activityManager.goHome();
+            exitToOrigin();
             return;
           }
         }
@@ -526,7 +534,7 @@ void CrossPointWebServerActivity::loop() {
 
     // Handle exit on Back button (also check outside loop)
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-      activityManager.goHome();
+      exitToOrigin();
       return;
     }
   }

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "OpdsServerStore.h"
 #include "boot_sleep/BootActivity.h"
@@ -14,10 +15,12 @@
 #include "core/registries/HomeActionRegistry.h"
 #include "core/registries/ReaderRegistry.h"
 #include "home/CrashActivity.h"
+#include "home/AlertActivity.h"
 #include "home/HomeActivity.h"
 #include "home/MyLibraryActivity.h"
 #include "home/NotesActivity.h"
 #include "home/RecentBooksActivity.h"
+#include "home/RecentBooksGridActivity.h"
 #include "network/CrossPointWebServer.h"
 #include "network/CrossPointWebServerActivity.h"
 #include "settings/OpdsServerListActivity.h"
@@ -186,6 +189,11 @@ void ActivityManager::loop() {
     mappedInput.clearTransientState();
   }
 
+  if (APP_STATE.hasPendingAlert.load(std::memory_order_acquire) && pendingAction == PendingAction::None) {
+    APP_STATE.hasPendingAlert.store(false, std::memory_order_relaxed);
+    pushActivity(std::make_unique<AlertActivity>(renderer, mappedInput));
+  }
+
   if (requestedUpdate) {
     requestedUpdate = false;
     // Using direct notification to signal the render task to update
@@ -218,8 +226,8 @@ void ActivityManager::replaceActivity(std::unique_ptr<Activity>&& newActivity) {
   }
 }
 
-void ActivityManager::goToFileTransfer() {
-  replaceActivity(std::make_unique<CrossPointWebServerActivity>(renderer, mappedInput));
+void ActivityManager::goToFileTransfer(std::string returnBookPath) {
+  replaceActivity(std::make_unique<CrossPointWebServerActivity>(renderer, mappedInput, std::move(returnBookPath)));
 }
 
 void ActivityManager::goToSettings() { replaceActivity(std::make_unique<SettingsActivity>(renderer, mappedInput)); }
@@ -231,7 +239,11 @@ void ActivityManager::goToMyLibrary(std::string path) {
 }
 
 void ActivityManager::goToRecentBooks() {
-  replaceActivity(std::make_unique<RecentBooksActivity>(renderer, mappedInput));
+  if (SETTINGS.recentBooksView == CrossPointSettings::RECENT_BOOKS_GRID) {
+    replaceActivity(std::make_unique<RecentBooksGridActivity>(renderer, mappedInput));
+  } else {
+    replaceActivity(std::make_unique<RecentBooksActivity>(renderer, mappedInput));
+  }
 }
 
 void ActivityManager::goToTodo() {
@@ -260,7 +272,10 @@ void ActivityManager::goToBrowser() {
   }
 }
 
-void ActivityManager::goToReader(const std::string& path) {
+void ActivityManager::goToReader(std::string path, const bool suppressBackRelease) {
+  if (suppressBackRelease) {
+    mappedInput.suppressNextBackRelease();
+  }
   // Non-capturing lambdas: activityManager is an extern global, no context needed.
   static const auto onBackToLibrary = +[](void*, const std::string& bookPath) {
     const auto slash = bookPath.rfind('/');

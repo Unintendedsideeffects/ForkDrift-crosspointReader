@@ -30,6 +30,7 @@ enum class WebServerActivityState {
  */
 class CrossPointWebServerActivity final : public Activity {
   WebServerActivityState state = WebServerActivityState::MODE_SELECTION;
+  std::string returnBookPath;
 
   // Network mode
   NetworkMode networkMode = NetworkMode::JOIN_NETWORK;
@@ -70,10 +71,12 @@ class CrossPointWebServerActivity final : public Activity {
   void startWebServer();
   void stopWebServer();
   void updateUploadProgress();
+  void exitToOrigin();
 
  public:
-  explicit CrossPointWebServerActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
-      : Activity("CrossPointWebServer", renderer, mappedInput) {}
+  explicit CrossPointWebServerActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
+                                       std::string returnBookPath = {})
+      : Activity("CrossPointWebServer", renderer, mappedInput), returnBookPath(std::move(returnBookPath)) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;

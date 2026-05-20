@@ -11,7 +11,7 @@ constexpr ThemeMetrics values = {.batteryWidth = 15,
                                  .batteryBarHeight = 20,
                                  .headerHeight = 45,
                                  .verticalSpacing = 10,
-                                 .contentSidePadding = 20,
+                                 .contentSidePadding = 15,
                                  .listRowHeight = 42,
                                  .listWithSubtitleRowHeight = 69,
                                  .menuRowHeight = 42,
@@ -54,7 +54,8 @@ class RoundedRaffTheme : public BaseTheme {
                   bool selected) const override;
   void drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                            int selectorIndex, bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
-                           const std::function<bool()>& storeCoverBuffer) const override;
+                           const std::function<bool()>& storeCoverBuffer,
+                           float progressPercent = -1.0f) const override;
   void drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                       const std::function<std::string(int index)>& buttonLabel,
                       const std::function<UIIcon(int index)>& rowIcon) const override;
@@ -68,8 +69,9 @@ class RoundedRaffTheme : public BaseTheme {
                 const std::function<std::string(int index)>& rowSubtitle = nullptr,
                 const std::function<UIIcon(int index)>& rowIcon = nullptr,
                 const std::function<std::string(int index)>& rowValue = nullptr, bool highlightValue = false,
-                const std::function<bool(int index)>& rowDimmed = nullptr) const override;
+                const std::function<bool(int index)>& rowDimmed = nullptr,
+                const std::function<bool(int index)>& isHeader = nullptr) const override;
   void drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
-                       const char* btn4) const override;
+                       const char* btn4, bool allowInvertedText = false) const override;
   bool homeMenuShowsContinueReading() const { return true; }
 };

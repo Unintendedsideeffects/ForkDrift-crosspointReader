@@ -12,10 +12,10 @@
 #include "SpiBusMutex.h"
 
 namespace {
-constexpr uint8_t SECTION_FILE_VERSION = 1;
-constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(uint8_t) +
-                                 sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(uint32_t) +
-                                 sizeof(uint16_t) + sizeof(uint32_t);
+constexpr uint8_t SECTION_FILE_VERSION = 3;
+constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
+                                 sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) +
+                                 sizeof(uint32_t) + sizeof(bool) + sizeof(uint16_t) + sizeof(uint32_t);
 constexpr uint32_t MIN_SIZE_FOR_PROGRESS = 50 * 1024;
 constexpr float LINE_COMPRESSION_EPSILON = 0.0001f;
 
@@ -55,16 +55,18 @@ uint32_t MarkdownSection::onPageComplete(std::unique_ptr<Page> page) {
 }
 
 void MarkdownSection::writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing,
-                                             uint8_t paragraphAlignment, uint16_t viewportWidth,
-                                             uint16_t viewportHeight, bool hyphenationEnabled, uint32_t sourceSize) {
+                                             bool forceParagraphIndents, uint8_t paragraphAlignment,
+                                             uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled,
+                                             uint32_t sourceSize, bool guideReadingEnabled) {
   if (!file) {
     LOG_ERR("MSC", "File not open for writing header");
     return;
   }
 
   static_assert(HEADER_SIZE == sizeof(SECTION_FILE_VERSION) + sizeof(fontId) + sizeof(lineCompression) +
-                                   sizeof(extraParagraphSpacing) + sizeof(paragraphAlignment) + sizeof(viewportWidth) +
-                                   sizeof(viewportHeight) + sizeof(hyphenationEnabled) + sizeof(sourceSize) +
+                                   sizeof(extraParagraphSpacing) + sizeof(forceParagraphIndents) +
+                                   sizeof(paragraphAlignment) + sizeof(viewportWidth) + sizeof(viewportHeight) +
+                                   sizeof(hyphenationEnabled) + sizeof(sourceSize) + sizeof(guideReadingEnabled) +
                                    sizeof(pageCount) + sizeof(uint32_t),
                 "Header size mismatch");
 
@@ -72,18 +74,21 @@ void MarkdownSection::writeSectionFileHeader(int fontId, float lineCompression, 
   serialization::writePod(file, fontId);
   serialization::writePod(file, lineCompression);
   serialization::writePod(file, extraParagraphSpacing);
+  serialization::writePod(file, forceParagraphIndents);
   serialization::writePod(file, paragraphAlignment);
   serialization::writePod(file, viewportWidth);
   serialization::writePod(file, viewportHeight);
   serialization::writePod(file, hyphenationEnabled);
   serialization::writePod(file, sourceSize);
+  serialization::writePod(file, guideReadingEnabled);
   serialization::writePod(file, pageCount);                 // Placeholder
   serialization::writePod(file, static_cast<uint32_t>(0));  // Placeholder for LUT offset
 }
 
 bool MarkdownSection::loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing,
-                                      uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
-                                      bool hyphenationEnabled, uint32_t sourceSize) {
+                                      bool forceParagraphIndents, uint8_t paragraphAlignment, uint16_t viewportWidth,
+                                      uint16_t viewportHeight, bool hyphenationEnabled, uint32_t sourceSize,
+                                      bool guideReadingEnabled) {
   SpiBusMutex::Guard guard;
   nodeToPageMap.clear();
   closeSectionFile();
@@ -109,15 +114,18 @@ bool MarkdownSection::loadSectionFile(int fontId, float lineCompression, bool ex
   uint16_t fileViewportWidth, fileViewportHeight;
   float fileLineCompression;
   bool fileExtraParagraphSpacing;
+  bool fileForceParagraphIndents;
   uint8_t fileParagraphAlignment;
   bool fileHyphenationEnabled;
   uint32_t fileSourceSize;
+  bool fileGuideReadingEnabled;
 
   if (!serialization::readPod(file, fileFontId) || !serialization::readPod(file, fileLineCompression) ||
       !serialization::readPod(file, fileExtraParagraphSpacing) ||
+      !serialization::readPod(file, fileForceParagraphIndents) ||
       !serialization::readPod(file, fileParagraphAlignment) || !serialization::readPod(file, fileViewportWidth) ||
       !serialization::readPod(file, fileViewportHeight) || !serialization::readPod(file, fileHyphenationEnabled) ||
-      !serialization::readPod(file, fileSourceSize)) {
+      !serialization::readPod(file, fileSourceSize) || !serialization::readPod(file, fileGuideReadingEnabled)) {
     file.close();
     LOG_ERR("MSC", "Deserialization failed: truncated parameters");
     clearCache();
@@ -125,9 +133,10 @@ bool MarkdownSection::loadSectionFile(int fontId, float lineCompression, bool ex
   }
 
   if (fontId != fileFontId || !nearlyEqual(lineCompression, fileLineCompression) ||
-      extraParagraphSpacing != fileExtraParagraphSpacing || paragraphAlignment != fileParagraphAlignment ||
-      viewportWidth != fileViewportWidth || viewportHeight != fileViewportHeight ||
-      hyphenationEnabled != fileHyphenationEnabled || sourceSize != fileSourceSize) {
+      extraParagraphSpacing != fileExtraParagraphSpacing || forceParagraphIndents != fileForceParagraphIndents ||
+      paragraphAlignment != fileParagraphAlignment || viewportWidth != fileViewportWidth ||
+      viewportHeight != fileViewportHeight || hyphenationEnabled != fileHyphenationEnabled ||
+      sourceSize != fileSourceSize || guideReadingEnabled != fileGuideReadingEnabled) {
     file.close();
     LOG_WRN("MSC", "Deserialization failed: parameters do not match");
     clearCache();
@@ -159,8 +168,9 @@ bool MarkdownSection::clearCache() const {
 }
 
 bool MarkdownSection::createSectionFile(const MdNode& root, int fontId, float lineCompression,
-                                        bool extraParagraphSpacing, uint8_t paragraphAlignment, uint16_t viewportWidth,
-                                        uint16_t viewportHeight, bool hyphenationEnabled, uint32_t sourceSize,
+                                        bool extraParagraphSpacing, bool forceParagraphIndents,
+                                        uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
+                                        bool hyphenationEnabled, uint32_t sourceSize, bool guideReadingEnabled,
                                         const std::function<void()>& progressSetupFn,
                                         const std::function<void(int)>& progressFn) {
   SpiBusMutex::Guard guard;
@@ -174,8 +184,8 @@ bool MarkdownSection::createSectionFile(const MdNode& root, int fontId, float li
     return false;
   }
 
-  writeSectionFileHeader(fontId, lineCompression, extraParagraphSpacing, paragraphAlignment, viewportWidth,
-                         viewportHeight, hyphenationEnabled, sourceSize);
+  writeSectionFileHeader(fontId, lineCompression, extraParagraphSpacing, forceParagraphIndents, paragraphAlignment,
+                         viewportWidth, viewportHeight, hyphenationEnabled, sourceSize, guideReadingEnabled);
 
   if (progressSetupFn && sourceSize >= MIN_SIZE_FOR_PROGRESS) {
     progressSetupFn();

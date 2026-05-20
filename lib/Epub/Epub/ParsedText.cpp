@@ -114,6 +114,13 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
                          const bool attachToPrevious) {
   if (word.empty()) return;
 
+  if (guideReadingEnabled && !attachToPrevious && !words.empty()) {
+    words.emplace_back("\xc2\xb7");
+    wordStyles.push_back(EpdFontFamily::REGULAR);
+    wordContinues.push_back(false);
+    wordIsFocusSuffix.push_back(false);
+  }
+
   EpdFontFamily::Style baseStyle = fontStyle;
   if (underline) {
     baseStyle = static_cast<EpdFontFamily::Style>(baseStyle | EpdFontFamily::UNDERLINE);
@@ -331,12 +338,14 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
   }
 
   // Calculate first line indent (only for left/justified text).
-  // Positive text-indent (paragraph indent) is suppressed when extraParagraphSpacing is on.
+  // Positive text-indent is normally suppressed when extraParagraphSpacing is on,
+  // unless forceParagraphIndents overrides that behavior.
   // Negative text-indent (hanging indent, e.g. margin-left:3em; text-indent:-1em) always applies —
   // it is structural (positions the bullet/marker), not decorative.
   const int firstLineIndent =
-      blockStyle.textIndentDefined && (blockStyle.textIndent < 0 || !extraParagraphSpacing) &&
-              (blockStyle.alignment == CssTextAlign::Justify || blockStyle.alignment == CssTextAlign::Left)
+      blockStyle.textIndentDefined && (blockStyle.textIndent < 0 || !extraParagraphSpacing || forceParagraphIndents) &&
+              (blockStyle.alignment == CssTextAlign::Justify || blockStyle.alignment == CssTextAlign::Left ||
+               blockStyle.alignment == CssTextAlign::None)
           ? blockStyle.textIndent
           : 0;
 
@@ -445,14 +454,15 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
 }
 
 void ParsedText::applyParagraphIndent() {
-  if (extraParagraphSpacing || words.empty()) {
+  if ((extraParagraphSpacing && !forceParagraphIndents) || words.empty()) {
     return;
   }
 
   if (blockStyle.textIndentDefined) {
     // CSS text-indent is explicitly set (even if 0) - don't use fallback EmSpace
     // The actual indent positioning is handled in extractLine()
-  } else if (blockStyle.alignment == CssTextAlign::Justify || blockStyle.alignment == CssTextAlign::Left) {
+  } else if (blockStyle.alignment == CssTextAlign::Justify || blockStyle.alignment == CssTextAlign::Left ||
+             blockStyle.alignment == CssTextAlign::None) {
     // No CSS text-indent defined - use EmSpace fallback for visual indent
     words.front().insert(0, "\xe2\x80\x83");
   }
@@ -464,12 +474,14 @@ std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& r
                                                             const int pageWidth, std::vector<uint16_t>& wordWidths,
                                                             std::vector<bool>& continuesVec) {
   // Calculate first line indent (only for left/justified text).
-  // Positive text-indent (paragraph indent) is suppressed when extraParagraphSpacing is on.
+  // Positive text-indent is normally suppressed when extraParagraphSpacing is on,
+  // unless forceParagraphIndents overrides that behavior.
   // Negative text-indent (hanging indent, e.g. margin-left:3em; text-indent:-1em) always applies —
   // it is structural (positions the bullet/marker), not decorative.
   const int firstLineIndent =
-      blockStyle.textIndentDefined && (blockStyle.textIndent < 0 || !extraParagraphSpacing) &&
-              (blockStyle.alignment == CssTextAlign::Justify || blockStyle.alignment == CssTextAlign::Left)
+      blockStyle.textIndentDefined && (blockStyle.textIndent < 0 || !extraParagraphSpacing || forceParagraphIndents) &&
+              (blockStyle.alignment == CssTextAlign::Justify || blockStyle.alignment == CssTextAlign::Left ||
+               blockStyle.alignment == CssTextAlign::None)
           ? blockStyle.textIndent
           : 0;
 
@@ -645,8 +657,10 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   // it is structural (positions the bullet/marker), not decorative.
   const bool isFirstLine = breakIndex == 0;
   const int firstLineIndent =
-      isFirstLine && blockStyle.textIndentDefined && (blockStyle.textIndent < 0 || !extraParagraphSpacing) &&
-              (blockStyle.alignment == CssTextAlign::Justify || blockStyle.alignment == CssTextAlign::Left)
+      isFirstLine && blockStyle.textIndentDefined &&
+              (blockStyle.textIndent < 0 || !extraParagraphSpacing || forceParagraphIndents) &&
+              (blockStyle.alignment == CssTextAlign::Justify || blockStyle.alignment == CssTextAlign::Left ||
+               blockStyle.alignment == CssTextAlign::None)
           ? blockStyle.textIndent
           : 0;
 
