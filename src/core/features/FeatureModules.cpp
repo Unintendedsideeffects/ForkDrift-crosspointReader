@@ -38,10 +38,6 @@ static constexpr int kDefaultThumbHeight = 240;
 #include "activities/settings/KOReaderSettingsActivity.h"
 #endif
 
-#if ENABLE_USER_FONTS
-#include "util/UserFontManager.h"
-#endif
-
 #if ENABLE_TODO_PLANNER
 #include "activities/todo/TodoActivity.h"
 #include "activities/todo/TodoFallbackActivity.h"
@@ -397,58 +393,15 @@ void FeatureModules::saveKoreaderSettings() {
 }
 
 std::vector<std::string> FeatureModules::getUserFontFamilies() {
-#if ENABLE_USER_FONTS
-  auto& manager = UserFontManager::getInstance();
-  manager.ensureScanned();
-  return manager.getAvailableFonts();
-#else
   return {};
-#endif
 }
 
 uint8_t FeatureModules::getSelectedUserFontFamilyIndex() {
-#if ENABLE_USER_FONTS
-  auto& manager = UserFontManager::getInstance();
-  manager.ensureScanned();
-  const auto& fonts = manager.getAvailableFonts();
-  if (fonts.empty()) {
-    return 0;
-  }
-
-  const std::string selectedFont = SETTINGS.userFontPath;
-  const auto it = std::find(fonts.begin(), fonts.end(), selectedFont);
-  if (it == fonts.end()) {
-    return 0;
-  }
-  return static_cast<uint8_t>(std::distance(fonts.begin(), it));
-#else
   return 0;
-#endif
 }
 
 void FeatureModules::setSelectedUserFontFamilyIndex(const uint8_t index) {
-#if ENABLE_USER_FONTS
-  auto& manager = UserFontManager::getInstance();
-  manager.ensureScanned();
-  const auto& fonts = manager.getAvailableFonts();
-  if (fonts.empty()) {
-    SETTINGS.userFontPath[0] = '\0';
-    if (SETTINGS.fontFamily == CrossPointSettings::USER_SD) {
-      SETTINGS.fontFamily = CrossPointSettings::BOOKERLY;
-      manager.unloadCurrentFont();
-    }
-    return;
-  }
-
-  const size_t selectedIndex = std::min(static_cast<size_t>(index), fonts.size() - 1);
-  strncpy(SETTINGS.userFontPath, fonts[selectedIndex].c_str(), sizeof(SETTINGS.userFontPath) - 1);
-  SETTINGS.userFontPath[sizeof(SETTINGS.userFontPath) - 1] = '\0';
-  if (SETTINGS.fontFamily == CrossPointSettings::USER_SD && !manager.loadFontFamily(SETTINGS.userFontPath)) {
-    SETTINGS.fontFamily = CrossPointSettings::BOOKERLY;
-  }
-#else
   (void)index;
-#endif
 }
 
 void FeatureModules::onFontFamilySettingChanged(const uint8_t newValue) {

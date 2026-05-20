@@ -247,6 +247,8 @@ void HalGPIO::injectVirtualButton(uint8_t buttonIndex) { virtualButtonMask |= st
 
 unsigned long HalGPIO::getHeldTime() const { return inputMgr.getHeldTime(); }
 
+unsigned long HalGPIO::getPowerButtonHeldTime() const { return inputMgr.getHeldTime(); }
+
 void HalGPIO::startDeepSleep() {
   // Ensure that the power button has been released to avoid immediately turning back on if you're holding it
   while (inputMgr.isPressed(BTN_POWER)) {

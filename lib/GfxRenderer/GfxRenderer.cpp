@@ -7,8 +7,6 @@
 #include <Utf8.h>
 
 #include <algorithm>
-#include <cassert>
-#include <cmath>
 
 #include "FontCacheManager.h"
 
@@ -56,9 +54,6 @@ const uint8_t* GfxRenderer::getGlyphBitmap(const EpdFontData* fontData, const Ep
 void GfxRenderer::ensureSdCardFontReady(int fontId, const char* utf8Text, uint8_t styleMask) const {
   auto it = sdCardFonts_.find(fontId);
   if (it != sdCardFonts_.end()) {
-    // Augment the persistent advance-only table for layout measurement.
-    // The table survives across paragraphs/sections (capped per font), so
-    // repeated indexing of the same SD font amortizes glyph-metric SD reads.
     int missed = it->second->buildAdvanceTable(utf8Text, styleMask);
     if (missed > 0) {
       LOG_DBG("GFX", "ensureSdCardFontReady: %d glyph(s) not found", missed);
@@ -66,19 +61,31 @@ void GfxRenderer::ensureSdCardFontReady(int fontId, const char* utf8Text, uint8_
   }
 }
 
-bool GfxRenderer::begin() {
+void GfxRenderer::ensureSdCardFontReady(int fontId, const std::vector<std::string>& words, bool includeHyphen,
+                                        uint8_t styleMask) const {
+  auto it = sdCardFonts_.find(fontId);
+  if (it != sdCardFonts_.end()) {
+    // Augment the persistent advance-only table for layout measurement.
+    // The table survives across paragraphs/sections (capped per font), so
+    // repeated indexing of the same SD font amortizes glyph-metric SD reads.
+    int missed = it->second->buildAdvanceTable(words, includeHyphen, styleMask);
+    if (missed > 0) {
+      LOG_DBG("GFX", "ensureSdCardFontReady: %d glyph(s) not found", missed);
+    }
+  }
+}
+
+void GfxRenderer::begin() {
   frameBuffer = display.getFrameBuffer();
   if (!frameBuffer) {
     LOG_ERR("GFX", "!! No framebuffer");
     assert(false);
-    return false;
   }
   panelWidth = display.getDisplayWidth();
   panelHeight = display.getDisplayHeight();
   panelWidthBytes = display.getDisplayWidthBytes();
   frameBufferSize = display.getBufferSize();
   bwBufferChunks.assign((frameBufferSize + BW_BUFFER_CHUNK_SIZE - 1) / BW_BUFFER_CHUNK_SIZE, nullptr);
-  return true;
 }
 
 void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) {
@@ -519,8 +526,7 @@ void GfxRenderer::drawPixelDither<Color::LightGray>(const int x, const int y) co
 
 template <>
 void GfxRenderer::drawPixelDither<Color::DarkGray>(const int x, const int y) const {
-  // 75% density (3 of 4 pixels black) — Bayer 2x2 complement of LightGray's 25%
-  drawPixel(x, y, !(x % 2 == 0 && y % 2 == 0));
+  drawPixel(x, y, (x + y) % 2 == 0);  // TODO: maybe find a better pattern?
 }
 
 void GfxRenderer::fillRectDither(const int x, const int y, const int width, const int height, Color color) const {
@@ -691,98 +697,27 @@ void GfxRenderer::fillRoundedRect(const int x, const int y, const int width, con
   }
 }
 
-// Read a single bit from a 1-bit packed bitmap (MSB first).
-static inline bool getBitmapBit(const uint8_t* bmp, int widthBytes, int px, int py) {
-  return (bmp[py * widthBytes + (px / 8)] >> (7 - (px % 8))) & 1;
-}
-
-// Set a single bit in a 1-bit packed bitmap (MSB first).
-static inline void setBitmapBit(uint8_t* bmp, int widthBytes, int px, int py, bool val) {
-  const int byteIdx = py * widthBytes + (px / 8);
-  const uint8_t mask = 1 << (7 - (px % 8));
-  if (val)
-    bmp[byteIdx] |= mask;
-  else
-    bmp[byteIdx] &= ~mask;
-}
-
 void GfxRenderer::drawImage(const uint8_t bitmap[], const int x, const int y, const int width, const int height) const {
-  if (orientation == LandscapeCounterClockwise) {
-    // Native panel orientation — no rotation needed
-    display.drawImage(bitmap, x, y, width, height);
-    return;
-  }
-
-  // Determine output dimensions and pixel mapping based on rotation
-  int outW, outH;
-  if (orientation == LandscapeClockwise) {
-    outW = width;  // 180° — same dimensions
-    outH = height;
-  } else {
-    outW = height;  // 90° — dimensions swap
-    outH = width;
-  }
-
-  const int srcWidthBytes = width / 8;
-  const int dstWidthBytes = outW / 8;
-  const int bufSize = dstWidthBytes * outH;
-
-  auto* rotated = static_cast<uint8_t*>(malloc(bufSize));
-  if (!rotated) {
-    LOG_ERR("GFX", "drawImage: malloc failed for %d bytes", bufSize);
-    return;
-  }
-  memset(rotated, 0xFF, bufSize);  // white background
-
-  for (int sy = 0; sy < height; sy++) {
-    for (int sx = 0; sx < width; sx++) {
-      int dx, dy;
-      switch (orientation) {
-        case Portrait:
-          // 90° CW: (sx, sy) → (height-1-sy, sx)
-          dx = height - 1 - sy;
-          dy = sx;
-          break;
-        case PortraitInverted:
-          // 90° CCW: (sx, sy) → (sy, width-1-sx)
-          dx = sy;
-          dy = width - 1 - sx;
-          break;
-        case LandscapeClockwise:
-          // 180°: (sx, sy) → (width-1-sx, height-1-sy)
-          dx = width - 1 - sx;
-          dy = height - 1 - sy;
-          break;
-        default:
-          dx = sx;
-          dy = sy;
-          break;
-      }
-      setBitmapBit(rotated, dstWidthBytes, dx, dy, getBitmapBit(bitmap, srcWidthBytes, sx, sy));
-    }
-  }
-
-  // Compute physical position for the rotated image
   int rotatedX = 0;
   int rotatedY = 0;
   rotateCoordinates(orientation, x, y, &rotatedX, &rotatedY, panelWidth, panelHeight);
+  // Rotate origin corner
   switch (orientation) {
     case Portrait:
-      rotatedY = rotatedY - outH;
+      rotatedY = rotatedY - height;
       break;
     case PortraitInverted:
-      rotatedX = rotatedX - outW;
+      rotatedX = rotatedX - width;
       break;
     case LandscapeClockwise:
-      rotatedY = rotatedY - outH;
-      rotatedX = rotatedX - outW;
+      rotatedY = rotatedY - height;
+      rotatedX = rotatedX - width;
       break;
-    default:
+    case LandscapeCounterClockwise:
       break;
   }
-
-  display.drawImage(rotated, rotatedX, rotatedY, outW, outH);
-  free(rotated);
+  // TODO: Rotate bits
+  display.drawImage(bitmap, rotatedX, rotatedY, width, height);
 }
 
 void GfxRenderer::drawIcon(const uint8_t bitmap[], const int x, const int y, const int width, const int height) const {
@@ -1168,6 +1103,128 @@ int GfxRenderer::getScreenHeight() const {
   return panelWidth;
 }
 
+// Translate a logical rect through rotateCoordinates and take the bounding
+// box of its four corners on the physical panel. Output coords are inclusive
+// and clamped. Returns false if the rect ends up fully off-panel.
+static bool logicalRectToPhysicalBounds(GfxRenderer::Orientation orientation, int lx, int ly, int lw, int lh,
+                                        uint16_t panelWidth, uint16_t panelHeight, int* outX0, int* outY0, int* outX1,
+                                        int* outY1) {
+  if (lw <= 0 || lh <= 0) return false;
+  int minX = INT32_MAX;
+  int minY = INT32_MAX;
+  int maxX = INT32_MIN;
+  int maxY = INT32_MIN;
+  const int corners[4][2] = {{lx, ly}, {lx + lw - 1, ly}, {lx, ly + lh - 1}, {lx + lw - 1, ly + lh - 1}};
+  for (auto& c : corners) {
+    int phyX;
+    int phyY;
+    rotateCoordinates(orientation, c[0], c[1], &phyX, &phyY, panelWidth, panelHeight);
+    if (phyX < minX) minX = phyX;
+    if (phyY < minY) minY = phyY;
+    if (phyX > maxX) maxX = phyX;
+    if (phyY > maxY) maxY = phyY;
+  }
+  if (minX < 0) minX = 0;
+  if (minY < 0) minY = 0;
+  if (maxX >= panelWidth) maxX = panelWidth - 1;
+  if (maxY >= panelHeight) maxY = panelHeight - 1;
+  if (minX > maxX || minY > maxY) return false;
+  *outX0 = minX;
+  *outY0 = minY;
+  *outX1 = maxX;
+  *outY1 = maxY;
+  return true;
+}
+
+size_t GfxRenderer::getRegionByteSize(int lx, int ly, int lw, int lh) const {
+  int x0, y0, x1, y1;
+  if (!logicalRectToPhysicalBounds(orientation, lx, ly, lw, lh, panelWidth, panelHeight, &x0, &y0, &x1, &y1)) {
+    return 0;
+  }
+  // x bounds are in pixels; widen to byte boundaries on either side so per-row
+  // memcpy stays byte-aligned even when the logical rect doesn't.
+  const int byteX0 = x0 / 8;
+  const int byteX1 = x1 / 8;
+  const int bytesPerRow = byteX1 - byteX0 + 1;
+  const int rowCount = y1 - y0 + 1;
+  return static_cast<size_t>(bytesPerRow) * static_cast<size_t>(rowCount);
+}
+
+bool GfxRenderer::copyRegionToBuffer(int lx, int ly, int lw, int lh, uint8_t* buf, size_t bufSize) const {
+  int x0, y0, x1, y1;
+  if (!logicalRectToPhysicalBounds(orientation, lx, ly, lw, lh, panelWidth, panelHeight, &x0, &y0, &x1, &y1)) {
+    return false;
+  }
+  const int byteX0 = x0 / 8;
+  const int byteX1 = x1 / 8;
+  const int bytesPerRow = byteX1 - byteX0 + 1;
+  const int rowCount = y1 - y0 + 1;
+  const size_t needed = static_cast<size_t>(bytesPerRow) * static_cast<size_t>(rowCount);
+  if (bufSize < needed || !frameBuffer || !buf) return false;
+  for (int row = 0; row < rowCount; row++) {
+    const uint8_t* src = frameBuffer + (y0 + row) * panelWidthBytes + byteX0;
+    memcpy(buf + row * bytesPerRow, src, bytesPerRow);
+  }
+  return true;
+}
+
+bool GfxRenderer::copyBufferToRegion(int lx, int ly, int lw, int lh, const uint8_t* buf, size_t bufSize) const {
+  int x0, y0, x1, y1;
+  if (!logicalRectToPhysicalBounds(orientation, lx, ly, lw, lh, panelWidth, panelHeight, &x0, &y0, &x1, &y1)) {
+    return false;
+  }
+  const int byteX0 = x0 / 8;
+  const int byteX1 = x1 / 8;
+  const int bytesPerRow = byteX1 - byteX0 + 1;
+  const int rowCount = y1 - y0 + 1;
+  const size_t needed = static_cast<size_t>(bytesPerRow) * static_cast<size_t>(rowCount);
+  if (bufSize < needed || !frameBuffer || !buf) return false;
+  for (int row = 0; row < rowCount; row++) {
+    uint8_t* dst = frameBuffer + (y0 + row) * panelWidthBytes + byteX0;
+    memcpy(dst, buf + row * bytesPerRow, bytesPerRow);
+  }
+  return true;
+}
+
+void GfxRenderer::drawButtonHints(const int fontId, const char* btn1, const char* btn2, const char* btn3,
+                                  const char* btn4) const {
+  const char* labels[4] = {
+      btn1 ? btn1 : "",
+      btn2 ? btn2 : "",
+      btn3 ? btn3 : "",
+      btn4 ? btn4 : "",
+  };
+  const int screenWidth = getScreenWidth();
+  const int slotWidth = screenWidth / 4;
+  const int y = getScreenHeight() - getLineHeight(fontId) - 6;
+
+  for (int i = 0; i < 4; ++i) {
+    if (labels[i][0] == '\0') {
+      continue;
+    }
+    const int textWidth = getTextWidth(fontId, labels[i]);
+    const int x = i * slotWidth + (slotWidth - textWidth) / 2;
+    drawText(fontId, x, y, labels[i]);
+  }
+}
+
+void GfxRenderer::drawSideButtonHints(const int fontId, const char* topBtn, const char* bottomBtn) const {
+  const int x = getScreenWidth() - getLineHeight(fontId) - 2;
+  if (topBtn && topBtn[0] != '\0') {
+    drawTextRotated90CW(fontId, x, getScreenHeight() / 3, topBtn);
+  }
+  if (bottomBtn && bottomBtn[0] != '\0') {
+    drawTextRotated90CW(fontId, x, (getScreenHeight() * 2) / 3, bottomBtn);
+  }
+}
+
+bool GfxRenderer::fontSupportsGrayscale(const int fontId) const {
+  const auto fontIt = fontMap.find(fontId);
+  if (fontIt == fontMap.end()) return false;
+  const EpdFontData* fontData = fontIt->second.getData(EpdFontFamily::REGULAR);
+  return fontData != nullptr && fontData->is2Bit;
+}
+
 int GfxRenderer::getSpaceWidth(const int fontId, const EpdFontFamily::Style style) const {
   // Advance table fast-path for SD card fonts during layout
   auto sdIt = sdCardFonts_.find(fontId);
@@ -1473,43 +1530,4 @@ void GfxRenderer::getOrientedViewableTRBL(int* outTop, int* outRight, int* outBo
       *outLeft = VIEWABLE_MARGIN_TOP;
       break;
   }
-}
-
-void GfxRenderer::drawButtonHints(const int fontId, const char* btn1, const char* btn2, const char* btn3,
-                                  const char* btn4) const {
-  const char* labels[4] = {
-      btn1 ? btn1 : "",
-      btn2 ? btn2 : "",
-      btn3 ? btn3 : "",
-      btn4 ? btn4 : "",
-  };
-  const int screenWidth = getScreenWidth();
-  const int slotWidth = screenWidth / 4;
-  const int y = getScreenHeight() - getLineHeight(fontId) - 6;
-
-  for (int i = 0; i < 4; ++i) {
-    if (labels[i][0] == '\0') {
-      continue;
-    }
-    const int textWidth = getTextWidth(fontId, labels[i]);
-    const int x = i * slotWidth + (slotWidth - textWidth) / 2;
-    drawText(fontId, x, y, labels[i]);
-  }
-}
-
-void GfxRenderer::drawSideButtonHints(const int fontId, const char* topBtn, const char* bottomBtn) const {
-  const int x = getScreenWidth() - getLineHeight(fontId) - 2;
-  if (topBtn && topBtn[0] != '\0') {
-    drawTextRotated90CW(fontId, x, getScreenHeight() / 3, topBtn);
-  }
-  if (bottomBtn && bottomBtn[0] != '\0') {
-    drawTextRotated90CW(fontId, x, (getScreenHeight() * 2) / 3, bottomBtn);
-  }
-}
-
-bool GfxRenderer::fontSupportsGrayscale(const int fontId) const {
-  const auto fontIt = fontMap.find(fontId);
-  if (fontIt == fontMap.end()) return false;
-  const IEpdFont* font = fontIt->second.getFont(EpdFontFamily::REGULAR);
-  return font && font->getFontData() && font->getFontData()->is2Bit;
 }

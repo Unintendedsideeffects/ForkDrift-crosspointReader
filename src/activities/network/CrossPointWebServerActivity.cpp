@@ -637,7 +637,7 @@ void CrossPointWebServerActivity::renderCalibreUI() const {
   }
 
   const auto labels = mappedInput.mapLabels("« Exit", "", "", "");
-  renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
 void CrossPointWebServerActivity::renderFileTransferUI() const {

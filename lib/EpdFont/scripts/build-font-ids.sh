@@ -137,4 +137,3 @@ ruby -rdigest -e 'puts [
 ))"
 
 # Runtime-loaded SD fonts are registered under a stable synthetic ID.
-echo "#define USER_SD_FONT_ID (123456789)"

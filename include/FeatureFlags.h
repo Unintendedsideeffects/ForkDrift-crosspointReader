@@ -211,10 +211,6 @@
 #define ENABLE_BLE_WIFI_PROVISIONING 1
 #endif
 
-#ifndef ENABLE_USER_FONTS
-#define ENABLE_USER_FONTS 1
-#endif
-
 #ifndef ENABLE_WEB_WIFI_SETUP
 #define ENABLE_WEB_WIFI_SETUP 1
 #endif

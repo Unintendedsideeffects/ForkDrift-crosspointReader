@@ -17,12 +17,16 @@
 namespace {
 class FileWriteStream final : public Stream {
  public:
-  FileWriteStream(FsFile& file, const size_t total, HttpDownloader::ProgressCallback progress)
-      : file_(file), total_(total), progress_(std::move(progress)) {}
+  FileWriteStream(FsFile& file, const size_t total, HttpDownloader::ProgressCallback progress, bool* cancelFlag)
+      : file_(file), total_(total), progress_(std::move(progress)), cancelFlag_(cancelFlag) {}
 
   size_t write(const uint8_t byte) override { return write(&byte, 1); }
 
   size_t write(const uint8_t* buffer, const size_t size) override {
+    if (cancelFlag_ && *cancelFlag_) {
+      writeOk_ = false;
+      return 0;
+    }
     SpiBusMutex::Guard guard;
     const size_t written = file_.write(buffer, size);
     if (written != size) {
@@ -53,6 +57,7 @@ class FileWriteStream final : public Stream {
   size_t downloaded_ = 0;
   bool writeOk_ = true;
   HttpDownloader::ProgressCallback progress_;
+  bool* cancelFlag_;
 };
 }  // namespace
 
@@ -105,8 +110,8 @@ bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent, c
 }
 
 HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& url, const std::string& destPath,
-                                                             ProgressCallback progress, const std::string& username,
-                                                             const std::string& password) {
+                                                             ProgressCallback progress, bool* cancelFlag,
+                                                             const std::string& username, const std::string& password) {
   std::unique_ptr<WiFiClient> client;
   if (UrlUtils::isHttpsUrl(url)) {
     auto* secureClient = new WiFiClientSecure();
@@ -162,7 +167,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     }
   }
 
-  FileWriteStream fileStream(file, contentLength, std::move(progress));
+  FileWriteStream fileStream(file, contentLength, std::move(progress), cancelFlag);
   const int writeResult = http.writeToStream(&fileStream);
 
   {
@@ -170,6 +175,12 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     file.close();
   }
   http.end();
+
+  if (cancelFlag && *cancelFlag) {
+    SpiBusMutex::Guard guard;
+    Storage.remove(destPath.c_str());
+    return ABORTED;
+  }
 
   if (writeResult < 0) {
     LOG_ERR("HTTP", "writeToStream error: %d", writeResult);

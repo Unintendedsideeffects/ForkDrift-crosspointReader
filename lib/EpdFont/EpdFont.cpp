@@ -1,64 +1,8 @@
 #include "EpdFont.h"
 
-#include <Logging.h>
 #include <Utf8.h>
 
 #include <algorithm>
-
-namespace {
-int computeAverageAdvanceX(const EpdFontData* data) {
-  if (!data || !data->glyph || !data->intervals || data->intervalCount == 0) {
-    return 8;
-  }
-
-  uint64_t advanceTotal = 0;
-  uint32_t glyphCount = 0;
-  for (uint32_t i = 0; i < data->intervalCount; i++) {
-    const auto& interval = data->intervals[i];
-    if (interval.last < interval.first) {
-      continue;
-    }
-
-    const uint32_t span = interval.last - interval.first + 1;
-    for (uint32_t j = 0; j < span; j++) {
-      const uint16_t advanceX = data->glyph[interval.offset + j].advanceX;
-      if (advanceX == 0) {
-        continue;
-      }
-      advanceTotal += advanceX;
-      glyphCount++;
-    }
-  }
-
-  if (glyphCount == 0) {
-    return 8;
-  }
-  return std::max(1, fp4::toPixel(static_cast<int32_t>(advanceTotal / glyphCount)));
-}
-
-uint8_t lookupKernClass(const EpdKernClassEntry* entries, const uint16_t count, const uint32_t cp) {
-  if (!entries || count == 0 || cp > 0xFFFF) {
-    return 0;
-  }
-
-  const auto target = static_cast<uint16_t>(cp);
-  int left = 0;
-  int right = static_cast<int>(count) - 1;
-  while (left <= right) {
-    const int mid = left + (right - left) / 2;
-    const uint16_t midCp = entries[mid].codepoint;
-    if (midCp == target) {
-      return entries[mid].classId;
-    }
-    if (midCp < target) {
-      left = mid + 1;
-    } else {
-      right = mid - 1;
-    }
-  }
-  return 0;
-}
-}  // namespace
 
 void EpdFont::getTextBounds(const char* string, const int startX, const int startY, int* minX, int* minY, int* maxX,
                             int* maxY) const {
@@ -75,12 +19,12 @@ void EpdFont::getTextBounds(const char* string, const int startX, const int star
   int lastBaseLeft = 0;
   int lastBaseWidth = 0;
   int lastBaseTop = 0;
-  bool hasBaseGlyph = false;
   int32_t prevAdvanceFP = 0;  // 12.4 fixed-point: prev glyph's advance + next kern for snap
   uint32_t cp;
   uint32_t prevCp = 0;
   while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&string)))) {
     const bool isCombining = utf8IsCombiningMark(cp);
+
     if (!isCombining) {
       cp = applyLigatures(cp, string);
     }
@@ -136,51 +80,54 @@ void EpdFont::getTextDimensions(const char* string, int* w, int* h) const {
   *h = maxY - minY;
 }
 
-bool EpdFont::hasPrintableChars(const char* string) const {
-  int w = 0, h = 0;
-  getTextDimensions(string, &w, &h);
-  return w > 0 || h > 0;
+static uint8_t lookupKernClass(const EpdKernClassEntry* entries, const uint16_t count, const uint32_t cp) {
+  if (!entries || count == 0 || cp > 0xFFFF) {
+    return 0;
+  }
+
+  const auto target = static_cast<uint16_t>(cp);
+  const auto* end = entries + count;
+
+  // lower_bound: exact-key lookup. Finds the first entry with codepoint >= target,
+  // then the equality check confirms an exact match exists.
+  const auto it = std::lower_bound(
+      entries, end, target, [](const EpdKernClassEntry& entry, uint16_t value) { return entry.codepoint < value; });
+
+  if (it != end && it->codepoint == target) {
+    return it->classId;
+  }
+
+  return 0;
 }
 
-int EpdFont::getKerning(const uint32_t leftCp, const uint32_t rightCp) const {
+int8_t EpdFont::getKerning(const uint32_t leftCp, const uint32_t rightCp) const {
   if (!data->kernMatrix) {
     return 0;
   }
-
-  const uint8_t leftClass = lookupKernClass(data->kernLeftClasses, data->kernLeftEntryCount, leftCp);
-  if (leftClass == 0) {
-    return 0;
-  }
-
-  const uint8_t rightClass = lookupKernClass(data->kernRightClasses, data->kernRightEntryCount, rightCp);
-  if (rightClass == 0) {
-    return 0;
-  }
-
-  return data->kernMatrix[(leftClass - 1) * data->kernRightClassCount + (rightClass - 1)];
+  const uint8_t lc = lookupKernClass(data->kernLeftClasses, data->kernLeftEntryCount, leftCp);
+  if (lc == 0) return 0;
+  const uint8_t rc = lookupKernClass(data->kernRightClasses, data->kernRightEntryCount, rightCp);
+  if (rc == 0) return 0;
+  return data->kernMatrix[(lc - 1) * data->kernRightClassCount + (rc - 1)];
 }
 
 uint32_t EpdFont::getLigature(const uint32_t leftCp, const uint32_t rightCp) const {
   const auto* pairs = data->ligaturePairs;
-  const auto pairCount = data->ligaturePairCount;
-  if (!pairs || pairCount == 0 || leftCp > 0xFFFF || rightCp > 0xFFFF) {
+  const auto count = data->ligaturePairCount;
+  if (!pairs || count == 0 || leftCp > 0xFFFF || rightCp > 0xFFFF) {
     return 0;
   }
 
   const uint32_t key = (leftCp << 16) | rightCp;
-  int left = 0;
-  int right = static_cast<int>(pairCount) - 1;
-  while (left <= right) {
-    const int mid = left + (right - left) / 2;
-    const uint32_t midKey = pairs[mid].pair;
-    if (midKey == key) {
-      return pairs[mid].ligatureCp;
-    }
-    if (midKey < key) {
-      left = mid + 1;
-    } else {
-      right = mid - 1;
-    }
+  const auto* end = pairs + count;
+
+  // lower_bound: exact-key lookup. Finds the first entry with pair >= key,
+  // then the equality check confirms an exact match exists.
+  const auto it =
+      std::lower_bound(pairs, end, key, [](const EpdLigaturePair& pair, uint32_t value) { return pair.pair < value; });
+
+  if (it != end && it->pair == key) {
+    return it->ligatureCp;
   }
 
   return 0;
@@ -190,28 +137,21 @@ uint32_t EpdFont::applyLigatures(uint32_t cp, const char*& text) const {
   if (!data->ligaturePairs || data->ligaturePairCount == 0) {
     return cp;
   }
-
   while (true) {
-    const auto* saved = reinterpret_cast<const uint8_t*>(text);
+    const auto saved = reinterpret_cast<const uint8_t*>(text);
     const uint32_t nextCp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&text));
-    if (nextCp == 0) {
-      break;
-    }
-
-    const uint32_t ligatureCp = getLigature(cp, nextCp);
-    if (ligatureCp == 0) {
+    if (nextCp == 0) break;
+    const uint32_t lig = getLigature(cp, nextCp);
+    if (lig == 0) {
       text = reinterpret_cast<const char*>(saved);
       break;
     }
-
-    cp = ligatureCp;
+    cp = lig;
   }
-
   return cp;
 }
 
 const EpdGlyph* EpdFont::getGlyph(const uint32_t cp) const {
-  const EpdUnicodeInterval* intervals = data->intervals;
   const int count = data->intervalCount;
   if (count == 0 && !data->glyphMissHandler) return nullptr;
 
@@ -238,6 +178,7 @@ const EpdGlyph* EpdFont::getGlyph(const uint32_t cp) const {
     const EpdGlyph* loaded = data->glyphMissHandler(data->glyphMissCtx, cp);
     if (loaded) return loaded;
   }
+
   if (cp != REPLACEMENT_GLYPH) {
     return getGlyph(REPLACEMENT_GLYPH);
   }

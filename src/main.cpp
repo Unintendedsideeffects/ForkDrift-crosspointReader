@@ -11,6 +11,7 @@
 #include <Logging.h>
 #include <SPI.h>
 #include <WiFi.h>
+#include <builtinFonts/all.h>
 
 #include <cstring>
 #include <string>
@@ -31,7 +32,6 @@
 #include "core/CoreBootstrap.h"
 #include "core/features/FeatureLifecycle.h"
 #include "core/features/FeatureModules.h"
-#include "core/fonts/BuiltinFontRegistry.h"
 #include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "network/BackgroundWebServer.h"
@@ -56,9 +56,118 @@ FontDecompressor fontDecompressor;
 SdCardFontSystem sdFontSystem;
 FontCacheManager fontCacheManager(renderer.getFontMap(), renderer.getSdCardFonts());
 
+// Built-in fonts are registered directly, matching upstream's current font stack.
+EpdFont notoserif14RegularFont(&notoserif_14_regular);
+EpdFont notoserif14BoldFont(&notoserif_14_bold);
+EpdFont notoserif14ItalicFont(&notoserif_14_italic);
+EpdFont notoserif14BoldItalicFont(&notoserif_14_bolditalic);
+EpdFontFamily notoserif14FontFamily(&notoserif14RegularFont, &notoserif14BoldFont, &notoserif14ItalicFont,
+                                    &notoserif14BoldItalicFont);
+#ifndef OMIT_FONTS
+EpdFont notoserif12RegularFont(&notoserif_12_regular);
+EpdFont notoserif12BoldFont(&notoserif_12_bold);
+EpdFont notoserif12ItalicFont(&notoserif_12_italic);
+EpdFont notoserif12BoldItalicFont(&notoserif_12_bolditalic);
+EpdFontFamily notoserif12FontFamily(&notoserif12RegularFont, &notoserif12BoldFont, &notoserif12ItalicFont,
+                                    &notoserif12BoldItalicFont);
+EpdFont notoserif16RegularFont(&notoserif_16_regular);
+EpdFont notoserif16BoldFont(&notoserif_16_bold);
+EpdFont notoserif16ItalicFont(&notoserif_16_italic);
+EpdFont notoserif16BoldItalicFont(&notoserif_16_bolditalic);
+EpdFontFamily notoserif16FontFamily(&notoserif16RegularFont, &notoserif16BoldFont, &notoserif16ItalicFont,
+                                    &notoserif16BoldItalicFont);
+EpdFont notoserif18RegularFont(&notoserif_18_regular);
+EpdFont notoserif18BoldFont(&notoserif_18_bold);
+EpdFont notoserif18ItalicFont(&notoserif_18_italic);
+EpdFont notoserif18BoldItalicFont(&notoserif_18_bolditalic);
+EpdFontFamily notoserif18FontFamily(&notoserif18RegularFont, &notoserif18BoldFont, &notoserif18ItalicFont,
+                                    &notoserif18BoldItalicFont);
+
+EpdFont notosans12RegularFont(&notosans_12_regular);
+EpdFont notosans12BoldFont(&notosans_12_bold);
+EpdFont notosans12ItalicFont(&notosans_12_italic);
+EpdFont notosans12BoldItalicFont(&notosans_12_bolditalic);
+EpdFontFamily notosans12FontFamily(&notosans12RegularFont, &notosans12BoldFont, &notosans12ItalicFont,
+                                   &notosans12BoldItalicFont);
+EpdFont notosans14RegularFont(&notosans_14_regular);
+EpdFont notosans14BoldFont(&notosans_14_bold);
+EpdFont notosans14ItalicFont(&notosans_14_italic);
+EpdFont notosans14BoldItalicFont(&notosans_14_bolditalic);
+EpdFontFamily notosans14FontFamily(&notosans14RegularFont, &notosans14BoldFont, &notosans14ItalicFont,
+                                   &notosans14BoldItalicFont);
+EpdFont notosans16RegularFont(&notosans_16_regular);
+EpdFont notosans16BoldFont(&notosans_16_bold);
+EpdFont notosans16ItalicFont(&notosans_16_italic);
+EpdFont notosans16BoldItalicFont(&notosans_16_bolditalic);
+EpdFontFamily notosans16FontFamily(&notosans16RegularFont, &notosans16BoldFont, &notosans16ItalicFont,
+                                   &notosans16BoldItalicFont);
+EpdFont notosans18RegularFont(&notosans_18_regular);
+EpdFont notosans18BoldFont(&notosans_18_bold);
+EpdFont notosans18ItalicFont(&notosans_18_italic);
+EpdFont notosans18BoldItalicFont(&notosans_18_bolditalic);
+EpdFontFamily notosans18FontFamily(&notosans18RegularFont, &notosans18BoldFont, &notosans18ItalicFont,
+                                   &notosans18BoldItalicFont);
+
+EpdFont opendyslexic8RegularFont(&opendyslexic_8_regular);
+EpdFont opendyslexic8BoldFont(&opendyslexic_8_bold);
+EpdFont opendyslexic8ItalicFont(&opendyslexic_8_italic);
+EpdFont opendyslexic8BoldItalicFont(&opendyslexic_8_bolditalic);
+EpdFontFamily opendyslexic8FontFamily(&opendyslexic8RegularFont, &opendyslexic8BoldFont, &opendyslexic8ItalicFont,
+                                      &opendyslexic8BoldItalicFont);
+EpdFont opendyslexic10RegularFont(&opendyslexic_10_regular);
+EpdFont opendyslexic10BoldFont(&opendyslexic_10_bold);
+EpdFont opendyslexic10ItalicFont(&opendyslexic_10_italic);
+EpdFont opendyslexic10BoldItalicFont(&opendyslexic_10_bolditalic);
+EpdFontFamily opendyslexic10FontFamily(&opendyslexic10RegularFont, &opendyslexic10BoldFont, &opendyslexic10ItalicFont,
+                                       &opendyslexic10BoldItalicFont);
+EpdFont opendyslexic12RegularFont(&opendyslexic_12_regular);
+EpdFont opendyslexic12BoldFont(&opendyslexic_12_bold);
+EpdFont opendyslexic12ItalicFont(&opendyslexic_12_italic);
+EpdFont opendyslexic12BoldItalicFont(&opendyslexic_12_bolditalic);
+EpdFontFamily opendyslexic12FontFamily(&opendyslexic12RegularFont, &opendyslexic12BoldFont, &opendyslexic12ItalicFont,
+                                       &opendyslexic12BoldItalicFont);
+EpdFont opendyslexic14RegularFont(&opendyslexic_14_regular);
+EpdFont opendyslexic14BoldFont(&opendyslexic_14_bold);
+EpdFont opendyslexic14ItalicFont(&opendyslexic_14_italic);
+EpdFont opendyslexic14BoldItalicFont(&opendyslexic_14_bolditalic);
+EpdFontFamily opendyslexic14FontFamily(&opendyslexic14RegularFont, &opendyslexic14BoldFont, &opendyslexic14ItalicFont,
+                                       &opendyslexic14BoldItalicFont);
+#endif  // OMIT_FONTS
+
+EpdFont smallFont(&notosans_8_regular);
+EpdFontFamily smallFontFamily(&smallFont);
+EpdFont ui10RegularFont(&ubuntu_10_regular);
+EpdFont ui10BoldFont(&ubuntu_10_bold);
+EpdFontFamily ui10FontFamily(&ui10RegularFont, &ui10BoldFont);
+EpdFont ui12RegularFont(&ubuntu_12_regular);
+EpdFont ui12BoldFont(&ubuntu_12_bold);
+EpdFontFamily ui12FontFamily(&ui12RegularFont, &ui12BoldFont);
+
 // measurement of power button press duration calibration value
 unsigned long t1 = 0;
 unsigned long t2 = 0;
+
+RTC_NOINIT_ATTR uint32_t silentRebootMagic;
+RTC_NOINIT_ATTR uint32_t silentRebootTarget;
+constexpr uint32_t SILENT_REBOOT_MAGIC = 0xC1EAB007;
+constexpr uint32_t SILENT_REBOOT_TARGET_HOME = 0;
+constexpr uint32_t SILENT_REBOOT_TARGET_READER = 1;
+
+void silentRestart() {
+  silentRebootTarget = SILENT_REBOOT_TARGET_HOME;
+  silentRebootMagic = SILENT_REBOOT_MAGIC;
+  LOG_DBG("MAIN", "Silent restart (target=home)");
+  delay(50);
+  ESP.restart();
+}
+
+void silentRestartToReader() {
+  silentRebootTarget = SILENT_REBOOT_TARGET_READER;
+  silentRebootMagic = SILENT_REBOOT_MAGIC;
+  LOG_DBG("MAIN", "Silent restart (target=reader)");
+  delay(50);
+  ESP.restart();
+}
 
 namespace {
 constexpr char kCrossPointDataDir[] = "/.crosspoint";
@@ -362,13 +471,8 @@ bool setupDisplayAndFonts() {
   }
 
   display.begin();
-  if (!renderer.begin()) {
-    LOG_ERR("MAIN", "Renderer initialization failed");
-    safeModeActive = true;
-    return false;
-  }
+  renderer.begin();
 
-  core::BuiltinFontRegistry::registerUiFonts(renderer);
   LOG_DBG("MAIN", "Display initialized");
 
   if (!activityManager.begin()) {
@@ -377,10 +481,23 @@ bool setupDisplayAndFonts() {
   }
   fontCacheManager.setFontDecompressor(&fontDecompressor);
   renderer.setFontCacheManager(&fontCacheManager);
-  if (!core::BuiltinFontRegistry::registerAllFonts(renderer)) {
-    enterSafeMode("Font initialization failed");
-    return false;
-  }
+  renderer.insertFont(NOTOSERIF_14_FONT_ID, notoserif14FontFamily);
+#ifndef OMIT_FONTS
+  renderer.insertFont(NOTOSERIF_12_FONT_ID, notoserif12FontFamily);
+  renderer.insertFont(NOTOSERIF_16_FONT_ID, notoserif16FontFamily);
+  renderer.insertFont(NOTOSERIF_18_FONT_ID, notoserif18FontFamily);
+  renderer.insertFont(NOTOSANS_12_FONT_ID, notosans12FontFamily);
+  renderer.insertFont(NOTOSANS_14_FONT_ID, notosans14FontFamily);
+  renderer.insertFont(NOTOSANS_16_FONT_ID, notosans16FontFamily);
+  renderer.insertFont(NOTOSANS_18_FONT_ID, notosans18FontFamily);
+  renderer.insertFont(OPENDYSLEXIC_8_FONT_ID, opendyslexic8FontFamily);
+  renderer.insertFont(OPENDYSLEXIC_10_FONT_ID, opendyslexic10FontFamily);
+  renderer.insertFont(OPENDYSLEXIC_12_FONT_ID, opendyslexic12FontFamily);
+  renderer.insertFont(OPENDYSLEXIC_14_FONT_ID, opendyslexic14FontFamily);
+#endif  // OMIT_FONTS
+  renderer.insertFont(UI_10_FONT_ID, ui10FontFamily);
+  renderer.insertFont(UI_12_FONT_ID, ui12FontFamily);
+  renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
 
   core::FeatureLifecycle::onFontSetup(renderer);
   displayAndFontsReady = true;

@@ -1,26 +1,12 @@
 """
-PlatformIO pre-build script: patch JPEGDEC for MCU_SKIP wild pointer crash.
+PlatformIO pre-build script: patch JPEGDEC for MCU_SKIP progressive JPEG crashes.
 
-Problem:
-  JPEGDecodeMCU_P computes pMCU = &sMCUs[iMCU & 0xffffff].  When iMCU is
-  MCU_SKIP (-8), the bitmask produces index 0xFFFFF8 (16 777 208), creating a
-  pointer ~33 MB past the 392-entry sMCUs array.  If the progressive JPEG's
-  first scan includes AC coefficients (iScanEnd > 0), the AC decode loop writes
-  through this wild pointer and crashes with a store-access fault.
-
-  Upstream commit 8628297 guarded the DC coefficient write (pMCU[0]) but not the
-  AC coefficient writes at indices 1-63.
-
-Fix:
-  Redirect pMCU to sMCUs[0] when MCU_SKIP is active.  Writes to sMCUs[1..63]
-  are harmless: for JPEG_SCALE_EIGHTH only sMCUs[0] is read for output, and
-  the DC write at sMCUs[0] is already guarded by the existing `if (iMCU >= 0)`
-  check.
-
-Applied idempotently — safe to run on every build.
+The fork already carries the pMCU redirection fix in some libdep checkouts,
+while upstream now carries the same idea as patch files plus DC-write guards.
+Apply the source transform idempotently so either checkout shape builds cleanly.
 """
 
-Import("env")
+Import("env")  # noqa: F821
 import os
 
 
@@ -31,38 +17,44 @@ def patch_jpegdec(env):
     for env_dir in os.listdir(libdeps_dir):
         jpeg_inl = os.path.join(libdeps_dir, env_dir, "JPEGDEC", "src", "jpeg.inl")
         if os.path.isfile(jpeg_inl):
-            _apply_mcu_skip_pointer_fix(jpeg_inl)
+            _apply_mcu_skip_fixes(jpeg_inl)
 
 
-def _apply_mcu_skip_pointer_fix(filepath):
-    MARKER = "// CrossPoint patch: safe pMCU for MCU_SKIP"
-    with open(filepath, "r") as f:
+def _apply_mcu_skip_fixes(filepath):
+    with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
-    if MARKER in content:
-        return  # already patched
+    original = content
 
-    # The wild-pointer line in JPEGDecodeMCU_P:
-    OLD = "    signed short *pMCU = &pJPEG->sMCUs[iMCU & 0xffffff];"
-
-    NEW = (
-        "    " + MARKER + "\n"
+    old_pointer = "    signed short *pMCU = &pJPEG->sMCUs[iMCU & 0xffffff];"
+    new_pointer = (
+        "    // CrossPoint patch: safe pMCU for MCU_SKIP\n"
         "    signed short *pMCU = (iMCU < 0) ? pJPEG->sMCUs\n"
         "                                     : &pJPEG->sMCUs[iMCU & 0xffffff];"
     )
+    if old_pointer in content:
+        content = content.replace(old_pointer, new_pointer, 1)
 
-    if OLD not in content:
-        print(
-            "WARNING: JPEGDEC MCU_SKIP pointer patch target not found in %s "
-            "— library may have been updated" % filepath
-        )
-        return
+    old_sa_write = "                pMCU[0] |= iPositive;"
+    new_sa_write = (
+        "                if (iMCU >= 0)\n"
+        "                    pMCU[0] |= iPositive;"
+    )
+    if old_sa_write in content and new_sa_write not in content:
+        content = content.replace(old_sa_write, new_sa_write, 1)
 
-    content = content.replace(OLD, NEW, 1)
-    with open(filepath, "w") as f:
-        f.write(content)
-    print("Patched JPEGDEC: safe pMCU for MCU_SKIP in JPEGDecodeMCU_P: %s" % filepath)
+    old_dc_write = "        pMCU[0] = (short)*iDCPredictor; // store in MCU[0]"
+    new_dc_write = (
+        "        if (iMCU >= 0)\n"
+        "            pMCU[0] = (short)*iDCPredictor; // store in MCU[0]"
+    )
+    if old_dc_write in content and new_dc_write not in content:
+        content = content.replace(old_dc_write, new_dc_write, 1)
+
+    if content != original:
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("Patched JPEGDEC MCU_SKIP progressive decode guards: %s" % filepath)
 
 
-# Run immediately at script import time (before compilation).
 patch_jpegdec(env)

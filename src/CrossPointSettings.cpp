@@ -413,9 +413,7 @@ void CrossPointSettings::validateAndClamp() {
 #elif !ENABLE_OPENDYSLEXIC_FONTS
   if (fontFamily == OPENDYSLEXIC) fontFamily = NOTOSANS;
 #endif
-#if !ENABLE_USER_FONTS
   if (fontFamily == USER_SD) fontFamily = BOOKERLY;
-#endif
   if (lineSpacing > WIDE) lineSpacing = NORMAL;
   if (paragraphAlignment >= PARAGRAPH_ALIGNMENT_COUNT) paragraphAlignment = JUSTIFIED;
   if (sleepTimeout > SLEEP_30_MIN) sleepTimeout = SLEEP_10_MIN;
@@ -602,17 +600,11 @@ int CrossPointSettings::getReaderFontId() const {
 #if !ENABLE_NOTOSANS_FONTS
   if (effectiveFamily == NOTOSANS) effectiveFamily = BOOKERLY;
 #endif
-#if !ENABLE_USER_FONTS
   if (effectiveFamily == USER_SD) effectiveFamily = BOOKERLY;
-#endif
 
   switch (effectiveFamily) {
     case USER_SD:
-#if ENABLE_USER_FONTS
-      return USER_SD_FONT_ID;
-#else
       return NOTOSERIF_14_FONT_ID;
-#endif
     default:
 #if ENABLE_BOOKERLY_FONTS
       switch (fontSize) {

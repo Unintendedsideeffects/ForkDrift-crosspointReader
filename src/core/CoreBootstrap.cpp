@@ -19,7 +19,6 @@
 #include "features/trmnl_switch/Registration.h"
 #include "features/txt/Registration.h"
 #include "features/usb_mass_storage/Registration.h"
-#include "features/user_fonts/Registration.h"
 #include "features/visual_cover_picker/Registration.h"
 #include "features/web_pokemon_party/Registration.h"
 #include "features/web_pokemon_wallpaper/Registration.h"
@@ -38,7 +37,6 @@ void registerFeatureModules() {
   }
 
   features::dark_mode::registerFeature();
-  features::user_fonts::registerFeature();
   features::anki::registerFeature();
   features::koreader_sync::registerFeature();
 

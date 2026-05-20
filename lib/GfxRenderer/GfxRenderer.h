@@ -8,6 +8,7 @@ class SdCardFont;
 
 #include <cstring>
 #include <map>
+#include <string>
 #include <vector>
 
 #include "Bitmap.h"
@@ -35,7 +36,7 @@ class GfxRenderer {
   RenderMode renderMode;
   Orientation orientation;
   bool fadingFix;
-  bool darkMode;
+  bool darkMode = false;
   void (*postRenderHook)(const GfxRenderer&) = nullptr;
   uint8_t* frameBuffer = nullptr;
   uint16_t panelWidth = HalDisplay::DISPLAY_WIDTH;
@@ -65,7 +66,7 @@ class GfxRenderer {
 
  public:
   explicit GfxRenderer(HalDisplay& halDisplay)
-      : display(halDisplay), renderMode(BW), orientation(Portrait), fadingFix(false), darkMode(false) {}
+      : display(halDisplay), renderMode(BW), orientation(Portrait), fadingFix(false) {}
   ~GfxRenderer() { freeBwBufferChunks(); }
 
   static constexpr int VIEWABLE_MARGIN_TOP = 9;
@@ -74,9 +75,8 @@ class GfxRenderer {
   static constexpr int VIEWABLE_MARGIN_LEFT = 3;
 
   // Setup
-  bool begin();  // must be called right after display.begin()
+  void begin();  // must be called right after display.begin()
   void insertFont(int fontId, EpdFontFamily font);
-  const uint8_t* getGlyphBitmap(const EpdFontData* fontData, const EpdGlyph* glyph) const;
   // Clears both the flash-font map and any SD-font registration for fontId.
   // Coupled to avoid dangling SdCardFont* in sdCardFonts_ when callers free
   // the underlying SdCardFont and forget the SD-side unregister.
@@ -96,6 +96,8 @@ class GfxRenderer {
   // (which holds a const GfxRenderer&) before measuring word widths. Safe to call on non-SD fonts (no-op).
   // styleMask: bitmask of styles to prepare (bit 0=regular, 1=bold, 2=italic, 3=bold-italic).
   void ensureSdCardFontReady(int fontId, const char* utf8Text, uint8_t styleMask = 0x0F) const;
+  void ensureSdCardFontReady(int fontId, const std::vector<std::string>& words, bool includeHyphen,
+                             uint8_t styleMask = 0x0F) const;
 
   // Orientation control (affects logical width/height and coordinate transforms)
   void setOrientation(const Orientation o) { orientation = o; }
@@ -107,10 +109,6 @@ class GfxRenderer {
   // Dark mode control
   void setDarkMode(const bool enabled) { darkMode = enabled; }
   bool isDarkMode() const { return darkMode; }
-
-  // Post-render hook: called inside displayBuffer() after activity rendering
-  // but before dark-mode inversion, so the hook draws in normal polarity.
-  // Use a plain function pointer (no std::function) to avoid heap allocation.
   void setPostRenderHook(void (*hook)(const GfxRenderer&)) { postRenderHook = hook; }
 
   // Screen ops
@@ -156,15 +154,19 @@ class GfxRenderer {
   void drawSideButtonHints(int fontId, const char* topBtn, const char* bottomBtn) const;
   int getSpaceWidth(int fontId, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
   /// Returns the total inter-word advance: fp4::toPixel(spaceAdvance + kern(leftCp,' ') + kern(' ',rightCp)).
+  /// Using a single snap avoids the +/-1 px rounding error that arises when space advance and kern are
+  /// snapped separately and then added as integers.
   int getSpaceAdvance(int fontId, uint32_t leftCp, uint32_t rightCp, EpdFontFamily::Style style) const;
   /// Returns the kerning adjustment between two adjacent codepoints.
   int getKerning(int fontId, uint32_t leftCp, uint32_t rightCp, EpdFontFamily::Style style) const;
-  int getTextAdvanceX(int fontId, const char* text) const;
   int getTextAdvanceX(int fontId, const char* text, EpdFontFamily::Style style) const;
   int getFontAscenderSize(int fontId) const;
   int getLineHeight(int fontId) const;
   std::string truncatedText(int fontId, const char* text, int maxWidth,
                             EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+  /// Word-wrap \p text into at most \p maxLines lines, each no wider than
+  /// \p maxWidth pixels. Overflowing words and excess lines are UTF-8-safely
+  /// truncated with an ellipsis (U+2026).
   std::vector<std::string> wrappedText(int fontId, const char* text, int maxWidth, int maxLines,
                                        EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
 
@@ -184,10 +186,25 @@ class GfxRenderer {
   void restoreBwBuffer();  // Restore and free the stored buffer
   void cleanupGrayscaleWithFrameBuffer() const;
 
+  // Font helpers
+  const uint8_t* getGlyphBitmap(const EpdFontData* fontData, const EpdGlyph* glyph) const;
+
   // Low level functions
   uint8_t* getFrameBuffer() const;
   size_t getBufferSize() const;
   uint16_t getDisplayWidth() const { return panelWidth; }
   uint16_t getDisplayHeight() const { return panelHeight; }
   uint16_t getDisplayWidthBytes() const { return panelWidthBytes; }
+
+  // Region cache: take a logical (orientation-aware) rect, hit the framebuffer
+  // bytes that the rect can have touched, and pump them in or out of a caller-
+  // supplied buffer. Used by HomeActivity to snapshot just the cover tile
+  // (~16 KB in Portrait) instead of cloning the entire 48 KB framebuffer.
+  //
+  // getRegionByteSize: required buffer length for the rect at current orientation.
+  // copyRegionToBuffer / copyBufferToRegion: false if `bufSize` is smaller than that.
+  size_t getRegionByteSize(int logicalX, int logicalY, int logicalW, int logicalH) const;
+  bool copyRegionToBuffer(int logicalX, int logicalY, int logicalW, int logicalH, uint8_t* buf, size_t bufSize) const;
+  bool copyBufferToRegion(int logicalX, int logicalY, int logicalW, int logicalH, const uint8_t* buf,
+                          size_t bufSize) const;
 };

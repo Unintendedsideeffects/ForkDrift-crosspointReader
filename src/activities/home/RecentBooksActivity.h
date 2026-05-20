@@ -27,12 +27,19 @@ class RecentBooksActivity final : public Activity {
   size_t selectorIndex = 0;
   bool partyMode = false;
 
+  // Set when a long-press has fired; input is swallowed until Confirm is released
+  // again so the release doesn't also open the book.
+  bool longPressFired = false;
+
   // Recent tab state
   std::vector<PartyBookEntry> recentBooks;
 
   // Data loading
   void loadRecentBooks();
   bool drawCoverAt(const std::string& coverPath, int x, int y, int width, int height) const;
+
+  // Show an OK/Cancel prompt to remove the given book from the Recent Books list.
+  void promptRemoveBook(const std::string& path, const std::string& title);
 
  public:
   explicit RecentBooksActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)

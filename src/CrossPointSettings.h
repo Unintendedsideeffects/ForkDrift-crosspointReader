@@ -270,6 +270,15 @@ class CrossPointSettings {
   uint8_t statusBarProgressBarThickness = PROGRESS_BAR_NORMAL;
   uint8_t statusBarTitle = CHAPTER_TITLE;
   uint8_t statusBarBattery = 1;
+  // Clock display in status bar (X3 only, requires DS3231 RTC)
+  uint8_t statusBarClock = 0;
+  // Clock UTC offset in quarter-hour steps, biased by 48 so it fits in uint8_t.
+  // Value 48 = UTC+0, 0 = UTC-12:00, 104 = UTC+14:00.
+  uint8_t clockUtcOffsetQ = 48;
+  // Clock display format: 0 = 24-hour, 1 = 12-hour
+  uint8_t clockFormat = 0;
+  // Set once an NTP sync succeeds.
+  uint8_t clockHasBeenSynced = 0;
   // Text rendering settings
   uint8_t extraParagraphSpacing = 1;
   uint8_t forceParagraphIndents = 0;

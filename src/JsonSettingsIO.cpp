@@ -69,6 +69,10 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["statusBarProgressBarThickness"] = s.statusBarProgressBarThickness;
   doc["statusBarTitle"] = s.statusBarTitle;
   doc["statusBarBattery"] = s.statusBarBattery;
+  doc["statusBarClock"] = s.statusBarClock;
+  doc["clockUtcOffsetQ"] = s.clockUtcOffsetQ;
+  doc["clockFormat"] = s.clockFormat;
+  doc["clockHasBeenSynced"] = s.clockHasBeenSynced;
   doc["extraParagraphSpacing"] = s.extraParagraphSpacing;
   doc["textAntiAliasing"] = s.textAntiAliasing;
   doc["shortPwrBtn"] = s.shortPwrBtn;
@@ -170,6 +174,10 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
         clamp(doc["statusBarTitle"] | (uint8_t)S::CHAPTER_TITLE, S::STATUS_BAR_TITLE_COUNT, S::CHAPTER_TITLE);
     s.statusBarBattery = doc["statusBarBattery"] | (uint8_t)1;
   }
+  s.statusBarClock = doc["statusBarClock"] | (uint8_t)0;
+  s.clockUtcOffsetQ = clamp(doc["clockUtcOffsetQ"] | (uint8_t)48, static_cast<uint8_t>(105), static_cast<uint8_t>(48));
+  s.clockFormat = clamp(doc["clockFormat"] | (uint8_t)0, static_cast<uint8_t>(2), static_cast<uint8_t>(0));
+  s.clockHasBeenSynced = doc["clockHasBeenSynced"] | (uint8_t)0;
   s.extraParagraphSpacing = doc["extraParagraphSpacing"] | (uint8_t)1;
   s.textAntiAliasing = doc["textAntiAliasing"] | (uint8_t)1;
   s.shortPwrBtn = clamp(doc["shortPwrBtn"] | (uint8_t)S::IGNORE, S::SHORT_PWRBTN_COUNT, S::IGNORE);

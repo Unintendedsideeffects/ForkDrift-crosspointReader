@@ -65,7 +65,7 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"ble_wifi_provisioning", "BLE WiFi Provisioning", ENABLE_BLE_WIFI_PROVISIONING != 0,
      kRequiresBleWifiProvisioningAll,
      sizeof(kRequiresBleWifiProvisioningAll) / sizeof(kRequiresBleWifiProvisioningAll[0]), nullptr, 0},
-    {"user_fonts", "User Fonts", ENABLE_USER_FONTS != 0, nullptr, 0, nullptr, 0},
+    {"user_fonts", "User Fonts", false, nullptr, 0, nullptr, 0},
     {"web_wifi_setup", "Web WiFi Setup", ENABLE_WEB_WIFI_SETUP != 0, nullptr, 0, nullptr, 0},
     {"remote_keyboard_input", "Remote Keyboard Input", ENABLE_REMOTE_KEYBOARD_INPUT != 0, nullptr, 0, nullptr, 0},
     {"usb_mass_storage", "USB Mass Storage", ENABLE_USB_MASS_STORAGE != 0, nullptr, 0, nullptr, 0},
