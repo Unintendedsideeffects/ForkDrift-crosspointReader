@@ -15,6 +15,7 @@
 #include "core/registries/HomeActionRegistry.h"
 #include "core/registries/ReaderRegistry.h"
 #include "home/CrashActivity.h"
+#include "home/AlertActivity.h"
 #include "home/HomeActivity.h"
 #include "home/MyLibraryActivity.h"
 #include "home/NotesActivity.h"
@@ -186,6 +187,11 @@ void ActivityManager::loop() {
 
   if (activityChanged) {
     mappedInput.clearTransientState();
+  }
+
+  if (APP_STATE.hasPendingAlert.load(std::memory_order_acquire) && pendingAction == PendingAction::None) {
+    APP_STATE.hasPendingAlert.store(false, std::memory_order_relaxed);
+    pushActivity(std::make_unique<AlertActivity>(renderer, mappedInput));
   }
 
   if (requestedUpdate) {

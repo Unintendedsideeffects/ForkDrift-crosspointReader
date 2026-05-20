@@ -3,11 +3,16 @@
 #include <Epub.h>
 #include <Epub/FootnoteEntry.h>
 #include <Epub/Section.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include <optional>
+#include <string>
 
+#include "BookReadingStats.h"
 #include "CrossPointSettings.h"
 #include "EpubReaderMenuActivity.h"
+#include "GlobalReadingStats.h"
 #include "activities/Activity.h"
 
 class EpubReaderActivity final : public Activity {
@@ -44,6 +49,20 @@ class EpubReaderActivity final : public Activity {
 
   int lastSavedSpineIndex = -1;
   int lastSavedPage = -1;
+
+  BookReadingStats stats;
+  GlobalReadingStats globalStats;
+  bool completionPromptShown = false;
+  bool pendingReadFolderMove = false;
+
+  struct ReadFolderMoveParams {
+    std::string epubPath;
+    std::string cachePath;
+    std::string title;
+  };
+  static void readFolderMoveTask(void* arg);
+
+  void setBookCompleted(bool isCompleted);
 
   void renderContents(std::unique_ptr<Page> page, int orientedMarginTop, int orientedMarginRight,
                       int orientedMarginBottom, int orientedMarginLeft);
