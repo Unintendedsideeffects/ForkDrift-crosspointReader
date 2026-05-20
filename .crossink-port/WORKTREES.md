@@ -32,10 +32,11 @@ git push -u origin port/home
 
 1. Create worktree: `port-worktree.sh create <lane>`
 2. Edit only files for that lane's scope (see lane map below)
-3. Build: `./.crossink-port/port-build.sh` (lock is per worktree directory)
-4. Commit one logical port per commit
-5. Push branch `port/<lane>`
-6. Stop — do not merge from integration agent in the lane worktree
+3. Commit one logical port per commit — **no build between commits**
+4. After all lane items are committed, run ONE build: `./.crossink-port/port-build.sh`
+5. Fix any build errors, amend or add a fixup commit
+6. Push branch `port/<lane>`
+7. Stop — do not merge from integration agent in the lane worktree
 
 ## Integration (integration worktree or parent)
 
@@ -43,16 +44,21 @@ Use `port-worktree.sh create integration` or the parent repo (docs-only on paren
 Do **not** port features on the integration checkout while lane agents are active.
 
 1. `git fetch origin`
-2. Merge lane branches **sequentially** (one merge, one build):
+2. Before merging, manually check `CrossPointSettings.h` and `lib/I18n/I18nKeys.h`
+   across all lanes for silent enum/value collisions (these compile fine but break at
+   runtime).
+3. Merge all lanes with no builds in between:
    ```bash
-   git merge --no-ff origin/port/home -m "merge port/home: <summary>"
-   ./.crossink-port/port-build.sh
+   git merge --no-ff origin/port/renderer -m "merge port/renderer: ..."
+   git merge --no-ff origin/port/file     -m "merge port/file: ..."
+   git merge --no-ff origin/port/reader   -m "merge port/reader: ..."
+   git merge --no-ff origin/port/home     -m "merge port/home: ..."
    ```
-3. Update `PORT-TRACKER.md` `[x]` only after the commit is on `feature/absorb-crossink`
-4. Repeat for `port/reader`, `port/file`, `port/settings`, `port/renderer`, `port/web`
+4. Run ONE build after all merges: `./.crossink-port/port-build.sh`
+5. Update `PORT-TRACKER.md` `[x]` only after green build, then push.
 
-Prefer merge order: `home` → `reader` → `file` → `settings` → `renderer` → `web` (web
-touches generated HTML headers last).
+Merge order: `renderer` → `file` → `reader` → `home` (`home` depends on `reader`
+stats infrastructure; `web` last if present — touches generated HTML headers).
 
 ## Lane scope map
 

@@ -48,14 +48,21 @@ When your scoped port task is **complete** (commit pushed **or** explicit skip d
 cd /home/malcolm/Code/ForkDrift/crosspoint-reader
 ./.crossink-port/port-worktree.sh create reader
 cd /home/malcolm/Code/ForkDrift/worktrees/crosspoint-reader-reader
-# pick one PORT-TRACKER item for this lane — see WORKTREES.md scope map
-./.crossink-port/port-build.sh
+# port all items for this lane — commit each one WITHOUT building
 git add -A
 git commit -m "port(crossink): <subject> [<hash>]"
+# ... repeat for each item ...
+# ONE build at the end, after all lane commits are done:
+./.crossink-port/port-build.sh
 git push -u origin port/reader
 ```
 
-Report back: lane, commit SHA, tracker lines touched (do not flip `[x]` unless merged).
+**Build once per lane, not per commit.** Each build is ~2 min; the integration agent
+runs the authoritative build after merge anyway. Add an extra mid-lane build only
+when there is real uncertainty: a new API, a cross-file type refactor, or a linker
+dependency change.
+
+Report back: lane, commit SHAs, tracker lines touched (do not flip `[x]` unless merged).
 
 ## Quick start (integration agent)
 
@@ -63,13 +70,28 @@ Report back: lane, commit SHA, tracker lines touched (do not flip `[x]` unless m
 ./.crossink-port/port-worktree.sh create integration
 cd /home/malcolm/Code/ForkDrift/worktrees/crosspoint-reader-integration
 git fetch origin
-git merge --no-ff origin/port/home -m "merge port/home: <summary>"
+
+# Before merging, manually diff these two files across all lanes for silent collisions:
+#   CrossPointSettings.h  — enum values, new fields
+#   lib/I18n/I18nKeys.h   — StrId enum values
+# A collision here compiles but produces wrong runtime behaviour.
+
+# Merge all lanes (no build between merges):
+git merge --no-ff origin/port/renderer -m "merge port/renderer: tables, grayscale, cover rendering"
+git merge --no-ff origin/port/file     -m "merge port/file: mark finished, move to read, overlay i18n"
+git merge --no-ff origin/port/reader   -m "merge port/reader: reading stats, sleep cover"
+git merge --no-ff origin/port/home     -m "merge port/home: lyra carousel (after reader)"
+# add other lanes as needed
+
+# ONE build for the whole integration:
 ./.crossink-port/port-build.sh
-# update PORT-TRACKER [x] only after merge + green build
+
+# Only after green build: update PORT-TRACKER [x] and push
 git push origin feature/absorb-crossink
 ```
 
-Merge order: `home` → `reader` → `file` → `settings` → `renderer` → `web` (see `WORKTREES.md`).
+Merge order: `renderer` → `file` → `reader` → `home` (see `WORKTREES.md`).
+`home` depends on `reader` (carousel needs stats infrastructure).
 
 ## Anti-patterns
 

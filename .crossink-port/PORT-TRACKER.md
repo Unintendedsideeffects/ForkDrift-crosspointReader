@@ -232,3 +232,88 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
       I18n: 397 keys, 23 languages.
 
 Full ordered list with hashes: `.crossink-port/feature-commits.txt`
+
+---
+
+## Sprint dispatch — open items by lane
+
+> Spin one subagent per lane. Each agent reads `SUBAGENT.md`, creates its worktree
+> (`port-worktree.sh create <lane>`), ports each item below in order, builds after
+> every commit, pushes `port/<lane>`. Integration agent merges in lane order after all
+> lanes report done.
+
+### `renderer` lane — 6 items (unblocked)
+
+Port all against `feature/absorb-crossink` tip.
+
+| Hash | Subject |
+|------|---------|
+| `61c8d78f` | improve table rendering (#89) |
+| `32e189ef` | draw borders for simple tables |
+| `431430aa` | colSpan header/footer rows (#90) |
+| `ecf19d3e` | grayscale images even when AA off |
+| `081f170d` | improve cover rendering |
+| `f39a11fe` | progressive jpeg cover support |
+
+Scope: `lib/Epub/`, `lib/GfxRenderer/`, `src/activities/reader/`
+
+---
+
+### `reader` lane — 11 items (Phase 3 core; unblocked)
+
+These are the reading-stats and sleep-cover items. Phase 1 Lyra Carousel items depend
+on this lane completing first.
+
+| Hash | Subject |
+|------|---------|
+| `5331fe82` | improve reading stats display |
+| `b03c834d` | update UI for reading stats |
+| `7f4705e0` | global book stats match per-book |
+| `cebb6cbf` | mark books finished + track stats |
+| `60415e57` | ask if finished at 99% |
+| `d4f644eb` | session-count threshold |
+| `3535f228` | sleep screen reading stats option |
+| `7aca0245` | asterisk for favorited sleep images |
+| `993215b8` | pin a favorite sleep image |
+| `0ac24e61` | hide battery on transparent overlay while sleeping |
+| `9689ea5c` | page overlay logging |
+
+Scope: `src/activities/reader/`, `src/activities/sleep/`, `CrossPointSettings.*`
+
+---
+
+### `file` lane — 3 items (Phase 3 file side; unblocked)
+
+| Hash | Subject |
+|------|---------|
+| `815f2fbd` | move epubs to read folder when finished |
+| `a27ee056` | file-browser mark finished action |
+| `996c37c9` | page overlay translations (I18n YAML + SettingsList) |
+
+Scope: `src/activities/file/`, `lib/I18n/translations/`
+
+---
+
+### `home` lane — 5 items (Lyra Carousel cluster; **blocked on `reader` lane**)
+
+Do NOT start until `reader` lane is merged into `feature/absorb-crossink`.
+Carousel items depend on `BookReadingStats::sessionCount` and `drawRecentBookCover`
+stats/progressPercent signature from Phase 3.
+
+| Hash | Subject |
+|------|---------|
+| `971a62ee` | LyraCarouselTheme carousel style tweak |
+| `8154c9a5` | stats on lyra carousel home, title above cover |
+| `9a9054cb` | perf: reduce Lyra Carousel RAM frame cache |
+| `bdc65f27` | update Lyra Carousel progress footer |
+| `0c7e11a3` | style: lyra reading stat bar width |
+
+Scope: `src/activities/home/`, `lib/UITheme/LyraTheme.*`
+
+---
+
+### Integration order (after all lanes pushed)
+
+`renderer` → `reader` → `file` → `home`
+
+After each merge: `./.crossink-port/port-build.sh` must pass before the next merge.
