@@ -21,8 +21,10 @@
 #include <builtinFonts/notoserif_18_regular.h>
 #endif  // ENABLE_BOOKERLY_FONTS
 
-#if ENABLE_NOTOSANS_FONTS
+// notosans_8_regular is always included — used as SMALL_FONT_ID for path/label text.
 #include <builtinFonts/notosans_8_regular.h>
+
+#if ENABLE_NOTOSANS_FONTS
 #include <builtinFonts/notosans_12_bold.h>
 #include <builtinFonts/notosans_12_bolditalic.h>
 #include <builtinFonts/notosans_12_italic.h>
