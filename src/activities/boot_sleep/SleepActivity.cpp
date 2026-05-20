@@ -18,6 +18,7 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "FeatureFlags.h"
+#include "RomanClockFontRenderer.h"
 #include "SleepExtensionHooks.h"
 #include "SpiBusMutex.h"
 #include "components/UITheme.h"
@@ -339,99 +340,6 @@ void validateSleepImagesOnce() {
   saveSleepImageCacheToFile(sleepImageCache);
 }
 
-#if ENABLE_ROMAN_CLOCK_SLEEP
-struct RomanClockLabelParts {
-  std::string hour;
-  std::string minute;
-};
-
-RomanClockLabelParts splitRomanClockLabel(const std::string& label) {
-  RomanClockLabelParts parts;
-  const size_t separator = label.find(':');
-  if (separator == std::string::npos) {
-    parts.hour = label;
-    return parts;
-  }
-
-  parts.hour = label.substr(0, separator);
-  parts.minute = label.substr(separator + 1);
-  return parts;
-}
-
-int romanGlyphBoxWidth(const int height) { return std::max(20, height / 2); }
-
-int romanGlyphStrokeWidth(const int height) { return std::max(6, height / 8); }
-
-int romanGlyphGap(const int height) { return std::max(6, height / 12); }
-
-int romanTextWidth(const std::string& text, const int height) {
-  if (text.empty()) {
-    return 0;
-  }
-
-  const int boxWidth = romanGlyphBoxWidth(height);
-  const int gap = romanGlyphGap(height);
-  return static_cast<int>(text.size()) * boxWidth + static_cast<int>(text.size() - 1) * gap;
-}
-
-int fitRomanTextHeight(const std::string& text, const int maxWidth, const int maxHeight) {
-  if (text.empty()) {
-    return 0;
-  }
-
-  for (int height = maxHeight; height >= 48; --height) {
-    if (romanTextWidth(text, height) <= maxWidth) {
-      return height;
-    }
-  }
-
-  return 48;
-}
-
-void drawRomanGlyph(GfxRenderer& renderer, const char glyph, const int x, const int y, const int height) {
-  const int width = romanGlyphBoxWidth(height);
-  const int stroke = romanGlyphStrokeWidth(height);
-  const int midX = x + width / 2;
-  const int bottom = y + height - 1;
-  // Anchor diagonal strokes so their outer edges align with the bounding box.
-  const int left = x + stroke / 2;
-  const int right = x + width - stroke / 2 - 1;
-
-  switch (glyph) {
-    case 'I': {
-      // Vertical bar
-      renderer.fillRect(midX - stroke / 2, y, stroke, height, true);
-      // Classical serif caps: thin horizontal bars at top and bottom.
-      // capW < width/2 from midX on each side, so caps never overflow the bounding box.
-      const int capW = stroke + stroke / 2;
-      const int capH = std::max(2, stroke / 4);
-      renderer.fillRect(midX - capW / 2, y,                 capW, capH, true);  // top serif
-      renderer.fillRect(midX - capW / 2, bottom - capH + 1, capW, capH, true);  // bottom serif
-      break;
-    }
-    case 'V':
-      renderer.drawLine(left, y, midX, bottom, stroke, true);
-      renderer.drawLine(right, y, midX, bottom, stroke, true);
-      break;
-    case 'X':
-      renderer.drawLine(left, y, right, bottom, stroke, true);
-      renderer.drawLine(right, y, left, bottom, stroke, true);
-      break;
-    default:
-      break;
-  }
-}
-
-void drawRomanText(GfxRenderer& renderer, const std::string& text, const int x, const int y, const int height) {
-  const int boxWidth = romanGlyphBoxWidth(height);
-  const int gap = romanGlyphGap(height);
-  int cursorX = x;
-  for (const char glyph : text) {
-    drawRomanGlyph(renderer, glyph, cursorX, y, height);
-    cursorX += boxWidth + gap;
-  }
-}
-#endif
 }  // namespace
 
 void invalidateSleepImageCache() {
@@ -754,8 +662,13 @@ void SleepActivity::renderRomanClockSleepScreen() const {
     return;
   }
 
-  const RomanClockLabelParts label = splitRomanClockLabel(clockLabel);
+  const RomanClockFontRenderer::LabelParts label = RomanClockFontRenderer::splitLabel(clockLabel);
   if (label.hour.empty()) {
+    renderDefaultSleepScreen();
+    return;
+  }
+
+  if (RomanClockFontRenderer::getFontData(renderer) == nullptr) {
     renderDefaultSleepScreen();
     return;
   }
@@ -784,9 +697,18 @@ void SleepActivity::renderRomanClockSleepScreen() const {
 
   if (!hasMinute) {
     // ── Hour alone: vertically centered, as large as the content area allows ──
-    const int hourH = fitRomanTextHeight(label.hour, cw, ch * 7 / 12);
-    const int hourW = romanTextWidth(label.hour, hourH);
-    drawRomanText(renderer, label.hour, cx + (cw - hourW) / 2, cy + (ch - hourH) / 2, hourH);
+    const int hourScale = RomanClockFontRenderer::fitTextScale(renderer, label.hour, cw, ch * 7 / 12);
+    if (hourScale <= 0) {
+      renderDefaultSleepScreen();
+      return;
+    }
+    const int hourH = RomanClockFontRenderer::baseTextHeight(renderer) * hourScale;
+    const int hourW = RomanClockFontRenderer::scaledTextWidth(renderer, label.hour, hourScale);
+    if (!RomanClockFontRenderer::drawScaledText(renderer, label.hour, cx + (cw - hourW) / 2,
+                                                cy + (ch - hourH) / 2, hourScale)) {
+      renderDefaultSleepScreen();
+      return;
+    }
   } else {
     // ── Stacked layout: hour dominant above a rule, minute subordinate below ─
     //
@@ -809,11 +731,19 @@ void SleepActivity::renderRomanClockSleepScreen() const {
     const int minuteZoneH  = ch * 24 / 100;
 
     // Hour: fit to full content width, capped at zone height, then center.
-    const int hourH = fitRomanTextHeight(label.hour, cw, hourZoneH);
-    const int hourW = romanTextWidth(label.hour, hourH);
+    const int hourScale = RomanClockFontRenderer::fitTextScale(renderer, label.hour, cw, hourZoneH);
+    if (hourScale <= 0) {
+      renderDefaultSleepScreen();
+      return;
+    }
+    const int hourH = RomanClockFontRenderer::baseTextHeight(renderer) * hourScale;
+    const int hourW = RomanClockFontRenderer::scaledTextWidth(renderer, label.hour, hourScale);
     const int hourX = cx + (cw - hourW) / 2;
     const int hourY = hourZoneTopY + (hourZoneH - hourH) / 2;
-    drawRomanText(renderer, label.hour, hourX, hourY, hourH);
+    if (!RomanClockFontRenderer::drawScaledText(renderer, label.hour, hourX, hourY, hourScale)) {
+      renderDefaultSleepScreen();
+      return;
+    }
 
     // Thin centered rule — 30% of content width, 1px tall.
     const int ruleW = cw * 3 / 10;
@@ -822,11 +752,19 @@ void SleepActivity::renderRomanClockSleepScreen() const {
     // Minute: hard cap at half the hour height to enforce clear visual hierarchy,
     // ensuring the hour always reads as the primary element.
     const int minuteMaxH = std::min(minuteZoneH, hourH / 2);
-    const int minuteH    = fitRomanTextHeight(label.minute, cw, minuteMaxH);
-    const int minuteW    = romanTextWidth(label.minute, minuteH);
+    const int minuteScale = RomanClockFontRenderer::fitTextScale(renderer, label.minute, cw, minuteMaxH);
+    if (minuteScale <= 0) {
+      renderDefaultSleepScreen();
+      return;
+    }
+    const int minuteH = RomanClockFontRenderer::baseTextHeight(renderer) * minuteScale;
+    const int minuteW = RomanClockFontRenderer::scaledTextWidth(renderer, label.minute, minuteScale);
     const int minuteX    = cx + (cw - minuteW) / 2;
     const int minuteY    = minuteZoneY + (minuteZoneH - minuteH) / 2;
-    drawRomanText(renderer, label.minute, minuteX, minuteY, minuteH);
+    if (!RomanClockFontRenderer::drawScaledText(renderer, label.minute, minuteX, minuteY, minuteScale)) {
+      renderDefaultSleepScreen();
+      return;
+    }
   }
 
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
