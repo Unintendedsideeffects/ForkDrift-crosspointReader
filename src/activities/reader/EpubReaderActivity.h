@@ -35,6 +35,7 @@ class EpubReaderActivity final : public Activity {
   bool pendingSyncSaveError = false;
   bool skipNextButtonCheck = false;  // Skip button processing for one frame after subactivity exit
   bool automaticPageTurnActive = false;
+  bool completionPromptShown = false;
   int pageLoadRetrySpineIndex = -1;
   uint8_t pageLoadRetryCount = 0;
 
@@ -68,6 +69,8 @@ class EpubReaderActivity final : public Activity {
   void setAutoPageTurnIntervalSeconds(uint16_t seconds);
   uint16_t getAutoPageTurnIntervalSeconds() const;
   void pageTurn(bool isForwardTurn);
+  void setBookCompleted(bool isCompleted);
+  bool maybePromptToMarkCompleted();
   void resetPageLoadRetryState();
   void renderReaderError(StrId messageId);
   void navigateToHref(const std::string& href, bool savePosition = false);

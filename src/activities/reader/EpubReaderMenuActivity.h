@@ -22,13 +22,14 @@ class EpubReaderMenuActivity final : public Activity {
     DISPLAY_QR,
     GO_HOME,
     SYNC,
+    TOGGLE_COMPLETED,
     ADD_TO_ANKI,
     DELETE_CACHE
   };
 
   explicit EpubReaderMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const std::string& title,
                                   int currentPage, int totalPages, int bookProgressPercent, uint8_t currentOrientation,
-                                  bool hasFootnotes);
+                                  bool hasFootnotes, bool isBookCompleted);
 
   void onEnter() override;
   void onExit() override;
@@ -41,7 +42,7 @@ class EpubReaderMenuActivity final : public Activity {
     StrId labelId;
   };
 
-  static std::vector<MenuItem> buildMenuItems(bool hasFootnotes);
+  static std::vector<MenuItem> buildMenuItems(bool hasFootnotes, bool isBookCompleted);
 
   const std::vector<MenuItem> menuItems;
 

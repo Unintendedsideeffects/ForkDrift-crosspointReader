@@ -3,11 +3,11 @@
 #include <string>
 
 // Per-book reading statistics, persisted to cachePath/stats.bin.
-// No date/time awareness — relies only on millis() elapsed time within sessions.
 struct BookReadingStats {
   uint16_t sessionCount = 0;         // Total times this book was opened
   uint32_t totalReadingSeconds = 0;  // Accumulated reading time in seconds
   uint32_t totalPagesTurned = 0;     // Total page-turn actions (forward + backward)
+  bool isCompleted = false;          // Whether the user manually marked this book as finished
 
   // Loads stats from cachePath/stats.bin. Returns default-constructed stats if
   // the file is missing or the version byte does not match.
