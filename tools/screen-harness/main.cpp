@@ -23,6 +23,7 @@
 #include "activities/settings/SettingsActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "images/Logo120.h"
 #include "util/RecentBooksStore.h"
 
 namespace {
@@ -181,6 +182,16 @@ void drawHeader(GfxRenderer& renderer, const char* title) {
   const int right = renderer.getScreenWidth() - 18;
   renderer.drawText(UI_12_FONT_ID, 18, 14, title, true, EpdFontFamily::BOLD);
   renderer.drawLine(18, 40, right, 40);
+}
+
+void drawLockIcon(GfxRenderer& renderer, int cx, int cy) {
+  renderer.fillRect(cx - 13, cy - 13, 26, 22, false);
+  renderer.drawLine(cx - 5, cy - 1, cx - 5, cy - 10);
+  renderer.drawLine(cx + 5, cy - 1, cx + 5, cy - 10);
+  renderer.drawLine(cx - 5, cy - 10, cx + 5, cy - 10);
+  renderer.fillRect(cx - 9, cy, 18, 12, true);
+  renderer.fillRect(cx - 8, cy + 1, 16, 10, false);
+  renderer.fillRect(cx - 1, cy + 3, 3, 5, true);
 }
 
 void drawBoot(GfxRenderer& renderer, MappedInputManager& mappedInput) {
@@ -394,6 +405,62 @@ void drawReaderMock(GfxRenderer& renderer) {
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
+void drawSleepBrandScreen(GfxRenderer& renderer, bool lightScreen) {
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+
+  renderer.clearScreen();
+  renderer.drawImage(Logo120, (pageWidth - 120) / 2, (pageHeight - 120) / 2, 120, 120);
+  renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 70, "ForkDrift", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 95, "SLEEPING");
+
+  if (!lightScreen) {
+    renderer.invertScreen();
+  }
+
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+}
+
+void drawSleepCustomMock(GfxRenderer& renderer) {
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+
+  renderer.clearScreen();
+  renderer.fillRect(18, 18, pageWidth - 36, pageHeight - 36, true);
+  renderer.drawRoundedRect(34, 34, pageWidth - 68, pageHeight - 68, 2, 14, false);
+  renderer.drawCenteredText(UI_12_FONT_ID, 82, "CUSTOM SLEEP IMAGE", false, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(SMALL_FONT_ID, 108, "preview from /sleep/night-sky.png", false);
+
+  renderer.drawRect(88, 160, 304, 188, 2, false);
+  renderer.drawLine(118, 324, 208, 212);
+  renderer.drawLine(208, 212, 262, 276);
+  renderer.drawLine(262, 276, 360, 196);
+  renderer.drawLine(360, 196, 392, 230);
+  renderer.fillRect(124, 224, 42, 42, false);
+  renderer.fillRect(300, 250, 26, 26, false);
+  renderer.fillRect(344, 110, 8, 8, false);
+  renderer.fillRect(120, 116, 6, 6, false);
+  renderer.fillRect(166, 92, 4, 4, false);
+  renderer.fillRect(276, 128, 5, 5, false);
+  renderer.fillRect(214, 74, 7, 7, false);
+
+  renderer.drawRoundedRect(88, 412, 304, 210, 2, 12, false);
+  renderer.drawCenteredText(UI_12_FONT_ID, 446, "CURRENT BOOK COVER", false, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_10_FONT_ID, 484, "\"Left Hand of Darkness\"", false);
+  renderer.drawCenteredText(SMALL_FONT_ID, 512, "Fit: Crop", false);
+  renderer.drawCenteredText(SMALL_FONT_ID, 534, "Filter: None", false);
+  renderer.drawLine(132, 564, 348, 564, false);
+  renderer.drawCenteredText(SMALL_FONT_ID, 590, "Custom sleep art fills the panel", false);
+
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+}
+
+void drawSleepTransparentMock(GfxRenderer& renderer) {
+  drawReaderMock(renderer);
+  drawLockIcon(renderer, renderer.getScreenWidth() / 2, renderer.getScreenHeight() - 14);
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+}
+
 void drawFeatureStoreMock(GfxRenderer& renderer) {
   renderer.clearScreen();
   renderer.drawCenteredText(UI_12_FONT_ID, 15, "Update", true, EpdFontFamily::BOLD);
@@ -494,6 +561,10 @@ int main(int argc, char* argv[]) {
       {"10_factory_reset", [&] { drawFactoryReset(renderer, mappedInput); }},
       {"11_reader_mock", [&] { drawReaderMock(renderer); }},
       {"12_feature_store_mock", [&] { drawFeatureStoreMock(renderer); }},
+      {"13_sleep_dark", [&] { drawSleepBrandScreen(renderer, false); }},
+      {"14_sleep_light", [&] { drawSleepBrandScreen(renderer, true); }},
+      {"15_sleep_custom", [&] { drawSleepCustomMock(renderer); }},
+      {"16_sleep_transparent", [&] { drawSleepTransparentMock(renderer); }},
   };
 
   for (const auto& [name, render] : scenarios) {

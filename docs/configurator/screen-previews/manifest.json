@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-20T19:13:02.011359+00:00",
+  "generated_at": "2026-05-20T19:20:10.994042+00:00",
   "files": [
     {
       "name": "01_boot.png",
@@ -49,6 +49,22 @@
     {
       "name": "12_feature_store_mock.png",
       "label": "Feature Store"
+    },
+    {
+      "name": "13_sleep_dark.png",
+      "label": "Sleep - Dark"
+    },
+    {
+      "name": "14_sleep_light.png",
+      "label": "Sleep - Light"
+    },
+    {
+      "name": "15_sleep_custom.png",
+      "label": "Sleep - Custom Image"
+    },
+    {
+      "name": "16_sleep_transparent.png",
+      "label": "Sleep - Transparent"
     }
   ],
   "home_themes": {

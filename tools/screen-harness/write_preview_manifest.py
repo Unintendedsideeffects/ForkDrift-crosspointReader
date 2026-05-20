@@ -21,6 +21,10 @@ PREVIEW_SPECS = [
     {"stem": "10_factory_reset", "label": "Factory Reset"},
     {"stem": "11_reader_mock", "label": "Reader", "type": "live-reader"},
     {"stem": "12_feature_store_mock", "label": "Feature Store"},
+    {"stem": "13_sleep_dark", "label": "Sleep - Dark"},
+    {"stem": "14_sleep_light", "label": "Sleep - Light"},
+    {"stem": "15_sleep_custom", "label": "Sleep - Custom Image"},
+    {"stem": "16_sleep_transparent", "label": "Sleep - Transparent"},
 ]
 
 HOME_THEME_PREVIEWS = {
