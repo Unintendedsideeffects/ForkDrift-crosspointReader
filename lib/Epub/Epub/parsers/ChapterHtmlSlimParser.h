@@ -91,6 +91,7 @@ class ChapterHtmlSlimParser {
   int currentFootnoteLinkTextLen = 0;
   std::vector<std::pair<int, FootnoteEntry>> pendingFootnotes;  // <wordIndex, entry>
   int wordsExtractedInBlock = 0;
+  std::vector<CssAncestorEntry> ancestorStack_;
 
   void updateEffectiveInlineStyle();
   void startNewTextBlock(const BlockStyle& blockStyle);

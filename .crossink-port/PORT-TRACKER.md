@@ -105,9 +105,21 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
       MarkdownSection h/cpp version 1→2 + field (cache key); EpubReaderActivity 4 sites;
       MarkdownReaderActivity 5 sites + hash; MarkdownRenderer ParsedText call fixed.
       Build SUCCESS, RAM 44.5%.
-- [ ] 250b24c3 add guide dots
-- [ ] 05a6691a guide dots when justify
-- [ ] c5a615b5 improved css parser for descendant elements
+- [x] 250b24c3 add guide dots — guideReadingEnabled in CrossPointSettings + SettingsList
+      (STR_GUIDE_READING); ParsedText.addWord inserts U+00B7 (·) before non-continuation
+      words when enabled and alignment != Justify; ChapterHtmlSlimParser + Section v26
+      + MarkdownSection v3 (cache keys); HtmlSection/MarkdownRenderer pass false.
+      Build SUCCESS, RAM 44.5%.
+- [x] 05a6691a guide dots when justify — remove Justify exclusion; Section v26→27.
+- [x] c5a615b5 improved css parser for descendant elements — CssAncestorEntry struct;
+      selectorMatchesElement helper; DescendantRule storage in processRuleBlockWithStyle
+      (two-part selector split, merge-or-append, MAX_DESCENDANT_RULES cap); resolveStyle
+      cascade step 2 (ancestor matching); saveToCache/loadFromCache extended with
+      writeStyle/readStyle lambdas and descendant rule section; CSS_CACHE_VERSION 4→5;
+      ChapterHtmlSlimParser: ancestorStack_ member + reserve(32) in parseAndBuildPages;
+      7 push sites in startElement (non-skip table/tr/td/img/alt/a/general); pop in
+      endElement after depth-=1; all 3 resolveStyle calls pass ancestorStack_.
+      Build SUCCESS, RAM 44.5%.
 - [ ] b34b4448 display <hr> tags
 - [ ] 61c8d78f improve table rendering (#89)
 - [ ] 32e189ef draw borders for simple tables

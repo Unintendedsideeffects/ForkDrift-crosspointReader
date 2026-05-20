@@ -197,7 +197,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   // before tag-specific branches emit any content or metadata.
   CssStyle cssStyle;
   if (self->cssParser) {
-    cssStyle = self->cssParser->resolveStyle(name, classAttr);
+    cssStyle = self->cssParser->resolveStyle(name, classAttr, self->ancestorStack_);
     if (!styleAttr.empty()) {
       CssStyle inlineStyle = CssParser::parseInlineStyle(styleAttr);
       cssStyle.applyOver(inlineStyle);
@@ -225,6 +225,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->tableDepth += 1;
     self->tableRowIndex = 0;
     self->tableColIndex = 0;
+    self->ancestorStack_.push_back({self->depth, std::string(name), classAttr});
     self->depth += 1;
     return;
   }
@@ -232,6 +233,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   if (self->tableDepth == 1 && strcmp(name, "tr") == 0) {
     self->tableRowIndex += 1;
     self->tableColIndex = 0;
+    self->ancestorStack_.push_back({self->depth, std::string(name), classAttr});
     self->depth += 1;
     return;
   }
@@ -270,6 +272,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->inlineStyleStack.pop_back();
     self->updateEffectiveInlineStyle();
 
+    self->ancestorStack_.push_back({self->depth, std::string(name), classAttr});
     self->depth += 1;
     return;
   }
@@ -295,7 +298,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 
       // Skip image if CSS display:none
       if (self->cssParser) {
-        CssStyle imgDisplayStyle = self->cssParser->resolveStyle("img", classAttr);
+        CssStyle imgDisplayStyle = self->cssParser->resolveStyle("img", classAttr, self->ancestorStack_);
         if (!styleAttr.empty()) {
           imgDisplayStyle.applyOver(CssParser::parseInlineStyle(styleAttr));
         }
@@ -342,7 +345,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                 int displayWidth = 0;
                 int displayHeight = 0;
                 const float emSize = static_cast<float>(self->renderer.getFontAscenderSize(self->fontId));
-                CssStyle imgStyle = self->cssParser ? self->cssParser->resolveStyle("img", classAttr) : CssStyle{};
+                CssStyle imgStyle = self->cssParser ? self->cssParser->resolveStyle("img", classAttr, self->ancestorStack_) : CssStyle{};
                 // Merge inline style (e.g. style="height: 2em") so it overrides stylesheet rules
                 if (!styleAttr.empty()) {
                   imgStyle.applyOver(CssParser::parseInlineStyle(styleAttr));
@@ -511,6 +514,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                   self->currentTextBlock->setBlockStyle(resetStyle);
                 }
 
+                self->ancestorStack_.push_back({self->depth, std::string(name), classAttr});
                 self->depth += 1;
                 return;
               } else {
@@ -531,6 +535,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                                     .getCombinedBlockStyle(centeredBlockStyle, BlockStyle::CombineAxis::Horizontal)
                                     .withoutBottom());
         self->italicUntilDepth = std::min(self->italicUntilDepth, self->depth);
+        self->ancestorStack_.push_back({self->depth, std::string(name), classAttr});
         self->depth += 1;
         self->characterData(userData, alt.c_str(), alt.length());
         // Skip any child content (skip until parent as we pre-advanced depth above)
@@ -645,6 +650,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->updateEffectiveInlineStyle();
 
       // Skip CSS resolution — we already handled styling for this <a> tag
+      self->ancestorStack_.push_back({self->depth, std::string(name), classAttr});
       self->depth += 1;
       return;
     }
@@ -850,6 +856,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   }
 
   // Unprocessed tag, just increasing depth and continue forward
+  self->ancestorStack_.push_back({self->depth, std::string(name), classAttr});
   self->depth += 1;
 }
 
@@ -1083,6 +1090,11 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 
   self->depth -= 1;
 
+  // Pop ancestor stack entries at or below the now-closed depth
+  while (!self->ancestorStack_.empty() && self->ancestorStack_.back().depth >= self->depth) {
+    self->ancestorStack_.pop_back();
+  }
+
   // Closing a footnote link — create entry from collected text and href
   if (self->insideFootnoteLink && self->depth == self->footnoteLinkDepth) {
     if (self->currentFootnote.number[0] != '\0' && self->currentFootnote.href[0] != '\0') {
@@ -1175,6 +1187,8 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
   blockStyleStack.clear();
   blockStyleStack.reserve(8);
   blockStyleStack.push_back(rootBlockStyle);
+  ancestorStack_.clear();
+  ancestorStack_.reserve(32);
 
   auto paragraphAlignmentBlockStyle = BlockStyle();
   paragraphAlignmentBlockStyle.textAlignDefined = true;
