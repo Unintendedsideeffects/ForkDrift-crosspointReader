@@ -1,5 +1,7 @@
 #pragma once
+#include <array>
 #include <functional>
+#include <optional>
 #include <vector>
 
 #include "activities/Activity.h"
@@ -9,6 +11,11 @@
 struct Rect;
 
 class HomeActivity final : public Activity {
+ public:
+  static constexpr int kCarouselFrameCount = 1;
+  static constexpr int kMaxCachedBooks = 3;
+
+ private:
   ButtonNavigator buttonNavigator;
   int selectorIndex = 0;
   int selectedMenuIndex = 0;
@@ -30,6 +37,14 @@ class HomeActivity final : public Activity {
   bool hasCoverImage = false;
   bool hasContinueReading = false;
   bool updateRequired = false;
+
+  // Carousel state
+  int lastCarouselBookIndex = 0;
+  bool carouselFramesReady = false;
+  bool carouselWarmupPending = false;
+  bool bookProgressCached = false;
+  std::array<float, kMaxCachedBooks> cachedBookProgress{};
+  uint8_t* carouselFrames[kCarouselFrameCount] = {};
 
   // Static cover cache — persists across HomeActivity instances to avoid reloading
   // covers from SD on every home visit. Invalidated when the recent book list changes.
@@ -55,6 +70,18 @@ class HomeActivity final : public Activity {
 
   void freeCoverBuffer();          // Free the stored cover buffer
   bool isCoverCacheValid() const;  // True if static cover buffer matches current recent books
+  void freeCarouselFrames();
+  bool allocateCarouselFrameSlots(int targetFrameCount);
+  bool buildCarouselCacheFile(const std::string& cacheKey, uint64_t cacheKeyHash, int bookCount,
+                              bool showProgressPopup = false);
+  bool loadCarouselFrameFromDisk(uint64_t cacheKeyHash, int bookCount, int bookIdx, int slotIdx);
+  int chooseCarouselEvictionSlot(int centerIdx, int bookCount,
+                                 std::optional<int> protectedBookIdx = std::nullopt) const;
+  void renderCarouselFrameToCurrentBuffer(int bookIdx, float* outProgressPercent);
+  void renderCarouselFrame(int bookIdx, int slotIdx);
+  void updateSlidingWindowCache(int centerIdx, int bookCount);
+  bool preRenderCarouselFrames(bool showProgressPopup = false);
+  void loadBookProgress();
 
  protected:
   int getMenuItemCount() const;

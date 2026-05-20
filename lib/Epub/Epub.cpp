@@ -663,6 +663,9 @@ bool Epub::generateCoverBmp(bool cropped) const {
 
 std::string Epub::getThumbBmpPath() const { return cachePath + "/thumb_[HEIGHT].bmp"; }
 std::string Epub::getThumbBmpPath(int height) const { return cachePath + "/thumb_" + std::to_string(height) + ".bmp"; }
+std::string Epub::getThumbBmpPath(int width, int height) const {
+  return cachePath + "/thumb_W" + std::to_string(width) + "_H" + std::to_string(height) + ".bmp";
+}
 
 bool Epub::generateThumbBmp(int height) const {
   // Already generated, return true
@@ -801,6 +804,85 @@ bool Epub::generateThumbBmp(int height) const {
   // Write an empty bmp file to avoid generation attempts in the future
   FsFile thumbBmp;
   Storage.openFileForWrite("EBP", getThumbBmpPath(height), thumbBmp);
+  return false;
+}
+
+bool Epub::generateThumbBmp(int width, int height) const {
+  if (Storage.exists(getThumbBmpPath(width, height).c_str())) {
+    return true;
+  }
+
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded()) {
+    LOG_ERR("EBP", "Cannot generate thumb BMP (%dx%d), cache not loaded", width, height);
+    return false;
+  }
+
+  const auto coverImageHref = bookMetadataCache->coreMetadata.coverItemHref;
+  if (coverImageHref.empty()) {
+    LOG_DBG("EBP", "No known cover image for thumbnail %dx%d", width, height);
+  } else if (FsHelpers::hasJpgExtension(coverImageHref)) {
+    const auto coverJpgTempPath = getCachePath() + "/.cover.jpg";
+    FsFile coverJpg;
+    if (!Storage.openFileForWrite("EBP", coverJpgTempPath, coverJpg)) return false;
+    readItemContentsToStream(coverImageHref, coverJpg, 1024);
+    coverJpg.close();
+    if (!Storage.openFileForRead("EBP", coverJpgTempPath, coverJpg)) return false;
+    FsFile thumbBmp;
+    if (!Storage.openFileForWrite("EBP", getThumbBmpPath(width, height), thumbBmp)) return false;
+    const bool success =
+        JpegToBmpConverter::jpegFileTo1BitBmpStreamWithSize(coverJpg, thumbBmp, width, height);
+    coverJpg.close();
+    thumbBmp.close();
+    Storage.remove(coverJpgTempPath.c_str());
+    if (!success) Storage.remove(getThumbBmpPath(width, height).c_str());
+    return success;
+  } else if (FsHelpers::hasPngExtension(coverImageHref)) {
+    const auto coverPngTempPath = getCachePath() + "/.cover.png";
+    FsFile coverPng;
+    if (!Storage.openFileForWrite("EBP", coverPngTempPath, coverPng)) return false;
+    readItemContentsToStream(coverImageHref, coverPng, 1024);
+    coverPng.close();
+    if (!Storage.openFileForRead("EBP", coverPngTempPath, coverPng)) return false;
+    FsFile thumbBmp;
+    if (!Storage.openFileForWrite("EBP", getThumbBmpPath(width, height), thumbBmp)) return false;
+    const bool success =
+        PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(coverPng, thumbBmp, width, height);
+    coverPng.close();
+    thumbBmp.close();
+    Storage.remove(coverPngTempPath.c_str());
+    if (!success) Storage.remove(getThumbBmpPath(width, height).c_str());
+    return success;
+  } else {
+    const ImageConverter::Format format = ImageConverter::detectFormat(coverImageHref.c_str());
+    if (format != ImageConverter::FORMAT_UNKNOWN) {
+      const auto coverTempPath = tempImagePathForFormat(getCachePath(), format);
+      if (!extractItemToTempFile(this, coverImageHref, coverTempPath)) {
+        Storage.remove(coverTempPath.c_str());
+        return false;
+      }
+      FsFile coverImage;
+      if (!Storage.openFileForRead("EBP", coverTempPath, coverImage)) {
+        Storage.remove(coverTempPath.c_str());
+        return false;
+      }
+      FsFile thumbBmp;
+      if (!Storage.openFileForWrite("EBP", getThumbBmpPath(width, height), thumbBmp)) {
+        coverImage.close();
+        Storage.remove(coverTempPath.c_str());
+        return false;
+      }
+      const bool success =
+          ImageConverter::convertTo1BitBmpStream(coverImage, format, thumbBmp, width, height);
+      coverImage.close();
+      thumbBmp.close();
+      Storage.remove(coverTempPath.c_str());
+      if (!success) Storage.remove(getThumbBmpPath(width, height).c_str());
+      return success;
+    }
+  }
+
+  FsFile thumbBmp;
+  Storage.openFileForWrite("EBP", getThumbBmpPath(width, height), thumbBmp);
   return false;
 }
 

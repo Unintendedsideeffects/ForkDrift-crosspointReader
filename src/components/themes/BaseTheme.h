@@ -164,6 +164,10 @@ class BaseTheme {
   virtual void drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                               const std::function<std::string(int index)>& buttonLabel,
                               const std::function<UIIcon(int index)>& rowIcon) const;
+  // No-op by default; LyraCarouselTheme overrides to draw the selection border without re-rendering the cover.
+  virtual void drawCarouselBorder(GfxRenderer& renderer, Rect coverRect,
+                                  const std::vector<RecentBook>& recentBooks, int centerIdx,
+                                  bool inCarouselRow) const {}
   virtual Rect drawPopup(const GfxRenderer& renderer, const char* message) const;
   virtual void fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, const int progress) const;
   void drawStatusBar(GfxRenderer& renderer, const float bookProgress, const int currentPage, const int pageCount,

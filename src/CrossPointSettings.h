@@ -183,7 +183,15 @@ class CrossPointSettings {
 
   // Hide battery percentage
   enum HIDE_BATTERY_PERCENTAGE { HIDE_NEVER = 0, HIDE_READER = 1, HIDE_ALWAYS = 2, HIDE_BATTERY_PERCENTAGE_COUNT };
-  enum UI_THEME { CLASSIC = 0, LYRA = 1, LYRA_EXTENDED = 2, FORK_DRIFT = 3, POKEMON_PARTY = 4, MINIMAL = 5 };
+  enum UI_THEME {
+    CLASSIC = 0,
+    LYRA = 1,
+    LYRA_EXTENDED = 2,
+    FORK_DRIFT = 3,
+    POKEMON_PARTY = 4,
+    MINIMAL = 5,
+    LYRA_CAROUSEL = 6
+  };
   enum RECENT_BOOKS_VIEW { RECENT_BOOKS_LIST = 0, RECENT_BOOKS_GRID = 1, RECENT_BOOKS_VIEW_COUNT };
 
   // Page turn button long press behavior

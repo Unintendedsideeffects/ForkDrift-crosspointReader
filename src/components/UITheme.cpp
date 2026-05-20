@@ -10,6 +10,7 @@
 #include "components/themes/BaseTheme.h"
 #include "components/themes/lyra/ForkDriftTheme.h"
 #include "components/themes/lyra/Lyra3CoversTheme.h"
+#include "components/themes/lyra/LyraCarouselTheme.h"
 #include "components/themes/lyra/LyraTheme.h"
 #include "components/themes/minimal/MinimalTheme.h"
 #include "core/features/FeatureCatalog.h"
@@ -71,6 +72,11 @@ void UITheme::setTheme(CrossPointSettings::UI_THEME type) {
       currentTheme = std::make_unique<MinimalTheme>();
       currentMetrics = &MinimalMetrics::values;
       break;
+    case CrossPointSettings::UI_THEME::LYRA_CAROUSEL:
+      LOG_DBG("UI", "Using Lyra Carousel theme");
+      currentTheme = std::make_unique<LyraCarouselTheme>();
+      currentMetrics = &LyraCarouselMetrics::values;
+      break;
   }
 }
 
@@ -96,6 +102,15 @@ std::string UITheme::getCoverThumbPath(std::string coverBmpPath, int coverHeight
   size_t pos = coverBmpPath.find("[HEIGHT]", 0);
   if (pos != std::string::npos) {
     coverBmpPath.replace(pos, 8, std::to_string(coverHeight));
+  }
+  return coverBmpPath;
+}
+
+std::string UITheme::getCoverThumbPath(std::string coverBmpPath, int coverWidth, int coverHeight) {
+  // Replace [HEIGHT] with a WxH-specific suffix so carousel-sized thumbs get distinct file names.
+  size_t pos = coverBmpPath.find("[HEIGHT]", 0);
+  if (pos != std::string::npos) {
+    coverBmpPath.replace(pos, 8, "W" + std::to_string(coverWidth) + "_H" + std::to_string(coverHeight));
   }
   return coverBmpPath;
 }
