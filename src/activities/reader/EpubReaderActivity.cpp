@@ -356,6 +356,11 @@ void EpubReaderActivity::jumpToPercent(int percent) {
     return;
   }
 
+  // BookMetadataCache uses a shared seek-based FsFile for spine metadata lookups.
+  // Hold the render/file mutex for the full jump calculation so menu-driven jumps
+  // cannot race render/status-bar reads of the same cache file.
+  RenderLock lock(*this);
+
   const size_t bookSize = epub->getBookSize();
   if (bookSize == 0) {
     return;
@@ -402,14 +407,10 @@ void EpubReaderActivity::jumpToPercent(int percent) {
     pendingSpineProgress = 1.0f;
   }
 
-  // Reset state so renderScreen() reloads and repositions on the target spine.
-  {
-    RenderLock lock(*this);
-    currentSpineIndex = targetSpineIndex;
-    nextPageNumber = 0;
-    pendingPercentJump = true;
-    section.reset();
-  }
+  currentSpineIndex = targetSpineIndex;
+  nextPageNumber = 0;
+  pendingPercentJump = true;
+  section.reset();
 }
 
 void EpubReaderActivity::reindexCurrentSection() {
