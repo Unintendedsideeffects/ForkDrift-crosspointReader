@@ -268,6 +268,9 @@ void SettingsActivity::enterCategory(int categoryIndex) {
   requestUpdate();
 }
 
+#ifdef HOST_BUILD
+void SettingsActivity::toggleCurrentSetting() {}
+#else
 void SettingsActivity::toggleCurrentSetting() {
   int selectedSetting = selectedSettingIndex - 1;
   if (selectedSetting < 0 || selectedSetting >= settingsCount) {
@@ -473,7 +476,11 @@ void SettingsActivity::toggleCurrentSetting() {
 
   persistSettings();
 }
+#endif
 
+#ifdef HOST_BUILD
+void SettingsActivity::openSleepTimeoutPicker() {}
+#else
 void SettingsActivity::openSleepTimeoutPicker() {
   startActivityForResult(
       std::make_unique<IntervalSelectionActivity>(
@@ -490,6 +497,7 @@ void SettingsActivity::openSleepTimeoutPicker() {
         requestUpdate();
       });
 }
+#endif
 
 void SettingsActivity::render(RenderLock&&) {
   renderer.clearScreen();

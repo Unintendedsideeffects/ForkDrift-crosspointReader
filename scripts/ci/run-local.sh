@@ -179,45 +179,7 @@ run_update_screen_previews() {
   tools/screen-harness/render_screens.sh build/screen-previews
   uv run --python "$PY_BUILD" --with pillow python tools/screen-harness/pbm_to_png.py \
     build/screen-previews docs/configurator/screen-previews
-  python3 - <<'PY'
-import json
-from datetime import datetime, timezone
-from pathlib import Path
-
-out_dir = Path("docs/configurator/screen-previews")
-out_dir.mkdir(parents=True, exist_ok=True)
-
-labels = {
-    "01_boot": "Boot",
-    "02_home_mock": "Home",
-    "03_settings_mock": "Settings",
-    "04_factory_reset_mock": "Factory Reset",
-    "05_reader_mock": "Reader",
-    "06_feature_store_mock": "Feature Store",
-}
-
-for png in out_dir.glob("*.png"):
-    if png.stem not in labels:
-        png.unlink()
-
-files = []
-for stem, label in labels.items():
-    png = out_dir / f"{stem}.png"
-    if not png.exists():
-        continue
-    stem = png.stem
-    files.append({
-        "name": png.name,
-        "label": label,
-    })
-
-manifest = {
-    "generated_at": datetime.now(timezone.utc).isoformat(),
-    "files": files,
-}
-
-(out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-PY
+  python3 tools/screen-harness/write_preview_manifest.py docs/configurator/screen-previews
 }
 
 usage() {

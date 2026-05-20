@@ -40,39 +40,7 @@ jobs:
         run: tools/screen-harness/pbm_to_png.py build/screen-previews docs/configurator/screen-previews
 
       - name: Write preview manifest
-        run: |
-          python - <<'PY'
-          import json
-          from datetime import datetime, timezone
-          from pathlib import Path
-
-          out_dir = Path("docs/configurator/screen-previews")
-          out_dir.mkdir(parents=True, exist_ok=True)
-
-          labels = {
-              "01_boot": "Boot",
-              "02_home_mock": "Home",
-              "03_settings_mock": "Settings",
-              "04_factory_reset_mock": "Factory Reset",
-              "05_reader_mock": "Reader",
-              "06_feature_store_mock": "Feature Store",
-          }
-
-          files = []
-          for png in sorted(out_dir.glob("*.png")):
-              stem = png.stem
-              files.append({
-                  "name": png.name,
-                  "label": labels.get(stem, stem.replace("_", " ").title()),
-              })
-
-          manifest = {
-              "generated_at": datetime.now(timezone.utc).isoformat(),
-              "files": files,
-          }
-
-          (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-          PY
+        run: python tools/screen-harness/write_preview_manifest.py docs/configurator/screen-previews
 
       - name: Commit updated previews
         uses: stefanzweifel/git-auto-commit-action@v5

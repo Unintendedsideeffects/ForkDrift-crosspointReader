@@ -7,6 +7,8 @@
 #include <Utf8.h>
 
 #include <algorithm>
+#include <cassert>
+#include <cmath>
 
 #include "FontCacheManager.h"
 

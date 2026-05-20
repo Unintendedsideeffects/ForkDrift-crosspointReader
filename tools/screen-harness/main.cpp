@@ -6,16 +6,28 @@
 #include <SPI.h>
 #include <builtinFonts/all.h>
 
+#include <algorithm>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iostream>
+#include <regex>
 #include <string>
 #include <vector>
 
+#include "CrossPointSettings.h"
 #include "activities/boot_sleep/BootActivity.h"
+#include "activities/settings/FactoryResetActivity.h"
+#include "activities/settings/SettingsActivity.h"
+#include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/RecentBooksStore.h"
 
 namespace {
+
+std::filesystem::path gSettingsJsonPath;
 
 void installFonts(GfxRenderer& renderer) {
   static EpdFont smallFont(&notosans_8_regular);
@@ -49,6 +61,122 @@ void saveSnapshot(HalDisplay& display, const std::filesystem::path& outDir, cons
   std::cout << "wrote " << outputPathStr << '\n';
 }
 
+std::string readTextFile(const std::filesystem::path& path) {
+  std::ifstream input(path);
+  if (!input) return "";
+  return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+}
+
+bool readJsonNumber(const std::string& json, const char* key, uint8_t& out) {
+  const std::regex pattern(std::string("\"") + key + R"("\s*:\s*([0-9]+))");
+  std::smatch match;
+  if (!std::regex_search(json, match, pattern)) return false;
+  out = static_cast<uint8_t>(std::clamp(std::stoi(match[1].str()), 0, 255));
+  return true;
+}
+
+bool readJsonString(const std::string& json, const char* key, char* out, size_t outSize) {
+  const std::regex pattern(std::string("\"") + key + "\"\\s*:\\s*\"([^\"]*)\"");
+  std::smatch match;
+  if (!std::regex_search(json, match, pattern) || outSize == 0) return false;
+  std::strncpy(out, match[1].str().c_str(), outSize - 1);
+  out[outSize - 1] = '\0';
+  return true;
+}
+
+void seedSettingsFromConfiguratorDefaults() {
+  SETTINGS.fontFamily = 0;
+  SETTINGS.fontSize = 1;
+  SETTINGS.lineSpacing = 1;
+  SETTINGS.screenMargin = 5;
+  SETTINGS.paragraphAlignment = 0;
+  SETTINGS.embeddedStyle = 1;
+  SETTINGS.hyphenationEnabled = 0;
+  SETTINGS.orientation = 0;
+  SETTINGS.extraParagraphSpacing = 1;
+  SETTINGS.textAntiAliasing = 1;
+  SETTINGS.imageRendering = 0;
+  SETTINGS.frontButtonLayout = 0;
+  SETTINGS.frontButtonBack = 0;
+  SETTINGS.frontButtonConfirm = 1;
+  SETTINGS.frontButtonLeft = 2;
+  SETTINGS.frontButtonRight = 3;
+  SETTINGS.sleepScreen = 0;
+  SETTINGS.sleepScreenSource = 0;
+  SETTINGS.sleepScreenCoverMode = 0;
+  SETTINGS.sleepScreenCoverFilter = 0;
+  SETTINGS.sleepCycleMode = 0;
+  SETTINGS.darkMode = 0;
+  SETTINGS.hideBatteryPercentage = 0;
+  SETTINGS.uiTheme = 1;
+  SETTINGS.refreshFrequency = 3;
+  SETTINGS.fadingFix = 0;
+  SETTINGS.globalStatusBar = 0;
+  SETTINGS.globalStatusBarPosition = 0;
+  SETTINGS.sleepTimeout = 2;
+  SETTINGS.sideButtonLayout = 0;
+  SETTINGS.shortPwrBtn = 0;
+  SETTINGS.longPressChapterSkip = 1;
+  SETTINGS.longPressButtonBehavior = CrossPointSettings::CHAPTER_SKIP;
+  SETTINGS.usbMscPromptOnConnect = 0;
+  SETTINGS.backgroundServerOnCharge = 1;
+  SETTINGS.wifiAutoConnect = 0;
+  SETTINGS.deviceName[0] = '\0';
+}
+
+void applySettingsJson(const std::filesystem::path& settingsJsonPath) {
+  seedSettingsFromConfiguratorDefaults();
+  if (settingsJsonPath.empty()) return;
+
+  const std::string json = readTextFile(settingsJsonPath);
+  if (json.empty()) {
+    std::cerr << "settings json not found or empty: " << settingsJsonPath << '\n';
+    return;
+  }
+
+  readJsonNumber(json, "fontFamily", SETTINGS.fontFamily);
+  readJsonNumber(json, "fontSize", SETTINGS.fontSize);
+  readJsonNumber(json, "lineSpacing", SETTINGS.lineSpacing);
+  readJsonNumber(json, "screenMargin", SETTINGS.screenMargin);
+  readJsonNumber(json, "paragraphAlignment", SETTINGS.paragraphAlignment);
+  readJsonNumber(json, "embeddedStyle", SETTINGS.embeddedStyle);
+  readJsonNumber(json, "hyphenationEnabled", SETTINGS.hyphenationEnabled);
+  readJsonNumber(json, "orientation", SETTINGS.orientation);
+  readJsonNumber(json, "extraParagraphSpacing", SETTINGS.extraParagraphSpacing);
+  readJsonNumber(json, "textAntiAliasing", SETTINGS.textAntiAliasing);
+  readJsonNumber(json, "imageRendering", SETTINGS.imageRendering);
+  readJsonNumber(json, "frontButtonLayout", SETTINGS.frontButtonLayout);
+  readJsonNumber(json, "frontButtonBack", SETTINGS.frontButtonBack);
+  readJsonNumber(json, "frontButtonConfirm", SETTINGS.frontButtonConfirm);
+  readJsonNumber(json, "frontButtonLeft", SETTINGS.frontButtonLeft);
+  readJsonNumber(json, "frontButtonRight", SETTINGS.frontButtonRight);
+  readJsonNumber(json, "sleepScreen", SETTINGS.sleepScreen);
+  readJsonNumber(json, "sleepScreenSource", SETTINGS.sleepScreenSource);
+  readJsonNumber(json, "sleepScreenCoverMode", SETTINGS.sleepScreenCoverMode);
+  readJsonNumber(json, "sleepScreenCoverFilter", SETTINGS.sleepScreenCoverFilter);
+  readJsonNumber(json, "sleepCycleMode", SETTINGS.sleepCycleMode);
+  readJsonNumber(json, "darkMode", SETTINGS.darkMode);
+  readJsonNumber(json, "hideBatteryPercentage", SETTINGS.hideBatteryPercentage);
+  readJsonNumber(json, "uiTheme", SETTINGS.uiTheme);
+  readJsonNumber(json, "refreshFrequency", SETTINGS.refreshFrequency);
+  readJsonNumber(json, "fadingFix", SETTINGS.fadingFix);
+  readJsonNumber(json, "globalStatusBar", SETTINGS.globalStatusBar);
+  readJsonNumber(json, "globalStatusBarPosition", SETTINGS.globalStatusBarPosition);
+  readJsonNumber(json, "sleepTimeout", SETTINGS.sleepTimeout);
+  readJsonNumber(json, "sideButtonLayout", SETTINGS.sideButtonLayout);
+  readJsonNumber(json, "shortPwrBtn", SETTINGS.shortPwrBtn);
+  readJsonNumber(json, "longPressChapterSkip", SETTINGS.longPressChapterSkip);
+  readJsonNumber(json, "longPressButtonBehavior", SETTINGS.longPressButtonBehavior);
+  readJsonNumber(json, "usbMscPromptOnConnect", SETTINGS.usbMscPromptOnConnect);
+  readJsonNumber(json, "backgroundServerOnCharge", SETTINGS.backgroundServerOnCharge);
+  readJsonNumber(json, "wifiAutoConnect", SETTINGS.wifiAutoConnect);
+  readJsonString(json, "deviceName", SETTINGS.deviceName, sizeof(SETTINGS.deviceName));
+
+  if (SETTINGS.longPressChapterSkip && SETTINGS.longPressButtonBehavior == CrossPointSettings::OFF) {
+    SETTINGS.longPressButtonBehavior = CrossPointSettings::CHAPTER_SKIP;
+  }
+}
+
 void drawHeader(GfxRenderer& renderer, const char* title) {
   const int right = renderer.getScreenWidth() - 18;
   renderer.drawText(UI_12_FONT_ID, 18, 14, title, true, EpdFontFamily::BOLD);
@@ -60,65 +188,81 @@ void drawBoot(GfxRenderer& renderer, MappedInputManager& mappedInput) {
   boot.onEnter();
 }
 
-void drawHomeMock(GfxRenderer& renderer) {
+std::vector<RecentBook> sampleBooks(int count) {
+  static constexpr const char* kTitles[] = {
+      "Left Hand of Darkness", "Dune", "Foundation", "Neuromancer", "Name of the Wind", "Ancillary Justice",
+  };
+  static constexpr const char* kAuthors[] = {
+      "Le Guin", "Frank Herbert", "Isaac Asimov", "W. Gibson", "Rothfuss", "Ann Leckie",
+  };
+
+  std::vector<RecentBook> books;
+  books.reserve(count);
+  for (int i = 0; i < count; ++i) {
+    books.push_back({
+        std::string("/books/mock-") + std::to_string(i) + ".epub",
+        kTitles[i % static_cast<int>(std::size(kTitles))],
+        kAuthors[i % static_cast<int>(std::size(kAuthors))],
+        "",
+    });
+  }
+  return books;
+}
+
+struct HomePreviewScenario {
+  std::string name;
+  CrossPointSettings::UI_THEME theme;
+  std::vector<RecentBook> books;
+  std::vector<std::string> menuLabels;
+  std::vector<UIIcon> menuIcons;
+  int selectedBookIndex = 0;
+  int selectedMenuIndex = -1;
+  bool inButtonGrid = true;
+  const char* backLabel = "";
+  const char* upLabel = "Prev";
+  const char* downLabel = "Next";
+};
+
+void drawHomeThemePreview(GfxRenderer& renderer, const HomePreviewScenario& scenario) {
+  SETTINGS.uiTheme = static_cast<uint8_t>(scenario.theme);
+  SETTINGS.globalStatusBar = CrossPointSettings::GLOBAL_STATUS_BAR_OFF;
+  std::strncpy(SETTINGS.deviceName, "crosspoint", sizeof(SETTINGS.deviceName) - 1);
+  SETTINGS.deviceName[sizeof(SETTINGS.deviceName) - 1] = '\0';
+
+  auto& uiTheme = UITheme::getInstance();
+  uiTheme.reload();
+  const auto& metrics = uiTheme.getMetrics();
+  const auto& theme = uiTheme.getTheme();
+
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+  const int bookCount = static_cast<int>(scenario.books.size());
+  const bool forkDriftLayout =
+      scenario.theme == CrossPointSettings::FORK_DRIFT || scenario.theme == CrossPointSettings::POKEMON_PARTY;
+  const int singleRowHeight = metrics.homeCoverTileHeight / 2;
+  const int rawCoverTileHeight = forkDriftLayout ? ((bookCount > 3 ? 2 : 1) * singleRowHeight)
+                                                 : metrics.homeCoverTileHeight;
+  const int menuMinHeight = metrics.verticalSpacing * 2 + metrics.buttonHintsHeight + metrics.menuRowHeight;
+  const int coverTileHeight = forkDriftLayout ? std::min(rawCoverTileHeight, pageHeight - menuMinHeight)
+                                              : rawCoverTileHeight;
+  const int menuRectY = coverTileHeight + metrics.verticalSpacing;
+  const int menuRectHeight = pageHeight - (coverTileHeight + metrics.verticalSpacing * 2 + metrics.buttonHintsHeight);
+  const int coverSelector = forkDriftLayout && scenario.inButtonGrid ? -1 : scenario.selectedBookIndex;
+  const int menuSelector = forkDriftLayout && !scenario.inButtonGrid ? -1 : scenario.selectedMenuIndex;
+
+  bool coverRendered = false;
+  bool coverBufferStored = false;
+  bool bufferRestored = false;
+
   renderer.clearScreen();
-  drawHeader(renderer, "Home");
-
-  // ForkDrift layout: 3×2 book-cover grid + 2×2 button menu.
-  // Mirrors ForkDriftTheme geometry: contentSidePadding=20, hPadding=8,
-  // homeCoverHeight=120, homeCoverTileHeight=380 (2 rows × 190 px each).
-  constexpr int pad = 20;
-  constexpr int hPad = 8;
-  constexpr int tileW = (480 - 2 * pad) / 3;  // 146 px per column
-  constexpr int tileH = 190;                  // singleRowH = homeCoverTileHeight / 2
-  constexpr int coverH = 120;
-  constexpr int gridStartY = 56;
-
-  struct Book {
-    const char* title;
-    const char* author;
-  };
-  static constexpr Book books[6] = {
-      {"Left Hand of Darkness", "Le Guin"}, {"Dune", "Frank Herbert"},        {"Foundation", "Isaac Asimov"},
-      {"Neuromancer", "W. Gibson"},         {"Name of the Wind", "Rothfuss"}, {"Ancillary Justice", "Ann Leckie"},
-  };
-
-  for (int i = 0; i < 6; i++) {
-    const int col = i % 3;
-    const int row = i / 3;
-    const int tileX = pad + col * tileW;
-    const int tileY = gridStartY + row * tileH;
-
-    // Cover placeholder: outline + dark fill for lower two-thirds (mimics real cover rendering)
-    renderer.drawRect(tileX + hPad, tileY + hPad, tileW - 2 * hPad, coverH, true);
-    renderer.fillRect(tileX + hPad, tileY + hPad + coverH / 3, tileW - 2 * hPad, 2 * coverH / 3, true);
-
-    const int titleY = tileY + coverH + hPad + 4;
-    renderer.drawText(UI_10_FONT_ID, tileX + hPad, titleY, books[i].title, true);
-    renderer.drawText(SMALL_FONT_ID, tileX + hPad, titleY + 16, books[i].author, true);
-  }
-
-  // 2×2 button menu below the cover grid.
-  // menuStartY = gridStartY + 2×tileH + verticalSpacing(16) = 452
-  // menuH = 800 - menuStartY - verticalSpacing(16) - buttonHintsHeight(40) = 292
-  constexpr int menuStartY = gridStartY + 2 * tileH + 16;
-  constexpr int menuH = 800 - menuStartY - 16 - 40;
-  constexpr int menuSpacing = 8;
-  constexpr int btnW = (480 - 2 * pad - menuSpacing) / 2;  // 216
-  constexpr int btnH = (menuH - menuSpacing) / 2;          // 142
-
-  static constexpr const char* menuLabels[4] = {"My Library", "Agenda", "File Transfer", "Settings"};
-  for (int i = 0; i < 4; i++) {
-    const int col = i % 2;
-    const int row = i / 2;
-    const int x = pad + col * (btnW + menuSpacing);
-    const int y = menuStartY + row * (btnH + menuSpacing);
-    renderer.drawRoundedRect(x, y, btnW, btnH, (i == 0) ? 2 : 1, 6, true);
-    renderer.drawRect(x + 14, y + (btnH - 24) / 2, 24, 24, true);  // icon placeholder
-    renderer.drawText(UI_10_FONT_ID, x + 46, y + (btnH - 14) / 2, menuLabels[i], true);
-  }
-
-  renderer.drawButtonHints(UI_10_FONT_ID, "", "Select", "Up", "Down");
+  theme.drawRecentBookCover(
+      renderer, Rect{0, 0, pageWidth, coverTileHeight}, scenario.books, coverSelector,
+      coverRendered, coverBufferStored, bufferRestored, []() { return false; }, 57.0f);
+  theme.drawButtonMenu(
+      renderer, Rect{0, menuRectY, pageWidth, menuRectHeight}, static_cast<int>(scenario.menuLabels.size()),
+      menuSelector, [&scenario](int index) { return scenario.menuLabels[index]; },
+      [&scenario](int index) { return scenario.menuIcons[index]; });
+  theme.drawButtonHints(renderer, scenario.backLabel, "Select", scenario.upLabel, scenario.downLabel);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
@@ -126,10 +270,6 @@ void drawSettingsMock(GfxRenderer& renderer) {
   renderer.clearScreen();
   drawHeader(renderer, "Settings");
 
-  // Inline helpers to avoid repeating boilerplate for each row.
-  // Groups: Reading(4), Display(3), Network(2), Sleep(2), About(2) = 13 rows.
-  // Each row: 42 px tall, 4 px gap between rows, 10 px gap before group label.
-  // Final row ends at Y=758, filling the screen up to the button hints.
   const auto drawGroupLabel = [&](int y, const char* label) {
     renderer.drawText(SMALL_FONT_ID, 24, y, label, true, EpdFontFamily::BOLD);
   };
@@ -166,57 +306,56 @@ void drawSettingsMock(GfxRenderer& renderer) {
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
+void drawSettings(GfxRenderer& renderer, MappedInputManager& mappedInput) {
+  applySettingsJson(gSettingsJsonPath);
+  UITheme::getInstance().reload();
+  SettingsActivity activity(renderer, mappedInput);
+  activity.onEnter();
+  activity.render(RenderLock(activity));
+}
+
 void drawFactoryResetMock(GfxRenderer& renderer) {
   renderer.clearScreen();
   drawHeader(renderer, "Factory Reset");
 
-  // Large warning card fills most of the screen, with Cancel/Reset buttons inside.
-  // Avoids the previous layout where content only appeared in a small band at screen center.
   renderer.drawRoundedRect(20, 56, 440, 580, 2, 8, true);
 
-  int y = 76;  // cardY + 20
+  int y = 76;
 
   renderer.drawCenteredText(UI_12_FONT_ID, y, "Permanent Action", true, EpdFontFamily::BOLD);
-  y += 34;  // 110
+  y += 34;
 
   renderer.drawLine(34, y, 446, y);
-  y += 16;  // 126
+  y += 16;
 
   renderer.drawCenteredText(UI_10_FONT_ID, y, "The following data will be erased:", true);
-  y += 26;  // 152
+  y += 26;
 
   static constexpr const char* erased[] = {
-      "• Settings and preferences",
-      "• WiFi and network credentials",
-      "• Reading progress and bookmarks",
-      "• Daily notes and todo entries",
-      "• Feature store configuration",
-      "• Anki cards and study data",
-      "• Cover image cache",
-      "• EPUB layout cache",
+      "• Settings and preferences", "• WiFi and network credentials", "• Reading progress and bookmarks",
+      "• Daily notes and todo entries", "• Feature store configuration", "• Anki cards and study data",
+      "• Cover image cache", "• EPUB layout cache",
   };
   for (const char* item : erased) {
     renderer.drawText(UI_10_FONT_ID, 38, y, item, true);
     y += 22;
   }
-  // After 8 items × 22 px: y = 152 + 176 = 328
 
-  y += 10;  // 338
+  y += 10;
   renderer.drawLine(34, y, 446, y);
-  y += 16;  // 354
+  y += 16;
 
   renderer.drawCenteredText(UI_10_FONT_ID, y, "Books and files on the SD card", true, EpdFontFamily::BOLD);
-  y += 24;  // 378
+  y += 24;
   renderer.drawCenteredText(UI_10_FONT_ID, y, "will NOT be deleted.", true, EpdFontFamily::BOLD);
-  y += 34;  // 412
+  y += 34;
 
   renderer.drawLine(34, y, 446, y);
-  y += 16;  // 428
+  y += 16;
 
   renderer.drawCenteredText(UI_10_FONT_ID, y, "This action cannot be undone.", true);
-  y += 34;  // 462
+  y += 34;
 
-  // Cancel / Reset buttons
   renderer.drawRoundedRect(34, y, 190, 48, 1, 6, true);
   renderer.drawText(UI_10_FONT_ID, 90, y + 17, "Cancel", true);
   renderer.drawRoundedRect(236, y, 190, 48, 2, 6, true);
@@ -224,6 +363,14 @@ void drawFactoryResetMock(GfxRenderer& renderer) {
 
   renderer.drawButtonHints(UI_10_FONT_ID, "Cancel", "Reset", "", "");
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+}
+
+void drawFactoryReset(GfxRenderer& renderer, MappedInputManager& mappedInput) {
+  applySettingsJson(gSettingsJsonPath);
+  UITheme::getInstance().reload();
+  FactoryResetActivity activity(renderer, mappedInput, [] {});
+  activity.onEnter();
+  activity.render(RenderLock(activity));
 }
 
 void drawReaderMock(GfxRenderer& renderer) {
@@ -251,13 +398,11 @@ void drawFeatureStoreMock(GfxRenderer& renderer) {
   renderer.clearScreen();
   renderer.drawCenteredText(UI_12_FONT_ID, 15, "Update", true, EpdFontFamily::BOLD);
 
-  // Section header + navigation counter (mirrors OtaUpdateActivity SELECTING_FEATURE_STORE_BUNDLE)
   renderer.drawText(UI_10_FONT_ID, 15, 55, "Feature Store", true, EpdFontFamily::BOLD);
   const char* counter = "3 / 5";
   const int counterW = renderer.getTextWidth(UI_10_FONT_ID, counter);
   renderer.drawText(UI_10_FONT_ID, renderer.getScreenWidth() - counterW - 15, 55, counter);
 
-  // Card border
   const int cardX = 15;
   const int cardY = 78;
   const int cardW = renderer.getScreenWidth() - 30;
@@ -267,26 +412,19 @@ void drawFeatureStoreMock(GfxRenderer& renderer) {
   int y = cardY + 24;
   const int textX = cardX + 14;
 
-  // Bundle name
   renderer.drawText(UI_12_FONT_ID, textX, y, "Latest Standard (on push)", true, EpdFontFamily::BOLD);
   y += 32;
-
-  // Installed badge
   renderer.drawText(UI_10_FONT_ID, textX, y, "* Installed *");
   y += 22;
-
-  // Version (no "v" prefix — "dev" is a channel label, not a numeric version)
   renderer.drawText(UI_10_FONT_ID, textX, y, "dev");
   y += 26;
 
-  // Divider
   renderer.drawLine(cardX + 10, y, cardX + cardW - 10, y);
   y += 15;
 
-  // Feature bullets (FEATURE_ prefix stripped, underscores → spaces)
   const char* features[] = {"• EPUB", "• FONTS", "• OTA", "• DARK MODE", "• BLE SETUP", "• WEB SETUP", "• USB STORAGE"};
-  for (const auto* f : features) {
-    renderer.drawText(UI_10_FONT_ID, textX + 6, y, f);
+  for (const auto* feature : features) {
+    renderer.drawText(UI_10_FONT_ID, textX + 6, y, feature);
     y += 20;
   }
 
@@ -298,7 +436,13 @@ void drawFeatureStoreMock(GfxRenderer& renderer) {
 
 int main(int argc, char* argv[]) {
   const std::filesystem::path outputDir = (argc > 1) ? argv[1] : "build/screen-previews";
+  const char* settingsJsonEnv = std::getenv("SCREEN_PREVIEW_SETTINGS_JSON");
+  const std::filesystem::path settingsJsonPath =
+      (argc > 2) ? std::filesystem::path(argv[2])
+                 : (settingsJsonEnv != nullptr ? std::filesystem::path(settingsJsonEnv) : std::filesystem::path{});
+  gSettingsJsonPath = settingsJsonPath;
   std::filesystem::create_directories(outputDir);
+  applySettingsJson(settingsJsonPath);
 
   HalDisplay display;
   display.begin();
@@ -318,13 +462,38 @@ int main(int argc, char* argv[]) {
   HalGPIO gpio;
   MappedInputManager mappedInput(gpio);
 
+  const std::vector<HomePreviewScenario> homeScenarios = {
+      {"02_home_classic", CrossPointSettings::CLASSIC, sampleBooks(1), {"Open Book", "My Library", "File Transfer", "Settings"},
+       {Book, Folder, Transfer, Settings}, 0, 0, true, "", "Prev", "Next"},
+      {"03_home_lyra", CrossPointSettings::LYRA, sampleBooks(1), {"Open Book", "My Library", "File Transfer", "Settings"},
+       {Book, Folder, Transfer, Settings}, 0, 0, true, "", "Prev", "Next"},
+      {"04_home_visual_covers", CrossPointSettings::LYRA_EXTENDED, sampleBooks(3),
+       {"Open Book", "My Library", "File Transfer", "Settings"}, {Book, Folder, Transfer, Settings}, 1, 0, true, "",
+       "Prev", "Next"},
+      {"05_home_forkdrift", CrossPointSettings::FORK_DRIFT, sampleBooks(6), {"Books", "Agenda", "File Transfer", "Settings"},
+       {Folder, Text, Transfer, Settings}, 0, 0, true, "", "Up", "Down"},
+      {"06_home_pokemon_party", CrossPointSettings::POKEMON_PARTY, sampleBooks(6), {"Settings"}, {Settings}, -1, 0,
+       true, "Party", "Up", ""},
+      {"07_home_minimal", CrossPointSettings::MINIMAL, sampleBooks(1), {"Open Book", "My Library", "File Transfer", "Settings"},
+       {Book, Folder, Transfer, Settings}, 0, 0, true, "", "Prev", "Next"},
+      {"08_home_lyra_carousel", CrossPointSettings::LYRA_CAROUSEL, sampleBooks(6),
+       {"Open Book", "My Library", "File Transfer", "Settings"}, {Book, Folder, Transfer, Settings}, 2, 0, true, "",
+       "Prev", "Next"},
+  };
+
   const std::vector<std::pair<std::string, std::function<void()>>> scenarios = {
       {"01_boot", [&] { drawBoot(renderer, mappedInput); }},
-      {"02_home_mock", [&] { drawHomeMock(renderer); }},
-      {"03_settings_mock", [&] { drawSettingsMock(renderer); }},
-      {"04_factory_reset_mock", [&] { drawFactoryResetMock(renderer); }},
-      {"05_reader_mock", [&] { drawReaderMock(renderer); }},
-      {"06_feature_store_mock", [&] { drawFeatureStoreMock(renderer); }},
+      {"02_home_classic", [&] { drawHomeThemePreview(renderer, homeScenarios[0]); }},
+      {"03_home_lyra", [&] { drawHomeThemePreview(renderer, homeScenarios[1]); }},
+      {"04_home_visual_covers", [&] { drawHomeThemePreview(renderer, homeScenarios[2]); }},
+      {"05_home_forkdrift", [&] { drawHomeThemePreview(renderer, homeScenarios[3]); }},
+      {"06_home_pokemon_party", [&] { drawHomeThemePreview(renderer, homeScenarios[4]); }},
+      {"07_home_minimal", [&] { drawHomeThemePreview(renderer, homeScenarios[5]); }},
+      {"08_home_lyra_carousel", [&] { drawHomeThemePreview(renderer, homeScenarios[6]); }},
+      {"09_settings", [&] { drawSettings(renderer, mappedInput); }},
+      {"10_factory_reset", [&] { drawFactoryReset(renderer, mappedInput); }},
+      {"11_reader_mock", [&] { drawReaderMock(renderer); }},
+      {"12_feature_store_mock", [&] { drawFeatureStoreMock(renderer); }},
   };
 
   for (const auto& [name, render] : scenarios) {

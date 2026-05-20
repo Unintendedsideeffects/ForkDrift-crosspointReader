@@ -36,6 +36,7 @@ class HalGPIO {
   unsigned long getHeldTime() const { return 0; }
   bool deviceIsX3() const { return false; }
   bool deviceIsX4() const { return true; }
+  bool isUsbConnected() const { return false; }
   WakeupReason getWakeupReason() const { return WakeupReason::Other; }
 };
 

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 using oflag_t = uint16_t;
 
@@ -13,6 +14,7 @@ class FsFile {
   bool seekCur(int32_t /*offset*/) { return false; }
   int read() { return -1; }
   size_t read(void* /*buffer*/, size_t /*count*/) { return 0; }
+  void close() {}
 };
 
 class HalStorage {
@@ -21,6 +23,10 @@ class HalStorage {
     static HalStorage instance;
     return instance;
   }
+
+  bool openFileForRead(const char* /*tag*/, const std::string& /*path*/, FsFile& /*file*/) { return false; }
+  bool openFileForRead(const char* /*tag*/, const char* /*path*/, FsFile& /*file*/) { return false; }
+  bool exists(const char* /*path*/) const { return false; }
 };
 
 #define Storage HalStorage::getInstance()

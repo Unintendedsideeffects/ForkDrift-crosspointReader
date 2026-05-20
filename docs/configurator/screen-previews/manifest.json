@@ -1,29 +1,84 @@
 {
-  "generated_at": "2026-05-20T12:03:20.155187+00:00",
+  "generated_at": "2026-05-20T15:14:36.230590+00:00",
   "files": [
     {
       "name": "01_boot.png",
       "label": "Boot"
     },
     {
-      "name": "02_home_mock.png",
-      "label": "Home"
+      "name": "02_home_classic.png",
+      "label": "Home - Classic"
     },
     {
-      "name": "03_settings_mock.png",
+      "name": "03_home_lyra.png",
+      "label": "Home - Lyra"
+    },
+    {
+      "name": "04_home_visual_covers.png",
+      "label": "Home - Visual Covers"
+    },
+    {
+      "name": "05_home_forkdrift.png",
+      "label": "Home - ForkDrift"
+    },
+    {
+      "name": "06_home_pokemon_party.png",
+      "label": "Home - Pokemon Party"
+    },
+    {
+      "name": "07_home_minimal.png",
+      "label": "Home - Minimal"
+    },
+    {
+      "name": "08_home_lyra_carousel.png",
+      "label": "Home - Lyra Carousel"
+    },
+    {
+      "name": "09_settings.png",
       "label": "Settings"
     },
     {
-      "name": "04_factory_reset_mock.png",
+      "name": "10_factory_reset.png",
       "label": "Factory Reset"
     },
     {
-      "name": "05_reader_mock.png",
-      "label": "Reader"
+      "name": "11_reader_mock.png",
+      "label": "Reader",
+      "type": "live-reader"
     },
     {
-      "name": "06_feature_store_mock.png",
+      "name": "12_feature_store_mock.png",
       "label": "Feature Store"
     }
-  ]
+  ],
+  "home_themes": {
+    "0": {
+      "name": "02_home_classic.png",
+      "label": "Home - Classic"
+    },
+    "1": {
+      "name": "03_home_lyra.png",
+      "label": "Home - Lyra"
+    },
+    "2": {
+      "name": "04_home_visual_covers.png",
+      "label": "Home - Visual Covers"
+    },
+    "3": {
+      "name": "05_home_forkdrift.png",
+      "label": "Home - ForkDrift"
+    },
+    "4": {
+      "name": "06_home_pokemon_party.png",
+      "label": "Home - Pokemon Party"
+    },
+    "5": {
+      "name": "07_home_minimal.png",
+      "label": "Home - Minimal"
+    },
+    "6": {
+      "name": "08_home_lyra_carousel.png",
+      "label": "Home - Lyra Carousel"
+    }
+  }
 }

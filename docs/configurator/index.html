@@ -1180,6 +1180,15 @@
         image-rendering: pixelated;
       }
 
+      .preview-card iframe {
+        width: 100%;
+        aspect-ratio: 3 / 5;
+        display: block;
+        border: none;
+        pointer-events: none;
+        background: #f4f0e8;
+      }
+
       .preview-card figcaption {
         padding: 4px 6px;
         font-size: 8px;
@@ -3035,6 +3044,8 @@
                       <option value="2">Visual Covers</option>
                       <option value="3">ForkDrift</option>
                       <option value="4">Pokémon Party</option>
+                      <option value="5">Minimal</option>
+                      <option value="6">Lyra Carousel</option>
                     </select>
                   </div>
                   <div class="form-group">
@@ -4225,6 +4236,9 @@
         });
       }
 
+      let screenPreviewManifest = null;
+      let screenPreviewHomeThemes = {};
+
       async function loadScreenPreviews() {
         const grid = document.getElementById("preview-grid");
         const meta = document.getElementById("preview-meta");
@@ -4234,6 +4248,8 @@
           const response = await fetch(manifestUrl, { cache: "no-store" });
           if (!response.ok) throw new Error(`manifest fetch failed (${response.status})`);
           const manifest = await response.json();
+          screenPreviewManifest = manifest;
+          screenPreviewHomeThemes = manifest.home_themes || {};
 
           const files = Array.isArray(manifest.files) ? manifest.files : [];
           if (files.length === 0) throw new Error("manifest is empty");
@@ -4241,6 +4257,9 @@
           const cards = files
             .map((file) => {
               const label = file.label || file.name || "Preview";
+              if (file.type === 'live-reader') {
+                return `<figure class="preview-card"><iframe data-live-type="live-reader" title="${label}"></iframe><figcaption>${label}</figcaption></figure>`;
+              }
               const src = `./screen-previews/${file.name}`;
               return `<figure class="preview-card"><img src="${src}" alt="${label}" loading="lazy" /><figcaption>${label}</figcaption></figure>`;
             })
@@ -4251,6 +4270,7 @@
             ? `Updated ${new Date(manifest.generated_at).toLocaleString()}`
             : "Updated recently";
           meta.textContent = generatedAt;
+          if (window._refreshSettingsPreview) window._refreshSettingsPreview();
         } catch (error) {
           grid.innerHTML = '<div class="note-bar">Preview images are publishing. Check back in a minute.</div>';
           meta.textContent = "";
@@ -5163,7 +5183,7 @@
           if (!active.book_images) normalized.imageRendering = DEFAULTS.imageRendering;
 
           const allowedThemes = [0];
-          if (active.lyra_theme) allowedThemes.push(1, 2, 3);
+          if (active.lyra_theme) allowedThemes.push(1, 2, 3, 5, 6);
           if (active.pokemon_party) allowedThemes.push(4);
           const fallbackTheme = active.lyra_theme ? 1 : 0;
           if (!allowedThemes.includes(normalized.uiTheme)) normalized.uiTheme = fallbackTheme;
@@ -5237,11 +5257,14 @@
           return sanitizeSettingsForSelections(readRawSettings(), currentSelections);
         }
 
+        let previewScreenMode = 'reader';
+
         function handleSettingsInteraction(key, showSleepPreview = false) {
           if (frontButtonRemapState && !FRONT_BUTTON_ROLE_KEYS.includes(key)) {
             frontButtonRemapState = null;
             updateFrontButtonRemapStatus();
           }
+          previewScreenMode = key === 'uiTheme' ? 'home' : 'reader';
           sleepPreviewFlashActive = showSleepPreview;
           drawPreview();
         }
@@ -5335,6 +5358,8 @@
           updateOption('s-uiTheme', 2, selections.lyra_theme, 'Visual Covers', 'Visual Covers (needs feature)');
           updateOption('s-uiTheme', 3, selections.lyra_theme, 'ForkDrift', 'ForkDrift (needs feature)');
           updateOption('s-uiTheme', 4, selections.pokemon_party, 'Pokémon Party', 'Pokémon Party (needs feature)');
+          updateOption('s-uiTheme', 5, selections.lyra_theme, 'Minimal', 'Minimal (needs feature)');
+          updateOption('s-uiTheme', 6, selections.lyra_theme, 'Lyra Carousel', 'Lyra Carousel (needs feature)');
 
           const rowSleepSource = document.getElementById('row-sleepScreenSource');
           if (rowSleepSource) rowSleepSource.classList.toggle('settings-row-hidden', !customSleepActive);
@@ -5462,6 +5487,12 @@
             4: darkMode
               ? { accent: '#f1dfab', track: '#1a1510', thumb: '#d0a84d', thumbHover: '#f1dfab', border: '#f2ede3' }
               : { accent: '#b58719', track: '#f6edcf', thumb: '#d1a43f', thumbHover: '#8f6710', border: '#543c05' },
+            5: darkMode
+              ? { accent: '#dedede', track: '#101010', thumb: '#9a9a9a', thumbHover: '#f2f2f2', border: '#f2f2f2' }
+              : { accent: '#343434', track: '#f1f1f1', thumb: '#777', thumbHover: '#111', border: '#111' },
+            6: darkMode
+              ? { accent: '#d6dbe5', track: '#101419', thumb: '#8391a5', thumbHover: '#d6dbe5', border: '#f2ede3' }
+              : { accent: '#45546a', track: '#e6ebf1', thumb: '#66758b', thumbHover: '#2f3d51', border: '#1f2a38' },
           };
           const palette = themePalettes[currentSettings.uiTheme] || themePalettes[0];
           const powerActions = ['Ignore', 'Sleep', 'Page', 'Select'];
@@ -5486,6 +5517,19 @@
                   : previewSleepMode === 8
                     ? 'roman-clock'
                     : 'dark';
+          const fallbackHomePreviewStems = {
+            0: '02_home_classic',
+            1: '03_home_lyra',
+            2: '04_home_visual_covers',
+            3: '05_home_forkdrift',
+            4: '06_home_pokemon_party',
+            5: '07_home_minimal',
+            6: '08_home_lyra_carousel',
+          };
+          const homePreviewEntry = screenPreviewHomeThemes[String(currentSettings.uiTheme)] || null;
+          const homePreviewStem = fallbackHomePreviewStems[currentSettings.uiTheme] || fallbackHomePreviewStems[0];
+          const homePreviewFile = homePreviewEntry?.name || `${homePreviewStem}.png`;
+          const homePreviewLabel = homePreviewEntry?.label || 'Home Preview';
           const studioSelection = window._wallpaperStudioSelection || {};
           const wallpaperFitMode = currentSettings.sleepScreenCoverMode === 1 ? 'fill' : 'fit';
           const wallpaperFilterMode = currentSettings.sleepScreenCoverFilter;
@@ -5497,6 +5541,11 @@
             : '';
           return {
             sections: previewSectionsFromDom(),
+            screen: {
+              mode: previewScreenMode,
+              homePreviewLabel,
+              homePreviewPath: new URL(`./screen-previews/${homePreviewFile}`, document.baseURI).href,
+            },
             hints: {
               left: 'Back',
               center: 'Edit',
@@ -5561,6 +5610,7 @@
 
         function buildPreviewDoc() {
           const previewState = getPreviewState();
+          const screenPayload = JSON.stringify(previewState.screen).replace(/</g, '\\u003c');
           const themePayload = JSON.stringify(previewState.theme).replace(/</g, '\\u003c');
           const sleepPreviewPayload = JSON.stringify(previewState.sleepPreview).replace(/</g, '\\u003c');
           const readerPayload = JSON.stringify(previewState.reader).replace(/</g, '\\u003c');
@@ -5766,6 +5816,23 @@
       overflow: hidden;
       background: var(--paper);
     }
+    .home-stage {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: var(--paper);
+      display: none;
+    }
+    .home-stage.visible {
+      display: block;
+    }
+    .home-preview-image {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: fill;
+      image-rendering: pixelated;
+    }
     .reader-page {
       position: absolute;
       inset: 0;
@@ -5936,8 +6003,9 @@
 </head>
 <body>
   <div class="screen">
+    <div class="home-stage" id="home-root"></div>
     <div class="reader-stage" id="reader-root"></div>
-    <div class="button-hints">
+    <div class="button-hints" id="button-hints">
       <button type="button">Menu</button>
       <button type="button">Select</button>
       <button type="button">Prev</button>
@@ -5946,10 +6014,13 @@
   </div>
   <div class="sleep-preview-overlay" id="sleep-preview-overlay" aria-hidden="true"></div>
   <script>
+    let screen = ${screenPayload};
     let theme = ${themePayload};
     let sleepPreview = ${sleepPreviewPayload};
     let reader = ${readerPayload};
+    const homeRoot = document.getElementById('home-root');
     const root = document.getElementById('reader-root');
+    const buttonHints = document.getElementById('button-hints');
     const sleepPreviewOverlay = document.getElementById('sleep-preview-overlay');
     function escapeHtml(value) {
       return String(value)
@@ -5963,6 +6034,18 @@
       Object.entries(theme).forEach(([key, value]) => {
         document.documentElement.style.setProperty('--' + key, value);
       });
+    }
+    function renderScreenMode() {
+      const showHome = screen.mode === 'home' && screen.homePreviewPath;
+      if (homeRoot) {
+        homeRoot.classList.toggle('visible', !!showHome);
+        homeRoot.innerHTML = showHome
+          ? '<img class="home-preview-image" src="' + escapeHtml(screen.homePreviewPath) + '" alt="' +
+            escapeHtml(screen.homePreviewLabel || 'Home preview') + '" />'
+          : '';
+      }
+      if (root) root.style.display = showHome ? 'none' : 'block';
+      if (buttonHints) buttonHints.style.display = showHome ? 'none' : 'grid';
     }
     function renderSleepPreview() {
       if (!sleepPreviewOverlay) return;
@@ -6130,6 +6213,7 @@
         '</article>';
     }
     function render() {
+      renderScreenMode();
       applyTheme();
       renderReader();
       renderSleepPreview();
@@ -6137,6 +6221,7 @@
     window.addEventListener('message', event => {
       const data = event.data;
       if (!data || data.type !== 'configurator-preview-state') return;
+      screen = data.screen || screen;
       theme = data.theme || theme;
       sleepPreview = data.sleepPreview || sleepPreview;
       reader = data.reader || reader;
@@ -6148,12 +6233,32 @@
 </html>`;
         }
 
+        function buildReaderPreviewDoc() {
+          const saved = previewScreenMode;
+          previewScreenMode = 'reader';
+          const doc = buildPreviewDoc();
+          previewScreenMode = saved;
+          return doc;
+        }
+
         function pushPreviewState() {
           if (!previewFrame?.contentWindow) return;
           previewFrame.contentWindow.postMessage({
             type: 'configurator-preview-state',
             ...getPreviewState(),
           }, '*');
+        }
+
+        function pushReaderStateToGridFrames() {
+          const state = getPreviewState();
+          const msg = { type: 'configurator-preview-state', ...state, screen: { ...state.screen, mode: 'reader' } };
+          document.querySelectorAll('#preview-grid iframe[data-live-type="live-reader"]').forEach(iframe => {
+            if (!iframe.srcdoc) {
+              iframe.srcdoc = buildReaderPreviewDoc();
+            } else if (iframe.contentWindow) {
+              iframe.contentWindow.postMessage(msg, '*');
+            }
+          });
         }
 
         function drawPreview() {
@@ -6179,6 +6284,7 @@
           updateFrontButtonRemapStatus();
           if (!previewFrame.srcdoc) previewFrame.srcdoc = buildPreviewDoc();
           else pushPreviewState();
+          pushReaderStateToGridFrames();
         }
 
         document.querySelectorAll('[data-preview-action]').forEach(button => {

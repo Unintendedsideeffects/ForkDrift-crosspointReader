@@ -81,33 +81,7 @@ prune_stale_screen_previews() {
         return
     fi
 
-    python3 - <<'PY'
-from pathlib import Path
-
-out_dir = Path("docs/configurator/screen-previews")
-if not out_dir.exists():
-    raise SystemExit
-
-expected_stems = {
-    "01_boot",
-    "02_home_mock",
-    "03_settings_mock",
-    "04_factory_reset_mock",
-    "05_reader_mock",
-    "06_feature_store_mock",
-}
-
-removed = []
-for png in out_dir.glob("*.png"):
-    if png.stem not in expected_stems:
-        png.unlink()
-        removed.append(str(png))
-
-if removed:
-    print("Pruned stale screen preview(s):")
-    for path in removed:
-        print(f"  {path}")
-PY
+    python3 tools/screen-harness/write_preview_manifest.py --prune-only docs/configurator/screen-previews
 
     stage_deleted_tracked_files docs/configurator/screen-previews
 }

@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_DIR="$ROOT_DIR/build/screen-harness"
 OUT_DIR="${1:-$ROOT_DIR/build/screen-previews}"
+SETTINGS_JSON="${2:-${SCREEN_PREVIEW_SETTINGS_JSON:-}}"
 
 mkdir -p "$BUILD_DIR" "$OUT_DIR"
 
@@ -22,10 +23,12 @@ pushd "$ROOT_DIR" >/dev/null
   -DHOST_BUILD=1 \
   '-DCROSSPOINT_VERSION="screen-harness"' \
   -Itools/screen-harness/stubs \
+  -Iinclude \
   -Ilib/hal \
   -Ilib/GfxRenderer \
   -Ilib/EpdFont \
   -Ilib/EpdFont/builtinFonts \
+  -Ilib/I18n \
   -Ilib/InflateReader \
   -Ilib/third_party/uzlib/src \
   -Ilib/Utf8 \
@@ -37,8 +40,18 @@ pushd "$ROOT_DIR" >/dev/null
   -Isrc \
   tools/screen-harness/main.cpp \
   tools/screen-harness/stubs/stubs.cpp \
+  src/components/UITheme.cpp \
+  src/components/themes/BaseTheme.cpp \
+  src/components/themes/minimal/MinimalTheme.cpp \
+  src/components/themes/lyra/LyraTheme.cpp \
+  src/components/themes/lyra/Lyra3CoversTheme.cpp \
+  src/components/themes/lyra/ForkDriftTheme.cpp \
+  src/components/themes/lyra/LyraCarouselTheme.cpp \
   src/activities/Activity.cpp \
+  src/activities/ActivityWithSubactivity.cpp \
   src/activities/boot_sleep/BootActivity.cpp \
+  src/activities/settings/FactoryResetActivity.cpp \
+  src/activities/settings/SettingsActivity.cpp \
   lib/GfxRenderer/GfxRenderer.cpp \
   lib/GfxRenderer/FontCacheManager.cpp \
   lib/EpdFont/EpdFont.cpp \
@@ -52,7 +65,11 @@ pushd "$ROOT_DIR" >/dev/null
   -x c lib/third_party/uzlib/src/tinflate.c \
   -o "$BIN_PATH"
 
-"$BIN_PATH" "$OUT_DIR"
+if [[ -n "$SETTINGS_JSON" ]]; then
+  "$BIN_PATH" "$OUT_DIR" "$SETTINGS_JSON"
+else
+  "$BIN_PATH" "$OUT_DIR"
+fi
 
 echo "Screen previews written to: $OUT_DIR"
 
