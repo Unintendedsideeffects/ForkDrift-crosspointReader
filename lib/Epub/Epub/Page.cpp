@@ -46,13 +46,14 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
 }
 
 void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
+  (void)fontId;
   if (!imageBlock) {
     return;
   }
-
-  const int x = xPos + xOffset;
-  const int y = yPos + yOffset;
-  imageBlock->render(renderer, x, y);
+  if (renderer.getRenderMode() != GfxRenderer::BW) {
+    return;
+  }
+  imageBlock->render(renderer, xPos + xOffset, yPos + yOffset);
 }
 
 bool PageImage::serialize(FsFile& file) {
