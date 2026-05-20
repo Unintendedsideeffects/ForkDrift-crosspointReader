@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "CrossPointSettings.h"
-#include "activities/settings/SettingsActivity.h"
+#include "SettingInfo.h"
 #include "core/features/FeatureModules.h"
 
 inline bool supportsBackgroundServerModeSetting() {
@@ -162,6 +162,12 @@ inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
     }
   };
 
+  std::vector<const char*> optionFeatureKeys = {"bookerly_fonts", "notosans_fonts", "opendyslexic_fonts"};
+  if (hasUserFonts) {
+    optionFeatureKeys.push_back("user_fonts");
+  }
+
+  s.withConfiguratorExport().withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
   return s;
 }
 
@@ -200,6 +206,14 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                                        M::READING_STATS_SLEEP,
 #endif
                                        };
+    std::vector<const char*> optionFeatureKeys = {nullptr, nullptr, nullptr, "image_sleep", nullptr, nullptr,
+#if ENABLE_ROMAN_CLOCK_SLEEP
+                                                  "roman_clock_sleep",
+#endif
+#if ENABLE_READING_STATS
+                                                  "reading_stats",
+#endif
+    };
     return SettingInfo::DynamicEnum(
         StrId::STR_SLEEP_SCREEN, ids,
         [vals] {
@@ -212,66 +226,86 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         [vals](uint8_t idx) {
           if (idx < vals.size()) SETTINGS.sleepScreen = vals[idx];
         },
-        "sleepScreen", StrId::STR_CAT_DISPLAY);
+        "sleepScreen", StrId::STR_CAT_DISPLAY)
+        .withConfiguratorExport()
+        .withEnumPersistedValues(vals)
+        .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
   }());
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_SOURCE, &CrossPointSettings::sleepScreenSource,
                                    {StrId::STR_SLEEP, StrId::STR_POKEDEX, StrId::STR_ALL}, "sleepScreenSource",
                                    StrId::STR_CAT_DISPLAY)
+                     .withConfiguratorExport()
+                     .withEnumOptionFeatureKeys({nullptr, "pokemon_party", "pokemon_party"})
                      .withVisibleWhen("sleepScreen", 3));
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_COVER_MODE, &CrossPointSettings::sleepScreenCoverMode,
                                    {StrId::STR_FIT, StrId::STR_CROP}, "sleepScreenCoverMode", StrId::STR_CAT_DISPLAY)
+                     .withConfiguratorExport()
                      .withVisibleWhen("sleepScreen", 3));
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_COVER_FILTER, &CrossPointSettings::sleepScreenCoverFilter,
                                    {StrId::STR_NONE_OPT, StrId::STR_FILTER_CONTRAST, StrId::STR_INVERTED},
                                    "sleepScreenCoverFilter", StrId::STR_CAT_DISPLAY)
+                     .withConfiguratorExport()
                      .withVisibleWhen("sleepScreen", 3));
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_CYCLE_MODE, &CrossPointSettings::sleepCycleMode,
                                    {StrId::STR_RANDOM, StrId::STR_SEQUENTIAL}, "sleepCycleMode", StrId::STR_CAT_DISPLAY)
+                     .withConfiguratorExport()
                      .withVisibleWhen("sleepScreen", 3));
   list.push_back(SettingInfo::Action(StrId::STR_VALIDATE_SLEEP_IMAGES, SettingAction::ValidateSleepImages));
   list.push_back(SettingInfo::Toggle(StrId::STR_CHAPTER_PAGE_COUNT, &CrossPointSettings::statusBarChapterPageCount,
-                                     "statusBarChapterPageCount", StrId::STR_CUSTOMISE_STATUS_BAR));
+                                     "statusBarChapterPageCount", StrId::STR_CUSTOMISE_STATUS_BAR)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Toggle(StrId::STR_BOOK_PROGRESS_PERCENTAGE,
                                      &CrossPointSettings::statusBarBookProgressPercentage,
-                                     "statusBarBookProgressPercentage", StrId::STR_CUSTOMISE_STATUS_BAR));
+                                     "statusBarBookProgressPercentage", StrId::STR_CUSTOMISE_STATUS_BAR)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(StrId::STR_PROGRESS_BAR, &CrossPointSettings::statusBarProgressBar,
                                    {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE}, "statusBarProgressBar",
-                                   StrId::STR_CUSTOMISE_STATUS_BAR));
+                                   StrId::STR_CUSTOMISE_STATUS_BAR)
+                     .withConfiguratorExport());
   list.push_back(
       SettingInfo::Enum(StrId::STR_PROGRESS_BAR_THICKNESS, &CrossPointSettings::statusBarProgressBarThickness,
                         {StrId::STR_PROGRESS_BAR_THIN, StrId::STR_PROGRESS_BAR_MEDIUM, StrId::STR_PROGRESS_BAR_THICK},
-                        "statusBarProgressBarThickness", StrId::STR_CUSTOMISE_STATUS_BAR));
+                        "statusBarProgressBarThickness", StrId::STR_CUSTOMISE_STATUS_BAR)
+          .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(StrId::STR_TITLE, &CrossPointSettings::statusBarTitle,
                                    {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE}, "statusBarTitle",
-                                   StrId::STR_CUSTOMISE_STATUS_BAR));
+                                   StrId::STR_CUSTOMISE_STATUS_BAR)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Toggle(StrId::STR_BATTERY, &CrossPointSettings::statusBarBattery, "statusBarBattery",
-                                     StrId::STR_CUSTOMISE_STATUS_BAR));
+                                     StrId::STR_CUSTOMISE_STATUS_BAR)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(StrId::STR_HIDE_BATTERY, &CrossPointSettings::hideBatteryPercentage,
                                    {StrId::STR_NEVER, StrId::STR_IN_READER, StrId::STR_ALWAYS}, "hideBatteryPercentage",
-                                   StrId::STR_CAT_DISPLAY));
+                                   StrId::STR_CAT_DISPLAY)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(
       StrId::STR_REFRESH_FREQ, &CrossPointSettings::refreshFrequency,
       {StrId::STR_PAGES_1, StrId::STR_PAGES_5, StrId::STR_PAGES_10, StrId::STR_PAGES_15, StrId::STR_PAGES_30},
-      "refreshFrequency", StrId::STR_CAT_DISPLAY));
+      "refreshFrequency", StrId::STR_CAT_DISPLAY)
+                     .withConfiguratorExport());
   // Build options with explicit enum-value mapping so position != value assumptions
   // don't break when individual themes are optionally included or excluded.
   list.push_back([] {
     std::vector<StrId> ids = {StrId::STR_THEME_CLASSIC};
     std::vector<uint8_t> vals = {CrossPointSettings::UI_THEME::CLASSIC};
+    std::vector<const char*> optionFeatureKeys = {nullptr};
     if (core::FeatureModules::hasCapability(core::Capability::LyraTheme)) {
       ids.insert(ids.end(), {StrId::STR_THEME_LYRA, StrId::STR_THEME_LYRA_EXTENDED, StrId::STR_THEME_FORK_DRIFT,
                              StrId::STR_THEME_LYRA_CAROUSEL});
       vals.insert(vals.end(), {CrossPointSettings::UI_THEME::LYRA, CrossPointSettings::UI_THEME::LYRA_EXTENDED,
                                CrossPointSettings::UI_THEME::FORK_DRIFT,
                                CrossPointSettings::UI_THEME::LYRA_CAROUSEL});
+      optionFeatureKeys.insert(optionFeatureKeys.end(), {"lyra_theme", "lyra_theme", "lyra_theme", "lyra_theme"});
       if (core::FeatureModules::hasCapability(core::Capability::MinimalTheme)) {
         ids.push_back(StrId::STR_THEME_MINIMAL);
         vals.push_back(CrossPointSettings::UI_THEME::MINIMAL);
+        optionFeatureKeys.push_back("minimal_theme");
       }
     }
     if (core::FeatureModules::hasCapability(core::Capability::PokemonParty)) {
       ids.push_back(StrId::STR_THEME_POKEMON_PARTY);
       vals.push_back(CrossPointSettings::UI_THEME::POKEMON_PARTY);
+      optionFeatureKeys.push_back("pokemon_party");
     }
     return SettingInfo::DynamicEnum(
         StrId::STR_UI_THEME, std::move(ids),
@@ -285,105 +319,135 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         [vals](uint8_t idx) {
           if (idx < vals.size()) SETTINGS.uiTheme = vals[idx];
         },
-        "uiTheme", StrId::STR_CAT_DISPLAY);
+        "uiTheme", StrId::STR_CAT_DISPLAY)
+        .withConfiguratorExport()
+        .withEnumPersistedValues(vals)
+        .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
   }());
   list.push_back(SettingInfo::Enum(StrId::STR_RECENT_BOOKS_VIEW, &CrossPointSettings::recentBooksView,
                                    {StrId::STR_LIST_VIEW, StrId::STR_GRID_VIEW}, "recentBooksView",
-                                   StrId::STR_CAT_DISPLAY));
+                                   StrId::STR_CAT_DISPLAY)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Toggle(StrId::STR_SUNLIGHT_FADING_FIX, &CrossPointSettings::fadingFix, "fadingFix",
-                                     StrId::STR_CAT_DISPLAY));
+                                     StrId::STR_CAT_DISPLAY)
+                     .withConfiguratorExport());
 
   // --- Reader ---
   list.push_back(buildFontFamilySetting(registry));
   list.push_back(SettingInfo::Enum(StrId::STR_FONT_SIZE, &CrossPointSettings::fontSize,
                                    {StrId::STR_SMALL, StrId::STR_MEDIUM, StrId::STR_LARGE, StrId::STR_X_LARGE},
-                                   "fontSize", StrId::STR_CAT_READER));
+                                   "fontSize", StrId::STR_CAT_READER)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(StrId::STR_LINE_SPACING, &CrossPointSettings::lineSpacing,
                                    {StrId::STR_TIGHT, StrId::STR_NORMAL, StrId::STR_WIDE}, "lineSpacing",
-                                   StrId::STR_CAT_READER));
+                                   StrId::STR_CAT_READER)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Value(StrId::STR_SCREEN_MARGIN, &CrossPointSettings::screenMargin, {5, 40, 5},
-                                    "screenMargin", StrId::STR_CAT_READER));
+                                    "screenMargin", StrId::STR_CAT_READER)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(
       StrId::STR_PARA_ALIGNMENT, &CrossPointSettings::paragraphAlignment,
       {StrId::STR_JUSTIFY, StrId::STR_ALIGN_LEFT, StrId::STR_CENTER, StrId::STR_ALIGN_RIGHT, StrId::STR_BOOK_S_STYLE},
-      "paragraphAlignment", StrId::STR_CAT_READER));
+      "paragraphAlignment", StrId::STR_CAT_READER)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Toggle(StrId::STR_EMBEDDED_STYLE, &CrossPointSettings::embeddedStyle, "embeddedStyle",
-                                     StrId::STR_CAT_READER));
+                                     StrId::STR_CAT_READER)
+                     .withConfiguratorExport());
   if (core::FeatureModules::hasCapability(core::Capability::FocusReading)) {
     list.push_back(SettingInfo::Toggle(StrId::STR_FOCUS_READING, &CrossPointSettings::focusReadingEnabled,
-                                       "focusReadingEnabled", StrId::STR_CAT_READER));
+                                       "focusReadingEnabled", StrId::STR_CAT_READER)
+                       .withConfiguratorExport("focus_reading"));
   }
   list.push_back(SettingInfo::Toggle(StrId::STR_GUIDE_READING, &CrossPointSettings::guideReadingEnabled,
-                                     "guideReadingEnabled", StrId::STR_CAT_READER));
+                                     "guideReadingEnabled", StrId::STR_CAT_READER)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Toggle(StrId::STR_HYPHENATION, &CrossPointSettings::hyphenationEnabled,
-                                     "hyphenationEnabled", StrId::STR_CAT_READER));
+                                     "hyphenationEnabled", StrId::STR_CAT_READER)
+                     .withConfiguratorExport("hyphenation"));
   list.push_back(
       SettingInfo::Enum(StrId::STR_ORIENTATION, &CrossPointSettings::orientation,
                         {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_INVERTED, StrId::STR_LANDSCAPE_CCW},
-                        "orientation", StrId::STR_CAT_READER));
+                        "orientation", StrId::STR_CAT_READER)
+          .withConfiguratorExport());
   list.push_back(SettingInfo::Toggle(StrId::STR_EXTRA_SPACING, &CrossPointSettings::extraParagraphSpacing,
-                                     "extraParagraphSpacing", StrId::STR_CAT_READER));
+                                     "extraParagraphSpacing", StrId::STR_CAT_READER)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Toggle(StrId::STR_FORCE_PARAGRAPH_INDENTS, &CrossPointSettings::forceParagraphIndents,
-                                     "forceParagraphIndents", StrId::STR_CAT_READER));
+                                     "forceParagraphIndents", StrId::STR_CAT_READER)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Toggle(StrId::STR_TEXT_AA, &CrossPointSettings::textAntiAliasing, "textAntiAliasing",
-                                     StrId::STR_CAT_READER));
+                                     StrId::STR_CAT_READER)
+                     .withConfiguratorExport());
   list.push_back(
       SettingInfo::Enum(StrId::STR_IMAGES, &CrossPointSettings::imageRendering,
                         {StrId::STR_IMAGES_DISPLAY, StrId::STR_IMAGES_PLACEHOLDER, StrId::STR_IMAGES_SUPPRESS},
-                        "imageRendering", StrId::STR_CAT_READER));
+                        "imageRendering", StrId::STR_CAT_READER)
+          .withConfiguratorExport("book_images"));
 
   // --- Controls ---
   list.push_back(SettingInfo::Enum(StrId::STR_SIDE_BTN_LAYOUT, &CrossPointSettings::sideButtonLayout,
                                    {StrId::STR_PREV_NEXT, StrId::STR_NEXT_PREV}, "sideButtonLayout",
-                                   StrId::STR_CAT_CONTROLS));
+                                   StrId::STR_CAT_CONTROLS)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::sideButtonOrientationAware,
                                    {StrId::STR_NO, StrId::STR_YES}, "sideButtonOrientationAware",
-                                   StrId::STR_CAT_CONTROLS));
+                                   StrId::STR_CAT_CONTROLS)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(StrId::STR_SIDE_BTN_LONG_PRESS, &CrossPointSettings::sideButtonLongPress,
                                    {StrId::STR_CHAPTER_SKIP_OPT, StrId::STR_CHANGE_FONT_SIZE, StrId::STR_OFF},
-                                   "sideButtonLongPress", StrId::STR_CAT_CONTROLS));
+                                   "sideButtonLongPress", StrId::STR_CAT_CONTROLS)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::frontButtonOrientationAware,
                                    {StrId::STR_NO, StrId::STR_NAV_BUTTONS, StrId::STR_ALL_BUTTONS},
-                                   "frontButtonOrientationAware", StrId::STR_CAT_CONTROLS));
+                                   "frontButtonOrientationAware", StrId::STR_CAT_CONTROLS)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(StrId::STR_LONG_PRESS_BEHAVIOR, &CrossPointSettings::longPressButtonBehavior,
                                    {StrId::STR_LONG_PRESS_BEHAVIOR_OFF, StrId::STR_LONG_PRESS_BEHAVIOR_SKIP,
                                     StrId::STR_LONG_PRESS_BEHAVIOR_ORIENTATION},
-                                   "longPressButtonBehavior", StrId::STR_CAT_CONTROLS));
+                                   "longPressButtonBehavior", StrId::STR_CAT_CONTROLS)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(
       StrId::STR_SHORT_PWR_BTN, &CrossPointSettings::shortPwrBtn,
       {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_PAGE_TURN, StrId::STR_SELECT, StrId::STR_FORCE_REFRESH,
        StrId::STR_CHANGE_FONT, StrId::STR_TOGGLE_GUIDE_DOTS, StrId::STR_TOGGLE_BIONIC_READING,
        StrId::STR_TOGGLE_BOOKMARK, StrId::STR_SYNC_PROGRESS, StrId::STR_MARK_FINISHED, StrId::STR_READING_STATS,
        StrId::STR_SCREENSHOT_BUTTON, StrId::STR_CYCLE_PAGE_TURN, StrId::STR_FILE_TRANSFER},
-      "shortPwrBtn", StrId::STR_CAT_CONTROLS));
+      "shortPwrBtn", StrId::STR_CAT_CONTROLS)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(
       StrId::STR_LONG_PRESS_ACTION, &CrossPointSettings::longPwrBtn,
       {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_PAGE_TURN, StrId::STR_FORCE_REFRESH, StrId::STR_CHANGE_FONT,
        StrId::STR_TOGGLE_GUIDE_DOTS, StrId::STR_TOGGLE_BIONIC_READING, StrId::STR_TOGGLE_BOOKMARK,
        StrId::STR_SYNC_PROGRESS, StrId::STR_MARK_FINISHED, StrId::STR_READING_STATS, StrId::STR_SCREENSHOT_BUTTON,
        StrId::STR_CYCLE_PAGE_TURN, StrId::STR_FILE_TRANSFER},
-      "longPwrBtn", StrId::STR_CAT_CONTROLS));
+      "longPwrBtn", StrId::STR_CAT_CONTROLS)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(
       StrId::STR_LONG_PRESS_MENU_ACTION, &CrossPointSettings::longPressMenuAction,
       {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_CHANGE_FONT, StrId::STR_TOGGLE_GUIDE_DOTS,
        StrId::STR_TOGGLE_BIONIC_READING, StrId::STR_TOGGLE_BOOKMARK, StrId::STR_FORCE_REFRESH,
        StrId::STR_SYNC_PROGRESS, StrId::STR_MARK_FINISHED, StrId::STR_READING_STATS, StrId::STR_SCREENSHOT_BUTTON,
        StrId::STR_CYCLE_PAGE_TURN, StrId::STR_FILE_TRANSFER},
-      "longPressMenuAction", StrId::STR_CAT_CONTROLS));
+      "longPressMenuAction", StrId::STR_CAT_CONTROLS)
+                     .withConfiguratorExport());
 
   // --- System ---
   list.push_back(SettingInfo::Value(
       StrId::STR_TIME_TO_SLEEP, &CrossPointSettings::sleepTimeoutMinutes,
       {CrossPointSettings::MIN_SLEEP_TIMEOUT_MINUTES, CrossPointSettings::MAX_SLEEP_TIMEOUT_MINUTES, 1},
-      "sleepTimeoutMinutes", StrId::STR_CAT_SYSTEM));
+      "sleepTimeoutMinutes", StrId::STR_CAT_SYSTEM)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::Toggle(StrId::STR_SHOW_HIDDEN_FILES, &CrossPointSettings::showHiddenFiles,
-                                     "showHiddenFiles", StrId::STR_CAT_SYSTEM));
+                                     "showHiddenFiles", StrId::STR_CAT_SYSTEM)
+                     .withConfiguratorExport());
 #if ENABLE_READING_STATS
   list.push_back(SettingInfo::Toggle(StrId::STR_MOVE_FINISHED_TO_READ, &CrossPointSettings::moveFinishedToReadFolder,
-                                     "moveFinishedToReadFolder", StrId::STR_CAT_SYSTEM));
+                                     "moveFinishedToReadFolder", StrId::STR_CAT_SYSTEM)
+                     .withConfiguratorExport("reading_stats"));
 #endif
   list.push_back(SettingInfo::Toggle(StrId::STR_DEVELOPER_MODE, &CrossPointSettings::developerMode, "developerMode",
-                                     StrId::STR_CAT_SYSTEM));
+                                     StrId::STR_CAT_SYSTEM)
+                     .withConfiguratorExport());
 
   if (core::FeatureModules::hasCapability(core::Capability::TrmnlSwitch)) {
     list.push_back(SettingInfo::Action(StrId::STR_SWITCH_TO_TRMNL, SettingAction::SwitchToTrmnl));
@@ -391,43 +455,52 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 
   if (core::FeatureModules::hasCapability(core::Capability::DarkMode)) {
     list.push_back(
-        SettingInfo::Toggle(StrId::STR_DARK_MODE, &CrossPointSettings::darkMode, "darkMode", StrId::STR_CAT_DISPLAY));
+        SettingInfo::Toggle(StrId::STR_DARK_MODE, &CrossPointSettings::darkMode, "darkMode", StrId::STR_CAT_DISPLAY)
+            .withConfiguratorExport("dark_mode"));
   }
 
   if (core::FeatureModules::hasCapability(core::Capability::GlobalStatusBar)) {
     list.push_back(SettingInfo::Enum(StrId::STR_GLOBAL_STATUS_BAR, &CrossPointSettings::globalStatusBar,
                                      {StrId::STR_OFF, StrId::STR_ON, StrId::STR_NO_SLEEP}, "globalStatusBar",
-                                     StrId::STR_CAT_DISPLAY));
+                                     StrId::STR_CAT_DISPLAY)
+                       .withConfiguratorExport("global_status_bar"));
     list.push_back(SettingInfo::Enum(StrId::STR_STATUS_BAR_POSITION, &CrossPointSettings::globalStatusBarPosition,
                                      {StrId::STR_STATUS_BAR_TOP, StrId::STR_STATUS_BAR_BOTTOM},
-                                     "globalStatusBarPosition", StrId::STR_CAT_DISPLAY));
+                                     "globalStatusBarPosition", StrId::STR_CAT_DISPLAY)
+                       .withConfiguratorExport("global_status_bar"));
   }
 
   if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
     list.push_back(SettingInfo::Toggle(StrId::STR_FILE_TRANSFER, &CrossPointSettings::usbMscPromptOnConnect,
-                                       "usbMscPromptOnConnect", StrId::STR_CAT_SYSTEM));
+                                       "usbMscPromptOnConnect", StrId::STR_CAT_SYSTEM)
+                       .withConfiguratorExport("usb_mass_storage"));
   }
 
   if (supportsBackgroundServerModeSetting()) {
     list.push_back(SettingInfo::DynamicEnum(
         StrId::STR_BACKGROUND_SERVER, {}, [] { return getBackgroundServerModeSettingIndex(); },
         [](uint8_t value) { setBackgroundServerModeSettingIndex(value); }, "backgroundServerMode",
-        StrId::STR_CAT_SYSTEM, [] { return backgroundServerModeOptions(); }));
+        StrId::STR_CAT_SYSTEM, [] { return backgroundServerModeOptions(); })
+                       .withConfiguratorExport("background_server_on_charge")
+                       .withEnumOptionFeatureKeys({nullptr, nullptr, "background_server_always"}));
   }
 
   // Device name for mDNS/DHCP/AP SSID. Editable on-device via keyboard (STRING handler).
   // Input is sanitized to [a-z0-9-], max 24 chars, via validateAndClamp() on save.
   list.push_back(SettingInfo::String(StrId::STR_DEVICE_NAME, SETTINGS.deviceName, sizeof(SETTINGS.deviceName),
-                                     "deviceName", StrId::STR_CAT_SYSTEM));
+                                    "deviceName", StrId::STR_CAT_SYSTEM)
+                     .withConfiguratorExport());
 
 #if ENABLE_WIFI_CLOCK
   list.push_back(SettingInfo::Enum(StrId::STR_TIME_MODE, &CrossPointSettings::timeMode,
-                                   {StrId::STR_TIME_UTC, StrId::STR_TIME_LOCAL, StrId::STR_TIME_MANUAL}, "timeMode",
-                                   StrId::STR_CAT_TIME));
+                                  {StrId::STR_TIME_UTC, StrId::STR_TIME_LOCAL, StrId::STR_TIME_MANUAL}, "timeMode",
+                                  StrId::STR_CAT_TIME)
+                     .withConfiguratorExport("wifi_clock"));
   list.push_back(SettingInfo::DynamicEnum(
                      StrId::STR_TIMEZONE_OFFSET, {}, [] { return SETTINGS.timeZoneOffset; },
                      [](uint8_t v) { SETTINGS.timeZoneOffset = std::min(v, uint8_t{26}); }, "timeZoneOffset",
                      StrId::STR_CAT_TIME, timezoneOffsetOptions)
+                     .withConfiguratorExport("wifi_clock")
                      .withVisibleWhen("timeMode", CrossPointSettings::TIME_MODE_LOCAL));
 #endif
 

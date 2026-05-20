@@ -2,6 +2,7 @@
 #include <string>
 
 #include "doctest/doctest.h"
+#include "include/FeatureFlags.h"
 #include "lib/Serialization/Serialization.h"
 #include "src/JsonSettingsIO.h"
 #include "src/CrossPointSettings.h"
@@ -12,6 +13,7 @@ TEST_CASE("testSettingsRoundTrip") {
   Storage.reset();
 
   CrossPointSettings& s = CrossPointSettings::getInstance();
+  const uint8_t savedFontFamily = ENABLE_NOTOSANS_FONTS ? CrossPointSettings::NOTOSANS : CrossPointSettings::BOOKERLY;
 
   // Set every persisted field to a distinctive non-default canary value.
   s.sleepScreen = CrossPointSettings::LIGHT;
@@ -33,7 +35,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.frontButtonLeft = CrossPointSettings::FRONT_HW_BACK;
   s.frontButtonRight = CrossPointSettings::FRONT_HW_CONFIRM;
   s.sideButtonLayout = CrossPointSettings::NEXT_PREV;
-  s.fontFamily = CrossPointSettings::NOTOSANS;
+  s.fontFamily = savedFontFamily;
   s.fontSize = CrossPointSettings::LARGE;
   s.lineSpacing = CrossPointSettings::WIDE;
   s.paragraphAlignment = CrossPointSettings::CENTER_ALIGN;
@@ -120,7 +122,7 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(s.textAntiAliasing == 0);
   CHECK(s.shortPwrBtn == CrossPointSettings::SLEEP);
   CHECK(s.orientation == CrossPointSettings::LANDSCAPE_CW);
-  CHECK(s.fontFamily == CrossPointSettings::NOTOSANS);
+  CHECK(s.fontFamily == savedFontFamily);
   CHECK(s.fontSize == CrossPointSettings::LARGE);
   CHECK(s.lineSpacing == CrossPointSettings::WIDE);
   CHECK(s.paragraphAlignment == CrossPointSettings::CENTER_ALIGN);

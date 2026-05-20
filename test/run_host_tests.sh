@@ -85,3 +85,4 @@ export UBSAN_OPTIONS="halt_on_error=1:print_stacktrace=1"
 
 "$BUILD_DIR/HostTests"
 "$BUILD_DIR/HostTests" --reporters=junit --out="$BUILD_DIR/results.xml"
+python3 "$ROOT_DIR/scripts/generate_configurator_settings_schema.py" --check
