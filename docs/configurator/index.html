@@ -2261,79 +2261,71 @@
           <div class="cat-body">
             <div class="skill-grid">
 
-              <div class="dep-group">
-                <div class="skill-card dep-parent static-card always-enabled" data-node-id="system_fonts">
-                  <div class="card-icon"><span>SF</span></div>
-                  <div class="card-body">
-                    <div class="card-name">System Fonts</div>
-                    <div class="card-size">Always enabled</div>
-                    <div class="card-desc">Base bundled font families</div>
-                  </div>
-                  <div class="card-toggle"><span class="toggle-box"></span></div>
+              <label class="skill-card" data-feature="bookerly_fonts" data-node-id="bookerly_fonts">
+                <input type="checkbox" id="bookerly_fonts" data-feature="bookerly_fonts" />
+                <div class="card-icon"><span>Ns</span></div>
+                <div class="card-body">
+                  <div class="card-name">Noto Serif</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">Noto Serif 12–18pt, 4 styles. The lean build default.</div>
                 </div>
-                <div class="dep-children">
-                  <label class="skill-card dep-child" data-feature="opendyslexic_fonts" data-node-id="opendyslexic_fonts">
-                    <input type="checkbox" id="opendyslexic_fonts" data-feature="opendyslexic_fonts" />
-                    <div class="card-icon"><span>OD</span></div>
-                    <div class="card-body">
-                      <div class="card-name">OpenDyslexic</div>
-                      <div class="card-size"></div>
-                      <div class="card-desc">Optional OpenDyslexic 8/10/12/14pt family (requires at least one full-charset font)</div>
-                    </div>
-                    <div class="card-toggle"><span class="toggle-box"></span></div>
-                  </label>
-                  <label class="skill-card dep-child" data-feature="notosans_fonts" data-node-id="notosans_fonts">
-                    <input type="checkbox" id="notosans_fonts" data-feature="notosans_fonts" />
-                    <div class="card-icon"><span>NS</span></div>
-                    <div class="card-body">
-                      <div class="card-name">Noto Sans Fonts</div>
-                      <div class="card-size"></div>
-                      <div class="card-desc">12/16/18pt Noto Sans family</div>
-                    </div>
-                    <div class="card-toggle"><span class="toggle-box"></span></div>
-                  </label>
-                  <label class="skill-card dep-child" data-feature="bookerly_fonts" data-node-id="bookerly_fonts">
-                    <input type="checkbox" id="bookerly_fonts" data-feature="bookerly_fonts" />
-                    <div class="card-icon"><span>NS</span></div>
-                    <div class="card-body">
-                      <div class="card-name">Noto Serif Fonts <span style="font-size:0.7em;opacity:0.6">(lean default)</span></div>
-                      <div class="card-size"></div>
-                      <div class="card-desc">Noto Serif 12–18pt, 4 styles. The default lean build font.</div>
-                    </div>
-                    <div class="card-toggle"><span class="toggle-box"></span></div>
-                  </label>
-                  <label class="skill-card dep-child" data-feature="lexenddeca_fonts" data-node-id="lexenddeca_fonts">
-                    <input type="checkbox" id="lexenddeca_fonts" data-feature="lexenddeca_fonts" />
-                    <div class="card-icon"><span>Lx</span></div>
-                    <div class="card-body">
-                      <div class="card-name">Lexend Deca</div>
-                      <div class="card-size"></div>
-                      <div class="card-desc">Reading-optimised sans-serif from the Lexend project, 12–18pt</div>
-                    </div>
-                    <div class="card-toggle"><span class="toggle-box"></span></div>
-                  </label>
-                  <label class="skill-card dep-child" data-feature="bitter_fonts" data-node-id="bitter_fonts">
-                    <input type="checkbox" id="bitter_fonts" data-feature="bitter_fonts" />
-                    <div class="card-icon"><span>Bt</span></div>
-                    <div class="card-body">
-                      <div class="card-name">Bitter</div>
-                      <div class="card-size"></div>
-                      <div class="card-desc">Slab serif designed for on-screen reading, 12–18pt</div>
-                    </div>
-                    <div class="card-toggle"><span class="toggle-box"></span></div>
-                  </label>
-                  <label class="skill-card dep-child" data-feature="chareink_fonts" data-node-id="chareink_fonts">
-                    <input type="checkbox" id="chareink_fonts" data-feature="chareink_fonts" />
-                    <div class="card-icon"><span>Ch</span></div>
-                    <div class="card-body">
-                      <div class="card-name">Chare Ink</div>
-                      <div class="card-size"></div>
-                      <div class="card-desc">Monospaced reading font tuned for e-ink panels, 12–18pt</div>
-                    </div>
-                    <div class="card-toggle"><span class="toggle-box"></span></div>
-                  </label>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
+              <label class="skill-card" data-feature="notosans_fonts" data-node-id="notosans_fonts">
+                <input type="checkbox" id="notosans_fonts" data-feature="notosans_fonts" />
+                <div class="card-icon"><span>NS</span></div>
+                <div class="card-body">
+                  <div class="card-name">Noto Sans</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">12/16/18pt Noto Sans family</div>
                 </div>
-              </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
+              <label class="skill-card" data-feature="opendyslexic_fonts" data-node-id="opendyslexic_fonts">
+                <input type="checkbox" id="opendyslexic_fonts" data-feature="opendyslexic_fonts" />
+                <div class="card-icon"><span>OD</span></div>
+                <div class="card-body">
+                  <div class="card-name">OpenDyslexic</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">OpenDyslexic 8–14pt (requires at least one full-charset font)</div>
+                </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
+              <label class="skill-card" data-feature="lexenddeca_fonts" data-node-id="lexenddeca_fonts">
+                <input type="checkbox" id="lexenddeca_fonts" data-feature="lexenddeca_fonts" />
+                <div class="card-icon"><span>Lx</span></div>
+                <div class="card-body">
+                  <div class="card-name">Lexend Deca</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">Reading-optimised sans-serif from the Lexend project, 12–18pt</div>
+                </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
+              <label class="skill-card" data-feature="bitter_fonts" data-node-id="bitter_fonts">
+                <input type="checkbox" id="bitter_fonts" data-feature="bitter_fonts" />
+                <div class="card-icon"><span>Bt</span></div>
+                <div class="card-body">
+                  <div class="card-name">Bitter</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">Slab serif designed for on-screen reading, 12–18pt</div>
+                </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
+              <label class="skill-card" data-feature="chareink_fonts" data-node-id="chareink_fonts">
+                <input type="checkbox" id="chareink_fonts" data-feature="chareink_fonts" />
+                <div class="card-icon"><span>Ch</span></div>
+                <div class="card-body">
+                  <div class="card-name">Chare Ink</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">Monospaced reading font tuned for e-ink panels, 12–18pt</div>
+                </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
 
               <div id="no-font-warning" style="display:none;align-items:center;gap:8px;padding:10px 14px;background:var(--warn,#fffbe6);border:1px solid #e6c200;border-radius:6px;font-size:0.85em;color:#7a5a00;grid-column:1/-1">
                 <span>&#9888;</span>
@@ -4845,7 +4837,6 @@
           todo_planner:                    'square-check',
           xtc_support:                     'file-text',
           // Interface — fonts
-          system_fonts:                    'type',
           opendyslexic_fonts:              'type',
           notosans_fonts:                  'type',
           bookerly_fonts:                  'type',
