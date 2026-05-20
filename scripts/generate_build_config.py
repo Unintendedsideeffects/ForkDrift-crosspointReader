@@ -724,6 +724,7 @@ PROFILES = {
             'web_wifi_setup': True,
             'usb_mass_storage': True,
             'wifi_clock': True,
+            'roman_clock_sleep': True,
             'lexenddeca_fonts': True,
             'bitter_fonts': True,
             'chareink_fonts': True,
