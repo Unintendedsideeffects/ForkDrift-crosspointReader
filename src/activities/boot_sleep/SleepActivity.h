@@ -21,6 +21,7 @@ class SleepActivity final : public Activity {
   void renderBitmapSleepScreen(const Bitmap& bitmap) const;
   void renderImageSleepScreen(const std::string& imagePath) const;
   void renderTransparentSleepScreen() const;
+  void renderReadingStatsSleepScreen() const;
   bool tryRenderImagePath(const std::string& path) const;
 
   void drawLockIcon(int cx, int cy) const;

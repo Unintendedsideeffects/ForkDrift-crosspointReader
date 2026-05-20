@@ -3,13 +3,16 @@
 #include <ArduinoJson.h>
 #include <Epub/converters/ImageDecoderFactory.h>
 #include <Epub/converters/ImageToFramebufferDecoder.h>
+#include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
+#include <I18n.h>
 
 #include <algorithm>
 #include <cctype>
 #include <cstring>
 
+#include "../reader/BookStatsView.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "FeatureFlags.h"
@@ -21,6 +24,7 @@
 #include "images/Logo120.h"
 #include "network/BackgroundWifiService.h"
 #include "util/PokemonBookDataStore.h"
+#include "util/RecentBooksStore.h"
 
 namespace {
 
@@ -314,6 +318,21 @@ void invalidateSleepImageCache() {
   LOG_INF("SLP", "Sleep image cache invalidated");
 }
 
+std::string filenameFromPath(const std::string& path) {
+  const size_t lastSlash = path.find_last_of('/');
+  return lastSlash == std::string::npos ? path : path.substr(lastSlash + 1);
+}
+
+std::string recentTitleForPath(const std::string& path) {
+  const auto& books = RECENT_BOOKS.getBooks();
+  for (const RecentBook& book : books) {
+    if (book.path == path && !book.title.empty()) {
+      return book.title;
+    }
+  }
+  return {};
+}
+
 int validateAndCountSleepImages() {
   invalidateSleepImageCache();
   validateSleepImagesOnce();
@@ -343,6 +362,9 @@ void SleepActivity::onEnter() {
       return;
     case (CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM):
       renderCustomSleepScreen();
+      return;
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::READING_STATS_SLEEP):
+      renderReadingStatsSleepScreen();
       return;
     default:
       renderDefaultSleepScreen();
@@ -565,6 +587,26 @@ void SleepActivity::drawLockIcon(const int cx, const int cy) const {
 
   // Keyhole slot (small black mark in center of body)
   renderer.fillRect(cx - 1, cy + 3, 3, 5, true);
+}
+
+void SleepActivity::renderReadingStatsSleepScreen() const {
+  BookReadingStats bookStats;
+  GlobalReadingStats globalStats = GlobalReadingStats::load();
+  std::string bookTitle = tr(STR_READING_STATS);
+
+  const std::string& path = APP_STATE.openEpubPath;
+  if (!path.empty()) {
+    const std::string recentTitle = recentTitleForPath(path);
+    bookTitle = recentTitle.empty() ? filenameFromPath(path) : recentTitle;
+
+    if (FsHelpers::hasEpubExtension(path)) {
+      const std::string cachePath = "/.crosspoint/epub_" + std::to_string(std::hash<std::string>{}(path));
+      bookStats = BookReadingStats::load(cachePath);
+    }
+  }
+
+  renderBookStatsView(renderer, nullptr, bookTitle, bookStats, globalStats, false);
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
 
 void SleepActivity::renderTransparentSleepScreen() const {
