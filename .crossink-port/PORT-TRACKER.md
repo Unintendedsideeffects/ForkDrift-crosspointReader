@@ -41,13 +41,9 @@ separate attention.
 - [≈] c0a56228 style: minimal theme category font size — MinimalTheme.cpp tab-bar
       UI_12→UI_10 already in tip port (d8853c6d). HomeActivity/fontIds churn is
       CrossInk font-id restructuring, out of scope (ForkDrift has own font system).
-### Lyra Carousel cluster — DEFERRED (hard prerequisites)
-CrossInk LyraCarouselTheme is not standalone: overrides a `drawCarouselBorder`
-virtual absent from ForkDrift BaseTheme, needs `setPreRenderIndex` + exact-
-thumbnail plumbing in HomeActivity, and a stats footer (BookReadingStats::
-sessionCount). Port AFTER: (1) Phase 3 reading-stats; (2) drawRecentBookCover
-stats/progress signature extension across all themes (642402f8/8154c9a5);
-(3) HomeActivity carousel integration. Resequenced below Phase 1 independents.
+### Lyra Carousel cluster — COMPLETE (2026-05-20)
+Ported in `f215fbab` (5 CrossInk commits: `971a62ee`…`0c7e11a3`). Prerequisites
+(Phase 3 reading stats + `drawRecentBookCover` stats/progress signature) landed first.
 - [x] 642402f8 home progress bar for current book (Lyra) #28 — extends
       drawRecentBookCover signature (stats/progressPercent) across ALL themes
       (BaseTheme+Lyra+ForkDrift+Minimal); do before carousel + with Phase 3.
@@ -235,85 +231,40 @@ Full ordered list with hashes: `.crossink-port/feature-commits.txt`
 
 ---
 
-## Sprint dispatch — open items by lane
+## Sprint complete (2026-05-20)
 
-> Spin one subagent per lane. Each agent reads `SUBAGENT.md`, creates its worktree
-> (`port-worktree.sh create <lane>`), ports each item below in order, builds after
-> every commit, pushes `port/<lane>`. Integration agent merges in lane order after all
-> lanes report done.
+All 81 CrossInk feature commits from `feature-commits.txt` are resolved on
+`feature/absorb-crossink` at `51ae7c29`.
 
-### `renderer` lane — 6 items (unblocked)
+| Status | Count | Meaning |
+|--------|------:|---------|
+| `[x]` done | 51 | Ported and merged on `feature/absorb-crossink` |
+| `[≈]` subsumed | 11 | Already present in ForkDrift tip or absorbed by another port |
+| `[-]` skipped | 19 | Inappropriate for ForkDrift (fonts, branding, hardware, bookmarks) |
 
-Port all against `feature/absorb-crossink` tip.
+**Final build:** `./.crossink-port/port-build.sh` SUCCESS — RAM 44.7% (HEAD `51ae7c29`).
 
-| Hash | Subject |
-|------|---------|
-| `61c8d78f` | improve table rendering (#89) |
-| `32e189ef` | draw borders for simple tables |
-| `431430aa` | colSpan header/footer rows (#90) |
-| `ecf19d3e` | grayscale images even when AA off |
-| `081f170d` | improve cover rendering |
-| `f39a11fe` | progressive jpeg cover support |
+### Lane merge summary
 
-Scope: `lib/Epub/`, `lib/GfxRenderer/`, `src/activities/reader/`
+| Lane | Key commits | Merged |
+|------|-------------|--------|
+| renderer | `61c8d78f`…`f39a11fe` (tables, grayscale, covers) | yes |
+| reader | `5331fe82`…`3535f228` (reading stats, finished tracking) | yes |
+| file | `815f2fbd`, `a27ee056`, `996c37c9` | yes |
+| sleep | `7aca0245`, `0ac24e61` via `b855d328` | yes |
+| home / carousel | `971a62ee`…`0c7e11a3` via `f215fbab` | yes |
+| settings / controls | Phase 4 power-button + picker cluster | yes |
+| web | `3cc346a1`, `07bb45b4`, `41209464` (partial) | yes |
 
----
+62 `port(crossink):` commits on branch; some CrossInk hashes land in combined commits
+(e.g. carousel cluster in `f215fbab`, sleep pair in `b855d328`).
 
-### `reader` lane — 11 items (Phase 3 core; unblocked)
+### Intentionally not ported
 
-These are the reading-stats and sleep-cover items. Phase 1 Lyra Carousel items depend
-on this lane completing first.
-
-| Hash | Subject |
-|------|---------|
-| `5331fe82` | improve reading stats display |
-| `b03c834d` | update UI for reading stats |
-| `7f4705e0` | global book stats match per-book |
-| `cebb6cbf` | mark books finished + track stats |
-| `60415e57` | ask if finished at 99% |
-| `d4f644eb` | session-count threshold |
-| `3535f228` | sleep screen reading stats option |
-| `7aca0245` | asterisk for favorited sleep images |
-| `993215b8` | pin a favorite sleep image |
-| `0ac24e61` | hide battery on transparent overlay while sleeping |
-| `9689ea5c` | page overlay logging |
-
-Scope: `src/activities/reader/`, `src/activities/sleep/`, `CrossPointSettings.*`
-
----
-
-### `file` lane — 3 items (Phase 3 file side; unblocked)
-
-| Hash | Subject |
-|------|---------|
-| `815f2fbd` | move epubs to read folder when finished |
-| `a27ee056` | file-browser mark finished action |
-| `996c37c9` | page overlay translations (I18n YAML + SettingsList) |
-
-Scope: `src/activities/file/`, `lib/I18n/translations/`
-
----
-
-### `home` lane — 5 items (Lyra Carousel cluster; **blocked on `reader` lane**)
-
-Do NOT start until `reader` lane is merged into `feature/absorb-crossink`.
-Carousel items depend on `BookReadingStats::sessionCount` and `drawRecentBookCover`
-stats/progressPercent signature from Phase 3.
-
-| Hash | Subject |
-|------|---------|
-| `971a62ee` | LyraCarouselTheme carousel style tweak |
-| `8154c9a5` | stats on lyra carousel home, title above cover |
-| `9a9054cb` | perf: reduce Lyra Carousel RAM frame cache |
-| `bdc65f27` | update Lyra Carousel progress footer |
-| `0c7e11a3` | style: lyra reading stat bar width |
-
-Scope: `src/activities/home/`, `lib/UITheme/LyraTheme.*`
-
----
-
-### Integration order (after all lanes pushed)
-
-`renderer` → `reader` → `file` → `home`
-
-After each merge: `./.crossink-port/port-build.sh` must pass before the next merge.
+- Font/emoji binaries and conversion pipeline (DM Sans, Inter, teensy/huge, PHM ranges)
+- CrossInk branding, OTA URL, release catalog variants
+- Bookmark list/delete (no `BookmarkStore` in ForkDrift)
+- Tilt page-turn shortcuts (no IMU on X4)
+- `9689ea5c` page overlay logging (diagnostic; ForkDrift logging differs)
+- `071da53f` web UI style tweak (ForkDrift HTML diverged)
+- `f17569ad` delete book cache (skipped per lane scope)
