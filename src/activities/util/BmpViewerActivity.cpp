@@ -39,7 +39,7 @@ void BmpViewerActivity::loadSiblingImages() {
       file.getName(name, sizeof(name));
       if (name[0] != '.') {
         std::string fname(name);
-        if (fname.length() >= 4 && fname.substr(fname.length() - 4) == ".bmp") {
+        if (FsHelpers::hasBmpExtension(fname)) {
           siblingImages.push_back(fname);
         }
       }
@@ -154,14 +154,19 @@ void BmpViewerActivity::doSetSleepCover() {
     if (Storage.openFileForWrite("BMP", "/sleep.bmp", outFile)) {
       char buffer[2048];
       int bytesRead;
-      success = true;
+      size_t bytesCopied = 0;
+      const size_t expectedSize = inFile.fileSize();
       while ((bytesRead = inFile.read(buffer, sizeof(buffer))) > 0) {
         if (outFile.write(buffer, bytesRead) != bytesRead) {
-          success = false;
           break;
         }
+        bytesCopied += static_cast<size_t>(bytesRead);
       }
+      success = bytesRead == 0 && bytesCopied == expectedSize;
       outFile.close();
+      if (!success) {
+        Storage.remove("/sleep.bmp");
+      }
     }
     inFile.close();
   }
