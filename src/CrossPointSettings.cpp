@@ -382,18 +382,30 @@ void CrossPointSettings::enforceButtonLayoutConstraints() {
   }
 }
 
-void CrossPointSettings::validateAndClamp() {
-  // Migrate legacy raw values (enum constants moved; use integer literals to be safe).
-  // Note: 3 (old COVER) and 4 (old BLANK) are now TRANSPARENT and FOLLOW_THEME.
-  // We stop migrating them to avoid clobbering new settings.
-  if (sleepScreen == 5 /* old COVER_CUSTOM */) {
-    sleepScreen = CUSTOM;
-  } else if (sleepScreen == 6 /* old TRANSPARENT */) {
-    sleepScreen = TRANSPARENT;  // = 3
-  } else if (sleepScreen >= SLEEP_SCREEN_MODE_COUNT && sleepScreen != READING_STATS_SLEEP) {
-    // SMART=7 and READING_STATS_SLEEP=12 are explicitly valid; legacy 9/10/11 handled above.
-    sleepScreen = DARK;
+uint8_t CrossPointSettings::normalizeSleepScreenMode(const uint8_t rawValue) {
+  if (rawValue == COVER_CUSTOM) {
+    return CUSTOM;
   }
+  if (rawValue == 6 /* old TRANSPARENT */) {
+    return TRANSPARENT;
+  }
+  if (rawValue == READING_STATS_SLEEP) {
+    return READING_STATS_SLEEP;
+  }
+#if ENABLE_ROMAN_CLOCK_SLEEP
+  if (rawValue == ROMAN_CLOCK_SLEEP) {
+    return ROMAN_CLOCK_SLEEP;
+  }
+#else
+  if (rawValue == ROMAN_CLOCK_SLEEP) {
+    return DARK;
+  }
+#endif
+  return rawValue < SLEEP_SCREEN_MODE_COUNT ? rawValue : DARK;
+}
+
+void CrossPointSettings::validateAndClamp() {
+  sleepScreen = normalizeSleepScreenMode(sleepScreen);
   if (sleepScreenCoverMode > CROP) sleepScreenCoverMode = FIT;
   if (sleepScreenSource >= SLEEP_SCREEN_SOURCE_COUNT) sleepScreenSource = SLEEP_SOURCE_SLEEP;
   if (statusBar >= STATUS_BAR_MODE_COUNT) statusBar = FULL;

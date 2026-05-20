@@ -179,14 +179,20 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 
   // --- Display ---
   // Sleep screen uses DynamicEnum with explicit value mapping so display order
-  // (Dark, Light, Follow Theme, Custom, Transparent, Smart) is independent of the
-  // SLEEP_SCREEN_MODE enum values (DARK=0, LIGHT=1, CUSTOM=2, TRANSPARENT=3, FOLLOW_THEME=4, SMART=7).
+  // stays independent of the persisted enum values.
   list.push_back([] {
     using M = CrossPointSettings::SLEEP_SCREEN_MODE;
-    const std::vector<StrId> ids = {StrId::STR_DARK,   StrId::STR_LIGHT,       StrId::STR_FOLLOW_THEME,
-                                    StrId::STR_CUSTOM, StrId::STR_TRANSPARENT, StrId::STR_SLEEP_SMART,
+    const std::vector<StrId> ids = {StrId::STR_DARK,         StrId::STR_LIGHT,       StrId::STR_FOLLOW_THEME,
+                                    StrId::STR_CUSTOM,       StrId::STR_TRANSPARENT, StrId::STR_SLEEP_SMART,
+#if ENABLE_ROMAN_CLOCK_SLEEP
+                                    StrId::STR_ROMAN_CLOCK,
+#endif
                                     StrId::STR_READING_STATS};
-    const std::vector<uint8_t> vals = {M::DARK, M::LIGHT, M::FOLLOW_THEME, M::CUSTOM, M::TRANSPARENT, M::SMART,
+    const std::vector<uint8_t> vals = {M::DARK,        M::LIGHT, M::FOLLOW_THEME,       M::CUSTOM,
+                                       M::TRANSPARENT, M::SMART,
+#if ENABLE_ROMAN_CLOCK_SLEEP
+                                       M::ROMAN_CLOCK_SLEEP,
+#endif
                                        M::READING_STATS_SLEEP};
     return SettingInfo::DynamicEnum(
         StrId::STR_SLEEP_SCREEN, ids,

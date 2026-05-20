@@ -272,6 +272,47 @@ Adds a modular remote text-entry path for any on-device keyboard prompt:
 
 ---
 
+### WiFi Clock
+
+**Flag:** `ENABLE_WIFI_CLOCK`
+**Size Impact:** ~2KB
+**Default:** Enabled in `standard` and `full`
+
+Adds the NTP-backed Roman numeral clock label used by the home header and status overlays.
+
+**When enabled:**
+- Syncs time over WiFi with NTP
+- Shows a quarter-hour Roman clock label when system time is valid
+
+**When disabled:**
+- Roman clock labels are hidden from the UI
+- Downstream clock-based optional features are unavailable
+
+**Use case:** Keep enabled if you want any on-device WiFi-synced clock display.
+
+---
+
+### Roman Clock Sleep Screen
+
+**Flag:** `ENABLE_ROMAN_CLOCK_SLEEP`
+**Size Impact:** ~3KB
+**Default:** Disabled
+**Depends on:** `ENABLE_WIFI_CLOCK`
+
+Adds a dedicated sleep-screen mode that renders the existing WiFi clock as large block Roman numerals.
+
+**When enabled:**
+- The Settings screen gains a `Roman Clock` sleep-screen option
+- Sleep mode can show the current quarter-hour Roman clock on a clean full-screen layout
+
+**When disabled:**
+- Existing sleep-screen options remain unchanged
+- WiFi Clock still works in the header/status bar if enabled
+
+**Use case:** Enable when you want the sleep screen itself to act as a minimalist Roman numeral clock.
+
+---
+
 ### Home Media Picker
 
 **Flag:** `ENABLE_HOME_MEDIA_PICKER`

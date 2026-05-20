@@ -126,6 +126,7 @@ The Settings screen allows you to configure the device's behavior. There are a f
   - "Dark" (default) - The default dark Crosspoint logo sleep screen
   - "Light" - The same default sleep screen, on a white background
   - "Custom" - Custom images from the SD card; see [Sleep Screen](#37-sleep-screen) below for more information
+  - "Roman Clock" - Large block Roman numerals from the WiFi-synced clock (only available in builds with Roman Clock Sleep Screen + WiFi Clock enabled)
   - "Cover" - The book cover image (Note: this is experimental and may not work as expected)
   - "None" - A blank screen
   - "Cover + Custom" - The book cover image, falls back to "Custom" behavior

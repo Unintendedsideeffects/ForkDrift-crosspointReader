@@ -23,6 +23,7 @@
 #include "fontIds.h"
 #include "images/Logo120.h"
 #include "network/BackgroundWifiService.h"
+#include "util/DateUtils.h"
 #include "util/PokemonBookDataStore.h"
 #include "util/RecentBooksStore.h"
 
@@ -335,6 +336,91 @@ void validateSleepImagesOnce() {
           (int)sleepImageCache.validFiles.size());
   saveSleepImageCacheToFile(sleepImageCache);
 }
+
+#if ENABLE_ROMAN_CLOCK_SLEEP
+struct RomanClockLabelParts {
+  std::string hour;
+  std::string minute;
+};
+
+RomanClockLabelParts splitRomanClockLabel(const std::string& label) {
+  RomanClockLabelParts parts;
+  const size_t separator = label.find(':');
+  if (separator == std::string::npos) {
+    parts.hour = label;
+    return parts;
+  }
+
+  parts.hour = label.substr(0, separator);
+  parts.minute = label.substr(separator + 1);
+  return parts;
+}
+
+int romanGlyphBoxWidth(const int height) { return std::max(20, height / 2); }
+
+int romanGlyphStrokeWidth(const int height) { return std::max(6, height / 8); }
+
+int romanGlyphGap(const int height) { return std::max(6, height / 12); }
+
+int romanTextWidth(const std::string& text, const int height) {
+  if (text.empty()) {
+    return 0;
+  }
+
+  const int boxWidth = romanGlyphBoxWidth(height);
+  const int gap = romanGlyphGap(height);
+  return static_cast<int>(text.size()) * boxWidth + static_cast<int>(text.size() - 1) * gap;
+}
+
+int fitRomanTextHeight(const std::string& text, const int maxWidth, const int maxHeight) {
+  if (text.empty()) {
+    return 0;
+  }
+
+  for (int height = maxHeight; height >= 48; --height) {
+    if (romanTextWidth(text, height) <= maxWidth) {
+      return height;
+    }
+  }
+
+  return 48;
+}
+
+void drawRomanGlyph(GfxRenderer& renderer, const char glyph, const int x, const int y, const int height) {
+  const int width = romanGlyphBoxWidth(height);
+  const int stroke = romanGlyphStrokeWidth(height);
+  const int left = x + stroke / 2;
+  const int right = x + width - stroke / 2 - 1;
+  const int midX = x + width / 2;
+  const int bottom = y + height - 1;
+
+  switch (glyph) {
+    case 'I':
+      renderer.fillRect(midX - stroke / 2, y, stroke, height, true);
+      break;
+    case 'V':
+      renderer.drawLine(left, y, midX, bottom, stroke, true);
+      renderer.drawLine(right, y, midX, bottom, stroke, true);
+      break;
+    case 'X':
+      renderer.drawLine(left, y, right, bottom, stroke, true);
+      renderer.drawLine(right, y, left, bottom, stroke, true);
+      break;
+    default:
+      break;
+  }
+}
+
+void drawRomanText(GfxRenderer& renderer, const std::string& text, const int x, const int y, const int height) {
+  const int boxWidth = romanGlyphBoxWidth(height);
+  const int gap = romanGlyphGap(height);
+  int cursorX = x;
+  for (const char glyph : text) {
+    drawRomanGlyph(renderer, glyph, cursorX, y, height);
+    cursorX += boxWidth + gap;
+  }
+}
+#endif
 }  // namespace
 
 void invalidateSleepImageCache() {
@@ -397,6 +483,11 @@ void SleepActivity::onEnter() {
     case (CrossPointSettings::SLEEP_SCREEN_MODE::READING_STATS_SLEEP):
       renderReadingStatsSleepScreen();
       return;
+#if ENABLE_ROMAN_CLOCK_SLEEP
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::ROMAN_CLOCK_SLEEP):
+      renderRomanClockSleepScreen();
+      return;
+#endif
     default:
       renderDefaultSleepScreen();
       return;
@@ -639,6 +730,53 @@ void SleepActivity::renderReadingStatsSleepScreen() const {
   renderBookStatsView(renderer, nullptr, bookTitle, bookStats, globalStats, false);
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
+
+#if ENABLE_ROMAN_CLOCK_SLEEP
+void SleepActivity::renderRomanClockSleepScreen() const {
+  const std::string clockLabel = DateUtils::currentClockLabel();
+  if (clockLabel.empty()) {
+    renderDefaultSleepScreen();
+    return;
+  }
+
+  const RomanClockLabelParts label = splitRomanClockLabel(clockLabel);
+  if (label.hour.empty()) {
+    renderDefaultSleepScreen();
+    return;
+  }
+
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+  const int sideMargin = 36;
+  const int contentGap = 26;
+
+  const bool hasMinute = !label.minute.empty();
+  const int minuteWidthBudget = hasMinute ? std::max(96, pageWidth / 3) : 0;
+  const int hourWidthBudget =
+      std::max(120, pageWidth - sideMargin * 2 - (hasMinute ? minuteWidthBudget + contentGap : 0));
+
+  const int hourHeight = fitRomanTextHeight(label.hour, hourWidthBudget, pageHeight / 3);
+  const int minuteHeight = hasMinute ? fitRomanTextHeight(label.minute, minuteWidthBudget, pageHeight / 4) : 0;
+
+  const int hourWidth = romanTextWidth(label.hour, hourHeight);
+  const int minuteWidth = hasMinute ? romanTextWidth(label.minute, minuteHeight) : 0;
+  const int contentWidth = hourWidth + (hasMinute ? contentGap + minuteWidth : 0);
+
+  const int hourX = (pageWidth - contentWidth) / 2;
+  const int hourY = std::max(40, (pageHeight - hourHeight) / 2);
+
+  renderer.clearScreen();
+  drawRomanText(renderer, label.hour, hourX, hourY, hourHeight);
+
+  if (hasMinute) {
+    const int minuteX = hourX + hourWidth + contentGap;
+    const int minuteY = hourY + std::max(0, (hourHeight - minuteHeight) / 2);
+    drawRomanText(renderer, label.minute, minuteX, minuteY, minuteHeight);
+  }
+
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+}
+#endif
 
 void SleepActivity::renderTransparentSleepScreen() const {
   // Preserve current e-ink content: do NOT clear the screen.

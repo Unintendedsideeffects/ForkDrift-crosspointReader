@@ -1,6 +1,8 @@
 #pragma once
 #include <string>
 
+#include <FeatureFlags.h>
+
 #include "activities/Activity.h"
 
 class Bitmap;
@@ -22,6 +24,9 @@ class SleepActivity final : public Activity {
   void renderImageSleepScreen(const std::string& imagePath) const;
   void renderTransparentSleepScreen() const;
   void renderReadingStatsSleepScreen() const;
+#if ENABLE_ROMAN_CLOCK_SLEEP
+  void renderRomanClockSleepScreen() const;
+#endif
   bool tryRenderImagePath(const std::string& path) const;
 
   void drawLockIcon(int cx, int cy) const;

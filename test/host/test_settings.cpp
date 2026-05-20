@@ -3,6 +3,7 @@
 
 #include "doctest/doctest.h"
 #include "lib/Serialization/Serialization.h"
+#include "src/JsonSettingsIO.h"
 #include "src/CrossPointSettings.h"
 #include "test/mock/HalStorage.h"
 
@@ -223,4 +224,18 @@ TEST_CASE("testSettingsTruncatedLoad") {
   CHECK(s.shortPwrBtn == CrossPointSettings::SLEEP);
   // Field 8 (fontFamily) was not in the file, so it is unchanged.
   CHECK(s.fontFamily == CrossPointSettings::BOOKERLY);
+}
+
+TEST_CASE("testSettingsJsonPreservesSpecialSleepModes") {
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+
+  CHECK(JsonSettingsIO::loadSettings(s, "{\"sleepScreen\":12}", nullptr));
+  CHECK(s.sleepScreen == CrossPointSettings::READING_STATS_SLEEP);
+
+  CHECK(JsonSettingsIO::loadSettings(s, "{\"sleepScreen\":8}", nullptr));
+#if ENABLE_ROMAN_CLOCK_SLEEP
+  CHECK(s.sleepScreen == CrossPointSettings::ROMAN_CLOCK_SLEEP);
+#else
+  CHECK(s.sleepScreen == CrossPointSettings::DARK);
+#endif
 }

@@ -26,7 +26,14 @@ struct HostSetting {
   int visibleEq;
 };
 
-const char* kSleepScreenOptions[] = {"Dark", "Light", "Follow Theme", "Custom", "Transparent", "Smart"};
+#if ENABLE_ROMAN_CLOCK_SLEEP
+const char* kSleepScreenOptions[] = {"Dark", "Light", "Follow Theme", "Custom", "Transparent",
+                                     "Smart", "Roman Clock",  "Reading Stats"};
+#else
+const char* kSleepScreenOptions[] = {"Dark", "Light", "Follow Theme", "Custom",
+                                     "Transparent", "Smart", "Reading Stats"};
+#endif
+constexpr size_t kSleepScreenOptionCount = sizeof(kSleepScreenOptions) / sizeof(kSleepScreenOptions[0]);
 const char* kSleepSourceOptions[] = {"Sleep", "Pokedex", "All"};
 const char* kFitCropOptions[] = {"Fit", "Crop"};
 const char* kSleepFilterOptions[] = {"None", "Contrast", "Inverted"};
@@ -48,7 +55,8 @@ const char* kSleepTimeoutOptions[] = {"1 minute", "5 minutes", "10 minutes", "15
 const char* kBackgroundServerOptions[] = {"Never", "Only on charge", "Always"};
 
 constexpr HostSetting kSettings[] = {
-    {"sleepScreen", "Sleep screen", "Display", "enum", 0, kSleepScreenOptions, 6, 0, 0, 0, nullptr, 0},
+    {"sleepScreen", "Sleep screen", "Display", "enum", 0, kSleepScreenOptions, kSleepScreenOptionCount, 0, 0, 0,
+     nullptr, 0},
     {"sleepScreenSource", "Sleep source", "Display", "enum", 0, kSleepSourceOptions, 3, 0, 0, 0, "sleepScreen", 3},
     {"sleepScreenCoverMode", "Sleep cover mode", "Display", "enum", 0, kFitCropOptions, 2, 0, 0, 0, "sleepScreen", 3},
     {"sleepScreenCoverFilter", "Sleep cover filter", "Display", "enum", 0, kSleepFilterOptions, 3, 0, 0, 0,

@@ -20,6 +20,7 @@ constexpr const char* kRequiresHyphenationAll[] = {"epub_support"};
 constexpr const char* kRequiresLyraThemeAll[] = {"home_media_picker"};
 constexpr const char* kRequiresBleWifiProvisioningAll[] = {"web_wifi_setup"};
 constexpr const char* kRequiresOpenDyslexicFontsAny[] = {"bookerly_fonts", "notosans_fonts"};
+constexpr const char* kRequiresRomanClockSleepAll[] = {"wifi_clock"};
 
 constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"extended_fonts", "Extended Fonts", ENABLE_EXTENDED_FONTS != 0, nullptr, 0, nullptr, 0},
@@ -71,6 +72,8 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"usb_mass_storage", "USB Mass Storage", ENABLE_USB_MASS_STORAGE != 0, nullptr, 0, nullptr, 0},
     {"global_status_bar", "Global Status Bar", ENABLE_GLOBAL_STATUS_BAR != 0, nullptr, 0, nullptr, 0},
     {"wifi_clock", "WiFi Clock", ENABLE_WIFI_CLOCK != 0, nullptr, 0, nullptr, 0},
+    {"roman_clock_sleep", "Roman Clock Sleep Screen", ENABLE_ROMAN_CLOCK_SLEEP != 0, kRequiresRomanClockSleepAll,
+     sizeof(kRequiresRomanClockSleepAll) / sizeof(kRequiresRomanClockSleepAll[0]), nullptr, 0},
 };
 
 constexpr size_t kFeatureCount = sizeof(kFeatureCatalog) / sizeof(kFeatureCatalog[0]);

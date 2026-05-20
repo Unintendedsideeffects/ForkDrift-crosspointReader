@@ -26,7 +26,8 @@ class CrossPointSettings {
     FOLLOW_THEME = 4,
     // NOTE: 5 and 6 are intercepted as legacy migrations in validateAndClamp(). Do not use.
     SMART = 7,
-    SLEEP_SCREEN_MODE_COUNT = 8,
+    ROMAN_CLOCK_SLEEP = 8,
+    SLEEP_SCREEN_MODE_COUNT = 9,
     // Legacy raw values — never assigned via UI; handled in validateAndClamp().
     COVER = 9,          // was 3
     BLANK = 10,         // was 4
@@ -150,6 +151,7 @@ class CrossPointSettings {
   static constexpr uint8_t MIN_SLEEP_TIMEOUT_MINUTES = 1;
   static constexpr uint8_t MAX_SLEEP_TIMEOUT_MINUTES = 30;
   static uint8_t sleepTimeoutEnumToMinutes(uint8_t legacyValue);
+  static uint8_t normalizeSleepScreenMode(uint8_t rawValue);
 
   // E-ink refresh frequency (pages between full refreshes)
   enum REFRESH_FREQUENCY {

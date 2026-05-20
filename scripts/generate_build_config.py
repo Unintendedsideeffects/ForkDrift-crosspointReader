@@ -202,6 +202,12 @@ FEATURES = {
         size_kb=2,
         description='NTP-backed 24-hour Roman numeral clock label that refreshes every 15 minutes while WiFi is connected'
     ),
+    'roman_clock_sleep': Feature(
+        name='Roman Clock Sleep Screen',
+        flag='ENABLE_ROMAN_CLOCK_SLEEP',
+        size_kb=3,
+        description='Optional block-style Roman numeral sleep screen that reuses the WiFi clock time source'
+    ),
 }
 
 
@@ -428,6 +434,13 @@ FEATURE_METADATA = {
         requires=[],
         conflicts=[],
         recommends=['background_server_always']
+    ),
+    'roman_clock_sleep': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=['wifi_clock'],
+        conflicts=[],
+        recommends=[]
     ),
 }
 

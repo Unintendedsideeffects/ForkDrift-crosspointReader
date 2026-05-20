@@ -83,7 +83,7 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   using S = CrossPointSettings;
   auto clamp = [](uint8_t val, uint8_t maxVal, uint8_t def) -> uint8_t { return val < maxVal ? val : def; };
 
-  s.sleepScreen = clamp(doc["sleepScreen"] | (uint8_t)S::DARK, S::SLEEP_SCREEN_MODE_COUNT, S::DARK);
+  s.sleepScreen = S::normalizeSleepScreenMode(doc["sleepScreen"] | (uint8_t)S::DARK);
   s.sleepScreenSource = clamp(doc["sleepScreenSource"] | (uint8_t)S::SLEEP_SOURCE_SLEEP, S::SLEEP_SCREEN_SOURCE_COUNT,
                               S::SLEEP_SOURCE_SLEEP);
   s.sleepScreenCoverMode =
