@@ -157,6 +157,67 @@ void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
   wordsExtractedInBlock = 0;
 }
 
+void ChapterHtmlSlimParser::emitHorizontalRule(const BlockStyle& blockStyle) {
+  if (partWordBufferIndex > 0) {
+    flushPartWordBuffer();
+  }
+
+  if (currentTextBlock && !currentTextBlock->isEmpty()) {
+    startNewTextBlock(currentTextBlock->getBlockStyle());
+  }
+
+  if (!currentPage) {
+    currentPage.reset(new (std::nothrow) Page());
+    if (!currentPage) {
+      LOG_ERR("EHP", "Failed to create page for horizontal rule");
+      return;
+    }
+    currentPageNextY = 0;
+  }
+
+  const auto lineHeight = static_cast<int16_t>(renderer.getLineHeight(fontId) * lineCompression + 0.5f);
+  const auto defaultSpacing = static_cast<int16_t>(lineHeight / 2);
+  const auto topSpacing = static_cast<int16_t>(
+      (blockStyle.marginTop > 0 ? blockStyle.marginTop : defaultSpacing) +
+      (blockStyle.paddingTop > 0 ? blockStyle.paddingTop : 0));
+  const auto bottomSpacing = static_cast<int16_t>(
+      (blockStyle.marginBottom > 0 ? blockStyle.marginBottom : defaultSpacing) +
+      (blockStyle.paddingBottom > 0 ? blockStyle.paddingBottom : 0));
+  constexpr uint8_t ruleThickness = 2;
+  const auto availableWidth = static_cast<int16_t>(
+      std::max<int16_t>(1, static_cast<int16_t>(viewportWidth - blockStyle.totalHorizontalInset())));
+  const auto width = static_cast<int16_t>(std::max<int16_t>(1, static_cast<int16_t>(availableWidth / 4)));
+  const auto xPos = static_cast<int16_t>(blockStyle.leftInset() + ((availableWidth - width) / 2));
+  const auto totalHeight = static_cast<int16_t>(topSpacing + ruleThickness + bottomSpacing);
+
+  if (!currentPage->elements.empty() && currentPageNextY + totalHeight > viewportHeight) {
+    completePageFn(std::move(currentPage), xpathParagraphIndex, xpathListItemIndex);
+    completedPageCount++;
+    currentPage.reset(new (std::nothrow) Page());
+    if (!currentPage) {
+      LOG_ERR("EHP", "Failed to create page after horizontal-rule page break");
+      return;
+    }
+    currentPageNextY = 0;
+  }
+
+  currentPageNextY += topSpacing;
+
+  auto pageRule = std::shared_ptr<PageHorizontalRule>(
+      new (std::nothrow) PageHorizontalRule(width, ruleThickness, xPos, currentPageNextY));
+  if (!pageRule) {
+    LOG_ERR("EHP", "Failed to create PageHorizontalRule");
+    return;
+  }
+  currentPage->elements.push_back(pageRule);
+  currentPageNextY = static_cast<int16_t>(currentPageNextY + ruleThickness + bottomSpacing);
+
+  if (!pendingAnchorId.empty()) {
+    anchorData.push_back({std::move(pendingAnchorId), static_cast<uint16_t>(completedPageCount)});
+    pendingAnchorId.clear();
+  }
+}
+
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
 
@@ -272,6 +333,13 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->inlineStyleStack.pop_back();
     self->updateEffectiveInlineStyle();
 
+    self->ancestorStack_.push_back({self->depth, std::string(name), classAttr});
+    self->depth += 1;
+    return;
+  }
+
+  if (self->tableDepth == 1 && strcmp(name, "hr") == 0) {
+    // <hr> inside a table cell is skipped — table cells are already paragraph-flattened
     self->ancestorStack_.push_back({self->depth, std::string(name), classAttr});
     self->depth += 1;
     return;
@@ -690,6 +758,26 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
         userAlignmentBlockStyle.textIndent = static_cast<int16_t>(emSize * 1.5f);
       }
     }
+  }
+
+  if (strcmp(name, "hr") == 0) {
+    auto hrBlockStyle = BlockStyle::fromCssStyle(cssStyle, emSize, CssTextAlign::Left, self->viewportWidth);
+    if (!self->embeddedStyle) {
+      hrBlockStyle.marginLeft = 0;
+      hrBlockStyle.marginRight = 0;
+      hrBlockStyle.marginTop = 0;
+      hrBlockStyle.marginBottom = 0;
+      hrBlockStyle.paddingLeft = 0;
+      hrBlockStyle.paddingRight = 0;
+      hrBlockStyle.paddingTop = 0;
+      hrBlockStyle.paddingBottom = 0;
+      hrBlockStyle.textIndentDefined = false;
+      hrBlockStyle.textIndent = 0;
+    }
+    self->emitHorizontalRule(hrBlockStyle);
+    self->ancestorStack_.push_back({self->depth, std::string(name), classAttr});
+    self->depth += 1;
+    return;
   }
 
   if (matches(name, HEADER_TAGS, std::size(HEADER_TAGS))) {

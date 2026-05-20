@@ -120,7 +120,12 @@ b243c895) — verify each port is in git history, not necessarily as own commit.
       7 push sites in startElement (non-skip table/tr/td/img/alt/a/general); pop in
       endElement after depth-=1; all 3 resolveStyle calls pass ancestorStack_.
       Build SUCCESS, RAM 44.5%.
-- [ ] b34b4448 display <hr> tags
+- [x] b34b4448 display <hr> tags — PageHorizontalRule class (Page.h/Page.cpp):
+      render/serialize/deserialize + TAG_PageHorizontalRule=4 (TAG_PageTableFragment=3
+      reserved); Section v28; ChapterHtmlSlimParser: emitHorizontalRule() (width=25%
+      viewport centered, 2px thick, lineHeight/2 spacing); <hr> inside table skips
+      (ForkDrift has no currentTableBuffer); <hr> outside table calls emitHorizontalRule
+      with embedded-style CSS support. Build SUCCESS, RAM 44.5%.
 - [ ] 61c8d78f improve table rendering (#89)
 - [ ] 32e189ef draw borders for simple tables
 - [ ] 431430aa colSpan header/footer rows (#90)
