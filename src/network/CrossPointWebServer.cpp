@@ -35,7 +35,9 @@
 #include "html/js/jszip_minJs.generated.h"
 #include "network/BufferedHttpUpload.h"
 #include "network/RecentBookJson.h"
+#if ENABLE_REMOTE_CONTROL
 #include "network/RemoteControlApi.h"
+#endif
 #include "network/WebUtils.h"
 #include "util/BookProgressDataStore.h"
 #include "util/DateUtils.h"
@@ -429,9 +431,13 @@ void CrossPointWebServer::mountRoutes() {
   server->on("/api/sleep-images", HTTP_GET, [this] { handleSleepImages(); });
   server->on("/api/sleep-cover", HTTP_GET, [this] { handleSleepCoverGet(); });
   server->on("/api/sleep-cover/pin", HTTP_POST, [this] { handleSleepCoverPin(); });
+#if ENABLE_REMOTE_CONTROL
   server->on("/api/open-book", HTTP_POST, [this] { handleOpenBook(); });
+#endif
   server->on("/api/settings/raw", HTTP_GET, [this] { handleGetSettingsRaw(); });
+#if ENABLE_REMOTE_CONTROL
   server->on("/api/remote/button", HTTP_POST, [this] { handleRemoteButton(); });
+#endif
   server->on("/api/screenshot", HTTP_POST, [this] { handleScreenshot(); });
 #if ENABLE_WIFI_CLOCK
   server->on("/api/time", HTTP_POST, [this] { handleSetTime(); });
@@ -2311,6 +2317,7 @@ void CrossPointWebServer::handleSleepCoverPin() {
   server->send(saved ? 200 : 500, "application/json", respBuf);
 }
 
+#if ENABLE_REMOTE_CONTROL
 void CrossPointWebServer::handleOpenBook() {
   const auto result = network::parseOpenBookHttpRequest(server->hasArg("plain"), server->arg("plain"));
   if (result.statusCode == 202) {
@@ -2326,6 +2333,7 @@ void CrossPointWebServer::handleRemoteButton() {
   }
   server->send(result.statusCode, result.contentType, result.body);
 }
+#endif  // ENABLE_REMOTE_CONTROL
 
 #if 0  // Duplicated by src/network/StaticHandlers.cpp and StatusHandlers.cpp
 void CrossPointWebServer::handleScreenshot() {

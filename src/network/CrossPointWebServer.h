@@ -145,8 +145,10 @@ class CrossPointWebServer {
   void handleGetBookProgress() const;
   void handleSleepCoverGet() const;
   void handleSleepCoverPin();
+#if ENABLE_REMOTE_CONTROL
   void handleOpenBook();
   void handleRemoteButton();
+#endif
   void handleScreenshot();
   void handleGetSettingsRaw() const;
   void scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const;

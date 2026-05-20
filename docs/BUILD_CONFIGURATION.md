@@ -250,6 +250,31 @@ Keeps the WiFi file management server running in the background while reading.
 
 ---
 
+### Remote Control
+
+**Flag:** `ENABLE_REMOTE_CONTROL`
+**Size Impact:** ~3KB
+**Default:** Enabled
+
+Compile-gates the HTTP and USB serial remote-control APIs:
+
+- **HTTP:** `POST /api/open-book` (open a book by SD path) and `POST /api/remote/button` (page forward/back)
+- **USB serial:** `open_book` and `remote_button` commands in the USB protocol
+
+**When disabled:**
+- Those HTTP routes are not registered
+- Those USB commands are not dispatched
+- `RemoteControlApi` module is not compiled in
+- Android and other clients that try these endpoints get 404 / command-not-found
+
+**When enabled:**
+- Open Book and Page Turn are always available as sub-features
+- Remote Keyboard Input can be added on top as a separate optional feature
+
+**Use case:** Disable if you want to prevent any remote-control surface entirely, e.g. for a shared or untrusted network environment.
+
+---
+
 ### Remote Keyboard Input
 
 **Flag:** `ENABLE_REMOTE_KEYBOARD_INPUT`
@@ -428,6 +453,7 @@ uv run python scripts/generate_build_config.py --profile standard
 - ✓ Background Server On Charge
 - ✗ Background Server Always
 - ✓ Web WiFi Setup
+- ✓ Remote Control
 - ✓ Remote Keyboard Input
 - ✓ Home Media Picker
 - ✓ BLE WiFi Provisioning
@@ -466,6 +492,7 @@ uv run python scripts/generate_build_config.py --profile full
 - ✓ Background Server
 - ✓ Background Server On Charge
 - ✓ Background Server Always
+- ✓ Remote Control
 - ✓ Remote Keyboard Input
 - ✓ Home Media Picker
 - ✓ Visual Covers

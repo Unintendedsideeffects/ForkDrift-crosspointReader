@@ -190,6 +190,12 @@ FEATURES = {
         size_kb=3,
         description='Manage WiFi networks directly from the web interface'
     ),
+    'remote_control': Feature(
+        name='Remote Control',
+        flag='ENABLE_REMOTE_CONTROL',
+        size_kb=3,
+        description='HTTP and USB APIs for open-book and page-turn remote commands'
+    ),
     'remote_keyboard_input': Feature(
         name='Remote Keyboard Input',
         flag='ENABLE_REMOTE_KEYBOARD_INPUT',
@@ -463,10 +469,17 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=[]
     ),
-    'remote_keyboard_input': FeatureMetadata(
+    'remote_control': FeatureMetadata(
         implemented=True,
         stable=True,
         requires=[],
+        conflicts=[],
+        recommends=['background_server']
+    ),
+    'remote_keyboard_input': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=['remote_control'],
         conflicts=[],
         recommends=['background_server']
     ),
@@ -639,6 +652,7 @@ PROFILES = {
             'background_server': True,
             'background_server_on_charge': True,
             'web_wifi_setup': True,
+            'remote_control': True,
             'remote_keyboard_input': True,
             'home_media_picker': True,
             'dark_mode': True,
@@ -676,6 +690,7 @@ PROFILES = {
             'home_media_picker': True,
             'pokemon_wallpaper_plugin': True,
             'pokemon_party': True,
+            'remote_control': True,
             'remote_keyboard_input': True,
             'dark_mode': True,
             'visual_cover_picker': True,

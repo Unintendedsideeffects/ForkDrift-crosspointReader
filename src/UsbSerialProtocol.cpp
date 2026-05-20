@@ -16,7 +16,9 @@
 #include "activities/todo/TodoPlannerStorage.h"
 #include "core/features/FeatureModules.h"
 #include "esp_ota_ops.h"
+#if ENABLE_REMOTE_CONTROL
 #include "network/RemoteControlApi.h"
+#endif
 #include "network/RemoteKeyboardSession.h"
 #include "util/BookProgressDataStore.h"
 #include "util/DateUtils.h"
@@ -170,6 +172,7 @@ static void handlePlugins() {
   logSerial.write('\n');
 }
 
+#if ENABLE_REMOTE_CONTROL
 static void handleOpenBook(const char* path) {
   const auto decision = network::evaluateOpenBookPath(path);
   if (!decision.ok()) {
@@ -179,6 +182,7 @@ static void handleOpenBook(const char* path) {
   APP_STATE.setPendingOpenPath(decision.path);
   sendOk();
 }
+#endif  // ENABLE_REMOTE_CONTROL
 
 static void handleWifiStatus() {
   JsonDocument resp;
@@ -201,6 +205,7 @@ static void handleWifiStatus() {
   logSerial.write('\n');
 }
 
+#if ENABLE_REMOTE_CONTROL
 static void handleRemoteButton(const char* btn) {
   const auto decision = network::evaluateRemoteButton(btn);
   if (!decision.ok()) {
@@ -210,6 +215,7 @@ static void handleRemoteButton(const char* btn) {
   APP_STATE.setPendingPageTurn(decision.pageTurn);
   sendOk();
 }
+#endif  // ENABLE_REMOTE_CONTROL
 
 static void handleRemoteKeyboardSessionGet() {
   if (!core::FeatureModules::hasCapability(core::Capability::RemoteKeyboardInput)) {
@@ -994,10 +1000,12 @@ static void processCommand(const char* line) {
     handleSleepGetPinned();
   } else if (strcmp(name, "sleep_pin") == 0) {
     handleSleepPin(cmd["arg"]["path"] | "");
+#if ENABLE_REMOTE_CONTROL
   } else if (strcmp(name, "open_book") == 0) {
     handleOpenBook(cmd["arg"] | "");
   } else if (strcmp(name, "remote_button") == 0) {
     handleRemoteButton(cmd["arg"] | "");
+#endif  // ENABLE_REMOTE_CONTROL
   } else if (strcmp(name, "remote_keyboard_session_get") == 0) {
     handleRemoteKeyboardSessionGet();
   } else if (strcmp(name, "remote_keyboard_claim") == 0) {

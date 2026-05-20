@@ -2553,31 +2553,32 @@
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
 
-              <div class="dep-group">
-                <div class="skill-card dep-parent static-card always-enabled" data-node-id="remote_control">
+              <div class="dep-group" data-dep-parent="remote_control">
+                <label class="skill-card dep-parent" data-feature="remote_control" data-node-id="remote_control">
+                  <input type="checkbox" id="remote_control" data-feature="remote_control" />
                   <div class="card-icon"><span>&#x25CF;</span></div>
                   <div class="card-body">
                     <div class="card-name">Remote Control</div>
-                    <div class="card-size">Always enabled</div>
-                    <div class="card-desc">Android app discovers capabilities via plugin flags at runtime</div>
+                    <div class="card-size"></div>
+                    <div class="card-desc">HTTP and USB APIs for open-book and page-turn commands</div>
                   </div>
                   <div class="card-toggle"><span class="toggle-box"></span></div>
-                </div>
+                </label>
                 <div class="dep-children">
-                  <div class="skill-card dep-child static-card always-enabled" data-node-id="remote_open_book">
+                  <div class="skill-card dep-child static-card" data-node-id="remote_open_book">
                     <div class="card-icon"><span>&#x25A3;</span></div>
                     <div class="card-body">
                       <div class="card-name">Open Book</div>
-                      <div class="card-size">Always enabled</div>
+                      <div class="card-size">Included</div>
                       <div class="card-desc">App can open books on the device remotely</div>
                     </div>
                     <div class="card-toggle"><span class="toggle-box"></span></div>
                   </div>
-                  <div class="skill-card dep-child static-card always-enabled" data-node-id="remote_page_turn">
+                  <div class="skill-card dep-child static-card" data-node-id="remote_page_turn">
                     <div class="card-icon"><span>&#x21D2;</span></div>
                     <div class="card-body">
                       <div class="card-name">Page Turn</div>
-                      <div class="card-size">Always enabled</div>
+                      <div class="card-size">Included</div>
                       <div class="card-desc">App can turn pages on the device remotely</div>
                     </div>
                     <div class="card-toggle"><span class="toggle-box"></span></div>
@@ -3563,6 +3564,11 @@
           flag: "ENABLE_OTA_UPDATES",
           default: true,
         },
+        remote_control: {
+          sizeKb: 3,
+          flag: "ENABLE_REMOTE_CONTROL",
+          default: true,
+        },
         remote_keyboard_input: {
           sizeKb: 7,
           flag: "ENABLE_REMOTE_KEYBOARD_INPUT",
@@ -3689,9 +3695,9 @@
         reading_stats: "Tracks per-book and global reading statistics — total pages turned, session time, and completion status. Adds a reading-stats sleep screen, a completion prompt when you finish a book, and a 'Mark as Finished' shortcut in the reader menu. Stats persist to the SD cache; completion state is also surfaced in the file browser.",
         minimal_theme: "A streamlined UI skin with reduced visual chrome — tighter spacing, no decorative borders, and a simpler icon set. Intended for readers who want fewer distractions and a faster visual cadence on e-ink. Requires Lyra Theme as its base.",
         focus_reading: "Hides the page-number footer, battery indicator, and all status overlays while reading, leaving only the text. A distraction-free mode that mirrors the look of a physical book. Toggle from the reader long-press menu.",
-        remote_control: "The Android companion app discovers available remote-control capabilities at runtime by reading plugin flags from the device. No compile-time flag — always advertised. Open Book and Page Turn are always enabled; Keyboard Input is optional.",
-        remote_open_book: "Lets the Android app send a 'open this book' command to the device over WiFi or USB. The device finds the book on the SD card by filename and opens it immediately. Always compiled in.",
-        remote_page_turn: "Lets the Android app send forward/back page commands to the device. Implemented via virtual button injection so it's fully orientation-aware. Always compiled in.",
+        remote_control: "Compile-gates the HTTP (/api/open-book, /api/remote/button) and USB serial (open_book, remote_button) remote-control APIs. When disabled, those routes and commands are not compiled in. Open Book and Page Turn are included together; Keyboard Input is a separate optional sub-feature.",
+        remote_open_book: "Lets the Android app send an 'open this book' command to the device over WiFi or USB. The device finds the book on the SD card by filename and opens it immediately. Compiled in when Remote Control is enabled.",
+        remote_page_turn: "Lets the Android app send forward/back page commands to the device. Implemented via virtual button injection so it's fully orientation-aware. Compiled in when Remote Control is enabled.",
       };
 
       const BASE_SIZE_MB = 2.65;
@@ -3717,12 +3723,13 @@
         pokemon_wallpaper_plugin: ["image_sleep"],
         roman_clock_sleep: ["wifi_clock"],
         minimal_theme: ["lyra_theme"],
+        remote_keyboard_input: ["remote_control"],
       };
 
       const HUB_FEATURES = {
         reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "anki_support", "reading_stats", "focus_reading"],
         interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts", "minimal_theme"],
-        network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
+        network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "remote_control", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
         storage_hub: ["usb_mass_storage"],
       };
 
@@ -3743,6 +3750,7 @@
           xtc_support: true,
           lyra_theme: true,
           ota_updates: true,
+          remote_control: true,
           remote_keyboard_input: true,
           wifi_clock: true,
           roman_clock_sleep: true,
@@ -3773,6 +3781,7 @@
           xtc_support: true,
           lyra_theme: true,
           ota_updates: true,
+          remote_control: true,
           remote_keyboard_input: true,
           wifi_clock: true,
           roman_clock_sleep: true,
