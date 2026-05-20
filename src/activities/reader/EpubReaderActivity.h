@@ -9,10 +9,16 @@
 #include <optional>
 #include <string>
 
+#include <FeatureFlags.h>
+
+#if ENABLE_READING_STATS
 #include "BookReadingStats.h"
+#endif
 #include "CrossPointSettings.h"
 #include "EpubReaderMenuActivity.h"
+#if ENABLE_READING_STATS
 #include "GlobalReadingStats.h"
+#endif
 #include "activities/Activity.h"
 
 class EpubReaderActivity final : public Activity {
@@ -29,19 +35,21 @@ class EpubReaderActivity final : public Activity {
   int cachedChapterTotalPageCount = 0;
   unsigned long lastPageTurnTime = 0UL;
   unsigned long pageTurnDuration = 0UL;
-  BookReadingStats stats;
-  GlobalReadingStats globalStats;
-  unsigned long sessionStartMs = 0UL;
   bool pendingPercentJump = false;
   float pendingSpineProgress = 0.0f;
   bool pendingScreenshot = false;
   bool pendingSyncSaveError = false;
   bool skipNextButtonCheck = false;  // Skip button processing for one frame after subactivity exit
   bool automaticPageTurnActive = false;
+#if ENABLE_READING_STATS
+  BookReadingStats stats;
+  GlobalReadingStats globalStats;
+  unsigned long sessionStartMs = 0UL;
   int completionTriggerSpineIndex = -1;
   float completionTriggerSpineProgress = 1.0f;
   bool completionPromptQueued = false;
   bool completionPromptShown = false;
+#endif  // ENABLE_READING_STATS
   int pageLoadRetrySpineIndex = -1;
   uint8_t pageLoadRetryCount = 0;
 
@@ -56,6 +64,7 @@ class EpubReaderActivity final : public Activity {
 
   int lastSavedSpineIndex = -1;
   int lastSavedPage = -1;
+#if ENABLE_READING_STATS
   bool pendingReadFolderMove = false;
 
   struct ReadFolderMoveParams {
@@ -66,6 +75,7 @@ class EpubReaderActivity final : public Activity {
   static void readFolderMoveTask(void* arg);
 
   void setBookCompleted(bool isCompleted);
+#endif
 
   void renderContents(std::unique_ptr<Page> page, int orientedMarginTop, int orientedMarginRight,
                       int orientedMarginBottom, int orientedMarginLeft);
@@ -86,9 +96,11 @@ class EpubReaderActivity final : public Activity {
   uint16_t getAutoPageTurnIntervalSeconds() const;
   void pageTurn(bool isForwardTurn);
   float getCurrentBookProgressPercent() const;
+#if ENABLE_READING_STATS
   void initializeCompletionPromptTrigger();
   bool isAtOrPastCompletionTrigger() const;
   void queueCompletionPromptIfNeeded();
+#endif
   void resetPageLoadRetryState();
   void renderReaderError(StrId messageId);
   void navigateToHref(const std::string& href, bool savePosition = false);

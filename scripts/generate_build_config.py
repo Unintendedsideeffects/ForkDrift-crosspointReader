@@ -214,6 +214,24 @@ FEATURES = {
         size_kb=3,
         description='Optional block-style Roman numeral sleep screen that reuses the WiFi clock time source'
     ),
+    'reading_stats': Feature(
+        name='Reading Stats',
+        flag='ENABLE_READING_STATS',
+        size_kb=20,
+        description='Tracks reading time, pages turned, and completion status. Enables "Mark Finished" and book statistics screen'
+    ),
+    'minimal_theme': Feature(
+        name='Minimal Theme',
+        flag='ENABLE_MINIMAL_THEME',
+        size_kb=8,
+        description='Minimal UI theme for home screen and navigation (requires Lyra Theme)'
+    ),
+    'focus_reading': Feature(
+        name='Focus Reading',
+        flag='ENABLE_FOCUS_READING',
+        size_kb=5,
+        description='Bionic reading / focus reading mode that bolds word beginnings to speed up reading'
+    ),
 }
 
 
@@ -455,6 +473,27 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=[]
     ),
+    'reading_stats': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=[],
+        conflicts=[],
+        recommends=[]
+    ),
+    'minimal_theme': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=['lyra_theme'],
+        conflicts=[],
+        recommends=[]
+    ),
+    'focus_reading': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=[],
+        conflicts=[],
+        recommends=[]
+    ),
 }
 
 
@@ -568,6 +607,8 @@ PROFILES = {
             'user_fonts': True,
             'usb_mass_storage': True,
             'wifi_clock': True,
+            'reading_stats': True,
+            'minimal_theme': True,
         },
     },
     'full': {
@@ -604,6 +645,9 @@ PROFILES = {
             'web_wifi_setup': True,
             'usb_mass_storage': True,
             'wifi_clock': True,
+            'reading_stats': True,
+            'minimal_theme': True,
+            'focus_reading': True,
         },
     },
 }

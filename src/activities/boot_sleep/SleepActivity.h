@@ -23,7 +23,9 @@ class SleepActivity final : public Activity {
   void renderBitmapSleepScreen(const Bitmap& bitmap) const;
   void renderImageSleepScreen(const std::string& imagePath) const;
   void renderTransparentSleepScreen() const;
+#if ENABLE_READING_STATS
   void renderReadingStatsSleepScreen() const;
+#endif
 #if ENABLE_ROMAN_CLOCK_SLEEP
   void renderRomanClockSleepScreen() const;
 #endif

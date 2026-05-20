@@ -15,15 +15,19 @@
 #include <limits>
 
 #include "AnkiAddActivity.h"
+#if ENABLE_READING_STATS
 #include "BookReadingStats.h"
 #include "BookStatsActivity.h"
+#endif
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "EpubReaderChapterSelectionActivity.h"
 #include "EpubReaderFootnotesActivity.h"
 #include "EpubReaderPercentSelectionActivity.h"
 #include "EpubReaderUtils.h"
+#if ENABLE_READING_STATS
 #include "GlobalReadingStats.h"
+#endif
 #include "KOReaderCredentialStore.h"
 #include "KOReaderSyncActivity.h"
 #include "MappedInputManager.h"
@@ -85,6 +89,7 @@ float EpubReaderActivity::getCurrentBookProgressPercent() const {
   return epub->calculateProgress(currentSpineIndex, chapterProgress) * 100.0f;
 }
 
+#if ENABLE_READING_STATS
 void EpubReaderActivity::initializeCompletionPromptTrigger() {
   completionTriggerSpineIndex = -1;
   completionTriggerSpineProgress = 1.0f;
@@ -157,6 +162,7 @@ void EpubReaderActivity::queueCompletionPromptIfNeeded() {
     completionPromptQueued = true;
   }
 }
+#endif  // ENABLE_READING_STATS
 
 void EpubReaderActivity::resetPageLoadRetryState() {
   pageLoadRetrySpineIndex = -1;
@@ -187,8 +193,6 @@ void EpubReaderActivity::onEnter() {
   ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
 
   epub->setupCacheDir();
-  stats = BookReadingStats::load(epub->getCachePath());
-  completionPromptShown = stats.isCompleted;
 
   FsFile f;
   if (Storage.openFileForRead("ERS", epub->getCachePath() + "/progress.bin", f)) {
@@ -226,12 +230,12 @@ void EpubReaderActivity::onEnter() {
   APP_STATE.saveToFile();
   RECENT_BOOKS.addBook(epub->getPath(), epub->getTitle(), epub->getAuthor(), epub->getThumbBmpPath(240));
 
+#if ENABLE_READING_STATS
   stats = BookReadingStats::load(epub->getCachePath());
   sessionStartMs = millis();
-
   globalStats = GlobalReadingStats::load();
-
   initializeCompletionPromptTrigger();
+#endif  // ENABLE_READING_STATS
 
   // Trigger first update
   requestUpdate();
@@ -260,6 +264,7 @@ void EpubReaderActivity::onExit() {
   APP_STATE.readerActivityLoadCount = 0;
   APP_STATE.saveToFile();
 
+#if ENABLE_READING_STATS
   if (epub) {
     const unsigned long elapsedMs = millis() - sessionStartMs;
     if (elapsedMs >= 60000UL) {
@@ -274,9 +279,11 @@ void EpubReaderActivity::onExit() {
     stats.save(epub->getCachePath());
     globalStats.save();
   }
+#endif  // ENABLE_READING_STATS
 
   section.reset();
 
+#if ENABLE_READING_STATS
   if (pendingReadFolderMove && epub) {
     auto* params = new ReadFolderMoveParams{epub->getPath(), epub->getCachePath(), epub->getTitle()};
     epub.reset();
@@ -287,8 +294,11 @@ void EpubReaderActivity::onExit() {
       delete params;
     }
   } else {
+#endif  // ENABLE_READING_STATS
     epub.reset();
+#if ENABLE_READING_STATS
   }
+#endif  // ENABLE_READING_STATS
 }
 
 void EpubReaderActivity::loop() {
@@ -324,6 +334,7 @@ void EpubReaderActivity::loop() {
     }
   }
 
+#if ENABLE_READING_STATS
   if (completionPromptQueued) {
     completionPromptQueued = false;
     completionPromptShown = true;
@@ -338,6 +349,7 @@ void EpubReaderActivity::loop() {
         });
     return;
   }
+#endif  // ENABLE_READING_STATS
 
   // Long-press Confirm: execute quick action instead of opening reader menu.
   constexpr unsigned long longPressMenuMs = 600;
@@ -354,7 +366,13 @@ void EpubReaderActivity::loop() {
     const int bookProgressPercent = roundPercent(getCurrentBookProgressPercent());
     startActivityForResult(std::make_unique<EpubReaderMenuActivity>(
                                renderer, mappedInput, epub->getTitle(), currentPage, totalPages, bookProgressPercent,
-                               SETTINGS.orientation, !currentPageFootnotes.empty(), stats.isCompleted),
+                               SETTINGS.orientation, !currentPageFootnotes.empty(),
+#if ENABLE_READING_STATS
+                               stats.isCompleted
+#else
+                               false
+#endif
+                               ),
                            [this](const ActivityResult& result) {
                              // Always apply orientation change even if the menu was cancelled
                              const auto& menu = std::get<MenuResult>(result.data);
@@ -598,6 +616,7 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
     case S::LONG_MENU_FILE_TRANSFER:
       openFileTransfer();
       break;
+#if ENABLE_READING_STATS
     case S::LONG_MENU_READING_STATS: {
       BookReadingStats displayStats = stats;
       displayStats.totalReadingSeconds += static_cast<uint32_t>((millis() - sessionStartMs) / 1000UL);
@@ -610,6 +629,7 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
       setBookCompleted(!stats.isCompleted);
       requestUpdate();
       break;
+#endif  // ENABLE_READING_STATS
     case S::LONG_MENU_OFF:
     default:
       break;
@@ -642,12 +662,14 @@ bool EpubReaderActivity::executeShortPowerButtonAction() {
     case S::SYNC_PROGRESS:
       executeReaderQuickAction(S::LONG_MENU_SYNC_PROGRESS);
       return true;
+#if ENABLE_READING_STATS
     case S::MARK_FINISHED:
       executeReaderQuickAction(S::LONG_MENU_MARK_FINISHED);
       return true;
     case S::READING_STATS:
       executeReaderQuickAction(S::LONG_MENU_READING_STATS);
       return true;
+#endif  // ENABLE_READING_STATS
     case S::SCREENSHOT:
       executeReaderQuickAction(S::LONG_MENU_SCREENSHOT);
       return true;
@@ -687,12 +709,14 @@ bool EpubReaderActivity::executeLongPowerButtonAction() {
     case S::SYNC_PROGRESS:
       executeReaderQuickAction(S::LONG_MENU_SYNC_PROGRESS);
       return true;
+#if ENABLE_READING_STATS
     case S::MARK_FINISHED:
       executeReaderQuickAction(S::LONG_MENU_MARK_FINISHED);
       return true;
     case S::READING_STATS:
       executeReaderQuickAction(S::LONG_MENU_READING_STATS);
       return true;
+#endif  // ENABLE_READING_STATS
     case S::SCREENSHOT:
       executeReaderQuickAction(S::LONG_MENU_SCREENSHOT);
       return true;
@@ -857,11 +881,13 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       activityManager.goHome();
       return;
     }
+#if ENABLE_READING_STATS
     case EpubReaderMenuActivity::MenuAction::TOGGLE_COMPLETED: {
       setBookCompleted(!stats.isCompleted);
       requestUpdate();
       break;
     }
+#endif  // ENABLE_READING_STATS
     case EpubReaderMenuActivity::MenuAction::SCREENSHOT: {
       {
         RenderLock lock(*this);
@@ -1011,8 +1037,10 @@ void EpubReaderActivity::pageTurn(bool isForwardTurn) {
       }
     }
   }
+#if ENABLE_READING_STATS
   stats.totalPagesTurned++;
   globalStats.totalPagesTurned++;
+#endif  // ENABLE_READING_STATS
   lastPageTurnTime = millis();
   requestUpdate();
 }
@@ -1235,7 +1263,9 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     lastSavedSpineIndex = currentSpineIndex;
     lastSavedPage = section->currentPage;
   }
+#if ENABLE_READING_STATS
   queueCompletionPromptIfNeeded();
+#endif  // ENABLE_READING_STATS
 
   showPendingSyncSaveError();
 
@@ -1516,6 +1546,7 @@ ScreenshotInfo EpubReaderActivity::getScreenshotInfo() const {
   return info;
 }
 
+#if ENABLE_READING_STATS
 void EpubReaderActivity::setBookCompleted(bool isCompleted) {
   if (!epub || stats.isCompleted == isCompleted) {
     return;
@@ -1592,3 +1623,4 @@ void EpubReaderActivity::readFolderMoveTask(void* arg) {
   delete params;
   vTaskDelete(nullptr);
 }
+#endif  // ENABLE_READING_STATS

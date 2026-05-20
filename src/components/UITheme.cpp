@@ -12,7 +12,9 @@
 #include "components/themes/lyra/Lyra3CoversTheme.h"
 #include "components/themes/lyra/LyraCarouselTheme.h"
 #include "components/themes/lyra/LyraTheme.h"
+#if ENABLE_MINIMAL_THEME
 #include "components/themes/minimal/MinimalTheme.h"
+#endif
 #include "core/features/FeatureCatalog.h"
 #include "features/status_overlay/Layout.h"
 #include "util/RecentBooksStore.h"
@@ -67,11 +69,13 @@ void UITheme::setTheme(CrossPointSettings::UI_THEME type) {
       currentTheme = std::make_unique<ForkDriftTheme>();
       currentMetrics = &ForkDriftMetrics::values;
       break;
+#if ENABLE_MINIMAL_THEME
     case CrossPointSettings::UI_THEME::MINIMAL:
       LOG_DBG("UI", "Using Minimal theme");
       currentTheme = std::make_unique<MinimalTheme>();
       currentMetrics = &MinimalMetrics::values;
       break;
+#endif
     case CrossPointSettings::UI_THEME::LYRA_CAROUSEL:
       LOG_DBG("UI", "Using Lyra Carousel theme");
       currentTheme = std::make_unique<LyraCarouselTheme>();

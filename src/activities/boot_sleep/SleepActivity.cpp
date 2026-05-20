@@ -12,7 +12,9 @@
 #include <cctype>
 #include <cstring>
 
+#if ENABLE_READING_STATS
 #include "../reader/BookStatsView.h"
+#endif
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "FeatureFlags.h"
@@ -480,9 +482,11 @@ void SleepActivity::onEnter() {
     case (CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM):
       renderCustomSleepScreen();
       return;
+#if ENABLE_READING_STATS
     case (CrossPointSettings::SLEEP_SCREEN_MODE::READING_STATS_SLEEP):
       renderReadingStatsSleepScreen();
       return;
+#endif  // ENABLE_READING_STATS
 #if ENABLE_ROMAN_CLOCK_SLEEP
     case (CrossPointSettings::SLEEP_SCREEN_MODE::ROMAN_CLOCK_SLEEP):
       renderRomanClockSleepScreen();
@@ -711,6 +715,7 @@ void SleepActivity::drawLockIcon(const int cx, const int cy) const {
   renderer.fillRect(cx - 1, cy + 3, 3, 5, true);
 }
 
+#if ENABLE_READING_STATS
 void SleepActivity::renderReadingStatsSleepScreen() const {
   BookReadingStats bookStats;
   GlobalReadingStats globalStats = GlobalReadingStats::load();
@@ -730,6 +735,7 @@ void SleepActivity::renderReadingStatsSleepScreen() const {
   renderBookStatsView(renderer, nullptr, bookTitle, bookStats, globalStats, false);
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
+#endif  // ENABLE_READING_STATS
 
 #if ENABLE_ROMAN_CLOCK_SLEEP
 void SleepActivity::renderRomanClockSleepScreen() const {

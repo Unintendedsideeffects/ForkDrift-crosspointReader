@@ -9,7 +9,9 @@
 #include "features/dark_mode/Registration.h"
 #include "features/epub/Registration.h"
 #include "features/koreader_sync/Registration.h"
+#include "features/focus_reading/Registration.h"
 #include "features/lyra_theme/Registration.h"
+#include "features/minimal_theme/Registration.h"
 #include "features/markdown/Registration.h"
 #include "features/ota_updates/Registration.h"
 #include "features/pokemon_party/Registration.h"
@@ -55,6 +57,8 @@ void registerFeatureModules() {
   features::web_wallpaper::registerFeature();
   features::web_wifi_setup::registerFeature();
   features::lyra_theme::registerFeature();
+  features::minimal_theme::registerFeature();
+  features::focus_reading::registerFeature();
   features::trmnl_switch::registerFeature();
   features::ble_wifi_provisioning::registerFeature();
   features::usb_mass_storage::registerFeature();

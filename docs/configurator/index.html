@@ -696,6 +696,20 @@
         margin-left: 5px;
       }
 
+      .card-crossink-badge {
+        display: inline-block;
+        font-family: 'Silkscreen', monospace;
+        font-size: 7px;
+        font-weight: 700;
+        text-transform: uppercase;
+        background: var(--md);
+        color: var(--white);
+        padding: 1px 3px 2px;
+        letter-spacing: 0.06em;
+        vertical-align: middle;
+        margin-left: 5px;
+      }
+
       /* ── Note items (roadmap/annotations) ── */
       .note-grid {
         display: grid;
@@ -2210,6 +2224,28 @@
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
 
+              <label class="skill-card" data-feature="reading_stats" data-node-id="reading_stats">
+                <input type="checkbox" id="reading_stats" data-feature="reading_stats" />
+                <div class="card-icon"><span>&#x25EF;</span></div>
+                <div class="card-body">
+                  <div class="card-name">Reading Stats</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">Per-book and global stats, completion tracking, stats sleep screen, and finish prompt</div>
+                </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
+              <label class="skill-card" data-feature="focus_reading" data-node-id="focus_reading">
+                <input type="checkbox" id="focus_reading" data-feature="focus_reading" />
+                <div class="card-icon"><span>&#x25CE;</span></div>
+                <div class="card-body">
+                  <div class="card-name">Focus Reading</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">Hides page numbers, battery, and status overlays while reading — text only</div>
+                </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
             </div>
           </div>
         </section>
@@ -2297,6 +2333,16 @@
                       <div class="card-name">Visual Covers</div>
                       <div class="card-size"></div>
                       <div class="card-desc">Grid-based book explorer with cached cover art thumbnails</div>
+                    </div>
+                    <div class="card-toggle"><span class="toggle-box"></span></div>
+                  </label>
+                  <label class="skill-card dep-child" data-feature="minimal_theme" data-node-id="minimal_theme">
+                    <input type="checkbox" id="minimal_theme" data-feature="minimal_theme" />
+                    <div class="card-icon"><span>&#x25AB;</span></div>
+                    <div class="card-body">
+                      <div class="card-name">Minimal Theme</div>
+                      <div class="card-size"></div>
+                      <div class="card-desc">Stripped-down skin with tighter spacing and no decorative borders (requires Lyra)</div>
                     </div>
                     <div class="card-toggle"><span class="toggle-box"></span></div>
                   </label>
@@ -3542,6 +3588,21 @@
           flag: "ENABLE_ROMAN_CLOCK_SLEEP",
           default: false,
         },
+        reading_stats: {
+          sizeKb: 20,
+          flag: "ENABLE_READING_STATS",
+          default: true,
+        },
+        minimal_theme: {
+          sizeKb: 8,
+          flag: "ENABLE_MINIMAL_THEME",
+          default: true,
+        },
+        focus_reading: {
+          sizeKb: 5,
+          flag: "ENABLE_FOCUS_READING",
+          default: false,
+        },
       };
 
       const FEATURE_DOCS = {
@@ -3577,6 +3638,9 @@
         usb_mass_storage: "Exposes the SD card as a USB mass-storage device when connected to a computer. Lets you drag-and-drop books without a network. The SD card is unmounted from the firmware while in this mode.",
         wifi_clock: "Shows a 24-hour Roman-numeral quarter-hour clock label in the ForkDrift home header and global status bar when system time is available. The minute marker is blank for :00, I for :15, II for :30, and III for :45. While connected to WiFi, it syncs time by NTP and refreshes the display every 15 minutes.",
         roman_clock_sleep: "Adds a dedicated sleep-screen mode that renders the WiFi Clock time as large block Roman numerals. It reuses the same NTP-backed quarter-hour Roman label as the header/status clock and only appears when both this feature and WiFi Clock are enabled.",
+        reading_stats: "Tracks per-book and global reading statistics — total pages turned, session time, and completion status. Adds a reading-stats sleep screen, a completion prompt when you finish a book, and a 'Mark as Finished' shortcut in the reader menu. Stats persist to the SD cache; completion state is also surfaced in the file browser.",
+        minimal_theme: "A streamlined UI skin with reduced visual chrome — tighter spacing, no decorative borders, and a simpler icon set. Intended for readers who want fewer distractions and a faster visual cadence on e-ink. Requires Lyra Theme as its base.",
+        focus_reading: "Hides the page-number footer, battery indicator, and all status overlays while reading, leaving only the text. A distraction-free mode that mirrors the look of a physical book. Toggle from the reader long-press menu.",
         remote_control: "The Android companion app discovers available remote-control capabilities at runtime by reading plugin flags from the device. No compile-time flag — always advertised. Open Book and Page Turn are always enabled; Keyboard Input is optional.",
         remote_open_book: "Lets the Android app send a 'open this book' command to the device over WiFi or USB. The device finds the book on the SD card by filename and opens it immediately. Always compiled in.",
         remote_page_turn: "Lets the Android app send forward/back page commands to the device. Implemented via virtual button injection so it's fully orientation-aware. Always compiled in.",
@@ -3604,16 +3668,20 @@
         visual_cover_picker: ["home_media_picker"],
         pokemon_wallpaper_plugin: ["image_sleep"],
         roman_clock_sleep: ["wifi_clock"],
+        minimal_theme: ["lyra_theme"],
       };
 
       const HUB_FEATURES = {
-        reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "anki_support"],
-        interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts"],
+        reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "anki_support", "reading_stats", "focus_reading"],
+        interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts", "minimal_theme"],
         network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
         storage_hub: ["usb_mass_storage"],
       };
 
       const NOTE_FEATURES = {};
+
+      // Features ported from the crossink fork — shown with a "crossink" badge.
+      const CROSSINK_FEATURES = new Set(["reading_stats", "minimal_theme", "focus_reading"]);
 
       const PROFILES = {
         lean: {},
@@ -3638,6 +3706,8 @@
           ble_wifi_provisioning: true,
           user_fonts: true,
           usb_mass_storage: true,
+          reading_stats: true,
+          minimal_theme: true,
         },
         full: {
           bookerly_fonts: true,
@@ -3672,6 +3742,9 @@
           user_fonts: true,
           web_wifi_setup: true,
           usb_mass_storage: true,
+          reading_stats: true,
+          minimal_theme: true,
+          focus_reading: true,
         },
       };
 
@@ -4233,6 +4306,18 @@
         } finally {
           triggerBtn.disabled = false;
         }
+      }
+
+      function stampCrossinkBadges() {
+        document.querySelectorAll(".skill-card[data-feature]").forEach((card) => {
+          if (!CROSSINK_FEATURES.has(card.dataset.feature)) return;
+          const nameEl = card.querySelector(".card-name");
+          if (!nameEl || nameEl.querySelector(".card-crossink-badge")) return;
+          const badge = document.createElement("span");
+          badge.className = "card-crossink-badge";
+          badge.textContent = "crossink";
+          nameEl.appendChild(badge);
+        });
       }
 
       function initPresetDownloadLinks() {
@@ -5534,6 +5619,12 @@
                   : previewSleepMode === 8
                     ? 'roman-clock'
                     : 'dark';
+          const defaultSleepPreviewPath = new URL(
+            sleepPreviewFrameClass === 'light'
+              ? '../../src/images/forkdrift.svg'
+              : '../../src/images/forkdriftDark.svg',
+            document.baseURI
+          ).href;
           const fallbackHomePreviewStems = {
             0: '02_home_classic',
             1: '03_home_lyra',
@@ -5591,7 +5682,7 @@
               filterLabel: sleepFilterLabels[currentSettings.sleepScreenCoverFilter] || 'None',
               coverMode: currentSettings.sleepScreenCoverMode,
               pinnedPath: currentSettings.sleepPinnedPath || '',
-              logoPath: new URL('../../src/images/Logo120.png', document.baseURI).href,
+              brandPath: defaultSleepPreviewPath,
               coverPath: new URL('../images/cover.jpg', document.baseURI).href,
               pokedexPreviewPath,
               studioImagePath: renderedStudioImage || studioSelection.previewUrl || '',
@@ -5763,24 +5854,11 @@
       text-align: center;
       padding: 0 12px;
     }
-    .sleep-preview-default {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-    }
-    .sleep-preview-logo {
-      width: 120px;
-      height: 120px;
-      image-rendering: pixelated;
-    }
-    .sleep-preview-title {
-      font-size: 1.12em;
-      font-weight: 700;
-    }
-    .sleep-preview-meta {
-      font-size: 0.82em;
-      line-height: 1.35;
+    .sleep-preview-brand {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
     }
     .sleep-preview-image {
       width: 100%;
@@ -6173,11 +6251,7 @@
       } else if (sleepPreview.mode === 3) {
         inner = '';
       } else {
-        inner = '<div class="sleep-preview-default">' +
-          '<img class="sleep-preview-logo" src="' + escapeHtml(sleepPreview.logoPath) + '" alt="" />' +
-          '<div class="sleep-preview-title">CrossPoint</div>' +
-          '<div class="sleep-preview-meta">SLEEPING</div>' +
-        '</div>';
+        inner = '<img class="sleep-preview-brand" src="' + escapeHtml(sleepPreview.brandPath) + '" alt="ForkDrift sleeping" />';
       }
       sleepPreviewOverlay.classList.toggle('visible', !!sleepPreview.visible);
       sleepPreviewOverlay.setAttribute('aria-hidden', sleepPreview.visible ? 'false' : 'true');
@@ -6388,6 +6462,7 @@
       setupWifiTab();
       setupSettingsTab();
       initPresetDownloadLinks();
+      stampCrossinkBadges();
       const initialState = parseInitialStateFromUrl();
       baseProfile = initialState.initialProfile;
       setSelections(initialState.selections);

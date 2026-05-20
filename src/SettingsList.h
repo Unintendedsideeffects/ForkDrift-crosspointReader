@@ -187,13 +187,19 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 #if ENABLE_ROMAN_CLOCK_SLEEP
                                     StrId::STR_ROMAN_CLOCK,
 #endif
-                                    StrId::STR_READING_STATS};
+#if ENABLE_READING_STATS
+                                    StrId::STR_READING_STATS,
+#endif
+                                    };
     const std::vector<uint8_t> vals = {M::DARK,        M::LIGHT, M::FOLLOW_THEME,       M::CUSTOM,
                                        M::TRANSPARENT, M::SMART,
 #if ENABLE_ROMAN_CLOCK_SLEEP
                                        M::ROMAN_CLOCK_SLEEP,
 #endif
-                                       M::READING_STATS_SLEEP};
+#if ENABLE_READING_STATS
+                                       M::READING_STATS_SLEEP,
+#endif
+                                       };
     return SettingInfo::DynamicEnum(
         StrId::STR_SLEEP_SCREEN, ids,
         [vals] {
@@ -254,10 +260,14 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
     std::vector<uint8_t> vals = {CrossPointSettings::UI_THEME::CLASSIC};
     if (core::FeatureModules::hasCapability(core::Capability::LyraTheme)) {
       ids.insert(ids.end(), {StrId::STR_THEME_LYRA, StrId::STR_THEME_LYRA_EXTENDED, StrId::STR_THEME_FORK_DRIFT,
-                             StrId::STR_THEME_MINIMAL, StrId::STR_THEME_LYRA_CAROUSEL});
+                             StrId::STR_THEME_LYRA_CAROUSEL});
       vals.insert(vals.end(), {CrossPointSettings::UI_THEME::LYRA, CrossPointSettings::UI_THEME::LYRA_EXTENDED,
-                               CrossPointSettings::UI_THEME::FORK_DRIFT, CrossPointSettings::UI_THEME::MINIMAL,
+                               CrossPointSettings::UI_THEME::FORK_DRIFT,
                                CrossPointSettings::UI_THEME::LYRA_CAROUSEL});
+      if (core::FeatureModules::hasCapability(core::Capability::MinimalTheme)) {
+        ids.push_back(StrId::STR_THEME_MINIMAL);
+        vals.push_back(CrossPointSettings::UI_THEME::MINIMAL);
+      }
     }
     if (core::FeatureModules::hasCapability(core::Capability::PokemonParty)) {
       ids.push_back(StrId::STR_THEME_POKEMON_PARTY);
@@ -299,8 +309,10 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
       "paragraphAlignment", StrId::STR_CAT_READER));
   list.push_back(SettingInfo::Toggle(StrId::STR_EMBEDDED_STYLE, &CrossPointSettings::embeddedStyle, "embeddedStyle",
                                      StrId::STR_CAT_READER));
-  list.push_back(SettingInfo::Toggle(StrId::STR_FOCUS_READING, &CrossPointSettings::focusReadingEnabled,
-                                     "focusReadingEnabled", StrId::STR_CAT_READER));
+  if (core::FeatureModules::hasCapability(core::Capability::FocusReading)) {
+    list.push_back(SettingInfo::Toggle(StrId::STR_FOCUS_READING, &CrossPointSettings::focusReadingEnabled,
+                                       "focusReadingEnabled", StrId::STR_CAT_READER));
+  }
   list.push_back(SettingInfo::Toggle(StrId::STR_GUIDE_READING, &CrossPointSettings::guideReadingEnabled,
                                      "guideReadingEnabled", StrId::STR_CAT_READER));
   list.push_back(SettingInfo::Toggle(StrId::STR_HYPHENATION, &CrossPointSettings::hyphenationEnabled,
@@ -366,8 +378,10 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
       "sleepTimeoutMinutes", StrId::STR_CAT_SYSTEM));
   list.push_back(SettingInfo::Toggle(StrId::STR_SHOW_HIDDEN_FILES, &CrossPointSettings::showHiddenFiles,
                                      "showHiddenFiles", StrId::STR_CAT_SYSTEM));
+#if ENABLE_READING_STATS
   list.push_back(SettingInfo::Toggle(StrId::STR_MOVE_FINISHED_TO_READ, &CrossPointSettings::moveFinishedToReadFolder,
                                      "moveFinishedToReadFolder", StrId::STR_CAT_SYSTEM));
+#endif
   list.push_back(SettingInfo::Toggle(StrId::STR_DEVELOPER_MODE, &CrossPointSettings::developerMode, "developerMode",
                                      StrId::STR_CAT_SYSTEM));
 

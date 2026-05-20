@@ -13,8 +13,11 @@
 #include "FileBrowserActionActivity.h"
 #include "Logging.h"
 #include "MappedInputManager.h"
+#include "FeatureFlags.h"
+#if ENABLE_READING_STATS
 #include "activities/reader/BookReadingStats.h"
 #include "activities/reader/GlobalReadingStats.h"
+#endif
 #include "activities/util/ConfirmationActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -174,6 +177,7 @@ bool FileBrowserActivity::clearBookCache(const std::string& fullPath) {
   return false;
 }
 
+#if ENABLE_READING_STATS
 bool FileBrowserActivity::isEpubCompleted(const std::string& fullPath) const {
   const Epub epub(fullPath, "/.crosspoint");
   return BookReadingStats::load(epub.getCachePath()).isCompleted;
@@ -236,6 +240,7 @@ void FileBrowserActivity::toggleEpubCompleted(const std::string& fullPath, const
   selectorIndex = files.empty() ? 0 : std::min(selectorIndex, files.size() - 1);
   requestUpdate(true);
 }
+#endif  // ENABLE_READING_STATS
 
 void FileBrowserActivity::pinSleepFavorite(const std::string& fullPath) {
   strncpy(SETTINGS.sleepPinnedPath, fullPath.c_str(), sizeof(SETTINGS.sleepPinnedPath) - 1);
@@ -278,10 +283,12 @@ void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool igno
   if (hasClearableBookCache(fullPath)) {
     items.push_back({FileBrowserAction::DeleteCache, StrId::STR_DELETE_CACHE});
   }
+#if ENABLE_READING_STATS
   if (FsHelpers::hasEpubExtension(fullPath)) {
     items.push_back({FileBrowserAction::ToggleCompleted,
                      isEpubCompleted(fullPath) ? StrId::STR_MARK_UNFINISHED : StrId::STR_MARK_FINISHED});
   }
+#endif  // ENABLE_READING_STATS
 
   startActivityForResult(
       std::make_unique<FileBrowserActionActivity>(renderer, mappedInput, getFileName(entry), std::move(items),
@@ -303,9 +310,11 @@ void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool igno
             }
             requestUpdate();
             return;
+#if ENABLE_READING_STATS
           case FileBrowserAction::ToggleCompleted:
             toggleEpubCompleted(fullPath, entry);
             return;
+#endif  // ENABLE_READING_STATS
           case FileBrowserAction::PinFavorite:
             if (FsHelpers::hasPngExtension(fullPath)) {
               startActivityForResult(
@@ -390,6 +399,7 @@ void FileBrowserActivity::toggleHiddenFiles() {
 }
 
 void FileBrowserActivity::loop() {
+#if ENABLE_READING_STATS
   if (pendingCompletedFeedback) {
     const bool timedOut = (millis() - completedFeedbackShowTime) >= COMPLETED_FEEDBACK_MS;
     const bool navPressed = mappedInput.wasReleased(MappedInputManager::Button::Left) ||
@@ -402,6 +412,7 @@ void FileBrowserActivity::loop() {
       return;
     }
   }
+#endif  // ENABLE_READING_STATS
 
   if (mode == Mode::Books && !longPressBackHandled && mappedInput.isPressed(MappedInputManager::Button::Back) &&
       mappedInput.getHeldTime() >= GO_HOME_MS && !lockLongPressBack) {
@@ -613,9 +624,11 @@ void FileBrowserActivity::render(RenderLock&&) {
     renderer.drawText(SMALL_FONT_ID, pageWidth - metrics.contentSidePadding - hintWidth, pathY, hint.c_str());
   }
 
+#if ENABLE_READING_STATS
   if (pendingCompletedFeedback) {
     GUI.drawPopup(renderer, completedFeedbackIsFinished ? tr(STR_MARKED_FINISHED) : tr(STR_MARKED_UNFINISHED));
   }
+#endif  // ENABLE_READING_STATS
 
   renderer.displayBuffer();
 }

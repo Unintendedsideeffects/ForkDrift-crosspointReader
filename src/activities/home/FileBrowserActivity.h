@@ -4,6 +4,8 @@
 #include <utility>
 #include <vector>
 
+#include <FeatureFlags.h>
+
 #include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
 
@@ -22,17 +24,21 @@ class FileBrowserActivity final : public Activity {
   bool lockLongPressBack = false;
   bool longPressBackHandled = false;
   bool longPressConfirmHandled = false;
+#if ENABLE_READING_STATS
   bool pendingCompletedFeedback = false;
   bool completedFeedbackIsFinished = false;
   unsigned long completedFeedbackShowTime = 0UL;
+#endif
 
   void loadFiles();
   void toggleHiddenFiles();
   void confirmDeleteEntry(const std::string& entry);
   void clearFileMetadata(const std::string& fullPath);
   bool clearBookCache(const std::string& fullPath);
+#if ENABLE_READING_STATS
   bool isEpubCompleted(const std::string& fullPath) const;
   void toggleEpubCompleted(const std::string& fullPath, const std::string& entry);
+#endif
   void pinSleepFavorite(const std::string& fullPath);
   void unpinSleepFavorite();
   bool isPinnedSleepFavorite(const std::string& fullPath) const;

@@ -389,9 +389,15 @@ uint8_t CrossPointSettings::normalizeSleepScreenMode(const uint8_t rawValue) {
   if (rawValue == 6 /* old TRANSPARENT */) {
     return TRANSPARENT;
   }
+#if ENABLE_READING_STATS
   if (rawValue == READING_STATS_SLEEP) {
     return READING_STATS_SLEEP;
   }
+#else
+  if (rawValue == READING_STATS_SLEEP) {
+    return DARK;
+  }
+#endif
 #if ENABLE_ROMAN_CLOCK_SLEEP
   if (rawValue == ROMAN_CLOCK_SLEEP) {
     return ROMAN_CLOCK_SLEEP;
@@ -444,6 +450,11 @@ void CrossPointSettings::validateAndClamp() {
   if (recentBooksView >= RECENT_BOOKS_VIEW_COUNT) recentBooksView = RECENT_BOOKS_LIST;
 #if !ENABLE_LYRA_THEME
   uiTheme = CLASSIC;
+#elif !ENABLE_MINIMAL_THEME
+  if (uiTheme == MINIMAL) uiTheme = LYRA;
+#endif
+#if !ENABLE_FOCUS_READING
+  focusReadingEnabled = 0;
 #endif
 
   if (timeZoneOffset > 26) timeZoneOffset = 12;
