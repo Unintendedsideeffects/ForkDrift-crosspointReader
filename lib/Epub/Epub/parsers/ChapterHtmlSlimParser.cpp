@@ -342,7 +342,6 @@ void ChapterHtmlSlimParser::emitBufferedTableAsFragments(BufferedTable& table) {
       emitBufferedTableAsParagraphs(table);
       return;
     }
-
     for (size_t colIndex = 0; colIndex < row.cells.size(); colIndex++) {
       auto& sourceCell = row.cells[colIndex];
       auto& destCell = prepared.fragmentRow.cells[colIndex];
@@ -388,7 +387,6 @@ void ChapterHtmlSlimParser::emitBufferedTableAsFragments(BufferedTable& table) {
   if (table.blockStyle.paddingTop > 0) {
     currentPageNextY += table.blockStyle.paddingTop;
   }
-
   size_t nextRowIndex = 0;
   while (nextRowIndex < preparedRows.size()) {
     if (!currentPage) {
