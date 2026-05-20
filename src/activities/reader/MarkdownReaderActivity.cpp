@@ -25,6 +25,21 @@ constexpr unsigned long goHomeMs = 1000;
 constexpr int statusBarMargin = 19;
 constexpr int progressBarMarginTop = 1;
 
+bool containsNodeType(const MdNode* node, const MdNodeType type) {
+  if (node == nullptr) {
+    return false;
+  }
+  if (node->type == type) {
+    return true;
+  }
+  for (const auto& child : node->children) {
+    if (containsNodeType(child.get(), type)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 uint32_t computeParseFailureSettingsSignature() {
   uint32_t signature = 2166136261u;
   auto mix = [&signature](uint32_t value) {
@@ -75,8 +90,15 @@ void MarkdownReaderActivity::onEnter() {
 
   markdown->setupCacheDir();
   // Parse AST for Obsidian rendering and navigation (best effort)
-  astReady.store(markdown->parseToAst());
-  useAstRenderer.store(astReady.load());
+  const bool parsedAst = markdown->parseToAst();
+  astReady.store(parsedAst);
+
+  // The native AST renderer keeps Markdown fast and navigation-aware, but its
+  // table layout is still more fragile than the HTML section path for wide
+  // study-guide tables. Keep the parsed AST for TOC/navigation and render table
+  // documents through the mature HTML fallback.
+  const bool hasTables = parsedAst && containsNodeType(markdown->getAst(), MdNodeType::Table);
+  useAstRenderer.store(parsedAst && !hasTables);
   if (!useAstRenderer.load()) {
     htmlReady.store(markdown->ensureHtml());
   }
