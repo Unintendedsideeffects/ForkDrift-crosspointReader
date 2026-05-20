@@ -38,7 +38,7 @@ FEATURES = {
         name='OpenDyslexic Font Pack',
         flag='ENABLE_OPENDYSLEXIC_FONTS',
         size_kb=2617,
-        description='Optional OpenDyslexic 8/10/12/14pt family (requires Bookerly + Noto Sans)'
+        description='Optional OpenDyslexic 8/10/12/14pt family (requires at least one full-charset font)'
     ),
     'image_sleep': Feature(
         name='PNG/JPEG Sleep Images',
@@ -264,10 +264,12 @@ class FeatureMetadata:
     """Metadata about feature implementation and dependencies."""
 
     def __init__(self, implemented: bool, stable: bool, requires: List[str] = None,
+                 requires_any: List[str] = None,
                  conflicts: List[str] = None, recommends: List[str] = None):
         self.implemented = implemented
         self.stable = stable
         self.requires = requires or []
+        self.requires_any = requires_any or []
         self.conflicts = conflicts or []
         self.recommends = recommends or []
 
@@ -290,7 +292,8 @@ FEATURE_METADATA = {
     'opendyslexic_fonts': FeatureMetadata(
         implemented=True,
         stable=True,
-        requires=['bookerly_fonts', 'notosans_fonts'],
+        requires=[],
+        requires_any=['bookerly_fonts', 'notosans_fonts', 'lexenddeca_fonts', 'bitter_fonts', 'chareink_fonts'],
         conflicts=[],
         recommends=[]
     ),
@@ -576,11 +579,19 @@ def validate_feature_configuration(enabled_features: Dict[str, bool]) -> tuple[L
                 f"Build will fail or feature will not work."
             )
 
-        # Check required dependencies
+        # Check required dependencies (all must be enabled)
         for required in metadata.requires:
             if not enabled_features.get(required, False):
                 errors.append(
                     f"{FEATURES[feature_key].name} requires {FEATURES[required].name} to be enabled"
+                )
+
+        # Check requires_any dependencies (at least one must be enabled)
+        if metadata.requires_any:
+            if not any(enabled_features.get(r, False) for r in metadata.requires_any):
+                names = ', '.join(FEATURES[r].name for r in metadata.requires_any if r in FEATURES)
+                errors.append(
+                    f"{FEATURES[feature_key].name} requires at least one of: {names}"
                 )
 
         # Check conflicts

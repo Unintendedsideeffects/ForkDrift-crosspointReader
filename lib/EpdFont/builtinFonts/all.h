@@ -1,5 +1,8 @@
 #pragma once
 
+#include <FeatureFlags.h>
+
+#if ENABLE_BOOKERLY_FONTS
 #include <builtinFonts/notoserif_12_bold.h>
 #include <builtinFonts/notoserif_12_bolditalic.h>
 #include <builtinFonts/notoserif_12_italic.h>
@@ -16,6 +19,9 @@
 #include <builtinFonts/notoserif_18_bolditalic.h>
 #include <builtinFonts/notoserif_18_italic.h>
 #include <builtinFonts/notoserif_18_regular.h>
+#endif  // ENABLE_BOOKERLY_FONTS
+
+#if ENABLE_NOTOSANS_FONTS
 #include <builtinFonts/notosans_8_regular.h>
 #include <builtinFonts/notosans_12_bold.h>
 #include <builtinFonts/notosans_12_bolditalic.h>
@@ -33,6 +39,13 @@
 #include <builtinFonts/notosans_18_bolditalic.h>
 #include <builtinFonts/notosans_18_italic.h>
 #include <builtinFonts/notosans_18_regular.h>
+#endif  // ENABLE_NOTOSANS_FONTS
+
+#if ENABLE_OPENDYSLEXIC_FONTS
+#include <builtinFonts/opendyslexic_8_bold.h>
+#include <builtinFonts/opendyslexic_8_bolditalic.h>
+#include <builtinFonts/opendyslexic_8_italic.h>
+#include <builtinFonts/opendyslexic_8_regular.h>
 #include <builtinFonts/opendyslexic_10_bold.h>
 #include <builtinFonts/opendyslexic_10_bolditalic.h>
 #include <builtinFonts/opendyslexic_10_italic.h>
@@ -45,14 +58,15 @@
 #include <builtinFonts/opendyslexic_14_bolditalic.h>
 #include <builtinFonts/opendyslexic_14_italic.h>
 #include <builtinFonts/opendyslexic_14_regular.h>
-#include <builtinFonts/opendyslexic_8_bold.h>
-#include <builtinFonts/opendyslexic_8_bolditalic.h>
-#include <builtinFonts/opendyslexic_8_italic.h>
-#include <builtinFonts/opendyslexic_8_regular.h>
+#endif  // ENABLE_OPENDYSLEXIC_FONTS
+
+// Ubuntu is the UI font — always compiled in regardless of reading font selection.
 #include <builtinFonts/ubuntu_10_bold.h>
 #include <builtinFonts/ubuntu_10_regular.h>
 #include <builtinFonts/ubuntu_12_bold.h>
 #include <builtinFonts/ubuntu_12_regular.h>
+
+#if ENABLE_LEXENDDECA_FONTS
 #include <builtinFonts/lexenddeca_12_bold.h>
 #include <builtinFonts/lexenddeca_12_bolditalic.h>
 #include <builtinFonts/lexenddeca_12_italic.h>
@@ -69,6 +83,9 @@
 #include <builtinFonts/lexenddeca_18_bolditalic.h>
 #include <builtinFonts/lexenddeca_18_italic.h>
 #include <builtinFonts/lexenddeca_18_regular.h>
+#endif  // ENABLE_LEXENDDECA_FONTS
+
+#if ENABLE_BITTER_FONTS
 #include <builtinFonts/bitter_12_bold.h>
 #include <builtinFonts/bitter_12_bolditalic.h>
 #include <builtinFonts/bitter_12_italic.h>
@@ -85,6 +102,9 @@
 #include <builtinFonts/bitter_18_bolditalic.h>
 #include <builtinFonts/bitter_18_italic.h>
 #include <builtinFonts/bitter_18_regular.h>
+#endif  // ENABLE_BITTER_FONTS
+
+#if ENABLE_CHAREINK_FONTS
 #include <builtinFonts/charein_12_bold.h>
 #include <builtinFonts/charein_12_bolditalic.h>
 #include <builtinFonts/charein_12_italic.h>
@@ -101,3 +121,4 @@
 #include <builtinFonts/charein_18_bolditalic.h>
 #include <builtinFonts/charein_18_italic.h>
 #include <builtinFonts/charein_18_regular.h>
+#endif  // ENABLE_CHAREINK_FONTS

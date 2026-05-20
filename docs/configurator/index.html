@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CrossPoint Reader — Build Configurator</title>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="./settings-schema.generated.js"></script>
     <!-- Live theme token source (resolves var(--paper) etc. when served via HTTP) -->
     <link rel="stylesheet" href="../../scripts/theme.css">
     <style>
@@ -2277,7 +2278,7 @@
                     <div class="card-body">
                       <div class="card-name">OpenDyslexic</div>
                       <div class="card-size"></div>
-                      <div class="card-desc">Optional OpenDyslexic 8/10/12/14pt family (requires Bookerly + Noto Sans)</div>
+                      <div class="card-desc">Optional OpenDyslexic 8/10/12/14pt family (requires at least one full-charset font)</div>
                     </div>
                     <div class="card-toggle"><span class="toggle-box"></span></div>
                   </label>
@@ -2293,11 +2294,11 @@
                   </label>
                   <label class="skill-card dep-child" data-feature="bookerly_fonts" data-node-id="bookerly_fonts">
                     <input type="checkbox" id="bookerly_fonts" data-feature="bookerly_fonts" />
-                    <div class="card-icon"><span>A</span></div>
+                    <div class="card-icon"><span>NS</span></div>
                     <div class="card-body">
-                      <div class="card-name">Bookerly Fonts</div>
+                      <div class="card-name">Noto Serif Fonts <span style="font-size:0.7em;opacity:0.6">(lean default)</span></div>
                       <div class="card-size"></div>
-                      <div class="card-desc">12/16/18pt Bookerly family</div>
+                      <div class="card-desc">Noto Serif 12–18pt, 4 styles. The default lean build font.</div>
                     </div>
                     <div class="card-toggle"><span class="toggle-box"></span></div>
                   </label>
@@ -2332,6 +2333,11 @@
                     <div class="card-toggle"><span class="toggle-box"></span></div>
                   </label>
                 </div>
+              </div>
+
+              <div id="no-font-warning" style="display:none;align-items:center;gap:8px;padding:10px 14px;background:var(--warn,#fffbe6);border:1px solid #e6c200;border-radius:6px;font-size:0.85em;color:#7a5a00;grid-column:1/-1">
+                <span>&#9888;</span>
+                <span>No font family is enabled — the firmware will fail to compile. Enable at least one font, or use an SD card custom font as a runtime replacement.</span>
               </div>
 
               <div class="dep-group" data-dep-parent="home_media_picker">
@@ -3031,299 +3037,14 @@
             </div>
             <div class="settings-layout">
               <div class="settings-form-pane">
-                <div class="settings-sections">
-
-              <!-- Reader -->
-              <div class="settings-section">
-                <div class="settings-section-title">Reader</div>
-                <div class="settings-grid">
-                  <div class="form-group">
-                    <label class="form-label" for="s-fontFamily">Font Family</label>
-                    <select class="form-select" id="s-fontFamily">
-                      <option value="0" selected>Bookerly</option>
-                      <option value="1">Noto Sans</option>
-                      <option value="2">OpenDyslexic</option>
-                      <option value="3">Custom Font</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-fontSize">Font Size</label>
-                    <select class="form-select" id="s-fontSize">
-                      <option value="0">Small</option>
-                      <option value="1" selected>Medium</option>
-                      <option value="2">Large</option>
-                      <option value="3">X-Large</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-lineSpacing">Line Spacing</label>
-                    <select class="form-select" id="s-lineSpacing">
-                      <option value="0">Tight</option>
-                      <option value="1" selected>Normal</option>
-                      <option value="2">Wide</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-screenMargin">Screen Margin</label>
-                    <select class="form-select" id="s-screenMargin">
-                      <option value="5" selected>Narrow</option>
-                      <option value="10">Balanced</option>
-                      <option value="15">Comfort</option>
-                      <option value="20">Wide</option>
-                      <option value="30">XL</option>
-                      <option value="40">XXL</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-paragraphAlignment">Paragraph Alignment</label>
-                    <select class="form-select" id="s-paragraphAlignment">
-                      <option value="0" selected>Justify</option>
-                      <option value="1">Align Left</option>
-                      <option value="2">Center</option>
-                      <option value="3">Align Right</option>
-                      <option value="4">Book's Style</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-orientation">Orientation</label>
-                    <select class="form-select" id="s-orientation">
-                      <option value="0" selected>Portrait</option>
-                      <option value="1">Landscape CW</option>
-                      <option value="2">Inverted</option>
-                      <option value="3">Landscape CCW</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-embeddedStyle">Embedded Style</label>
-                    <select class="form-select" id="s-embeddedStyle">
-                      <option value="0">Off</option>
-                      <option value="1" selected>On</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="row-hyphenationEnabled">
-                    <label class="form-label" for="s-hyphenationEnabled">Hyphenation</label>
-                    <select class="form-select" id="s-hyphenationEnabled">
-                      <option value="0" selected>Off</option>
-                      <option value="1">On</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-extraParagraphSpacing">Extra Paragraph Spacing</label>
-                    <select class="form-select" id="s-extraParagraphSpacing">
-                      <option value="0">Off</option>
-                      <option value="1" selected>On</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-textAntiAliasing">Text Anti-Aliasing</label>
-                    <select class="form-select" id="s-textAntiAliasing">
-                      <option value="0">Off</option>
-                      <option value="1" selected>On</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="row-imageRendering">
-                    <label class="form-label" for="s-imageRendering">Images</label>
-                    <select class="form-select" id="s-imageRendering">
-                      <option value="0" selected>Display</option>
-                      <option value="1">Placeholder</option>
-                      <option value="2">Suppress</option>
-                    </select>
-                  </div>
+                <div class="settings-sections" id="settings-sections"></div>
+                <div hidden aria-hidden="true" id="settings-hidden-inputs">
+                  <input id="s-frontButtonLayout" type="hidden" value="0" />
+                  <input id="s-frontButtonBack" type="hidden" value="0" />
+                  <input id="s-frontButtonConfirm" type="hidden" value="1" />
+                  <input id="s-frontButtonLeft" type="hidden" value="2" />
+                  <input id="s-frontButtonRight" type="hidden" value="3" />
                 </div>
-              </div>
-
-              <!-- Display -->
-              <div class="settings-section">
-                <div class="settings-section-title">Display</div>
-                <div class="settings-grid">
-                  <div class="form-group">
-                    <label class="form-label" for="s-sleepScreen">Sleep Screen</label>
-                    <select class="form-select" id="s-sleepScreen">
-                      <option value="0" selected>Dark</option>
-                      <option value="1">Light</option>
-                      <option value="4">Follow Theme</option>
-                      <option value="8" id="opt-sleep-roman">Roman Clock</option>
-                      <option value="2" id="opt-sleep-custom">Custom Image</option>
-                      <option value="3">Transparent</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="row-sleepScreenSource">
-                    <label class="form-label" for="s-sleepScreenSource">Sleep Image Source</label>
-                    <select class="form-select" id="s-sleepScreenSource">
-                      <option value="0" selected>Sleep Folder</option>
-                      <option value="1" id="opt-sleep-source-pokedex">Pokédex</option>
-                      <option value="2" id="opt-sleep-source-all">Sleep + Pokédex</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="row-sleepScreenCoverMode">
-                    <label class="form-label" for="s-sleepScreenCoverMode">Sleep Image Fit</label>
-                    <select class="form-select" id="s-sleepScreenCoverMode">
-                      <option value="0" selected>Fit</option>
-                      <option value="1">Crop</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="row-sleepScreenCoverFilter">
-                    <label class="form-label" for="s-sleepScreenCoverFilter">Sleep Image Filter</label>
-                    <select class="form-select" id="s-sleepScreenCoverFilter">
-                      <option value="0" selected>None</option>
-                      <option value="1">Contrast</option>
-                      <option value="2">Inverted</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="row-sleepCycleMode">
-                    <label class="form-label" for="s-sleepCycleMode">Image Cycle Mode</label>
-                    <select class="form-select" id="s-sleepCycleMode">
-                      <option value="0" selected>Random</option>
-                      <option value="1">Sequential</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="row-darkMode">
-                    <label class="form-label" for="s-darkMode">Dark Mode</label>
-                    <select class="form-select" id="s-darkMode">
-                      <option value="0" selected>Off</option>
-                      <option value="1">On</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-hideBatteryPercentage">Hide Battery %</label>
-                    <select class="form-select" id="s-hideBatteryPercentage">
-                      <option value="0" selected>Never</option>
-                      <option value="1">In Reader</option>
-                      <option value="2">Always</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-uiTheme">UI Theme</label>
-                    <select class="form-select" id="s-uiTheme">
-                      <option value="0">Classic</option>
-                      <option value="1" selected>Lyra</option>
-                      <option value="2">Visual Covers</option>
-                      <option value="3">ForkDrift</option>
-                      <option value="4">Pokémon Party</option>
-                      <option value="5">Minimal</option>
-                      <option value="6">Lyra Carousel</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-refreshFrequency">Full Refresh</label>
-                    <select class="form-select" id="s-refreshFrequency">
-                      <option value="0">Every page</option>
-                      <option value="1">Every 5 pages</option>
-                      <option value="2">Every 10 pages</option>
-                      <option value="3" selected>Every 15 pages</option>
-                      <option value="4">Every 30 pages</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-fadingFix">Sunlight Fading Fix</label>
-                    <select class="form-select" id="s-fadingFix">
-                      <option value="0" selected>Off</option>
-                      <option value="1">On</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="row-globalStatusBar">
-                    <label class="form-label" for="s-globalStatusBar">Global Status Bar</label>
-                    <select class="form-select" id="s-globalStatusBar">
-                      <option value="0" selected>Off</option>
-                      <option value="1">On</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="row-globalStatusBarPosition">
-                    <label class="form-label" for="s-globalStatusBarPosition">Global Bar Position</label>
-                    <select class="form-select" id="s-globalStatusBarPosition">
-                      <option value="0" selected>Top</option>
-                      <option value="1">Bottom</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="row-sleepPinnedPath" style="grid-column: span 2;">
-                    <label class="form-label" for="s-sleepPinnedPath">Pinned Sleep Image Path</label>
-                    <input class="form-input" id="s-sleepPinnedPath" type="text"
-                      maxlength="255" placeholder="/sleep/custom/my-cover.bmp"
-                      autocomplete="off" spellcheck="false" />
-                  </div>
-                  <div class="form-group" id="row-sleepStudioAction" style="grid-column: span 2;">
-                    <label class="form-label">Wallpaper Studio</label>
-                    <button class="btn btn-outline" type="button" id="open-sleep-wallpaper-studio">Open Wallpaper Studio</button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Controls -->
-              <div class="settings-section">
-                <div class="settings-section-title">Controls</div>
-                <div class="settings-grid">
-                  <div class="form-group">
-                    <label class="form-label" for="s-sideButtonLayout">Side Buttons</label>
-                    <select class="form-select" id="s-sideButtonLayout">
-                      <option value="0" selected>Prev / Next</option>
-                      <option value="1">Next / Prev</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-shortPwrBtn">Power Button</label>
-                    <select class="form-select" id="s-shortPwrBtn">
-                      <option value="0" selected>Ignore</option>
-                      <option value="1">Sleep</option>
-                      <option value="2">Page Turn</option>
-                      <option value="3">Select</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="s-longPressChapterSkip">Long-press Skip</label>
-                    <select class="form-select" id="s-longPressChapterSkip">
-                      <option value="0">Off</option>
-                      <option value="1" selected>On</option>
-                    </select>
-                  </div>
-                  <div hidden aria-hidden="true">
-                    <input id="s-frontButtonLayout" type="hidden" value="0" />
-                    <input id="s-frontButtonBack" type="hidden" value="0" />
-                    <input id="s-frontButtonConfirm" type="hidden" value="1" />
-                    <input id="s-frontButtonLeft" type="hidden" value="2" />
-                    <input id="s-frontButtonRight" type="hidden" value="3" />
-                  </div>
-                </div>
-              </div>
-
-              <!-- System -->
-              <div class="settings-section">
-                <div class="settings-section-title">System</div>
-                <div class="settings-grid">
-                  <div class="form-group">
-                    <label class="form-label" for="s-sleepTimeout">Sleep After</label>
-                    <select class="form-select" id="s-sleepTimeout">
-                      <option value="0">1 minute</option>
-                      <option value="1">5 minutes</option>
-                      <option value="2" selected>10 minutes</option>
-                      <option value="3">15 minutes</option>
-                      <option value="4">30 minutes</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="row-usbMscPromptOnConnect">
-                    <label class="form-label" for="s-usbMscPromptOnConnect">USB File Transfer Prompt</label>
-                    <select class="form-select" id="s-usbMscPromptOnConnect">
-                      <option value="0">Off</option>
-                      <option value="1" selected>On</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="row-backgroundServerMode">
-                    <label class="form-label" for="s-backgroundServerMode">Background Server</label>
-                    <select class="form-select" id="s-backgroundServerMode">
-                      <option value="0">Never</option>
-                      <option value="1" selected>On Charge</option>
-                      <option value="2">Always</option>
-                    </select>
-                  </div>
-                  <div class="form-group" style="grid-column: span 2;">
-                    <label class="form-label" for="s-deviceName">Device Name</label>
-                    <input class="form-input" id="s-deviceName" type="text"
-                      maxlength="24" placeholder="e.g. my-reader (a-z, 0-9, hyphens)"
-                      pattern="[a-z0-9\-]*" autocomplete="off" spellcheck="false" />
-                  </div>
-                </div>
-              </div>
-
-                </div><!-- /.settings-sections -->
               </div>
               <div class="settings-preview-pane">
                 <div class="eink-preview-wrap">
@@ -3467,7 +3188,7 @@
         notosans_fonts: {
           sizeKb: 1009,
           flag: "ENABLE_NOTOSANS_FONTS",
-          default: true,
+          default: false,
         },
         opendyslexic_fonts: {
           sizeKb: 2617,
@@ -3657,8 +3378,8 @@
       };
 
       const FEATURE_DOCS = {
-        bookerly_fonts: "Amazon's Bookerly typeface, designed from scratch for digital reading on small screens. Carefully tuned spacing and letterforms for sustained legibility at body-text sizes. Includes regular, bold, italic and bold-italic at four sizes (12–18pt).",
-        notosans_fonts: "Google's Noto Sans — a universal typeface covering the full Unicode range. A clean, modern alternative to Bookerly that works well in landscape mode or for readers who prefer a sans-serif. Four styles × four sizes.",
+        bookerly_fonts: "Noto Serif — the lean build default. A clean, proportional serif typeface with full Unicode coverage. Four styles × four sizes (12–18pt). Enabled by default in all profiles.",
+        notosans_fonts: "Google's Noto Sans — a universal sans-serif covering the full Unicode range. A clean, modern alternative to Noto Serif that works well in landscape mode. Four styles × four sizes.",
         opendyslexic_fonts: "A free font designed to increase legibility for readers with dyslexia. Weighted bottoms and unique letter shapes reduce confusion between similar glyphs (b/d, p/q). Four sizes at reduced weights. Large binary — enable only if needed.",
         image_sleep: "Displays a custom image (BMP on the SD card) when the device sleeps instead of a blank screen. Useful for dust-cover art, decorative illustrations, or always-on status displays on the e-ink panel.",
         book_images: "Renders inline images embedded inside EPUB books. Decodes JPEG and PNG figures, scales them to fit the page width, and dithers to 1-bit for the e-ink display. Disabled in minimal builds to save RAM during parsing.",
@@ -3710,11 +3431,11 @@
         version: "1.0.0"
       };
 
+      // All listed parents must be enabled (AND semantics).
       const FEATURE_DEPENDENCIES = {
         koreader_sync: ["integrations"],
         calibre_sync: ["integrations"],
         opds: ["calibre_sync"],
-        opendyslexic_fonts: ["bookerly_fonts", "notosans_fonts"],
         hyphenation: ["epub_support"],
         web_wifi_setup: ["background_server"],
         ble_wifi_provisioning: ["web_wifi_setup"],
@@ -3724,6 +3445,11 @@
         roman_clock_sleep: ["wifi_clock"],
         minimal_theme: ["lyra_theme"],
         remote_keyboard_input: ["remote_control"],
+      };
+
+      // At least one listed parent must be enabled (OR semantics).
+      const FEATURE_DEPENDENCIES_ANY = {
+        opendyslexic_fonts: ["bookerly_fonts", "notosans_fonts", "lexenddeca_fonts", "bitter_fonts", "chareink_fonts"],
       };
 
       const HUB_FEATURES = {
@@ -3739,7 +3465,9 @@
       const CROSSINK_FEATURES = new Set(["lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "reading_stats", "minimal_theme", "focus_reading"]);
 
       const PROFILES = {
-        lean: {},
+        lean: {
+          bookerly_fonts: true,
+        },
         standard: {
           bookerly_fonts: true,
           notosans_fonts: true,
@@ -3851,6 +3579,7 @@
       }
 
       function enableDependencies(feature, selections) {
+        // AND deps: auto-enable all required parents.
         const parents = FEATURE_DEPENDENCIES[feature] || [];
         parents.forEach((parent) => {
           if (!selections[parent]) {
@@ -3858,6 +3587,12 @@
             enableDependencies(parent, selections);
           }
         });
+        // OR deps: if no parent is enabled, auto-enable the first one in the list.
+        const anyParents = FEATURE_DEPENDENCIES_ANY[feature] || [];
+        if (anyParents.length > 0 && anyParents.every((p) => !selections[p])) {
+          selections[anyParents[0]] = true;
+          enableDependencies(anyParents[0], selections);
+        }
       }
 
       function disableDependents(feature, selections) {
@@ -3866,6 +3601,17 @@
           if (parents.includes(feature) && selections[child]) {
             selections[child] = false;
             disableDependents(child, selections);
+          }
+        });
+        // For OR-deps: disable child only when ALL parents are now off.
+        Object.keys(FEATURE_DEPENDENCIES_ANY).forEach((child) => {
+          const parents = FEATURE_DEPENDENCIES_ANY[child] || [];
+          if (parents.includes(feature) && selections[child]) {
+            const anyRemaining = parents.some((p) => p !== feature && selections[p]);
+            if (!anyRemaining) {
+              selections[child] = false;
+              disableDependents(child, selections);
+            }
           }
         });
       }
@@ -3882,12 +3628,26 @@
             disableDependents(changedFeature, selections);
           }
         }
+        // AND deps: disable child if any required parent is off.
         Object.keys(FEATURE_DEPENDENCIES).forEach((child) => {
           const parents = FEATURE_DEPENDENCIES[child] || [];
-          const missingParent = parents.some((parent) => !selections[parent]);
-          if (missingParent) selections[child] = false;
+          if (parents.some((parent) => !selections[parent])) selections[child] = false;
+        });
+        // OR deps: disable child only if ALL listed parents are off.
+        Object.keys(FEATURE_DEPENDENCIES_ANY).forEach((child) => {
+          const parents = FEATURE_DEPENDENCIES_ANY[child] || [];
+          if (parents.every((parent) => !selections[parent])) selections[child] = false;
         });
         applyCoupledFeatures(selections);
+        updateNoFontWarning(selections);
+      }
+
+      const FONT_FEATURES = ["bookerly_fonts", "notosans_fonts", "opendyslexic_fonts", "lexenddeca_fonts", "bitter_fonts", "chareink_fonts"];
+
+      function updateNoFontWarning(selections) {
+        const anyFontEnabled = FONT_FEATURES.some((f) => selections[f]);
+        const banner = document.getElementById("no-font-warning");
+        if (banner) banner.style.display = anyFontEnabled ? "none" : "flex";
       }
 
       function highlightProfile(profileName) {
@@ -5220,20 +4980,164 @@
          Baked settings tab
          ════════════════════════════════════════════════ */
       function setupSettingsTab() {
-        // Default values matching CrossPointSettings defaults
-        const DEFAULTS = {
-          fontFamily: 0, fontSize: 1, lineSpacing: 1, screenMargin: 5, paragraphAlignment: 0,
-          embeddedStyle: 1, hyphenationEnabled: 0, orientation: 0, extraParagraphSpacing: 1,
-          textAntiAliasing: 1, imageRendering: 0,
-          frontButtonLayout: 0, frontButtonBack: 0, frontButtonConfirm: 1, frontButtonLeft: 2, frontButtonRight: 3,
-          sleepScreen: 0, sleepScreenSource: 0, sleepScreenCoverMode: 0, sleepScreenCoverFilter: 0, sleepCycleMode: 0,
-          sleepPinnedPath: '',
-          darkMode: 0, hideBatteryPercentage: 0, uiTheme: 1, refreshFrequency: 3,
-          fadingFix: 0, globalStatusBar: 0, globalStatusBarPosition: 0,
-          sleepTimeout: 2, sideButtonLayout: 0, shortPwrBtn: 0, longPressChapterSkip: 1,
-          usbMscPromptOnConnect: 0, backgroundServerMode: 1,
-          deviceName: '',
+        const schemaSettings = Array.isArray(window.CONFIGURATOR_SETTINGS_SCHEMA?.settings)
+          ? window.CONFIGURATOR_SETTINGS_SCHEMA.settings
+          : [];
+        const EXTRA_DEFAULTS = {
+          frontButtonLayout: 0,
+          frontButtonBack: 0,
+          frontButtonConfirm: 1,
+          frontButtonLeft: 2,
+          frontButtonRight: 3,
         };
+        const DEFAULTS = Object.fromEntries(schemaSettings.map(setting => [setting.key, setting.default]));
+        Object.assign(DEFAULTS, EXTRA_DEFAULTS);
+
+        const SETTINGS_BY_KEY = new Map(schemaSettings.map(setting => [setting.key, setting]));
+        const CATEGORY_ORDER = ['Reader', 'Display', 'Customise Status Bar', 'Controls', 'System', 'Time'];
+        const FULL_WIDTH_KEYS = new Set(['sleepPinnedPath', 'deviceName']);
+        const STRING_PLACEHOLDERS = {
+          sleepPinnedPath: '/sleep/custom/my-cover.bmp',
+          deviceName: 'e.g. my-reader (a-z, 0-9, hyphens)',
+        };
+        const settingsSections = document.getElementById('settings-sections');
+
+        function buildToggleControl(setting) {
+          const select = document.createElement('select');
+          select.className = 'form-select';
+          select.id = 's-' + setting.key;
+          [[0, 'Off'], [1, 'On']].forEach(([value, label]) => {
+            const option = document.createElement('option');
+            option.value = String(value);
+            option.textContent = label;
+            select.appendChild(option);
+          });
+          return select;
+        }
+
+        function buildEnumControl(setting) {
+          const select = document.createElement('select');
+          select.className = 'form-select';
+          select.id = 's-' + setting.key;
+          (setting.options || []).forEach(optionDef => {
+            const option = document.createElement('option');
+            option.value = String(optionDef.value);
+            option.textContent = optionDef.label;
+            if (optionDef.featureKey) option.dataset.featureKey = optionDef.featureKey;
+            select.appendChild(option);
+          });
+          return select;
+        }
+
+        function buildValueControl(setting) {
+          const input = document.createElement('input');
+          input.className = 'form-input';
+          input.id = 's-' + setting.key;
+          input.type = 'number';
+          input.min = String(setting.min ?? 0);
+          input.max = String(setting.max ?? 0);
+          input.step = String(setting.step ?? 1);
+          input.inputMode = 'numeric';
+          return input;
+        }
+
+        function buildStringControl(setting) {
+          const input = document.createElement('input');
+          input.className = 'form-input';
+          input.id = 's-' + setting.key;
+          input.type = 'text';
+          if (setting.maxLength) input.maxLength = setting.maxLength;
+          if (STRING_PLACEHOLDERS[setting.key]) input.placeholder = STRING_PLACEHOLDERS[setting.key];
+          input.autocomplete = 'off';
+          input.spellcheck = false;
+          if (setting.key === 'deviceName') {
+            input.pattern = '[a-z0-9\\-]*';
+          }
+          return input;
+        }
+
+        function buildControl(setting) {
+          if (setting.type === 'toggle') return buildToggleControl(setting);
+          if (setting.type === 'enum') return buildEnumControl(setting);
+          if (setting.type === 'value') return buildValueControl(setting);
+          return buildStringControl(setting);
+        }
+
+        function addSettingRow(grid, setting) {
+          const group = document.createElement('div');
+          group.className = 'form-group';
+          group.id = 'row-' + setting.key;
+          if (FULL_WIDTH_KEYS.has(setting.key)) group.style.gridColumn = 'span 2';
+
+          const label = document.createElement('label');
+          label.className = 'form-label';
+          label.setAttribute('for', 's-' + setting.key);
+          label.textContent = setting.label;
+
+          group.appendChild(label);
+          group.appendChild(buildControl(setting));
+          grid.appendChild(group);
+        }
+
+        function addWallpaperStudioRow(grid) {
+          const group = document.createElement('div');
+          group.className = 'form-group';
+          group.id = 'row-sleepStudioAction';
+          group.style.gridColumn = 'span 2';
+
+          const label = document.createElement('label');
+          label.className = 'form-label';
+          label.textContent = 'Wallpaper Studio';
+
+          const button = document.createElement('button');
+          button.className = 'btn btn-outline';
+          button.type = 'button';
+          button.id = 'open-sleep-wallpaper-studio';
+          button.textContent = 'Open Wallpaper Studio';
+
+          group.appendChild(label);
+          group.appendChild(button);
+          grid.appendChild(group);
+        }
+
+        function renderSettingsSections() {
+          if (!settingsSections) return;
+          settingsSections.innerHTML = '';
+
+          const groups = new Map();
+          schemaSettings.forEach(setting => {
+            const category = setting.category || 'Settings';
+            if (!groups.has(category)) groups.set(category, []);
+            groups.get(category).push(setting);
+          });
+
+          const categories = Array.from(groups.keys()).sort((a, b) => {
+            const aIndex = CATEGORY_ORDER.indexOf(a);
+            const bIndex = CATEGORY_ORDER.indexOf(b);
+            return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+          });
+
+          categories.forEach(category => {
+            const section = document.createElement('div');
+            section.className = 'settings-section';
+
+            const title = document.createElement('div');
+            title.className = 'settings-section-title';
+            title.textContent = category;
+
+            const grid = document.createElement('div');
+            grid.className = 'settings-grid';
+
+            groups.get(category).forEach(setting => addSettingRow(grid, setting));
+            if (category === 'Display') addWallpaperStudioRow(grid);
+
+            section.appendChild(title);
+            section.appendChild(grid);
+            settingsSections.appendChild(section);
+          });
+        }
+
+        renderSettingsSections();
 
         let currentSelections = null;
         let sleepPreviewFlashActive = false;
@@ -5258,7 +5162,6 @@
           });
         }
 
-        // Map settings ids to their values (read from DOM)
         function readRawSettings() {
           const s = {};
           Object.keys(DEFAULTS).forEach(key => {
@@ -5324,96 +5227,75 @@
           return labels;
         }
 
-        function updateOption(selectId, value, enabled, enabledLabel, disabledLabel) {
-          const select = document.getElementById(selectId);
-          if (!select) return;
-          const option = select.querySelector(`option[value="${value}"]`);
-          if (!option) return;
-          option.disabled = !enabled;
-          option.textContent = enabled ? enabledLabel : disabledLabel;
+        function getSettingDefault(setting, active) {
+          if (setting.key === 'backgroundServerMode') {
+            return active.background_server_always ? 2
+              : active.background_server_on_charge ? 1
+              : 0;
+          }
+          return DEFAULTS[setting.key];
+        }
+
+        function getAllowedEnumValues(setting, active) {
+          return (setting.options || [])
+            .filter(option => !option.featureKey || active[option.featureKey])
+            .map(option => option.value);
         }
 
         function sanitizeSettingsForSelections(settings, selections) {
-          const normalized = { ...settings };
+          const normalized = { ...DEFAULTS, ...settings };
           const active = selections || {};
 
-          const allowedFonts = [];
-          if (active.bookerly_fonts) allowedFonts.push(0);
-          if (active.notosans_fonts) allowedFonts.push(1);
-          if (active.opendyslexic_fonts) allowedFonts.push(2);
-          if (active.user_fonts) allowedFonts.push(3);
-          const fallbackFont = allowedFonts[0] ?? DEFAULTS.fontFamily;
-          if (!allowedFonts.includes(normalized.fontFamily)) normalized.fontFamily = fallbackFont;
+          schemaSettings.forEach(setting => {
+            const featureEnabled = !setting.featureKey || active[setting.featureKey];
+            const defaultValue = getSettingDefault(setting, active);
+            if (!featureEnabled) {
+              normalized[setting.key] = defaultValue;
+              return;
+            }
 
-          if (!active.hyphenation) normalized.hyphenationEnabled = DEFAULTS.hyphenationEnabled;
-          if (!active.book_images) normalized.imageRendering = DEFAULTS.imageRendering;
+            if (setting.type === 'enum') {
+              const allowedValues = getAllowedEnumValues(setting, active);
+              if (!allowedValues.includes(normalized[setting.key])) {
+                normalized[setting.key] = allowedValues.includes(defaultValue)
+                  ? defaultValue
+                  : (allowedValues[0] ?? defaultValue);
+              }
+            }
 
-          const allowedThemes = [0];
-          if (active.lyra_theme) allowedThemes.push(1, 2, 3, 5, 6);
-          if (active.pokemon_party) allowedThemes.push(4);
-          const fallbackTheme = active.lyra_theme ? 1 : 0;
-          if (!allowedThemes.includes(normalized.uiTheme)) normalized.uiTheme = fallbackTheme;
-
-          if (!active.dark_mode) normalized.darkMode = DEFAULTS.darkMode;
-          if (!active.global_status_bar) {
-            normalized.globalStatusBar = DEFAULTS.globalStatusBar;
-            normalized.globalStatusBarPosition = DEFAULTS.globalStatusBarPosition;
-          }
-
-          const supportsCustomSleep = active.image_sleep;
-          if (!supportsCustomSleep && normalized.sleepScreen === 2) normalized.sleepScreen = DEFAULTS.sleepScreen;
-          if (!active.roman_clock_sleep && normalized.sleepScreen === 8) normalized.sleepScreen = DEFAULTS.sleepScreen;
-          const customSleepActive = normalized.sleepScreen === 2;
-          const supportsPokemonSleep = active.pokemon_party;
-          if (!supportsPokemonSleep && normalized.sleepScreenSource !== 0) normalized.sleepScreenSource = DEFAULTS.sleepScreenSource;
-          if (!customSleepActive) {
-            normalized.sleepScreenSource = DEFAULTS.sleepScreenSource;
-            normalized.sleepScreenCoverMode = DEFAULTS.sleepScreenCoverMode;
-            normalized.sleepScreenCoverFilter = DEFAULTS.sleepScreenCoverFilter;
-            normalized.sleepCycleMode = DEFAULTS.sleepCycleMode;
-            normalized.sleepPinnedPath = DEFAULTS.sleepPinnedPath;
-          }
-
-          if (!active.usb_mass_storage) normalized.usbMscPromptOnConnect = DEFAULTS.usbMscPromptOnConnect;
-          const supportsBackgroundServerMode = active.background_server_on_charge || active.background_server_always;
-          if (!supportsBackgroundServerMode) {
-            normalized.backgroundServerMode = 0;
-          } else if (!active.background_server_always && normalized.backgroundServerMode === 2) {
-            normalized.backgroundServerMode = 1;
-          }
+            if (setting.visibleWhen && normalized[setting.visibleWhen.key] !== setting.visibleWhen.eq) {
+              normalized[setting.key] = defaultValue;
+            }
+          });
 
           return normalized;
         }
 
         function getEffectiveDefaults(selections) {
-          const active = selections || {};
-          const defaults = { ...DEFAULTS };
-          defaults.uiTheme = active.lyra_theme ? 1 : 0;
-          defaults.backgroundServerMode = active.background_server_always ? 2
-            : active.background_server_on_charge ? 1
-            : 0;
-          return sanitizeSettingsForSelections(defaults, active);
+          return sanitizeSettingsForSelections({ ...DEFAULTS }, selections || {});
         }
 
         function buildSettingsPayload(settings, selections) {
           const out = {};
           const defaults = getEffectiveDefaults(selections);
 
-          Object.keys(settings).forEach(key => {
-            if (key === 'backgroundServerMode') return;
+          schemaSettings.forEach(setting => {
+            const key = setting.key;
             const val = settings[key];
             const def = defaults[key];
             if (val === undefined) return;
             if (typeof val === 'number' && val === def) return;
             if (typeof val === 'string' && val === def) return;
+
+            if (Array.isArray(setting.emits) && setting.emits.length > 0) {
+              setting.emits.forEach(emit => {
+                out[emit.key] = emit.values[val] ?? emit.values[0];
+              });
+              return;
+            }
+
             out[key] = val;
           });
-
-          const backgroundServerMode = settings.backgroundServerMode;
-          if (backgroundServerMode !== defaults.backgroundServerMode) {
-            out.backgroundServerOnCharge = backgroundServerMode >= 1 ? 1 : 0;
-            out.wifiAutoConnect = backgroundServerMode === 2 ? 1 : 0;
-          }
 
           return out;
         }
@@ -5431,7 +5313,6 @@
           drawPreview();
         }
 
-        // Attach change listeners to redraw preview
         Object.keys(DEFAULTS).forEach(key => {
           const el = document.getElementById('s-' + key);
           if (!el) return;
@@ -5441,120 +5322,54 @@
               document.getElementById('s-sleepScreen')?.value === '2'
             );
             handleSettingsInteraction(key, shouldFlashSleepPreview);
-          });
-          if (el.tagName === 'INPUT') {
-            el.addEventListener('input', () => handleSettingsInteraction(key, false));
-          }
-        });
-        ['s-sleepScreen', 's-globalStatusBar'].forEach(id => {
-          const el = document.getElementById(id);
-          if (!el) return;
-          el.addEventListener('change', () => {
             if (currentSelections) updateSettingsVisibility(currentSelections);
           });
+          if (el.tagName === 'INPUT' && el.type !== 'hidden') {
+            el.addEventListener('input', () => {
+              handleSettingsInteraction(key, false);
+              if (currentSelections) updateSettingsVisibility(currentSelections);
+            });
+          }
         });
 
-        // Feature-gate visibility: react to global selections
         function updateSettingsVisibility(selections) {
           currentSelections = selections || null;
-          if (!selections.roman_clock_sleep) {
+          const active = currentSelections || {};
+          if (!active.roman_clock_sleep) {
             hoveredFeaturePreview = '';
             flashedFeaturePreview = '';
             clearFeaturePreviewFlashTimer();
           }
-          const customSleepActive = document.getElementById('s-sleepScreen')?.value === '2';
 
-          // Dark mode setting only if feature compiled in
-          const rowDark = document.getElementById('row-darkMode');
-          if (rowDark) rowDark.classList.toggle('settings-row-hidden', !selections.dark_mode);
+          const normalized = sanitizeSettingsForSelections(readRawSettings(), active);
+          writeSettings(normalized);
 
-          updateOption('s-fontFamily', 0, selections.bookerly_fonts, 'Bookerly', 'Bookerly (needs feature)');
-          updateOption('s-fontFamily', 1, selections.notosans_fonts, 'Noto Sans', 'Noto Sans (needs feature)');
-          updateOption('s-fontFamily', 2, selections.opendyslexic_fonts, 'OpenDyslexic', 'OpenDyslexic (needs feature)');
-          updateOption('s-fontFamily', 3, selections.user_fonts, 'Custom Font', 'Custom Font (needs feature)');
+          schemaSettings.forEach(setting => {
+            const row = document.getElementById('row-' + setting.key);
+            const control = document.getElementById('s-' + setting.key);
+            if (control && control.tagName === 'SELECT' && Array.isArray(setting.options)) {
+              Array.from(control.options).forEach(option => {
+                option.disabled = !!option.dataset.featureKey && !active[option.dataset.featureKey];
+              });
+            }
 
-          const rowHyphenation = document.getElementById('row-hyphenationEnabled');
-          if (rowHyphenation) rowHyphenation.classList.toggle('settings-row-hidden', !selections.hyphenation);
+            if (!row) return;
+            const settingVisible = (!setting.featureKey || active[setting.featureKey]) &&
+              (!setting.visibleWhen || normalized[setting.visibleWhen.key] === setting.visibleWhen.eq);
+            row.classList.toggle('settings-row-hidden', !settingVisible);
+          });
 
-          const rowImageRendering = document.getElementById('row-imageRendering');
-          if (rowImageRendering) rowImageRendering.classList.toggle('settings-row-hidden', !selections.book_images);
-
-          const rowGlobalStatusBar = document.getElementById('row-globalStatusBar');
-          if (rowGlobalStatusBar) rowGlobalStatusBar.classList.toggle('settings-row-hidden', !selections.global_status_bar);
-          const rowGlobalStatusBarPosition = document.getElementById('row-globalStatusBarPosition');
-          if (rowGlobalStatusBarPosition) {
-            rowGlobalStatusBarPosition.classList.toggle(
-              'settings-row-hidden',
-              !selections.global_status_bar || document.getElementById('s-globalStatusBar')?.value !== '1'
-            );
-          }
-
-          const optSleepCustom = document.getElementById('opt-sleep-custom');
-          if (optSleepCustom) {
-            optSleepCustom.disabled = !selections.image_sleep;
-            optSleepCustom.textContent = selections.image_sleep ? 'Custom Image' : 'Custom Image (needs feature)';
-          }
-          updateOption(
-            's-sleepScreen',
-            8,
-            selections.roman_clock_sleep,
-            'Roman Clock',
-            'Roman Clock (needs feature)'
-          );
-          updateOption(
-            's-sleepScreenSource',
-            1,
-            selections.pokemon_party,
-            'Pokédex',
-            'Pokédex (needs feature)'
-          );
-          updateOption(
-            's-sleepScreenSource',
-            2,
-            selections.pokemon_party,
-            'Sleep + Pokédex',
-            'Sleep + Pokédex (needs feature)'
-          );
-
-          updateOption('s-uiTheme', 1, selections.lyra_theme, 'Lyra', 'Lyra (needs feature)');
-          updateOption('s-uiTheme', 2, selections.lyra_theme, 'Visual Covers', 'Visual Covers (needs feature)');
-          updateOption('s-uiTheme', 3, selections.lyra_theme, 'ForkDrift', 'ForkDrift (needs feature)');
-          updateOption('s-uiTheme', 4, selections.pokemon_party, 'Pokémon Party', 'Pokémon Party (needs feature)');
-          updateOption('s-uiTheme', 5, selections.lyra_theme, 'Minimal', 'Minimal (needs feature)');
-          updateOption('s-uiTheme', 6, selections.lyra_theme, 'Lyra Carousel', 'Lyra Carousel (needs feature)');
-
-          const rowSleepSource = document.getElementById('row-sleepScreenSource');
-          if (rowSleepSource) rowSleepSource.classList.toggle('settings-row-hidden', !customSleepActive);
-          const rowSleepCoverMode = document.getElementById('row-sleepScreenCoverMode');
-          if (rowSleepCoverMode) rowSleepCoverMode.classList.toggle('settings-row-hidden', !customSleepActive);
-          const rowSleepCoverFilter = document.getElementById('row-sleepScreenCoverFilter');
-          if (rowSleepCoverFilter) rowSleepCoverFilter.classList.toggle('settings-row-hidden', !customSleepActive);
-          const rowSleepCycleMode = document.getElementById('row-sleepCycleMode');
-          if (rowSleepCycleMode) rowSleepCycleMode.classList.toggle('settings-row-hidden', !customSleepActive);
-          const rowSleepPinnedPath = document.getElementById('row-sleepPinnedPath');
-          if (rowSleepPinnedPath) rowSleepPinnedPath.classList.toggle('settings-row-hidden', !customSleepActive);
           const rowSleepStudioAction = document.getElementById('row-sleepStudioAction');
-          if (rowSleepStudioAction) rowSleepStudioAction.classList.toggle('settings-row-hidden', !customSleepActive);
-
-          const rowUsbMscPrompt = document.getElementById('row-usbMscPromptOnConnect');
-          if (rowUsbMscPrompt) rowUsbMscPrompt.classList.toggle('settings-row-hidden', !selections.usb_mass_storage);
-
-          const rowBackgroundServerMode = document.getElementById('row-backgroundServerMode');
-          if (rowBackgroundServerMode) {
-            rowBackgroundServerMode.classList.toggle(
-              'settings-row-hidden',
-              !(selections.background_server_on_charge || selections.background_server_always)
-            );
+          if (rowSleepStudioAction) {
+            rowSleepStudioAction.classList.toggle('settings-row-hidden', normalized.sleepScreen !== 2);
           }
-          updateOption(
-            's-backgroundServerMode',
-            2,
-            selections.background_server_always,
-            'Always',
-            'Always (needs feature)'
-          );
 
-          writeSettings(sanitizeSettingsForSelections(readRawSettings(), selections));
+          document.querySelectorAll('#settings-sections .settings-section').forEach(section => {
+            const hasVisibleRows = Array.from(section.querySelectorAll('.form-group'))
+              .some(group => !group.classList.contains('settings-row-hidden'));
+            section.classList.toggle('settings-row-hidden', !hasVisibleRows);
+          });
+
           drawPreview();
         }
 
@@ -5938,7 +5753,6 @@
     .sleep-preview-roman {
       width: 100%;
       height: 100%;
-      padding: 18px 24px;
     }
     .sleep-preview-roman svg {
       width: 100%;
@@ -6247,7 +6061,11 @@
         const midX = x + width / 2;
         const bottom = y + height - 1;
         if (glyph === 'I') {
-          return '<rect x="' + (midX - stroke / 2) + '" y="' + y + '" width="' + stroke + '" height="' + height + '" fill="currentColor" />';
+          const capW = stroke + stroke / 2;
+          const capH = Math.max(2, Math.round(stroke / 4));
+          return '<rect x="' + (midX - stroke / 2) + '" y="' + y + '" width="' + stroke + '" height="' + height + '" fill="currentColor" />' +
+            '<rect x="' + (midX - capW / 2) + '" y="' + y + '" width="' + capW + '" height="' + capH + '" fill="currentColor" />' +
+            '<rect x="' + (midX - capW / 2) + '" y="' + (bottom - capH + 1) + '" width="' + capW + '" height="' + capH + '" fill="currentColor" />';
         }
         if (glyph === 'V') {
           return '<line x1="' + left + '" y1="' + y + '" x2="' + midX + '" y2="' + bottom + '" stroke="currentColor" stroke-width="' + stroke + '" stroke-linecap="square" />' +
@@ -6275,22 +6093,44 @@
         if (!parts.hour) return '';
         const pageWidth = Math.max(320, Math.round(viewportWidth || 480));
         const pageHeight = Math.max(480, Math.round(viewportHeight || 800));
-        const sideMargin = Math.max(24, Math.round(pageWidth * 0.075));
-        const contentGap = Math.max(18, Math.round(pageWidth * 0.054));
+        const frameMargin = Math.max(20, Math.round(pageWidth * (28 / 480)));
+        const frameRadius = Math.max(10, Math.round(pageWidth * (12 / 480)));
+        const innerPad = Math.max(24, Math.round(pageWidth * (32 / 480)));
+        const contentX = frameMargin + innerPad;
+        const contentWidth = Math.max(120, pageWidth - contentX * 2);
+        const contentY = frameMargin + innerPad;
+        const contentHeight = Math.max(160, pageHeight - contentY * 2);
         const hasMinute = !!parts.minute;
-        const minuteWidthBudget = hasMinute ? Math.max(96, Math.round(pageWidth / 3)) : 0;
-        const hourWidthBudget = Math.max(120, pageWidth - sideMargin * 2 - (hasMinute ? minuteWidthBudget + contentGap : 0));
-        const hourHeight = fitRomanTextHeight(parts.hour, hourWidthBudget, Math.round(pageHeight / 3));
-        const minuteHeight = hasMinute ? fitRomanTextHeight(parts.minute, minuteWidthBudget, Math.round(pageHeight / 4)) : 0;
-        const hourWidth = romanTextWidth(parts.hour, hourHeight);
-        const minuteWidth = hasMinute ? romanTextWidth(parts.minute, minuteHeight) : 0;
-        const contentWidth = hourWidth + (hasMinute ? contentGap + minuteWidth : 0);
-        const hourX = (pageWidth - contentWidth) / 2;
-        const hourY = Math.max(40, (pageHeight - hourHeight) / 2);
-        let svg = renderRomanTextSvg(parts.hour, hourX, hourY, hourHeight);
-        if (hasMinute) {
-          const minuteX = hourX + hourWidth + contentGap;
-          const minuteY = hourY + Math.max(0, (hourHeight - minuteHeight) / 2);
+        let svg = '<rect x="' + frameMargin + '" y="' + frameMargin + '" width="' + (pageWidth - frameMargin * 2) +
+          '" height="' + (pageHeight - frameMargin * 2) + '" rx="' + frameRadius + '" ry="' + frameRadius +
+          '" fill="none" stroke="currentColor" stroke-width="1" />';
+        if (!hasMinute) {
+          const hourHeight = fitRomanTextHeight(parts.hour, contentWidth, Math.round(contentHeight * 7 / 12));
+          const hourWidth = romanTextWidth(parts.hour, hourHeight);
+          const hourX = contentX + (contentWidth - hourWidth) / 2;
+          const hourY = contentY + (contentHeight - hourHeight) / 2;
+          svg += renderRomanTextSvg(parts.hour, hourX, hourY, hourHeight);
+        } else {
+          const hourZoneTopY = contentY + contentHeight * 5 / 100;
+          const hourZoneHeight = contentHeight * 53 / 100;
+          const ruleY = contentY + contentHeight * 64 / 100;
+          const minuteZoneY = contentY + contentHeight * 68 / 100;
+          const minuteZoneHeight = contentHeight * 24 / 100;
+          const hourHeight = fitRomanTextHeight(parts.hour, contentWidth, hourZoneHeight);
+          const hourWidth = romanTextWidth(parts.hour, hourHeight);
+          const hourX = contentX + (contentWidth - hourWidth) / 2;
+          const hourY = hourZoneTopY + (hourZoneHeight - hourHeight) / 2;
+          svg += renderRomanTextSvg(parts.hour, hourX, hourY, hourHeight);
+
+          const ruleWidth = contentWidth * 3 / 10;
+          svg += '<rect x="' + (contentX + (contentWidth - ruleWidth) / 2) + '" y="' + ruleY + '" width="' + ruleWidth +
+            '" height="1" fill="currentColor" />';
+
+          const minuteMaxHeight = Math.min(minuteZoneHeight, hourHeight / 2);
+          const minuteHeight = fitRomanTextHeight(parts.minute, contentWidth, minuteMaxHeight);
+          const minuteWidth = romanTextWidth(parts.minute, minuteHeight);
+          const minuteX = contentX + (contentWidth - minuteWidth) / 2;
+          const minuteY = minuteZoneY + (minuteZoneHeight - minuteHeight) / 2;
           svg += renderRomanTextSvg(parts.minute, minuteX, minuteY, minuteHeight);
         }
         return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + pageWidth + ' ' + pageHeight + '" preserveAspectRatio="xMidYMid meet" aria-hidden="true">' + svg + '</svg>';

@@ -14,6 +14,68 @@
 
 CrossPointSettings CrossPointSettings::instance;
 
+// Compile-time first-available font family — used as the fallback when a
+// stored font family value is disabled in the current build.
+#if ENABLE_BOOKERLY_FONTS
+static constexpr uint8_t kFirstAvailableFont = CrossPointSettings::BOOKERLY;
+#elif ENABLE_NOTOSANS_FONTS
+static constexpr uint8_t kFirstAvailableFont = CrossPointSettings::NOTOSANS;
+#elif ENABLE_LEXENDDECA_FONTS
+static constexpr uint8_t kFirstAvailableFont = CrossPointSettings::LEXENDDECA;
+#elif ENABLE_BITTER_FONTS
+static constexpr uint8_t kFirstAvailableFont = CrossPointSettings::BITTER;
+#elif ENABLE_CHAREINK_FONTS
+static constexpr uint8_t kFirstAvailableFont = CrossPointSettings::CHAREINK;
+#elif ENABLE_OPENDYSLEXIC_FONTS
+static constexpr uint8_t kFirstAvailableFont = CrossPointSettings::OPENDYSLEXIC;
+#endif
+
+static int getDefaultFontId(uint8_t fontSize) {
+#if ENABLE_BOOKERLY_FONTS
+  switch (fontSize) {
+    case CrossPointSettings::SMALL: return NOTOSERIF_12_FONT_ID;
+    case CrossPointSettings::LARGE: return NOTOSERIF_16_FONT_ID;
+    case CrossPointSettings::EXTRA_LARGE: return NOTOSERIF_18_FONT_ID;
+    default: return NOTOSERIF_14_FONT_ID;
+  }
+#elif ENABLE_NOTOSANS_FONTS
+  switch (fontSize) {
+    case CrossPointSettings::SMALL: return NOTOSANS_12_FONT_ID;
+    case CrossPointSettings::LARGE: return NOTOSANS_16_FONT_ID;
+    case CrossPointSettings::EXTRA_LARGE: return NOTOSANS_18_FONT_ID;
+    default: return NOTOSANS_14_FONT_ID;
+  }
+#elif ENABLE_LEXENDDECA_FONTS
+  switch (fontSize) {
+    case CrossPointSettings::SMALL: return LEXENDDECA_12_FONT_ID;
+    case CrossPointSettings::LARGE: return LEXENDDECA_16_FONT_ID;
+    case CrossPointSettings::EXTRA_LARGE: return LEXENDDECA_18_FONT_ID;
+    default: return LEXENDDECA_14_FONT_ID;
+  }
+#elif ENABLE_BITTER_FONTS
+  switch (fontSize) {
+    case CrossPointSettings::SMALL: return BITTER_12_FONT_ID;
+    case CrossPointSettings::LARGE: return BITTER_16_FONT_ID;
+    case CrossPointSettings::EXTRA_LARGE: return BITTER_18_FONT_ID;
+    default: return BITTER_14_FONT_ID;
+  }
+#elif ENABLE_CHAREINK_FONTS
+  switch (fontSize) {
+    case CrossPointSettings::SMALL: return CHAREINK_12_FONT_ID;
+    case CrossPointSettings::LARGE: return CHAREINK_16_FONT_ID;
+    case CrossPointSettings::EXTRA_LARGE: return CHAREINK_18_FONT_ID;
+    default: return CHAREINK_14_FONT_ID;
+  }
+#elif ENABLE_OPENDYSLEXIC_FONTS
+  switch (fontSize) {
+    case CrossPointSettings::SMALL: return OPENDYSLEXIC_8_FONT_ID;
+    case CrossPointSettings::LARGE: return OPENDYSLEXIC_12_FONT_ID;
+    case CrossPointSettings::EXTRA_LARGE: return OPENDYSLEXIC_14_FONT_ID;
+    default: return OPENDYSLEXIC_10_FONT_ID;
+  }
+#endif
+}
+
 static bool readAndValidate(FsFile& file, uint8_t& member, const uint8_t maxValue) {
   uint8_t tempValue = 0;
   if (!serialization::readPod(file, tempValue)) {
@@ -423,26 +485,27 @@ void CrossPointSettings::validateAndClamp() {
   if (orientation > LANDSCAPE_CCW) orientation = PORTRAIT;
   if (frontButtonLayout > LEFT_LEFT_RIGHT_RIGHT) frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;
   if (sideButtonLayout > NEXT_PREV) sideButtonLayout = PREV_NEXT;
-  if (fontFamily >= FONT_FAMILY_COUNT) fontFamily = BOOKERLY;
+  if (fontFamily >= FONT_FAMILY_COUNT) fontFamily = kFirstAvailableFont;
   if (fontSize > EXTRA_LARGE) fontSize = MEDIUM;
-#if !ENABLE_EXTENDED_FONTS
-  if (fontFamily != USER_SD) fontFamily = BOOKERLY;
-  fontSize = MEDIUM;
-#else
+#if !ENABLE_BOOKERLY_FONTS
+  if (fontFamily == BOOKERLY) fontFamily = kFirstAvailableFont;
+#endif
+#if !ENABLE_NOTOSANS_FONTS
+  if (fontFamily == NOTOSANS) fontFamily = kFirstAvailableFont;
+#endif
 #if !ENABLE_OPENDYSLEXIC_FONTS
-  if (fontFamily == OPENDYSLEXIC) fontFamily = NOTOSANS;
+  if (fontFamily == OPENDYSLEXIC) fontFamily = kFirstAvailableFont;
 #endif
 #if !ENABLE_LEXENDDECA_FONTS
-  if (fontFamily == LEXENDDECA) fontFamily = BOOKERLY;
+  if (fontFamily == LEXENDDECA) fontFamily = kFirstAvailableFont;
 #endif
 #if !ENABLE_BITTER_FONTS
-  if (fontFamily == BITTER) fontFamily = BOOKERLY;
+  if (fontFamily == BITTER) fontFamily = kFirstAvailableFont;
 #endif
 #if !ENABLE_CHAREINK_FONTS
-  if (fontFamily == CHAREINK) fontFamily = BOOKERLY;
+  if (fontFamily == CHAREINK) fontFamily = kFirstAvailableFont;
 #endif
-#endif
-  if (fontFamily == USER_SD) fontFamily = BOOKERLY;
+  if (fontFamily == USER_SD) fontFamily = kFirstAvailableFont;
   if (lineSpacing > WIDE) lineSpacing = NORMAL;
   if (paragraphAlignment >= PARAGRAPH_ALIGNMENT_COUNT) paragraphAlignment = JUSTIFIED;
   if (sleepTimeout > SLEEP_30_MIN) sleepTimeout = SLEEP_10_MIN;
@@ -649,131 +712,98 @@ int CrossPointSettings::getTimeZoneOffsetSeconds() const {
 }
 
 int CrossPointSettings::getReaderFontId() const {
-#if !ENABLE_EXTENDED_FONTS
-  return NOTOSERIF_14_FONT_ID;
-#else
   if (sdFontFamilyName[0] != '\0' && sdFontIdResolver) {
     const int id = sdFontIdResolver(sdFontResolverCtx, sdFontFamilyName, fontSize);
     if (id != 0) return id;
   }
 
   uint8_t effectiveFamily = fontFamily;
-#if !ENABLE_OPENDYSLEXIC_FONTS
-  if (effectiveFamily == OPENDYSLEXIC) effectiveFamily = NOTOSANS;
+#if !ENABLE_BOOKERLY_FONTS
+  if (effectiveFamily == BOOKERLY) effectiveFamily = kFirstAvailableFont;
 #endif
 #if !ENABLE_NOTOSANS_FONTS
-  if (effectiveFamily == NOTOSANS) effectiveFamily = BOOKERLY;
+  if (effectiveFamily == NOTOSANS) effectiveFamily = kFirstAvailableFont;
+#endif
+#if !ENABLE_OPENDYSLEXIC_FONTS
+  if (effectiveFamily == OPENDYSLEXIC) effectiveFamily = kFirstAvailableFont;
 #endif
 #if !ENABLE_LEXENDDECA_FONTS
-  if (effectiveFamily == LEXENDDECA) effectiveFamily = BOOKERLY;
+  if (effectiveFamily == LEXENDDECA) effectiveFamily = kFirstAvailableFont;
 #endif
 #if !ENABLE_BITTER_FONTS
-  if (effectiveFamily == BITTER) effectiveFamily = BOOKERLY;
+  if (effectiveFamily == BITTER) effectiveFamily = kFirstAvailableFont;
 #endif
 #if !ENABLE_CHAREINK_FONTS
-  if (effectiveFamily == CHAREINK) effectiveFamily = BOOKERLY;
+  if (effectiveFamily == CHAREINK) effectiveFamily = kFirstAvailableFont;
 #endif
-  if (effectiveFamily == USER_SD) effectiveFamily = BOOKERLY;
+  if (effectiveFamily == USER_SD) effectiveFamily = kFirstAvailableFont;
 
   switch (effectiveFamily) {
-    case USER_SD:
-      return NOTOSERIF_14_FONT_ID;
     default:
 #if ENABLE_BOOKERLY_FONTS
       switch (fontSize) {
-        case SMALL:
-          return NOTOSERIF_12_FONT_ID;
-        case MEDIUM:
-        default:
-          return NOTOSERIF_14_FONT_ID;
-        case LARGE:
-          return NOTOSERIF_16_FONT_ID;
-        case EXTRA_LARGE:
-          return NOTOSERIF_18_FONT_ID;
+        case SMALL: return NOTOSERIF_12_FONT_ID;
+        case LARGE: return NOTOSERIF_16_FONT_ID;
+        case EXTRA_LARGE: return NOTOSERIF_18_FONT_ID;
+        default: return NOTOSERIF_14_FONT_ID;
       }
 #else
-      return NOTOSERIF_14_FONT_ID;
+      return getDefaultFontId(fontSize);
 #endif
     case NOTOSANS:
 #if ENABLE_NOTOSANS_FONTS
       switch (fontSize) {
-        case SMALL:
-          return NOTOSANS_12_FONT_ID;
-        case MEDIUM:
-        default:
-          return NOTOSANS_14_FONT_ID;
-        case LARGE:
-          return NOTOSANS_16_FONT_ID;
-        case EXTRA_LARGE:
-          return NOTOSANS_18_FONT_ID;
+        case SMALL: return NOTOSANS_12_FONT_ID;
+        case LARGE: return NOTOSANS_16_FONT_ID;
+        case EXTRA_LARGE: return NOTOSANS_18_FONT_ID;
+        default: return NOTOSANS_14_FONT_ID;
       }
 #else
-      return NOTOSERIF_14_FONT_ID;
+      return getDefaultFontId(fontSize);
 #endif
     case OPENDYSLEXIC:
 #if ENABLE_OPENDYSLEXIC_FONTS
       switch (fontSize) {
-        case SMALL:
-          return OPENDYSLEXIC_8_FONT_ID;
-        case MEDIUM:
-        default:
-          return OPENDYSLEXIC_10_FONT_ID;
-        case LARGE:
-          return OPENDYSLEXIC_12_FONT_ID;
-        case EXTRA_LARGE:
-          return OPENDYSLEXIC_14_FONT_ID;
+        case SMALL: return OPENDYSLEXIC_8_FONT_ID;
+        case LARGE: return OPENDYSLEXIC_12_FONT_ID;
+        case EXTRA_LARGE: return OPENDYSLEXIC_14_FONT_ID;
+        default: return OPENDYSLEXIC_10_FONT_ID;
       }
 #else
-      return NOTOSERIF_14_FONT_ID;
+      return getDefaultFontId(fontSize);
 #endif
     case LEXENDDECA:
 #if ENABLE_LEXENDDECA_FONTS
       switch (fontSize) {
-        case SMALL:
-          return LEXENDDECA_12_FONT_ID;
-        case MEDIUM:
-        default:
-          return LEXENDDECA_14_FONT_ID;
-        case LARGE:
-          return LEXENDDECA_16_FONT_ID;
-        case EXTRA_LARGE:
-          return LEXENDDECA_18_FONT_ID;
+        case SMALL: return LEXENDDECA_12_FONT_ID;
+        case LARGE: return LEXENDDECA_16_FONT_ID;
+        case EXTRA_LARGE: return LEXENDDECA_18_FONT_ID;
+        default: return LEXENDDECA_14_FONT_ID;
       }
 #else
-      return NOTOSERIF_14_FONT_ID;
+      return getDefaultFontId(fontSize);
 #endif
     case BITTER:
 #if ENABLE_BITTER_FONTS
       switch (fontSize) {
-        case SMALL:
-          return BITTER_12_FONT_ID;
-        case MEDIUM:
-        default:
-          return BITTER_14_FONT_ID;
-        case LARGE:
-          return BITTER_16_FONT_ID;
-        case EXTRA_LARGE:
-          return BITTER_18_FONT_ID;
+        case SMALL: return BITTER_12_FONT_ID;
+        case LARGE: return BITTER_16_FONT_ID;
+        case EXTRA_LARGE: return BITTER_18_FONT_ID;
+        default: return BITTER_14_FONT_ID;
       }
 #else
-      return NOTOSERIF_14_FONT_ID;
+      return getDefaultFontId(fontSize);
 #endif
     case CHAREINK:
 #if ENABLE_CHAREINK_FONTS
       switch (fontSize) {
-        case SMALL:
-          return CHAREINK_12_FONT_ID;
-        case MEDIUM:
-        default:
-          return CHAREINK_14_FONT_ID;
-        case LARGE:
-          return CHAREINK_16_FONT_ID;
-        case EXTRA_LARGE:
-          return CHAREINK_18_FONT_ID;
+        case SMALL: return CHAREINK_12_FONT_ID;
+        case LARGE: return CHAREINK_16_FONT_ID;
+        case EXTRA_LARGE: return CHAREINK_18_FONT_ID;
+        default: return CHAREINK_14_FONT_ID;
       }
 #else
-      return NOTOSERIF_14_FONT_ID;
+      return getDefaultFontId(fontSize);
 #endif
   }
-#endif
 }

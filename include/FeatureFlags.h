@@ -98,7 +98,7 @@
 #endif
 
 #ifndef ENABLE_NOTOSANS_FONTS
-#define ENABLE_NOTOSANS_FONTS 1
+#define ENABLE_NOTOSANS_FONTS 0
 #endif
 
 #ifndef ENABLE_OPENDYSLEXIC_FONTS
@@ -117,12 +117,18 @@
 #define ENABLE_CHAREINK_FONTS 0
 #endif
 
-// Legacy alias: ENABLE_EXTENDED_FONTS is true when any extended font family is enabled.
+// ENABLE_EXTENDED_FONTS is true when any reading font family is enabled.
 #if ENABLE_BOOKERLY_FONTS || ENABLE_NOTOSANS_FONTS || ENABLE_OPENDYSLEXIC_FONTS || \
     ENABLE_LEXENDDECA_FONTS || ENABLE_BITTER_FONTS || ENABLE_CHAREINK_FONTS
 #define ENABLE_EXTENDED_FONTS 1
 #else
 #define ENABLE_EXTENDED_FONTS 0
+#endif
+
+// At least one built-in font family must be present. SD card custom fonts are
+// loaded at runtime and cannot satisfy this check at compile time.
+#if !ENABLE_EXTENDED_FONTS
+#error "No font family enabled. Set at least one of: ENABLE_BOOKERLY_FONTS, ENABLE_NOTOSANS_FONTS, ENABLE_OPENDYSLEXIC_FONTS, ENABLE_LEXENDDECA_FONTS, ENABLE_BITTER_FONTS, ENABLE_CHAREINK_FONTS"
 #endif
 
 #ifndef ENABLE_IMAGE_SLEEP
@@ -322,12 +328,16 @@
 #define ENABLE_BOOK_IMAGES 0
 #endif
 
-#if !ENABLE_BOOKERLY_FONTS && !ENABLE_NOTOSANS_FONTS && FEATURE_OVERRIDE_ENABLE_OPENDYSLEXIC_FONTS && \
-    ENABLE_OPENDYSLEXIC_FONTS
-#error "ENABLE_OPENDYSLEXIC_FONTS requires ENABLE_BOOKERLY_FONTS=1 or ENABLE_NOTOSANS_FONTS=1"
+// OpenDyslexic only covers Latin + basic punctuation. A full-charset font must
+// also be enabled so the renderer has a fallback for Unicode content.
+#if !ENABLE_BOOKERLY_FONTS && !ENABLE_NOTOSANS_FONTS && !ENABLE_LEXENDDECA_FONTS && \
+    !ENABLE_BITTER_FONTS && !ENABLE_CHAREINK_FONTS && \
+    FEATURE_OVERRIDE_ENABLE_OPENDYSLEXIC_FONTS && ENABLE_OPENDYSLEXIC_FONTS
+#error "ENABLE_OPENDYSLEXIC_FONTS requires at least one full-charset font (BOOKERLY, NOTOSANS, LEXENDDECA, BITTER, or CHAREINK)"
 #endif
 
-#if !ENABLE_BOOKERLY_FONTS && !ENABLE_NOTOSANS_FONTS
+#if !ENABLE_BOOKERLY_FONTS && !ENABLE_NOTOSANS_FONTS && !ENABLE_LEXENDDECA_FONTS && \
+    !ENABLE_BITTER_FONTS && !ENABLE_CHAREINK_FONTS
 #undef ENABLE_OPENDYSLEXIC_FONTS
 #define ENABLE_OPENDYSLEXIC_FONTS 0
 #endif
