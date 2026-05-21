@@ -684,6 +684,7 @@ PROFILES = {
             'user_fonts': True,
             'usb_mass_storage': True,
             'wifi_clock': True,
+            'roman_clock_sleep': True,
             'reading_stats': True,
             'minimal_theme': True,
         },

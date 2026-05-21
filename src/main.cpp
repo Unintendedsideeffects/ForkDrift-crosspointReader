@@ -26,6 +26,7 @@
 #include "UsbSerialProtocol.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
+#include "activities/boot_sleep/SleepActivity.h"
 #include "activities/RenderLock.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
 #include "components/UITheme.h"
@@ -664,6 +665,7 @@ void setup() {
   }
 
   SETTINGS.loadFromFile();
+  invalidateSleepImageCache();
   I18N.setLanguage(static_cast<Language>(SETTINGS.language));
 #if ENABLE_WIFI_CLOCK
   TimeSync::restorePersistedTime();
@@ -848,6 +850,7 @@ void loop() {
         usbConnectedLast = usbConnected;
         return;
       }
+      invalidateSleepImageCache();
       activityManager.goHome();
       usbConnectedLast = usbConnected;
       return;

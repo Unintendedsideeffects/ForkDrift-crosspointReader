@@ -24,7 +24,7 @@
 #include "activities/settings/SettingsActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "images/Logo120.h"
+#include "activities/boot_sleep/BrandScreen.h"
 #include "util/RecentBooksStore.h"
 
 namespace {
@@ -411,9 +411,9 @@ void drawSleepBrandScreen(GfxRenderer& renderer, bool lightScreen) {
   const int pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  renderer.drawImage(Logo120, (pageWidth - 120) / 2, (pageHeight - 120) / 2, 120, 120);
-  renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 70, "ForkDrift", true, EpdFontFamily::BOLD);
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 95, "SLEEPING");
+  BrandScreen::drawLogo(renderer, pageWidth, pageHeight);
+  BrandScreen::drawTitle(renderer, pageHeight);
+  BrandScreen::drawSubtitle(renderer, pageHeight, "SLEEPING");
 
   if (!lightScreen) {
     renderer.invertScreen();

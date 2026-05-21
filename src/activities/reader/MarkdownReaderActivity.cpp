@@ -32,12 +32,8 @@ bool containsNodeType(const MdNode* node, const MdNodeType type) {
   if (node->type == type) {
     return true;
   }
-  for (const auto& child : node->children) {
-    if (containsNodeType(child.get(), type)) {
-      return true;
-    }
-  }
-  return false;
+  return std::any_of(node->children.begin(), node->children.end(),
+                     [&](const auto& child) { return containsNodeType(child.get(), type); });
 }
 
 uint32_t computeParseFailureSettingsSignature() {
