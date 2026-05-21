@@ -48,3 +48,22 @@ TEST_CASE("testTodoTodayGetAndSaveRequests") {
   CHECK(get.body.indexOf("\"text\":\"Task one\"") != -1);
   CHECK(get.body.indexOf("\"type\":\"agenda\"") != -1);
 }
+
+TEST_CASE("testTodoTodaySaveExtendedFieldsRoundTrip") {
+  Storage.reset();
+
+  auto save = network::handleTodoTodaySaveRequest(
+      true, true, true,
+      "{\"items\":[{\"text\":\"Morning\",\"type\":\"section\",\"checked\":false,\"isHeader\":true,\"isSection\":true},"
+      "{\"text\":\"Priority task\",\"type\":\"todo\",\"checked\":false,\"isHeader\":false,\"priority\":\"p2\","
+      "\"dueMinutes\":540}]}",
+      "2026-04-12");
+  CHECK(save.statusCode == 200);
+  CHECK(Storage.readFile("/daily/2026-04-12.md") == "## Morning\n- [ ] !p2 09:00 Priority task\n");
+
+  auto get = network::handleTodoTodayGetRequest(true, true, "2026-04-12");
+  CHECK(get.statusCode == 200);
+  CHECK(get.body.indexOf("\"isSection\":true") != -1);
+  CHECK(get.body.indexOf("\"priority\":\"p2\"") != -1);
+  CHECK(get.body.indexOf("\"dueMinutes\":540") != -1);
+}

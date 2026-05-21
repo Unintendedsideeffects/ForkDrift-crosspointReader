@@ -27,10 +27,10 @@ struct HostSetting {
 };
 
 #if ENABLE_ROMAN_CLOCK_SLEEP
-const char* kSleepScreenOptions[] = {"Dark", "Light", "Follow Theme", "Custom", "Transparent",
-                                     "Smart", "Roman Clock",  "Reading Stats"};
+const char* kSleepScreenOptions[] = {"Dark",        "Light", "Follow Theme", "Custom",
+                                     "Transparent", "Smart", "Roman Clock",  "Reading Stats"};
 #else
-const char* kSleepScreenOptions[] = {"Dark", "Light", "Follow Theme", "Custom",
+const char* kSleepScreenOptions[] = {"Dark",        "Light", "Follow Theme", "Custom",
                                      "Transparent", "Smart", "Reading Stats"};
 #endif
 constexpr size_t kSleepScreenOptionCount = sizeof(kSleepScreenOptions) / sizeof(kSleepScreenOptions[0]);
@@ -90,6 +90,7 @@ constexpr HostSetting kSettings[] = {
     {"shortPwrBtn", "Short power button", "Controls", "enum", 0, kPowerButtonOptions, 5, 0, 0, 0, nullptr, 0},
     {"sleepTimeout", "Time to sleep", "System", "enum", 2, kSleepTimeoutOptions, 5, 0, 0, 0, nullptr, 0},
     {"showHiddenFiles", "Show hidden files", "System", "toggle", 0, nullptr, 0, 0, 0, 0, nullptr, 0},
+    {"todoOpenDirectToToday", "Open planner on today", "System", "toggle", 0, nullptr, 0, 0, 0, 0, nullptr, 0},
     {"backgroundServerMode", "Background server", "System", "enum", 0, kBackgroundServerOptions, 3, 0, 0, 0, nullptr,
      0},
     {"deviceName", "Device name", "System", "string", 0, nullptr, 0, 0, 0, 0, nullptr, 0},

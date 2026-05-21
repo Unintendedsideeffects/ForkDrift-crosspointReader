@@ -35,6 +35,7 @@
 #include "html/js/jszip_minJs.generated.h"
 #include "network/BufferedHttpUpload.h"
 #include "network/RecentBookJson.h"
+#include "network/TodoPlannerApi.h"
 #if ENABLE_REMOTE_CONTROL
 #include "network/RemoteControlApi.h"
 #endif
@@ -172,74 +173,8 @@ const network::BufferedHttpUploadConfig kWebUploadConfig = {"UPLOAD",
                                                             true,
                                                             resolveWebUploadTarget};
 
-std::string normalizeTodoEntryText(const std::string& input) {
-  std::string normalized;
-  normalized.reserve(input.size());
-
-  for (const char c : input) {
-    if (c == '\r' || c == '\n') {
-      normalized.push_back(' ');
-    } else {
-      normalized.push_back(c);
-    }
-  }
-
-  size_t start = 0;
-  while (start < normalized.size() && std::isspace(static_cast<unsigned char>(normalized[start]))) {
-    start++;
-  }
-  size_t end = normalized.size();
-  while (end > start && std::isspace(static_cast<unsigned char>(normalized[end - 1]))) {
-    end--;
-  }
-
-  std::string trimmed = normalized.substr(start, end - start);
-  if (trimmed.size() > TodoPlannerStorage::kTodoEntryMaxTextLength) {
-    trimmed.resize(TodoPlannerStorage::kTodoEntryMaxTextLength);
-  }
-  return trimmed;
-}
-
-void appendTodoItemFromLine(JsonArray& array, std::string line) {
-  if (!line.empty() && line.back() == '\r') {
-    line.pop_back();
-  }
-
-  if (line.empty()) {
-    return;
-  }
-
-  JsonObject item = array.add<JsonObject>();
-  if (line.rfind("- [ ] ", 0) == 0) {
-    item["text"] = line.substr(6);
-    item["type"] = "todo";
-    item["checked"] = false;
-    item["isHeader"] = false;
-  } else if (line.rfind("- [x] ", 0) == 0 || line.rfind("- [X] ", 0) == 0) {
-    item["text"] = line.substr(6);
-    item["type"] = "todo";
-    item["checked"] = true;
-    item["isHeader"] = false;
-  } else if (line.rfind("> ", 0) == 0) {
-    // Markdown blockquote — agenda entry written when markdown is enabled.
-    item["text"] = line.substr(2);
-    item["type"] = "agenda";
-    item["checked"] = false;
-    item["isHeader"] = true;
-  } else {
-    item["text"] = line;
-    item["type"] = "text";
-    item["checked"] = false;
-    item["isHeader"] = true;
-  }
-}
-
 }  // namespace
 
-// File listing page template - now using generated headers:
-// - HomePageHtml (from html/HomePage.html)
-// - FilesPageHeaderHtml (from html/FilesPageHeader.html)
-// - FilesPageFooterHtml (from html/FilesPageFooter.html)
 CrossPointWebServer::CrossPointWebServer() {}
 
 CrossPointWebServer::~CrossPointWebServer() { stop(); }
@@ -690,211 +625,38 @@ void CrossPointWebServer::handleSetTime() {
 #endif
 
 void CrossPointWebServer::handleTodoEntry() {
-  if (!core::FeatureCatalog::isEnabled("todo_planner")) {
-    server->send(404, "text/plain", "TODO planner disabled");
-    return;
-  }
-
-  if (!server->hasArg("text")) {
-    server->send(400, "text/plain", "Missing text");
-    return;
-  }
-
-  String text = server->arg("text");
-  text.replace("\r\n", " ");
-  text.replace("\r", " ");
-  text.replace("\n", " ");
-  text.trim();
-  if (text.isEmpty() || text.length() > TodoPlannerStorage::kTodoEntryMaxTextLength) {
-    server->send(400, "text/plain", "Invalid text");
-    return;
-  }
-
-  const bool agendaEntry = server->arg("type").equalsIgnoreCase("agenda");
+  const bool plannerEnabled = core::FeatureCatalog::isEnabled("todo_planner");
+  const bool markdownEnabled = core::FeatureCatalog::isEnabled("markdown");
   const std::string today = DateUtils::currentDate();
-  if (today.empty()) {
-    server->send(503, "text/plain", "Date unavailable");
-    return;
+  const network::TodoPlannerHttpResult result = network::handleTodoEntryRequest(
+      plannerEnabled, markdownEnabled, server->hasArg("text") ? server->arg("text") : String(), server->arg("type"),
+      today);
+  if (result.ok() && !result.targetPath.empty()) {
+    invalidateFeatureCachesIfNeeded(String(result.targetPath.c_str()));
   }
-
-  const std::string markdownPath = "/daily/" + today + ".md";
-  const std::string textPath = "/daily/" + today + ".txt";
-  const std::string dirPath = "/daily";
-
-  // All SD operations serialised under one mutex guard to prevent data races
-  // with concurrent tasks (e.g. TodoActivity) accessing the SPI bus.
-  std::string content;
-  std::string targetPath;
-  bool writeOk = false;
-  {
-    SpiBusMutex::Guard guard;
-    const bool markdownExists = Storage.exists(markdownPath.c_str());
-    const bool textExists = Storage.exists(textPath.c_str());
-    targetPath =
-        TodoPlannerStorage::dailyPath(today, core::FeatureCatalog::isEnabled("markdown"), markdownExists, textExists);
-    if (!Storage.exists(dirPath.c_str())) {
-      Storage.mkdir(dirPath.c_str());
-    }
-    if (Storage.exists(targetPath.c_str())) {
-      content = Storage.readFile(targetPath.c_str()).c_str();
-      if (!content.empty() && content.back() != '\n') {
-        content.push_back('\n');
-      }
-    }
-    content += TodoPlannerStorage::formatEntry(text.c_str(), agendaEntry, core::FeatureCatalog::isEnabled("markdown"));
-    content.push_back('\n');
-    writeOk = Storage.writeFile(targetPath.c_str(), content.c_str());
-  }
-
-  if (!writeOk) {
-    server->send(500, "text/plain", "Failed to write TODO entry");
-    return;
-  }
-
-  server->send(200, "application/json", "{\"ok\":true}");
+  server->send(result.statusCode, result.contentType, result.body);
 }
 
 void CrossPointWebServer::handleTodoTodayGet() const {
-  if (!core::FeatureCatalog::isEnabled("todo_planner")) {
-    server->send(404, "text/plain", "TODO planner disabled");
-    return;
-  }
-
+  const bool plannerEnabled = core::FeatureCatalog::isEnabled("todo_planner");
+  const bool markdownEnabled = core::FeatureCatalog::isEnabled("markdown");
   const std::string today = DateUtils::currentDate();
-  if (today.empty()) {
-    server->send(503, "text/plain", "Date unavailable");
-    return;
-  }
-
-  const std::string markdownPath = "/daily/" + today + ".md";
-  const std::string textPath = "/daily/" + today + ".txt";
-  std::string targetPath;
-  std::string content;
-  {
-    SpiBusMutex::Guard guard;
-    const bool markdownExists = Storage.exists(markdownPath.c_str());
-    const bool textExists = Storage.exists(textPath.c_str());
-    targetPath =
-        TodoPlannerStorage::dailyPath(today, core::FeatureCatalog::isEnabled("markdown"), markdownExists, textExists);
-    if (Storage.exists(targetPath.c_str())) {
-      content = Storage.readFile(targetPath.c_str()).c_str();
-    }
-  }
-
-  JsonDocument response;
-  response["ok"] = true;
-  response["date"] = today.c_str();
-  response["path"] = targetPath.c_str();
-  JsonArray items = response["items"].to<JsonArray>();
-
-  std::string line;
-  line.reserve(128);
-  for (const char c : content) {
-    if (c == '\n') {
-      appendTodoItemFromLine(items, line);
-      line.clear();
-    } else {
-      line.push_back(c);
-    }
-  }
-  if (!line.empty()) {
-    appendTodoItemFromLine(items, line);
-  }
-
-  String json;
-  serializeJson(response, json);
-  server->send(200, "application/json", json);
+  const network::TodoPlannerHttpResult result =
+      network::handleTodoTodayGetRequest(plannerEnabled, markdownEnabled, today);
+  server->send(result.statusCode, result.contentType, result.body);
 }
 
 void CrossPointWebServer::handleTodoTodaySave() const {
-  if (!core::FeatureCatalog::isEnabled("todo_planner")) {
-    server->send(404, "text/plain", "TODO planner disabled");
-    return;
-  }
-
-  if (!server->hasArg("plain")) {
-    server->send(400, "text/plain", "Missing body");
-    return;
-  }
-
-  JsonDocument request;
-  if (deserializeJson(request, server->arg("plain"))) {
-    server->send(400, "text/plain", "Invalid JSON body");
-    return;
-  }
-
-  if (!request["items"].is<JsonArray>()) {
-    server->send(400, "text/plain", "Missing items array");
-    return;
-  }
-
+  const bool plannerEnabled = core::FeatureCatalog::isEnabled("todo_planner");
+  const bool markdownEnabled = core::FeatureCatalog::isEnabled("markdown");
   const std::string today = DateUtils::currentDate();
-  if (today.empty()) {
-    server->send(503, "text/plain", "Date unavailable");
-    return;
+  const network::TodoPlannerHttpResult result =
+      network::handleTodoTodaySaveRequest(plannerEnabled, markdownEnabled, server->hasArg("plain"),
+                                          server->hasArg("plain") ? server->arg("plain") : String(), today);
+  if (result.ok() && !result.targetPath.empty()) {
+    invalidateFeatureCachesIfNeeded(String(result.targetPath.c_str()));
   }
-
-  const std::string markdownPath = "/daily/" + today + ".md";
-  const std::string textPath = "/daily/" + today + ".txt";
-  const std::string dirPath = "/daily";
-  std::string targetPath;
-  std::string content;
-
-  JsonArray items = request["items"].as<JsonArray>();
-  for (JsonVariant itemVar : items) {
-    if (!itemVar.is<JsonObject>()) {
-      continue;
-    }
-
-    JsonObject item = itemVar.as<JsonObject>();
-    const std::string text = normalizeTodoEntryText(item["text"].as<std::string>());
-    if (text.empty()) {
-      continue;
-    }
-
-    const bool isHeader = item["isHeader"].is<bool>() ? item["isHeader"].as<bool>() : item["is_header"].as<bool>();
-    const bool checked = item["checked"].as<bool>();
-    const char* itemType = item["type"] | "";
-    const bool isAgenda = isHeader && strcmp(itemType, "agenda") == 0;
-    const bool markdownEnabled = core::FeatureCatalog::isEnabled("markdown");
-    if (isHeader) {
-      if (isAgenda && markdownEnabled) content += "> ";
-      content += text;
-    } else {
-      content += "- [";
-      content += checked ? "x" : " ";
-      content += "] ";
-      content += text;
-    }
-    content.push_back('\n');
-  }
-
-  bool writeOk = false;
-  {
-    SpiBusMutex::Guard guard;
-    const bool markdownExists = Storage.exists(markdownPath.c_str());
-    const bool textExists = Storage.exists(textPath.c_str());
-    targetPath =
-        TodoPlannerStorage::dailyPath(today, core::FeatureCatalog::isEnabled("markdown"), markdownExists, textExists);
-    if (!Storage.exists(dirPath.c_str())) {
-      Storage.mkdir(dirPath.c_str());
-    }
-    writeOk = Storage.writeFile(targetPath.c_str(), content.c_str());
-  }
-
-  if (!writeOk) {
-    server->send(500, "text/plain", "Failed to write TODO file");
-    return;
-  }
-
-  invalidateFeatureCachesIfNeeded(String(targetPath.c_str()));
-  JsonDocument response;
-  response["ok"] = true;
-  response["date"] = today.c_str();
-  response["path"] = targetPath.c_str();
-  String json;
-  serializeJson(response, json);
-  server->send(200, "application/json", json);
+  server->send(result.statusCode, result.contentType, result.body);
 }
 
 void CrossPointWebServer::scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const {

@@ -1,5 +1,4 @@
 #include "core/features/FeatureModules.h"
-
 #include "include/FeatureFlags.h"
 
 namespace core {
@@ -88,6 +87,12 @@ bool FeatureModules::hasCapability(const Capability capability) {
 #endif
     case Capability::UserFonts:
 #if ENABLE_USER_FONTS
+      return true;
+#else
+      return false;
+#endif
+    case Capability::TodoPlanner:
+#if ENABLE_TODO_PLANNER
       return true;
 #else
       return false;

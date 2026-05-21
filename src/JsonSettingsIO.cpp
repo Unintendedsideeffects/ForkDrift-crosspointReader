@@ -52,10 +52,8 @@ bool JsonSettingsIO::loadState(CrossPointState& s, const char* json) {
   s.wifiAutoConnectSkipCount = doc["wifiAutoConnectSkipCount"] | (uint8_t)0;
   s.wifiAutoConnectBackoffLevel = doc["wifiAutoConnectBackoffLevel"] | (uint8_t)0;
   s.wifiAutoConnectWaitingForNewCredential = doc["wifiAutoConnectWaitingForNewCredential"] | false;
-  s.pendingBookmarkSpine =
-      doc["pendingBookmarkSpine"] | static_cast<uint16_t>(PENDING_BOOKMARK_SPINE_NONE);
-  s.pendingBookmarkProgress =
-      doc["pendingBookmarkProgress"] | PENDING_BOOKMARK_PROGRESS_NONE;
+  s.pendingBookmarkSpine = doc["pendingBookmarkSpine"] | static_cast<uint16_t>(PENDING_BOOKMARK_SPINE_NONE);
+  s.pendingBookmarkProgress = doc["pendingBookmarkProgress"] | PENDING_BOOKMARK_PROGRESS_NONE;
   return true;
 }
 
@@ -128,6 +126,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["deviceName"] = s.deviceName;
   doc["wifiAutoConnect"] = s.wifiAutoConnect;
   doc["showHiddenFiles"] = s.showHiddenFiles;
+  doc["todoOpenDirectToToday"] = s.todoOpenDirectToToday;
   doc["moveFinishedToReadFolder"] = s.moveFinishedToReadFolder;
   doc["developerMode"] = s.developerMode;
   doc["imageRendering"] = s.imageRendering;
@@ -219,8 +218,8 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
     s.sleepTimeoutMinutes = S::sleepTimeoutEnumToMinutes(s.sleepTimeout);
     if (needsResave) *needsResave = true;
   } else {
-    s.sleepTimeoutMinutes = std::clamp(
-        doc["sleepTimeoutMinutes"] | (uint8_t)10, S::MIN_SLEEP_TIMEOUT_MINUTES, S::MAX_SLEEP_TIMEOUT_MINUTES);
+    s.sleepTimeoutMinutes = std::clamp(doc["sleepTimeoutMinutes"] | (uint8_t)10, S::MIN_SLEEP_TIMEOUT_MINUTES,
+                                       S::MAX_SLEEP_TIMEOUT_MINUTES);
   }
   s.refreshFrequency =
       clamp(doc["refreshFrequency"] | (uint8_t)S::REFRESH_15, S::REFRESH_FREQUENCY_COUNT, S::REFRESH_15);
@@ -255,6 +254,7 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.usbMscPromptOnConnect = doc["usbMscPromptOnConnect"] | (uint8_t)0;
   s.wifiAutoConnect = doc["wifiAutoConnect"] | (uint8_t)0;
   s.showHiddenFiles = doc["showHiddenFiles"] | (uint8_t)0;
+  s.todoOpenDirectToToday = doc["todoOpenDirectToToday"] | (uint8_t)0;
   s.moveFinishedToReadFolder = doc["moveFinishedToReadFolder"] | (uint8_t)0;
   s.developerMode = doc["developerMode"] | (uint8_t)0;
   s.imageRendering =

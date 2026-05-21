@@ -120,6 +120,9 @@ class ActivityManager {
   bool hasBackgroundWebServer() const;
   CrossPointWebServer* getBackgroundWebServer() const;
 
+  GfxRenderer& getRenderer() { return renderer; }
+  MappedInputManager& getMappedInput() { return mappedInput; }
+
  protected:
   std::unique_ptr<CrossPointWebServer> backgroundServer;
 };

@@ -39,8 +39,12 @@ static constexpr int kDefaultThumbHeight = 240;
 #endif
 
 #if ENABLE_TODO_PLANNER
-#include "activities/todo/TodoActivity.h"
-#include "activities/todo/TodoFallbackActivity.h"
+#include "CrossPointSettings.h"
+#include "activities/ActivityManager.h"
+#include "activities/todo/DayDetailActivity.h"
+#include "activities/todo/DayIndexActivity.h"
+#include "activities/todo/TodoPlannerStorage.h"
+#include "util/DateUtils.h"
 #endif
 
 namespace core {
@@ -296,7 +300,12 @@ Activity* FeatureModules::createTodoPlannerActivity(GfxRenderer& renderer, Mappe
   if (!hasCapability(Capability::TodoPlanner)) {
     return nullptr;
   }
-  return new TodoActivity(renderer, mappedInput, std::move(filePath), std::move(dateTitle), onBackCtx, onBack);
+  (void)filePath;
+  (void)dateTitle;
+  (void)onBackCtx;
+  (void)onBack;
+  return new DayIndexActivity(renderer, mappedInput, &activityManager,
+                              [](void* ctx) { static_cast<ActivityManager*>(ctx)->goHome(); });
 #else
   (void)renderer;
   (void)mappedInput;
@@ -314,7 +323,8 @@ Activity* FeatureModules::createTodoFallbackActivity(GfxRenderer& renderer, Mapp
   if (!hasCapability(Capability::TodoPlanner)) {
     return nullptr;
   }
-  return new TodoFallbackActivity(renderer, mappedInput, std::move(dateText), onBackCtx, onBack);
+  (void)dateText;
+  return new DayIndexActivity(renderer, mappedInput, onBackCtx, onBack);
 #else
   (void)renderer;
   (void)mappedInput;
@@ -400,17 +410,11 @@ void FeatureModules::saveKoreaderSettings() {
   }
 }
 
-std::vector<std::string> FeatureModules::getUserFontFamilies() {
-  return {};
-}
+std::vector<std::string> FeatureModules::getUserFontFamilies() { return {}; }
 
-uint8_t FeatureModules::getSelectedUserFontFamilyIndex() {
-  return 0;
-}
+uint8_t FeatureModules::getSelectedUserFontFamilyIndex() { return 0; }
 
-void FeatureModules::setSelectedUserFontFamilyIndex(const uint8_t index) {
-  (void)index;
-}
+void FeatureModules::setSelectedUserFontFamilyIndex(const uint8_t index) { (void)index; }
 
 void FeatureModules::onFontFamilySettingChanged(const uint8_t newValue) {
   LifecycleRegistry::dispatchFontFamilyChanged(newValue);

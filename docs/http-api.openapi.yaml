@@ -1605,7 +1605,7 @@ components:
           type: string
         type:
           type: string
-          enum: [todo, agenda, text]
+          enum: [todo, agenda, text, section]
         checked:
           type: boolean
         isHeader:
@@ -1613,6 +1613,16 @@ components:
         is_header:
           type: boolean
           description: Accepted alias in save requests
+        isSection:
+          type: boolean
+        priority:
+          type: string
+          enum: [none, p1, p2, p3]
+        dueMinutes:
+          type: integer
+          minimum: 0
+          maximum: 1439
+          description: Minutes since midnight (0 = unset)
     TodoTodayResponse:
       type: object
       required: [ok, date, path, items]

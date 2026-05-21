@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <new>
 
 struct BmpHeader;
 
@@ -105,9 +106,9 @@ class Atkinson1BitDitherer {
 class AtkinsonDitherer {
  public:
   explicit AtkinsonDitherer(int width) : width(width) {
-    errorRow0 = new int16_t[width + 4]();  // Current row
-    errorRow1 = new int16_t[width + 4]();  // Next row
-    errorRow2 = new int16_t[width + 4]();  // Row after next
+    errorRow0 = new (std::nothrow) int16_t[width + 4]();  // Current row
+    errorRow1 = new (std::nothrow) int16_t[width + 4]();  // Next row
+    errorRow2 = new (std::nothrow) int16_t[width + 4]();  // Row after next
   }
 
   ~AtkinsonDitherer() {
@@ -120,6 +121,8 @@ class AtkinsonDitherer {
 
   // **2. EXPLICITLY DELETE THE COPY ASSIGNMENT OPERATOR**
   AtkinsonDitherer& operator=(const AtkinsonDitherer& other) = delete;
+
+  bool isReady() const { return errorRow0 && errorRow1 && errorRow2; }
 
   uint8_t processPixel(int gray, int x) {
     // Add accumulated error
@@ -190,9 +193,9 @@ class AtkinsonDitherer {
 
  private:
   int width;
-  int16_t* errorRow0;
-  int16_t* errorRow1;
-  int16_t* errorRow2;
+  int16_t* errorRow0 = nullptr;
+  int16_t* errorRow1 = nullptr;
+  int16_t* errorRow2 = nullptr;
 };
 
 // Floyd-Steinberg error diffusion dithering with serpentine scanning
@@ -206,8 +209,8 @@ class AtkinsonDitherer {
 class FloydSteinbergDitherer {
  public:
   explicit FloydSteinbergDitherer(int width) : width(width), rowCount(0) {
-    errorCurRow = new int16_t[width + 2]();  // +2 for boundary handling
-    errorNextRow = new int16_t[width + 2]();
+    errorCurRow = new (std::nothrow) int16_t[width + 2]();  // +2 for boundary handling
+    errorNextRow = new (std::nothrow) int16_t[width + 2]();
   }
 
   ~FloydSteinbergDitherer() {
@@ -220,6 +223,8 @@ class FloydSteinbergDitherer {
 
   // **2. EXPLICITLY DELETE THE COPY ASSIGNMENT OPERATOR**
   FloydSteinbergDitherer& operator=(const FloydSteinbergDitherer& other) = delete;
+
+  bool isReady() const { return errorCurRow && errorNextRow; }
 
   // Process a single pixel and return quantized 2-bit value
   // x is the logical x position (0 to width-1), direction handled internally
@@ -317,6 +322,6 @@ class FloydSteinbergDitherer {
  private:
   int width;
   int rowCount;
-  int16_t* errorCurRow;
-  int16_t* errorNextRow;
+  int16_t* errorCurRow = nullptr;
+  int16_t* errorNextRow = nullptr;
 };

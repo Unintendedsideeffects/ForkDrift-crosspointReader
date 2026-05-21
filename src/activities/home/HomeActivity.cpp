@@ -525,7 +525,7 @@ std::string HomeActivity::getMenuItemLabel(const int index) const {
     return "OPDS Browser";
   }
   if (index == menuTodoIndex) {
-    return "TODO";
+    return tr(STR_TODO_HOME_LABEL);
   }
   if (index == menuAnkiIndex) {
     return "Anki";
@@ -1496,7 +1496,7 @@ void HomeActivity::render(RenderLock&&) {
         menuIcons.push_back(Library);
       }
       if (core::HomeActionRegistry::shouldExpose("todo_planner", {false})) {
-        menuLabels.push_back("TODO");
+        menuLabels.push_back(tr(STR_TODO_HOME_LABEL));
         menuIcons.push_back(Text);
       }
       if (core::HomeActionRegistry::shouldExpose("anki", {false})) {
@@ -1717,7 +1717,7 @@ void HomeActivity::render(RenderLock&&) {
       labels_text.push_back("OPDS Browser");
     }
     if (core::HomeActionRegistry::shouldExpose("todo_planner", {false})) {
-      labels_text.push_back("TODO");
+      labels_text.push_back(tr(STR_TODO_HOME_LABEL));
     }
     if (core::HomeActionRegistry::shouldExpose("anki", {false})) {
       labels_text.push_back("Anki");

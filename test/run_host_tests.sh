@@ -64,6 +64,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/network/SleepCoverApi.cpp" \
   "$ROOT_DIR/src/network/SettingsSnapshotApi.cpp" \
   "$ROOT_DIR/src/network/TodoPlannerApi.cpp" \
+  "$ROOT_DIR/src/activities/todo/TodoPlannerStorage.cpp" \
   "$ROOT_DIR/src/features/pokemon_party/Registration.cpp" \
   "$ROOT_DIR/src/features/remote_keyboard_input/Registration.cpp" \
   "$ROOT_DIR/src/network/RemoteKeyboardSession.cpp" \

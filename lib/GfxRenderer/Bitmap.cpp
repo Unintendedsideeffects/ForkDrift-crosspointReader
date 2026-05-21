@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <new>
 
 // ============================================================================
 // IMAGE PROCESSING OPTIONS
@@ -174,9 +175,17 @@ BmpReaderError Bitmap::parseHeaders() {
   const bool highColor = !nativePalette;
   if (highColor && dithering) {
     if (USE_ATKINSON) {
-      atkinsonDitherer = new AtkinsonDitherer(width);
+      atkinsonDitherer = new (std::nothrow) AtkinsonDitherer(width);
+      if (!atkinsonDitherer || !atkinsonDitherer->isReady()) {
+        delete atkinsonDitherer;
+        atkinsonDitherer = nullptr;
+      }
     } else {
-      fsDitherer = new FloydSteinbergDitherer(width);
+      fsDitherer = new (std::nothrow) FloydSteinbergDitherer(width);
+      if (!fsDitherer || !fsDitherer->isReady()) {
+        delete fsDitherer;
+        fsDitherer = nullptr;
+      }
     }
   }
 

@@ -1,29 +1,24 @@
 #pragma once
 
 #include <string>
+#include <vector>
+
+#include "activities/todo/TodoItem.h"
 
 namespace TodoPlannerStorage {
 
 constexpr size_t kTodoEntryMaxTextLength = 300;
 
-// Select daily TODO file path with precedence:
-// 1) Existing .md, 2) existing .txt, 3) extension from markdownEnabled fallback.
-inline std::string dailyPath(const std::string& date, const bool markdownEnabled, const bool markdownExists,
-                             const bool textExists) {
-  if (markdownExists) {
-    return "/daily/" + date + ".md";
-  }
-  if (textExists) {
-    return "/daily/" + date + ".txt";
-  }
-  return "/daily/" + date + (markdownEnabled ? ".md" : ".txt");
-}
+std::string dailyPath(const std::string& date, bool markdownEnabled, bool markdownExists, bool textExists);
 
-// Agenda entries: blockquote ("> text") when markdown is enabled, plain text otherwise.
-// TODO entries always use markdown checkbox format ("- [ ] text").
-inline std::string formatEntry(const std::string& text, const bool agendaEntry, const bool markdownEnabled = false) {
-  if (agendaEntry) return markdownEnabled ? "> " + text : text;
-  return "- [ ] " + text;
-}
+std::string formatEntry(const std::string& text, bool agendaEntry, bool markdownEnabled = false);
+
+bool parseLine(std::string line, TodoItem& out);
+
+std::string formatItem(const TodoItem& item, bool markdownFile);
+
+void parseFile(const std::string& content, std::vector<TodoItem>& out);
+
+std::string formatFile(const std::vector<TodoItem>& items, bool markdownFile);
 
 }  // namespace TodoPlannerStorage

@@ -188,45 +188,57 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
   // stays independent of the persisted enum values.
   list.push_back([] {
     using M = CrossPointSettings::SLEEP_SCREEN_MODE;
-    const std::vector<StrId> ids = {StrId::STR_DARK,         StrId::STR_LIGHT,       StrId::STR_FOLLOW_THEME,
-                                    StrId::STR_CUSTOM,       StrId::STR_TRANSPARENT, StrId::STR_SLEEP_SMART,
+    const std::vector<StrId> ids = {
+        StrId::STR_DARK,          StrId::STR_LIGHT,       StrId::STR_FOLLOW_THEME,
+        StrId::STR_CUSTOM,        StrId::STR_TRANSPARENT, StrId::STR_SLEEP_SMART,
 #if ENABLE_ROMAN_CLOCK_SLEEP
-                                    StrId::STR_ROMAN_CLOCK,
+        StrId::STR_ROMAN_CLOCK,
 #endif
 #if ENABLE_READING_STATS
-                                    StrId::STR_READING_STATS,
+        StrId::STR_READING_STATS,
 #endif
-                                    };
-    const std::vector<uint8_t> vals = {M::DARK,        M::LIGHT, M::FOLLOW_THEME,       M::CUSTOM,
-                                       M::TRANSPARENT, M::SMART,
+    };
+    const std::vector<uint8_t> vals = {
+        M::DARK,
+        M::LIGHT,
+        M::FOLLOW_THEME,
+        M::CUSTOM,
+        M::TRANSPARENT,
+        M::SMART,
 #if ENABLE_ROMAN_CLOCK_SLEEP
-                                       M::ROMAN_CLOCK_SLEEP,
+        M::ROMAN_CLOCK_SLEEP,
 #endif
 #if ENABLE_READING_STATS
-                                       M::READING_STATS_SLEEP,
+        M::READING_STATS_SLEEP,
 #endif
-                                       };
-    std::vector<const char*> optionFeatureKeys = {nullptr, nullptr, nullptr, "image_sleep", nullptr, nullptr,
+    };
+    std::vector<const char*> optionFeatureKeys = {
+        nullptr,
+        nullptr,
+        nullptr,
+        "image_sleep",
+        nullptr,
+        nullptr,
 #if ENABLE_ROMAN_CLOCK_SLEEP
-                                                  "roman_clock_sleep",
+        "roman_clock_sleep",
 #endif
 #if ENABLE_READING_STATS
-                                                  "reading_stats",
+        "reading_stats",
 #endif
     };
     return SettingInfo::DynamicEnum(
-        StrId::STR_SLEEP_SCREEN, ids,
-        [vals] {
-          const uint8_t cur = SETTINGS.sleepScreen;
-          for (size_t i = 0; i < vals.size(); i++) {
-            if (vals[i] == cur) return static_cast<uint8_t>(i);
-          }
-          return uint8_t{0};
-        },
-        [vals](uint8_t idx) {
-          if (idx < vals.size()) SETTINGS.sleepScreen = vals[idx];
-        },
-        "sleepScreen", StrId::STR_CAT_DISPLAY)
+               StrId::STR_SLEEP_SCREEN, ids,
+               [vals] {
+                 const uint8_t cur = SETTINGS.sleepScreen;
+                 for (size_t i = 0; i < vals.size(); i++) {
+                   if (vals[i] == cur) return static_cast<uint8_t>(i);
+                 }
+                 return uint8_t{0};
+               },
+               [vals](uint8_t idx) {
+                 if (idx < vals.size()) SETTINGS.sleepScreen = vals[idx];
+               },
+               "sleepScreen", StrId::STR_CAT_DISPLAY)
         .withConfiguratorExport()
         .withEnumPersistedValues(vals)
         .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
@@ -277,10 +289,10 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                                    {StrId::STR_NEVER, StrId::STR_IN_READER, StrId::STR_ALWAYS}, "hideBatteryPercentage",
                                    StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport());
-  list.push_back(SettingInfo::Enum(
-      StrId::STR_REFRESH_FREQ, &CrossPointSettings::refreshFrequency,
-      {StrId::STR_PAGES_1, StrId::STR_PAGES_5, StrId::STR_PAGES_10, StrId::STR_PAGES_15, StrId::STR_PAGES_30},
-      "refreshFrequency", StrId::STR_CAT_DISPLAY)
+  list.push_back(SettingInfo::Enum(StrId::STR_REFRESH_FREQ, &CrossPointSettings::refreshFrequency,
+                                   {StrId::STR_PAGES_1, StrId::STR_PAGES_5, StrId::STR_PAGES_10, StrId::STR_PAGES_15,
+                                    StrId::STR_PAGES_30},
+                                   "refreshFrequency", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport());
   // Build options with explicit enum-value mapping so position != value assumptions
   // don't break when individual themes are optionally included or excluded.
@@ -292,8 +304,7 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
       ids.insert(ids.end(), {StrId::STR_THEME_LYRA, StrId::STR_THEME_LYRA_EXTENDED, StrId::STR_THEME_FORK_DRIFT,
                              StrId::STR_THEME_LYRA_CAROUSEL});
       vals.insert(vals.end(), {CrossPointSettings::UI_THEME::LYRA, CrossPointSettings::UI_THEME::LYRA_EXTENDED,
-                               CrossPointSettings::UI_THEME::FORK_DRIFT,
-                               CrossPointSettings::UI_THEME::LYRA_CAROUSEL});
+                               CrossPointSettings::UI_THEME::FORK_DRIFT, CrossPointSettings::UI_THEME::LYRA_CAROUSEL});
       optionFeatureKeys.insert(optionFeatureKeys.end(), {"lyra_theme", "lyra_theme", "lyra_theme", "lyra_theme"});
       if (core::FeatureModules::hasCapability(core::Capability::MinimalTheme)) {
         ids.push_back(StrId::STR_THEME_MINIMAL);
@@ -307,18 +318,18 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
       optionFeatureKeys.push_back("pokemon_party");
     }
     return SettingInfo::DynamicEnum(
-        StrId::STR_UI_THEME, std::move(ids),
-        [vals] {
-          const uint8_t cur = SETTINGS.uiTheme;
-          for (size_t i = 0; i < vals.size(); i++) {
-            if (vals[i] == cur) return static_cast<uint8_t>(i);
-          }
-          return uint8_t{0};
-        },
-        [vals](uint8_t idx) {
-          if (idx < vals.size()) SETTINGS.uiTheme = vals[idx];
-        },
-        "uiTheme", StrId::STR_CAT_DISPLAY)
+               StrId::STR_UI_THEME, std::move(ids),
+               [vals] {
+                 const uint8_t cur = SETTINGS.uiTheme;
+                 for (size_t i = 0; i < vals.size(); i++) {
+                   if (vals[i] == cur) return static_cast<uint8_t>(i);
+                 }
+                 return uint8_t{0};
+               },
+               [vals](uint8_t idx) {
+                 if (idx < vals.size()) SETTINGS.uiTheme = vals[idx];
+               },
+               "uiTheme", StrId::STR_CAT_DISPLAY)
         .withConfiguratorExport()
         .withEnumPersistedValues(vals)
         .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
@@ -344,10 +355,10 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
   list.push_back(SettingInfo::Value(StrId::STR_SCREEN_MARGIN, &CrossPointSettings::screenMargin, {5, 40, 5},
                                     "screenMargin", StrId::STR_CAT_READER)
                      .withConfiguratorExport());
-  list.push_back(SettingInfo::Enum(
-      StrId::STR_PARA_ALIGNMENT, &CrossPointSettings::paragraphAlignment,
-      {StrId::STR_JUSTIFY, StrId::STR_ALIGN_LEFT, StrId::STR_CENTER, StrId::STR_ALIGN_RIGHT, StrId::STR_BOOK_S_STYLE},
-      "paragraphAlignment", StrId::STR_CAT_READER)
+  list.push_back(SettingInfo::Enum(StrId::STR_PARA_ALIGNMENT, &CrossPointSettings::paragraphAlignment,
+                                   {StrId::STR_JUSTIFY, StrId::STR_ALIGN_LEFT, StrId::STR_CENTER,
+                                    StrId::STR_ALIGN_RIGHT, StrId::STR_BOOK_S_STYLE},
+                                   "paragraphAlignment", StrId::STR_CAT_READER)
                      .withConfiguratorExport());
   list.push_back(SettingInfo::Toggle(StrId::STR_EMBEDDED_STYLE, &CrossPointSettings::embeddedStyle, "embeddedStyle",
                                      StrId::STR_CAT_READER)
@@ -407,40 +418,47 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                                     StrId::STR_LONG_PRESS_BEHAVIOR_ORIENTATION},
                                    "longPressButtonBehavior", StrId::STR_CAT_CONTROLS)
                      .withConfiguratorExport());
-  list.push_back(SettingInfo::Enum(
-      StrId::STR_SHORT_PWR_BTN, &CrossPointSettings::shortPwrBtn,
-      {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_PAGE_TURN, StrId::STR_SELECT, StrId::STR_FORCE_REFRESH,
-       StrId::STR_CHANGE_FONT, StrId::STR_TOGGLE_GUIDE_DOTS, StrId::STR_TOGGLE_BIONIC_READING,
-       StrId::STR_TOGGLE_BOOKMARK, StrId::STR_SYNC_PROGRESS, StrId::STR_MARK_FINISHED, StrId::STR_READING_STATS,
-       StrId::STR_SCREENSHOT_BUTTON, StrId::STR_CYCLE_PAGE_TURN, StrId::STR_FILE_TRANSFER},
-      "shortPwrBtn", StrId::STR_CAT_CONTROLS)
+  list.push_back(SettingInfo::Enum(StrId::STR_SHORT_PWR_BTN, &CrossPointSettings::shortPwrBtn,
+                                   {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_PAGE_TURN, StrId::STR_SELECT,
+                                    StrId::STR_FORCE_REFRESH, StrId::STR_CHANGE_FONT, StrId::STR_TOGGLE_GUIDE_DOTS,
+                                    StrId::STR_TOGGLE_BIONIC_READING, StrId::STR_TOGGLE_BOOKMARK,
+                                    StrId::STR_SYNC_PROGRESS, StrId::STR_MARK_FINISHED, StrId::STR_READING_STATS,
+                                    StrId::STR_SCREENSHOT_BUTTON, StrId::STR_CYCLE_PAGE_TURN, StrId::STR_FILE_TRANSFER},
+                                   "shortPwrBtn", StrId::STR_CAT_CONTROLS)
                      .withConfiguratorExport());
-  list.push_back(SettingInfo::Enum(
-      StrId::STR_LONG_PRESS_ACTION, &CrossPointSettings::longPwrBtn,
-      {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_PAGE_TURN, StrId::STR_FORCE_REFRESH, StrId::STR_CHANGE_FONT,
-       StrId::STR_TOGGLE_GUIDE_DOTS, StrId::STR_TOGGLE_BIONIC_READING, StrId::STR_TOGGLE_BOOKMARK,
-       StrId::STR_SYNC_PROGRESS, StrId::STR_MARK_FINISHED, StrId::STR_READING_STATS, StrId::STR_SCREENSHOT_BUTTON,
-       StrId::STR_CYCLE_PAGE_TURN, StrId::STR_FILE_TRANSFER},
-      "longPwrBtn", StrId::STR_CAT_CONTROLS)
+  list.push_back(SettingInfo::Enum(StrId::STR_LONG_PRESS_ACTION, &CrossPointSettings::longPwrBtn,
+                                   {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_PAGE_TURN, StrId::STR_FORCE_REFRESH,
+                                    StrId::STR_CHANGE_FONT, StrId::STR_TOGGLE_GUIDE_DOTS,
+                                    StrId::STR_TOGGLE_BIONIC_READING, StrId::STR_TOGGLE_BOOKMARK,
+                                    StrId::STR_SYNC_PROGRESS, StrId::STR_MARK_FINISHED, StrId::STR_READING_STATS,
+                                    StrId::STR_SCREENSHOT_BUTTON, StrId::STR_CYCLE_PAGE_TURN, StrId::STR_FILE_TRANSFER},
+                                   "longPwrBtn", StrId::STR_CAT_CONTROLS)
                      .withConfiguratorExport());
-  list.push_back(SettingInfo::Enum(
-      StrId::STR_LONG_PRESS_MENU_ACTION, &CrossPointSettings::longPressMenuAction,
-      {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_CHANGE_FONT, StrId::STR_TOGGLE_GUIDE_DOTS,
-       StrId::STR_TOGGLE_BIONIC_READING, StrId::STR_TOGGLE_BOOKMARK, StrId::STR_FORCE_REFRESH,
-       StrId::STR_SYNC_PROGRESS, StrId::STR_MARK_FINISHED, StrId::STR_READING_STATS, StrId::STR_SCREENSHOT_BUTTON,
-       StrId::STR_CYCLE_PAGE_TURN, StrId::STR_FILE_TRANSFER},
-      "longPressMenuAction", StrId::STR_CAT_CONTROLS)
-                     .withConfiguratorExport());
+  list.push_back(
+      SettingInfo::Enum(StrId::STR_LONG_PRESS_MENU_ACTION, &CrossPointSettings::longPressMenuAction,
+                        {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_CHANGE_FONT, StrId::STR_TOGGLE_GUIDE_DOTS,
+                         StrId::STR_TOGGLE_BIONIC_READING, StrId::STR_TOGGLE_BOOKMARK, StrId::STR_FORCE_REFRESH,
+                         StrId::STR_SYNC_PROGRESS, StrId::STR_MARK_FINISHED, StrId::STR_READING_STATS,
+                         StrId::STR_SCREENSHOT_BUTTON, StrId::STR_CYCLE_PAGE_TURN, StrId::STR_FILE_TRANSFER},
+                        "longPressMenuAction", StrId::STR_CAT_CONTROLS)
+          .withConfiguratorExport());
 
   // --- System ---
   list.push_back(SettingInfo::Value(
-      StrId::STR_TIME_TO_SLEEP, &CrossPointSettings::sleepTimeoutMinutes,
-      {CrossPointSettings::MIN_SLEEP_TIMEOUT_MINUTES, CrossPointSettings::MAX_SLEEP_TIMEOUT_MINUTES, 1},
-      "sleepTimeoutMinutes", StrId::STR_CAT_SYSTEM)
+                     StrId::STR_TIME_TO_SLEEP, &CrossPointSettings::sleepTimeoutMinutes,
+                     {CrossPointSettings::MIN_SLEEP_TIMEOUT_MINUTES, CrossPointSettings::MAX_SLEEP_TIMEOUT_MINUTES, 1},
+                     "sleepTimeoutMinutes", StrId::STR_CAT_SYSTEM)
                      .withConfiguratorExport());
   list.push_back(SettingInfo::Toggle(StrId::STR_SHOW_HIDDEN_FILES, &CrossPointSettings::showHiddenFiles,
                                      "showHiddenFiles", StrId::STR_CAT_SYSTEM)
                      .withConfiguratorExport());
+#if ENABLE_TODO_PLANNER
+  if (core::FeatureModules::hasCapability(core::Capability::TodoPlanner)) {
+    list.push_back(SettingInfo::Toggle(StrId::STR_TODO_OPEN_DIRECT_TO_TODAY, &CrossPointSettings::todoOpenDirectToToday,
+                                       "todoOpenDirectToToday", StrId::STR_CAT_SYSTEM)
+                       .withConfiguratorExport("todo_planner"));
+  }
+#endif
 #if ENABLE_READING_STATS
   list.push_back(SettingInfo::Toggle(StrId::STR_MOVE_FINISHED_TO_READ, &CrossPointSettings::moveFinishedToReadFolder,
                                      "moveFinishedToReadFolder", StrId::STR_CAT_SYSTEM)
@@ -476,9 +494,9 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 
   if (supportsBackgroundServerModeSetting()) {
     list.push_back(SettingInfo::DynamicEnum(
-        StrId::STR_BACKGROUND_SERVER, {}, [] { return getBackgroundServerModeSettingIndex(); },
-        [](uint8_t value) { setBackgroundServerModeSettingIndex(value); }, "backgroundServerMode",
-        StrId::STR_CAT_SYSTEM, [] { return backgroundServerModeOptions(); })
+                       StrId::STR_BACKGROUND_SERVER, {}, [] { return getBackgroundServerModeSettingIndex(); },
+                       [](uint8_t value) { setBackgroundServerModeSettingIndex(value); }, "backgroundServerMode",
+                       StrId::STR_CAT_SYSTEM, [] { return backgroundServerModeOptions(); })
                        .withConfiguratorExport("background_server_on_charge")
                        .withEnumOptionFeatureKeys({nullptr, nullptr, "background_server_always"}));
   }
@@ -489,13 +507,13 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                                      StrId::STR_CAT_ADVANCED)
                      .withConfiguratorExport());
   list.push_back(SettingInfo::String(StrId::STR_DEVICE_NAME, SETTINGS.deviceName, sizeof(SETTINGS.deviceName),
-                                    "deviceName", StrId::STR_CAT_ADVANCED)
+                                     "deviceName", StrId::STR_CAT_ADVANCED)
                      .withConfiguratorExport());
 
 #if ENABLE_WIFI_CLOCK
   list.push_back(SettingInfo::Enum(StrId::STR_TIME_MODE, &CrossPointSettings::timeMode,
-                                  {StrId::STR_TIME_UTC, StrId::STR_TIME_LOCAL, StrId::STR_TIME_MANUAL}, "timeMode",
-                                  StrId::STR_CAT_TIME)
+                                   {StrId::STR_TIME_UTC, StrId::STR_TIME_LOCAL, StrId::STR_TIME_MANUAL}, "timeMode",
+                                   StrId::STR_CAT_TIME)
                      .withConfiguratorExport("wifi_clock"));
   list.push_back(SettingInfo::DynamicEnum(
                      StrId::STR_TIMEZONE_OFFSET, {}, [] { return SETTINGS.timeZoneOffset; },

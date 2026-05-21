@@ -3,7 +3,10 @@
 #include <FeatureFlags.h>
 #include <HalStorage.h>
 
-#include "activities/todo/TodoActivity.h"
+#include "CrossPointSettings.h"
+#include "activities/ActivityManager.h"
+#include "activities/todo/DayDetailActivity.h"
+#include "activities/todo/DayIndexActivity.h"
 #include "activities/todo/TodoPlannerStorage.h"
 #include "core/features/FeatureCatalog.h"
 #include "core/registries/HomeActionRegistry.h"
@@ -13,6 +16,21 @@ namespace features::todo_planner {
 namespace {
 
 #if ENABLE_TODO_PLANNER
+std::string resolveDailyPath(const std::string& date, const bool markdownEnabled) {
+  const std::string markdownPath = "/daily/" + date + ".md";
+  const std::string textPath = "/daily/" + date + ".txt";
+  const bool markdownExists = Storage.exists(markdownPath.c_str());
+  const bool textExists = Storage.exists(textPath.c_str());
+  return TodoPlannerStorage::dailyPath(date, markdownEnabled, markdownExists, textExists);
+}
+
+void returnToDayIndex(void* ctx) {
+  auto& manager = *static_cast<ActivityManager*>(ctx);
+  manager.replaceActivity(
+      std::make_unique<DayIndexActivity>(manager.getRenderer(), manager.getMappedInput(), &manager,
+                                         [](void* backCtx) { static_cast<ActivityManager*>(backCtx)->goHome(); }));
+}
+
 static bool shouldExposeTodoPlannerHomeAction(core::HomeActionEntry::HomeActionContext ctx) {
   (void)ctx;
   return core::FeatureCatalog::isEnabled("todo_planner");
@@ -20,24 +38,20 @@ static bool shouldExposeTodoPlannerHomeAction(core::HomeActionEntry::HomeActionC
 
 static Activity* createTodoPlannerHomeActionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                                      void* callbackCtx, void (*onBack)(void* ctx)) {
+  (void)callbackCtx;
+  (void)onBack;
+
   const bool markdownEnabled = core::FeatureCatalog::isEnabled("markdown");
   const std::string today = DateUtils::currentDate();
 
-  std::string filePath;
-  std::string dateTitle;
-  if (today.empty()) {
-    filePath = std::string("/daily/undated") + (markdownEnabled ? ".md" : ".txt");
-    dateTitle = "Undated";
-  } else {
-    const std::string markdownPath = "/daily/" + today + ".md";
-    const std::string textPath = "/daily/" + today + ".txt";
-    const bool markdownExists = Storage.exists(markdownPath.c_str());
-    const bool textExists = Storage.exists(textPath.c_str());
-    filePath = TodoPlannerStorage::dailyPath(today, markdownEnabled, markdownExists, textExists);
-    dateTitle = today;
+  if (SETTINGS.todoOpenDirectToToday && !today.empty()) {
+    const std::string filePath = resolveDailyPath(today, markdownEnabled);
+    const std::string dateTitle = DateUtils::formatDayTitle(today);
+    return new DayDetailActivity(renderer, mappedInput, filePath, today, dateTitle, &activityManager, returnToDayIndex);
   }
 
-  return new TodoActivity(renderer, mappedInput, filePath, dateTitle, callbackCtx, onBack);
+  return new DayIndexActivity(renderer, mappedInput, &activityManager,
+                              [](void* ctx) { static_cast<ActivityManager*>(ctx)->goHome(); });
 }
 #endif
 

@@ -9,6 +9,7 @@
 #include <string>
 
 #include "SpiBusMutex.h"
+#include "activities/todo/TodoItem.h"
 #include "activities/todo/TodoPlannerStorage.h"
 
 namespace network {
@@ -38,36 +39,81 @@ std::string normalizeTodoEntryText(const std::string& input) {
   return trimmed;
 }
 
-void appendTodoItemFromLine(JsonArray& array, std::string line) {
-  if (!line.empty() && line.back() == '\r') {
-    line.pop_back();
+const char* priorityToJson(const TodoPriority priority) {
+  switch (priority) {
+    case TodoPriority::P1:
+      return "p1";
+    case TodoPriority::P2:
+      return "p2";
+    case TodoPriority::P3:
+      return "p3";
+    case TodoPriority::None:
+      break;
   }
-  if (line.empty()) {
-    return;
+  return "none";
+}
+
+TodoPriority priorityFromJson(const JsonObjectConst item) {
+  const char* value = item["priority"] | "none";
+  if (std::strcmp(value, "p1") == 0) {
+    return TodoPriority::P1;
+  }
+  if (std::strcmp(value, "p2") == 0) {
+    return TodoPriority::P2;
+  }
+  if (std::strcmp(value, "p3") == 0) {
+    return TodoPriority::P3;
+  }
+  return TodoPriority::None;
+}
+
+void appendTodoItemJson(JsonArray& array, const TodoItem& todoItem) {
+  JsonObject item = array.add<JsonObject>();
+  item["text"] = todoItem.text;
+  item["checked"] = todoItem.checked;
+  item["isHeader"] = todoItem.isHeader;
+  if (todoItem.isSection) {
+    item["isSection"] = true;
+  }
+  if (todoItem.priority != TodoPriority::None) {
+    item["priority"] = priorityToJson(todoItem.priority);
+  }
+  if (todoItem.dueMinutes != 0) {
+    item["dueMinutes"] = todoItem.dueMinutes;
   }
 
-  JsonObject item = array.add<JsonObject>();
-  if (line.rfind("- [ ] ", 0) == 0) {
-    item["text"] = line.substr(6);
-    item["type"] = "todo";
-    item["checked"] = false;
-    item["isHeader"] = false;
-  } else if (line.rfind("- [x] ", 0) == 0 || line.rfind("- [X] ", 0) == 0) {
-    item["text"] = line.substr(6);
-    item["type"] = "todo";
-    item["checked"] = true;
-    item["isHeader"] = false;
-  } else if (line.rfind("> ", 0) == 0) {
-    item["text"] = line.substr(2);
-    item["type"] = "agenda";
-    item["checked"] = false;
-    item["isHeader"] = true;
+  if (todoItem.isHeader) {
+    if (todoItem.isSection) {
+      item["type"] = "section";
+    } else if (todoItem.isAgenda) {
+      item["type"] = "agenda";
+    } else {
+      item["type"] = "text";
+    }
   } else {
-    item["text"] = line;
-    item["type"] = "text";
-    item["checked"] = false;
-    item["isHeader"] = true;
+    item["type"] = "todo";
   }
+}
+
+TodoItem todoItemFromJson(const JsonObjectConst item) {
+  TodoItem todoItem;
+  todoItem.text = normalizeTodoEntryText(item["text"].as<std::string>());
+  todoItem.checked = item["checked"] | false;
+  todoItem.isHeader = item["isHeader"].is<bool>() ? item["isHeader"].as<bool>() : item["is_header"].as<bool>();
+  todoItem.isSection = item["isSection"] | false;
+  todoItem.priority = priorityFromJson(item);
+  todoItem.dueMinutes = item["dueMinutes"] | static_cast<uint16_t>(0);
+
+  const char* itemType = item["type"] | "";
+  if (todoItem.isHeader) {
+    if (todoItem.isSection || std::strcmp(itemType, "section") == 0) {
+      todoItem.isSection = true;
+      todoItem.isAgenda = false;
+    } else if (std::strcmp(itemType, "agenda") == 0) {
+      todoItem.isAgenda = true;
+    }
+  }
+  return todoItem;
 }
 
 TodoPlannerHttpResult plannerDisabled() { return {404, "text/plain", "TODO planner disabled", {}}; }
@@ -132,6 +178,7 @@ TodoPlannerHttpResult handleTodoEntryRequest(const bool plannerEnabled, const bo
 
 TodoPlannerHttpResult handleTodoTodayGetRequest(const bool plannerEnabled, const bool markdownEnabled,
                                                 const std::string& today) {
+  (void)markdownEnabled;
   if (!plannerEnabled) {
     return plannerDisabled();
   }
@@ -153,24 +200,16 @@ TodoPlannerHttpResult handleTodoTodayGetRequest(const bool plannerEnabled, const
     }
   }
 
+  std::vector<TodoItem> items;
+  TodoPlannerStorage::parseFile(content, items);
+
   JsonDocument response;
   response["ok"] = true;
   response["date"] = today.c_str();
   response["path"] = targetPath.c_str();
-  JsonArray items = response["items"].to<JsonArray>();
-
-  std::string line;
-  line.reserve(128);
-  for (const char c : content) {
-    if (c == '\n') {
-      appendTodoItemFromLine(items, line);
-      line.clear();
-    } else {
-      line.push_back(c);
-    }
-  }
-  if (!line.empty()) {
-    appendTodoItemFromLine(items, line);
+  JsonArray jsonItems = response["items"].to<JsonArray>();
+  for (const TodoItem& item : items) {
+    appendTodoItemJson(jsonItems, item);
   }
 
   String json;
@@ -202,38 +241,22 @@ TodoPlannerHttpResult handleTodoTodaySaveRequest(const bool plannerEnabled, cons
   const std::string textPath = "/daily/" + today + ".txt";
   const std::string dirPath = "/daily";
   std::string targetPath;
-  std::string content;
 
-  JsonArray items = request["items"].as<JsonArray>();
-  for (JsonVariant itemVar : items) {
+  std::vector<TodoItem> items;
+  JsonArray jsonItems = request["items"].as<JsonArray>();
+  for (JsonVariant itemVar : jsonItems) {
     if (!itemVar.is<JsonObject>()) {
       continue;
     }
-
-    JsonObject item = itemVar.as<JsonObject>();
-    const std::string text = normalizeTodoEntryText(item["text"].as<std::string>());
-    if (text.empty()) {
+    TodoItem item = todoItemFromJson(itemVar.as<JsonObjectConst>());
+    if (item.text.empty()) {
       continue;
     }
-
-    const bool isHeader = item["isHeader"].is<bool>() ? item["isHeader"].as<bool>() : item["is_header"].as<bool>();
-    const bool checked = item["checked"].as<bool>();
-    const char* itemType = item["type"] | "";
-    const bool isAgenda = isHeader && std::strcmp(itemType, "agenda") == 0;
-
-    if (isHeader) {
-      if (isAgenda && markdownEnabled) {
-        content += "> ";
-      }
-      content += text;
-    } else {
-      content += "- [";
-      content += checked ? "x" : " ";
-      content += "] ";
-      content += text;
-    }
-    content.push_back('\n');
+    items.push_back(std::move(item));
   }
+
+  const bool markdownFile = markdownEnabled;
+  const std::string content = TodoPlannerStorage::formatFile(items, markdownFile);
 
   bool writeOk = false;
   {
