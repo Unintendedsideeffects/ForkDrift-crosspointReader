@@ -24,10 +24,9 @@
 #include "OpdsServerStore.h"
 #include "SdCardFontSystem.h"
 #include "UsbSerialProtocol.h"
-#include "activities/Activity.h"
 #include "activities/ActivityManager.h"
-#include "activities/boot_sleep/SleepActivity.h"
 #include "activities/RenderLock.h"
+#include "activities/boot_sleep/SleepActivity.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
 #include "components/UITheme.h"
 #include "core/CoreBootstrap.h"
@@ -37,7 +36,6 @@
 #include "fontIds.h"
 #include "network/BackgroundWebServer.h"
 #include "network/BackgroundWifiService.h"
-#include "util/AgentDebugLog.h"
 #include "util/ButtonNavigator.h"
 #include "util/FactoryResetUtils.h"
 #include "util/FirmwareUpdateUtil.h"
@@ -175,26 +173,22 @@ EpdFont bitter12RegularFont(&bitter_12_regular);
 EpdFont bitter12BoldFont(&bitter_12_bold);
 EpdFont bitter12ItalicFont(&bitter_12_italic);
 EpdFont bitter12BoldItalicFont(&bitter_12_bolditalic);
-EpdFontFamily bitter12FontFamily(&bitter12RegularFont, &bitter12BoldFont, &bitter12ItalicFont,
-                                 &bitter12BoldItalicFont);
+EpdFontFamily bitter12FontFamily(&bitter12RegularFont, &bitter12BoldFont, &bitter12ItalicFont, &bitter12BoldItalicFont);
 EpdFont bitter14RegularFont(&bitter_14_regular);
 EpdFont bitter14BoldFont(&bitter_14_bold);
 EpdFont bitter14ItalicFont(&bitter_14_italic);
 EpdFont bitter14BoldItalicFont(&bitter_14_bolditalic);
-EpdFontFamily bitter14FontFamily(&bitter14RegularFont, &bitter14BoldFont, &bitter14ItalicFont,
-                                 &bitter14BoldItalicFont);
+EpdFontFamily bitter14FontFamily(&bitter14RegularFont, &bitter14BoldFont, &bitter14ItalicFont, &bitter14BoldItalicFont);
 EpdFont bitter16RegularFont(&bitter_16_regular);
 EpdFont bitter16BoldFont(&bitter_16_bold);
 EpdFont bitter16ItalicFont(&bitter_16_italic);
 EpdFont bitter16BoldItalicFont(&bitter_16_bolditalic);
-EpdFontFamily bitter16FontFamily(&bitter16RegularFont, &bitter16BoldFont, &bitter16ItalicFont,
-                                 &bitter16BoldItalicFont);
+EpdFontFamily bitter16FontFamily(&bitter16RegularFont, &bitter16BoldFont, &bitter16ItalicFont, &bitter16BoldItalicFont);
 EpdFont bitter18RegularFont(&bitter_18_regular);
 EpdFont bitter18BoldFont(&bitter_18_bold);
 EpdFont bitter18ItalicFont(&bitter_18_italic);
 EpdFont bitter18BoldItalicFont(&bitter_18_bolditalic);
-EpdFontFamily bitter18FontFamily(&bitter18RegularFont, &bitter18BoldFont, &bitter18ItalicFont,
-                                 &bitter18BoldItalicFont);
+EpdFontFamily bitter18FontFamily(&bitter18RegularFont, &bitter18BoldFont, &bitter18ItalicFont, &bitter18BoldItalicFont);
 #endif  // ENABLE_BITTER_FONTS
 
 #if ENABLE_CHAREINK_FONTS
@@ -397,23 +391,6 @@ void reconcileBackgroundWifiServer() {
   const bool blockedByActivity = activityManager.blocksBackgroundServer();
   const bool staConnected = hasStaWifiConnection();
   const bool autoConnectInFlight = BG_WIFI.isRunning() && wifiAutoConnectAttempted && !staConnected;
-
-  // #region agent log
-  static unsigned long lastAgentReconcileLogMs = 0;
-  if (millis() - lastAgentReconcileLogMs >= 3000) {
-    lastAgentReconcileLogMs = millis();
-    char data[240];
-    snprintf(data, sizeof(data),
-             "{\"enabled\":%s,\"blockedByActivity\":%s,\"staConnected\":%s,\"bgWebRunning\":%s,"
-             "\"bgWifiRunning\":%s,\"autoConnectInFlight\":%s,\"wifiStatus\":%d}",
-             backgroundWifiEnabled ? "true" : "false", blockedByActivity ? "true" : "false",
-             staConnected ? "true" : "false", backgroundServer.isRunning() ? "true" : "false",
-             BG_WIFI.isRunning() ? "true" : "false", autoConnectInFlight ? "true" : "false",
-             static_cast<int>(WiFi.status()));
-    agentDebugLog("initial", "H1,H2,H3", "main.cpp:reconcileBackgroundWifiServer", "background wifi reconcile state",
-                  data);
-  }
-  // #endregion
 
   if (backgroundServer.isRunning()) {
     return;

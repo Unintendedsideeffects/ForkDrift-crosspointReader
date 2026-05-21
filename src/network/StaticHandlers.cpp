@@ -9,7 +9,6 @@
 #include "html/SettingsPageHtml.generated.h"
 #include "html/js/jszip_minJs.generated.h"
 #include "network/WebUtils.h"
-#include "util/AgentDebugLog.h"
 
 static_assert(HomePageHtmlCompressedSize == sizeof(HomePageHtml), "Home page compressed size mismatch");
 static_assert(FilesPageHtmlCompressedSize == sizeof(FilesPageHtml), "Files page compressed size mismatch");
@@ -17,13 +16,6 @@ static_assert(SettingsPageHtmlCompressedSize == sizeof(SettingsPageHtml), "Setti
 
 void CrossPointWebServer::handleRoot() const {
   noteWebUiAccess();
-  // #region agent log
-  {
-    char data[120];
-    snprintf(data, sizeof(data), "{\"heap\":%u,\"uri\":\"/\"}", static_cast<unsigned int>(ESP.getFreeHeap()));
-    agentDebugLog("initial", "H4,H5", "StaticHandlers.cpp:handleRoot", "serving root page", data);
-  }
-  // #endregion
   sendPrecompressedHtml(server.get(), HomePageHtml, HomePageHtmlCompressedSize);
   LOG_DBG("WEB", "Served root page");
 }
@@ -54,26 +46,12 @@ void CrossPointWebServer::handleNotFound() const {
 
 void CrossPointWebServer::handleFileList() const {
   noteWebUiAccess();
-  // #region agent log
-  {
-    char data[120];
-    snprintf(data, sizeof(data), "{\"heap\":%u,\"uri\":\"/files\"}", static_cast<unsigned int>(ESP.getFreeHeap()));
-    agentDebugLog("initial", "H4,H5", "StaticHandlers.cpp:handleFileList", "serving files page", data);
-  }
-  // #endregion
   sendPrecompressedHtml(server.get(), FilesPageHtml, FilesPageHtmlCompressedSize);
   LOG_DBG("WEB", "Served files page");
 }
 
 void CrossPointWebServer::handleSettingsPage() const {
   noteWebUiAccess();
-  // #region agent log
-  {
-    char data[120];
-    snprintf(data, sizeof(data), "{\"heap\":%u,\"uri\":\"/settings\"}", static_cast<unsigned int>(ESP.getFreeHeap()));
-    agentDebugLog("initial", "H4,H5", "StaticHandlers.cpp:handleSettingsPage", "serving settings page", data);
-  }
-  // #endregion
   sendPrecompressedHtml(server.get(), SettingsPageHtml, SettingsPageHtmlCompressedSize);
   LOG_DBG("WEB", "Served settings page");
 }

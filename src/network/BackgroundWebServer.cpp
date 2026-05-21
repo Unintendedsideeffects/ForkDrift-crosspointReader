@@ -14,7 +14,6 @@
 #include "FeatureFlags.h"
 #include "Logging.h"
 #include "core/features/FeatureModules.h"
-#include "util/AgentDebugLog.h"
 #include "util/NetworkNames.h"
 
 namespace {
@@ -115,17 +114,6 @@ void BackgroundWebServer::startConnect(const std::string& ssid, const std::strin
 }
 
 void BackgroundWebServer::startServer() {
-  // #region agent log
-  {
-    char data[180];
-    snprintf(
-        data, sizeof(data), "{\"heap\":%u,\"wifiStatus\":%d,\"wifiMode\":%d,\"hasServer\":%s,\"serverRunning\":%s}",
-        static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<int>(WiFi.status()), static_cast<int>(WiFi.getMode()),
-        server ? "true" : "false", (server && server->isRunning()) ? "true" : "false");
-    agentDebugLog("initial", "H1,H5", "BackgroundWebServer.cpp:startServer", "background startServer entry", data);
-  }
-  // #endregion
-
   if (ESP.getFreeHeap() < MIN_FREE_HEAP_BYTES) {
     scheduleRetry("low heap");
     return;
@@ -168,16 +156,6 @@ unsigned long BackgroundWebServer::computeBackoffMs() const {
 }
 
 void BackgroundWebServer::scheduleRetry(const char* reason) {
-  // #region agent log
-  {
-    char data[180];
-    snprintf(data, sizeof(data), "{\"reason\":\"%s\",\"heap\":%u,\"wifiStatus\":%d,\"serverRunning\":%s}", reason,
-             static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<int>(WiFi.status()),
-             (server && server->isRunning()) ? "true" : "false");
-    agentDebugLog("initial", "H2,H3,H5", "BackgroundWebServer.cpp:scheduleRetry", "background scheduled retry", data);
-  }
-  // #endregion
-
   if (server && server->isRunning()) {
     server->stop();
   }
@@ -204,16 +182,6 @@ void BackgroundWebServer::scheduleRetry(const char* reason) {
 void BackgroundWebServer::stop(const bool keepWifi) { stopAll(keepWifi); }
 
 void BackgroundWebServer::stopAll(const bool keepWifi) {
-  // #region agent log
-  {
-    char data[180];
-    snprintf(data, sizeof(data), "{\"heap\":%u,\"wifiOwned\":%s,\"wifiStatus\":%d,\"serverRunning\":%s}",
-             static_cast<unsigned int>(ESP.getFreeHeap()), wifiOwned ? "true" : "false",
-             static_cast<int>(WiFi.status()), (server && server->isRunning()) ? "true" : "false");
-    agentDebugLog("initial", "H1,H2,H3", "BackgroundWebServer.cpp:stopAll", "background stopAll entry", data);
-  }
-  // #endregion
-
   if (server && server->isRunning()) {
     server->stop();
   }
@@ -380,19 +348,6 @@ void BackgroundWebServer::loop(const bool usbConnected, const bool allowRun) {
   }
 
   if (state == State::RUNNING) {
-    // #region agent log
-    static unsigned long lastAgentRunningLogMs = 0;
-    if (millis() - lastAgentRunningLogMs >= 3000) {
-      lastAgentRunningLogMs = millis();
-      char data[180];
-      snprintf(data, sizeof(data), "{\"heap\":%u,\"wifiStatus\":%d,\"serverRunning\":%s,\"windowAgeMs\":%lu}",
-               static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<int>(WiFi.status()),
-               (server && server->isRunning()) ? "true" : "false", millis() - stateStartMs);
-      agentDebugLog("initial", "H1,H2,H4,H5", "BackgroundWebServer.cpp:loop.RUNNING",
-                    "background running loop heartbeat", data);
-    }
-    // #endregion
-
     if (ESP.getFreeHeap() < MIN_FREE_HEAP_BYTES) {
       scheduleRetry("low heap");
       return;
