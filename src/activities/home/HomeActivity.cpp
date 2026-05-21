@@ -26,7 +26,6 @@
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
 #include "SpiBusMutex.h"
-#include "activities/TaskShutdown.h"
 #include "components/ScreenComponents.h"
 #include "components/UITheme.h"
 #include "components/themes/lyra/LyraCarouselTheme.h"
@@ -38,7 +37,6 @@
 #include "util/BookProgressDataStore.h"
 #include "util/ForkDriftNavigation.h"
 #include "util/RecentBooksStore.h"
-#include "util/StringUtils.h"
 
 namespace {
 constexpr uint32_t CAROUSEL_CACHE_MAGIC = 0x43434152;  // "CCAR"
@@ -287,8 +285,7 @@ void HomeActivity::rebuildMenuLayout() {
     menuTodoIndex = core::HomeActionRegistry::shouldExpose("todo_planner", {false}) ? idx++ : -1;
     menuAnkiIndex = core::HomeActionRegistry::shouldExpose("anki", {false}) ? idx++ : -1;
 #if ENABLE_BOOKMARKS
-    hasBookmarks = core::FeatureModules::hasCapability(core::Capability::Bookmarks) &&
-                   BookmarkStore::hasAnyBookmarks();
+    hasBookmarks = core::FeatureModules::hasCapability(core::Capability::Bookmarks) && BookmarkStore::hasAnyBookmarks();
     menuBookmarksIndex = hasBookmarks ? idx++ : -1;
 #endif
     menuFileTransferIndex = idx++;
@@ -303,8 +300,7 @@ void HomeActivity::rebuildMenuLayout() {
   menuTodoIndex = core::HomeActionRegistry::shouldExpose("todo_planner", {false}) ? idx++ : -1;
   menuAnkiIndex = core::HomeActionRegistry::shouldExpose("anki", {false}) ? idx++ : -1;
 #if ENABLE_BOOKMARKS
-  hasBookmarks = core::FeatureModules::hasCapability(core::Capability::Bookmarks) &&
-                 BookmarkStore::hasAnyBookmarks();
+  hasBookmarks = core::FeatureModules::hasCapability(core::Capability::Bookmarks) && BookmarkStore::hasAnyBookmarks();
   menuBookmarksIndex = hasBookmarks ? idx++ : -1;
 #endif
   menuFileTransferIndex = idx++;
@@ -830,9 +826,9 @@ void HomeActivity::renderCarouselFrameToCurrentBuffer(int bookIdx, float* outPro
   renderer.clearScreen();
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.homeTopPadding}, nullptr);
   // selectorIndex == bookCount means "in menu row" — no selection highlight on the cover strip
-  GUI.drawRecentBookCover(renderer, Rect{0, metrics.homeTopPadding, pageWidth, metrics.homeCoverTileHeight},
-                          recentBooks, bookCount, dummy1, dummy2, dummy3, []() { return true; },
-                          frameProgressPercent);
+  GUI.drawRecentBookCover(
+      renderer, Rect{0, metrics.homeTopPadding, pageWidth, metrics.homeCoverTileHeight}, recentBooks, bookCount, dummy1,
+      dummy2, dummy3, []() { return true; }, frameProgressPercent);
 
   std::vector<std::string> menuLabels;
   std::vector<UIIcon> menuIcons;
@@ -990,8 +986,7 @@ bool HomeActivity::loadCarouselFrameFromDisk(uint64_t cacheKeyHash, int bookCoun
   return true;
 }
 
-int HomeActivity::chooseCarouselEvictionSlot(int centerIdx, int bookCount,
-                                             std::optional<int> protectedBookIdx) const {
+int HomeActivity::chooseCarouselEvictionSlot(int centerIdx, int bookCount, std::optional<int> protectedBookIdx) const {
   for (int i = 0; i < kCarouselFrameCount; ++i) {
     if (gCarouselCache.frameBookIdx[i] < 0) return i;
   }
@@ -1459,9 +1454,9 @@ void HomeActivity::render(RenderLock&&) {
     const int menuMinH = metrics.verticalSpacing * 2 + metrics.buttonHintsHeight + metrics.menuRowHeight;
     const int coverTileH = forkDrift ? std::min(coverTileH_raw, usablePageHeight - menuMinH) : coverTileH_raw;
 
-    GUI.drawRecentBookCover(renderer, Rect(0, topInset, pageWidth, coverTileH), recentBooks, coverSelector,
-                            coverRendered, coverBufferStored, bufferRestored, [this]() { return storeCoverBuffer(); },
-                            currentBookProgressPercent);
+    GUI.drawRecentBookCover(
+        renderer, Rect(0, topInset, pageWidth, coverTileH), recentBooks, coverSelector, coverRendered,
+        coverBufferStored, bufferRestored, [this]() { return storeCoverBuffer(); }, currentBookProgressPercent);
 
     std::vector<std::string> menuLabels;
     std::vector<UIIcon> menuIcons;

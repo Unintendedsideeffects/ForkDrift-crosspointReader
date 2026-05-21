@@ -3,7 +3,6 @@
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 
-#include <cstdint>
 #include <string>
 #include <vector>
 

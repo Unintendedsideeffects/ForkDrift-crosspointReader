@@ -1,10 +1,10 @@
 #pragma once
+#include <FeatureFlags.h>
+
 #include <array>
-#include <functional>
 #include <optional>
 #include <vector>
 
-#include <FeatureFlags.h>
 #include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
 #include "util/RecentBooksStore.h"

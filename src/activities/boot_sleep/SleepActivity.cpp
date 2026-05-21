@@ -25,7 +25,6 @@
 #include "core/features/FeatureModules.h"
 #include "fontIds.h"
 #include "images/Logo120.h"
-#include "network/BackgroundWifiService.h"
 #include "util/DateUtils.h"
 #include "util/PokemonBookDataStore.h"
 #include "util/RecentBooksStore.h"
@@ -400,9 +399,7 @@ SleepImageValidationStats validateSleepImagesWithStats() {
   return {static_cast<int>(sleepImageCache.validFiles.size()), invalidCount};
 }
 
-int validateAndCountSleepImages() {
-  return validateSleepImagesWithStats().valid;
-}
+int validateAndCountSleepImages() { return validateSleepImagesWithStats().valid; }
 
 void SleepActivity::onEnter() {
   Activity::onEnter();
@@ -593,10 +590,10 @@ bool SleepActivity::tryRenderImagePath(const std::string& path) const {
     }
   } else {
 #if ENABLE_IMAGE_SLEEP
-    const ImageToFramebufferDecoder* decoder = ImageDecoderFactory::getDecoder(path.c_str());
+    const ImageToFramebufferDecoder* decoder = ImageDecoderFactory::getDecoder(path);
     if (decoder) {
       ImageDimensions dims = {0, 0};
-      if (decoder->getDimensions(path.c_str(), dims) && dims.width > 0 && dims.height > 0) {
+      if (decoder->getDimensions(path, dims) && dims.width > 0 && dims.height > 0) {
         renderImageSleepScreen(path);
         return true;
       }
@@ -710,9 +707,8 @@ void SleepActivity::renderRomanClockSleepScreen() const {
   // "dial" or "certificate" quality that grounds the Roman numerals.
   static constexpr int kFrameMargin = 28;
   static constexpr int kFrameRadius = 12;
-  renderer.drawRoundedRect(kFrameMargin, kFrameMargin,
-                           W - kFrameMargin * 2, H - kFrameMargin * 2,
-                           1, kFrameRadius, true);
+  renderer.drawRoundedRect(kFrameMargin, kFrameMargin, W - kFrameMargin * 2, H - kFrameMargin * 2, 1, kFrameRadius,
+                           true);
 
   // ── Content area (inside frame with additional inner padding) ────────────
   static constexpr int kInnerPad = 32;
@@ -732,8 +728,8 @@ void SleepActivity::renderRomanClockSleepScreen() const {
     }
     const int hourH = RomanClockFontRenderer::baseTextHeight(renderer) * hourScale;
     const int hourW = RomanClockFontRenderer::scaledTextWidth(renderer, label.hour, hourScale);
-    if (!RomanClockFontRenderer::drawScaledText(renderer, label.hour, cx + (cw - hourW) / 2,
-                                                cy + (ch - hourH) / 2, hourScale)) {
+    if (!RomanClockFontRenderer::drawScaledText(renderer, label.hour, cx + (cw - hourW) / 2, cy + (ch - hourH) / 2,
+                                                hourScale)) {
       renderDefaultSleepScreen();
       return;
     }
@@ -753,10 +749,10 @@ void SleepActivity::renderRomanClockSleepScreen() const {
     //  ╚═══════════════════════╝
 
     const int hourZoneTopY = cy + ch * 5 / 100;
-    const int hourZoneH    = ch * 53 / 100;
-    const int ruleY        = cy + ch * 64 / 100;
-    const int minuteZoneY  = cy + ch * 68 / 100;
-    const int minuteZoneH  = ch * 24 / 100;
+    const int hourZoneH = ch * 53 / 100;
+    const int ruleY = cy + ch * 64 / 100;
+    const int minuteZoneY = cy + ch * 68 / 100;
+    const int minuteZoneH = ch * 24 / 100;
 
     // Hour: fit to full content width, capped at zone height, then center.
     const int hourScale = RomanClockFontRenderer::fitTextScale(renderer, label.hour, cw, hourZoneH);
@@ -787,8 +783,8 @@ void SleepActivity::renderRomanClockSleepScreen() const {
     }
     const int minuteH = RomanClockFontRenderer::baseTextHeight(renderer) * minuteScale;
     const int minuteW = RomanClockFontRenderer::scaledTextWidth(renderer, label.minute, minuteScale);
-    const int minuteX    = cx + (cw - minuteW) / 2;
-    const int minuteY    = minuteZoneY + (minuteZoneH - minuteH) / 2;
+    const int minuteX = cx + (cw - minuteW) / 2;
+    const int minuteY = minuteZoneY + (minuteZoneH - minuteH) / 2;
     if (!RomanClockFontRenderer::drawScaledText(renderer, label.minute, minuteX, minuteY, minuteScale)) {
       renderDefaultSleepScreen();
       return;
