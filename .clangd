@@ -10,6 +10,27 @@ CompileFlags:
 
 ---
 If:
+  PathMatch: ^test/
+CompileFlags:
+  Add:
+    - -DCROSSPOINT_HOST_BUILD=1
+    - -std=c++20
+    - -I.
+    - -Itest
+    - -Itest/mock
+    - -Ilib/I18n
+    - -Ilib/Logging
+    - -Ilib/FsHelpers
+    - -Ilib/Markdown
+    - -Ilib/third_party/md4c
+    - -Ilib/Serialization
+    - -Iinclude
+    - -Isrc
+    - -I.pio/libdeps/default/ArduinoJson/src
+CompilationDatabase: None
+
+---
+If:
   PathMatch: .*\.c$
 CompileFlags:
   # The compile database already carries the correct C standard; don't force the

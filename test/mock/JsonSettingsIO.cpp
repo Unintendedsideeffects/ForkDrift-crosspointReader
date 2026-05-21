@@ -4,7 +4,7 @@
 // fallback path that the real loadSettings already handles for older files).
 // All other store functions (state, wifi, koreader, recent) are no-ops.
 
-#include "src/JsonSettingsIO.h"
+#include "JsonSettingsIO.h"
 
 #include <ArduinoJson.h>
 // Keep this undef as a defensive guard for host builds that include pthread/time headers.
@@ -14,7 +14,7 @@
 
 #include <cstring>
 
-#include "src/CrossPointSettings.h"
+#include "CrossPointSettings.h"
 
 // ---- CrossPointSettings ----
 
