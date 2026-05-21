@@ -67,7 +67,7 @@ Legend: ✅ present · ❌ absent · ⚙️ compile-time flag (off by default)
 |---|---|---|---|
 | Classic theme | ✅ | ✅ | ✅ |
 | Lyra theme (rounded elements, menu icons) | ✅ | ✅ | ✅ |
-| Lyra Extended / RoundedRaff themes | ✅ | ❌ | ✅ |
+| Lyra Extended theme | ✅ | ❌ | ✅ |
 | Minimal theme | ❌ | ✅ | ✅ |
 | Visual Covers home layout (3-book grid) | ❌ | ❌ | ✅ |
 | Dark mode | ✅ | ✅ | ✅ |
