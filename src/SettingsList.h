@@ -250,7 +250,6 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                                    {StrId::STR_RANDOM, StrId::STR_SEQUENTIAL}, "sleepCycleMode", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()
                      .withVisibleWhen("sleepScreen", 3));
-  list.push_back(SettingInfo::Action(StrId::STR_VALIDATE_SLEEP_IMAGES, SettingAction::ValidateSleepImages));
   list.push_back(SettingInfo::Toggle(StrId::STR_CHAPTER_PAGE_COUNT, &CrossPointSettings::statusBarChapterPageCount,
                                      "statusBarChapterPageCount", StrId::STR_CUSTOMISE_STATUS_BAR)
                      .withConfiguratorExport());
@@ -445,9 +444,6 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                                      "moveFinishedToReadFolder", StrId::STR_CAT_SYSTEM)
                      .withConfiguratorExport("reading_stats"));
 #endif
-  list.push_back(SettingInfo::Toggle(StrId::STR_DEVELOPER_MODE, &CrossPointSettings::developerMode, "developerMode",
-                                     StrId::STR_CAT_SYSTEM)
-                     .withConfiguratorExport());
 
   if (core::FeatureModules::hasCapability(core::Capability::TrmnlSwitch)) {
     list.push_back(SettingInfo::Action(StrId::STR_SWITCH_TO_TRMNL, SettingAction::SwitchToTrmnl));
@@ -487,8 +483,11 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 
   // Device name for mDNS/DHCP/AP SSID. Editable on-device via keyboard (STRING handler).
   // Input is sanitized to [a-z0-9-], max 24 chars, via validateAndClamp() on save.
+  list.push_back(SettingInfo::Toggle(StrId::STR_DEVELOPER_MODE, &CrossPointSettings::developerMode, "developerMode",
+                                     StrId::STR_CAT_ADVANCED)
+                     .withConfiguratorExport());
   list.push_back(SettingInfo::String(StrId::STR_DEVICE_NAME, SETTINGS.deviceName, sizeof(SETTINGS.deviceName),
-                                    "deviceName", StrId::STR_CAT_SYSTEM)
+                                    "deviceName", StrId::STR_CAT_ADVANCED)
                      .withConfiguratorExport());
 
 #if ENABLE_WIFI_CLOCK

@@ -44,6 +44,7 @@
 #include "util/InputValidation.h"
 #include "util/PathUtils.h"
 #include "util/RecentBooksStore.h"
+#include "util/MaintenanceUtils.h"
 #include "util/WifiCredentialStore.h"
 #if ENABLE_WIFI_CLOCK
 #include "util/TimeSync.h"
@@ -446,6 +447,13 @@ void CrossPointWebServer::mountRoutes() {
   server->on("/api/wifi", HTTP_GET, [this] { handleGetWifiNetworks(); });
   server->on("/api/wifi", HTTP_POST, [this] { handlePostWifiNetwork(); });
   server->on("/api/wifi/delete", HTTP_POST, [this] { handleDeleteWifiNetwork(); });
+  server->on("/api/wifi/forget-all", HTTP_POST, [this] { handleForgetAllWifiNetworks(); });
+  server->on("/api/maintenance/validate-sleep-images", HTTP_POST,
+             [this] { handleMaintenanceValidateSleepImages(); });
+  server->on("/api/maintenance/clear-cache", HTTP_POST, [this] { handleMaintenanceClearCache(); });
+  server->on("/api/maintenance/reset-settings", HTTP_POST, [this] { handleMaintenanceResetSettings(); });
+  server->on("/api/maintenance/clear-logs", HTTP_POST, [this] { handleMaintenanceClearLogs(); });
+  server->on("/api/maintenance/clear-crashes", HTTP_POST, [this] { handleMaintenanceClearCrashes(); });
 
   server->onNotFound([this] { handleNotFound(); });
 }
@@ -2646,6 +2654,66 @@ void CrossPointWebServer::handleDeleteWifiNetwork() {
 
   LOG_DBG("WEB", "Deleted Wi-Fi network at index %d (SSID: %s)", idx, ssid.c_str());
   server->send(200, "text/plain", "OK");
+}
+
+void CrossPointWebServer::handleForgetAllWifiNetworks() {
+  MaintenanceUtils::clearWifiNetworks();
+  JsonDocument doc;
+  doc["ok"] = true;
+  doc["message"] = "Saved WiFi networks cleared";
+  String output;
+  serializeJson(doc, output);
+  server->send(200, "application/json", output);
+}
+
+void CrossPointWebServer::handleMaintenanceValidateSleepImages() {
+  const MaintenanceUtils::SleepValidationResult result = MaintenanceUtils::validateSleepImages();
+  JsonDocument doc;
+  doc["valid"] = result.valid;
+  doc["invalid"] = result.invalid;
+  if (result.valid == 0 && result.invalid == 0) {
+    doc["message"] = "No sleep images found";
+  } else if (result.invalid == 0 && result.valid > 0) {
+    doc["message"] = "All validated";
+  } else {
+    char message[48];
+    snprintf(message, sizeof(message), "%d valid, %d invalid", result.valid, result.invalid);
+    doc["message"] = message;
+  }
+  String output;
+  serializeJson(doc, output);
+  server->send(200, "application/json", output);
+}
+
+void CrossPointWebServer::handleMaintenanceClearCache() {
+  const MaintenanceUtils::CacheClearResult result = MaintenanceUtils::clearReadingCache();
+  JsonDocument doc;
+  doc["removed"] = result.removed;
+  doc["failed"] = result.failed;
+  char message[64];
+  snprintf(message, sizeof(message), "Removed %d, %d failed", result.removed, result.failed);
+  doc["message"] = message;
+  String output;
+  serializeJson(doc, output);
+  server->send(200, "application/json", output);
+}
+
+void CrossPointWebServer::handleMaintenanceResetSettings() {
+  if (!MaintenanceUtils::resetSettingsToDefaults()) {
+    server->send(500, "application/json", "{\"ok\":false,\"message\":\"Failed to reset settings\"}");
+    return;
+  }
+  server->send(200, "application/json", "{\"ok\":true,\"message\":\"Settings reset to defaults\"}");
+}
+
+void CrossPointWebServer::handleMaintenanceClearLogs() {
+  MaintenanceUtils::clearLogs();
+  server->send(200, "application/json", "{\"ok\":true,\"message\":\"Logs cleared\"}");
+}
+
+void CrossPointWebServer::handleMaintenanceClearCrashes() {
+  MaintenanceUtils::clearCrashReports();
+  server->send(200, "application/json", "{\"ok\":true,\"message\":\"Crash reports cleared\"}");
 }
 
 // WebSocket callback trampoline

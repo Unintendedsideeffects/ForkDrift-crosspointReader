@@ -257,6 +257,10 @@ bool FeatureModules::supportsSettingAction(const SettingAction action) {
     case SettingAction::ClearCache:
     case SettingAction::FactoryReset:
     case SettingAction::ValidateSleepImages:
+    case SettingAction::ResetSettings:
+    case SettingAction::ClearWifiNetworks:
+    case SettingAction::ClearLogs:
+    case SettingAction::ClearCrashes:
     case SettingAction::SdFirmwareUpdate:
       return true;
     case SettingAction::KOReaderSync:

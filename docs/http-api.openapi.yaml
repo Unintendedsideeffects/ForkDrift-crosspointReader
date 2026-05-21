@@ -58,6 +58,8 @@ tags:
     description: OPDS catalog server management endpoints
   - name: fonts
     description: User font management endpoints
+  - name: maintenance
+    description: Device maintenance and reset endpoints
 paths:
   /api/status:
     get:
@@ -836,6 +838,91 @@ paths:
           $ref: '#/components/responses/NotFoundText'
         '500':
           $ref: '#/components/responses/InternalServerErrorText'
+  /api/wifi/forget-all:
+    post:
+      tags: [wifi]
+      operationId: forgetAllWifiCredentials
+      summary: Remove all saved Wi-Fi credentials
+      responses:
+        '200':
+          description: All credentials cleared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceOkResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorText'
+  /api/maintenance/validate-sleep-images:
+    post:
+      tags: [maintenance]
+      operationId: validateSleepImages
+      summary: Scan and validate sleep screen images
+      responses:
+        '200':
+          description: Validation summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SleepImageValidationResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorText'
+  /api/maintenance/clear-cache:
+    post:
+      tags: [maintenance]
+      operationId: clearReadingCache
+      summary: Clear cached book rendering data
+      responses:
+        '200':
+          description: Cache clear summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheClearResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorText'
+  /api/maintenance/reset-settings:
+    post:
+      tags: [maintenance]
+      operationId: resetSettingsToDefaults
+      summary: Reset reader settings to defaults
+      description: Resets persisted reader settings only. WiFi credentials, recent books, reading progress, and cache are preserved.
+      responses:
+        '200':
+          description: Settings reset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceOkResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorText'
+  /api/maintenance/clear-logs:
+    post:
+      tags: [maintenance]
+      operationId: clearLogs
+      summary: Clear debug log file and in-memory log buffer
+      responses:
+        '200':
+          description: Logs cleared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceOkResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorText'
+  /api/maintenance/clear-crashes:
+    post:
+      tags: [maintenance]
+      operationId: clearCrashReports
+      summary: Delete crash report and clear panic state
+      responses:
+        '200':
+          description: Crash data cleared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceOkResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorText'
   /api/remote-keyboard/session:
     get:
       tags: [control]
@@ -1196,6 +1283,38 @@ components:
       type: string
       pattern: ^/
       example: /Books/MyBook.epub
+    MaintenanceOkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        message:
+          type: string
+    SleepImageValidationResponse:
+      type: object
+      required: [valid, invalid, message]
+      properties:
+        valid:
+          type: integer
+          minimum: 0
+        invalid:
+          type: integer
+          minimum: 0
+        message:
+          type: string
+    CacheClearResponse:
+      type: object
+      required: [removed, failed, message]
+      properties:
+        removed:
+          type: integer
+          minimum: 0
+        failed:
+          type: integer
+          minimum: 0
+        message:
+          type: string
     StatusResponse:
       type: object
       required:

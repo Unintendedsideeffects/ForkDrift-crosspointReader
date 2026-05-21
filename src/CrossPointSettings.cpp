@@ -180,6 +180,13 @@ void CrossPointSettings::validateFrontButtonMapping(CrossPointSettings& settings
   }
 }
 
+bool CrossPointSettings::resetToDefaults() {
+  instance.~CrossPointSettings();
+  new (&instance) CrossPointSettings();
+  instance.validateAndClamp();
+  return instance.saveToFile();
+}
+
 bool CrossPointSettings::saveToFile() const {
   Storage.mkdir("/.crosspoint");
   setDeveloperModeLoggingEnabled(developerMode != 0);

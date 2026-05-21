@@ -394,6 +394,7 @@ class CrossPointSettings {
 
   // Get singleton instance
   static CrossPointSettings& getInstance() { return instance; }
+  static bool resetToDefaults();
 
   static constexpr bool supportsBackgroundServerOnChargeMode() {
     return ENABLE_BACKGROUND_SERVER_ON_CHARGE != 0 || ENABLE_BACKGROUND_SERVER_ALWAYS != 0;

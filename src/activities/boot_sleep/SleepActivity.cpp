@@ -250,7 +250,7 @@ std::string joinPath(const std::string& directoryPath, const std::string& entryN
 }
 
 void scanSleepImagesInDirectory(const std::string& directoryPath, const bool recursive,
-                                std::vector<std::string>& filesOut) {
+                                std::vector<std::string>& filesOut, int& invalidCount) {
   auto dir = Storage.open(directoryPath.c_str());
   if (!(dir && dir.isDirectory())) {
     if (dir) dir.close();
@@ -271,7 +271,7 @@ void scanSleepImagesInDirectory(const std::string& directoryPath, const bool rec
     if (file.isDirectory()) {
       file.close();
       if (recursive) {
-        scanSleepImagesInDirectory(fullPath, true, filesOut);
+        scanSleepImagesInDirectory(fullPath, true, filesOut, invalidCount);
       }
       continue;
     }
@@ -287,6 +287,7 @@ void scanSleepImagesInDirectory(const std::string& directoryPath, const bool rec
       if (err == BmpReaderError::Ok) {
         filesOut.emplace_back(fullPath);
       } else {
+        invalidCount++;
         LOG_ERR("SLP", "Invalid BMP in %s: %s (%s)", directoryPath.c_str(), leafName.c_str(),
                 Bitmap::errorToString(err));
       }
@@ -301,8 +302,12 @@ void scanSleepImagesInDirectory(const std::string& directoryPath, const bool rec
         filesOut.emplace_back(fullPath);
         LOG_DBG("SLP", "Valid %s: %s (%dx%d)", decoder->getFormatName(), fullPath.c_str(), dims.width, dims.height);
       } else {
+        invalidCount++;
         LOG_ERR("SLP", "Invalid image: %s (could not read dimensions)", fullPath.c_str());
       }
+    } else {
+      invalidCount++;
+      LOG_ERR("SLP", "Invalid image: %s (unsupported format)", fullPath.c_str());
     }
     file.close();
   }
@@ -332,7 +337,8 @@ void validateSleepImagesOnce() {
 
   const std::string sourcePath = getSleepSourcePath(sourceMode);
   const bool recursive = shouldScanRecursively(sourceMode);
-  scanSleepImagesInDirectory(sourcePath, recursive, sleepImageCache.validFiles);
+  int scanInvalidCount = 0;
+  scanSleepImagesInDirectory(sourcePath, recursive, sleepImageCache.validFiles, scanInvalidCount);
 
   sleepImageCache.scanned = true;
   LOG_INF("SLP", "Source '%s' found %d valid sleep images", getSleepSourceName(sourceMode),
@@ -369,11 +375,33 @@ std::string recentTitleForPath(const std::string& path) {
   return {};
 }
 
-int validateAndCountSleepImages() {
+SleepImageValidationStats validateSleepImagesWithStats() {
   invalidateSleepImageCache();
-  validateSleepImagesOnce();
+
+  uint8_t sourceMode = SETTINGS.sleepScreenSource;
+  if (sourceMode >= CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SCREEN_SOURCE_COUNT) {
+    sourceMode = CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_SLEEP;
+  }
+
+  const std::string sourcePath = getSleepSourcePath(sourceMode);
+  const bool recursive = shouldScanRecursively(sourceMode);
+
+  std::vector<std::string> validFiles;
+  int invalidCount = 0;
+  scanSleepImagesInDirectory(sourcePath, recursive, validFiles, invalidCount);
+
   SleepCacheMutex::Guard guard;
-  return static_cast<int>(sleepImageCache.validFiles.size());
+  sleepImageCache.scanned = true;
+  sleepImageCache.sourceMode = sourceMode;
+  sleepImageCache.validFiles = std::move(validFiles);
+
+  LOG_INF("VALIDATE_SLEEP", "Complete: %d valid, %d invalid", static_cast<int>(sleepImageCache.validFiles.size()),
+          invalidCount);
+  return {static_cast<int>(sleepImageCache.validFiles.size()), invalidCount};
+}
+
+int validateAndCountSleepImages() {
+  return validateSleepImagesWithStats().valid;
 }
 
 void SleepActivity::onEnter() {

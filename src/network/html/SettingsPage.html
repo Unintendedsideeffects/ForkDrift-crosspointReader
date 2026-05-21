@@ -53,6 +53,7 @@
     #ota-container,
     #pokedex-container,
     #wifi-container,
+    #advanced-actions-container,
     #sleep-cover-card {
       background: var(--white);
       border: 2px solid var(--black);
@@ -383,6 +384,21 @@
     <div style="text-align: center; margin-top: 10px;">
       <a class="save-btn" id="pokedex-link" href="/plugins/pokemon-wallpaper"
          style="display:inline-block; padding:8px 20px; font-size:0.8em; text-decoration:none;">Open Pokedex</a>
+    </div>
+  </div>
+
+  <div class="card" id="advanced-actions-container">
+    <h2>Advanced</h2>
+    <p style="font-size:0.8em; color:var(--gray-4); margin-bottom:10px;">
+      Maintenance actions that do not require saving settings.
+    </p>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center;">
+      <button class="save-btn" style="padding:8px 14px; font-size:0.75em;" onclick="runMaintenanceAction('validate-sleep-images')">Validate Sleep Images</button>
+      <button class="save-btn" style="padding:8px 14px; font-size:0.75em;" onclick="runMaintenanceAction('clear-cache')">Clear Reading Cache</button>
+      <button class="save-btn" style="padding:8px 14px; font-size:0.75em;" onclick="runMaintenanceAction('reset-settings')">Reset Settings to Default</button>
+      <button class="save-btn" style="padding:8px 14px; font-size:0.75em;" onclick="runMaintenanceAction('forget-all-wifi')">Clear Saved WiFi</button>
+      <button class="save-btn" style="padding:8px 14px; font-size:0.75em;" onclick="runMaintenanceAction('clear-logs')">Clear Logs</button>
+      <button class="save-btn" style="padding:8px 14px; font-size:0.75em;" onclick="runMaintenanceAction('clear-crashes')">Clear Crashes</button>
     </div>
   </div>
 
@@ -1144,6 +1160,48 @@
       if (!resp.ok) throw new Error(await resp.text());
       showMessage('OPDS server deleted', false);
       await loadOpdsServers();
+    } catch (e) {
+      showMessage('Error: ' + e.message, true);
+    }
+  }
+
+  const MAINTENANCE_ENDPOINTS = {
+    'validate-sleep-images': '/api/maintenance/validate-sleep-images',
+    'clear-cache': '/api/maintenance/clear-cache',
+    'reset-settings': '/api/maintenance/reset-settings',
+    'forget-all-wifi': '/api/wifi/forget-all',
+    'clear-logs': '/api/maintenance/clear-logs',
+    'clear-crashes': '/api/maintenance/clear-crashes'
+  };
+
+  const MAINTENANCE_CONFIRM = {
+    'clear-cache': 'Clear all cached book data? Reading progress will be lost.',
+    'reset-settings': 'Reset all reader settings to defaults? WiFi, recent books, progress, and cache are kept.',
+    'forget-all-wifi': 'Remove all saved WiFi credentials?',
+    'clear-logs': 'Clear the debug log file and in-memory log buffer?',
+    'clear-crashes': 'Delete crash_report.txt and clear panic state?'
+  };
+
+  async function runMaintenanceAction(action) {
+    const endpoint = MAINTENANCE_ENDPOINTS[action];
+    if (!endpoint) return;
+    if (MAINTENANCE_CONFIRM[action] && !confirm(MAINTENANCE_CONFIRM[action])) return;
+    try {
+      const resp = await fetch(endpoint, { method: 'POST' });
+      const data = await resp.json().catch(function() { return {}; });
+      if (!resp.ok) throw new Error(data.message || data.error || ('HTTP ' + resp.status));
+      if (data.message) {
+        showMessage(data.message, false);
+      } else if (data.ok) {
+        showMessage('Done', false);
+      } else if (data.removed !== undefined) {
+        showMessage('Removed ' + data.removed + (data.failed ? (', ' + data.failed + ' failed') : ''), false);
+      } else {
+        showMessage('Done', false);
+      }
+      if (action === 'reset-settings') {
+        await loadSettings();
+      }
     } catch (e) {
       showMessage('Error: ' + e.message, true);
     }

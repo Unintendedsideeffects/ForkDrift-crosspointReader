@@ -23,6 +23,10 @@ enum class SettingAction {
   Language,
   FactoryReset,
   ValidateSleepImages,
+  ResetSettings,
+  ClearWifiNetworks,
+  ClearLogs,
+  ClearCrashes,
   SwitchToTrmnl,
   DownloadFonts,
 };

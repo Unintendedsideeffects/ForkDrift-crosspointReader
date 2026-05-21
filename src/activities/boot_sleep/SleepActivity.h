@@ -7,7 +7,13 @@
 
 class Bitmap;
 
+struct SleepImageValidationStats {
+  int valid = 0;
+  int invalid = 0;
+};
+
 void invalidateSleepImageCache();
+SleepImageValidationStats validateSleepImagesWithStats();
 int validateAndCountSleepImages();
 
 class SleepActivity final : public Activity {

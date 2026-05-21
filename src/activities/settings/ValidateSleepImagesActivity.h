@@ -22,6 +22,7 @@ class ValidateSleepImagesActivity final : public ActivityWithSubactivity {
   const std::function<void()> goBack;
 
   int validCount = 0;
+  int invalidCount = 0;
 
   void render(RenderLock&&) override;
 };

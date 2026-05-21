@@ -197,4 +197,11 @@ class CrossPointWebServer {
   void handleGetWifiNetworks() const;
   void handlePostWifiNetwork();
   void handleDeleteWifiNetwork();
+  void handleForgetAllWifiNetworks();
+
+  void handleMaintenanceValidateSleepImages();
+  void handleMaintenanceClearCache();
+  void handleMaintenanceResetSettings();
+  void handleMaintenanceClearLogs();
+  void handleMaintenanceClearCrashes();
 };

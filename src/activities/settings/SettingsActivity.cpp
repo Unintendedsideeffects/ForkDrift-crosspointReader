@@ -10,6 +10,7 @@
 
 #include "ButtonRemapActivity.h"
 #include "ClearCacheActivity.h"
+#include "ResetSettingsActivity.h"
 #include "CrossPointSettings.h"
 #include "FactoryResetActivity.h"
 #include "FontDownloadActivity.h"
@@ -31,6 +32,7 @@
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "fontIds.h"
+#include "util/MaintenanceUtils.h"
 
 namespace {
 constexpr char kBackgroundServerModeKey[] = "backgroundServerMode";
@@ -67,9 +69,23 @@ void SettingsActivity::rebuildSettingsLists() {
     }
     LOG_ERR("SET", "Missing control setting definition for key=%s", key);
   };
+  auto addSystemSettingByKey = [&](const char* key) {
+    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
+      return setting.key && std::strcmp(setting.key, key) == 0;
+    });
+    if (it != allSettings.end()) {
+      systemSettings.push_back(*it);
+      return;
+    }
+    LOG_ERR("SET", "Missing system setting definition for key=%s", key);
+  };
 
   for (auto& setting : allSettings) {
     if (setting.category == StrId::STR_NONE_OPT || setting.category == StrId::STR_CAT_CONTROLS) continue;
+    if (setting.key != nullptr &&
+        (std::strcmp(setting.key, "developerMode") == 0 || std::strcmp(setting.key, "deviceName") == 0)) {
+      continue;
+    }
     if (setting.category == StrId::STR_CAT_DISPLAY) {
       displaySettings.push_back(setting);
     } else if (setting.category == StrId::STR_CAT_READER) {
@@ -96,7 +112,6 @@ void SettingsActivity::rebuildSettingsLists() {
   systemSettings.push_back(SettingInfo::Action(StrId::STR_WIFI_NETWORKS, SettingAction::Network));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache));
   if (core::FeatureModules::supportsSettingAction(SettingAction::CheckForUpdates)) {
     systemSettings.push_back(SettingInfo::Action(StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates));
   }
@@ -105,6 +120,15 @@ void SettingsActivity::rebuildSettingsLists() {
   if (core::FeatureModules::supportsSettingAction(SettingAction::Language)) {
     systemSettings.push_back(SettingInfo::Action(StrId::STR_LANGUAGE, SettingAction::Language));
   }
+  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_ADVANCED));
+  systemSettings.push_back(SettingInfo::Action(StrId::STR_VALIDATE_SLEEP_IMAGES, SettingAction::ValidateSleepImages));
+  systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache));
+  addSystemSettingByKey("deviceName");
+  systemSettings.push_back(SettingInfo::Action(StrId::STR_RESET_SETTINGS, SettingAction::ResetSettings));
+  systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_WIFI_NETWORKS, SettingAction::ClearWifiNetworks));
+  addSystemSettingByKey("developerMode");
+  systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_LOGS, SettingAction::ClearLogs));
+  systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_CRASHES, SettingAction::ClearCrashes));
   if (!readerSettings.empty()) {
     readerSettings.insert(readerSettings.begin() + 1,
                           SettingInfo::Action(StrId::STR_MANAGE_FONTS, SettingAction::DownloadFonts));
@@ -464,6 +488,47 @@ void SettingsActivity::toggleCurrentSetting() {
         startActivityForResult(
             std::make_unique<ValidateSleepImagesActivity>(renderer, mappedInput, [] { activityManager.popActivity(); }),
             resultHandler);
+        break;
+      case SettingAction::ResetSettings:
+        startActivityForResult(std::make_unique<ResetSettingsActivity>(renderer, mappedInput),
+                               [this](const ActivityResult&) {
+                                 rebuildSettingsLists();
+                                 requestUpdate();
+                               });
+        break;
+      case SettingAction::ClearWifiNetworks:
+        startActivityForResult(
+            std::make_unique<ConfirmationActivity>(
+                renderer, mappedInput, std::string(I18N.get(StrId::STR_CLEAR_WIFI_NETWORKS)),
+                std::string(I18N.get(StrId::STR_CLEAR_WIFI_WARNING))),
+            [this](const ActivityResult& result) {
+              if (!result.isCancelled) {
+                MaintenanceUtils::clearWifiNetworks();
+              }
+              requestUpdate();
+            });
+        break;
+      case SettingAction::ClearLogs:
+        startActivityForResult(
+            std::make_unique<ConfirmationActivity>(renderer, mappedInput, std::string(I18N.get(StrId::STR_CLEAR_LOGS)),
+                                                 std::string(I18N.get(StrId::STR_CLEAR_LOGS_WARNING))),
+            [this](const ActivityResult& result) {
+              if (!result.isCancelled) {
+                MaintenanceUtils::clearLogs();
+              }
+              requestUpdate();
+            });
+        break;
+      case SettingAction::ClearCrashes:
+        startActivityForResult(
+            std::make_unique<ConfirmationActivity>(renderer, mappedInput, std::string(I18N.get(StrId::STR_CLEAR_CRASHES)),
+                                                 std::string(I18N.get(StrId::STR_CLEAR_CRASHES_WARNING))),
+            [this](const ActivityResult& result) {
+              if (!result.isCancelled) {
+                MaintenanceUtils::clearCrashReports();
+              }
+              requestUpdate();
+            });
         break;
       case SettingAction::None:
         // Do nothing
