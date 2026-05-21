@@ -1,26 +1,185 @@
-# FORKDRIFT - Crosspoint reader Fork
+# FORKDRIFT — CrossPoint Reader Fork
 
-This is my personal fork of CrossPoint, the idea behind it is simple, this is a super experimental fork that tracks upstream and other forks, and absorbs the interesting features from all and tries to be much more modular.
-This means that many features are a work in progress, and not everything will be always working, we are still working towards a stable release.
+<p align="center">
+  <strong>An experimental, modular firmware fork for the <a href="https://xteink.com">Xteink X4</a> e-ink reader.</strong><br/>
+  Tracks <a href="https://github.com/crosspoint-reader/crosspoint-reader">upstream CrossPoint</a>, absorbs the best of <a href="https://github.com/uxjulia/CrossInk">CrossInk</a>, and adds new features on top.
+</p>
 
-We do not check upstreams PR lists and issues, we only absorb commits when they merge to main to make sure we don't completely lose the compatibility with upstream.
- 
-I recently found out about [CrossInk](https://github.com/uxjulia/CrossInk) and really liked the additions, so I decided to include their changes in the configurator.
-
-
-
-
-The main entry point is the [ForkDrift Configurator](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/)
-
+<p align="center">
+  <a href="https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/"><strong>→ Open the ForkDrift Configurator</strong></a>
+</p>
 
 ---
+
+> **Experimental.** Many features are a work in progress and not everything is guaranteed to work at all times. We track upstream commits when they merge to `main` — we do not watch upstream PRs or issues. Features are absorbed when they land.
+
+---
+
+## Screens
+
+### Home — Choose your theme
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/configurator/screen-previews/02_home_classic.png" width="140"/><br/><sub><b>Classic</b></sub></td>
+    <td align="center"><img src="docs/configurator/screen-previews/03_home_lyra.png" width="140"/><br/><sub><b>Lyra</b></sub></td>
+    <td align="center"><img src="docs/configurator/screen-previews/07_home_minimal.png" width="140"/><br/><sub><b>Minimal</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/configurator/screen-previews/08_home_lyra_carousel.png" width="140"/><br/><sub><b>Lyra Carousel</b></sub></td>
+    <td align="center"><img src="docs/configurator/screen-previews/05_home_forkdrift.png" width="140"/><br/><sub><b>Visual Covers ★</b></sub></td>
+    <td align="center"><img src="docs/configurator/screen-previews/06_home_pokemon_party.png" width="140"/><br/><sub><b>Pokémon Party ★</b></sub></td>
+  </tr>
+</table>
+
+<sub>★ ForkDrift exclusive</sub>
+
+### Reader
+
+<p>
+  <img src="docs/configurator/screen-previews/11_reader_mock.png" width="200"/>
+</p>
+
+Clean reading view with the status bar showing chapter, progress bar, and page percentage. Font, size, margins, alignment, and hyphenation are all adjustable without leaving the book.
+
+### Sleep Screens
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/configurator/screen-previews/13_sleep_dark.png" width="140"/><br/><sub><b>Dark (default)</b></sub></td>
+    <td align="center"><img src="docs/configurator/screen-previews/14_sleep_light.png" width="140"/><br/><sub><b>Light</b></sub></td>
+    <td align="center"><img src="docs/configurator/screen-previews/17_sleep_roman_clock.png" width="140"/><br/><sub><b>Roman Clock ★</b></sub></td>
+    <td align="center"><img src="docs/configurator/screen-previews/15_sleep_custom.png" width="140"/><br/><sub><b>Custom image</b></sub></td>
+  </tr>
+</table>
+
+<sub>★ ForkDrift exclusive · Additional modes: book cover (fit/crop/filter), reading stats, none</sub>
+
+---
+
 ## Feature List vs [Upstream](https://github.com/crosspoint-reader/crosspoint-reader)/[CrossInk](https://github.com/uxjulia/CrossInk)
 
+Legend: ✅ present · ❌ absent · ⚙️ compile-time flag (off by default)
 
+### Themes & UI
 
+| Feature | Upstream | CrossInk | ForkDrift |
+|---|---|---|---|
+| Classic theme | ✅ | ✅ | ✅ |
+| Lyra theme (rounded elements, menu icons) | ✅ | ✅ | ✅ |
+| Lyra Extended / RoundedRaff themes | ✅ | ❌ | ✅ |
+| Minimal theme | ❌ | ✅ | ✅ |
+| Visual Covers home layout (3-book grid) | ❌ | ❌ | ✅ |
+| Dark mode | ✅ | ✅ | ✅ |
+| Global status bar (battery, time, progress modes) | ✅ | ✅ | ✅ |
+| Status bar: hide battery % in reader / always | ❌ | ❌ | ✅ |
+| Sunlight fading fix (white model software fix) | ✅ | ✅ | ✅ |
 
+### Fonts
 
-----
+| Feature | Upstream | CrossInk | ForkDrift |
+|---|---|---|---|
+| Noto Serif | ✅ | ✅ | ✅ |
+| Noto Sans | ✅ | ✅ | ✅ |
+| OpenDyslexic | ✅ | ✅ | ✅ |
+| Bookerly | ❌ | ❌ | ⚙️ |
+| Bitter | ❌ | ✅ | ⚙️ |
+| Lexend Deca | ❌ | ✅ | ⚙️ |
+| CharEInk | ❌ | ✅ | ⚙️ |
+| Extra font size steps (XL, etc.) | ❌ | ✅ | ✅ |
+| User font install (custom fonts from SD/web) | ✅ | ✅ | ✅ |
+
+### Reading Experience
+
+| Feature | Upstream | CrossInk | ForkDrift |
+|---|---|---|---|
+| EPUB reading | ✅ | ✅ | ✅ |
+| XTC format | ✅ | ✅ | ✅ |
+| TXT reader | ✅ | ✅ | ✅ |
+| Markdown reader | ❌ | ❌ | ✅ |
+| Hyphenation engine | ✅ | ✅ | ✅ |
+| Table of contents / chapter selection | ✅ | ✅ | ✅ |
+| Percent-jump navigation | ✅ | ✅ | ✅ |
+| Embedded CSS/HTML styling | ✅ | ✅ | ✅ |
+| Inline book images | ✅ | ✅ | ✅ |
+| Text anti-aliasing | ✅ | ✅ | ✅ |
+| Footnote viewer | ✅ | ✅ | ✅ |
+| Auto page turn (customizable interval) | ✅ | ✅ | ✅ |
+| Tilt page turn (X3 only) | ✅ | ✅ | ❌ |
+| Long-press chapter skip / page scroll toggle | ❌ | ✅ | ✅ |
+| Focus reading mode | ✅ | ✅ | ✅ |
+| Bionic Reading mode | ❌ | ✅ | ✅ |
+| Guide Dots mode | ❌ | ✅ | ✅ |
+| Reading statistics (per-book + global) | ❌ | ✅ | ⚙️ |
+| KOReader progress sync | ✅ | ✅ | ✅ |
+| Anki flashcard integration | ❌ | ❌ | ⚙️ |
+
+### Library & Navigation
+
+| Feature | Upstream | CrossInk | ForkDrift |
+|---|---|---|---|
+| File browser | ✅ | ✅ | ✅ |
+| File deletion from browser | ✅ | ✅ | ✅ |
+| Hidden files toggle | ✅ | ✅ | ✅ |
+| Recent books list | ✅ | ✅ | ✅ |
+| Recent books grid view | ❌ | ✅ | ✅ |
+| Bookmarks | ❌ | ✅ | ✅ |
+| "Finished" book marking + auto-move to /Read | ❌ | ✅ | ✅ |
+| OPDS catalog browser (up to 8 saved servers) | ✅ | ✅ | ✅ |
+| Pokémon wallpaper companion plugin | ✅ | ✅ | ✅ |
+| Pokémon Party companion | ❌ | ❌ | ✅ |
+| Todo / planner | ❌ | ❌ | ✅ |
+| Quick notes / scratch pad | ❌ | ❌ | ✅ |
+
+### Connectivity & Transfer
+
+| Feature | Upstream | CrossInk | ForkDrift |
+|---|---|---|---|
+| WiFi setup (saved networks) | ✅ | ✅ | ✅ |
+| Web file transfer (drag-and-drop upload) | ✅ | ✅ | ✅ |
+| WebDAV file access | ✅ | ✅ | ✅ |
+| AP / hotspot mode with QR code | ✅ | ✅ | ✅ |
+| Calibre wireless send-to-device | ✅ | ✅ | ✅ |
+| Calibre content server sync | ✅ | ✅ | ✅ |
+| Web settings UI (WiFi + OPDS via browser) | ✅ | ✅ | ✅ |
+| Background web server (always-on) | ❌ | ❌ | ✅ |
+| BLE WiFi provisioning | ❌ | ❌ | ✅ |
+| USB mass storage | ❌ | ❌ | ✅ |
+| Remote control (virtual button injection over WiFi/USB) | ❌ | ❌ | ✅ |
+| Remote keyboard input | ❌ | ❌ | ✅ |
+| WiFi clock (NTP sync) | ❌ | ❌ | ✅ |
+| OTA firmware updates | ✅ | ✅ | ✅ |
+| SD card firmware update | ❌ | ❌ | ✅ |
+
+### Sleep Screen
+
+| Feature | Upstream | CrossInk | ForkDrift |
+|---|---|---|---|
+| Dark / Light logo sleep screen | ✅ | ✅ | ✅ |
+| Custom BMP image(s) from SD card | ✅ | ✅ | ✅ |
+| Sleep image pinning (pin a specific image as default) | ❌ | ✅ | ✅ |
+| Reading stats as sleep screen | ❌ | ✅ | ⚙️ |
+| Book cover sleep screen (fit / crop modes) | ❌ | ✅ | ⚙️ |
+| Cover + Custom fallback mode | ❌ | ✅ | ⚙️ |
+| Cover filter options (none / contrast / inverted) | ❌ | ✅ | ⚙️ |
+| Roman numeral clock sleep screen | ❌ | ❌ | ⚙️ |
+| PNG/JPEG sleep images (not just BMP) | ❌ | ❌ | ✅ |
+
+### Controls & Settings
+
+| Feature | Upstream | CrossInk | ForkDrift |
+|---|---|---|---|
+| Button remapping (front 4 buttons) | ✅ | ✅ | ✅ |
+| Side button swap (reader) | ✅ | ✅ | ✅ |
+| Short power-button action (sleep / page turn / select) | ✅ | ✅ | ✅ |
+| Screenshot (power+vol-down, or reader menu) | ✅ | ✅ | ✅ |
+| Language / i18n support (22 languages) | ✅ | ✅ | ✅ |
+| Per-orientation layout | ✅ | ✅ | ✅ |
+| Modular compile-time feature flags (`ENABLE_*`) | ❌ | ❌ | ✅ |
+| ForkDrift web configurator (choose features, build online) | ❌ | ❌ | ✅ |
+
+---
+
 # SHOUTOUTS
 CrossPoint Reader is **not affiliated with Xteink or any manufacturer of the X4 hardware**.
 
