@@ -521,17 +521,23 @@
     }
 
     .layout-footer {
-      grid-column: 1 / -1;
+      position: relative;
+      z-index: 1;
       margin-bottom: 0;
     }
 
     .preview-column {
       position: sticky;
       top: 16px;
+      align-self: start;
       display: grid;
       gap: 14px;
       justify-items: center;
       align-content: start;
+      width: 100%;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
     }
 
     .preview-column .card {
@@ -574,8 +580,9 @@
       }
 
       .preview-column {
-        position: sticky;
         top: 12px;
+        max-height: calc(100vh - 24px);
+        gap: 10px;
       }
 
       .controls {
@@ -740,12 +747,6 @@
             </div>
           </section>
         </div>
-
-        <section class="card control-block">
-          <div class="single-action">
-            <button class="btn" id="downloadBtn" type="button">Download</button>
-          </div>
-        </section>
       </div>
 
       <aside class="preview-column">
@@ -794,15 +795,18 @@
           </select>
         </section>
       </aside>
+    </section>
 
-      <section class="card control-block layout-footer">
-        <div class="status" id="statusBox">Enter a Pokemon and click Preview.</div>
-        <p class="hint">
-          Credits: based on the excellent
-          <a class="inline-link" href="https://m86-tech.github.io/BOOX-Pokedex-Wallpaper-Generator/" target="_blank" rel="noopener noreferrer">BOOX Pokedex Wallpaper Generator</a>
-          by m86-tech, adapted for CrossPoint Reader and XTEink X4.
-        </p>
-      </section>
+    <section class="card control-block layout-footer">
+      <div class="single-action">
+        <button class="btn" id="downloadBtn" type="button">Download</button>
+      </div>
+      <div class="status" id="statusBox">Enter a Pokemon and click Preview.</div>
+      <p class="hint">
+        Credits: based on the excellent
+        <a class="inline-link" href="https://m86-tech.github.io/BOOX-Pokedex-Wallpaper-Generator/" target="_blank" rel="noopener noreferrer">BOOX Pokedex Wallpaper Generator</a>
+        by m86-tech, adapted for CrossPoint Reader and XTEink X4.
+      </p>
     </section>
   </div>
 
