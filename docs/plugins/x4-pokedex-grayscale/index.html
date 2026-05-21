@@ -79,29 +79,12 @@
     .headline {
       display: grid;
       gap: 8px;
+      margin-bottom: 0;
     }
 
-    .headline-top {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .badge {
-      border: 2px solid var(--black);
-      background: var(--gray-10);
-      padding: 5px 8px;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      font-weight: 700;
-    }
-
-    h1 {
+    .headline h1 {
       font-family: Georgia, "Times New Roman", Times, serif;
-      font-size: clamp(28px, 4vw, 40px);
+      font-size: clamp(24px, 3vw, 36px);
       line-height: 1.05;
     }
 
@@ -121,9 +104,145 @@
       gap: 14px;
     }
 
+    .control-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      align-items: start;
+    }
+
+    .control-row > .card {
+      margin-bottom: 0;
+    }
+
     .control-block {
       display: grid;
       gap: 8px;
+    }
+
+    .panel-sections {
+      display: grid;
+      gap: 12px;
+    }
+
+    .sprite-stepper-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .sprite-stepper-row.is-locked {
+      opacity: 0.45;
+    }
+
+    .sprite-stepper-row.is-locked input,
+    .sprite-stepper-row.is-locked button {
+      pointer-events: none;
+    }
+
+    .btn.stepper {
+      min-width: 36px;
+      padding: 8px 10px;
+    }
+
+    .sprite-stepper-row input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      min-width: 0;
+      height: 20px;
+      margin: 0;
+      padding: 0;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      --range-fill: 50%;
+    }
+
+    .sprite-stepper-row input[type="range"]::-webkit-slider-runnable-track {
+      height: 12px;
+      border: 2px solid var(--black);
+      border-radius: 0;
+      background:
+        linear-gradient(
+          to right,
+          var(--black) 0%,
+          var(--black) var(--range-fill),
+          var(--white) var(--range-fill),
+          var(--white) 100%
+        ),
+        repeating-linear-gradient(
+          90deg,
+          var(--gray-12) 0 3px,
+          var(--gray-8) 3px 4px
+        );
+      box-shadow: inset 0 0 0 1px var(--white);
+    }
+
+    .sprite-stepper-row input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 18px;
+      margin-top: -5px;
+      border: 2px solid var(--black);
+      border-radius: 0;
+      background: var(--black);
+      box-shadow:
+        inset 0 0 0 1px var(--white),
+        2px 2px 0 0 var(--gray-6);
+    }
+
+    .sprite-stepper-row:not(.is-locked) input[type="range"]:hover::-webkit-slider-thumb {
+      background: var(--gray-2);
+    }
+
+    .sprite-stepper-row input[type="range"]:active::-webkit-slider-thumb {
+      box-shadow:
+        inset 0 0 0 1px var(--white),
+        1px 1px 0 0 var(--gray-6);
+      transform: translate(1px, 1px);
+    }
+
+    .sprite-stepper-row input[type="range"]::-moz-range-track {
+      height: 12px;
+      border: 2px solid var(--black);
+      border-radius: 0;
+      background: var(--white);
+      box-shadow: inset 0 0 0 1px var(--white);
+    }
+
+    .sprite-stepper-row input[type="range"]::-moz-range-progress {
+      height: 12px;
+      border-radius: 0;
+      background: var(--black);
+    }
+
+    .sprite-stepper-row input[type="range"]::-moz-range-thumb {
+      width: 12px;
+      height: 18px;
+      border: 2px solid var(--black);
+      border-radius: 0;
+      background: var(--black);
+      box-shadow:
+        inset 0 0 0 1px var(--white),
+        2px 2px 0 0 var(--gray-6);
+      box-sizing: border-box;
+    }
+
+    .sprite-stepper-row:not(.is-locked) input[type="range"]:hover::-moz-range-thumb {
+      background: var(--gray-2);
+    }
+
+    .sprite-stepper-row input[type="range"]:focus {
+      outline: none;
+    }
+
+    .sprite-stepper-row input[type="range"]:focus-visible::-webkit-slider-thumb,
+    .sprite-stepper-row input[type="range"]:focus-visible::-moz-range-thumb {
+      outline: 2px dashed var(--black);
+      outline-offset: 2px;
     }
 
     .split-row {
@@ -173,6 +292,33 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       column-gap: 14px;
       row-gap: 10px;
+    }
+
+    .option-grid.two-col label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .content-toggles .group-label {
+      grid-column: 1 / -1;
+      margin-top: 4px;
+    }
+
+    .content-toggles .group-label:first-child {
+      margin-top: 0;
+    }
+
+    .content-toggles .content-hint {
+      grid-column: 1 / -1;
+      margin-top: -2px;
+    }
+
+    .content-toggles .panel-separator {
+      grid-column: 1 / -1;
+      border-top: 2px solid var(--black);
+      margin: 4px 0 2px;
     }
 
     .input-stack {
@@ -374,11 +520,24 @@
       margin-top: 4px;
     }
 
+    .layout-footer {
+      grid-column: 1 / -1;
+      margin-bottom: 0;
+    }
+
     .preview-column {
       position: sticky;
       top: 16px;
       display: grid;
+      gap: 14px;
       justify-items: center;
+      align-content: start;
+    }
+
+    .preview-column .card {
+      width: 100%;
+      max-width: 312px;
+      margin-bottom: 0;
     }
 
     #previewCanvas {
@@ -450,16 +609,21 @@
         grid-template-columns: 1fr;
         gap: 8px;
       }
+
+      .control-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      .preview-column .card {
+        padding: 10px;
+      }
     }
 
     @media (max-width: 640px) {
       .split-row,
       .action-grid {
         grid-template-columns: 1fr;
-      }
-
-      .headline-top {
-        justify-content: flex-start;
       }
     }
   </style>
@@ -472,14 +636,12 @@
       <a class="active" href="./">Pokedex</a>
     </nav>
 
-    <section class="card headline">
-      <div class="headline-top">
-        <h1>X4 Grayscale Pokedex Wallpaper</h1>
-      </div>
-    </section>
-
     <section class="layout">
       <div class="controls">
+        <section class="card headline">
+          <h1>X4 Grayscale Pokedex Wallpaper</h1>
+        </section>
+
         <section class="card control-block">
           <label for="pokemonInput">Pokemon Name or ID</label>
           <div class="input-stack">
@@ -527,44 +689,67 @@
           </div>
         </section>
 
-        <section class="card control-block">
-          <label for="spriteScale">Sprite Size</label>
-          <div class="split-row split-row-scale">
-            <input id="spriteScale" type="range" min="0.5" max="3.0" step="0.1" value="1" />
-            <button class="btn secondary" id="resetSpriteScaleBtn" type="button">Reset</button>
-          </div>
-          <p class="hint" id="spriteScaleLabel">Current scale: 1.0x</p>
-          <div class="option-groups">
-            <div class="option-group">
-              <div class="group-label">Display</div>
-              <div class="option-grid">
-                <label><input id="boldText" type="checkbox" checked /> Bold text</label>
-                <label><input id="spriteOverlay" type="checkbox" /> Sprite over text layer</label>
-                <label><input id="showTypes" type="checkbox" checked /> Show type pill</label>
+        <div class="control-row">
+          <section class="card control-block">
+            <div class="panel-sections">
+              <div>
+                <div class="group-label">Sprite size</div>
+                <div class="sprite-stepper-row">
+                  <button class="btn stepper secondary" id="spriteScaleDown" type="button" aria-label="Decrease sprite size">−</button>
+                  <input id="spriteScale" type="range" min="0.5" max="3.0" step="0.1" value="1" />
+                  <button class="btn stepper secondary" id="spriteScaleUp" type="button" aria-label="Increase sprite size">+</button>
+                  <button class="btn secondary" id="resetSpriteScaleBtn" type="button">Reset</button>
+                </div>
+                <p class="hint" id="spriteScaleLabel">Current scale: 1.0x</p>
+              </div>
+              <div>
+                <div class="group-label">Sprite position</div>
+                <div class="sprite-stepper-row" id="spritePositionRow">
+                  <button class="btn stepper secondary" id="spriteOffsetDown" type="button" aria-label="Move sprite up">−</button>
+                  <input id="spriteOffsetY" type="range" min="-100" max="100" step="5" value="0" />
+                  <button class="btn stepper secondary" id="spriteOffsetUp" type="button" aria-label="Move sprite down">+</button>
+                  <button class="btn secondary" id="resetSpriteOffsetBtn" type="button">Reset</button>
+                </div>
+                <p class="hint" id="spriteOffsetLabel">Vertical offset: 0</p>
+                <p class="hint" id="spritePositionLockHint" hidden>Locked while type pills, card info, evolution, or stats are shown.</p>
               </div>
             </div>
-            <div class="option-group">
-              <div class="group-label">Card info</div>
-              <div class="option-grid two-col">
+          </section>
+
+          <section class="card control-block">
+            <div class="panel-sections">
+              <div class="option-grid two-col content-toggles">
+                <div class="group-label">Card info</div>
                 <label><input id="showRegion" type="checkbox" checked /> Region</label>
                 <label><input id="showHeight" type="checkbox" checked /> Height</label>
                 <label><input id="showFind" type="checkbox" checked /> Find</label>
                 <label><input id="showWeight" type="checkbox" checked /> Weight</label>
+                <div class="group-label">Bottom panel content</div>
+                <label><input id="showFlavor" type="checkbox" checked /> Flavor text</label>
+                <label><input id="showHp" type="checkbox" /> HP / stats</label>
+                <label><input id="showEvolution" type="checkbox" checked /> Evolution</label>
+                <label><input id="showAbilities" type="checkbox" checked /> Abilities</label>
+                <p class="hint content-hint">Choose which details appear in the bottom panel.</p>
+                <div class="panel-separator" aria-hidden="true"></div>
+                <div class="group-label">Display</div>
+                <label><input id="boldText" type="checkbox" checked /> Bold text</label>
+                <label><input id="spriteOverlay" type="checkbox" /> Sprite over text layer</label>
+                <label><input id="showTypes" type="checkbox" checked /> Show type pill</label>
+                <label><input id="showSeparators" type="checkbox" checked /> Section separators</label>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
 
         <section class="card control-block">
-          <label>Bottom Panel Content</label>
-          <div class="option-grid">
-            <label><input id="showFlavor" type="checkbox" checked /> Flavor text</label>
-            <label><input id="showHp" type="checkbox" /> HP / stats</label>
-            <label><input id="showEvolution" type="checkbox" checked /> Evolution</label>
-            <label><input id="showAbilities" type="checkbox" checked /> Abilities</label>
+          <div class="single-action">
+            <button class="btn" id="downloadBtn" type="button">Download</button>
           </div>
-          <p class="hint">Choose which details appear in the bottom panel.</p>
         </section>
+      </div>
+
+      <aside class="preview-column">
+        <canvas id="previewCanvas" width="480" height="800"></canvas>
 
         <section class="card control-block">
           <label for="batchGens">Batch Generations</label>
@@ -581,6 +766,7 @@
           </select>
           <div class="option-grid">
             <button class="btn secondary" id="selectAllBatchGens" type="button">Select All</button>
+            <button class="btn secondary" id="clearAllBatchGens" type="button">Clear All</button>
           </div>
           <p class="hint">Tip: use Ctrl/Cmd + click to select multiple generations.</p>
 
@@ -607,30 +793,16 @@
             <option value="fairy">Fairy</option>
           </select>
         </section>
-
-        <section class="card control-block">
-          <div class="action-grid">
-            <button class="btn" id="previewBtn" type="button">Preview</button>
-            <button class="btn secondary" id="downloadBtn" type="button">Download BMP</button>
-          </div>
-          <div class="single-action">
-            <button class="btn" id="batchDownloadBtn" type="button">Batch Download ZIP</button>
-          </div>
-        </section>
-
-        <section class="card control-block">
-          <div class="status" id="statusBox">Enter a Pokemon and click Preview.</div>
-          <p class="hint">
-            Credits: based on the excellent
-            <a class="inline-link" href="https://m86-tech.github.io/BOOX-Pokedex-Wallpaper-Generator/" target="_blank" rel="noopener noreferrer">BOOX Pokedex Wallpaper Generator</a>
-            by m86-tech, adapted for CrossPoint Reader and XTEink X4.
-          </p>
-        </section>
-      </div>
-
-      <aside class="preview-column">
-        <canvas id="previewCanvas" width="480" height="800"></canvas>
       </aside>
+
+      <section class="card control-block layout-footer">
+        <div class="status" id="statusBox">Enter a Pokemon and click Preview.</div>
+        <p class="hint">
+          Credits: based on the excellent
+          <a class="inline-link" href="https://m86-tech.github.io/BOOX-Pokedex-Wallpaper-Generator/" target="_blank" rel="noopener noreferrer">BOOX Pokedex Wallpaper Generator</a>
+          by m86-tech, adapted for CrossPoint Reader and XTEink X4.
+        </p>
+      </section>
     </section>
   </div>
 
@@ -641,6 +813,11 @@
     const MIN_SPRITE_SCALE = 0.5;
     const DEFAULT_SPRITE_SCALE = 1;
     const MAX_SPRITE_SCALE = 3.0;
+    const SPRITE_SCALE_STEP = 0.1;
+    const MIN_SPRITE_OFFSET_Y = -100;
+    const DEFAULT_SPRITE_OFFSET_Y = 0;
+    const MAX_SPRITE_OFFSET_Y = 100;
+    const SPRITE_OFFSET_STEP = 5;
     const MAX_FLAVOR_TEXT_LINES = 3;
     const MAX_EVOLUTION_TEXT_LINES = 2;
     const MAX_ABILITY_TEXT_LINES = 2;
@@ -686,10 +863,17 @@
     const resolvedName = document.getElementById("pokemonResolvedName");
     const suggestionsBox = document.getElementById("pokemonSuggestions");
     const resetSpriteScaleBtn = document.getElementById("resetSpriteScaleBtn");
-    const previewBtn = document.getElementById("previewBtn");
+    const spriteScaleDownBtn = document.getElementById("spriteScaleDown");
+    const spriteScaleUpBtn = document.getElementById("spriteScaleUp");
+    const spriteOffsetYInput = document.getElementById("spriteOffsetY");
+    const spriteOffsetDownBtn = document.getElementById("spriteOffsetDown");
+    const spriteOffsetUpBtn = document.getElementById("spriteOffsetUp");
+    const resetSpriteOffsetBtn = document.getElementById("resetSpriteOffsetBtn");
+    const spriteOffsetLabel = document.getElementById("spriteOffsetLabel");
+    const spritePositionRow = document.getElementById("spritePositionRow");
+    const spritePositionLockHint = document.getElementById("spritePositionLockHint");
     const downloadBtn = document.getElementById("downloadBtn");
     const randomBtn = document.getElementById("randomBtn");
-    const batchDownloadBtn = document.getElementById("batchDownloadBtn");
     const artStyleSelect = document.getElementById("artStyle");
     const fontModeSelect = document.getElementById("fontMode");
     const customFontInput = document.getElementById("customFont");
@@ -699,6 +883,7 @@
     const boldTextInput = document.getElementById("boldText");
     const spriteOverlayInput = document.getElementById("spriteOverlay");
     const showTypesInput = document.getElementById("showTypes");
+    const showSeparatorsInput = document.getElementById("showSeparators");
     const showRegionInput = document.getElementById("showRegion");
     const showFindInput = document.getElementById("showFind");
     const showHeightInput = document.getElementById("showHeight");
@@ -709,6 +894,7 @@
     const showAbilitiesInput = document.getElementById("showAbilities");
     const batchGensSelect = document.getElementById("batchGens");
     const selectAllBatchGensBtn = document.getElementById("selectAllBatchGens");
+    const clearAllBatchGensBtn = document.getElementById("clearAllBatchGens");
     const batchTypeSelect = document.getElementById("batchType");
 
     const BATCH_PREFETCH_CONCURRENCY = 12;
@@ -727,10 +913,8 @@
     }
 
     function setBusy(isBusy) {
-      previewBtn.disabled = isBusy;
       downloadBtn.disabled = isBusy;
       randomBtn.disabled = isBusy;
-      batchDownloadBtn.disabled = isBusy;
     }
 
     function titleCase(value) {
@@ -1404,10 +1588,81 @@
       spriteScaleLabel.textContent = "Current scale: " + (parseFloat(spriteScaleInput.value) || DEFAULT_SPRITE_SCALE).toFixed(1) + "x";
     }
 
-    function resetSpriteScale() {
-      spriteScaleInput.value = String(DEFAULT_SPRITE_SCALE);
+    function syncPixelRangeFill(input) {
+      const min = parseFloat(input.min);
+      const max = parseFloat(input.max);
+      const value = parseFloat(input.value);
+      const percent = ((value - min) / (max - min)) * 100;
+      input.style.setProperty("--range-fill", percent + "%");
+    }
+
+    function syncAllPixelRangeFills() {
+      syncPixelRangeFill(spriteScaleInput);
+      syncPixelRangeFill(spriteOffsetYInput);
+    }
+
+    function clampSpriteScale(value) {
+      return Math.max(MIN_SPRITE_SCALE, Math.min(MAX_SPRITE_SCALE, value));
+    }
+
+    function setSpriteScale(value) {
+      const next = clampSpriteScale(Math.round(value * 10) / 10);
+      spriteScaleInput.value = String(next);
       updateSpriteScaleLabel();
+      syncPixelRangeFill(spriteScaleInput);
       renderCurrentPokemon();
+    }
+
+    function adjustSpriteScale(delta) {
+      setSpriteScale((parseFloat(spriteScaleInput.value) || DEFAULT_SPRITE_SCALE) + delta);
+    }
+
+    function resetSpriteScale() {
+      setSpriteScale(DEFAULT_SPRITE_SCALE);
+    }
+
+    function isSpriteVerticalPositionLocked() {
+      return showTypesInput.checked
+        || showRegionInput.checked
+        || showFindInput.checked
+        || showHeightInput.checked
+        || showWeightInput.checked
+        || showEvolutionInput.checked
+        || showHpInput.checked;
+    }
+
+    function updateSpriteOffsetLabel() {
+      spriteOffsetLabel.textContent = "Vertical offset: " + String(parseInt(spriteOffsetYInput.value, 10) || DEFAULT_SPRITE_OFFSET_Y);
+    }
+
+    function clampSpriteOffset(value) {
+      return Math.max(MIN_SPRITE_OFFSET_Y, Math.min(MAX_SPRITE_OFFSET_Y, value));
+    }
+
+    function setSpriteOffset(value) {
+      const next = clampSpriteOffset(value);
+      spriteOffsetYInput.value = String(next);
+      updateSpriteOffsetLabel();
+      syncPixelRangeFill(spriteOffsetYInput);
+      renderCurrentPokemon();
+    }
+
+    function adjustSpriteOffset(delta) {
+      setSpriteOffset((parseInt(spriteOffsetYInput.value, 10) || DEFAULT_SPRITE_OFFSET_Y) + delta);
+    }
+
+    function resetSpriteOffset() {
+      setSpriteOffset(DEFAULT_SPRITE_OFFSET_Y);
+    }
+
+    function syncSpritePositionControls() {
+      const locked = isSpriteVerticalPositionLocked();
+      spritePositionRow.classList.toggle("is-locked", locked);
+      spritePositionLockHint.hidden = !locked;
+      spriteOffsetYInput.disabled = locked;
+      spriteOffsetDownBtn.disabled = locked;
+      spriteOffsetUpBtn.disabled = locked;
+      resetSpriteOffsetBtn.disabled = locked;
     }
 
     function getFontFamily() {
@@ -1428,9 +1683,12 @@
       return {
         artStyle: artStyleSelect.value,
         background: bgStyleSelect.value,
-        spriteScale: Math.max(MIN_SPRITE_SCALE, Math.min(MAX_SPRITE_SCALE, parseFloat(spriteScaleInput.value) || DEFAULT_SPRITE_SCALE)),
+        spriteScale: clampSpriteScale(parseFloat(spriteScaleInput.value) || DEFAULT_SPRITE_SCALE),
+        spriteOffsetY: clampSpriteOffset(parseInt(spriteOffsetYInput.value, 10) || DEFAULT_SPRITE_OFFSET_Y),
+        spriteVerticalPositionLocked: isSpriteVerticalPositionLocked(),
         spriteOverlay: spriteOverlayInput.checked,
         showTypes: showTypesInput.checked,
+        showSeparators: showSeparatorsInput.checked,
         showRegion: showRegionInput.checked,
         showFind: showFindInput.checked,
         showHeight: showHeightInput.checked,
@@ -1875,18 +2133,16 @@
       if (leftFields.length === 1 && rightFields.length >= 2) {
         const centeredY = dataTopY + Math.round(((rightBottom - dataTopY) - leftFields[0].fontSize) / 2);
         leftBottom = drawField(leftFields[0], margin, centeredY, "left");
-      } else if (leftFields.length) {
-        for (let i = 0; i < leftFields.length; i++) {
-          leftBottom = Math.max(leftBottom, drawField(leftFields[i], margin, dataTopY + (i * dataRowGap), "left"));
-        }
-      }
-
-      if (!rightFields.length && leftFields.length === 1) {
+      } else if (leftFields.length === 1 && !rightFields.length) {
         const centeredY = dataTopY;
         ctx.textAlign = "center";
         ctx.font = getFontSpec(leftFields[0].fontSize, options.fontFamily, options.boldText);
         ctx.fillText(leftFields[0].text, SCREEN_WIDTH / 2, centeredY);
         leftBottom = centeredY + leftFields[0].fontSize;
+      } else if (leftFields.length) {
+        for (let i = 0; i < leftFields.length; i++) {
+          leftBottom = Math.max(leftBottom, drawField(leftFields[i], margin, dataTopY + (i * dataRowGap), "left"));
+        }
       }
 
       return Math.max(leftBottom, rightBottom) + (8 * scaleUnit);
@@ -2221,8 +2477,9 @@
       const spriteWidth = Math.max(1, Math.round(spriteBounds.width * spriteScale));
       const spriteHeight = Math.max(1, Math.round(spriteBounds.height * spriteScale));
       const spriteCenterY = currentY + (5 * scaleUnit) + ((180 * scaleUnit) / 2);
+      const spriteVerticalOffset = options.spriteVerticalPositionLocked ? 0 : (options.spriteOffsetY * scaleUnit);
       const spriteX = Math.round((SCREEN_WIDTH / 2) - (spriteWidth / 2));
-      const spriteY = Math.round(spriteCenterY - (spriteHeight / 2));
+      const spriteY = Math.round(spriteCenterY - (spriteHeight / 2) + spriteVerticalOffset);
       const drawMainSprite = function() {
         drawGrayscaleSprite(ctx, sprite, spriteBounds, spriteX, spriteY, spriteWidth, spriteHeight, options.artStyle === "pixel");
       };
@@ -2254,7 +2511,9 @@
 
       function drawSectionDivider(padBelow) {
         currentY += dividerPadAbove;
-        drawDividerAt(currentY);
+        if (options.showSeparators) {
+          drawDividerAt(currentY);
+        }
         currentY += padBelow !== undefined ? padBelow : dividerPadBelow;
       }
 
@@ -2289,7 +2548,7 @@
         if (flavorOnlyFooter) {
           footerTop = currentY + dividerPadAbove + (10 * scaleUnit);
           const footerLayout = drawClassicFooter(pokemon, species, flavorText, footerTop, scaleUnit, ink, options) || {};
-          if (footerLayout.firstContentTop > dividerSourceBottom) {
+          if (footerLayout.firstContentTop > dividerSourceBottom && options.showSeparators) {
             drawDividerAt(Math.round((dividerSourceBottom + footerLayout.firstContentTop) / 2));
           }
           currentY = footerTop;
@@ -2514,8 +2773,18 @@
       });
     }
 
+    function clearAllBatchGenerations() {
+      Array.from(batchGensSelect.options || []).forEach(function(option) {
+        option.selected = false;
+      });
+    }
+
     function hasBatchGenerationSelection() {
       return Array.from(batchGensSelect.selectedOptions || []).length > 0;
+    }
+
+    function syncDownloadButton() {
+      downloadBtn.textContent = hasBatchGenerationSelection() ? "Batch Download" : "Download";
     }
 
     function previewSelection() {
@@ -2525,11 +2794,24 @@
       return renderCurrentPokemon();
     }
 
-    previewBtn.addEventListener("click", previewSelection);
-    downloadBtn.addEventListener("click", downloadCurrentWallpaper);
+    async function handleDownloadAction() {
+      if (hasBatchGenerationSelection()) {
+        return runBatchDownload();
+      }
+      return downloadCurrentWallpaper();
+    }
+
+    downloadBtn.addEventListener("click", handleDownloadAction);
     randomBtn.addEventListener("click", setRandomPokemon);
-    batchDownloadBtn.addEventListener("click", runBatchDownload);
-    selectAllBatchGensBtn.addEventListener("click", selectAllBatchGenerations);
+    selectAllBatchGensBtn.addEventListener("click", function() {
+      selectAllBatchGenerations();
+      syncDownloadButton();
+    });
+    clearAllBatchGensBtn.addEventListener("click", function() {
+      clearAllBatchGenerations();
+      syncDownloadButton();
+    });
+    batchGensSelect.addEventListener("change", syncDownloadButton);
 
     [
       artStyleSelect,
@@ -2537,9 +2819,11 @@
       customFontInput,
       bgStyleSelect,
       spriteScaleInput,
+      spriteOffsetYInput,
       boldTextInput,
       spriteOverlayInput,
       showTypesInput,
+      showSeparatorsInput,
       showRegionInput,
       showFindInput,
       showHeightInput,
@@ -2549,11 +2833,28 @@
       showEvolutionInput,
       showAbilitiesInput
     ].forEach(function(element) {
-      element.addEventListener("change", renderCurrentPokemon);
+      element.addEventListener("change", function() {
+        syncSpritePositionControls();
+        renderCurrentPokemon();
+      });
     });
 
-    spriteScaleInput.addEventListener("input", updateSpriteScaleLabel);
+    spriteScaleInput.addEventListener("input", function() {
+      updateSpriteScaleLabel();
+      syncPixelRangeFill(spriteScaleInput);
+      renderCurrentPokemon();
+    });
+    spriteOffsetYInput.addEventListener("input", function() {
+      updateSpriteOffsetLabel();
+      syncPixelRangeFill(spriteOffsetYInput);
+      renderCurrentPokemon();
+    });
+    spriteScaleDownBtn.addEventListener("click", function() { adjustSpriteScale(-SPRITE_SCALE_STEP); });
+    spriteScaleUpBtn.addEventListener("click", function() { adjustSpriteScale(SPRITE_SCALE_STEP); });
+    spriteOffsetDownBtn.addEventListener("click", function() { adjustSpriteOffset(-SPRITE_OFFSET_STEP); });
+    spriteOffsetUpBtn.addEventListener("click", function() { adjustSpriteOffset(SPRITE_OFFSET_STEP); });
     resetSpriteScaleBtn.addEventListener("click", resetSpriteScale);
+    resetSpriteOffsetBtn.addEventListener("click", resetSpriteOffset);
     fontModeSelect.addEventListener("change", syncCustomFontField);
 
     input.addEventListener("input", refreshPokemonSuggestions);
@@ -2590,6 +2891,10 @@
 
     syncCustomFontField();
     updateSpriteScaleLabel();
+    updateSpriteOffsetLabel();
+    syncAllPixelRangeFills();
+    syncDownloadButton();
+    syncSpritePositionControls();
     refreshResolvedPokemonName(input.value, suggestionToken);
     previewSelection();
   </script>
