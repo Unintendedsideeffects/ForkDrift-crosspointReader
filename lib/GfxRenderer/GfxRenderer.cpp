@@ -1411,9 +1411,6 @@ uint8_t* GfxRenderer::getFrameBuffer() const { return frameBuffer; }
 
 size_t GfxRenderer::getBufferSize() const { return frameBufferSize; }
 
-// unused
-// void GfxRenderer::grayscaleRevert() const { display.grayscaleRevert(); }
-
 void GfxRenderer::copyGrayscaleLsbBuffers() const { display.copyGrayscaleLsbBuffers(frameBuffer); }
 
 void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuffers(frameBuffer); }

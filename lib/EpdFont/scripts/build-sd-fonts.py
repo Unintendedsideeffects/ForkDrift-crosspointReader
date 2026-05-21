@@ -179,7 +179,6 @@ def build_family(
     # Build the fontconvert_sdcard.py command
     cmd = [sys.executable, str(FONTCONVERT)]
 
-    multi_style = len(resolved_styles) > 1 or "regular" not in resolved_styles
     has_any_multi = any(k in resolved_styles for k in ("regular", "bold", "italic", "bolditalic"))
 
     if has_any_multi and len(resolved_styles) > 1:

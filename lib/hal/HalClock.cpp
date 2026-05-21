@@ -32,7 +32,7 @@ void HalClock::begin() {
     _available = false;
     return;
   }
-  Wire.requestFrom(I2C_ADDR_DS3231, (uint8_t)1);
+  Wire.requestFrom(static_cast<uint8_t>(I2C_ADDR_DS3231), static_cast<uint8_t>(1));
   if (Wire.available() < 1) {
     _available = false;
     return;
@@ -67,7 +67,7 @@ bool HalClock::getTime(uint8_t& hour, uint8_t& minute) const {
     minute = _cachedMinute;
     return true;
   }
-  Wire.requestFrom(I2C_ADDR_DS3231, (uint8_t)3);
+  Wire.requestFrom(static_cast<uint8_t>(I2C_ADDR_DS3231), static_cast<uint8_t>(3));
   if (Wire.available() < 3) {
     if (!_hasCachedTime) return false;
     _lastPollMs = now;

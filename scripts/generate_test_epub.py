@@ -10,7 +10,6 @@ Creates EPUBs with annotated JPEG and PNG images to verify:
 - Page serialization
 """
 
-import os
 import sys
 import zipfile
 from pathlib import Path
