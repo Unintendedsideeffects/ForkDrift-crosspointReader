@@ -1,6 +1,7 @@
+#include <string>
+
 #include "doctest/doctest.h"
 #include "src/activities/todo/TodoPlannerStorage.h"
-#include <string>
 
 TEST_CASE("testTodoPlannerStorageSelection") {
   const std::string isoDate = "2026-02-17";
@@ -13,4 +14,5 @@ TEST_CASE("testTodoPlannerStorageSelection") {
   CHECK(TodoPlannerStorage::dailyPath(alternateDate, false, false, false) == "/daily/17.02.2026.txt");
   CHECK(TodoPlannerStorage::formatEntry("Task", false) == "- [ ] Task");
   CHECK(TodoPlannerStorage::formatEntry("Agenda item", true) == "Agenda item");
+  CHECK(TodoPlannerStorage::kTodoEntryMaxTextLength == 300);
 }

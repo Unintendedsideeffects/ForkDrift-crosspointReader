@@ -4,6 +4,8 @@
 
 namespace TodoPlannerStorage {
 
+constexpr size_t kTodoEntryMaxTextLength = 300;
+
 // Select daily TODO file path with precedence:
 // 1) Existing .md, 2) existing .txt, 3) extension from markdownEnabled fallback.
 inline std::string dailyPath(const std::string& date, const bool markdownEnabled, const bool markdownExists,

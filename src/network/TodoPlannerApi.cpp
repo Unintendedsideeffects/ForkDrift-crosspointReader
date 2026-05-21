@@ -14,8 +14,6 @@
 namespace network {
 namespace {
 
-constexpr size_t TODO_ENTRY_MAX_TEXT_LENGTH = 300;
-
 std::string normalizeTodoEntryText(const std::string& input) {
   std::string normalized;
   normalized.reserve(input.size());
@@ -34,8 +32,8 @@ std::string normalizeTodoEntryText(const std::string& input) {
   }
 
   std::string trimmed = normalized.substr(start, end - start);
-  if (trimmed.size() > TODO_ENTRY_MAX_TEXT_LENGTH) {
-    trimmed.resize(TODO_ENTRY_MAX_TEXT_LENGTH);
+  if (trimmed.size() > TodoPlannerStorage::kTodoEntryMaxTextLength) {
+    trimmed.resize(TodoPlannerStorage::kTodoEntryMaxTextLength);
   }
   return trimmed;
 }
@@ -78,8 +76,8 @@ TodoPlannerHttpResult dateUnavailable() { return {503, "text/plain", "Date unava
 
 }  // namespace
 
-TodoPlannerHttpResult handleTodoEntryRequest(const bool plannerEnabled, const bool markdownEnabled, const String& textArg,
-                                             const String& typeArg, const std::string& today) {
+TodoPlannerHttpResult handleTodoEntryRequest(const bool plannerEnabled, const bool markdownEnabled,
+                                             const String& textArg, const String& typeArg, const std::string& today) {
   if (!plannerEnabled) {
     return plannerDisabled();
   }
@@ -92,7 +90,7 @@ TodoPlannerHttpResult handleTodoEntryRequest(const bool plannerEnabled, const bo
   text.replace("\r", " ");
   text.replace("\n", " ");
   text.trim();
-  if (text.isEmpty() || text.length() > TODO_ENTRY_MAX_TEXT_LENGTH) {
+  if (text.isEmpty() || text.length() > TodoPlannerStorage::kTodoEntryMaxTextLength) {
     return {400, "text/plain", "Invalid text", {}};
   }
 
@@ -180,8 +178,8 @@ TodoPlannerHttpResult handleTodoTodayGetRequest(const bool plannerEnabled, const
   return {200, "application/json", json, targetPath};
 }
 
-TodoPlannerHttpResult handleTodoTodaySaveRequest(const bool plannerEnabled, const bool markdownEnabled, const bool hasBody,
-                                                 const String& body, const std::string& today) {
+TodoPlannerHttpResult handleTodoTodaySaveRequest(const bool plannerEnabled, const bool markdownEnabled,
+                                                 const bool hasBody, const String& body, const std::string& today) {
   if (!plannerEnabled) {
     return plannerDisabled();
   }

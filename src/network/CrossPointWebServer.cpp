@@ -42,9 +42,9 @@
 #include "util/BookProgressDataStore.h"
 #include "util/DateUtils.h"
 #include "util/InputValidation.h"
+#include "util/MaintenanceUtils.h"
 #include "util/PathUtils.h"
 #include "util/RecentBooksStore.h"
-#include "util/MaintenanceUtils.h"
 #include "util/WifiCredentialStore.h"
 #if ENABLE_WIFI_CLOCK
 #include "util/TimeSync.h"
@@ -55,7 +55,6 @@ constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
 constexpr uint8_t CROSSPOINT_PROTOCOL_VERSION = 1;
 constexpr uint16_t LOCAL_UDP_PORT = 8134;
 constexpr uint32_t WEB_SERVER_MIN_SAFE_HEAP_BYTES = 12 * 1024;
-constexpr size_t TODO_ENTRY_MAX_TEXT_LENGTH = 300;
 constexpr size_t WS_CONTROL_MESSAGE_MAX_BYTES = 1024;
 constexpr size_t WS_UPLOAD_MAX_BYTES = 512UL * 1024UL * 1024UL;
 
@@ -195,8 +194,8 @@ std::string normalizeTodoEntryText(const std::string& input) {
   }
 
   std::string trimmed = normalized.substr(start, end - start);
-  if (trimmed.size() > TODO_ENTRY_MAX_TEXT_LENGTH) {
-    trimmed.resize(TODO_ENTRY_MAX_TEXT_LENGTH);
+  if (trimmed.size() > TodoPlannerStorage::kTodoEntryMaxTextLength) {
+    trimmed.resize(TodoPlannerStorage::kTodoEntryMaxTextLength);
   }
   return trimmed;
 }
@@ -448,8 +447,7 @@ void CrossPointWebServer::mountRoutes() {
   server->on("/api/wifi", HTTP_POST, [this] { handlePostWifiNetwork(); });
   server->on("/api/wifi/delete", HTTP_POST, [this] { handleDeleteWifiNetwork(); });
   server->on("/api/wifi/forget-all", HTTP_POST, [this] { handleForgetAllWifiNetworks(); });
-  server->on("/api/maintenance/validate-sleep-images", HTTP_POST,
-             [this] { handleMaintenanceValidateSleepImages(); });
+  server->on("/api/maintenance/validate-sleep-images", HTTP_POST, [this] { handleMaintenanceValidateSleepImages(); });
   server->on("/api/maintenance/clear-cache", HTTP_POST, [this] { handleMaintenanceClearCache(); });
   server->on("/api/maintenance/reset-settings", HTTP_POST, [this] { handleMaintenanceResetSettings(); });
   server->on("/api/maintenance/clear-logs", HTTP_POST, [this] { handleMaintenanceClearLogs(); });
@@ -707,7 +705,7 @@ void CrossPointWebServer::handleTodoEntry() {
   text.replace("\r", " ");
   text.replace("\n", " ");
   text.trim();
-  if (text.isEmpty() || text.length() > TODO_ENTRY_MAX_TEXT_LENGTH) {
+  if (text.isEmpty() || text.length() > TodoPlannerStorage::kTodoEntryMaxTextLength) {
     server->send(400, "text/plain", "Invalid text");
     return;
   }

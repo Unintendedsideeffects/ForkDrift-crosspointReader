@@ -9,10 +9,11 @@
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
-#include "components/ScreenComponents.h"
 #include "SpiBusMutex.h"
 #include "activities/TaskShutdown.h"
+#include "activities/todo/TodoPlannerStorage.h"
 #include "activities/util/KeyboardEntryActivity.h"
+#include "components/ScreenComponents.h"
 #include "fontIds.h"
 
 namespace {
@@ -21,8 +22,6 @@ constexpr int ITEM_HEIGHT = 35;
 constexpr int MARGIN_X = 10;
 constexpr int CHECKBOX_SIZE = 20;
 constexpr unsigned long LONG_CONFIRM_MS = 600;
-constexpr size_t TODO_ENTRY_MAX_TEXT_LENGTH = 300;
-
 bool isValidItemIndex(const int index, const size_t count) { return index >= 0 && static_cast<size_t>(index) < count; }
 
 std::string trimEntryText(const std::string& text) {
@@ -37,8 +36,8 @@ std::string trimEntryText(const std::string& text) {
   }
 
   std::string trimmed = text.substr(start, end - start);
-  if (trimmed.size() > TODO_ENTRY_MAX_TEXT_LENGTH) {
-    trimmed.resize(TODO_ENTRY_MAX_TEXT_LENGTH);
+  if (trimmed.size() > TodoPlannerStorage::kTodoEntryMaxTextLength) {
+    trimmed.resize(TodoPlannerStorage::kTodoEntryMaxTextLength);
   }
   return trimmed;
 }
@@ -314,7 +313,7 @@ void TodoActivity::toggleCurrentTask() {
 void TodoActivity::addNewEntry(const bool agendaEntry) {
   startActivityForResult(
       std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, agendaEntry ? "New Agenda Entry" : "New Task", "",
-                                              TODO_ENTRY_MAX_TEXT_LENGTH, false, 10),
+                                              TodoPlannerStorage::kTodoEntryMaxTextLength, false, 10),
       [this, agendaEntry](const ActivityResult& result) {
         if (result.isCancelled) {
           return;
@@ -347,35 +346,36 @@ void TodoActivity::editCurrentEntry() {
   const char* title = isHeader ? "Edit Agenda Entry" : "Edit Task";
   const std::string initialText = items[editIndex].text;
 
-  startActivityForResult(std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, title, initialText,
-                                                                 TODO_ENTRY_MAX_TEXT_LENGTH, false, 10),
-                         [this, editIndex](const ActivityResult& result) {
-                           if (result.isCancelled) {
-                             return;
-                           }
+  startActivityForResult(
+      std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, title, initialText,
+                                              TodoPlannerStorage::kTodoEntryMaxTextLength, false, 10),
+      [this, editIndex](const ActivityResult& result) {
+        if (result.isCancelled) {
+          return;
+        }
 
-                           if (!isValidItemIndex(static_cast<int>(editIndex), items.size())) {
-                             return;
-                           }
+        if (!isValidItemIndex(static_cast<int>(editIndex), items.size())) {
+          return;
+        }
 
-                           const std::string trimmedText = trimEntryText(std::get<KeyboardResult>(result.data).text);
-                           if (trimmedText.empty()) {
-                             const auto removeAt = static_cast<std::vector<TodoItem>::difference_type>(editIndex);
-                             items.erase(items.begin() + removeAt);
-                             selectedIndex = std::min(selectedIndex, static_cast<int>(items.size()));
-                           } else {
-                             items[editIndex].text = trimmedText;
-                           }
+        const std::string trimmedText = trimEntryText(std::get<KeyboardResult>(result.data).text);
+        if (trimmedText.empty()) {
+          const auto removeAt = static_cast<std::vector<TodoItem>::difference_type>(editIndex);
+          items.erase(items.begin() + removeAt);
+          selectedIndex = std::min(selectedIndex, static_cast<int>(items.size()));
+        } else {
+          items[editIndex].text = trimmedText;
+        }
 
-                           const int visibleItems = (renderer.getScreenHeight() - HEADER_HEIGHT) / ITEM_HEIGHT;
-                           if (selectedIndex < scrollOffset) {
-                             scrollOffset = selectedIndex;
-                           } else if (selectedIndex >= scrollOffset + visibleItems) {
-                             scrollOffset = selectedIndex - visibleItems + 1;
-                           }
+        const int visibleItems = (renderer.getScreenHeight() - HEADER_HEIGHT) / ITEM_HEIGHT;
+        if (selectedIndex < scrollOffset) {
+          scrollOffset = selectedIndex;
+        } else if (selectedIndex >= scrollOffset + visibleItems) {
+          scrollOffset = selectedIndex - visibleItems + 1;
+        }
 
-                           saveTasks();
-                         });
+        saveTasks();
+      });
 }
 
 void TodoActivity::render(Activity::RenderLock&& lock) { renderScreen(); }
