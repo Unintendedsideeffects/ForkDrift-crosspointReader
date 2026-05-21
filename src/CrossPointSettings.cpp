@@ -546,6 +546,9 @@ void CrossPointSettings::validateAndClamp() {
 #if !ENABLE_FOCUS_READING
   focusReadingEnabled = 0;
 #endif
+#if !ENABLE_GUIDE_DOTS
+  guideReadingEnabled = 0;
+#endif
 
   if (timeZoneOffset > 26) timeZoneOffset = 12;
   if (screenMargin < 5 || screenMargin > 40) screenMargin = 5;

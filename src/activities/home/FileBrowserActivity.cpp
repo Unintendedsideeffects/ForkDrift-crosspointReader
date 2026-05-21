@@ -14,6 +14,9 @@
 #include "Logging.h"
 #include "MappedInputManager.h"
 #include "FeatureFlags.h"
+#if ENABLE_BOOKMARKS
+#include "BookmarkStore.h"
+#endif
 #if ENABLE_READING_STATS
 #include "activities/reader/BookReadingStats.h"
 #include "activities/reader/GlobalReadingStats.h"
@@ -167,6 +170,9 @@ void FileBrowserActivity::clearFileMetadata(const std::string& fullPath) {
   if (FsHelpers::hasEpubExtension(fullPath)) {
     Epub(fullPath, "/.crosspoint").clearCache();
     LOG_DBG("FileBrowser", "Cleared metadata cache for: %s", fullPath.c_str());
+#if ENABLE_BOOKMARKS
+    BookmarkStore::deleteForFilePath(fullPath, "epub");
+#endif
   }
 }
 

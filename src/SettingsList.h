@@ -357,9 +357,11 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                                        "focusReadingEnabled", StrId::STR_CAT_READER)
                        .withConfiguratorExport("focus_reading"));
   }
-  list.push_back(SettingInfo::Toggle(StrId::STR_GUIDE_READING, &CrossPointSettings::guideReadingEnabled,
-                                     "guideReadingEnabled", StrId::STR_CAT_READER)
-                     .withConfiguratorExport());
+  if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
+    list.push_back(SettingInfo::Toggle(StrId::STR_GUIDE_READING, &CrossPointSettings::guideReadingEnabled,
+                                       "guideReadingEnabled", StrId::STR_CAT_READER)
+                       .withConfiguratorExport("guide_dots"));
+  }
   list.push_back(SettingInfo::Toggle(StrId::STR_HYPHENATION, &CrossPointSettings::hyphenationEnabled,
                                      "hyphenationEnabled", StrId::STR_CAT_READER)
                      .withConfiguratorExport("hyphenation"));

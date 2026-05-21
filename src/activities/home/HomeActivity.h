@@ -4,6 +4,7 @@
 #include <optional>
 #include <vector>
 
+#include <FeatureFlags.h>
 #include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
 #include "util/RecentBooksStore.h"
@@ -28,6 +29,11 @@ class HomeActivity final : public Activity {
   int menuAnkiIndex = -1;
   int menuFileTransferIndex = -1;
   int menuSettingsIndex = -1;
+#if ENABLE_BOOKMARKS
+  int menuBookmarksIndex = -1;
+  bool hasBookmarks = false;
+  void onBookmarksOpen();
+#endif
 
   bool recentsLoading = false;
   bool recentsLoaded = false;

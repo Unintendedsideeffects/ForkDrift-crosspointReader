@@ -27,6 +27,10 @@ bool JsonSettingsIO::saveState(const CrossPointState& s, const char* path) {
   doc["wifiAutoConnectSkipCount"] = s.wifiAutoConnectSkipCount;
   doc["wifiAutoConnectBackoffLevel"] = s.wifiAutoConnectBackoffLevel;
   doc["wifiAutoConnectWaitingForNewCredential"] = s.wifiAutoConnectWaitingForNewCredential;
+  if (s.pendingBookmarkSpine != PENDING_BOOKMARK_SPINE_NONE) {
+    doc["pendingBookmarkSpine"] = s.pendingBookmarkSpine;
+    doc["pendingBookmarkProgress"] = s.pendingBookmarkProgress;
+  }
 
   String json;
   serializeJson(doc, json);
@@ -48,6 +52,10 @@ bool JsonSettingsIO::loadState(CrossPointState& s, const char* json) {
   s.wifiAutoConnectSkipCount = doc["wifiAutoConnectSkipCount"] | (uint8_t)0;
   s.wifiAutoConnectBackoffLevel = doc["wifiAutoConnectBackoffLevel"] | (uint8_t)0;
   s.wifiAutoConnectWaitingForNewCredential = doc["wifiAutoConnectWaitingForNewCredential"] | false;
+  s.pendingBookmarkSpine =
+      doc["pendingBookmarkSpine"] | static_cast<uint16_t>(PENDING_BOOKMARK_SPINE_NONE);
+  s.pendingBookmarkProgress =
+      doc["pendingBookmarkProgress"] | PENDING_BOOKMARK_PROGRESS_NONE;
   return true;
 }
 

@@ -66,6 +66,8 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"minimal_theme", "Minimal Theme", ENABLE_MINIMAL_THEME != 0, kRequiresLyraThemeAll,
      sizeof(kRequiresLyraThemeAll) / sizeof(kRequiresLyraThemeAll[0]), nullptr, 0},
     {"focus_reading", "Focus Reading", ENABLE_FOCUS_READING != 0, nullptr, 0, nullptr, 0},
+    {"guide_dots", "Guide Dots", ENABLE_GUIDE_DOTS != 0, nullptr, 0, nullptr, 0},
+    {"bookmarks", "Bookmarks", ENABLE_BOOKMARKS != 0, nullptr, 0, nullptr, 0},
     {"reading_stats", "Reading Stats", ENABLE_READING_STATS != 0, nullptr, 0, nullptr, 0},
     {"ota_updates", "OTA Updates", ENABLE_OTA_UPDATES != 0, nullptr, 0, nullptr, 0},
     {"todo_planner", "Todo Planner", ENABLE_TODO_PLANNER != 0, nullptr, 0, nullptr, 0},

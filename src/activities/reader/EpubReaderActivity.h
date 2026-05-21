@@ -52,6 +52,12 @@ class EpubReaderActivity final : public Activity {
 #endif  // ENABLE_READING_STATS
   int pageLoadRetrySpineIndex = -1;
   uint8_t pageLoadRetryCount = 0;
+#if ENABLE_BOOKMARKS
+  enum class BookmarkFeedbackType : uint8_t { None, Added, Removed, LimitReached };
+  BookmarkFeedbackType bookmarkFeedbackType = BookmarkFeedbackType::None;
+  unsigned long bookmarkFeedbackShowTime = 0UL;
+  bool pendingBookmarkFeedback = false;
+#endif  // ENABLE_BOOKMARKS
 
   std::vector<FootnoteEntry> currentPageFootnotes;
   struct SavedPosition {

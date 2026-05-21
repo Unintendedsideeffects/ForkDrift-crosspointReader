@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <string>
 
+// Sentinel values for pendingBookmark fields (no bookmark pending).
+inline constexpr uint16_t PENDING_BOOKMARK_SPINE_NONE = UINT16_MAX;
+inline constexpr float PENDING_BOOKMARK_PROGRESS_NONE = -1.0f;
+
 class CrossPointState {
   // Static instance
   static CrossPointState instance;
@@ -13,6 +17,10 @@ class CrossPointState {
 
   std::string openEpubPath;
   bool pendingScreenshot = false;
+  // When non-sentinel, EpubReaderActivity resumes at this spine/progress on next open.
+  // Set by BookmarksHomeActivity when the user selects a bookmark from the home screen.
+  uint16_t pendingBookmarkSpine = PENDING_BOOKMARK_SPINE_NONE;
+  float pendingBookmarkProgress = PENDING_BOOKMARK_PROGRESS_NONE;
   bool pendingHomeFullRefresh = false;
   uint8_t lastSleepImage = UINT8_MAX;
   uint8_t wifiAutoConnectSkipCount = 0;

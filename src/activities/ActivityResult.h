@@ -61,9 +61,14 @@ struct FileBrowserActionResult {
   int action = -1;
 };
 
+struct BookmarkResult {
+  uint16_t spineIndex = 0;
+  float progress = 0.0f;
+};
+
 using ResultVariant = std::variant<std::monostate, WifiResult, KeyboardResult, MenuResult, ChapterResult, PercentResult,
                                    IntervalResult, PageResult, SyncResult, NetworkModeResult, FootnoteResult,
-                                   FileBrowserActionResult, FilePathResult>;
+                                   FileBrowserActionResult, FilePathResult, BookmarkResult>;
 
 struct ActivityResult {
   bool isCancelled = false;

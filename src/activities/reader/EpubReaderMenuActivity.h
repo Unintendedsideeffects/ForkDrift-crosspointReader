@@ -24,12 +24,22 @@ class EpubReaderMenuActivity final : public Activity {
     SYNC,
     TOGGLE_COMPLETED,
     ADD_TO_ANKI,
-    DELETE_CACHE
+    DELETE_CACHE,
+#if ENABLE_BOOKMARKS
+    BOOKMARK_TOGGLE,
+    VIEW_BOOKMARKS,
+    DELETE_BOOKMARKS,
+#endif
   };
 
   explicit EpubReaderMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const std::string& title,
                                   int currentPage, int totalPages, int bookProgressPercent, uint8_t currentOrientation,
-                                  bool hasFootnotes, bool isBookCompleted);
+                                  bool hasFootnotes, bool isBookCompleted
+#if ENABLE_BOOKMARKS
+                                  ,
+                                  bool hasBookmarks = false, bool isCurrentPageBookmarked = false
+#endif
+  );
 
   void onEnter() override;
   void onExit() override;
@@ -42,7 +52,12 @@ class EpubReaderMenuActivity final : public Activity {
     StrId labelId;
   };
 
-  static std::vector<MenuItem> buildMenuItems(bool hasFootnotes, bool isBookCompleted);
+  static std::vector<MenuItem> buildMenuItems(bool hasFootnotes, bool isBookCompleted
+#if ENABLE_BOOKMARKS
+                                              ,
+                                              bool hasBookmarks, bool isCurrentPageBookmarked
+#endif
+  );
 
   const std::vector<MenuItem> menuItems;
 

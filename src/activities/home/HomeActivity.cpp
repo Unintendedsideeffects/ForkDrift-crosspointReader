@@ -18,6 +18,10 @@
 #include <optional>
 #include <vector>
 
+#if ENABLE_BOOKMARKS
+#include "BookmarkStore.h"
+#include "activities/home/BookmarksHomeActivity.h"
+#endif
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
@@ -282,6 +286,11 @@ void HomeActivity::rebuildMenuLayout() {
     menuOpdsIndex = -1;
     menuTodoIndex = core::HomeActionRegistry::shouldExpose("todo_planner", {false}) ? idx++ : -1;
     menuAnkiIndex = core::HomeActionRegistry::shouldExpose("anki", {false}) ? idx++ : -1;
+#if ENABLE_BOOKMARKS
+    hasBookmarks = core::FeatureModules::hasCapability(core::Capability::Bookmarks) &&
+                   BookmarkStore::hasAnyBookmarks();
+    menuBookmarksIndex = hasBookmarks ? idx++ : -1;
+#endif
     menuFileTransferIndex = idx++;
     menuSettingsIndex = idx++;
     menuItemCount = idx;
@@ -293,6 +302,11 @@ void HomeActivity::rebuildMenuLayout() {
   menuOpdsIndex = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsUrl}) ? idx++ : -1;
   menuTodoIndex = core::HomeActionRegistry::shouldExpose("todo_planner", {false}) ? idx++ : -1;
   menuAnkiIndex = core::HomeActionRegistry::shouldExpose("anki", {false}) ? idx++ : -1;
+#if ENABLE_BOOKMARKS
+  hasBookmarks = core::FeatureModules::hasCapability(core::Capability::Bookmarks) &&
+                 BookmarkStore::hasAnyBookmarks();
+  menuBookmarksIndex = hasBookmarks ? idx++ : -1;
+#endif
   menuFileTransferIndex = idx++;
   menuSettingsIndex = idx++;
   menuItemCount = idx;
@@ -520,6 +534,11 @@ std::string HomeActivity::getMenuItemLabel(const int index) const {
   if (index == menuAnkiIndex) {
     return "Anki";
   }
+#if ENABLE_BOOKMARKS
+  if (index == menuBookmarksIndex) {
+    return tr(STR_BOOKMARKS);
+  }
+#endif
   if (index == menuFileTransferIndex) {
     return "File Transfer";
   }
@@ -1130,6 +1149,12 @@ void HomeActivity::loop() {
               onFileTransferOpen();
               return;
             }
+#if ENABLE_BOOKMARKS
+            if (selectedMenuIndex == menuBookmarksIndex) {
+              onBookmarksOpen();
+              return;
+            }
+#endif
           }
         } else if (!recentBooks.empty()) {
           openSelectedBook();
@@ -1160,6 +1185,12 @@ void HomeActivity::loop() {
           onFileTransferOpen();
           return;
         }
+#if ENABLE_BOOKMARKS
+        if (selectedMenuIndex == menuBookmarksIndex) {
+          onBookmarksOpen();
+          return;
+        }
+#endif
         if (selectedMenuIndex == menuSettingsIndex) {
           onSettingsOpen();
           return;
@@ -1755,5 +1786,12 @@ void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
 void HomeActivity::onTodoOpen() { activityManager.goToTodo(); }
 
 void HomeActivity::onAnkiOpen() { activityManager.goToAnki(); }
+
+#if ENABLE_BOOKMARKS
+void HomeActivity::onBookmarksOpen() {
+  startActivityForResult(std::make_unique<BookmarksHomeActivity>(renderer, mappedInput),
+                         [this](const ActivityResult&) { requestUpdate(); });
+}
+#endif
 
 void HomeActivity::onNotesOpen() { activityManager.goToNotes(); }

@@ -1,5 +1,6 @@
 #include "BaseTheme.h"
 
+#include <FeatureFlags.h>
 #include <GfxRenderer.h>
 #include <HalPowerManager.h>
 #include <HalStorage.h>
@@ -665,7 +666,7 @@ void BaseTheme::fillPopupProgress(const GfxRenderer& renderer, const Rect& layou
 
 void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, const int currentPage,
                               const int pageCount, std::string title, const int paddingBottom,
-                              const int textYOffset) const {
+                              const int textYOffset, const bool isPageBookmarked) const {
   // When the global status bar is enabled it is the single status-bar entity:
   // it owns the band and (as a post-render hook clearing the band last) is the
   // only path that can draw into it. Publish reading context for it instead of
@@ -749,6 +750,22 @@ void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, c
     renderer.fillRect(orientedMarginLeft, progressBarY, barWidth, ((SETTINGS.statusBarProgressBarThickness + 1) * 2),
                       true);
   }
+
+  // Draw Bookmark ribbon (9px wide × 14px tall, V-notch at bottom)
+  // Shape: rectangle with an upward-pointing V cut from the bottom edge.
+#if ENABLE_BOOKMARKS
+  if (isPageBookmarked) {
+    constexpr int BM_WIDTH = 9;
+    constexpr int BM_HEIGHT = 14;
+    constexpr int BM_NOTCH_DEPTH = 4;
+    const int bmX = metrics.statusBarHorizontalMargin + orientedMarginLeft + 1;
+    const int bmY = textY - 2;
+    // 5-point polygon: top-left, top-right, bottom-right, centre-notch-tip, bottom-left
+    const int xPts[5] = {bmX, bmX + BM_WIDTH - 1, bmX + BM_WIDTH - 1, bmX + BM_WIDTH / 2, bmX};
+    const int yPts[5] = {bmY, bmY, bmY + BM_HEIGHT - 1, bmY + BM_HEIGHT - 1 - BM_NOTCH_DEPTH, bmY + BM_HEIGHT - 1};
+    renderer.fillPolygon(xPts, yPts, 5, true);
+  }
+#endif  // ENABLE_BOOKMARKS
 
   // Draw Battery
   const bool showBatteryPercentage =

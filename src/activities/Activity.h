@@ -28,6 +28,7 @@ class Activity {
   ActivityResult result;
 
   void onGoHome() { activityManager.goHome(); }
+  void onSelectBook(const std::string& path) { activityManager.goToReader(path); }
 
   bool isRenderPending() const { return renderPending.load(); }
 

@@ -11,19 +11,34 @@
 EpubReaderMenuActivity::EpubReaderMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                                const std::string& title, const int currentPage, const int totalPages,
                                                const int bookProgressPercent, const uint8_t currentOrientation,
-                                               const bool hasFootnotes, const bool isBookCompleted)
+                                               const bool hasFootnotes, const bool isBookCompleted
+#if ENABLE_BOOKMARKS
+                                               ,
+                                               const bool hasBookmarks, const bool isCurrentPageBookmarked
+#endif
+                                               )
     : Activity("EpubReaderMenu", renderer, mappedInput),
-      menuItems(buildMenuItems(hasFootnotes, isBookCompleted)),
+      menuItems(buildMenuItems(hasFootnotes, isBookCompleted
+#if ENABLE_BOOKMARKS
+                               ,
+                               hasBookmarks, isCurrentPageBookmarked
+#endif
+                               )),
       title(title),
       pendingOrientation(currentOrientation),
       currentPage(currentPage),
       totalPages(totalPages),
       bookProgressPercent(bookProgressPercent) {}
 
-std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuItems(bool hasFootnotes,
-                                                                                     bool isBookCompleted) {
+std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuItems(
+    bool hasFootnotes, bool isBookCompleted
+#if ENABLE_BOOKMARKS
+    ,
+    bool hasBookmarks, bool isCurrentPageBookmarked
+#endif
+) {
   std::vector<MenuItem> items;
-  items.reserve(12);
+  items.reserve(15);
   items.push_back({MenuAction::SELECT_CHAPTER, StrId::STR_SELECT_CHAPTER});
   items.push_back({MenuAction::CONTROLS_OPTIONS, StrId::STR_CAT_CONTROLS});
   if (hasFootnotes) {
@@ -41,6 +56,14 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
   if (core::FeatureCatalog::isEnabled("anki_support")) {
     items.push_back({MenuAction::ADD_TO_ANKI, StrId::STR_ADD_TO_ANKI});
   }
+#if ENABLE_BOOKMARKS
+  items.push_back({MenuAction::BOOKMARK_TOGGLE,
+                   isCurrentPageBookmarked ? StrId::STR_REMOVE_BOOKMARK : StrId::STR_ADD_BOOKMARK});
+  if (hasBookmarks) {
+    items.push_back({MenuAction::VIEW_BOOKMARKS, StrId::STR_VIEW_BOOKMARKS});
+    items.push_back({MenuAction::DELETE_BOOKMARKS, StrId::STR_DELETE_BOOKMARKS});
+  }
+#endif
   items.push_back({MenuAction::DELETE_CACHE, StrId::STR_DELETE_CACHE});
   return items;
 }
