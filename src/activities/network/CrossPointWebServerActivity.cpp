@@ -93,6 +93,8 @@ void CrossPointWebServerActivity::onExit() {
   LOG_DBG("WEBACT", "Free heap at onExit start: %d bytes", ESP.getFreeHeap());
 
   state = WebServerActivityState::SHUTTING_DOWN;
+  stopDnsServer();
+  MDNS.end();
 
   // Stop the web server first (before disconnecting WiFi)
   stopWebServer();
