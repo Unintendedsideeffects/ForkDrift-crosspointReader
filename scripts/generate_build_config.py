@@ -690,11 +690,11 @@ PROFILES = {
         },
     },
     'full': {
-        'description': 'Feature-rich build (strict superset of standard)',
+        'description': 'Feature-rich build with CrossInk fonts (Lexend Deca + Chare Ink) instead of Bookerly/Noto',
         'features': {
-            'bookerly_fonts': True,
-            'notosans_fonts': True,
-            'opendyslexic_fonts': False,  # Too large to include with other fonts
+            'bookerly_fonts': False,
+            'notosans_fonts': False,
+            'opendyslexic_fonts': False,
             'image_sleep': True,
             'book_images': True,
             'markdown': True,
@@ -727,7 +727,7 @@ PROFILES = {
             'wifi_clock': True,
             'roman_clock_sleep': True,
             'lexenddeca_fonts': True,
-            'bitter_fonts': True,
+            'bitter_fonts': False,
             'chareink_fonts': True,
             'reading_stats': True,
             'minimal_theme': True,
