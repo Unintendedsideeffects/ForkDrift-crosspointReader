@@ -38,6 +38,7 @@ class Epub {
   void parseCssFiles() const;
   std::string getCssRulesCache() const;
   bool loadCssRulesFromCache() const;
+  void discoverCssFilesFromZip();
 
  public:
   explicit Epub(std::string filepath, const std::string& cacheDir) : filepath(std::move(filepath)) {
