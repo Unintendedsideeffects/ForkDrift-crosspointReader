@@ -20,8 +20,10 @@ This document show most common issues and possible solutions while using the dev
 2. Double-check the IP address
    - Make sure you typed it correctly
    - Include `http://` at the beginning
-3. Try disabling VPN if you're using one
-4. Some networks have "client isolation" enabled - check with your network administrator
+3. Do not rely on a fixed `crosspoint.local` hostname — firmware uses `crosspoint-{deviceName}` or `crosspoint-{last4mac}` via mDNS
+4. If Background Server is disabled, the web server may stop when you leave the WiFi / File Transfer screen; reconnect WiFi or enable Background Server in your build
+5. Try disabling VPN if you're using one
+6. Some networks have "client isolation" enabled — check with your network administrator
 
 ### Connection Drops or Times Out
 

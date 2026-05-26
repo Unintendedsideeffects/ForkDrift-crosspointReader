@@ -125,6 +125,7 @@ def assert_spec_markers():
         "required: [name, size, isDirectory]",
         "modified:",
         "Optional EPUB hint.",
+        "Accepts a JSON body with `from` and `to`.",
     ):
         expect(marker in spec, f"OpenAPI spec is missing marker: {marker}")
 
@@ -167,6 +168,22 @@ def run_checks(base_url: str):
     expect(files[1]["isDirectory"] is False, "/api/files should preserve isDirectory")
     expect(files[1]["modified"] == 20, "/api/files should preserve optional modified timestamps")
     expect(files[1]["isEpub"] is True, "/api/files should preserve optional isEpub hints")
+
+    legacy_rename = post_form(base_url, "/rename", {"path": "/library/dune.epub", "name": "dune-renamed.epub"})
+    expect(legacy_rename.status == 400, f"/rename should reject legacy form fields, got {legacy_rename.status}")
+    expect(legacy_rename.text == "Use JSON from/to body", "/rename should explain the JSON-only contract")
+    rename = post_json(base_url, "/rename", {"from": "/library/dune.epub", "to": "dune-renamed.epub"})
+    expect(rename.status == 200, f"/rename should accept JSON from/to, got {rename.status}")
+
+    legacy_move = post_form(base_url, "/move", {"path": "/library/dune-renamed.epub", "dest": "/archive"})
+    expect(legacy_move.status == 400, f"/move should reject legacy form fields, got {legacy_move.status}")
+    expect(legacy_move.text == "Use JSON from/to body", "/move should explain the JSON-only contract")
+    move = post_json(base_url, "/move", {"from": "/library/dune-renamed.epub", "to": "/archive"})
+    expect(move.status == 200, f"/move should accept JSON from/to, got {move.status}")
+
+    mutations = get_json(base_url, "/_test/mutations")
+    expect(mutations["renames"][-1] == ["/library/dune.epub", "dune-renamed.epub"], "/rename should record JSON mutation")
+    expect(mutations["moves"][-1] == ["/library/dune-renamed.epub", "/archive"], "/move should record JSON mutation")
 
     seed(
         base_url,
@@ -225,9 +242,7 @@ def run_checks(base_url: str):
                 "status": "done",
                 "available": True,
                 "latestVersion": "1.2.4",
-                "latest_version": "1.2.4",
                 "errorCode": 0,
-                "error_code": 0,
                 "message": "",
             },
             "remoteKeyboardSession": {
@@ -243,13 +258,16 @@ def run_checks(base_url: str):
         },
     )
     wifi_scan = get_json(base_url, "/api/wifi/scan")
-    expect(wifi_scan[0]["encrypted"] is True, "/api/wifi/scan should expose encrypted alias")
+    expect(wifi_scan[0]["secured"] is True, "/api/wifi/scan should expose secured flag")
+    expect("encrypted" not in wifi_scan[0], "/api/wifi/scan should not expose legacy encrypted alias")
     expect(wifi_scan[0]["saved"] is False, "/api/wifi/scan should expose saved flag")
     wifi_status = get_json(base_url, "/api/wifi/status")
     expect(wifi_status["connected"] is True and wifi_status["mode"] == "STA", "/api/wifi/status should expose connected STA state")
     ota = get_json(base_url, "/api/ota/check")
     expect(ota["currentVersion"] == "1.2.3", "/api/ota/check should include currentVersion")
     expect(ota["latestVersion"] == "1.2.4", "/api/ota/check should include latestVersion")
+    expect("latest_version" not in ota, "/api/ota/check should not expose legacy latest_version")
+    expect("error_code" not in ota, "/api/ota/check should not expose legacy error_code")
     remote_keyboard = get_json(base_url, "/api/remote-keyboard/session")
     expect(remote_keyboard["active"] is True and remote_keyboard["id"] == 42, "/api/remote-keyboard/session should expose session snapshot")
 
@@ -257,6 +275,14 @@ def run_checks(base_url: str):
     expect(todo.status == 200, f"/api/todo/entry should return 200, got {todo.status}")
     expect("application/json" in todo.content_type, f"/api/todo/entry should return JSON, got {todo.content_type!r}")
     expect(todo.json() == {"ok": True}, "/api/todo/entry should return {'ok': true}")
+
+    todo_alias = post_json(
+        base_url,
+        "/api/todo/today",
+        {"items": [{"text": "Agenda", "type": "agenda", "checked": False, "is_header": True}]},
+    )
+    expect(todo_alias.status == 400, f"/api/todo/today should reject is_header alias, got {todo_alias.status}")
+    expect(todo_alias.text == "Use isHeader", "/api/todo/today should explain the canonical isHeader field")
 
     open_book = post_json(base_url, "/api/open-book", {"path": "/books/dune.epub"})
     expect(open_book.status == 202, f"/api/open-book should return 202, got {open_book.status}")

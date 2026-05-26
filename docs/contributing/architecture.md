@@ -44,11 +44,11 @@ flowchart TD
 
 In each loop iteration, the firmware updates input, runs the active activity, handles auto-sleep/power behavior, and applies a short delay policy to balance responsiveness and power.
 
-## Activity model
+## Activity model & ActivityManager
 
-Activities are screen-level controllers deriving from `src/activities/Activity.h`.
-Some flows use `src/activities/ActivityWithSubactivity.h` to host nested activities.
+The firmware operates on a centralized `ActivityManager` that manages an activity stack, allowing clean navigation and sub-activities without dynamic resource leaks or callback hazards. Screen-level controllers derive from `src/activities/Activity.h`.
 
+- **Activity Stack**: Pushing and popping activities (e.g. settings sub-menus, keyboard prompts) is managed dynamically by the `ActivityManager` instead of legacy nested base classes.
 - `onEnter()` and `onExit()` manage setup/teardown
 - `loop()` handles per-frame behavior
 - `skipLoopDelay()` and `preventAutoSleep()` are used by long-running flows (for example web server mode)
@@ -190,8 +190,8 @@ Typical persisted areas on SD:
     progress.bin
     cover.bmp
     sections/*.bin
-  settings.bin
-  state.bin
+  settings.json
+  state.json
 ```
 
 For binary cache formats, see `docs/file-formats.md`.

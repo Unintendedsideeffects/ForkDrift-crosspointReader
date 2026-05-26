@@ -31,13 +31,6 @@ void xorTransform(std::string& data) {
   }
 }
 
-void xorTransform(std::string& data, const uint8_t* key, size_t keyLen) {
-  if (keyLen == 0 || key == nullptr) return;
-  for (size_t i = 0; i < data.size(); i++) {
-    data[i] ^= key[i % keyLen];
-  }
-}
-
 String obfuscateToBase64(const std::string& plaintext) {
   if (plaintext.empty()) return "";
   std::string temp = plaintext;

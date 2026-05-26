@@ -3071,7 +3071,7 @@
     openDeleteModalForItems(items);
   }
 
-  // Open delete modal for a single item (keeps backwards compatibility with per-row delete button)
+  // Open delete modal for a single row action
   function openDeleteModal(name, path, isFolder) {
     openDeleteModalForItems([{ name: name, path: path, isFolder: !!isFolder }]);
   }
@@ -5527,12 +5527,9 @@ function retryAllFailedUploads() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('path', path);
-    formData.append('name', newName);
-
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/rename', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
 
     xhr.onload = function() {
       if (xhr.status === 200) {
@@ -5548,7 +5545,7 @@ function retryAllFailedUploads() {
       closeRenameModal();
     };
 
-    xhr.send(formData);
+    xhr.send(JSON.stringify({ from: path, to: newName }));
   }
 
   // Move functions
@@ -5637,12 +5634,9 @@ function retryAllFailedUploads() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('path', path);
-    formData.append('dest', destPath);
-
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/move', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
 
     xhr.onload = function() {
       if (xhr.status === 200) {
@@ -5658,7 +5652,7 @@ function retryAllFailedUploads() {
       closeMoveModal();
     };
 
-    xhr.send(formData);
+    xhr.send(JSON.stringify({ from: path, to: destPath }));
   }
   loadPluginCapabilities();
   hydrate();

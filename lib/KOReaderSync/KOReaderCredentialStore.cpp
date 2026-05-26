@@ -3,7 +3,6 @@
 #include <HalStorage.h>
 #include <Logging.h>
 #include <MD5Builder.h>
-#include <Serialization.h>
 
 #include "KOReaderJsonIO.h"
 
@@ -11,26 +10,10 @@
 KOReaderCredentialStore KOReaderCredentialStore::instance;
 
 namespace {
-// File format version (for binary migration)
-constexpr uint8_t KOREADER_FILE_VERSION = 1;
-
-// File paths
-constexpr char KOREADER_FILE_BIN[] = "/.crosspoint/koreader.bin";
 constexpr char KOREADER_FILE_JSON[] = "/.crosspoint/koreader.json";
-constexpr char KOREADER_FILE_BAK[] = "/.crosspoint/koreader.bin.bak";
 
 // Default sync server URL
 constexpr char DEFAULT_SERVER_URL[] = "https://sync.koreader.rocks:443";
-
-// Legacy obfuscation key - "KOReader" in ASCII (only used for binary migration)
-constexpr uint8_t LEGACY_OBFUSCATION_KEY[] = {0x4B, 0x4F, 0x52, 0x65, 0x61, 0x64, 0x65, 0x72};
-constexpr size_t LEGACY_KEY_LENGTH = sizeof(LEGACY_OBFUSCATION_KEY);
-
-void legacyDeobfuscate(std::string& data) {
-  for (size_t i = 0; i < data.size(); i++) {
-    data[i] ^= LEGACY_OBFUSCATION_KEY[i % LEGACY_KEY_LENGTH];
-  }
-}
 }  // namespace
 
 bool KOReaderCredentialStore::saveToFile() const {
@@ -39,7 +22,6 @@ bool KOReaderCredentialStore::saveToFile() const {
 }
 
 bool KOReaderCredentialStore::loadFromFile() {
-  // Try JSON first
   if (Storage.exists(KOREADER_FILE_JSON)) {
     String json = Storage.readFile(KOREADER_FILE_JSON);
     if (!json.isEmpty()) {
@@ -56,92 +38,8 @@ bool KOReaderCredentialStore::loadFromFile() {
     }
   }
 
-  // Fall back to binary migration
-  if (Storage.exists(KOREADER_FILE_BIN)) {
-    if (loadFromBinaryFile()) {
-      if (saveToFile()) {
-        Storage.rename(KOREADER_FILE_BIN, KOREADER_FILE_BAK);
-        LOG_DBG("KRS", "Migrated koreader.bin to koreader.json");
-        return true;
-      } else {
-        LOG_ERR("KRS", "Failed to save KOReader credentials during migration");
-        return false;
-      }
-    }
-  }
-
   LOG_DBG("KRS", "No credentials file found");
   return false;
-}
-
-bool KOReaderCredentialStore::loadFromBinaryFile() {
-  FsFile file;
-  if (!Storage.openFileForRead("KRS", KOREADER_FILE_BIN, file)) {
-    return false;
-  }
-
-  uint8_t version;
-  if (!serialization::readPod(file, version)) {
-    LOG_DBG("KRS", "Failed to read credentials file version");
-    file.close();
-    return false;
-  }
-  if (version != KOREADER_FILE_VERSION) {
-    LOG_DBG("KRS", "Unknown file version: %u", version);
-    return false;
-  }
-
-  // Read username
-  if (file.available()) {
-    if (!serialization::readString(file, username)) {
-      LOG_DBG("KRS", "Failed to read username");
-      file.close();
-      return false;
-    }
-  } else {
-    username.clear();
-  }
-
-  // Read and deobfuscate password
-  if (file.available()) {
-    if (!serialization::readString(file, password)) {
-      LOG_DBG("KRS", "Failed to read password");
-      file.close();
-      return false;
-    }
-    legacyDeobfuscate(password);
-  } else {
-    password.clear();
-  }
-
-  // Read server URL
-  if (file.available()) {
-    if (!serialization::readString(file, serverUrl)) {
-      LOG_DBG("KRS", "Failed to read server URL");
-      file.close();
-      return false;
-    }
-  } else {
-    serverUrl.clear();
-  }
-
-  // Read match method
-  if (file.available()) {
-    uint8_t method = 0;
-    if (!serialization::readPod(file, method)) {
-      LOG_DBG("KRS", "Failed to read match method");
-      file.close();
-      return false;
-    }
-    matchMethod = (method <= static_cast<uint8_t>(DocumentMatchMethod::BINARY))
-                      ? static_cast<DocumentMatchMethod>(method)
-                      : DocumentMatchMethod::FILENAME;
-  } else {
-    matchMethod = DocumentMatchMethod::FILENAME;
-  }
-
-  LOG_DBG("KRS", "Loaded KOReader credentials from binary for user: %s", username.c_str());
-  return true;
 }
 
 void KOReaderCredentialStore::setCredentials(const std::string& user, const std::string& pass) {

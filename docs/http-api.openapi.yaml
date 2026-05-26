@@ -13,8 +13,8 @@ info:
     - Excluded: UDP discovery, WebSocket upload protocol, BLE provisioning, and
       USB serial JSON-RPC.
 
-    Consumers should discover optional capabilities from `/api/plugins` or
-    `/api/features` before calling feature-gated endpoints. Operations with
+    Consumers should discover optional capabilities from `/api/plugins` before
+    calling feature-gated endpoints. Operations with
     `x-crosspoint-feature-gates` may return `404` when the route is disabled or
     not registered in the active firmware build.
 
@@ -113,21 +113,6 @@ paths:
                     user_fonts: false
                     todo_planner: true
                     pokemon_party: false
-        '404':
-          $ref: '#/components/responses/NotFoundText'
-  /api/features:
-    get:
-      tags: [features]
-      operationId: getFeatureMapAlias
-      summary: Get enabled feature flags
-      description: "Backward-compatible alias for `/api/plugins`."
-      responses:
-        '200':
-          description: Feature flag map
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FeatureMap'
         '404':
           $ref: '#/components/responses/NotFoundText'
   /api/files:
@@ -261,28 +246,11 @@ paths:
       operationId: renameFile
       summary: Rename a file
       description: |
-        Supports both the legacy form contract and the JSON consumer contract.
-
-        Legacy form contract:
-        - `path`: absolute source path
-        - `name`: new file name only
-
-        JSON contract:
-        - `from`: absolute source path
-        - `to`: either a new file name or a full absolute target path
+        Accepts a JSON body with `from` and `to`. `to` may be either a new file
+        name or a full absolute target path.
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              required: [path, name]
-              properties:
-                path:
-                  $ref: '#/components/schemas/DevicePath'
-                name:
-                  type: string
-                  minLength: 1
           application/json:
             schema:
               $ref: '#/components/schemas/RenameRequest'
@@ -314,27 +282,11 @@ paths:
       operationId: moveFile
       summary: Move a file into another directory
       description: |
-        Supports both the legacy form contract and the JSON consumer contract.
-
-        Legacy form contract:
-        - `path`: absolute source path
-        - `dest`: absolute destination directory
-
-        JSON contract:
-        - `from`: absolute source path
-        - `to`: absolute destination directory
+        Accepts a JSON body with `from` and `to`, where `to` is an absolute
+        destination directory.
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              required: [path, dest]
-              properties:
-                path:
-                  $ref: '#/components/schemas/DevicePath'
-                dest:
-                  $ref: '#/components/schemas/DevicePath'
           application/json:
             schema:
               $ref: '#/components/schemas/MoveRequest'
@@ -366,18 +318,15 @@ paths:
       operationId: deleteFiles
       summary: Delete one or more files or directories
       description: |
-        Accepts either:
-        - `path`: a single absolute path
-        - `paths`: a JSON-encoded string containing an array of absolute paths
+        Accepts `paths`: a JSON-encoded string containing an array of absolute paths.
       requestBody:
         required: true
         content:
           application/x-www-form-urlencoded:
             schema:
               type: object
+              required: [paths]
               properties:
-                path:
-                  $ref: '#/components/schemas/DevicePath'
                 paths:
                   type: string
                   description: 'JSON-encoded array string, for example `["/Books/a.epub","/Books/b.epub"]`'
@@ -1610,9 +1559,6 @@ components:
           type: boolean
         isHeader:
           type: boolean
-        is_header:
-          type: boolean
-          description: Accepted alias in save requests
         isSection:
           type: boolean
         priority:
@@ -1690,14 +1636,12 @@ components:
           type: string
     WifiNetwork:
       type: object
-      required: [ssid, rssi, encrypted, secured, saved, connected]
+      required: [ssid, rssi, secured, saved, connected]
       properties:
         ssid:
           type: string
         rssi:
           type: integer
-        encrypted:
-          type: boolean
         secured:
           type: boolean
         saved:
@@ -1806,11 +1750,7 @@ components:
           type: boolean
         latestVersion:
           type: string
-        latest_version:
-          type: string
         errorCode:
-          type: integer
-        error_code:
           type: integer
         message:
           type: string

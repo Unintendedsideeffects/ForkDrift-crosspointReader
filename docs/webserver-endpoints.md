@@ -132,8 +132,6 @@ curl http://crosspoint.local/api/status
 
 Returns JSON booleans describing which compile-time features are included in this firmware build.
 
-**Note:** `/api/features` is available as a backward-compatible alias for this endpoint.
-
 **Request:**
 ```bash
 curl http://crosspoint.local/api/plugins
@@ -882,13 +880,7 @@ Deletes one or more files or empty folders from the SD card.
 
 **Request:**
 ```bash
-# Delete a file
-curl -X POST -d "path=/Books/mybook.epub" http://crosspoint.local/delete
-
-# Delete an empty folder
-curl -X POST -d "path=/OldFolder" http://crosspoint.local/delete
-
-# Delete multiple items
+# Delete one or more items
 curl -X POST -d 'paths=["/Books/old.epub","/OldFolder"]' http://crosspoint.local/delete
 ```
 
@@ -896,8 +888,7 @@ curl -X POST -d 'paths=["/Books/old.epub","/OldFolder"]' http://crosspoint.local
 
 | Parameter | Required | Default | Description |
 | --------- | -------- | ------- | ----------- |
-| `path`    | Yes, unless `paths` is provided | - | Path to one item to delete |
-| `paths`   | Yes, unless `path` is provided | - | JSON array of paths to delete |
+| `paths`   | Yes | - | JSON array of paths to delete |
 
 **Response (200 OK):**
 ```text
@@ -908,8 +899,8 @@ All items deleted successfully
 
 | Status | Body                                        | Cause                              |
 | ------ | ------------------------------------------- | ---------------------------------- |
-| 400    | `Missing "path" or "paths" argument`        | Neither parameter was provided     |
-| 400    | `Provide either 'path' or 'paths', not both` | Both delete parameters were sent   |
+| 400    | `Missing "paths" argument`                  | `paths` was not provided           |
+| 400    | `Use paths JSON array`                      | Legacy `path` parameter was sent   |
 | 400    | `Invalid paths format`                      | `paths` was not valid JSON         |
 | 400    | `No paths provided`                         | `paths` was an empty JSON array    |
 | 500    | `Failed to delete some items: ...`          | One or more paths could not be deleted |

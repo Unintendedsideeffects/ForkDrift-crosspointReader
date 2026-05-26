@@ -60,7 +60,7 @@ AssetReadResult resolveCoverAssetPath(const String& rawPath, const std::vector<R
 String buildSleepImagesJson() {
   const char* allowedExts[] = SLEEP_IMAGE_ALLOWED_EXTS;
   constexpr int numAllowed = sizeof(allowedExts) / sizeof(allowedExts[0]);
-  const char* sleepDirs[] = {"/sleep", "/.sleep"};
+  const char* sleepDirs[] = {"/sleep"};
 
   String json = "[";
   bool seenFirst = false;

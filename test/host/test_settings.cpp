@@ -3,9 +3,8 @@
 
 #include "doctest/doctest.h"
 #include "include/FeatureFlags.h"
-#include "lib/Serialization/Serialization.h"
-#include "src/JsonSettingsIO.h"
 #include "src/CrossPointSettings.h"
+#include "src/JsonSettingsIO.h"
 #include "test/mock/HalStorage.h"
 
 TEST_CASE("testSettingsRoundTrip") {
@@ -20,7 +19,12 @@ TEST_CASE("testSettingsRoundTrip") {
   s.sleepScreenCoverMode = CrossPointSettings::CROP;
   s.sleepScreenCoverFilter = CrossPointSettings::INVERTED_BLACK_AND_WHITE;
   s.sleepScreenSource = CrossPointSettings::SLEEP_SOURCE_POKEDEX;
-  s.statusBar = CrossPointSettings::NO_PROGRESS;
+  s.statusBarChapterPageCount = 0;
+  s.statusBarBookProgressPercentage = 0;
+  s.statusBarProgressBar = CrossPointSettings::BOOK_PROGRESS;
+  s.statusBarProgressBarThickness = CrossPointSettings::PROGRESS_BAR_THICK;
+  s.statusBarTitle = CrossPointSettings::BOOK_TITLE;
+  s.statusBarBattery = 0;
   s.extraParagraphSpacing = 0;
   s.textAntiAliasing = 0;
   s.shortPwrBtn = CrossPointSettings::SLEEP;
@@ -39,7 +43,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.fontSize = CrossPointSettings::LARGE;
   s.lineSpacing = CrossPointSettings::WIDE;
   s.paragraphAlignment = CrossPointSettings::CENTER_ALIGN;
-  s.sleepTimeout = CrossPointSettings::SLEEP_30_MIN;
+  s.sleepTimeoutMinutes = 23;
   s.refreshFrequency = CrossPointSettings::REFRESH_10;
   s.hyphenationEnabled = 1;
   s.screenMargin = 12;
@@ -49,7 +53,6 @@ TEST_CASE("testSettingsRoundTrip") {
   s.hideBatteryPercentage = CrossPointSettings::HIDE_READER;
   s.uiTheme = CrossPointSettings::LYRA;
   s.longPressButtonBehavior = CrossPointSettings::OFF;
-  s.longPressChapterSkip = 0;
   s.backgroundServerOnCharge = CrossPointSettings::supportsBackgroundServerOnChargeMode() ? 1 : 0;
   s.todoFallbackCover = 1;
   s.timeMode = CrossPointSettings::TIME_MODE_LOCAL;
@@ -71,7 +74,12 @@ TEST_CASE("testSettingsRoundTrip") {
   s.sleepScreenCoverMode = CrossPointSettings::FIT;
   s.sleepScreenCoverFilter = CrossPointSettings::NO_FILTER;
   s.sleepScreenSource = CrossPointSettings::SLEEP_SOURCE_SLEEP;
-  s.statusBar = CrossPointSettings::FULL;
+  s.statusBarChapterPageCount = 1;
+  s.statusBarBookProgressPercentage = 1;
+  s.statusBarProgressBar = CrossPointSettings::HIDE_PROGRESS;
+  s.statusBarProgressBarThickness = CrossPointSettings::PROGRESS_BAR_NORMAL;
+  s.statusBarTitle = CrossPointSettings::CHAPTER_TITLE;
+  s.statusBarBattery = 1;
   s.extraParagraphSpacing = 1;
   s.textAntiAliasing = 1;
   s.shortPwrBtn = CrossPointSettings::IGNORE;
@@ -86,7 +94,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.fontSize = CrossPointSettings::MEDIUM;
   s.lineSpacing = CrossPointSettings::NORMAL;
   s.paragraphAlignment = CrossPointSettings::JUSTIFIED;
-  s.sleepTimeout = CrossPointSettings::SLEEP_10_MIN;
+  s.sleepTimeoutMinutes = 10;
   s.refreshFrequency = CrossPointSettings::REFRESH_15;
   s.hyphenationEnabled = 0;
   s.screenMargin = 5;
@@ -96,7 +104,6 @@ TEST_CASE("testSettingsRoundTrip") {
   s.hideBatteryPercentage = CrossPointSettings::HIDE_NEVER;
   s.uiTheme = CrossPointSettings::LYRA;
   s.longPressButtonBehavior = CrossPointSettings::CHAPTER_SKIP;
-  s.longPressChapterSkip = 1;
   s.backgroundServerOnCharge = 0;
   s.todoFallbackCover = 0;
   s.timeMode = CrossPointSettings::TIME_MODE_UTC;
@@ -117,7 +124,12 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(s.sleepScreenCoverMode == CrossPointSettings::CROP);
   CHECK(s.sleepScreenCoverFilter == CrossPointSettings::INVERTED_BLACK_AND_WHITE);
   CHECK(s.sleepScreenSource == CrossPointSettings::SLEEP_SOURCE_POKEDEX);
-  CHECK(s.statusBar == CrossPointSettings::NO_PROGRESS);
+  CHECK(s.statusBarChapterPageCount == 0);
+  CHECK(s.statusBarBookProgressPercentage == 0);
+  CHECK(s.statusBarProgressBar == CrossPointSettings::BOOK_PROGRESS);
+  CHECK(s.statusBarProgressBarThickness == CrossPointSettings::PROGRESS_BAR_THICK);
+  CHECK(s.statusBarTitle == CrossPointSettings::BOOK_TITLE);
+  CHECK(s.statusBarBattery == 0);
   CHECK(s.extraParagraphSpacing == 0);
   CHECK(s.textAntiAliasing == 0);
   CHECK(s.shortPwrBtn == CrossPointSettings::SLEEP);
@@ -126,7 +138,7 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(s.fontSize == CrossPointSettings::LARGE);
   CHECK(s.lineSpacing == CrossPointSettings::WIDE);
   CHECK(s.paragraphAlignment == CrossPointSettings::CENTER_ALIGN);
-  CHECK(s.sleepTimeout == CrossPointSettings::SLEEP_30_MIN);
+  CHECK(s.sleepTimeoutMinutes == 23);
   CHECK(s.refreshFrequency == CrossPointSettings::REFRESH_10);
   CHECK(s.hyphenationEnabled == 1);
   CHECK(s.screenMargin == 12);
@@ -135,7 +147,6 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(std::string(s.opdsPassword) == "s3cr3t!");
   CHECK(s.hideBatteryPercentage == CrossPointSettings::HIDE_READER);
   CHECK(s.longPressButtonBehavior == CrossPointSettings::OFF);
-  CHECK(s.longPressChapterSkip == 0);
   CHECK(s.backgroundServerOnCharge == (CrossPointSettings::supportsBackgroundServerOnChargeMode() ? 1 : 0));
   CHECK(s.todoFallbackCover == 1);
   CHECK(s.timeMode == CrossPointSettings::TIME_MODE_LOCAL);
@@ -188,44 +199,20 @@ TEST_CASE("testBackgroundServerModeClamping") {
   CHECK(s.getBackgroundServerMode() == CrossPointSettings::BACKGROUND_SERVER_NEVER);
 }
 
-TEST_CASE("testSettingsTruncatedLoad") {
+TEST_CASE("testSettingsIgnoresRemovedBinarySettingsFile") {
   Storage.reset();
   CrossPointSettings& s = CrossPointSettings::getInstance();
 
-  // Write a partial file with only a few fields (simulates v1/v2 firmware file).
-  // Serialization order: sleepScreen(1), extraParagraphSpacing(2), shortPwrBtn(3), ...
-  {
-    FsFile file;
-    Storage.openFileForWrite("TEST", "/.crosspoint/settings.bin", file);
-
-    const uint8_t version = 4;
-    const uint8_t count = 3;  // only 3 fields present
-    serialization::writePod(file, version);
-    serialization::writePod(file, count);
-    const uint8_t sleepVal = CrossPointSettings::LIGHT;
-    const uint8_t spacingVal = 0;
-    const uint8_t pwrVal = CrossPointSettings::SLEEP;
-    serialization::writePod(file, sleepVal);
-    serialization::writePod(file, spacingVal);
-    serialization::writePod(file, pwrVal);
-    file.close();
-  }
-
-  // Set fields to non-default values, then load the partial file.
-  // Only the 3 written fields should change; the rest stay at their pre-load values.
+  CHECK(Storage.writeFile("/.crosspoint/settings.bin", "old-binary-settings"));
   s.sleepScreen = CrossPointSettings::DARK;
-  s.extraParagraphSpacing = 1;
-  s.shortPwrBtn = CrossPointSettings::IGNORE;
   s.fontFamily = CrossPointSettings::BOOKERLY;
 
-  CHECK(s.loadFromFile());
+  CHECK_FALSE(s.loadFromFile());
 
-  // Fields 1-3 are in the file and should be updated.
-  CHECK(s.sleepScreen == CrossPointSettings::LIGHT);
-  CHECK(s.extraParagraphSpacing == 0);
-  CHECK(s.shortPwrBtn == CrossPointSettings::SLEEP);
-  // Field 8 (fontFamily) was not in the file, so it is unchanged.
+  CHECK(s.sleepScreen == CrossPointSettings::DARK);
   CHECK(s.fontFamily == CrossPointSettings::BOOKERLY);
+  CHECK(Storage.exists("/.crosspoint/settings.bin"));
+  CHECK_FALSE(Storage.exists("/.crosspoint/settings.bin.bak"));
 }
 
 TEST_CASE("testSettingsJsonPreservesSpecialSleepModes") {

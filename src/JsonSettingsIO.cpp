@@ -68,7 +68,6 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["sleepScreenCoverMode"] = s.sleepScreenCoverMode;
   doc["sleepScreenCoverFilter"] = s.sleepScreenCoverFilter;
   doc["sleepCycleMode"] = s.sleepCycleMode;
-  doc["statusBar"] = s.statusBar;
   doc["statusBarChapterPageCount"] = s.statusBarChapterPageCount;
   doc["statusBarBookProgressPercentage"] = s.statusBarBookProgressPercentage;
   doc["statusBarProgressBar"] = s.statusBarProgressBar;
@@ -96,7 +95,6 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["fontSize"] = s.fontSize;
   doc["lineSpacing"] = s.lineSpacing;
   doc["paragraphAlignment"] = s.paragraphAlignment;
-  doc["sleepTimeout"] = s.sleepTimeout;
   doc["sleepTimeoutMinutes"] = s.sleepTimeoutMinutes;
   doc["refreshFrequency"] = s.refreshFrequency;
   doc["screenMargin"] = s.screenMargin;
@@ -167,20 +165,15 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
       clamp(doc["sleepScreenCoverFilter"] | (uint8_t)S::NO_FILTER, S::SLEEP_SCREEN_COVER_FILTER_COUNT, S::NO_FILTER);
   s.sleepCycleMode =
       clamp(doc["sleepCycleMode"] | (uint8_t)S::SLEEP_CYCLE_RANDOM, S::SLEEP_CYCLE_MODE_COUNT, S::SLEEP_CYCLE_RANDOM);
-  s.statusBar = clamp(doc["statusBar"] | (uint8_t)S::FULL, S::STATUS_BAR_MODE_COUNT, S::FULL);
-  if (doc["statusBarChapterPageCount"].isNull()) {
-    applyLegacyStatusBarSettings(s);
-  } else {
-    s.statusBarChapterPageCount = doc["statusBarChapterPageCount"] | (uint8_t)1;
-    s.statusBarBookProgressPercentage = doc["statusBarBookProgressPercentage"] | (uint8_t)1;
-    s.statusBarProgressBar = clamp(doc["statusBarProgressBar"] | (uint8_t)S::HIDE_PROGRESS,
-                                   S::STATUS_BAR_PROGRESS_BAR_COUNT, S::HIDE_PROGRESS);
-    s.statusBarProgressBarThickness = clamp(doc["statusBarProgressBarThickness"] | (uint8_t)S::PROGRESS_BAR_NORMAL,
-                                            S::STATUS_BAR_PROGRESS_BAR_THICKNESS_COUNT, S::PROGRESS_BAR_NORMAL);
-    s.statusBarTitle =
-        clamp(doc["statusBarTitle"] | (uint8_t)S::CHAPTER_TITLE, S::STATUS_BAR_TITLE_COUNT, S::CHAPTER_TITLE);
-    s.statusBarBattery = doc["statusBarBattery"] | (uint8_t)1;
-  }
+  s.statusBarChapterPageCount = doc["statusBarChapterPageCount"] | (uint8_t)1;
+  s.statusBarBookProgressPercentage = doc["statusBarBookProgressPercentage"] | (uint8_t)1;
+  s.statusBarProgressBar = clamp(doc["statusBarProgressBar"] | (uint8_t)S::HIDE_PROGRESS,
+                                 S::STATUS_BAR_PROGRESS_BAR_COUNT, S::HIDE_PROGRESS);
+  s.statusBarProgressBarThickness = clamp(doc["statusBarProgressBarThickness"] | (uint8_t)S::PROGRESS_BAR_NORMAL,
+                                          S::STATUS_BAR_PROGRESS_BAR_THICKNESS_COUNT, S::PROGRESS_BAR_NORMAL);
+  s.statusBarTitle =
+      clamp(doc["statusBarTitle"] | (uint8_t)S::CHAPTER_TITLE, S::STATUS_BAR_TITLE_COUNT, S::CHAPTER_TITLE);
+  s.statusBarBattery = doc["statusBarBattery"] | (uint8_t)1;
   s.statusBarClock = doc["statusBarClock"] | (uint8_t)0;
   s.clockUtcOffsetQ = clamp(doc["clockUtcOffsetQ"] | (uint8_t)48, static_cast<uint8_t>(105), static_cast<uint8_t>(48));
   s.clockFormat = clamp(doc["clockFormat"] | (uint8_t)0, static_cast<uint8_t>(2), static_cast<uint8_t>(0));
@@ -213,28 +206,15 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.lineSpacing = clamp(doc["lineSpacing"] | (uint8_t)S::NORMAL, S::LINE_COMPRESSION_COUNT, S::NORMAL);
   s.paragraphAlignment =
       clamp(doc["paragraphAlignment"] | (uint8_t)S::JUSTIFIED, S::PARAGRAPH_ALIGNMENT_COUNT, S::JUSTIFIED);
-  s.sleepTimeout = clamp(doc["sleepTimeout"] | (uint8_t)S::SLEEP_10_MIN, S::SLEEP_TIMEOUT_COUNT, S::SLEEP_10_MIN);
-  if (doc["sleepTimeoutMinutes"].isNull()) {
-    s.sleepTimeoutMinutes = S::sleepTimeoutEnumToMinutes(s.sleepTimeout);
-    if (needsResave) *needsResave = true;
-  } else {
-    s.sleepTimeoutMinutes = std::clamp(doc["sleepTimeoutMinutes"] | (uint8_t)10, S::MIN_SLEEP_TIMEOUT_MINUTES,
-                                       S::MAX_SLEEP_TIMEOUT_MINUTES);
-  }
+  s.sleepTimeoutMinutes =
+      std::clamp(doc["sleepTimeoutMinutes"] | (uint8_t)10, S::MIN_SLEEP_TIMEOUT_MINUTES, S::MAX_SLEEP_TIMEOUT_MINUTES);
   s.refreshFrequency =
       clamp(doc["refreshFrequency"] | (uint8_t)S::REFRESH_15, S::REFRESH_FREQUENCY_COUNT, S::REFRESH_15);
   s.screenMargin = doc["screenMargin"] | (uint8_t)5;
   s.hideBatteryPercentage =
       clamp(doc["hideBatteryPercentage"] | (uint8_t)S::HIDE_NEVER, S::HIDE_BATTERY_PERCENTAGE_COUNT, S::HIDE_NEVER);
-  if (doc["longPressButtonBehavior"].isNull()) {
-    const uint8_t oldSkip = doc["longPressChapterSkip"] | (uint8_t)1;
-    s.longPressButtonBehavior = oldSkip ? S::CHAPTER_SKIP : S::OFF;
-    if (needsResave) *needsResave = true;
-  } else {
-    s.longPressButtonBehavior = clamp(doc["longPressButtonBehavior"] | (uint8_t)S::CHAPTER_SKIP,
-                                      S::LONG_PRESS_BUTTON_BEHAVIOR_COUNT, S::CHAPTER_SKIP);
-  }
-  s.longPressChapterSkip = (s.longPressButtonBehavior == S::CHAPTER_SKIP) ? 1 : 0;
+  s.longPressButtonBehavior = clamp(doc["longPressButtonBehavior"] | (uint8_t)S::CHAPTER_SKIP,
+                                    S::LONG_PRESS_BUTTON_BEHAVIOR_COUNT, S::CHAPTER_SKIP);
   s.hyphenationEnabled = doc["hyphenationEnabled"] | (uint8_t)0;
   s.focusReadingEnabled = doc["focusReadingEnabled"] | (uint8_t)0;
   s.backgroundServerOnCharge = doc["backgroundServerOnCharge"] | (uint8_t)0;

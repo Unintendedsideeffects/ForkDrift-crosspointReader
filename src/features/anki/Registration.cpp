@@ -73,7 +73,7 @@ static void mountAnkiRoutes(WebServer* server) {
       return;
     }
     const int index = doc["index"] | -1;
-    if (index < 0 || !doc.containsKey("back")) {
+    if (index < 0 || !doc["back"].is<const char*>()) {
       server->send(400, "application/json", "{\"error\":\"missing index or back\"}");
       return;
     }

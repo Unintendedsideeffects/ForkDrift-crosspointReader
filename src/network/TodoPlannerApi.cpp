@@ -99,7 +99,7 @@ TodoItem todoItemFromJson(const JsonObjectConst item) {
   TodoItem todoItem;
   todoItem.text = normalizeTodoEntryText(item["text"].as<std::string>());
   todoItem.checked = item["checked"] | false;
-  todoItem.isHeader = item["isHeader"].is<bool>() ? item["isHeader"].as<bool>() : item["is_header"].as<bool>();
+  todoItem.isHeader = item["isHeader"] | false;
   todoItem.isSection = item["isSection"] | false;
   todoItem.priority = priorityFromJson(item);
   todoItem.dueMinutes = item["dueMinutes"] | static_cast<uint16_t>(0);
@@ -248,7 +248,11 @@ TodoPlannerHttpResult handleTodoTodaySaveRequest(const bool plannerEnabled, cons
     if (!itemVar.is<JsonObject>()) {
       continue;
     }
-    TodoItem item = todoItemFromJson(itemVar.as<JsonObjectConst>());
+    JsonObjectConst jsonItem = itemVar.as<JsonObjectConst>();
+    if (!jsonItem["is_header"].isNull()) {
+      return {400, "text/plain", "Use isHeader", {}};
+    }
+    TodoItem item = todoItemFromJson(jsonItem);
     if (item.text.empty()) {
       continue;
     }

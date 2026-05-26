@@ -2,15 +2,37 @@
 
 CrossPoint runs on real hardware, so debugging usually combines local build checks and on-device logs.
 
-## Local Static Analysis
+## Local Verification & Test Suites
 
-Before flashing, run the same local checks used by the current workflows:
+Before flashing or opening a Pull Request, run the local verification suite. We use **`pytest`** to coordinate and run our C++ and Python testing suites.
+
+To run the entire suite:
 
 ```sh
+uv run pytest
+```
+
+### Underlying Test Commands & Tools
+
+When you run `uv run pytest`, it automatically executes all our sub-suites:
+
+- **Host Unit Tests** (`test/run_host_tests.sh` using `doctest`): Runs C++ unit tests natively on the host machine.
+- **Differential Rounding Tests** (`test/run_differential_rounding_test.sh`): Verifies typesetting rounding behaviors.
+- **Hyphenation Evaluation** (`test/run_hyphenation_eval.sh`): Runs hyphenation accuracy and performance checks.
+- **Host Server Smoke Test** (`test/run_host_server.sh`): Performs HTTP integration and API checks against a mock host server.
+
+### Other Local Quality Checks
+
+Additionally, run the code formatter and static analysis checks:
+
+```sh
+# Auto-format C/C++ code
 uv run ./bin/clang-format-fix
+
+# Run PlatformIO static analysis
 uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
-bash test/run_host_tests.sh
-python3 scripts/validate_contract_server.py
+
+# Build the firmware locally
 uv run pio run
 ```
 

@@ -14,12 +14,9 @@ namespace {
 constexpr char kCrossPointDataDir[] = "/.crosspoint";
 constexpr size_t kPathBufferSize = 192;
 constexpr const char* kMetadataFilesToRemove[] = {
-    "/.crosspoint/settings.bin", "/.crosspoint/settings.json",  "/.crosspoint/settings.bin.bak",
-    "/.crosspoint/state.bin",    "/.crosspoint/state.json",     "/.crosspoint/state.bin.bak",
-    "/.crosspoint/recent.bin",   "/.crosspoint/recent.json",    "/.crosspoint/recent.bin.bak",
-    "/.crosspoint/wifi.bin",     "/.crosspoint/wifi.json",      "/.crosspoint/wifi.bin.bak",
-    "/.crosspoint/koreader.bin", "/.crosspoint/koreader.json",  "/.crosspoint/koreader.bin.bak",
-    "/.crosspoint/language.bin", "/.crosspoint/usb-msc-active",
+    "/.crosspoint/settings.json", "/.crosspoint/state.bin",      "/.crosspoint/state.json", "/.crosspoint/recent.bin",
+    "/.crosspoint/recent.json",   "/.crosspoint/wifi.bin",       "/.crosspoint/wifi.json",  "/.crosspoint/koreader.bin",
+    "/.crosspoint/koreader.json", "/.crosspoint/usb-msc-active",
 };
 constexpr const char* kCacheDirectoryPrefixes[] = {"epub_", "xtc_", "txt_", "md_"};
 

@@ -286,7 +286,7 @@ Adds a modular remote text-entry path for any on-device keyboard prompt:
 - Prefers the Android companion app when it is already connected over USB serial or WiFi
 - Falls back to a browser page at `/remote-input` with a QR code shown on-device
 - Starts a temporary hotspot automatically when WiFi is unavailable so the browser fallback remains reachable
-- Exposes the `remote_keyboard_input` capability in `/api/plugins`, `/api/features`, and the USB `plugins` command
+- Exposes the `remote_keyboard_input` capability in `/api/plugins` and the USB `plugins` command
 
 **When disabled:**
 - Keyboard entry always stays on-device
@@ -747,7 +747,7 @@ uv run pio run -e custom --target upload
 
 Current ways to inspect the active feature set:
 
-1. Query `GET /api/plugins` (or the compatibility alias `GET /api/features`) while the web server is running
+1. Query `GET /api/plugins` while the web server is running
 2. Check your local `platformio-custom.ini` file
 3. Check the GitHub Actions build summary or `build-metadata.json` from a custom build artifact
 

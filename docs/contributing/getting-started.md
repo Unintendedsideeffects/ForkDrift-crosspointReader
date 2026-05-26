@@ -68,13 +68,12 @@ uv run pio run --target upload
 
 ## First checks before opening a PR
 
-Before submitting any changes, ensure your code passes these local checks:
+Before submitting any changes, ensure your code passes all local automated test suites and formatting rules:
 
 ```sh
 uv run ./bin/clang-format-fix
 uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
-bash test/run_host_tests.sh
-python3 scripts/validate_contract_server.py
+uv run pytest
 uv run pio run
 ```
 

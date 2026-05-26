@@ -32,6 +32,12 @@ TEST_CASE("testTodoTodayGetAndSaveRequests") {
   auto missingItems = network::handleTodoTodaySaveRequest(true, true, true, "{}", "2026-04-11");
   CHECK(missingItems.statusCode == 400);
 
+  auto snakeCaseHeader = network::handleTodoTodaySaveRequest(
+      true, true, true, "{\"items\":[{\"text\":\"Agenda\",\"type\":\"agenda\",\"checked\":false,\"is_header\":true}]}",
+      "2026-04-11");
+  CHECK(snakeCaseHeader.statusCode == 400);
+  CHECK(snakeCaseHeader.body == "Use isHeader");
+
   auto save = network::handleTodoTodaySaveRequest(
       true, true, true,
       "{\"items\":[{\"text\":\"Task one\",\"type\":\"todo\",\"checked\":false,\"isHeader\":false},"

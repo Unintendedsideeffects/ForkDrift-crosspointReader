@@ -177,8 +177,7 @@ bool SdCardFontRegistry::discover() {
   families_.clear();
   families_.reserve(MAX_SD_FAMILIES);
 
-  // Hidden root is scanned first so it wins on name collisions, matching the
-  // sleep-folder pattern (/.sleep preferred over /sleep).
+  // Hidden root is scanned first so it wins on name collisions.
   scanRoot(FONTS_DIR_HIDDEN, families_);
   scanRoot(FONTS_DIR_VISIBLE, families_);
 

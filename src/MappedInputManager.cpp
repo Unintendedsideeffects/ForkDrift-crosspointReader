@@ -95,8 +95,10 @@ bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint
 
   const ButtonIndex btnLeft = SETTINGS.frontButtonLeft;
   const ButtonIndex btnRight = SETTINGS.frontButtonRight;
-  const ButtonIndex mappedBack = mapFrontButtonForReaderOrientation(SETTINGS.frontButtonBack, btnLeft, btnRight, readerMode);
-  const ButtonIndex mappedConfirm = mapFrontButtonForReaderOrientation(SETTINGS.frontButtonConfirm, btnLeft, btnRight, readerMode);
+  const ButtonIndex mappedBack =
+      mapFrontButtonForReaderOrientation(SETTINGS.frontButtonBack, btnLeft, btnRight, readerMode);
+  const ButtonIndex mappedConfirm =
+      mapFrontButtonForReaderOrientation(SETTINGS.frontButtonConfirm, btnLeft, btnRight, readerMode);
   const ButtonIndex mappedLeft = mapFrontButtonForReaderOrientation(btnLeft, btnLeft, btnRight, readerMode);
   const ButtonIndex mappedRight = mapFrontButtonForReaderOrientation(btnRight, btnLeft, btnRight, readerMode);
 
@@ -149,7 +151,7 @@ void MappedInputManager::updatePowerTapState() {
   }
   powerReleaseConsumed = true;
 
-  if (gpio.getHeldTime() >= SETTINGS.getPowerButtonDuration()) {
+  if (gpio.getHeldTime() >= SETTINGS.getPowerButtonWakeDuration()) {
     // Long press detected - clear any pending short-tap state
     pendingPowerRelease = false;
     doubleTapReady = false;
@@ -321,8 +323,10 @@ MappedInputManager::Labels MappedInputManager::mapLabels(const char* back, const
   // Build the label order based on the configured hardware mapping (with orientation-aware remapping).
   const ButtonIndex btnLeft = SETTINGS.frontButtonLeft;
   const ButtonIndex btnRight = SETTINGS.frontButtonRight;
-  const ButtonIndex mappedBack = mapFrontButtonForReaderOrientation(SETTINGS.frontButtonBack, btnLeft, btnRight, readerMode);
-  const ButtonIndex mappedConfirm = mapFrontButtonForReaderOrientation(SETTINGS.frontButtonConfirm, btnLeft, btnRight, readerMode);
+  const ButtonIndex mappedBack =
+      mapFrontButtonForReaderOrientation(SETTINGS.frontButtonBack, btnLeft, btnRight, readerMode);
+  const ButtonIndex mappedConfirm =
+      mapFrontButtonForReaderOrientation(SETTINGS.frontButtonConfirm, btnLeft, btnRight, readerMode);
   const ButtonIndex mappedLeft = mapFrontButtonForReaderOrientation(btnLeft, btnLeft, btnRight, readerMode);
   const ButtonIndex mappedRight = mapFrontButtonForReaderOrientation(btnRight, btnLeft, btnRight, readerMode);
 

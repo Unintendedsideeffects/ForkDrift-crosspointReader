@@ -1,11 +1,11 @@
-#include "doctest/doctest.h"
-#include "include/FeatureFlags.h"
-#include "src/core/features/FeatureCatalog.h"
 #include <fstream>
 #include <string>
 
-TEST_CASE("testStatusBarToggleTranslations") {
+#include "doctest/doctest.h"
+#include "include/FeatureFlags.h"
+#include "src/core/features/FeatureCatalog.h"
 
+TEST_CASE("testStatusBarToggleTranslations") {
   struct TranslationExpectation {
     const char* path;
     const char* show;
@@ -33,7 +33,6 @@ TEST_CASE("testStatusBarToggleTranslations") {
 }
 
 TEST_CASE("testFeatureCatalogApi") {
-
   size_t featureCount = 0;
   const core::FeatureDescriptor* features = core::FeatureCatalog::all(featureCount);
   CHECK(features != nullptr);
@@ -57,6 +56,7 @@ TEST_CASE("testFeatureCatalogApi") {
 
   const String json = core::FeatureCatalog::toJson();
   CHECK(!json.isEmpty());
+  CHECK(json.indexOf("\"extended_fonts\":") == -1);
   CHECK(json.indexOf("\"epub_support\":") != -1);
   CHECK(json.indexOf("\"pokemon_party\":") != -1);
   CHECK(json.indexOf("\"remote_keyboard_input\":") != -1);
@@ -64,6 +64,7 @@ TEST_CASE("testFeatureCatalogApi") {
 
   const String buildString = core::FeatureCatalog::buildString();
   CHECK(!buildString.isEmpty());
+  CHECK(buildString.indexOf("extended_fonts") == -1);
 
   String dependencyError;
   CHECK(core::FeatureCatalog::validate(&dependencyError));

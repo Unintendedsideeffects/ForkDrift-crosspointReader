@@ -51,7 +51,7 @@ const char* kImageOptions[] = {"Display", "Placeholder", "Suppress"};
 const char* kOrientationOptions[] = {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"};
 const char* kSideButtonOptions[] = {"Prev / Next", "Next / Prev"};
 const char* kPowerButtonOptions[] = {"Ignore", "Sleep", "Page turn", "Select", "Force refresh"};
-const char* kSleepTimeoutOptions[] = {"1 minute", "5 minutes", "10 minutes", "15 minutes", "30 minutes"};
+const char* kLongPressButtonOptions[] = {"Off", "Chapter skip", "Orientation change"};
 const char* kBackgroundServerOptions[] = {"Never", "Only on charge", "Always"};
 
 constexpr HostSetting kSettings[] = {
@@ -86,9 +86,10 @@ constexpr HostSetting kSettings[] = {
     {"textAntiAliasing", "Text anti-aliasing", "Reader", "toggle", 1, nullptr, 0, 0, 0, 0, nullptr, 0},
     {"imageRendering", "Images", "Reader", "enum", 0, kImageOptions, 3, 0, 0, 0, nullptr, 0},
     {"sideButtonLayout", "Side button layout", "Controls", "enum", 0, kSideButtonOptions, 2, 0, 0, 0, nullptr, 0},
-    {"longPressChapterSkip", "Long press skip", "Controls", "toggle", 1, nullptr, 0, 0, 0, 0, nullptr, 0},
+    {"longPressButtonBehavior", "Long press button", "Controls", "enum", 1, kLongPressButtonOptions, 3, 0, 0, 0,
+     nullptr, 0},
     {"shortPwrBtn", "Short power button", "Controls", "enum", 0, kPowerButtonOptions, 5, 0, 0, 0, nullptr, 0},
-    {"sleepTimeout", "Time to sleep", "System", "enum", 2, kSleepTimeoutOptions, 5, 0, 0, 0, nullptr, 0},
+    {"sleepTimeoutMinutes", "Time to sleep", "System", "value", 10, nullptr, 0, 1, 30, 1, nullptr, 0},
     {"showHiddenFiles", "Show hidden files", "System", "toggle", 0, nullptr, 0, 0, 0, 0, nullptr, 0},
     {"todoOpenDirectToToday", "Open planner on today", "System", "toggle", 0, nullptr, 0, 0, 0, 0, nullptr, 0},
     {"backgroundServerMode", "Background server", "System", "enum", 0, kBackgroundServerOptions, 3, 0, 0, 0, nullptr,

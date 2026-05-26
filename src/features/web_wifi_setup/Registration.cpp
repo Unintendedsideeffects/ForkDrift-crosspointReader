@@ -7,9 +7,9 @@
 #include <WiFi.h>
 
 #include "SpiBusMutex.h"
-#include "util/WifiCredentialStore.h"
 #include "core/features/FeatureCatalog.h"
 #include "core/registries/WebRouteRegistry.h"
+#include "util/WifiCredentialStore.h"
 
 namespace features::web_wifi_setup {
 namespace {
@@ -34,12 +34,11 @@ void mountWifiRoutes(WebServer* server) {
       JsonArray array = doc.to<JsonArray>();
       for (int i = 0; i < n; ++i) {
         const String networkSsid = WiFi.SSID(i);
-        const bool encrypted = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+        const bool secured = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
         JsonObject obj = array.add<JsonObject>();
         obj["ssid"] = networkSsid;
         obj["rssi"] = WiFi.RSSI(i);
-        obj["encrypted"] = encrypted;
-        obj["secured"] = encrypted;
+        obj["secured"] = secured;
         obj["saved"] = WIFI_STORE.hasSavedCredential(networkSsid.c_str());
         obj["connected"] = staConnected && (networkSsid == activeSsid);
       }

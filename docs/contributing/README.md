@@ -1,6 +1,8 @@
 # Contributing to CrossPoint Reader
 
-Welcome! This guide helps you get started with contributing to CrossPoint Reader. Whether you are fixing a bug, adding a new feature, or improving documentation, we appreciate your help.
+Welcome! This guide helps you get started with contributing to CrossPoint Reader / ForkDrift firmware. Whether you are fixing a bug, adding a new feature, or improving documentation, we appreciate your help.
+
+In the ForkDrift workspace, firmware lives in `crosspoint-reader/` next to `ForkDriftApp/` and `xteink-flasher/`. Run the commands in the linked guides from that directory.
 
 ## Onboarding Guide
 

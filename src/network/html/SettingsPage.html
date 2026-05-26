@@ -732,7 +732,8 @@
       } else {
         let html = '';
         networks.forEach(function(net) {
-          const lock = net.encrypted ? ' &#128274;' : '';
+          const secured = !!net.secured;
+          const lock = secured ? ' &#128274;' : '';
           const saved = net.saved ? ' <span style="color:var(--gray-5);">(Saved)</span>' : '';
           html += '<div class="setting-row">' +
             '<span class="setting-name">' + escapeHtml(net.ssid) + lock + saved + '</span>' +
@@ -741,7 +742,7 @@
           if (net.saved) {
             html += '<button class="save-btn" style="padding:4px 10px; font-size:0.7em; background:var(--gray-3); border-color:var(--gray-3);" onclick="forgetWifi(\'' + escapeHtml(net.ssid) + '\')">Forget</button>';
           } else {
-            html += '<button class="save-btn" style="padding:4px 10px; font-size:0.7em;" onclick="connectWifi(\'' + escapeHtml(net.ssid) + '\', ' + net.encrypted + ')">Connect</button>';
+            html += '<button class="save-btn" style="padding:4px 10px; font-size:0.7em;" onclick="connectWifi(\'' + escapeHtml(net.ssid) + '\', ' + secured + ')">Connect</button>';
           }
 
           html += '</span></div>';
@@ -755,9 +756,9 @@
     btn.textContent = 'Scan WiFi';
   }
 
-  async function connectWifi(ssid, encrypted) {
+  async function connectWifi(ssid, secured) {
     let password = "";
-    if (encrypted) {
+    if (secured) {
       password = prompt("Enter password for " + ssid);
       if (password === null) return;
     }

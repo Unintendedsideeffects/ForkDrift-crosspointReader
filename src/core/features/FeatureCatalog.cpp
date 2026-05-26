@@ -20,11 +20,10 @@ constexpr const char* kRequiresHyphenationAll[] = {"epub_support"};
 constexpr const char* kRequiresLyraThemeAll[] = {"home_media_picker"};
 constexpr const char* kRequiresBleWifiProvisioningAll[] = {"web_wifi_setup"};
 constexpr const char* kRequiresOpenDyslexicFontsAny[] = {"bookerly_fonts", "notosans_fonts", "lexenddeca_fonts",
-                                                           "bitter_fonts", "chareink_fonts"};
+                                                         "bitter_fonts", "chareink_fonts"};
 constexpr const char* kRequiresRomanClockSleepAll[] = {"wifi_clock"};
 
 constexpr FeatureDescriptor kFeatureCatalog[] = {
-    {"extended_fonts", "Extended Fonts", ENABLE_EXTENDED_FONTS != 0, nullptr, 0, nullptr, 0},
     {"bookerly_fonts", "Bookerly Fonts", ENABLE_BOOKERLY_FONTS != 0, nullptr, 0, nullptr, 0},
     {"notosans_fonts", "NotoSans Fonts", ENABLE_NOTOSANS_FONTS != 0, nullptr, 0, nullptr, 0},
     {"opendyslexic_fonts", "OpenDyslexic", ENABLE_OPENDYSLEXIC_FONTS != 0, nullptr, 0, kRequiresOpenDyslexicFontsAny,

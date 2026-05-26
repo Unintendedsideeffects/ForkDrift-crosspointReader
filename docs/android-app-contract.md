@@ -290,9 +290,6 @@ The keys above are included when the corresponding feature is enabled.
 **Current status:** ✅ Matches as long as firmware uses the exact key names above.
 Verify: `web_wifi_setup`, `ota_updates`, `remote_keyboard_input`, `remote_open_book`, `remote_page_turn`, `user_fonts`, `todo_planner`.
 
-`GET /api/features` is a supported alias for `GET /api/plugins` and returns the
-same JSON object.
-
 ---
 
 ## 7. GET /api/settings
@@ -374,9 +371,7 @@ paths=<json-encoded-array>  (form field, value is a JSON string)
 
 **Current status:** ✅ All four implemented on firmware.
 - `/mkdir` and `/delete` remain form-based as above.
-- `/rename` and `/move` now accept both:
-  - existing web UI form contract (`path` + `name`, `path` + `dest`)
-  - JSON body contract (`from` + `to`)
+- `/rename` and `/move` are JSON-only and reject the old form fields.
 
 ---
 
@@ -414,7 +409,6 @@ paths=<json-encoded-array>  (form field, value is a JSON string)
   {
     "ssid":      "MyNetwork",
     "rssi":      -60,
-    "encrypted": true,
     "saved":     false,
     "secured":   true,
     "connected": false
@@ -423,7 +417,7 @@ paths=<json-encoded-array>  (form field, value is a JSON string)
 ```
 
 **Current status:** ✅ All three implemented (gated on `WebWifiSetupApi` feature flag).
-`secured` aliases `encrypted`, and `connected` marks the active network match.
+`secured` marks network security, and `connected` marks the active network match.
 
 ### GET /api/wifi/status
 
@@ -473,15 +467,13 @@ Returns the current Wi-Fi mode and connection state.
   "status":         "idle | checking | done | error",
   "available":      false,
   "latestVersion":  "1.2.0",
-  "latest_version": "1.2.0",
   "errorCode":      0,
-  "error_code":     0,
   "message":        ""
 }
 ```
 
 **Current status:** ✅ Implemented (gated on `OtaApi` feature flag). Firmware
-returns both camelCase and snake_case fields for compatibility.
+returns camelCase fields.
 
 ---
 
@@ -552,7 +544,7 @@ Response:
 - `"agenda"` — blockquote line (`> text`, written when markdown is enabled)
 - `"text"` — plain line (free text, written when markdown is disabled or manually entered)
 
-`isHeader` is `true` for both `"agenda"` and `"text"` items (backward compatibility).
+`isHeader` is `true` for both `"agenda"` and `"text"` items.
 
 ---
 
@@ -563,7 +555,7 @@ Android sends (JSON body):
 {"items": [{"text": "Buy milk", "isHeader": false, "checked": false}, ...]}
 ```
 
-Both `isHeader` and `is_header` are accepted. Response: `{"ok":true}`.
+Use `isHeader` for header rows. Response: `{"ok":true}`.
 
 ---
 
@@ -638,11 +630,6 @@ Success response:
 ```
 
 **Current status:** ✅ Firmware `BleWifiProvisioner` implements this service.
-
-**Note on legacy UUIDs:** The Android app also recognises an older UUID pair
-(`CCF00001-A1A2-B3B4-C5C6-D7D8E9F0A1B2` / `CCF00002-...`) for backward compatibility with
-pre-release firmware builds. The fork-drift firmware only advertises the `41cb…` UUIDs — no
-firmware change needed.
 
 ---
 

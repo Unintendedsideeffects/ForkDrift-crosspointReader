@@ -15,6 +15,7 @@
 #if ENABLE_READING_STATS
 #include "../reader/BookStatsView.h"
 #endif
+#include "BrandScreen.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "FeatureFlags.h"
@@ -24,7 +25,6 @@
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "fontIds.h"
-#include "images/Logo120.h"
 #include "util/DateUtils.h"
 #include "util/PokemonBookDataStore.h"
 #include "util/RecentBooksStore.h"
@@ -214,17 +214,8 @@ std::string getSleepSourcePath(const uint8_t sourceMode) {
     case CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_ALL:
       return "/sleep";
     case CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_SLEEP:
-    default: {
-      auto hiddenDir = Storage.open("/.sleep");
-      if (hiddenDir && hiddenDir.isDirectory()) {
-        hiddenDir.close();
-        return "/.sleep";
-      }
-      if (hiddenDir) {
-        hiddenDir.close();
-      }
+    default:
       return "/sleep";
-    }
   }
 }
 
@@ -541,36 +532,6 @@ void SleepActivity::renderCustomSleepScreen() const {
     }
   }
 
-  // Legacy fallback for source "Sleep": root-level /sleep.bmp|png|jpg|jpeg.
-  if (SETTINGS.sleepScreenSource == CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_SLEEP) {
-    const char* rootSleepImages[] = {"/sleep.bmp", "/sleep.png", "/sleep.jpg", "/sleep.jpeg"};
-    for (const char* sleepImagePath : rootSleepImages) {
-      if (isBmpFile(sleepImagePath)) {
-        FsFile file;
-        if (Storage.openFileForRead("SLP", sleepImagePath, file)) {
-          Bitmap bitmap(file, true);
-          if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-            LOG_INF("SLP", "Loading: %s", sleepImagePath);
-            renderBitmapSleepScreen(bitmap);
-            file.close();
-            return;
-          }
-          file.close();
-        }
-      } else {
-        const ImageToFramebufferDecoder* decoder = ImageDecoderFactory::getDecoder(sleepImagePath);
-        if (decoder) {
-          ImageDimensions dims = {0, 0};
-          if (decoder->getDimensions(sleepImagePath, dims) && dims.width > 0 && dims.height > 0) {
-            LOG_INF("SLP", "Loading: %s", sleepImagePath);
-            renderImageSleepScreen(sleepImagePath);
-            return;
-          }
-        }
-      }
-    }
-  }
-
   renderDefaultSleepScreen();
 }
 
@@ -636,7 +597,7 @@ void SleepActivity::renderSmartSleepScreen() const {
     }
   }
 
-  // 3) Sleep folder (+ legacy root /sleep.bmp + default)
+  // 3) Sleep folder (+ default)
   renderCustomSleepScreen();
 }
 
@@ -812,9 +773,9 @@ void SleepActivity::renderDefaultSleepScreen() const {
   const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  renderer.drawImage(Logo120, (pageWidth - 120) / 2, (pageHeight - 120) / 2, 120, 120);
-  renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 70, "ForkDrift", true, EpdFontFamily::BOLD);
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 95, "SLEEPING");
+  BrandScreen::drawLogo(renderer, pageWidth, pageHeight);
+  BrandScreen::drawTitle(renderer, pageHeight);
+  BrandScreen::drawSubtitle(renderer, pageHeight, "SLEEPING");
 
   // Make sleep screen dark unless light is selected in settings
   const bool lightScreen = (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::LIGHT) ||

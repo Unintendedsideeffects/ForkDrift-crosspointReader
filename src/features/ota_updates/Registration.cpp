@@ -1,6 +1,7 @@
 #include "features/ota_updates/Registration.h"
 
 #include <ArduinoJson.h>
+#include <BuildInfo.h>
 #include <FeatureFlags.h>
 #include <WebServer.h>
 #include <WiFi.h>
@@ -48,6 +49,7 @@ void mountOtaRoutes(WebServer* server) {
 
     JsonDocument doc;
     doc["currentVersion"] = CROSSPOINT_VERSION;
+    doc["buildTimestamp"] = crosspoint::buildTimestamp();
 
     if (status.status == network::OtaWebCheckStatus::Checking) {
       doc["status"] = "checking";
@@ -55,10 +57,8 @@ void mountOtaRoutes(WebServer* server) {
       doc["status"] = "done";
       doc["available"] = status.available;
       doc["latestVersion"] = status.latestVersion.c_str();
-      doc["latest_version"] = status.latestVersion.c_str();
       doc["message"] = status.message.c_str();
       doc["errorCode"] = status.errorCode;
-      doc["error_code"] = status.errorCode;
     } else {
       doc["status"] = "idle";
     }

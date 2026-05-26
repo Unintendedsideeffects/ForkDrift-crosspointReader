@@ -24,11 +24,11 @@ class CrossPointSettings {
     CUSTOM = 2,
     TRANSPARENT = 3,
     FOLLOW_THEME = 4,
-    // NOTE: 5 and 6 are intercepted as legacy migrations in validateAndClamp(). Do not use.
+    // Values 5 and 6 are intentionally unused.
     SMART = 7,
     ROMAN_CLOCK_SLEEP = 8,
     SLEEP_SCREEN_MODE_COUNT = 9,
-    // Legacy raw values — never assigned via UI; handled in validateAndClamp().
+    // Former names kept as internal sentinels; never assigned via UI.
     COVER = 9,          // was 3
     BLANK = 10,         // was 4
     COVER_CUSTOM = 11,  // was 5
@@ -82,7 +82,7 @@ class CrossPointSettings {
     ORIENTATION_COUNT
   };
 
-  // Front button layout options (legacy)
+  // Front button layout presets
   // Default: Back, Confirm, Left, Right
   // Swapped: Left, Right, Back, Confirm
   enum FRONT_BUTTON_LAYOUT {
@@ -149,18 +149,8 @@ class CrossPointSettings {
     PARAGRAPH_ALIGNMENT_COUNT
   };
 
-  // Auto-sleep timeout options (in minutes)
-  enum SLEEP_TIMEOUT {
-    SLEEP_1_MIN = 0,
-    SLEEP_5_MIN = 1,
-    SLEEP_10_MIN = 2,
-    SLEEP_15_MIN = 3,
-    SLEEP_30_MIN = 4,
-    SLEEP_TIMEOUT_COUNT
-  };
   static constexpr uint8_t MIN_SLEEP_TIMEOUT_MINUTES = 1;
   static constexpr uint8_t MAX_SLEEP_TIMEOUT_MINUTES = 30;
-  static uint8_t sleepTimeoutEnumToMinutes(uint8_t legacyValue);
   static uint8_t normalizeSleepScreenMode(uint8_t rawValue);
 
   // E-ink refresh frequency (pages between full refreshes)
@@ -274,7 +264,7 @@ class CrossPointSettings {
   uint8_t sleepCycleMode = SLEEP_CYCLE_RANDOM;
   // Pinned sleep cover path — if non-empty and sleepScreen==CUSTOM, always use this image.
   char sleepPinnedPath[256] = "";
-  // Status bar settings (statusBar retained for migration only)
+  // Status bar settings
   uint8_t statusBar = FULL;
   uint8_t statusBarChapterPageCount = 1;
   uint8_t statusBarBookProgressPercentage = 1;
@@ -319,7 +309,6 @@ class CrossPointSettings {
   uint8_t lineSpacing = NORMAL;
   uint8_t paragraphAlignment = JUSTIFIED;
   // Auto-sleep timeout setting (default 10 minutes)
-  uint8_t sleepTimeout = SLEEP_10_MIN;  // legacy enum retained for binary/JSON migration
   uint8_t sleepTimeoutMinutes = 10;
   // E-ink refresh frequency (default 15 pages)
   uint8_t refreshFrequency = REFRESH_15;
@@ -340,8 +329,6 @@ class CrossPointSettings {
   uint8_t recentBooksView = RECENT_BOOKS_LIST;
   // Sunlight fading compensation
   uint8_t fadingFix = 0;
-  // Deprecated JSON migration fallback for old boolean long-press chapter skip.
-  uint8_t longPressChapterSkip = 1;
   // Use book's embedded CSS styles for EPUB rendering
   uint8_t embeddedStyle = 1;
   // Persisted background server flag for charge-only and always-on modes.
@@ -465,9 +452,6 @@ class CrossPointSettings {
 
   // Threshold separating short-press from long-press power button in reader.
   uint16_t getPowerButtonLongPressDuration() const { return POWER_BUTTON_LONG_PRESS_MS; }
-
-  // Keep old name as alias so callers outside the reader can be migrated incrementally.
-  uint16_t getPowerButtonDuration() const { return getPowerButtonWakeDuration(); }
   int getReaderFontId() const;
 
   bool saveToFile() const;
@@ -479,19 +463,11 @@ class CrossPointSettings {
   // Validate loaded settings and clamp to valid ranges
   void validateAndClamp();
 
- private:
-  bool loadFromBinaryFile();
-  bool migrateLanguageBinaryFile();
-
- public:
   float getReaderLineCompression() const;
   unsigned long getSleepTimeoutMs() const;
   int getRefreshFrequency() const;
   int getTimeZoneOffsetSeconds() const;
 };
-
-// Shared legacy migration helper used by both binary and JSON settings loaders.
-void applyLegacyStatusBarSettings(CrossPointSettings& settings);
 
 // Helper macro to access settings
 #define SETTINGS CrossPointSettings::getInstance()

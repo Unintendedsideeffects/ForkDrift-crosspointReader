@@ -13,7 +13,6 @@ String buildSettingsSnapshotJson(const CrossPointSettings& s) {
   doc["sleepPinnedPath"] = s.sleepPinnedPath;
   doc["sleepScreenCoverMode"] = s.sleepScreenCoverMode;
   doc["sleepScreenCoverFilter"] = s.sleepScreenCoverFilter;
-  doc["statusBar"] = s.statusBar;
   doc["statusBarChapterPageCount"] = s.statusBarChapterPageCount;
   doc["statusBarBookProgressPercentage"] = s.statusBarBookProgressPercentage;
   doc["statusBarProgressBar"] = s.statusBarProgressBar;
@@ -34,13 +33,13 @@ String buildSettingsSnapshotJson(const CrossPointSettings& s) {
   doc["fontSize"] = s.fontSize;
   doc["lineSpacing"] = s.lineSpacing;
   doc["paragraphAlignment"] = s.paragraphAlignment;
-  doc["sleepTimeout"] = s.sleepTimeout;
+  doc["sleepTimeoutMinutes"] = s.sleepTimeoutMinutes;
   doc["refreshFrequency"] = s.refreshFrequency;
   doc["screenMargin"] = s.screenMargin;
   doc["opdsServerUrl"] = s.opdsServerUrl;
   // opdsUsername and opdsPassword are not included to avoid exposing credentials.
   doc["hideBatteryPercentage"] = s.hideBatteryPercentage;
-  doc["longPressChapterSkip"] = s.longPressChapterSkip;
+  doc["longPressButtonBehavior"] = s.longPressButtonBehavior;
   doc["hyphenationEnabled"] = s.hyphenationEnabled;
   doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
   doc["todoFallbackCover"] = s.todoFallbackCover;

@@ -20,7 +20,8 @@ Each feature is independently toggleable:
 ```
 
 **Key principles:**
-- Features default to ENABLED (1) for backward compatibility
+- Each `ENABLE_*` flag has a documented default in `include/FeatureFlags.h`
+- Build profiles and `env:default` overrides in `platformio.ini` may differ from header defaults (for example hyphenation is off in `env:default`)
 - Disabling a feature removes it entirely at compile-time (no runtime cost)
 - Features have defined dependencies and conflicts
 - Unimplemented features are prevented from being enabled

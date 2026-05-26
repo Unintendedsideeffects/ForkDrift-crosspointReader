@@ -1,4 +1,5 @@
 #include <ArduinoJson.h>
+#include <BuildInfo.h>
 #include <FeatureFlags.h>
 #include <WiFi.h>
 
@@ -22,6 +23,7 @@ void CrossPointWebServer::handleStatus() const {
 
   JsonDocument doc;
   doc["version"] = CROSSPOINT_VERSION;
+  doc["buildTimestamp"] = crosspoint::buildTimestamp();
   doc["protocolVersion"] = CROSSPOINT_STATUS_PROTOCOL_VERSION;
   doc["wifiStatus"] = wifiStatus;
   doc["ip"] = ipAddr;

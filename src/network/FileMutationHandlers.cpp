@@ -1,10 +1,9 @@
-#include "CrossPointWebServer.h"
-
 #include <ArduinoJson.h>
 #include <Logging.h>
 
 #include <vector>
 
+#include "CrossPointWebServer.h"
 #include "network/CacheInvalidation.h"
 #include "network/FileMutationApi.h"
 
@@ -24,101 +23,82 @@ void CrossPointWebServer::handleCreateFolder() const {
 }
 
 void CrossPointWebServer::handleRename() const {
-  String itemPath;
-  String renameTarget;
-  bool fromFormContract = false;
-
-  if (server->hasArg("path") && server->hasArg("name")) {
-    itemPath = server->arg("path");
-    renameTarget = server->arg("name");
-    fromFormContract = true;
-  } else {
-    if (!server->hasArg("plain")) {
-      server->send(400, "text/plain", "Missing path or new name");
-      return;
-    }
-
-    JsonDocument body;
-    if (deserializeJson(body, server->arg("plain"))) {
-      server->send(400, "text/plain", "Invalid JSON body");
-      return;
-    }
-
-    itemPath = body["from"].as<String>();
-    renameTarget = body["to"].as<String>();
+  if (server->hasArg("path") || server->hasArg("name")) {
+    server->send(400, "text/plain", "Use JSON from/to body");
+    return;
+  }
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
   }
 
-  const bool treatTargetAsName = fromFormContract || (renameTarget.indexOf('/') < 0 && renameTarget.indexOf('\\') < 0);
+  JsonDocument body;
+  if (deserializeJson(body, server->arg("plain"))) {
+    server->send(400, "text/plain", "Invalid JSON body");
+    return;
+  }
+
+  const String itemPath = body["from"].as<String>();
+  const String renameTarget = body["to"].as<String>();
+  const bool treatTargetAsName = renameTarget.indexOf('/') < 0 && renameTarget.indexOf('\\') < 0;
   const auto result = network::renameFile(itemPath, renameTarget, treatTargetAsName,
                                           [](const String& path) { invalidateFeatureCachesIfNeeded(path); });
   server->send(result.statusCode, "text/plain", result.body);
 }
 
 void CrossPointWebServer::handleMove() const {
-  String itemPath;
-  String destPath;
-
-  if (server->hasArg("path") && server->hasArg("dest")) {
-    itemPath = server->arg("path");
-    destPath = server->arg("dest");
-  } else {
-    if (!server->hasArg("plain")) {
-      server->send(400, "text/plain", "Missing path or destination");
-      return;
-    }
-
-    JsonDocument body;
-    if (deserializeJson(body, server->arg("plain"))) {
-      server->send(400, "text/plain", "Invalid JSON body");
-      return;
-    }
-
-    itemPath = body["from"].as<String>();
-    destPath = body["to"].as<String>();
+  if (server->hasArg("path") || server->hasArg("dest")) {
+    server->send(400, "text/plain", "Use JSON from/to body");
+    return;
+  }
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
   }
 
+  JsonDocument body;
+  if (deserializeJson(body, server->arg("plain"))) {
+    server->send(400, "text/plain", "Invalid JSON body");
+    return;
+  }
+
+  const String itemPath = body["from"].as<String>();
+  const String destPath = body["to"].as<String>();
   const auto result =
       network::moveFile(itemPath, destPath, [](const String& path) { invalidateFeatureCachesIfNeeded(path); });
   server->send(result.statusCode, "text/plain", result.body);
 }
 
 void CrossPointWebServer::handleDelete() const {
-  const bool hasPathArg = server->hasArg("path");
-  const bool hasPathsArg = server->hasArg("paths");
-
-  if (!(hasPathArg || hasPathsArg)) {
-    server->send(400, "text/plain", "Missing `path` or `paths` argument");
+  if (server->hasArg("path")) {
+    server->send(400, "text/plain", "Use paths JSON array");
     return;
   }
-  if (hasPathArg && hasPathsArg) {
-    server->send(400, "text/plain", "Provide either 'path' or 'paths', not both");
+  const bool hasPathsArg = server->hasArg("paths");
+
+  if (!hasPathsArg) {
+    server->send(400, "text/plain", "Missing `paths` argument");
     return;
   }
 
   std::vector<String> paths;
-
-  if (hasPathsArg) {
-    JsonDocument doc;
-    if (deserializeJson(doc, server->arg("paths"))) {
-      server->send(400, "text/plain", "Invalid paths format");
-      return;
-    }
-
-    JsonArray jsonPaths = doc.as<JsonArray>();
-    if (jsonPaths.isNull() || jsonPaths.size() == 0) {
-      server->send(400, "text/plain", "No paths provided");
-      return;
-    }
-
-    paths.reserve(jsonPaths.size());
-    for (const auto& p : jsonPaths) {
-      paths.push_back(p.as<String>());
-    }
-  } else {
-    paths.push_back(server->arg("path"));
+  JsonDocument doc;
+  if (deserializeJson(doc, server->arg("paths"))) {
+    server->send(400, "text/plain", "Invalid paths format");
+    return;
   }
 
-  const auto result =
-      network::deletePaths(paths, [](const String& path) { invalidateFeatureCachesIfNeeded(path); });
+  JsonArray jsonPaths = doc.as<JsonArray>();
+  if (jsonPaths.isNull() || jsonPaths.size() == 0) {
+    server->send(400, "text/plain", "No paths provided");
+    return;
+  }
+
+  paths.reserve(jsonPaths.size());
+  for (const auto& p : jsonPaths) {
+    paths.push_back(p.as<String>());
+  }
+
+  const auto result = network::deletePaths(paths, [](const String& path) { invalidateFeatureCachesIfNeeded(path); });
   server->send(result.statusCode, "text/plain", result.body);
 }

@@ -213,8 +213,7 @@ void invalidateUploadCachesIfNeeded(const String& filePath) {
 
   String lowerPath = filePath;
   lowerPath.toLowerCase();
-  if (lowerPath == "/sleep.bmp" || lowerPath == "/sleep.png" || lowerPath == "/sleep.jpg" ||
-      lowerPath == "/sleep.jpeg" || lowerPath.startsWith("/sleep/") || lowerPath == "/sleep") {
+  if (lowerPath.startsWith("/sleep/") || lowerPath == "/sleep") {
     invalidateSleepImageCache();
   }
 }

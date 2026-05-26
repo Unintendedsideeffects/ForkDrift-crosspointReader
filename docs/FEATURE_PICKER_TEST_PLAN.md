@@ -195,7 +195,7 @@ Run with default build (`uv run pio run -e default`) to ensure no breakage:
 ## Known Issues / Notes
 
 - Full profile has tight headroom on the 6.4MB partition - verify on hardware
-- Runtime feature detection is available via `/api/plugins` and `/api/features`
+- Runtime feature detection is available via `/api/plugins`
 - Web configurator assumes standard GitHub repository structure
 
 ## Sign-Off

@@ -25,8 +25,6 @@ class KOReaderCredentialStore {
   // Private constructor for singleton
   KOReaderCredentialStore() = default;
 
-  bool loadFromBinaryFile();
-
  public:
   // Delete copy constructor and assignment
   KOReaderCredentialStore(const KOReaderCredentialStore&) = delete;

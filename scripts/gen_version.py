@@ -12,6 +12,8 @@ CROSSPOINT_VERSION statically in platformio.ini and are left untouched.
 CI can override the computed values via environment variables:
   GIT_COMMIT_COUNT  - integer commit count (overrides git rev-list output)
   BUILD_DATE        - YYYYMMDD string     (overrides current UTC date)
+  BUILD_TIMESTAMP   - Unix epoch seconds  (overrides build-time stamp for all envs)
+  SOURCE_DATE_EPOCH - Unix epoch seconds  (reproducible-build convention, used when BUILD_TIMESTAMP unset)
 """
 
 Import("env")  # noqa: F821 – PlatformIO SCons global
@@ -29,10 +31,6 @@ DYNAMIC_ENVS = {
 }
 
 env_name = env["PIOENV"]  # noqa: F821
-
-if env_name not in DYNAMIC_ENVS:
-    # Static version defined in platformio.ini – nothing to do.
-    Return()  # noqa: F821
 
 
 def get_commit_count() -> str:
@@ -56,6 +54,23 @@ def get_build_date() -> str:
     if "BUILD_DATE" in os.environ:
         return os.environ["BUILD_DATE"]
     return datetime.datetime.utcnow().strftime("%Y%m%d")
+
+
+def get_build_timestamp() -> int:
+    if "BUILD_TIMESTAMP" in os.environ:
+        return int(os.environ["BUILD_TIMESTAMP"])
+    if "SOURCE_DATE_EPOCH" in os.environ:
+        return int(os.environ["SOURCE_DATE_EPOCH"])
+    return int(datetime.datetime.utcnow().replace(microsecond=0).timestamp())
+
+
+def inject_build_timestamp() -> None:
+    timestamp = get_build_timestamp()
+    defines = env.get("CPPDEFINES", [])  # noqa: F821
+    defines = [d for d in defines if "CROSSPOINT_BUILD_TIMESTAMP" not in str(d)]
+    env.Replace(CPPDEFINES=defines)  # noqa: F821
+    env.Append(CPPDEFINES=[("CROSSPOINT_BUILD_TIMESTAMP", f"{timestamp}UL")])  # noqa: F821
+    print(f">> gen_version [{env_name}]: CROSSPOINT_BUILD_TIMESTAMP={timestamp}")
 
 
 def get_git_branch() -> str:
@@ -107,6 +122,11 @@ def get_base_version() -> str:
     return config.get("crosspoint", "version")
 
 
+inject_build_timestamp()
+
+if env_name not in DYNAMIC_ENVS:
+    Return()  # noqa: F821
+
 kind = DYNAMIC_ENVS[env_name]
 if kind == "local_dev":
     base = get_base_version()
@@ -119,11 +139,9 @@ elif kind == "commit_dev":
 else:
     version = get_build_date()
 
-# Remove any CROSSPOINT_VERSION already present (e.g. the fallback in platformio.ini),
-# then inject the computed one so the compiler sees only a single definition.
-defines = env.get("CPPDEFINES", [])
+defines = env.get("CPPDEFINES", [])  # noqa: F821
 defines = [d for d in defines if "CROSSPOINT_VERSION" not in str(d)]
-env.Replace(CPPDEFINES=defines)
-env.Append(CPPDEFINES=[("CROSSPOINT_VERSION", f'\\"{version}\\"')])
+env.Replace(CPPDEFINES=defines)  # noqa: F821
+env.Append(CPPDEFINES=[("CROSSPOINT_VERSION", f'\\"{version}\\"')])  # noqa: F821
 
 print(f">> gen_version [{env_name}]: CROSSPOINT_VERSION={version}")

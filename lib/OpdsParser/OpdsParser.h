@@ -24,9 +24,6 @@ struct OpdsEntry {
   std::string id;
 };
 
-// Legacy alias for backward compatibility
-using OpdsBook = OpdsEntry;
-
 /**
  * Parser for OPDS (Open Publication Distribution System) Atom feeds.
  * Uses the Expat XML parser to parse OPDS catalog entries.
@@ -74,12 +71,6 @@ class OpdsParser final : public Print {
    */
   const std::vector<OpdsEntry>& getEntries() const& { return entries; }
   std::vector<OpdsEntry> getEntries() && { return std::move(entries); }
-
-  /**
-   * Get only book entries (legacy compatibility).
-   * @return Vector of book entries
-   */
-  std::vector<OpdsEntry> getBooks() const;
 
   /**
    * Clear all parsed entries.

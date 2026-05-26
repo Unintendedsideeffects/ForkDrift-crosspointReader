@@ -150,8 +150,12 @@ void BmpViewerActivity::doSetSleepCover() {
 
   bool success = false;
   FsFile inFile, outFile;
+  constexpr const char* kSleepCoverPath = "/sleep/viewer.bmp";
   if (Storage.openFileForRead("BMP", filePath, inFile)) {
-    if (Storage.openFileForWrite("BMP", "/sleep.bmp", outFile)) {
+    if (!Storage.exists("/sleep")) {
+      Storage.mkdir("/sleep");
+    }
+    if (Storage.openFileForWrite("BMP", kSleepCoverPath, outFile)) {
       char buffer[2048];
       int bytesRead;
       size_t bytesCopied = 0;
@@ -165,7 +169,7 @@ void BmpViewerActivity::doSetSleepCover() {
       success = bytesRead == 0 && bytesCopied == expectedSize;
       outFile.close();
       if (!success) {
-        Storage.remove("/sleep.bmp");
+        Storage.remove(kSleepCoverPath);
       }
     }
     inFile.close();
@@ -173,7 +177,7 @@ void BmpViewerActivity::doSetSleepCover() {
 
   if (success) {
     SETTINGS.sleepScreen = CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM;
-    strncpy(SETTINGS.sleepPinnedPath, "/sleep.bmp", sizeof(SETTINGS.sleepPinnedPath) - 1);
+    strncpy(SETTINGS.sleepPinnedPath, kSleepCoverPath, sizeof(SETTINGS.sleepPinnedPath) - 1);
     SETTINGS.sleepPinnedPath[sizeof(SETTINGS.sleepPinnedPath) - 1] = '\0';
     if (!SETTINGS.saveToFile()) {
       LOG_ERR("BMP", "Failed to save settings");

@@ -10,10 +10,10 @@
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "FeatureFlags.h"
 #include "FileBrowserActionActivity.h"
 #include "Logging.h"
 #include "MappedInputManager.h"
-#include "FeatureFlags.h"
 #if ENABLE_BOOKMARKS
 #include "BookmarkStore.h"
 #endif
@@ -61,7 +61,7 @@ std::string buildReadFolderDestination(const std::string& srcPath) {
   return dstPath;
 }
 
-bool isSleepFolderPath(const std::string& path) { return path == "/sleep" || path == "/.sleep"; }
+bool isSleepFolderPath(const std::string& path) { return path == "/sleep"; }
 
 bool isSleepImageFile(const std::string& path) {
   return FsHelpers::hasBmpExtension(path) || FsHelpers::hasPngExtension(path);
@@ -283,8 +283,9 @@ void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool igno
   items.reserve(5);
   items.push_back({FileBrowserAction::Delete, StrId::STR_DELETE});
   if (isSleepFolderPath(basepath) && isSleepImageFile(fullPath)) {
-    items.push_back({isPinnedSleepFavorite(fullPath) ? FileBrowserAction::UnpinFavorite : FileBrowserAction::PinFavorite,
-                     isPinnedSleepFavorite(fullPath) ? StrId::STR_UNPIN_AS_FAVORITE : StrId::STR_PIN_AS_FAVORITE});
+    items.push_back(
+        {isPinnedSleepFavorite(fullPath) ? FileBrowserAction::UnpinFavorite : FileBrowserAction::PinFavorite,
+         isPinnedSleepFavorite(fullPath) ? StrId::STR_UNPIN_AS_FAVORITE : StrId::STR_PIN_AS_FAVORITE});
   }
   if (hasClearableBookCache(fullPath)) {
     items.push_back({FileBrowserAction::DeleteCache, StrId::STR_DELETE_CACHE});
@@ -344,7 +345,6 @@ void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool igno
 void FileBrowserActivity::onSelectBook(const std::string& fullPath) { activityManager.goToReader(fullPath); }
 
 void FileBrowserActivity::onGoHome() { activityManager.goHome(); }
-
 
 void FileBrowserActivity::confirmDeleteEntry(const std::string& entry) {
   const bool isDirectory = (entry.back() == '/');
@@ -620,7 +620,6 @@ void FileBrowserActivity::render(RenderLock&&) {
   const auto labels = mappedInput.mapLabels(backLabel, confirmLabel, files.empty() ? "" : tr(STR_DIR_UP),
                                             files.empty() ? "" : tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
-
 
   if (mode == Mode::Books && basepath == "/") {
     const int usedPathWidth = renderer.getTextWidth(SMALL_FONT_ID, basepath.c_str());

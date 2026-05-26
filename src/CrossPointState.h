@@ -60,8 +60,6 @@ class CrossPointState {
  private:
   std::string pendingOpenPath;
   int8_t pendingPageTurn = 0;
-
-  bool loadFromBinaryFile();
 };
 
 // Helper macro to access settings

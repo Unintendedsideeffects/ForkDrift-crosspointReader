@@ -8,8 +8,7 @@ namespace {
 void invalidateSleepCacheIfNeeded(const String& filePath) {
   String lowerPath = filePath;
   lowerPath.toLowerCase();
-  if (lowerPath.equals("/sleep.bmp") || lowerPath.equals("/sleep.png") || lowerPath.equals("/sleep.jpg") ||
-      lowerPath.equals("/sleep.jpeg") || lowerPath.startsWith("/sleep/") || lowerPath.equals("/sleep")) {
+  if (lowerPath.startsWith("/sleep/") || lowerPath.equals("/sleep")) {
     invalidateSleepImageCache();
   }
 }

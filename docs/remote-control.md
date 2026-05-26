@@ -37,9 +37,9 @@ curl -X POST http://<device-ip>/api/remote/button
 
 ### WebSocket API
 
-**Endpoint:** `ws://<device-ip>/ws`
+**Endpoint:** `ws://<device-ip>:81/`
 
-The WebSocket interface accepts simple text commands for rapid page navigation.
+Port 81 is the dedicated WebSocket upload server. The same connection accepts simple text commands for rapid page navigation.
 
 **Commands:**
 - `PAGE:NEXT` or `PAGE:FORWARD`: Turn to the next page.
@@ -47,7 +47,7 @@ The WebSocket interface accepts simple text commands for rapid page navigation.
 
 **Example using wscat:**
 ```bash
-wscat -c ws://<device-ip>/ws
+wscat -c ws://<device-ip>:81/
 > PAGE:NEXT
 ```
 

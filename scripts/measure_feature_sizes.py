@@ -51,6 +51,7 @@ FEATURES = [
     'background_server',
     'epub_support',
     'home_media_picker',
+    'remote_control',
     'wifi_clock',
     'pokemon_party',
     'xtc_support',
@@ -59,12 +60,19 @@ FEATURES = [
     'anki_support',
     'remote_keyboard_input',
     'dark_mode',
+    'web_wallpaper_plugin',
     'user_fonts',
     'usb_mass_storage',
     'background_server_on_charge',
     'background_server_always',
+    'reading_stats',
+    'minimal_theme',
+    'focus_reading',
     # --- Depend on features above ---
     'opendyslexic_fonts',       # requires: bookerly_fonts, notosans_fonts
+    'lexenddeca_fonts',         # font family feature
+    'bitter_fonts',             # font family feature
+    'chareink_fonts',           # font family feature
     'book_images',              # firmware #error unless epub_support or markdown (see override)
     'koreader_sync',            # requires: integrations
     'calibre_sync',             # requires: integrations

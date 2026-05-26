@@ -241,6 +241,55 @@
         font-weight: 600;
       }
 
+      .local-build-bar {
+        display: none;
+        margin-bottom: 20px;
+        border: var(--px) solid var(--blk);
+        background: var(--white);
+        padding: 10px 12px;
+        box-shadow:
+          inset var(--px) var(--px) 0 var(--bevel-hi),
+          inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 var(--bevel-lo);
+      }
+
+      .local-build-bar.visible {
+        display: block;
+      }
+
+      .local-build-label {
+        font-family: 'Silkscreen', monospace;
+        font-size: 9px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .local-build-hint {
+        display: block;
+        margin-top: 4px;
+        font-size: 9px;
+        color: var(--md);
+      }
+
+      .local-build-command {
+        margin: 10px 0 0;
+        padding: 8px 10px;
+        background: var(--fog);
+        border: var(--px) solid var(--dk);
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 9px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+        box-shadow:
+          inset var(--px) var(--px) 0 var(--bevel-lo),
+          inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 var(--bevel-hi);
+      }
+
+      .local-build-bar .actions {
+        margin-top: 8px;
+      }
+
       /* ══════════════════════════════════════════════
          CATEGORY SECTIONS — the key hierarchy element
          ══════════════════════════════════════════════ */
@@ -2123,6 +2172,16 @@
       </div>
       <div class="profile-status" id="profile-status"></div>
 
+      <div class="local-build-bar" id="local-build-bar">
+        <span class="local-build-label">Local build</span>
+        <span class="local-build-hint">Your loadout changed — run these commands from the repo root to build this firmware:</span>
+        <pre class="local-build-command" id="local-build-command"></pre>
+        <div class="actions">
+          <button class="btn btn-solid" type="button" id="local-build-copy">Copy commands</button>
+          <button class="btn btn-outline" type="button" id="local-build-download">Download build.sh</button>
+        </div>
+      </div>
+
       <!-- ═══════════════════════════════════════
            CATEGORIES — clear visual hierarchy
            ═══════════════════════════════════════ -->
@@ -2949,8 +3008,7 @@
                   <div class="wallpaper-group-label">Device Handoff</div>
                   <div class="companion-desc">
                     Put the exported BMP in <code>/sleep</code> for Custom source mode. For Pokédex wallpapers,
-                    use <code>/sleep/pokedex</code>. If managing the SD card directly, <code>/.sleep</code> takes
-                    priority over <code>/sleep</code>.
+                    use <code>/sleep/pokedex</code>.
                   </div>
                   <div class="actions" style="margin-top: 12px;">
                     <a class="btn btn-outline" id="open-wallpaper-file-manager" data-file-manager-link="files" href="http://crosspoint.local/files" target="_blank" rel="noopener">Open /files</a>
@@ -3383,7 +3441,7 @@
         opendyslexic_fonts: "A free font designed to increase legibility for readers with dyslexia. Weighted bottoms and unique letter shapes reduce confusion between similar glyphs (b/d, p/q). Four sizes at reduced weights. Large binary — enable only if needed.",
         image_sleep: "Displays a custom image (BMP on the SD card) when the device sleeps instead of a blank screen. Useful for dust-cover art, decorative illustrations, or always-on status displays on the e-ink panel.",
         book_images: "Renders inline images embedded inside EPUB books. Decodes JPEG and PNG figures, scales them to fit the page width, and dithers to 1-bit for the e-ink display. Disabled in minimal builds to save RAM during parsing.",
-        markdown: "Adds a lightweight Markdown renderer so plain .md files can be opened and read as if they were books. Supports headings, bold/italic, lists, blockquotes, and code spans. Adds ~296 KB to the binary.",
+        markdown: "Adds a lightweight Markdown renderer so plain .md files can be opened and read as if they were books. Supports headings, bold/italic, lists, blockquotes, and code spans. Adds ~179 KB to the binary.",
         integrations: "Shared runtime layer that enables cloud-service plugins. Required by KOReader Sync and OPDS Support — it handles HTTP connections, JSON serialisation, and retry logic. No UI of its own; other features depend on it.",
         koreader_sync: "Syncs reading position with a KOReader Companion server (e.g. Kavita or a self-hosted KOSync instance). On book open, fetches the last-synced position; on exit, pushes the current page. Requires Integrations.",
         calibre_sync: "OPDS catalog browser on the device for Calibre wireless libraries and other OPDS servers. Requires Integrations; enables BookLore Support automatically.",
@@ -3396,18 +3454,18 @@
         pokemon_wallpaper_plugin: "Installs the X4 Pokédex web plugin. Browsable via the Background Server's web UI. Demonstrates the plugin architecture and doubles as a reference for building custom web tools. Requires Image Sleep.",
         pokemon_party: "Displays your Pokémon party as a sleep-screen overlay sourced from the Pokemon Wallpaper plugin. A cosmetic feature; purely for fun. Requires Pokemon Wallpaper Plugin.",
         epub_support: "The core EPUB 2/3 parser and renderer. Handles ZIP extraction, NCX/OPF navigation, CSS-subset styling, and multi-section layout with an aggressive on-disk cache (.crosspoint/). Disabling this removes book reading entirely.",
-        hyphenation: "Automatic hyphenation using a compressed Knuth–Liang dictionary. Reduces excessive whitespace in justified text, particularly noticeable in narrow columns or landscape mode. Adds ~545 KB for the dictionary data.",
+        hyphenation: "Automatic hyphenation using a compressed Knuth–Liang dictionary. Reduces excessive whitespace in justified text, particularly noticeable in narrow columns or landscape mode. Adds ~435 KB for the dictionary data.",
         xtc_support: "Reads .xtc (CrossPoint Theme Config) sidecar files placed alongside books on the SD card. Overrides per-book font, margins, and theme without changing global settings. Lightweight but niche.",
         lyra_theme: "The Lyra visual theme — refined typography scale, softer borders, and consistent iconography. Disabling it falls back to the base pixel-art UI. Recommended on for all builds.",
         ota_updates: "Over-the-air firmware updates via the Background Server's web UI. Streams the binary directly to flash without a USB cable. Includes a verification step before commit; safe to enable in all builds.",
         remote_keyboard_input: "Turns the Android companion app or any phone browser into a keyboard for device text-entry prompts (WiFi passwords, search fields). Prefers the Android app; falls back to a QR-code web page; can start a local hotspot if no WiFi is available.",
-        todo_planner: "A minimal to-do list accessible from the nav bar. Items persist to the SD card. Useful for reading notes, wish lists, or errand reminders without leaving the device. Adds ~10 KB.",
-        anki_support: "Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop. Adds ~8 KB.",
+        todo_planner: "A minimal to-do list accessible from the nav bar. Items persist to the SD card. Useful for reading notes, wish lists, or errand reminders without leaving the device. Adds ~6 KB.",
+        anki_support: "Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop. Adds ~10 KB.",
         dark_mode: "Inverts the display for night reading — white-on-black instead of black-on-paper. Toggle from the settings menu. Negligible binary cost; the flag controls whether the option is exposed at all.",
         visual_cover_picker: "Lets you choose cover art for books that lack an embedded thumbnail. Opens a scrollable image browser pointed at a configurable folder on the SD card. Requires Home Media Picker.",
-        ble_wifi_provisioning: "Configure WiFi credentials by scanning a QR code or using the companion app over Bluetooth LE — no need to type a password on the device keyboard. Large binary cost (~673 KB) due to the BLE stack.",
+        ble_wifi_provisioning: "Configure WiFi credentials by scanning a QR code or using the companion app over Bluetooth LE — no need to type a password on the device keyboard. Large binary cost (~629 KB) due to the BLE stack.",
         user_fonts: "Load custom SD-card fonts from /fonts or /.fonts. Use the official CrossPoint Font Manager to convert TTF/OTF families into .cpfont files, then upload them from the device's Fonts page or copy them to the SD card. Upstream currently marks this flow as beta-firmware only.",
-        web_wifi_setup: "A captive-portal style WiFi setup wizard served from the Background Server. Scan a QR code, enter credentials, and the device connects — no app required. Small footprint (~5 KB).",
+        web_wifi_setup: "A captive-portal style WiFi setup wizard served from the Background Server. Scan a QR code, enter credentials, and the device connects — no app required. Small footprint (~3 KB).",
         usb_mass_storage: "Exposes the SD card as a USB mass-storage device when connected to a computer. Lets you drag-and-drop books without a network. The SD card is unmounted from the firmware while in this mode.",
         wifi_clock: "Shows a 24-hour Roman-numeral quarter-hour clock label in the ForkDrift home header and global status bar when system time is available. The minute marker is blank for :00, I for :15, II for :30, and III for :45. While connected to WiFi, it syncs time by NTP and refreshes the display every 15 minutes.",
         roman_clock_sleep: "Adds a dedicated sleep-screen mode that renders the WiFi Clock time as large block Roman numerals. It reuses the same NTP-backed quarter-hour Roman label as the header/status clock and only appears when both this feature and WiFi Clock are enabled.",
@@ -3466,9 +3524,7 @@
       const CROSSINK_FEATURES = new Set(["lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "reading_stats", "minimal_theme", "focus_reading"]);
 
       const PROFILES = {
-        lean: {
-          bookerly_fonts: true,
-        },
+        lean: {},
         standard: {
           bookerly_fonts: true,
           notosans_fonts: true,
@@ -3539,6 +3595,7 @@
       };
 
       let baseProfile = "standard";
+      let initialSelections = null;
 
       function getRepoInfo() {
         const host = window.location.hostname;
@@ -3726,21 +3783,43 @@
         return `# Custom CrossPoint Reader Build Configuration\n# Generated by web configurator\n# Selected profile: ${selectedProfile}\n\n[env:custom]\nextends = base\nbuild_flags =\n  ${base.build_flags}\n  -DCROSSPOINT_VERSION=\\\"1.0.0-custom\\\"\n  ${flags}\n`;
       }
 
-      function buildGenerateCommand(selections, matchingProfile, baseProfileName) {
+      function selectionsEqual(a, b) {
+        return Object.keys(FEATURES).every((feature) => Boolean(a[feature]) === Boolean(b[feature]));
+      }
+
+      function isConfigDirty(selections) {
+        return initialSelections ? !selectionsEqual(selections, initialSelections) : false;
+      }
+
+      function buildGenerateConfigArgs(selections, matchingProfile, baseProfileName) {
+        const args = ["uv run python scripts/generate_build_config.py"];
         if (matchingProfile) {
-          return `uv run python scripts/generate_build_config.py --profile ${matchingProfile}`;
+          args.push(`--profile ${matchingProfile}`);
+          return args;
         }
+        args.push(`--profile ${baseProfileName}`);
         const baseSelections = profileToSelections(baseProfileName);
-        const args = [
-          "uv run python scripts/generate_build_config.py",
-          `--profile ${baseProfileName}`,
-        ];
         Object.keys(FEATURES).forEach((feature) => {
           if (selections[feature] !== baseSelections[feature]) {
             args.push(selections[feature] ? `--enable ${feature}` : `--disable ${feature}`);
           }
         });
-        return args.join(" ");
+        return args;
+      }
+
+      function buildGenerateCommand(selections, matchingProfile, baseProfileName) {
+        return buildGenerateConfigArgs(selections, matchingProfile, baseProfileName).join(" ");
+      }
+
+      function buildLocalBuildScript(selections, matchingProfile, baseProfileName) {
+        const generateLine = buildGenerateCommand(selections, matchingProfile, baseProfileName);
+        return [
+          "#!/usr/bin/env bash",
+          "set -euo pipefail",
+          "cd crosspoint-reader",
+          generateLine,
+          "uv run pio run -e custom",
+        ].join("\n");
       }
 
       function buildShareUrl(selections, selectedProfile) {
@@ -3759,11 +3838,6 @@
         const requestedProfile = params.get("profile");
         const initialProfile = PROFILES[requestedProfile] ? requestedProfile : "standard";
         const selections = profileToSelections(initialProfile);
-        const legacyExtendedFonts = parseBooleanParam(params.get("extended_fonts"));
-        if (legacyExtendedFonts !== null) {
-          selections.bookerly_fonts = legacyExtendedFonts;
-          selections.notosans_fonts = legacyExtendedFonts;
-        }
         Object.keys(FEATURES).forEach((feature) => {
           const parsed = parseBooleanParam(params.get(feature));
           if (parsed !== null) selections[feature] = parsed;
@@ -3774,9 +3848,18 @@
 
       function updateOutputs(selections, selectedProfile, matchingProfile) {
         document.getElementById("flags-output").value = buildFlags(selections);
-        document.getElementById("command-output").value = buildGenerateCommand(selections, matchingProfile, baseProfile);
+        document.getElementById("command-output").value = buildLocalBuildScript(selections, matchingProfile, baseProfile);
         document.getElementById("ini-output").value = buildIni(selections, selectedProfile);
         document.getElementById("share-output").value = buildShareUrl(selections, selectedProfile);
+      }
+
+      function updateLocalBuildBar(selections, matchingProfile, dirty) {
+        const bar = document.getElementById("local-build-bar");
+        const commandEl = document.getElementById("local-build-command");
+        if (!bar || !commandEl) return;
+        bar.classList.toggle("visible", dirty);
+        if (!dirty) return;
+        commandEl.textContent = buildLocalBuildScript(selections, matchingProfile, baseProfile);
       }
 
       function buildWorkflowDispatchPayload(selections, matchingProfile, baseProfileName) {
@@ -3950,6 +4033,7 @@
         updateSizeDisplay(size);
         updateOutputs(selections, selectedProfile, matchingProfile);
         updateBuildLink(selections, selectedProfile);
+        updateLocalBuildBar(selections, matchingProfile, isConfigDirty(selections));
         if (window._updateSettingsVisibility) window._updateSettingsVisibility(selections);
       }
 
@@ -4218,6 +4302,29 @@
           const link = document.createElement("a");
           link.href = url;
           link.download = "platformio-custom.ini";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(url);
+        });
+
+        const localBuildCopy = document.getElementById("local-build-copy");
+        localBuildCopy.addEventListener("click", async () => {
+          const selections = readSelections();
+          const matchingProfile = detectMatchingProfile(selections);
+          await navigator.clipboard.writeText(buildLocalBuildScript(selections, matchingProfile, baseProfile));
+          flashCopyButton(localBuildCopy);
+        });
+
+        document.getElementById("local-build-download").addEventListener("click", () => {
+          const selections = readSelections();
+          const matchingProfile = detectMatchingProfile(selections);
+          const content = buildLocalBuildScript(selections, matchingProfile, baseProfile);
+          const blob = new Blob([content], { type: "text/x-sh" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = "build.sh";
           document.body.appendChild(link);
           link.click();
           link.remove();
@@ -4625,7 +4732,7 @@
           link.click();
           link.remove();
           URL.revokeObjectURL(url);
-          setStatus("Downloaded sleep.bmp. Put it in /sleep for Custom mode, or leave it at the SD root for the legacy fallback. If you manage the SD card directly, /.sleep also works and takes priority.");
+          setStatus("Downloaded sleep.bmp. Put it in /sleep for Custom mode.");
         }
 
         function loadImageFile(file) {
@@ -6345,6 +6452,7 @@
       stampCrossinkBadges();
       const initialState = parseInitialStateFromUrl();
       baseProfile = initialState.initialProfile;
+      initialSelections = Object.assign({}, initialState.selections);
       setSelections(initialState.selections);
       highlightProfile(baseProfile);
       updateAll();

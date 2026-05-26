@@ -11,13 +11,13 @@ CrossPoint-specific constraints in this variant:
 - Browser-first workflow for generating assets outside the device
 
 This page is a supported primary workflow for users who generate wallpapers on the web and then copy them to the SD card.
-It is not just a fallback for the device-hosted `/plugins/pokedex` page.
+It is not just a fallback for the device-hosted `/plugins/pokemon-wallpaper` page.
 
 Open `index.html` in a browser and generate wallpapers for the `/sleep/pokedex/` folder.
 The generated `.bmp` files should be copied to `sleep/pokedex` on the SD card.
 
 The companion page can also export a stripped `pokemon_cache.json` for the device-hosted
-`/plugins/pokedex` page. To bake that cache into firmware builds:
+`/plugins/pokemon-wallpaper` page. To bake that cache into firmware builds:
 
 ```bash
 python scripts/inject_pokemon_cache.py /path/to/pokemon_cache.json

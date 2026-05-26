@@ -35,7 +35,7 @@ CrossPoint Reader includes a built-in web server that allows you to:
 Once the scan completes, you'll see a list of available WiFi networks with the following indicators:
 
 - **Signal strength bars** (`||||`, `|||`, `||`, `|`) - Shows connection quality
-- **`*` symbol** - Indicates the network is password-protected (encrypted)
+- **`*` symbol** - Indicates the network is password-protected (secured)
 - **`+` symbol** - Indicates you have previously saved credentials for this network
 
 <img src="./images/wifi/wifi_networks.jpeg" height="500">
@@ -45,7 +45,7 @@ Once the scan completes, you'll see a list of available WiFi networks with the f
 1. Use the **Left/Right** (or **Volume Up/Down**) buttons to navigate through the network list
 2. Press **Confirm** to select the highlighted network
 
-### Entering Password (for encrypted networks)
+### Entering Password (for secured networks)
 
 If the network requires a password:
 

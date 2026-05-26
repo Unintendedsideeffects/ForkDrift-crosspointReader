@@ -36,7 +36,7 @@ git add scripts/generate_build_config.py
 git commit -m "feat(build): add build configuration generator script
 
 - Add Python script to generate custom PlatformIO configs
-- Define feature flags: ENABLE_EXTENDED_FONTS, ENABLE_IMAGE_SLEEP, ENABLE_MARKDOWN, ENABLE_BACKGROUND_SERVER
+- Define feature flags: ENABLE_BOOKERLY_FONTS, ENABLE_NOTOSANS_FONTS, ENABLE_IMAGE_SLEEP, ENABLE_MARKDOWN, ENABLE_BACKGROUND_SERVER
 - Support profiles: lean, standard, full
 - Calculate firmware size estimates
 - Generate platformio-custom.ini with custom build flags
@@ -51,12 +51,12 @@ echo ""
 echo "${GREEN}Phase 2: Feature Flags${NC}"
 echo "----------------------"
 
-# Component 2a: Extended Fonts
-echo "${BLUE}[2/10]${NC} Extended fonts feature flag..."
+# Component 2a: Reading Fonts
+echo "${BLUE}[2/10]${NC} Reading font feature flags..."
 git add src/main.cpp
-git commit -m "feat(fonts): add ENABLE_EXTENDED_FONTS feature flag
+git commit -m "feat(fonts): add explicit reading font feature flags
 
-Replace OMIT_FONTS with ENABLE_EXTENDED_FONTS for consistency.
+Replace aggregate font gating with explicit reading font feature toggles.
 
 When enabled (default):
 - Bookerly 12, 16, 18pt fonts

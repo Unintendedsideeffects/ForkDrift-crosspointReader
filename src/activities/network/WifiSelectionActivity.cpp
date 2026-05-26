@@ -652,7 +652,7 @@ void WifiSelectionActivity::renderNetworkList() const {
         renderer.drawText(UI_10_FONT_ID, pageWidth - 50, networkY, "+");
       }
 
-      // Draw lock icon for encrypted networks
+      // Draw lock icon for secured networks
       if (network.isEncrypted) {
         renderer.drawText(UI_10_FONT_ID, pageWidth - 30, networkY, "*");
       }

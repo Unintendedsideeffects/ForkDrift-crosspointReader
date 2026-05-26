@@ -11,12 +11,11 @@ Usage:
 Firmware endpoints implemented:
     GET  /api/status
     GET  /api/plugins
-    GET  /api/features
     GET  /api/files?path=X
     GET  /download?path=X
     POST /mkdir          (form: name, path)
-    POST /rename         (form: path, name)
-    POST /move           (form: path, dest)
+    POST /rename         (JSON body: from, to)
+    POST /move           (JSON body: from, to)
     POST /delete         (form: paths JSON array)
     GET  /api/settings
     GET  /api/settings/raw
@@ -99,9 +98,7 @@ def _default_ota():
         "status": "idle",
         "available": False,
         "latestVersion": "",
-        "latest_version": "",
         "errorCode": 0,
-        "error_code": 0,
         "message": "",
     }
 
@@ -198,6 +195,17 @@ class ContractHandler(BaseHTTPRequestHandler):
         parsed = urllib.parse.parse_qs(decoded, keep_blank_values=True)
         return {k: v[0] for k, v in parsed.items()}
 
+    def _json_body_or_error(self, raw: bytes) -> dict | None:
+        content_type = self.headers.get("Content-Type", "")
+        if "application/json" not in content_type:
+            self._text("Use JSON from/to body", 400)
+            return None
+        body = self._parse_json(raw)
+        if not isinstance(body, dict):
+            self._text("Invalid JSON body", 400)
+            return None
+        return body
+
     def _path_and_query(self):
         parsed = urllib.parse.urlparse(self.path)
         return parsed.path, parsed.query
@@ -269,7 +277,7 @@ class ContractHandler(BaseHTTPRequestHandler):
             if base == "/api/status":
                 self._json_response(_state["status"])
 
-            elif base in ("/api/plugins", "/api/features"):
+            elif base == "/api/plugins":
                 self._json_response(_state["plugins"])
 
             elif base == "/api/files":
@@ -326,11 +334,9 @@ class ContractHandler(BaseHTTPRequestHandler):
                 self._json_response(_state["todoToday"])
 
             elif base == "/api/wifi/scan":
-                # Mirror firmware: return both secured and encrypted fields
                 networks = []
                 for n in _state["wifiNetworks"]:
                     entry = dict(n)
-                    entry["encrypted"] = entry.get("secured", False)
                     entry.setdefault("saved", False)
                     networks.append(entry)
                 self._json_response(networks)
@@ -408,26 +414,20 @@ class ContractHandler(BaseHTTPRequestHandler):
                 self._text(f"Folder created: {name}")
 
             elif base == "/rename":
-                body = self._parse_json(raw)
-                if "from" in body or "to" in body:
-                    path = urllib.parse.unquote(body.get("from", ""))
-                    target = urllib.parse.unquote(body.get("to", ""))
-                else:
-                    form = self._parse_form(raw)
-                    path = urllib.parse.unquote(form.get("path", ""))
-                    target = form.get("name", "")
+                body = self._json_body_or_error(raw)
+                if body is None:
+                    return
+                path = urllib.parse.unquote(body.get("from", ""))
+                target = urllib.parse.unquote(body.get("to", ""))
                 _mutations["renames"].append([path, target])
                 self._text("Renamed successfully")
 
             elif base == "/move":
-                body = self._parse_json(raw)
-                if "from" in body or "to" in body:
-                    path = urllib.parse.unquote(body.get("from", ""))
-                    dest = urllib.parse.unquote(body.get("to", ""))
-                else:
-                    form = self._parse_form(raw)
-                    path = urllib.parse.unquote(form.get("path", ""))
-                    dest = urllib.parse.unquote(form.get("dest", ""))
+                body = self._json_body_or_error(raw)
+                if body is None:
+                    return
+                path = urllib.parse.unquote(body.get("from", ""))
+                dest = urllib.parse.unquote(body.get("to", ""))
                 _mutations["moves"].append([path, dest])
                 self._text("Moved successfully")
 
@@ -452,6 +452,9 @@ class ContractHandler(BaseHTTPRequestHandler):
                 items = body.get("items", [])
                 if not isinstance(items, list):
                     items = []
+                if any(isinstance(item, dict) and "is_header" in item for item in items):
+                    self._text("Use isHeader", 400)
+                    return
                 _mutations["todoTodaySaves"].append(body)
                 current = dict(_state["todoToday"])
                 current["ok"] = True

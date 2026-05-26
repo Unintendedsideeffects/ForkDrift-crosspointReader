@@ -173,29 +173,41 @@ class HostServerTest(unittest.TestCase):
         self.assertTrue(os.path.isdir(os.path.join(self.temp_dir, "new_dir")))
 
     def test_04_rename(self):
-        """POST /rename (form: path, name)"""
+        """POST /rename (JSON: from, to)"""
         # Rename test.txt to renamed.txt
-        data = urllib.parse.urlencode({"path": "/test.txt", "name": "renamed.txt"}).encode("utf-8")
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        code, _, _ = self._request("POST", "/rename", data=data, headers=headers)
-        
+        legacy = urllib.parse.urlencode({"path": "/test.txt", "name": "renamed.txt"}).encode("utf-8")
+        legacy_headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        code, body, _ = self._request("POST", "/rename", data=legacy, headers=legacy_headers)
+
         if code == 404: self.skipTest("Route /rename not implemented")
+        self.assertEqual(code, 400)
+        self.assertIn(b"Use JSON from/to body", body)
+
+        data = json.dumps({"from": "/test.txt", "to": "renamed.txt"}).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        code, _, _ = self._request("POST", "/rename", data=data, headers=headers)
         self.assertEqual(code, 200)
-        
+
         # Verify on-disk state
         self.assertFalse(os.path.exists(os.path.join(self.temp_dir, "test.txt")))
         self.assertTrue(os.path.exists(os.path.join(self.temp_dir, "renamed.txt")))
 
     def test_05_move(self):
-        """POST /move (form: path, dest)"""
+        """POST /move (JSON: from, to)"""
         # Move renamed.txt to /subdir/
-        data = urllib.parse.urlencode({"path": "/renamed.txt", "dest": "/subdir"}).encode("utf-8")
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        code, _, _ = self._request("POST", "/move", data=data, headers=headers)
-        
+        legacy = urllib.parse.urlencode({"path": "/renamed.txt", "dest": "/subdir"}).encode("utf-8")
+        legacy_headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        code, body, _ = self._request("POST", "/move", data=legacy, headers=legacy_headers)
+
         if code == 404: self.skipTest("Route /move not implemented")
+        self.assertEqual(code, 400)
+        self.assertIn(b"Use JSON from/to body", body)
+
+        data = json.dumps({"from": "/renamed.txt", "to": "/subdir"}).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        code, _, _ = self._request("POST", "/move", data=data, headers=headers)
         self.assertEqual(code, 200)
-        
+
         # Verify on-disk state
         self.assertFalse(os.path.exists(os.path.join(self.temp_dir, "renamed.txt")))
         self.assertTrue(os.path.exists(os.path.join(self.temp_dir, "subdir", "renamed.txt")))
@@ -225,15 +237,20 @@ class HostServerTest(unittest.TestCase):
 
     def test_07_delete(self):
         """POST /delete (form: paths JSON array)"""
+        single_path = urllib.parse.urlencode({"path": "/subdir/subfile.txt"}).encode("utf-8")
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        code, body, _ = self._request("POST", "/delete", data=single_path, headers=headers)
+
+        if code == 404: self.skipTest("Route /delete not implemented")
+        self.assertEqual(code, 400)
+        self.assertIn(b"Use paths JSON array", body)
+
         # Delete /subdir/subfile.txt and /test.epub
         paths = ["/subdir/subfile.txt", "/test.epub"]
         data = urllib.parse.urlencode({"paths": json.dumps(paths)}).encode("utf-8")
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
         code, _, _ = self._request("POST", "/delete", data=data, headers=headers)
-        
-        if code == 404: self.skipTest("Route /delete not implemented")
         self.assertEqual(code, 200)
-        
+
         # Verify on-disk state
         self.assertFalse(os.path.exists(os.path.join(self.temp_dir, "subdir", "subfile.txt")))
         self.assertFalse(os.path.exists(os.path.join(self.temp_dir, "test.epub")))

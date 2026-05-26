@@ -106,78 +106,60 @@ void handleMkdir(WebServer& server) {
 }
 
 void handleRename(WebServer& server, const network::FileRouteOptions& options) {
-  String itemPath;
-  String target;
-  bool treatTargetAsName = false;
-
-  const auto formPath = requestArg(server, "path");
-  const auto formName = requestArg(server, "name");
-  if (formPath.present && formName.present) {
-    itemPath = formPath.value;
-    target = formName.value;
-    treatTargetAsName = true;
-  } else {
-    JsonDocument body;
-    if (!parseJsonBody(server, body, "Missing path or new name", "Invalid JSON body")) return;
-    itemPath = String(body["from"] | "");
-    target = String(body["to"] | "");
-    treatTargetAsName = target.indexOf('/') < 0 && target.indexOf('\\') < 0;
+  if (requestArg(server, "path").present || requestArg(server, "name").present) {
+    sendText(server, 400, "Use JSON from/to body");
+    return;
   }
+
+  JsonDocument body;
+  if (!parseJsonBody(server, body, "Missing JSON body", "Invalid JSON body")) return;
+  const String itemPath = String(body["from"] | "");
+  const String target = String(body["to"] | "");
+  const bool treatTargetAsName = target.indexOf('/') < 0 && target.indexOf('\\') < 0;
 
   const auto result = network::renameFile(itemPath, target, treatTargetAsName, options.onPathChanged);
   sendText(server, result.statusCode, result.body);
 }
 
 void handleMove(WebServer& server, const network::FileRouteOptions& options) {
-  String itemPath;
-  String target;
-
-  const auto formPath = requestArg(server, "path");
-  const auto formDest = requestArg(server, "dest");
-  if (formPath.present && formDest.present) {
-    itemPath = formPath.value;
-    target = formDest.value;
-  } else {
-    JsonDocument body;
-    if (!parseJsonBody(server, body, "Missing path or destination", "Invalid JSON body")) return;
-    itemPath = String(body["from"] | "");
-    target = String(body["to"] | "");
+  if (requestArg(server, "path").present || requestArg(server, "dest").present) {
+    sendText(server, 400, "Use JSON from/to body");
+    return;
   }
+
+  JsonDocument body;
+  if (!parseJsonBody(server, body, "Missing JSON body", "Invalid JSON body")) return;
+  const String itemPath = String(body["from"] | "");
+  const String target = String(body["to"] | "");
 
   const auto result = network::moveFile(itemPath, target, options.onPathChanged);
   sendText(server, result.statusCode, result.body);
 }
 
 void handleDelete(WebServer& server, const network::FileRouteOptions& options) {
-  const auto path = requestArg(server, "path");
   const auto pathsArg = requestArg(server, "paths");
-  const bool hasPathArg = path.present;
-  const bool hasPathsArg = pathsArg.present;
-  if (!(hasPathArg || hasPathsArg)) {
-    sendText(server, 400, "Missing `path` or `paths` argument");
+  if (requestArg(server, "path").present) {
+    sendText(server, 400, "Use paths JSON array");
     return;
   }
-  if (hasPathArg && hasPathsArg) {
-    sendText(server, 400, "Provide either 'path' or 'paths', not both");
+  const bool hasPathsArg = pathsArg.present;
+  if (!hasPathsArg) {
+    sendText(server, 400, "Missing `paths` argument");
     return;
   }
 
   std::vector<String> paths;
-  if (hasPathArg) {
-    paths.push_back(path.value);
-  } else {
-    JsonDocument body;
-    if (deserializeJson(body, pathsArg.value.c_str())) {
-      sendText(server, 400, "Invalid paths format");
-      return;
-    }
-    const auto array = body.as<JsonArray>();
-    if (array.isNull()) {
-      sendText(server, 400, "Invalid paths format");
-      return;
-    }
-    for (const auto& value : array) paths.push_back(String(value.as<const char*>() ? value.as<const char*>() : ""));
+  JsonDocument body;
+  if (deserializeJson(body, pathsArg.value.c_str())) {
+    sendText(server, 400, "Invalid paths format");
+    return;
   }
+  const auto array = body.as<JsonArray>();
+  if (array.isNull()) {
+    sendText(server, 400, "Invalid paths format");
+    return;
+  }
+  for (const auto& value : array) paths.push_back(String(value.as<const char*>() ? value.as<const char*>() : ""));
 
   const auto result = network::deletePaths(paths, options.onPathChanged);
   sendText(server, result.statusCode, result.body);

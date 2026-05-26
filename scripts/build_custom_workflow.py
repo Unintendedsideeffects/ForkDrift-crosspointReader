@@ -13,7 +13,7 @@ import re
 import subprocess
 import sys
 
-from generate_build_config import FEATURES, PROFILES, resolve_profile_name
+from generate_build_config import FEATURES, PROFILES
 
 
 def parse_feature_list(raw: str) -> list[str]:
@@ -28,7 +28,7 @@ def main() -> int:
     parser.add_argument("--output", default="platformio-custom.ini")
     args = parser.parse_args()
 
-    requested_profile = resolve_profile_name(args.profile)
+    requested_profile = args.profile
     if requested_profile != "custom" and requested_profile not in PROFILES:
         print(f"Unknown profile: {args.profile}", file=sys.stderr)
         return 1

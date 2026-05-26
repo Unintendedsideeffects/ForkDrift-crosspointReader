@@ -736,20 +736,9 @@ PROFILES = {
     },
 }
 
-# Backward-compatible aliases used by old docs/workflows.
-LEGACY_PROFILE_ALIASES = {
-    'minimal': 'lean',
-}
-
-
 def empty_feature_state() -> Dict[str, bool]:
     """Return a fully-initialized feature map with all options disabled."""
     return {feature_key: False for feature_key in FEATURES.keys()}
-
-
-def resolve_profile_name(profile_name: str) -> str:
-    """Resolve legacy profile aliases to canonical profile names."""
-    return LEGACY_PROFILE_ALIASES.get(profile_name, profile_name)
 
 
 def calculate_size(enabled_features: Dict[str, bool]) -> float:
@@ -843,35 +832,29 @@ Examples:
   # Disable specific plugins from full profile
   %(prog)s --profile full --disable markdown
 
-  # List available plugins
-  %(prog)s --list-plugins
+  # List available features
+  %(prog)s --list-features
 """
     )
 
     parser.add_argument(
         '--profile',
-        choices=sorted(list(PROFILES.keys()) + list(LEGACY_PROFILE_ALIASES.keys())),
-        help='Use a predefined plugin profile'
-    )
-
-    parser.add_argument(
-        '--preset',
-        choices=sorted(list(PROFILES.keys()) + list(LEGACY_PROFILE_ALIASES.keys())),
-        help='Deprecated alias for --profile'
+        choices=sorted(PROFILES.keys()),
+        help='Use a predefined feature profile'
     )
 
     parser.add_argument(
         '--enable',
         action='append',
         choices=list(FEATURES.keys()),
-        help='Enable a specific plugin (can be used multiple times)'
+        help='Enable a specific feature (can be used multiple times)'
     )
 
     parser.add_argument(
         '--disable',
         action='append',
         choices=list(FEATURES.keys()),
-        help='Disable a specific plugin (can be used multiple times)'
+        help='Disable a specific feature (can be used multiple times)'
     )
 
     parser.add_argument(
@@ -887,17 +870,10 @@ Examples:
         help='List all available features and exit'
     )
 
-    parser.add_argument(
-        '--list-plugins',
-        action='store_true',
-        help='Alias for --list-features'
-    )
-
     args = parser.parse_args()
 
-    # Handle --list-features / --list-plugins
-    if args.list_features or args.list_plugins:
-        print("Available plugins:\n")
+    if args.list_features:
+        print("Available features:\n")
         for key, feature in FEATURES.items():
             print(f"  {key:20} - {feature.name}")
             print(f"  {'':20}   {feature.description}")
@@ -908,35 +884,18 @@ Examples:
         for profile_name, profile_info in PROFILES.items():
             print(f"  {profile_name:10} - {profile_info['description']}")
 
-        if LEGACY_PROFILE_ALIASES:
-            print("\nLegacy aliases:\n")
-            for legacy_name, canonical_name in LEGACY_PROFILE_ALIASES.items():
-                print(f"  {legacy_name:10} -> {canonical_name}")
-
         return 0
 
-    # Handle profile/preset compatibility.
     requested_profile = args.profile
-    if args.preset:
-        if requested_profile and requested_profile != args.preset:
-            print("❌ Cannot pass both --profile and --preset with different values")
-            return 1
-        requested_profile = args.preset
 
     # Determine enabled features
     enabled_features = empty_feature_state()
     selected_profile = "custom"
     if requested_profile:
-        canonical_profile = resolve_profile_name(requested_profile)
-        if canonical_profile not in PROFILES:
-            print(f"❌ Unknown profile: {requested_profile}")
-            return 1
-        enabled_features.update(PROFILES[canonical_profile]['features'])
-        selected_profile = canonical_profile
-        if requested_profile in LEGACY_PROFILE_ALIASES:
-            print(f"⚠️  Profile '{requested_profile}' is deprecated; using '{canonical_profile}'")
-        print(f"Using profile: {canonical_profile}")
-        print(f"  {PROFILES[canonical_profile]['description']}")
+        enabled_features.update(PROFILES[requested_profile]['features'])
+        selected_profile = requested_profile
+        print(f"Using profile: {requested_profile}")
+        print(f"  {PROFILES[requested_profile]['description']}")
 
     # Apply --enable flags
     if args.enable:

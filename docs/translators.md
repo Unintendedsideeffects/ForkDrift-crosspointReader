@@ -1,7 +1,7 @@
 # Translators
 
-Below is a list of users and languages CrossPoint may support in the future.
-Note because a language is below does not mean there is official support for the language at this time.
+Below is a list of contributors who have helped translate CrossPoint UI strings.
+Official supported languages are listed in [i18n.md](./i18n.md).
 
 ## Contributing
 

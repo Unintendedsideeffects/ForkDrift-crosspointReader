@@ -27,7 +27,8 @@
   </tr>
   <tr>
     <td align="center"><img src="docs/configurator/screen-previews/08_home_lyra_carousel.png" width="140"/><br/><sub><b>Lyra Carousel</b></sub></td>
-    <td align="center"><img src="docs/configurator/screen-previews/05_home_forkdrift.png" width="140"/><br/><sub><b>Visual Covers ★</b></sub></td>
+    <td align="center"><img src="docs/configurator/screen-previews/04_home_visual_covers.png" width="140"/><br/><sub><b>Lyra Extended</b></sub></td>
+    <td align="center"><img src="docs/configurator/screen-previews/05_home_forkdrift.png" width="140"/><br/><sub><b>Fork Drift ★</b></sub></td>
     <td align="center"><img src="docs/configurator/screen-previews/06_home_pokemon_party.png" width="140"/><br/><sub><b>Pokémon Party ★</b></sub></td>
   </tr>
 </table>
@@ -53,7 +54,7 @@ Clean reading view with the status bar showing chapter, progress bar, and page p
   </tr>
 </table>
 
-<sub>★ ForkDrift exclusive · Additional modes: book cover (fit/crop/filter), reading stats, none</sub>
+<sub>★ ForkDrift exclusive · Additional compile-time modes: Reading Stats sleep screen, Roman Clock (requires WiFi Clock). Smart mode uses book covers and pinned images without a separate Cover setting.</sub>
 
 ---
 
@@ -69,7 +70,8 @@ Legend: ✅ present · ❌ absent · ⚙️ compile-time flag (off by default)
 | Lyra theme (rounded elements, menu icons) | ✅ | ✅ | ✅ |
 | Lyra Extended theme | ✅ | ❌ | ✅ |
 | Minimal theme | ❌ | ✅ | ✅ |
-| Visual Covers home layout (3-book grid) | ❌ | ❌ | ✅ |
+| Visual Covers home layout (3-book grid) | ❌ | ❌ | ✅ (Lyra Extended theme) |
+| Fork Drift home layout (6-book grid) | ❌ | ❌ | ✅ |
 | Dark mode | ✅ | ✅ | ✅ |
 | Global status bar (battery, time, progress modes) | ✅ | ✅ | ✅ |
 | Status bar: hide battery % in reader / always | ❌ | ❌ | ✅ |
@@ -173,7 +175,7 @@ Legend: ✅ present · ❌ absent · ⚙️ compile-time flag (off by default)
 | Side button swap (reader) | ✅ | ✅ | ✅ |
 | Short power-button action (sleep / page turn / select) | ✅ | ✅ | ✅ |
 | Screenshot (power+vol-down, or reader menu) | ✅ | ✅ | ✅ |
-| Language / i18n support (22 languages) | ✅ | ✅ | ✅ |
+| Language / i18n support (23 languages) | ✅ | ✅ | ✅ |
 | Per-orientation layout | ✅ | ✅ | ✅ |
 | Modular compile-time feature flags (`ENABLE_*`) | ❌ | ❌ | ✅ |
 | ForkDrift web configurator (choose features, build online) | ❌ | ❌ | ✅ |

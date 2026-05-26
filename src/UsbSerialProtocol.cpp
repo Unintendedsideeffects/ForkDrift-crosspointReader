@@ -3,6 +3,7 @@
 #if ENABLE_USB_MASS_STORAGE
 
 #include <ArduinoJson.h>
+#include <BuildInfo.h>
 #include <HalStorage.h>
 #include <Logging.h>  // for logSerial (the real HWCDC)
 #include <ObfuscationUtils.h>
@@ -75,7 +76,6 @@ static void buildSettingsDoc(JsonDocument& doc) {
   doc["sleepPinnedPath"] = s.sleepPinnedPath;
   doc["sleepScreenCoverMode"] = s.sleepScreenCoverMode;
   doc["sleepScreenCoverFilter"] = s.sleepScreenCoverFilter;
-  doc["statusBar"] = s.statusBar;
   doc["statusBarChapterPageCount"] = s.statusBarChapterPageCount;
   doc["statusBarBookProgressPercentage"] = s.statusBarBookProgressPercentage;
   doc["statusBarProgressBar"] = s.statusBarProgressBar;
@@ -96,14 +96,14 @@ static void buildSettingsDoc(JsonDocument& doc) {
   doc["fontSize"] = s.fontSize;
   doc["lineSpacing"] = s.lineSpacing;
   doc["paragraphAlignment"] = s.paragraphAlignment;
-  doc["sleepTimeout"] = s.sleepTimeout;
+  doc["sleepTimeoutMinutes"] = s.sleepTimeoutMinutes;
   doc["refreshFrequency"] = s.refreshFrequency;
   doc["screenMargin"] = s.screenMargin;
   doc["opdsServerUrl"] = s.opdsServerUrl;
   doc["opdsUsername"] = s.opdsUsername;
   doc["opdsPassword_obf"] = obfuscation::obfuscateToBase64(s.opdsPassword);
   doc["hideBatteryPercentage"] = s.hideBatteryPercentage;
-  doc["longPressChapterSkip"] = s.longPressChapterSkip;
+  doc["longPressButtonBehavior"] = s.longPressButtonBehavior;
   doc["hyphenationEnabled"] = s.hyphenationEnabled;
   doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
   doc["todoFallbackCover"] = s.todoFallbackCover;
@@ -150,6 +150,7 @@ static void handleStatus() {
   JsonDocument resp;
   resp["ok"] = true;
   resp["version"] = CROSSPOINT_VERSION;
+  resp["buildTimestamp"] = crosspoint::buildTimestamp();
   resp["protocolVersion"] = CROSSPOINT_PROTOCOL_VERSION;
   resp["freeHeap"] = (uint32_t)ESP.getFreeHeap();
   resp["uptime"] = millis() / 1000;

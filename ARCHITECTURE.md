@@ -47,7 +47,7 @@ check can substitute for a compile-time-absent symbol.
 | File | Representative flag(s) | Why it cannot move to Registration.cpp |
 |---|---|---|
 | `src/CrossPointSettings.cpp` | `ENABLE_*_FONTS`, `ENABLE_LYRA_THEME` | Selects among EpdFont *objects* and theme *instances*; the objects are not linked when disabled — a runtime fallback would reference a non-existent symbol |
-| `src/activities/home/SleepActivity.cpp` | `ENABLE_IMAGE_SLEEP` | PNG/JPEG decoder symbols absent when disabled |
+| `src/activities/boot_sleep/SleepActivity.cpp` | `ENABLE_IMAGE_SLEEP` | PNG/JPEG decoder symbols absent when disabled |
 | `src/activities/reader/OpdsBookBrowserActivity.cpp` | `ENABLE_EPUB_SUPPORT` | `<Epub.h>` header absent when disabled |
 | `src/network/CrossPointWebServer.cpp` | `ENABLE_IMAGE_SLEEP` | Same decoder-absence constraint as SleepActivity |
 | `src/network/OtaWebCheck.cpp` | `ENABLE_OTA_UPDATES` | OtaUpdater symbols absent when disabled |

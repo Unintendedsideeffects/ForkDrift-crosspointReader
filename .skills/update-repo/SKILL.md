@@ -15,7 +15,7 @@ Use this skill for repository maintenance on `crosspoint-reader`, especially whe
 ## Required repo assumptions
 
 - Parent repo remotes:
-  - `origin` = `git@github.com:Unintendedsideeffects/crosspoint-reader.git`
+  - `origin` = `git@github.com:Unintendedsideeffects/ForkDrift-crosspointReader.git`
   - `upstream` = `https://github.com/crosspoint-reader/crosspoint-reader.git`
 - Submodule `open-x4-sdk` remotes:
   - `origin` = `https://github.com/Unintendedsideeffects/community-sdk.git`
