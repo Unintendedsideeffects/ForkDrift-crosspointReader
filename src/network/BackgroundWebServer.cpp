@@ -114,7 +114,7 @@ void BackgroundWebServer::startConnect(const std::string& ssid, const std::strin
 }
 
 void BackgroundWebServer::startServer() {
-  if (ESP.getFreeHeap() < MIN_FREE_HEAP_BYTES) {
+  if (ESP.getFreeHeap() < MIN_FREE_HEAP_TO_START) {
     scheduleRetry("low heap");
     return;
   }
@@ -348,7 +348,7 @@ void BackgroundWebServer::loop(const bool usbConnected, const bool allowRun) {
   }
 
   if (state == State::RUNNING) {
-    if (ESP.getFreeHeap() < MIN_FREE_HEAP_BYTES) {
+    if (ESP.getFreeHeap() < MIN_FREE_HEAP_RUNNING) {
       scheduleRetry("low heap");
       return;
     }
