@@ -115,10 +115,10 @@ void seedSettingsFromConfiguratorDefaults() {
   SETTINGS.fadingFix = 0;
   SETTINGS.globalStatusBar = 0;
   SETTINGS.globalStatusBarPosition = 0;
-  SETTINGS.sleepTimeout = 2;
+  SETTINGS.sleepTimeoutMinutes = 10;
   SETTINGS.sideButtonLayout = 0;
+  SETTINGS.sideButtonLongPress = CrossPointSettings::SIDE_LONG_CHAPTER_SKIP;
   SETTINGS.shortPwrBtn = 0;
-  SETTINGS.longPressChapterSkip = 1;
   SETTINGS.longPressButtonBehavior = CrossPointSettings::CHAPTER_SKIP;
   SETTINGS.usbMscPromptOnConnect = 0;
   SETTINGS.backgroundServerOnCharge = 1;
@@ -164,19 +164,16 @@ void applySettingsJson(const std::filesystem::path& settingsJsonPath) {
   readJsonNumber(json, "fadingFix", SETTINGS.fadingFix);
   readJsonNumber(json, "globalStatusBar", SETTINGS.globalStatusBar);
   readJsonNumber(json, "globalStatusBarPosition", SETTINGS.globalStatusBarPosition);
-  readJsonNumber(json, "sleepTimeout", SETTINGS.sleepTimeout);
+  readJsonNumber(json, "sleepTimeoutMinutes", SETTINGS.sleepTimeoutMinutes);
   readJsonNumber(json, "sideButtonLayout", SETTINGS.sideButtonLayout);
+  readJsonNumber(json, "sideButtonLongPress", SETTINGS.sideButtonLongPress);
   readJsonNumber(json, "shortPwrBtn", SETTINGS.shortPwrBtn);
-  readJsonNumber(json, "longPressChapterSkip", SETTINGS.longPressChapterSkip);
   readJsonNumber(json, "longPressButtonBehavior", SETTINGS.longPressButtonBehavior);
   readJsonNumber(json, "usbMscPromptOnConnect", SETTINGS.usbMscPromptOnConnect);
   readJsonNumber(json, "backgroundServerOnCharge", SETTINGS.backgroundServerOnCharge);
   readJsonNumber(json, "wifiAutoConnect", SETTINGS.wifiAutoConnect);
   readJsonString(json, "deviceName", SETTINGS.deviceName, sizeof(SETTINGS.deviceName));
-
-  if (SETTINGS.longPressChapterSkip && SETTINGS.longPressButtonBehavior == CrossPointSettings::OFF) {
-    SETTINGS.longPressButtonBehavior = CrossPointSettings::CHAPTER_SKIP;
-  }
+  SETTINGS.validateAndClamp();
 }
 
 void drawHeader(GfxRenderer& renderer, const char* title) {

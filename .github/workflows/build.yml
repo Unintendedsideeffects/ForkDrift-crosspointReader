@@ -235,7 +235,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ARCHIVE_URL: ${{ steps.reuse.outputs.archive_url }}
-          OUTPUT_DIR: .pio/build/gh_latest
+          OUTPUT_DIR: artifact
         run: python3 scripts/ci/download_artifact.py
 
       - name: Setup Python
@@ -299,13 +299,24 @@ jobs:
             echo "Reused artifact from run [#${{ steps.reuse.outputs.source_run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ steps.reuse.outputs.source_run_id }})."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Prepare latest artifact
+        if: steps.reuse.outputs.found != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p artifact
+          partitions_path="$(find .pio -path '*/gh_latest/partitions.bin' -type f | head -n1)"
+          if [ -z "$partitions_path" ]; then
+            echo "::error::Could not locate gh_latest partitions.bin under .pio"
+            exit 1
+          fi
+          cp firmware/firmware-*.bin artifact/
+          cp "$partitions_path" artifact/
+
       - name: Upload latest firmware artifact
         uses: actions/upload-artifact@v7
         with:
           name: firmware-latest
-          path: |
-            .pio/build/gh_latest/firmware-*.bin
-            .pio/build/gh_latest/partitions.bin
+          path: artifact/
           retention-days: 7
 
   # ── Publish: update rolling latest channel (5 variants + shared partitions) on any branch push ─

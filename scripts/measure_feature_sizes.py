@@ -69,7 +69,7 @@ FEATURES = [
     'minimal_theme',
     'focus_reading',
     # --- Depend on features above ---
-    'opendyslexic_fonts',       # requires: bookerly_fonts, notosans_fonts
+    'opendyslexic_fonts',       # requires at least one full-charset font family
     'lexenddeca_fonts',         # font family feature
     'bitter_fonts',             # font family feature
     'chareink_fonts',           # font family feature
@@ -92,6 +92,9 @@ MEASUREMENT_BASE_OVERRIDES: Dict[str, list] = {
     # ENABLE_BOOK_IMAGES requires ENABLE_EPUB_SUPPORT=1 or ENABLE_MARKDOWN=1.
     # Use epub_support as the canonical representative base.
     'book_images': ['epub_support'],
+    # ENABLE_OPENDYSLEXIC_FONTS requires at least one full-charset font family.
+    # Use Bookerly as the canonical representative base for delta measurements.
+    'opendyslexic_fonts': ['bookerly_fonts'],
 }
 
 if shutil.which("uv") is None:

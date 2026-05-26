@@ -84,8 +84,16 @@ def main() -> int:
     with open(args.input) as f:
         data = json.load(f)
 
-    feature_sizes: dict[str, int] = data["feature_sizes_kb"]
-    base_size_mb: float = data["minimal_size_mb"]
+    try:
+        feature_sizes: dict[str, int] = data["feature_deltas_kb"]
+        base_size_mb: float = float(data["lean_size_mb"])
+    except KeyError as exc:
+        print(
+            "Error: measurements file is missing required keys. "
+            "Expected feature_deltas_kb and lean_size_mb."
+        )
+        print(f"Missing key: {exc.args[0]}")
+        return 1
 
     print(f"Loaded measurements from {args.input}")
     print(f"  base size:  {base_size_mb:.2f} MB")
