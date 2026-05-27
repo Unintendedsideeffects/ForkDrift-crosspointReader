@@ -62,7 +62,7 @@ class CssParser {
    * @param source Open file handle to read from
    * @return true if parsing completed (even if no rules found)
    */
-  bool loadFromStream(FsFile& source);
+  bool loadFromStream(HalFile& source);
 
   /**
    * Look up the style for an HTML element, considering tag name, class attributes, and ancestors.
@@ -106,7 +106,7 @@ class CssParser {
    * @param file Open file handle to write to
    * @return true if cache was written successfully
    */
-  bool saveToCache(FsFile& file) const;
+  bool saveToCache(HalFile& file) const;
 
   /**
    * Load CSS rules from a cache file.
@@ -114,7 +114,7 @@ class CssParser {
    * @param file Open file handle to read from
    * @return true if cache was loaded successfully
    */
-  bool loadFromCache(FsFile& file);
+  bool loadFromCache(HalFile& file);
 
   // Compatibility helpers for callers that want parser-owned cache IO.
   [[nodiscard]] bool hasCache() const;

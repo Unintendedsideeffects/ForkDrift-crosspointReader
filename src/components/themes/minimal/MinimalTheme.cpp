@@ -424,7 +424,7 @@ void MinimalTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const s
     const RecentBook& book = recentBooks[0];
     if (!book.coverBmpPath.empty()) {
       std::string coverBmpPath = UITheme::getCoverThumbPath(book.coverBmpPath, coverRect.height);
-      FsFile file;
+      HalFile file;
       if (!coverBmpPath.empty() && Storage.openFileForRead("HOME", coverBmpPath, file)) {
         Bitmap bitmap(file);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {

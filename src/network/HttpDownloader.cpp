@@ -17,7 +17,7 @@
 namespace {
 class FileWriteStream final : public Stream {
  public:
-  FileWriteStream(FsFile& file, const size_t total, HttpDownloader::ProgressCallback progress, bool* cancelFlag)
+  FileWriteStream(HalFile& file, const size_t total, HttpDownloader::ProgressCallback progress, bool* cancelFlag)
       : file_(file), total_(total), progress_(std::move(progress)), cancelFlag_(cancelFlag) {}
 
   size_t write(const uint8_t byte) override { return write(&byte, 1); }
@@ -52,7 +52,7 @@ class FileWriteStream final : public Stream {
   bool ok() const { return writeOk_; }
 
  private:
-  FsFile& file_;
+  HalFile& file_;
   size_t total_;
   size_t downloaded_ = 0;
   bool writeOk_ = true;
@@ -157,7 +157,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     }
   }
 
-  FsFile file;
+  HalFile file;
   {
     SpiBusMutex::Guard guard;
     if (!Storage.openFileForWrite("HTTP", destPath.c_str(), file)) {

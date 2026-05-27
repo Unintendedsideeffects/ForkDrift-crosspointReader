@@ -37,7 +37,7 @@ std::unordered_map<std::string, SourceVersion> knownBadParseFailures;
 bool isHeadingLine(const std::string& line, uint8_t& outLevel, std::string& outText);
 
 uint32_t hashFileContents(const std::string& path) {
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("MD ", path, file)) {
     return 0;
   }
@@ -59,7 +59,7 @@ uint32_t hashFileContents(const std::string& path) {
 }
 
 bool readSourceVersion(const std::string& path, SourceVersion& outVersion) {
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("MD ", path, file)) {
     return false;
   }
@@ -78,7 +78,7 @@ bool sourceVersionMatches(const SourceVersion& lhs, const SourceVersion& rhs) {
 }
 
 struct HtmlOutput {
-  FsFile* file;
+  HalFile* file;
   bool ok;
 };
 
@@ -333,7 +333,7 @@ std::string normalizeSlug(const std::string& input) {
 }
 
 bool readFileToString(const std::string& path, std::string& out, size_t maxBytes) {
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("MD ", path, file)) {
     return false;
   }
@@ -493,7 +493,7 @@ bool Markdown::load() {
     return false;
   }
 
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("MD ", filepath, file)) {
     LOG_ERR("MD", "Failed to open file: %s", filepath.c_str());
     return false;
@@ -583,7 +583,7 @@ bool Markdown::ensureHtml() {
 
   bool needsRender = true;
   if (Storage.exists(htmlPath.c_str()) && Storage.exists(metaPath.c_str())) {
-    FsFile metaFile;
+    HalFile metaFile;
     if (Storage.openFileForRead("MD ", metaPath, metaFile)) {
       uint32_t magic = 0;
       uint8_t version = 0;
@@ -613,7 +613,7 @@ bool Markdown::ensureHtml() {
     return false;
   }
 
-  FsFile metaFile;
+  HalFile metaFile;
   if (Storage.openFileForWrite("MD ", metaPath, metaFile)) {
     serialization::writePod(metaFile, META_MAGIC);
     serialization::writePod(metaFile, META_VERSION);
@@ -626,7 +626,7 @@ bool Markdown::ensureHtml() {
 }
 
 bool Markdown::renderToHtmlFile(const std::string& htmlPath) const {
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("MD ", filepath, file)) {
     return false;
   }
@@ -647,7 +647,7 @@ bool Markdown::renderToHtmlFile(const std::string& htmlPath) const {
   stack.push_back(filepath);
   std::string output = preprocessContent(std::move(content), 0, stack);
 
-  FsFile htmlFile;
+  HalFile htmlFile;
   if (!Storage.openFileForWrite("MD ", htmlPath, htmlFile)) {
     return false;
   }
@@ -673,7 +673,7 @@ std::string Markdown::getContent() const {
     return "";
   }
 
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("MD ", filepath, file)) {
     return "";
   }

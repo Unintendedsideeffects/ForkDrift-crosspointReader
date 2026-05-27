@@ -45,7 +45,7 @@ size_t KOReaderDocumentId::getOffset(int i) {
 
 std::string KOReaderDocumentId::calculate(const std::string& filePath) {
   SpiBusMutex::Guard guard;
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("KODoc", filePath, file)) {
     LOG_DBG("KODoc", "Failed to open file: %s", filePath.c_str());
     return "";

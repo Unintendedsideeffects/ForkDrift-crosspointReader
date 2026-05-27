@@ -24,6 +24,7 @@ struct MenuResult {
 
 struct ChapterResult {
   int spineIndex = 0;
+  std::string anchor;
 };
 
 struct PercentResult {

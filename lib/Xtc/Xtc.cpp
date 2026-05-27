@@ -172,7 +172,7 @@ bool Xtc::generateCoverBmp() const {
   }
 
   // Create BMP file
-  FsFile coverBmp;
+  HalFile coverBmp;
   if (!Storage.openFileForWrite("XTC", getCoverBmpPath(), coverBmp)) {
     LOG_ERR("XTC", "Failed to create cover BMP file");
     free(pageBuffer);
@@ -316,7 +316,7 @@ bool Xtc::generateThumbBmp(int height) const {
     // Page is already small enough, just use cover.bmp
     // Copy cover.bmp to thumb.bmp
     if (generateCoverBmp()) {
-      FsFile src, dst;
+      HalFile src, dst;
       if (Storage.openFileForRead("XTC", getCoverBmpPath(), src)) {
         if (Storage.openFileForWrite("XTC", getThumbBmpPath(height), dst)) {
           uint8_t buffer[512];
@@ -360,7 +360,7 @@ bool Xtc::generateThumbBmp(int height) const {
   }
 
   // Create thumbnail BMP file - use 1-bit format for fast home screen rendering (no gray passes)
-  FsFile thumbBmp;
+  HalFile thumbBmp;
   if (!Storage.openFileForWrite("XTC", getThumbBmpPath(height), thumbBmp)) {
     LOG_ERR("XTC", "Failed to create thumb BMP file");
     free(pageBuffer);
@@ -522,7 +522,7 @@ bool Xtc::generateThumbBmp(int width, int height) const {
 
   if (scale >= 1.0f) {
     if (generateCoverBmp()) {
-      FsFile src, dst;
+      HalFile src, dst;
       if (Storage.openFileForRead("XTC", getCoverBmpPath(), src)) {
         if (Storage.openFileForWrite("XTC", getThumbBmpPath(width, height), dst)) {
           uint8_t buffer[512];
@@ -559,7 +559,7 @@ bool Xtc::generateThumbBmp(int width, int height) const {
     return false;
   }
 
-  FsFile thumbBmp;
+  HalFile thumbBmp;
   if (!Storage.openFileForWrite("XTC", getThumbBmpPath(width, height), thumbBmp)) {
     free(pageBuffer);
     return false;

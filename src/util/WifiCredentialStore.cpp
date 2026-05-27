@@ -21,7 +21,7 @@ bool WifiCredentialStore::saveToFile() const {
 
 bool WifiCredentialStore::loadFromFile() {
   if (Storage.exists(WIFI_FILE_JSON)) {
-    FsFile file;
+    HalFile file;
     if (Storage.openFileForRead("WCS", WIFI_FILE_JSON, file)) {
       bool resave = false;
       const bool result = JsonSettingsIO::loadWifi(*this, file, &resave);

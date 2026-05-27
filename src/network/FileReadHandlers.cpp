@@ -33,7 +33,7 @@ void CrossPointWebServer::handleDownload() const {
     return;
   }
 
-  FsFile file;
+  HalFile file;
   {
     SpiBusMutex::Guard guard;
     file = Storage.open(result.normalizedPath.c_str());

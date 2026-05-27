@@ -50,6 +50,8 @@ extern const char STRINGS_LT_DATA[];
 extern const uint16_t OFFSETS_LT[];
 extern const char STRINGS_SI_DATA[];
 extern const uint16_t OFFSETS_SI[];
+extern const char STRINGS_CAV_DATA[];
+extern const uint16_t OFFSETS_CAV[];
 extern const char STRINGS_VI_DATA[];
 extern const uint16_t OFFSETS_VI[];
 

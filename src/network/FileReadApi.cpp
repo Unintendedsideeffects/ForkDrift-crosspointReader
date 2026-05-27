@@ -41,7 +41,7 @@ FileListDescriptor resolveFileListPath(const String& rawPath) {
     return {404, "text/plain", "Item not found", ""};
   }
 
-  FsFile file;
+  HalFile file;
   {
     SpiBusMutex::Guard guard;
     file = Storage.open(currentPath.c_str());
@@ -223,7 +223,7 @@ DownloadDescriptor resolveDownload(const String& rawPath) {
     return {404, "text/plain", "Item not found"};
   }
 
-  FsFile file;
+  HalFile file;
   {
     SpiBusMutex::Guard guard;
     file = Storage.open(itemPath.c_str());

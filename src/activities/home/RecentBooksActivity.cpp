@@ -142,7 +142,7 @@ bool RecentBooksActivity::drawCoverAt(const std::string& coverPath, const int x,
     return false;
   }
 
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("PTY", coverPath, file)) {
     return false;
   }

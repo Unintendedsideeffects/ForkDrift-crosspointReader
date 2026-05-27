@@ -80,7 +80,7 @@ RecentBook RecentBooksStore::getDataFromBook(std::string path) const {
 
 bool RecentBooksStore::loadFromFile() {
   if (Storage.exists(RECENT_BOOKS_FILE_JSON)) {
-    FsFile file;
+    HalFile file;
     if (Storage.openFileForRead("RBS", RECENT_BOOKS_FILE_JSON, file)) {
       const bool result = JsonSettingsIO::loadRecentBooks(*this, file);
       file.close();

@@ -37,7 +37,7 @@ static char s_lineBuf[4200];
 static int s_lineLen = 0;
 
 // File upload state machine ───────────────────────────────────────────────
-static FsFile s_uploadFile;
+static HalFile s_uploadFile;
 static bool s_uploadInProgress = false;
 
 // OTA flash state machine ─────────────────────────────────────────────────
@@ -124,7 +124,7 @@ static void buildSettingsDoc(JsonDocument& doc) {
 // Caller must have written the JSON prefix (e.g. {"ok":true,"data":"} before calling,
 // and must write the closing +"}\n" after.
 
-static bool streamFileBase64(FsFile& file) {
+static bool streamFileBase64(HalFile& file) {
   while (true) {
     size_t bytesRead = 0;
     {
@@ -277,7 +277,7 @@ static void handleList(const char* path) {
     return;
   }
 
-  FsFile root;
+  HalFile root;
   {
     SpiBusMutex::Guard guard;
     root = Storage.open(path);
@@ -313,7 +313,7 @@ static void handleList(const char* path) {
 
     {
       SpiBusMutex::Guard guard;
-      FsFile file = root.openNextFile();
+      HalFile file = root.openNextFile();
       if (!file) break;
       file.getName(name, sizeof(name));
       entryIsDir = file.isDirectory();
@@ -352,7 +352,7 @@ static void handleDownload(const char* path) {
     return;
   }
 
-  FsFile file;
+  HalFile file;
   bool opened = false;
   bool isDir = false;
   {
@@ -614,7 +614,7 @@ static void handleRecent() {
       logSerial.write(metaJson.c_str(), metaJson.length() - 1);
       logSerial.print(F(",\"cover\":\""));
 
-      FsFile coverFile;
+      HalFile coverFile;
       bool opened = false;
       {
         SpiBusMutex::Guard guard;
@@ -657,7 +657,7 @@ static void handleCover(const char* path) {
     return;
   }
 
-  FsFile file;
+  HalFile file;
   bool opened = false;
   {
     SpiBusMutex::Guard guard;
@@ -689,7 +689,7 @@ static bool isSupportedSleepImageName(const char* name) {
 }
 
 static void appendSleepImages(const String& directoryPath, bool& first) {
-  FsFile dir;
+  HalFile dir;
   {
     SpiBusMutex::Guard guard;
     dir = Storage.open(directoryPath.c_str());
@@ -709,7 +709,7 @@ static void appendSleepImages(const String& directoryPath, bool& first) {
 
     {
       SpiBusMutex::Guard guard;
-      FsFile file = dir.openNextFile();
+      HalFile file = dir.openNextFile();
       if (!file) break;
       file.getName(name, sizeof(name));
       entryIsDir = file.isDirectory();

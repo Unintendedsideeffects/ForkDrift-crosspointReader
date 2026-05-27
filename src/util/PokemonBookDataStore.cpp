@@ -33,7 +33,7 @@ bool PokemonBookDataStore::loadPokemonDocument(const std::string& bookPath, Json
     return false;
   }
 
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("PKM", pokemonDataPath, file)) {
     return false;
   }

@@ -85,7 +85,7 @@ uint32_t clampDisplayPage(const uint32_t zeroBasedPage, const uint32_t pageCount
   return std::min(zeroBasedPage + 1, pageCount);
 }
 
-bool skipBytes(FsFile& file, size_t bytesToSkip) {
+bool skipBytes(HalFile& file, size_t bytesToSkip) {
   uint8_t discard[kDiscardBufferSize];
   while (bytesToSkip > 0) {
     const size_t chunk = std::min(bytesToSkip, static_cast<size_t>(kDiscardBufferSize));
@@ -97,7 +97,7 @@ bool skipBytes(FsFile& file, size_t bytesToSkip) {
   return true;
 }
 
-bool skipSerializedString(FsFile& file) {
+bool skipSerializedString(HalFile& file) {
   uint32_t len = 0;
   if (!serialization::readPod(file, len)) {
     return false;
@@ -110,7 +110,7 @@ bool skipSerializedString(FsFile& file) {
 
 bool loadTxtProgressFromCache(const std::string& cachePath, const BookProgressDataStore::BookKind logicalKind,
                               BookProgressDataStore::ProgressData& outProgress) {
-  FsFile progressFile;
+  HalFile progressFile;
   if (!Storage.openFileForRead("BPS", cachePath + kProgressFileName, progressFile)) {
     return false;
   }
@@ -122,7 +122,7 @@ bool loadTxtProgressFromCache(const std::string& cachePath, const BookProgressDa
   }
   progressFile.close();
 
-  FsFile indexFile;
+  HalFile indexFile;
   if (!Storage.openFileForRead("BPS", cachePath + kTxtIndexFileName, indexFile)) {
     return false;
   }
@@ -158,7 +158,7 @@ bool loadTxtProgressFromCache(const std::string& cachePath, const BookProgressDa
 
 bool loadSectionProgressFromFile(const std::string& progressPath, const std::string& sectionPath,
                                  BookProgressDataStore::ProgressData& outProgress) {
-  FsFile progressFile;
+  HalFile progressFile;
   if (!Storage.openFileForRead("BPS", progressPath, progressFile)) {
     return false;
   }
@@ -170,7 +170,7 @@ bool loadSectionProgressFromFile(const std::string& progressPath, const std::str
   }
   progressFile.close();
 
-  FsFile sectionFile;
+  HalFile sectionFile;
   if (!Storage.openFileForRead("BPS", sectionPath, sectionFile)) {
     return false;
   }
@@ -221,7 +221,7 @@ bool loadMarkdownProgressFromCache(const std::string& cachePath, BookProgressDat
 }
 
 bool loadXtcPageCount(const std::string& bookPath, uint32_t& outPageCount) {
-  FsFile bookFile;
+  HalFile bookFile;
   if (!Storage.openFileForRead("BPS", bookPath, bookFile)) {
     return false;
   }
@@ -247,7 +247,7 @@ bool loadXtcPageCount(const std::string& bookPath, uint32_t& outPageCount) {
 
 bool loadXtcProgressFromCache(const std::string& bookPath, const std::string& cachePath,
                               BookProgressDataStore::ProgressData& outProgress) {
-  FsFile progressFile;
+  HalFile progressFile;
   if (!Storage.openFileForRead("BPS", cachePath + kProgressFileName, progressFile)) {
     return false;
   }
@@ -278,7 +278,7 @@ bool loadXtcProgressFromCache(const std::string& bookPath, const std::string& ca
 }
 
 bool loadEpubProgressFromCache(const std::string& cachePath, BookProgressDataStore::ProgressData& outProgress) {
-  FsFile progressFile;
+  HalFile progressFile;
   if (!Storage.openFileForRead("BPS", cachePath + kProgressFileName, progressFile)) {
     return false;
   }
@@ -298,7 +298,7 @@ bool loadEpubProgressFromCache(const std::string& cachePath, BookProgressDataSto
     return false;
   }
 
-  FsFile bookFile;
+  HalFile bookFile;
   if (!Storage.openFileForRead("BPS", cachePath + kEpubBookCacheFileName, bookFile)) {
     return false;
   }

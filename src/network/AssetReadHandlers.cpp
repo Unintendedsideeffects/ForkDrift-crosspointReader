@@ -22,7 +22,7 @@ void CrossPointWebServer::handleCover() const {
     return;
   }
 
-  FsFile file;
+  HalFile file;
   {
     SpiBusMutex::Guard guard;
     file = Storage.open(result.resolvedPath.c_str());

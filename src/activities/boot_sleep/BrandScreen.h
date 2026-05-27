@@ -3,7 +3,7 @@
 #include <GfxRenderer.h>
 
 #include "fontIds.h"
-#include "images/Logo160.h"
+#include "images/Logo240.h"
 
 namespace BrandScreen {
 
@@ -14,7 +14,7 @@ inline constexpr int kTitleOffsetFromCenter = kLogoSize / 2 + kTitleGap;
 inline constexpr int kSubtitleOffsetFromCenter = kLogoSize / 2 + kSubtitleGap;
 
 inline void drawLogo(const GfxRenderer& renderer, const int pageWidth, const int pageHeight) {
-  renderer.drawImage(Logo160, (pageWidth - kLogoSize) / 2, (pageHeight - kLogoSize) / 2, kLogoSize, kLogoSize);
+  renderer.drawImage(Logo240, (pageWidth - kLogoSize) / 2, (pageHeight - kLogoSize) / 2, kLogoSize, kLogoSize);
 }
 
 inline void drawTitle(const GfxRenderer& renderer, const int pageHeight) {

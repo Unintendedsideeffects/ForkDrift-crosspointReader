@@ -7,7 +7,7 @@
 
 class FsFileJsonReader {
  public:
-  explicit FsFileJsonReader(FsFile& file) : file_(file) {}
+  explicit FsFileJsonReader(HalFile& file) : file_(file) {}
 
   int read() {
     uint8_t ch = 0;
@@ -17,5 +17,5 @@ class FsFileJsonReader {
   size_t readBytes(char* buffer, size_t length) { return file_.read(reinterpret_cast<uint8_t*>(buffer), length); }
 
  private:
-  FsFile& file_;
+  HalFile& file_;
 };

@@ -449,7 +449,7 @@ void SleepActivity::renderCustomSleepScreen() const {
     const std::string pinnedPath(SETTINGS.sleepPinnedPath);
     LOG_INF("SLP", "Using pinned sleep cover: %s", pinnedPath.c_str());
     if (isBmpFile(pinnedPath)) {
-      FsFile file;
+      HalFile file;
       if (Storage.openFileForRead("SLP", pinnedPath, file)) {
         Bitmap bitmap(file, true);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
@@ -479,7 +479,7 @@ void SleepActivity::renderCustomSleepScreen() const {
         const std::string partySleepImagePath(sleepImagePath);
         LOG_INF("SLP", "Using Pokemon party sleep image: %s", partySleepImagePath.c_str());
         if (isBmpFile(partySleepImagePath)) {
-          FsFile file;
+          HalFile file;
           if (Storage.openFileForRead("SLP", partySleepImagePath, file)) {
             Bitmap bitmap(file, true);
             if (bitmap.parseHeaders() == BmpReaderError::Ok) {
@@ -523,7 +523,7 @@ void SleepActivity::renderCustomSleepScreen() const {
 
     if (isBmpFile(filename)) {
       // Use existing BMP rendering path
-      FsFile file;
+      HalFile file;
       if (Storage.openFileForRead("SLP", filename, file)) {
         Bitmap bitmap(file, true);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
@@ -547,7 +547,7 @@ void SleepActivity::renderCustomSleepScreen() const {
 bool SleepActivity::tryRenderImagePath(const std::string& path) const {
   SpiBusMutex::Guard guard;
   if (isBmpFile(path)) {
-    FsFile file;
+    HalFile file;
     if (Storage.openFileForRead("SLP", path, file)) {
       Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {

@@ -27,7 +27,7 @@ void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
 
-bool PageLine::serialize(FsFile& file) {
+bool PageLine::serialize(HalFile& file) {
   serialization::writePod(file, xPos);
   serialization::writePod(file, yPos);
 
@@ -35,7 +35,7 @@ bool PageLine::serialize(FsFile& file) {
   return block->serialize(file);
 }
 
-std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
+std::unique_ptr<PageLine> PageLine::deserialize(HalFile& file) {
   int16_t xPos;
   int16_t yPos;
   serialization::readPod(file, xPos);
@@ -56,13 +56,13 @@ void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffse
   imageBlock->render(renderer, xPos + xOffset, yPos + yOffset);
 }
 
-bool PageImage::serialize(FsFile& file) {
+bool PageImage::serialize(HalFile& file) {
   serialization::writePod(file, xPos);
   serialization::writePod(file, yPos);
   return imageBlock && imageBlock->serialize(file);
 }
 
-std::unique_ptr<PageImage> PageImage::deserialize(FsFile& file) {
+std::unique_ptr<PageImage> PageImage::deserialize(HalFile& file) {
   int16_t xPos;
   int16_t yPos;
   serialization::readPod(file, xPos);
@@ -77,7 +77,7 @@ std::unique_ptr<PageImage> PageImage::deserialize(FsFile& file) {
   return std::unique_ptr<PageImage>(new PageImage(std::move(imageBlock), xPos, yPos));
 }
 
-bool TableFragmentCell::serialize(FsFile& file) const {
+bool TableFragmentCell::serialize(HalFile& file) const {
   if (lines.size() > MAX_SERIALIZED_LINES) {
     LOG_ERR("PTB", "Serialization failed: cell line count %u exceeds maximum", static_cast<uint32_t>(lines.size()));
     return false;
@@ -94,7 +94,7 @@ bool TableFragmentCell::serialize(FsFile& file) const {
   return true;
 }
 
-bool TableFragmentCell::deserialize(FsFile& file, TableFragmentCell& outCell) {
+bool TableFragmentCell::deserialize(HalFile& file, TableFragmentCell& outCell) {
   uint8_t lineCount = 0;
   serialization::readPod(file, outCell.isHeader);
   serialization::readPod(file, lineCount);
@@ -116,7 +116,7 @@ bool TableFragmentCell::deserialize(FsFile& file, TableFragmentCell& outCell) {
   return true;
 }
 
-bool TableFragmentRow::serialize(FsFile& file) const {
+bool TableFragmentRow::serialize(HalFile& file) const {
   if (cells.size() > MAX_SERIALIZED_CELLS) {
     LOG_ERR("PTB", "Serialization failed: row cell count %u exceeds maximum", static_cast<uint32_t>(cells.size()));
     return false;
@@ -133,7 +133,7 @@ bool TableFragmentRow::serialize(FsFile& file) const {
   return true;
 }
 
-bool TableFragmentRow::deserialize(FsFile& file, TableFragmentRow& outRow) {
+bool TableFragmentRow::deserialize(HalFile& file, TableFragmentRow& outRow) {
   uint8_t cellCount = 0;
   serialization::readPod(file, outRow.height);
   serialization::readPod(file, outRow.headerSeparator);
@@ -207,7 +207,7 @@ void PageTableFragment::render(GfxRenderer& renderer, const int fontId, const in
   }
 }
 
-bool PageTableFragment::serialize(FsFile& file) {
+bool PageTableFragment::serialize(HalFile& file) {
   if (rows.size() > MAX_SERIALIZED_ROWS) {
     LOG_ERR("PTB", "Serialization failed: fragment row count %u exceeds maximum", static_cast<uint32_t>(rows.size()));
     return false;
@@ -228,7 +228,7 @@ bool PageTableFragment::serialize(FsFile& file) {
   return true;
 }
 
-std::unique_ptr<PageTableFragment> PageTableFragment::deserialize(FsFile& file) {
+std::unique_ptr<PageTableFragment> PageTableFragment::deserialize(HalFile& file) {
   int16_t xPos = 0;
   int16_t yPos = 0;
   uint16_t width = 0;
@@ -284,7 +284,7 @@ void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffs
                              [](const PageElement& element) { return element.getTag() == TAG_PageImage; });
 }
 
-bool Page::serialize(FsFile& file) const {
+bool Page::serialize(HalFile& file) const {
   const uint16_t count = elements.size();
   serialization::writePod(file, count);
 
@@ -319,7 +319,7 @@ void PageHorizontalRule::render(GfxRenderer& renderer, const int fontId, const i
   renderer.drawLine(xPos + xOffset, yPos + yOffset, xPos + xOffset + width - 1, yPos + yOffset, thickness, true);
 }
 
-bool PageHorizontalRule::serialize(FsFile& file) {
+bool PageHorizontalRule::serialize(HalFile& file) {
   serialization::writePod(file, xPos);
   serialization::writePod(file, yPos);
   serialization::writePod(file, width);
@@ -327,7 +327,7 @@ bool PageHorizontalRule::serialize(FsFile& file) {
   return true;
 }
 
-std::unique_ptr<PageHorizontalRule> PageHorizontalRule::deserialize(FsFile& file) {
+std::unique_ptr<PageHorizontalRule> PageHorizontalRule::deserialize(HalFile& file) {
   int16_t xPos = 0;
   int16_t yPos = 0;
   uint16_t width = 0;
@@ -351,7 +351,7 @@ std::unique_ptr<PageHorizontalRule> PageHorizontalRule::deserialize(FsFile& file
   return std::unique_ptr<PageHorizontalRule>(rule);
 }
 
-std::unique_ptr<Page> Page::deserialize(FsFile& file) {
+std::unique_ptr<Page> Page::deserialize(HalFile& file) {
   auto page = std::unique_ptr<Page>(new Page());
 
   uint16_t count;

@@ -25,7 +25,7 @@ bool AnkiStore::load() {
     return true;
   }
 
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("ANKI", kFilePath, file)) {
     return false;
   }

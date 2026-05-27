@@ -113,7 +113,7 @@ class UploadSession {
  private:
   bool flushBuffer(const char* logLabel);
 
-  FsFile uploadFile;
+  HalFile uploadFile;
   char uploadFileName[kMaxFileNameLen] = {};
   char uploadPathValue[kMaxUploadPathLen] = "/";
   char targetFilePath[kMaxTargetFilePathLen] = {};

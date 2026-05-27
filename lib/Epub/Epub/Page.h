@@ -25,7 +25,7 @@ class PageElement {
   explicit PageElement(const int16_t xPos, const int16_t yPos) : xPos(xPos), yPos(yPos) {}
   virtual ~PageElement() = default;
   virtual void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) = 0;
-  virtual bool serialize(FsFile& file) = 0;
+  virtual bool serialize(HalFile& file) = 0;
   virtual PageElementTag getTag() const = 0;  // Add type identification
 };
 
@@ -38,9 +38,9 @@ class PageLine final : public PageElement {
       : PageElement(xPos, yPos), block(std::move(block)) {}
   const std::shared_ptr<TextBlock>& getBlock() const { return block; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) override;
-  bool serialize(FsFile& file) override;
+  bool serialize(HalFile& file) override;
   PageElementTag getTag() const override { return TAG_PageLine; }
-  static std::unique_ptr<PageLine> deserialize(FsFile& file);
+  static std::unique_ptr<PageLine> deserialize(HalFile& file);
 };
 
 // New PageImage class
@@ -53,9 +53,9 @@ class PageImage final : public PageElement {
   int16_t getWidth() const { return imageBlock ? imageBlock->getWidth() : 0; }
   int16_t getHeight() const { return imageBlock ? imageBlock->getHeight() : 0; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) override;
-  bool serialize(FsFile& file) override;
+  bool serialize(HalFile& file) override;
   PageElementTag getTag() const override { return TAG_PageImage; }
-  static std::unique_ptr<PageImage> deserialize(FsFile& file);
+  static std::unique_ptr<PageImage> deserialize(HalFile& file);
   const ImageBlock& getImageBlock() const { return *imageBlock; }
 };
 
@@ -68,9 +68,9 @@ class PageHorizontalRule final : public PageElement {
       : PageElement(xPos, yPos), width(width), thickness(thickness) {}
 
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) override;
-  bool serialize(FsFile& file) override;
+  bool serialize(HalFile& file) override;
   PageElementTag getTag() const override { return TAG_PageHorizontalRule; }
-  static std::unique_ptr<PageHorizontalRule> deserialize(FsFile& file);
+  static std::unique_ptr<PageHorizontalRule> deserialize(HalFile& file);
 };
 
 struct TableFragmentCell {
@@ -78,8 +78,8 @@ struct TableFragmentCell {
   bool isHeader = false;
   std::vector<std::shared_ptr<TextBlock>> lines;
 
-  bool serialize(FsFile& file) const;
-  static bool deserialize(FsFile& file, TableFragmentCell& outCell);
+  bool serialize(HalFile& file) const;
+  static bool deserialize(HalFile& file, TableFragmentCell& outCell);
 };
 
 struct TableFragmentRow {
@@ -88,8 +88,8 @@ struct TableFragmentRow {
   bool headerSeparator = false;
   std::vector<TableFragmentCell> cells;
 
-  bool serialize(FsFile& file) const;
-  static bool deserialize(FsFile& file, TableFragmentRow& outRow);
+  bool serialize(HalFile& file) const;
+  static bool deserialize(HalFile& file, TableFragmentRow& outRow);
 };
 
 class PageTableFragment final : public PageElement {
@@ -114,9 +114,9 @@ class PageTableFragment final : public PageElement {
         rows(std::move(rows)) {}
 
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) override;
-  bool serialize(FsFile& file) override;
+  bool serialize(HalFile& file) override;
   PageElementTag getTag() const override { return TAG_PageTableFragment; }
-  static std::unique_ptr<PageTableFragment> deserialize(FsFile& file);
+  static std::unique_ptr<PageTableFragment> deserialize(HalFile& file);
   uint16_t getHeight() const;
 };
 
@@ -140,8 +140,8 @@ class Page {
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) const;
   void renderText(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) const;
   void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) const;
-  bool serialize(FsFile& file) const;
-  static std::unique_ptr<Page> deserialize(FsFile& file);
+  bool serialize(HalFile& file) const;
+  static std::unique_ptr<Page> deserialize(HalFile& file);
 
   // Check if page contains any images (used to force full refresh)
   bool hasImages() const {

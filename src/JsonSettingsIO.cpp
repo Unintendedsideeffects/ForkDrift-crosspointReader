@@ -29,7 +29,7 @@ bool deserializeJsonLogged(JsonDocument& doc, Input&& input, const char* tag) {
   return true;
 }
 
-bool deserializeJsonFromFile(JsonDocument& doc, FsFile& file, const char* tag) {
+bool deserializeJsonFromFile(JsonDocument& doc, HalFile& file, const char* tag) {
   FsFileJsonReader reader(file);
   return deserializeJsonLogged(doc, reader, tag);
 }
@@ -208,7 +208,7 @@ bool JsonSettingsIO::loadState(CrossPointState& s, const char* json) {
   return loadStateFromDoc(s, doc);
 }
 
-bool JsonSettingsIO::loadState(CrossPointState& s, FsFile& file) {
+bool JsonSettingsIO::loadState(CrossPointState& s, HalFile& file) {
   JsonDocument doc;
   if (!deserializeJsonFromFile(doc, file, "CPS")) {
     return false;
@@ -301,7 +301,7 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   return loadSettingsFromDoc(s, doc, needsResave);
 }
 
-bool JsonSettingsIO::loadSettings(CrossPointSettings& s, FsFile& file, bool* needsResave) {
+bool JsonSettingsIO::loadSettings(CrossPointSettings& s, HalFile& file, bool* needsResave) {
   JsonDocument doc;
   if (!deserializeJsonFromFile(doc, file, "CPS")) {
     return false;
@@ -355,7 +355,7 @@ bool JsonSettingsIO::loadWifi(WifiCredentialStore& store, const char* json, bool
   return true;
 }
 
-bool JsonSettingsIO::loadWifi(WifiCredentialStore& store, FsFile& file, bool* needsResave) {
+bool JsonSettingsIO::loadWifi(WifiCredentialStore& store, HalFile& file, bool* needsResave) {
   JsonDocument doc;
   if (!deserializeJsonFromFile(doc, file, "WCS")) {
     return false;
@@ -405,7 +405,7 @@ bool JsonSettingsIO::loadRecentBooks(RecentBooksStore& store, const char* json) 
   return true;
 }
 
-bool JsonSettingsIO::loadRecentBooks(RecentBooksStore& store, FsFile& file) {
+bool JsonSettingsIO::loadRecentBooks(RecentBooksStore& store, HalFile& file) {
   JsonDocument doc;
   if (!deserializeJsonFromFile(doc, file, "RBS")) {
     return false;
@@ -467,7 +467,7 @@ bool JsonSettingsIO::loadOpds(OpdsServerStore& store, const char* json, bool* ne
   return true;
 }
 
-bool JsonSettingsIO::loadOpds(OpdsServerStore& store, FsFile& file, bool* needsResave) {
+bool JsonSettingsIO::loadOpds(OpdsServerStore& store, HalFile& file, bool* needsResave) {
   JsonDocument doc;
   if (!deserializeJsonFromFile(doc, file, "OPS")) {
     return false;

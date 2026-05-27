@@ -17,7 +17,7 @@ struct RecentBook {
 class RecentBooksStore;
 namespace JsonSettingsIO {
 bool loadRecentBooks(RecentBooksStore& store, const char* json);
-bool loadRecentBooks(RecentBooksStore& store, FsFile& file);
+bool loadRecentBooks(RecentBooksStore& store, HalFile& file);
 }  // namespace JsonSettingsIO
 
 class RecentBooksStore {
@@ -27,7 +27,7 @@ class RecentBooksStore {
   std::vector<RecentBook> recentBooks;
 
   friend bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, const char*);
-  friend bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, FsFile&);
+  friend bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, HalFile&);
 
  public:
   ~RecentBooksStore() = default;

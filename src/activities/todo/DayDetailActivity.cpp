@@ -190,7 +190,7 @@ void DayDetailActivity::saveTasks() {
     Storage.remove(tempPath.c_str());
   }
 
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForWrite("TDO", tempPath.c_str(), file)) {
     return;
   }

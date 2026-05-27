@@ -196,6 +196,11 @@ class GfxRenderer {
   uint16_t getDisplayHeight() const { return panelHeight; }
   uint16_t getDisplayWidthBytes() const { return panelWidthBytes; }
 
+  // Strip-write accessors (no tiled-grayscale in this build: full frame, origin at 0)
+  uint8_t* getWriteTarget() const { return getFrameBuffer(); }
+  int getWriteOriginY() const { return 0; }
+  int getWriteRows() const { return static_cast<int>(panelHeight); }
+
   // Region cache: take a logical (orientation-aware) rect, hit the framebuffer
   // bytes that the rect can have touched, and pump them in or out of a caller-
   // supplied buffer. Used by HomeActivity to snapshot just the cover tile

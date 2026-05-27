@@ -63,7 +63,7 @@ constexpr size_t WS_UPLOAD_MAX_BYTES = 512UL * 1024UL * 1024UL;
 CrossPointWebServer* wsInstance = nullptr;
 
 // WebSocket upload state
-FsFile wsUploadFile;
+HalFile wsUploadFile;
 String wsUploadFileName;
 String wsUploadPath;
 size_t wsUploadSize = 0;
@@ -570,7 +570,7 @@ void CrossPointWebServer::handleTodoTodaySave() const {
 }
 
 void CrossPointWebServer::scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const {
-  FsFile root;
+  HalFile root;
   {
     SpiBusMutex::Guard guard;
     root = Storage.open(path);
@@ -596,7 +596,7 @@ void CrossPointWebServer::scanFiles(const char* path, const std::function<void(F
     // Scope SD card operations with mutex
     {
       SpiBusMutex::Guard guard;
-      FsFile file = root.openNextFile();
+      HalFile file = root.openNextFile();
       if (!file) {
         break;
       }
@@ -790,9 +790,9 @@ void CrossPointWebServer::handleSleepCoverPin() {
     bool copyOk = false;
     {
       SpiBusMutex::Guard guard;
-      FsFile src = Storage.open(coverPath.c_str());
+      HalFile src = Storage.open(coverPath.c_str());
       if (src) {
-        FsFile dst = Storage.open(kPinnedDest, O_WRONLY | O_CREAT | O_TRUNC);
+        HalFile dst = Storage.open(kPinnedDest, O_WRONLY | O_CREAT | O_TRUNC);
         if (dst) {
           uint8_t buf[512];
           size_t n;
@@ -1251,7 +1251,7 @@ void CrossPointWebServer::handleFontList() const {
       fileObj["name"] = name ? name + 1 : file.path.c_str();
 
       // Stat the file for size
-      FsFile f;
+      HalFile f;
       if (Storage.openFileForRead("WEB", file.path.c_str(), f)) {
         fileObj["size"] = static_cast<unsigned long>(f.size());
         f.close();

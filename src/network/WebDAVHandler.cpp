@@ -72,7 +72,7 @@ void WebDAVHandler::raw(WebServer& server, const String& uri, HTTPRaw& raw) {
     _putExisted = existsLocked(_putPath);
 
     if (_putExisted) {
-      FsFile existing = openLocked(_putPath);
+      HalFile existing = openLocked(_putPath);
       bool existingIsDirectory = false;
       if (existing) {
         SpiBusMutex::Guard guard;
@@ -189,7 +189,7 @@ void WebDAVHandler::handlePropfind(WebServer& s) {
     return;
   }
 
-  FsFile root = openLocked(path);
+  HalFile root = openLocked(path);
   if (!root) {
     if (path == "/") {
       // Root should always work — send minimal response
@@ -244,7 +244,7 @@ void WebDAVHandler::handlePropfind(WebServer& s) {
 
       {
         SpiBusMutex::Guard guard;
-        FsFile file = root.openNextFile();
+        HalFile file = root.openNextFile();
         if (!file) {
           break;
         }
@@ -347,7 +347,7 @@ void WebDAVHandler::handleGet(WebServer& s) {
     return;
   }
 
-  FsFile file = openLocked(path);
+  HalFile file = openLocked(path);
   if (!file) {
     s.send(500, "text/plain", "Failed to open file");
     return;
@@ -416,7 +416,7 @@ void WebDAVHandler::handleHead(WebServer& s) {
     return;
   }
 
-  FsFile file = openLocked(path);
+  HalFile file = openLocked(path);
   if (!file) {
     s.send(500, "text/plain", "");
     return;
@@ -489,7 +489,7 @@ void WebDAVHandler::handleDelete(WebServer& s) {
     return;
   }
 
-  FsFile file = openLocked(path);
+  HalFile file = openLocked(path);
   if (!file) {
     s.send(500, "text/plain", "Failed to open");
     return;
@@ -503,7 +503,7 @@ void WebDAVHandler::handleDelete(WebServer& s) {
 
   if (isDirectory) {
     // Check if directory is empty
-    FsFile entry;
+    HalFile entry;
     {
       SpiBusMutex::Guard guard;
       entry = file.openNextFile();
@@ -665,7 +665,7 @@ void WebDAVHandler::handleCopy(WebServer& s) {
     return;
   }
 
-  FsFile srcFile = openLocked(srcPath);
+  HalFile srcFile = openLocked(srcPath);
   if (!srcFile) {
     s.send(500, "text/plain", "Failed to open source");
     return;
@@ -706,7 +706,7 @@ void WebDAVHandler::handleCopy(WebServer& s) {
     return;
   }
 
-  FsFile dstFile;
+  HalFile dstFile;
   {
     SpiBusMutex::Guard guard;
     if (!Storage.openFileForWrite("DAV", dstPath, dstFile)) {
@@ -906,7 +906,7 @@ bool WebDAVHandler::existsLocked(const String& path) const {
   return Storage.exists(path.c_str());
 }
 
-FsFile WebDAVHandler::openLocked(const String& path) const {
+HalFile WebDAVHandler::openLocked(const String& path) const {
   SpiBusMutex::Guard guard;
   return Storage.open(path.c_str());
 }
@@ -931,7 +931,7 @@ bool WebDAVHandler::rmdirLocked(const String& path) const {
   return Storage.rmdir(path.c_str());
 }
 
-void WebDAVHandler::closeLocked(FsFile& file) const {
+void WebDAVHandler::closeLocked(HalFile& file) const {
   SpiBusMutex::Guard guard;
   file.close();
 }

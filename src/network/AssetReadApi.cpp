@@ -90,7 +90,7 @@ std::string leafName(const std::string& path) {
 void appendSleepImagesFromDirectory(const std::string& directoryPath, const char* const* allowedExts,
                                     const int numAllowed, String& json, bool& seenFirst, JsonDocument& doc,
                                     char* output, const size_t outputSize) {
-  FsFile dir;
+  HalFile dir;
   {
     SpiBusMutex::Guard guard;
     dir = Storage.open(directoryPath.c_str());
@@ -110,7 +110,7 @@ void appendSleepImagesFromDirectory(const std::string& directoryPath, const char
 
     {
       SpiBusMutex::Guard guard;
-      FsFile file = dir.openNextFile();
+      HalFile file = dir.openNextFile();
       if (!file) {
         done = true;
       } else {

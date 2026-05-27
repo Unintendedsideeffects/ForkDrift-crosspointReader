@@ -16,7 +16,7 @@ class OpdsServerStore;
 namespace JsonSettingsIO {
 bool saveOpds(const OpdsServerStore& store, const char* path);
 bool loadOpds(OpdsServerStore& store, const char* json, bool* needsResave);
-bool loadOpds(OpdsServerStore& store, FsFile& file, bool* needsResave);
+bool loadOpds(OpdsServerStore& store, HalFile& file, bool* needsResave);
 }  // namespace JsonSettingsIO
 
 /**
@@ -35,7 +35,7 @@ class OpdsServerStore {
 
   friend bool JsonSettingsIO::saveOpds(const OpdsServerStore&, const char*);
   friend bool JsonSettingsIO::loadOpds(OpdsServerStore&, const char*, bool*);
-  friend bool JsonSettingsIO::loadOpds(OpdsServerStore&, FsFile&, bool*);
+  friend bool JsonSettingsIO::loadOpds(OpdsServerStore&, HalFile&, bool*);
 
  public:
   OpdsServerStore(const OpdsServerStore&) = delete;

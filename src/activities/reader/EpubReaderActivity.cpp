@@ -199,7 +199,7 @@ void EpubReaderActivity::onEnter() {
 
   epub->setupCacheDir();
 
-  FsFile f;
+  HalFile f;
   if (Storage.openFileForRead("ERS", epub->getCachePath() + "/progress.bin", f)) {
     uint8_t data[6];
     int dataSize = f.read(data, 6);
@@ -540,7 +540,7 @@ void EpubReaderActivity::jumpToPercent(int percent) {
     return;
   }
 
-  // BookMetadataCache uses a shared seek-based FsFile for spine metadata lookups.
+  // BookMetadataCache uses a shared seek-based HalFile for spine metadata lookups.
   // Hold the render/file mutex for the full jump calculation so menu-driven jumps
   // cannot race render/status-bar reads of the same cache file.
   RenderLock lock(*this);

@@ -179,7 +179,7 @@ bool verifyPartitionChecksum(const esp_partition_t* partition, const String& exp
 }
 
 bool markFactoryResetPending() {
-  FsFile markerFile;
+  HalFile markerFile;
   {
     SpiBusMutex::Guard guard;
     if (!Storage.openFileForWrite("OTA", factoryResetMarkerFile, markerFile)) {

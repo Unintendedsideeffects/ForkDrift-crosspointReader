@@ -505,7 +505,7 @@ bool MyLibraryActivity::drawCoverAt(const std::string& path, const int x, const 
   }
 
   SpiBusMutex::Guard guard;
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("LIB", thumbPath, file)) {
     return false;
   }

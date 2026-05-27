@@ -147,7 +147,7 @@ bool CrossPointSettings::saveToFile() const {
 
 bool CrossPointSettings::loadFromFile() {
   if (Storage.exists(SETTINGS_FILE_JSON)) {
-    FsFile file;
+    HalFile file;
     if (Storage.openFileForRead("CPS", SETTINGS_FILE_JSON, file)) {
       bool resave = false;
       const bool result = JsonSettingsIO::loadSettings(*this, file, &resave);

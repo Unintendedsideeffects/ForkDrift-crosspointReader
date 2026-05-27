@@ -25,7 +25,7 @@ static constexpr int STATS_FILE_SIZE = 12;
 
 BookReadingStats BookReadingStats::load(const std::string& cachePath) {
   BookReadingStats stats;
-  FsFile f;
+  HalFile f;
   if (!Storage.openFileForRead("STATS", cachePath + "/stats.bin", f)) {
     return stats;
   }
@@ -70,7 +70,7 @@ void BookReadingStats::formatDuration(uint32_t seconds, char* buf, size_t len) {
 }
 
 void BookReadingStats::save(const std::string& cachePath) const {
-  FsFile f;
+  HalFile f;
   if (!Storage.openFileForWrite("STATS", cachePath + "/stats.bin", f)) {
     LOG_ERR("STATS", "Could not write stats.bin");
     return;

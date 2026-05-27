@@ -65,14 +65,14 @@ void advanceMarkerMatch(const char ch, const char* marker, size_t& matchLength) 
 
 String findNamedLocalUpdatePath() {
   SpiBusMutex::Guard guard;
-  FsFile root = Storage.open("/");
+  HalFile root = Storage.open("/");
   if (!root || !root.isDirectory()) {
     return "";
   }
 
   String bestName;
   while (true) {
-    FsFile entry = root.openNextFile();
+    HalFile entry = root.openNextFile();
     if (!entry) {
       break;
     }
@@ -118,7 +118,7 @@ bool saveSkippedLocalUpdate(const LocalUpdateFingerprint& fingerprint) {
   SpiBusMutex::Guard guard;
   Storage.mkdir("/.crosspoint");
 
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForWrite("FWUPD", kSkippedLocalUpdatePath, file)) {
     LOG_ERR("FWUPD", "Failed to open skip marker file for write");
     return false;
@@ -132,7 +132,7 @@ bool saveSkippedLocalUpdate(const LocalUpdateFingerprint& fingerprint) {
 }
 
 bool loadSkippedLocalUpdate(LocalUpdateFingerprint& fingerprint) {
-  FsFile file;
+  HalFile file;
   {
     SpiBusMutex::Guard guard;
     if (!Storage.openFileForRead("FWUPD", kSkippedLocalUpdatePath, file)) {
@@ -156,7 +156,7 @@ bool loadSkippedLocalUpdate(LocalUpdateFingerprint& fingerprint) {
 }
 
 bool hashLocalUpdateSample(const size_t firmwareSize, const size_t offset, LocalUpdateFingerprint& fingerprint,
-                           FsFile& file, uint8_t* buffer, const size_t bufferSize) {
+                           HalFile& file, uint8_t* buffer, const size_t bufferSize) {
   if (!file.seekSet(offset)) {
     LOG_ERR("FWUPD", "Failed to seek firmware file to %zu", offset);
     return false;
@@ -177,7 +177,7 @@ bool hashLocalUpdateSample(const size_t firmwareSize, const size_t offset, Local
   return true;
 }
 
-bool readFirmwareAppDescription(FsFile& file, esp_app_desc_t& appDesc) {
+bool readFirmwareAppDescription(HalFile& file, esp_app_desc_t& appDesc) {
   const size_t appDescOffset = sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t);
   if (!file.seekSet(appDescOffset)) {
     LOG_ERR("FWUPD", "Failed to seek firmware file to app description");
@@ -198,7 +198,7 @@ bool readFirmwareAppDescription(FsFile& file, esp_app_desc_t& appDesc) {
   return true;
 }
 
-bool readCrossPointVersionMarker(FsFile& file, String& version) {
+bool readCrossPointVersionMarker(HalFile& file, String& version) {
   constexpr char userAgentMarker[] = "CrossPoint-ESP32-";
   constexpr char bootLogMarker[] = "Starting CrossPoint version ";
 
@@ -251,7 +251,7 @@ bool readCrossPointVersionMarker(FsFile& file, String& version) {
 }
 
 bool computeLocalUpdateFingerprint(const String& path, LocalUpdateFingerprint& fingerprint) {
-  FsFile file;
+  HalFile file;
   {
     SpiBusMutex::Guard guard;
     if (!Storage.openFileForRead("FWUPD", path, file)) {
@@ -302,7 +302,7 @@ bool computeLocalUpdateFingerprint(const String& path, LocalUpdateFingerprint& f
 }
 
 bool readLocalUpdateVersion(const String& path, String& version) {
-  FsFile file;
+  HalFile file;
   {
     SpiBusMutex::Guard guard;
     if (!Storage.openFileForRead("FWUPD", path, file)) {
@@ -502,7 +502,7 @@ bool FirmwareUpdateUtil::performLocalUpdate(const GfxRenderer& renderer) {
 
   LOG_INF("FWUPD", "Starting local firmware update from %s", firmwarePath.c_str());
 
-  FsFile firmwareFile;
+  HalFile firmwareFile;
   size_t firmwareSize = 0;
   {
     SpiBusMutex::Guard guard;

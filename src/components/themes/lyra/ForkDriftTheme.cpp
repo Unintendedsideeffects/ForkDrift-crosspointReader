@@ -76,7 +76,7 @@ void ForkDriftTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const
         bool hasCover = !recentBooks[i].coverBmpPath.empty();
         if (hasCover) {
           const std::string path = UITheme::getCoverThumbPath(recentBooks[i].coverBmpPath, coverHeight);
-          FsFile file;
+          HalFile file;
           if (Storage.openFileForRead("HOME", path, file)) {
             Bitmap bitmap(file);
             if (bitmap.parseHeaders() == BmpReaderError::Ok) {

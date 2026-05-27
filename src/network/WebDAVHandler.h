@@ -15,7 +15,7 @@ class WebDAVHandler : public RequestHandler {
 
  private:
   // PUT streaming state (raw() is called in chunks)
-  FsFile _putFile;
+  HalFile _putFile;
   String _putPath;
   String _putTempPath;
   String _putBackupPath;
@@ -43,12 +43,12 @@ class WebDAVHandler : public RequestHandler {
   int getDepth(WebServer& s) const;
   bool getOverwrite(WebServer& s) const;
   bool existsLocked(const String& path) const;
-  FsFile openLocked(const String& path) const;
+  HalFile openLocked(const String& path) const;
   bool removeLocked(const String& path) const;
   bool renameLocked(const String& from, const String& to) const;
   bool mkdirLocked(const String& path) const;
   bool rmdirLocked(const String& path) const;
-  void closeLocked(FsFile& file) const;
+  void closeLocked(HalFile& file) const;
   bool finalizePutTarget();
   void clearEpubCacheIfNeeded(const String& path) const;
   void sendPropEntry(WebServer& s, const String& href, bool isDir, size_t size, const String& lastModified) const;

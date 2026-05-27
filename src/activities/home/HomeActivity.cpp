@@ -64,7 +64,7 @@ struct CarouselCacheHeader {
   uint16_t sideCoverH;
 };
 
-bool readCarouselFrameBytes(FsFile& file, int bookIdx, size_t bufferSize, uint8_t* dest) {
+bool readCarouselFrameBytes(HalFile& file, int bookIdx, size_t bufferSize, uint8_t* dest) {
   const size_t frameOffset = sizeof(CarouselCacheHeader) + static_cast<size_t>(bookIdx) * bufferSize;
   if (!file.seek(frameOffset)) {
     return false;
@@ -134,7 +134,7 @@ bool isCarouselCacheHeaderValid(const CarouselCacheHeader& header, uint64_t cach
          header.sideCoverW == LyraCarouselTheme::kSideCoverW && header.sideCoverH == LyraCarouselTheme::kSideCoverH;
 }
 
-bool readCarouselCacheHeader(FsFile& file, CarouselCacheHeader& header) {
+bool readCarouselCacheHeader(HalFile& file, CarouselCacheHeader& header) {
   CarouselCacheHeader readHeader{};
   if (!serialization::readPod(file, readHeader)) return false;
   header = readHeader;
@@ -149,7 +149,7 @@ bool hasValidCarouselDiskCache(const std::vector<RecentBook>& recentBooks, const
   uint64_t cacheKeyHash = 0;
   buildCarouselCacheKey(recentBooks, cacheKey, cacheKeyHash);
 
-  FsFile cacheFile;
+  HalFile cacheFile;
   if (!Storage.openFileForRead("HOME", CAROUSEL_CACHE_PATH, cacheFile)) return false;
 
   CarouselCacheHeader header{};
@@ -624,7 +624,7 @@ bool HomeActivity::drawCoverAt(const std::string& coverPath, const int x, const 
   }
 
   SpiBusMutex::Guard guard;
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("HOME", coverPath, file)) {
     return false;
   }
@@ -933,7 +933,7 @@ bool HomeActivity::buildCarouselCacheFile(const std::string& cacheKey, uint64_t 
   Storage.mkdir("/.crosspoint");
   if (Storage.exists(CAROUSEL_CACHE_TMP_PATH)) Storage.remove(CAROUSEL_CACHE_TMP_PATH);
 
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForWrite("HOME", CAROUSEL_CACHE_TMP_PATH, file)) return false;
 
   const CarouselCacheHeader header = {
@@ -1009,7 +1009,7 @@ bool HomeActivity::readCarouselFrameFromDisk(uint64_t cacheKeyHash, int bookCoun
   if (!dest || bookIdx < 0 || bookIdx >= bookCount) {
     return false;
   }
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("HOME", CAROUSEL_CACHE_PATH, file)) {
     return false;
   }
@@ -1146,7 +1146,7 @@ bool HomeActivity::preRenderCarouselFrames(bool showProgressPopup) {
   const int targetFrameCount = std::min(bookCount, kCarouselFrameCount);
   bool diskCacheValid = false;
   {
-    FsFile cacheFile;
+    HalFile cacheFile;
     if (Storage.openFileForRead("HOME", CAROUSEL_CACHE_PATH, cacheFile)) {
       CarouselCacheHeader header{};
       const bool readOk = readCarouselCacheHeader(cacheFile, header);
@@ -1607,7 +1607,7 @@ void HomeActivity::render(RenderLock&&) {
       if (hasContinueReading && hasCoverImage && !coverBmpPath.empty() && !coverRendered) {
         // First time: load cover from SD and render
         SpiBusMutex::Guard guard;
-        FsFile file;
+        HalFile file;
         if (Storage.openFileForRead("HOME", coverBmpPath, file)) {
           Bitmap bitmap(file);
           if (bitmap.parseHeaders() == BmpReaderError::Ok) {

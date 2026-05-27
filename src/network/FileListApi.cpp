@@ -17,7 +17,7 @@
 namespace network {
 
 void scanDirectory(const char* path, bool showHiddenFiles, const std::function<void(const DirEntry&)>& callback) {
-  FsFile root;
+  HalFile root;
   {
     SpiBusMutex::Guard guard;
     root = Storage.open(path);
@@ -43,7 +43,7 @@ void scanDirectory(const char* path, bool showHiddenFiles, const std::function<v
 
     {
       SpiBusMutex::Guard guard;
-      FsFile file = root.openNextFile();
+      HalFile file = root.openNextFile();
       if (!file) break;
 
       char name[500];

@@ -75,7 +75,7 @@ void handleDownload(WebServer& server) {
     return;
   }
 
-  FsFile file = Storage.open(result.normalizedPath.c_str());
+  HalFile file = Storage.open(result.normalizedPath.c_str());
   if (!file || file.isDirectory()) {
     sendText(server, 500, "Failed to open file");
     return;

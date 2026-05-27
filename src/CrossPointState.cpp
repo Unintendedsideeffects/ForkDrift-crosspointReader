@@ -84,7 +84,7 @@ bool CrossPointState::saveToFile() const {
 
 bool CrossPointState::loadFromFile() {
   if (Storage.exists(STATE_FILE_JSON)) {
-    FsFile file;
+    HalFile file;
     if (Storage.openFileForRead("CPS", STATE_FILE_JSON, file)) {
       const bool result = JsonSettingsIO::loadState(*this, file);
       file.close();

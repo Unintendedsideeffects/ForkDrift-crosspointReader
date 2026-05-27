@@ -10,7 +10,7 @@ static void writePod(std::ostream& os, const T& value) {
 }
 
 template <typename T>
-static void writePod(FsFile& file, const T& value) {
+static void writePod(HalFile& file, const T& value) {
   file.write(reinterpret_cast<const uint8_t*>(&value), sizeof(T));
 }
 
@@ -21,7 +21,7 @@ static bool readPod(std::istream& is, T& value) {
 }
 
 template <typename T>
-static bool readPod(FsFile& file, T& value) {
+static bool readPod(HalFile& file, T& value) {
   return file.read(reinterpret_cast<uint8_t*>(&value), sizeof(T)) == sizeof(T);
 }
 
@@ -31,7 +31,7 @@ static void writeString(std::ostream& os, const std::string& s) {
   os.write(s.data(), len);
 }
 
-static void writeString(FsFile& file, const std::string& s) {
+static void writeString(HalFile& file, const std::string& s) {
   const uint32_t len = s.size();
   writePod(file, len);
   file.write(reinterpret_cast<const uint8_t*>(s.data()), len);
@@ -50,7 +50,7 @@ static bool readString(std::istream& is, std::string& s) {
   return is.good();
 }
 
-static bool readString(FsFile& file, std::string& s) {
+static bool readString(HalFile& file, std::string& s) {
   uint32_t len;
   if (!readPod(file, len)) return false;
   if (len > 65536) return false;  // Sanity check: max 64KB for metadata strings

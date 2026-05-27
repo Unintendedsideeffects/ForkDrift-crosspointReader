@@ -4,7 +4,7 @@
 namespace UrlUtils {
 
 /**
- * Check if URL uses HTTPS protocol
+ * Returns true if the URL starts with "https://"
  */
 bool isHttpsUrl(const std::string& url);
 

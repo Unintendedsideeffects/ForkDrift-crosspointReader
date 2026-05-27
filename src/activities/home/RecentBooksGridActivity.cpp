@@ -384,7 +384,7 @@ void RecentBooksGridActivity::render(RenderLock&&) {
                                         ? ""
                                         : UITheme::getCoverThumbPath(recentBooks[bookIdx].coverBmpPath, COVER_HEIGHT);
       if (!thumbPath.empty() && Storage.exists(thumbPath.c_str())) {
-        FsFile file;
+        HalFile file;
         if (Storage.openFileForRead("RBGA", thumbPath, file)) {
           Bitmap bmp(file);
           if (bmp.parseHeaders() == BmpReaderError::Ok && bmp.getWidth() > 0 && bmp.getHeight() > 0) {

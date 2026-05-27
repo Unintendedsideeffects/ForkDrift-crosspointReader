@@ -12,7 +12,7 @@ bool pathExists(const String& path) {
   return Storage.exists(path.c_str());
 }
 
-bool openFileForMutation(const String& path, FsFile& file, bool& isDir) {
+bool openFileForMutation(const String& path, HalFile& file, bool& isDir) {
   SpiBusMutex::Guard guard;
   file = Storage.open(path.c_str());
   if (!file) {
@@ -148,7 +148,7 @@ FileMutationResult renameFile(const String& rawItemPath, const String& rawRename
     return {404, "Item not found"};
   }
 
-  FsFile file;
+  HalFile file;
   bool isDir = false;
   if (!openFileForMutation(itemPath, file, isDir)) {
     return {500, "Failed to open file"};
@@ -196,7 +196,7 @@ FileMutationResult moveFile(const String& rawItemPath, const String& rawDestPath
     return {404, "Item not found"};
   }
 
-  FsFile file;
+  HalFile file;
   bool isDir = false;
   if (!openFileForMutation(itemPath, file, isDir)) {
     return {500, "Failed to open file"};
@@ -209,7 +209,7 @@ FileMutationResult moveFile(const String& rawItemPath, const String& rawDestPath
     return {404, "Destination not found"};
   }
 
-  FsFile destDir;
+  HalFile destDir;
   bool destIsDir = false;
   {
     SpiBusMutex::Guard guard;
@@ -290,9 +290,9 @@ FileMutationResult deletePaths(const std::vector<String>& rawPaths, const FileMu
     bool folderNotEmpty = false;
     {
       SpiBusMutex::Guard guard;
-      FsFile file = Storage.open(itemPath.c_str());
+      HalFile file = Storage.open(itemPath.c_str());
       if (file && file.isDirectory()) {
-        FsFile entry = file.openNextFile();
+        HalFile entry = file.openNextFile();
         if (entry) {
           entry.close();
           folderNotEmpty = true;

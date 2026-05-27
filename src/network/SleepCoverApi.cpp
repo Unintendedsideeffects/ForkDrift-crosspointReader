@@ -60,8 +60,8 @@ bool copyCoverToPinnedPath(const std::string& coverPath) {
   bool copyOk = false;
   {
     SpiBusMutex::Guard guard;
-    FsFile src;
-    FsFile dst;
+    HalFile src;
+    HalFile dst;
     if (Storage.openFileForRead("WEB", coverPath.c_str(), src) &&
         Storage.openFileForWrite("WEB", kPinnedSleepCoverPath, dst)) {
       uint8_t buffer[512];

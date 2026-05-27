@@ -173,7 +173,10 @@ void ChapterHtmlSlimParser::emitHorizontalRule(const BlockStyle& blockStyle) {
   }
 
   if (currentTextBlock && !currentTextBlock->isEmpty()) {
-    startNewTextBlock(currentTextBlock->getBlockStyle());
+    const BlockStyle parentBlockStyle = currentTextBlock->getBlockStyle();
+    const std::string savedAnchorId = pendingAnchorId;
+    startNewTextBlock(parentBlockStyle);
+    pendingAnchorId = savedAnchorId;
   }
 
   if (!currentPage) {
@@ -744,7 +747,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
             std::string cachedImagePath = self->imageBasePath + std::to_string(self->imageCounter++) + ext;
 
             // Extract image to cache file
-            FsFile cachedImageFile;
+            HalFile cachedImageFile;
             bool extractSuccess = false;
             if (Storage.openFileForWrite("EHP", cachedImagePath, cachedImageFile)) {
               extractSuccess = self->epub->readItemContentsToStream(resolvedPath, cachedImageFile, 4096);
@@ -1654,7 +1657,7 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
   // Using DefaultHandlerExpand preserves normal entity expansion from DOCTYPE
   XML_SetDefaultHandlerExpand(parser, defaultHandlerExpand);
 
-  FsFile file;
+  HalFile file;
   if (!Storage.openFileForRead("EHP", filepath, file)) {
     destroyXmlParser(parser);
     return false;

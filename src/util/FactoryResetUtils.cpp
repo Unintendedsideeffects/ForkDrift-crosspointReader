@@ -53,7 +53,7 @@ bool resetCrossPointMetadataPreservingContent() {
     }
   }
 
-  FsFile root = Storage.open(kCrossPointDataDir);
+  HalFile root = Storage.open(kCrossPointDataDir);
   if (!root || !root.isDirectory()) {
     LOG_ERR("RESET", "Failed to open cache directory: %s", kCrossPointDataDir);
     if (root) {
@@ -64,7 +64,7 @@ bool resetCrossPointMetadataPreservingContent() {
 
   char name[128];
   std::vector<std::string> directoriesToDelete;
-  for (FsFile entry = root.openNextFile(); entry; entry = root.openNextFile()) {
+  for (HalFile entry = root.openNextFile(); entry; entry = root.openNextFile()) {
     entry.getName(name, sizeof(name));
     const bool isDirectory = entry.isDirectory();
     entry.close();

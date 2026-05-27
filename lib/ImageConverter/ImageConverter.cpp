@@ -35,7 +35,7 @@ ImageConverter::Format ImageConverter::detectFormat(const char* filepath) {
   return FORMAT_UNKNOWN;
 }
 
-bool ImageConverter::convertToBmpStream(FsFile& imageFile, Format format, Print& bmpOut, int targetWidth,
+bool ImageConverter::convertToBmpStream(HalFile& imageFile, Format format, Print& bmpOut, int targetWidth,
                                         int targetHeight, bool crop) {
   switch (format) {
     case FORMAT_JPEG:
@@ -49,7 +49,7 @@ bool ImageConverter::convertToBmpStream(FsFile& imageFile, Format format, Print&
   }
 }
 
-bool ImageConverter::convertTo1BitBmpStream(FsFile& imageFile, Format format, Print& bmpOut, int targetWidth,
+bool ImageConverter::convertTo1BitBmpStream(HalFile& imageFile, Format format, Print& bmpOut, int targetWidth,
                                             int targetHeight, bool crop) {
   switch (format) {
     case FORMAT_JPEG:

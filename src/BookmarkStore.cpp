@@ -144,7 +144,7 @@ void BookmarkStore::clearAll() {
 }
 
 bool BookmarkStore::readFromFile() {
-  FsFile f;
+  HalFile f;
   if (!Storage.openFileForRead("BKS", storeFilePath, f)) {
     LOG_ERR("BKS", "Failed to open bookmark file for read");
     return false;
@@ -209,7 +209,7 @@ bool BookmarkStore::readFromFile() {
 bool BookmarkStore::writeToFile() const {
   Storage.mkdir(BOOKMARKS_DIR);
 
-  FsFile f;
+  HalFile f;
   if (!Storage.openFileForWrite("BKS", storeFilePath, f)) {
     LOG_ERR("BKS", "Failed to open bookmark file for write");
     return false;
@@ -256,7 +256,7 @@ bool BookmarkStore::getAllBookmarkedBooks(std::vector<BookmarkedBookEntry>& out)
   for (const auto& name : files) {
     const std::string fullPath = std::string(BOOKMARKS_DIR) + "/" + name.c_str();
 
-    FsFile f;
+    HalFile f;
     if (!Storage.openFileForRead("BKS", fullPath, f)) continue;
 
     if (f.available() < static_cast<int>(sizeof(uint8_t))) continue;

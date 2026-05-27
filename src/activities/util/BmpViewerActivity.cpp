@@ -65,7 +65,7 @@ void BmpViewerActivity::onEnter() {
     loadSiblingImages();
   }
 
-  FsFile file;
+  HalFile file;
 
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
@@ -149,7 +149,7 @@ void BmpViewerActivity::doSetSleepCover() {
   GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
 
   bool success = false;
-  FsFile inFile, outFile;
+  HalFile inFile, outFile;
   constexpr const char* kSleepCoverPath = "/sleep/viewer.bmp";
   if (Storage.openFileForRead("BMP", filePath, inFile)) {
     if (!Storage.exists("/sleep")) {

@@ -296,7 +296,7 @@ void LyraCarouselTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
 
     if (!book.coverBmpPath.empty()) {
       const std::string thumbPath = UITheme::getCoverThumbPath(book.coverBmpPath, kCenterCoverMaxW, kCenterCoverMaxH);
-      FsFile file;
+      HalFile file;
       if (Storage.openFileForRead("HOME", thumbPath, file)) {
         Bitmap bitmap(file);
         if (bitmap.parseHeaders() == BmpReaderError::Ok && bitmap.getWidth() > 0 && bitmap.getHeight() > 0) {
@@ -364,7 +364,7 @@ void LyraCarouselTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
 
     if (!book.coverBmpPath.empty()) {
       const std::string thumbPath = UITheme::getCoverThumbPath(book.coverBmpPath, kSideCoverMaxW, kSideCoverMaxH);
-      FsFile file;
+      HalFile file;
       if (Storage.openFileForRead("HOME", thumbPath, file)) {
         Bitmap bitmap(file);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {

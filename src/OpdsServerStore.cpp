@@ -17,7 +17,7 @@ bool OpdsServerStore::saveToFile() const {
 
 bool OpdsServerStore::loadFromFile() {
   if (Storage.exists(OPDS_FILE_JSON)) {
-    FsFile file;
+    HalFile file;
     if (Storage.openFileForRead("OPS", OPDS_FILE_JSON, file)) {
       // resave flag is set when passwords were stored in plaintext and need re-obfuscation
       bool resave = false;

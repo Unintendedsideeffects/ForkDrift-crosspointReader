@@ -107,7 +107,7 @@ class CrossPointWebServer {
   static constexpr uint8_t kNoUploadClient = 255;
 
   // WebSocket upload state
-  FsFile wsUploadFile;
+  HalFile wsUploadFile;
   String wsUploadFileName;
   String wsUploadPath;
   size_t wsUploadSize = 0;
@@ -175,7 +175,7 @@ class CrossPointWebServer {
 
   // Font upload state
   struct FontUploadState {
-    FsFile file;
+    HalFile file;
     std::string familyName;
     std::string filePath;
     bool valid = false;

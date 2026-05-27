@@ -448,7 +448,7 @@ Rect BaseTheme::computeBookCardRect(GfxRenderer& renderer, Rect area, const std:
     const std::string coverBmpPath =
         UITheme::getCoverThumbPath(recentBooks[0].coverBmpPath, BaseMetrics::values.homeCoverHeight);
 
-    FsFile file;
+    HalFile file;
     if (Storage.openFileForRead("HOME", coverBmpPath, file)) {
       Bitmap bitmap(file);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
@@ -482,7 +482,7 @@ void BaseTheme::drawBookCard(const GfxRenderer& renderer, Rect area, Rect bookRe
     const std::string coverBmpPath =
         UITheme::getCoverThumbPath(recentBooks[0].coverBmpPath, BaseMetrics::values.homeCoverHeight);
 
-    FsFile file;
+    HalFile file;
     if (Storage.openFileForRead("HOME", coverBmpPath, file)) {
       Bitmap bitmap(file);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
@@ -747,8 +747,10 @@ void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, c
       progress = (pageCount > 0) ? (static_cast<float>(currentPage) / pageCount) * 100 : 0;
     }
     const int barWidth = progressBarMaxWidth * progress / 100;
-    renderer.fillRect(orientedMarginLeft, progressBarY, barWidth, ((SETTINGS.statusBarProgressBarThickness + 1) * 2),
-                      true);
+    const int requestedBarHeight = (SETTINGS.statusBarProgressBarThickness + 1) * 2;
+    const int maxBarHeight = std::max(1, renderer.getScreenHeight() - progressBarY);
+    const int barHeight = std::min(requestedBarHeight, maxBarHeight);
+    renderer.fillRect(orientedMarginLeft, progressBarY, barWidth, barHeight, true);
   }
 
   // Draw Bookmark ribbon (9px wide × 14px tall, V-notch at bottom)

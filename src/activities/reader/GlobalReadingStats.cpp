@@ -36,7 +36,7 @@ void loadCommonFields(const uint8_t* data, GlobalReadingStats& out) {
 }  // namespace
 
 static bool loadFromFile(const char* path, GlobalReadingStats& out) {
-  FsFile f;
+  HalFile f;
   if (!Storage.openFileForRead("GSTATS", path, f)) return false;
   uint8_t data[GLOBAL_STATS_FILE_SIZE] = {};
   const int n = f.read(data, GLOBAL_STATS_FILE_SIZE);
@@ -74,7 +74,7 @@ void GlobalReadingStats::save() const {
     Storage.rename(GLOBAL_STATS_PATH, GLOBAL_STATS_BAK_PATH);
   }
 
-  FsFile f;
+  HalFile f;
   if (!Storage.openFileForWrite("GSTATS", GLOBAL_STATS_PATH, f)) {
     LOG_ERR("GSTATS", "Could not write global_stats.bin");
     return;
