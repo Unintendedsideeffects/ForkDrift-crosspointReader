@@ -1453,19 +1453,31 @@ void HomeActivity::render(RenderLock&&) {
     const bool inCarouselRow = (selectorIndex < bookCount);
     const int centerIdx = inCarouselRow ? selectorIndex : lastCarouselBookIndex;
     int slotIdx = gCarouselCache.findFrameSlot(centerIdx);
+    bool frameLoadedDirectToBuffer = false;
 
     if (frameBuffer && slotIdx < 0 && gCarouselCache.keyHash != 0 && bookCount > 0) {
       if (gCarouselCache.frameCount > 0) {
         const int evictSlot = chooseCarouselEvictionSlot(centerIdx, bookCount);
         if (evictSlot >= 0 && loadCarouselFrameFromDisk(gCarouselCache.keyHash, bookCount, centerIdx, evictSlot)) {
           slotIdx = evictSlot;
+        } else if (readCarouselFrameFromDisk(gCarouselCache.keyHash, bookCount, centerIdx, frameBuffer)) {
+          slotIdx = 0;
+          frameLoadedDirectToBuffer = true;
+          // #region agent log
+          LOG_DBG("DBG", "c0388c hyp=H6 loc=HomeActivity:carousel disk-direct heap=%u", ESP.getFreeHeap());
+          // #endregion
         }
       } else if (readCarouselFrameFromDisk(gCarouselCache.keyHash, bookCount, centerIdx, frameBuffer)) {
         slotIdx = 0;
+        frameLoadedDirectToBuffer = true;
+        // #region agent log
+        LOG_DBG("DBG", "c0388c hyp=H6 loc=HomeActivity:carousel disk-direct heap=%u", ESP.getFreeHeap());
+        // #endregion
       }
     }
 
-    if (frameBuffer && slotIdx >= 0 && (carouselFrames[slotIdx] || gCarouselCache.frameCount <= 0)) {
+    if (frameBuffer && slotIdx >= 0 &&
+        (carouselFrames[slotIdx] || frameLoadedDirectToBuffer || gCarouselCache.frameCount <= 0)) {
       if (carouselFrames[slotIdx]) {
         memcpy(frameBuffer, carouselFrames[slotIdx], renderer.getBufferSize());
       }
@@ -1512,6 +1524,12 @@ void HomeActivity::render(RenderLock&&) {
       }
       return;
     }
+    // #region agent log
+    if (gCarouselCache.keyHash != 0) {
+      LOG_DBG("DBG", "c0388c hyp=H6 loc=HomeActivity:carousel slow-fallback slot=%d heap=%u fc=%d", slotIdx,
+              ESP.getFreeHeap(), gCarouselCache.frameCount);
+    }
+    // #endregion
   }
 
   renderer.clearScreen();
