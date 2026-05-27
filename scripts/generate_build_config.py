@@ -25,7 +25,7 @@ FEATURES = {
     'bookerly_fonts': Feature(
         name='Bookerly Fonts',
         flag='ENABLE_BOOKERLY_FONTS',
-        size_kb=804,
+        size_kb=1055,
         description='12/16/18pt Bookerly family'
     ),
     'notosans_fonts': Feature(
@@ -37,7 +37,7 @@ FEATURES = {
     'opendyslexic_fonts': Feature(
         name='OpenDyslexic Font Pack',
         flag='ENABLE_OPENDYSLEXIC_FONTS',
-        size_kb=2617,
+        size_kb=804,
         description='Optional OpenDyslexic 8/10/12/14pt family (requires at least one full-charset font)'
     ),
     'image_sleep': Feature(
@@ -55,7 +55,7 @@ FEATURES = {
     'markdown': Feature(
         name='Markdown/Obsidian',
         flag='ENABLE_MARKDOWN',
-        size_kb=179,
+        size_kb=191,
         description='Markdown and Obsidian vault reading support'
     ),
     'integrations': Feature(
@@ -79,7 +79,7 @@ FEATURES = {
     'opds': Feature(
         name='OPDS',
         flag='ENABLE_OPDS',
-        size_kb=6,
+        size_kb=0,
         description='BookLore server integration for OPDS browsing and downloads'
     ),
     'background_server': Feature(
@@ -109,7 +109,7 @@ FEATURES = {
     'web_wallpaper_plugin': Feature(
         name='Web Wallpaper',
         flag='ENABLE_WEB_WALLPAPER_PLUGIN',
-        size_kb=3,
+        size_kb=5,
         description='Browser-side wallpaper converter at /plugins/wallpaper — resize, dither, and upload any image as a 1-bit BMP sleep screen'
     ),
     'pokemon_wallpaper_plugin': Feature(
@@ -127,19 +127,19 @@ FEATURES = {
     'epub_support': Feature(
         name='EPUB Support',
         flag='ENABLE_EPUB_SUPPORT',
-        size_kb=108,
+        size_kb=120,
         description='EPUB e-book reader with CSS and chapter navigation'
     ),
     'hyphenation': Feature(
         name='Hyphenation',
         flag='ENABLE_HYPHENATION',
-        size_kb=435,
+        size_kb=350,
         description='Language-aware hyphenation for justified EPUB text'
     ),
     'xtc_support': Feature(
         name='XTC Support',
         flag='ENABLE_XTC_SUPPORT',
-        size_kb=9,
+        size_kb=20,
         description='XTC format reader with chapter navigation'
     ),
     'lyra_theme': Feature(
@@ -157,13 +157,13 @@ FEATURES = {
     'todo_planner': Feature(
         name='Todo Planner',
         flag='ENABLE_TODO_PLANNER',
-        size_kb=6,
+        size_kb=15,
         description='Standalone daily TODO/agenda planner with .md/.txt fallback and web quick-entry'
     ),
     'anki_support': Feature(
         name='Anki Support',
         flag='ENABLE_ANKI_SUPPORT',
-        size_kb=10,
+        size_kb=9,
         description='Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop.'
     ),
     'dark_mode': Feature(
@@ -181,13 +181,13 @@ FEATURES = {
     'ble_wifi_provisioning': Feature(
         name='BLE WiFi Provisioning',
         flag='ENABLE_BLE_WIFI_PROVISIONING',
-        size_kb=629,
+        size_kb=626,
         description='Initial WiFi setup via Bluetooth LE'
     ),
     'user_fonts': Feature(
         name='User Fonts',
         flag='ENABLE_USER_FONTS',
-        size_kb=7,
+        size_kb=0,
         description='Load custom .ttf/.otf fonts from SD card (pre-converted)'
     ),
     'web_wifi_setup': Feature(
@@ -199,7 +199,7 @@ FEATURES = {
     'remote_control': Feature(
         name='Remote Control',
         flag='ENABLE_REMOTE_CONTROL',
-        size_kb=3,
+        size_kb=2,
         description='HTTP and USB APIs for open-book and page-turn remote commands'
     ),
     'remote_keyboard_input': Feature(
@@ -223,43 +223,43 @@ FEATURES = {
     'roman_clock_sleep': Feature(
         name='Roman Clock Sleep Screen',
         flag='ENABLE_ROMAN_CLOCK_SLEEP',
-        size_kb=3,
+        size_kb=1,
         description='Optional block-style Roman numeral sleep screen that reuses the WiFi clock time source'
     ),
     'lexenddeca_fonts': Feature(
         name='Lexend Deca Fonts',
         flag='ENABLE_LEXENDDECA_FONTS',
-        size_kb=350,
+        size_kb=824,
         description='Lexend Deca — a reading-optimised sans-serif from the Lexend project. 12–18pt, 4 styles.'
     ),
     'bitter_fonts': Feature(
         name='Bitter Fonts',
         flag='ENABLE_BITTER_FONTS',
-        size_kb=350,
+        size_kb=1177,
         description='Bitter — a serif designed for on-screen reading with sturdy letterforms. 12–18pt, 4 styles.'
     ),
     'chareink_fonts': Feature(
         name='Chare Ink Fonts',
         flag='ENABLE_CHAREINK_FONTS',
-        size_kb=320,
+        size_kb=1029,
         description='Chare Ink — a monospaced-flavoured reading font tuned for e-ink displays. 12–18pt, 4 styles.'
     ),
     'reading_stats': Feature(
         name='Reading Stats',
         flag='ENABLE_READING_STATS',
-        size_kb=20,
+        size_kb=6,
         description='Tracks reading time, pages turned, and completion status. Enables "Mark Finished" and book statistics screen'
     ),
     'minimal_theme': Feature(
         name='Minimal Theme',
         flag='ENABLE_MINIMAL_THEME',
-        size_kb=8,
+        size_kb=5,
         description='Minimal UI theme for home screen and navigation (requires Lyra Theme)'
     ),
     'focus_reading': Feature(
         name='Focus Reading',
         flag='ENABLE_FOCUS_READING',
-        size_kb=5,
+        size_kb=0,
         description='Bionic reading / focus reading mode that bolds word beginnings to speed up reading'
     ),
 }
@@ -743,7 +743,7 @@ def empty_feature_state() -> Dict[str, bool]:
 
 def calculate_size(enabled_features: Dict[str, bool]) -> float:
     """Calculate estimated firmware size in MB."""
-    base_size_mb = 2.65  # Lean profile size baseline (measured)
+    base_size_mb = 2.37  # Lean profile size baseline (measured)
 
     for feature_key, enabled in enabled_features.items():
         if enabled:
