@@ -799,7 +799,7 @@ def generate_platformio_ini(enabled_features: Dict[str, bool], output_path: Path
 extends = base
 build_flags =
   ${{base.build_flags}}
-  -DCROSSPOINT_VERSION=\\"${{crosspoint.version}}-custom\\"
+  -DCROSSPOINT_VERSION=\\"${{crosspoint.version}}-{profile_name}\\"
 {chr(10).join(f'  {flag}' for flag in build_flags)}
 """
 

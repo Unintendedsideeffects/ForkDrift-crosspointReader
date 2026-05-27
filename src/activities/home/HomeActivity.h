@@ -10,6 +10,7 @@
 #include "util/RecentBooksStore.h"
 
 struct Rect;
+enum UIIcon : uint8_t;
 
 class HomeActivity final : public Activity {
  public:
@@ -101,6 +102,9 @@ class HomeActivity final : public Activity {
   void rebuildMenuLayout();
   bool isPokemonPartyHomeMode() const;
   std::string getMenuItemLabel(int index) const;
+  UIIcon getMenuItemIcon(int index) const;
+  std::vector<int> getCarouselMenuOrder() const;
+  void activateCarouselMenuIndex(int menuIndex);
   bool drawCoverAt(const std::string& coverPath, int x, int y, int width, int height) const;
 
   static std::string fallbackTitleFromPath(const std::string& path);

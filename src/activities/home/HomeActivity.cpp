@@ -538,6 +538,85 @@ std::string HomeActivity::getMenuItemLabel(const int index) const {
   return "";
 }
 
+UIIcon HomeActivity::getMenuItemIcon(const int index) const {
+  if (index == menuOpenBookIndex) {
+    return UIIcon::Book;
+  }
+  if (index == menuMyLibraryIndex) {
+    return UIIcon::Folder;
+  }
+  if (index == menuOpdsIndex) {
+    return UIIcon::Library;
+  }
+  if (index == menuTodoIndex || index == menuAnkiIndex) {
+    return UIIcon::Text;
+  }
+#if ENABLE_BOOKMARKS
+  if (index == menuBookmarksIndex) {
+    return UIIcon::Book;
+  }
+#endif
+  if (index == menuFileTransferIndex) {
+    return UIIcon::Transfer;
+  }
+  return UIIcon::Settings;
+}
+
+std::vector<int> HomeActivity::getCarouselMenuOrder() const {
+  std::vector<int> menuOrder;
+  menuOrder.reserve(8);
+  if (menuOpenBookIndex >= 0) {
+    menuOrder.push_back(menuOpenBookIndex);
+  }
+  if (menuMyLibraryIndex >= 0) {
+    menuOrder.push_back(menuMyLibraryIndex);
+  }
+  if (menuOpdsIndex >= 0) {
+    menuOrder.push_back(menuOpdsIndex);
+  }
+  if (menuTodoIndex >= 0) {
+    menuOrder.push_back(menuTodoIndex);
+  }
+  if (menuAnkiIndex >= 0) {
+    menuOrder.push_back(menuAnkiIndex);
+  }
+#if ENABLE_BOOKMARKS
+  if (menuBookmarksIndex >= 0) {
+    menuOrder.push_back(menuBookmarksIndex);
+  }
+#endif
+  if (menuFileTransferIndex >= 0) {
+    menuOrder.push_back(menuFileTransferIndex);
+  }
+  if (menuSettingsIndex >= 0) {
+    menuOrder.push_back(menuSettingsIndex);
+  }
+  return menuOrder;
+}
+
+void HomeActivity::activateCarouselMenuIndex(const int menuIndex) {
+  if (menuIndex == menuOpenBookIndex) {
+    selectedBookIndex = lastCarouselBookIndex;
+    openSelectedBook();
+  } else if (menuIndex == menuMyLibraryIndex) {
+    onMyLibraryOpen();
+  } else if (menuIndex == menuOpdsIndex) {
+    onOpdsBrowserOpen();
+  } else if (menuIndex == menuTodoIndex) {
+    onTodoOpen();
+  } else if (menuIndex == menuAnkiIndex) {
+    onAnkiOpen();
+#if ENABLE_BOOKMARKS
+  } else if (menuIndex == menuBookmarksIndex) {
+    onBookmarksOpen();
+#endif
+  } else if (menuIndex == menuFileTransferIndex) {
+    onFileTransferOpen();
+  } else if (menuIndex == menuSettingsIndex) {
+    onSettingsOpen();
+  }
+}
+
 bool HomeActivity::drawCoverAt(const std::string& coverPath, const int x, const int y, const int width,
                                const int height) const {
   if (coverPath.empty() || !Storage.exists(coverPath.c_str())) {
@@ -828,30 +907,16 @@ void HomeActivity::renderCarouselFrameToCurrentBuffer(int bookIdx, float* outPro
       renderer, Rect{0, metrics.homeTopPadding, pageWidth, metrics.homeCoverTileHeight}, recentBooks, bookCount, dummy1,
       dummy2, dummy3, []() { return true; }, -1.0f);
 
-  std::vector<std::string> menuLabels;
-  std::vector<UIIcon> menuIcons;
-  menuLabels.reserve(4);
-  menuIcons.reserve(4);
-  menuLabels.push_back("Open Book");
-  menuIcons.push_back(Book);
-  menuLabels.push_back("My Library");
-  menuIcons.push_back(Folder);
-  if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers})) {
-    menuLabels.push_back("OPDS Browser");
-    menuIcons.push_back(Library);
-  }
-  menuLabels.push_back("File Transfer");
-  menuIcons.push_back(Transfer);
-  menuLabels.push_back("Settings");
-  menuIcons.push_back(Settings);
+  const auto menuOrder = getCarouselMenuOrder();
 
   GUI.drawButtonMenu(
       renderer,
       Rect{0, metrics.homeTopPadding + metrics.homeCoverTileHeight + metrics.verticalSpacing, pageWidth,
            pageHeight - (metrics.homeTopPadding + metrics.homeCoverTileHeight + metrics.verticalSpacing * 2 +
                          metrics.buttonHintsHeight)},
-      static_cast<int>(menuLabels.size()), -1, [&menuLabels](int index) { return menuLabels[index]; },
-      [&menuIcons](int index) { return menuIcons[index]; });
+      static_cast<int>(menuOrder.size()), -1,
+      [this, &menuOrder](int index) { return getMenuItemLabel(menuOrder[index]); },
+      [this, &menuOrder](int index) { return getMenuItemIcon(menuOrder[index]); });
 
   const auto labels = mappedInput.mapLabels("", tr(STR_SELECT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -1230,26 +1295,10 @@ void HomeActivity::loop() {
           openSelectedBook();
           return;
         }
-        // In menu row — route by offset from bookCount
+        const auto menuOrder = getCarouselMenuOrder();
         const int menuIdx = selectorIndex - bookCount;
-        // Reconstruct menu order: Open Book, My Library, [OPDS], File Transfer, Settings
-        int midx = 0;
-        const int openBookIdx = midx++;
-        const int myLibraryIdx = midx++;
-        const int opdsIdx = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers}) ? midx++ : -1;
-        const int fileTransferIdx = midx++;
-        const int settingsIdx = midx;
-        if (menuIdx == openBookIdx) {
-          selectedBookIndex = lastCarouselBookIndex;
-          openSelectedBook();
-        } else if (menuIdx == myLibraryIdx) {
-          onMyLibraryOpen();
-        } else if (menuIdx == opdsIdx) {
-          onOpdsBrowserOpen();
-        } else if (menuIdx == fileTransferIdx) {
-          onFileTransferOpen();
-        } else if (menuIdx == settingsIdx) {
-          onSettingsOpen();
+        if (menuIdx >= 0 && menuIdx < static_cast<int>(menuOrder.size())) {
+          activateCarouselMenuIndex(menuOrder[menuIdx]);
         }
         return;
       }
@@ -1427,27 +1476,12 @@ void HomeActivity::render(RenderLock&&) {
       if (!inCarouselRow) {
         if (static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) ==
             CrossPointSettings::UI_THEME::LYRA_CAROUSEL) {
-          std::vector<std::string> menuLabels;
-          std::vector<UIIcon> menuIcons;
-          menuLabels.reserve(5);
-          menuIcons.reserve(5);
-          menuLabels.push_back("Open Book");
-          menuIcons.push_back(Book);
-          menuLabels.push_back("My Library");
-          menuIcons.push_back(Folder);
-          if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers})) {
-            menuLabels.push_back("OPDS Browser");
-            menuIcons.push_back(Library);
-          }
-          menuLabels.push_back("File Transfer");
-          menuIcons.push_back(Transfer);
-          menuLabels.push_back("Settings");
-          menuIcons.push_back(Settings);
+          const auto menuOrder = getCarouselMenuOrder();
           const int menuOverlayIdx = selectorIndex - bookCount;
           static_cast<const LyraCarouselTheme&>(GUI).drawButtonMenuSelectionOverlay(
-              renderer, static_cast<int>(menuLabels.size()), menuOverlayIdx,
-              [&menuLabels](int index) { return menuLabels[index]; },
-              [&menuIcons](int index) { return menuIcons[index]; });
+              renderer, static_cast<int>(menuOrder.size()), menuOverlayIdx,
+              [this, &menuOrder](int index) { return getMenuItemLabel(menuOrder[index]); },
+              [this, &menuOrder](int index) { return getMenuItemIcon(menuOrder[index]); });
         }
       }
 
@@ -1531,26 +1565,13 @@ void HomeActivity::render(RenderLock&&) {
         menuIcons.push_back(Settings);
       }
     } else {
-      menuLabels.push_back(recentBooks.empty() ? "Open Book (empty)" : "Open Book");
-      menuIcons.push_back(Book);
-      menuLabels.push_back("My Library");
-      menuIcons.push_back(Folder);
-      if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers})) {
-        menuLabels.push_back("OPDS Browser");
-        menuIcons.push_back(Library);
+      const auto menuOrder = getCarouselMenuOrder();
+      menuLabels.reserve(menuOrder.size());
+      menuIcons.reserve(menuOrder.size());
+      for (const int menuIndex : menuOrder) {
+        menuLabels.push_back(getMenuItemLabel(menuIndex));
+        menuIcons.push_back(getMenuItemIcon(menuIndex));
       }
-      if (core::HomeActionRegistry::shouldExpose("todo_planner", {false})) {
-        menuLabels.push_back(tr(STR_TODO_HOME_LABEL));
-        menuIcons.push_back(Text);
-      }
-      if (core::HomeActionRegistry::shouldExpose("anki", {false})) {
-        menuLabels.push_back("Anki");
-        menuIcons.push_back(Text);
-      }
-      menuLabels.push_back("File Transfer");
-      menuIcons.push_back(Transfer);
-      menuLabels.push_back("Settings");
-      menuIcons.push_back(Settings);
     }
 
     GUI.drawButtonMenu(

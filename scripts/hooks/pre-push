@@ -29,6 +29,15 @@ if ! command -v uv &> /dev/null; then
     exit 1
 fi
 
+# Skip all checks if this exact commit was already verified locally.
+# Stamp lives in .cache/ which is gitignored, so it is machine-local.
+STAMP_FILE="$REPO_ROOT/.cache/pre-push-verified"
+HEAD_COMMIT=$(git rev-parse HEAD)
+if [ -f "$STAMP_FILE" ] && [ "$(cat "$STAMP_FILE")" = "$HEAD_COMMIT" ]; then
+    echo -e "${GREEN}HEAD ($HEAD_COMMIT) already verified — skipping checks.${NC}"
+    exit 0
+fi
+
 # 1. Static Analysis (cppcheck)
 echo -e "${YELLOW}Step 1/2: Running static analysis (cppcheck)...${NC}"
 uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
@@ -36,6 +45,10 @@ uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect h
 # 2. Build Firmware
 echo -e "${YELLOW}Step 2/2: Building firmware...${NC}"
 uv run pio run
+
+# Record this commit as verified so retries / re-pushes are instant.
+mkdir -p "$REPO_ROOT/.cache"
+echo "$HEAD_COMMIT" > "$STAMP_FILE"
 
 echo -e "${GREEN}All checks passed! Ready to push.${NC}"
 exit 0

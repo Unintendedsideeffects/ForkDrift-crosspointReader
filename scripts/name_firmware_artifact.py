@@ -36,6 +36,37 @@ def get_build_date() -> str:
     return datetime.datetime.utcnow().strftime("%Y%m%d")
 
 
+def get_profile(project_dir: Path) -> str | None:
+    """Return the build profile token (lean/standard/full/custom/slim/…), or None.
+
+    Precedence:
+    1. BUILD_PROFILE env var (explicit override, useful in CI or tooling).
+    2. PIOENV == "slim" → "slim" (the slim environment is its own profile).
+    3. PIOENV == "custom" → read the "# Selected profile: …" comment written by
+       generate_build_config.py into platformio-custom.ini.
+    4. All other environments (default, gh_release, …) → None (no profile token).
+    """
+    explicit = os.environ.get("BUILD_PROFILE", "").strip().lower()
+    if explicit:
+        return explicit
+
+    pioenv = os.environ.get("PIOENV", "").strip()
+    if pioenv == "slim":
+        return "slim"
+
+    if pioenv == "custom":
+        custom_ini = project_dir / "platformio-custom.ini"
+        if custom_ini.exists():
+            for line in custom_ini.read_text(encoding="utf-8").splitlines():
+                if line.startswith("# Selected profile:"):
+                    profile = line.split(":", 1)[1].strip().lower()
+                    if profile:
+                        return profile
+        return "custom"
+
+    return None
+
+
 def is_ci() -> bool:
     # CI sets these; CI trees are always clean and one build == one commit, so the
     # original date+sha name is unambiguous there. Keep it unchanged for CI.
@@ -74,14 +105,16 @@ def is_dirty(project_dir: Path) -> bool:
 def build_artifact_name(project_dir: Path) -> str:
     date = get_build_date()
     sha = get_short_sha(project_dir)
+    profile = get_profile(project_dir)
+    profile_prefix = f"{profile}-" if profile else ""
     if is_ci():
-        return f"firmware-{date}-{sha}.bin"
+        return f"firmware-{profile_prefix}{date}-{sha}.bin"
     # Local builds: add HHMM so same-day/same-sha rebuilds don't silently
     # overwrite each other, and a -dirty marker when the tree has uncommitted
     # source changes (so a flashed binary is traceable to exact state).
     time_part = datetime.datetime.now().strftime("%H%M")
     dirty = "-dirty" if is_dirty(project_dir) else ""
-    return f"firmware-{date}-{time_part}-{sha}{dirty}.bin"
+    return f"firmware-{profile_prefix}{date}-{time_part}-{sha}{dirty}.bin"
 
 
 def get_short_sha(project_dir: Path) -> str:

@@ -12,19 +12,31 @@
 using firmware_artifact::isMatchingName;
 
 TEST_CASE("firmware artifact name: every producer-emitted form is accepted") {
-  // is_ci() branch: f"firmware-{date}-{sha}.bin" (sha = GITHUB_SHA[:7], hex).
+  // is_ci() branch, no profile: f"firmware-{date}-{sha}.bin".
   CHECK(isMatchingName("firmware-20260518-8ec4ffe.bin"));
-  // Local clean: f"firmware-{date}-{HHMM}-{sha}.bin".
+  // is_ci() branch, with profile: f"firmware-{profile}-{date}-{sha}.bin".
+  CHECK(isMatchingName("firmware-lean-20260518-8ec4ffe.bin"));
+  CHECK(isMatchingName("firmware-standard-20260518-8ec4ffe.bin"));
+  CHECK(isMatchingName("firmware-full-20260518-8ec4ffe.bin"));
+  CHECK(isMatchingName("firmware-custom-20260518-8ec4ffe.bin"));
+  CHECK(isMatchingName("firmware-slim-20260518-8ec4ffe.bin"));
+  // Local clean, no profile: f"firmware-{date}-{HHMM}-{sha}.bin".
   CHECK(isMatchingName("firmware-20260518-1420-8ec4ffe.bin"));
-  // Local dirty: f"firmware-{date}-{HHMM}-{sha}-dirty.bin".
+  // Local clean, with profile: f"firmware-{profile}-{date}-{HHMM}-{sha}.bin".
+  CHECK(isMatchingName("firmware-lean-20260518-1420-8ec4ffe.bin"));
+  CHECK(isMatchingName("firmware-full-20260518-1420-8ec4ffe.bin"));
+  // Local dirty: f"firmware-{profile?}-{date}-{HHMM}-{sha}-dirty.bin".
   CHECK(isMatchingName("firmware-20260518-1420-8ec4ffe-dirty.bin"));
+  CHECK(isMatchingName("firmware-standard-20260518-1420-8ec4ffe-dirty.bin"));
   // get_short_sha() fallback returns the all-decimal "0000000" (still 7 hex).
   CHECK(isMatchingName("firmware-20260518-0000000.bin"));
+  CHECK(isMatchingName("firmware-full-20260518-0000000.bin"));
   CHECK(isMatchingName("firmware-20260518-1420-0000000.bin"));
   CHECK(isMatchingName("firmware-20260518-1420-0000000-dirty.bin"));
   // git rev-parse --short=7 widens the sha when 7 chars are ambiguous.
   CHECK(isMatchingName("firmware-20260518-8ec4ffea1.bin"));
   CHECK(isMatchingName("firmware-20260518-2359-deadBEEF12.bin"));
+  CHECK(isMatchingName("firmware-full-20260518-2359-deadBEEF12.bin"));
 }
 
 TEST_CASE("firmware artifact name: regression for the pre-extension recognizer") {
@@ -68,4 +80,11 @@ TEST_CASE("firmware artifact name: malformed names are rejected") {
   CHECK_FALSE(isMatchingName("firmware-20260518-8ec4ffe-.bin"));
   // "-dirty" present but nothing left for a valid sha.
   CHECK_FALSE(isMatchingName("firmware-20260518--dirty.bin"));
+  // Profile token contains non-alpha characters.
+  CHECK_FALSE(isMatchingName("firmware-full2-20260518-8ec4ffe.bin"));
+  CHECK_FALSE(isMatchingName("firmware-gh_release-20260518-8ec4ffe.bin"));
+  // Empty profile token (double dash).
+  CHECK_FALSE(isMatchingName("firmware--20260518-8ec4ffe.bin"));
+  // Profile present but date segment is malformed.
+  CHECK_FALSE(isMatchingName("firmware-full-2026051-8ec4ffe.bin"));
 }
