@@ -7,11 +7,14 @@
 #include <WiFi.h>
 
 #include <cstdio>
+#include <ctime>
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/DateUtils.h"
+#include "util/TimeSync.h"
 
 void ClockSyncActivity::onEnter() {
   Activity::onEnter();
@@ -30,7 +33,14 @@ void ClockSyncActivity::runSync() {
     return;
   }
 
-  const bool ok = halClock.syncFromNTP();
+  // X3 has a DS3231 RTC chip via HalClock; X4 has no battery-backed RTC and
+  // syncs system time via TimeSync (ESP-IDF SNTP).
+  bool ok;
+  if (halClock.isAvailable()) {
+    ok = halClock.syncFromNTP();
+  } else {
+    ok = TimeSync::syncTimeWithNtpLowMemory(/*force=*/true);
+  }
   if (!ok) {
     state = FAILED;
     requestUpdate();
@@ -44,9 +54,18 @@ void ClockSyncActivity::runSync() {
   }
 
   // Read the freshly synced time back for the user-facing confirmation.
-  char buf[9];
-  if (halClock.formatTime(buf, sizeof(buf), SETTINGS.clockUtcOffsetQ, SETTINGS.clockFormat == 1)) {
-    snprintf(syncedTime, sizeof(syncedTime), "%s", buf);
+  if (halClock.isAvailable()) {
+    char buf[9];
+    if (halClock.formatTime(buf, sizeof(buf), SETTINGS.clockUtcOffsetQ, SETTINGS.clockFormat == 1)) {
+      snprintf(syncedTime, sizeof(syncedTime), "%s", buf);
+    }
+  } else {
+    // On X4 the user-facing clock label comes from DateUtils (Roman-numeral
+    // status-bar clock). Show that so the confirmation matches what they see.
+    const std::string label = DateUtils::currentClockLabel();
+    if (!label.empty()) {
+      snprintf(syncedTime, sizeof(syncedTime), "%s", label.c_str());
+    }
   }
   state = SUCCESS;
   requestUpdate();

@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <ctime>
 
 #if ENABLE_READING_STATS
 #include "../reader/BookStatsView.h"
@@ -20,6 +21,9 @@
 #include "CrossPointState.h"
 #include "FeatureFlags.h"
 #include "RomanClockFontRenderer.h"
+#if ENABLE_HAIKU_CLOCK
+#include "HaikuClockData.h"
+#endif
 #include "SleepExtensionHooks.h"
 #include "SpiBusMutex.h"
 #include "components/UITheme.h"
@@ -432,6 +436,11 @@ void SleepActivity::onEnter() {
 #if ENABLE_ROMAN_CLOCK_SLEEP
     case (CrossPointSettings::SLEEP_SCREEN_MODE::ROMAN_CLOCK_SLEEP):
       renderRomanClockSleepScreen();
+      return;
+#endif
+#if ENABLE_HAIKU_CLOCK
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::HAIKU_CLOCK_SLEEP):
+      renderHaikuClockSleepScreen();
       return;
 #endif
     default:
@@ -959,3 +968,77 @@ void SleepActivity::renderImageSleepScreen(const std::string& imagePath) const {
     renderer.setRenderMode(GfxRenderer::BW);
   }
 }
+
+#if ENABLE_HAIKU_CLOCK
+void SleepActivity::renderHaikuClockSleepScreen() const {
+  int hour = 0;
+  int minute = 0;
+  bool timeSet = DateUtils::getHourAndMinute(hour, minute);
+
+  const int W = renderer.getScreenWidth();
+  const int H = renderer.getScreenHeight();
+  renderer.clearScreen();
+
+  // ── Decorative outer frame ───────────────────────────────────────────────
+  static constexpr int kFrameMargin = 28;
+  static constexpr int kFrameRadius = 12;
+  renderer.drawRoundedRect(kFrameMargin, kFrameMargin, W - kFrameMargin * 2, H - kFrameMargin * 2, 1, kFrameRadius,
+                           true);
+
+  const char* haikuText = nullptr;
+  if (!timeSet) {
+    haikuText = "Time is a shadow,\nMoving across the deep sky,\nWaiting for the sun.";
+  } else {
+    std::time_t now = std::time(nullptr);
+    int day_index = 0;
+    if (now > 0) {
+      day_index = (now / 86400) % 3;
+    }
+    int quarter_hour_idx = (hour * 4) + (minute / 15);
+    if (quarter_hour_idx < 0) quarter_hour_idx = 0;
+    if (quarter_hour_idx > 95) quarter_hour_idx = 95;
+    int haiku_idx = (day_index * 96) + quarter_hour_idx;
+    haikuText = K_HAIKUS[haiku_idx].text;
+  }
+
+  // Split haiku text by \n
+  std::string textStr(haikuText);
+  std::string line1, line2, line3;
+  size_t pos1 = textStr.find('\n');
+  if (pos1 != std::string::npos) {
+    line1 = textStr.substr(0, pos1);
+    size_t pos2 = textStr.find('\n', pos1 + 1);
+    if (pos2 != std::string::npos) {
+      line2 = textStr.substr(pos1 + 1, pos2 - pos1 - 1);
+      line3 = textStr.substr(pos2 + 1);
+    } else {
+      line2 = textStr.substr(pos1 + 1);
+    }
+  } else {
+    line1 = textStr;
+  }
+
+  // Draw the haiku beautifully centered
+  const int fontId = UI_12_FONT_ID;
+  const int lineHeight = renderer.getLineHeight(fontId);
+  const int totalHeight = lineHeight * 3 + 30;  // 3 lines + 15px gap between lines
+
+  // Center vertically
+  const int startY = (H - totalHeight) / 2;
+
+  if (!line1.empty()) {
+    renderer.drawCenteredText(fontId, startY, line1.c_str(), true, EpdFontFamily::REGULAR);
+  }
+  if (!line2.empty()) {
+    renderer.drawCenteredText(fontId, startY + lineHeight + 15, line2.c_str(), true, EpdFontFamily::ITALIC);
+  }
+  if (!line3.empty()) {
+    renderer.drawCenteredText(fontId, startY + lineHeight * 2 + 30, line3.c_str(), true, EpdFontFamily::REGULAR);
+  }
+
+  // ── Lock Icon at the bottom ────────────────────────────────────────────────
+  drawLockIcon(W / 2, H - 14);
+
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+}
+#endif

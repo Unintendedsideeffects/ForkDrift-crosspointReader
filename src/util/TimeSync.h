@@ -11,7 +11,9 @@ void restorePersistedTime();
 
 // Attempts to sync time with NTP using minimal memory and a short timeout.
 // Returns true if time is (or becomes) valid.
-bool syncTimeWithNtpLowMemory();
+// When `force` is true, bypasses the throttling gate and always attempts a sync
+// (used by manual user-initiated sync flows).
+bool syncTimeWithNtpLowMemory(bool force = false);
 
 #if ENABLE_WIFI_CLOCK
 // Starts a background NTP sync when WiFi is connected and the sync interval has elapsed.
