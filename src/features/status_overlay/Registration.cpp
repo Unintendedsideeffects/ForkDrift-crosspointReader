@@ -76,7 +76,7 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
       metrics.batteryWidth +
       (showBatteryPercentage ? renderer.getTextWidth(SMALL_FONT_ID, "100%") + BaseTheme::batteryPercentSpacing : 0);
   int textRightLimit = screenW - padHPx - batteryGroupWidth;
-  const int iconY = barY + padTopPx;
+  const int iconY = barY + (barH - kStatusIconSize) / 2;
   if (isWifiConnected) {
     textRightLimit -= kStatusIconSize;
   }
@@ -181,7 +181,7 @@ int padH() { return UITheme::getInstance().getBaseMetrics().statusBarHorizontalM
 
 int padTop() {
   const int h = barHeight();
-  return h > kStatusIconSize ? (h - kStatusIconSize) / 2 : 0;
+  return h > kStatusTextHeight ? (h - kStatusTextHeight) / 2 : 0;
 }
 
 int topInset() {

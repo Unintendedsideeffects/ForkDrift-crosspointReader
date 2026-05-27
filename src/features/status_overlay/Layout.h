@@ -9,6 +9,7 @@ namespace features::status_overlay {
 // Intrinsic glyph geometry of the status icons themselves (not bar padding).
 constexpr int kStatusIconSize = 16;
 constexpr int kStatusIconGap = 4;
+constexpr int kStatusTextHeight = 20;
 
 // The global status bar is the same entity as the reader's status bar — it is
 // the superset rendered everywhere, not a second bar with its own geometry.
@@ -19,7 +20,7 @@ constexpr int kStatusIconGap = 4;
 // system include chain.
 int barHeight();
 int padH();
-int padTop();  // top offset that vertically centres the icon row in the band
+int padTop();  // top offset that vertically centres SMALL_FONT text in the band
 
 inline bool isEnabled() { return ENABLE_GLOBAL_STATUS_BAR && SETTINGS.isGlobalStatusBarEnabled(); }
 

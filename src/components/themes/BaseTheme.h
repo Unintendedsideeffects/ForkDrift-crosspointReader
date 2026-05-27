@@ -131,7 +131,7 @@ constexpr ThemeMetrics values = {.batteryWidth = 15,
                                  .progressBarHeight = 16,
                                  .progressBarMarginTop = 1,
                                  .statusBarHorizontalMargin = 5,
-                                 .statusBarVerticalMargin = 19,
+                                 .statusBarVerticalMargin = 24,
                                  .keyboardKeyWidth = 22,
                                  .keyboardKeyHeight = 40,
                                  .keyboardKeySpacing = 0,
@@ -213,9 +213,8 @@ class BaseTheme {
                               const std::function<std::string(int index)>& buttonLabel,
                               const std::function<UIIcon(int index)>& rowIcon) const;
   // No-op by default; LyraCarouselTheme overrides to draw the selection border without re-rendering the cover.
-  virtual void drawCarouselBorder(GfxRenderer& renderer, Rect coverRect,
-                                  const std::vector<RecentBook>& recentBooks, int centerIdx,
-                                  bool inCarouselRow) const {}
+  virtual void drawCarouselBorder(GfxRenderer& renderer, Rect coverRect, const std::vector<RecentBook>& recentBooks,
+                                  int centerIdx, bool inCarouselRow) const {}
   virtual Rect drawPopup(const GfxRenderer& renderer, const char* message) const;
   virtual void fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, const int progress) const;
   void drawStatusBar(GfxRenderer& renderer, const float bookProgress, const int currentPage, const int pageCount,

@@ -975,15 +975,10 @@ void SleepActivity::renderHaikuClockSleepScreen() const {
   int minute = 0;
   bool timeSet = DateUtils::getHourAndMinute(hour, minute);
 
-  const int W = renderer.getScreenWidth();
-  const int H = renderer.getScreenHeight();
   renderer.clearScreen();
 
-  // ── Decorative outer frame ───────────────────────────────────────────────
-  static constexpr int kFrameMargin = 28;
-  static constexpr int kFrameRadius = 12;
-  renderer.drawRoundedRect(kFrameMargin, kFrameMargin, W - kFrameMargin * 2, H - kFrameMargin * 2, 1, kFrameRadius,
-                           true);
+  const int W = renderer.getScreenWidth();
+  const int H = renderer.getScreenHeight();
 
   const char* haikuText = nullptr;
   if (!timeSet) {
@@ -1018,26 +1013,34 @@ void SleepActivity::renderHaikuClockSleepScreen() const {
     line1 = textStr;
   }
 
-  // Draw the haiku beautifully centered
-  const int fontId = UI_12_FONT_ID;
-  const int lineHeight = renderer.getLineHeight(fontId);
-  const int totalHeight = lineHeight * 3 + 30;  // 3 lines + 15px gap between lines
+  // Choose the best available large sans font (e.g. Noto Sans 18)
+  int fontId = UI_12_FONT_ID;
+  if (renderer.getFontMap().count(NOTOSANS_18_FONT_ID)) {
+    fontId = NOTOSANS_18_FONT_ID;
+  } else if (renderer.getFontMap().count(LEXENDDECA_18_FONT_ID)) {
+    fontId = LEXENDDECA_18_FONT_ID;
+  } else if (renderer.getFontMap().count(NOTOSANS_16_FONT_ID)) {
+    fontId = NOTOSANS_16_FONT_ID;
+  } else if (renderer.getFontMap().count(NOTOSERIF_18_FONT_ID)) {
+    fontId = NOTOSERIF_18_FONT_ID;
+  }
 
-  // Center vertically
-  const int startY = (H - totalHeight) / 2;
+  const int lineHeight = renderer.getLineHeight(fontId);
+  const int gap = 20;
+
+  // Premium left-aligned layout with no borders or icons
+  const int startY = H * 25 / 100;
+  const int startX = W * 10 / 100;
 
   if (!line1.empty()) {
-    renderer.drawCenteredText(fontId, startY, line1.c_str(), true, EpdFontFamily::REGULAR);
+    renderer.drawText(fontId, startX, startY, line1.c_str(), true, EpdFontFamily::BOLD);
   }
   if (!line2.empty()) {
-    renderer.drawCenteredText(fontId, startY + lineHeight + 15, line2.c_str(), true, EpdFontFamily::ITALIC);
+    renderer.drawText(fontId, startX, startY + lineHeight + gap, line2.c_str(), true, EpdFontFamily::BOLD);
   }
   if (!line3.empty()) {
-    renderer.drawCenteredText(fontId, startY + lineHeight * 2 + 30, line3.c_str(), true, EpdFontFamily::REGULAR);
+    renderer.drawText(fontId, startX, startY + (lineHeight + gap) * 2, line3.c_str(), true, EpdFontFamily::BOLD);
   }
-
-  // ── Lock Icon at the bottom ────────────────────────────────────────────────
-  drawLockIcon(W / 2, H - 14);
 
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }

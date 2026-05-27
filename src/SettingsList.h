@@ -57,15 +57,45 @@ inline void setBackgroundServerModeSettingIndex(const uint8_t index) {
 
 #if ENABLE_WIFI_CLOCK
 inline std::vector<std::string> timezoneOffsetOptions() {
+  static const char* kCities[] = {
+      "Baker Island",   // UTC-12
+      "Pago Pago",      // UTC-11
+      "Honolulu",       // UTC-10
+      "Anchorage",      // UTC-9
+      "Los Angeles",    // UTC-8
+      "Denver",         // UTC-7
+      "Chicago",        // UTC-6
+      "New York",       // UTC-5
+      "Santiago",       // UTC-4
+      "Buenos Aires",   // UTC-3
+      "South Georgia",  // UTC-2
+      "Azores",         // UTC-1
+      "London",         // UTC+0
+      "Paris",          // UTC+1
+      "Cairo",          // UTC+2
+      "Moscow",         // UTC+3
+      "Dubai",          // UTC+4
+      "Karachi",        // UTC+5
+      "Dhaka",          // UTC+6
+      "Bangkok",        // UTC+7
+      "Shanghai",       // UTC+8
+      "Tokyo",          // UTC+9
+      "Sydney",         // UTC+10
+      "Noumea",         // UTC+11
+      "Auckland",       // UTC+12
+      "Nuku'alofa",     // UTC+13
+      "Kiritimati"      // UTC+14
+  };
+
   std::vector<std::string> opts;
   opts.reserve(27);
   for (int i = 0; i <= 26; ++i) {
     const int offset = i - 12;
-    char buf[8];
+    char buf[64];
     if (offset >= 0) {
-      snprintf(buf, sizeof(buf), "UTC+%d", offset);
+      snprintf(buf, sizeof(buf), "UTC+%d (%s)", offset, kCities[i]);
     } else {
-      snprintf(buf, sizeof(buf), "UTC%d", offset);
+      snprintf(buf, sizeof(buf), "UTC%d (%s)", offset, kCities[i]);
     }
     opts.emplace_back(buf);
   }
