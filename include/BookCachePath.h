@@ -3,16 +3,14 @@
 #include <cctype>
 #include <cstdint>
 #include <cstring>
+#include <numeric>
 #include <string>
 
 namespace BookCachePath {
 
 inline uint32_t stableHash(const std::string& bookPath) {
-  uint32_t hash = 5381u;
-  for (const unsigned char ch : bookPath) {
-    hash = ((hash << 5) + hash) + ch;
-  }
-  return hash;
+  return std::accumulate(bookPath.begin(), bookPath.end(), 5381u,
+                         [](uint32_t h, unsigned char ch) { return ((h << 5) + h) + ch; });
 }
 
 inline std::string build(const std::string& cacheDir, const char* prefix, const std::string& bookPath) {

@@ -754,6 +754,7 @@ bool HomeActivity::isCoverCacheValid(const int coverHeight, const bool isCarouse
     }
   }
 
+  // cppcheck-suppress useStlAlgorithm -- multi-exit loop with mixed conditions; not expressible as std::all_of
   for (const auto& book : recentBooks) {
     if (book.coverBmpPath.empty()) {
       if (supportsGeneratedHomeCover(book)) {

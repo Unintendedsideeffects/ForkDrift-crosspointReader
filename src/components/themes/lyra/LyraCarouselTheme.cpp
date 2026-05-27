@@ -202,7 +202,7 @@ void LyraCarouselTheme::drawCarouselProgressOverlay(GfxRenderer& renderer, Rect 
 
   const int screenW = renderer.getScreenWidth();
   Rect centerCoverRect = shrinkCenterCoverRect(computeCenterCoverSlotRect(renderer, coverRect, recentBooks));
-  if (centerIdx >= 0 && centerIdx < LyraCarouselMetrics::values.homeRecentBooksCount) {
+  if (centerIdx < LyraCarouselMetrics::values.homeRecentBooksCount) {
     const Rect cached = cachedCenterCoverRects[centerIdx];
     if (cached.width > 0 && cached.height > 0) centerCoverRect = cached;
   }
