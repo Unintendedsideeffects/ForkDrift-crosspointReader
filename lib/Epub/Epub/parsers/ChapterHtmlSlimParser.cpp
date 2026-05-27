@@ -8,6 +8,7 @@
 #include <XmlParserUtils.h>
 #include <expat.h>
 
+#include <cmath>
 #include <cstdlib>
 #include <iterator>
 
@@ -161,9 +162,8 @@ void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
     anchorData.push_back({std::move(pendingAnchorId), static_cast<uint16_t>(completedPageCount)});
     pendingAnchorId.clear();
   }
-  currentTextBlock.reset(
-      new ParsedText(extraParagraphSpacing, forceParagraphIndents, hyphenationEnabled, focusReadingEnabled, blockStyle,
-                     guideReadingEnabled));
+  currentTextBlock.reset(new ParsedText(extraParagraphSpacing, forceParagraphIndents, hyphenationEnabled,
+                                        focusReadingEnabled, blockStyle, guideReadingEnabled));
   wordsExtractedInBlock = 0;
 }
 
@@ -188,14 +188,13 @@ void ChapterHtmlSlimParser::emitHorizontalRule(const BlockStyle& blockStyle) {
     currentPageNextY = 0;
   }
 
-  const auto lineHeight = static_cast<int16_t>(renderer.getLineHeight(fontId) * lineCompression + 0.5f);
+  const auto lineHeight = static_cast<int16_t>(lround(renderer.getLineHeight(fontId) * lineCompression));
   const auto defaultSpacing = static_cast<int16_t>(lineHeight / 2);
-  const auto topSpacing = static_cast<int16_t>(
-      (blockStyle.marginTop > 0 ? blockStyle.marginTop : defaultSpacing) +
-      (blockStyle.paddingTop > 0 ? blockStyle.paddingTop : 0));
-  const auto bottomSpacing = static_cast<int16_t>(
-      (blockStyle.marginBottom > 0 ? blockStyle.marginBottom : defaultSpacing) +
-      (blockStyle.paddingBottom > 0 ? blockStyle.paddingBottom : 0));
+  const auto topSpacing = static_cast<int16_t>((blockStyle.marginTop > 0 ? blockStyle.marginTop : defaultSpacing) +
+                                               (blockStyle.paddingTop > 0 ? blockStyle.paddingTop : 0));
+  const auto bottomSpacing =
+      static_cast<int16_t>((blockStyle.marginBottom > 0 ? blockStyle.marginBottom : defaultSpacing) +
+                           (blockStyle.paddingBottom > 0 ? blockStyle.paddingBottom : 0));
   constexpr uint8_t ruleThickness = 2;
   const auto availableWidth = static_cast<int16_t>(
       std::max<int16_t>(1, static_cast<int16_t>(viewportWidth - blockStyle.totalHorizontalInset())));
@@ -766,7 +765,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                 int displayWidth = 0;
                 int displayHeight = 0;
                 const float emSize = static_cast<float>(self->renderer.getFontAscenderSize(self->fontId));
-                CssStyle imgStyle = self->cssParser ? self->cssParser->resolveStyle("img", classAttr, self->ancestorStack_) : CssStyle{};
+                CssStyle imgStyle = self->cssParser
+                                        ? self->cssParser->resolveStyle("img", classAttr, self->ancestorStack_)
+                                        : CssStyle{};
                 // Merge inline style (e.g. style="height: 2em") so it overrides stylesheet rules
                 if (!styleAttr.empty()) {
                   imgStyle.applyOver(CssParser::parseInlineStyle(styleAttr));
@@ -789,9 +790,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                 if (hasCssHeight && hasCssWidth && dims.width > 0 && dims.height > 0) {
                   // Both CSS height and width set: resolve both, then clamp to viewport preserving requested ratio
                   displayHeight = static_cast<int>(
-                      imgStyle.imageHeight.toPixels(emSize, static_cast<float>(self->viewportHeight)) + 0.5f);
-                  displayWidth =
-                      static_cast<int>(imgStyle.imageWidth.toPixels(emSize, static_cast<float>(containerWidth)) + 0.5f);
+                      lround(imgStyle.imageHeight.toPixels(emSize, static_cast<float>(self->viewportHeight))));
+                  displayWidth = static_cast<int>(
+                      lround(imgStyle.imageWidth.toPixels(emSize, static_cast<float>(containerWidth))));
                   if (displayHeight < 1) displayHeight = 1;
                   if (displayWidth < 1) displayWidth = 1;
                   if (displayWidth > containerWidth || displayHeight > self->viewportHeight) {
@@ -801,8 +802,8 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                                        ? static_cast<float>(self->viewportHeight) / displayHeight
                                        : 1.0f;
                     float scale = (scaleX < scaleY) ? scaleX : scaleY;
-                    displayWidth = static_cast<int>(displayWidth * scale + 0.5f);
-                    displayHeight = static_cast<int>(displayHeight * scale + 0.5f);
+                    displayWidth = static_cast<int>(lround(displayWidth * scale));
+                    displayHeight = static_cast<int>(lround(displayHeight * scale));
                     if (displayWidth < 1) displayWidth = 1;
                     if (displayHeight < 1) displayHeight = 1;
                   }
@@ -810,39 +811,39 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                 } else if (hasCssHeight && !hasCssWidth && dims.width > 0 && dims.height > 0) {
                   // Use CSS height (resolve % against viewport height) and derive width from aspect ratio
                   displayHeight = static_cast<int>(
-                      imgStyle.imageHeight.toPixels(emSize, static_cast<float>(self->viewportHeight)) + 0.5f);
+                      lround(imgStyle.imageHeight.toPixels(emSize, static_cast<float>(self->viewportHeight))));
                   if (displayHeight < 1) displayHeight = 1;
                   displayWidth =
-                      static_cast<int>(displayHeight * (static_cast<float>(dims.width) / dims.height) + 0.5f);
+                      static_cast<int>(lround(displayHeight * (static_cast<float>(dims.width) / dims.height)));
                   if (displayHeight > self->viewportHeight) {
                     displayHeight = self->viewportHeight;
                     // Rescale width to preserve aspect ratio when height is clamped
                     displayWidth =
-                        static_cast<int>(displayHeight * (static_cast<float>(dims.width) / dims.height) + 0.5f);
+                        static_cast<int>(lround(displayHeight * (static_cast<float>(dims.width) / dims.height)));
                     if (displayWidth < 1) displayWidth = 1;
                   }
                   if (displayWidth > containerWidth) {
                     displayWidth = containerWidth;
                     // Rescale height to preserve aspect ratio when width is clamped
                     displayHeight =
-                        static_cast<int>(displayWidth * (static_cast<float>(dims.height) / dims.width) + 0.5f);
+                        static_cast<int>(lround(displayWidth * (static_cast<float>(dims.height) / dims.width)));
                     if (displayHeight < 1) displayHeight = 1;
                   }
                   if (displayWidth < 1) displayWidth = 1;
                   LOG_DBG("EHP", "Display size from CSS height: %dx%d", displayWidth, displayHeight);
                 } else if (hasCssWidth && !hasCssHeight && dims.width > 0 && dims.height > 0) {
                   // Use CSS width (resolve % against container width) and derive height from aspect ratio
-                  displayWidth =
-                      static_cast<int>(imgStyle.imageWidth.toPixels(emSize, static_cast<float>(containerWidth)) + 0.5f);
+                  displayWidth = static_cast<int>(
+                      lround(imgStyle.imageWidth.toPixels(emSize, static_cast<float>(containerWidth))));
                   if (displayWidth > containerWidth) displayWidth = containerWidth;
                   if (displayWidth < 1) displayWidth = 1;
                   displayHeight =
-                      static_cast<int>(displayWidth * (static_cast<float>(dims.height) / dims.width) + 0.5f);
+                      static_cast<int>(lround(displayWidth * (static_cast<float>(dims.height) / dims.width)));
                   if (displayHeight > self->viewportHeight) {
                     displayHeight = self->viewportHeight;
                     // Rescale width to preserve aspect ratio when height is clamped
                     displayWidth =
-                        static_cast<int>(displayHeight * (static_cast<float>(dims.width) / dims.height) + 0.5f);
+                        static_cast<int>(lround(displayHeight * (static_cast<float>(dims.width) / dims.height)));
                     if (displayWidth < 1) displayWidth = 1;
                   }
                   if (displayHeight < 1) displayHeight = 1;
@@ -1723,7 +1724,7 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
   return true;
 }
 
-void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
+void ChapterHtmlSlimParser::addLineToPage(const std::shared_ptr<TextBlock>& line) {
   const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
 
   if (!currentPage) {

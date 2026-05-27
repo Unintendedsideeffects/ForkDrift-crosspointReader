@@ -188,15 +188,9 @@ static void renderCharImpl(const GfxRenderer& renderer, GfxRenderer::RenderMode 
           const uint8_t bmpVal = 3 - ((byte >> bit_index) & 0x3);
 
           if (renderMode == GfxRenderer::BW && bmpVal < 3) {
-            // Black (also paints over the grays in BW mode)
             renderer.drawPixel(screenX, screenY, pixelState);
-          } else if (renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) {
-            // Light gray (also mark the MSB if it's going to be a dark gray too)
-            // Dedicated X3 gray LUTs now provide proper 4-level gray on both devices
-            // We have to flag pixels in reverse for the gray buffers, as 0 leave alone, 1 update
-            renderer.drawPixel(screenX, screenY, false);
-          } else if (renderMode == GfxRenderer::GRAYSCALE_LSB && bmpVal == 1) {
-            // Dark gray
+          } else if ((renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) ||
+                     (renderMode == GfxRenderer::GRAYSCALE_LSB && bmpVal == 1)) {
             renderer.drawPixel(screenX, screenY, false);
           }
         }
@@ -822,9 +816,7 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
 
       if (renderMode == BW && val < 3) {
         drawPixel(screenX, screenY);
-      } else if (renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) {
-        drawPixel(screenX, screenY, false);
-      } else if (renderMode == GRAYSCALE_LSB && val == 1) {
+      } else if ((renderMode == GRAYSCALE_MSB && (val == 1 || val == 2)) || (renderMode == GRAYSCALE_LSB && val == 1)) {
         drawPixel(screenX, screenY, false);
       }
     }
@@ -1025,7 +1017,14 @@ std::vector<std::string> GfxRenderer::wrappedText(const int fontId, const char* 
     if (static_cast<int>(lines.size()) == maxLines - 1) {
       // Last available line: combine any word already started on this line with
       // the rest of the text, then let truncatedText fit it with an ellipsis.
-      std::string lastContent = currentLine.empty() ? remaining : currentLine + " " + remaining;
+      std::string lastContent;
+      if (currentLine.empty()) {
+        lastContent = remaining;
+      } else {
+        lastContent = currentLine;
+        lastContent += ' ';
+        lastContent += remaining;
+      }
       lines.push_back(truncatedText(fontId, lastContent.c_str(), maxWidth, style));
       return lines;
     }
@@ -1042,7 +1041,14 @@ std::vector<std::string> GfxRenderer::wrappedText(const int fontId, const char* 
       remaining.erase(0, spacePos + 1);
     }
 
-    std::string testLine = currentLine.empty() ? word : currentLine + " " + word;
+    std::string testLine;
+    if (currentLine.empty()) {
+      testLine = word;
+    } else {
+      testLine = currentLine;
+      testLine += ' ';
+      testLine += word;
+    }
 
     if (getTextWidth(fontId, testLine.c_str(), style) <= maxWidth) {
       currentLine = testLine;
@@ -1272,8 +1278,7 @@ int GfxRenderer::getKerning(const int fontId, const uint32_t leftCp, const uint3
                             const EpdFontFamily::Style style) const {
   const auto fontIt = fontMap.find(fontId);
   if (fontIt == fontMap.end()) return 0;
-  const int kernFP = fontIt->second.getKerning(leftCp, rightCp, style);  // 4.4 fixed-point
-  return fp4::toPixel(kernFP);                                           // snap 4.4 fixed-point to nearest pixel
+  return fp4::toPixel(0 + fontIt->second.getKerning(leftCp, rightCp, style));
 }
 
 int GfxRenderer::getTextAdvanceX(const int fontId, const char* text, EpdFontFamily::Style style) const {

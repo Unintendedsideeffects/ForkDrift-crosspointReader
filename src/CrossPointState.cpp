@@ -37,6 +37,10 @@ class PendingStateLock {
     const TaskHandle_t self = xTaskGetCurrentTaskHandle();
     if (xSemaphoreGetMutexHolder(mutex_) != self) {
       const TaskHandle_t holder = xSemaphoreGetMutexHolder(mutex_);
+      // #region agent log
+      LOG_ERR("DBG", "c0388c hyp=H2 loc=PendingStateLock:give self=%s holder=%s", pcTaskGetName(self),
+              holder ? pcTaskGetName(holder) : "<none>");
+      // #endregion
       LOG_ERR("PSL", "skip give (not holder): self='%s' holder='%s'", pcTaskGetName(self),
               holder ? pcTaskGetName(holder) : "<none>");
       return;

@@ -10,7 +10,6 @@
 
 #include "ButtonRemapActivity.h"
 #include "ClearCacheActivity.h"
-#include "ResetSettingsActivity.h"
 #include "CrossPointSettings.h"
 #include "FactoryResetActivity.h"
 #include "FontDownloadActivity.h"
@@ -20,6 +19,7 @@
 #include "MappedInputManager.h"
 #include "OpdsServerListActivity.h"
 #include "OtaUpdateActivity.h"
+#include "ResetSettingsActivity.h"
 #include "SdCardFontSystem.h"
 #include "SdFirmwareUpdateActivity.h"
 #include "SettingsList.h"
@@ -31,12 +31,29 @@
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
-#include "fontIds.h"
 #include "util/MaintenanceUtils.h"
 
 namespace {
 constexpr char kBackgroundServerModeKey[] = "backgroundServerMode";
+
+const std::vector<SettingInfo>* settingsForCategory(int categoryIndex, const std::vector<SettingInfo>& displaySettings,
+                                                    const std::vector<SettingInfo>& readerSettings,
+                                                    const std::vector<SettingInfo>& controlsSettings,
+                                                    const std::vector<SettingInfo>& systemSettings) {
+  switch (categoryIndex) {
+    case 0:
+      return &displaySettings;
+    case 1:
+      return &readerSettings;
+    case 2:
+      return &controlsSettings;
+    case 3:
+      return &systemSettings;
+    default:
+      return &displaySettings;
+  }
 }
+}  // namespace
 
 const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_READER,
                                                               StrId::STR_CAT_CONTROLS, StrId::STR_CAT_SYSTEM};
@@ -135,21 +152,8 @@ void SettingsActivity::rebuildSettingsLists() {
   }
   readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
 
-  // Update currentSettings pointer and count for the active category
-  switch (selectedCategoryIndex) {
-    case 0:
-      currentSettings = &displaySettings;
-      break;
-    case 1:
-      currentSettings = &readerSettings;
-      break;
-    case 2:
-      currentSettings = &controlsSettings;
-      break;
-    case 3:
-      currentSettings = &systemSettings;
-      break;
-  }
+  currentSettings =
+      settingsForCategory(selectedCategoryIndex, displaySettings, readerSettings, controlsSettings, systemSettings);
   settingsCount = static_cast<int>(currentSettings->size());
 }
 
@@ -234,20 +238,8 @@ void SettingsActivity::loop() {
 
   if (hasChangedCategory) {
     selectedSettingIndex = (selectedSettingIndex == 0) ? 0 : 1;
-    switch (selectedCategoryIndex) {
-      case 0:
-        currentSettings = &displaySettings;
-        break;
-      case 1:
-        currentSettings = &readerSettings;
-        break;
-      case 2:
-        currentSettings = &controlsSettings;
-        break;
-      case 3:
-        currentSettings = &systemSettings;
-        break;
-    }
+    currentSettings =
+        settingsForCategory(selectedCategoryIndex, displaySettings, readerSettings, controlsSettings, systemSettings);
     settingsCount = static_cast<int>(currentSettings->size());
     // Advance past any leading section headers
     while (selectedSettingIndex > 0 && selectedSettingIndex <= settingsCount &&
@@ -271,22 +263,8 @@ void SettingsActivity::enterCategory(int categoryIndex) {
   selectedCategoryIndex = categoryIndex;
   selectedSettingIndex = 1;
 
-  switch (selectedCategoryIndex) {
-    case 0:
-      currentSettings = &displaySettings;
-      break;
-    case 1:
-      currentSettings = &readerSettings;
-      break;
-    case 2:
-      currentSettings = &controlsSettings;
-      break;
-    case 3:
-      currentSettings = &systemSettings;
-      break;
-    default:
-      break;
-  }
+  currentSettings =
+      settingsForCategory(selectedCategoryIndex, displaySettings, readerSettings, controlsSettings, systemSettings);
   settingsCount = static_cast<int>(currentSettings->size());
 
   requestUpdate();
@@ -497,21 +475,20 @@ void SettingsActivity::toggleCurrentSetting() {
                                });
         break;
       case SettingAction::ClearWifiNetworks:
-        startActivityForResult(
-            std::make_unique<ConfirmationActivity>(
-                renderer, mappedInput, std::string(I18N.get(StrId::STR_CLEAR_WIFI_NETWORKS)),
-                std::string(I18N.get(StrId::STR_CLEAR_WIFI_WARNING))),
-            [this](const ActivityResult& result) {
-              if (!result.isCancelled) {
-                MaintenanceUtils::clearWifiNetworks();
-              }
-              requestUpdate();
-            });
+        startActivityForResult(std::make_unique<ConfirmationActivity>(
+                                   renderer, mappedInput, std::string(I18N.get(StrId::STR_CLEAR_WIFI_NETWORKS)),
+                                   std::string(I18N.get(StrId::STR_CLEAR_WIFI_WARNING))),
+                               [this](const ActivityResult& result) {
+                                 if (!result.isCancelled) {
+                                   MaintenanceUtils::clearWifiNetworks();
+                                 }
+                                 requestUpdate();
+                               });
         break;
       case SettingAction::ClearLogs:
         startActivityForResult(
             std::make_unique<ConfirmationActivity>(renderer, mappedInput, std::string(I18N.get(StrId::STR_CLEAR_LOGS)),
-                                                 std::string(I18N.get(StrId::STR_CLEAR_LOGS_WARNING))),
+                                                   std::string(I18N.get(StrId::STR_CLEAR_LOGS_WARNING))),
             [this](const ActivityResult& result) {
               if (!result.isCancelled) {
                 MaintenanceUtils::clearLogs();
@@ -520,15 +497,15 @@ void SettingsActivity::toggleCurrentSetting() {
             });
         break;
       case SettingAction::ClearCrashes:
-        startActivityForResult(
-            std::make_unique<ConfirmationActivity>(renderer, mappedInput, std::string(I18N.get(StrId::STR_CLEAR_CRASHES)),
-                                                 std::string(I18N.get(StrId::STR_CLEAR_CRASHES_WARNING))),
-            [this](const ActivityResult& result) {
-              if (!result.isCancelled) {
-                MaintenanceUtils::clearCrashReports();
-              }
-              requestUpdate();
-            });
+        startActivityForResult(std::make_unique<ConfirmationActivity>(
+                                   renderer, mappedInput, std::string(I18N.get(StrId::STR_CLEAR_CRASHES)),
+                                   std::string(I18N.get(StrId::STR_CLEAR_CRASHES_WARNING))),
+                               [this](const ActivityResult& result) {
+                                 if (!result.isCancelled) {
+                                   MaintenanceUtils::clearCrashReports();
+                                 }
+                                 requestUpdate();
+                               });
         break;
       case SettingAction::None:
         // Do nothing

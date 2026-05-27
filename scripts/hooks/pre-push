@@ -29,14 +29,40 @@ if ! command -v uv &> /dev/null; then
     exit 1
 fi
 
-# Skip all checks if this exact commit was already verified locally.
-# Stamp lives in .cache/ which is gitignored, so it is machine-local.
+# Skip all checks if this exact commit was already verified (success) or
+# already known-broken (failure). Stamps live in .cache/ which is gitignored
+# and machine-local. Set FORCE_BUILD=1 to bypass the failure cache.
 STAMP_FILE="$REPO_ROOT/.cache/pre-push-verified"
+STAMP_FAIL="$REPO_ROOT/.cache/pre-push-failed"
 HEAD_COMMIT=$(git rev-parse HEAD)
 if [ -f "$STAMP_FILE" ] && [ "$(cat "$STAMP_FILE")" = "$HEAD_COMMIT" ]; then
     echo -e "${GREEN}HEAD ($HEAD_COMMIT) already verified — skipping checks.${NC}"
     exit 0
 fi
+if [ "${FORCE_BUILD:-0}" != "1" ] && [ -f "$STAMP_FAIL" ] \
+        && [ "$(cat "$STAMP_FAIL")" = "$HEAD_COMMIT" ]; then
+    echo -e "${RED}HEAD ($HEAD_COMMIT) previously failed verification — refusing.${NC}" >&2
+    echo "Amend the commit (changing its SHA) or set FORCE_BUILD=1 to retry." >&2
+    exit 1
+fi
+
+# Serialize against any other concurrent pio invocation. Two pio processes
+# share /tmp/crosspoint-pio-build/default and corrupt each other's .o files,
+# which surfaces as bogus "undefined reference" link errors. Refuse the
+# duplicate so the user notices the collision immediately.
+LOCKFILE=/tmp/crosspoint-pio-build.lock
+exec 9>"$LOCKFILE"
+if ! flock -n 9; then
+    echo -e "${RED:-}ERROR: another pio build is already running (lockfile: $LOCKFILE).${NC:-}" >&2
+    echo "       Concurrent builds corrupt /tmp/crosspoint-pio-build/. Refusing duplicate." >&2
+    echo "       Wait for the in-flight build to finish, then retry the push." >&2
+    exit 1
+fi
+
+# Record failure on any unsuccessful exit so a re-push of the same broken
+# commit fails fast instead of redoing the 5-minute build.
+mkdir -p "$REPO_ROOT/.cache"
+trap 'rc=$?; if [ "$rc" -ne 0 ]; then echo "$HEAD_COMMIT" > "$STAMP_FAIL"; fi' EXIT
 
 # 1. Static Analysis (cppcheck)
 echo -e "${YELLOW}Step 1/2: Running static analysis (cppcheck)...${NC}"
@@ -46,9 +72,10 @@ uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect h
 echo -e "${YELLOW}Step 2/2: Building firmware...${NC}"
 uv run pio run
 
-# Record this commit as verified so retries / re-pushes are instant.
-mkdir -p "$REPO_ROOT/.cache"
+# Record this commit as verified so retries / re-pushes are instant. Clear any
+# stale failure stamp from a previous bad attempt at the same SHA.
 echo "$HEAD_COMMIT" > "$STAMP_FILE"
+rm -f "$STAMP_FAIL"
 
 echo -e "${GREEN}All checks passed! Ready to push.${NC}"
 exit 0

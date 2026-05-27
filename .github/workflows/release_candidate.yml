@@ -33,19 +33,20 @@ jobs:
           restore-keys: pio-${{ runner.os }}-
 
       - name: Extract env
+        id: extract_env
         run: |
-          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
-          echo "BRANCH_SUFFIX=${GITHUB_REF_NAME#release/}" >> $GITHUB_ENV
+          echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          echo "branch_suffix=${GITHUB_REF_NAME#release/}" >> $GITHUB_OUTPUT
 
       - name: Build CrossPoint Release Candidate
         env:
-          CROSSPOINT_RC_HASH: ${{ env.SHORT_SHA }}
+          CROSSPOINT_RC_HASH: ${{ steps.extract_env.outputs.short_sha }}
         run: uv run pio run -e gh_release_rc
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: CrossPoint-RC-${{ env.BRANCH_SUFFIX }}
+          name: CrossPoint-RC-${{ steps.extract_env.outputs.branch_suffix }}
           retention-days: 14
           path: |
             .pio/build/gh_release_rc/bootloader.bin

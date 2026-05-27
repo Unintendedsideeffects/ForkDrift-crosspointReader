@@ -21,6 +21,14 @@ prune_old_local_artifacts() {
     find . -maxdepth 2 \
         \( -path './.plans/*' -o -path './.copilot-logs/*' \) \
         -mtime +14 -exec rm -rf {} +
+
+    # Prune unused per-env PlatformIO build subdirs from the persistent cache.
+    # ccache (separate dir, capped at 5G via scripts/use_ccache.py) self-manages
+    # its own eviction; only the per-env build artifacts grow unbounded here.
+    if [ -d "$HOME/.cache/crosspoint-pio-build" ]; then
+        find "$HOME/.cache/crosspoint-pio-build" -maxdepth 1 -mindepth 1 -type d \
+            -mtime +14 -exec rm -rf {} + 2>/dev/null || true
+    fi
 }
 
 stage_deleted_tracked_files() {
@@ -145,7 +153,50 @@ else
     exit 1
 fi
 
+# Cache build results keyed by staged-tree SHA. `git write-tree` produces the
+# tree OID for the current index without modifying anything, so identical
+# staged content always hashes to the same key. We cache both successes (skip
+# the 5-minute rebuild) and failures (fail-fast on a known-bad state) — set
+# FORCE_BUILD=1 to override.
+CACHE_DIR="$REPO_ROOT/.cache/build-results"
+mkdir -p "$CACHE_DIR"
+STATE_KEY="$(git write-tree)"
+CACHE_FILE="$CACHE_DIR/$STATE_KEY"
+if [ "${FORCE_BUILD:-0}" != "1" ] && [ -f "$CACHE_FILE" ]; then
+    CACHED_EXIT="$(cat "$CACHE_FILE")"
+    if [ "$CACHED_EXIT" = "0" ]; then
+        echo "Cached: staged state $STATE_KEY already built OK — skipping rebuild."
+        echo "Pre-commit checks passed (cached)"
+        exit 0
+    else
+        echo "Cached: staged state $STATE_KEY previously FAILED build (exit $CACHED_EXIT)." >&2
+        echo "       Edit source to invalidate the cache, or set FORCE_BUILD=1 to retry." >&2
+        exit "$CACHED_EXIT"
+    fi
+fi
+
+# Serialize against any other concurrent `pio run` (manual shell, other hook,
+# editor task). Concurrent builds share /tmp/crosspoint-pio-build/default and
+# corrupt each other's .o files, producing spurious link errors. We refuse a
+# duplicate rather than queue, so the user sees the collision immediately
+# instead of waiting on an opaque slow build.
+LOCKFILE=/tmp/crosspoint-pio-build.lock
+exec 9>"$LOCKFILE"
+if ! flock -n 9; then
+    echo "ERROR: another pio build is already running (lockfile: $LOCKFILE)." >&2
+    echo "       Concurrent builds corrupt /tmp/crosspoint-pio-build/. Refusing duplicate." >&2
+    echo "       Wait for the in-flight build to finish, then retry the commit." >&2
+    exit 1
+fi
+
 echo "Running pre-commit build..."
+set +e
 "${BUILD_CMD[@]}"
+BUILD_EXIT=$?
+set -e
+echo "$BUILD_EXIT" > "$CACHE_FILE"
+if [ "$BUILD_EXIT" -ne 0 ]; then
+    exit "$BUILD_EXIT"
+fi
 
 echo "Pre-commit checks passed"

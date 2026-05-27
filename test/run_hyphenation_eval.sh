@@ -26,8 +26,9 @@ CXXFLAGS=(
   -I"$ROOT_DIR/lib"
   -I"$ROOT_DIR/lib/Epub"
   -I"$ROOT_DIR/lib/Utf8"
+  -DHYPHENATION_RESOURCES_DIR="\"$ROOT_DIR/test/hyphenation_eval/resources\""
 )
 
-c++ "${CXXFLAGS[@]}" "${SOURCES[@]}" -o "$BINARY"
+c++ "${CXXFLAGS[@]}" "${SOURCES[@]}" -o "$BINARY" -lgtest -lgtest_main -lpthread
 
 "$BINARY" "$@"
