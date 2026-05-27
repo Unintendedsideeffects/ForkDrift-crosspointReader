@@ -174,7 +174,7 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   return true;
 }
 
-bool JsonSettingsIO::loadSettings(CrossPointSettings& s, FsFile& file, bool* needsResave) {
+bool JsonSettingsIO::loadSettings(CrossPointSettings& s, HalFile& file, bool* needsResave) {
   std::string json;
   uint8_t buffer[128];
   while (true) {
@@ -195,13 +195,13 @@ class RecentBooksStore;
 
 bool JsonSettingsIO::saveState(const CrossPointState&, const char*) { return true; }
 bool JsonSettingsIO::loadState(CrossPointState&, const char*) { return false; }
-bool JsonSettingsIO::loadState(CrossPointState&, FsFile&) { return false; }
+bool JsonSettingsIO::loadState(CrossPointState&, HalFile&) { return false; }
 bool JsonSettingsIO::saveWifi(const WifiCredentialStore&, const char*) { return true; }
 bool JsonSettingsIO::loadWifi(WifiCredentialStore&, const char*, bool*) { return false; }
-bool JsonSettingsIO::loadWifi(WifiCredentialStore&, FsFile&, bool*) { return false; }
+bool JsonSettingsIO::loadWifi(WifiCredentialStore&, HalFile&, bool*) { return false; }
 bool JsonSettingsIO::saveRecentBooks(const RecentBooksStore&, const char*) { return true; }
 bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, const char*) { return false; }
-bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, FsFile&) { return false; }
+bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, HalFile&) { return false; }
 bool JsonSettingsIO::saveOpds(const OpdsServerStore&, const char*) { return true; }
 bool JsonSettingsIO::loadOpds(OpdsServerStore&, const char*, bool*) { return false; }
-bool JsonSettingsIO::loadOpds(OpdsServerStore&, FsFile&, bool*) { return false; }
+bool JsonSettingsIO::loadOpds(OpdsServerStore&, HalFile&, bool*) { return false; }

@@ -1,5 +1,5 @@
 #pragma once
-// Host test stub — replaces the real HalStorage/FsFile with an
+// Host test stub — replaces the real HalStorage/HalFile with an
 // in-memory implementation suitable for unit testing.
 
 #include <algorithm>
@@ -15,27 +15,27 @@
 
 #include "String.h"
 
-// ── In-memory FsFile ─────────────────────────────────────────────────────
-class FsFile {
+// ── In-memory HalFile ────────────────────────────────────────────────────
+class HalFile {
  public:
-  FsFile() = default;
+  HalFile() = default;
 
-  static FsFile forWrite(std::shared_ptr<std::vector<uint8_t>> buf) {
-    FsFile f;
+  static HalFile forWrite(std::shared_ptr<std::vector<uint8_t>> buf) {
+    HalFile f;
     f.buf_ = buf;
     f.pos_ = 0;
     return f;
   }
-  static FsFile forRead(std::shared_ptr<std::vector<uint8_t>> buf) { return forWrite(buf); }
-  static FsFile forFile(std::string path, std::shared_ptr<std::vector<uint8_t>> buf) {
-    FsFile f;
+  static HalFile forRead(std::shared_ptr<std::vector<uint8_t>> buf) { return forWrite(buf); }
+  static HalFile forFile(std::string path, std::shared_ptr<std::vector<uint8_t>> buf) {
+    HalFile f;
     f.path_ = std::move(path);
     f.buf_ = buf;
     f.pos_ = 0;
     return f;
   }
-  static FsFile forDirectory(std::string path, std::vector<std::string> entries) {
-    FsFile f;
+  static HalFile forDirectory(std::string path, std::vector<std::string> entries) {
+    HalFile f;
     f.path_ = std::move(path);
     f.entries_ = std::move(entries);
     f.isDirectory_ = true;
@@ -86,12 +86,12 @@ class FsFile {
     return true;
   }
 
-  FsFile openNextFile() {
-    if (!isDirectory_ || entryIndex_ >= entries_.size()) return FsFile();
-    return opener_ ? opener_(entries_[entryIndex_++]) : FsFile();
+  HalFile openNextFile() {
+    if (!isDirectory_ || entryIndex_ >= entries_.size()) return HalFile();
+    return opener_ ? opener_(entries_[entryIndex_++]) : HalFile();
   }
 
-  void setOpener(std::function<FsFile(const std::string&)> opener) { opener_ = std::move(opener); }
+  void setOpener(std::function<HalFile(const std::string&)> opener) { opener_ = std::move(opener); }
 
   void close() {}
   explicit operator bool() const { return buf_ != nullptr || isDirectory_; }
@@ -103,8 +103,10 @@ class FsFile {
   std::vector<std::string> entries_;
   size_t entryIndex_ = 0;
   bool isDirectory_ = false;
-  std::function<FsFile(const std::string&)> opener_;
+  std::function<HalFile(const std::string&)> opener_;
 };
+
+using FsFile = HalFile;
 
 // ── In-memory HalStorage singleton ──────────────────────────────────────
 class HalStorage {
@@ -117,41 +119,41 @@ class HalStorage {
   }
   bool mkdir(const char* path, bool) { return mkdir(path); }
 
-  bool openFileForWrite(const char* /*tag*/, const char* path, FsFile& file) {
+  bool openFileForWrite(const char* /*tag*/, const char* path, HalFile& file) {
     ensureParentDirs(path ? path : "");
     auto buf = std::make_shared<std::vector<uint8_t>>();
     files_[path] = buf;
-    file = FsFile::forWrite(buf);
+    file = HalFile::forWrite(buf);
     return true;
   }
-  bool openFileForWrite(const char* tag, const std::string& path, FsFile& file) {
+  bool openFileForWrite(const char* tag, const std::string& path, HalFile& file) {
     return openFileForWrite(tag, path.c_str(), file);
   }
 
-  bool openFileForRead(const char* /*tag*/, const char* path, FsFile& file) {
+  bool openFileForRead(const char* /*tag*/, const char* path, HalFile& file) {
     auto it = files_.find(path);
     if (it == files_.end()) return false;
-    file = FsFile::forRead(it->second);
+    file = HalFile::forRead(it->second);
     return true;
   }
-  bool openFileForRead(const char* tag, const std::string& path, FsFile& file) {
+  bool openFileForRead(const char* tag, const std::string& path, HalFile& file) {
     return openFileForRead(tag, path.c_str(), file);
   }
 
-  FsFile open(const char* path) {
+  HalFile open(const char* path) {
     const std::string normalized = normalizePath(path ? path : "");
     auto fileIt = files_.find(normalized);
     if (fileIt != files_.end()) {
-      FsFile file = FsFile::forFile(normalized, fileIt->second);
+      HalFile file = HalFile::forFile(normalized, fileIt->second);
       file.setOpener([this](const std::string& childPath) { return open(childPath.c_str()); });
       return file;
     }
 
     if (directories_.count(normalized) == 0) {
-      return FsFile();
+      return HalFile();
     }
 
-    auto dir = FsFile::forDirectory(normalized, listDirectoryEntries(normalized));
+    auto dir = HalFile::forDirectory(normalized, listDirectoryEntries(normalized));
     dir.setOpener([this](const std::string& childPath) { return open(childPath.c_str()); });
     return dir;
   }

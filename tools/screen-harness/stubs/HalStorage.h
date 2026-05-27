@@ -6,16 +6,20 @@
 
 using oflag_t = uint16_t;
 
-class FsFile {
+class HalFile {
  public:
-  FsFile() = default;
+  HalFile() = default;
   explicit operator bool() const { return false; }
   bool seek(uint32_t /*pos*/) { return false; }
+  bool seek64(uint64_t /*pos*/) { return false; }
   bool seekCur(int32_t /*offset*/) { return false; }
   int read() { return -1; }
   size_t read(void* /*buffer*/, size_t /*count*/) { return 0; }
+  uint64_t fileSize64() const { return 0; }
   void close() {}
 };
+
+using FsFile = HalFile;
 
 class HalStorage {
  public:
@@ -24,8 +28,8 @@ class HalStorage {
     return instance;
   }
 
-  bool openFileForRead(const char* /*tag*/, const std::string& /*path*/, FsFile& /*file*/) { return false; }
-  bool openFileForRead(const char* /*tag*/, const char* /*path*/, FsFile& /*file*/) { return false; }
+  bool openFileForRead(const char* /*tag*/, const std::string& /*path*/, HalFile& /*file*/) { return false; }
+  bool openFileForRead(const char* /*tag*/, const char* /*path*/, HalFile& /*file*/) { return false; }
   bool exists(const char* /*path*/) const { return false; }
 };
 

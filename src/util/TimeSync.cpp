@@ -84,9 +84,10 @@ bool shouldSync(bool force = false) {
 }
 
 #if ENABLE_WIFI_CLOCK
-void backgroundSyncTask(void* param) {
-  const bool force = (param != nullptr);
-  const bool ok = TimeSync::syncTimeWithNtpLowMemory(force);
+void backgroundSyncTask(void* /*param*/) {
+  // Background sync always uses the throttled path; manual force=true syncs
+  // come from ClockSyncActivity which calls syncTimeWithNtpLowMemory directly.
+  const bool ok = TimeSync::syncTimeWithNtpLowMemory(/*force=*/false);
   pendingResult = ok ? 1 : -1;
   syncTaskRunning = false;
   vTaskDelete(nullptr);
