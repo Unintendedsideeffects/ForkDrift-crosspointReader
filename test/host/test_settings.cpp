@@ -215,4 +215,11 @@ TEST_CASE("testSettingsJsonPreservesSpecialSleepModes") {
 #else
   CHECK(s.sleepScreen == CrossPointSettings::DARK);
 #endif
+
+  CHECK(JsonSettingsIO::loadSettings(s, "{\"sleepScreen\":13}", nullptr));
+#if ENABLE_HAIKU_CLOCK
+  CHECK(s.sleepScreen == CrossPointSettings::HAIKU_CLOCK_SLEEP);
+#else
+  CHECK(s.sleepScreen == CrossPointSettings::DARK);
+#endif
 }

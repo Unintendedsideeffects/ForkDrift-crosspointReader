@@ -11,6 +11,8 @@ std::string currentDate();
 // Returns empty string if system time is not set.
 std::string currentClockLabel();
 
+bool getHourAndMinute(int& hour, int& minute);
+
 std::string offsetDate(const std::string& isoDate, int days);
 
 std::string formatDayTitle(const std::string& isoDate);

@@ -226,6 +226,12 @@ FEATURES = {
         size_kb=1,
         description='Optional block-style Roman numeral sleep screen that reuses the WiFi clock time source'
     ),
+    'haiku_clock_sleep': Feature(
+        name='Haiku Clock Sleep Screen',
+        flag='ENABLE_HAIKU_CLOCK',
+        size_kb=26,
+        description='E-Ink clock that displays quarter-hourly, syllable-accurate time-mentioning haikus'
+    ),
     'lexenddeca_fonts': Feature(
         name='Lexend Deca Fonts',
         flag='ENABLE_LEXENDDECA_FONTS',
@@ -520,6 +526,13 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=[]
     ),
+    'haiku_clock_sleep': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=['wifi_clock'],
+        conflicts=[],
+        recommends=[]
+    ),
     'lexenddeca_fonts': FeatureMetadata(
         implemented=True,
         stable=True,
@@ -685,6 +698,7 @@ PROFILES = {
             'usb_mass_storage': True,
             'wifi_clock': True,
             'roman_clock_sleep': True,
+            'haiku_clock_sleep': True,
             'reading_stats': True,
             'minimal_theme': True,
         },
@@ -726,6 +740,7 @@ PROFILES = {
             'usb_mass_storage': True,
             'wifi_clock': True,
             'roman_clock_sleep': True,
+            'haiku_clock_sleep': True,
             'lexenddeca_fonts': True,
             'bitter_fonts': False,
             'chareink_fonts': True,

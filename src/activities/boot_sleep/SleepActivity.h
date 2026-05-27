@@ -1,7 +1,7 @@
 #pragma once
-#include <string>
-
 #include <FeatureFlags.h>
+
+#include <string>
 
 #include "activities/Activity.h"
 
@@ -34,6 +34,9 @@ class SleepActivity final : public Activity {
 #endif
 #if ENABLE_ROMAN_CLOCK_SLEEP
   void renderRomanClockSleepScreen() const;
+#endif
+#if ENABLE_HAIKU_CLOCK
+  void renderHaikuClockSleepScreen() const;
 #endif
   bool tryRenderImagePath(const std::string& path) const;
 

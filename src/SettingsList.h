@@ -194,6 +194,9 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 #if ENABLE_ROMAN_CLOCK_SLEEP
         StrId::STR_ROMAN_CLOCK,
 #endif
+#if ENABLE_HAIKU_CLOCK
+        StrId::STR_HAIKU_CLOCK,
+#endif
 #if ENABLE_READING_STATS
         StrId::STR_READING_STATS,
 #endif
@@ -208,6 +211,9 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 #if ENABLE_ROMAN_CLOCK_SLEEP
         M::ROMAN_CLOCK_SLEEP,
 #endif
+#if ENABLE_HAIKU_CLOCK
+        M::HAIKU_CLOCK_SLEEP,
+#endif
 #if ENABLE_READING_STATS
         M::READING_STATS_SLEEP,
 #endif
@@ -221,6 +227,9 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         nullptr,
 #if ENABLE_ROMAN_CLOCK_SLEEP
         "roman_clock_sleep",
+#endif
+#if ENABLE_HAIKU_CLOCK
+        "haiku_clock_sleep",
 #endif
 #if ENABLE_READING_STATS
         "reading_stats",

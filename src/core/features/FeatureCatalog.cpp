@@ -22,6 +22,7 @@ constexpr const char* kRequiresBleWifiProvisioningAll[] = {"web_wifi_setup"};
 constexpr const char* kRequiresOpenDyslexicFontsAny[] = {"bookerly_fonts", "notosans_fonts", "lexenddeca_fonts",
                                                          "bitter_fonts", "chareink_fonts"};
 constexpr const char* kRequiresRomanClockSleepAll[] = {"wifi_clock"};
+constexpr const char* kRequiresHaikuClockSleepAll[] = {"wifi_clock"};
 
 constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"bookerly_fonts", "Bookerly Fonts", ENABLE_BOOKERLY_FONTS != 0, nullptr, 0, nullptr, 0},
@@ -83,6 +84,8 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"wifi_clock", "WiFi Clock", ENABLE_WIFI_CLOCK != 0, nullptr, 0, nullptr, 0},
     {"roman_clock_sleep", "Roman Clock Sleep Screen", ENABLE_ROMAN_CLOCK_SLEEP != 0, kRequiresRomanClockSleepAll,
      sizeof(kRequiresRomanClockSleepAll) / sizeof(kRequiresRomanClockSleepAll[0]), nullptr, 0},
+    {"haiku_clock_sleep", "Haiku Clock Sleep Screen", ENABLE_HAIKU_CLOCK != 0, kRequiresHaikuClockSleepAll,
+     sizeof(kRequiresHaikuClockSleepAll) / sizeof(kRequiresHaikuClockSleepAll[0]), nullptr, 0},
 };
 
 constexpr size_t kFeatureCount = sizeof(kFeatureCatalog) / sizeof(kFeatureCatalog[0]);

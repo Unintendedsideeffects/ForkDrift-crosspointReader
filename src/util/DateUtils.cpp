@@ -86,6 +86,16 @@ std::string currentClockLabel() {
   return std::string(buffer);
 }
 
+bool getHourAndMinute(int& hour, int& minute) {
+  std::tm timeInfo{};
+  if (!getAdjustedTime(timeInfo)) {
+    return false;
+  }
+  hour = timeInfo.tm_hour;
+  minute = timeInfo.tm_min;
+  return true;
+}
+
 bool parseIsoDate(const std::string& isoDate, std::tm& out) {
   if (isoDate.size() != 10 || isoDate[4] != '-' || isoDate[7] != '-') {
     return false;

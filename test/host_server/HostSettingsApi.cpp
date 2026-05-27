@@ -26,9 +26,15 @@ struct HostSetting {
   int visibleEq;
 };
 
-#if ENABLE_ROMAN_CLOCK_SLEEP
+#if ENABLE_ROMAN_CLOCK_SLEEP && ENABLE_HAIKU_CLOCK
+const char* kSleepScreenOptions[] = {"Dark",  "Light",       "Follow Theme", "Custom",       "Transparent",
+                                     "Smart", "Roman Clock", "Haiku Clock",  "Reading Stats"};
+#elif ENABLE_ROMAN_CLOCK_SLEEP
 const char* kSleepScreenOptions[] = {"Dark",        "Light", "Follow Theme", "Custom",
                                      "Transparent", "Smart", "Roman Clock",  "Reading Stats"};
+#elif ENABLE_HAIKU_CLOCK
+const char* kSleepScreenOptions[] = {"Dark",        "Light", "Follow Theme", "Custom",
+                                     "Transparent", "Smart", "Haiku Clock",  "Reading Stats"};
 #else
 const char* kSleepScreenOptions[] = {"Dark",        "Light", "Follow Theme", "Custom",
                                      "Transparent", "Smart", "Reading Stats"};
