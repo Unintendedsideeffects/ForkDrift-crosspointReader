@@ -1,6 +1,7 @@
 #include "AnkiStore.h"
 
 #include <ArduinoJson.h>
+#include <FsFileJsonReader.h>
 #include <HalStorage.h>
 #include <Logging.h>
 #include <SpiBusMutex.h>
@@ -24,14 +25,16 @@ bool AnkiStore::load() {
     return true;
   }
 
-  String json = Storage.readFile(kFilePath);
-  if (json.isEmpty()) {
+  FsFile file;
+  if (!Storage.openFileForRead("ANKI", kFilePath, file)) {
     return false;
   }
 
   // Parse outside the mutex — JSON parse is CPU-bound, not a shared-state concern.
   JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, json);
+  FsFileJsonReader reader(file);
+  const DeserializationError error = deserializeJson(doc, reader);
+  file.close();
   if (error) {
     LOG_ERR("ANKI", "Failed to parse cards JSON: %s", error.c_str());
     return false;

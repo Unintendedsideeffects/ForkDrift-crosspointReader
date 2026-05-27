@@ -1,5 +1,6 @@
 #include "Markdown.h"
 
+#include <BookCachePath.h>
 #include <FsHelpers.h>
 #include <HalStorage.h>
 #include <Logging.h>
@@ -479,8 +480,7 @@ std::string extractSectionByHeading(const std::string& content, const std::strin
 
 Markdown::Markdown(std::string path, std::string cacheBasePath)
     : filepath(std::move(path)), cacheBasePath(std::move(cacheBasePath)) {
-  const size_t hash = std::hash<std::string>{}(filepath);
-  cachePath = this->cacheBasePath + "/md_" + std::to_string(hash);
+  cachePath = BookCachePath::build(this->cacheBasePath, "md_", filepath);
 }
 
 bool Markdown::load() {

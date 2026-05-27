@@ -1,4 +1,7 @@
 #pragma once
+
+#include <HalStorage.h>
+
 #include <string>
 #include <vector>
 
@@ -14,6 +17,7 @@ struct RecentBook {
 class RecentBooksStore;
 namespace JsonSettingsIO {
 bool loadRecentBooks(RecentBooksStore& store, const char* json);
+bool loadRecentBooks(RecentBooksStore& store, FsFile& file);
 }  // namespace JsonSettingsIO
 
 class RecentBooksStore {
@@ -23,6 +27,7 @@ class RecentBooksStore {
   std::vector<RecentBook> recentBooks;
 
   friend bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, const char*);
+  friend bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, FsFile&);
 
  public:
   ~RecentBooksStore() = default;

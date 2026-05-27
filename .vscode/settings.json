@@ -1,0 +1,7 @@
+{
+  // Use the project clangd wrapper so the PlatformIO riscv32 toolchain is
+  // whitelisted as a --query-driver.  Without this VS Code launches the system
+  // clangd directly, which cannot resolve the ESP32-C3 GCC sysroot headers and
+  // floods firmware files with false "file not found" / "unknown type" errors.
+  "clangd.path": "${workspaceFolder}/scripts/clangd.sh"
+}

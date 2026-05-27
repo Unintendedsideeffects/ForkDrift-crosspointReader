@@ -59,6 +59,8 @@ TEST_CASE("asset read api lists supported sleep images from canonical sleep dire
   Storage.reset();
   CHECK(Storage.writeFile("/sleep/first.bmp", "bmp"));
   CHECK(Storage.writeFile("/sleep/second.PNG", "png"));
+  CHECK(Storage.writeFile("/sleep/pokedex/pikachu.bmp", "bmp"));
+  CHECK(Storage.writeFile("/sleep/pokedex/party/party_demo.bmp", "bmp"));
   CHECK(Storage.writeFile("/sleep/.hidden.bmp", "hidden"));
   CHECK(Storage.writeFile("/sleep/notes.txt", "txt"));
   CHECK(Storage.writeFile("/.sleep/third.jpg", "jpg"));
@@ -68,6 +70,8 @@ TEST_CASE("asset read api lists supported sleep images from canonical sleep dire
 
   CHECK(json.indexOf("\"path\":\"/sleep/first.bmp\"") != -1);
   CHECK(json.indexOf("\"path\":\"/sleep/second.PNG\"") != -1);
+  CHECK(json.indexOf("\"path\":\"/sleep/pokedex/pikachu.bmp\"") != -1);
+  CHECK(json.indexOf("\"path\":\"/sleep/pokedex/party/party_demo.bmp\"") != -1);
   CHECK(json.indexOf("\"path\":\"/.sleep/third.jpg\"") == -1);
   CHECK(json.indexOf("\"path\":\"/sleep.jpg\"") == -1);
   CHECK(json.indexOf(".hidden.bmp") == -1);

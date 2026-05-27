@@ -212,7 +212,6 @@ std::string getSleepSourcePath(const uint8_t sourceMode) {
     case CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_POKEDEX:
       return "/sleep/pokedex";
     case CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_ALL:
-      return "/sleep";
     case CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_SLEEP:
     default:
       return "/sleep";
@@ -220,7 +219,13 @@ std::string getSleepSourcePath(const uint8_t sourceMode) {
 }
 
 bool shouldScanRecursively(const uint8_t sourceMode) {
-  return sourceMode == CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_ALL;
+  switch (sourceMode) {
+    case CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_POKEDEX:
+    case CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_ALL:
+      return true;
+    default:
+      return false;
+  }
 }
 
 std::string getEntryName(const std::string& path) {
@@ -239,6 +244,7 @@ std::string joinPath(const std::string& directoryPath, const std::string& entryN
   return directoryPath + "/" + entryName;
 }
 
+// NOLINTNEXTLINE(misc-no-recursion) -- intentional: directory tree traversal
 void scanSleepImagesInDirectory(const std::string& directoryPath, const bool recursive,
                                 std::vector<std::string>& filesOut, int& invalidCount) {
   auto dir = Storage.open(directoryPath.c_str());
@@ -304,6 +310,14 @@ void scanSleepImagesInDirectory(const std::string& directoryPath, const bool rec
   dir.close();
 }
 
+void scanSleepImagesForSource(const uint8_t sourceMode, std::vector<std::string>& filesOut, int& invalidCount) {
+  const std::string sourcePath = getSleepSourcePath(sourceMode);
+  scanSleepImagesInDirectory(sourcePath, shouldScanRecursively(sourceMode), filesOut, invalidCount);
+  if (sourceMode == CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_SLEEP) {
+    scanSleepImagesInDirectory("/sleep/pokedex", true, filesOut, invalidCount);
+  }
+}
+
 void validateSleepImagesOnce() {
   SleepCacheMutex::Guard guard;
   uint8_t sourceMode = SETTINGS.sleepScreenSource;
@@ -325,10 +339,8 @@ void validateSleepImagesOnce() {
   sleepImageCache.sourceMode = sourceMode;
   sleepImageCache.validFiles.clear();
 
-  const std::string sourcePath = getSleepSourcePath(sourceMode);
-  const bool recursive = shouldScanRecursively(sourceMode);
   int scanInvalidCount = 0;
-  scanSleepImagesInDirectory(sourcePath, recursive, sleepImageCache.validFiles, scanInvalidCount);
+  scanSleepImagesForSource(sourceMode, sleepImageCache.validFiles, scanInvalidCount);
 
   sleepImageCache.scanned = true;
   LOG_INF("SLP", "Source '%s' found %d valid sleep images", getSleepSourceName(sourceMode),
@@ -373,12 +385,9 @@ SleepImageValidationStats validateSleepImagesWithStats() {
     sourceMode = CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_SLEEP;
   }
 
-  const std::string sourcePath = getSleepSourcePath(sourceMode);
-  const bool recursive = shouldScanRecursively(sourceMode);
-
   std::vector<std::string> validFiles;
   int invalidCount = 0;
-  scanSleepImagesInDirectory(sourcePath, recursive, validFiles, invalidCount);
+  scanSleepImagesForSource(sourceMode, validFiles, invalidCount);
 
   SleepCacheMutex::Guard guard;
   sleepImageCache.scanned = true;

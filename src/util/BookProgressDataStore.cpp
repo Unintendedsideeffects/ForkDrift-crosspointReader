@@ -1,14 +1,13 @@
 #include "util/BookProgressDataStore.h"
 
+#include <BookCachePath.h>
 #include <HalStorage.h>
 #include <Serialization.h>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
-#include <functional>
 
 namespace {
 constexpr char kCacheBasePath[] = "/.crosspoint";
@@ -37,35 +36,17 @@ struct XtcHeaderPrefix {
 };
 #pragma pack(pop)
 
-bool hasExtension(const std::string& bookPath, const char* extension) {
-  const size_t extLen = std::strlen(extension);
-  if (bookPath.size() < extLen) {
-    return false;
-  }
-
-  const size_t start = bookPath.size() - extLen;
-  for (size_t i = 0; i < extLen; ++i) {
-    const unsigned char lhs = static_cast<unsigned char>(bookPath[start + i]);
-    const unsigned char rhs = static_cast<unsigned char>(extension[i]);
-    if (std::tolower(lhs) != std::tolower(rhs)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 BookProgressDataStore::BookKind detectBookKind(const std::string& bookPath) {
-  if (hasExtension(bookPath, ".epub")) {
+  if (BookCachePath::hasExtension(bookPath, ".epub")) {
     return BookProgressDataStore::BookKind::Epub;
   }
-  if (hasExtension(bookPath, ".txt")) {
+  if (BookCachePath::hasExtension(bookPath, ".txt")) {
     return BookProgressDataStore::BookKind::Txt;
   }
-  if (hasExtension(bookPath, ".md")) {
+  if (BookCachePath::hasExtension(bookPath, ".md")) {
     return BookProgressDataStore::BookKind::Markdown;
   }
-  if (hasExtension(bookPath, ".xtc") || hasExtension(bookPath, ".xtch")) {
+  if (BookCachePath::hasExtension(bookPath, ".xtc") || BookCachePath::hasExtension(bookPath, ".xtch")) {
     return BookProgressDataStore::BookKind::Xtc;
   }
   return BookProgressDataStore::BookKind::Unknown;
@@ -89,10 +70,7 @@ const char* cachePrefixForKind(const BookProgressDataStore::BookKind kind) {
 
 std::string buildCachePath(const BookProgressDataStore::BookKind kind, const std::string& bookPath) {
   const char* prefix = cachePrefixForKind(kind);
-  if (prefix == nullptr) {
-    return "";
-  }
-  return std::string(kCacheBasePath) + "/" + prefix + std::to_string(std::hash<std::string>{}(bookPath));
+  return BookCachePath::build(kCacheBasePath, prefix, bookPath);
 }
 
 float clampPercent(const float percent) {

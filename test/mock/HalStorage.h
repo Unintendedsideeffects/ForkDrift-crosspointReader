@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
 #include <set>
@@ -54,8 +55,25 @@ class FsFile {
     pos_ += n;
     return n;
   }
+  size_t read(char* data, size_t len) { return read(reinterpret_cast<uint8_t*>(data), len); }
+  int available() const {
+    if (!buf_ || pos_ > buf_->size()) return 0;
+    return static_cast<int>(buf_->size() - pos_);
+  }
 
   size_t size() const { return buf_ ? buf_->size() : 0; }
+  uint64_t fileSize64() const { return static_cast<uint64_t>(size()); }
+  bool isOpen() const { return buf_ != nullptr || isDirectory_; }
+
+  bool seek(size_t pos) {
+    if (!buf_ || pos > buf_->size()) return false;
+    pos_ = pos;
+    return true;
+  }
+  bool seek64(uint64_t pos) {
+    if (pos > static_cast<uint64_t>(std::numeric_limits<size_t>::max())) return false;
+    return seek(static_cast<size_t>(pos));
+  }
 
   bool isDirectory() const { return isDirectory_; }
 
@@ -174,6 +192,24 @@ class HalStorage {
     return false;
   }
   bool rmdir(const char* path) { return remove(path); }
+
+  std::vector<String> listFiles(const char* path) const {
+    std::vector<String> names;
+    const std::string normalized = normalizePath(path ? path : "");
+    const std::string prefix = normalized == "/" ? "/" : normalized + "/";
+    std::set<std::string> seen;
+
+    for (const auto& [filePath, _] : files_) {
+      if (filePath.rfind(prefix, 0) != 0) continue;
+      const std::string remainder = filePath.substr(prefix.size());
+      if (remainder.empty() || remainder.find('/') != std::string::npos) continue;
+      if (seen.insert(remainder).second) {
+        names.emplace_back(remainder.c_str());
+      }
+    }
+
+    return names;
+  }
 
   static HalStorage& getInstance() {
     static HalStorage inst;

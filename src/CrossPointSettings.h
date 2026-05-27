@@ -316,10 +316,6 @@ class CrossPointSettings {
 
   // Reader screen margin settings
   uint8_t screenMargin = 5;
-  // OPDS browser settings
-  char opdsServerUrl[128] = "";
-  char opdsUsername[64] = "";
-  char opdsPassword[64] = "";
   // Hide battery percentage
   uint8_t hideBatteryPercentage = HIDE_NEVER;
   // Long-press page turn button behavior
@@ -333,8 +329,6 @@ class CrossPointSettings {
   uint8_t embeddedStyle = 1;
   // Persisted background server flag for charge-only and always-on modes.
   uint8_t backgroundServerOnCharge = ENABLE_BACKGROUND_SERVER_ON_CHARGE || ENABLE_BACKGROUND_SERVER_ALWAYS;
-  // Deprecated: persisted for backward compat, not consumed at runtime
-  uint8_t todoFallbackCover = 0;
   // Time settings
   uint8_t timeMode = TIME_MODE_UTC;
   // Timezone offset index: 0 = UTC-12, 12 = UTC+0, 26 = UTC+14

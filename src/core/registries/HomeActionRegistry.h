@@ -15,7 +15,7 @@ struct HomeActionEntry {
   const char* actionId;  // unique identifier e.g. anki, todo_planner
 
   struct HomeActionContext {
-    bool hasOpdsUrl;
+    bool hasOpdsServers;
   };
 
   // Runtime capability and context check. Returns false when the action should stay hidden.

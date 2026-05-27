@@ -743,7 +743,7 @@ File uploaded successfully: mybook.epub
 
 ### POST `/api/user-fonts/rescan` - Rescan SD User Fonts
 
-Rescans the `/fonts` directory for `.cpf` fonts and reloads the currently selected external font if enabled.
+Rescans SD-card font roots for `.cpfont` families and reloads the currently selected external font if enabled.
 
 **Request:**
 ```bash
@@ -848,10 +848,12 @@ Creates a new folder on the SD card.
 
 **Request:**
 ```bash
-curl -X POST -d "name=NewFolder&path=/" http://crosspoint.local/mkdir
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"name":"NewFolder","path":"/"}' \
+  http://crosspoint.local/mkdir
 ```
 
-**Form Parameters:**
+**JSON Body:**
 
 | Parameter | Required | Default | Description                  |
 | --------- | -------- | ------- | ---------------------------- |
@@ -867,6 +869,9 @@ Folder created: NewFolder
 
 | Status | Body                          | Cause                         |
 | ------ | ----------------------------- | ----------------------------- |
+| 400    | `Use JSON name/path body`     | Legacy form fields were sent  |
+| 400    | `Missing JSON body`           | Request body was missing      |
+| 400    | `Invalid JSON body`           | Request body was invalid JSON |
 | 400    | `Missing folder name`         | `name` parameter not provided |
 | 400    | `Folder name cannot be empty` | Empty folder name             |
 | 400    | `Folder already exists`       | Folder with same name exists  |
@@ -881,14 +886,12 @@ Deletes one or more files or empty folders from the SD card.
 **Request:**
 ```bash
 # Delete one or more items
-curl -X POST -d 'paths=["/Books/old.epub","/OldFolder"]' http://crosspoint.local/delete
+curl -X POST -H "Content-Type: application/json" \
+  -d '["/Books/old.epub","/OldFolder"]' \
+  http://crosspoint.local/delete
 ```
 
-**Form Parameters:**
-
-| Parameter | Required | Default | Description |
-| --------- | -------- | ------- | ----------- |
-| `paths`   | Yes | - | JSON array of paths to delete |
+**JSON Body:** array of absolute paths to delete.
 
 **Response (200 OK):**
 ```text
@@ -899,9 +902,9 @@ All items deleted successfully
 
 | Status | Body                                        | Cause                              |
 | ------ | ------------------------------------------- | ---------------------------------- |
-| 400    | `Missing "paths" argument`                  | `paths` was not provided           |
-| 400    | `Use paths JSON array`                      | Legacy `path` parameter was sent   |
-| 400    | `Invalid paths format`                      | `paths` was not valid JSON         |
+| 400    | `Missing JSON body`                         | Request body was missing           |
+| 400    | `Invalid JSON body`                         | Request body was invalid JSON      |
+| 400    | `Use paths JSON array`                      | Body was not an array, or legacy form fields were sent |
 | 400    | `No paths provided`                         | `paths` was an empty JSON array    |
 | 500    | `Failed to delete some items: ...`          | One or more paths could not be deleted |
 

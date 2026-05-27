@@ -11,7 +11,6 @@
 #include <string>
 #include <vector>
 
-#include "util/RecentBooksStore.h"
 #include "components/UITheme.h"
 #include "components/icons/book.h"
 #include "components/icons/cover.h"
@@ -22,6 +21,7 @@
 #include "components/icons/transfer.h"
 #include "components/icons/wifi.h"
 #include "fontIds.h"
+#include "util/RecentBooksStore.h"
 
 namespace {
 constexpr int kMenuIconSize = 32;
@@ -190,6 +190,46 @@ void LyraCarouselTheme::drawCarouselBorder(GfxRenderer& renderer, Rect coverRect
   Rect borderRect = shrinkCenterCoverRect(computeCenterCoverSlotRect(renderer, coverRect, recentBooks));
   renderer.drawRoundedRect(borderRect.x, borderRect.y, borderRect.width, borderRect.height, kSelectionLineW,
                            kCornerRadius, true);
+}
+
+void LyraCarouselTheme::drawCarouselProgressOverlay(GfxRenderer& renderer, Rect coverRect,
+                                                    const std::vector<RecentBook>& recentBooks, int centerIdx,
+                                                    float progressPercent) const {
+  if (progressPercent < 0.0f || recentBooks.empty() || centerIdx < 0 ||
+      centerIdx >= static_cast<int>(recentBooks.size())) {
+    return;
+  }
+
+  const int screenW = renderer.getScreenWidth();
+  Rect centerCoverRect = shrinkCenterCoverRect(computeCenterCoverSlotRect(renderer, coverRect, recentBooks));
+  if (centerIdx >= 0 && centerIdx < LyraCarouselMetrics::values.homeRecentBooksCount) {
+    const Rect cached = cachedCenterCoverRects[centerIdx];
+    if (cached.width > 0 && cached.height > 0) centerCoverRect = cached;
+  }
+
+  const Rect centerCoverSlotRect = computeCenterCoverSlotRect(renderer, coverRect, recentBooks);
+  const int dotsY = centerCoverSlotRect.y + centerCoverSlotRect.height + 8;
+  const int footerLabelFontId = UI_10_FONT_ID;
+  const int footerMaxWidth = std::max(0, screenW - 2 * LyraCarouselMetrics::values.contentSidePadding);
+  const int footerWidth = std::min(footerMaxWidth, centerCoverRect.width);
+  const int footerX = centerCoverRect.x + (centerCoverRect.width - footerWidth) / 2;
+  const int progressBarY = dotsY + kDotSize + kFooterTopGap;
+  const int footerClearH =
+      kFooterTopGap + kFooterProgressBarHeight + kFooterPercentTopGap + renderer.getLineHeight(footerLabelFontId);
+  renderer.fillRect(footerX, dotsY + kDotSize, footerWidth, footerClearH, false);
+
+  const float clampedProgress = std::clamp(progressPercent, 0.0f, 100.0f);
+  const int filledWidth = std::clamp(static_cast<int>((clampedProgress / 100.0f) * footerWidth), 0, footerWidth);
+  char progressLabel[16];
+  snprintf(progressLabel, sizeof(progressLabel), "%.0f%%", clampedProgress);
+  renderer.fillRectDither(footerX, progressBarY, footerWidth, kFooterProgressBarHeight, Color::LightGray);
+  if (filledWidth > 0) {
+    renderer.fillRect(footerX, progressBarY, filledWidth, kFooterProgressBarHeight, true);
+  }
+  const int progressLabelW = renderer.getTextWidth(footerLabelFontId, progressLabel, EpdFontFamily::REGULAR);
+  const int progressLabelY = progressBarY + kFooterProgressBarHeight + kFooterPercentTopGap;
+  renderer.drawText(footerLabelFontId, footerX + footerWidth - progressLabelW, progressLabelY, progressLabel, true,
+                    EpdFontFamily::REGULAR);
 }
 
 // ---------------------------------------------------------------------------

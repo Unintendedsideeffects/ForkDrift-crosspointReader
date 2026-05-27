@@ -1,19 +1,19 @@
-#include "doctest/doctest.h"
-
 #include <ArduinoJson.h>
-
-#include "lib/Serialization/Serialization.h"
-#include "network/ReadingDataApi.h"
-#include "test/mock/HalStorage.h"
 
 #include <cmath>
 #include <string>
 #include <vector>
 
+#include "doctest/doctest.h"
+#include "include/BookCachePath.h"
+#include "lib/Serialization/Serialization.h"
+#include "network/ReadingDataApi.h"
+#include "test/mock/HalStorage.h"
+
 namespace {
 
 std::string buildCachePath(const char* prefix, const std::string& bookPath) {
-  return std::string("/.crosspoint/") + prefix + std::to_string(std::hash<std::string>{}(bookPath));
+  return BookCachePath::build("/.crosspoint", prefix, bookPath);
 }
 
 void writeTxtIndexFile(const std::string& path, const uint32_t totalPages, const uint8_t markdownFlag = 0) {

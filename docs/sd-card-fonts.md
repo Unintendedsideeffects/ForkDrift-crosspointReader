@@ -59,33 +59,10 @@ The current list of pre-built fonts is maintained in the
 
 ## Converting Custom Fonts
 
-To convert your own TrueType/OpenType fonts:
-
-### Prerequisites
-
-    pip install freetype-py fonttools
-
-### Single font (one style)
-
-    python3 lib/EpdFont/scripts/fontconvert_sdcard.py \
-      MyFont-Regular.ttf \
-      --intervals latin-ext \
-      --sizes 12,14,16,18 \
-      --style regular \
-      --name MyFont \
-      --output-dir ./MyFont/
-
-### Multi-style font
-
-    python3 lib/EpdFont/scripts/fontconvert_sdcard.py \
-      --regular MyFont-Regular.ttf \
-      --bold MyFont-Bold.ttf \
-      --italic MyFont-Italic.ttf \
-      --bolditalic MyFont-BoldItalic.ttf \
-      --intervals latin-ext \
-      --sizes 12,14,16,18 \
-      --name MyFont \
-      --output-dir ./MyFont/
+Use the official CrossPoint Font Manager to convert TrueType/OpenType font
+families into `.cpfont` files. The local firmware repository does not ship a
+custom SD-card font converter; the upstream Font Manager owns conversion and
+format compatibility.
 
 ### Available Unicode interval presets
 

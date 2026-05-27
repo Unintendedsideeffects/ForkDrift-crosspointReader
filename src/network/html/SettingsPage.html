@@ -48,8 +48,7 @@
       padding: 0 16px;
       margin-bottom: 4px;
     }
-    /* Action module cards (WiFi, OTA, font, Pokédex, sleep picker) keep a box */
-    #fontUploadCard,
+    /* Action module cards (WiFi, OTA, Pokédex, sleep picker) keep a box */
     #ota-container,
     #pokedex-container,
     #wifi-container,
@@ -350,24 +349,6 @@
     </div>
   </div>
 
-  <div class="card" id="fontUploadCard" style="display:none;">
-    <h2>Install Font (.cpf)</h2>
-    <p style="font-size:0.8em; color:var(--gray-4); margin-bottom:10px;">
-      Upload a CPF font file to /fonts/ on the SD card.
-      See <code>tools/font-converter/</code> for the conversion tool.
-    </p>
-    <div class="setting-row">
-      <span class="setting-name">Font file (.cpf)</span>
-      <span class="setting-control">
-        <input type="file" id="fontFileInput" accept=".cpf" style="font-size:0.8em;">
-      </span>
-    </div>
-    <div style="text-align:center; margin-top:10px;">
-      <button class="save-btn" style="padding:8px 20px; font-size:0.8em;" onclick="uploadFont()" id="fontUploadBtn">Upload</button>
-      <span id="fontUploadStatus" style="font-size:0.8em; margin-left:10px; color:var(--gray-4);"></span>
-    </div>
-  </div>
-
   <div class="card" id="ota-container" style="display:none;">
     <h2>Firmware Update</h2>
     <div id="ota-status" style="font-size:0.8em; color:var(--gray-4); margin-bottom:10px;">Check for firmware updates</div>
@@ -590,9 +571,7 @@
         if (features.ota_updates) {
           document.getElementById('ota-container').style.display = 'block';
         }
-        if (features.user_fonts) {
-          document.getElementById('fontUploadCard').style.display = 'block';
-        }
+
       }
 
       const response = await fetch('/api/settings');
@@ -860,51 +839,6 @@
     } catch (e) {
       showMessage("Error: " + e.message, true);
     }
-  }
-
-  async function uploadFont() {
-    const input = document.getElementById('fontFileInput');
-    const status = document.getElementById('fontUploadStatus');
-    const btn = document.getElementById('fontUploadBtn');
-
-    if (!input.files || input.files.length === 0) {
-      status.textContent = 'No file selected.';
-      return;
-    }
-
-    const file = input.files[0];
-    if (!file.name.toLowerCase().endsWith('.cpf')) {
-      status.textContent = 'Only .cpf files are accepted.';
-      return;
-    }
-
-    btn.disabled = true;
-    status.textContent = 'Uploading...';
-
-    const formData = new FormData();
-    formData.append('file', file, file.name);
-
-    try {
-      const response = await fetch('/api/user-fonts/upload', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        status.textContent = 'Uploaded! ' + result.families + ' font family/families available.';
-        input.value = '';
-        // Reload settings to refresh the External Font selector
-        loadSettings();
-      } else {
-        const text = await response.text();
-        status.textContent = 'Error: ' + (text || 'Upload failed');
-      }
-    } catch (e) {
-      status.textContent = 'Error: ' + e.message;
-    }
-
-    btn.disabled = false;
   }
 
   // ── Sleep cover picker ──────────────────────────────────────────────

@@ -39,7 +39,7 @@ class HomeActivity final : public Activity {
   bool recentsLoaded = false;
   bool inButtonGrid = false;
   bool firstRenderDone = false;
-  bool hasOpdsUrl = false;
+  bool hasOpdsServers = false;
   bool hasCoverImage = false;
   bool hasContinueReading = false;
   bool updateRequired = false;
@@ -74,8 +74,9 @@ class HomeActivity final : public Activity {
   void onTodoOpen();
   void onAnkiOpen();
 
-  void freeCoverBuffer();          // Free the stored cover buffer
-  bool isCoverCacheValid() const;  // True if static cover buffer matches current recent books
+  void freeCoverBuffer();  // Free the stored cover buffer
+  bool isCoverCacheValid(int coverHeight,
+                         bool isCarouselTheme) const;  // True if cached cover buffer matches current recent books
   void freeCarouselFrames();
   bool allocateCarouselFrameSlots(int targetFrameCount);
   bool buildCarouselCacheFile(const std::string& cacheKey, uint64_t cacheKeyHash, int bookCount,

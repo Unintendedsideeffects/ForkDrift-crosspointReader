@@ -95,13 +95,20 @@ void handleDownload(WebServer& server) {
 }
 
 void handleMkdir(WebServer& server) {
-  const auto name = requestArg(server, "name");
-  if (!name.present) {
+  if (requestArg(server, "name").present || requestArg(server, "path").present) {
+    sendText(server, 400, "Use JSON name/path body");
+    return;
+  }
+
+  JsonDocument body;
+  if (!parseJsonBody(server, body, "Missing JSON body", "Invalid JSON body")) return;
+  const String name = String(body["name"] | "");
+  if (name.isEmpty()) {
     sendText(server, 400, "Missing folder name");
     return;
   }
-  const auto path = requestArg(server, "path");
-  const auto result = network::createFolder(path.present ? path.value : String(), name.value);
+  const String path = String(body["path"] | "/");
+  const auto result = network::createFolder(path, name);
   sendText(server, result.statusCode, result.body);
 }
 
@@ -137,26 +144,17 @@ void handleMove(WebServer& server, const network::FileRouteOptions& options) {
 }
 
 void handleDelete(WebServer& server, const network::FileRouteOptions& options) {
-  const auto pathsArg = requestArg(server, "paths");
-  if (requestArg(server, "path").present) {
+  if (requestArg(server, "path").present || requestArg(server, "paths").present) {
     sendText(server, 400, "Use paths JSON array");
-    return;
-  }
-  const bool hasPathsArg = pathsArg.present;
-  if (!hasPathsArg) {
-    sendText(server, 400, "Missing `paths` argument");
     return;
   }
 
   std::vector<String> paths;
   JsonDocument body;
-  if (deserializeJson(body, pathsArg.value.c_str())) {
-    sendText(server, 400, "Invalid paths format");
-    return;
-  }
+  if (!parseJsonBody(server, body, "Missing JSON body", "Invalid JSON body")) return;
   const auto array = body.as<JsonArray>();
   if (array.isNull()) {
-    sendText(server, 400, "Invalid paths format");
+    sendText(server, 400, "Use paths JSON array");
     return;
   }
   for (const auto& value : array) paths.push_back(String(value.as<const char*>() ? value.as<const char*>() : ""));

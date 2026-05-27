@@ -551,18 +551,5 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         StrId::STR_CAT_READER, [] { return core::FeatureModules::getUserFontFamilies(); }));
   }
 
-  if (core::FeatureModules::hasCapability(core::Capability::CalibreSync)) {
-    // OPDS intentionally binds directly to SETTINGS char arrays because SettingInfo::String
-    // edits in-place mutable storage; unlike KOReader credentials, OPDS persistence remains
-    // owned by CrossPointSettings/JsonSettingsIO.
-    list.push_back(SettingInfo::String(StrId::STR_OPDS_SERVER_URL, SETTINGS.opdsServerUrl,
-                                       sizeof(SETTINGS.opdsServerUrl), "opdsServerUrl", StrId::STR_OPDS_BROWSER));
-    list.push_back(SettingInfo::String(StrId::STR_USERNAME, SETTINGS.opdsUsername, sizeof(SETTINGS.opdsUsername),
-                                       "opdsUsername", StrId::STR_OPDS_BROWSER));
-    list.push_back(SettingInfo::String(StrId::STR_PASSWORD, SETTINGS.opdsPassword, sizeof(SETTINGS.opdsPassword),
-                                       "opdsPassword", StrId::STR_OPDS_BROWSER)
-                       .withObfuscated());
-  }
-
   return list;
 }

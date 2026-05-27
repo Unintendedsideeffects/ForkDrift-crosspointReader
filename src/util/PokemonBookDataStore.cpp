@@ -1,65 +1,22 @@
 #include "util/PokemonBookDataStore.h"
 
+#include <ArduinoJson.h>
+#include <BookCachePath.h>
+#include <FsFileJsonReader.h>
 #include <HalStorage.h>
 
-#include <algorithm>
-#include <cctype>
-#include <cstring>
-#include <functional>
 #include <memory>
 
 namespace {
-constexpr char kCacheBasePath[] = "/.crosspoint";
 constexpr char kPokemonDataFileName[] = "/pokemon.json";
-
-bool hasExtension(const std::string& bookPath, const char* extension) {
-  const size_t extLen = std::strlen(extension);
-  if (bookPath.size() < extLen) {
-    return false;
-  }
-
-  const size_t start = bookPath.size() - extLen;
-  for (size_t i = 0; i < extLen; ++i) {
-    const unsigned char lhs = static_cast<unsigned char>(bookPath[start + i]);
-    const unsigned char rhs = static_cast<unsigned char>(extension[i]);
-    if (std::tolower(lhs) != std::tolower(rhs)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-const char* cachePrefixForBookPath(const std::string& bookPath) {
-  if (hasExtension(bookPath, ".epub")) {
-    return "epub_";
-  }
-  if (hasExtension(bookPath, ".txt")) {
-    return "txt_";
-  }
-  if (hasExtension(bookPath, ".md")) {
-    return "md_";
-  }
-  if (hasExtension(bookPath, ".xtc") || hasExtension(bookPath, ".xtch")) {
-    return "xtc_";
-  }
-  return nullptr;
-}
 }  // namespace
 
 bool PokemonBookDataStore::supportsBookPath(const std::string& bookPath) {
-  return cachePrefixForBookPath(bookPath) != nullptr;
+  return BookCachePath::prefixForBookPath(bookPath) != nullptr;
 }
 
 bool PokemonBookDataStore::resolveCachePath(const std::string& bookPath, std::string& outCachePath) {
-  const char* prefix = cachePrefixForBookPath(bookPath);
-  if (prefix == nullptr) {
-    outCachePath.clear();
-    return false;
-  }
-
-  outCachePath = std::string(kCacheBasePath) + "/" + prefix + std::to_string(std::hash<std::string>{}(bookPath));
-  return true;
+  return BookCachePath::resolve("/.crosspoint", bookPath, outCachePath);
 }
 
 std::string PokemonBookDataStore::getPokemonDataPath(const std::string& bookPath) {
@@ -76,12 +33,15 @@ bool PokemonBookDataStore::loadPokemonDocument(const std::string& bookPath, Json
     return false;
   }
 
-  const String json = Storage.readFile(pokemonDataPath.c_str());
-  if (json.isEmpty()) {
+  FsFile file;
+  if (!Storage.openFileForRead("PKM", pokemonDataPath, file)) {
     return false;
   }
 
-  return !deserializeJson(doc, json.c_str());
+  FsFileJsonReader reader(file);
+  const DeserializationError error = deserializeJson(doc, reader);
+  file.close();
+  return !error;
 }
 
 bool PokemonBookDataStore::savePokemonDocument(const std::string& bookPath, JsonVariantConst pokemonData) {
@@ -90,7 +50,7 @@ bool PokemonBookDataStore::savePokemonDocument(const std::string& bookPath, Json
     return false;
   }
 
-  Storage.mkdir(kCacheBasePath);
+  Storage.mkdir("/.crosspoint");
   Storage.mkdir(cachePath.c_str());
 
   JsonDocument doc;

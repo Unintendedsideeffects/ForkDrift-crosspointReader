@@ -1693,8 +1693,8 @@
 
 <div class="card">
   <p style="margin: 0 0 8px; font-size: 0.75em; color: var(--gray-5);">
-    User fonts: upload converted <code>.cpf</code> files to <code>/fonts</code> using names like
-    <code>Family-Regular.cpf</code> (optional <code>-Bold</code>, <code>-Italic</code>, <code>-BoldItalic</code>).
+    User fonts: upload upstream Font Manager <code>.cpfont</code> families from the Fonts page,
+    or copy family folders to <code>/.fonts</code> or <code>/fonts</code>.
   </p>
   <div class="contents-header">
     <h2 class="contents-title">Contents</h2>
@@ -3108,11 +3108,10 @@
       return p;
     });
 
-    const body = 'paths=' + encodeURIComponent(JSON.stringify(paths));
     fetch('/delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(paths)
     }).then(async res => {
       if (res.ok) {
         window.location.reload();
@@ -5475,12 +5474,9 @@ function retryAllFailedUploads() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('name', folderName);
-    formData.append('path', currentPath);
-
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/mkdir', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
 
     xhr.onload = function() {
       if (xhr.status === 200) {
@@ -5494,7 +5490,7 @@ function retryAllFailedUploads() {
       alert('Failed to create folder - network error');
     };
 
-    xhr.send(formData);
+    xhr.send(JSON.stringify({ name: folderName, path: currentPath }));
   }
 
   // Rename functions

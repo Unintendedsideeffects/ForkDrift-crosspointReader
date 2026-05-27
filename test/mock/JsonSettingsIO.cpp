@@ -7,6 +7,7 @@
 #include "JsonSettingsIO.h"
 
 #include <ArduinoJson.h>
+#include <FsFileJsonReader.h>
 // Keep this undef as a defensive guard for host builds that include pthread/time headers.
 #undef TIME_UTC
 #include <HalStorage.h>
@@ -49,14 +50,10 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["sleepTimeoutMinutes"] = s.sleepTimeoutMinutes;
   doc["refreshFrequency"] = s.refreshFrequency;
   doc["screenMargin"] = s.screenMargin;
-  doc["opdsServerUrl"] = s.opdsServerUrl;
-  doc["opdsUsername"] = s.opdsUsername;
-  doc["opdsPassword"] = s.opdsPassword;  // plaintext — no hardware key on host
   doc["hideBatteryPercentage"] = s.hideBatteryPercentage;
   doc["longPressButtonBehavior"] = s.longPressButtonBehavior;
   doc["hyphenationEnabled"] = s.hyphenationEnabled;
   doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
-  doc["todoFallbackCover"] = s.todoFallbackCover;
   doc["timeMode"] = s.timeMode;
   doc["timeZoneOffset"] = s.timeZoneOffset;
   doc["lastTimeSyncEpoch"] = s.lastTimeSyncEpoch;
@@ -144,7 +141,6 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
                                     S::LONG_PRESS_BUTTON_BEHAVIOR_COUNT, S::CHAPTER_SKIP);
   s.hyphenationEnabled = doc["hyphenationEnabled"] | (uint8_t)0;
   s.backgroundServerOnCharge = doc["backgroundServerOnCharge"] | (uint8_t)0;
-  s.todoFallbackCover = doc["todoFallbackCover"] | (uint8_t)0;
   s.timeMode = clamp(doc["timeMode"] | (uint8_t)S::TIME_MODE_UTC, static_cast<uint8_t>(S::TIME_MODE_MANUAL + 1),
                      S::TIME_MODE_UTC);
   s.timeZoneOffset = doc["timeZoneOffset"] | (uint8_t)12;
@@ -157,18 +153,6 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.embeddedStyle = doc["embeddedStyle"] | (uint8_t)1;
   s.usbMscPromptOnConnect = doc["usbMscPromptOnConnect"] | (uint8_t)0;
   s.wifiAutoConnect = doc["wifiAutoConnect"] | (uint8_t)0;
-
-  const char* url = doc["opdsServerUrl"] | "";
-  strncpy(s.opdsServerUrl, url, sizeof(s.opdsServerUrl) - 1);
-  s.opdsServerUrl[sizeof(s.opdsServerUrl) - 1] = '\0';
-
-  const char* user = doc["opdsUsername"] | "";
-  strncpy(s.opdsUsername, user, sizeof(s.opdsUsername) - 1);
-  s.opdsUsername[sizeof(s.opdsUsername) - 1] = '\0';
-
-  const char* pass = doc["opdsPassword"] | "";
-  strncpy(s.opdsPassword, pass, sizeof(s.opdsPassword) - 1);
-  s.opdsPassword[sizeof(s.opdsPassword) - 1] = '\0';
 
   const char* userFontPath = doc["userFontPath"] | "";
   strncpy(s.userFontPath, userFontPath, sizeof(s.userFontPath) - 1);
@@ -190,6 +174,19 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   return true;
 }
 
+bool JsonSettingsIO::loadSettings(CrossPointSettings& s, FsFile& file, bool* needsResave) {
+  std::string json;
+  uint8_t buffer[128];
+  while (true) {
+    const size_t bytesRead = file.read(buffer, sizeof(buffer));
+    if (bytesRead == 0) {
+      break;
+    }
+    json.append(reinterpret_cast<const char*>(buffer), bytesRead);
+  }
+  return loadSettings(s, json.c_str(), needsResave);
+}
+
 // ---- Stubs for store types not compiled into host tests ----
 
 class CrossPointState;
@@ -198,7 +195,13 @@ class RecentBooksStore;
 
 bool JsonSettingsIO::saveState(const CrossPointState&, const char*) { return true; }
 bool JsonSettingsIO::loadState(CrossPointState&, const char*) { return false; }
+bool JsonSettingsIO::loadState(CrossPointState&, FsFile&) { return false; }
 bool JsonSettingsIO::saveWifi(const WifiCredentialStore&, const char*) { return true; }
 bool JsonSettingsIO::loadWifi(WifiCredentialStore&, const char*, bool*) { return false; }
+bool JsonSettingsIO::loadWifi(WifiCredentialStore&, FsFile&, bool*) { return false; }
 bool JsonSettingsIO::saveRecentBooks(const RecentBooksStore&, const char*) { return true; }
 bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, const char*) { return false; }
+bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, FsFile&) { return false; }
+bool JsonSettingsIO::saveOpds(const OpdsServerStore&, const char*) { return true; }
+bool JsonSettingsIO::loadOpds(OpdsServerStore&, const char*, bool*) { return false; }
+bool JsonSettingsIO::loadOpds(OpdsServerStore&, FsFile&, bool*) { return false; }

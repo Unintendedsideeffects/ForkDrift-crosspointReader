@@ -145,13 +145,13 @@ class CrossPointClient:
 
     def create_folder(self, parent_path: str, folder_name: str) -> None:
         normalized_parent = normalize_remote_path(parent_path)
-        payload = urllib.parse.urlencode({"name": folder_name, "path": normalized_parent}).encode("utf-8")
+        payload = json.dumps({"name": folder_name, "path": normalized_parent}).encode("utf-8")
         try:
             self._request(
                 "POST",
                 "/mkdir",
                 data=payload,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                headers={"Content-Type": "application/json"},
             )
         except DeviceHttpError as err:
             if err.status == 400 and err.body.strip() == "Folder already exists":

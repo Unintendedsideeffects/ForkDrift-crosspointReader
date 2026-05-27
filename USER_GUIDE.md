@@ -376,8 +376,9 @@ When using **Cover** or **Cover + Custom**, two additional settings apply:
 
 To use custom sleep images, set the sleep screen mode to **Custom** or **Cover + Custom**, then place images on the SD card:
 
-- **Multiple Images (recommended):** Create a `.sleep` directory in the root of the SD card and place any number of `.bmp` images inside. One will be randomly selected each time the device sleeps. (A directory named `sleep` is also accepted as a fallback.)
-- **Single Image:** Place a file named `sleep.bmp` in the root directory. This is used as a fallback if no valid images are found in the `.sleep`/`sleep` directory.
+- **Multiple Images (recommended):** Create a `/sleep` directory in the root of the SD card and place `.bmp` images inside. One will be randomly selected each time the device sleeps. Subfolders under `/sleep/pokedex/` (for example `/sleep/pokedex/party/`) are scanned recursively.
+- **Pokedex wallpapers:** Put generated wallpapers in `/sleep/pokedex/`. With **Image Source** set to **Pokedex**, only that folder is used. **Sleep** also includes `/sleep/pokedex/`; **All** scans every subfolder under `/sleep`.
+- **Single Image:** Place a file named `sleep.bmp` in the root directory. This is used as a fallback when **Image Source** is **Sleep** and no valid images are found under `/sleep` or `/sleep/pokedex`.
 
 > [!TIP]
 > For best results:

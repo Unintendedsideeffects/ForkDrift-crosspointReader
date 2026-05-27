@@ -350,8 +350,8 @@ Verify: `web_wifi_setup`, `ota_updates`, `remote_keyboard_input`, `remote_open_b
 **Android sends:**
 
 `/mkdir`
-```
-name=<name>&path=<parent-path>  (form-encoded)
+```json
+{"name": "NewFolder", "path": "/parent"}
 ```
 
 `/rename`
@@ -365,13 +365,12 @@ name=<name>&path=<parent-path>  (form-encoded)
 ```
 
 `/delete`
-```
-paths=<json-encoded-array>  (form field, value is a JSON string)
+```json
+["/old/file.epub", "/OldFolder"]
 ```
 
 **Current status:** ✅ All four implemented on firmware.
-- `/mkdir` and `/delete` remain form-based as above.
-- `/rename` and `/move` are JSON-only and reject the old form fields.
+All four endpoints are JSON-only and reject the old form fields.
 
 ---
 
@@ -479,7 +478,7 @@ returns camelCase fields.
 
 ## 15. POST /api/user-fonts/upload + POST /api/user-fonts/rescan
 
-**Upload:** multipart form, field name `file`, `.cpf` font file.
+**Upload:** multipart form, field name `file`, `.cpfont` font file.
 **Rescan:** no body required.
 
 **Current status:** ✅ Implemented (gated on `UserFontsApi` feature flag).

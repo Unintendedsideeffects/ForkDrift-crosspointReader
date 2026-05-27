@@ -1,4 +1,7 @@
 #pragma once
+
+#include <HalStorage.h>
+
 #include <string>
 #include <vector>
 
@@ -13,6 +16,7 @@ class OpdsServerStore;
 namespace JsonSettingsIO {
 bool saveOpds(const OpdsServerStore& store, const char* path);
 bool loadOpds(OpdsServerStore& store, const char* json, bool* needsResave);
+bool loadOpds(OpdsServerStore& store, FsFile& file, bool* needsResave);
 }  // namespace JsonSettingsIO
 
 /**
@@ -31,6 +35,7 @@ class OpdsServerStore {
 
   friend bool JsonSettingsIO::saveOpds(const OpdsServerStore&, const char*);
   friend bool JsonSettingsIO::loadOpds(OpdsServerStore&, const char*, bool*);
+  friend bool JsonSettingsIO::loadOpds(OpdsServerStore&, FsFile&, bool*);
 
  public:
   OpdsServerStore(const OpdsServerStore&) = delete;
@@ -49,12 +54,6 @@ class OpdsServerStore {
   const OpdsServer* getServer(size_t index) const;
   size_t getCount() const { return servers.size(); }
   bool hasServers() const { return !servers.empty(); }
-
-  /**
-   * Migrate from legacy single-server settings in CrossPointSettings.
-   * Called once during first load if no opds.json exists.
-   */
-  bool migrateFromSettings();
 };
 
 #define OPDS_STORE OpdsServerStore::getInstance()

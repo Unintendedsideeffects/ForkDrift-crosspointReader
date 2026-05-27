@@ -75,6 +75,8 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/PathUtils.cpp" \
   "$ROOT_DIR/src/util/PokemonBookDataStore.cpp" \
   "$ROOT_DIR/src/CrossPointSettings.cpp" \
+  "$ROOT_DIR/src/BookmarkStore.cpp" \
+  "$ROOT_DIR/lib/Xtc/Xtc/XtcParser.cpp" \
   "$ROOT_DIR/test/mock/FeatureModuleHooks.cpp" \
   "$ROOT_DIR/test/mock/JsonSettingsIO.cpp" \
   "$BUILD_DIR/md4c.o" \

@@ -13,7 +13,6 @@
 #include <Xtc.h>
 
 #include <algorithm>
-#include <cinttypes>
 #include <cstring>
 #include <numeric>
 #include <optional>
@@ -26,6 +25,7 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
+#include "OpdsServerStore.h"
 #include "SpiBusMutex.h"
 #include "components/ScreenComponents.h"
 #include "components/UITheme.h"
@@ -89,42 +89,8 @@ uint64_t fnvHash64(const std::string& s) {
   return hash;
 }
 
-void appendHashedFileStateToKey(std::string& key, const std::string& path) {
-  FsFile file;
-  if (!Storage.openFileForRead("HOME", path, file)) {
-    key += "missing";
-    key += '\0';
-    return;
-  }
-
-  uint64_t hash = 14695981039346656037ull;
-  size_t totalBytes = 0;
-  uint8_t buffer[64];
-  while (true) {
-    const int bytesRead = file.read(buffer, sizeof(buffer));
-    if (bytesRead <= 0) break;
-    totalBytes += static_cast<size_t>(bytesRead);
-    for (int i = 0; i < bytesRead; ++i) {
-      hash ^= buffer[i];
-      hash *= 1099511628211ull;
-    }
-  }
-  file.close();
-
-  char digest[48];
-  snprintf(digest, sizeof(digest), "%zu:%" PRIu64, totalBytes, static_cast<uint64_t>(hash));
-  key += digest;
-  key += '\0';
-}
-
-std::string getRecentBookCachePath(const RecentBook& book) {
-  if (FsHelpers::hasEpubExtension(book.path)) {
-    return "/.crosspoint/epub_" + std::to_string(std::hash<std::string>{}(book.path));
-  }
-  if (FsHelpers::hasXtcExtension(book.path)) {
-    return "/.crosspoint/xtc_" + std::to_string(std::hash<std::string>{}(book.path));
-  }
-  return "";
+bool supportsGeneratedHomeCover(const RecentBook& book) {
+  return FsHelpers::hasEpubExtension(book.path) || FsHelpers::hasXtcExtension(book.path);
 }
 
 void appendCarouselCoverStateToKey(std::string& key, const RecentBook& book) {
@@ -147,14 +113,6 @@ void appendCarouselCoverStateToKey(std::string& key, const RecentBook& book) {
   key += ':';
   key += Storage.exists(sidePath.c_str()) ? '1' : '0';
   key += '\0';
-
-  const std::string cachePath = getRecentBookCachePath(book);
-  if (!cachePath.empty()) {
-    appendHashedFileStateToKey(key, cachePath + "/progress.bin");
-  } else {
-    key += "no-cache-path";
-    key += '\0';
-  }
 }
 
 void buildCarouselCacheKey(const std::vector<RecentBook>& recentBooks, std::string& key, uint64_t& keyHash) {
@@ -251,7 +209,7 @@ std::vector<std::string> HomeActivity::coverCacheBookPaths;
 int HomeActivity::getMenuItemCount() const {
   int count = 3;  // My Library, File transfer, Settings
   if (hasContinueReading) count++;
-  if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsUrl})) count++;
+  if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers})) count++;
   if (core::HomeActionRegistry::shouldExpose("todo_planner", {false})) count++;
   if (core::HomeActionRegistry::shouldExpose("anki", {false})) count++;
   return count;
@@ -318,7 +276,7 @@ void HomeActivity::rebuildMenuLayout() {
   int idx = 0;
   menuOpenBookIndex = idx++;
   menuMyLibraryIndex = idx++;
-  menuOpdsIndex = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsUrl}) ? idx++ : -1;
+  menuOpdsIndex = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers}) ? idx++ : -1;
   menuTodoIndex = core::HomeActionRegistry::shouldExpose("todo_planner", {false}) ? idx++ : -1;
   menuAnkiIndex = core::HomeActionRegistry::shouldExpose("anki", {false}) ? idx++ : -1;
 #if ENABLE_BOOKMARKS
@@ -386,6 +344,20 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
   int progress = 0;
   for (size_t bookIdx = 0; bookIdx < recentBooks.size(); ++bookIdx) {
     RecentBook& book = recentBooks[bookIdx];
+    if (book.coverBmpPath.empty() && supportsGeneratedHomeCover(book)) {
+      const auto recentBookData = core::FeatureModules::resolveRecentBookData(book.path);
+      if (recentBookData.handled) {
+        const std::string nextTitle = recentBookData.title.empty() ? book.title : recentBookData.title;
+        const std::string nextAuthor = recentBookData.author.empty() ? book.author : recentBookData.author;
+        if (nextTitle != book.title || nextAuthor != book.author || recentBookData.coverPath != book.coverBmpPath) {
+          RECENT_BOOKS.updateBook(book.path, nextTitle, nextAuthor, recentBookData.coverPath);
+          book.title = nextTitle;
+          book.author = nextAuthor;
+          book.coverBmpPath = recentBookData.coverPath;
+        }
+      }
+    }
+
     if (!book.coverBmpPath.empty()) {
       if (isCarouselTheme) {
         const std::string centerPath = UITheme::getCoverThumbPath(book.coverBmpPath, LyraCarouselTheme::kCenterCoverW,
@@ -594,9 +566,10 @@ void HomeActivity::onEnter() {
     BG_WIFI.stop(true);
   }
 
-  // Check if OPDS browser URL is configured
-  hasOpdsUrl = strlen(SETTINGS.opdsServerUrl) > 0;
+  OPDS_STORE.loadFromFile();
+  hasOpdsServers = OPDS_STORE.hasServers();
   const bool mediaPickerEnabled = core::FeatureModules::hasCapability(core::Capability::HomeMediaPicker);
+  const auto& metrics = UITheme::getInstance().getMetrics();
   const bool isCarouselTheme =
       static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) == CrossPointSettings::UI_THEME::LYRA_CAROUSEL;
 
@@ -626,8 +599,23 @@ void HomeActivity::onEnter() {
       }
     }
 
-    if (isCarouselTheme) {
+    if (isCarouselTheme && !recentBooks.empty()) {
       loadBookProgress();
+      std::string cacheKey;
+      uint64_t cacheKeyHash = 0;
+      buildCarouselCacheKey(recentBooks, cacheKey, cacheKeyHash);
+      if (cacheKey == gCarouselCache.key && (gCarouselCache.frameCount > 0 || gCarouselCache.keyHash != 0)) {
+        for (int i = 0; i < gCarouselCache.frameCount; ++i) carouselFrames[i] = gCarouselCache.frames[i];
+        carouselFramesReady = true;
+        carouselWarmupPending = false;
+        firstRenderDone = true;
+      } else if (hasValidCarouselDiskCache(recentBooks, renderer)) {
+        preRenderCarouselFrames(false);
+        if (carouselFramesReady) {
+          carouselWarmupPending = false;
+          firstRenderDone = true;
+        }
+      }
     }
 
     rebuildMenuLayout();
@@ -644,16 +632,13 @@ void HomeActivity::onEnter() {
     // If the same books are shown, restoreCoverBuffer() will reuse the static
     // buffer and skip the slow SD card BMP reload entirely.
     // Also skip loadRecentCovers() — thumbnails were already verified last visit.
-    if (isCoverCacheValid()) {
+    if (isCoverCacheValid(metrics.homeCoverHeight, isCarouselTheme)) {
       recentsLoaded = true;
     } else {
       freeCoverBuffer();
       coverRendered = false;
     }
 
-    if (isCarouselTheme && hasValidCarouselDiskCache(recentBooks, renderer)) {
-      preRenderCarouselFrames(false);
-    }
   } else {
     // Check if we have a book to continue reading
     hasContinueReading = !APP_STATE.openEpubPath.empty() && Storage.exists(APP_STATE.openEpubPath.c_str());
@@ -756,7 +741,7 @@ void HomeActivity::freeCoverBuffer() {
   coverCacheBookPaths.clear();
 }
 
-bool HomeActivity::isCoverCacheValid() const {
+bool HomeActivity::isCoverCacheValid(const int coverHeight, const bool isCarouselTheme) const {
   if (!coverBufferStored || !coverBuffer) {
     return false;
   }
@@ -768,6 +753,33 @@ bool HomeActivity::isCoverCacheValid() const {
       return false;
     }
   }
+
+  for (const auto& book : recentBooks) {
+    if (book.coverBmpPath.empty()) {
+      if (supportsGeneratedHomeCover(book)) {
+        return false;
+      }
+      continue;
+    }
+
+    if (isCarouselTheme) {
+      const std::string centerPath = UITheme::getCoverThumbPath(book.coverBmpPath, LyraCarouselTheme::kCenterCoverW,
+                                                                LyraCarouselTheme::kCenterCoverH);
+      const std::string sidePath =
+          UITheme::getCoverThumbPath(book.coverBmpPath, LyraCarouselTheme::kSideCoverW, LyraCarouselTheme::kSideCoverH);
+      if (centerPath.empty() || sidePath.empty() || !Storage.exists(centerPath.c_str()) ||
+          !Storage.exists(sidePath.c_str())) {
+        return false;
+      }
+      continue;
+    }
+
+    const std::string thumbPath = UITheme::getCoverThumbPath(book.coverBmpPath, coverHeight);
+    if (thumbPath.empty() || !Storage.exists(thumbPath.c_str())) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -806,26 +818,14 @@ void HomeActivity::renderCarouselFrameToCurrentBuffer(int bookIdx, float* outPro
   const int pageHeight = renderer.getScreenHeight();
   const int bookCount = static_cast<int>(recentBooks.size());
   bool dummy1 = false, dummy2 = false, dummy3 = false;
-  float frameProgressPercent = -1.0f;
-
-  if (bookIdx >= 0 && bookIdx < bookCount) {
-    if (bookProgressCached && bookIdx < kMaxCachedBooks) {
-      frameProgressPercent = cachedBookProgress[bookIdx];
-    } else {
-      BookProgressDataStore::ProgressData pd{};
-      if (BookProgressDataStore::loadProgress(recentBooks[bookIdx].path, pd)) {
-        frameProgressPercent = pd.percent;
-      }
-    }
-  }
+  const float frameProgressPercent = -1.0f;
 
   LyraCarouselTheme::setPreRenderIndex(bookIdx);
   renderer.clearScreen();
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.homeTopPadding}, nullptr);
-  // selectorIndex == bookCount means "in menu row" — no selection highlight on the cover strip
   GUI.drawRecentBookCover(
       renderer, Rect{0, metrics.homeTopPadding, pageWidth, metrics.homeCoverTileHeight}, recentBooks, bookCount, dummy1,
-      dummy2, dummy3, []() { return true; }, frameProgressPercent);
+      dummy2, dummy3, []() { return true; }, -1.0f);
 
   std::vector<std::string> menuLabels;
   std::vector<UIIcon> menuIcons;
@@ -835,7 +835,7 @@ void HomeActivity::renderCarouselFrameToCurrentBuffer(int bookIdx, float* outPro
   menuIcons.push_back(Book);
   menuLabels.push_back("My Library");
   menuIcons.push_back(Folder);
-  if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsUrl})) {
+  if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers})) {
     menuLabels.push_back("OPDS Browser");
     menuIcons.push_back(Library);
   }
@@ -1029,8 +1029,7 @@ void HomeActivity::renderCarouselFrame(int bookIdx, int slotIdx) {
     carouselFrames[slotIdx] = nullptr;
   }
 
-  float progressPercent = -1.0f;
-  renderCarouselFrameToCurrentBuffer(bookIdx, &progressPercent);
+  renderCarouselFrameToCurrentBuffer(bookIdx, nullptr);
   freeCoverBuffer();
 
   if (gCarouselCache.frameCount <= 0 || slotIdx < 0 || slotIdx >= gCarouselCache.frameCount) {
@@ -1071,8 +1070,6 @@ bool HomeActivity::preRenderCarouselFrames(bool showProgressPopup) {
   if (newKey == gCarouselCache.key && (gCarouselCache.frameCount > 0 || gCarouselCache.keyHash != 0)) {
     for (int i = 0; i < gCarouselCache.frameCount; ++i) carouselFrames[i] = gCarouselCache.frames[i];
     carouselFramesReady = true;
-    coverRendered = false;
-    coverBufferStored = false;
     return false;
   }
 
@@ -1238,7 +1235,7 @@ void HomeActivity::loop() {
         int midx = 0;
         const int openBookIdx = midx++;
         const int myLibraryIdx = midx++;
-        const int opdsIdx = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsUrl}) ? midx++ : -1;
+        const int opdsIdx = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers}) ? midx++ : -1;
         const int fileTransferIdx = midx++;
         const int settingsIdx = midx;
         if (menuIdx == openBookIdx) {
@@ -1365,7 +1362,7 @@ void HomeActivity::loop() {
     int idx = 0;
     const int continueIdx = hasContinueReading ? idx++ : -1;
     const int myLibraryIdx = idx++;
-    const int opdsLibraryIdx = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsUrl}) ? idx++ : -1;
+    const int opdsLibraryIdx = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers}) ? idx++ : -1;
     const int todoIdx = core::HomeActionRegistry::shouldExpose("todo_planner", {false}) ? idx++ : -1;
     const int ankiIdx = core::HomeActionRegistry::shouldExpose("anki", {false}) ? idx++ : -1;
     const int notesIdx = idx++;
@@ -1429,7 +1426,6 @@ void HomeActivity::render(RenderLock&&) {
       if (!inCarouselRow) {
         if (static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) ==
             CrossPointSettings::UI_THEME::LYRA_CAROUSEL) {
-          // Build menu items to pass to the overlay renderer
           std::vector<std::string> menuLabels;
           std::vector<UIIcon> menuIcons;
           menuLabels.reserve(5);
@@ -1438,7 +1434,7 @@ void HomeActivity::render(RenderLock&&) {
           menuIcons.push_back(Book);
           menuLabels.push_back("My Library");
           menuIcons.push_back(Folder);
-          if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsUrl})) {
+          if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers})) {
             menuLabels.push_back("OPDS Browser");
             menuIcons.push_back(Library);
           }
@@ -1454,11 +1450,27 @@ void HomeActivity::render(RenderLock&&) {
         }
       }
 
+      float frameProgressPercent = -1.0f;
+      if (centerIdx >= 0 && centerIdx < bookCount) {
+        if (bookProgressCached && centerIdx < kMaxCachedBooks) {
+          frameProgressPercent = cachedBookProgress[centerIdx];
+        } else {
+          BookProgressDataStore::ProgressData pd{};
+          if (BookProgressDataStore::loadProgress(recentBooks[centerIdx].path, pd)) {
+            frameProgressPercent = pd.percent;
+          }
+        }
+      }
+      if (frameProgressPercent >= 0.0f) {
+        static_cast<const LyraCarouselTheme&>(GUI).drawCarouselProgressOverlay(
+            renderer, Rect{0, metrics.homeTopPadding, pageWidth, metrics.homeCoverTileHeight}, recentBooks, centerIdx,
+            frameProgressPercent);
+      }
+
       renderer.displayBuffer();
       updateSlidingWindowCache(centerIdx, bookCount);
       if (!firstRenderDone) {
         firstRenderDone = true;
-        requestUpdate();
       } else if (!recentsLoaded && !recentsLoading) {
         recentsLoading = true;
         loadRecentCovers(metrics.homeCoverHeight);
@@ -1522,7 +1534,7 @@ void HomeActivity::render(RenderLock&&) {
       menuIcons.push_back(Book);
       menuLabels.push_back("My Library");
       menuIcons.push_back(Folder);
-      if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsUrl})) {
+      if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers})) {
         menuLabels.push_back("OPDS Browser");
         menuIcons.push_back(Library);
       }
@@ -1744,7 +1756,7 @@ void HomeActivity::render(RenderLock&&) {
     int menuSpacing = 10;
 
     std::vector<const char*> labels_text = {"My Library"};
-    if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsUrl})) {
+    if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers})) {
       labels_text.push_back("OPDS Browser");
     }
     if (core::HomeActionRegistry::shouldExpose("todo_planner", {false})) {

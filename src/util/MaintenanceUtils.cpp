@@ -4,9 +4,11 @@
 #include <HalSystem.h>
 #include <Logging.h>
 
+#include <vector>
+
 #include "CrossPointSettings.h"
-#include "activities/boot_sleep/SleepActivity.h"
 #include "SpiBusMutex.h"
+#include "activities/boot_sleep/SleepActivity.h"
 #include "util/WifiCredentialStore.h"
 
 namespace MaintenanceUtils {
@@ -25,28 +27,28 @@ CacheClearResult clearReadingCache() {
     return result;
   }
 
+  std::vector<std::string> directoriesToDelete;
   char name[128];
   for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
     file.getName(name, sizeof(name));
     String itemName(name);
 
     if (file.isDirectory() && (itemName.startsWith("epub_") || itemName.startsWith("xtc_"))) {
-      String fullPath = "/.crosspoint/" + itemName;
-      LOG_DBG("MAINT", "Removing cache: %s", fullPath.c_str());
-
-      file.close();
-
-      if (Storage.removeDir(fullPath.c_str())) {
-        result.removed++;
-      } else {
-        LOG_ERR("MAINT", "Failed to remove: %s", fullPath.c_str());
-        result.failed++;
-      }
-    } else {
-      file.close();
+      directoriesToDelete.emplace_back("/.crosspoint/" + std::string(name));
     }
+    file.close();
   }
   root.close();
+
+  for (const auto& fullPath : directoriesToDelete) {
+    LOG_DBG("MAINT", "Removing cache: %s", fullPath.c_str());
+    if (Storage.removeDir(fullPath.c_str())) {
+      result.removed++;
+    } else {
+      LOG_ERR("MAINT", "Failed to remove: %s", fullPath.c_str());
+      result.failed++;
+    }
+  }
 
   LOG_DBG("MAINT", "Cache cleared: %d removed, %d failed", result.removed, result.failed);
   return result;

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <vector>
 
 #include "SpiBusMutex.h"
 
@@ -62,6 +63,7 @@ bool resetCrossPointMetadataPreservingContent() {
   }
 
   char name[128];
+  std::vector<std::string> directoriesToDelete;
   for (FsFile entry = root.openNextFile(); entry; entry = root.openNextFile()) {
     entry.getName(name, sizeof(name));
     const bool isDirectory = entry.isDirectory();
@@ -79,14 +81,18 @@ bool resetCrossPointMetadataPreservingContent() {
       continue;
     }
 
-    if (Storage.removeDir(fullPath)) {
+    directoriesToDelete.emplace_back(fullPath);
+  }
+  root.close();
+
+  for (const auto& fullPath : directoriesToDelete) {
+    if (Storage.removeDir(fullPath.c_str())) {
       removedCount++;
     } else {
-      LOG_ERR("RESET", "Failed to remove cache directory: %s", fullPath);
+      LOG_ERR("RESET", "Failed to remove cache directory: %s", fullPath.c_str());
       failedCount++;
     }
   }
-  root.close();
 
   if (failedCount > 0) {
     LOG_ERR("RESET", "Factory reset cleanup incomplete (removed=%d failed=%d)", removedCount, failedCount);

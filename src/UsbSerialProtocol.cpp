@@ -99,14 +99,10 @@ static void buildSettingsDoc(JsonDocument& doc) {
   doc["sleepTimeoutMinutes"] = s.sleepTimeoutMinutes;
   doc["refreshFrequency"] = s.refreshFrequency;
   doc["screenMargin"] = s.screenMargin;
-  doc["opdsServerUrl"] = s.opdsServerUrl;
-  doc["opdsUsername"] = s.opdsUsername;
-  doc["opdsPassword_obf"] = obfuscation::obfuscateToBase64(s.opdsPassword);
   doc["hideBatteryPercentage"] = s.hideBatteryPercentage;
   doc["longPressButtonBehavior"] = s.longPressButtonBehavior;
   doc["hyphenationEnabled"] = s.hyphenationEnabled;
   doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
-  doc["todoFallbackCover"] = s.todoFallbackCover;
   doc["timeMode"] = s.timeMode;
   doc["timeZoneOffset"] = s.timeZoneOffset;
   doc["lastTimeSyncEpoch"] = s.lastTimeSyncEpoch;
@@ -682,56 +678,77 @@ static void handleCover(const char* path) {
   logSerial.print(F("\"}\n"));
 }
 
-// Returns images in /sleep/ as {"ok":true,"images":[{"path":...,"name":...},...]}
-static void handleSleepList() {
+static bool isSupportedSleepImageName(const char* name) {
+  String fname(name);
+  fname.toLowerCase();
+  bool supported = fname.endsWith(".bmp");
+#if ENABLE_IMAGE_SLEEP
+  supported = supported || fname.endsWith(".png") || fname.endsWith(".jpg") || fname.endsWith(".jpeg");
+#endif
+  return supported;
+}
+
+static void appendSleepImages(const String& directoryPath, bool& first) {
   FsFile dir;
   {
     SpiBusMutex::Guard guard;
-    dir = Storage.open("/sleep");
+    dir = Storage.open(directoryPath.c_str());
   }
 
-  logSerial.print(F("{\"ok\":true,\"images\":["));
-  bool first = true;
-
-  if (dir && dir.isDirectory()) {
-    while (true) {
-      char name[256] = {0};
-      bool entryIsDir = false;
-
-      {
-        SpiBusMutex::Guard guard;
-        FsFile file = dir.openNextFile();
-        if (!file) break;
-        file.getName(name, sizeof(name));
-        entryIsDir = file.isDirectory();
-        file.close();
-      }
-
-      if (entryIsDir) continue;
-      if (name[0] == '.') continue;
-
-      String fname(name);
-      fname.toLowerCase();
-      bool supported = fname.endsWith(".bmp");
-#if ENABLE_IMAGE_SLEEP
-      supported = supported || fname.endsWith(".png") || fname.endsWith(".jpg") || fname.endsWith(".jpeg");
-#endif
-      if (!supported) continue;
-
-      if (!first) logSerial.write(',');
-      first = false;
-
-      JsonDocument entry;
-      entry["path"] = String("/sleep/") + name;
-      entry["name"] = name;
-      serializeJson(entry, logSerial);
-    }
-    {
+  if (!(dir && dir.isDirectory())) {
+    if (dir) {
       SpiBusMutex::Guard guard;
       dir.close();
     }
+    return;
   }
 
+  while (true) {
+    char name[256] = {0};
+    bool entryIsDir = false;
+
+    {
+      SpiBusMutex::Guard guard;
+      FsFile file = dir.openNextFile();
+      if (!file) break;
+      file.getName(name, sizeof(name));
+      entryIsDir = file.isDirectory();
+      file.close();
+    }
+
+    if (name[0] == '.') continue;
+
+    String fullPath = directoryPath;
+    if (!fullPath.endsWith("/")) fullPath += "/";
+    fullPath += name;
+
+    if (entryIsDir) {
+      appendSleepImages(fullPath, first);
+      continue;
+    }
+
+    if (!isSupportedSleepImageName(name)) continue;
+
+    if (!first) logSerial.write(',');
+    first = false;
+
+    JsonDocument entry;
+    entry["path"] = fullPath;
+    entry["name"] = name;
+    serializeJson(entry, logSerial);
+  }
+
+  {
+    SpiBusMutex::Guard guard;
+    dir.close();
+  }
+}
+
+// Returns images in /sleep/ as {"ok":true,"images":[{"path":...,"name":...},...]}
+static void handleSleepList() {
+  logSerial.print(F("{\"ok\":true,\"images\":["));
+  bool first = true;
+  appendSleepImages("/sleep", first);
   logSerial.print(F("]}\n"));
 }
 

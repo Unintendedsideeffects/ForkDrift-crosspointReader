@@ -169,6 +169,11 @@ def run_checks(base_url: str):
     expect(files[1]["modified"] == 20, "/api/files should preserve optional modified timestamps")
     expect(files[1]["isEpub"] is True, "/api/files should preserve optional isEpub hints")
 
+    legacy_mkdir = post_form(base_url, "/mkdir", {"name": "archive", "path": "/library"})
+    expect(legacy_mkdir.status == 400, f"/mkdir should reject legacy form fields, got {legacy_mkdir.status}")
+    mkdir = post_json(base_url, "/mkdir", {"name": "archive", "path": "/library"})
+    expect(mkdir.status == 200, f"/mkdir should accept JSON name/path, got {mkdir.status}")
+
     legacy_rename = post_form(base_url, "/rename", {"path": "/library/dune.epub", "name": "dune-renamed.epub"})
     expect(legacy_rename.status == 400, f"/rename should reject legacy form fields, got {legacy_rename.status}")
     expect(legacy_rename.text == "Use JSON from/to body", "/rename should explain the JSON-only contract")
@@ -181,9 +186,16 @@ def run_checks(base_url: str):
     move = post_json(base_url, "/move", {"from": "/library/dune-renamed.epub", "to": "/archive"})
     expect(move.status == 200, f"/move should accept JSON from/to, got {move.status}")
 
+    legacy_delete = post_form(base_url, "/delete", {"paths": json.dumps(["/archive/dune-renamed.epub"])})
+    expect(legacy_delete.status == 400, f"/delete should reject legacy form fields, got {legacy_delete.status}")
+    delete = post_json(base_url, "/delete", ["/archive/dune-renamed.epub"])
+    expect(delete.status == 200, f"/delete should accept a JSON path array, got {delete.status}")
+
     mutations = get_json(base_url, "/_test/mutations")
+    expect(mutations["createdDirs"][-1] == ["archive", "/library"], "/mkdir should record JSON mutation")
     expect(mutations["renames"][-1] == ["/library/dune.epub", "dune-renamed.epub"], "/rename should record JSON mutation")
     expect(mutations["moves"][-1] == ["/library/dune-renamed.epub", "/archive"], "/move should record JSON mutation")
+    expect(mutations["deletedPaths"][-1] == ["/archive/dune-renamed.epub"], "/delete should record JSON mutation")
 
     seed(
         base_url,
@@ -301,7 +313,7 @@ def run_checks(base_url: str):
     expect("application/json" in font_rescan.content_type, f"/api/user-fonts/rescan should return JSON, got {font_rescan.content_type!r}")
     expect(font_rescan.json() == {"families": 2, "activeLoaded": True}, "/api/user-fonts/rescan should return seeded scan metadata")
 
-    font_upload = post_multipart(base_url, "/api/user-fonts/upload", "demo.cpf", b"font")
+    font_upload = post_multipart(base_url, "/api/user-fonts/upload", "demo.cpfont", b"font")
     expect(font_upload.status == 200, f"/api/user-fonts/upload should return 200, got {font_upload.status}")
     expect("application/json" in font_upload.content_type, f"/api/user-fonts/upload should return JSON, got {font_upload.content_type!r}")
     expect(font_upload.json() == {"ok": True, "families": 2, "activeLoaded": True}, "/api/user-fonts/upload should return seeded upload metadata")

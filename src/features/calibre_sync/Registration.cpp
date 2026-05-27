@@ -2,11 +2,8 @@
 
 #include <FeatureFlags.h>
 
-#if ENABLE_INTEGRATIONS && ENABLE_CALIBRE_SYNC
-#include "activities/browser/OpdsBookBrowserActivity.h"
-#endif
-#include "CrossPointSettings.h"
-#include "activities/settings/CalibreSettingsActivity.h"
+#include "OpdsServerStore.h"
+#include "activities/settings/OpdsServerListActivity.h"
 #include "core/features/FeatureCatalog.h"
 #include "core/registries/HomeActionRegistry.h"
 #include "core/registries/SettingsActionRegistry.h"
@@ -21,24 +18,19 @@ static Activity* createSettingsActivity(GfxRenderer& renderer, MappedInputManage
   (void)callbackCtx;
   (void)onComplete;
   (void)onCompleteBool;
-  return new CalibreSettingsActivity(renderer, mappedInput);
+  return new OpdsServerListActivity(renderer, mappedInput);
 }
 
 #if ENABLE_INTEGRATIONS && ENABLE_CALIBRE_SYNC
 static bool shouldExposeOpdsBrowserHomeAction(core::HomeActionEntry::HomeActionContext ctx) {
-  return core::FeatureCatalog::isEnabled("calibre_sync") && ctx.hasOpdsUrl;
+  return core::FeatureCatalog::isEnabled("calibre_sync") && ctx.hasOpdsServers;
 }
 
 static Activity* createOpdsBrowserHomeActionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                                      void* callbackCtx, void (*onBack)(void* ctx)) {
   (void)callbackCtx;
   (void)onBack;
-  OpdsServer server;
-  server.name = "OPDS Server";
-  server.url = SETTINGS.opdsServerUrl;
-  server.username = SETTINGS.opdsUsername;
-  server.password = SETTINGS.opdsPassword;
-  return new OpdsBookBrowserActivity(renderer, mappedInput, std::move(server));
+  return new OpdsServerListActivity(renderer, mappedInput, true);
 }
 #endif
 

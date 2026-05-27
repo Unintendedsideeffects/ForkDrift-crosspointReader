@@ -1,5 +1,6 @@
 #include "FileBrowserActivity.h"
 
+#include <BookCachePath.h>
 #include <Epub.h>
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
@@ -61,10 +62,14 @@ std::string buildReadFolderDestination(const std::string& srcPath) {
   return dstPath;
 }
 
-bool isSleepFolderPath(const std::string& path) { return path == "/sleep"; }
+bool isSleepFolderPath(const std::string& path) { return path == "/sleep" || path.rfind("/sleep/", 0) == 0; }
 
-bool isSleepImageFile(const std::string& path) {
-  return FsHelpers::hasBmpExtension(path) || FsHelpers::hasPngExtension(path);
+bool isSleepImageFile(std::string_view path) {
+  bool supported = FsHelpers::hasBmpExtension(path) || FsHelpers::hasPngExtension(path);
+#if ENABLE_IMAGE_SLEEP
+  supported = supported || FsHelpers::hasJpgExtension(path);
+#endif
+  return supported;
 }
 
 bool containsHiddenPathSegment(const std::string& path) {
@@ -122,7 +127,7 @@ void FileBrowserActivity::loadFiles() {
         }
       } else if (FsHelpers::hasEpubExtension(filename) || FsHelpers::hasXtcExtension(filename) ||
                  FsHelpers::hasTxtExtension(filename) || FsHelpers::hasMarkdownExtension(filename) ||
-                 FsHelpers::hasBmpExtension(filename)) {
+                 FsHelpers::hasBmpExtension(filename) || (isSleepFolderPath(basepath) && isSleepImageFile(filename))) {
         files.emplace_back(filename);
       }
     }
@@ -227,7 +232,7 @@ void FileBrowserActivity::toggleEpubCompleted(const std::string& fullPath, const
       return;
     }
 
-    const std::string newCachePath = "/.crosspoint/epub_" + std::to_string(std::hash<std::string>{}(dstPath));
+    const std::string newCachePath = BookCachePath::build("/.crosspoint", "epub_", dstPath);
     if (!oldCachePath.empty() && Storage.exists(oldCachePath.c_str())) {
       if (!Storage.rename(oldCachePath.c_str(), newCachePath.c_str())) {
         LOG_ERR("FileBrowser", "Failed to rename cache dir %s -> %s (non-fatal)", oldCachePath.c_str(),

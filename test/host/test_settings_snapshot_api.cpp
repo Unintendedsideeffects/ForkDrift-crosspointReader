@@ -1,9 +1,9 @@
-#include "doctest/doctest.h"
-
 #include <ArduinoJson.h>
+
 #include <cstring>
 #include <string>
 
+#include "doctest/doctest.h"
 #include "network/SettingsSnapshotApi.h"
 #include "src/CrossPointSettings.h"
 
@@ -59,5 +59,8 @@ TEST_CASE("settings snapshot api serializes selected fields") {
   CHECK(std::string(doc["selectedOtaBundle"] | "") == "bundle-123");
   CHECK(std::string(doc["installedOtaBundle"] | "") == "bundle-456");
   CHECK(std::string(doc["deviceName"] | "") == "CrossPoint Test");
+  CHECK(doc["opdsServerUrl"].isNull());
   CHECK(doc["opdsUsername"].isNull());
+  CHECK(doc["opdsPassword"].isNull());
+  CHECK(doc["opdsPassword_obf"].isNull());
 }

@@ -8,16 +8,33 @@
 #include "network/FileMutationApi.h"
 
 void CrossPointWebServer::handleCreateFolder() const {
-  if (!server->hasArg("name")) {
-    server->send(400, "text/plain", "Missing folder name");
+  if (server->hasArg("name") || server->hasArg("path")) {
+    server->send(400, "text/plain", "Use JSON name/path body");
+    return;
+  }
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
     return;
   }
 
-  const auto result = network::createFolder(server->hasArg("path") ? server->arg("path") : "/", server->arg("name"));
+  JsonDocument body;
+  if (deserializeJson(body, server->arg("plain"))) {
+    server->send(400, "text/plain", "Invalid JSON body");
+    return;
+  }
+
+  const String name = body["name"].as<String>();
+  if (name.isEmpty()) {
+    server->send(400, "text/plain", "Missing folder name");
+    return;
+  }
+  const String path = body["path"] | "/";
+
+  const auto result = network::createFolder(path, name);
   if (result.ok()) {
     LOG_DBG("WEB", "%s", result.body.c_str());
   } else if (result.statusCode >= 500) {
-    LOG_DBG("WEB", "Failed mkdir for path=%s name=%s", server->arg("path").c_str(), server->arg("name").c_str());
+    LOG_DBG("WEB", "Failed mkdir for path=%s name=%s", path.c_str(), name.c_str());
   }
   server->send(result.statusCode, "text/plain", result.body);
 }
@@ -70,27 +87,26 @@ void CrossPointWebServer::handleMove() const {
 }
 
 void CrossPointWebServer::handleDelete() const {
-  if (server->hasArg("path")) {
+  if (server->hasArg("path") || server->hasArg("paths")) {
     server->send(400, "text/plain", "Use paths JSON array");
     return;
   }
-  const bool hasPathsArg = server->hasArg("paths");
 
-  if (!hasPathsArg) {
-    server->send(400, "text/plain", "Missing `paths` argument");
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
     return;
   }
 
   std::vector<String> paths;
   JsonDocument doc;
-  if (deserializeJson(doc, server->arg("paths"))) {
-    server->send(400, "text/plain", "Invalid paths format");
+  if (deserializeJson(doc, server->arg("plain"))) {
+    server->send(400, "text/plain", "Invalid JSON body");
     return;
   }
 
   JsonArray jsonPaths = doc.as<JsonArray>();
   if (jsonPaths.isNull() || jsonPaths.size() == 0) {
-    server->send(400, "text/plain", "No paths provided");
+    server->send(400, "text/plain", jsonPaths.isNull() ? "Use paths JSON array" : "No paths provided");
     return;
   }
 

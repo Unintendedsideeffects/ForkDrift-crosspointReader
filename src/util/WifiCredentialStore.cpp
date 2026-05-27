@@ -21,10 +21,11 @@ bool WifiCredentialStore::saveToFile() const {
 
 bool WifiCredentialStore::loadFromFile() {
   if (Storage.exists(WIFI_FILE_JSON)) {
-    String json = Storage.readFile(WIFI_FILE_JSON);
-    if (!json.isEmpty()) {
+    FsFile file;
+    if (Storage.openFileForRead("WCS", WIFI_FILE_JSON, file)) {
       bool resave = false;
-      bool result = JsonSettingsIO::loadWifi(*this, json.c_str(), &resave);
+      const bool result = JsonSettingsIO::loadWifi(*this, file, &resave);
+      file.close();
       if (result && resave) {
         LOG_DBG("WCS", "Resaving JSON with obfuscated passwords");
         saveToFile();

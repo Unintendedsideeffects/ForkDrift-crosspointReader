@@ -27,7 +27,6 @@ CompileFlags:
     - -Iinclude
     - -Isrc
     - -I.pio/libdeps/default/ArduinoJson/src
-CompilationDatabase: None
 
 ---
 If:

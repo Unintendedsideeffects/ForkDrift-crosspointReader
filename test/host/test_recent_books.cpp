@@ -1,15 +1,17 @@
-#include "doctest/doctest.h"
 #include <cmath>
+#include <string>
+#include <vector>
+
+#include "doctest/doctest.h"
+#include "include/BookCachePath.h"
 #include "lib/Serialization/Serialization.h"
 #include "src/network/RecentBookJson.h"
 #include "src/util/PokemonBookDataStore.h"
 #include "test/mock/HalStorage.h"
-#include <string>
-#include <vector>
 
 namespace {
 std::string buildCachePath(const char* prefix, const std::string& bookPath) {
-  return std::string("/.crosspoint/") + prefix + std::to_string(std::hash<std::string>{}(bookPath));
+  return BookCachePath::build("/.crosspoint", prefix, bookPath);
 }
 
 void writeTxtIndexFile(const std::string& path, uint32_t totalPages, uint8_t markdownFlag = 0) {
@@ -30,7 +32,6 @@ void writeTxtIndexFile(const std::string& path, uint32_t totalPages, uint8_t mar
 }  // namespace
 
 TEST_CASE("testRecentBookJsonIncludesPokemon") {
-
   Storage.reset();
 
   const std::string bookPath = "/books/recent.txt";

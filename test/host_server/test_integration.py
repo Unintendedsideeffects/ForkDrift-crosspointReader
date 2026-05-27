@@ -131,7 +131,6 @@ class HostServerTest(unittest.TestCase):
     def test_01_list_files(self):
         """GET /api/files?path=X — listing"""
         code, body, _ = self._request("GET", "/api/files?path=/")
-        if code == 404: self.skipTest("Route /api/files not implemented")
         self.assertEqual(code, 200)
         files = json.loads(body)
         names = [f["name"] for f in files]
@@ -156,17 +155,21 @@ class HostServerTest(unittest.TestCase):
     def test_02_download_file(self):
         """GET /download?path=X — file content"""
         code, body, _ = self._request("GET", "/download?path=/test.txt")
-        if code == 404: self.skipTest("Route /download not implemented")
         self.assertEqual(code, 200)
         self.assertEqual(body, b"hello world")
 
     def test_03_mkdir(self):
-        """POST /mkdir (form: name, path)"""
-        data = urllib.parse.urlencode({"name": "new_dir", "path": "/"}).encode("utf-8")
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        """POST /mkdir (JSON: name, path)"""
+        legacy = urllib.parse.urlencode({"name": "new_dir", "path": "/"}).encode("utf-8")
+        legacy_headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        code, body, _ = self._request("POST", "/mkdir", data=legacy, headers=legacy_headers)
+
+        self.assertEqual(code, 400)
+        self.assertIn(b"Use JSON name/path body", body)
+
+        data = json.dumps({"name": "new_dir", "path": "/"}).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
         code, _, _ = self._request("POST", "/mkdir", data=data, headers=headers)
-        
-        if code == 404: self.skipTest("Route /mkdir not implemented")
         self.assertEqual(code, 200)
         
         # Verify on-disk state
@@ -179,7 +182,6 @@ class HostServerTest(unittest.TestCase):
         legacy_headers = {"Content-Type": "application/x-www-form-urlencoded"}
         code, body, _ = self._request("POST", "/rename", data=legacy, headers=legacy_headers)
 
-        if code == 404: self.skipTest("Route /rename not implemented")
         self.assertEqual(code, 400)
         self.assertIn(b"Use JSON from/to body", body)
 
@@ -199,7 +201,6 @@ class HostServerTest(unittest.TestCase):
         legacy_headers = {"Content-Type": "application/x-www-form-urlencoded"}
         code, body, _ = self._request("POST", "/move", data=legacy, headers=legacy_headers)
 
-        if code == 404: self.skipTest("Route /move not implemented")
         self.assertEqual(code, 400)
         self.assertIn(b"Use JSON from/to body", body)
 
@@ -226,7 +227,6 @@ class HostServerTest(unittest.TestCase):
         # ?path=/subdir specifies destination
         code, _, _ = self._request("POST", "/upload?path=/subdir", data=body, headers=headers)
         
-        if code == 404: self.skipTest("Route /upload not implemented")
         self.assertEqual(code, 200)
         
         # Verify on-disk state
@@ -236,18 +236,23 @@ class HostServerTest(unittest.TestCase):
             self.assertEqual(f.read(), file_content)
 
     def test_07_delete(self):
-        """POST /delete (form: paths JSON array)"""
+        """POST /delete (JSON paths array)"""
         single_path = urllib.parse.urlencode({"path": "/subdir/subfile.txt"}).encode("utf-8")
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        code, body, _ = self._request("POST", "/delete", data=single_path, headers=headers)
+        form_headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        code, body, _ = self._request("POST", "/delete", data=single_path, headers=form_headers)
 
-        if code == 404: self.skipTest("Route /delete not implemented")
+        self.assertEqual(code, 400)
+        self.assertIn(b"Use paths JSON array", body)
+
+        legacy_paths = urllib.parse.urlencode({"paths": json.dumps(["/subdir/subfile.txt"])}).encode("utf-8")
+        code, body, _ = self._request("POST", "/delete", data=legacy_paths, headers=form_headers)
         self.assertEqual(code, 400)
         self.assertIn(b"Use paths JSON array", body)
 
         # Delete /subdir/subfile.txt and /test.epub
         paths = ["/subdir/subfile.txt", "/test.epub"]
-        data = urllib.parse.urlencode({"paths": json.dumps(paths)}).encode("utf-8")
+        data = json.dumps(paths).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
         code, _, _ = self._request("POST", "/delete", data=data, headers=headers)
         self.assertEqual(code, 200)
 

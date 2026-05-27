@@ -1,5 +1,6 @@
 #include "EpubReaderActivity.h"
 
+#include <BookCachePath.h>
 #include <Epub/Page.h>
 #include <Epub/blocks/TextBlock.h>
 #include <FontCacheManager.h>
@@ -237,8 +238,7 @@ void EpubReaderActivity::onEnter() {
 #if ENABLE_BOOKMARKS
   BOOKMARKS.loadForBook(epub->getPath(), epub->getTitle(), epub->getAuthor(), "epub");
   // Resume at bookmark selected from the home screen, if any.
-  if (APP_STATE.pendingBookmarkSpine != PENDING_BOOKMARK_SPINE_NONE &&
-      APP_STATE.pendingBookmarkProgress >= 0.0f) {
+  if (APP_STATE.pendingBookmarkSpine != PENDING_BOOKMARK_SPINE_NONE && APP_STATE.pendingBookmarkProgress >= 0.0f) {
     currentSpineIndex = APP_STATE.pendingBookmarkSpine;
     pendingSpineProgress = APP_STATE.pendingBookmarkProgress;
     APP_STATE.pendingBookmarkSpine = PENDING_BOOKMARK_SPINE_NONE;
@@ -384,33 +384,33 @@ void EpubReaderActivity::loop() {
     const int currentPage = section ? section->currentPage + 1 : 0;
     const int totalPages = section ? section->pageCount : 0;
     const int bookProgressPercent = roundPercent(getCurrentBookProgressPercent());
-    startActivityForResult(std::make_unique<EpubReaderMenuActivity>(
-                               renderer, mappedInput, epub->getTitle(), currentPage, totalPages, bookProgressPercent,
-                               SETTINGS.orientation, !currentPageFootnotes.empty(),
+    startActivityForResult(
+        std::make_unique<EpubReaderMenuActivity>(
+            renderer, mappedInput, epub->getTitle(), currentPage, totalPages, bookProgressPercent, SETTINGS.orientation,
+            !currentPageFootnotes.empty(),
 #if ENABLE_READING_STATS
-                               stats.isCompleted
+            stats.isCompleted
 #else
-                               false
+            false
 #endif
 #if ENABLE_BOOKMARKS
-                               ,
-                               BOOKMARKS.hasAnyBookmarks(),
-                               BOOKMARKS.hasBookmarkForPage(
-                                   static_cast<uint16_t>(currentSpineIndex),
-                                   (section && section->pageCount > 0)
-                                       ? static_cast<float>(section->currentPage) / section->pageCount
-                                       : 0.0f,
-                                   section ? section->pageCount : 0)
+            ,
+            BOOKMARKS.hasAnyBookmarks(),
+            BOOKMARKS.hasBookmarkForPage(static_cast<uint16_t>(currentSpineIndex),
+                                         (section && section->pageCount > 0)
+                                             ? static_cast<float>(section->currentPage) / section->pageCount
+                                             : 0.0f,
+                                         section ? section->pageCount : 0)
 #endif
-                               ),
-                           [this](const ActivityResult& result) {
-                             // Always apply orientation change even if the menu was cancelled
-                             const auto& menu = std::get<MenuResult>(result.data);
-                             applyOrientation(menu.orientation);
-                             if (!result.isCancelled) {
-                               onReaderMenuConfirm(static_cast<EpubReaderMenuActivity::MenuAction>(menu.action));
-                             }
-                           });
+                ),
+        [this](const ActivityResult& result) {
+          // Always apply orientation change even if the menu was cancelled
+          const auto& menu = std::get<MenuResult>(result.data);
+          applyOrientation(menu.orientation);
+          if (!result.isCancelled) {
+            onReaderMenuConfirm(static_cast<EpubReaderMenuActivity::MenuAction>(menu.action));
+          }
+        });
   }
 
   // Long press BACK (1s+) goes to file selection
@@ -949,9 +949,8 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
         requestUpdate();
         break;
       }
-      const float pageProgress = (section->pageCount > 0)
-                                     ? static_cast<float>(section->currentPage) / section->pageCount
-                                     : 0.0f;
+      const float pageProgress =
+          (section->pageCount > 0) ? static_cast<float>(section->currentPage) / section->pageCount : 0.0f;
       const auto spineIdx = static_cast<uint16_t>(currentSpineIndex);
       if (BOOKMARKS.hasBookmarkForPage(spineIdx, pageProgress, section->pageCount)) {
         BOOKMARKS.removeBookmarkForPage(spineIdx, pageProgress, section->pageCount);
@@ -1732,7 +1731,7 @@ void EpubReaderActivity::readFolderMoveTask(void* arg) {
   }
 
   const std::string oldCachePath = params->cachePath;
-  const std::string newCachePath = "/.crosspoint/epub_" + std::to_string(std::hash<std::string>{}(dstEpubPath));
+  const std::string newCachePath = BookCachePath::build("/.crosspoint", "epub_", dstEpubPath);
   if (!oldCachePath.empty() && Storage.exists(oldCachePath.c_str())) {
     if (!Storage.rename(oldCachePath.c_str(), newCachePath.c_str())) {
       LOG_ERR("ERS", "Failed to rename cache dir %s -> %s (non-fatal)", oldCachePath.c_str(), newCachePath.c_str());

@@ -1,5 +1,6 @@
 #include "MyLibraryActivity.h"
 
+#include <BookCachePath.h>
 #include <Epub.h>
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
@@ -12,13 +13,13 @@
 
 #include "../util/ConfirmationActivity.h"
 #include "MappedInputManager.h"
-#include "util/RecentBooksStore.h"
-#include "components/ScreenComponents.h"
 #include "SpiBusMutex.h"
 #include "activities/TaskShutdown.h"
+#include "components/ScreenComponents.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "fontIds.h"
+#include "util/RecentBooksStore.h"
 #include "util/StringUtils.h"
 
 namespace {
@@ -496,7 +497,7 @@ void MyLibraryActivity::renderGrid() const {
 
 bool MyLibraryActivity::drawCoverAt(const std::string& path, const int x, const int y, const int width,
                                     const int height) const {
-  std::string cacheKey = "/.crosspoint/epub_" + std::to_string(std::hash<std::string>{}(path));
+  std::string cacheKey = BookCachePath::build("/.crosspoint", "epub_", path);
   std::string thumbPath = cacheKey + "/thumb_" + std::to_string(height) + ".bmp";
 
   if (!Storage.exists(thumbPath.c_str())) {

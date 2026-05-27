@@ -55,11 +55,6 @@
 # The script emits a non-blocking warning for any violations still present.
 # ─────────────────────────────────────────────────────────────────────────────
 #
-#   UITheme.cpp             — TODO: extract theme class selection to a feature
-#                             registration unit (ENABLE_LYRA_THEME guard at
-#                             class-selection site; theme classes exist in binary
-#                             so a runtime dispatch is feasible).
-#
 #   BackgroundWebServer.cpp — TODO: move whole-subsystem guard to Registration.cpp
 #                             (ENABLE_BACKGROUND_SERVER guard wrapping server task;
 #                             the class can be compiled independently of the guard).
@@ -74,7 +69,7 @@ set -e
 PERMANENT_PATHS_REGEX='^src/(CrossPointSettings\.cpp|network/CrossPointWebServer\.cpp|network/OtaWebCheck\.cpp|network/BleWifiProvisioner\.(cpp|h)|util/UserFontManager\.(cpp|h)|UsbSerialProtocol\.(cpp|h)|activities/browser/OpdsBookBrowserActivity\.cpp|activities/boot_sleep/SleepActivity\.cpp):'
 
 # TODO: Remove each entry here once its migration PR lands (Category 2 above).
-CLEANUP_DEBT_PATHS_REGEX='^src/(components/UITheme\.cpp|network/BackgroundWebServer\.cpp|activities/reader/TxtReaderActivity\.cpp):'
+CLEANUP_DEBT_PATHS_REGEX='^src/(network/BackgroundWebServer\.cpp|activities/reader/TxtReaderActivity\.cpp):'
 
 ALL_MATCHES=$(
     grep -rEn "^[[:space:]]*#[[:space:]]*if(def)?[[:space:]]+.*ENABLE_" src/ \

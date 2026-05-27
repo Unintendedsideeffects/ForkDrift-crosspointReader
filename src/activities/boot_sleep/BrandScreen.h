@@ -7,9 +7,11 @@
 
 namespace BrandScreen {
 
-inline constexpr uint16_t kLogoSize = 160;
-inline constexpr int kTitleOffsetFromCenter = 90;
-inline constexpr int kSubtitleOffsetFromCenter = 115;
+inline constexpr uint16_t kLogoSize = 240;
+inline constexpr int kTitleGap = 10;
+inline constexpr int kSubtitleGap = 35;
+inline constexpr int kTitleOffsetFromCenter = kLogoSize / 2 + kTitleGap;
+inline constexpr int kSubtitleOffsetFromCenter = kLogoSize / 2 + kSubtitleGap;
 
 inline void drawLogo(const GfxRenderer& renderer, const int pageWidth, const int pageHeight) {
   renderer.drawImage(Logo160, (pageWidth - kLogoSize) / 2, (pageHeight - kLogoSize) / 2, kLogoSize, kLogoSize);

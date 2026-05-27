@@ -13,10 +13,10 @@ Firmware endpoints implemented:
     GET  /api/plugins
     GET  /api/files?path=X
     GET  /download?path=X
-    POST /mkdir          (form: name, path)
+    POST /mkdir          (JSON body: name, path)
     POST /rename         (JSON body: from, to)
     POST /move           (JSON body: from, to)
-    POST /delete         (form: paths JSON array)
+    POST /delete         (JSON body: paths array)
     GET  /api/settings
     GET  /api/settings/raw
     POST /api/settings   (JSON body)
@@ -195,13 +195,13 @@ class ContractHandler(BaseHTTPRequestHandler):
         parsed = urllib.parse.parse_qs(decoded, keep_blank_values=True)
         return {k: v[0] for k, v in parsed.items()}
 
-    def _json_body_or_error(self, raw: bytes) -> dict | None:
+    def _json_body_or_error(self, raw: bytes, *, expected_type: type = dict, contract_message: str = "Use JSON from/to body"):
         content_type = self.headers.get("Content-Type", "")
         if "application/json" not in content_type:
-            self._text("Use JSON from/to body", 400)
+            self._text(contract_message, 400)
             return None
         body = self._parse_json(raw)
-        if not isinstance(body, dict):
+        if not isinstance(body, expected_type):
             self._text("Invalid JSON body", 400)
             return None
         return body
@@ -407,9 +407,11 @@ class ContractHandler(BaseHTTPRequestHandler):
                 self._text(f"Applied {len(body)} setting(s)")
 
             elif base == "/mkdir":
-                form = self._parse_form(raw)
-                name = form.get("name", "")
-                path = form.get("path", "/")
+                body = self._json_body_or_error(raw, contract_message="Use JSON name/path body")
+                if body is None:
+                    return
+                name = body.get("name", "")
+                path = body.get("path", "/")
                 _mutations["createdDirs"].append([name, path])
                 self._text(f"Folder created: {name}")
 
@@ -432,11 +434,9 @@ class ContractHandler(BaseHTTPRequestHandler):
                 self._text("Moved successfully")
 
             elif base == "/delete":
-                form = self._parse_form(raw)
-                try:
-                    paths = json.loads(form.get("paths", "[]"))
-                except json.JSONDecodeError:
-                    paths = []
+                paths = self._json_body_or_error(raw, expected_type=list, contract_message="Use paths JSON array")
+                if paths is None:
+                    return
                 _mutations["deletedPaths"].append(paths)
                 self._text(f"Deleted {len(paths)} item(s)")
 

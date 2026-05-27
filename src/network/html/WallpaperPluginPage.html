@@ -471,10 +471,11 @@
   });
 
   async function ensureFolder(path, name) {
-    const form = new FormData();
-    form.append('path', path);
-    form.append('name', name);
-    const resp = await fetch('/mkdir', { method: 'POST', body: form });
+    const resp = await fetch('/mkdir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, name })
+    });
     if (resp.ok) return;
     const msg = (await resp.text()).toLowerCase();
     if (msg.includes('exist')) return;  // already exists — fine

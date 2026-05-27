@@ -43,13 +43,13 @@ CPFONT_MAGIC = b"CPFONT\x00\x00"
 
 STYLE_NAMES = {0: "regular", 1: "bold", 2: "italic", 3: "bolditalic"}
 
-# Family descriptions can be loaded from the sd-fonts.yaml config
+# Family descriptions can be loaded from an optional YAML config
 # (via --descriptions-from) or fall back to the family name.
 FAMILY_DESCRIPTIONS: dict[str, str] = {}
 
 
 def load_descriptions_from_yaml(yaml_path: Path) -> dict[str, str]:
-    """Load family descriptions from sd-fonts.yaml config."""
+    """Load family descriptions from a YAML config."""
     try:
         import yaml
     except ImportError:
@@ -217,7 +217,7 @@ def main():
     parser.add_argument(
         "--descriptions-from",
         default=None,
-        help="Path to sd-fonts.yaml to load family descriptions (default: use family name)",
+        help="Path to a YAML file with family descriptions (default: use family name)",
     )
     args = parser.parse_args()
 

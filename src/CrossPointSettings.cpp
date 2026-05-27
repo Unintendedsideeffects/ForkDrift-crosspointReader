@@ -147,10 +147,11 @@ bool CrossPointSettings::saveToFile() const {
 
 bool CrossPointSettings::loadFromFile() {
   if (Storage.exists(SETTINGS_FILE_JSON)) {
-    String json = Storage.readFile(SETTINGS_FILE_JSON);
-    if (!json.isEmpty()) {
+    FsFile file;
+    if (Storage.openFileForRead("CPS", SETTINGS_FILE_JSON, file)) {
       bool resave = false;
-      bool result = JsonSettingsIO::loadSettings(*this, json.c_str(), &resave);
+      const bool result = JsonSettingsIO::loadSettings(*this, file, &resave);
+      file.close();
       if (result) {
         validateAndClamp();
         if (resave) {
@@ -275,7 +276,6 @@ void CrossPointSettings::validateAndClamp() {
   if (shortPwrBtn > FORCE_REFRESH) shortPwrBtn = IGNORE;
   if (hideBatteryPercentage > HIDE_ALWAYS) hideBatteryPercentage = HIDE_NEVER;
   if (timeMode > TIME_MODE_MANUAL) timeMode = TIME_MODE_UTC;
-  if (todoFallbackCover > 1) todoFallbackCover = 0;
   if (releaseChannel >= RELEASE_CHANNEL_COUNT) releaseChannel = RELEASE_STABLE;
   if (language >= getLanguageCount()) language = static_cast<uint8_t>(Language::EN);
   if (longPressButtonBehavior >= LONG_PRESS_BUTTON_BEHAVIOR_COUNT) longPressButtonBehavior = CHAPTER_SKIP;

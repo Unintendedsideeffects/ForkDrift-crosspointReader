@@ -134,8 +134,14 @@ grep -q "^HTTP/.* 200" "$HEADER_FILE"
 grep -qi "^Content-Type: application/json" "$HEADER_FILE"
 grep -q '"hello.txt"' "$BODY_FILE"
 
-curl -fsS -X POST -D "$HEADER_FILE" -o "$BUILD_DIR/mkdir.txt" \
+curl -sS -X POST -D "$HEADER_FILE" -o "$BUILD_DIR/mkdir-legacy.txt" \
   "http://127.0.0.1:$PORT/mkdir?name=newdir&path=/" >/dev/null
+grep -q "^HTTP/.* 400" "$HEADER_FILE"
+grep -q "Use JSON name/path body" "$BUILD_DIR/mkdir-legacy.txt"
+
+curl -fsS -X POST -H "Content-Type: application/json" -D "$HEADER_FILE" -o "$BUILD_DIR/mkdir.txt" \
+  --data '{"name":"newdir","path":"/"}' \
+  "http://127.0.0.1:$PORT/mkdir" >/dev/null
 grep -q "^HTTP/.* 200" "$HEADER_FILE"
 [ -d "$TMP_ROOT/newdir" ]
 
@@ -168,7 +174,13 @@ curl -sS -X POST -D "$HEADER_FILE" -o "$BUILD_DIR/delete-legacy.txt" \
 grep -q "^HTTP/.* 400" "$HEADER_FILE"
 grep -q "Use paths JSON array" "$BUILD_DIR/delete-legacy.txt"
 
-curl -fsS -X POST -D "$HEADER_FILE" -o "$BUILD_DIR/delete.txt" \
+curl -sS -X POST -D "$HEADER_FILE" -o "$BUILD_DIR/delete-paths-legacy.txt" \
   "http://127.0.0.1:$PORT/delete?paths=%5B%22%2Fnewdir%2Frenamed.txt%22%5D" >/dev/null
+grep -q "^HTTP/.* 400" "$HEADER_FILE"
+grep -q "Use paths JSON array" "$BUILD_DIR/delete-paths-legacy.txt"
+
+curl -fsS -X POST -H "Content-Type: application/json" -D "$HEADER_FILE" -o "$BUILD_DIR/delete.txt" \
+  --data '["/newdir/renamed.txt"]' \
+  "http://127.0.0.1:$PORT/delete" >/dev/null
 grep -q "^HTTP/.* 200" "$HEADER_FILE"
 [ ! -e "$TMP_ROOT/newdir/renamed.txt" ]

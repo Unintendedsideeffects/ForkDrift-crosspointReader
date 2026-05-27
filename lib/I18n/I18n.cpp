@@ -14,7 +14,7 @@ I18n& I18n::getInstance() {
 
 const char* I18n::get(const StrId id) const {
   const auto index = static_cast<size_t>(id);
-  if (index >= static_cast<size_t>(StrId::_COUNT)) {
+  if (index >= static_cast<size_t>(StrId::STR_COUNT)) {
     return "???";
   }
 
@@ -28,7 +28,7 @@ const char* I18n::get(const StrId id) const {
 }
 
 void I18n::setLanguage(const Language lang) {
-  if (lang >= Language::_COUNT) {
+  if (lang >= Language::LANGUAGE_COUNT) {
     return;
   }
   _language = lang;
@@ -36,7 +36,7 @@ void I18n::setLanguage(const Language lang) {
 
 const char* I18n::getLanguageName(const Language lang) const {
   const auto index = static_cast<size_t>(lang);
-  if (index >= static_cast<size_t>(Language::_COUNT)) {
+  if (index >= static_cast<size_t>(Language::LANGUAGE_COUNT)) {
     return "???";
   }
   return LANGUAGE_NAMES[index];
@@ -51,7 +51,7 @@ Language I18n::languageFromCode(const char* code) {
 
 const char* I18n::getCharacterSet(const Language lang) {
   const auto index = static_cast<size_t>(lang);
-  if (index >= static_cast<size_t>(Language::_COUNT)) {
+  if (index >= static_cast<size_t>(Language::LANGUAGE_COUNT)) {
     return CHARACTER_SETS[0];
   }
   return CHARACTER_SETS[index];

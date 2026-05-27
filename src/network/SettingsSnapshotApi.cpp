@@ -36,13 +36,10 @@ String buildSettingsSnapshotJson(const CrossPointSettings& s) {
   doc["sleepTimeoutMinutes"] = s.sleepTimeoutMinutes;
   doc["refreshFrequency"] = s.refreshFrequency;
   doc["screenMargin"] = s.screenMargin;
-  doc["opdsServerUrl"] = s.opdsServerUrl;
-  // opdsUsername and opdsPassword are not included to avoid exposing credentials.
   doc["hideBatteryPercentage"] = s.hideBatteryPercentage;
   doc["longPressButtonBehavior"] = s.longPressButtonBehavior;
   doc["hyphenationEnabled"] = s.hyphenationEnabled;
   doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
-  doc["todoFallbackCover"] = s.todoFallbackCover;
   doc["timeMode"] = s.timeMode;
   doc["timeZoneOffset"] = s.timeZoneOffset;
   doc["releaseChannel"] = s.releaseChannel;

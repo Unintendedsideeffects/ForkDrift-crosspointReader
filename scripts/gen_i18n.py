@@ -283,6 +283,7 @@ def find_used_string_keys(
             for m in pattern.finditer(text):
                 used.add(m.group(0))
 
+    used.discard("STR_COUNT")
     return used
 
 
@@ -466,7 +467,7 @@ def generate_keys_header(
     lines.append("enum class Language : uint8_t {")
     for i, lang in enumerate(languages):
         lines.append(f"  {lang} = {i},")
-    lines.append("  _COUNT")
+    lines.append("  LANGUAGE_COUNT")
     lines.append("};")
     lines.append("")
 
@@ -488,7 +489,7 @@ def generate_keys_header(
     for key in string_keys:
         lines.append(f"  {key},")
     lines.append("  // Sentinel - must be last")
-    lines.append("  _COUNT")
+    lines.append("  STR_COUNT")
     lines.append("};")
     lines.append("")
 
@@ -522,7 +523,7 @@ def generate_keys_header(
     lines.append("// Helper function to get language count")
     lines.append(
         "constexpr uint8_t getLanguageCount() "
-        "{ return static_cast<uint8_t>(Language::_COUNT); }"
+        "{ return static_cast<uint8_t>(Language::LANGUAGE_COUNT); }"
     )
     lines.append("")
 
@@ -702,7 +703,7 @@ def generate_strings_cpp(
             f"static_assert(sizeof(i18n_strings::OFFSETS_{code}) "
             f"/ sizeof(i18n_strings::OFFSETS_{code}[0]) =="
         )
-        lines.append("                  static_cast<size_t>(StrId::_COUNT),")
+        lines.append("                  static_cast<size_t>(StrId::STR_COUNT),")
         lines.append(f'              "OFFSETS_{code} size mismatch");')
 
     _write_file(output_path, lines, verbose)

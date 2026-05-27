@@ -1,6 +1,7 @@
 #include "JsonSettingsIO.h"
 
 #include <ArduinoJson.h>
+#include <FsFileJsonReader.h>
 #include <HalStorage.h>
 #include <Logging.h>
 #include <ObfuscationUtils.h>
@@ -16,35 +17,24 @@
 #include "util/RecentBooksStore.h"
 #include "util/WifiCredentialStore.h"
 
-// ---- CrossPointState ----
+namespace {
 
-bool JsonSettingsIO::saveState(const CrossPointState& s, const char* path) {
-  JsonDocument doc;
-  doc["openEpubPath"] = s.openEpubPath;
-  doc["lastSleepImage"] = s.lastSleepImage;
-  doc["readerActivityLoadCount"] = s.readerActivityLoadCount;
-  doc["lastSleepFromReader"] = s.lastSleepFromReader;
-  doc["wifiAutoConnectSkipCount"] = s.wifiAutoConnectSkipCount;
-  doc["wifiAutoConnectBackoffLevel"] = s.wifiAutoConnectBackoffLevel;
-  doc["wifiAutoConnectWaitingForNewCredential"] = s.wifiAutoConnectWaitingForNewCredential;
-  if (s.pendingBookmarkSpine != PENDING_BOOKMARK_SPINE_NONE) {
-    doc["pendingBookmarkSpine"] = s.pendingBookmarkSpine;
-    doc["pendingBookmarkProgress"] = s.pendingBookmarkProgress;
-  }
-
-  String json;
-  serializeJson(doc, json);
-  return Storage.writeFile(path, json);
-}
-
-bool JsonSettingsIO::loadState(CrossPointState& s, const char* json) {
-  JsonDocument doc;
-  auto error = deserializeJson(doc, json);
+template <typename Input>
+bool deserializeJsonLogged(JsonDocument& doc, Input&& input, const char* tag) {
+  const DeserializationError error = deserializeJson(doc, input);
   if (error) {
-    LOG_ERR("CPS", "JSON parse error: %s", error.c_str());
+    LOG_ERR(tag, "JSON parse error: %s", error.c_str());
     return false;
   }
+  return true;
+}
 
+bool deserializeJsonFromFile(JsonDocument& doc, FsFile& file, const char* tag) {
+  FsFileJsonReader reader(file);
+  return deserializeJsonLogged(doc, reader, tag);
+}
+
+bool loadStateFromDoc(CrossPointState& s, const JsonDocument& doc) {
   s.openEpubPath = doc["openEpubPath"] | std::string("");
   s.lastSleepImage = doc["lastSleepImage"] | (uint8_t)UINT8_MAX;
   s.readerActivityLoadCount = doc["readerActivityLoadCount"] | (uint8_t)0;
@@ -57,97 +47,8 @@ bool JsonSettingsIO::loadState(CrossPointState& s, const char* json) {
   return true;
 }
 
-// ---- CrossPointSettings ----
-
-bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path) {
-  JsonDocument doc;
-
-  doc["sleepScreen"] = s.sleepScreen;
-  doc["sleepScreenSource"] = s.sleepScreenSource;
-  doc["sleepPinnedPath"] = s.sleepPinnedPath;
-  doc["sleepScreenCoverMode"] = s.sleepScreenCoverMode;
-  doc["sleepScreenCoverFilter"] = s.sleepScreenCoverFilter;
-  doc["sleepCycleMode"] = s.sleepCycleMode;
-  doc["statusBarChapterPageCount"] = s.statusBarChapterPageCount;
-  doc["statusBarBookProgressPercentage"] = s.statusBarBookProgressPercentage;
-  doc["statusBarProgressBar"] = s.statusBarProgressBar;
-  doc["statusBarProgressBarThickness"] = s.statusBarProgressBarThickness;
-  doc["statusBarTitle"] = s.statusBarTitle;
-  doc["statusBarBattery"] = s.statusBarBattery;
-  doc["statusBarClock"] = s.statusBarClock;
-  doc["clockUtcOffsetQ"] = s.clockUtcOffsetQ;
-  doc["clockFormat"] = s.clockFormat;
-  doc["clockHasBeenSynced"] = s.clockHasBeenSynced;
-  doc["extraParagraphSpacing"] = s.extraParagraphSpacing;
-  doc["textAntiAliasing"] = s.textAntiAliasing;
-  doc["shortPwrBtn"] = s.shortPwrBtn;
-  doc["orientation"] = s.orientation;
-  doc["frontButtonLayout"] = s.frontButtonLayout;
-  doc["sideButtonLayout"] = s.sideButtonLayout;
-  doc["frontButtonBack"] = s.frontButtonBack;
-  doc["frontButtonConfirm"] = s.frontButtonConfirm;
-  doc["frontButtonLeft"] = s.frontButtonLeft;
-  doc["frontButtonRight"] = s.frontButtonRight;
-  doc["fontFamily"] = s.fontFamily;
-  if (s.sdFontFamilyName[0] != '\0') {
-    doc["sdFontFamilyName"] = s.sdFontFamilyName;
-  }
-  doc["fontSize"] = s.fontSize;
-  doc["lineSpacing"] = s.lineSpacing;
-  doc["paragraphAlignment"] = s.paragraphAlignment;
-  doc["sleepTimeoutMinutes"] = s.sleepTimeoutMinutes;
-  doc["refreshFrequency"] = s.refreshFrequency;
-  doc["screenMargin"] = s.screenMargin;
-  doc["opdsServerUrl"] = s.opdsServerUrl;
-  doc["opdsUsername"] = s.opdsUsername;
-  doc["opdsPassword_obf"] = obfuscation::obfuscateToBase64(s.opdsPassword);
-  doc["hideBatteryPercentage"] = s.hideBatteryPercentage;
-  doc["longPressButtonBehavior"] = s.longPressButtonBehavior;
-  doc["hyphenationEnabled"] = s.hyphenationEnabled;
-  doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
-  doc["todoFallbackCover"] = s.todoFallbackCover;
-  doc["timeMode"] = s.timeMode;
-  doc["timeZoneOffset"] = s.timeZoneOffset;
-  doc["lastTimeSyncEpoch"] = s.lastTimeSyncEpoch;
-  doc["releaseChannel"] = s.releaseChannel;
-  doc["uiTheme"] = s.uiTheme;
-  doc["recentBooksView"] = s.recentBooksView;
-  doc["fadingFix"] = s.fadingFix;
-  doc["darkMode"] = s.darkMode;
-  doc["embeddedStyle"] = s.embeddedStyle;
-  doc["focusReadingEnabled"] = s.focusReadingEnabled;
-  doc["usbMscPromptOnConnect"] = s.usbMscPromptOnConnect;
-  doc["userFontPath"] = s.userFontPath;
-  doc["selectedOtaBundle"] = s.selectedOtaBundle;
-  doc["installedOtaBundle"] = s.installedOtaBundle;
-  doc["installedOtaFeatureFlags"] = s.installedOtaFeatureFlags;
-  doc["deviceName"] = s.deviceName;
-  doc["wifiAutoConnect"] = s.wifiAutoConnect;
-  doc["showHiddenFiles"] = s.showHiddenFiles;
-  doc["todoOpenDirectToToday"] = s.todoOpenDirectToToday;
-  doc["moveFinishedToReadFolder"] = s.moveFinishedToReadFolder;
-  doc["developerMode"] = s.developerMode;
-  doc["imageRendering"] = s.imageRendering;
-  doc["globalStatusBar"] = s.globalStatusBar;
-  doc["globalStatusBarPosition"] = s.globalStatusBarPosition;
-
-  // Language -- managed by LanguageSelectActivity, not in SettingsList.
-  // Stored as ISO code string ("EN", "DE", ...) for stability across enum reorders.
-  doc["language"] = (s.language < getLanguageCount()) ? LANGUAGE_CODES[s.language] : "EN";
-
-  String json;
-  serializeJson(doc, json);
-  return Storage.writeFile(path, json);
-}
-
-bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool* needsResave) {
+bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* needsResave) {
   if (needsResave) *needsResave = false;
-  JsonDocument doc;
-  auto error = deserializeJson(doc, json);
-  if (error) {
-    LOG_ERR("CPS", "JSON parse error: %s", error.c_str());
-    return false;
-  }
 
   using S = CrossPointSettings;
   auto clamp = [](uint8_t val, uint8_t maxVal, uint8_t def) -> uint8_t { return val < maxVal ? val : def; };
@@ -218,7 +119,6 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.hyphenationEnabled = doc["hyphenationEnabled"] | (uint8_t)0;
   s.focusReadingEnabled = doc["focusReadingEnabled"] | (uint8_t)0;
   s.backgroundServerOnCharge = doc["backgroundServerOnCharge"] | (uint8_t)0;
-  s.todoFallbackCover = doc["todoFallbackCover"] | (uint8_t)0;
   s.timeMode = clamp(doc["timeMode"] | (uint8_t)S::TIME_MODE_UTC, static_cast<uint8_t>(S::TIME_MODE_MANUAL + 1),
                      S::TIME_MODE_UTC);
   s.timeZoneOffset = doc["timeZoneOffset"] | (uint8_t)12;
@@ -244,23 +144,6 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.globalStatusBarPosition = clamp(doc["globalStatusBarPosition"] | (uint8_t)S::STATUS_BAR_TOP,
                                     S::GLOBAL_STATUS_BAR_POSITION_COUNT, S::STATUS_BAR_TOP);
 
-  const char* url = doc["opdsServerUrl"] | "";
-  strncpy(s.opdsServerUrl, url, sizeof(s.opdsServerUrl) - 1);
-  s.opdsServerUrl[sizeof(s.opdsServerUrl) - 1] = '\0';
-
-  const char* user = doc["opdsUsername"] | "";
-  strncpy(s.opdsUsername, user, sizeof(s.opdsUsername) - 1);
-  s.opdsUsername[sizeof(s.opdsUsername) - 1] = '\0';
-
-  bool passOk = false;
-  std::string pass = obfuscation::deobfuscateFromBase64(doc["opdsPassword_obf"] | "", &passOk);
-  if (!passOk || pass.empty()) {
-    pass = doc["opdsPassword"] | "";
-    if (!pass.empty() && needsResave) *needsResave = true;
-  }
-  strncpy(s.opdsPassword, pass.c_str(), sizeof(s.opdsPassword) - 1);
-  s.opdsPassword[sizeof(s.opdsPassword) - 1] = '\0';
-
   const char* userFontPath = doc["userFontPath"] | "";
   strncpy(s.userFontPath, userFontPath, sizeof(s.userFontPath) - 1);
   s.userFontPath[sizeof(s.userFontPath) - 1] = '\0';
@@ -281,20 +164,149 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   strncpy(s.deviceName, deviceName, sizeof(s.deviceName) - 1);
   s.deviceName[sizeof(s.deviceName) - 1] = '\0';
 
-  // Font family — uses dynamic getter/setter in SettingsList so the generic loop skips it.
   s.fontFamily = clamp(doc["fontFamily"] | (uint8_t)0, CrossPointSettings::BUILTIN_FONT_COUNT, 0);
-  // SD card font family name — not in SettingsList, load manually
   const char* sfn = doc["sdFontFamilyName"] | "";
   strncpy(s.sdFontFamilyName, sfn, sizeof(s.sdFontFamilyName) - 1);
   s.sdFontFamilyName[sizeof(s.sdFontFamilyName) - 1] = '\0';
 
-  // Language -- stored as code string for stability across enum reorders.
   if (doc["language"].is<const char*>()) {
     s.language = static_cast<uint8_t>(I18n::languageFromCode(doc["language"].as<const char*>()));
   }
 
   LOG_DBG("CPS", "Settings loaded from file");
   return true;
+}
+
+}  // namespace
+
+// ---- CrossPointState ----
+
+bool JsonSettingsIO::saveState(const CrossPointState& s, const char* path) {
+  JsonDocument doc;
+  doc["openEpubPath"] = s.openEpubPath;
+  doc["lastSleepImage"] = s.lastSleepImage;
+  doc["readerActivityLoadCount"] = s.readerActivityLoadCount;
+  doc["lastSleepFromReader"] = s.lastSleepFromReader;
+  doc["wifiAutoConnectSkipCount"] = s.wifiAutoConnectSkipCount;
+  doc["wifiAutoConnectBackoffLevel"] = s.wifiAutoConnectBackoffLevel;
+  doc["wifiAutoConnectWaitingForNewCredential"] = s.wifiAutoConnectWaitingForNewCredential;
+  if (s.pendingBookmarkSpine != PENDING_BOOKMARK_SPINE_NONE) {
+    doc["pendingBookmarkSpine"] = s.pendingBookmarkSpine;
+    doc["pendingBookmarkProgress"] = s.pendingBookmarkProgress;
+  }
+
+  String json;
+  serializeJson(doc, json);
+  return Storage.writeFile(path, json);
+}
+
+bool JsonSettingsIO::loadState(CrossPointState& s, const char* json) {
+  JsonDocument doc;
+  if (!deserializeJsonLogged(doc, json, "CPS")) {
+    return false;
+  }
+  return loadStateFromDoc(s, doc);
+}
+
+bool JsonSettingsIO::loadState(CrossPointState& s, FsFile& file) {
+  JsonDocument doc;
+  if (!deserializeJsonFromFile(doc, file, "CPS")) {
+    return false;
+  }
+  return loadStateFromDoc(s, doc);
+}
+
+// ---- CrossPointSettings ----
+
+bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path) {
+  JsonDocument doc;
+
+  doc["sleepScreen"] = s.sleepScreen;
+  doc["sleepScreenSource"] = s.sleepScreenSource;
+  doc["sleepPinnedPath"] = s.sleepPinnedPath;
+  doc["sleepScreenCoverMode"] = s.sleepScreenCoverMode;
+  doc["sleepScreenCoverFilter"] = s.sleepScreenCoverFilter;
+  doc["sleepCycleMode"] = s.sleepCycleMode;
+  doc["statusBarChapterPageCount"] = s.statusBarChapterPageCount;
+  doc["statusBarBookProgressPercentage"] = s.statusBarBookProgressPercentage;
+  doc["statusBarProgressBar"] = s.statusBarProgressBar;
+  doc["statusBarProgressBarThickness"] = s.statusBarProgressBarThickness;
+  doc["statusBarTitle"] = s.statusBarTitle;
+  doc["statusBarBattery"] = s.statusBarBattery;
+  doc["statusBarClock"] = s.statusBarClock;
+  doc["clockUtcOffsetQ"] = s.clockUtcOffsetQ;
+  doc["clockFormat"] = s.clockFormat;
+  doc["clockHasBeenSynced"] = s.clockHasBeenSynced;
+  doc["extraParagraphSpacing"] = s.extraParagraphSpacing;
+  doc["textAntiAliasing"] = s.textAntiAliasing;
+  doc["shortPwrBtn"] = s.shortPwrBtn;
+  doc["orientation"] = s.orientation;
+  doc["frontButtonLayout"] = s.frontButtonLayout;
+  doc["sideButtonLayout"] = s.sideButtonLayout;
+  doc["frontButtonBack"] = s.frontButtonBack;
+  doc["frontButtonConfirm"] = s.frontButtonConfirm;
+  doc["frontButtonLeft"] = s.frontButtonLeft;
+  doc["frontButtonRight"] = s.frontButtonRight;
+  doc["fontFamily"] = s.fontFamily;
+  if (s.sdFontFamilyName[0] != '\0') {
+    doc["sdFontFamilyName"] = s.sdFontFamilyName;
+  }
+  doc["fontSize"] = s.fontSize;
+  doc["lineSpacing"] = s.lineSpacing;
+  doc["paragraphAlignment"] = s.paragraphAlignment;
+  doc["sleepTimeoutMinutes"] = s.sleepTimeoutMinutes;
+  doc["refreshFrequency"] = s.refreshFrequency;
+  doc["screenMargin"] = s.screenMargin;
+  doc["hideBatteryPercentage"] = s.hideBatteryPercentage;
+  doc["longPressButtonBehavior"] = s.longPressButtonBehavior;
+  doc["hyphenationEnabled"] = s.hyphenationEnabled;
+  doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
+  doc["timeMode"] = s.timeMode;
+  doc["timeZoneOffset"] = s.timeZoneOffset;
+  doc["lastTimeSyncEpoch"] = s.lastTimeSyncEpoch;
+  doc["releaseChannel"] = s.releaseChannel;
+  doc["uiTheme"] = s.uiTheme;
+  doc["recentBooksView"] = s.recentBooksView;
+  doc["fadingFix"] = s.fadingFix;
+  doc["darkMode"] = s.darkMode;
+  doc["embeddedStyle"] = s.embeddedStyle;
+  doc["focusReadingEnabled"] = s.focusReadingEnabled;
+  doc["usbMscPromptOnConnect"] = s.usbMscPromptOnConnect;
+  doc["userFontPath"] = s.userFontPath;
+  doc["selectedOtaBundle"] = s.selectedOtaBundle;
+  doc["installedOtaBundle"] = s.installedOtaBundle;
+  doc["installedOtaFeatureFlags"] = s.installedOtaFeatureFlags;
+  doc["deviceName"] = s.deviceName;
+  doc["wifiAutoConnect"] = s.wifiAutoConnect;
+  doc["showHiddenFiles"] = s.showHiddenFiles;
+  doc["todoOpenDirectToToday"] = s.todoOpenDirectToToday;
+  doc["moveFinishedToReadFolder"] = s.moveFinishedToReadFolder;
+  doc["developerMode"] = s.developerMode;
+  doc["imageRendering"] = s.imageRendering;
+  doc["globalStatusBar"] = s.globalStatusBar;
+  doc["globalStatusBarPosition"] = s.globalStatusBarPosition;
+
+  doc["language"] = (s.language < getLanguageCount()) ? LANGUAGE_CODES[s.language] : "EN";
+
+  String json;
+  serializeJson(doc, json);
+  return Storage.writeFile(path, json);
+}
+
+bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool* needsResave) {
+  JsonDocument doc;
+  if (!deserializeJsonLogged(doc, json, "CPS")) {
+    return false;
+  }
+  return loadSettingsFromDoc(s, doc, needsResave);
+}
+
+bool JsonSettingsIO::loadSettings(CrossPointSettings& s, FsFile& file, bool* needsResave) {
+  JsonDocument doc;
+  if (!deserializeJsonFromFile(doc, file, "CPS")) {
+    return false;
+  }
+  return loadSettingsFromDoc(s, doc, needsResave);
 }
 
 // ---- WifiCredentialStore ----
@@ -316,19 +328,17 @@ bool JsonSettingsIO::saveWifi(const WifiCredentialStore& store, const char* path
 }
 
 bool JsonSettingsIO::loadWifi(WifiCredentialStore& store, const char* json, bool* needsResave) {
-  if (needsResave) *needsResave = false;
   JsonDocument doc;
-  auto error = deserializeJson(doc, json);
-  if (error) {
-    LOG_ERR("WCS", "JSON parse error: %s", error.c_str());
+  if (!deserializeJsonLogged(doc, json, "WCS")) {
     return false;
   }
+  if (needsResave) *needsResave = false;
 
   store.lastConnectedSsid = doc["lastConnectedSsid"] | std::string("");
 
   store.credentials.clear();
-  JsonArray arr = doc["credentials"].as<JsonArray>();
-  for (JsonObject obj : arr) {
+  const JsonArrayConst arr = doc["credentials"].as<JsonArrayConst>();
+  for (JsonObjectConst obj : arr) {
     if (store.credentials.size() >= store.MAX_NETWORKS) break;
     WifiCredential cred;
     cred.ssid = obj["ssid"] | std::string("");
@@ -343,6 +353,16 @@ bool JsonSettingsIO::loadWifi(WifiCredentialStore& store, const char* json, bool
 
   LOG_DBG("WCS", "Loaded %zu WiFi credentials from file", store.credentials.size());
   return true;
+}
+
+bool JsonSettingsIO::loadWifi(WifiCredentialStore& store, FsFile& file, bool* needsResave) {
+  JsonDocument doc;
+  if (!deserializeJsonFromFile(doc, file, "WCS")) {
+    return false;
+  }
+  String json;
+  serializeJson(doc, json);
+  return loadWifi(store, json.c_str(), needsResave);
 }
 
 // ---- RecentBooksStore ----
@@ -365,15 +385,13 @@ bool JsonSettingsIO::saveRecentBooks(const RecentBooksStore& store, const char* 
 
 bool JsonSettingsIO::loadRecentBooks(RecentBooksStore& store, const char* json) {
   JsonDocument doc;
-  auto error = deserializeJson(doc, json);
-  if (error) {
-    LOG_ERR("RBS", "JSON parse error: %s", error.c_str());
+  if (!deserializeJsonLogged(doc, json, "RBS")) {
     return false;
   }
 
   store.recentBooks.clear();
-  JsonArray arr = doc["books"].as<JsonArray>();
-  for (JsonObject obj : arr) {
+  const JsonArrayConst arr = doc["books"].as<JsonArrayConst>();
+  for (JsonObjectConst obj : arr) {
     if (store.getCount() >= 10) break;
     RecentBook book;
     book.path = obj["path"] | std::string("");
@@ -386,6 +404,18 @@ bool JsonSettingsIO::loadRecentBooks(RecentBooksStore& store, const char* json) 
   LOG_DBG("RBS", "Recent books loaded from file (%d entries)", store.getCount());
   return true;
 }
+
+bool JsonSettingsIO::loadRecentBooks(RecentBooksStore& store, FsFile& file) {
+  JsonDocument doc;
+  if (!deserializeJsonFromFile(doc, file, "RBS")) {
+    return false;
+  }
+  String json;
+  serializeJson(doc, json);
+  return loadRecentBooks(store, json.c_str());
+}
+
+// ---- OpdsServerStore ----
 
 bool JsonSettingsIO::saveOpds(const OpdsServerStore& store, const char* path) {
   JsonDocument doc;
@@ -404,19 +434,17 @@ bool JsonSettingsIO::saveOpds(const OpdsServerStore& store, const char* path) {
 }
 
 bool JsonSettingsIO::loadOpds(OpdsServerStore& store, const char* json, bool* needsResave) {
+  JsonDocument doc;
+  if (!deserializeJsonLogged(doc, json, "OPS")) {
+    return false;
+  }
   if (needsResave) {
     *needsResave = false;
   }
-  JsonDocument doc;
-  auto error = deserializeJson(doc, json);
-  if (error) {
-    LOG_ERR("OPS", "JSON parse error: %s", error.c_str());
-    return false;
-  }
 
   store.servers.clear();
-  JsonArray arr = doc["servers"].as<JsonArray>();
-  for (JsonObject obj : arr) {
+  const JsonArrayConst arr = doc["servers"].as<JsonArrayConst>();
+  for (JsonObjectConst obj : arr) {
     if (store.servers.size() >= OpdsServerStore::MAX_SERVERS) {
       break;
     }
@@ -437,4 +465,14 @@ bool JsonSettingsIO::loadOpds(OpdsServerStore& store, const char* json, bool* ne
 
   LOG_DBG("OPS", "Loaded %zu OPDS servers from file", store.servers.size());
   return true;
+}
+
+bool JsonSettingsIO::loadOpds(OpdsServerStore& store, FsFile& file, bool* needsResave) {
+  JsonDocument doc;
+  if (!deserializeJsonFromFile(doc, file, "OPS")) {
+    return false;
+  }
+  String json;
+  serializeJson(doc, json);
+  return loadOpds(store, json.c_str(), needsResave);
 }

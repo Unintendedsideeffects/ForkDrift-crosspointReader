@@ -1720,10 +1720,11 @@
   }
 
   async function ensureFolder(path, name) {
-    const formData = new FormData();
-    formData.append("path", path);
-    formData.append("name", name);
-    const response = await fetch("/mkdir", { method: "POST", body: formData });
+    const response = await fetch("/mkdir", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, name })
+    });
     if (response.ok) return;
 
     const message = (await response.text()).toLowerCase();
