@@ -133,13 +133,28 @@ prune_old_local_artifacts
 prune_stale_generated_html_headers
 prune_stale_screen_previews
 
+# When translation YAML files are staged, auto-regenerate I18nKeys.h and
+# I18nStrings.h so the committed headers always track the YAML source.
+# I18nStrings.cpp is intentionally excluded — it is regenerated at build time
+# and must not be committed (enforced by the guard below).
+STAGED_YAML=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^lib/I18n/translations/.*\.yaml$' || true)
+if [ -n "$STAGED_YAML" ]; then
+    if command -v python3 &> /dev/null; then
+        python3 scripts/gen_i18n.py lib/I18n/translations lib/I18n/
+        git add lib/I18n/I18nKeys.h lib/I18n/I18nStrings.h
+        git restore --staged lib/I18n/I18nStrings.cpp 2>/dev/null || true
+        echo "Auto-regenerated I18n headers from updated translation YAML"
+    else
+        echo "Warning: python3 not found, skipping I18n header regeneration"
+    fi
+fi
+
 # Guard: block staging I18nStrings.cpp without a matching translation YAML change.
-# I18nStrings.cpp is generated from YAML — committing it as a side-effect of
-# unrelated work embeds a stale or accidental snapshot. Always commit the YAML
-# source alongside it when translations are intentionally updated.
+# I18nStrings.cpp is generated — committing it as a side-effect of unrelated work
+# embeds a stale or accidental snapshot. Always commit the YAML source alongside it
+# when translations are intentionally updated.
 STAGED_STRINGS=$(git diff --cached --name-only --diff-filter=ACM | grep -F 'lib/I18n/I18nStrings.cpp' || true)
 if [ -n "$STAGED_STRINGS" ]; then
-    STAGED_YAML=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^lib/I18n/translations/.*\.yaml$' || true)
     if [ -z "$STAGED_YAML" ]; then
         echo "Error: lib/I18n/I18nStrings.cpp is staged without any translation YAML changes."
         echo "I18nStrings.cpp is generated — do not commit it as a side-effect of unrelated work."
