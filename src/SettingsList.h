@@ -494,10 +494,12 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
     std::vector<const char*> optionFeatureKeys = {nullptr};
     if (core::FeatureModules::hasCapability(core::Capability::LyraTheme)) {
       ids.insert(ids.end(), {StrId::STR_THEME_LYRA, StrId::STR_THEME_LYRA_EXTENDED, StrId::STR_THEME_FORK_DRIFT,
-                             StrId::STR_THEME_LYRA_CAROUSEL});
+                             StrId::STR_THEME_LYRA_CAROUSEL, StrId::STR_THEME_TERMINAL});
       vals.insert(vals.end(), {CrossPointSettings::UI_THEME::LYRA, CrossPointSettings::UI_THEME::LYRA_EXTENDED,
-                               CrossPointSettings::UI_THEME::FORK_DRIFT, CrossPointSettings::UI_THEME::LYRA_CAROUSEL});
-      optionFeatureKeys.insert(optionFeatureKeys.end(), {"lyra_theme", "lyra_theme", "lyra_theme", "lyra_theme"});
+                               CrossPointSettings::UI_THEME::FORK_DRIFT, CrossPointSettings::UI_THEME::LYRA_CAROUSEL,
+                               CrossPointSettings::UI_THEME::TERMINAL});
+      optionFeatureKeys.insert(optionFeatureKeys.end(),
+                               {"lyra_theme", "lyra_theme", "lyra_theme", "lyra_theme", "lyra_theme"});
       if (core::FeatureModules::hasCapability(core::Capability::MinimalTheme)) {
         ids.push_back(StrId::STR_THEME_MINIMAL);
         vals.push_back(CrossPointSettings::UI_THEME::MINIMAL);
