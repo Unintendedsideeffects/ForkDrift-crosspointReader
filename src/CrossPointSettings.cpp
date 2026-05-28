@@ -555,3 +555,93 @@ int CrossPointSettings::getReaderFontId() const {
       return bookerlyReaderFontId(fontSize);
   }
 }
+
+namespace {
+std::string base64Encode(const uint8_t* data, size_t len) {
+  static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string result;
+  result.reserve(((len + 2) / 3) * 4);
+  for (size_t i = 0; i < len; i += 3) {
+    uint32_t val = (data[i] << 16);
+    if (i + 1 < len) val |= (data[i + 1] << 8);
+    if (i + 2 < len) val |= data[i + 2];
+
+    result.push_back(alphabet[(val >> 18) & 0x3F]);
+    result.push_back(alphabet[(val >> 12) & 0x3F]);
+    result.push_back((i + 1 < len) ? alphabet[(val >> 6) & 0x3F] : '=');
+    result.push_back((i + 2 < len) ? alphabet[val & 0x3F] : '=');
+  }
+  return result;
+}
+}  // namespace
+
+std::string CrossPointSettings::getCondensedSettings() const {
+  uint8_t buffer[64];
+  buffer[0] = 0x01;  // Version 1
+
+  buffer[1] = sleepScreen;
+  buffer[2] = sleepScreenCoverMode;
+  buffer[3] = sleepScreenCoverFilter;
+  buffer[4] = sleepScreenSource;
+  buffer[5] = sleepCycleMode;
+  buffer[6] = statusBar;
+  buffer[7] = statusBarChapterPageCount;
+  buffer[8] = statusBarBookProgressPercentage;
+  buffer[9] = statusBarProgressBar;
+  buffer[10] = statusBarProgressBarThickness;
+  buffer[11] = statusBarTitle;
+  buffer[12] = statusBarBattery;
+  buffer[13] = statusBarClock;
+  buffer[14] = clockUtcOffsetQ;
+  buffer[15] = clockFormat;
+  buffer[16] = clockHasBeenSynced;
+  buffer[17] = extraParagraphSpacing;
+  buffer[18] = forceParagraphIndents;
+  buffer[19] = textAntiAliasing;
+  buffer[20] = shortPwrBtn;
+  buffer[21] = orientation;
+  buffer[22] = frontButtonLayout;
+  buffer[23] = sideButtonLayout;
+  buffer[24] = frontButtonOrientationAware;
+  buffer[25] = sideButtonOrientationAware;
+  buffer[26] = sideButtonLongPress;
+  buffer[27] = frontButtonBack;
+  buffer[28] = frontButtonConfirm;
+  buffer[29] = frontButtonLeft;
+  buffer[30] = frontButtonRight;
+  buffer[31] = fontFamily;
+  buffer[32] = fontSize;
+  buffer[33] = lineSpacing;
+  buffer[34] = paragraphAlignment;
+  buffer[35] = sleepTimeoutMinutes;
+  buffer[36] = refreshFrequency;
+  buffer[37] = hyphenationEnabled;
+  buffer[38] = screenMargin;
+  buffer[39] = hideBatteryPercentage;
+  buffer[40] = longPressButtonBehavior;
+  buffer[41] = uiTheme;
+  buffer[42] = recentBooksView;
+  buffer[43] = fadingFix;
+  buffer[44] = embeddedStyle;
+  buffer[45] = backgroundServerOnCharge;
+  buffer[46] = timeMode;
+  buffer[47] = timeZoneOffset;
+  buffer[48] = releaseChannel;
+  buffer[49] = darkMode;
+  buffer[50] = usbMscPromptOnConnect;
+  buffer[51] = wifiAutoConnect;
+  buffer[52] = focusReadingEnabled;
+  buffer[53] = guideReadingEnabled;
+  buffer[54] = showHiddenFiles;
+  buffer[55] = todoOpenDirectToToday;
+  buffer[56] = moveFinishedToReadFolder;
+  buffer[57] = developerMode;
+  buffer[58] = imageRendering;
+  buffer[59] = longPwrBtn;
+  buffer[60] = longPressMenuAction;
+  buffer[61] = globalStatusBar;
+  buffer[62] = globalStatusBarPosition;
+  buffer[63] = language;
+
+  return base64Encode(buffer, sizeof(buffer));
+}

@@ -11,6 +11,10 @@
 
 #define MAX_PANIC_STACK_DEPTH 32
 
+static std::string (*settingsProvider)() = nullptr;
+
+void HalSystem::setSettingsProvider(std::string (*fn)()) { settingsProvider = fn; }
+
 RTC_NOINIT_ATTR char panicMessage[256];
 RTC_NOINIT_ATTR HalSystem::StackFrame panicStack[MAX_PANIC_STACK_DEPTH];
 
@@ -125,6 +129,9 @@ std::string getPanicInfo(bool full) {
     info += "CrossPoint version: " CROSSPOINT_VERSION;
     info += "\n\nPanic reason: " + std::string(panicMessage);
     info += "\n\nLast logs:\n" + getLastLogs();
+    if (settingsProvider) {
+      info += "\n\nSettings combo: " + settingsProvider();
+    }
     info += "\n\nStack memory:\n";
 
     auto toHex = [](uint32_t value) {

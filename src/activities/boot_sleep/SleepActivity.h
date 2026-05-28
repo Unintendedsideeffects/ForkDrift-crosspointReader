@@ -41,6 +41,4 @@ class SleepActivity final : public Activity {
   bool tryRenderImagePath(const std::string& path) const;
 
   void drawLockIcon(int cx, int cy) const;
-
-  static constexpr const char* SLEEP_CACHE_PATH = "/.crosspoint/sleep_cache.txt";
 };

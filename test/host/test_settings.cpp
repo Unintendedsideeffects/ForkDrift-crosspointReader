@@ -223,3 +223,28 @@ TEST_CASE("testSettingsJsonPreservesSpecialSleepModes") {
   CHECK(s.sleepScreen == CrossPointSettings::DARK);
 #endif
 }
+
+TEST_CASE("testCondensedSettings") {
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+
+  // Set to defaults/known state
+  s.sleepScreen = CrossPointSettings::DARK;
+  s.orientation = CrossPointSettings::PORTRAIT;
+  s.fontFamily = CrossPointSettings::BOOKERLY;
+  s.fontSize = CrossPointSettings::MEDIUM;
+
+  std::string encoded1 = s.getCondensedSettings();
+  CHECK(encoded1.length() == 88);  // 64 bytes base64 encoded is 88 chars
+
+  // Changing a setting must change the encoding
+  s.sleepScreen = CrossPointSettings::LIGHT;
+  std::string encoded2 = s.getCondensedSettings();
+  CHECK(encoded2.length() == 88);
+  CHECK(encoded1 != encoded2);
+
+  // Changing another setting must change it further
+  s.fontSize = CrossPointSettings::LARGE;
+  std::string encoded3 = s.getCondensedSettings();
+  CHECK(encoded3.length() == 88);
+  CHECK(encoded2 != encoded3);
+}

@@ -46,6 +46,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -I"$ROOT_DIR/lib/Markdown" \
   -I"$ROOT_DIR/lib/third_party/md4c" \
   -I"$ROOT_DIR/lib/Serialization" \
+  -I"$ROOT_DIR/lib/GfxRenderer" \
   -I"$ROOT_DIR/include" \
   -I"$ROOT_DIR/src" \
   -I"$ARDUINOJSON_DIR" \
@@ -79,6 +80,8 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/Xtc/Xtc/XtcParser.cpp" \
   "$ROOT_DIR/test/mock/FeatureModuleHooks.cpp" \
   "$ROOT_DIR/test/mock/JsonSettingsIO.cpp" \
+  "$ROOT_DIR/lib/GfxRenderer/Bitmap.cpp" \
+  "$ROOT_DIR/lib/GfxRenderer/BitmapHelpers.cpp" \
   "$BUILD_DIR/md4c.o" \
   "$BUILD_DIR/entity.o" \
   -o "$BUILD_DIR/HostTests"

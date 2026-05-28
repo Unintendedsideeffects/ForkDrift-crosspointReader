@@ -11,6 +11,10 @@ struct StackFrame {
 
 void begin();
 
+// Register a callback so getPanicInfo(true) can include a settings snapshot.
+// Called once from main.cpp after settings are initialised.
+void setSettingsProvider(std::string (*fn)());
+
 // Dump panic info to SD card if necessary
 void checkPanic();
 void clearPanic();

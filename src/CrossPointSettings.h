@@ -461,6 +461,7 @@ class CrossPointSettings {
   unsigned long getSleepTimeoutMs() const;
   int getRefreshFrequency() const;
   int getTimeZoneOffsetSeconds() const;
+  std::string getCondensedSettings() const;
 };
 
 // Helper macro to access settings

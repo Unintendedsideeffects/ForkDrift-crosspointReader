@@ -431,6 +431,18 @@
             </div>
 
             <div class="advanced-section">
+              <div class="advanced-section-title">Dithering</div>
+              <div>
+                <label for="ditherSelect">Dithering Method</label>
+                <select id="ditherSelect">
+                  <option value="atkinson" selected>Atkinson (recommended)</option>
+                  <option value="floyd">Floyd-Steinberg</option>
+                  <option value="threshold">Threshold (no dithering)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="advanced-section">
               <div class="advanced-section-title">Sprite Scale</div>
               <div>
                 <label for="spriteScale">Sprite Size</label>
@@ -575,6 +587,7 @@
   const showEvolutionInput = document.getElementById("showEvolution");
   const showAbilitiesInput = document.getElementById("showAbilities");
   const batchGensSelect = document.getElementById("batchGens");
+  const ditherSelect = document.getElementById("ditherSelect");
   const batchTypeSelect = document.getElementById("batchType");
   const batchPreviewBtn = document.getElementById("batchPreviewBtn");
   const batchUploadBtn = document.getElementById("batchUploadBtn");
@@ -1206,6 +1219,7 @@
     return {
       artStyle: artStyleSelect.value,
       background: bgStyleSelect.value,
+      dither: ditherSelect ? ditherSelect.value : "atkinson",
       spriteScale: Math.max(MIN_SPRITE_SCALE, Math.min(MAX_SPRITE_SCALE, parseFloat(spriteScaleInput.value) || 1.0)),
       spriteOverlay: spriteOverlayInput.checked,
       showTypes: showTypesInput.checked,
@@ -1679,6 +1693,115 @@
   async function drawWallpaper(bundle, sprite, options) {
     const flavorText = getFlavorText(bundle.species);
     await drawClassicWallpaper(bundle, sprite, flavorText, options);
+    ditherCanvas(canvas, options.dither);
+  }
+
+  function ditherAtkinson(gray, W, H) {
+    const err = new Float32Array((W + 4) * (H + 2));  // padded to avoid bounds checks
+    const stride = W + 4;
+    const out = new Uint8Array(W * H);
+
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const ei  = y * stride + (x + 2);  // +2 offset matches C++ implementation
+        let val   = gray[y * W + x] + err[ei];
+        val = Math.max(0, Math.min(255, val));
+
+        const bit  = val < 128 ? 0 : 1;
+        out[y * W + x] = bit;
+
+        const e = (val - (bit ? 255 : 0)) / 8;  // distribute 1/8 each to 6 neighbours
+        err[ei + 1] += e;                                    // right
+        err[ei + 2] += e;                                    // right+1
+        err[(y + 1) * stride + (x + 1)] += e;               // below-left
+        err[(y + 1) * stride + (x + 2)] += e;               // below
+        err[(y + 1) * stride + (x + 3)] += e;               // below-right
+        err[(y + 2) * stride + (x + 2)] += e;               // two rows down
+      }
+    }
+    return out;
+  }
+
+  function ditherFloydSteinberg(gray, W, H) {
+    const cur  = new Float32Array(W + 2);
+    const next = new Float32Array(W + 2);
+    const out  = new Uint8Array(W * H);
+    let reverse = false;
+
+    for (let y = 0; y < H; y++) {
+      cur.fill(0); next.fill(0);  // reset accumulators
+
+      for (let xi = 0; xi < W; xi++) {
+        const x = reverse ? (W - 1 - xi) : xi;
+        const ei = x + 1;  // +1 offset for boundary
+
+        let val = gray[y * W + x] + cur[ei];
+        val = Math.max(0, Math.min(255, val));
+
+        const bit = val < 128 ? 0 : 1;
+        out[y * W + x] = bit;
+
+        const e = val - (bit ? 255 : 0);
+        if (!reverse) {
+          cur[ei + 1]  += (e * 7) >> 4;  // right 7/16
+          next[ei - 1] += (e * 3) >> 4;  // below-left 3/16
+          next[ei]     += (e * 5) >> 4;  // below 5/16
+          next[ei + 1] += e >> 4;        // below-right 1/16
+        } else {
+          cur[ei - 1]  += (e * 7) >> 4;  // left 7/16
+          next[ei + 1] += (e * 3) >> 4;  // below-right 3/16
+          next[ei]     += (e * 5) >> 4;  // below 5/16
+          next[ei - 1] += e >> 4;        // below-left 1/16
+        }
+      }
+      cur.set(next);
+      next.fill(0);
+      reverse = !reverse;
+    }
+    return out;
+  }
+
+  function ditherThreshold(gray, W, H) {
+    const out = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) out[i] = gray[i] < 128 ? 0 : 1;
+    return out;
+  }
+
+  function applyDither(gray, W, H, mode) {
+    switch (mode) {
+      case 'atkinson': return ditherAtkinson(gray, W, H);
+      case 'floyd':    return ditherFloydSteinberg(gray, W, H);
+      default:         return ditherThreshold(gray, W, H);
+    }
+  }
+
+  function ditherCanvas(targetCanvas, ditherMode) {
+    const targetCtx = targetCanvas.getContext("2d");
+    const id = targetCtx.getImageData(0, 0, targetCanvas.width, targetCanvas.height);
+    const src = id.data;
+    const W = targetCanvas.width;
+    const H = targetCanvas.height;
+
+    // 1. Convert to grayscale luminance
+    const gray = new Float32Array(W * H);
+    for (let i = 0, p = 0; i < src.length; i += 4, p++) {
+      // ITU-R BT.601 luminance
+      const g = 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
+      gray[p] = g;
+    }
+
+    // 2. Apply dithering
+    const bits = applyDither(gray, W, H, ditherMode);
+
+    // 3. Write back 1-bit pixels to image data
+    for (let i = 0; i < W * H; i++) {
+      const v = bits[i] ? 255 : 0;
+      src[i * 4]     = v;
+      src[i * 4 + 1] = v;
+      src[i * 4 + 2] = v;
+      src[i * 4 + 3] = 255;
+    }
+    targetCtx.putImageData(id, 0, 0);
   }
 
   function canvasToBmpBlob(sourceCanvas) {
@@ -1686,37 +1809,59 @@
     const outputCtx = outputCanvas.getContext("2d");
     const imageData = outputCtx.getImageData(0, 0, outputCanvas.width, outputCanvas.height);
     const data = imageData.data;
-    const headerSize = 54;
-    const rowSize = Math.floor((24 * outputCanvas.width + 31) / 32) * 4;
-    const fileSize = headerSize + rowSize * outputCanvas.height;
-    const buffer = new ArrayBuffer(fileSize);
-    const view = new DataView(buffer);
+    const W = outputCanvas.width;
+    const H = outputCanvas.height;
 
-    view.setUint16(0, 0x4d42, true);
-    view.setUint32(2, fileSize, true);
-    view.setUint32(10, headerSize, true);
-    view.setUint32(14, 40, true);
-    view.setInt32(18, outputCanvas.width, true);
-    view.setInt32(22, -outputCanvas.height, true);
-    view.setUint16(26, 1, true);
-    view.setUint16(28, 24, true);
-    view.setUint32(30, 0, true);
+    // Standard 1-bit monochrome BMP structure
+    const rowStride = Math.floor((W + 31) / 32) * 4;  // padded row size in bytes
+    const imageSize = rowStride * H;
+    const HEADER_SIZE = 62;
+    const fileSize = HEADER_SIZE + imageSize;
 
-    let offset = headerSize;
-    for (let y = 0; y < outputCanvas.height; y++) {
-      const rowStart = offset;
-      for (let x = 0; x < outputCanvas.width; x++) {
-        const i = (y * outputCanvas.width + x) * 4;
-        view.setUint8(offset++, data[i + 2]);
-        view.setUint8(offset++, data[i + 1]);
-        view.setUint8(offset++, data[i]);
-      }
-      while ((offset - rowStart) % 4 !== 0) {
-        view.setUint8(offset++, 0);
+    const buf = new ArrayBuffer(fileSize);
+    const view = new DataView(buf);
+
+    // ── BITMAPFILEHEADER (14 bytes) ──────────────────────────────────────────
+    view.setUint16(0, 0x4D42, true);      // bfType  'BM'
+    view.setUint32(2, fileSize, true);    // bfSize
+    view.setUint16(6, 0, true);           // bfReserved1
+    view.setUint16(8, 0, true);           // bfReserved2
+    view.setUint32(10, HEADER_SIZE, true); // bfOffBits
+
+    // ── BITMAPINFOHEADER (40 bytes, offset 14) ────────────────────────────────
+    view.setUint32(14, 40, true);          // biSize
+    view.setInt32 (18, W, true);           // biWidth
+    view.setInt32 (22, H, true);           // biHeight (positive = bottom-up)
+    view.setUint16(26, 1, true);           // biPlanes
+    view.setUint16(28, 1, true);           // biBitCount = 1
+    view.setUint32(30, 0, true);           // biCompression = BI_RGB
+    view.setUint32(34, imageSize, true);   // biSizeImage
+    view.setInt32 (38, 2835, true);        // biXPelsPerMeter (72 DPI)
+    view.setInt32 (42, 2835, true);        // biYPelsPerMeter (72 DPI)
+    view.setUint32(46, 2, true);           // biClrUsed
+    view.setUint32(50, 2, true);           // biClrImportant
+
+    // ── 2-colour palette (8 bytes, offset 54) — RGBQUAD (Blue, Green, Red, Reserved) ─
+    // Colour 0: black
+    view.setUint8(54, 0); view.setUint8(55, 0); view.setUint8(56, 0); view.setUint8(57, 0);
+    // Colour 1: white
+    view.setUint8(58, 255); view.setUint8(59, 255); view.setUint8(60, 255); view.setUint8(61, 0);
+
+    // ── Pixel data (bottom-up: row 0 in file = bottom row of image) ──────────
+    const bytes = new Uint8Array(buf, HEADER_SIZE);
+    for (let y = 0; y < H; y++) {
+      const srcRow = H - 1 - y;              // flip: row 0 file = bottom of image
+      const rowBase = y * rowStride;
+      for (let x = 0; x < W; x++) {
+        const i = (srcRow * W + x) * 4;
+        const bit = data[i] < 128 ? 0 : 1;    // 0=black, 1=white (reading red channel from RGBA)
+        const byteIdx = rowBase + Math.floor(x / 8);
+        const bitPos = 7 - (x % 8);           // MSB = leftmost pixel
+        if (bit) bytes[byteIdx] |= (1 << bitPos);
       }
     }
 
-    return new Blob([buffer], { type: "image/bmp" });
+    return new Blob([buf], { type: "image/bmp" });
   }
 
   async function ensureFolder(path, name) {
@@ -1974,7 +2119,7 @@
 
     [artStyleSelect, fontModeSelect, bgStyleSelect, spriteScaleInput, spriteOverlayInput,
      showTypesInput, showRegionInput, showFindInput, showHeightInput, showWeightInput,
-     showFlavorInput, showHpInput, showEvolutionInput, showAbilitiesInput].forEach(function(el) {
+     showFlavorInput, showHpInput, showEvolutionInput, showAbilitiesInput, ditherSelect].forEach(function(el) {
       el.addEventListener("change", renderCurrentPokemon);
     });
 

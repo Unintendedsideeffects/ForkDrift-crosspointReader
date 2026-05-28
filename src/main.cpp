@@ -603,6 +603,7 @@ void setup() {
   t1 = millis();
 
   HalSystem::begin();
+  HalSystem::setSettingsProvider([]() { return SETTINGS.getCondensedSettings(); });
   gpio.begin();
   powerManager.begin();
 

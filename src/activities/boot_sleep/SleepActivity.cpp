@@ -124,7 +124,7 @@ struct Guard {
 struct SleepImageCache {
   bool scanned = false;
   uint8_t sourceMode = 0xFF;
-  std::vector<std::string> validFiles;
+  uint16_t count = 0;
 };
 
 SleepImageCache sleepImageCache;
@@ -139,56 +139,65 @@ static bool loadSleepImageCacheFromFile(SleepImageCache& cache) {
 
   uint8_t version, sourceMode;
   uint16_t count;
-  if (f.read(&version, 1) != 1 || version != SLEEP_CACHE_VERSION) {
+  if (f.read(&version, 1) != 1 || version != SLEEP_CACHE_VERSION || f.read(&sourceMode, 1) != 1 ||
+      f.read(&count, 2) != 2) {
     f.close();
     return false;
-  }
-  if (f.read(&sourceMode, 1) != 1) {
-    f.close();
-    return false;
-  }
-  if (f.read(&count, 2) != 2) {
-    f.close();
-    return false;
-  }
-
-  cache.validFiles.clear();
-  cache.validFiles.reserve(count);
-  for (uint16_t i = 0; i < count; i++) {
-    uint16_t len;
-    if (f.read(&len, 2) != 2 || len > 500) {
-      f.close();
-      return false;
-    }
-    std::string path(len, '\0');
-    if (static_cast<uint16_t>(f.read(path.data(), len)) != len) {
-      f.close();
-      return false;
-    }
-    cache.validFiles.push_back(std::move(path));
   }
   f.close();
   cache.sourceMode = sourceMode;
+  cache.count = count;
   cache.scanned = true;
   return true;
 }
 
-static void saveSleepImageCacheToFile(const SleepImageCache& cache) {
+// Context for streaming valid paths directly to the cache file during scan.
+// Avoids accumulating all paths in RAM — only one path string exists at a time.
+struct CacheWriteCtx {
+  HalFile file;
+  uint16_t count = 0;
+};
+
+static void writeToCacheFile(void* ctx, const std::string& path) {
+  auto* w = static_cast<CacheWriteCtx*>(ctx);
+  const uint16_t len = static_cast<uint16_t>(path.size());
+  w->file.write(&len, 2);
+  w->file.write(reinterpret_cast<const void*>(path.data()), len);
+  w->count++;
+}
+
+static void countValidFile(void* ctx, const std::string& /*path*/) { (*static_cast<uint16_t*>(ctx))++; }
+
+// Reads the path stored at `index` in the binary cache file without loading all paths.
+// Seeks sequentially through the variable-length entries; fine since sleep renders are infrequent.
+static std::string readSleepImageAtIndex(const uint16_t index) {
   SpiBusMutex::Guard guard;
-  Storage.mkdir("/.crosspoint");
   HalFile f;
-  if (!Storage.openFileForWrite("SLP", SLEEP_CACHE_FILE, f)) return;
-  const uint8_t version = SLEEP_CACHE_VERSION;
-  f.write(&version, 1);
-  f.write(&cache.sourceMode, 1);
-  const uint16_t count = static_cast<uint16_t>(std::min(cache.validFiles.size(), size_t(0xFFFF)));
-  f.write(&count, 2);
-  for (uint16_t i = 0; i < count; i++) {
-    const uint16_t len = static_cast<uint16_t>(cache.validFiles[i].size());
-    f.write(&len, 2);
-    f.write(cache.validFiles[i].data(), len);
+  if (!Storage.openFileForRead("SLP", SLEEP_CACHE_FILE, f)) return "";
+  if (!f.seek64(4)) {
+    f.close();
+    return "";
+  }  // skip: version(1)+sourceMode(1)+count(2)
+  for (uint16_t i = 0;; i++) {
+    uint16_t len;
+    if (f.read(&len, 2) != 2 || len > 500) {
+      f.close();
+      return "";
+    }
+    if (i == index) {
+      std::string path(len, '\0');
+      if (static_cast<uint16_t>(f.read(path.data(), len)) != len) {
+        f.close();
+        return "";
+      }
+      f.close();
+      return path;
+    }
+    if (!f.seekCur(static_cast<int64_t>(len))) {
+      f.close();
+      return "";
+    }
   }
-  f.close();
 }
 
 bool tryRenderExternalSleepApp(GfxRenderer& renderer, MappedInputManager& mappedInput) {
@@ -250,7 +259,7 @@ std::string joinPath(const std::string& directoryPath, const std::string& entryN
 
 // NOLINTNEXTLINE(misc-no-recursion) -- intentional: directory tree traversal
 void scanSleepImagesInDirectory(const std::string& directoryPath, const bool recursive,
-                                std::vector<std::string>& filesOut, int& invalidCount) {
+                                void (*onValid)(void*, const std::string&), void* ctx, int& invalidCount) {
   auto dir = Storage.open(directoryPath.c_str());
   if (!(dir && dir.isDirectory())) {
     if (dir) dir.close();
@@ -271,7 +280,7 @@ void scanSleepImagesInDirectory(const std::string& directoryPath, const bool rec
     if (file.isDirectory()) {
       file.close();
       if (recursive) {
-        scanSleepImagesInDirectory(fullPath, true, filesOut, invalidCount);
+        scanSleepImagesInDirectory(fullPath, true, onValid, ctx, invalidCount);
       }
       continue;
     }
@@ -285,7 +294,7 @@ void scanSleepImagesInDirectory(const std::string& directoryPath, const bool rec
       Bitmap bitmap(file, true);
       const auto err = bitmap.parseHeaders();
       if (err == BmpReaderError::Ok) {
-        filesOut.emplace_back(fullPath);
+        onValid(ctx, fullPath);
       } else {
         invalidCount++;
         LOG_ERR("SLP", "Invalid BMP in %s: %s (%s)", directoryPath.c_str(), leafName.c_str(),
@@ -299,7 +308,7 @@ void scanSleepImagesInDirectory(const std::string& directoryPath, const bool rec
     if (decoder) {
       ImageDimensions dims = {0, 0};
       if (decoder->getDimensions(fullPath, dims) && dims.width > 0 && dims.height > 0) {
-        filesOut.emplace_back(fullPath);
+        onValid(ctx, fullPath);
         LOG_DBG("SLP", "Valid %s: %s (%dx%d)", decoder->getFormatName(), fullPath.c_str(), dims.width, dims.height);
       } else {
         invalidCount++;
@@ -314,11 +323,12 @@ void scanSleepImagesInDirectory(const std::string& directoryPath, const bool rec
   dir.close();
 }
 
-void scanSleepImagesForSource(const uint8_t sourceMode, std::vector<std::string>& filesOut, int& invalidCount) {
+void scanSleepImagesForSource(const uint8_t sourceMode, void (*onValid)(void*, const std::string&), void* ctx,
+                              int& invalidCount) {
   const std::string sourcePath = getSleepSourcePath(sourceMode);
-  scanSleepImagesInDirectory(sourcePath, shouldScanRecursively(sourceMode), filesOut, invalidCount);
+  scanSleepImagesInDirectory(sourcePath, shouldScanRecursively(sourceMode), onValid, ctx, invalidCount);
   if (sourceMode == CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_SLEEP) {
-    scanSleepImagesInDirectory("/sleep/pokedex", true, filesOut, invalidCount);
+    scanSleepImagesInDirectory("/sleep/pokedex", true, onValid, ctx, invalidCount);
   }
 }
 
@@ -333,23 +343,47 @@ void validateSleepImagesOnce() {
     return;
   }
 
-  // Try loading from persistent cache first
   if (loadSleepImageCacheFromFile(sleepImageCache) && sleepImageCache.sourceMode == sourceMode) {
-    LOG_INF("SLP", "Loaded %d sleep images from cache", (int)sleepImageCache.validFiles.size());
+    LOG_INF("SLP", "Loaded %d sleep images from cache", sleepImageCache.count);
     return;
   }
 
   sleepImageCache.scanned = false;
   sleepImageCache.sourceMode = sourceMode;
-  sleepImageCache.validFiles.clear();
+  sleepImageCache.count = 0;
+
+  CacheWriteCtx cacheCtx;
+  bool cacheOk;
+  {
+    SpiBusMutex::Guard spiGuard;
+    Storage.mkdir("/.crosspoint");
+    cacheOk = Storage.openFileForWrite("SLP", SLEEP_CACHE_FILE, cacheCtx.file);
+    if (cacheOk) {
+      const uint8_t version = SLEEP_CACHE_VERSION;
+      cacheCtx.file.write(&version, 1);
+      cacheCtx.file.write(&sourceMode, 1);
+      const uint16_t placeholder = 0;
+      cacheCtx.file.write(&placeholder, 2);
+    }
+  }
 
   int scanInvalidCount = 0;
-  scanSleepImagesForSource(sourceMode, sleepImageCache.validFiles, scanInvalidCount);
+  if (cacheOk) {
+    scanSleepImagesForSource(sourceMode, writeToCacheFile, &cacheCtx, scanInvalidCount);
+    SpiBusMutex::Guard spiGuard;
+    if (cacheCtx.file.seek64(2)) {
+      cacheCtx.file.write(&cacheCtx.count, 2);
+    }
+    cacheCtx.file.close();
+    sleepImageCache.count = cacheCtx.count;
+  } else {
+    uint16_t validCount = 0;
+    scanSleepImagesForSource(sourceMode, countValidFile, &validCount, scanInvalidCount);
+    sleepImageCache.count = validCount;
+  }
 
   sleepImageCache.scanned = true;
-  LOG_INF("SLP", "Source '%s' found %d valid sleep images", getSleepSourceName(sourceMode),
-          (int)sleepImageCache.validFiles.size());
-  saveSleepImageCacheToFile(sleepImageCache);
+  LOG_INF("SLP", "Source '%s' found %d valid sleep images", getSleepSourceName(sourceMode), sleepImageCache.count);
 }
 
 }  // namespace
@@ -358,7 +392,7 @@ void invalidateSleepImageCache() {
   SleepCacheMutex::Guard guard;
   sleepImageCache.scanned = false;
   sleepImageCache.sourceMode = 0xFF;
-  sleepImageCache.validFiles.clear();
+  sleepImageCache.count = 0;
   {
     SpiBusMutex::Guard spiGuard;
     Storage.remove(SLEEP_CACHE_FILE);
@@ -389,18 +423,37 @@ SleepImageValidationStats validateSleepImagesWithStats() {
     sourceMode = CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_SLEEP;
   }
 
-  std::vector<std::string> validFiles;
+  CacheWriteCtx cacheCtx;
+  {
+    SpiBusMutex::Guard spiGuard;
+    Storage.mkdir("/.crosspoint");
+    if (Storage.openFileForWrite("SLP", SLEEP_CACHE_FILE, cacheCtx.file)) {
+      const uint8_t version = SLEEP_CACHE_VERSION;
+      cacheCtx.file.write(&version, 1);
+      cacheCtx.file.write(&sourceMode, 1);
+      const uint16_t placeholder = 0;
+      cacheCtx.file.write(&placeholder, 2);
+    }
+  }
+
   int invalidCount = 0;
-  scanSleepImagesForSource(sourceMode, validFiles, invalidCount);
+  scanSleepImagesForSource(sourceMode, writeToCacheFile, &cacheCtx, invalidCount);
+
+  {
+    SpiBusMutex::Guard spiGuard;
+    if (cacheCtx.file.seek64(2)) {
+      cacheCtx.file.write(&cacheCtx.count, 2);
+    }
+    cacheCtx.file.close();
+  }
 
   SleepCacheMutex::Guard guard;
   sleepImageCache.scanned = true;
   sleepImageCache.sourceMode = sourceMode;
-  sleepImageCache.validFiles = std::move(validFiles);
+  sleepImageCache.count = cacheCtx.count;
 
-  LOG_INF("VALIDATE_SLEEP", "Complete: %d valid, %d invalid", static_cast<int>(sleepImageCache.validFiles.size()),
-          invalidCount);
-  return {static_cast<int>(sleepImageCache.validFiles.size()), invalidCount};
+  LOG_INF("VALIDATE_SLEEP", "Complete: %d valid, %d invalid", sleepImageCache.count, invalidCount);
+  return {static_cast<int>(sleepImageCache.count), invalidCount};
 }
 
 int validateAndCountSleepImages() { return validateSleepImagesWithStats().valid; }
@@ -469,7 +522,7 @@ void SleepActivity::renderCustomSleepScreen() const {
         file.close();
         // File in cache is invalid - delete cache so it's rebuilt next time
         LOG_WRN("SLP", "Cached image invalid, clearing cache");
-        Storage.remove(SLEEP_CACHE_PATH);
+        Storage.remove(SLEEP_CACHE_FILE);
       }
     } else {
       renderImageSleepScreen(pinnedPath);
@@ -509,7 +562,7 @@ void SleepActivity::renderCustomSleepScreen() const {
 #endif
 
   validateSleepImagesOnce();
-  const auto numFiles = sleepImageCache.validFiles.size();
+  const uint16_t numFiles = sleepImageCache.count;
   if (numFiles > 0) {
     size_t fileIndex;
     if (SETTINGS.sleepCycleMode == CrossPointSettings::SLEEP_CYCLE_SEQUENTIAL) {
@@ -527,7 +580,12 @@ void SleepActivity::renderCustomSleepScreen() const {
     if (selectionChanged) {
       APP_STATE.saveToFile();
     }
-    const auto& filename = sleepImageCache.validFiles[fileIndex];
+    const std::string filename = readSleepImageAtIndex(static_cast<uint16_t>(fileIndex));
+    if (filename.empty()) {
+      LOG_ERR("SLP", "Failed to read image at index %d from cache", (int)fileIndex);
+      renderDefaultSleepScreen();
+      return;
+    }
     LOG_INF("SLP", "Loading: %s", filename.c_str());
 
     if (isBmpFile(filename)) {

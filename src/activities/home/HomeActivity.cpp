@@ -51,7 +51,10 @@ bool canAllocateCarouselFrameBuffer(size_t bufferSize) {
 }
 
 bool carouselCoverThumbsReady(const std::vector<RecentBook>& books) {
-  for (const auto& book : books) {
+  if (books.empty()) {
+    return false;
+  }
+  return std::all_of(books.begin(), books.end(), [](const RecentBook& book) {
     if (book.coverBmpPath.empty()) {
       return false;
     }
@@ -59,12 +62,9 @@ bool carouselCoverThumbsReady(const std::vector<RecentBook>& books) {
                                                               LyraCarouselTheme::kCenterCoverH);
     const std::string sidePath =
         UITheme::getCoverThumbPath(book.coverBmpPath, LyraCarouselTheme::kSideCoverW, LyraCarouselTheme::kSideCoverH);
-    if (centerPath.empty() || sidePath.empty() || !Storage.exists(centerPath.c_str()) ||
-        !Storage.exists(sidePath.c_str())) {
-      return false;
-    }
-  }
-  return !books.empty();
+    return !centerPath.empty() && !sidePath.empty() && Storage.exists(centerPath.c_str()) &&
+           Storage.exists(sidePath.c_str());
+  });
 }
 
 struct CarouselCacheHeader {

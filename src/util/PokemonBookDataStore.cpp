@@ -4,6 +4,8 @@
 #include <BookCachePath.h>
 #include <FsFileJsonReader.h>
 #include <HalStorage.h>
+#include <Logging.h>
+#include <Memory.h>
 
 #include <memory>
 
@@ -57,7 +59,11 @@ bool PokemonBookDataStore::savePokemonDocument(const std::string& bookPath, Json
   doc["pokemon"].set(pokemonData);
 
   const size_t jsonSize = measureJson(doc);
-  std::unique_ptr<char[]> jsonBuffer(new char[jsonSize + 1]);
+  auto jsonBuffer = makeUniqueNoThrow<char[]>(jsonSize + 1);
+  if (!jsonBuffer) {
+    LOG_ERR("PKM", "OOM: %d bytes for JSON buffer", (int)(jsonSize + 1));
+    return false;
+  }
   serializeJson(doc, jsonBuffer.get(), jsonSize + 1);
   return Storage.writeFile((cachePath + kPokemonDataFileName).c_str(), jsonBuffer.get());
 }

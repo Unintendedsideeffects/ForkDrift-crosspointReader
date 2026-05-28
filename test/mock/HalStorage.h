@@ -56,6 +56,10 @@ class HalFile {
     return n;
   }
   size_t read(char* data, size_t len) { return read(reinterpret_cast<uint8_t*>(data), len); }
+  int read() {
+    if (!buf_ || pos_ >= buf_->size()) return -1;
+    return static_cast<int>((*buf_)[pos_++]);
+  }
   int available() const {
     if (!buf_ || pos_ > buf_->size()) return 0;
     return static_cast<int>(buf_->size() - pos_);
@@ -74,6 +78,13 @@ class HalFile {
     if (pos > static_cast<uint64_t>(std::numeric_limits<size_t>::max())) return false;
     return seek(static_cast<size_t>(pos));
   }
+  bool seekSet(size_t pos) { return seek(pos); }
+  bool seekCur(int64_t offset) {
+    const int64_t newPos = static_cast<int64_t>(pos_) + offset;
+    if (newPos < 0) return false;
+    return seek(static_cast<size_t>(newPos));
+  }
+  size_t position() const { return pos_; }
 
   bool isDirectory() const { return isDirectory_; }
 
