@@ -26,6 +26,7 @@ PREVIEW_SPECS = [
     {"stem": "15_sleep_custom", "label": "Sleep - Custom Image"},
     {"stem": "16_sleep_transparent", "label": "Sleep - Transparent"},
     {"stem": "17_sleep_roman_clock", "label": "Sleep - Roman Clock"},
+    {"stem": "18_sleep_haiku_clock", "label": "Sleep - Haiku Clock"},
 ]
 
 HOME_THEME_PREVIEWS = {

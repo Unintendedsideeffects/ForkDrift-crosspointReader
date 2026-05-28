@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-28T10:06:31.278701+00:00",
+  "generated_at": "2026-05-28T15:09:22.604972+00:00",
   "files": [
     {
       "name": "01_boot.png",
@@ -69,6 +69,10 @@
     {
       "name": "17_sleep_roman_clock.png",
       "label": "Sleep - Roman Clock"
+    },
+    {
+      "name": "18_sleep_haiku_clock.png",
+      "label": "Sleep - Haiku Clock"
     }
   ],
   "home_themes": {

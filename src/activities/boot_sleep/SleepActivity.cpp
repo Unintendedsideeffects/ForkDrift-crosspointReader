@@ -1086,6 +1086,8 @@ void SleepActivity::renderHaikuClockSleepScreen() const {
     fontId = NOTOSANS_16_FONT_ID;
   } else if (renderer.getFontMap().count(NOTOSERIF_18_FONT_ID)) {
     fontId = NOTOSERIF_18_FONT_ID;
+  } else if (renderer.getFontMap().count(NOTOSERIF_14_FONT_ID)) {
+    fontId = NOTOSERIF_14_FONT_ID;
   }
 
   const int lineHeight = renderer.getLineHeight(fontId);

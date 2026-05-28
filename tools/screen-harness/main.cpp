@@ -520,6 +520,43 @@ void drawSleepRomanClockMock(GfxRenderer& renderer, const std::string& labelText
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
 
+void drawSleepHaikuClockMock(GfxRenderer& renderer) {
+  renderer.clearScreen();
+
+  const int W = renderer.getScreenWidth();
+  const int H = renderer.getScreenHeight();
+
+  // Mirror the font cascade used by renderHaikuClockSleepScreen.
+  int fontId = UI_12_FONT_ID;
+  if (renderer.getFontMap().count(NOTOSANS_18_FONT_ID)) {
+    fontId = NOTOSANS_18_FONT_ID;
+  } else if (renderer.getFontMap().count(LEXENDDECA_18_FONT_ID)) {
+    fontId = LEXENDDECA_18_FONT_ID;
+  } else if (renderer.getFontMap().count(NOTOSANS_16_FONT_ID)) {
+    fontId = NOTOSANS_16_FONT_ID;
+  } else if (renderer.getFontMap().count(NOTOSERIF_18_FONT_ID)) {
+    fontId = NOTOSERIF_18_FONT_ID;
+  } else if (renderer.getFontMap().count(NOTOSERIF_14_FONT_ID)) {
+    fontId = NOTOSERIF_14_FONT_ID;
+  }
+
+  const char* line1 = "Time is a shadow,";
+  const char* line2 = "Moving across the deep sky,";
+  const char* line3 = "Waiting for the sun.";
+
+  const int lineHeight = renderer.getLineHeight(fontId);
+  const int gap = lineHeight / 2;
+  const int totalBlockH = 3 * lineHeight + 2 * gap;
+  const int startY = std::max(H / 8, (H - totalBlockH) / 2);
+  const int startX = W / 10;
+
+  renderer.drawText(fontId, startX, startY, line1, true, EpdFontFamily::BOLD);
+  renderer.drawText(fontId, startX, startY + lineHeight + gap, line2, true, EpdFontFamily::BOLD);
+  renderer.drawText(fontId, startX, startY + (lineHeight + gap) * 2, line3, true, EpdFontFamily::BOLD);
+
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+}
+
 void drawFeatureStoreMock(GfxRenderer& renderer) {
   renderer.clearScreen();
   renderer.drawCenteredText(UI_12_FONT_ID, 15, "Update", true, EpdFontFamily::BOLD);
@@ -625,6 +662,7 @@ int main(int argc, char* argv[]) {
       {"15_sleep_custom", [&] { drawSleepCustomMock(renderer); }},
       {"16_sleep_transparent", [&] { drawSleepTransparentMock(renderer); }},
       {"17_sleep_roman_clock", [&] { drawSleepRomanClockMock(renderer, "XII:III"); }},
+      {"18_sleep_haiku_clock", [&] { drawSleepHaikuClockMock(renderer); }},
   };
 
   for (const auto& [name, render] : scenarios) {
