@@ -64,7 +64,7 @@ struct QuickActionOption {
 inline std::vector<std::string> quickActionOptionLabels(const std::vector<QuickActionOption>& options) {
   std::vector<std::string> labels;
   labels.reserve(options.size());
-  for (const auto& option : options) {
+  for (const auto& option : options) {  // cppcheck-suppress useStlAlgorithm
     labels.emplace_back(I18N.get(option.label));
   }
   return labels;
@@ -73,7 +73,7 @@ inline std::vector<std::string> quickActionOptionLabels(const std::vector<QuickA
 inline std::vector<uint8_t> quickActionPersistedValues(const std::vector<QuickActionOption>& options) {
   std::vector<uint8_t> values;
   values.reserve(options.size());
-  for (const auto& option : options) {
+  for (const auto& option : options) {  // cppcheck-suppress useStlAlgorithm
     values.push_back(option.value);
   }
   return values;
@@ -82,7 +82,7 @@ inline std::vector<uint8_t> quickActionPersistedValues(const std::vector<QuickAc
 inline std::vector<const char*> quickActionFeatureKeys(const std::vector<QuickActionOption>& options) {
   std::vector<const char*> featureKeys;
   featureKeys.reserve(options.size());
-  for (const auto& option : options) {
+  for (const auto& option : options) {  // cppcheck-suppress useStlAlgorithm
     featureKeys.push_back(option.featureKey);
   }
   return featureKeys;
@@ -449,11 +449,10 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                      .withConfiguratorExport()
                      .withVisibleWhen("sleepScreen", 3));
 #if ENABLE_HAIKU_CLOCK
-  list.push_back(
-      SettingInfo::Toggle(StrId::STR_HAIKU_CLOCK_LANDSCAPE, &CrossPointSettings::haikuClockLandscape,
-                          "haikuClockLandscape", StrId::STR_CAT_DISPLAY)
-          .withConfiguratorExport()
-          .withVisibleWhen("sleepScreen", CrossPointSettings::HAIKU_CLOCK_SLEEP));
+  list.push_back(SettingInfo::Toggle(StrId::STR_HAIKU_CLOCK_LANDSCAPE, &CrossPointSettings::haikuClockLandscape,
+                                     "haikuClockLandscape", StrId::STR_CAT_DISPLAY)
+                     .withConfiguratorExport()
+                     .withVisibleWhen("sleepScreen", CrossPointSettings::HAIKU_CLOCK_SLEEP));
 #endif
   list.push_back(SettingInfo::Toggle(StrId::STR_CHAPTER_PAGE_COUNT, &CrossPointSettings::statusBarChapterPageCount,
                                      "statusBarChapterPageCount", StrId::STR_CUSTOMISE_STATUS_BAR)

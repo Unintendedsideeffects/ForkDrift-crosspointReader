@@ -901,6 +901,7 @@ void loop() {
   refreshClockOnTick();
 #endif
 
+  // cppcheck-suppress knownConditionTrueFalse
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || activityManager.preventAutoSleep() ||
       features::status_overlay::preventsAutoSleep() || backgroundServer.shouldPreventAutoSleep()) {
     lastActivityTime = millis();
