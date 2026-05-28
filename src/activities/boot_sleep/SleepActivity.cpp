@@ -35,6 +35,7 @@
 #include "util/DateUtils.h"
 #include "util/PokemonBookDataStore.h"
 #include "util/RecentBooksStore.h"
+#include "util/ScreenshotUtil.h"
 
 namespace {
 
@@ -834,14 +835,20 @@ void SleepActivity::renderRomanClockSleepScreen() const {
 #endif
 
 void SleepActivity::renderTransparentSleepScreen() const {
-  // Preserve current e-ink content: do NOT clear the screen.
-  // Just draw a small lock icon in the bottom status bar area.
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
+  const uint8_t* fb = renderer.getFrameBuffer();
+  if (fb) {
+    SpiBusMutex::Guard guard;
+    if (!ScreenshotUtil::saveFramebufferAsBmp("/sleep/transparent.bmp", fb, renderer.getDisplayWidth(),
+                                              renderer.getDisplayHeight())) {
+      LOG_WRN("SLP", "Failed to save transparent sleep screenshot");
+    }
+  }
+
   hideOverlayBatteryStrip(renderer);
   drawLockIcon(pageWidth / 2, pageHeight - 14);
-
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
 
