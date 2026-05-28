@@ -64,8 +64,8 @@ struct QuickActionOption {
 inline std::vector<std::string> quickActionOptionLabels(const std::vector<QuickActionOption>& options) {
   std::vector<std::string> labels;
   labels.reserve(options.size());
-  for (const auto& option : options) {  // cppcheck-suppress useStlAlgorithm
-    labels.emplace_back(I18N.get(option.label));
+  for (const auto& option : options) {
+    labels.emplace_back(I18N.get(option.label));  // cppcheck-suppress useStlAlgorithm
   }
   return labels;
 }
@@ -73,8 +73,8 @@ inline std::vector<std::string> quickActionOptionLabels(const std::vector<QuickA
 inline std::vector<uint8_t> quickActionPersistedValues(const std::vector<QuickActionOption>& options) {
   std::vector<uint8_t> values;
   values.reserve(options.size());
-  for (const auto& option : options) {  // cppcheck-suppress useStlAlgorithm
-    values.push_back(option.value);
+  for (const auto& option : options) {
+    values.push_back(option.value);  // cppcheck-suppress useStlAlgorithm
   }
   return values;
 }
@@ -82,8 +82,8 @@ inline std::vector<uint8_t> quickActionPersistedValues(const std::vector<QuickAc
 inline std::vector<const char*> quickActionFeatureKeys(const std::vector<QuickActionOption>& options) {
   std::vector<const char*> featureKeys;
   featureKeys.reserve(options.size());
-  for (const auto& option : options) {  // cppcheck-suppress useStlAlgorithm
-    featureKeys.push_back(option.featureKey);
+  for (const auto& option : options) {
+    featureKeys.push_back(option.featureKey);  // cppcheck-suppress useStlAlgorithm
   }
   return featureKeys;
 }
