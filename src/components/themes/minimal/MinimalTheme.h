@@ -11,8 +11,12 @@ namespace MinimalMetrics {
 constexpr ThemeMetrics makeValues() {
   ThemeMetrics v = LyraMetrics::values;
   v.homeTopPadding = 50;
-  v.homeCoverHeight = 583;
-  v.homeCoverTileHeight = 690;
+  // Cover is the single-cover "hero", but it must leave room below for the
+  // button menu (4 rows * kMenuRowHeight ~= 258px) + button hints on an 800px
+  // screen. homeCoverTileHeight bounds the cover region; the menu rect that
+  // HomeActivity derives from it then lands clear of the cover.
+  v.homeCoverHeight = 370;
+  v.homeCoverTileHeight = 400;
   v.homeRecentBooksCount = 1;
   v.homeContinueReadingInMenu = false;
   v.homeMenuTopOffset = 0;
@@ -36,12 +40,11 @@ class MinimalTheme : public LyraTheme {
                 const std::function<UIIcon(int index)>& rowIcon, const std::function<std::string(int index)>& rowValue,
                 bool highlightValue, const std::function<bool(int index)>& rowDimmed = nullptr,
                 const std::function<bool(int index)>& isHeader = nullptr) const override;
-  void drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
-                       const char* btn4, bool allowInvertedText = false) const override;
+  void drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3, const char* btn4,
+                       bool allowInvertedText = false) const override;
   void drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                            const int selectorIndex, bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
-                           const std::function<bool()>& storeCoverBuffer,
-                           float progressPercent = -1.0f) const override;
+                           const std::function<bool()>& storeCoverBuffer, float progressPercent = -1.0f) const override;
   void drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                       const std::function<std::string(int index)>& buttonLabel,
                       const std::function<UIIcon(int index)>& rowIcon) const override;
