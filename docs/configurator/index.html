@@ -2294,7 +2294,18 @@
                 <div class="card-body">
                   <div class="card-name">Focus Reading</div>
                   <div class="card-size"></div>
-                  <div class="card-desc">Hides page numbers, battery, and status overlays while reading — text only</div>
+                  <div class="card-desc">Bolds the first ~45% of each word to anchor the eye — a bionic-reading aid for speed and focus</div>
+                </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
+              <label class="skill-card" data-feature="guide_dots" data-node-id="guide_dots">
+                <input type="checkbox" id="guide_dots" data-feature="guide_dots" />
+                <div class="card-icon"><span>&#xB7;</span></div>
+                <div class="card-body">
+                  <div class="card-name">Guide Dots</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">Inserts a middle dot (·) between every word to make word boundaries visible</div>
                 </div>
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
@@ -3449,6 +3460,11 @@
           flag: "ENABLE_FOCUS_READING",
           default: false,
         },
+        guide_dots: {
+          sizeKb: 0,
+          flag: "ENABLE_GUIDE_DOTS",
+          default: false,
+        },
       };
 
       const FEATURE_DOCS = {
@@ -3491,7 +3507,8 @@
         chareink_fonts: "Chare Ink — a monospaced reading font optimised for e-ink displays. Distinctly spaced glyphs reduce letter confusion and improve scanning speed. A good fit for code-heavy or technical reading material. 12–18pt, four styles.",
         reading_stats: "Tracks per-book and global reading statistics — total pages turned, session time, and completion status. Adds a reading-stats sleep screen, a completion prompt when you finish a book, and a 'Mark as Finished' shortcut in the reader menu. Stats persist to the SD cache; completion state is also surfaced in the file browser.",
         minimal_theme: "A streamlined UI skin with reduced visual chrome — tighter spacing, no decorative borders, and a simpler icon set. Intended for readers who want fewer distractions and a faster visual cadence on e-ink. Requires Lyra Theme as its base.",
-        focus_reading: "Hides the page-number footer, battery indicator, and all status overlays while reading, leaving only the text. A distraction-free mode that mirrors the look of a physical book. Toggle from the reader long-press menu.",
+        focus_reading: "A bionic-reading aid: bolds the first ~45% of each word so the eye anchors on the bold prefix and the brain completes the rest by recognition. Can improve reading speed and reduce fatigue. Toggle from the reader long-press menu.",
+        guide_dots: "Inserts an interpunct (·) between every word to make word boundaries explicit. A dyslexia-friendly aid that can help readers who struggle with word separation or lose their place on long lines. Toggle from the reader long-press menu.",
         remote_control: "Compile-gates the HTTP (/api/open-book, /api/remote/button) and USB serial (open_book, remote_button) remote-control APIs. When disabled, those routes and commands are not compiled in. Open Book and Page Turn are included together; Keyboard Input is a separate optional sub-feature.",
         remote_open_book: "Lets the Android app send an 'open this book' command to the device over WiFi or USB. The device finds the book on the SD card by filename and opens it immediately. Compiled in when Remote Control is enabled.",
         remote_page_turn: "Lets the Android app send forward/back page commands to the device. Implemented via virtual button injection so it's fully orientation-aware. Compiled in when Remote Control is enabled.",
@@ -3530,7 +3547,7 @@
       };
 
       const HUB_FEATURES = {
-        reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "anki_support", "reading_stats", "focus_reading"],
+        reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "anki_support", "reading_stats", "focus_reading", "guide_dots"],
         interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "web_wallpaper_plugin", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts", "minimal_theme"],
         network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "haiku_clock_sleep", "remote_control", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
         storage_hub: ["usb_mass_storage"],
@@ -3539,7 +3556,7 @@
       const NOTE_FEATURES = {};
 
       // Features ported from the crossink fork — shown with a "crossink" badge.
-      const CROSSINK_FEATURES = new Set(["lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "reading_stats", "minimal_theme", "focus_reading"]);
+      const CROSSINK_FEATURES = new Set(["lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "reading_stats", "minimal_theme", "focus_reading", "guide_dots"]);
 
       const PROFILES = {
         lean: {},
@@ -5698,6 +5715,7 @@
               studioImagePath: renderedStudioImage || studioSelection.previewUrl || '',
               studioFileName: studioSelection.fileName || '',
               romanClockLabel: 'XII:III',
+              haikuClockLandscape: currentSettings.haikuClockLandscape === 1,
             },
             reader: {
               fontLabel: fontLabels[currentSettings.fontFamily] || fontLabels[0],
@@ -5924,10 +5942,9 @@
       height: 100%;
       display: flex;
       flex-direction: column;
-      justify-content: flex-start;
+      justify-content: center;
       align-items: flex-start;
       padding-left: 10%;
-      padding-top: 25%;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
       font-weight: 800;
       color: #111;
@@ -5937,7 +5954,18 @@
     }
     .sleep-preview-haiku-line {
       font-size: 2.1rem;
-      margin-bottom: 20px;
+      margin-bottom: 0.5em;
+    }
+    .sleep-preview-haiku-line:last-child {
+      margin-bottom: 0;
+    }
+    .sleep-preview-haiku.landscape {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 100vh;
+      height: 100vw;
+      transform: translate(-50%, -50%) rotate(90deg);
     }
     .button-hints {
       position: absolute;
@@ -6290,7 +6318,8 @@
         );
         inner = romanMarkup;
       } else if (sleepPreview.mode === 13) {
-        inner = '<div class="sleep-preview-haiku">' +
+        const landscapeClass = sleepPreview.haikuClockLandscape ? ' landscape' : '';
+        inner = '<div class="sleep-preview-haiku' + landscapeClass + '">' +
           '<div class="sleep-preview-haiku-line">A late spring evening</div>' +
           '<div class="sleep-preview-haiku-line">The dial reads twelve forty-eight</div>' +
           '<div class="sleep-preview-haiku-line">Time is a shadow</div>' +
