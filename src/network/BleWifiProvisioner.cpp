@@ -40,7 +40,7 @@ class BleWifiProvisioner::CredentialCharacteristicCallbacks : public BLECharacte
   BleWifiProvisioner* owner;
 };
 
-BleWifiProvisioner::BleWifiProvisioner() { stateMutex = xSemaphoreCreateMutex(); }
+BleWifiProvisioner::BleWifiProvisioner() : stateMutex(xSemaphoreCreateMutex()) {}
 
 BleWifiProvisioner::~BleWifiProvisioner() {
   stop();
