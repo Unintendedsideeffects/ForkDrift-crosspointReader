@@ -140,11 +140,20 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
                                                              const std::string& username, const std::string& password) {
   std::unique_ptr<WiFiClient> client;
   if (UrlUtils::isHttpsUrl(url)) {
-    auto* secureClient = new WiFiClientSecure();
+    auto* secureClient = new (std::nothrow) WiFiClientSecure();
+    if (!secureClient) {
+      LOG_ERR("HTTP", "OOM: WiFiClientSecure (free heap: %u, largest block: %u)", ESP.getFreeHeap(),
+              ESP.getMaxAllocHeap());
+      return HTTP_ERROR;
+    }
     secureClient->setInsecure();
     client.reset(secureClient);
   } else {
-    client.reset(new WiFiClient());
+    client.reset(new (std::nothrow) WiFiClient());
+    if (!client) {
+      LOG_ERR("HTTP", "OOM: WiFiClient (free heap: %u)", ESP.getFreeHeap());
+      return HTTP_ERROR;
+    }
   }
   HTTPClient http;
 
@@ -161,9 +170,18 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     http.addHeader("Authorization", "Basic " + encoded);
   }
 
+  // Heap snapshot before the TLS handshake. A fresh WiFiClientSecure needs a
+  // large *contiguous* block (~40KB) for mbedTLS; on this 380KB part the manifest
+  // download can succeed while later .cpfont downloads fail with GET()==-1
+  // (HTTPC_ERROR_CONNECTION_REFUSED) once the heap is fragmented. The largest
+  // free block (not just total free) is what the handshake actually needs, so
+  // logging both distinguishes OOM-starved TLS from a genuine network failure.
+  LOG_DBG("HTTP", "Free heap before GET: %u (largest block: %u)", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+
   const int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
-    LOG_ERR("HTTP", "Download failed: %d", httpCode);
+    LOG_ERR("HTTP", "Download failed: %d (free heap: %u, largest block: %u)", httpCode, ESP.getFreeHeap(),
+            ESP.getMaxAllocHeap());
     http.end();
     return HTTP_ERROR;
   }
