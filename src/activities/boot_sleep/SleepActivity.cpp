@@ -752,19 +752,11 @@ void SleepActivity::renderRomanClockSleepScreen() const {
   const int H = renderer.getScreenHeight();
   renderer.clearScreen();
 
-  // ── Decorative outer frame ───────────────────────────────────────────────
-  // A 1px rounded rectangle inset from all four display edges. Provides a
-  // "dial" or "certificate" quality that grounds the Roman numerals.
-  static constexpr int kFrameMargin = 28;
-  static constexpr int kFrameRadius = 12;
-  renderer.drawRoundedRect(kFrameMargin, kFrameMargin, W - kFrameMargin * 2, H - kFrameMargin * 2, 1, kFrameRadius,
-                           true);
-
-  // ── Content area (inside frame with additional inner padding) ────────────
-  static constexpr int kInnerPad = 32;
-  const int cx = kFrameMargin + kInnerPad;
+  // ── Content area ─────────────────────────────────────────────────────────
+  static constexpr int kInnerPad = 40;
+  const int cx = kInnerPad;
   const int cw = W - cx * 2;
-  const int cy = kFrameMargin + kInnerPad;
+  const int cy = kInnerPad;
   const int ch = H - cy * 2;
 
   const bool hasMinute = !label.minute.empty();
@@ -1042,6 +1034,10 @@ void SleepActivity::renderHaikuClockSleepScreen() const {
   int minute = 0;
   bool timeSet = DateUtils::getHourAndMinute(hour, minute);
 
+  if (SETTINGS.haikuClockLandscape) {
+    renderer.setOrientation(GfxRenderer::Orientation::LandscapeClockwise);
+  }
+
   renderer.clearScreen();
 
   const int W = renderer.getScreenWidth();
@@ -1093,11 +1089,12 @@ void SleepActivity::renderHaikuClockSleepScreen() const {
   }
 
   const int lineHeight = renderer.getLineHeight(fontId);
-  const int gap = 20;
+  const int gap = lineHeight / 2;
 
-  // Premium left-aligned layout with no borders or icons
-  const int startY = H * 25 / 100;
-  const int startX = W * 10 / 100;
+  // Vertically center the three-line block with a minimum top margin
+  const int totalBlockH = 3 * lineHeight + 2 * gap;
+  const int startY = std::max(H / 8, (H - totalBlockH) / 2);
+  const int startX = W / 10;
 
   if (!line1.empty()) {
     renderer.drawText(fontId, startX, startY, line1.c_str(), true, EpdFontFamily::BOLD);

@@ -177,6 +177,8 @@ inline int fitMultiRowScale(const GfxRenderer& renderer, const std::vector<std::
   return std::max(1, std::min(maxWidth / maxRowBaseW, maxHeight / totalBaseH));
 }
 
+inline bool drawScaledText(GfxRenderer& renderer, const std::string& text, int x, int y, int scale, bool black = true);
+
 // Draws rows stacked and centred within the box (cx, cy, availW, availH).
 inline bool drawMultiRowText(GfxRenderer& renderer, const std::vector<std::string>& rows, int cx, int cy, int availW,
                              int availH, int scale) {
@@ -233,7 +235,7 @@ inline void drawScaledGlyph(GfxRenderer& renderer, const EpdFontFamily& fontFami
   }
 }
 
-inline bool drawScaledText(GfxRenderer& renderer, const std::string& text, int x, int y, int scale, bool black = true) {
+inline bool drawScaledText(GfxRenderer& renderer, const std::string& text, int x, int y, int scale, bool black) {
   if (text.empty()) {
     return true;
   }
