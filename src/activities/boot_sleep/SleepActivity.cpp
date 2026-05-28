@@ -1107,5 +1107,9 @@ void SleepActivity::renderHaikuClockSleepScreen() const {
   }
 
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+
+  if (SETTINGS.haikuClockLandscape) {
+    renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+  }
 }
 #endif

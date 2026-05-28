@@ -264,6 +264,10 @@ class CrossPointSettings {
   uint8_t sleepCycleMode = SLEEP_CYCLE_RANDOM;
   // Pinned sleep cover path — if non-empty and sleepScreen==CUSTOM, always use this image.
   char sleepPinnedPath[256] = "";
+#if ENABLE_HAIKU_CLOCK
+  // Haiku clock: render in landscape orientation
+  uint8_t haikuClockLandscape = 0;
+#endif
   // Status bar settings
   uint8_t statusBar = FULL;
   uint8_t statusBarChapterPageCount = 1;

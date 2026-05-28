@@ -563,6 +563,7 @@ enum class StrId : uint16_t {
   STR_BOOKMARK_REMOVED,
   STR_BOOKMARK_LIMIT_REACHED,
   STR_NO_BOOKMARKS,
+  STR_HAIKU_CLOCK_LANDSCAPE,
   // Sentinel - must be last
   STR_COUNT
 };

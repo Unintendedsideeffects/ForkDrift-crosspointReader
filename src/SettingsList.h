@@ -448,6 +448,13 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                                    {StrId::STR_RANDOM, StrId::STR_SEQUENTIAL}, "sleepCycleMode", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()
                      .withVisibleWhen("sleepScreen", 3));
+#if ENABLE_HAIKU_CLOCK
+  list.push_back(
+      SettingInfo::Toggle(StrId::STR_HAIKU_CLOCK_LANDSCAPE, &CrossPointSettings::haikuClockLandscape,
+                          "haikuClockLandscape", StrId::STR_CAT_DISPLAY)
+          .withConfiguratorExport()
+          .withVisibleWhen("sleepScreen", CrossPointSettings::HAIKU_CLOCK_SLEEP));
+#endif
   list.push_back(SettingInfo::Toggle(StrId::STR_CHAPTER_PAGE_COUNT, &CrossPointSettings::statusBarChapterPageCount,
                                      "statusBarChapterPageCount", StrId::STR_CUSTOMISE_STATUS_BAR)
                      .withConfiguratorExport());
