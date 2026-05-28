@@ -1083,27 +1083,43 @@ void SleepActivity::renderHaikuClockSleepScreen() const {
     line1 = textStr;
   }
 
-  // Choose the best available large sans font (e.g. Noto Sans 18)
+  // Symmetric, bezel-aware content box. The text's left edge is the box margin
+  // (not an arbitrary W/10 offset), so the block sits tidily within the viewable
+  // area instead of hugging the left while a tall portrait screen sits empty.
+  int marginTop, marginRight, marginBottom, marginLeft;
+  renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
+  static constexpr int kInnerPad = 40;  // matches the Roman clock content inset
+  const int boxLeft = marginLeft + kInnerPad;
+  const int boxTop = marginTop + kInnerPad;
+  const int boxW = W - boxLeft - marginRight - kInnerPad;
+  const int boxH = H - boxTop - marginBottom - kInnerPad;
+
+  // Pick the largest available font whose widest line still fits the box width,
+  // so the haiku fills the available width rather than rendering tiny. Haiku
+  // lines are full sentences drawn without wrapping, so an unmeasured large font
+  // overflows the right edge in portrait — every off-screen pixel trips the
+  // bounds check in GfxRenderer::drawPixel and floods the serial log, which can
+  // stretch the sleep render past 15s. Fonts are ordered largest-first; the loop
+  // keeps the last (smallest) candidate as a fallback if none fit.
+  static constexpr int candidateFonts[] = {NOTOSANS_18_FONT_ID,  LEXENDDECA_18_FONT_ID, NOTOSANS_16_FONT_ID,
+                                           NOTOSERIF_18_FONT_ID, NOTOSERIF_14_FONT_ID,  UI_12_FONT_ID};
   int fontId = UI_12_FONT_ID;
-  if (renderer.getFontMap().count(NOTOSANS_18_FONT_ID)) {
-    fontId = NOTOSANS_18_FONT_ID;
-  } else if (renderer.getFontMap().count(LEXENDDECA_18_FONT_ID)) {
-    fontId = LEXENDDECA_18_FONT_ID;
-  } else if (renderer.getFontMap().count(NOTOSANS_16_FONT_ID)) {
-    fontId = NOTOSANS_16_FONT_ID;
-  } else if (renderer.getFontMap().count(NOTOSERIF_18_FONT_ID)) {
-    fontId = NOTOSERIF_18_FONT_ID;
-  } else if (renderer.getFontMap().count(NOTOSERIF_14_FONT_ID)) {
-    fontId = NOTOSERIF_14_FONT_ID;
+  for (const int candidate : candidateFonts) {
+    if (!renderer.getFontMap().count(candidate)) continue;
+    const int w1 = renderer.getTextWidth(candidate, line1.c_str(), EpdFontFamily::BOLD);
+    const int w2 = renderer.getTextWidth(candidate, line2.c_str(), EpdFontFamily::BOLD);
+    const int w3 = renderer.getTextWidth(candidate, line3.c_str(), EpdFontFamily::BOLD);
+    fontId = candidate;
+    if (std::max({w1, w2, w3}) <= boxW) break;
   }
 
   const int lineHeight = renderer.getLineHeight(fontId);
   const int gap = lineHeight / 2;
 
-  // Vertically center the three-line block with a minimum top margin
+  // Left-aligned to the box; the three-line block vertically centered in the box.
   const int totalBlockH = 3 * lineHeight + 2 * gap;
-  const int startY = std::max(H / 8, (H - totalBlockH) / 2);
-  const int startX = W / 10;
+  const int startX = boxLeft;
+  const int startY = boxTop + std::max(0, (boxH - totalBlockH) / 2);
 
   if (!line1.empty()) {
     renderer.drawText(fontId, startX, startY, line1.c_str(), true, EpdFontFamily::BOLD);
