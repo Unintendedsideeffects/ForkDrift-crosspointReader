@@ -10,6 +10,7 @@
 #include "SdCardFontRegistry.h"
 #include "SdCardFontSystem.h"
 #include "core/features/FeatureModules.h"
+#include "network/BackgroundWifiService.h"
 #include "util/ButtonNavigator.h"
 
 #include <algorithm>
@@ -25,6 +26,10 @@ HalGPIO gpio;
 ActivityManager activityManager;
 CrossPointSettings CrossPointSettings::instance;
 SdCardFontSystem sdFontSystem;
+BackgroundWifiService BackgroundWifiService::instance;
+
+void BackgroundWifiService::stop(bool) {}
+bool BackgroundWifiService::startRetryActive() const { return false; }
 
 // The screen harness registers no SD-card fonts, so these SdCardFont paths in
 // GfxRenderer are never exercised. Stub them (SdCardFont.cpp is not linked).
