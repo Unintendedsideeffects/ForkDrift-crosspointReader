@@ -73,7 +73,7 @@ FEATURES = {
     'calibre_sync': Feature(
         name='OPDS Support',
         flag='ENABLE_CALIBRE_SYNC',
-        size_kb=2,
+        size_kb=0,
         description='OPDS catalog browser for Calibre wireless libraries and other OPDS servers'
     ),
     'opds': Feature(
@@ -139,7 +139,7 @@ FEATURES = {
     'xtc_support': Feature(
         name='XTC Support',
         flag='ENABLE_XTC_SUPPORT',
-        size_kb=20,
+        size_kb=21,
         description='XTC format reader with chapter navigation'
     ),
     'lyra_theme': Feature(
@@ -163,7 +163,7 @@ FEATURES = {
     'anki_support': Feature(
         name='Anki Support',
         flag='ENABLE_ANKI_SUPPORT',
-        size_kb=9,
+        size_kb=10,
         description='Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop.'
     ),
     'dark_mode': Feature(
@@ -229,7 +229,7 @@ FEATURES = {
     'haiku_clock_sleep': Feature(
         name='Haiku Clock Sleep Screen',
         flag='ENABLE_HAIKU_CLOCK',
-        size_kb=26,
+        size_kb=23,
         description='E-Ink clock that displays quarter-hourly, syllable-accurate time-mentioning haikus'
     ),
     'lexenddeca_fonts': Feature(
@@ -253,13 +253,13 @@ FEATURES = {
     'reading_stats': Feature(
         name='Reading Stats',
         flag='ENABLE_READING_STATS',
-        size_kb=6,
+        size_kb=5,
         description='Tracks reading time, pages turned, and completion status. Enables "Mark Finished" and book statistics screen'
     ),
     'minimal_theme': Feature(
         name='Minimal Theme',
         flag='ENABLE_MINIMAL_THEME',
-        size_kb=5,
+        size_kb=0,
         description='Minimal UI theme for home screen and navigation (requires Lyra Theme)'
     ),
     'focus_reading': Feature(
@@ -758,7 +758,7 @@ def empty_feature_state() -> Dict[str, bool]:
 
 def calculate_size(enabled_features: Dict[str, bool]) -> float:
     """Calculate estimated firmware size in MB."""
-    base_size_mb = 2.37  # Lean profile size baseline (measured)
+    base_size_mb = 2.40  # Lean profile size baseline (measured)
 
     for feature_key, enabled in enabled_features.items():
         if enabled:
