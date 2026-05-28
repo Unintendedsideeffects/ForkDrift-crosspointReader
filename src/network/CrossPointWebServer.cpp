@@ -4,6 +4,7 @@
 #include <Epub.h>
 #include <FeatureFlags.h>
 #include <FsHelpers.h>
+#include <HTTPClient.h>
 #include <HalStorage.h>
 #include <Logging.h>
 #include <WiFi.h>

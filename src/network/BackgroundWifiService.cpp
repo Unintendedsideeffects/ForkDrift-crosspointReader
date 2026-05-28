@@ -14,6 +14,10 @@
 #include "HalStorage.h"
 #include "network/CrossPointWebServer.h"
 
+// Defined in CrossPointState.cpp — returns the FreeRTOS task that currently
+// holds the pending-state mutex, or nullptr if unowned.
+extern TaskHandle_t debugPendingStateMutexHolder();
+
 BackgroundWifiService BackgroundWifiService::instance;
 
 // Structure passed to the FreeRTOS task so it owns copies of the credentials
