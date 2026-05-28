@@ -8,7 +8,7 @@ class GfxRenderer;
 namespace LyraMetrics {
 constexpr ThemeMetrics values = {.batteryWidth = 16,
                                  .batteryHeight = 12,
-                                 .topPadding = 5,
+                                 .topPadding = 9,
                                  .batteryBarHeight = 40,
                                  .headerHeight = 84,
                                  .verticalSpacing = 16,
