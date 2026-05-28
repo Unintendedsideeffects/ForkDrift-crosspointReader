@@ -22,12 +22,53 @@ prune_old_local_artifacts() {
         \( -path './.plans/*' -o -path './.copilot-logs/*' \) \
         -mtime +14 -exec rm -rf {} +
 
-    # Prune unused per-env PlatformIO build subdirs from the persistent cache.
-    # ccache (separate dir, capped at 5G via scripts/use_ccache.py) self-manages
-    # its own eviction; only the per-env build artifacts grow unbounded here.
+    # Prune unused per-env PlatformIO build subdirs (older than 14 days).
     if [ -d "$HOME/.cache/crosspoint-pio-build" ]; then
         find "$HOME/.cache/crosspoint-pio-build" -maxdepth 1 -mindepth 1 -type d \
             -mtime +14 -exec rm -rf {} + 2>/dev/null || true
+    fi
+
+    # Prune the SCons CacheDir (crosspoint-pio-cache) when it exceeds 2 GB.
+    # SCons has no built-in eviction; we implement LRU by file mtime.
+    # ccache (separate dir) self-manages via its own max_size config.
+    if [ -d "$HOME/.cache/crosspoint-pio-cache" ] && command -v python3 &>/dev/null; then
+        python3 - "$HOME/.cache/crosspoint-pio-cache" 2>/dev/null <<'PY' || true
+import os, sys
+
+cache_dir = sys.argv[1]
+max_bytes = 2 * 1024 ** 3  # 2 GB
+
+entries = []
+for dirpath, _, filenames in os.walk(cache_dir):
+    for fname in filenames:
+        if fname == "config":
+            continue
+        fpath = os.path.join(dirpath, fname)
+        try:
+            st = os.stat(fpath)
+            entries.append((st.st_mtime, st.st_size, fpath))
+        except OSError:
+            pass
+
+total = sum(s for _, s, _ in entries)
+if total <= max_bytes:
+    sys.exit(0)
+
+entries.sort()  # oldest mtime first
+removed = removed_bytes = 0
+for mtime, size, fpath in entries:
+    if total <= max_bytes:
+        break
+    try:
+        os.unlink(fpath)
+        total -= size
+        removed += 1
+        removed_bytes += size
+    except OSError:
+        pass
+
+print(f"SCons cache pruned: removed {removed} entries ({removed_bytes // 1024**2} MB), {total // 1024**2} MB remaining")
+PY
     fi
 }
 
