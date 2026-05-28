@@ -13,6 +13,7 @@
 
 #include "components/UITheme.h"
 #include "components/icons/book.h"
+#include "components/icons/calendar.h"
 #include "components/icons/cover.h"
 #include "components/icons/folder.h"
 #include "components/icons/library.h"
@@ -43,6 +44,8 @@ const uint8_t* iconForName(UIIcon icon, int size) {
       return LibraryIcon;
     case UIIcon::Wifi:
       return WifiIcon;
+    case UIIcon::Calendar:
+      return CalendarIcon;
     default:
       return nullptr;
   }

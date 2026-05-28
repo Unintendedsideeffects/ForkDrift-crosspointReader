@@ -97,7 +97,20 @@ struct ThemeMetrics {
   int textFieldLineEndOffset;
 };
 
-enum UIIcon : std::uint8_t { Folder, Text, Image, Book, File, Recent, Settings, Transfer, Library, Wifi, Hotspot };
+enum UIIcon : std::uint8_t {
+  Folder,
+  Text,
+  Image,
+  Book,
+  File,
+  Recent,
+  Settings,
+  Transfer,
+  Library,
+  Wifi,
+  Hotspot,
+  Calendar
+};
 
 enum class KeyboardKeyType : std::uint8_t { Normal, Shift, Mode, Space, Del, Ok, Disabled };
 

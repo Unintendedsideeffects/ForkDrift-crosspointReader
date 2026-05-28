@@ -12,6 +12,7 @@
 
 #include "CrossPointSettings.h"
 #include "components/UITheme.h"
+#include "components/icons/calendar24.h"
 #include "components/icons/cover.h"
 #include "components/icons/folder.h"
 #include "components/icons/settings2.h"
@@ -42,6 +43,8 @@ const uint8_t* iconFor(UIIcon icon, int size) {
         return TransferIcon;
       case UIIcon::Text:
         return Text24Icon;
+      case UIIcon::Calendar:
+        return Calendar24Icon;
       default:
         return nullptr;
     }
@@ -225,13 +228,15 @@ void ForkDriftTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int button
   if (totalPages > 1) {
     constexpr int arrowSize = 5;
     const int centerX = rect.x + rect.width - pad / 2;
-    const int menuH = maxVisibleItems * (tileH + ForkDriftMetrics::values.menuSpacing) - ForkDriftMetrics::values.menuSpacing;
+    const int menuH =
+        maxVisibleItems * (tileH + ForkDriftMetrics::values.menuSpacing) - ForkDriftMetrics::values.menuSpacing;
     const int top = rect.y + arrowSize;
     const int bot = rect.y + menuH - arrowSize * 2;
     for (int i = 0; i < arrowSize; ++i) {
       const int w = 1 + i * 2;
       renderer.drawLine(centerX - i, top + i, centerX - i + w - 1, top + i);
-      renderer.drawLine(centerX - (arrowSize - 1 - i), bot + i, centerX - (arrowSize - 1 - i) + 1 + (arrowSize - 1 - i) * 2 - 1, bot + i);
+      renderer.drawLine(centerX - (arrowSize - 1 - i), bot + i,
+                        centerX - (arrowSize - 1 - i) + 1 + (arrowSize - 1 - i) * 2 - 1, bot + i);
     }
   }
 }

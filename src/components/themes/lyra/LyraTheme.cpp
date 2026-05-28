@@ -15,6 +15,8 @@
 #include "components/UITheme.h"
 #include "components/icons/book.h"
 #include "components/icons/book24.h"
+#include "components/icons/calendar.h"
+#include "components/icons/calendar24.h"
 #include "components/icons/cover.h"
 #include "components/icons/file24.h"
 #include "components/icons/folder.h"
@@ -57,6 +59,8 @@ const uint8_t* iconForName(UIIcon icon, int size) {
         return Book24Icon;
       case UIIcon::File:
         return File24Icon;
+      case UIIcon::Calendar:
+        return Calendar24Icon;
       default:
         return nullptr;
     }
@@ -78,6 +82,8 @@ const uint8_t* iconForName(UIIcon icon, int size) {
         return WifiIcon;
       case UIIcon::Hotspot:
         return HotspotIcon;
+      case UIIcon::Calendar:
+        return CalendarIcon;
       default:
         return nullptr;
     }
@@ -537,7 +543,8 @@ void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
       renderer.drawText(UI_10_FONT_ID, textX, titleY, progressLabel, true, EpdFontFamily::BOLD);
       renderer.drawRect(textX, progressBarY, progressBarWidth, progressBarHeight, true);
       if (filledWidth > 0) {
-        renderer.fillRect(textX + 1, progressBarY + 1, std::max(0, filledWidth - 2), std::max(0, progressBarHeight - 2));
+        renderer.fillRect(textX + 1, progressBarY + 1, std::max(0, filledWidth - 2),
+                          std::max(0, progressBarHeight - 2));
       }
     }
   } else {

@@ -523,6 +523,7 @@ void HomeActivity::openSelectedBook() {
     return;
   }
 
+  freeCoverBuffer();
   gCarouselCache.invalidate();
   freeCarouselFrames();
   APP_STATE.openEpubPath = selected.path;
@@ -576,7 +577,10 @@ UIIcon HomeActivity::getMenuItemIcon(const int index) const {
   if (index == menuOpdsIndex) {
     return UIIcon::Library;
   }
-  if (index == menuTodoIndex || index == menuAnkiIndex) {
+  if (index == menuTodoIndex) {
+    return UIIcon::Calendar;
+  }
+  if (index == menuAnkiIndex) {
     return UIIcon::Text;
   }
 #if ENABLE_BOOKMARKS
@@ -812,9 +816,10 @@ void HomeActivity::onEnter() {
 void HomeActivity::onExit() {
   Activity::onExit();
 
-  // Do NOT free coverBuffer or gCarouselCache here — both are static and persist so the next home
-  // visit can restore instantly without reloading from SD card or re-allocating heap frames.
+  freeCoverBuffer();
+  gCarouselCache.invalidate();
   freeCarouselFrames();
+  coverRendered = false;
   carouselWarmupPending = false;
   recentBooks.clear();
 }
@@ -1658,11 +1663,11 @@ void HomeActivity::render(RenderLock&&) {
       } else {
         if (core::HomeActionRegistry::shouldExpose("todo_planner", {false})) {
           menuLabels.push_back("Agenda");
-          menuIcons.push_back(Text);
+          menuIcons.push_back(Calendar);
         }
         if (core::HomeActionRegistry::shouldExpose("anki", {false})) {
           menuLabels.push_back("Anki");
-          menuIcons.push_back(Text);  // Using Text icon as placeholder
+          menuIcons.push_back(Text);
         }
         menuLabels.push_back(tr(STR_FILE_TRANSFER));
         menuIcons.push_back(Transfer);
