@@ -31,6 +31,7 @@ class HalStorage {
   bool openFileForRead(const char* /*tag*/, const std::string& /*path*/, HalFile& /*file*/) { return false; }
   bool openFileForRead(const char* /*tag*/, const char* /*path*/, HalFile& /*file*/) { return false; }
   bool exists(const char* /*path*/) const { return false; }
+  bool remove(const char* /*path*/) { return false; }
 };
 
 #define Storage HalStorage::getInstance()

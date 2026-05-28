@@ -440,7 +440,11 @@ void FeatureModules::onWebFileChanged(const String& filePath) {
 bool FeatureModules::tryGetDocumentCoverPath(const String& documentPath, std::string& outCoverPath) {
 #if ENABLE_EPUB_SUPPORT
   String lowerPath = documentPath;
+#ifndef SIMULATOR
   lowerPath.toLowerCase();
+#else
+  std::transform(lowerPath.s.begin(), lowerPath.s.end(), lowerPath.s.begin(), ::tolower);
+#endif
   if (!lowerPath.endsWith(".epub")) {
     return false;
   }

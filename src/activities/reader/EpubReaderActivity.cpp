@@ -9,6 +9,7 @@
 #include <HalStorage.h>
 #include <I18n.h>
 #include <Logging.h>
+#include <Memory.h>
 #include <esp_system.h>
 
 #include <cmath>
@@ -56,7 +57,8 @@ void enterDeepSleep();
 namespace {
 // pagesPerRefresh now comes from SETTINGS.getRefreshFrequency()
 constexpr uint8_t maxPageLoadRetryCount = 1;
-constexpr uint32_t minHeapForFontPrewarm = 16000;
+constexpr uint32_t minHeapForFontPrewarm = 40000;
+constexpr uint32_t minHeapForPageRender = 45000;
 constexpr uint16_t DEFAULT_AUTO_PAGE_TURN_INTERVAL_S = 30;
 constexpr uint16_t MIN_AUTO_PAGE_TURN_INTERVAL_S = 5;
 constexpr uint16_t MAX_AUTO_PAGE_TURN_INTERVAL_S = 120;
@@ -185,7 +187,7 @@ void EpubReaderActivity::onEnter() {
   Activity::onEnter();
   mappedInput.setReaderMode(true);
 
-  if (BG_WIFI.isRunning()) {
+  if (BG_WIFI.isPendingOrRunning()) {
     BG_WIFI.stop(true);
   }
 
@@ -490,10 +492,12 @@ void EpubReaderActivity::loop() {
 
   const bool longPress = mappedInput.getHeldTime() > ReaderUtils::SKIP_HOLD_MS;
 
-  // Don't skip chapter after screenshot
+  // Don't skip chapter after screenshot (physical combo; no-op in simulator)
+#ifndef SIMULATOR
   if (gpio.peekReleased(HalGPIO::BTN_POWER) && gpio.peekReleased(HalGPIO::BTN_DOWN)) {
     return;
   }
+#endif
 
   const bool chapterSkip =
       fromSideBtn ? SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_CHAPTER_SKIP
@@ -1217,10 +1221,25 @@ void EpubReaderActivity::render(RenderLock&& lock) {
   const uint16_t viewportWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
   const uint16_t viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
 
+  if (esp_get_free_heap_size() < minHeapForPageRender) {
+    LOG_ERR("ERS", "Insufficient heap for page render: %u bytes free", static_cast<unsigned>(esp_get_free_heap_size()));
+    renderReaderError(StrId::STR_PAGE_LOAD_ERROR);
+    automaticPageTurnActive = false;
+    showPendingSyncSaveError();
+    return;
+  }
+
   if (!section) {
     LOG_DBG("ERS", "Loading file: %s, index: %d", epub->getSpineItem(currentSpineIndex).href.c_str(),
             currentSpineIndex);
-    section = std::unique_ptr<Section>(new Section(epub, currentSpineIndex, renderer));
+    section = makeUniqueNoThrow<Section>(epub, currentSpineIndex, renderer);
+    if (!section) {
+      LOG_ERR("ERS", "Failed to allocate section (heap=%u)", static_cast<unsigned>(esp_get_free_heap_size()));
+      renderReaderError(StrId::STR_PAGE_LOAD_ERROR);
+      automaticPageTurnActive = false;
+      showPendingSyncSaveError();
+      return;
+    }
 
     if (!section->loadSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                   SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,

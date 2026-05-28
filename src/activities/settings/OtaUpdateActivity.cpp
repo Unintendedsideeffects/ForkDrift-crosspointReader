@@ -281,7 +281,7 @@ void OtaUpdateActivity::render(RenderLock&&) {
         if (flag.startsWith("FEATURE_")) {
           flag = flag.substring(8);
         }
-        flag.replace('_', ' ');
+        flag.replace("_", " ");
         if (flag.length() > 0) {
           renderer.drawText(UI_10_FONT_ID, textX + 6, y, ("• " + flag).c_str());
           y += 20;

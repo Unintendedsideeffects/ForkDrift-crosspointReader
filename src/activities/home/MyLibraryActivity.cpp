@@ -19,6 +19,7 @@
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "fontIds.h"
+#include "network/BackgroundWifiService.h"
 #include "util/RecentBooksStore.h"
 #include "util/StringUtils.h"
 
@@ -162,6 +163,10 @@ int MyLibraryActivity::getPageItems() const {
 
 void MyLibraryActivity::onEnter() {
   Activity::onEnter();
+
+  if (BG_WIFI.isPendingOrRunning()) {
+    BG_WIFI.stop(true);
+  }
 
   std::string restoreRecentPath;
   std::string restoreFileName;

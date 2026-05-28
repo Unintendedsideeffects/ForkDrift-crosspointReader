@@ -3,6 +3,7 @@
 #include <Print.h>
 #include <common/FsApiConstants.h>  // for oflag_t
 #include <freertos/semphr.h>
+#include <freertos/task.h>
 
 #include <memory>
 #include <string>
@@ -46,6 +47,7 @@ class HalStorage {
   bool removeDir(const char* path);
 
   static HalStorage& getInstance() { return instance; }
+  static TaskHandle_t storageMutexHolder();
 
   class StorageLock;  // private class, used internally
 

@@ -10,6 +10,8 @@
 
 #include <new>
 
+#include "CrossPointState.h"
+#include "HalStorage.h"
 #include "network/CrossPointWebServer.h"
 
 BackgroundWifiService BackgroundWifiService::instance;
@@ -257,23 +259,24 @@ void BackgroundWifiService::stop(const bool keepWifi) {
   }
 
   if (taskHandle != nullptr) {
-    // Task didn't exit cleanly — force-delete as last resort.
-    // WARNING: force-killing a task that holds a non-recursive mutex leaves
-    // FreeRTOS believing the now-dead task still owns it. The next Give from
-    // any other task then trips xQueueGenericSend assert at queue.c:832.
-    extern TaskHandle_t debugPendingStateMutexHolder();
-    const bool heldMutex = (debugPendingStateMutexHolder() == taskHandle);
-    LOG_ERR("BGWIFI", "Task did not exit within %lu ms, force-deleting (held pendingStateMutex=%d)", STOP_TIMEOUT_MS,
-            heldMutex ? 1 : 0);
-    vTaskDelete(taskHandle);
-    taskHandle = nullptr;
-    connected = false;
-    if (wifiOwned && !keepWifi) {
-      WiFi.disconnect(false);
-      WiFi.mode(WIFI_OFF);
+    const bool heldPendingMutex = (debugPendingStateMutexHolder() == taskHandle);
+    const bool heldStorageMutex = (HalStorage::storageMutexHolder() == taskHandle);
+    if (heldPendingMutex || heldStorageMutex) {
+      LOG_ERR("BGWIFI",
+              "Task did not exit within %lu ms but holds mutex (pending=%d storage=%d); skipping force-delete",
+              STOP_TIMEOUT_MS, heldPendingMutex ? 1 : 0, heldStorageMutex ? 1 : 0);
+    } else {
+      LOG_ERR("BGWIFI", "Task did not exit within %lu ms, force-deleting", STOP_TIMEOUT_MS);
+      vTaskDelete(taskHandle);
+      taskHandle = nullptr;
+      connected = false;
+      if (wifiOwned && !keepWifi) {
+        WiFi.disconnect(false);
+        WiFi.mode(WIFI_OFF);
+      }
+      wifiOwned = false;
+      keepWifiOnStop = false;
     }
-    wifiOwned = false;
-    keepWifiOnStop = false;
   }
 
   LOG_DBG("BGWIFI", "Stopped. Total requests served: %lu", requestCount);

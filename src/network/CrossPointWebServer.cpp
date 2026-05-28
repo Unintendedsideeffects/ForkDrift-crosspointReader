@@ -34,6 +34,7 @@
 #include "html/SettingsPageHtml.generated.h"
 #include "html/js/jszip_minJs.generated.h"
 #include "network/BufferedHttpUpload.h"
+#include "network/HttpDownloader.h"
 #include "network/RecentBookJson.h"
 #include "network/TodoPlannerApi.h"
 #if ENABLE_REMOTE_CONTROL
@@ -355,6 +356,7 @@ void CrossPointWebServer::mountRoutes() {
   server->on("/api/opds", HTTP_GET, [this] { handleGetOpdsServers(); });
   server->on("/api/opds", HTTP_POST, [this] { handlePostOpdsServer(); });
   server->on("/api/opds/delete", HTTP_POST, [this] { handleDeleteOpdsServer(); });
+  server->on("/api/opds/test", HTTP_POST, [this] { handleTestOpdsServer(); });
 
   // Fork-drift HTTP endpoints — restored after upstream merge bd4f8033 dropped them.
   server->on("/api/book-progress", HTTP_GET, [this] { handleGetBookProgress(); });
@@ -1008,6 +1010,60 @@ void CrossPointWebServer::handleDeleteOpdsServer() {
   OPDS_STORE.removeServer(static_cast<size_t>(idx));
   LOG_DBG("WEB", "Deleted OPDS server at index %d", idx);
   server->send(200, "text/plain", "OK");
+}
+
+void CrossPointWebServer::handleTestOpdsServer() {
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+  JsonDocument doc;
+  if (deserializeJson(doc, server->arg("plain")) != DeserializationError::Ok) {
+    server->send(400, "text/plain", "Invalid JSON");
+    return;
+  }
+
+  const std::string url = doc["url"] | std::string("");
+  const std::string username = doc["username"] | std::string("");
+  const std::string password = doc["password"] | std::string("");
+
+  if (url.empty()) {
+    server->send(400, "text/plain", "URL required");
+    return;
+  }
+
+  const int code = HttpDownloader::probeUrl(url, username, password);
+
+  JsonDocument resp;
+  resp["status"] = code;
+  if (code > 0) {
+    resp["ok"] = (code >= 200 && code < 300);
+    if (code == 401)
+      resp["error"] = "Unauthorized — check credentials";
+    else if (code == 403)
+      resp["error"] = "Forbidden";
+    else if (code == 404)
+      resp["error"] = "Not found — check URL";
+    else if (code >= 200 && code < 300)
+      resp["error"] = nullptr;
+    else
+      resp["error"] = "Server returned " + std::to_string(code);
+  } else {
+    resp["ok"] = false;
+    // Negative codes are HTTPClient error constants
+    if (code == HTTPC_ERROR_CONNECTION_REFUSED)
+      resp["error"] = "Connection refused";
+    else if (code == HTTPC_ERROR_SEND_HEADER_FAILED || code == HTTPC_ERROR_SEND_PAYLOAD_FAILED)
+      resp["error"] = "Send failed";
+    else if (code == HTTPC_ERROR_NOT_CONNECTED || code == HTTPC_ERROR_NO_HTTP_SERVER)
+      resp["error"] = "Not connected";
+    else
+      resp["error"] = "Connection failed";
+  }
+
+  String json;
+  serializeJson(resp, json);
+  server->send(200, "application/json", json);
 }
 
 // ---- Wi-Fi Credentials API ----

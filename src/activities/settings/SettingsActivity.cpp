@@ -31,10 +31,12 @@
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
+#include "network/BackgroundWifiService.h"
 #include "util/MaintenanceUtils.h"
 
 namespace {
 constexpr char kBackgroundServerModeKey[] = "backgroundServerMode";
+constexpr uint32_t kMinHeapForSettingsRebuild = 48000;
 
 const std::vector<SettingInfo>* settingsForCategory(int categoryIndex, const std::vector<SettingInfo>& displaySettings,
                                                     const std::vector<SettingInfo>& readerSettings,
@@ -64,9 +66,9 @@ void SettingsActivity::rebuildSettingsLists() {
   controlsSettings.clear();
   systemSettings.clear();
 
-  // Pick up any fonts uploaded/deleted over the web server since the last
-  // reader activity ran — otherwise the font-family picker shows stale list.
-  sdFontSystem.refreshIfDirty();
+  if (ESP.getFreeHeap() >= kMinHeapForSettingsRebuild) {
+    sdFontSystem.refreshIfDirty();
+  }
 
   const auto& allSettings = getSettingsList(&sdFontSystem.registry());
   auto addControlSetting = [&](StrId nameId) {
@@ -160,7 +162,10 @@ void SettingsActivity::rebuildSettingsLists() {
 void SettingsActivity::onEnter() {
   Activity::onEnter();
 
-  // Reset selection to first category
+  if (BG_WIFI.isPendingOrRunning()) {
+    BG_WIFI.stop(true);
+  }
+
   selectedCategoryIndex = 0;
   selectedSettingIndex = 0;
 

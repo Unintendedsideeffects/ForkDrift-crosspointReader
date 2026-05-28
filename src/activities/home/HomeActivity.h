@@ -53,9 +53,8 @@ class HomeActivity final : public Activity {
   std::array<float, kMaxCachedBooks> cachedBookProgress{};
   uint8_t* carouselFrames[kCarouselFrameCount] = {};
 
-  // Static cover cache — persists across HomeActivity instances to avoid reloading
-  // covers from SD on every home visit. Invalidated when the recent book list changes.
-  // Cost: 48KB heap held while reading; benefit: instant home re-entry.
+  // Static cover cache — reused while Home is active; freed on exit so other
+  // activities (reader, settings) are not starved of heap.
   static bool coverRendered;
   static bool coverBufferStored;
   static uint8_t* coverBuffer;

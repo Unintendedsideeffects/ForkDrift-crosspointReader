@@ -176,9 +176,8 @@ bool hasValidCarouselDiskCache(const std::vector<RecentBook>& recentBooks, const
 }
 
 // ---------------------------------------------------------------------------
-// Static carousel frame cache — survives HomeActivity re-creation so that
-// returning to home (e.g. after settings) doesn't re-read covers from SD.
-// Freed explicitly in onSelectBook / openSelectedBook() before entering reader.
+// Static carousel/cover caches — reused while Home is active; released in
+// onExit() and openSelectedBook() so reader/settings have heap headroom.
 // ---------------------------------------------------------------------------
 class CarouselCache {
  public:

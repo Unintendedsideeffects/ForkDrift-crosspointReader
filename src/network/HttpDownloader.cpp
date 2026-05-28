@@ -109,6 +109,32 @@ bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent, c
   return true;
 }
 
+int HttpDownloader::probeUrl(const std::string& url, const std::string& username, const std::string& password) {
+  std::unique_ptr<WiFiClient> client;
+  if (UrlUtils::isHttpsUrl(url)) {
+    auto* secureClient = new (std::nothrow) WiFiClientSecure();
+    if (!secureClient) return HTTPC_ERROR_NO_HTTP_SERVER;
+    secureClient->setInsecure();
+    client.reset(secureClient);
+  } else {
+    client.reset(new (std::nothrow) WiFiClient());
+    if (!client) return HTTPC_ERROR_NO_HTTP_SERVER;
+  }
+  HTTPClient http;
+  http.begin(*client, url.c_str());
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
+  http.setTimeout(8000);
+  if (!username.empty()) {
+    const std::string credentials = username + ":" + password;
+    http.addHeader("Authorization", "Basic " + base64::encode(credentials.c_str()));
+  }
+  const int code = http.GET();
+  http.end();
+  LOG_DBG("HTTP", "Probe %s → %d", url.c_str(), code);
+  return code;
+}
+
 HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& url, const std::string& destPath,
                                                              ProgressCallback progress, bool* cancelFlag,
                                                              const std::string& username, const std::string& password) {

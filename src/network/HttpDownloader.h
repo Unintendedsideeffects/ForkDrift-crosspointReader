@@ -40,6 +40,13 @@ class HttpDownloader {
                        const std::string& password = "");
 
   /**
+   * Probe a URL: sends GET with credentials, returns the HTTP status code
+   * (or a negative HTTPClient error code) without reading the response body.
+   * Useful for connection tests.
+   */
+  static int probeUrl(const std::string& url, const std::string& username = "", const std::string& password = "");
+
+  /**
    * Download a file to the SD card with optional credentials.
    */
   static DownloadError downloadToFile(const std::string& url, const std::string& destPath,

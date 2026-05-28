@@ -5,8 +5,8 @@
 #include <vector>
 
 #include "../Activity.h"
-#include "util/RecentBooksStore.h"
 #include "util/ButtonNavigator.h"
+#include "util/RecentBooksStore.h"
 
 class MyLibraryActivity final : public Activity {
  public:
@@ -66,4 +66,5 @@ class MyLibraryActivity final : public Activity {
   void onExit() override;
   void loop() override;
   void render(RenderLock&&) override;
+  bool blocksBackgroundServer() override { return true; }
 };

@@ -12,14 +12,16 @@ void CrashActivity::onExit() {
   // Stop background WiFi before the activity stack transitions to prevent a
   // FreeRTOS mutex ownership violation when handleClient() races with the next
   // activity's onEnter().
-  BG_WIFI.stop(false);
+  if (BG_WIFI.isPendingOrRunning()) {
+    BG_WIFI.stop(false);
+  }
   Activity::onExit();
 }
 
 void CrashActivity::onEnter() {
   Activity::onEnter();
 
-  if (BG_WIFI.isRunning()) {
+  if (BG_WIFI.isPendingOrRunning()) {
     BG_WIFI.stop(true);
   }
 

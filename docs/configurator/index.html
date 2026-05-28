@@ -1385,6 +1385,27 @@
         white-space: nowrap;
       }
       .wifi-remove-btn:hover { background: var(--bone); color: var(--blk); }
+      .opds-server-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin: 12px 0;
+      }
+      .opds-server-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: flex-end;
+        padding: 8px;
+        border: var(--px) solid var(--fog);
+      }
+      .opds-server-row .form-group { min-width: 0; flex: 1 1 140px; }
+      .opds-empty-hint {
+        font-size: 9px;
+        color: var(--lt);
+        padding: 12px 0;
+        text-align: center;
+      }
       .wifi-empty-hint {
         font-size: 9px;
         color: var(--lt);
@@ -3212,6 +3233,26 @@
               Passwords are stored as plaintext in this file. The device XOR-obfuscates them with its
               MAC address on import — the file on SD is not long-term sensitive, but treat it like a
               password file.
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top: 12px;">
+            <div class="panel-heading">OPDS Servers</div>
+            <div class="companion-desc" style="line-height: 1.6; margin-bottom: 4px;">
+              Add up to 8 OPDS catalog servers (e.g. Calibre, Booklore/Grimoire). Download
+              <code>opds.json</code> and place it at <code>/.crosspoint/opds.json</code> on the SD
+              card. The device imports on first boot and re-saves with device-specific obfuscation.
+            </div>
+            <div class="opds-server-list" id="opds-server-list">
+              <div class="opds-empty-hint" id="opds-empty-hint">No servers added yet. Click + Add Server.</div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-outline" id="opds-add-btn">+ Add Server</button>
+              <button class="btn btn-solid" id="opds-download-btn" disabled>&#x2193; opds.json</button>
+            </div>
+            <div class="info-bar" style="margin-top: 10px;">
+              Passwords are stored as plaintext in this file. The device XOR-obfuscates them with
+              its MAC address on import — treat it like a password file.
             </div>
           </div>
 
@@ -5123,6 +5164,120 @@
       }
 
       /* ════════════════════════════════════════════════
+         OPDS servers tab
+         ════════════════════════════════════════════════ */
+      function setupOpdsTab() {
+        const list = document.getElementById('opds-server-list');
+        const emptyHint = document.getElementById('opds-empty-hint');
+        const addBtn = document.getElementById('opds-add-btn');
+        const dlBtn = document.getElementById('opds-download-btn');
+        let servers = [];
+
+        function escapeHtml(s) {
+          return (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+        }
+
+        function refresh() {
+          list.querySelectorAll('.opds-server-row').forEach(r => r.remove());
+          emptyHint.style.display = servers.length === 0 ? '' : 'none';
+          dlBtn.disabled = servers.length === 0;
+
+          servers.forEach((srv, idx) => {
+            const row = document.createElement('div');
+            row.className = 'opds-server-row';
+            row.innerHTML = `
+              <div class="form-group">
+                <label class="form-label">Name</label>
+                <input class="form-input opds-name" type="text" maxlength="64"
+                  value="${escapeHtml(srv.name)}" placeholder="My Library"
+                  autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="form-group" style="flex: 2 1 200px;">
+                <label class="form-label">URL</label>
+                <input class="form-input opds-url" type="url" maxlength="256"
+                  value="${escapeHtml(srv.url)}" placeholder="http://192.168.1.x:8080/opds"
+                  autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Username</label>
+                <input class="form-input opds-user" type="text" maxlength="64"
+                  value="${escapeHtml(srv.username)}" placeholder="(optional)"
+                  autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Password</label>
+                <input class="form-input opds-pass" type="password" maxlength="128"
+                  value="${escapeHtml(srv.password)}" placeholder="(optional)"
+                  autocomplete="new-password" />
+              </div>
+              <button class="wifi-remove-btn opds-test-btn" data-idx="${idx}" title="Test connection">&#x25BA;</button>
+              <button class="wifi-remove-btn" data-idx="${idx}" title="Remove">&#xD7;</button>
+            `;
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'opds-test-result';
+            resultDiv.style.cssText = 'font-size:9px;margin-top:4px;display:none;';
+            row.querySelector('.opds-name').addEventListener('input', e => { servers[idx].name = e.target.value; });
+            row.querySelector('.opds-url').addEventListener('input', e => { servers[idx].url = e.target.value; });
+            row.querySelector('.opds-user').addEventListener('input', e => { servers[idx].username = e.target.value; });
+            row.querySelector('.opds-pass').addEventListener('input', e => { servers[idx].password = e.target.value; });
+            row.querySelector('.wifi-remove-btn:last-child').addEventListener('click', () => {
+              servers.splice(idx, 1);
+              refresh();
+            });
+            row.querySelector('.opds-test-btn').addEventListener('click', async () => {
+              const url = servers[idx].url.trim();
+              const username = servers[idx].username;
+              const password = servers[idx].password;
+              if (!url) { resultDiv.textContent = 'Enter a URL first.'; resultDiv.style.color = 'var(--md)'; resultDiv.style.display = ''; return; }
+              resultDiv.textContent = 'Testing…'; resultDiv.style.color = 'var(--md)'; resultDiv.style.display = '';
+              try {
+                const headers = {};
+                if (username) headers['Authorization'] = 'Basic ' + btoa(username + ':' + password);
+                const resp = await fetch(url, { headers, signal: AbortSignal.timeout(8000), mode: 'no-cors' });
+                // no-cors: response is opaque — we can't read status, but no error = server reached
+                resultDiv.textContent = '✓ Server reachable (credentials not verified — use device UI to confirm auth)';
+                resultDiv.style.color = 'green';
+              } catch (e) {
+                if (e.name === 'AbortError') { resultDiv.textContent = '✗ Timeout'; }
+                else { resultDiv.textContent = '✗ Unreachable — check URL and network'; }
+                resultDiv.style.color = '#c00';
+              }
+            });
+            row.appendChild(resultDiv);
+            list.appendChild(row);
+          });
+        }
+
+        addBtn.addEventListener('click', () => {
+          if (servers.length >= 8) return;
+          servers.push({ name: '', url: '', username: '', password: '' });
+          refresh();
+          const rows = list.querySelectorAll('.opds-url');
+          if (rows.length) rows[rows.length - 1].focus();
+        });
+
+        dlBtn.addEventListener('click', () => {
+          const payload = {
+            servers: servers
+              .filter(s => s.url.trim())
+              .map(s => ({ name: s.name, url: s.url, username: s.username, password: s.password }))
+          };
+          const json = JSON.stringify(payload, null, 2);
+          const blob = new Blob([json], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'opds.json';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        });
+
+        refresh();
+      }
+
+      /* ════════════════════════════════════════════════
          Baked settings tab
          ════════════════════════════════════════════════ */
       function setupSettingsTab() {
@@ -6536,6 +6691,7 @@
       setupWallpaperStudio();
       setupGitHubBuildTrigger();
       setupWifiTab();
+      setupOpdsTab();
       setupSettingsTab();
       initPresetDownloadLinks();
       stampCrossinkBadges();

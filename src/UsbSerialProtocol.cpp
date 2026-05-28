@@ -10,6 +10,8 @@
 #include <WiFi.h>
 #include <mbedtls/base64.h>
 
+#include <algorithm>
+
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "JsonSettingsIO.h"
@@ -680,7 +682,11 @@ static void handleCover(const char* path) {
 
 static bool isSupportedSleepImageName(const char* name) {
   String fname(name);
+#ifndef SIMULATOR
   fname.toLowerCase();
+#else
+  std::transform(fname.s.begin(), fname.s.end(), fname.s.begin(), ::tolower);
+#endif
   bool supported = fname.endsWith(".bmp");
 #if ENABLE_IMAGE_SLEEP
   supported = supported || fname.endsWith(".png") || fname.endsWith(".jpg") || fname.endsWith(".jpeg");

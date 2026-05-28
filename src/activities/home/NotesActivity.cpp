@@ -62,7 +62,9 @@ void NotesActivity::loadNotes() {
 
 void NotesActivity::saveNotes() const {
   String content;
+#ifndef SIMULATOR
   content.reserve(notes.size() * 40);
+#endif
   for (const auto& note : notes) {
     content += note.c_str();
     content += '\n';

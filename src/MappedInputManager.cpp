@@ -1,11 +1,16 @@
 #include "MappedInputManager.h"
 
+#include <algorithm>
 #include <cstring>
 #include <utility>
 
 #include "CrossPointSettings.h"
 
 namespace {
+
+#ifdef SIMULATOR
+size_t buttonIndex(MappedInputManager::Button button) { return static_cast<size_t>(button); }
+#endif
 
 // Double-tap window for power button (Back action).
 // Lowering this reduces latency for single-tap Confirm action.
@@ -192,6 +197,9 @@ bool MappedInputManager::consumePowerBack() {
 }
 
 bool MappedInputManager::wasPressed(const Button button) {
+#ifdef SIMULATOR
+  if (simulatorPressed[buttonIndex(button)]) return true;
+#endif
   if (button == Button::Confirm && consumePowerConfirm()) {
     return true;
   }
@@ -213,6 +221,9 @@ bool MappedInputManager::wasPressed(const Button button) {
 }
 
 bool MappedInputManager::wasReleased(const Button button) {
+#ifdef SIMULATOR
+  if (simulatorReleased[buttonIndex(button)]) return true;
+#endif
   if (button == Button::Back && suppressBackRelease) {
     if (mapButton(button, &HalGPIO::wasReleased)) {
       suppressBackRelease = false;
@@ -253,9 +264,15 @@ void MappedInputManager::clearTransientState() {
   doubleTapReady = false;
   powerReleaseConsumed = false;
   suppressBackRelease = false;
+#ifdef SIMULATOR
+  simulatorPressed.fill(false);
+  simulatorReleased.fill(false);
+  simulatorHeld.fill(false);
+#endif
 }
 
 void MappedInputManager::injectVirtualActivation(const Button button) {
+#ifndef SIMULATOR
   const auto sideLayout = static_cast<CrossPointSettings::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
   const auto& side = kSideLayouts[sideLayout];
   switch (button) {
@@ -286,6 +303,9 @@ void MappedInputManager::injectVirtualActivation(const Button button) {
     default:
       break;
   }
+#else
+  (void)button;
+#endif
 }
 
 bool MappedInputManager::isPressed(const Button button) const {
@@ -303,11 +323,34 @@ bool MappedInputManager::isPressed(const Button button) const {
   return mapButton(button, &HalGPIO::isPressed);
 }
 
-bool MappedInputManager::wasAnyPressed() const { return gpio.wasAnyPressed(); }
+bool MappedInputManager::wasAnyPressed() const {
+#ifdef SIMULATOR
+  if (std::any_of(simulatorPressed.begin(), simulatorPressed.end(), [](bool b) { return b; })) return true;
+#endif
+  return gpio.wasAnyPressed();
+}
 
-bool MappedInputManager::wasAnyReleased() const { return gpio.wasAnyReleased(); }
+bool MappedInputManager::wasAnyReleased() const {
+#ifdef SIMULATOR
+  if (std::any_of(simulatorReleased.begin(), simulatorReleased.end(), [](bool b) { return b; })) return true;
+#endif
+  return gpio.wasAnyReleased();
+}
 
-unsigned long MappedInputManager::getHeldTime() const { return gpio.getHeldTime(); }
+unsigned long MappedInputManager::getHeldTime() const {
+#ifdef SIMULATOR
+  unsigned long heldTime = gpio.getHeldTime();
+  const unsigned long now = millis();
+  for (size_t i = 0; i < BUTTON_COUNT; i++) {
+    if (simulatorHeld[i] && simulatorPressStart[i] > 0) {
+      heldTime = std::max(heldTime, now - simulatorPressStart[i]);
+    }
+  }
+  return heldTime;
+#else
+  return gpio.getHeldTime();
+#endif
+}
 
 MappedInputManager::Labels MappedInputManager::mapLabels(const char* back, const char* confirm, const char* previous,
                                                          const char* next) const {
@@ -357,3 +400,25 @@ int MappedInputManager::getPressedFrontButton() const {
   }
   return -1;
 }
+
+#ifdef SIMULATOR
+void MappedInputManager::simulatorInjectPress(const Button button) {
+  const size_t idx = buttonIndex(button);
+  simulatorPressed[idx] = true;
+  simulatorReleased[idx] = false;
+  simulatorHeld[idx] = true;
+  simulatorPressStart[idx] = millis();
+}
+
+void MappedInputManager::simulatorInjectRelease(const Button button) {
+  const size_t idx = buttonIndex(button);
+  simulatorPressed[idx] = false;
+  simulatorReleased[idx] = true;
+  simulatorHeld[idx] = false;
+}
+
+void MappedInputManager::simulatorClearInputFrame() {
+  simulatorPressed.fill(false);
+  simulatorReleased.fill(false);
+}
+#endif

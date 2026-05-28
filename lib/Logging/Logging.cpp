@@ -76,7 +76,7 @@ void addToLogRingBuffer(const char* message) {
   logHead = (logHead + 1) % MAX_LOG_LINES;
 }
 
-#if !defined(HOST_BUILD) && !defined(CROSSPOINT_HOST_BUILD)
+#if !defined(HOST_BUILD) && !defined(CROSSPOINT_HOST_BUILD) && !defined(SIMULATOR)
 MySerialImpl MySerialImpl::instance;
 
 size_t MySerialImpl::printf(const char* format, ...) {

@@ -13,6 +13,10 @@
 
 HalStorage HalStorage::instance;
 
+TaskHandle_t HalStorage::storageMutexHolder() {
+  return storageMutex ? xSemaphoreGetMutexHolder(storageMutex) : nullptr;
+}
+
 HalStorage::HalStorage() {
   storageMutex = xSemaphoreCreateMutex();
   assert(storageMutex != nullptr);

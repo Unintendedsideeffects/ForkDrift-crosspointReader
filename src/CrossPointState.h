@@ -1,4 +1,6 @@
 #pragma once
+#include <freertos/task.h>
+
 #include <atomic>
 #include <climits>
 #include <cstdint>
@@ -64,3 +66,5 @@ class CrossPointState {
 
 // Helper macro to access settings
 #define APP_STATE CrossPointState::getInstance()
+
+TaskHandle_t debugPendingStateMutexHolder();

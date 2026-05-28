@@ -1014,8 +1014,10 @@
       '</div>' +
       '<div class="opds-actions">' +
         '<button class="btn-small btn-save-server" onclick="saveOpdsServer(' + idx + ')">Save</button>' +
+        '<button class="btn-small" onclick="testOpdsServer(\'' + id + '\')">Test</button>' +
         (isNew ? '' : '<button class="btn-small btn-delete" onclick="deleteOpdsServer(' + idx + ')">Delete</button>') +
       '</div>' +
+      '<div id="opds-test-result-' + id + '" style="margin-top:6px;font-size:0.8em;"></div>' +
     '</div>';
   }
 
@@ -1037,15 +1039,45 @@
     container.innerHTML = html;
   }
 
+  async function testOpdsServer(id) {
+    const url = (document.getElementById('opds-url-' + id) || {}).value || '';
+    const username = (document.getElementById('opds-user-' + id) || {}).value || '';
+    const password = (document.getElementById('opds-pass-' + id) || {}).value || '';
+    const resultEl = document.getElementById('opds-test-result-' + id);
+    if (!resultEl) return;
+    if (!url) { resultEl.textContent = 'Enter a URL first.'; resultEl.style.color = 'var(--error-color, #c00)'; return; }
+    resultEl.textContent = 'Testing…';
+    resultEl.style.color = 'inherit';
+    try {
+      const resp = await fetch('/api/opds/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, username, password })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        resultEl.textContent = '✓ Connected (HTTP ' + data.status + ')';
+        resultEl.style.color = 'green';
+      } else {
+        resultEl.textContent = '✗ ' + (data.error || ('HTTP ' + data.status));
+        resultEl.style.color = 'var(--error-color, #c00)';
+      }
+    } catch (e) {
+      resultEl.textContent = '✗ Request failed';
+      resultEl.style.color = 'var(--error-color, #c00)';
+    }
+  }
+
   async function loadOpdsServers() {
     try {
       const resp = await fetch('/api/opds');
       if (!resp.ok) throw new Error('Failed to load');
       opdsServers = await resp.json();
-      renderOpdsSection();
     } catch (e) {
       console.error('OPDS load error:', e);
+      opdsServers = [];
     }
+    renderOpdsSection();
   }
 
   function addOpdsServer() {

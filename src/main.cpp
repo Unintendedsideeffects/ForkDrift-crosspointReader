@@ -45,6 +45,9 @@
 #include "util/TimeSync.h"
 #endif
 #include "util/UsbMscPrompt.h"
+#ifdef SIMULATOR
+#include "simulator/SimulatorSmokeTest.h"
+#endif
 #include "util/WifiCredentialStore.h"
 
 MappedInputManager mappedInputManager(gpio);
@@ -603,7 +606,9 @@ void setup() {
   t1 = millis();
 
   HalSystem::begin();
+#ifndef SIMULATOR
   HalSystem::setSettingsProvider([]() { return SETTINGS.getCondensedSettings(); });
+#endif
   gpio.begin();
   powerManager.begin();
 
@@ -978,7 +983,9 @@ void loop() {
   activityManager.loop();
   // Clear unconsumed virtual bits — activities that don't call wasPressed(idx) would otherwise
   // leave bits set forever, causing wasAnyPressed() to permanently block auto-sleep.
+#ifndef SIMULATOR
   gpio.drainVirtualMask();
+#endif
 #if LOG_LEVEL >= 2
   const unsigned long activityDuration = millis() - activityStartTime;
 #endif
@@ -992,6 +999,10 @@ void loop() {
     }
 #endif
   }
+
+#ifdef SIMULATOR
+  runSimulatorSmokeTestTick();
+#endif
 
   if (activityManager.skipLoopDelay() || backgroundServer.wantsFastLoop()) {
     powerManager.setPowerSaving(false);
