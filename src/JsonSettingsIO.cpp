@@ -83,13 +83,18 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
   s.clockFormat = clamp(doc["clockFormat"] | (uint8_t)0, static_cast<uint8_t>(2), static_cast<uint8_t>(0));
   s.clockHasBeenSynced = doc["clockHasBeenSynced"] | (uint8_t)0;
   s.extraParagraphSpacing = doc["extraParagraphSpacing"] | (uint8_t)1;
+  s.forceParagraphIndents = doc["forceParagraphIndents"] | (uint8_t)0;
   s.textAntiAliasing = doc["textAntiAliasing"] | (uint8_t)1;
   s.shortPwrBtn = clamp(doc["shortPwrBtn"] | (uint8_t)S::IGNORE, S::SHORT_PWRBTN_COUNT, S::IGNORE);
+  s.longPwrBtn = clamp(doc["longPwrBtn"] | (uint8_t)S::SLEEP, S::SHORT_PWRBTN_COUNT, S::SLEEP);
   s.orientation = clamp(doc["orientation"] | (uint8_t)S::PORTRAIT, S::ORIENTATION_COUNT, S::PORTRAIT);
   s.frontButtonLayout = clamp(doc["frontButtonLayout"] | (uint8_t)S::BACK_CONFIRM_LEFT_RIGHT,
                               S::FRONT_BUTTON_LAYOUT_COUNT, S::BACK_CONFIRM_LEFT_RIGHT);
   s.sideButtonLayout =
       clamp(doc["sideButtonLayout"] | (uint8_t)S::PREV_NEXT, S::SIDE_BUTTON_LAYOUT_COUNT, S::PREV_NEXT);
+  s.sideButtonLongPress = clamp(doc["sideButtonLongPress"] | (uint8_t)S::SIDE_LONG_CHAPTER_SKIP,
+                                S::SIDE_LONG_PRESS_COUNT, S::SIDE_LONG_CHAPTER_SKIP);
+  s.sideButtonOrientationAware = doc["sideButtonOrientationAware"] | (uint8_t)0;
   const bool hasFrontButtonMapping = !(doc["frontButtonBack"].isNull() || doc["frontButtonConfirm"].isNull() ||
                                        doc["frontButtonLeft"].isNull() || doc["frontButtonRight"].isNull());
   if (hasFrontButtonMapping) {
@@ -105,6 +110,8 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
   } else {
     s.applyFrontButtonLayoutPreset(static_cast<S::FRONT_BUTTON_LAYOUT>(s.frontButtonLayout));
   }
+  s.frontButtonOrientationAware = clamp(doc["frontButtonOrientationAware"] | (uint8_t)S::FRONT_ORIENTATION_AWARE_OFF,
+                                        S::FRONT_ORIENTATION_AWARE_COUNT, S::FRONT_ORIENTATION_AWARE_OFF);
   s.fontFamily = clamp(doc["fontFamily"] | (uint8_t)S::NOTOSERIF, S::FONT_FAMILY_COUNT, S::NOTOSERIF);
   s.fontSize = clamp(doc["fontSize"] | (uint8_t)S::MEDIUM, S::FONT_SIZE_COUNT, S::MEDIUM);
   s.lineSpacing = clamp(doc["lineSpacing"] | (uint8_t)S::NORMAL, S::LINE_COMPRESSION_COUNT, S::NORMAL);
@@ -119,6 +126,8 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
       clamp(doc["hideBatteryPercentage"] | (uint8_t)S::HIDE_NEVER, S::HIDE_BATTERY_PERCENTAGE_COUNT, S::HIDE_NEVER);
   s.longPressButtonBehavior = clamp(doc["longPressButtonBehavior"] | (uint8_t)S::CHAPTER_SKIP,
                                     S::LONG_PRESS_BUTTON_BEHAVIOR_COUNT, S::CHAPTER_SKIP);
+  s.longPressMenuAction =
+      clamp(doc["longPressMenuAction"] | (uint8_t)S::LONG_MENU_OFF, S::LONG_PRESS_MENU_ACTION_COUNT, S::LONG_MENU_OFF);
   s.hyphenationEnabled = doc["hyphenationEnabled"] | (uint8_t)0;
   s.focusReadingEnabled = doc["focusReadingEnabled"] | (uint8_t)0;
   s.guideReadingEnabled = doc["guideReadingEnabled"] | (uint8_t)0;
@@ -245,15 +254,20 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["clockFormat"] = s.clockFormat;
   doc["clockHasBeenSynced"] = s.clockHasBeenSynced;
   doc["extraParagraphSpacing"] = s.extraParagraphSpacing;
+  doc["forceParagraphIndents"] = s.forceParagraphIndents;
   doc["textAntiAliasing"] = s.textAntiAliasing;
   doc["shortPwrBtn"] = s.shortPwrBtn;
+  doc["longPwrBtn"] = s.longPwrBtn;
   doc["orientation"] = s.orientation;
   doc["frontButtonLayout"] = s.frontButtonLayout;
   doc["sideButtonLayout"] = s.sideButtonLayout;
+  doc["sideButtonLongPress"] = s.sideButtonLongPress;
+  doc["sideButtonOrientationAware"] = s.sideButtonOrientationAware;
   doc["frontButtonBack"] = s.frontButtonBack;
   doc["frontButtonConfirm"] = s.frontButtonConfirm;
   doc["frontButtonLeft"] = s.frontButtonLeft;
   doc["frontButtonRight"] = s.frontButtonRight;
+  doc["frontButtonOrientationAware"] = s.frontButtonOrientationAware;
   doc["fontFamily"] = s.fontFamily;
   if (s.sdFontFamilyName[0] != '\0') {
     doc["sdFontFamilyName"] = s.sdFontFamilyName;
@@ -266,6 +280,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["screenMargin"] = s.screenMargin;
   doc["hideBatteryPercentage"] = s.hideBatteryPercentage;
   doc["longPressButtonBehavior"] = s.longPressButtonBehavior;
+  doc["longPressMenuAction"] = s.longPressMenuAction;
   doc["hyphenationEnabled"] = s.hyphenationEnabled;
   doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
   doc["timeMode"] = s.timeMode;

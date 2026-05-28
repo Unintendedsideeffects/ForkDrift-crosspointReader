@@ -2,19 +2,16 @@
 
 #if ENABLE_BLE_WIFI_PROVISIONING
 
-#include <ArduinoJson.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <Logging.h>
 
-#include <algorithm>
-#include <cctype>
+#include "BleCredentialParser.h"
 
 namespace {
 constexpr const char* kServiceUuid = "41cb0001-b8f4-4e4a-9f49-ecb9d6fd4b90";
 constexpr const char* kCharacteristicUuid = "41cb0002-b8f4-4e4a-9f49-ecb9d6fd4b90";
-constexpr size_t kMaxPayloadSize = 320;
 }  // namespace
 
 class BleWifiProvisioner::ServerDisconnectCallbacks : public BLEServerCallbacks {
@@ -168,19 +165,9 @@ std::string BleWifiProvisioner::getStatusMessage() const {
 }
 
 void BleWifiProvisioner::handleIncomingPayload(const std::string& payload) {
-  if (payload.empty()) {
-    setStatusMessage("Empty payload");
-    return;
-  }
-
-  if (payload.size() > kMaxPayloadSize) {
-    setStatusMessage("Payload too large");
-    return;
-  }
-
   std::string ssid;
   std::string password;
-  if (!parsePayload(payload, ssid, password)) {
+  if (!ble_credential_parser::parse(payload, ssid, password)) {
     setStatusMessage("Invalid payload");
     return;
   }
@@ -203,86 +190,6 @@ void BleWifiProvisioner::setStatusMessage(const std::string& message) {
   xSemaphoreTake(stateMutex, portMAX_DELAY);
   statusMessage = message;
   xSemaphoreGive(stateMutex);
-}
-
-bool BleWifiProvisioner::parsePayload(const std::string& payload, std::string& ssidOut,
-                                      std::string& passwordOut) const {
-  return parseJsonPayload(payload, ssidOut, passwordOut) || parseWifiQrPayload(payload, ssidOut, passwordOut) ||
-         parseDelimitedPayload(payload, ssidOut, passwordOut);
-}
-
-bool BleWifiProvisioner::parseJsonPayload(const std::string& payload, std::string& ssidOut,
-                                          std::string& passwordOut) const {
-  JsonDocument doc;
-  const DeserializationError err = deserializeJson(doc, payload);
-  if (err) {
-    return false;
-  }
-
-  const char* ssid = doc["ssid"];
-  if (!ssid || strlen(ssid) == 0) {
-    return false;
-  }
-
-  const char* password = doc["password"] | "";
-  ssidOut = ssid;
-  passwordOut = password ? password : "";
-  return true;
-}
-
-bool BleWifiProvisioner::parseWifiQrPayload(const std::string& payload, std::string& ssidOut,
-                                            std::string& passwordOut) const {
-  if (payload.rfind("WIFI:", 0) != 0) {
-    return false;
-  }
-
-  auto extractField = [&](const std::string& prefix) -> std::string {
-    size_t start = payload.find(prefix);
-    if (start == std::string::npos) return "";
-    start += prefix.length();
-
-    std::string result;
-    for (size_t i = start; i < payload.length(); ++i) {
-      char c = payload[i];
-      if (c == '\\' && i + 1 < payload.length()) {
-        result += payload[++i];  // Skip escape and add next char
-      } else if (c == ';') {
-        break;  // End of field
-      } else {
-        result += c;
-      }
-    }
-    return result;
-  };
-
-  ssidOut = extractField("S:");
-  passwordOut = extractField("P:");
-  return !ssidOut.empty();
-}
-
-bool BleWifiProvisioner::parseDelimitedPayload(const std::string& payload, std::string& ssidOut,
-                                               std::string& passwordOut) const {
-  size_t delimiter = payload.find(',');
-  if (delimiter == std::string::npos) {
-    delimiter = payload.find('\n');
-  }
-  if (delimiter == std::string::npos) {
-    return false;
-  }
-
-  ssidOut = trim(payload.substr(0, delimiter));
-  passwordOut = trim(payload.substr(delimiter + 1));
-  return !ssidOut.empty();
-}
-
-std::string BleWifiProvisioner::trim(const std::string& input) {
-  auto start = std::find_if_not(input.begin(), input.end(), [](const unsigned char c) { return std::isspace(c); });
-  auto end =
-      std::find_if_not(input.rbegin(), input.rend(), [](const unsigned char c) { return std::isspace(c); }).base();
-  if (start >= end) {
-    return "";
-  }
-  return std::string(start, end);
 }
 
 #endif

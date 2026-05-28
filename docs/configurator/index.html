@@ -6,6 +6,7 @@
     <title>CrossPoint Reader — Build Configurator</title>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="./settings-schema.generated.js"></script>
+    <script src="./settings-device-ui.js"></script>
     <!-- Live theme token source (resolves var(--paper) etc. when served via HTTP) -->
     <link rel="stylesheet" href="../../scripts/theme.css">
     <style>
@@ -132,7 +133,7 @@
 
       .flash-label {
         font-family: 'Silkscreen', monospace;
-        font-size: 8px;
+        font-size: 10px;
         letter-spacing: 0.2em;
         text-transform: uppercase;
         color: var(--md);
@@ -190,7 +191,7 @@
 
       .loadout-label {
         font-family: 'Silkscreen', monospace;
-        font-size: 8px;
+        font-size: 10px;
         letter-spacing: 0.2em;
         text-transform: uppercase;
         color: var(--dk);
@@ -771,19 +772,19 @@
         border: 1px dashed var(--bone);
         background: var(--paper);
         color: var(--lt);
-        font-size: 9px;
+        font-size: 10px;
         transition: color 0.05s steps(2), border-color 0.05s steps(2);
       }
 
       .note-item .note-icon {
-        font-size: 10px;
+        font-size: 11px;
         filter: grayscale(1);
         flex-shrink: 0;
         opacity: 0.5;
       }
 
       .note-item .note-label {
-        font-size: 9px;
+        font-size: 10px;
         line-height: 1.3;
       }
 
@@ -862,7 +863,7 @@
         gap: 6px;
         padding: 20px 0;
         font-family: 'Silkscreen', monospace;
-        font-size: 8px;
+        font-size: 12px;
         color: var(--pale);
         letter-spacing: 0.1em;
       }
@@ -879,7 +880,7 @@
 
       .docs-name {
         font-family: 'Silkscreen', monospace;
-        font-size: 9px;
+        font-size: 11px;
         font-weight: 700;
         color: var(--blk);
         text-transform: uppercase;
@@ -888,7 +889,7 @@
 
       .docs-status {
         font-family: 'IBM Plex Mono', monospace;
-        font-size: 8px;
+        font-size: 11px;
         font-weight: 500;
         padding: 1px 5px;
         border: 1px solid;
@@ -901,7 +902,7 @@
       .docs-status.status-always { color: var(--md);    border-color: var(--bone); }
 
       .docs-desc {
-        font-size: 10px;
+        font-size: 12px;
         color: var(--dk);
         line-height: 1.5;
         margin-bottom: 8px;
@@ -916,7 +917,7 @@
 
       .docs-flag {
         font-family: 'IBM Plex Mono', monospace;
-        font-size: 8px;
+        font-size: 11px;
         color: var(--md);
         background: var(--fog);
         padding: 1px 5px;
@@ -925,7 +926,7 @@
 
       .docs-size {
         font-family: 'IBM Plex Mono', monospace;
-        font-size: 8px;
+        font-size: 11px;
         color: var(--lt);
       }
 
@@ -937,7 +938,7 @@
 
       .output-label {
         font-family: 'Silkscreen', monospace;
-        font-size: 8px;
+        font-size: 10px;
         font-weight: 700;
         color: var(--dk);
         margin-bottom: 4px;
@@ -975,7 +976,7 @@
         border: var(--px) solid var(--blk);
         padding: 6px 12px;
         font-family: 'Silkscreen', monospace;
-        font-size: 8px;
+        font-size: 10px;
         font-weight: 700;
         cursor: pointer;
         text-transform: uppercase;
@@ -1024,7 +1025,7 @@
         margin-top: 10px;
         padding: 6px 10px;
         border-left: 3px solid var(--blk);
-        font-size: 9px;
+        font-size: 11px;
         color: var(--dk);
         background: var(--fog);
         line-height: 1.5;
@@ -1064,15 +1065,15 @@
 
       .companion-title {
         font-family: 'Silkscreen', monospace;
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 700;
       }
 
       .companion-desc {
-        font-size: 9px;
+        font-size: 11px;
         color: var(--dk);
         margin-top: 3px;
-        line-height: 1.5;
+        line-height: 1.55;
       }
 
       .companion-desc code {
@@ -1080,7 +1081,7 @@
         border: 1px solid var(--bone);
         padding: 0 3px;
         font-family: 'IBM Plex Mono', monospace;
-        font-size: 9px;
+        font-size: 10px;
       }
 
       .wallpaper-layout {
@@ -1153,7 +1154,7 @@
       }
 
       .wallpaper-meta {
-        font-size: 8px;
+        font-size: 10px;
         color: var(--md);
         line-height: 1.5;
       }
@@ -1171,7 +1172,7 @@
 
       .wallpaper-group-label {
         font-family: 'Silkscreen', monospace;
-        font-size: 8px;
+        font-size: 10px;
         font-weight: 700;
         letter-spacing: 0.12em;
         text-transform: uppercase;
@@ -1230,7 +1231,7 @@
 
       .wallpaper-helper {
         margin-top: 8px;
-        font-size: 8px;
+        font-size: 10px;
         color: var(--md);
         line-height: 1.5;
       }
@@ -1282,14 +1283,14 @@
 
       .preview-card figcaption {
         padding: 4px 6px;
-        font-size: 8px;
+        font-size: 10px;
         color: var(--dk);
         border-top: 1px solid var(--bone);
       }
 
       .preview-meta {
         margin-top: 6px;
-        font-size: 8px;
+        font-size: 10px;
         color: var(--lt);
       }
 
@@ -1314,7 +1315,7 @@
       .footer {
         text-align: center;
         margin-top: 20px;
-        font-size: 8px;
+        font-size: 10px;
         color: var(--lt);
         letter-spacing: 0.05em;
         font-family: 'IBM Plex Mono', monospace;
@@ -1329,7 +1330,7 @@
       }
       .form-label {
         font-family: 'Silkscreen', monospace;
-        font-size: 8px;
+        font-size: 10px;
         font-weight: 700;
         letter-spacing: 0.12em;
         text-transform: uppercase;
@@ -1407,7 +1408,7 @@
         text-align: center;
       }
       .wifi-empty-hint {
-        font-size: 9px;
+        font-size: 11px;
         color: var(--lt);
         padding: 12px 0;
         text-align: center;
@@ -1415,11 +1416,6 @@
       }
 
       /* ── Settings panel ── */
-      .settings-sections {
-        display: flex;
-        flex-direction: column;
-        gap: 0;
-      }
       .settings-layout {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1429,32 +1425,264 @@
       }
       .settings-form-pane {
         min-width: 0;
+        width: 100%;
+      }
+      .device-settings-shell {
+        --ds-paper: #f7f4ed;
+        --ds-ink: #000;
+        --ds-muted: #666;
+        --ds-accent: #2f2f2f;
+        --ds-track: #ece7de;
+        --ds-thumb: #6a6a6a;
+        --ds-border: #000;
+        --ds-select-bg: #000;
+        --ds-select-fg: #f7f4ed;
+        --ds-row-height: 32px;
+        --ds-header-height: 48px;
+        --ds-hint-height: 42px;
+        --ds-side-pad: 16px;
+        --ds-select-radius: 0;
+        font-family: var(--font-mono, 'Courier New', Courier, monospace);
+        background:
+          repeating-linear-gradient(
+            0deg,
+            color-mix(in srgb, var(--ds-ink) 2.5%, transparent),
+            color-mix(in srgb, var(--ds-ink) 2.5%, transparent) 1px,
+            transparent 1px,
+            transparent 3px
+          ),
+          var(--ds-paper);
+        color: var(--ds-ink);
+        border: 2px solid var(--ds-border);
+        width: 100%;
+        min-height: min(78vh, 820px);
+        max-height: min(82vh, 900px);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        image-rendering: pixelated;
+        -webkit-font-smoothing: none;
+        text-rendering: geometricPrecision;
+        box-shadow:
+          inset 2px 2px 0 color-mix(in srgb, var(--ds-ink) 8%, var(--ds-paper)),
+          inset -2px -2px 0 color-mix(in srgb, var(--ds-ink) 12%, transparent);
+      }
+      .device-settings-shell.device-theme-lyra,
+      .device-settings-shell.device-theme-minimal {
+        --ds-row-height: 38px;
+        --ds-header-height: 58px;
+        --ds-side-pad: 18px;
+        --ds-select-radius: 8px;
+        --ds-select-bg: color-mix(in srgb, var(--ds-ink) 14%, var(--ds-paper));
+        --ds-select-fg: var(--ds-ink);
+      }
+      .device-settings-shell.device-theme-minimal {
+        --ds-row-height: 36px;
+        --ds-header-height: 54px;
+        --ds-select-radius: 6px;
+      }
+      .device-settings-shell.device-theme-dark {
+        --ds-paper: #111;
+        --ds-ink: #f2ede3;
+        --ds-muted: #c2bcb2;
+        --ds-select-bg: color-mix(in srgb, var(--ds-ink) 18%, var(--ds-paper));
+        --ds-select-fg: var(--ds-ink);
+      }
+      .device-settings-shell.device-theme-dark.device-theme-base {
+        --ds-select-bg: #f2ede3;
+        --ds-select-fg: #111;
+      }
+      .device-settings-header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        min-height: var(--ds-header-height);
+        padding: 12px var(--ds-side-pad) 10px;
+        font-size: 15px;
+        font-weight: 700;
+        border-bottom: 3px solid var(--ds-ink);
+        flex-shrink: 0;
+      }
+      .device-settings-title {
+        letter-spacing: 0.02em;
+      }
+      .device-settings-version {
+        font-size: 11px;
+        color: var(--ds-muted);
+        font-weight: 400;
+        padding-bottom: 1px;
       }
       .settings-preview-pane {
         min-width: 0;
         position: sticky;
         top: 16px;
       }
-      .settings-section {
-        border-bottom: 1px solid var(--bone);
-        padding: 10px 0;
-      }
-      .settings-section:last-child { border-bottom: none; }
-      .settings-section-title {
-        font-family: 'Silkscreen', monospace;
-        font-size: 8px;
-        font-weight: 700;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: var(--md);
-        margin-bottom: 8px;
-      }
-      .settings-grid {
+      .device-settings-tabs {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-        gap: 8px;
+        grid-template-columns: repeat(4, 1fr);
+        min-height: 40px;
+        border-bottom: 1px solid var(--ds-ink);
+        flex-shrink: 0;
       }
-      .settings-row-hidden { display: none !important; }
+      .device-settings-tab {
+        border: none;
+        background: transparent;
+        font: inherit;
+        color: inherit;
+        padding: 10px 6px 8px;
+        cursor: pointer;
+        font-size: 11px;
+      }
+      .device-settings-tab.selected {
+        background: var(--ds-ink);
+        color: var(--ds-paper);
+        font-weight: 700;
+      }
+      .device-settings-tabs.selected-row {
+        outline: 2px solid var(--ds-ink);
+        outline-offset: -2px;
+      }
+      .device-settings-body {
+        flex: 1;
+        display: flex;
+        min-height: 0;
+      }
+      .device-settings-list {
+        flex: 1;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding: 6px 0 4px;
+        min-height: 0;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      .device-settings-list::-webkit-scrollbar {
+        display: none;
+      }
+      .device-settings-scroll-rail {
+        position: relative;
+        width: 22px;
+        flex-shrink: 0;
+        background: var(--ds-paper);
+        border-left: 1px solid color-mix(in srgb, var(--ds-ink) 18%, transparent);
+      }
+      .device-settings-scroll-rail.is-static {
+        visibility: hidden;
+      }
+      .device-settings-scroll-track {
+        position: absolute;
+        top: 8px;
+        right: 5px;
+        bottom: 8px;
+        width: 1px;
+        background: var(--ds-ink);
+      }
+      .device-settings-scroll-thumb {
+        position: absolute;
+        right: 8px;
+        width: 4px;
+        min-height: 18px;
+        background: var(--ds-thumb);
+      }
+      .device-settings-scroll-up,
+      .device-settings-scroll-down {
+        position: absolute;
+        right: 1px;
+        width: 0;
+        height: 0;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+      }
+      .device-settings-scroll-up {
+        top: 0;
+        border-bottom: 5px solid var(--ds-ink);
+      }
+      .device-settings-scroll-down {
+        bottom: 0;
+        border-top: 5px solid var(--ds-ink);
+      }
+      .device-settings-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: calc(100% - var(--ds-side-pad) * 2);
+        min-height: var(--ds-row-height);
+        margin: 0 var(--ds-side-pad);
+        padding: 0 10px;
+        font-size: 12px;
+        border: none;
+        background: transparent;
+        font: inherit;
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+        border-radius: var(--ds-select-radius);
+      }
+      .device-settings-row.header {
+        width: 100%;
+        margin: 0;
+        padding: 18px var(--ds-side-pad) 0;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        border-bottom: 1px solid var(--ds-ink);
+        border-radius: 0;
+        min-height: calc(var(--ds-row-height) + 8px);
+        cursor: default;
+      }
+      .device-settings-row.selected:not(.header) {
+        background: var(--ds-select-bg);
+        color: var(--ds-select-fg);
+      }
+      .device-settings-row.header.selected {
+        background: transparent;
+        color: var(--ds-ink);
+      }
+      .device-settings-row.disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .device-settings-row-locked {
+        display: flex;
+        align-items: center;
+      }
+      .device-settings-row-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .device-settings-row-value {
+        flex-shrink: 0;
+        max-width: 46%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: right;
+        color: var(--ds-muted);
+      }
+      .device-settings-row.selected:not(.header) .device-settings-row-value {
+        color: color-mix(in srgb, var(--ds-select-fg) 72%, var(--ds-select-bg));
+      }
+      .device-settings-hints {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+        min-height: var(--ds-hint-height);
+        padding: 10px 10px 12px;
+        border-top: 1px solid color-mix(in srgb, var(--ds-ink) 22%, transparent);
+        background: linear-gradient(to bottom, color-mix(in srgb, var(--ds-paper) 55%, transparent), var(--ds-paper));
+        font-size: 11px;
+        font-weight: 700;
+        text-align: center;
+        flex-shrink: 0;
+      }
+      .device-settings-hint {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
 
       /* ── E-ink live preview ── */
       .eink-preview-wrap {
@@ -1462,37 +1690,79 @@
         justify-content: center;
         margin: 0 0 6px;
       }
-      .eink-front {
-        flex: 1;
-      }
       .eink-shell {
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 6px;
-        width: min(100%, 420px);
+        width: min(100%, 380px);
         margin: 0 auto;
+      }
+      .eink-shell-row {
+        display: flex;
+        align-items: stretch;
+        gap: 8px;
+        width: 100%;
       }
       .eink-device {
         flex: 1;
-        background: linear-gradient(180deg, #252525 0%, #111 100%);
-        border: 2px solid #2f2f2f;
-        border-radius: 24px;
-        padding: 18px 16px 16px;
-        position: relative;
+        min-width: 0;
+        background: linear-gradient(180deg, #1f1f1f 0%, #0d0d0d 100%);
+        border: 2px solid #2a2a2a;
+        border-radius: 22px;
+        padding: 12px 12px 8px;
         box-shadow:
-          inset 2px 2px 0 rgba(255,255,255,0.12),
+          inset 2px 2px 0 rgba(255,255,255,0.1),
           inset -2px -2px 0 rgba(0,0,0,0.35),
           0 8px 18px rgba(0,0,0,0.18);
       }
       .eink-side-buttons {
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-        gap: 18px;
-        padding-top: 40px;
+        position: relative;
+        width: 78px;
+        flex-shrink: 0;
+      }
+      .eink-side-buttons-rail {
+        position: absolute;
+        inset: 0;
+      }
+      .eink-side-slot {
+        position: absolute;
+        left: 0;
+        transform: translateY(-50%);
+      }
+      .eink-side-slot-power {
+        top: 33.333%;
+      }
+      .eink-side-slot-vol {
+        top: 50%;
       }
       .eink-side-control {
         display: flex;
+      }
+      .eink-side-vol-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+      .eink-side-vol-stack .eink-side-action + .eink-side-action {
+        margin-top: -1px;
+      }
+      .eink-side-rocker-half {
+        width: 9px;
+        height: 22px;
+        flex-shrink: 0;
+        background: #262626;
+        border: 1px solid #333;
+        box-shadow:
+          inset 1px 1px 0 rgba(255,255,255,0.12),
+          inset -1px -1px 0 rgba(0,0,0,0.4);
+      }
+      .eink-side-rocker-half.top {
+        border-radius: 8px 8px 0 0;
+        border-bottom: none;
+      }
+      .eink-side-rocker-half.bottom {
+        border-radius: 0 0 8px 8px;
+        border-top: 1px solid #111;
       }
       .eink-side-action {
         display: flex;
@@ -1503,10 +1773,14 @@
         padding: 0;
         cursor: pointer;
       }
+      .eink-side-action:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
       .eink-side-label {
-        min-width: 66px;
+        min-width: 52px;
         text-align: left;
-        font-size: 11px;
+        font-size: 10px;
         color: #2a2a2a;
         font-family: 'IBM Plex Mono', monospace;
         line-height: 1.1;
@@ -1514,24 +1788,17 @@
         text-transform: uppercase;
       }
       .eink-side-button {
-        width: 8px;
+        flex-shrink: 0;
         background: #2d2d2d;
         border: 1px solid #111;
-        border-radius: 8px;
         box-shadow:
           inset 1px 1px 0 rgba(255,255,255,0.18),
           inset -1px -1px 0 rgba(0,0,0,0.35);
-        cursor: pointer;
       }
-      .eink-side-action:focus-visible {
-        outline: 2px solid var(--accent);
-        outline-offset: 4px;
-      }
-      .eink-side-button.power { height: 40px; }
-      .eink-side-button.vol-up,
-      .eink-side-button.vol-down { height: 28px; }
-      .eink-side-control.power-control {
-        margin-bottom: 70px;
+      .eink-side-button.power {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
       }
       .eink-screen,
       .eink-screen-image,
@@ -1539,8 +1806,8 @@
         display: block;
         width: 100%;
         aspect-ratio: 3 / 5;
-        border: 1px solid #7a7a7a;
-        border-radius: 12px;
+        border: 1px solid #666;
+        border-radius: 4px;
         background: #f4f0e8;
         image-rendering: pixelated;
       }
@@ -1548,32 +1815,34 @@
         height: auto;
       }
       .eink-device-bottom {
-        margin-top: 10px;
-        min-height: 74px;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-end;
+        margin-top: 8px;
+        padding: 0 10px 2px;
       }
       .eink-preview-caption {
         text-align: center;
-        font-size: 8px;
+        font-size: 10px;
         color: var(--lt);
-        margin-top: 4px;
+        margin-top: 6px;
         font-family: 'IBM Plex Mono', monospace;
+      }
+      .eink-control-legend {
+        width: 100%;
+        margin-top: 8px;
       }
       .device-hint-strip {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: 8px;
-        margin-top: 8px;
-        padding: 0 4px;
+        gap: 4px;
+        padding: 0 2px;
       }
       .device-hint {
-        font-size: 9px;
-        color: rgba(255,255,255,0.82);
+        font-size: 10px;
+        line-height: 1.1;
+        color: var(--md);
         font-family: 'IBM Plex Mono', monospace;
         font-weight: 700;
         letter-spacing: 0.04em;
+        text-align: center;
       }
       .device-hint-button {
         border: none;
@@ -1586,30 +1855,22 @@
         cursor: default;
       }
       .device-hint-button:focus-visible {
-        outline: 2px solid rgba(255,255,255,0.8);
-        outline-offset: 3px;
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
       }
       .eink-front-buttons {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 10px;
-        margin-top: 12px;
-        padding: 0 8px;
+        gap: 14px;
       }
       .eink-front-button {
-        height: 10px;
+        height: 7px;
         border-radius: 999px;
-        background: #111;
-        border: 1px solid #444;
+        background: #242424;
+        border: 1px solid #3a3a3a;
         box-shadow:
-          inset 1px 1px 0 rgba(255,255,255,0.14),
+          inset 1px 1px 0 rgba(255,255,255,0.12),
           inset -1px -1px 0 rgba(0,0,0,0.45);
-      }
-      .eink-front-button.left {
-        border-bottom-left-radius: 14px;
-      }
-      .eink-front-button.right {
-        border-bottom-right-radius: 14px;
       }
       @media (max-width: 900px) {
         .settings-layout {
@@ -1735,7 +1996,7 @@
 
       .dl-releases-link {
         font-family: 'IBM Plex Mono', monospace;
-        font-size: 8px;
+        font-size: 10px;
         color: var(--md);
         text-decoration: none;
         letter-spacing: 0.04em;
@@ -1927,7 +2188,7 @@
         background: var(--blk);
         color: var(--white);
         font-family: 'Silkscreen', monospace;
-        font-size: 8px;
+        font-size: 10px;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.15em;
@@ -2083,7 +2344,7 @@
 
         .sidebar-screen-header {
           font-family: 'Silkscreen', monospace;
-          font-size: 8px;
+          font-size: 10px;
           color: var(--md);
           letter-spacing: 0.2em;
           text-transform: uppercase;
@@ -3107,7 +3368,7 @@
                   Generate Pokémon wallpapers for sleep screens. The browser-side generator lives in the
                   <strong>Wallpaper Studio</strong> tab; the device-side plugin is at <code>/plugins/pokemon-wallpaper</code>.
                 </div>
-                <div class="companion-desc" style="margin-top: 8px; font-size: 0.85rem; color: #888;">
+                <div class="companion-desc" style="margin-top: 8px; font-size: 10px; color: #888;">
                   Requires <code>pokemon_wallpaper_plugin</code> in the feature grid. Enable <code>pokemon_party</code>
                   for per-book party assignments.
                 </div>
@@ -3128,25 +3389,18 @@
             <div class="companion-desc" style="line-height: 1.6; margin-bottom: 4px;">
               Pre-configure device-side settings. Download <code>settings.json</code> and place it at
               <code>/.crosspoint/settings.json</code> on the SD card. The device loads these on first
-              boot. Reader and device settings below are feature-gated and follow your current
-              configurator selection above.
+              boot. Settings on the left are generated from firmware and use the same layout as the
+              on-device Settings screen; the preview on the right shows reader, home, and sleep effects.
             </div>
             <div class="settings-layout">
               <div class="settings-form-pane">
-                <div class="settings-sections" id="settings-sections"></div>
-                <div hidden aria-hidden="true" id="settings-hidden-inputs">
-                  <input id="s-frontButtonLayout" type="hidden" value="0" />
-                  <input id="s-frontButtonBack" type="hidden" value="0" />
-                  <input id="s-frontButtonConfirm" type="hidden" value="1" />
-                  <input id="s-frontButtonLeft" type="hidden" value="2" />
-                  <input id="s-frontButtonRight" type="hidden" value="3" />
-                </div>
+                <div class="device-settings-shell" id="device-settings-editor" tabindex="0"></div>
               </div>
               <div class="settings-preview-pane">
                 <div class="eink-preview-wrap">
                   <div>
                     <div class="eink-shell">
-                      <div class="eink-front">
+                      <div class="eink-shell-row">
                         <div class="eink-device">
                           <iframe
                             class="eink-screen-frame"
@@ -3154,44 +3408,60 @@
                             title="Interactive settings preview"
                           ></iframe>
                           <div class="eink-device-bottom" aria-hidden="true">
-                            <div class="device-hint-strip">
-                              <button class="device-hint-button" type="button" data-preview-front="0">
-                                <span class="device-hint" id="preview-front-0-label">Back</span>
-                              </button>
-                              <button class="device-hint-button" type="button" data-preview-front="1">
-                                <span class="device-hint" id="preview-front-1-label">Confirm</span>
-                              </button>
-                              <button class="device-hint-button" type="button" data-preview-front="2">
-                                <span class="device-hint" id="preview-front-2-label">Left</span>
-                              </button>
-                              <button class="device-hint-button" type="button" data-preview-front="3">
-                                <span class="device-hint" id="preview-front-3-label">Right</span>
-                              </button>
-                            </div>
                             <div class="eink-front-buttons">
                               <div class="eink-front-button left"></div>
                               <div class="eink-front-button right"></div>
                             </div>
                           </div>
                         </div>
+                        <div class="eink-side-buttons">
+                          <div class="eink-side-buttons-rail">
+                            <div class="eink-side-slot eink-side-slot-power">
+                              <div class="eink-side-control">
+                                <button class="eink-side-action" type="button" data-preview-action="power-cycle" aria-label="Cycle power button action">
+                                  <span class="eink-side-button power" aria-hidden="true"></span>
+                                  <span class="eink-side-label" id="preview-power-label">Power</span>
+                                </button>
+                              </div>
+                            </div>
+                            <div class="eink-side-slot eink-side-slot-vol">
+                              <div class="eink-side-vol-stack">
+                                <button
+                                  class="eink-side-action"
+                                  type="button"
+                                  data-preview-action="side-up"
+                                  aria-label="Previous page"
+                                >
+                                  <span class="eink-side-rocker-half top" aria-hidden="true"></span>
+                                  <span class="eink-side-label" id="preview-vol-up-label">Prev</span>
+                                </button>
+                                <button
+                                  class="eink-side-action"
+                                  type="button"
+                                  data-preview-action="side-down"
+                                  aria-label="Next page"
+                                >
+                                  <span class="eink-side-rocker-half bottom" aria-hidden="true"></span>
+                                  <span class="eink-side-label" id="preview-vol-down-label">Next</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div class="eink-side-buttons" aria-hidden="true">
-                        <div class="eink-side-control power-control">
-                          <button class="eink-side-action" type="button" data-preview-action="power-cycle" aria-label="Cycle power button action">
-                            <span class="eink-side-button power" aria-hidden="true"></span>
-                            <span class="eink-side-label" id="preview-power-label">Power</span>
+                      <div class="eink-control-legend">
+                        <div class="device-hint-strip">
+                          <button class="device-hint-button" type="button" data-preview-front="0">
+                            <span class="device-hint" id="preview-front-0-label">Back</span>
                           </button>
-                        </div>
-                        <div class="eink-side-control">
-                          <button class="eink-side-action" type="button" data-preview-action="side-toggle" aria-label="Toggle volume up action">
-                            <span class="eink-side-button vol-up" aria-hidden="true"></span>
-                            <span class="eink-side-label" id="preview-vol-up-label">Vol+</span>
+                          <button class="device-hint-button" type="button" data-preview-front="1">
+                            <span class="device-hint" id="preview-front-1-label">Confirm</span>
                           </button>
-                        </div>
-                        <div class="eink-side-control">
-                          <button class="eink-side-action" type="button" data-preview-action="side-toggle" aria-label="Toggle volume down action">
-                            <span class="eink-side-button vol-down" aria-hidden="true"></span>
-                            <span class="eink-side-label" id="preview-vol-down-label">Vol-</span>
+                          <button class="device-hint-button" type="button" data-preview-front="2">
+                            <span class="device-hint" id="preview-front-2-label">Left</span>
+                          </button>
+                          <button class="device-hint-button" type="button" data-preview-front="3">
+                            <span class="device-hint" id="preview-front-3-label">Right</span>
                           </button>
                         </div>
                       </div>
@@ -3200,8 +3470,8 @@
                   </div>
                 </div>
                 <div class="info-bar">
-                  Illustrative only. This in-browser mock responds to your setting choices, but the baked
-                  <code>settings.json</code> below is what follows the current feature selection.
+                  Illustrative preview only. Edit values in the Settings panel; only non-default
+                  values are written to the exported <code>settings.json</code>.
                 </div>
               </div>
             </div>
@@ -4071,7 +4341,8 @@
           const parentActive = selections[parentFeature];
           const anyChildActive = Array.from(group.querySelectorAll(".dep-child[data-feature]"))
             .some((child) => selections[child.dataset.feature]);
-          group.classList.toggle("group-active", parentActive && anyChildActive);
+          const hasBundledChildren = group.querySelectorAll(".dep-child.static-card").length > 0;
+          group.classList.toggle("group-active", parentActive && (anyChildActive || hasBundledChildren));
           group.classList.toggle("group-locked", !parentActive);
         });
       }
@@ -4088,6 +4359,12 @@
         if (opdsCard) {
           opdsCard.classList.toggle('always-enabled', Boolean(selections.calibre_sync));
         }
+        const remoteControlOn = Boolean(selections.remote_control);
+        document.querySelectorAll(
+          '.skill-card[data-node-id="remote_open_book"], .skill-card[data-node-id="remote_page_turn"]'
+        ).forEach((card) => {
+          card.classList.toggle('always-enabled', remoteControlOn);
+        });
       }
 
       function updateVisuals(selections) {
@@ -5294,151 +5571,201 @@
         const DEFAULTS = Object.fromEntries(schemaSettings.map(setting => [setting.key, setting.default]));
         Object.assign(DEFAULTS, EXTRA_DEFAULTS);
 
+        const SETTINGS_UI = window.ConfiguratorSettingsDeviceUi;
+
         const SETTINGS_BY_KEY = new Map(schemaSettings.map(setting => [setting.key, setting]));
-        const CATEGORY_ORDER = ['Reader', 'Display', 'Customise Status Bar', 'Controls', 'System', 'Time'];
-        const FULL_WIDTH_KEYS = new Set(['sleepPinnedPath', 'deviceName']);
-        const STRING_PLACEHOLDERS = {
-          sleepPinnedPath: '/sleep/custom/my-cover.bmp',
-          deviceName: 'e.g. my-reader (a-z, 0-9, hyphens)',
-        };
-        const settingsSections = document.getElementById('settings-sections');
+        let settingsValues = { ...DEFAULTS };
+        let settingsNav = { tabIndex: 0, selectedIndex: 1 };
 
-        function buildToggleControl(setting) {
-          const select = document.createElement('select');
-          select.className = 'form-select';
-          select.id = 's-' + setting.key;
-          [[0, 'Off'], [1, 'On']].forEach(([value, label]) => {
-            const option = document.createElement('option');
-            option.value = String(value);
-            option.textContent = label;
-            select.appendChild(option);
-          });
-          return select;
+        function readRawSettings() {
+          return { ...settingsValues, ...EXTRA_DEFAULTS };
         }
 
-        function buildEnumControl(setting) {
-          const select = document.createElement('select');
-          select.className = 'form-select';
-          select.id = 's-' + setting.key;
-          (setting.options || []).forEach(optionDef => {
-            const option = document.createElement('option');
-            option.value = String(optionDef.value);
-            option.textContent = optionDef.label;
-            if (optionDef.featureKey) option.dataset.featureKey = optionDef.featureKey;
-            select.appendChild(option);
-          });
-          return select;
+        function writeSettings(settings) {
+          settingsValues = { ...settingsValues, ...settings };
         }
 
-        function buildValueControl(setting) {
-          const input = document.createElement('input');
-          input.className = 'form-input';
-          input.id = 's-' + setting.key;
-          input.type = 'number';
-          input.min = String(setting.min ?? 0);
-          input.max = String(setting.max ?? 0);
-          input.step = String(setting.step ?? 1);
-          input.inputMode = 'numeric';
-          return input;
+        function setSettingValue(key, value) {
+          settingsValues[key] = value;
         }
 
-        function buildStringControl(setting) {
-          const input = document.createElement('input');
-          input.className = 'form-input';
-          input.id = 's-' + setting.key;
-          input.type = 'text';
-          if (setting.maxLength) input.maxLength = setting.maxLength;
-          if (STRING_PLACEHOLDERS[setting.key]) input.placeholder = STRING_PLACEHOLDERS[setting.key];
-          input.autocomplete = 'off';
-          input.spellcheck = false;
-          if (setting.key === 'deviceName') {
-            input.pattern = '[a-z0-9\\-]*';
+        function applySettingsPreviewAction(action, payload = {}) {
+          const active = currentSelections || {};
+          const values = readSettings();
+          const model = SETTINGS_UI.buildPreviewModel(schemaSettings, values, active, settingsNav);
+          const listIndex = settingsNav.selectedIndex - 1;
+          const selectedItem = listIndex >= 0 ? model.items[listIndex] : null;
+
+          if (action === 'select-tab') {
+            settingsNav = { tabIndex: payload.tabIndex ?? 0, selectedIndex: 0 };
+            refreshSettingsUi();
+            return;
           }
-          return input;
+
+          if (action === 'select-index') {
+            settingsNav = { ...settingsNav, selectedIndex: payload.selectedIndex ?? 0 };
+            refreshSettingsUi();
+            return;
+          }
+
+          if (action === 'tab-next' || (action === 'confirm' && settingsNav.selectedIndex === 0 && !model.nav.allCategories)) {
+            settingsNav = {
+              tabIndex: (settingsNav.tabIndex + 1) % SETTINGS_UI.SETTINGS_TABS.length,
+              selectedIndex: 0,
+            };
+            refreshSettingsUi();
+            return;
+          }
+
+          if (action === 'up' || action === 'down') {
+            settingsNav = SETTINGS_UI.moveSelection(
+              settingsNav,
+              model.items,
+              action === 'up' ? -1 : 1
+            );
+            refreshSettingsUi();
+            return;
+          }
+
+          if (action === 'back') {
+            refreshSettingsUi();
+            return;
+          }
+
+          if (action !== 'confirm' || !selectedItem || selectedItem.type !== 'setting') return;
+
+          const setting = SETTINGS_BY_KEY.get(selectedItem.key);
+          if (!setting) return;
+
+          if (setting.type === 'string') {
+            const nextValue = window.prompt(setting.label, String(values[setting.key] ?? ''));
+            if (nextValue === null) return;
+            if (setting.key === 'deviceName' && !/^[a-z0-9-]*$/.test(nextValue)) return;
+            setSettingValue(setting.key, nextValue);
+            notifySettingChanged(setting.key);
+            return;
+          }
+
+          setSettingValue(setting.key, SETTINGS_UI.cycleSetting(setting, values[setting.key], active, 1));
+          notifySettingChanged(setting.key, setting.key === 'sleepScreen');
         }
 
-        function buildControl(setting) {
-          if (setting.type === 'toggle') return buildToggleControl(setting);
-          if (setting.type === 'enum') return buildEnumControl(setting);
-          if (setting.type === 'value') return buildValueControl(setting);
-          return buildStringControl(setting);
+        function notifySettingChanged(key, showSleepPreview = false) {
+          if (key === 'uiTheme') {
+            previewScreenMode = 'home';
+            window.setTimeout(() => {
+              previewScreenMode = 'reader';
+              drawPreview();
+            }, 1800);
+          } else {
+            previewScreenMode = 'reader';
+          }
+          sleepPreviewFlashActive = showSleepPreview || (
+            key === 'sleepScreenSource' && readSettings().sleepScreen === 2
+          );
+          if (currentSelections) updateSettingsVisibility(currentSelections);
+          else refreshSettingsUi();
         }
 
-        function addSettingRow(grid, setting) {
-          const group = document.createElement('div');
-          group.className = 'form-group';
-          group.id = 'row-' + setting.key;
-          if (FULL_WIDTH_KEYS.has(setting.key)) group.style.gridColumn = 'span 2';
-
-          const label = document.createElement('label');
-          label.className = 'form-label';
-          label.setAttribute('for', 's-' + setting.key);
-          label.textContent = setting.label;
-
-          group.appendChild(label);
-          group.appendChild(buildControl(setting));
-          grid.appendChild(group);
+        function buildSettingsPreviewPayload() {
+          const active = currentSelections || {};
+          const values = readSettings();
+          return SETTINGS_UI.buildPreviewModel(schemaSettings, values, active, settingsNav);
         }
 
-        function addWallpaperStudioRow(grid) {
-          const group = document.createElement('div');
-          group.className = 'form-group';
-          group.id = 'row-sleepStudioAction';
-          group.style.gridColumn = 'span 2';
+        const deviceSettingsEditor = document.getElementById('device-settings-editor');
 
-          const label = document.createElement('label');
-          label.className = 'form-label';
-          label.textContent = 'Wallpaper Studio';
-
-          const button = document.createElement('button');
-          button.className = 'btn btn-outline';
-          button.type = 'button';
-          button.id = 'open-sleep-wallpaper-studio';
-          button.textContent = 'Open Wallpaper Studio';
-
-          group.appendChild(label);
-          group.appendChild(button);
-          grid.appendChild(group);
+        function getDeviceSettingsTheme(settings = readSettings()) {
+          const darkMode = settings.darkMode === 1;
+          const themePalettes = {
+            0: darkMode
+              ? { accent: '#ddd6c9', track: '#171717', thumb: '#c3bbaf', border: '#f2ede3' }
+              : { accent: '#2f2f2f', track: '#ece7de', thumb: '#6a6a6a', border: '#000' },
+            1: darkMode
+              ? { accent: '#e7d9bd', track: '#191612', thumb: '#b99663', border: '#f2ede3' }
+              : { accent: '#8c6842', track: '#efe6d7', thumb: '#ab8458', border: '#3d2b1f' },
+            2: darkMode
+              ? { accent: '#d7d0c2', track: '#16120f', thumb: '#968269', border: '#f2ede3' }
+              : { accent: '#756247', track: '#ede4d6', thumb: '#8a7356', border: '#35281b' },
+            3: darkMode
+              ? { accent: '#d9ddd8', track: '#111614', thumb: '#7b8b80', border: '#f2ede3' }
+              : { accent: '#51655b', track: '#e3ebe5', thumb: '#6f857a', border: '#243129' },
+            4: darkMode
+              ? { accent: '#f1dfab', track: '#1a1510', thumb: '#d0a84d', border: '#f2ede3' }
+              : { accent: '#b58719', track: '#f6edcf', thumb: '#d1a43f', border: '#543c05' },
+            5: darkMode
+              ? { accent: '#dedede', track: '#101010', thumb: '#9a9a9a', border: '#f2f2f2' }
+              : { accent: '#343434', track: '#f1f1f1', thumb: '#777', border: '#111' },
+            6: darkMode
+              ? { accent: '#d6dbe5', track: '#101419', thumb: '#8391a5', border: '#f2ede3' }
+              : { accent: '#45546a', track: '#e6ebf1', thumb: '#66758b', border: '#1f2a38' },
+          };
+          const palette = themePalettes[settings.uiTheme] || themePalettes[0];
+          const variant = settings.uiTheme === 0 ? 'base' : settings.uiTheme === 5 ? 'minimal' : 'lyra';
+          return {
+            variant,
+            darkMode,
+            paper: darkMode ? '#111' : '#f7f4ed',
+            ink: darkMode ? '#f2ede3' : '#000',
+            muted: darkMode ? '#c2bcb2' : '#666',
+            accent: palette.accent,
+            track: palette.track,
+            thumb: palette.thumb,
+            border: palette.border,
+          };
         }
 
-        function renderSettingsSections() {
-          if (!settingsSections) return;
-          settingsSections.innerHTML = '';
+        function applyDeviceSettingsTheme(settings = readSettings()) {
+          if (!deviceSettingsEditor) return;
+          const theme = getDeviceSettingsTheme(settings);
+          deviceSettingsEditor.classList.remove(
+            'device-theme-base',
+            'device-theme-lyra',
+            'device-theme-minimal',
+            'device-theme-dark'
+          );
+          deviceSettingsEditor.classList.add('device-theme-' + theme.variant);
+          if (theme.darkMode) deviceSettingsEditor.classList.add('device-theme-dark');
+          deviceSettingsEditor.style.setProperty('--ds-paper', theme.paper);
+          deviceSettingsEditor.style.setProperty('--ds-ink', theme.ink);
+          deviceSettingsEditor.style.setProperty('--ds-muted', theme.muted);
+          deviceSettingsEditor.style.setProperty('--ds-accent', theme.accent);
+          deviceSettingsEditor.style.setProperty('--ds-track', theme.track);
+          deviceSettingsEditor.style.setProperty('--ds-thumb', theme.thumb);
+          deviceSettingsEditor.style.setProperty('--ds-border', theme.border);
+        }
 
-          const groups = new Map();
-          schemaSettings.forEach(setting => {
-            const category = setting.category || 'Settings';
-            if (!groups.has(category)) groups.set(category, []);
-            groups.get(category).push(setting);
+        function renderDeviceSettingsEditor() {
+          if (!deviceSettingsEditor) return;
+          applyDeviceSettingsTheme();
+          const model = buildSettingsPreviewPayload();
+          deviceSettingsEditor.innerHTML = SETTINGS_UI.renderMarkup(model);
+          SETTINGS_UI.bindEditor(deviceSettingsEditor, {
+            onSelectTab: tabIndex => applySettingsPreviewAction('select-tab', { tabIndex }),
+            onSelectIndex: selectedIndex => applySettingsPreviewAction('select-index', { selectedIndex }),
+            onConfirm: () => applySettingsPreviewAction('confirm'),
           });
-
-          const categories = Array.from(groups.keys()).sort((a, b) => {
-            const aIndex = CATEGORY_ORDER.indexOf(a);
-            const bIndex = CATEGORY_ORDER.indexOf(b);
-            return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
-          });
-
-          categories.forEach(category => {
-            const section = document.createElement('div');
-            section.className = 'settings-section';
-
-            const title = document.createElement('div');
-            title.className = 'settings-section-title';
-            title.textContent = category;
-
-            const grid = document.createElement('div');
-            grid.className = 'settings-grid';
-
-            groups.get(category).forEach(setting => addSettingRow(grid, setting));
-            if (category === 'Display') addWallpaperStudioRow(grid);
-
-            section.appendChild(title);
-            section.appendChild(grid);
-            settingsSections.appendChild(section);
-          });
         }
 
-        renderSettingsSections();
+        function refreshSettingsUi() {
+          renderDeviceSettingsEditor();
+          drawPreview();
+        }
+
+        if (deviceSettingsEditor) {
+          deviceSettingsEditor.addEventListener('keydown', event => {
+            if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              applySettingsPreviewAction('up');
+            } else if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              applySettingsPreviewAction('down');
+            } else if (event.key === 'Enter') {
+              event.preventDefault();
+              applySettingsPreviewAction('confirm');
+            }
+          });
+        }
 
         let currentSelections = null;
         let sleepPreviewFlashActive = false;
@@ -5447,42 +5774,6 @@
         let featurePreviewFlashTimer = null;
         const FRONT_BUTTON_ROLE_KEYS = ['frontButtonBack', 'frontButtonConfirm', 'frontButtonLeft', 'frontButtonRight'];
         const FRONT_BUTTON_ROLE_NAMES = ['Back', 'Confirm', 'Left', 'Right'];
-
-        const openSleepWallpaperStudioBtn = document.getElementById('open-sleep-wallpaper-studio');
-        if (openSleepWallpaperStudioBtn) {
-          openSleepWallpaperStudioBtn.addEventListener('click', () => {
-            if (typeof window._applySleepSettingsToWallpaperStudio === 'function') {
-              window._applySleepSettingsToWallpaperStudio({
-                fitMode: document.getElementById('s-sleepScreenCoverMode')?.value === '1' ? 'fill' : 'fit',
-                filterMode: parseInt(document.getElementById('s-sleepScreenCoverFilter')?.value || '0', 10),
-              });
-            }
-            if (typeof window._switchSidebarTab === 'function') {
-              window._switchSidebarTab('studio');
-            }
-          });
-        }
-
-        function readRawSettings() {
-          const s = {};
-          Object.keys(DEFAULTS).forEach(key => {
-            const el = document.getElementById('s-' + key);
-            if (!el) return;
-            if (el.tagName === 'SELECT') s[key] = parseInt(el.value, 10);
-            else if (typeof DEFAULTS[key] === 'number') s[key] = parseInt(el.value, 10) || 0;
-            else s[key] = el.value;
-          });
-          return s;
-        }
-
-        function writeSettings(settings) {
-          Object.keys(settings).forEach(key => {
-            const el = document.getElementById('s-' + key);
-            if (!el) return;
-            const value = typeof DEFAULTS[key] === 'number' ? String(settings[key]) : settings[key];
-            if (el.value !== value) el.value = value;
-          });
-        }
 
         function clearFeaturePreviewFlashTimer() {
           if (!featurePreviewFlashTimer) return;
@@ -5611,31 +5902,6 @@
 
         let previewScreenMode = 'reader';
 
-        function handleSettingsInteraction(key, showSleepPreview = false) {
-          previewScreenMode = key === 'uiTheme' ? 'home' : 'reader';
-          sleepPreviewFlashActive = showSleepPreview;
-          drawPreview();
-        }
-
-        Object.keys(DEFAULTS).forEach(key => {
-          const el = document.getElementById('s-' + key);
-          if (!el) return;
-          el.addEventListener('change', () => {
-            const shouldFlashSleepPreview = key === 'sleepScreen' || (
-              key === 'sleepScreenSource' &&
-              document.getElementById('s-sleepScreen')?.value === '2'
-            );
-            handleSettingsInteraction(key, shouldFlashSleepPreview);
-            if (currentSelections) updateSettingsVisibility(currentSelections);
-          });
-          if (el.tagName === 'INPUT' && el.type !== 'hidden') {
-            el.addEventListener('input', () => {
-              handleSettingsInteraction(key, false);
-              if (currentSelections) updateSettingsVisibility(currentSelections);
-            });
-          }
-        });
-
         function updateSettingsVisibility(selections) {
           currentSelections = selections || null;
           const active = currentSelections || {};
@@ -5648,71 +5914,15 @@
           const normalized = sanitizeSettingsForSelections(readRawSettings(), active);
           writeSettings(normalized);
 
-          schemaSettings.forEach(setting => {
-            const row = document.getElementById('row-' + setting.key);
-            const control = document.getElementById('s-' + setting.key);
-            if (control && control.tagName === 'SELECT' && Array.isArray(setting.options)) {
-              Array.from(control.options).forEach(option => {
-                option.disabled = !!option.dataset.featureKey && !active[option.dataset.featureKey];
-              });
-            }
-
-            if (!row) return;
-            const settingVisible = (!setting.featureKey || active[setting.featureKey]) &&
-              (!setting.visibleWhen || normalized[setting.visibleWhen.key] === setting.visibleWhen.eq);
-            row.classList.toggle('settings-row-hidden', !settingVisible);
-          });
-
-          const rowSleepStudioAction = document.getElementById('row-sleepStudioAction');
-          if (rowSleepStudioAction) {
-            rowSleepStudioAction.classList.toggle('settings-row-hidden', normalized.sleepScreen !== 2);
+          const model = buildSettingsPreviewPayload();
+          if (settingsNav.selectedIndex > model.items.length) {
+            settingsNav = { ...settingsNav, selectedIndex: Math.max(0, model.items.length) };
           }
 
-          document.querySelectorAll('#settings-sections .settings-section').forEach(section => {
-            const hasVisibleRows = Array.from(section.querySelectorAll('.form-group'))
-              .some(group => !group.classList.contains('settings-row-hidden'));
-            section.classList.toggle('settings-row-hidden', !hasVisibleRows);
-          });
-
-          drawPreview();
+          refreshSettingsUi();
         }
 
-        // ── Interactive preview ─────────────────────────────────────
         const previewFrame = document.getElementById('settings-preview-frame');
-
-        const HARDWARE_CONTROLLED_PREVIEW_KEYS = new Set(['sideButtonLayout', 'shortPwrBtn']);
-
-        function previewSectionsFromDom() {
-          return Array.from(document.querySelectorAll('#tab-settings .settings-section'))
-            .filter(section => !section.classList.contains('settings-row-hidden'))
-            .map(section => {
-              const title = section.querySelector('.settings-section-title')?.textContent?.trim() || 'Settings';
-              const items = Array.from(section.querySelectorAll('.form-group'))
-                .filter(group => !group.classList.contains('settings-row-hidden'))
-                .map(group => {
-                  const label = group.querySelector('.form-label');
-                  const control = group.querySelector('select, input');
-                  if (!label || !control || !control.id) return null;
-                  const key = control.id.replace(/^s-/, '');
-                  if (HARDWARE_CONTROLLED_PREVIEW_KEYS.has(key)) return null;
-                  return {
-                    key,
-                    label: label.textContent.trim(),
-                    type: control.tagName === 'SELECT' ? 'enum' : 'string',
-                    value: control.value,
-                    options: control.tagName === 'SELECT'
-                      ? Array.from(control.options)
-                          .filter(option => !option.disabled)
-                          .map(option => ({ value: option.value, label: option.textContent.trim() }))
-                      : [],
-                    placeholder: control.getAttribute('placeholder') || '',
-                  };
-                })
-                .filter(Boolean);
-              return items.length ? { title, items } : null;
-            })
-            .filter(Boolean);
-        }
 
         function getPreviewState() {
           const currentSettings = readSettings();
@@ -5830,7 +6040,6 @@
               })
             : '';
           return {
-            sections: previewSectionsFromDom(),
             screen: {
               mode: previewScreenMode,
               homePreviewLabel,
@@ -6598,8 +6807,12 @@
             document.getElementById('preview-front-3-label'),
           ];
           if (powerLabel) powerLabel.textContent = powerActions[settings.shortPwrBtn] || 'Ignore';
-          if (volUpLabel) volUpLabel.textContent = settings.sideButtonLayout === 1 ? 'Next' : 'Prev';
-          if (volDownLabel) volDownLabel.textContent = settings.sideButtonLayout === 1 ? 'Prev' : 'Next';
+          if (volUpLabel) {
+            volUpLabel.textContent = settings.sideButtonLayout === 1 ? 'Next' : 'Prev';
+          }
+          if (volDownLabel) {
+            volDownLabel.textContent = settings.sideButtonLayout === 1 ? 'Prev' : 'Next';
+          }
           frontLabelEls.forEach((el, index) => {
             if (el) el.textContent = frontLabels[index] || '-';
           });
@@ -6611,22 +6824,30 @@
         document.querySelectorAll('[data-preview-action]').forEach(button => {
           button.addEventListener('click', () => {
             const action = button.dataset.previewAction;
-          if (action === 'power-cycle') {
-            const control = document.getElementById('s-shortPwrBtn');
-            if (!control) return;
-              const enabledOptions = Array.from(control.options).filter(option => !option.disabled);
-              const currentIndex = enabledOptions.findIndex(option => option.value === control.value);
-              const nextOption = enabledOptions[(currentIndex + 1) % enabledOptions.length];
-              if (!nextOption) return;
-              control.value = nextOption.value;
-            } else if (action === 'side-toggle') {
-              const control = document.getElementById('s-sideButtonLayout');
-              if (!control) return;
-              control.value = control.value === '1' ? '0' : '1';
+            const active = currentSelections || {};
+            const values = readSettings();
+            if (action === 'power-cycle') {
+              const setting = SETTINGS_BY_KEY.get('shortPwrBtn');
+              if (!setting) return;
+              setSettingValue('shortPwrBtn', SETTINGS_UI.cycleSetting(setting, values.shortPwrBtn, active, 1));
+              notifySettingChanged('shortPwrBtn');
+              return;
             }
-            sleepPreviewFlashActive = false;
-            if (currentSelections) updateSettingsVisibility(currentSelections);
-            else drawPreview();
+            if (action === 'side-up') {
+              applySettingsPreviewAction('up');
+              return;
+            }
+            if (action === 'side-down') {
+              applySettingsPreviewAction('down');
+            }
+          });
+        });
+
+        document.querySelectorAll('[data-preview-front]').forEach(button => {
+          button.addEventListener('click', () => {
+            const index = parseInt(button.dataset.previewFront, 10);
+            const action = index === 0 ? 'back' : index === 1 ? 'confirm' : index === 2 ? 'up' : 'down';
+            applySettingsPreviewAction(action);
           });
         });
 
@@ -6640,22 +6861,14 @@
             return;
           }
 
+          if (data.type === 'configurator-preview-action') {
+            applySettingsPreviewAction(data.action, data);
+            return;
+          }
+
           if (data.type === 'configurator-preview-change' && data.key) {
-            const control = document.getElementById('s-' + data.key);
-            if (!control) return;
-
-            if (control.tagName === 'SELECT') {
-              const nextValue = String(data.value);
-              const nextOption = Array.from(control.options).find(option => option.value === nextValue && !option.disabled);
-              if (!nextOption) return;
-              control.value = nextValue;
-            } else {
-              control.value = String(data.value ?? '');
-            }
-
-            sleepPreviewFlashActive = data.key === 'sleepScreen';
-            if (currentSelections) updateSettingsVisibility(currentSelections);
-            else drawPreview();
+            setSettingValue(data.key, data.value);
+            notifySettingChanged(data.key, data.key === 'sleepScreen');
           }
         });
 
@@ -6678,9 +6891,9 @@
 
         // Expose updater for feature flag changes
         window._updateSettingsVisibility = updateSettingsVisibility;
-        window._refreshSettingsPreview = drawPreview;
+        window._refreshSettingsPreview = refreshSettingsUi;
 
-        drawPreview();
+        refreshSettingsUi();
       }
 
       setupPrebuiltToggle();

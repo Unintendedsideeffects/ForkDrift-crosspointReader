@@ -760,6 +760,7 @@ PROFILES = {
             'reading_stats': True,
             'minimal_theme': True,
             'focus_reading': True,
+            'guide_dots': True,
         },
     },
 }

@@ -39,11 +39,6 @@ class BleWifiProvisioner final {
 
   void handleIncomingPayload(const std::string& payload);
   void setStatusMessage(const std::string& message);
-  bool parsePayload(const std::string& payload, std::string& ssidOut, std::string& passwordOut) const;
-  bool parseJsonPayload(const std::string& payload, std::string& ssidOut, std::string& passwordOut) const;
-  bool parseWifiQrPayload(const std::string& payload, std::string& ssidOut, std::string& passwordOut) const;
-  bool parseDelimitedPayload(const std::string& payload, std::string& ssidOut, std::string& passwordOut) const;
-  static std::string trim(const std::string& input);
 
   SemaphoreHandle_t stateMutex = nullptr;
   std::atomic<bool> running{false};

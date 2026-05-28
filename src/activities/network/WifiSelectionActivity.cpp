@@ -697,7 +697,7 @@ void WifiSelectionActivity::renderNetworkList() const {
 
 void WifiSelectionActivity::renderBleProvisioning() const {
   if (!core::FeatureModules::hasCapability(core::Capability::BleWifiProvisioning)) {
-    renderer.drawCenteredText(UI_12_FONT_ID, 200, "BLE disabled in this build", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(UI_12_FONT_ID, 200, tr(STR_BLE_DISABLED), true, EpdFontFamily::BOLD);
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     return;
@@ -706,10 +706,13 @@ void WifiSelectionActivity::renderBleProvisioning() const {
   const auto pageHeight = renderer.getScreenHeight();
   const auto top = (pageHeight - 120) / 2;
 
-  renderer.drawCenteredText(UI_12_FONT_ID, top - 35, "BLE WiFi Setup", true, EpdFontFamily::BOLD);
-  renderer.drawCenteredText(UI_10_FONT_ID, top, "Advertised as: CrossPoint-WiFi");
-  renderer.drawCenteredText(UI_10_FONT_ID, top + 20, "Write credentials over BLE");
-  renderer.drawCenteredText(UI_10_FONT_ID, top + 40, "JSON: {\"ssid\":\"...\",\"password\":\"...\"}");
+  char advertisedAsBuf[48];
+  snprintf(advertisedAsBuf, sizeof(advertisedAsBuf), "%s CrossPoint-WiFi", tr(STR_BLE_ADVERTISED_AS));
+
+  renderer.drawCenteredText(UI_12_FONT_ID, top - 35, tr(STR_BLE_WIFI_SETUP), true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_10_FONT_ID, top, advertisedAsBuf);
+  renderer.drawCenteredText(UI_10_FONT_ID, top + 20, tr(STR_BLE_WRITE_CREDENTIALS));
+  renderer.drawCenteredText(UI_10_FONT_ID, top + 40, tr(STR_BLE_JSON_FORMAT_HINT));
 
   std::string status = bleProvisioner.getStatusMessage();
   if (status.length() > 35) {

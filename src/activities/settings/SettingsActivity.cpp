@@ -38,6 +38,22 @@ namespace {
 constexpr char kBackgroundServerModeKey[] = "backgroundServerMode";
 constexpr uint32_t kMinHeapForSettingsRebuild = 48000;
 
+bool controlSettingVisible(const SettingInfo& setting) {
+  if (setting.key != nullptr && std::strcmp(setting.key, "timeZoneOffset") == 0) {
+    return SETTINGS.timeMode != CrossPointSettings::TIME_MODE_MANUAL;
+  }
+  if (setting.visibleWhen.key == nullptr) {
+    return true;
+  }
+  if (std::strcmp(setting.visibleWhen.key, "timeMode") == 0) {
+    return SETTINGS.timeMode == setting.visibleWhen.eq;
+  }
+  if (std::strcmp(setting.visibleWhen.key, "sleepScreen") == 0) {
+    return SETTINGS.sleepScreen == setting.visibleWhen.eq;
+  }
+  return true;
+}
+
 const std::vector<SettingInfo>* settingsForCategory(int categoryIndex, const std::vector<SettingInfo>& displaySettings,
                                                     const std::vector<SettingInfo>& readerSettings,
                                                     const std::vector<SettingInfo>& controlsSettings,
@@ -92,11 +108,13 @@ void SettingsActivity::rebuildSettingsLists() {
     const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
       return setting.key && std::strcmp(setting.key, key) == 0;
     });
-    if (it != allSettings.end()) {
-      systemSettings.push_back(*it);
+    if (it == allSettings.end()) {
+      LOG_ERR("SET", "Missing system setting definition for key=%s", key);
       return;
     }
-    LOG_ERR("SET", "Missing system setting definition for key=%s", key);
+    if (controlSettingVisible(*it)) {
+      systemSettings.push_back(*it);
+    }
   };
 
   for (auto& setting : allSettings) {
@@ -106,7 +124,9 @@ void SettingsActivity::rebuildSettingsLists() {
       continue;
     }
     if (setting.category == StrId::STR_CAT_DISPLAY) {
-      displaySettings.push_back(setting);
+      if (controlSettingVisible(setting)) {
+        displaySettings.push_back(setting);
+      }
     } else if (setting.category == StrId::STR_CAT_READER) {
       readerSettings.push_back(setting);
     } else if (setting.category == StrId::STR_CAT_SYSTEM) {
@@ -139,6 +159,11 @@ void SettingsActivity::rebuildSettingsLists() {
   if (core::FeatureModules::supportsSettingAction(SettingAction::Language)) {
     systemSettings.push_back(SettingInfo::Action(StrId::STR_LANGUAGE, SettingAction::Language));
   }
+#if ENABLE_WIFI_CLOCK
+  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_TIME));
+  addSystemSettingByKey("timeMode");
+  addSystemSettingByKey("timeZoneOffset");
+#endif
   systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_ADVANCED));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_VALIDATE_SLEEP_IMAGES, SettingAction::ValidateSleepImages));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache));
@@ -375,6 +400,12 @@ void SettingsActivity::toggleCurrentSetting() {
     }
 
     applyEnumValue(setting, newValue);
+    if (setting.key != nullptr &&
+        (std::strcmp(setting.key, "timeMode") == 0 || std::strcmp(setting.key, "sleepScreen") == 0)) {
+      const int previousSelection = selectedSettingIndex;
+      rebuildSettingsLists();
+      selectedSettingIndex = std::min(previousSelection, settingsCount);
+    }
   } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
     const int8_t currentValue = SETTINGS.*(setting.valuePtr);
     if (currentValue + setting.valueRange.step > setting.valueRange.max) {

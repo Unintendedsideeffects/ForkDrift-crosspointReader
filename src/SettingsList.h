@@ -726,8 +726,7 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                      StrId::STR_TIMEZONE_OFFSET, {}, [] { return SETTINGS.timeZoneOffset; },
                      [](uint8_t v) { SETTINGS.timeZoneOffset = std::min(v, uint8_t{26}); }, "timeZoneOffset",
                      StrId::STR_CAT_TIME, timezoneOffsetOptions)
-                     .withConfiguratorExport("wifi_clock")
-                     .withVisibleWhen("timeMode", CrossPointSettings::TIME_MODE_LOCAL));
+                     .withConfiguratorExport("wifi_clock"));
 #endif
 
   if (core::FeatureModules::hasCapability(core::Capability::KoreaderSync)) {
