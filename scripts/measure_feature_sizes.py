@@ -68,6 +68,7 @@ FEATURES = [
     'reading_stats',
     'minimal_theme',
     'focus_reading',
+    'guide_dots',
     # --- Depend on features above ---
     'opendyslexic_fonts',       # requires at least one full-charset font family
     'lexenddeca_fonts',         # font family feature

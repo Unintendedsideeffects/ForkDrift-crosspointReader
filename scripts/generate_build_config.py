@@ -268,6 +268,12 @@ FEATURES = {
         size_kb=0,
         description='Bionic reading / focus reading mode that bolds word beginnings to speed up reading'
     ),
+    'guide_dots': Feature(
+        name='Guide Dots',
+        flag='ENABLE_GUIDE_DOTS',
+        size_kb=0,
+        description='Inserts an interpunct between every word to make word boundaries explicit'
+    ),
 }
 
 
@@ -569,6 +575,13 @@ FEATURE_METADATA = {
         recommends=[]
     ),
     'focus_reading': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=[],
+        conflicts=[],
+        recommends=[]
+    ),
+    'guide_dots': FeatureMetadata(
         implemented=True,
         stable=True,
         requires=[],
