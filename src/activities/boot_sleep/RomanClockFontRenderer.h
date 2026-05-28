@@ -1,10 +1,11 @@
 #pragma once
 
-#include <algorithm>
-#include <string>
-
 #include <GfxRenderer.h>
 #include <Utf8.h>
+
+#include <algorithm>
+#include <string>
+#include <vector>
 
 #include "fontIds.h"
 
@@ -98,6 +99,100 @@ inline int fitTextScale(const GfxRenderer& renderer, const std::string& text, in
   }
 
   return std::max(1, std::min(maxWidth / width, maxHeight / height));
+}
+
+// Splits a Roman numeral hour string into at most two rows using a balanced
+// split: keeps subtractive pairs (IV, IX, …) intact and chooses the split
+// point that minimises |len(row1) - len(row2)|.  Strings of ≤3 chars are
+// returned as a single row.
+inline std::vector<std::string> splitHourIntoRows(const std::string& hour) {
+  if (hour.size() <= 3) {
+    return {hour};
+  }
+
+  static constexpr const char* kSubtractivePairs[] = {"IV", "IX", "XL", "XC", "CD", "CM", nullptr};
+
+  // Tokenise, keeping two-char subtractive pairs as single tokens.
+  std::vector<std::string> tokens;
+  size_t i = 0;
+  while (i < hour.size()) {
+    if (i + 1 < hour.size()) {
+      const std::string pair = hour.substr(i, 2);
+      bool isSubtractive = false;
+      for (int k = 0; kSubtractivePairs[k]; ++k) {
+        if (pair == kSubtractivePairs[k]) {
+          isSubtractive = true;
+          break;
+        }
+      }
+      if (isSubtractive) {
+        tokens.push_back(pair);
+        i += 2;
+        continue;
+      }
+    }
+    tokens.push_back(std::string(1, hour[i]));
+    ++i;
+  }
+
+  // Build prefix character-lengths so we can evaluate every split point.
+  std::vector<int> prefix(tokens.size() + 1, 0);
+  for (size_t j = 0; j < tokens.size(); ++j) {
+    prefix[j + 1] = prefix[j] + static_cast<int>(tokens[j].size());
+  }
+  const int total = prefix[tokens.size()];
+
+  // Find the split that minimises |len(row1) - len(row2)|.
+  int bestDiff = total + 1;
+  int bestSplit = static_cast<int>(tokens.size()) / 2;
+  for (int split = 1; split < static_cast<int>(tokens.size()); ++split) {
+    const int diff = std::abs(prefix[split] - (total - prefix[split]));
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestSplit = split;
+    }
+  }
+
+  std::string row1, row2;
+  for (int j = 0; j < bestSplit; ++j) row1 += tokens[j];
+  for (int j = bestSplit; j < static_cast<int>(tokens.size()); ++j) row2 += tokens[j];
+  return {row1, row2};
+}
+
+// Returns the largest integer scale such that the widest row fits in maxWidth
+// and all rows stacked fit in maxHeight.
+inline int fitMultiRowScale(const GfxRenderer& renderer, const std::vector<std::string>& rows, int maxWidth,
+                            int maxHeight) {
+  if (rows.empty()) return 0;
+
+  int maxRowBaseW = 0;
+  for (const auto& row : rows) {
+    maxRowBaseW = std::max(maxRowBaseW, baseTextWidth(renderer, row));
+  }
+
+  const int rowBaseH = baseTextHeight(renderer);
+  const int totalBaseH = rowBaseH * static_cast<int>(rows.size());
+  if (maxRowBaseW <= 0 || totalBaseH <= 0) return 0;
+
+  return std::max(1, std::min(maxWidth / maxRowBaseW, maxHeight / totalBaseH));
+}
+
+// Draws rows stacked and centred within the box (cx, cy, availW, availH).
+inline bool drawMultiRowText(GfxRenderer& renderer, const std::vector<std::string>& rows, int cx, int cy, int availW,
+                             int availH, int scale) {
+  if (rows.empty() || scale <= 0) return false;
+
+  const int rowH = baseTextHeight(renderer) * scale;
+  const int totalH = rowH * static_cast<int>(rows.size());
+  int y = cy + (availH - totalH) / 2;
+
+  for (const auto& row : rows) {
+    const int rowW = scaledTextWidth(renderer, row, scale);
+    const int x = cx + (availW - rowW) / 2;
+    if (!drawScaledText(renderer, row, x, y, scale)) return false;
+    y += rowH;
+  }
+  return true;
 }
 
 inline void drawScaledGlyph(GfxRenderer& renderer, const EpdFontFamily& fontFamily, const EpdFontData* fontData,

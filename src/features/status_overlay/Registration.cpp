@@ -22,6 +22,12 @@
 
 namespace features::status_overlay {
 
+namespace {
+
+constexpr int kStatusHorizontalPadBoost = 3;
+
+}  // namespace
+
 #if ENABLE_GLOBAL_STATUS_BAR
 
 namespace {
@@ -47,7 +53,7 @@ void drawSyncIcon(const GfxRenderer& renderer, const int x, const int y) {
 }
 
 void drawStatusOverlay(const GfxRenderer& renderer) {
-  if (!isEnabled()) {
+  if (!isEnabled() || !activityManager.showsGlobalStatusBar()) {
     return;
   }
 
@@ -61,7 +67,7 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
   const int screenH = renderer.getScreenHeight();
   constexpr int kTextGap = 12;
   const int barH = barHeight();
-  const int padTopPx = padTop();
+  const int padTopPx = textTop(renderer);
   const int padHPx = padH();
   const int barY = (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? screenH - barH : 0;
   const int sepY = (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? barY : barY + barH - 1;
@@ -177,11 +183,12 @@ ReaderContext& ReaderContext::get() {
 // polished size + padding, so ThemeMetrics is the single source of truth.
 int barHeight() { return UITheme::getInstance().getBaseMetrics().statusBarVerticalMargin; }
 
-int padH() { return UITheme::getInstance().getBaseMetrics().statusBarHorizontalMargin; }
+int padH() { return UITheme::getInstance().getBaseMetrics().statusBarHorizontalMargin + kStatusHorizontalPadBoost; }
 
-int padTop() {
+int textTop(const GfxRenderer& renderer) {
   const int h = barHeight();
-  return h > kStatusTextHeight ? (h - kStatusTextHeight) / 2 : 0;
+  const int textH = renderer.getTextHeight(SMALL_FONT_ID);
+  return h > textH ? (h - textH) / 2 : 0;
 }
 
 int topInset() {

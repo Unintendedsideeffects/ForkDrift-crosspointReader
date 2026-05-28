@@ -7,6 +7,8 @@
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
+#include <Logging.h>
+#include <freertos/task.h>
 
 #include <algorithm>
 #include <cctype>
@@ -29,6 +31,7 @@
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "fontIds.h"
+#include "network/BackgroundWifiService.h"
 #include "util/DateUtils.h"
 #include "util/PokemonBookDataStore.h"
 #include "util/RecentBooksStore.h"
@@ -111,9 +114,17 @@ void lock() {
 }
 void unlock() {
   auto mutex = get();
-  if (mutex) {
-    xSemaphoreGiveRecursive(mutex);
+  if (mutex == nullptr) {
+    return;
   }
+  const TaskHandle_t self = xTaskGetCurrentTaskHandle();
+  const TaskHandle_t holder = xSemaphoreGetMutexHolder(mutex);
+  if (holder != nullptr && holder != self) {
+    LOG_ERR("SLP", "skip sleep cache give (not holder): self='%s' holder='%s'", pcTaskGetName(self),
+            holder ? pcTaskGetName(holder) : "<none>");
+    return;
+  }
+  xSemaphoreGiveRecursive(mutex);
 }
 struct Guard {
   Guard() { lock(); }
@@ -460,8 +471,10 @@ int validateAndCountSleepImages() { return validateSleepImagesWithStats().valid;
 
 void SleepActivity::onEnter() {
   Activity::onEnter();
-  // Skip the "Entering Sleep..." popup to avoid unnecessary screen refresh
-  // The sleep screen will be displayed immediately anyway
+
+  if (BG_WIFI.isRunning()) {
+    BG_WIFI.stop(true);
+  }
 
   // Optional extension point for third-party sleep apps.
   if (tryRenderExternalSleepApp(renderer, mappedInput)) {
@@ -757,16 +770,14 @@ void SleepActivity::renderRomanClockSleepScreen() const {
   const bool hasMinute = !label.minute.empty();
 
   if (!hasMinute) {
-    // ── Hour alone: vertically centered, as large as the content area allows ──
-    const int hourScale = RomanClockFontRenderer::fitTextScale(renderer, label.hour, cw, ch * 7 / 12);
+    // ── Hour alone: split into balanced rows, centered in content area ──────
+    const auto hourRows = RomanClockFontRenderer::splitHourIntoRows(label.hour);
+    const int hourScale = RomanClockFontRenderer::fitMultiRowScale(renderer, hourRows, cw, ch * 7 / 12);
     if (hourScale <= 0) {
       renderDefaultSleepScreen();
       return;
     }
-    const int hourH = RomanClockFontRenderer::baseTextHeight(renderer) * hourScale;
-    const int hourW = RomanClockFontRenderer::scaledTextWidth(renderer, label.hour, hourScale);
-    if (!RomanClockFontRenderer::drawScaledText(renderer, label.hour, cx + (cw - hourW) / 2, cy + (ch - hourH) / 2,
-                                                hourScale)) {
+    if (!RomanClockFontRenderer::drawMultiRowText(renderer, hourRows, cx, cy, cw, ch, hourScale)) {
       renderDefaultSleepScreen();
       return;
     }
@@ -791,17 +802,15 @@ void SleepActivity::renderRomanClockSleepScreen() const {
     const int minuteZoneY = cy + ch * 68 / 100;
     const int minuteZoneH = ch * 24 / 100;
 
-    // Hour: fit to full content width, capped at zone height, then center.
-    const int hourScale = RomanClockFontRenderer::fitTextScale(renderer, label.hour, cw, hourZoneH);
+    // Hour: split into balanced rows, fit to zone, then center.
+    const auto hourRows = RomanClockFontRenderer::splitHourIntoRows(label.hour);
+    const int hourScale = RomanClockFontRenderer::fitMultiRowScale(renderer, hourRows, cw, hourZoneH);
     if (hourScale <= 0) {
       renderDefaultSleepScreen();
       return;
     }
     const int hourH = RomanClockFontRenderer::baseTextHeight(renderer) * hourScale;
-    const int hourW = RomanClockFontRenderer::scaledTextWidth(renderer, label.hour, hourScale);
-    const int hourX = cx + (cw - hourW) / 2;
-    const int hourY = hourZoneTopY + (hourZoneH - hourH) / 2;
-    if (!RomanClockFontRenderer::drawScaledText(renderer, label.hour, hourX, hourY, hourScale)) {
+    if (!RomanClockFontRenderer::drawMultiRowText(renderer, hourRows, cx, hourZoneTopY, cw, hourZoneH, hourScale)) {
       renderDefaultSleepScreen();
       return;
     }

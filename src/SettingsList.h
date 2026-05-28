@@ -55,6 +55,153 @@ inline void setBackgroundServerModeSettingIndex(const uint8_t index) {
                                               : CrossPointSettings::BACKGROUND_SERVER_NEVER);
 }
 
+struct QuickActionOption {
+  StrId label;
+  uint8_t value;
+  const char* featureKey = nullptr;
+};
+
+inline std::vector<std::string> quickActionOptionLabels(const std::vector<QuickActionOption>& options) {
+  std::vector<std::string> labels;
+  labels.reserve(options.size());
+  for (const auto& option : options) {
+    labels.emplace_back(I18N.get(option.label));
+  }
+  return labels;
+}
+
+inline std::vector<uint8_t> quickActionPersistedValues(const std::vector<QuickActionOption>& options) {
+  std::vector<uint8_t> values;
+  values.reserve(options.size());
+  for (const auto& option : options) {
+    values.push_back(option.value);
+  }
+  return values;
+}
+
+inline std::vector<const char*> quickActionFeatureKeys(const std::vector<QuickActionOption>& options) {
+  std::vector<const char*> featureKeys;
+  featureKeys.reserve(options.size());
+  for (const auto& option : options) {
+    featureKeys.push_back(option.featureKey);
+  }
+  return featureKeys;
+}
+
+inline uint8_t quickActionOptionIndex(const std::vector<QuickActionOption>& options, const uint8_t value) {
+  for (size_t i = 0; i < options.size(); ++i) {
+    if (options[i].value == value) {
+      return static_cast<uint8_t>(i);
+    }
+  }
+  return 0;
+}
+
+inline uint8_t quickActionValueForIndex(const std::vector<QuickActionOption>& options, const uint8_t index,
+                                        const uint8_t fallbackValue) {
+  if (index < options.size()) {
+    return options[index].value;
+  }
+  return fallbackValue;
+}
+
+inline std::vector<QuickActionOption> shortPowerButtonOptions() {
+  using S = CrossPointSettings;
+  std::vector<QuickActionOption> options = {
+      {StrId::STR_IGNORE, S::IGNORE},
+      {StrId::STR_SLEEP, S::SLEEP},
+      {StrId::STR_PAGE_TURN, S::PAGE_TURN},
+      {StrId::STR_SELECT, S::SELECT},
+      {StrId::STR_FORCE_REFRESH, S::FORCE_REFRESH},
+      {StrId::STR_CHANGE_FONT, S::TOGGLE_FONT},
+  };
+  if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
+    options.push_back({StrId::STR_TOGGLE_GUIDE_DOTS, S::TOGGLE_GUIDE_DOTS, "guide_dots"});
+  }
+  if (core::FeatureModules::hasCapability(core::Capability::FocusReading)) {
+    options.push_back({StrId::STR_TOGGLE_BIONIC_READING, S::TOGGLE_BIONIC_READING, "focus_reading"});
+  }
+  if (core::FeatureModules::hasCapability(core::Capability::Bookmarks)) {
+    options.push_back({StrId::STR_TOGGLE_BOOKMARK, S::TOGGLE_BOOKMARK, "bookmarks"});
+  }
+  if (core::FeatureModules::hasCapability(core::Capability::KoreaderSync)) {
+    options.push_back({StrId::STR_SYNC_PROGRESS, S::SYNC_PROGRESS, "koreader_sync"});
+  }
+#if ENABLE_READING_STATS
+  options.push_back({StrId::STR_MARK_FINISHED, S::MARK_FINISHED, "reading_stats"});
+  options.push_back({StrId::STR_READING_STATS, S::READING_STATS, "reading_stats"});
+#endif
+  options.push_back({StrId::STR_SCREENSHOT_BUTTON, S::SCREENSHOT});
+  options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::CYCLE_PAGE_TURN});
+  if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
+    options.push_back({StrId::STR_FILE_TRANSFER, S::FILE_TRANSFER, "usb_mass_storage"});
+  }
+  return options;
+}
+
+inline std::vector<QuickActionOption> longPowerButtonOptions() {
+  using S = CrossPointSettings;
+  std::vector<QuickActionOption> options = {
+      {StrId::STR_IGNORE, S::IGNORE},           {StrId::STR_SLEEP, S::SLEEP},
+      {StrId::STR_PAGE_TURN, S::PAGE_TURN},     {StrId::STR_FORCE_REFRESH, S::FORCE_REFRESH},
+      {StrId::STR_CHANGE_FONT, S::TOGGLE_FONT},
+  };
+  if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
+    options.push_back({StrId::STR_TOGGLE_GUIDE_DOTS, S::TOGGLE_GUIDE_DOTS, "guide_dots"});
+  }
+  if (core::FeatureModules::hasCapability(core::Capability::FocusReading)) {
+    options.push_back({StrId::STR_TOGGLE_BIONIC_READING, S::TOGGLE_BIONIC_READING, "focus_reading"});
+  }
+  if (core::FeatureModules::hasCapability(core::Capability::Bookmarks)) {
+    options.push_back({StrId::STR_TOGGLE_BOOKMARK, S::TOGGLE_BOOKMARK, "bookmarks"});
+  }
+  if (core::FeatureModules::hasCapability(core::Capability::KoreaderSync)) {
+    options.push_back({StrId::STR_SYNC_PROGRESS, S::SYNC_PROGRESS, "koreader_sync"});
+  }
+#if ENABLE_READING_STATS
+  options.push_back({StrId::STR_MARK_FINISHED, S::MARK_FINISHED, "reading_stats"});
+  options.push_back({StrId::STR_READING_STATS, S::READING_STATS, "reading_stats"});
+#endif
+  options.push_back({StrId::STR_SCREENSHOT_BUTTON, S::SCREENSHOT});
+  options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::CYCLE_PAGE_TURN});
+  if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
+    options.push_back({StrId::STR_FILE_TRANSFER, S::FILE_TRANSFER, "usb_mass_storage"});
+  }
+  return options;
+}
+
+inline std::vector<QuickActionOption> longPressMenuActionOptions() {
+  using S = CrossPointSettings;
+  std::vector<QuickActionOption> options = {
+      {StrId::STR_IGNORE, S::LONG_MENU_OFF},
+      {StrId::STR_SLEEP, S::LONG_MENU_SLEEP},
+      {StrId::STR_CHANGE_FONT, S::LONG_MENU_CHANGE_FONT},
+  };
+  if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
+    options.push_back({StrId::STR_TOGGLE_GUIDE_DOTS, S::LONG_MENU_TOGGLE_GUIDE_DOTS, "guide_dots"});
+  }
+  if (core::FeatureModules::hasCapability(core::Capability::FocusReading)) {
+    options.push_back({StrId::STR_TOGGLE_BIONIC_READING, S::LONG_MENU_TOGGLE_BIONIC, "focus_reading"});
+  }
+  if (core::FeatureModules::hasCapability(core::Capability::Bookmarks)) {
+    options.push_back({StrId::STR_TOGGLE_BOOKMARK, S::LONG_MENU_TOGGLE_BOOKMARK, "bookmarks"});
+  }
+  options.push_back({StrId::STR_FORCE_REFRESH, S::LONG_MENU_REFRESH_SCREEN});
+  if (core::FeatureModules::hasCapability(core::Capability::KoreaderSync)) {
+    options.push_back({StrId::STR_SYNC_PROGRESS, S::LONG_MENU_SYNC_PROGRESS, "koreader_sync"});
+  }
+#if ENABLE_READING_STATS
+  options.push_back({StrId::STR_MARK_FINISHED, S::LONG_MENU_MARK_FINISHED, "reading_stats"});
+  options.push_back({StrId::STR_READING_STATS, S::LONG_MENU_READING_STATS, "reading_stats"});
+#endif
+  options.push_back({StrId::STR_SCREENSHOT_BUTTON, S::LONG_MENU_SCREENSHOT});
+  options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::LONG_MENU_CYCLE_PAGE_TURN});
+  if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
+    options.push_back({StrId::STR_FILE_TRANSFER, S::LONG_MENU_FILE_TRANSFER, "usb_mass_storage"});
+  }
+  return options;
+}
+
 #if ENABLE_WIFI_CLOCK
 inline std::vector<std::string> timezoneOffsetOptions() {
   static const char* kCities[] = {
@@ -457,30 +604,46 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                                     StrId::STR_LONG_PRESS_BEHAVIOR_ORIENTATION},
                                    "longPressButtonBehavior", StrId::STR_CAT_CONTROLS)
                      .withConfiguratorExport());
-  list.push_back(SettingInfo::Enum(StrId::STR_SHORT_PWR_BTN, &CrossPointSettings::shortPwrBtn,
-                                   {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_PAGE_TURN, StrId::STR_SELECT,
-                                    StrId::STR_FORCE_REFRESH, StrId::STR_CHANGE_FONT, StrId::STR_TOGGLE_GUIDE_DOTS,
-                                    StrId::STR_TOGGLE_BIONIC_READING, StrId::STR_TOGGLE_BOOKMARK,
-                                    StrId::STR_SYNC_PROGRESS, StrId::STR_MARK_FINISHED, StrId::STR_READING_STATS,
-                                    StrId::STR_SCREENSHOT_BUTTON, StrId::STR_CYCLE_PAGE_TURN, StrId::STR_FILE_TRANSFER},
-                                   "shortPwrBtn", StrId::STR_CAT_CONTROLS)
-                     .withConfiguratorExport());
-  list.push_back(SettingInfo::Enum(StrId::STR_LONG_PRESS_ACTION, &CrossPointSettings::longPwrBtn,
-                                   {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_PAGE_TURN, StrId::STR_FORCE_REFRESH,
-                                    StrId::STR_CHANGE_FONT, StrId::STR_TOGGLE_GUIDE_DOTS,
-                                    StrId::STR_TOGGLE_BIONIC_READING, StrId::STR_TOGGLE_BOOKMARK,
-                                    StrId::STR_SYNC_PROGRESS, StrId::STR_MARK_FINISHED, StrId::STR_READING_STATS,
-                                    StrId::STR_SCREENSHOT_BUTTON, StrId::STR_CYCLE_PAGE_TURN, StrId::STR_FILE_TRANSFER},
-                                   "longPwrBtn", StrId::STR_CAT_CONTROLS)
-                     .withConfiguratorExport());
-  list.push_back(
-      SettingInfo::Enum(StrId::STR_LONG_PRESS_MENU_ACTION, &CrossPointSettings::longPressMenuAction,
-                        {StrId::STR_IGNORE, StrId::STR_SLEEP, StrId::STR_CHANGE_FONT, StrId::STR_TOGGLE_GUIDE_DOTS,
-                         StrId::STR_TOGGLE_BIONIC_READING, StrId::STR_TOGGLE_BOOKMARK, StrId::STR_FORCE_REFRESH,
-                         StrId::STR_SYNC_PROGRESS, StrId::STR_MARK_FINISHED, StrId::STR_READING_STATS,
-                         StrId::STR_SCREENSHOT_BUTTON, StrId::STR_CYCLE_PAGE_TURN, StrId::STR_FILE_TRANSFER},
-                        "longPressMenuAction", StrId::STR_CAT_CONTROLS)
-          .withConfiguratorExport());
+  list.push_back([] {
+    const auto options = shortPowerButtonOptions();
+    SettingInfo setting = SettingInfo::DynamicEnum(
+        StrId::STR_SHORT_PWR_BTN, {}, [options] { return quickActionOptionIndex(options, SETTINGS.shortPwrBtn); },
+        [options](uint8_t index) {
+          SETTINGS.shortPwrBtn = quickActionValueForIndex(options, index, CrossPointSettings::IGNORE);
+        },
+        "shortPwrBtn", StrId::STR_CAT_CONTROLS, [options] { return quickActionOptionLabels(options); });
+    setting.withConfiguratorExport()
+        .withEnumPersistedValues(quickActionPersistedValues(options))
+        .withEnumOptionFeatureKeys(quickActionFeatureKeys(options));
+    return setting;
+  }());
+  list.push_back([] {
+    const auto options = longPowerButtonOptions();
+    SettingInfo setting = SettingInfo::DynamicEnum(
+        StrId::STR_LONG_PRESS_ACTION, {}, [options] { return quickActionOptionIndex(options, SETTINGS.longPwrBtn); },
+        [options](uint8_t index) {
+          SETTINGS.longPwrBtn = quickActionValueForIndex(options, index, CrossPointSettings::IGNORE);
+        },
+        "longPwrBtn", StrId::STR_CAT_CONTROLS, [options] { return quickActionOptionLabels(options); });
+    setting.withConfiguratorExport()
+        .withEnumPersistedValues(quickActionPersistedValues(options))
+        .withEnumOptionFeatureKeys(quickActionFeatureKeys(options));
+    return setting;
+  }());
+  list.push_back([] {
+    const auto options = longPressMenuActionOptions();
+    SettingInfo setting = SettingInfo::DynamicEnum(
+        StrId::STR_LONG_PRESS_MENU_ACTION, {},
+        [options] { return quickActionOptionIndex(options, SETTINGS.longPressMenuAction); },
+        [options](uint8_t index) {
+          SETTINGS.longPressMenuAction = quickActionValueForIndex(options, index, CrossPointSettings::LONG_MENU_OFF);
+        },
+        "longPressMenuAction", StrId::STR_CAT_CONTROLS, [options] { return quickActionOptionLabels(options); });
+    setting.withConfiguratorExport()
+        .withEnumPersistedValues(quickActionPersistedValues(options))
+        .withEnumOptionFeatureKeys(quickActionFeatureKeys(options));
+    return setting;
+  }());
 
   // --- System ---
   list.push_back(SettingInfo::Value(
@@ -516,8 +679,7 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 
   if (core::FeatureModules::hasCapability(core::Capability::GlobalStatusBar)) {
     list.push_back(SettingInfo::Enum(StrId::STR_GLOBAL_STATUS_BAR, &CrossPointSettings::globalStatusBar,
-                                     {StrId::STR_OFF, StrId::STR_ON, StrId::STR_NO_SLEEP}, "globalStatusBar",
-                                     StrId::STR_CAT_DISPLAY)
+                                     {StrId::STR_OFF, StrId::STR_ON}, "globalStatusBar", StrId::STR_CAT_DISPLAY)
                        .withConfiguratorExport("global_status_bar"));
     list.push_back(SettingInfo::Enum(StrId::STR_STATUS_BAR_POSITION, &CrossPointSettings::globalStatusBarPosition,
                                      {StrId::STR_STATUS_BAR_TOP, StrId::STR_STATUS_BAR_BOTTOM},

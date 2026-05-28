@@ -19,6 +19,10 @@ void CrashActivity::onExit() {
 void CrashActivity::onEnter() {
   Activity::onEnter();
 
+  if (BG_WIFI.isRunning()) {
+    BG_WIFI.stop(true);
+  }
+
   panicMessage = HalSystem::getPanicInfo(false);
   if (panicMessage.empty()) {
     panicMessage = tr(STR_CRASH_NO_REASON);

@@ -283,6 +283,96 @@ bool CrossPointSettings::loadFromFile() {
   return false;
 }
 
+static bool isShortPowerButtonActionSupported(const uint8_t action) {
+  using S = CrossPointSettings;
+  switch (action) {
+    case S::TOGGLE_GUIDE_DOTS:
+#if ENABLE_GUIDE_DOTS
+      return true;
+#else
+      return false;
+#endif
+    case S::TOGGLE_BIONIC_READING:
+#if ENABLE_FOCUS_READING
+      return true;
+#else
+      return false;
+#endif
+    case S::TOGGLE_BOOKMARK:
+#if ENABLE_BOOKMARKS
+      return true;
+#else
+      return false;
+#endif
+    case S::SYNC_PROGRESS:
+#if ENABLE_KOREADER_SYNC
+      return true;
+#else
+      return false;
+#endif
+    case S::MARK_FINISHED:
+    case S::READING_STATS:
+#if ENABLE_READING_STATS
+      return true;
+#else
+      return false;
+#endif
+    case S::FILE_TRANSFER:
+#if ENABLE_USB_MASS_STORAGE
+      return true;
+#else
+      return false;
+#endif
+    default:
+      return action < S::SHORT_PWRBTN_COUNT;
+  }
+}
+
+static bool isLongPressMenuActionSupported(const uint8_t action) {
+  using S = CrossPointSettings;
+  switch (action) {
+    case S::LONG_MENU_TOGGLE_GUIDE_DOTS:
+#if ENABLE_GUIDE_DOTS
+      return true;
+#else
+      return false;
+#endif
+    case S::LONG_MENU_TOGGLE_BIONIC:
+#if ENABLE_FOCUS_READING
+      return true;
+#else
+      return false;
+#endif
+    case S::LONG_MENU_TOGGLE_BOOKMARK:
+#if ENABLE_BOOKMARKS
+      return true;
+#else
+      return false;
+#endif
+    case S::LONG_MENU_SYNC_PROGRESS:
+#if ENABLE_KOREADER_SYNC
+      return true;
+#else
+      return false;
+#endif
+    case S::LONG_MENU_MARK_FINISHED:
+    case S::LONG_MENU_READING_STATS:
+#if ENABLE_READING_STATS
+      return true;
+#else
+      return false;
+#endif
+    case S::LONG_MENU_FILE_TRANSFER:
+#if ENABLE_USB_MASS_STORAGE
+      return true;
+#else
+      return false;
+#endif
+    default:
+      return action < S::LONG_PRESS_MENU_ACTION_COUNT;
+  }
+}
+
 void CrossPointSettings::applyFrontButtonLayoutPreset(const FRONT_BUTTON_LAYOUT layout) {
   frontButtonLayout = static_cast<uint8_t>(layout);
 
@@ -396,7 +486,11 @@ void CrossPointSettings::validateAndClamp() {
   if (lineSpacing > WIDE) lineSpacing = NORMAL;
   if (paragraphAlignment >= PARAGRAPH_ALIGNMENT_COUNT) paragraphAlignment = JUSTIFIED;
   if (refreshFrequency > REFRESH_30) refreshFrequency = REFRESH_15;
-  if (shortPwrBtn > FORCE_REFRESH) shortPwrBtn = IGNORE;
+  if (shortPwrBtn >= SHORT_PWRBTN_COUNT || !isShortPowerButtonActionSupported(shortPwrBtn)) shortPwrBtn = IGNORE;
+  if (longPwrBtn >= SHORT_PWRBTN_COUNT || !isShortPowerButtonActionSupported(longPwrBtn)) longPwrBtn = IGNORE;
+  if (longPressMenuAction >= LONG_PRESS_MENU_ACTION_COUNT || !isLongPressMenuActionSupported(longPressMenuAction)) {
+    longPressMenuAction = LONG_MENU_OFF;
+  }
   if (hideBatteryPercentage > HIDE_ALWAYS) hideBatteryPercentage = HIDE_NEVER;
   if (timeMode > TIME_MODE_MANUAL) timeMode = TIME_MODE_UTC;
   if (releaseChannel >= RELEASE_CHANNEL_COUNT) releaseChannel = RELEASE_STABLE;

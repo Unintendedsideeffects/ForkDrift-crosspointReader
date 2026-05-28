@@ -12,6 +12,7 @@ class ControlsOptionsActivity final : public Activity {
   int selectedIndex = 0;
   int settingsCount = 0;
   std::vector<SettingInfo> settings;
+  bool readerSettingsChanged_ = false;
 
   void rebuildSettingsList();
   void moveSelection(bool forward);

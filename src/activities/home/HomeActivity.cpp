@@ -666,10 +666,34 @@ bool HomeActivity::drawCoverAt(const std::string& coverPath, const int x, const 
   return ok;
 }
 
+bool HomeActivity::blocksBackgroundServer() {
+  if (recentsLoading || !firstRenderDone) {
+    return true;
+  }
+
+  if (hasCoverImage && !coverRendered && !coverBufferStored) {
+    return true;
+  }
+
+  const bool isCarouselTheme =
+      static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) == CrossPointSettings::UI_THEME::LYRA_CAROUSEL;
+  if (isCarouselTheme && (carouselWarmupPending || (!carouselFramesReady && !recentBooks.empty()))) {
+    return true;
+  }
+
+  return false;
+}
+
 void HomeActivity::onEnter() {
   Activity::onEnter();
 
-  if (BG_WIFI.isRunning()) {
+  const bool isCarouselTheme =
+      static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) == CrossPointSettings::UI_THEME::LYRA_CAROUSEL;
+  firstRenderDone = false;
+  carouselFramesReady = false;
+  carouselWarmupPending = isCarouselTheme;
+
+  if (blocksBackgroundServer() && BG_WIFI.isRunning()) {
     BG_WIFI.stop(true);
   }
 
@@ -677,11 +701,6 @@ void HomeActivity::onEnter() {
   hasOpdsServers = OPDS_STORE.hasServers();
   const bool mediaPickerEnabled = core::FeatureModules::hasCapability(core::Capability::HomeMediaPicker);
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const bool isCarouselTheme =
-      static_cast<CrossPointSettings::UI_THEME>(SETTINGS.uiTheme) == CrossPointSettings::UI_THEME::LYRA_CAROUSEL;
-
-  carouselFramesReady = false;
-  carouselWarmupPending = isCarouselTheme;
 
   if (mediaPickerEnabled) {
     loadRecentBooks();
@@ -715,12 +734,10 @@ void HomeActivity::onEnter() {
         for (int i = 0; i < gCarouselCache.frameCount; ++i) carouselFrames[i] = gCarouselCache.frames[i];
         carouselFramesReady = true;
         carouselWarmupPending = false;
-        firstRenderDone = true;
       } else if (hasValidCarouselDiskCache(recentBooks, renderer)) {
         preRenderCarouselFrames(false);
         if (carouselFramesReady) {
           carouselWarmupPending = false;
-          firstRenderDone = true;
         }
       }
       if (carouselCoverThumbsReady(recentBooks) &&
@@ -1051,6 +1068,7 @@ bool HomeActivity::readCarouselFrameFromDisk(uint64_t cacheKeyHash, int bookCoun
     // #endregion
     return false;
   }
+  SpiBusMutex::Guard guard;
   HalFile file;
   if (!Storage.openFileForRead("HOME", CAROUSEL_CACHE_PATH, file)) {
     // #region agent log
@@ -1581,6 +1599,7 @@ void HomeActivity::render(RenderLock&&) {
       updateSlidingWindowCache(centerIdx, bookCount);
       if (!firstRenderDone) {
         firstRenderDone = true;
+        requestUpdate();
       } else if (!recentsLoaded && !recentsLoading) {
         const bool diskCarouselReady = gCarouselCache.keyHash != 0 && carouselCoverThumbsReady(recentBooks);
         if (diskCarouselReady) {

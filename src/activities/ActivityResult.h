@@ -67,9 +67,13 @@ struct BookmarkResult {
   float progress = 0.0f;
 };
 
+struct ControlsOptionsResult {
+  bool readerSettingsChanged = false;
+};
+
 using ResultVariant = std::variant<std::monostate, WifiResult, KeyboardResult, MenuResult, ChapterResult, PercentResult,
                                    IntervalResult, PageResult, SyncResult, NetworkModeResult, FootnoteResult,
-                                   FileBrowserActionResult, FilePathResult, BookmarkResult>;
+                                   FileBrowserActionResult, FilePathResult, BookmarkResult, ControlsOptionsResult>;
 
 struct ActivityResult {
   bool isCancelled = false;

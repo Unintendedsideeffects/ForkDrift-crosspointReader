@@ -21,6 +21,8 @@ class SleepActivity final : public Activity {
   explicit SleepActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
       : Activity("Sleep", renderer, mappedInput) {}
   void onEnter() override;
+  bool blocksBackgroundServer() override { return true; }
+  bool showsGlobalStatusBar() const override { return false; }
 
  private:
   void renderDefaultSleepScreen() const;

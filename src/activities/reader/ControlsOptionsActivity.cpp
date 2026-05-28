@@ -47,7 +47,15 @@ void ControlsOptionsActivity::rebuildSettingsList() {
     LOG_ERR("CTRL", "Missing control setting definition for key=%s", key);
   };
 
-  settings.reserve(12);
+  settings.reserve(15);
+
+  const bool hasFocusReading = core::FeatureModules::hasCapability(core::Capability::FocusReading);
+  const bool hasGuideDots = core::FeatureModules::hasCapability(core::Capability::GuideDots);
+  if (hasFocusReading || hasGuideDots) {
+    settings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_READER));
+    if (hasFocusReading) addControlSettingByKey("focusReadingEnabled");
+    if (hasGuideDots) addControlSettingByKey("guideReadingEnabled");
+  }
 
   settings.push_back(SettingInfo::SectionHeader(StrId::STR_POWER_BUTTON));
   addControlSetting(StrId::STR_SHORT_PWR_BTN);
@@ -93,6 +101,10 @@ void ControlsOptionsActivity::toggleCurrentSetting() {
     SETTINGS.*(setting.valuePtr) = !cur;
     if (!SETTINGS.saveToFile()) {
       LOG_ERR("CTRL", "Failed to save settings");
+    }
+    if (setting.key && (std::strcmp(setting.key, "guideReadingEnabled") == 0 ||
+                        std::strcmp(setting.key, "focusReadingEnabled") == 0)) {
+      readerSettingsChanged_ = true;
     }
   } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
     const uint8_t cur = SETTINGS.*(setting.valuePtr);
@@ -140,6 +152,7 @@ void ControlsOptionsActivity::loop() {
     if (!SETTINGS.saveToFile()) {
       LOG_ERR("CTRL", "Failed to save settings");
     }
+    setResult(ControlsOptionsResult{readerSettingsChanged_});
     finish();
     return;
   }

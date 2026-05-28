@@ -178,7 +178,7 @@ class HalStorage {
   bool writeFile(const char* path, const String& content) {
     ensureParentDirs(path ? path : "");
     const char* s = content.c_str();
-    const size_t len = std::strlen(s);
+    const size_t len = content.length();
     auto buf = std::make_shared<std::vector<uint8_t>>(s, s + len);
     files_[path] = buf;
     return true;

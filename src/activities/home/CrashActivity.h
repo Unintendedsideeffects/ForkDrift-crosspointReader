@@ -11,4 +11,5 @@ class CrashActivity final : public Activity {
   void onExit() override;
   void loop() override;
   void render(RenderLock&&) override;
+  bool blocksBackgroundServer() override { return true; }
 };

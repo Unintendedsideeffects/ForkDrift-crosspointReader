@@ -11,10 +11,10 @@
 #include "SpiBusMutex.h"
 
 namespace {
-constexpr uint8_t SECTION_FILE_VERSION = 2;
+constexpr uint8_t SECTION_FILE_VERSION = 3;
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) +
-                                 sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint32_t);
+                                 sizeof(uint32_t) + sizeof(bool) + sizeof(bool) + sizeof(uint16_t) + sizeof(uint32_t);
 constexpr uint32_t MIN_SIZE_FOR_PROGRESS = 50 * 1024;
 constexpr float LINE_COMPRESSION_EPSILON = 0.0001f;
 
@@ -55,9 +55,9 @@ uint32_t HtmlSection::onPageComplete(std::unique_ptr<Page> page) {
 }
 
 void HtmlSection::writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing,
-                                         bool forceParagraphIndents, uint8_t paragraphAlignment,
-                                         uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled,
-                                         uint32_t sourceSize) {
+                                         bool forceParagraphIndents, uint8_t paragraphAlignment, uint16_t viewportWidth,
+                                         uint16_t viewportHeight, bool hyphenationEnabled, uint32_t sourceSize,
+                                         bool focusReadingEnabled, bool guideReadingEnabled) {
   if (!file) {
     LOG_ERR("HSC", "File not open for writing header");
     return;
@@ -65,8 +65,8 @@ void HtmlSection::writeSectionFileHeader(int fontId, float lineCompression, bool
   static_assert(HEADER_SIZE == sizeof(SECTION_FILE_VERSION) + sizeof(fontId) + sizeof(lineCompression) +
                                    sizeof(extraParagraphSpacing) + sizeof(forceParagraphIndents) +
                                    sizeof(paragraphAlignment) + sizeof(viewportWidth) + sizeof(viewportHeight) +
-                                   sizeof(hyphenationEnabled) + sizeof(sourceSize) + sizeof(pageCount) +
-                                   sizeof(uint32_t),
+                                   sizeof(hyphenationEnabled) + sizeof(sourceSize) + sizeof(focusReadingEnabled) +
+                                   sizeof(guideReadingEnabled) + sizeof(pageCount) + sizeof(uint32_t),
                 "Header size mismatch");
 
   serialization::writePod(file, SECTION_FILE_VERSION);
@@ -79,13 +79,16 @@ void HtmlSection::writeSectionFileHeader(int fontId, float lineCompression, bool
   serialization::writePod(file, viewportHeight);
   serialization::writePod(file, hyphenationEnabled);
   serialization::writePod(file, sourceSize);
+  serialization::writePod(file, focusReadingEnabled);
+  serialization::writePod(file, guideReadingEnabled);
   serialization::writePod(file, pageCount);                 // Placeholder
   serialization::writePod(file, static_cast<uint32_t>(0));  // Placeholder for LUT offset
 }
 
 bool HtmlSection::loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing,
                                   bool forceParagraphIndents, uint8_t paragraphAlignment, uint16_t viewportWidth,
-                                  uint16_t viewportHeight, bool hyphenationEnabled, uint32_t sourceSize) {
+                                  uint16_t viewportHeight, bool hyphenationEnabled, uint32_t sourceSize,
+                                  bool focusReadingEnabled, bool guideReadingEnabled) {
   SpiBusMutex::Guard guard;
   closeSectionFile();
   if (!Storage.openFileForRead("HSC", filePath, file)) {
@@ -114,13 +117,16 @@ bool HtmlSection::loadSectionFile(int fontId, float lineCompression, bool extraP
   uint8_t fileParagraphAlignment;
   bool fileHyphenationEnabled;
   uint32_t fileSourceSize;
+  bool fileFocusReadingEnabled;
+  bool fileGuideReadingEnabled;
 
   if (!serialization::readPod(file, fileFontId) || !serialization::readPod(file, fileLineCompression) ||
       !serialization::readPod(file, fileExtraParagraphSpacing) ||
       !serialization::readPod(file, fileForceParagraphIndents) ||
       !serialization::readPod(file, fileParagraphAlignment) || !serialization::readPod(file, fileViewportWidth) ||
       !serialization::readPod(file, fileViewportHeight) || !serialization::readPod(file, fileHyphenationEnabled) ||
-      !serialization::readPod(file, fileSourceSize)) {
+      !serialization::readPod(file, fileSourceSize) || !serialization::readPod(file, fileFocusReadingEnabled) ||
+      !serialization::readPod(file, fileGuideReadingEnabled)) {
     file.close();
     LOG_ERR("HSC", "Deserialization failed: truncated parameters");
     clearCache();
@@ -131,7 +137,8 @@ bool HtmlSection::loadSectionFile(int fontId, float lineCompression, bool extraP
       extraParagraphSpacing != fileExtraParagraphSpacing || forceParagraphIndents != fileForceParagraphIndents ||
       paragraphAlignment != fileParagraphAlignment || viewportWidth != fileViewportWidth ||
       viewportHeight != fileViewportHeight || hyphenationEnabled != fileHyphenationEnabled ||
-      sourceSize != fileSourceSize) {
+      sourceSize != fileSourceSize || focusReadingEnabled != fileFocusReadingEnabled ||
+      guideReadingEnabled != fileGuideReadingEnabled) {
     file.close();
     LOG_WRN("HSC", "Deserialization failed: parameters do not match");
     clearCache();
@@ -165,6 +172,7 @@ bool HtmlSection::clearCache() const {
 bool HtmlSection::createSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing,
                                     bool forceParagraphIndents, uint8_t paragraphAlignment, uint16_t viewportWidth,
                                     uint16_t viewportHeight, bool hyphenationEnabled, uint32_t sourceSize,
+                                    bool focusReadingEnabled, bool guideReadingEnabled,
                                     const std::function<void()>& progressSetupFn,
                                     const std::function<void(int)>& progressFn) {
   SpiBusMutex::Guard guard;
@@ -179,7 +187,8 @@ bool HtmlSection::createSectionFile(int fontId, float lineCompression, bool extr
   }
 
   writeSectionFileHeader(fontId, lineCompression, extraParagraphSpacing, forceParagraphIndents, paragraphAlignment,
-                         viewportWidth, viewportHeight, hyphenationEnabled, sourceSize);
+                         viewportWidth, viewportHeight, hyphenationEnabled, sourceSize, focusReadingEnabled,
+                         guideReadingEnabled);
 
   std::vector<uint32_t> lut = {};
 
@@ -198,7 +207,7 @@ bool HtmlSection::createSectionFile(int fontId, float lineCompression, bool extr
 
   ChapterHtmlSlimParser visitor(
       nullptr, htmlPath, renderer, fontId, lineCompression, extraParagraphSpacing, forceParagraphIndents,
-      paragraphAlignment, viewportWidth, viewportHeight, hyphenationEnabled, false, false,
+      paragraphAlignment, viewportWidth, viewportHeight, hyphenationEnabled, focusReadingEnabled, guideReadingEnabled,
       [this, &lut](std::unique_ptr<Page> page, uint16_t /*paragraphIndex*/, uint16_t /*liIndex*/) {
         lut.emplace_back(this->onPageComplete(std::move(page)));
       },

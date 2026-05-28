@@ -23,6 +23,7 @@ constexpr const char* kRequiresOpenDyslexicFontsAny[] = {"bookerly_fonts", "noto
                                                          "bitter_fonts", "chareink_fonts"};
 constexpr const char* kRequiresRomanClockSleepAll[] = {"wifi_clock"};
 constexpr const char* kRequiresHaikuClockSleepAll[] = {"wifi_clock"};
+constexpr const char* kRequiresTextRendererAny[] = {"epub_support", "markdown"};
 
 constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"bookerly_fonts", "Bookerly Fonts", ENABLE_BOOKERLY_FONTS != 0, nullptr, 0, nullptr, 0},
@@ -65,8 +66,10 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
      sizeof(kRequiresLyraThemeAll) / sizeof(kRequiresLyraThemeAll[0]), nullptr, 0},
     {"minimal_theme", "Minimal Theme", ENABLE_MINIMAL_THEME != 0, kRequiresLyraThemeAll,
      sizeof(kRequiresLyraThemeAll) / sizeof(kRequiresLyraThemeAll[0]), nullptr, 0},
-    {"focus_reading", "Focus Reading", ENABLE_FOCUS_READING != 0, nullptr, 0, nullptr, 0},
-    {"guide_dots", "Guide Dots", ENABLE_GUIDE_DOTS != 0, nullptr, 0, nullptr, 0},
+    {"focus_reading", "Focus Reading", ENABLE_FOCUS_READING != 0, nullptr, 0, kRequiresTextRendererAny,
+     sizeof(kRequiresTextRendererAny) / sizeof(kRequiresTextRendererAny[0])},
+    {"guide_dots", "Guide Dots", ENABLE_GUIDE_DOTS != 0, nullptr, 0, kRequiresTextRendererAny,
+     sizeof(kRequiresTextRendererAny) / sizeof(kRequiresTextRendererAny[0])},
     {"bookmarks", "Bookmarks", ENABLE_BOOKMARKS != 0, nullptr, 0, nullptr, 0},
     {"reading_stats", "Reading Stats", ENABLE_READING_STATS != 0, nullptr, 0, nullptr, 0},
     {"ota_updates", "OTA Updates", ENABLE_OTA_UPDATES != 0, nullptr, 0, nullptr, 0},

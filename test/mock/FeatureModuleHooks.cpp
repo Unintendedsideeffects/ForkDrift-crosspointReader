@@ -43,6 +43,18 @@ bool FeatureModules::hasCapability(const Capability capability) {
 #else
       return false;
 #endif
+    case Capability::GuideDots:
+#if ENABLE_GUIDE_DOTS
+      return true;
+#else
+      return false;
+#endif
+    case Capability::Bookmarks:
+#if ENABLE_BOOKMARKS
+      return true;
+#else
+      return false;
+#endif
     case Capability::GlobalStatusBar:
 #if ENABLE_GLOBAL_STATUS_BAR
       return true;

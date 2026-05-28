@@ -386,7 +386,10 @@ class CrossPointSettings {
 
   bool isGlobalStatusBarEnabled() const { return globalStatusBar != GLOBAL_STATUS_BAR_OFF; }
 
-  bool globalStatusBarPreventsAutoSleep() const { return globalStatusBar == GLOBAL_STATUS_BAR_NO_SLEEP; }
+  // Keep the legacy NO_SLEEP value inert until the design is settled and it can
+  // be reintroduced properly. NO_SLEEP should mean the global status bar stays
+  // drawn even while sleeping, not that it prevents the device from sleeping.
+  bool globalStatusBarPreventsAutoSleep() const { return false; }
 
   uint8_t getBackgroundServerMode() const {
     if (supportsBackgroundServerAlwaysMode() && wifiAutoConnect) {

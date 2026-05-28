@@ -388,6 +388,10 @@ bool ActivityManager::showsStatusBarIp() const {
                      [](const auto& activity) { return activity && activity->showsStatusBarIp(); });
 }
 
+bool ActivityManager::showsGlobalStatusBar() const {
+  return !currentActivity || currentActivity->showsGlobalStatusBar();
+}
+
 ScreenshotInfo ActivityManager::getScreenshotInfo() const {
   if (currentActivity) {
     return currentActivity->getScreenshotInfo();

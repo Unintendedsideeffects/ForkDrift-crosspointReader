@@ -53,6 +53,18 @@ TEST_CASE("testFeatureCatalogApi") {
   CHECK(backgroundServerAlways != nullptr);
   CHECK(backgroundServerAlways->requiresAllCount == 0);
   CHECK(backgroundServerAlways->requiresAnyCount == 0);
+  const core::FeatureDescriptor* focusReading = core::FeatureCatalog::find("focus_reading");
+  REQUIRE(focusReading != nullptr);
+  CHECK(focusReading->requiresAllCount == 0);
+  CHECK(focusReading->requiresAnyCount == 2);
+  CHECK(std::string(focusReading->requiresAny[0]) == "epub_support");
+  CHECK(std::string(focusReading->requiresAny[1]) == "markdown");
+  const core::FeatureDescriptor* guideDots = core::FeatureCatalog::find("guide_dots");
+  REQUIRE(guideDots != nullptr);
+  CHECK(guideDots->requiresAllCount == 0);
+  CHECK(guideDots->requiresAnyCount == 2);
+  CHECK(std::string(guideDots->requiresAny[0]) == "epub_support");
+  CHECK(std::string(guideDots->requiresAny[1]) == "markdown");
 
   const String json = core::FeatureCatalog::toJson();
   CHECK(!json.isEmpty());

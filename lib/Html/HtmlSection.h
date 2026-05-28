@@ -17,11 +17,12 @@ class HtmlSection {
 
   bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
                        uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
-                       bool hyphenationEnabled, uint32_t sourceSize);
+                       bool hyphenationEnabled, uint32_t sourceSize, bool focusReadingEnabled,
+                       bool guideReadingEnabled);
   bool createSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
                          uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
-                         bool hyphenationEnabled, uint32_t sourceSize,
-                         const std::function<void()>& progressSetupFn = nullptr,
+                         bool hyphenationEnabled, uint32_t sourceSize, bool focusReadingEnabled,
+                         bool guideReadingEnabled, const std::function<void()>& progressSetupFn = nullptr,
                          const std::function<void(int)>& progressFn = nullptr);
   std::unique_ptr<Page> loadPageFromSectionFile();
   bool clearCache() const;
@@ -40,7 +41,8 @@ class HtmlSection {
 
   void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
                               uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
-                              bool hyphenationEnabled, uint32_t sourceSize);
+                              bool hyphenationEnabled, uint32_t sourceSize, bool focusReadingEnabled,
+                              bool guideReadingEnabled);
   uint32_t onPageComplete(std::unique_ptr<Page> page);
   void closeSectionFile();
 };

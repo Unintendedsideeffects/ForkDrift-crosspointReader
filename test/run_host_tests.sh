@@ -43,7 +43,9 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -I"$ROOT_DIR/lib/I18n" \
   -I"$ROOT_DIR/lib/Logging" \
   -I"$ROOT_DIR/lib/FsHelpers" \
+  -I"$ROOT_DIR/lib/EpdFont" \
   -I"$ROOT_DIR/lib/Markdown" \
+  -I"$ROOT_DIR/lib/Memory" \
   -I"$ROOT_DIR/lib/third_party/md4c" \
   -I"$ROOT_DIR/lib/Serialization" \
   -I"$ROOT_DIR/lib/GfxRenderer" \
@@ -56,6 +58,8 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/network/FileMutationApi.cpp" \
   "$ROOT_DIR/src/network/FileReadApi.cpp" \
   "$ROOT_DIR/lib/FsHelpers/FsHelpers.cpp" \
+  "$ROOT_DIR/lib/I18n/I18n.cpp" \
+  "$ROOT_DIR/lib/I18n/I18nStrings.cpp" \
   "$ROOT_DIR/lib/Logging/Logging.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownPreprocessor.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownParser.cpp" \

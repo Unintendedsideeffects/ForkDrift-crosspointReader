@@ -57,6 +57,7 @@ class Activity {
   virtual bool blocksBackgroundServer() { return false; }
   virtual bool isReaderActivity() const { return false; }
   virtual bool showsStatusBarIp() const { return false; }
+  virtual bool showsGlobalStatusBar() const { return true; }
   virtual ScreenshotInfo getScreenshotInfo() const { return {}; }
 
   // Start a new activity without destroying the current one

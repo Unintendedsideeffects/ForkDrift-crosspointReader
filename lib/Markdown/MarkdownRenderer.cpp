@@ -296,7 +296,8 @@ CssTextAlign normalizeAlignment(const uint8_t style) {
 
 MarkdownRenderer::MarkdownRenderer(GfxRenderer& renderer, int fontId, int viewportWidth, int viewportHeight,
                                    float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
-                                   bool hyphenationEnabled, const std::string& contentBasePath)
+                                   bool hyphenationEnabled, bool focusReadingEnabled, bool guideReadingEnabled,
+                                   const std::string& contentBasePath)
     : renderer(renderer),
       fontId(fontId),
       viewportWidth(viewportWidth),
@@ -305,6 +306,8 @@ MarkdownRenderer::MarkdownRenderer(GfxRenderer& renderer, int fontId, int viewpo
       extraParagraphSpacing(extraParagraphSpacing),
       paragraphAlignment(paragraphAlignment),
       hyphenationEnabled(hyphenationEnabled),
+      focusReadingEnabled(focusReadingEnabled),
+      guideReadingEnabled(guideReadingEnabled),
       contentBasePath(contentBasePath) {}
 
 MarkdownRenderer::~MarkdownRenderer() = default;
@@ -1062,8 +1065,9 @@ void MarkdownRenderer::startNewTextBlock(uint8_t style) {
   BlockStyle blockStyle;
   blockStyle.textAlignDefined = true;
   blockStyle.alignment = normalizeAlignment(style);
-  currentTextBlock.reset(
-      new ParsedText(extraParagraphSpacing, false, hyphenationEnabled && !isPreformatted, false, blockStyle, false));
+  currentTextBlock.reset(new ParsedText(extraParagraphSpacing, false, hyphenationEnabled && !isPreformatted,
+                                        focusReadingEnabled && !isPreformatted, blockStyle,
+                                        guideReadingEnabled && !isPreformatted));
 }
 
 void MarkdownRenderer::flushTextBlock() {

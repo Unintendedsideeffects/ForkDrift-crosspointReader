@@ -28,13 +28,15 @@ EpubReaderMenuActivity::EpubReaderMenuActivity(GfxRenderer& renderer, MappedInpu
       pendingOrientation(currentOrientation),
       currentPage(currentPage),
       totalPages(totalPages),
-      bookProgressPercent(bookProgressPercent) {}
+      bookProgressPercent(bookProgressPercent) {
+}
 
-std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuItems(
-    bool hasFootnotes, bool isBookCompleted
+std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuItems(bool hasFootnotes,
+                                                                                     bool isBookCompleted
 #if ENABLE_BOOKMARKS
-    ,
-    bool hasBookmarks, bool isCurrentPageBookmarked
+                                                                                     ,
+                                                                                     bool hasBookmarks,
+                                                                                     bool isCurrentPageBookmarked
 #endif
 ) {
   std::vector<MenuItem> items;
@@ -51,14 +53,14 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
   items.push_back({MenuAction::DISPLAY_QR, StrId::STR_DISPLAY_QR});
   items.push_back({MenuAction::GO_HOME, StrId::STR_GO_HOME_BUTTON});
   items.push_back({MenuAction::SYNC, StrId::STR_SYNC_PROGRESS});
-  items.push_back({MenuAction::TOGGLE_COMPLETED,
-                   isBookCompleted ? StrId::STR_MARK_UNFINISHED : StrId::STR_MARK_FINISHED});
+  items.push_back(
+      {MenuAction::TOGGLE_COMPLETED, isBookCompleted ? StrId::STR_MARK_UNFINISHED : StrId::STR_MARK_FINISHED});
   if (core::FeatureCatalog::isEnabled("anki_support")) {
     items.push_back({MenuAction::ADD_TO_ANKI, StrId::STR_ADD_TO_ANKI});
   }
 #if ENABLE_BOOKMARKS
-  items.push_back({MenuAction::BOOKMARK_TOGGLE,
-                   isCurrentPageBookmarked ? StrId::STR_REMOVE_BOOKMARK : StrId::STR_ADD_BOOKMARK});
+  items.push_back(
+      {MenuAction::BOOKMARK_TOGGLE, isCurrentPageBookmarked ? StrId::STR_REMOVE_BOOKMARK : StrId::STR_ADD_BOOKMARK});
   if (hasBookmarks) {
     items.push_back({MenuAction::VIEW_BOOKMARKS, StrId::STR_VIEW_BOOKMARKS});
     items.push_back({MenuAction::DELETE_BOOKMARKS, StrId::STR_DELETE_BOOKMARKS});
@@ -97,14 +99,17 @@ void EpubReaderMenuActivity::loop() {
     }
 
     if (selectedAction == MenuAction::CONTROLS_OPTIONS) {
-      startActivityForResult(std::make_unique<ControlsOptionsActivity>(renderer, mappedInput),
-                             [this](const ActivityResult&) {
-                               ActivityResult result;
-                               result.isCancelled = true;
-                               result.data = MenuResult{-1, pendingOrientation};
-                               setResult(std::move(result));
-                               finish();
-                             });
+      startActivityForResult(
+          std::make_unique<ControlsOptionsActivity>(renderer, mappedInput), [this](const ActivityResult& ctrlResult) {
+            const bool readerChanged = std::holds_alternative<ControlsOptionsResult>(ctrlResult.data) &&
+                                       std::get<ControlsOptionsResult>(ctrlResult.data).readerSettingsChanged;
+            ActivityResult result;
+            result.isCancelled = !readerChanged;
+            result.data = MenuResult{readerChanged ? static_cast<int>(MenuAction::READER_SETTINGS_CHANGED) : -1,
+                                     pendingOrientation};
+            setResult(std::move(result));
+            finish();
+          });
       return;
     }
 

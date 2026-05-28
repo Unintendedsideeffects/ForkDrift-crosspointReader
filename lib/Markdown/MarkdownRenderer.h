@@ -27,7 +27,7 @@ class MarkdownRenderer {
 
   MarkdownRenderer(GfxRenderer& renderer, int fontId, int viewportWidth, int viewportHeight, float lineCompression,
                    bool extraParagraphSpacing, uint8_t paragraphAlignment, bool hyphenationEnabled,
-                   const std::string& contentBasePath);
+                   bool focusReadingEnabled, bool guideReadingEnabled, const std::string& contentBasePath);
   ~MarkdownRenderer();
 
   // Render AST to pages, calling pageCallback for each completed page
@@ -46,6 +46,8 @@ class MarkdownRenderer {
   bool extraParagraphSpacing;
   uint8_t paragraphAlignment;
   bool hyphenationEnabled;
+  bool focusReadingEnabled;
+  bool guideReadingEnabled;
   std::string contentBasePath;
 
   // Rendering state

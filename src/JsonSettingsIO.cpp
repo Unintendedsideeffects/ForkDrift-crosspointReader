@@ -118,6 +118,7 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
                                     S::LONG_PRESS_BUTTON_BEHAVIOR_COUNT, S::CHAPTER_SKIP);
   s.hyphenationEnabled = doc["hyphenationEnabled"] | (uint8_t)0;
   s.focusReadingEnabled = doc["focusReadingEnabled"] | (uint8_t)0;
+  s.guideReadingEnabled = doc["guideReadingEnabled"] | (uint8_t)0;
   s.backgroundServerOnCharge = doc["backgroundServerOnCharge"] | (uint8_t)0;
   s.timeMode = clamp(doc["timeMode"] | (uint8_t)S::TIME_MODE_UTC, static_cast<uint8_t>(S::TIME_MODE_MANUAL + 1),
                      S::TIME_MODE_UTC);
@@ -271,6 +272,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["darkMode"] = s.darkMode;
   doc["embeddedStyle"] = s.embeddedStyle;
   doc["focusReadingEnabled"] = s.focusReadingEnabled;
+  doc["guideReadingEnabled"] = s.guideReadingEnabled;
   doc["usbMscPromptOnConnect"] = s.usbMscPromptOnConnect;
   doc["userFontPath"] = s.userFontPath;
   doc["selectedOtaBundle"] = s.selectedOtaBundle;

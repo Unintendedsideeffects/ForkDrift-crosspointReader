@@ -997,6 +997,9 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       break;
     }
 #endif  // ENABLE_BOOKMARKS
+    case EpubReaderMenuActivity::MenuAction::READER_SETTINGS_CHANGED:
+      reindexCurrentSection();
+      break;
     case EpubReaderMenuActivity::MenuAction::SYNC: {
       if (KOREADER_STORE.hasCredentials()) {
         const int currentPage = section ? section->currentPage : nextPageNumber;

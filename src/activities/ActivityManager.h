@@ -103,6 +103,7 @@ class ActivityManager {
   bool skipLoopDelay() const;
   bool blocksBackgroundServer() const;
   bool showsStatusBarIp() const;
+  bool showsGlobalStatusBar() const;
   ScreenshotInfo getScreenshotInfo() const;
 
   // If immediate is true, the update will be triggered immediately.

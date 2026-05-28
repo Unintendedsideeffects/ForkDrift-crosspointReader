@@ -5,7 +5,28 @@
 #include "include/FeatureFlags.h"
 #include "src/CrossPointSettings.h"
 #include "src/JsonSettingsIO.h"
+#include "src/SettingsList.h"
 #include "test/mock/HalStorage.h"
+
+namespace {
+
+const SettingInfo* findSettingByKey(const std::vector<SettingInfo>& settings, const char* key) {
+  for (const auto& setting : settings) {
+    if (setting.key != nullptr && std::string(setting.key) == key) {
+      return &setting;
+    }
+  }
+  return nullptr;
+}
+
+size_t optionIndexForValue(const SettingInfo& setting, const uint8_t value) {
+  auto it = std::find(setting.enumPersistedValues.begin(), setting.enumPersistedValues.end(), value);
+  return it == setting.enumPersistedValues.end()
+             ? setting.enumPersistedValues.size()
+             : static_cast<size_t>(std::distance(setting.enumPersistedValues.begin(), it));
+}
+
+}  // namespace
 
 TEST_CASE("testSettingsRoundTrip") {
   // Reset in-memory filesystem between tests.
@@ -185,6 +206,70 @@ TEST_CASE("testBackgroundServerModeClamping") {
 
   s.setBackgroundServerMode(CrossPointSettings::BACKGROUND_SERVER_NEVER);
   CHECK(s.getBackgroundServerMode() == CrossPointSettings::BACKGROUND_SERVER_NEVER);
+}
+
+TEST_CASE("testQuickActionClampingAndSettingsWiring") {
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+
+  s.shortPwrBtn = CrossPointSettings::TOGGLE_BIONIC_READING;
+  s.longPwrBtn = CrossPointSettings::FILE_TRANSFER;
+  s.longPressMenuAction = CrossPointSettings::LONG_MENU_TOGGLE_GUIDE_DOTS;
+  s.validateAndClamp();
+
+#if ENABLE_FOCUS_READING
+  CHECK(s.shortPwrBtn == CrossPointSettings::TOGGLE_BIONIC_READING);
+#else
+  CHECK(s.shortPwrBtn == CrossPointSettings::IGNORE);
+#endif
+
+#if ENABLE_USB_MASS_STORAGE
+  CHECK(s.longPwrBtn == CrossPointSettings::FILE_TRANSFER);
+#else
+  CHECK(s.longPwrBtn == CrossPointSettings::IGNORE);
+#endif
+
+#if ENABLE_GUIDE_DOTS
+  CHECK(s.longPressMenuAction == CrossPointSettings::LONG_MENU_TOGGLE_GUIDE_DOTS);
+#else
+  CHECK(s.longPressMenuAction == CrossPointSettings::LONG_MENU_OFF);
+#endif
+
+  s.shortPwrBtn = 255;
+  s.longPwrBtn = 255;
+  s.longPressMenuAction = 255;
+  s.validateAndClamp();
+  CHECK(s.shortPwrBtn == CrossPointSettings::IGNORE);
+  CHECK(s.longPwrBtn == CrossPointSettings::IGNORE);
+  CHECK(s.longPressMenuAction == CrossPointSettings::LONG_MENU_OFF);
+
+  const auto settings = getSettingsList();
+  const SettingInfo* shortSetting = findSettingByKey(settings, "shortPwrBtn");
+  REQUIRE(shortSetting != nullptr);
+  REQUIRE(shortSetting->dynamicValuesGetter != nullptr);
+  REQUIRE(shortSetting->valueGetter != nullptr);
+  CHECK(!shortSetting->enumPersistedValues.empty());
+
+#if ENABLE_GUIDE_DOTS
+  const size_t guideIndex = optionIndexForValue(*shortSetting, CrossPointSettings::TOGGLE_GUIDE_DOTS);
+  REQUIRE(guideIndex != shortSetting->enumPersistedValues.size());
+  CHECK(guideIndex < shortSetting->enumOptionFeatureKeys.size());
+  CHECK(std::string(shortSetting->enumOptionFeatureKeys[guideIndex]) == "guide_dots");
+#else
+  CHECK(std::find(shortSetting->enumPersistedValues.begin(), shortSetting->enumPersistedValues.end(),
+                  CrossPointSettings::TOGGLE_GUIDE_DOTS) == shortSetting->enumPersistedValues.end());
+#endif
+
+#if ENABLE_FOCUS_READING
+  const size_t bionicIndex = optionIndexForValue(*shortSetting, CrossPointSettings::TOGGLE_BIONIC_READING);
+  REQUIRE(bionicIndex != shortSetting->enumPersistedValues.size());
+  CHECK(bionicIndex < shortSetting->enumOptionFeatureKeys.size());
+  CHECK(std::string(shortSetting->enumOptionFeatureKeys[bionicIndex]) == "focus_reading");
+  s.shortPwrBtn = CrossPointSettings::TOGGLE_BIONIC_READING;
+  CHECK(shortSetting->valueGetter() == bionicIndex);
+#else
+  CHECK(std::find(shortSetting->enumPersistedValues.begin(), shortSetting->enumPersistedValues.end(),
+                  CrossPointSettings::TOGGLE_BIONIC_READING) == shortSetting->enumPersistedValues.end());
+#endif
 }
 
 TEST_CASE("testSettingsIgnoresRemovedBinarySettingsFile") {

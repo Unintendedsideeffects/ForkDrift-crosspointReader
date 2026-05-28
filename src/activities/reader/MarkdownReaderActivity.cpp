@@ -3,6 +3,7 @@
 #include <Epub/Page.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
+#include <I18n.h>
 #include <MarkdownRenderer.h>
 #include <esp_task_wdt.h>
 
@@ -15,6 +16,7 @@
 #include "TocActivity.h"
 #include "activities/TaskShutdown.h"
 #include "components/ScreenComponents.h"
+#include "components/UITheme.h"
 #include "features/status_overlay/Layout.h"
 #include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
@@ -47,6 +49,7 @@ uint32_t computeParseFailureSettingsSignature() {
   mix(static_cast<uint32_t>(SETTINGS.getReaderLineCompression() * 1000.0f));
   mix(static_cast<uint32_t>(SETTINGS.extraParagraphSpacing));
   mix(static_cast<uint32_t>(SETTINGS.forceParagraphIndents));
+  mix(static_cast<uint32_t>(SETTINGS.focusReadingEnabled));
   mix(static_cast<uint32_t>(SETTINGS.guideReadingEnabled));
   mix(static_cast<uint32_t>(SETTINGS.paragraphAlignment));
   mix(static_cast<uint32_t>(SETTINGS.hyphenationEnabled));
@@ -56,6 +59,8 @@ uint32_t computeParseFailureSettingsSignature() {
   return signature;
 }
 }  // namespace
+
+void enterDeepSleep();
 
 void MarkdownReaderActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
@@ -134,6 +139,14 @@ void MarkdownReaderActivity::loop() {
     return;
   }
 
+  // Long-press Confirm: execute quick action instead of opening table of contents.
+  constexpr unsigned long longPressMenuMs = 600;
+  if (SETTINGS.longPressMenuAction != CrossPointSettings::LONG_PRESS_MENU_ACTION::LONG_MENU_OFF &&
+      mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() >= longPressMenuMs) {
+    executeReaderQuickAction(static_cast<CrossPointSettings::LONG_PRESS_MENU_ACTION>(SETTINGS.longPressMenuAction));
+    return;
+  }
+
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     showTableOfContents();
     return;
@@ -141,6 +154,41 @@ void MarkdownReaderActivity::loop() {
 
   if (isRenderPending()) {
     return;
+  }
+
+  // Long power button quick action.
+  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
+      mappedInput.getHeldTime() >= SETTINGS.getPowerButtonLongPressDuration()) {
+    using S = CrossPointSettings;
+    switch (SETTINGS.longPwrBtn) {
+      case S::SLEEP:
+        executeReaderQuickAction(S::LONG_MENU_SLEEP);
+        return;
+      case S::TOGGLE_GUIDE_DOTS:
+        executeReaderQuickAction(S::LONG_MENU_TOGGLE_GUIDE_DOTS);
+        return;
+      case S::TOGGLE_BIONIC_READING:
+        executeReaderQuickAction(S::LONG_MENU_TOGGLE_BIONIC);
+        return;
+      default:
+        break;
+    }
+  }
+
+  // Short power button quick action (non-page-turn actions).
+  if (mappedInput.wasReleased(MappedInputManager::Button::Power) &&
+      mappedInput.getHeldTime() < SETTINGS.getPowerButtonLongPressDuration()) {
+    using S = CrossPointSettings;
+    switch (SETTINGS.shortPwrBtn) {
+      case S::TOGGLE_GUIDE_DOTS:
+        executeReaderQuickAction(S::LONG_MENU_TOGGLE_GUIDE_DOTS);
+        return;
+      case S::TOGGLE_BIONIC_READING:
+        executeReaderQuickAction(S::LONG_MENU_TOGGLE_BIONIC);
+        return;
+      default:
+        break;
+    }
   }
 
   // Long press for heading navigation (when enabled and AST is available)
@@ -174,7 +222,8 @@ void MarkdownReaderActivity::loop() {
                                                  : (mappedInput.wasReleased(MappedInputManager::Button::PageBack) ||
                                                     mappedInput.wasReleased(MappedInputManager::Button::Left));
   const bool powerPageTurn = SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::PAGE_TURN &&
-                             mappedInput.wasReleased(MappedInputManager::Button::Power);
+                             mappedInput.wasReleased(MappedInputManager::Button::Power) &&
+                             mappedInput.getHeldTime() < SETTINGS.getPowerButtonLongPressDuration();
   const bool nextTriggered = usePressForPageTurn
                                  ? (mappedInput.wasPressed(MappedInputManager::Button::PageForward) || powerPageTurn ||
                                     mappedInput.wasPressed(MappedInputManager::Button::Right))
@@ -303,7 +352,8 @@ void MarkdownReaderActivity::renderScreen() {
         sectionLoaded = mdSection->loadSectionFile(
             SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(), SETTINGS.extraParagraphSpacing,
             SETTINGS.forceParagraphIndents, SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
-            SETTINGS.hyphenationEnabled, static_cast<uint32_t>(markdown->getFileSize()), SETTINGS.guideReadingEnabled);
+            SETTINGS.hyphenationEnabled, static_cast<uint32_t>(markdown->getFileSize()), SETTINGS.focusReadingEnabled,
+            SETTINGS.guideReadingEnabled);
       }
 
       if (!sectionLoaded) {
@@ -315,8 +365,8 @@ void MarkdownReaderActivity::renderScreen() {
                                           SETTINGS.getReaderLineCompression(), SETTINGS.extraParagraphSpacing,
                                           SETTINGS.forceParagraphIndents, SETTINGS.paragraphAlignment, viewportWidth,
                                           viewportHeight, SETTINGS.hyphenationEnabled,
-                                          static_cast<uint32_t>(markdown->getFileSize()), SETTINGS.guideReadingEnabled,
-                                          progressSetup, progressCallback)) {
+                                          static_cast<uint32_t>(markdown->getFileSize()), SETTINGS.focusReadingEnabled,
+                                          SETTINGS.guideReadingEnabled, progressSetup, progressCallback)) {
           markdown->markKnownBadParseFailure();
           LOG_ERR("MDR", "Failed to build markdown AST cache, falling back to HTML");
           mdSection.reset();
@@ -344,6 +394,7 @@ void MarkdownReaderActivity::renderScreen() {
             MarkdownRenderer mdRenderer(renderer, SETTINGS.getReaderFontId(), viewportWidth, viewportHeight,
                                         SETTINGS.getReaderLineCompression(), SETTINGS.extraParagraphSpacing,
                                         SETTINGS.paragraphAlignment, SETTINGS.hyphenationEnabled,
+                                        SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled,
                                         markdown->getContentBasePath());
             {
               SpiBusMutex::Guard guard;
@@ -378,7 +429,8 @@ void MarkdownReaderActivity::renderScreen() {
         sectionLoaded = htmlSection->loadSectionFile(
             SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(), SETTINGS.extraParagraphSpacing,
             SETTINGS.forceParagraphIndents, SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
-            SETTINGS.hyphenationEnabled, static_cast<uint32_t>(markdown->getFileSize()));
+            SETTINGS.hyphenationEnabled, static_cast<uint32_t>(markdown->getFileSize()), SETTINGS.focusReadingEnabled,
+            SETTINGS.guideReadingEnabled);
       }
 
       if (!sectionLoaded) {
@@ -386,11 +438,11 @@ void MarkdownReaderActivity::renderScreen() {
         renderer.displayBuffer();
         pagesUntilFullRefresh = 0;
 
-        if (!htmlSection->createSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
-                                            SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
-                                            SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
-                                            SETTINGS.hyphenationEnabled, static_cast<uint32_t>(markdown->getFileSize()),
-                                            progressSetup, progressCallback)) {
+        if (!htmlSection->createSectionFile(
+                SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(), SETTINGS.extraParagraphSpacing,
+                SETTINGS.forceParagraphIndents, SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
+                SETTINGS.hyphenationEnabled, static_cast<uint32_t>(markdown->getFileSize()),
+                SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled, progressSetup, progressCallback)) {
           markdown->markKnownBadParseFailure();
           LOG_ERR("MDR", "Failed to build markdown cache");
           htmlSection.reset();
@@ -410,10 +462,10 @@ void MarkdownReaderActivity::renderScreen() {
       if (sectionInitialized && astReady.load() && markdown->getAst()) {
         auto* nav = markdown->getNavigation();
         if (nav) {
-          MarkdownRenderer mdRenderer(renderer, SETTINGS.getReaderFontId(), viewportWidth, viewportHeight,
-                                      SETTINGS.getReaderLineCompression(), SETTINGS.extraParagraphSpacing,
-                                      SETTINGS.paragraphAlignment, SETTINGS.hyphenationEnabled,
-                                      markdown->getContentBasePath());
+          MarkdownRenderer mdRenderer(
+              renderer, SETTINGS.getReaderFontId(), viewportWidth, viewportHeight, SETTINGS.getReaderLineCompression(),
+              SETTINGS.extraParagraphSpacing, SETTINGS.paragraphAlignment, SETTINGS.hyphenationEnabled,
+              SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled, markdown->getContentBasePath());
           // Full render is required to compute accurate node->page mapping based on layout.
           {
             SpiBusMutex::Guard guard;
@@ -698,4 +750,40 @@ void MarkdownReaderActivity::showTableOfContents() {
         exitActivity();
         requestUpdate();
       }));
+}
+
+void MarkdownReaderActivity::reindexSection() {
+  if (!SETTINGS.saveToFile()) {
+    LOG_ERR("MRS", "Failed to save settings");
+  }
+  {
+    RenderLock lock(*this);
+    GUI.drawPopup(renderer, tr(STR_INDEXING));
+    mdSection.reset();
+    htmlSection.reset();
+  }
+  requestUpdate();
+}
+
+void MarkdownReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS_MENU_ACTION action) {
+  using S = CrossPointSettings;
+  switch (action) {
+    case S::LONG_MENU_SLEEP:
+      enterDeepSleep();
+      break;
+    case S::LONG_MENU_TOGGLE_GUIDE_DOTS:
+#if ENABLE_GUIDE_DOTS
+      SETTINGS.guideReadingEnabled ^= 1;
+      reindexSection();
+#endif
+      break;
+    case S::LONG_MENU_TOGGLE_BIONIC:
+#if ENABLE_FOCUS_READING
+      SETTINGS.focusReadingEnabled ^= 1;
+      reindexSection();
+#endif
+      break;
+    default:
+      break;
+  }
 }

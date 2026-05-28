@@ -6,6 +6,7 @@
 
 #include <atomic>
 
+#include "CrossPointSettings.h"
 #include "activities/ActivityWithSubactivity.h"
 
 class Page;
@@ -42,6 +43,9 @@ class MarkdownReaderActivity final : public ActivityWithSubactivity {
   void jumpToNextHeading();
   void jumpToPrevHeading();
   void showTableOfContents();
+
+  void reindexSection();
+  void executeReaderQuickAction(CrossPointSettings::LONG_PRESS_MENU_ACTION action);
 
  public:
   explicit MarkdownReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
