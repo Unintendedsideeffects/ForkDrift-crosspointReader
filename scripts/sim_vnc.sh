@@ -60,7 +60,7 @@ fi
 stop_all 2>/dev/null || true
 
 echo "Starting Xvfb on :${DISPLAY_NUM}..."
-Xvfb ":${DISPLAY_NUM}" -screen 0 800x480x24 &
+Xvfb ":${DISPLAY_NUM}" -screen 0 800x800x24 &
 XVFB_PID=$!
 sleep 0.5
 
