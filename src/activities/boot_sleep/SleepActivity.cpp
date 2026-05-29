@@ -1050,24 +1050,31 @@ void SleepActivity::renderHaikuClockSleepScreen() const {
   const int W = renderer.getScreenWidth();
   const int H = renderer.getScreenHeight();
 
-  const char* haikuText = nullptr;
+  // Compose the haiku at render time: the time line (line1) is chosen for the
+  // user's clock format (clockFormat == 1 -> 12-hour, else 24-hour, matching
+  // ClockSyncActivity) and joined to the shared body. Storing the two time
+  // lines and the body as separate flash strings avoids duplicating every
+  // body once per format.
+  std::string textStr;
   if (!timeSet) {
-    haikuText = "Time is a shadow,\nMoving across the deep sky,\nWaiting for the sun.";
+    textStr = "Time is a shadow,\nMoving across the deep sky,\nWaiting for the sun.";
   } else {
     std::time_t now = std::time(nullptr);
     int day_index = 0;
     if (now > 0) {
-      day_index = (now / 86400) % 3;
+      day_index = (now / 86400) % K_HAIKU_DAYS;
     }
     int quarter_hour_idx = (hour * 4) + (minute / 15);
     if (quarter_hour_idx < 0) quarter_hour_idx = 0;
-    if (quarter_hour_idx > 95) quarter_hour_idx = 95;
-    int haiku_idx = (day_index * 96) + quarter_hour_idx;
-    haikuText = K_HAIKUS[haiku_idx].text;
+    if (quarter_hour_idx > K_HAIKU_SLOTS_PER_DAY - 1) quarter_hour_idx = K_HAIKU_SLOTS_PER_DAY - 1;
+    int haiku_idx = (day_index * K_HAIKU_SLOTS_PER_DAY) + quarter_hour_idx;
+    const HaikuEntry& entry = K_HAIKUS[haiku_idx];
+    const char* timeLine = (SETTINGS.clockFormat == 1) ? entry.line1_12 : entry.line1_24;
+    textStr.reserve(96);
+    textStr = timeLine;
+    textStr += ",\n";
+    textStr += entry.body;
   }
-
-  // Split haiku text by \n
-  std::string textStr(haikuText);
   std::string line1, line2, line3;
   size_t pos1 = textStr.find('\n');
   if (pos1 != std::string::npos) {
