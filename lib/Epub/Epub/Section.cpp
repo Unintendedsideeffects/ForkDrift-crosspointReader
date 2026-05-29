@@ -16,9 +16,9 @@
 #include "parsers/ChapterHtmlSlimParser.h"
 
 namespace {
-// v31: SVG-wrapped <image> figures parsed (v30) and words NFC-composed at
-// layout time; bump invalidates stale caches for both.
-constexpr uint8_t SECTION_FILE_VERSION = 31;
+// v32: RTL/bidi line layout (v31: SVG images + NFC composition); bump
+// invalidates caches laid out without bidi reordering.
+constexpr uint8_t SECTION_FILE_VERSION = 32;
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) +
                                  sizeof(bool) + sizeof(bool) + sizeof(uint8_t) + sizeof(bool) + sizeof(bool) +

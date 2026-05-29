@@ -1,7 +1,16 @@
 #pragma once
 
+#include <BidiUtils.h>
 #include <EpdFontFamily.h>
 #include <HalDisplay.h>
+
+namespace BidiUtils {
+// Paragraph base direction for the Unicode BiDi algorithm (UAX#9).
+// AUTO: scan text for first strong directional character (P2/P3 rules)
+// LTR:  force left-to-right paragraph embedding level
+// RTL:  force right-to-left paragraph embedding level
+enum class BidiBaseDir : signed char { AUTO = -1, LTR = 0, RTL = 1 };
+}  // namespace BidiUtils
 
 class FontCacheManager;
 class SdCardFont;
@@ -180,11 +189,14 @@ class GfxRenderer {
   void fillPolygon(const int* xPoints, const int* yPoints, int numPoints, bool state = true) const;
 
   // Text
-  int getTextWidth(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+  int getTextWidth(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR,
+                   BidiUtils::BidiBaseDir baseDir = BidiUtils::BidiBaseDir::AUTO) const;
   void drawCenteredText(int fontId, int y, const char* text, bool black = true,
-                        EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+                        EpdFontFamily::Style style = EpdFontFamily::REGULAR,
+                        BidiUtils::BidiBaseDir baseDir = BidiUtils::BidiBaseDir::AUTO) const;
   void drawText(int fontId, int x, int y, const char* text, bool black = true,
-                EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+                EpdFontFamily::Style style = EpdFontFamily::REGULAR,
+                BidiUtils::BidiBaseDir baseDir = BidiUtils::BidiBaseDir::AUTO) const;
   void drawButtonHints(int fontId, const char* btn1, const char* btn2, const char* btn3, const char* btn4) const;
   void drawSideButtonHints(int fontId, const char* topBtn, const char* bottomBtn) const;
   int getSpaceWidth(int fontId, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;

@@ -70,6 +70,8 @@ class ChapterHtmlSlimParser {
     bool hasItalic = false, italic = false;
     bool hasUnderline = false, underline = false;
     bool hasStrikethrough = false, strikethrough = false;
+    bool hasDirection = false;
+    CssTextDirection direction = CssTextDirection::Ltr;
     bool hasSup = false, sup = false;
     bool hasSub = false, sub = false;
   };
@@ -80,6 +82,8 @@ class ChapterHtmlSlimParser {
   bool effectiveItalic = false;
   bool effectiveUnderline = false;
   bool effectiveStrikethrough = false;
+  bool effectiveDirectionDefined = false;
+  CssTextDirection effectiveDirection = CssTextDirection::Ltr;
   bool effectiveSup = false;
   bool effectiveSub = false;
 
@@ -132,6 +136,7 @@ class ChapterHtmlSlimParser {
   void startNewTextBlock(const BlockStyle& blockStyle);
   void flushPartWordBuffer();
   void makePages();
+  static void applyDirectionToEntry(StyleStackEntry& entry, const CssStyle& css);
   void emitHorizontalRule(const BlockStyle& blockStyle);
   void finalizeCurrentTableCell();
   void emitBufferedTableAsParagraphs(BufferedTable& table);

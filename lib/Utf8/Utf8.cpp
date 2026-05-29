@@ -143,6 +143,7 @@ uint32_t utf8NextCodepoint(const unsigned char** string) {
   return cp;
 }
 
+
 int utf8SafeTruncateBuffer(const char* buf, int len) {
   if (len <= 0) return 0;
 

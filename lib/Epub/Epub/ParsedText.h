@@ -23,6 +23,14 @@ class ParsedText {
   bool hyphenationEnabled;
   bool focusReadingEnabled;
   bool guideReadingEnabled;
+  bool isNaturalAlign;
+  bool hasRtlWord;
+  std::vector<std::string> reorderedWordsScratch;
+  std::vector<EpdFontFamily::Style> reorderedStylesScratch;
+  std::vector<uint16_t> reorderedWidthsScratch;
+  std::vector<bool> reorderedContinuesScratch;
+  std::vector<bool> reorderedFocusSuffixScratch;
+  std::vector<uint16_t> visualOrderScratch;
 
   void applyParagraphIndent();
   std::vector<size_t> computeLineBreaks(const GfxRenderer& renderer, int fontId, int pageWidth,
@@ -46,7 +54,9 @@ class ParsedText {
         forceParagraphIndents(forceParagraphIndents),
         hyphenationEnabled(hyphenationEnabled),
         focusReadingEnabled(focusReadingEnabled),
-        guideReadingEnabled(guideReadingEnabled) {}
+        guideReadingEnabled(guideReadingEnabled),
+        isNaturalAlign(false),
+        hasRtlWord(false) {}
   ~ParsedText() = default;
 
   void addWord(std::string word, EpdFontFamily::Style fontStyle, bool underline = false, bool attachToPrevious = false);

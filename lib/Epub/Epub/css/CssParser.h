@@ -44,7 +44,8 @@ struct CssAncestorEntry {
 class CssParser {
  public:
   // Bump when CSS cache format or rules change; section caches are invalidated when this changes
-  static constexpr uint8_t CSS_CACHE_VERSION = 6;  // v6: textDecoration became combinable bit flags
+  // v7: textDecoration became combinable bit flags (v6); direction (RTL) added.
+  static constexpr uint8_t CSS_CACHE_VERSION = 7;
 
   static constexpr size_t MAX_DESCENDANT_RULES = 100;
 
