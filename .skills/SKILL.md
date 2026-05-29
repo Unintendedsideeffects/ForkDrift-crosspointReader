@@ -758,6 +758,7 @@ Tested in all 4 orientations with 5MB+ files.
    - **To modify**: Edit source YAML files, then run `python scripts/gen_i18n.py lib/I18n/translations lib/I18n/`
    - **Commit**: Source YAML files + `I18nKeys.h` and `I18nStrings.h` (needed for IDE symbol resolution), but NOT `I18nStrings.cpp`
    - **Enforced by hook**: The `pre-commit` hook blocks staging `I18nStrings.cpp` without a corresponding YAML change (see [Git Hooks](#git-hooks))
+   - **Determinism (no stripping)**: Generation does NOT strip unused keys on any path — CLI, pre-commit hook, and the PlatformIO `pre:` build step all run with `strip_unused=False`. So `I18nKeys.h`/`I18nStrings.h` are a pure function of the YAML and a build never leaves them dirty. The generator still *reports* unused keys (`Never used: N`); `--strip-unused` is an explicit opt-in for size-sensitive release builds only. Do not re-enable stripping on the build path — it makes the committed headers flip-flop between builds and YAML-triggered regenerations.
 
 3. **Build Artifacts** (in `.gitignore`):
    - `.pio/` - PlatformIO build output

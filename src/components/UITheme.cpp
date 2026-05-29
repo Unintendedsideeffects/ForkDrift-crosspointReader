@@ -13,6 +13,7 @@
 #include "components/themes/lyra/LyraCarouselTheme.h"
 #include "components/themes/lyra/LyraTheme.h"
 #include "components/themes/minimal/MinimalTheme.h"
+#include "components/themes/terminal/TerminalTheme.h"
 #include "core/features/FeatureCatalog.h"
 #include "features/status_overlay/Layout.h"
 #include "util/RecentBooksStore.h"
@@ -78,6 +79,11 @@ void UITheme::setTheme(CrossPointSettings::UI_THEME type) {
       LOG_DBG("UI", "Using Lyra Carousel theme");
       currentTheme = std::make_unique<LyraCarouselTheme>();
       currentMetrics = &LyraCarouselMetrics::values;
+      break;
+    case CrossPointSettings::UI_THEME::TERMINAL:
+      LOG_DBG("UI", "Using Terminal theme");
+      currentTheme = std::make_unique<TerminalTheme>();
+      currentMetrics = &TerminalMetrics::values;
       break;
   }
 }

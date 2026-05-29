@@ -453,7 +453,6 @@ void MinimalTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const s
 void MinimalTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                                   const std::function<std::string(int index)>& buttonLabel,
                                   const std::function<UIIcon(int index)>& rowIcon) const {
-  (void)rect;
   (void)rowIcon;
 
   if (buttonCount <= 0) {
@@ -463,7 +462,11 @@ void MinimalTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCo
   const int panelW = std::min(kMenuPanelWidth, renderer.getScreenWidth() - 80);
   const int panelH = buttonCount * kMenuRowHeight + 2;
   const int panelX = (renderer.getScreenWidth() - panelW) / 2;
-  const int panelY = kMenuPanelTop;
+  // Honor the menu region handed in by the caller (the cover sits above it) and
+  // center the panel vertically within it, so the menu never overlaps the cover
+  // card. Previously this used a hardcoded top (kMenuPanelTop), which collided
+  // with the single-cover hero.
+  const int panelY = rect.y + std::max(0, (rect.height - panelH) / 2);
   renderer.drawRoundedRect(panelX, panelY, panelW, panelH, 1, kMenuPanelRadius, true);
 
   for (int i = 0; i < buttonCount; ++i) {

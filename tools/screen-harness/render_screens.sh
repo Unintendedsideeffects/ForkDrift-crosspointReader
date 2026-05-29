@@ -43,6 +43,7 @@ pushd "$ROOT_DIR" >/dev/null
   src/components/UITheme.cpp \
   src/components/themes/BaseTheme.cpp \
   src/components/themes/minimal/MinimalTheme.cpp \
+  src/components/themes/terminal/TerminalTheme.cpp \
   src/components/themes/lyra/LyraTheme.cpp \
   src/components/themes/lyra/Lyra3CoversTheme.cpp \
   src/components/themes/lyra/ForkDriftTheme.cpp \

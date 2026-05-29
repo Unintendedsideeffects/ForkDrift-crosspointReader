@@ -41,6 +41,7 @@ THEMES = {
     "minimal": 5,
     "lyra-carousel": 6,
     "lyra_carousel": 6,
+    "terminal": 7,
 }
 
 

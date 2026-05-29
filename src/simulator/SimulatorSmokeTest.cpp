@@ -74,7 +74,7 @@ class SimulatorSmokeTest {
     const char* raw = std::getenv("FORKDRIFT_SIMULATOR_SMOKE_THEME");
     if (raw == nullptr || raw[0] == '\0') return;
     const int theme = std::atoi(raw);
-    constexpr int kThemeCount = static_cast<int>(CrossPointSettings::LYRA_CAROUSEL) + 1;
+    constexpr int kThemeCount = static_cast<int>(CrossPointSettings::TERMINAL) + 1;
     if (theme < 0 || theme >= kThemeCount) {
       fail("Invalid smoke test theme index: %d", theme);
     }

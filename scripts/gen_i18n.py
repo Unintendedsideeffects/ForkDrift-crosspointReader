@@ -19,6 +19,12 @@ By default the script scans the src/ and lib/ trees for STR_* references and
 reports any translation keys that are never used.  Pass --strip-unused to
 omit those keys from the generated output entirely.
 
+Stripping is OFF by default everywhere — the CLI, the pre-commit hook, and the
+PlatformIO `pre:` build step (see the SCons branch at the bottom of this file).
+That makes the committed headers (I18nKeys.h, I18nStrings.h) a deterministic
+function of the YAML alone, so a build never leaves them dirty. --strip-unused
+remains available as an explicit opt-in for size-sensitive release builds.
+
 Usage:
     python gen_i18n.py [translations_dir [output_dir]] [options]
 
@@ -991,6 +997,16 @@ if __name__ == "__main__":
 else:
     try:
         Import("env")
-        main(strip_unused=True)
+        # IMPORTANT: do NOT strip here. This SCons branch runs as a `pre:` build
+        # step (platformio.ini) and regenerates the committed I18nKeys.h /
+        # I18nStrings.h in place. The pre-commit hook and manual runs generate
+        # those same files with strip_unused=False, so stripping here makes every
+        # build leave the committed headers dirty (the keys flip-flop depending on
+        # which path last wrote them). Keeping it False makes the committed headers
+        # a pure, deterministic function of the YAML. The enum is compile-time only,
+        # so unused keys cost no flash; only I18nStrings.cpp carries string bytes,
+        # and the handful of unused strings is a negligible payload. Use the
+        # explicit --strip-unused CLI flag if a release profile ever needs it.
+        main(strip_unused=False)
     except NameError:
         pass
