@@ -97,6 +97,7 @@ void WifiSelectionActivity::startWifiScan() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   delay(100);
+  WiFi.scanDelete();
 
   // Start async scan
   WiFi.scanNetworks(true);  // true = async scan
@@ -111,6 +112,7 @@ void WifiSelectionActivity::processWifiScanResults() {
   }
 
   if (scanResult == WIFI_SCAN_FAILED) {
+    WiFi.scanDelete();
     state = WifiSelectionState::NETWORK_LIST;
     requestUpdate();
     return;
@@ -148,13 +150,10 @@ void WifiSelectionActivity::processWifiScanResults() {
   std::transform(uniqueNetworks.begin(), uniqueNetworks.end(), std::back_inserter(networks),
                  [](const std::pair<std::string, WifiNetworkInfo>& pair) { return pair.second; });
 
-  // Sort by signal strength (strongest first)
-  std::sort(networks.begin(), networks.end(),
-            [](const WifiNetworkInfo& a, const WifiNetworkInfo& b) { return a.rssi > b.rssi; });
-
-  // Show networks with PW first
+  // Saved-password networks first; within each group, strongest signal first.
   std::sort(networks.begin(), networks.end(), [](const WifiNetworkInfo& a, const WifiNetworkInfo& b) {
-    return a.hasSavedPassword && !b.hasSavedPassword;
+    if (a.hasSavedPassword != b.hasSavedPassword) return a.hasSavedPassword;
+    return a.rssi > b.rssi;
   });
 
   WiFi.scanDelete();
@@ -462,16 +461,8 @@ void WifiSelectionActivity::loop() {
   if (state == WifiSelectionState::CONNECTION_FAILED) {
     if (mappedInput.wasPressed(MappedInputManager::Button::Back) ||
         mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-      // If we were auto-connecting or using a saved credential, offer to forget
-      // the network
-      if (autoConnecting || usedSavedPassword) {
-        autoConnecting = false;
-        state = WifiSelectionState::FORGET_PROMPT;
-        forgetPromptSelection = 0;  // Default to "Cancel"
-      } else {
-        // Go back to network list on failure for non-saved credentials
-        state = WifiSelectionState::NETWORK_LIST;
-      }
+      autoConnecting = false;
+      state = WifiSelectionState::NETWORK_LIST;
       requestUpdate();
       return;
     }

@@ -13,6 +13,7 @@
 #include "CrossPointState.h"
 #include "HalStorage.h"
 #include "network/CrossPointWebServer.h"
+#include "util/WifiCredentialStore.h"
 
 // Defined in CrossPointState.cpp — returns the FreeRTOS task that currently
 // holds the pending-state mutex, or nullptr if unowned.
@@ -91,6 +92,9 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
       LOG_DBG("BGWIFI", "Connection timed out");
       goto cleanup;
     }
+
+    WIFI_STORE.setLastConnectedSsid(ssid);
+    WIFI_STORE.saveToFile();
   }
 
   {
