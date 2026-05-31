@@ -29,7 +29,6 @@
 #include "components/icons/text24.h"
 #include "components/icons/transfer.h"
 #include "components/icons/wifi.h"
-#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "util/RecentBooksStore.h"
 
@@ -115,22 +114,12 @@ void LyraTheme::fillBatteryIcon(const GfxRenderer& renderer, Rect rect, uint16_t
 void LyraTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* title, const char* subtitle) const {
   renderer.fillRect(rect.x, rect.y, rect.width, rect.height, false);
 
-  const bool showHeaderBattery = !features::status_overlay::isEnabled();
-  const int batteryX = rect.x + rect.width - 12 - LyraMetrics::values.batteryWidth;
-  if (showHeaderBattery) {
-    const bool showBatteryPercentage =
-        SETTINGS.hideBatteryPercentage != CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
-    drawBatteryRight(renderer,
-                     Rect{batteryX, rect.y + 5, LyraMetrics::values.batteryWidth, LyraMetrics::values.batteryHeight},
-                     showBatteryPercentage);
-  }
-
   int maxTitleWidth = title != nullptr ? renderer.getTextWidth(UI_12_FONT_ID, title, EpdFontFamily::BOLD) : 0;
   int maxSubtitleWidth =
       subtitle != nullptr ? renderer.getTextWidth(SMALL_FONT_ID, subtitle, EpdFontFamily::REGULAR) : 0;
 
   // Available space is the distance between the side paddings, and a with side padding between title and subtitle.
-  const int availableSpace = rect.width - LyraMetrics::values.contentSidePadding * (showHeaderBattery ? 3 : 2);
+  const int availableSpace = rect.width - LyraMetrics::values.contentSidePadding * 2;
 
   if (maxTitleWidth + maxSubtitleWidth > availableSpace) {
     if ((maxTitleWidth > availableSpace / 2) && (maxSubtitleWidth > availableSpace / 2)) {

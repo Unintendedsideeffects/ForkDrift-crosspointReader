@@ -7,7 +7,6 @@
 #include <string>
 
 #include "CrossPointSettings.h"
-#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 
 namespace {
@@ -24,21 +23,6 @@ std::string toUpperCopy(const char* s) {
 
 void TerminalTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* title, const char* subtitle) const {
   const int pad = TerminalMetrics::values.contentSidePadding;
-
-  // Battery, right-aligned (suppressed when the global status overlay owns it).
-  const bool showHeaderBattery = !features::status_overlay::isEnabled();
-  const int batteryX = rect.x + rect.width - 12 - TerminalMetrics::values.batteryWidth;
-  if (showHeaderBattery) {
-    constexpr int maxBatteryWidth = 80;
-    renderer.fillRect(rect.x + rect.width - maxBatteryWidth, rect.y + 5, maxBatteryWidth,
-                      TerminalMetrics::values.batteryHeight + 10, false);
-    const bool showBatteryPercentage =
-        SETTINGS.hideBatteryPercentage != CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
-    drawBatteryRight(
-        renderer,
-        Rect{batteryX, rect.y + 5, TerminalMetrics::values.batteryWidth, TerminalMetrics::values.batteryHeight},
-        showBatteryPercentage);
-  }
 
   // Title rendered as an inverted "chip" — a solid black tag with white text,
   // the signature terminal menu-bar label. (White-on-black keeps the battery,
@@ -59,7 +43,7 @@ void TerminalTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const cha
 
   // Version string inline, right-aligned just left of the battery cluster.
   if (subtitle) {
-    const int batteryReserve = showHeaderBattery ? 90 : pad;
+    const int batteryReserve = pad;
     const int maxW = rect.x + rect.width - batteryReserve - chipRightX - 8;
     if (maxW > 0) {
       auto version = renderer.truncatedText(SMALL_FONT_ID, subtitle, maxW, EpdFontFamily::REGULAR);

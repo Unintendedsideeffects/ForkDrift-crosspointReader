@@ -19,7 +19,6 @@
 #include "components/icons/text24.h"
 #include "components/icons/transfer.h"
 #include "components/icons/wifi.h"
-#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #if ENABLE_WIFI_CLOCK
 #include "util/DateUtils.h"
@@ -144,14 +143,7 @@ void ForkDriftTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const
   renderer.fillRect(rect.x, rect.y, rect.width, headerH - 1, false);
   renderer.drawLine(rect.x, rect.y + headerH - 1, rect.x + rect.width - 1, rect.y + headerH - 1, true);
 
-  int battX = rect.x + rect.width - 12;
-  if (!features::status_overlay::isEnabled()) {
-    const int battW = ForkDriftMetrics::values.batteryWidth;
-    const int battH = ForkDriftMetrics::values.batteryHeight;
-    battX = rect.x + rect.width - 12 - battW;
-    const int battY = rect.y + (headerH - battH) / 2;
-    drawBatteryRight(renderer, Rect{battX, battY, battW, battH}, true);
-  }
+  const int battX = rect.x + rect.width - 12;
 
   // Device name on the left.
   const char* devName = strlen(SETTINGS.deviceName) > 0 ? SETTINGS.deviceName : tr(STR_CROSSPOINT);
