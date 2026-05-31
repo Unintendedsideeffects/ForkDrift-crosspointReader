@@ -6,7 +6,7 @@ This document outlines the relationship between this repository and the upstream
 
 While the upstream CrossPoint Reader project provides a stable and high-quality firmware for the Xteink X4, this fork exists to:
 
-1.  **Maintain the Feature Picker:** Support the [web-based build configurator](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/) which allows users to generate custom firmware builds.
+1.  **Maintain the ForkDrift Configurator:** Support the [web-based build configurator](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/) which allows users to generate custom firmware builds.
 2.  **Accelerate Feature Iteration:** Provide a staging ground for experimental features, community-driven enhancements, and rapid bug fixes that may not yet be ready for the main upstream repository.
 3.  **Experimental Drift:** Enable architectural experiments and "drifting" features that prioritize specific community needs or hardware optimizations.
 
@@ -55,4 +55,4 @@ The redirect uses the raw AP IP address rather than the `.local` mDNS hostname b
 
 ---
 
-For more details on building custom firmware, see [BUILD_CONFIGURATION.md](BUILD_CONFIGURATION.md).
+For more details on building custom firmware, see [BUILD_CONFIGURATION.md](BUILD_CONFIGURATION.md). Local configurator development: [configurator/README.md](configurator/README.md).

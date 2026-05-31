@@ -1,6 +1,6 @@
 #!/bin/bash
-# Test all 2^9 = 512 possible feature combinations
-# This ensures every possible configuration builds successfully
+# Exhaustively test all 2^N feature combinations (N = number of FEATURES entries).
+# This ensures every possible configuration builds successfully.
 
 set -e
 

@@ -6,7 +6,8 @@ Exposes /_test/* endpoints for test lifecycle management so that Android
 WifiTransportTest can drive this server the same way it drives FakeDeviceServer.
 
 Usage:
-    python3 scripts/contract_server.py [--port PORT]   (default: 8765)
+    python3 scripts/contract_server.py [--host HOST] [--port PORT]
+        (default host: 127.0.0.1, port: 8765)
 
 Firmware endpoints implemented:
     GET  /api/status

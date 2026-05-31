@@ -2831,7 +2831,7 @@
                     <div class="card-body">
                       <div class="card-name">Auto-start: On Charge</div>
                       <div class="card-size"></div>
-                      <div class="card-desc">Connect to WiFi automatically when USB power is detected</div>
+                      <div class="card-desc">Start the Background Server automatically when USB power is connected</div>
                     </div>
                     <div class="card-toggle"><span class="toggle-box"></span></div>
                   </label>
@@ -2841,7 +2841,7 @@
                     <div class="card-body">
                       <div class="card-name">Auto-start: Always</div>
                       <div class="card-size"></div>
-                      <div class="card-desc">Connect to WiFi on every wake, even off charger (with backoff)</div>
+                      <div class="card-desc">Auto-connect to WiFi on wake even when not charging</div>
                     </div>
                     <div class="card-toggle"><span class="toggle-box"></span></div>
                   </label>
@@ -3332,7 +3332,7 @@
             <div class="preview-top">
               <div>
                 <div class="panel-heading" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0">Screen Previews</div>
-                <div class="preview-sub">Auto-generated from the latest firmware UI harness.</div>
+                <div class="preview-sub">Auto-generated PNGs from the firmware UI harness. Regenerate with the commands in <a href="./README.md">configurator/README.md</a>.</div>
               </div>
               <a class="btn btn-outline" href="./screen-previews/" target="_blank" rel="noopener">Open</a>
             </div>
@@ -3784,7 +3784,7 @@
         opendyslexic_fonts: "A free font designed to increase legibility for readers with dyslexia. Weighted bottoms and unique letter shapes reduce confusion between similar glyphs (b/d, p/q). Four sizes at reduced weights. Large binary — enable only if needed.",
         image_sleep: "Displays a custom image (BMP on the SD card) when the device sleeps instead of a blank screen. Useful for dust-cover art, decorative illustrations, or always-on status displays on the e-ink panel.",
         book_images: "Renders inline images embedded inside EPUB books. Decodes JPEG and PNG figures, scales them to fit the page width, and dithers to 1-bit for the e-ink display. Disabled in minimal builds to save RAM during parsing.",
-        markdown: "Adds a lightweight Markdown renderer so plain .md files can be opened and read as if they were books. Supports headings, bold/italic, lists, blockquotes, and code spans. Adds ~179 KB to the binary.",
+        markdown: "Adds a lightweight Markdown renderer so plain .md files can be opened and read as if they were books. Supports headings, bold/italic, lists, blockquotes, and code spans. Adds ~191 KB to the binary.",
         integrations: "Shared runtime layer that enables cloud-service plugins. Required by KOReader Sync and OPDS Support — it handles HTTP connections, JSON serialisation, and retry logic. No UI of its own; other features depend on it.",
         koreader_sync: "Syncs reading position with a KOReader Companion server (e.g. Kavita or a self-hosted KOSync instance). On book open, fetches the last-synced position; on exit, pushes the current page. Requires Integrations.",
         calibre_sync: "OPDS catalog browser on the device for Calibre wireless libraries and other OPDS servers. Requires Integrations; enables BookLore Support automatically.",
@@ -3797,16 +3797,16 @@
         pokemon_wallpaper_plugin: "Installs the X4 Pokédex web plugin. Browsable via the Background Server's web UI. Demonstrates the plugin architecture and doubles as a reference for building custom web tools. Requires Image Sleep.",
         pokemon_party: "Displays your Pokémon party as a sleep-screen overlay sourced from the Pokemon Wallpaper plugin. A cosmetic feature; purely for fun. Requires Pokemon Wallpaper Plugin.",
         epub_support: "The core EPUB 2/3 parser and renderer. Handles ZIP extraction, NCX/OPF navigation, CSS-subset styling, and multi-section layout with an aggressive on-disk cache (.crosspoint/). Disabling this removes book reading entirely.",
-        hyphenation: "Automatic hyphenation using a compressed Knuth–Liang dictionary. Reduces excessive whitespace in justified text, particularly noticeable in narrow columns or landscape mode. Adds ~435 KB for the dictionary data.",
+        hyphenation: "Automatic hyphenation using a compressed Knuth–Liang dictionary. Reduces excessive whitespace in justified text, particularly noticeable in narrow columns or landscape mode. Adds ~350 KB for the dictionary data.",
         xtc_support: "Reads .xtc (CrossPoint Theme Config) sidecar files placed alongside books on the SD card. Overrides per-book font, margins, and theme without changing global settings. Lightweight but niche.",
         lyra_theme: "The Lyra visual theme — refined typography scale, softer borders, and consistent iconography. Disabling it falls back to the base pixel-art UI. Recommended on for all builds.",
         ota_updates: "Over-the-air firmware updates via the Background Server's web UI. Streams the binary directly to flash without a USB cable. Includes a verification step before commit; safe to enable in all builds.",
         remote_keyboard_input: "Turns the Android companion app or any phone browser into a keyboard for device text-entry prompts (WiFi passwords, search fields). Prefers the Android app; falls back to a QR-code web page; can start a local hotspot if no WiFi is available.",
-        todo_planner: "A minimal to-do list accessible from the nav bar. Items persist to the SD card. Useful for reading notes, wish lists, or errand reminders without leaving the device. Adds ~6 KB.",
+        todo_planner: "A minimal to-do list accessible from the nav bar. Items persist to the SD card. Useful for reading notes, wish lists, or errand reminders without leaving the device. Adds ~15 KB.",
         anki_support: "Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop. Adds ~10 KB.",
         dark_mode: "Inverts the display for night reading — white-on-black instead of black-on-paper. Toggle from the settings menu. Negligible binary cost; the flag controls whether the option is exposed at all.",
         visual_cover_picker: "Lets you choose cover art for books that lack an embedded thumbnail. Opens a scrollable image browser pointed at a configurable folder on the SD card. Requires Home Media Picker.",
-        ble_wifi_provisioning: "Configure WiFi credentials by scanning a QR code or using the companion app over Bluetooth LE — no need to type a password on the device keyboard. Large binary cost (~629 KB) due to the BLE stack.",
+        ble_wifi_provisioning: "Configure WiFi credentials by scanning a QR code or using the companion app over Bluetooth LE — no need to type a password on the device keyboard. Large binary cost (~626 KB) due to the BLE stack.",
         user_fonts: "Load custom SD-card fonts from /fonts or /.fonts. Use the official CrossPoint Font Manager to convert TTF/OTF families into .cpfont files, then upload them from the device's Fonts page or copy them to the SD card. Upstream currently marks this flow as beta-firmware only.",
         web_wifi_setup: "A captive-portal style WiFi setup wizard served from the Background Server. Scan a QR code, enter credentials, and the device connects — no app required. Small footprint (~3 KB).",
         usb_mass_storage: "Exposes the SD card as a USB mass-storage device when connected to a computer. Lets you drag-and-drop books without a network. The SD card is unmounted from the firmware while in this mode.",
@@ -3832,7 +3832,7 @@
         build_flags: "${base.build_flags}"
       };
       const crosspoint = {
-        version: "1.0.0"
+        version: "1.3.0"
       };
 
       // All listed parents must be enabled (AND semantics).
@@ -3939,6 +3939,7 @@
           reading_stats: true,
           minimal_theme: true,
           focus_reading: true,
+          guide_dots: true,
         },
       };
 
@@ -3951,7 +3952,7 @@
         if (host.endsWith("github.io") && pathParts.length > 0) {
           return { owner: host.split(".")[0], repo: pathParts[0] };
         }
-        return { owner: "Unintendedsideeffects", repo: "crosspoint-reader" };
+        return { owner: "Unintendedsideeffects", repo: "ForkDrift-crosspointReader" };
       }
 
       function escapeHtml(text) {
@@ -4128,7 +4129,7 @@
 
       function buildIni(selections, selectedProfile) {
         const flags = buildFlags(selections).replace(/ -D/g, "\n  -D");
-        return `# Custom CrossPoint Reader Build Configuration\n# Generated by web configurator\n# Selected profile: ${selectedProfile}\n\n[env:custom]\nextends = base\nbuild_flags =\n  ${base.build_flags}\n  -DCROSSPOINT_VERSION=\\\"1.0.0-custom\\\"\n  ${flags}\n`;
+        return `# Custom CrossPoint Reader Build Configuration\n# Generated by web configurator\n# Selected profile: ${selectedProfile}\n\n[env:custom]\nextends = base\nbuild_flags =\n  ${base.build_flags}\n  -DCROSSPOINT_VERSION=\\\"${crosspoint.version}-custom\\\"\n  ${flags}\n`;
       }
 
       function selectionsEqual(a, b) {

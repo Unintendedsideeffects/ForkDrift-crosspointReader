@@ -2,7 +2,7 @@
 
 Welcome! This guide helps you get started with contributing to CrossPoint Reader / ForkDrift firmware. Whether you are fixing a bug, adding a new feature, or improving documentation, we appreciate your help.
 
-In the ForkDrift workspace, firmware lives in `crosspoint-reader/` next to `ForkDriftApp/` and `xteink-flasher/`. Run the commands in the linked guides from that directory.
+In the ForkDrift workspace, firmware lives in `crosspoint-reader/` next to `ForkDriftApp/` and `xteink-flasher/`. Run the commands in the linked guides from that directory. From the monorepo root you can also build with `./build-firmware.sh` — see [BUILD.md](../../../BUILD.md).
 
 ## Onboarding Guide
 
@@ -19,11 +19,13 @@ All Pull Requests should be targeted at the **`fork-drift`** branch. This is our
 
 ## Local Git hooks
 
-To use the repository-managed hooks, point Git at `scripts/hooks`:
+To use the repository-managed hooks, point Git at `scripts/hooks` (from `crosspoint-reader/`):
 
 ```sh
 git config core.hooksPath scripts/hooks
 ```
+
+From the ForkDrift monorepo root, use `crosspoint-reader/scripts/hooks` instead.
 
 The current hooks do the following:
 

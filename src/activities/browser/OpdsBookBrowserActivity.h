@@ -11,8 +11,8 @@
 #include "util/ButtonNavigator.h"
 
 /**
- * Activity for browsing and downloading books from an OPDS server.
- * Supports navigation through catalog hierarchy and downloading EPUBs.
+ * Activity for browsing and downloading books from a configured OPDS server
+ * (calibre_sync / OPDS Support). Navigates the catalog hierarchy and downloads EPUBs.
  */
 class OpdsBookBrowserActivity final : public Activity {
  public:

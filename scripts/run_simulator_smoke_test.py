@@ -2,7 +2,8 @@
 """Build and run the ForkDrift simulator smoke test against an isolated fs_ directory.
 
 Usage:
-  python scripts/run_simulator_smoke_test.py [--book PATH] [--theme NAME] [--window]
+  python scripts/run_simulator_smoke_test.py [--book PATH] [--theme NAME]
+      [--timeout SECS] [--page-turns N] [--no-build] [--window]
 
 The smoke test boots the firmware, navigates Home → FileBrowser → RecentBooks →
 Settings → Sleep → Reader (with page turns), then exits with code 0 on success.

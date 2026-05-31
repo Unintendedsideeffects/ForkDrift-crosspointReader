@@ -6,7 +6,9 @@
 
 `ENABLE_*` macros are **compile-time feature toggles**. They are defined in
 `include/FeatureFlags.h`, which is the single source of truth. Build profiles
-set overrides via `-DENABLE_FOO=0` in `platformio.ini`; `FeatureFlags.h` applies
+set overrides via `-DENABLE_FOO=0` in `platformio.ini`, generated `platformio-custom.ini`
+(`env:custom` profiles from `generate_build_config.py`), or `platformio.local.ini`;
+`FeatureFlags.h` applies
 inter-feature dependency constraints (e.g. `ENABLE_KOREADER_SYNC` is forced to 0
 when `ENABLE_INTEGRATIONS=0`).
 
@@ -17,7 +19,7 @@ when `ENABLE_INTEGRATIONS=0`).
 | `include/FeatureFlags.h` | ✅ | Source of truth and dependency enforcement |
 | `src/core/*` | ✅ | Bootstrap, registry dispatch, FeatureCatalog validation |
 | `src/features/<feature>/Registration.cpp` | ✅ | Each feature wraps its own registration unit in `#if ENABLE_<FEATURE>` |
-| `platformio.ini` / `platformio.local.ini` | ✅ | Build profile overrides |
+| `platformio.ini` / `platformio-custom.ini` / `platformio.local.ini` | ✅ | Build profile overrides |
 
 ### Prohibited locations
 
@@ -51,9 +53,9 @@ check can substitute for a compile-time-absent symbol.
 | `src/activities/reader/OpdsBookBrowserActivity.cpp` | `ENABLE_EPUB_SUPPORT` | `<Epub.h>` header absent when disabled |
 | `src/network/CrossPointWebServer.cpp` | `ENABLE_IMAGE_SLEEP` | Same decoder-absence constraint as SleepActivity |
 | `src/network/OtaWebCheck.cpp` | `ENABLE_OTA_UPDATES` | OtaUpdater symbols absent when disabled |
-| `src/util/UsbSerialProtocol.*` | `ENABLE_USB_SERIAL` | Entire peripheral driver; compile-time-only option |
-| `src/util/UserFontManager.*` | `ENABLE_USER_FONTS` | Entire peripheral driver; compile-time-only option |
-| `src/util/BleWifiProvisioner.*` | `ENABLE_BLE_WIFI_PROV` | Entire peripheral driver; compile-time-only option |
+| `src/UsbSerialProtocol.*` | `ENABLE_REMOTE_CONTROL`, `ENABLE_USB_MASS_STORAGE`, `ENABLE_IMAGE_SLEEP` | USB protocol paths gated when dependent code is not linked |
+| `src/util/UserFontManager.*` | `ENABLE_USER_FONTS` | User-font pipeline; symbols absent when disabled |
+| `src/network/BleWifiProvisioner.*` | `ENABLE_BLE_WIFI_PROVISIONING` | BLE provisioning driver; compile-time-only option |
 
 #### Temporary cleanup debt
 

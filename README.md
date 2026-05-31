@@ -175,7 +175,7 @@ Legend: ✅ present · ❌ absent · ⚙️ compile-time flag (off by default)
 | Side button swap (reader) | ✅ | ✅ | ✅ |
 | Short power-button action (sleep / page turn / select) | ✅ | ✅ | ✅ |
 | Screenshot (power+vol-down, or reader menu) | ✅ | ✅ | ✅ |
-| Language / i18n support (23 languages) | ✅ | ✅ | ✅ |
+| Language / i18n support (24 languages) | ✅ | ✅ | ✅ |
 | Per-orientation layout | ✅ | ✅ | ✅ |
 | Modular compile-time feature flags (`ENABLE_*`) | ❌ | ❌ | ✅ |
 | ForkDrift web configurator (choose features, build online) | ❌ | ❌ | ✅ |
@@ -199,3 +199,16 @@ any E-Ink device — it supports Boox, Remarkable, Kindle, Kobo, and more.
 Many features in this fork are absorbed from [**CrossInk** by uxjulia](https://github.com/uxjulia/CrossInk),
 a sibling personal fork of CrossPoint Reader. Themes (Lyra Carousel, Minimal), extra font sizes, reader
 controls, and reading-UX improvements originate there — go give it a look.
+
+---
+
+## Build & documentation
+
+| Topic | Location |
+|-------|----------|
+| Monorepo build wrapper | [BUILD.md](../BUILD.md) — `./build-firmware.sh`, `./build-firmware.sh standard`, `./build-firmware.sh full` |
+| Feature flags & profiles | [docs/BUILD_CONFIGURATION.md](./docs/BUILD_CONFIGURATION.md) |
+| ForkDrift Configurator | https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/ |
+| Contributing | [docs/contributing/README.md](./docs/contributing/README.md) |
+| User guide | [USER_GUIDE.md](./USER_GUIDE.md) |
+| Web server & API | [docs/webserver.md](./docs/webserver.md), [docs/webserver-endpoints.md](./docs/webserver-endpoints.md) |

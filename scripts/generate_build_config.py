@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 Generate custom PlatformIO build configuration for CrossPoint Reader.
-Allows selective enabling/disabling of plugins to reduce firmware size.
+Allows selective enabling/disabling of features to reduce firmware size.
+
+Profiles: lean, standard, full (see --list-features).
 """
 
 import argparse
@@ -798,7 +800,7 @@ def generate_platformio_ini(enabled_features: Dict[str, bool], output_path: Path
     build_flags = generate_build_flags(enabled_features)
     estimated_size = calculate_size(enabled_features)
 
-    # Generate plugin list for comment
+    # Generate feature list for comment
     enabled_list = []
     disabled_list = []
     for feature_key in FEATURES.keys():
@@ -818,10 +820,10 @@ def generate_platformio_ini(enabled_features: Dict[str, bool], output_path: Path
 # Selected profile: {profile_name}
 # Estimated firmware size: ~{estimated_size:.1f}MB
 #
-# Enabled plugins:
+# Enabled features:
 {enabled_comment}
 #
-# Disabled plugins:
+# Disabled features:
 {disabled_comment}
 
 [env:custom]
@@ -835,11 +837,11 @@ build_flags =
     output_path.write_text(content)
     print(f"Generated {output_path}")
     print(f"Estimated firmware size: ~{estimated_size:.1f}MB")
-    print(f"\nEnabled plugins:")
+    print(f"\nEnabled features:")
     for name in enabled_list:
         print(f"  ✓ {name}")
     if disabled_list:
-        print(f"\nDisabled plugins:")
+        print(f"\nDisabled features:")
         for name in disabled_list:
             print(f"  ✗ {name}")
 
@@ -855,10 +857,10 @@ Examples:
   %(prog)s --profile standard
   %(prog)s --profile full
 
-  # Enable specific plugins
+  # Enable specific features
   %(prog)s --enable bookerly_fonts --enable image_sleep
 
-  # Disable specific plugins from full profile
+  # Disable specific features from full profile
   %(prog)s --profile full --disable markdown
 
   # List available features

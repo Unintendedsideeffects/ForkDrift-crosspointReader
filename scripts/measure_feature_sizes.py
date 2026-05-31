@@ -23,8 +23,8 @@ Run this script whenever:
 - Monthly validation check
 
 Usage:
-    python scripts/measure_feature_sizes.py
-    python scripts/measure_feature_sizes.py --quick  # Skip full combination test
+    uv run python scripts/measure_feature_sizes.py
+    uv run python scripts/measure_feature_sizes.py --quick  # Skip full combination test
 """
 
 import os

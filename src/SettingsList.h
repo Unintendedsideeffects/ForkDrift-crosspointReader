@@ -348,9 +348,10 @@ inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
   return s;
 }
 
-// Shared settings list used by both the device settings UI and the web settings API.
-// Each entry has a key (for JSON API) and category (for grouping).
-// ACTION-type entries and entries without a key are device-only.
+// Shared settings list for the device settings UI and web /api/settings.
+// Each entry has a JSON key (SettingInfo::key) and StrId category; configuratorExport
+// entries also carry a FeatureCatalog key (configuratorFeatureKey). ACTION entries
+// and entries without a key are device-only.
 inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* registry = nullptr) {
   // IMPORTANT: do NOT use brace-initialization here.
   // std::initializer_list<SettingInfo> backs all N elements as a temporary stack array simultaneously.
@@ -686,9 +687,6 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
   }
 
   if (core::FeatureModules::hasCapability(core::Capability::GlobalStatusBar)) {
-    list.push_back(SettingInfo::Enum(StrId::STR_GLOBAL_STATUS_BAR, &CrossPointSettings::globalStatusBar,
-                                     {StrId::STR_OFF, StrId::STR_ON}, "globalStatusBar", StrId::STR_CAT_DISPLAY)
-                       .withConfiguratorExport("global_status_bar"));
     list.push_back(SettingInfo::Enum(StrId::STR_STATUS_BAR_POSITION, &CrossPointSettings::globalStatusBarPosition,
                                      {StrId::STR_STATUS_BAR_TOP, StrId::STR_STATUS_BAR_BOTTOM},
                                      "globalStatusBarPosition", StrId::STR_CAT_DISPLAY)

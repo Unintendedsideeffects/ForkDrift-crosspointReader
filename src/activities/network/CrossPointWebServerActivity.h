@@ -19,14 +19,11 @@ enum class WebServerActivityState {
 };
 
 /**
- * CrossPointWebServerActivity is the unified entry point for all file transfer functionality.
- * It handles:
- * - "Join a Network" (STA mode) - Connect to existing WiFi, show file transfer UI
- * - "Connect to Calibre" (STA mode) - Connect to existing WiFi, show Calibre-specific UI
- * - "Create Hotspot" (AP mode) - Create an Access Point, show file transfer UI
- *
- * This consolidates the previous separate CalibreConnectActivity into a single activity
- * with mode-specific UI rendering.
+ * CrossPointWebServerActivity is the unified entry point for file transfer (File Transfer
+ * on the home screen). NetworkModeSelectionActivity picks the mode:
+ * - Join a Network (STA) — WiFi selection, then web file-transfer UI
+ * - Connect to Calibre (STA) — launches CalibreConnectActivity for Calibre plugin setup
+ * - Create Hotspot (AP) — access point and web file-transfer UI
  */
 class CrossPointWebServerActivity final : public Activity {
   WebServerActivityState state = WebServerActivityState::MODE_SELECTION;

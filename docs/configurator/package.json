@@ -2,7 +2,9 @@
   "name": "crosspoint-configurator",
   "private": true,
   "scripts": {
-    "dev": "browser-sync start --server .. --startPath '/configurator/' --files '../configurator/index.html' --no-notify"
+    "dev": "browser-sync start --server .. --startPath '/configurator/' --files '../configurator/index.html' --no-notify",
+    "schema:generate": "cd ../.. && uv run python scripts/generate_configurator_settings_schema.py",
+    "schema:check": "cd ../.. && uv run python scripts/generate_configurator_settings_schema.py --check"
   },
   "devDependencies": {
     "browser-sync": "^3.0.3"

@@ -24,8 +24,8 @@ class CrossPointWebServer;  // forward declaration
  * manager is responsible for launching activities, and ensuring that only one activity is active at a time.
  *
  * It also provides a stack mechanism to allow activities to launch sub-activities and get back the results when the
- * sub-activity is done. For example, the WebServer activity can launch a WifiSelect activity to let the user choose a
- * wifi network, and get back the selected network when the user is done.
+ * sub-activity is done. For example, CrossPointWebServerActivity can launch WifiSelectionActivity to let the user
+ * choose a WiFi network and resume when selection completes.
  *
  * Main differences from Android's ActivityManager:
  * - No onPause/onResume, since we don't have a concept of background activities

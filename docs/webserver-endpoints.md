@@ -45,6 +45,8 @@ The CrossPoint Reader exposes a webserver for file management and device monitor
 - **HTTP Server**: Port 80
 - **WebSocket Server**: Port 81 (for fast binary uploads)
 
+Device hostname is dynamic via mDNS (`crosspoint-{deviceName}` or `crosspoint-{last4mac}`). The curl examples below use `crosspoint.local` as a shorthand; replace it with your device IP or actual mDNS name if it does not resolve.
+
 ---
 
 ## HTTP Endpoints

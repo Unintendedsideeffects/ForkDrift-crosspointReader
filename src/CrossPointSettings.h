@@ -332,7 +332,7 @@ class CrossPointSettings {
   uint8_t fadingFix = 0;
   // Use book's embedded CSS styles for EPUB rendering
   uint8_t embeddedStyle = 1;
-  // Persisted background server flag for charge-only and always-on modes.
+  // JSON key backgroundServerOnCharge: true for On Charge and Always background-server modes.
   uint8_t backgroundServerOnCharge = ENABLE_BACKGROUND_SERVER_ON_CHARGE || ENABLE_BACKGROUND_SERVER_ALWAYS;
   // Time settings
   uint8_t timeMode = TIME_MODE_UTC;
@@ -351,11 +351,11 @@ class CrossPointSettings {
   // Network identity — used for mDNS hostname, DHCP hostname, and AP SSID.
   // Only [a-z0-9-] chars; max 24 chars. Empty = fall back to last-4-MAC.
   char deviceName[32] = "";
-  // Persisted background server flag for always-on mode while the device is awake.
+  // JSON key wifiAutoConnect: true only for Always (see getBackgroundServerMode / backgroundServerMode UI key).
   uint8_t wifiAutoConnect = ENABLE_BACKGROUND_SERVER_ALWAYS;
-  // Focus Reading - emphasizes the first part of words with bold
+  // JSON key focusReadingEnabled; configurator feature focus_reading (Focus Reading).
   uint8_t focusReadingEnabled = 0;
-  // Guide Dots - inserts a middle dot between words as a visual reading guide
+  // JSON key guideReadingEnabled; configurator feature guide_dots (Guide Dots).
   uint8_t guideReadingEnabled = 0;
   // SD card font family name (empty = use built-in fontFamily)
   char sdFontFamilyName[32] = "";
@@ -372,7 +372,7 @@ class CrossPointSettings {
   // Long-press Confirm (menu button) quick action in reader (0 = off)
   uint8_t longPressMenuAction = LONG_MENU_OFF;
   // Global status bar overlay (battery + WiFi, always visible across all screens)
-  uint8_t globalStatusBar = GLOBAL_STATUS_BAR_OFF;
+  uint8_t globalStatusBar = GLOBAL_STATUS_BAR_ON;
   uint8_t globalStatusBarPosition = STATUS_BAR_TOP;  // 0 = top, 1 = bottom
   // Language setting (Language enum index, default 0 = EN)
   uint8_t language = 0;
@@ -389,7 +389,7 @@ class CrossPointSettings {
 
   static constexpr bool supportsBackgroundServerAlwaysMode() { return ENABLE_BACKGROUND_SERVER_ALWAYS != 0; }
 
-  bool isGlobalStatusBarEnabled() const { return globalStatusBar != GLOBAL_STATUS_BAR_OFF; }
+  bool isGlobalStatusBarEnabled() const { return ENABLE_GLOBAL_STATUS_BAR != 0; }
 
   // Keep the legacy NO_SLEEP value inert until the design is settled and it can
   // be reintroduced properly. NO_SLEEP should mean the global status bar stays

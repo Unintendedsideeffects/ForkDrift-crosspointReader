@@ -2,6 +2,16 @@
 
 This guide helps you build and run CrossPoint locally.
 
+## ForkDrift monorepo workspace
+
+If you work in the full ForkDrift workspace (firmware plus companion tools):
+
+- Firmware source: `crosspoint-reader/`
+- Build from repo root: `./build-firmware.sh` (see [BUILD.md](../../../BUILD.md))
+- Run PlatformIO, tests, and hooks from `crosspoint-reader/` unless noted otherwise
+- Git hooks from the monorepo root: `git config core.hooksPath crosspoint-reader/scripts/hooks`
+- Git hooks when your shell is already in `crosspoint-reader/`: `git config core.hooksPath scripts/hooks`
+
 ## Prerequisites
 
 - **uv**: Used to install and run the pinned Python and PlatformIO toolchain.
@@ -28,6 +38,8 @@ Verify version: `clang-format-21 --version`. The reported major version must be 
 
 ## Clone and Initialize
 
+### Firmware repository only
+
 Clone the repository and its **submodules** (important!) using the **`fork-drift`** branch:
 
 ```sh
@@ -39,6 +51,15 @@ If you already cloned without submodules or are on a different branch:
 
 ```sh
 git checkout fork-drift
+git submodule update --init --recursive
+```
+
+### Full ForkDrift workspace
+
+If you already have the monorepo with `crosspoint-reader/` as a subdirectory, `cd crosspoint-reader` and use the steps below from there. Initialize submodules inside `crosspoint-reader/` if needed:
+
+```sh
+cd crosspoint-reader
 git submodule update --init --recursive
 ```
 

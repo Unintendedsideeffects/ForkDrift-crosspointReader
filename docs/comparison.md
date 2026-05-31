@@ -1,6 +1,6 @@
 # CrossPoint vs XTOS
 
-Below is like for like comparison of CrossPoint (version 1.1.1) and XTOS (version 3.1.1). CrossPoint is on the left, 
+Below is a like-for-like comparison of CrossPoint (screenshots from firmware 1.1.1; current release is 1.3.0) and XTOS (version 3.1.1). CrossPoint is on the left,
 XTOS is on the right. CrossPoint does not currently support all features of XTOS, so this comparison is just of key 
 features which both firmwares support.
 

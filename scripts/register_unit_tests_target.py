@@ -1,10 +1,9 @@
 """
-PlatformIO post-load script: register a `unit-tests` custom target so
-`pio run -t unit-tests` builds and runs the host gtest suites under test/.
+PlatformIO post-load script: register a `unit-tests` custom target that shells out
+to CMake/CTest for the host gtest suites under test/.
 
-The target shells out to CMake/CTest; the gtest framework is fetched and
-the suites are built outside the PlatformIO/ESP-IDF toolchain (this is a
-host build, not a firmware build).
+Not wired in platformio.ini extra_scripts today — run host tests via test/README
+(cmake -S test -B build/test && ctest --test-dir build/test) or test/run_host_tests.sh.
 """
 
 import os

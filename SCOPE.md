@@ -1,5 +1,7 @@
 # Project Vision & Scope: CrossPoint Reader
 
+> **ForkDrift note:** This document describes upstream CrossPoint Reader scope. The ForkDrift fork adds optional compile-time features (background web server, BLE WiFi provisioning, Markdown reader, and others) documented in [README.md](./README.md) and [docs/BUILD_CONFIGURATION.md](./docs/BUILD_CONFIGURATION.md).
+
 The goal of CrossPoint Reader is to create an efficient, open-source reading experience for the Xteink X4. We believe a
 dedicated e-reader should do one thing exceptionally well: **facilitate focused reading.**
 

@@ -20,7 +20,7 @@ bool loadOpds(OpdsServerStore& store, HalFile& file, bool* needsResave);
 }  // namespace JsonSettingsIO
 
 /**
- * Singleton class for storing OPDS server configurations on the SD card.
+ * Singleton for OPDS catalog server entries (calibre_sync / OPDS Support feature).
  * Passwords are XOR-obfuscated with the device's unique hardware MAC address
  * and base64-encoded before writing to JSON.
  */

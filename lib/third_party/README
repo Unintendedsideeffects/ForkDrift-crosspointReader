@@ -1,2 +1,14 @@
-Third-party vendored libraries. See library.json in each directory for version info.
-Do not modify these files — apply patches via PlatformIO extra_scripts instead.
+Third-party vendored code on lib_extra_dirs (see platformio.ini).
+
+| Directory   | Version | Role |
+|-------------|---------|------|
+| expat       | 2.7.3   | EPUB, OPDS, and XML parsers |
+| md4c        | 0.5.2   | Markdown (CommonMark) |
+| uzlib       | 2.9.8   | InflateReader; font and image decompression |
+| cpp-httplib | —       | Header-only; test/host_server only |
+| picojpeg    | —       | Unused; firmware JPEG uses JPEGDEC (lib_deps) |
+
+See library.json in each directory for version info and build srcFilter settings.
+
+Prefer build_flags or srcFilter in library.json over editing upstream sources.
+lib_deps patches (for example JPEGDEC) live in scripts/, not under third_party.

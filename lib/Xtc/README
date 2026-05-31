@@ -33,7 +33,7 @@ XTC/XTCH are container formats designed for ESP32 e-paper displays. They store p
 - Two bit planes stored sequentially
 - Column-major order (right to left)
 - 8 vertical pixels per byte
-- Grayscale: 0=White, 1=Dark Grey, 2=Light Grey, 3=Black
+- Grayscale: 0=White, 1=Light Grey, 2=Dark Grey, 3=Black
 
 ## Reference
 

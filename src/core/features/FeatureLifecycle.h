@@ -11,12 +11,13 @@ namespace core {
  * compiled in. Each hook internally gates its work behind compile-time feature
  * flags so that disabled features cost nothing at runtime.
  *
- * Lifecycle stages (called in this order from setup()):
+ * Lifecycle stages (called in this order during boot):
  *  1. onStorageReady   – SD card is mounted; features may scan storage resources.
  *  2. onSettingsLoaded – CrossPointSettings has been loaded; features apply their
  *                        persisted configuration to hardware or runtime state.
- *  3. onFontSetup      – Builtin font families are registered; feature-provided
- *                        font families are registered with the renderer.
+ *  3. onFontSetup      – Called from setupDisplayAndFonts() after builtin font
+ *                        families are registered; feature-provided font families
+ *                        are registered with the renderer.
  */
 class FeatureLifecycle {
  public:

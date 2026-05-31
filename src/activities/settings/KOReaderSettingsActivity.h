@@ -3,8 +3,8 @@
 #include "activities/Activity.h"
 
 /**
- * Submenu for KOReader Sync settings.
- * Shows username, password, and authenticate options.
+ * On-device submenu for KOReader Sync (koreader_sync feature):
+ * username, password, and credential test.
  */
 class KOReaderSettingsActivity final : public Activity {
  public:

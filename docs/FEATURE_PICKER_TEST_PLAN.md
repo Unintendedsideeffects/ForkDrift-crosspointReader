@@ -1,4 +1,4 @@
-# Plugin Picker Test Plan
+# ForkDrift Configurator Test Plan
 
 ## Pre-Build Validation
 
@@ -20,7 +20,7 @@ uv run pio run -e custom
 
 **Expected:**
 - [  ] Build completes successfully
-- [  ] Firmware size is close to the current script estimate (~1.7MB)
+- [  ] Firmware size is close to the current script estimate (~2.4MB)
 - [  ] No compilation errors
 - [  ] All optional feature flags are set to 0
 
@@ -40,9 +40,9 @@ uv run pio run -e custom
 
 **Expected:**
 - [  ] Build completes successfully
-- [  ] Firmware size is close to the current script estimate (~5.0MB)
+- [  ] Firmware size is close to the current script estimate (~5.6MB)
 - [  ] No compilation errors
-- [  ] Bookerly, Noto Sans, image sleep, user fonts, BLE WiFi provisioning, and USB mass storage are enabled
+- [  ] Bookerly, Noto Sans, EPUB, hyphenation, image sleep, user fonts, BLE WiFi provisioning, USB mass storage, WiFi clock, and sleep clock screens are enabled
 
 **Verify on device:**
 - [  ] EPUB reading works with multiple Bookerly/Noto Sans sizes
@@ -60,12 +60,12 @@ uv run pio run -e custom
 
 **Expected:**
 - [  ] Build completes successfully
-- [  ] Firmware size is close to the current script estimate (~5.9MB)
+- [  ] Firmware size is close to the current script estimate (~5.6MB)
 - [  ] No compilation errors
-- [  ] Full-profile features are enabled, except OpenDyslexic and BLE WiFi provisioning
+- [  ] Full-profile features are enabled, including Lexend Deca and Chare Ink fonts instead of Bookerly/Noto Sans
 
 **Verify on device:**
-- [  ] Bookerly and Noto Sans font packs work
+- [  ] Lexend Deca and Chare Ink font packs work
 - [  ] PNG/JPEG/BMP sleep screens work
 - [  ] Markdown files render correctly
 - [  ] Obsidian features work (wikilinks, callouts, etc.)
@@ -112,11 +112,13 @@ uv run pio run -e custom
 8. [  ] Flash the named firmware file to device
 9. [  ] Verify features match standard profile
 
-> **Note:** Most active development and build testing should be performed on the `fork-drift` branch. See [docs/fork-strategy.md](fork-strategy.md) for more details.
+> **Note:** Most active development and build testing should be performed on the `fork-drift` branch. See [fork-strategy.md](fork-strategy.md) for more details.
 
-## Plugin Picker Web UI Test
+## ForkDrift Configurator Web UI Test
 
-1. [  ] Open https://[username].github.io/ForkDrift-crosspointReader/configurator/
+### Published (GitHub Pages)
+
+1. [  ] Open https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/
 2. [  ] Page loads without errors
 3. [  ] Profile buttons work
 4. [  ] Individual feature toggles work
@@ -126,6 +128,14 @@ uv run pio run -e custom
 8. [  ] URL includes selected features as query parameters
 9. [  ] Test on mobile device (responsive design)
 10. [  ] Test on desktop browser
+
+### Local (browser-sync)
+
+1. [  ] From `crosspoint-reader/docs/configurator`: `npm install && npm run dev`
+2. [  ] Open http://localhost:3000/configurator/ (or LAN URL from browser-sync)
+3. [  ] Live reload works when editing `index.html`
+4. [  ] Settings preview reflects `settings-schema.generated.js` (run `npm run schema:check` after firmware settings changes)
+5. [  ] Screen preview tab loads `screen-previews/manifest.json` (PNG assets present after harness run)
 
 ## Graceful Degradation Tests
 
@@ -157,7 +167,7 @@ uv run pio run -e custom
 **Test font settings:**
 - [  ] Disabled font families do not appear as selectable reader fonts
 - [  ] The remaining built-in families still work
-- [  ] Generated custom profiles that enable OpenDyslexic also resolve both parent font packs
+- [  ] Generated custom profiles that enable OpenDyslexic also resolve at least one qualifying parent font pack
 
 ### Background Server Disabled
 
@@ -173,7 +183,7 @@ uv run pio run -e custom
 - [  ] BUILD_CONFIGURATION.md is comprehensive
 - [  ] All links work
 - [  ] Code examples are correct
-- [  ] Plugin Picker link is correct
+- [  ] ForkDrift Configurator link is correct
 - [  ] No typos or formatting errors
 
 ## Regression Tests

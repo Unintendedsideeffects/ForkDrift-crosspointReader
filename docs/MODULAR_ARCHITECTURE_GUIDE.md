@@ -136,18 +136,26 @@ Behavior:
 
 | Feature | Flag | Size | Status | Dependencies |
 |---------|------|------|--------|--------------|
-| Bookerly Fonts | `ENABLE_BOOKERLY_FONTS` | ~803KB | ✅ Stable | None |
+| Bookerly Fonts | `ENABLE_BOOKERLY_FONTS` | ~1055KB | ✅ Stable | None |
 | Noto Sans Fonts | `ENABLE_NOTOSANS_FONTS` | ~1009KB | ✅ Stable | None |
-| OpenDyslexic Font Pack | `ENABLE_OPENDYSLEXIC_FONTS` | ~2617KB | ✅ Stable | Compile guard: either parent pack; generated custom profiles currently resolve both |
-| PNG/JPEG Sleep | `ENABLE_IMAGE_SLEEP` | ~33KB | ✅ Stable | None |
+| Lexend Deca Fonts | `ENABLE_LEXENDDECA_FONTS` | ~824KB | ✅ Stable | None |
+| Chare Ink Fonts | `ENABLE_CHAREINK_FONTS` | ~1029KB | ✅ Stable | None |
+| Bitter Fonts | `ENABLE_BITTER_FONTS` | ~1177KB | ✅ Stable | None |
+| OpenDyslexic Font Pack | `ENABLE_OPENDYSLEXIC_FONTS` | ~804KB | ✅ Stable | At least one full-charset font pack |
+| PNG/JPEG Sleep | `ENABLE_IMAGE_SLEEP` | ~0KB | ✅ Stable | None |
 | Book Images | `ENABLE_BOOK_IMAGES` | ~0KB | ✅ Stable | None |
-| Markdown/Obsidian | `ENABLE_MARKDOWN` | ~158KB | ✅ Stable | None |
+| Markdown/Obsidian | `ENABLE_MARKDOWN` | ~191KB | ✅ Stable | None |
 | Integrations Base | `ENABLE_INTEGRATIONS` | ~0KB | ✅ Stable | None |
-| KOReader Sync | `ENABLE_KOREADER_SYNC` | ~2KB | ✅ Stable | `ENABLE_INTEGRATIONS` |
-| Calibre Sync | `ENABLE_CALIBRE_SYNC` | ~17KB | ✅ Stable | `ENABLE_INTEGRATIONS` |
-| Background Server | `ENABLE_BACKGROUND_SERVER` | ~4KB | ✅ Stable | None |
-| Pokemon Wallpaper Plugin | `ENABLE_POKEMON_WALLPAPER_PLUGIN` | ~34KB | ✅ Stable | `ENABLE_IMAGE_SLEEP` |
-| Pokemon Party | `ENABLE_POKEMON_PARTY` | ~4KB | ✅ Stable | None |
+| KOReader Sync | `ENABLE_KOREADER_SYNC` | ~0KB | ✅ Stable | `ENABLE_INTEGRATIONS` |
+| OPDS Support | `ENABLE_CALIBRE_SYNC` | ~0KB | ✅ Stable | `ENABLE_INTEGRATIONS` |
+| OPDS (BookLore) | `ENABLE_OPDS` | ~0KB | ✅ Stable | `ENABLE_CALIBRE_SYNC` |
+| Background Server | `ENABLE_BACKGROUND_SERVER` | ~0KB | ✅ Stable | None |
+| Pokemon Wallpaper Plugin | `ENABLE_POKEMON_WALLPAPER_PLUGIN` | ~16KB | ✅ Stable | `ENABLE_IMAGE_SLEEP` |
+| Pokemon Party | `ENABLE_POKEMON_PARTY` | ~18KB | ✅ Stable | None |
+| Focus Reading | `ENABLE_FOCUS_READING` | ~0KB | ✅ Stable | None |
+| Guide Dots | `ENABLE_GUIDE_DOTS` | ~0KB | ✅ Stable | None |
+
+Run `uv run python scripts/generate_build_config.py --list-features` for the complete catalog (EPUB, hyphenation, OTA, themes, clocks, etc.).
 
 **Pokemon Party Behavior:**
 The Pokemon Party feature transforms the "Recent Books" view into a persistent
@@ -304,6 +312,7 @@ python scripts/measure_feature_sizes.py
 
 - Add to `docs/BUILD_CONFIGURATION.md` feature reference
 - Update web UI (`docs/configurator/index.html`)
+- Regenerate `docs/configurator/settings-schema.generated.js` with `scripts/generate_configurator_settings_schema.py`
 - Document any user-facing changes
 
 ## Best Practices
@@ -404,9 +413,9 @@ python scripts/measure_feature_sizes.py
 
 ### Flash Size
 
-- Lean: ~2.6MB (~3.8MB savings vs full)
-- Standard: ~6.2MB (recommended)
-- Full: ~6.4MB (tight headroom)
+- Lean: ~2.4MB (all optional flags off)
+- Standard: ~5.6MB (recommended)
+- Full: ~5.6MB (CrossInk fonts + Markdown/integrations/plugins)
 
 **Feature flags enable significant flash savings** for users who don't need all features.
 
@@ -422,7 +431,6 @@ python scripts/measure_feature_sizes.py
 
 ### Planned Features
 
-- OPDS browser (toggleable)
 - Advanced hyphenation (toggleable)
 - Experimental formats (toggleable)
 - Custom font pipeline in web picker (user uploads TTF/OTF, conversion runs locally, generated bitmap pack is baked into custom build) - roadmap only, pending value/performance tradeoff review
@@ -436,7 +444,7 @@ python scripts/measure_feature_sizes.py
 
 ## References
 
-- **Fork & Branch Strategy:** `docs/fork-strategy.md`
+- **Fork & Branch Strategy:** [fork-strategy.md](fork-strategy.md)
 - **Build Configuration:** `docs/BUILD_CONFIGURATION.md`
 - **Test Plan:** `docs/FEATURE_PICKER_TEST_PLAN.md`
 - **SRE Analysis:** Result from sre-code-reviewer agent
@@ -450,6 +458,6 @@ python scripts/measure_feature_sizes.py
 
 ---
 
-**Last Updated:** 2026-03-24
+**Last Updated:** 2026-05-29
 **Status:** Production-Ready (P0+P1 items complete)
 **Next Review:** Monthly (measure sizes, update docs)

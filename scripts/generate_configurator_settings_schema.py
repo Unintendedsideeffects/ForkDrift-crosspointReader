@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+"""
+Compile and export CrossPoint settings schema for the web configurator.
+
+Builds a host-side C++ exporter, validates coverage against persisted settings
+keys, and writes docs/configurator/settings-schema.generated.js.
+
+Usage:
+    python scripts/generate_configurator_settings_schema.py
+    python scripts/generate_configurator_settings_schema.py --check
+"""
 from __future__ import annotations
 
 import argparse
@@ -151,7 +161,9 @@ def validate_schema(schema: dict) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Generate docs/configurator/settings-schema.generated.js from firmware settings metadata.",
+    )
     parser.add_argument("--check", action="store_true", help="Fail if the generated asset is out of date")
     args = parser.parse_args()
 

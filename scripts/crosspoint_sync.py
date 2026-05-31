@@ -457,7 +457,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--base-url",
         default="http://crosspoint.local",
-        help="Device base URL (default: http://crosspoint.local)",
+        help="Device base URL (default: http://crosspoint.local). Prefer the IP on the WiFi screen or mDNS hostname crosspoint-{name} when .local does not resolve.",
     )
     parser.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout in seconds (default: 30)")
 

@@ -5,8 +5,7 @@
 #include "activities/Activity.h"
 
 /**
- * Activity for testing KOReader credentials.
- * Connects to WiFi and authenticates with the KOReader sync server.
+ * Tests KOReader Sync credentials (koreader_sync feature) over WiFi against the sync server.
  */
 class KOReaderAuthActivity final : public Activity {
  public:

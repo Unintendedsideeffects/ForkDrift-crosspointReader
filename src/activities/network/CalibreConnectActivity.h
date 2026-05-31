@@ -10,8 +10,9 @@
 enum class CalibreConnectState { WIFI_SELECTION, SERVER_STARTING, SERVER_RUNNING, ERROR };
 
 /**
- * CalibreConnectActivity starts the file transfer server in STA mode,
- * but renders Calibre-specific instructions instead of the web transfer UI.
+ * CalibreConnectActivity runs the file-transfer web server in STA mode and shows
+ * Calibre plugin setup instructions. Launched from CrossPointWebServerActivity when
+ * the user selects Connect to Calibre.
  */
 class CalibreConnectActivity final : public Activity {
   CalibreConnectState state = CalibreConnectState::WIFI_SELECTION;

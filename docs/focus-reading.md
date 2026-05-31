@@ -27,6 +27,10 @@ Toggling the setting will trigger a re-index of your current book, the same as w
 
 *Focus Reading with Atkinson Hyperlegible Next font*
 
+## Build availability
+
+Focus Reading is gated by `ENABLE_FOCUS_READING`. It is enabled in the `full` profile and off in `lean`/`standard` unless you add it with `--enable focus_reading`. See [BUILD_CONFIGURATION.md](./BUILD_CONFIGURATION.md).
+
 ## Notes
 
 - Focus Reading only applies to regular body text. Already-bold text (headings, emphasis) is left unchanged.

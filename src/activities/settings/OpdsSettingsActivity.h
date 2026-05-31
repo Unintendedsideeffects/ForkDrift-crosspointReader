@@ -5,9 +5,8 @@
 #include "util/ButtonNavigator.h"
 
 /**
- * Edit screen for a single OPDS server.
- * Shows Name, URL, Username, Password fields and a Delete option.
- * Used for both adding new servers and editing existing ones.
+ * Edit screen for one OPDS server entry (calibre_sync / OPDS Support):
+ * name, URL, username, password, and delete. Used for add and edit flows.
  */
 class OpdsSettingsActivity final : public Activity {
  public:

@@ -6,7 +6,7 @@ This page defines the expected local workflow before opening a pull request.
 
 - Fork the repository to your own GitHub account
 - Clone your fork locally and add the upstream repository if needed
-- Enable repo hooks once per clone: `git config core.hooksPath scripts/hooks`
+- Enable repo hooks once per clone from `crosspoint-reader/`: `git config core.hooksPath scripts/hooks` (from the ForkDrift monorepo root, use `crosspoint-reader/scripts/hooks`)
 
 Example: `git checkout -b feature/anki-sync-integration`
 

@@ -122,21 +122,7 @@ The Settings screen allows you to configure the device's behavior. There are a f
 
 #### 3.6.1 Display
 
-- **Sleep Screen**: Which sleep screen to display when the device sleeps:
-  - "Dark" (default) - The default dark ForkDrift logo sleep screen
-  - "Light" - The same default sleep screen, on a white background
-  - "Custom" - Custom images from the SD card; see [Sleep Screen](#37-sleep-screen) below for more information
-  - "Roman Clock" - Large block Roman numerals from the WiFi-synced clock (only available in builds with Roman Clock Sleep Screen + WiFi Clock enabled)
-  - "Cover" - The book cover image (Note: this is experimental and may not work as expected)
-  - "None" - A blank screen
-  - "Cover + Custom" - The book cover image, falls back to "Custom" behavior
-- **Sleep Screen Cover Mode**: How to display the book cover when "Cover" sleep screen is selected:
-  - "Fit" (default) - Scale the image down to fit centered on the screen, padding with white borders as necessary
-  - "Crop" - Scale the image down and crop as necessary to try to fill the screen (Note: this is experimental and may not work as expected)
-- **Sleep Screen Cover Filter**: What filter will be applied to the book cover when "Cover" sleep screen is selected:
-  - "None" (default) - The cover image will be converted to a grayscale image and displayed as it is
-  - "Contrast" - The image will be displayed as a black & white image without grayscale conversion
-  - "Inverted" - The image will be inverted as in white & black and will be displayed without grayscale conversion
+- **Sleep Screen**: Which sleep screen to display when the device sleeps (see [Sleep Screen](#37-sleep-screen) for full detail). Options include Dark, Light, Follow Theme, Custom, Transparent, and Smart; Roman Clock, Haiku Clock, and Reading Stats appear only when those features are enabled in your firmware build.
 - **Status Bar**: Configure the status bar displayed while reading:
   - "None" - No status bar
   - "No Progress" - Show status bar without reading progress
@@ -150,16 +136,18 @@ The Settings screen allows you to configure the device's behavior. There are a f
   - "Always" - Always hide battery percentage
 - **Refresh Frequency**: Set how often the screen does a full refresh while reading to reduce ghosting; options are every 1, 5, 10, 15, or 30 pages.
 
-- **UI Theme**: Set which UI theme to use:
-  - "Classic" - The original Crosspoint theme
-  - "Lyra" - The new theme for Crosspoint featuring rounded elements and menu icons
-  - "Visual Covers" - Lyra's multi-cover home layout that displays 3 books instead of 1 on the **[Home Screen](#31-home-screen)**
+- **UI Theme**: Set which UI theme to use (availability depends on your firmware build):
+  - "Classic" - The original CrossPoint theme
+  - "Lyra", "Lyra Extended", "Lyra Carousel", "Fork Drift", "Terminal" - Lyra-family layouts (when Lyra theme is enabled)
+  - "Minimal" - Compact home layout (when enabled in build)
+  - "Visual Covers" - Three-book cover grid on the **[Home Screen](#31-home-screen)** (when Visual Covers is enabled)
+  - "Pokémon Party" - Party-themed recent-books layout (when Pokémon Party is enabled)
 - **Sunlight Fading Fix**: Configure whether to enable a software-fix for the issue where white X4 models may fade when used in direct sunlight:
   - "OFF" (default) - Disable the fix
   - "ON" - Enable the fix
 
 #### 3.6.2 Reader
-- **Reader Font Family**: Choose the font used for reading:
+- **Reader Font Family**: Choose the font used for reading (extra families such as Bookerly, Bitter, or Lexend Deca appear only when enabled in your firmware build):
   - "Noto Serif" (default) - Google's serif font
   - "Noto Sans" - Google's sans-serif font
   - "Open Dyslexic" - Font designed for readers with dyslexia
@@ -235,7 +223,7 @@ For web-based WiFi network management, see [Web Settings (WiFi + OPDS)](#366-web
 While in **File Transfer** mode, the web settings page includes management cards for both **WiFi Networks** and **OPDS Servers**.
 
 1. On device: open **File Transfer** and connect to WiFi.
-1. In a browser, open `http://<device-ip>/settings` or `http://crosspoint.local`.
+1. In a browser, open `http://<device-ip>/settings` or `http://crosspoint-<device-name>.local` when your network resolves mDNS (hostname on the WiFi screen; use the IP if `.local` does not work).
 1. In **WiFi Networks**, add, edit, or delete saved network entries (SSID + optional password).
 1. In **OPDS Servers**, add, edit, or delete OPDS catalogs.
 
@@ -360,29 +348,27 @@ The **Sleep Screen** setting controls what is displayed when the device goes to 
 |------|----------|
 | **Dark** (default) | The ForkDrift logo on a dark background. |
 | **Light** | The ForkDrift logo on a white background. |
-| **Custom** | A custom image from the SD card (see below). Falls back to **Dark** if no custom image is found. |
-| **Cover** | The cover of the currently open book. Falls back to **Dark** if no book is open. |
-| **Cover + Custom** | The cover of the currently open book. Falls back to **Custom** behavior if no book is open. |
-| **None** | A blank screen. |
+| **Follow Theme** | Matches the active light/dark UI theme. |
+| **Custom** | Images from the SD card (see below). Falls back to **Dark** if none are found. PNG/JPEG require the `image_sleep` feature in your build; BMP works in all builds. |
+| **Transparent** | Keeps the current screen content and overlays the lock icon. |
+| **Smart** | Uses the current book cover or a pinned sleep image when available; otherwise behaves like **Custom**. |
+| **Roman Clock** | Block Roman numerals from the WiFi-synced clock (requires Roman Clock + WiFi Clock in build). |
+| **Haiku Clock** | Haiku clock sleep screen (requires Haiku Clock in build). |
+| **Reading Stats** | Reading statistics summary (requires Reading Stats in build). |
 
-#### Cover settings
-
-When using **Cover** or **Cover + Custom**, two additional settings apply:
-
-- **Sleep Screen Cover Mode**: **Fit** (scale to fit, white borders) or **Crop** (scale and crop to fill the screen).
-- **Sleep Screen Cover Filter**: **None** (grayscale), **Contrast** (black & white), or **Inverted** (inverted black & white).
+**Sleep Image Source**, **Cover Mode**, **Cover Filter**, and **Cycle Mode** may appear for some modes; they control custom image folders, cover fit/crop, filters, and random vs sequential cycling.
 
 #### Custom images
 
-To use custom sleep images, set the sleep screen mode to **Custom** or **Cover + Custom**, then place images on the SD card:
+To use custom sleep images, set the sleep screen mode to **Custom** or **Smart**, then place images on the SD card:
 
-- **Multiple Images (recommended):** Create a `/sleep` directory in the root of the SD card and place `.bmp` images inside. One will be randomly selected each time the device sleeps. Subfolders under `/sleep/pokedex/` (for example `/sleep/pokedex/party/`) are scanned recursively.
+- **Multiple Images (recommended):** Create a `/sleep` directory in the root of the SD card and place `.bmp`, `.png`, or `.jpg` images inside. One will be randomly selected each time the device sleeps. Subfolders under `/sleep/pokedex/` (for example `/sleep/pokedex/party/`) are scanned recursively.
 - **Pokedex wallpapers:** Put generated wallpapers in `/sleep/pokedex/`. With **Image Source** set to **Pokedex**, only that folder is used. **Sleep** also includes `/sleep/pokedex/`; **All** scans every subfolder under `/sleep`.
 - **Single Image:** Place a file named `sleep.bmp` in the root directory. This is used as a fallback when **Image Source** is **Sleep** and no valid images are found under `/sleep` or `/sleep/pokedex`.
 
 > [!TIP]
 > For best results:
-> - Use uncompressed BMP files with 24-bit color depth
+> - BMP: use uncompressed 24-bit color depth; PNG/JPEG are converted automatically
 > - X4: Use a resolution of 480x800 pixels to match the device's screen resolution.
 > - X3: Use a resolution of 528x792 pixels to match the device's screen resolution.
 
@@ -416,12 +402,14 @@ This feature can be disabled in the **[Controls Settings](#363-controls)** to he
 
 ### Supported Languages
 
-CrossPoint renders text using the following Unicode character blocks, enabling support for a wide range of languages:
+The firmware **UI** is available in 24 languages via **Settings → System → Language**.
 
-*   **Latin Script (Basic, Supplement, Extended-A):** Covers English, German, French, Spanish, Portuguese, Italian, Dutch, Swedish, Norwegian, Danish, Finnish, Polish, Czech, Hungarian, Romanian, Slovak, Slovenian, Turkish, and others.
-*   **Cyrillic Script (Standard and Extended):** Covers Russian, Ukrainian, Belarusian, Bulgarian, Serbian, Macedonian, Kazakh, Kyrgyz, Mongolian, and others.
+**Book text rendering** supports these Unicode blocks:
 
-What is not supported: Chinese, Japanese, Korean, Vietnamese, Hebrew, Arabic, Greek and Farsi.
+*   **Latin Script (Basic, Supplement, Extended-A):** English, German, French, Spanish, Portuguese, Italian, Dutch, Swedish, Norwegian, Danish, Finnish, Polish, Czech, Hungarian, Romanian, Slovak, Slovenian, Turkish, and others.
+*   **Cyrillic Script (Standard and Extended):** Russian, Ukrainian, Belarusian, Bulgarian, Serbian, Macedonian, Kazakh, Kyrgyz, Mongolian, and others.
+
+Book rendering does not support Chinese, Japanese, Korean, Hebrew, Arabic, Greek, or Farsi.
 
 ---
 
@@ -445,7 +433,7 @@ Please note that this firmware is currently in active development. Current pract
 
 ## 7. Troubleshooting Issues & Escaping Bootloop
 
-If an issue or crash is encountered while using Crosspoint, feel free to raise an issue ticket and attach the serial monitor logs. The logs can be obtained by connecting the device to a computer and starting a serial monitor. Either [Serial Monitor](https://www.serialmonitor.org/) or the following command can be used:
+If an issue or crash is encountered while using Crosspoint, feel free to raise an issue ticket and attach the serial monitor logs. The logs can be obtained by connecting the device to a computer and starting a serial monitor. Either [Serial Monitor](https://www.serialmonitor.org/) or the following command can be used (from `crosspoint-reader/`):
 
 ```sh
 uv run pio device monitor

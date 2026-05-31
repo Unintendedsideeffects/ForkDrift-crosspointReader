@@ -22,10 +22,26 @@ def parse_feature_list(raw: str) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate platformio-custom.ini for the custom workflow")
-    parser.add_argument("--profile", default="standard")
-    parser.add_argument("--enable-features", default="")
-    parser.add_argument("--disable-features", default="")
-    parser.add_argument("--output", default="platformio-custom.ini")
+    parser.add_argument(
+        "--profile",
+        default="standard",
+        help="Profile name: lean, standard, full, or custom (default: standard)",
+    )
+    parser.add_argument(
+        "--enable-features",
+        default="",
+        help="Comma/space-separated feature keys to enable (see generate_build_config.py --list-features)",
+    )
+    parser.add_argument(
+        "--disable-features",
+        default="",
+        help="Comma/space-separated feature keys to disable",
+    )
+    parser.add_argument(
+        "--output",
+        default="platformio-custom.ini",
+        help="Output path for platformio-custom.ini (default: platformio-custom.ini)",
+    )
     args = parser.parse_args()
 
     requested_profile = args.profile

@@ -1,46 +1,18 @@
+CrossPoint Reader — private PlatformIO libraries.
 
-This directory is intended for project specific (private) libraries.
-PlatformIO will compile them to static libraries and link into the executable file.
+Each top-level subdirectory under lib/ is compiled as a static library and
+linked into the firmware. Sources live in the module directory itself
+(for example lib/Epub/, lib/Xtc/Xtc/), not under a src/ subfolder.
 
-The source code of each library should be placed in a separate directory
-("lib/your_library_name/[Code]").
+hal/ provides hardware abstraction and is excluded in the simulator environment.
 
-For example, see the structure of the following example libraries `Foo` and `Bar`:
+third_party/ holds vendored upstream code registered via lib_extra_dirs in
+platformio.ini. See third_party/README for package versions and usage.
 
-|--lib
-|  |
-|  |--Bar
-|  |  |--docs
-|  |  |--examples
-|  |  |--src
-|  |     |- Bar.c
-|  |     |- Bar.h
-|  |  |- library.json (optional. for custom build options, etc) https://docs.platformio.org/page/librarymanager/config.html
-|  |
-|  |--Foo
-|  |  |- Foo.c
-|  |  |- Foo.h
-|  |
-|  |- README --> THIS FILE
-|
-|- platformio.ini
-|--src
-   |- main.c
+PlatformIO's Library Dependency Finder resolves #includes and optional
+library.json dependency edges (for example lib/Markdown/library.json).
 
-Example contents of `src/main.c` using Foo and Bar:
-```
-#include <Foo.h>
-#include <Bar.h>
+Additional dependencies come from platformio.ini lib_deps and open-x4-sdk
+symlinks.
 
-int main (void)
-{
-  ...
-}
-
-```
-
-The PlatformIO Library Dependency Finder will find automatically dependent
-libraries by scanning project source files.
-
-More information about PlatformIO Library Dependency Finder
-- https://docs.platformio.org/page/librarymanager/ldf.html
+https://docs.platformio.org/page/librarymanager/ldf.html

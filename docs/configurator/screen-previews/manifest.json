@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-28T20:46:27.722003+00:00",
+  "generated_at": "2026-05-29T17:19:05.773850+00:00",
   "files": [
     {
       "name": "01_boot.png",
@@ -15,11 +15,11 @@
     },
     {
       "name": "04_home_visual_covers.png",
-      "label": "Home - Visual Covers"
+      "label": "Home - Lyra Extended"
     },
     {
       "name": "05_home_forkdrift.png",
-      "label": "Home - ForkDrift"
+      "label": "Home - Fork Drift"
     },
     {
       "name": "06_home_pokemon_party.png",
@@ -60,7 +60,7 @@
     },
     {
       "name": "15_sleep_custom.png",
-      "label": "Sleep - Custom Image"
+      "label": "Sleep - Custom"
     },
     {
       "name": "16_sleep_transparent.png",
@@ -86,11 +86,11 @@
     },
     "2": {
       "name": "04_home_visual_covers.png",
-      "label": "Home - Visual Covers"
+      "label": "Home - Lyra Extended"
     },
     "3": {
       "name": "05_home_forkdrift.png",
-      "label": "Home - ForkDrift"
+      "label": "Home - Fork Drift"
     },
     "4": {
       "name": "06_home_pokemon_party.png",

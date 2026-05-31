@@ -14,15 +14,17 @@ CrossPoint Reader supports customizable firmware builds, allowing you to include
 
 ## Quick Start
 
-### Using the Feature Picker (Easiest)
+### Using the ForkDrift Configurator (Easiest)
 
-1. Visit [Feature Picker](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/)
+1. Visit the [ForkDrift Configurator](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/)
 2. Select your desired features or choose a profile
 3. Click "Build on GitHub Actions"
 4. Wait ~5-10 minutes for the build to complete
 5. Download the firmware artifact and flash to your device
 
 ### Using Command Line (Local Builds)
+
+Run from `crosspoint-reader/` (or use `./build-firmware.sh <profile>` from the ForkDrift monorepo root):
 
 ```bash
 # Generate configuration for standard profile
@@ -35,13 +37,32 @@ uv run pio run -e custom
 uv run pio run -e custom --target upload
 ```
 
+### Local Configurator Development
+
+To edit or test the web UI locally:
+
+```bash
+cd crosspoint-reader/docs/configurator
+npm install   # first time only
+npm run dev
+```
+
+| URL | Use |
+|-----|-----|
+| http://localhost:3000/configurator/ | Normal local browser |
+| http://\<LAN-IP\>:3000/configurator/ | Cursor embedded browser (if `localhost` fails) |
+
+See [configurator/README.md](configurator/README.md) for schema regeneration, screen-preview workflow, and npm scripts.
+
 ## Feature Reference
+
+Run `uv run python scripts/generate_build_config.py --list-features` for the complete CLI key list. Profile defaults below reflect `scripts/generate_build_config.py` as of 2026-05.
 
 ### Bookerly Fonts
 
 **Flag:** `ENABLE_BOOKERLY_FONTS`  
-**Size Impact:** ~803KB  
-**Default:** Enabled in `standard` and `full`
+**Size Impact:** ~1055KB  
+**Default:** Enabled in `standard`; disabled in `full` (full uses CrossInk font packs instead)
 
 Adds the larger Bookerly reading sizes.
 
@@ -86,9 +107,9 @@ Adds the larger Noto Sans reading sizes.
 ### OpenDyslexic Font Pack
 
 **Flag:** `ENABLE_OPENDYSLEXIC_FONTS`
-**Size Impact:** ~2.6MB
+**Size Impact:** ~804KB
 **Default:** Disabled
-**Depends on:** compile guard accepts `ENABLE_BOOKERLY_FONTS` or `ENABLE_NOTOSANS_FONTS`; the current generator metadata for generated custom profiles treats both parent packs as required
+**Depends on:** at least one full-charset font pack (`bookerly_fonts`, `notosans_fonts`, `lexenddeca_fonts`, `bitter_fonts`, or `chareink_fonts`); the generator auto-enables a qualifying parent when needed
 
 Adds OpenDyslexic 8pt, 10pt, 12pt, and 14pt fonts.
 
@@ -145,7 +166,7 @@ Controls inline image rendering inside EPUB and Markdown books.
 ### Markdown/Obsidian
 
 **Flag:** `ENABLE_MARKDOWN`
-**Size Impact:** ~176KB
+**Size Impact:** ~191KB
 **Default:** Disabled in `standard`, enabled in `full`
 
 Full Markdown rendering with Obsidian vault compatibility.
@@ -190,20 +211,35 @@ Syncs reading progress with KOReader-compatible metadata.
 
 ---
 
-### Calibre Sync
+### OPDS Support (Calibre wireless libraries)
 
 **Flag:** `ENABLE_CALIBRE_SYNC`
-**Size Impact:** ~17KB
+**CLI key:** `calibre_sync`
+**Size Impact:** ~0KB
 **Default:** Disabled
 **Depends on:** `ENABLE_INTEGRATIONS`
 
-Syncs metadata and reading progress with Calibre.
+OPDS catalog browser for Calibre wireless libraries and other OPDS servers.
 
 **When disabled:**
-- Calibre sync actions are unavailable
+- OPDS catalog browsing is unavailable
 - Core reader behavior is unchanged
 
-**Use case:** Enable only if you use Calibre integration.
+**Use case:** Enable when you browse Calibre or other OPDS libraries from the device.
+
+---
+
+### OPDS (BookLore)
+
+**Flag:** `ENABLE_OPDS`
+**CLI key:** `opds`
+**Size Impact:** ~0KB
+**Default:** Disabled
+**Depends on:** `ENABLE_CALIBRE_SYNC` (which requires `ENABLE_INTEGRATIONS`)
+
+BookLore server integration for OPDS browsing and downloads.
+
+**Use case:** Enable when you use BookLore alongside the OPDS catalog browser.
 
 ---
 
@@ -320,8 +356,8 @@ Adds the NTP-backed Roman numeral clock label used by the home header and status
 ### Roman Clock Sleep Screen
 
 **Flag:** `ENABLE_ROMAN_CLOCK_SLEEP`
-**Size Impact:** ~3KB
-**Default:** Disabled
+**Size Impact:** ~1KB
+**Default:** Enabled in `standard` and `full`
 **Depends on:** `ENABLE_WIFI_CLOCK`
 
 Adds a dedicated sleep-screen mode that renders the existing WiFi clock as large block Roman numerals.
@@ -335,6 +371,20 @@ Adds a dedicated sleep-screen mode that renders the existing WiFi clock as large
 - WiFi Clock still works in the header/status bar if enabled
 
 **Use case:** Enable when you want the sleep screen itself to act as a minimalist Roman numeral clock.
+
+---
+
+### Haiku Clock Sleep Screen
+
+**Flag:** `ENABLE_HAIKU_CLOCK`
+**CLI key:** `haiku_clock_sleep`
+**Size Impact:** ~23KB
+**Default:** Enabled in `standard` and `full`
+**Depends on:** `ENABLE_WIFI_CLOCK`
+
+Quarter-hourly sleep screen that shows syllable-accurate, time-mentioning haikus on e-ink.
+
+**Use case:** Enable for a literary alternative to the Roman numeral sleep clock.
 
 ---
 
@@ -442,7 +492,7 @@ with reading progress driving level and evolution state.
 
 ### Lean Profile
 
-**Size:** ~1.7MB
+**Size:** ~2.4MB (generator estimate; all optional flags off)
 
 ```bash
 uv run python scripts/generate_build_config.py --profile lean
@@ -459,7 +509,7 @@ uv run python scripts/generate_build_config.py --profile lean
 
 ### Standard Profile (Recommended)
 
-**Size:** ~5.0MB
+**Size:** ~5.6MB
 
 ```bash
 uv run python scripts/generate_build_config.py --profile standard
@@ -469,10 +519,19 @@ uv run python scripts/generate_build_config.py --profile standard
 - ✓ Bookerly Fonts
 - ✓ Noto Sans Fonts
 - ✓ PNG/JPEG Sleep
+- ✓ Book Images
+- ✓ EPUB Support
+- ✓ Hyphenation
+- ✓ XTC Support
+- ✓ Lyra Theme
+- ✓ Minimal Theme
+- ✓ OTA Updates
+- ✓ Reading Stats
 - ✗ Markdown/Obsidian
 - ✗ Integrations Base
 - ✗ KOReader Sync
-- ✗ Calibre Sync
+- ✗ OPDS Support
+- ✗ OPDS (BookLore)
 - ✓ Background Server
 - ✓ Background Server On Charge
 - ✗ Background Server Always
@@ -484,6 +543,9 @@ uv run python scripts/generate_build_config.py --profile standard
 - ✓ User Fonts
 - ✓ USB Mass Storage
 - ✓ Dark Mode
+- ✓ WiFi Clock
+- ✓ Roman Clock Sleep Screen
+- ✓ Haiku Clock Sleep Screen
 - ✗ Wallpaper Converter
 - ✗ Pokemon Wallpaper Plugin
 - ✗ Pokemon Party
@@ -497,23 +559,36 @@ uv run python scripts/generate_build_config.py --profile standard
 
 ### Full Profile
 
-**Size:** ~5.9MB (feature-rich build, still within the 6MB app slot)
+**Size:** ~5.6MB (CrossInk font packs instead of Bookerly/Noto; still within the 6MB app slot)
 
 ```bash
 uv run python scripts/generate_build_config.py --profile full
 ```
 
 **Features:**
-- ✓ Bookerly Fonts
-- ✓ Noto Sans Fonts
+- ✗ Bookerly Fonts
+- ✗ Noto Sans Fonts
+- ✓ Lexend Deca Fonts
+- ✓ Chare Ink Fonts
 - ✗ OpenDyslexic Font Pack
 - ✓ PNG/JPEG Sleep
+- ✓ Book Images
 - ✓ Markdown/Obsidian
 - ✓ Integrations Base
 - ✓ KOReader Sync
-- ✓ Calibre Sync
+- ✓ OPDS Support
+- ✓ OPDS (BookLore)
+- ✓ EPUB Support
+- ✓ Hyphenation
+- ✓ XTC Support
+- ✓ Lyra Theme
+- ✓ Minimal Theme
+- ✓ OTA Updates
 - ✓ Todo Planner
 - ✓ Anki Support
+- ✓ Reading Stats
+- ✓ Focus Reading
+- ✓ Guide Dots
 - ✓ Background Server
 - ✓ Background Server On Charge
 - ✓ Background Server Always
@@ -523,9 +598,12 @@ uv run python scripts/generate_build_config.py --profile full
 - ✓ Visual Covers
 - ✓ User Fonts
 - ✓ Web WiFi Setup
+- ✓ BLE WiFi Provisioning
 - ✓ USB Mass Storage
 - ✓ Dark Mode
-- ✗ BLE WiFi Provisioning
+- ✓ WiFi Clock
+- ✓ Roman Clock Sleep Screen
+- ✓ Haiku Clock Sleep Screen
 - ✓ Wallpaper Converter
 - ✓ Pokemon Wallpaper Plugin
 - ✓ Pokemon Party
@@ -533,11 +611,19 @@ uv run python scripts/generate_build_config.py --profile full
 **Best for:**
 - Users who want most built-in features
 - Devices with adequate flash space remaining
-- Power users who use Markdown/Obsidian
+- Power users who use Markdown/Obsidian and CrossInk reading fonts
 
 ---
 
 ## Local Build Instructions
+
+From the ForkDrift monorepo root you can build predefined profiles without changing directory:
+
+```bash
+./build-firmware.sh standard
+```
+
+See [BUILD.md](../../BUILD.md) for the full wrapper reference (clean, flash, `all` profiles).
 
 ### Prerequisites
 
@@ -582,7 +668,7 @@ uv run python scripts/generate_build_config.py --enable koreader_sync
 uv run python scripts/generate_build_config.py --list-features
 ```
 
-**Profile naming behavior:** `--profile <name>` starts from that preset; adding `--enable` or `--disable` writes a generated `<profile>+overrides` custom profile to `platformio-custom.ini`. If you only pass feature toggles, the generated profile is `custom`. In the current generator, enabling `opendyslexic_fonts` in a generated custom profile also resolves both `bookerly_fonts` and `notosans_fonts`.
+**Profile naming behavior:** `--profile <name>` starts from that preset; adding `--enable` or `--disable` writes a generated `<profile>+overrides` custom profile to `platformio-custom.ini`. If you only pass feature toggles, the generated profile is `custom`. Enabling `opendyslexic_fonts` auto-enables at least one qualifying parent font pack (`bookerly_fonts`, `notosans_fonts`, `lexenddeca_fonts`, `bitter_fonts`, or `chareink_fonts`).
 
 ### Build and Flash
 
@@ -602,8 +688,8 @@ uv run pio run -e custom --target upload --target monitor
 After building, check the firmware size:
 
 ```bash
-# On Linux/macOS
-ls -lh .pio/build/custom/firmware.bin
+# Intermediate build output (platformio.local.ini build_dir)
+ls -lh ~/.cache/crosspoint-pio-build/custom/firmware.bin
 
 # Or use PlatformIO
 uv run pio run -e custom -t size
@@ -615,9 +701,9 @@ uv run pio run -e custom -t size
 
 GitHub Actions provides cloud-based builds without requiring local build tools.
 
-### Using the Feature Picker
+### Using the ForkDrift Configurator
 
-1. Go to [Feature Picker](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/)
+1. Go to the [ForkDrift Configurator](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/)
 2. Configure your features
 3. Click "Build on GitHub Actions"
 4. Sign in to GitHub if prompted
@@ -625,7 +711,7 @@ GitHub Actions provides cloud-based builds without requiring local build tools.
 6. Wait for the build (typically 5-10 minutes)
 7. Download the artifact from the Actions page
 
-> **Note on the Fork:** The web configurator and automated builds are primarily supported on the `fork-drift` branch of this fork. For more details on our branch management and relationship with upstream, see [docs/fork-strategy.md](fork-strategy.md).
+> **Note on the Fork:** The web configurator and automated builds are primarily supported on the `fork-drift` branch of this fork. For more details on our branch management and relationship with upstream, see [fork-strategy.md](fork-strategy.md).
 
 ### Manual Workflow Trigger
 
@@ -662,18 +748,18 @@ The ESP32-C3 in the Xteink X4 has:
 
 | Build Type | Size | Flash Usage | Books Space |
 |------------|------|-------------|-------------|
-| Lean | ~1.7MB | 27% | Maximum |
-| Standard | ~5.0MB | 78% | Good |
-| Full | ~5.9MB | 92% | Tight |
+| Lean | ~2.4MB | 38% | Maximum |
+| Standard | ~5.6MB | 87% | Good |
+| Full | ~5.6MB | 87% | Good |
 
-*Note: Full build currently fits, but leaves very little headroom. Test before deploying.
+*Note: Standard and full profiles currently estimate to similar sizes because full swaps Bookerly/Noto for CrossInk fonts while adding Markdown, integrations, and plugins. Verify on hardware before deploying.
 
 ### Tips for Managing Flash Space
 
 1. **Start with Standard profile** - best balance for most users
 2. **Disable unused features** - save space for more books
 3. **Use BMP sleep images** - if you don't need PNG/JPEG
-4. **Skip OpenDyslexic first** - it is the largest single optional font pack at ~2.6MB
+4. **Skip optional font packs first** - OpenDyslexic (~804KB), Lexend Deca (~824KB), Chare Ink (~1029KB), and Bitter (~1177KB) are the largest single optional packs
 5. **Monitor OTA updates** - custom builds may be larger than default
 
 ---
@@ -813,8 +899,10 @@ To add a new optional feature:
 ## Related Documentation
 
 - [README.md](../README.md) - Main project documentation
+- [BUILD.md](../../BUILD.md) - Monorepo build wrapper and PlatformIO commands
+- [configurator/README.md](configurator/README.md) - Local configurator dev, schema, and screen previews
 - [USER_GUIDE.md](../USER_GUIDE.md) - User guide for operating CrossPoint
-- [Feature Picker](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/) - Web-based configuration tool
+- [ForkDrift Configurator](https://unintendedsideeffects.github.io/ForkDrift-crosspointReader/configurator/) - Web-based configuration tool
 
 ---
 
@@ -856,4 +944,4 @@ The catalog JSON is stored at `docs/ota/feature-store-catalog.json` in the repos
 
 ---
 
-**Last Updated:** 2026-03-24
+**Last Updated:** 2026-05-29
