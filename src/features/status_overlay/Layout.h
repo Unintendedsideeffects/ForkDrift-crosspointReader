@@ -21,9 +21,10 @@ constexpr int kStatusIconGap = 4;
 // system include chain.
 int barHeight();
 int padH();
-int textTop(const GfxRenderer& renderer);  // top offset that vertically centres SMALL_FONT text in the band
+int textTop(const GfxRenderer& renderer);
+int itemY(int barY, int barH, int itemH);
 
-inline bool isEnabled() { return ENABLE_GLOBAL_STATUS_BAR && SETTINGS.isGlobalStatusBarEnabled(); }
+inline bool isEnabled() { return ENABLE_GLOBAL_STATUS_BAR != 0; }
 
 inline bool preventsAutoSleep() { return SETTINGS.globalStatusBarPreventsAutoSleep(); }
 

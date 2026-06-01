@@ -186,6 +186,8 @@ void LyraCarouselTheme::setPreRenderIndex(int idx) {
   }
 }
 
+void LyraCarouselTheme::prepareCarouselFrame(int centerIdx) const { setPreRenderIndex(centerIdx); }
+
 void LyraCarouselTheme::drawCarouselBorder(GfxRenderer& renderer, Rect coverRect,
                                            const std::vector<RecentBook>& recentBooks, int centerIdx,
                                            bool inCarouselRow) const {
@@ -510,9 +512,10 @@ void LyraCarouselTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int but
   }
 }
 
-void LyraCarouselTheme::drawButtonMenuSelectionOverlay(const GfxRenderer& renderer, int buttonCount, int selectedIndex,
-                                                       const std::function<std::string(int index)>& buttonLabel,
-                                                       const std::function<UIIcon(int index)>& rowIcon) const {
+void LyraCarouselTheme::drawCarouselMenuSelectionOverlay(const GfxRenderer& renderer, int buttonCount,
+                                                         int selectedIndex,
+                                                         const std::function<std::string(int index)>& buttonLabel,
+                                                         const std::function<UIIcon(int index)>& rowIcon) const {
   if (buttonCount <= 0 || selectedIndex < 0 || selectedIndex >= buttonCount) return;
 
   const MenuLayoutMetrics metrics = computeMenuLayout(renderer, buttonCount);

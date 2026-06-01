@@ -53,7 +53,7 @@ void drawSyncIcon(const GfxRenderer& renderer, const int x, const int y) {
 }
 
 void drawStatusOverlay(const GfxRenderer& renderer) {
-  if (!isEnabled() || !activityManager.showsGlobalStatusBar()) {
+  if (!activityManager.showsGlobalStatusBar()) {
     return;
   }
 
@@ -82,7 +82,7 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
       metrics.batteryWidth +
       (showBatteryPercentage ? renderer.getTextWidth(SMALL_FONT_ID, "100%") + BaseTheme::batteryPercentSpacing : 0);
   int textRightLimit = screenW - padHPx - batteryGroupWidth;
-  const int iconY = barY + (barH - kStatusIconSize) / 2;
+  const int iconY = itemY(barY, barH, kStatusIconSize);
   if (isWifiConnected) {
     textRightLimit -= kStatusIconSize;
   }
@@ -90,23 +90,35 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
     textRightLimit -= isWifiConnected ? kStatusIconGap + kStatusIconSize : kStatusIconSize;
   }
   const int leftTextX = padHPx;
+  int contentLeft = leftTextX;
 
-  // Reading context: the reader publishes here instead of drawing a second bar.
-  // When a reader page is shown the band prioritises book info (progress + title)
-  // over clock/IP to keep one uncluttered bar.
   const ReaderContext& rc = ReaderContext::get();
+
+#if ENABLE_BOOKMARKS
+  if (rc.active && rc.pageBookmarked) {
+    constexpr int BM_WIDTH = 9;
+    constexpr int BM_HEIGHT = 14;
+    constexpr int BM_NOTCH_DEPTH = 4;
+    const int bmX = leftTextX;
+    const int bmY = itemY(barY, barH, BM_HEIGHT);
+    const int xPts[5] = {bmX, bmX + BM_WIDTH - 1, bmX + BM_WIDTH - 1, bmX + BM_WIDTH / 2, bmX};
+    const int yPts[5] = {bmY, bmY, bmY + BM_HEIGHT - 1, bmY + BM_HEIGHT - 1 - BM_NOTCH_DEPTH, bmY + BM_HEIGHT - 1};
+    renderer.fillPolygon(xPts, yPts, 5, true);
+    contentLeft = bmX + BM_WIDTH + kStatusIconGap;
+  }
+#endif
 
   if (rc.active) {
     int progressW = 0;
     if (rc.progress[0] != '\0') {
       progressW = renderer.getTextWidth(SMALL_FONT_ID, rc.progress);
-      if (leftTextX + progressW < textRightLimit) {
-        renderer.drawText(SMALL_FONT_ID, leftTextX, textY, rc.progress, true);
+      if (contentLeft + progressW < textRightLimit) {
+        renderer.drawText(SMALL_FONT_ID, contentLeft, textY, rc.progress, true);
       }
     }
 
     if (rc.title[0] != '\0') {
-      const int titleLeft = leftTextX + (progressW > 0 ? progressW + kTextGap : 0);
+      const int titleLeft = contentLeft + (progressW > 0 ? progressW + kTextGap : 0);
       const int titleSpace = textRightLimit - kTextGap - titleLeft;
       if (titleSpace > 0) {
         std::string fitted = renderer.truncatedText(SMALL_FONT_ID, rc.title, titleSpace);
@@ -151,7 +163,7 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
   }
 
   const int batteryX = screenW - padHPx - metrics.batteryWidth;
-  const int batteryY = barY + (barH - metrics.batteryHeight) / 2;
+  const int batteryY = itemY(barY, barH, metrics.batteryHeight);
   GUI.drawBatteryRight(renderer, Rect{batteryX, batteryY, metrics.batteryWidth, metrics.batteryHeight},
                        showBatteryPercentage);
 
@@ -191,12 +203,22 @@ int textTop(const GfxRenderer& renderer) {
   return h > textH ? (h - textH) / 2 : 0;
 }
 
+int itemY(const int barY, const int barH, const int itemH) { return barY + (barH > itemH ? (barH - itemH) / 2 : 0); }
+
 int topInset() {
-  return isEnabled() && SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_TOP ? barHeight() : 0;
+#if ENABLE_GLOBAL_STATUS_BAR
+  return SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_TOP ? barHeight() : 0;
+#else
+  return 0;
+#endif
 }
 
 int bottomInset() {
-  return isEnabled() && SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM ? barHeight() : 0;
+#if ENABLE_GLOBAL_STATUS_BAR
+  return SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM ? barHeight() : 0;
+#else
+  return 0;
+#endif
 }
 
 void registerFeature() {

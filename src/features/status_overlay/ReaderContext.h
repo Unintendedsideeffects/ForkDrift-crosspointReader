@@ -8,16 +8,18 @@ namespace features::status_overlay {
 // can draw into it. Readers therefore publish here instead of drawing their own
 // second bar. Fixed buffers — no per-page heap churn (CLAUDE.md String Policy).
 struct ReaderContext {
-  bool active = false;             // a reader page is currently shown
-  char progress[28] = "";          // e.g. "123/456  78%" — empty hides it
-  char title[160] = "";            // resolved chapter/book title — empty hides it
-  int progressBarPercent = -1;     // 0..100 draws the progress edge; <0 hides it
-  int progressBarThicknessPx = 2;  // progress edge thickness in pixels
+  bool active = false;
+  bool pageBookmarked = false;
+  char progress[28] = "";
+  char title[160] = "";
+  int progressBarPercent = -1;
+  int progressBarThicknessPx = 2;
 
   static ReaderContext& get();
 
   void clear() {
     active = false;
+    pageBookmarked = false;
     progress[0] = '\0';
     title[0] = '\0';
     progressBarPercent = -1;

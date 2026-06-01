@@ -8,6 +8,7 @@
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
+#include "features/status_overlay/Layout.h"
 #include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
 
@@ -170,12 +171,11 @@ void StatusBarSettingsActivity::render(RenderLock&&) {
     title = tr(STR_EXAMPLE_CHAPTER);
   }
 
-  GUI.drawStatusBar(renderer, 75, 8, 32, title, verticalPreviewPadding, 0, false);
+  GUI.drawStatusBar(renderer, 75, 8, 32, title, false);
 
+  const int previewBand = features::status_overlay::bottomInset() + features::status_overlay::topInset();
   renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding,
-                    renderer.getScreenHeight() - UITheme::getInstance().getStatusBarHeight() - verticalPreviewPadding -
-                        verticalPreviewTextPadding,
-                    tr(STR_PREVIEW));
+                    renderer.getScreenHeight() - previewBand - verticalPreviewTextPadding, tr(STR_PREVIEW));
 
   renderer.displayBuffer();
 }

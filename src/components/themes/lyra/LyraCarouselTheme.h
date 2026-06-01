@@ -27,6 +27,16 @@ constexpr ThemeMetrics values = {.batteryWidth = 16,
                                  .homeRecentBooksCount = 3,
                                  .homeContinueReadingInMenu = false,
                                  .homeMenuTopOffset = 16,
+                                 .homeNavigationMode = HomeNavigationMode::CarouselUnified,
+                                 .homeCoverGridColumns = 1,
+                                 .homeCoverGridRows = 1,
+                                 .homeUsesCarouselCache = true,
+                                 .homeUsesDualSizeCoverThumbs = true,
+                                 .homeCoverThumbCenterW = 340,
+                                 .homeCoverThumbCenterH = 540,
+                                 .homeCoverThumbSideW = 200,
+                                 .homeCoverThumbSideH = 390,
+                                 .homeStartInMenuWhenEmpty = false,
                                  .buttonHintsHeight = 40,
                                  .sideButtonHintsWidth = 30,
                                  .progressBarHeight = 16,
@@ -55,6 +65,7 @@ class LyraCarouselTheme : public LyraTheme {
   static constexpr int kSideCoverH = LyraCarouselMetrics::values.homeCoverHeight - 210;  // 390
 
   static void setPreRenderIndex(int idx);
+  void prepareCarouselFrame(int centerIdx) const override;
   void drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                            int selectorIndex, bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
                            const std::function<bool()>& storeCoverBuffer, float progressPercent = -1.0f) const override;
@@ -62,13 +73,13 @@ class LyraCarouselTheme : public LyraTheme {
                       const std::function<std::string(int index)>& buttonLabel,
                       const std::function<UIIcon(int index)>& rowIcon) const override;
   // Partial-update overlay for icon row without re-rendering the cover strip.
-  void drawButtonMenuSelectionOverlay(const GfxRenderer& renderer, int buttonCount, int selectedIndex,
-                                      const std::function<std::string(int index)>& buttonLabel,
-                                      const std::function<UIIcon(int index)>& rowIcon) const;
+  void drawCarouselMenuSelectionOverlay(const GfxRenderer& renderer, int buttonCount, int selectedIndex,
+                                        const std::function<std::string(int index)>& buttonLabel,
+                                        const std::function<UIIcon(int index)>& rowIcon) const override;
   void drawCarouselBorder(GfxRenderer& renderer, Rect coverRect, const std::vector<RecentBook>& recentBooks,
                           int centerIdx, bool inCarouselRow) const override;
   void drawCarouselProgressOverlay(GfxRenderer& renderer, Rect coverRect, const std::vector<RecentBook>& recentBooks,
-                                   int centerIdx, float progressPercent) const;
+                                   int centerIdx, float progressPercent) const override;
   void drawList(const GfxRenderer& renderer, Rect rect, int itemCount, int selectedIndex,
                 const std::function<std::string(int index)>& rowTitle,
                 const std::function<std::string(int index)>& rowSubtitle = {},

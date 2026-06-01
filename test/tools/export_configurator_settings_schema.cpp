@@ -25,10 +25,15 @@ uint8_t mapVisibleWhenValue(const std::vector<SettingInfo>& settings, const Sett
   if (controller == nullptr || controller->enumPersistedValues.empty()) {
     return visibleWhen.eq;
   }
-  if (visibleWhen.eq >= controller->enumPersistedValues.size()) {
-    return visibleWhen.eq;
+  for (const uint8_t persisted : controller->enumPersistedValues) {
+    if (persisted == visibleWhen.eq) {
+      return visibleWhen.eq;
+    }
   }
-  return controller->enumPersistedValues[visibleWhen.eq];
+  if (visibleWhen.eq < controller->enumPersistedValues.size()) {
+    return controller->enumPersistedValues[visibleWhen.eq];
+  }
+  return visibleWhen.eq;
 }
 
 const char* settingTypeName(const SettingType type) {
@@ -133,8 +138,7 @@ void appendSchemaSetting(JsonArray out, const std::vector<SettingInfo>& settings
       } else {
         item["default"] = "";
       }
-      item["maxLength"] =
-          std::string(setting.key) == "deviceName" ? 24 : static_cast<int>(setting.stringMaxLen);
+      item["maxLength"] = std::string(setting.key) == "deviceName" ? 24 : static_cast<int>(setting.stringMaxLen);
       break;
     }
     default:

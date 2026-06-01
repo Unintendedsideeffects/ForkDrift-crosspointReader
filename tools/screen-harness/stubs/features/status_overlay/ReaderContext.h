@@ -4,6 +4,7 @@ namespace features::status_overlay {
 
 struct ReaderContext {
   bool active = false;
+  bool pageBookmarked = false;
   char progress[28] = "";
   char title[160] = "";
   int progressBarPercent = -1;
@@ -16,6 +17,7 @@ struct ReaderContext {
 
   void clear() {
     active = false;
+    pageBookmarked = false;
     progress[0] = '\0';
     title[0] = '\0';
     progressBarPercent = -1;

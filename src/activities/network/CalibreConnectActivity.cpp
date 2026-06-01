@@ -236,7 +236,7 @@ void CalibreConnectActivity::renderServerRunning() const {
     renderer.drawCenteredText(SMALL_FONT_ID, y, label.c_str());
     constexpr int barWidth = 300;
     constexpr int barHeight = 16;
-    constexpr int barX = (480 - barWidth) / 2;
+    const int barX = (renderer.getScreenWidth() - barWidth) / 2;
     GUI.drawProgressBar(renderer, Rect{barX, y + 22, barWidth, barHeight}, lastProgressReceived, lastProgressTotal);
     y += 40;
   }

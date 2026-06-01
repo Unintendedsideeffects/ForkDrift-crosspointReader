@@ -568,7 +568,7 @@ void CrossPointWebServerActivity::renderCalibreUI() const {
     renderer.drawCenteredText(SMALL_FONT_ID, y, label.c_str());
     constexpr int barWidth = 300;
     constexpr int barHeight = 16;
-    constexpr int barX = (480 - barWidth) / 2;
+    const int barX = (renderer.getScreenWidth() - barWidth) / 2;
     ScreenComponents::drawProgressBar(renderer, barX, y + 22, barWidth, barHeight, lastProgressReceived,
                                       lastProgressTotal);
     y += 40;
@@ -608,7 +608,7 @@ void CrossPointWebServerActivity::renderFileTransferUI() const {
     renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 3, tr(STR_SCAN_QR_WIFI_HINT));
     // Show QR code for URL
     const std::string wifiConfig = std::string("WIFI:S:") + connectedSSID + ";;";
-    drawQRCode(renderer, (480 - 6 * 33) / 2, startY + LINE_SPACING * 4, wifiConfig);
+    drawQRCode(renderer, (renderer.getScreenWidth() - 6 * 33) / 2, startY + LINE_SPACING * 4, wifiConfig);
 
     startY += 6 * 29 + 3 * LINE_SPACING;
     // Show primary URL (hostname)
@@ -624,7 +624,7 @@ void CrossPointWebServerActivity::renderFileTransferUI() const {
 
     // Show QR code for URL
     renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 6, tr(STR_SCAN_QR_HINT));
-    drawQRCode(renderer, (480 - 6 * 33) / 2, startY + LINE_SPACING * 7, hostnameUrl);
+    drawQRCode(renderer, (renderer.getScreenWidth() - 6 * 33) / 2, startY + LINE_SPACING * 7, hostnameUrl);
   } else {
     // STA mode display
     const int startY = 65;
@@ -651,7 +651,7 @@ void CrossPointWebServerActivity::renderFileTransferUI() const {
     renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 4, tr(STR_OPEN_URL_HINT));
 
     // Show QR code for URL
-    drawQRCode(renderer, (480 - 6 * 33) / 2, startY + LINE_SPACING * 6, webInfo);
+    drawQRCode(renderer, (renderer.getScreenWidth() - 6 * 33) / 2, startY + LINE_SPACING * 6, webInfo);
     renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 5, tr(STR_SCAN_QR_HINT));
   }
 

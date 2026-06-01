@@ -612,9 +612,9 @@
       document.getElementById('save-container').style.display = '';
       document.getElementById('saveBtn').disabled = true;
 
-      // Show sleep cover picker when CUSTOM sleep mode is active (display index 3)
+      // Show sleep cover picker when CUSTOM sleep mode is active.
       const sleepScreenEl = document.getElementById('setting-sleepScreen');
-      if (sleepScreenEl && parseInt(sleepScreenEl.value, 10) === 3) {
+      if (sleepScreenEl && parseInt(sleepScreenEl.value, 10) === 2) {
         initSleepCoverPicker();
       }
     } catch (e) {
@@ -859,7 +859,7 @@
 
   function onSleepScreenChange() {
     var el = document.getElementById('setting-sleepScreen');
-    if (el && parseInt(el.value, 10) === 3) {
+    if (el && parseInt(el.value, 10) === 2) {
       initSleepCoverPicker();
     } else {
       hideSleepCoverPicker();

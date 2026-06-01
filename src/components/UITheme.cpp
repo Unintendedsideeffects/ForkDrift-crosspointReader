@@ -175,30 +175,29 @@ UIIcon UITheme::getFileIcon(const std::string& filename) {
 }
 
 int UITheme::getStatusBarHeight() {
-  // When the global status bar is enabled it is the single status-bar entity and
-  // its band is reserved separately via status_overlay::topInset()/bottomInset().
-  // The reader's own bottom bar is not drawn, so it must not reserve space too.
-  if (features::status_overlay::isEnabled()) {
-    return 0;
-  }
-
+#if ENABLE_GLOBAL_STATUS_BAR
+  return 0;
+#else
   const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();
-
-  // Add status bar margin
   const bool showStatusBar = SETTINGS.statusBarChapterPageCount || SETTINGS.statusBarBookProgressPercentage ||
                              SETTINGS.statusBarTitle != CrossPointSettings::STATUS_BAR_TITLE::HIDE_TITLE ||
                              SETTINGS.statusBarBattery;
   const bool showProgressBar =
       SETTINGS.statusBarProgressBar != CrossPointSettings::STATUS_BAR_PROGRESS_BAR::HIDE_PROGRESS;
-  return (showStatusBar ? (metrics.statusBarVerticalMargin) : 0) +
+  return (showStatusBar ? metrics.statusBarVerticalMargin : 0) +
          (showProgressBar ? (((SETTINGS.statusBarProgressBarThickness + 1) * 2) + metrics.progressBarMarginTop) : 0);
+#endif
 }
 
 int UITheme::getProgressBarHeight() {
+#if ENABLE_GLOBAL_STATUS_BAR
+  return 0;
+#else
   const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();
   const bool showProgressBar =
       SETTINGS.statusBarProgressBar != CrossPointSettings::STATUS_BAR_PROGRESS_BAR::HIDE_PROGRESS;
-  return (showProgressBar ? (((SETTINGS.statusBarProgressBarThickness + 1) * 2) + metrics.progressBarMarginTop) : 0);
+  return showProgressBar ? (((SETTINGS.statusBarProgressBarThickness + 1) * 2) + metrics.progressBarMarginTop) : 0;
+#endif
 }
 
 // Centered text implementation that takes the safe area into account

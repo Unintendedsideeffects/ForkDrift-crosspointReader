@@ -30,6 +30,7 @@
 #include "SpiBusMutex.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "network/BackgroundWifiService.h"
 #include "util/DateUtils.h"
@@ -54,20 +55,25 @@ void hideOverlayBatteryStrip(GfxRenderer& renderer) {
     return;
   }
 
-  const int textY = renderer.getScreenHeight() - statusBarHeight - orientedMarginBottom - 4;
+  const int progressBarBand =
+      SETTINGS.statusBarProgressBar != CrossPointSettings::STATUS_BAR_PROGRESS_BAR::HIDE_PROGRESS
+          ? ((SETTINGS.statusBarProgressBarThickness + 1) * 2) + metrics.progressBarMarginTop
+          : 0;
+  const int textBandH = metrics.statusBarVerticalMargin;
+  const int textBandY = renderer.getScreenHeight() - orientedMarginBottom - progressBarBand - textBandH;
+  const int padHPx = features::status_overlay::padH();
+  const int textY = textBandY + features::status_overlay::textTop(renderer);
   const bool showBatteryPercentage =
       SETTINGS.hideBatteryPercentage == CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_NEVER;
 
-  // Reserve the full left-side status indicator lane used by bookmark + battery.
-  // This keeps chapter/progress text readable while removing the battery glance target.
-  static constexpr int bookmarkReserveWidth = 13;  // bookmark width + gap from BaseTheme::drawStatusBar()
-  static constexpr int batteryPercentSpacing = 4;  // matches BaseTheme::batteryPercentSpacing
+  static constexpr int bookmarkReserveWidth = 13;
+  static constexpr int batteryPercentSpacing = 4;
   const int clearWidth =
       bookmarkReserveWidth + metrics.batteryWidth +
       (showBatteryPercentage ? batteryPercentSpacing + renderer.getTextWidth(SMALL_FONT_ID, "100%") : 0);
-  const int clearHeight = std::max(renderer.getTextHeight(SMALL_FONT_ID), metrics.batteryHeight + 6);
+  const int clearHeight = std::max(renderer.getTextHeight(SMALL_FONT_ID), metrics.batteryHeight);
 
-  renderer.fillRect(metrics.statusBarHorizontalMargin + orientedMarginLeft + 1, textY, clearWidth, clearHeight, false);
+  renderer.fillRect(padHPx + orientedMarginLeft, textY, clearWidth, clearHeight, false);
 }
 
 // Supported image extensions for sleep images

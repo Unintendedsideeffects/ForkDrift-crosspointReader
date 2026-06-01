@@ -75,8 +75,7 @@ class HomeActivity final : public Activity {
   void onAnkiOpen();
 
   void freeCoverBuffer();  // Free the stored cover buffer
-  bool isCoverCacheValid(int coverHeight,
-                         bool isCarouselTheme) const;  // True if cached cover buffer matches current recent books
+  bool isCoverCacheValid(int coverHeight, bool usesDualSizeCoverThumbs) const;
   void freeCarouselFrames();
   bool allocateCarouselFrameSlots(int targetFrameCount);
   bool buildCarouselCacheFile(const std::string& cacheKey, uint64_t cacheKeyHash, int bookCount,

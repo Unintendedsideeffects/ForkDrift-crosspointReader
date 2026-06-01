@@ -435,20 +435,20 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                                    StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()
                      .withEnumOptionFeatureKeys({nullptr, "pokemon_party", "pokemon_party"})
-                     .withVisibleWhen("sleepScreen", 3));
+                     .withVisibleWhen("sleepScreen", CrossPointSettings::CUSTOM));
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_COVER_MODE, &CrossPointSettings::sleepScreenCoverMode,
                                    {StrId::STR_FIT, StrId::STR_CROP}, "sleepScreenCoverMode", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()
-                     .withVisibleWhen("sleepScreen", 3));
+                     .withVisibleWhen("sleepScreen", CrossPointSettings::CUSTOM));
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_COVER_FILTER, &CrossPointSettings::sleepScreenCoverFilter,
                                    {StrId::STR_NONE_OPT, StrId::STR_FILTER_CONTRAST, StrId::STR_INVERTED},
                                    "sleepScreenCoverFilter", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()
-                     .withVisibleWhen("sleepScreen", 3));
+                     .withVisibleWhen("sleepScreen", CrossPointSettings::CUSTOM));
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_CYCLE_MODE, &CrossPointSettings::sleepCycleMode,
                                    {StrId::STR_RANDOM, StrId::STR_SEQUENTIAL}, "sleepCycleMode", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()
-                     .withVisibleWhen("sleepScreen", 3));
+                     .withVisibleWhen("sleepScreen", CrossPointSettings::CUSTOM));
 #if ENABLE_HAIKU_CLOCK
   list.push_back(SettingInfo::Toggle(StrId::STR_HAIKU_CLOCK_LANDSCAPE, &CrossPointSettings::haikuClockLandscape,
                                      "haikuClockLandscape", StrId::STR_CAT_DISPLAY)

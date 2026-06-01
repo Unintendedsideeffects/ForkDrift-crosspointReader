@@ -23,6 +23,12 @@ struct TabInfo {
   bool selected;
 };
 
+enum class HomeNavigationMode : uint8_t {
+  CoverMenu,
+  CoverGridDualFocus,
+  CarouselUnified,
+};
+
 struct ThemeMetrics {
   int batteryWidth;
   int batteryHeight;
@@ -50,6 +56,16 @@ struct ThemeMetrics {
   int homeRecentBooksCount;
   bool homeContinueReadingInMenu;
   int homeMenuTopOffset;
+  HomeNavigationMode homeNavigationMode;
+  int homeCoverGridColumns;
+  int homeCoverGridRows;
+  bool homeUsesCarouselCache;
+  bool homeUsesDualSizeCoverThumbs;
+  int homeCoverThumbCenterW;
+  int homeCoverThumbCenterH;
+  int homeCoverThumbSideW;
+  int homeCoverThumbSideH;
+  bool homeStartInMenuWhenEmpty;
 
   int buttonHintsHeight;
   int sideButtonHintsWidth;
@@ -139,6 +155,16 @@ constexpr ThemeMetrics values = {.batteryWidth = 15,
                                  .homeRecentBooksCount = 1,
                                  .homeContinueReadingInMenu = false,
                                  .homeMenuTopOffset = 10,
+                                 .homeNavigationMode = HomeNavigationMode::CoverMenu,
+                                 .homeCoverGridColumns = 1,
+                                 .homeCoverGridRows = 1,
+                                 .homeUsesCarouselCache = false,
+                                 .homeUsesDualSizeCoverThumbs = false,
+                                 .homeCoverThumbCenterW = 0,
+                                 .homeCoverThumbCenterH = 0,
+                                 .homeCoverThumbSideW = 0,
+                                 .homeCoverThumbSideH = 0,
+                                 .homeStartInMenuWhenEmpty = false,
                                  .buttonHintsHeight = 40,
                                  .sideButtonHintsWidth = 30,
                                  .progressBarHeight = 16,
@@ -228,6 +254,13 @@ class BaseTheme {
   // No-op by default; LyraCarouselTheme overrides to draw the selection border without re-rendering the cover.
   virtual void drawCarouselBorder(GfxRenderer& renderer, Rect coverRect, const std::vector<RecentBook>& recentBooks,
                                   int centerIdx, bool inCarouselRow) const {}
+  virtual void prepareCarouselFrame(int centerIdx) const {}
+  virtual void drawCarouselMenuSelectionOverlay(const GfxRenderer& renderer, int buttonCount, int selectedIndex,
+                                                const std::function<std::string(int index)>& buttonLabel,
+                                                const std::function<UIIcon(int index)>& rowIcon) const {}
+  virtual void drawCarouselProgressOverlay(GfxRenderer& renderer, Rect coverRect,
+                                           const std::vector<RecentBook>& recentBooks, int centerIdx,
+                                           float progressPercent) const {}
   virtual Rect drawPopup(const GfxRenderer& renderer, const char* message) const;
   virtual void fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, const int progress) const;
   void drawStatusBar(GfxRenderer& renderer, const float bookProgress, const int currentPage, const int pageCount,

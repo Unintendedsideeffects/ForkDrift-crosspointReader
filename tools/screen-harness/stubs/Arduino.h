@@ -51,7 +51,9 @@ class String : public std::string {
   }
 };
 
-inline String operator+(const char* left, const String& right) { return String(left) + static_cast<const std::string&>(right); }
+inline String operator+(const char* left, const String& right) {
+  return String(left) + static_cast<const std::string&>(right);
+}
 
 class Print {
  public:
@@ -89,7 +91,13 @@ inline void pinMode(int /*pin*/, int /*mode*/) {}
 
 inline void digitalWrite(int /*pin*/, int /*value*/) {}
 
-inline int digitalRead(int /*pin*/) { return LOW; }
+inline int digitalRead(int /*pin*/) {
+#ifdef SCREEN_HARNESS_X3
+  return HIGH;
+#else
+  return LOW;
+#endif
+}
 
 class HardwareSerial {
  public:

@@ -1,10 +1,9 @@
-#include "doctest/doctest.h"
-
-#include "network/SleepCoverApi.h"
-#include "test/mock/HalStorage.h"
-
 #include <cstring>
 #include <string>
+
+#include "doctest/doctest.h"
+#include "network/SleepCoverApi.h"
+#include "test/mock/HalStorage.h"
 
 namespace {
 
@@ -49,6 +48,14 @@ TEST_CASE("sleep cover pin validates request and path existence") {
   auto invalidPath = network::handleSleepCoverPinRequest(true, "{\"path\":\"../bad\"}", pinnedPath, sizeof(pinnedPath),
                                                          nullptr, saveSettingsOk);
   CHECK(invalidPath.statusCode == 400);
+
+  auto protectedPath = network::handleSleepCoverPinRequest(true, "{\"path\":\"/.crosspoint/secret.bmp\"}", pinnedPath,
+                                                           sizeof(pinnedPath), nullptr, saveSettingsOk);
+  CHECK(protectedPath.statusCode == 403);
+
+  auto protectedBook = network::handleSleepCoverPinRequest(true, "{\"bookPath\":\"/.crosspoint/book.epub\"}",
+                                                           pinnedPath, sizeof(pinnedPath), nullptr, saveSettingsOk);
+  CHECK(protectedBook.statusCode == 403);
 
   auto missingFile = network::handleSleepCoverPinRequest(true, "{\"path\":\"/sleep/missing.bmp\"}", pinnedPath,
                                                          sizeof(pinnedPath), nullptr, saveSettingsOk);

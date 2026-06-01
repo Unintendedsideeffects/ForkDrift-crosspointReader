@@ -115,6 +115,10 @@ SleepCoverHttpResult handleSleepCoverPinRequest(const bool hasBody, const String
     }
 
     const String bookPath = PathUtils::normalizePath(rawBookPath);
+    if (PathUtils::pathContainsProtectedItem(bookPath)) {
+      return {403, "text/plain", "Cannot access protected items"};
+    }
+
     std::string coverPath;
     if (!resolveBookCoverPath || !resolveBookCoverPath(bookPath, coverPath) || coverPath.empty()) {
       return {404, "text/plain", "No cover available for this book"};
@@ -147,6 +151,10 @@ SleepCoverHttpResult handleSleepCoverPinRequest(const bool hasBody, const String
   }
 
   const String normalizedPath = PathUtils::normalizePath(rawPath);
+  if (PathUtils::pathContainsProtectedItem(normalizedPath)) {
+    return {403, "text/plain", "Cannot access protected items"};
+  }
+
   bool exists = false;
   {
     SpiBusMutex::Guard guard;

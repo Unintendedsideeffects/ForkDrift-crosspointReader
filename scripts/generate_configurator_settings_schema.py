@@ -58,6 +58,7 @@ EXCLUDED_PERSISTED_KEYS = {
     "frontButtonLayout",
     "frontButtonLeft",
     "frontButtonRight",
+    "globalStatusBar",
     "installedOtaBundle",
     "installedOtaFeatureFlags",
     "language",

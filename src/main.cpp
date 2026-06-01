@@ -427,9 +427,7 @@ void refreshGlobalStatusBarOnWifiChange() {
   }
 
   lastStaConnected = staConnected;
-  if (SETTINGS.isGlobalStatusBarEnabled()) {
-    activityManager.requestUpdate();
-  }
+  activityManager.requestUpdate();
 }
 
 #if ENABLE_WIFI_CLOCK

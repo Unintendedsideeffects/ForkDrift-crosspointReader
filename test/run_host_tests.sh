@@ -53,6 +53,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -I"$ROOT_DIR/src" \
   -I"$ARDUINOJSON_DIR" \
   "$ROOT_DIR/test/host/"*.cpp \
+  "$ROOT_DIR/src/network/BleCredentialParser.cpp" \
   "$ROOT_DIR/src/network/AssetReadApi.cpp" \
   "$ROOT_DIR/src/network/FileListApi.cpp" \
   "$ROOT_DIR/src/network/FileMutationApi.cpp" \

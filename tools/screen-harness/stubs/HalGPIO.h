@@ -34,8 +34,14 @@ class HalGPIO {
   bool wasAnyPressed() const { return false; }
   bool wasAnyReleased() const { return false; }
   unsigned long getHeldTime() const { return 0; }
-  bool deviceIsX3() const { return false; }
-  bool deviceIsX4() const { return true; }
+  bool deviceIsX3() const {
+#ifdef SCREEN_HARNESS_X3
+    return true;
+#else
+    return false;
+#endif
+  }
+  bool deviceIsX4() const { return !deviceIsX3(); }
   bool isUsbConnected() const { return false; }
   WakeupReason getWakeupReason() const { return WakeupReason::Other; }
 };

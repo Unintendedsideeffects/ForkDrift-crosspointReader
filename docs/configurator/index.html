@@ -6399,10 +6399,11 @@
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 5px 14px;
-      min-height: 18px;
-      font-size: 0.7em;
+      min-height: var(--status-bar-height, 24px);
+      padding: 0 var(--status-bar-pad-x, 8px);
+      font-size: 0.72em;
       font-weight: 700;
+      line-height: 1;
       border-bottom: 1px solid var(--accent);
     }
     .reader-global-bar.visible {
@@ -6419,7 +6420,7 @@
       display: flex;
       flex-direction: column;
       min-height: 0;
-      padding-bottom: 54px;
+      padding-bottom: var(--reader-body-pad-bottom, 54px);
     }
     .reader-copy {
       flex: 1;
@@ -6506,10 +6507,26 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 0 var(--reader-margin, 16px) 12px;
-      min-height: 34px;
+      min-height: var(--status-bar-height, 24px);
+      padding: 0 var(--status-bar-pad-x, 8px);
       font-size: 0.72em;
       font-weight: 700;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .reader-bar-left {
+      min-width: 40px;
+    }
+    .reader-bar-center {
+      flex: 1;
+      text-align: center;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .reader-bar-right {
+      min-width: 40px;
+      text-align: right;
     }
     .reader-battery {
       min-width: 40px;
@@ -6702,26 +6719,48 @@
         '</div>' +
       '</div>';
     }
+    function renderStatusBarItems(left, center, right) {
+      return '<span class="reader-bar-left">' + escapeHtml(left || '') + '</span>' +
+        '<span class="reader-bar-center">' + escapeHtml(center || '') + '</span>' +
+        '<span class="reader-bar-right">' + escapeHtml(right || '') + '</span>';
+    }
+    function renderGlobalBar(position) {
+      if (!reader.globalStatusBar) return '';
+      const isBottom = position === 'bottom';
+      if ((reader.globalStatusBarPosition === 'bottom') !== isBottom) return '';
+      const left = reader.progressLabel;
+      const center = reader.chapterTitle;
+      const right = reader.batteryLabel || '';
+      return '<div class="reader-global-bar ' + (isBottom ? 'bottom ' : '') + 'visible">' +
+        renderStatusBarItems(left, center, right) +
+      '</div>';
+    }
     function renderReader() {
-      const topGlobalBar = reader.globalStatusBar && reader.globalStatusBarPosition === 'top'
-        ? '<div class="reader-global-bar visible"><span>WiFi</span><span>12:48</span><span>' + escapeHtml(reader.batteryLabel || 'BAT') + '</span></div>'
-        : '';
-      const bottomGlobalBar = reader.globalStatusBar && reader.globalStatusBarPosition === 'bottom'
-        ? '<div class="reader-global-bar bottom visible"><span>WiFi</span><span>12:48</span><span>' + escapeHtml(reader.batteryLabel || 'BAT') + '</span></div>'
-        : '';
+      const topGlobalBar = renderGlobalBar('top');
+      const bottomGlobalBar = renderGlobalBar('bottom');
+      const showReaderStatus = !reader.globalStatusBar;
       const imageBlock = reader.imageMode === 'display'
         ? '<figure class="reader-illustration" aria-hidden="true"></figure>'
         : reader.imageMode === 'placeholder'
           ? '<figure class="reader-illustration placeholder" aria-hidden="true"><div class="reader-illustration-label">Image Placeholder</div></figure>'
           : '';
       const battery = reader.batteryLabel
-        ? '<div class="reader-battery">' + escapeHtml(reader.batteryLabel) + '</div>'
-        : '<div class="reader-battery"></div>';
+        ? reader.batteryLabel
+        : '';
       document.documentElement.style.setProperty('--reader-font', reader.fontFamily);
       document.documentElement.style.setProperty('--reader-size', reader.fontSize + 'px');
       document.documentElement.style.setProperty('--reader-leading', reader.lineHeight);
       document.documentElement.style.setProperty('--reader-margin', reader.margin + 'px');
       document.documentElement.style.setProperty('--reader-align', reader.textAlign);
+      document.documentElement.style.setProperty('--status-bar-height', '24px');
+      document.documentElement.style.setProperty('--status-bar-pad-x', '8px');
+      document.documentElement.style.setProperty('--reader-body-pad-bottom', reader.globalStatusBar ? '44px' : '54px');
+      const readerStatusBlock = showReaderStatus
+        ? '<div class="reader-status">' +
+            renderStatusBarItems(battery, reader.chapterTitle, reader.progressLabel) +
+          '</div>' +
+          '<div class="reader-progress-bar" aria-hidden="true"></div>'
+        : '';
       root.innerHTML =
         '<article class="reader-page orientation-' + escapeHtml(reader.orientation) + '">' +
           topGlobalBar +
@@ -6734,12 +6773,7 @@
                 '<p>The lamps came on one by one behind us, reflected in the canal in broken lines that made the water look stitched together. I kept reading anyway, standing beneath them, unwilling to trade the sentence in my hand for the night gathering at my back.</p>' +
               '</div>' +
             '</div>' +
-            '<div class="reader-status">' +
-              battery +
-              '<div class="reader-title">' + escapeHtml(reader.chapterTitle) + '</div>' +
-              '<div class="reader-progress">' + escapeHtml(reader.progressLabel) + '</div>' +
-            '</div>' +
-            '<div class="reader-progress-bar" aria-hidden="true"></div>' +
+            readerStatusBlock +
           '</div>' +
           bottomGlobalBar +
         '</article>';

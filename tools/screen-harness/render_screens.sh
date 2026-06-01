@@ -10,6 +10,12 @@ mkdir -p "$BUILD_DIR" "$OUT_DIR"
 
 CXX_BIN="${CXX:-g++}"
 BIN_PATH="$BUILD_DIR/screen-harness"
+DEVICE="${SCREEN_PREVIEW_DEVICE:-x4}"
+DEVICE_FLAGS=()
+if [[ "$DEVICE" == "x3" || "$DEVICE" == "X3" ]]; then
+  DEVICE_FLAGS+=("-DSCREEN_HARNESS_X3=1")
+  BIN_PATH="$BUILD_DIR/screen-harness-x3"
+fi
 
 pushd "$ROOT_DIR" >/dev/null
 
@@ -22,6 +28,7 @@ pushd "$ROOT_DIR" >/dev/null
   -DEINK_DISPLAY_SINGLE_BUFFER_MODE=1 \
   -DHOST_BUILD=1 \
   '-DCROSSPOINT_VERSION="screen-harness"' \
+  "${DEVICE_FLAGS[@]}" \
   -Itools/screen-harness/stubs \
   -Iinclude \
   -Ilib/hal \

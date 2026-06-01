@@ -6,7 +6,7 @@ inline bool isEnabled() { return false; }
 inline bool preventsAutoSleep() { return false; }
 inline int barHeight() { return 0; }
 inline int padH() { return 0; }
-inline int padTop() { return 0; }
+inline int itemY(int, int, int) { return 0; }
 inline int topInset() { return 0; }
 inline int bottomInset() { return 0; }
 
