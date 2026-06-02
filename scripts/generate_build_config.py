@@ -57,7 +57,7 @@ FEATURES = {
     'markdown': Feature(
         name='Markdown/Obsidian',
         flag='ENABLE_MARKDOWN',
-        size_kb=191,
+        size_kb=192,
         description='Markdown and Obsidian vault reading support'
     ),
     'integrations': Feature(
@@ -69,7 +69,7 @@ FEATURES = {
     'koreader_sync': Feature(
         name='KOReader Sync',
         flag='ENABLE_KOREADER_SYNC',
-        size_kb=0,
+        size_kb=1,
         description='Sync reading progress with KOReader'
     ),
     'calibre_sync': Feature(
@@ -117,7 +117,7 @@ FEATURES = {
     'pokemon_wallpaper_plugin': Feature(
         name='Pokemon Wallpaper',
         flag='ENABLE_POKEMON_WALLPAPER_PLUGIN',
-        size_kb=16,
+        size_kb=18,
         description='Browser-side Pokemon wallpaper generator at /plugins/pokemon-wallpaper'
     ),
     'pokemon_party': Feature(
@@ -225,13 +225,13 @@ FEATURES = {
     'roman_clock_sleep': Feature(
         name='Roman Clock Sleep Screen',
         flag='ENABLE_ROMAN_CLOCK_SLEEP',
-        size_kb=1,
+        size_kb=3,
         description='Optional block-style Roman numeral sleep screen that reuses the WiFi clock time source'
     ),
     'haiku_clock_sleep': Feature(
         name='Haiku Clock Sleep Screen',
         flag='ENABLE_HAIKU_CLOCK',
-        size_kb=23,
+        size_kb=109,
         description='E-Ink clock that displays quarter-hourly, syllable-accurate time-mentioning haikus'
     ),
     'lexenddeca_fonts': Feature(
@@ -255,7 +255,7 @@ FEATURES = {
     'reading_stats': Feature(
         name='Reading Stats',
         flag='ENABLE_READING_STATS',
-        size_kb=5,
+        size_kb=6,
         description='Tracks reading time, pages turned, and completion status. Enables "Mark Finished" and book statistics screen'
     ),
     'minimal_theme': Feature(
@@ -774,7 +774,7 @@ def empty_feature_state() -> Dict[str, bool]:
 
 def calculate_size(enabled_features: Dict[str, bool]) -> float:
     """Calculate estimated firmware size in MB."""
-    base_size_mb = 2.40  # Lean profile size baseline (measured)
+    base_size_mb = 2.42  # Lean profile size baseline (measured)
 
     for feature_key, enabled in enabled_features.items():
         if enabled:
