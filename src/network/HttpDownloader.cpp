@@ -259,3 +259,41 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
 
   return OK;
 }
+
+bool HttpDownloader::postJson(const std::string& url, const std::string& body, std::string& outResponse) {
+  std::unique_ptr<WiFiClient> client;
+  if (UrlUtils::isHttpsUrl(url)) {
+    auto* secureClient = new (std::nothrow) WiFiClientSecure();
+    if (!secureClient) {
+      LOG_ERR("HTTP", "OOM: WiFiClientSecure for POST");
+      return false;
+    }
+    secureClient->setInsecure();
+    client.reset(secureClient);
+  } else {
+    client.reset(new (std::nothrow) WiFiClient());
+    if (!client) {
+      LOG_ERR("HTTP", "OOM: WiFiClient for POST");
+      return false;
+    }
+  }
+
+  HTTPClient http;
+  http.begin(*client, url.c_str());
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
+
+  LOG_DBG("HTTP", "POST %s (%zu bytes)", url.c_str(), body.size());
+
+  const int httpCode = http.POST(body.c_str());
+  if (httpCode < 200 || httpCode >= 300) {
+    LOG_ERR("HTTP", "POST failed: %d", httpCode);
+    http.end();
+    return false;
+  }
+
+  outResponse = http.getString().c_str();
+  http.end();
+  LOG_DBG("HTTP", "POST success (%d), response: %zu bytes", httpCode, outResponse.size());
+  return true;
+}

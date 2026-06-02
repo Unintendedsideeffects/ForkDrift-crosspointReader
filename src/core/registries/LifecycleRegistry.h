@@ -15,6 +15,9 @@ struct LifecycleEntry {
   void (*onFontFamilyChanged)(uint8_t newFontFamilyValue);
   void (*onWebSettingsApplied)();
   void (*onUploadCompleted)(const char* uploadPath, const char* uploadFileName);
+  // Fired once each time the background web server transitions to RUNNING state
+  // (i.e. WiFi is connected and on charge). Suitable for background fetch tasks.
+  void (*onBackgroundServerStarted)();
 };
 
 class LifecycleRegistry {
@@ -75,6 +78,14 @@ class LifecycleRegistry {
     for (int i = 0; i < count; ++i) {
       if (entries[i].onUploadCompleted != nullptr) {
         entries[i].onUploadCompleted(uploadPath, uploadFileName);
+      }
+    }
+  }
+
+  static void dispatchBackgroundServerStarted() {
+    for (int i = 0; i < count; ++i) {
+      if (entries[i].onBackgroundServerStarted != nullptr) {
+        entries[i].onBackgroundServerStarted();
       }
     }
   }

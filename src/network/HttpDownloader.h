@@ -52,4 +52,10 @@ class HttpDownloader {
   static DownloadError downloadToFile(const std::string& url, const std::string& destPath,
                                       ProgressCallback progress = nullptr, bool* cancelFlag = nullptr,
                                       const std::string& username = "", const std::string& password = "");
+
+  /**
+   * POST a JSON body to a URL and return the response body as a string.
+   * Returns false on HTTP error or connection failure.
+   */
+  static bool postJson(const std::string& url, const std::string& body, std::string& outResponse);
 };

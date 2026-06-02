@@ -887,7 +887,13 @@ void loop() {
     const bool allowRun = core::FeatureModules::hasCapability(core::Capability::BackgroundServer) &&
                           SETTINGS.backgroundServerOnCharge && usbConn && !activityManager.blocksBackgroundServer() &&
                           !suppressUsbBackgroundServer;
+    static bool bgServerWasRunning = false;
     backgroundServer.loop(usbConn, allowRun);
+    const bool bgServerIsRunning = backgroundServer.isRunning();
+    if (bgServerIsRunning && !bgServerWasRunning) {
+      core::FeatureLifecycle::onBackgroundServerStarted();
+    }
+    bgServerWasRunning = bgServerIsRunning;
   }
 
   reconcileBackgroundWifiServer();

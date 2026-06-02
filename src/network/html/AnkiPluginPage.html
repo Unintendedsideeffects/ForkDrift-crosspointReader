@@ -30,6 +30,12 @@
     .anki-card .card-actions { display: flex; gap: 8px; align-items: center; }
     .back-input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; margin-bottom: 8px; box-sizing: border-box; }
     .empty-state { text-align: center; color: #999; padding: 40px 20px; }
+    .sync-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
+    .sync-result { margin-top: 10px; padding: 10px 14px; border-radius: 6px; display: none; }
+    .sync-result.ok { background: #d4edda; color: #155724; }
+    .sync-result.err { background: #f8d7da; color: #721c24; }
+    .btn-success { background: #28a745; }
+    .btn-success:hover { background: #1e7e34; }
   </style>
 </head>
 <body>
@@ -48,13 +54,16 @@
 
   <div class="card-list" id="card-list"></div>
 
-  <div style="margin-top: 40px;">
-    <h3>How to sync with Anki (Desktop)</h3>
-    <ol>
-      <li>Download the <code>anki_cards.json</code> file using the button above.</li>
-      <li>Use a simple script or plugin to import this JSON into your Anki deck.</li>
-      <li><em>Coming Soon:</em> Direct sync via AnkiConnect.</li>
-    </ol>
+  <div class="card" style="margin-top: 20px;">
+    <h3 style="margin-top:0">Sync via AnkiConnect</h3>
+    <p>Push all cards directly to Anki Desktop. Requires the
+      <a href="https://ankiweb.net/shared/info/2055492159" target="_blank">AnkiConnect</a> add-on running
+      on your computer, and the AnkiConnect URL + deck configured in CrossPoint settings.
+    </p>
+    <div class="sync-section">
+      <button onclick="syncToAnki()" class="btn btn-success" id="sync-btn">Sync to Anki Desktop</button>
+      <div class="sync-result" id="sync-result"></div>
+    </div>
   </div>
 
   <script>
@@ -172,6 +181,31 @@
       } catch (e) {
         alert('Failed to clear cards.');
       }
+    }
+
+    async function syncToAnki() {
+      const btn = document.getElementById('sync-btn');
+      const resultEl = document.getElementById('sync-result');
+      btn.disabled = true;
+      btn.textContent = 'Syncing…';
+      resultEl.style.display = 'none';
+      try {
+        const response = await fetch('/api/anki/sync', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok) {
+          resultEl.className = 'sync-result err';
+          resultEl.textContent = 'Error: ' + (data.error || response.status);
+        } else {
+          resultEl.className = 'sync-result ok';
+          resultEl.textContent = `Synced ${data.synced} card(s) to Anki. ${data.skipped} duplicate(s) skipped.`;
+        }
+      } catch (e) {
+        resultEl.className = 'sync-result err';
+        resultEl.textContent = 'Network error — is the device connected?';
+      }
+      resultEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Sync to Anki Desktop';
     }
 
     loadCards();

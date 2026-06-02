@@ -376,6 +376,14 @@ class CrossPointSettings {
   uint8_t globalStatusBarPosition = STATUS_BAR_TOP;  // 0 = top, 1 = bottom
   // Language setting (Language enum index, default 0 = EN)
   uint8_t language = 0;
+  // AnkiConnect server URL (e.g. http://192.168.x.x:8765); empty = disabled.
+  char ankiConnectUrl[128] = "";
+  // Anki deck name to add cards into via AnkiConnect.
+  char ankiConnectDeck[64] = "CrossPoint";
+  // TRMNL BYOS image endpoint URL; fetched when on charge, pinned as sleep screen.
+  char trmnlByosUrl[256] = "";
+  // Mirror TRMNL image as sleep screen when background server is running (0=off, 1=on).
+  uint8_t trmnlSleepEnabled = 0;
 
   ~CrossPointSettings() = default;
 

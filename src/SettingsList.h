@@ -678,7 +678,22 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 
   if (core::FeatureModules::hasCapability(core::Capability::TrmnlSwitch)) {
     list.push_back(SettingInfo::Action(StrId::STR_SWITCH_TO_TRMNL, SettingAction::SwitchToTrmnl));
+    list.push_back(SettingInfo::Toggle(StrId::STR_TRMNL_SLEEP_ENABLED, &CrossPointSettings::trmnlSleepEnabled,
+                                       "trmnlSleepEnabled", StrId::STR_CAT_DISPLAY)
+                       .withConfiguratorExport("trmnl_switch"));
+    list.push_back(SettingInfo::String(StrId::STR_TRMNL_BYOS_URL, SETTINGS.trmnlByosUrl, sizeof(SETTINGS.trmnlByosUrl),
+                                       "trmnlByosUrl", StrId::STR_CAT_DISPLAY)
+                       .withVisibleWhen("trmnlSleepEnabled", 1)
+                       .withConfiguratorExport("trmnl_switch"));
   }
+#if ENABLE_ANKI_SUPPORT
+  list.push_back(SettingInfo::String(StrId::STR_ANKI_CONNECT_URL, SETTINGS.ankiConnectUrl,
+                                     sizeof(SETTINGS.ankiConnectUrl), "ankiConnectUrl", StrId::STR_CAT_SYSTEM)
+                     .withConfiguratorExport("anki_support"));
+  list.push_back(SettingInfo::String(StrId::STR_ANKI_CONNECT_DECK, SETTINGS.ankiConnectDeck,
+                                     sizeof(SETTINGS.ankiConnectDeck), "ankiConnectDeck", StrId::STR_CAT_SYSTEM)
+                     .withConfiguratorExport("anki_support"));
+#endif
 
   if (core::FeatureModules::hasCapability(core::Capability::DarkMode)) {
     list.push_back(

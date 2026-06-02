@@ -8,10 +8,12 @@
 #if ENABLE_ANKI_SUPPORT
 #include "activities/AnkiActivity.h"
 #endif
+#include "CrossPointSettings.h"
 #include "core/features/FeatureCatalog.h"
 #include "core/registries/HomeActionRegistry.h"
 #include "core/registries/LifecycleRegistry.h"
 #include "core/registries/WebRouteRegistry.h"
+#include "network/HttpDownloader.h"
 #include "network/WebUtils.h"
 #include "network/html/AnkiPluginPageHtml.generated.h"
 #include "util/AnkiStore.h"
@@ -85,6 +87,82 @@ static void mountAnkiRoutes(WebServer* server) {
     store.updateCardBack(static_cast<size_t>(index), doc["back"] | "");
     store.save();
     server->send(200, "application/json", "{\"status\":\"ok\"}");
+  });
+  server->on("/api/anki/sync", HTTP_POST, [server] {
+    if (SETTINGS.ankiConnectUrl[0] == '\0') {
+      server->send(400, "application/json", "{\"error\":\"AnkiConnect URL not configured\"}");
+      return;
+    }
+
+    auto& store = util::AnkiStore::getInstance();
+    const auto cards = store.copyCards();
+    if (cards.empty()) {
+      server->send(200, "application/json", "{\"synced\":0,\"skipped\":0}");
+      return;
+    }
+
+    // Build AnkiConnect addNotes payload.
+    JsonDocument payload;
+    payload["action"] = "addNotes";
+    payload["version"] = 6;
+    JsonObject params = payload["params"].to<JsonObject>();
+    const char* deck = SETTINGS.ankiConnectDeck[0] != '\0' ? SETTINGS.ankiConnectDeck : "CrossPoint";
+    JsonArray notes = params["notes"].to<JsonArray>();
+    for (const auto& card : cards) {
+      JsonObject note = notes.add<JsonObject>();
+      note["deckName"] = deck;
+      note["modelName"] = "Basic";
+      JsonObject fields = note["fields"].to<JsonObject>();
+      fields["Front"] = card.front.c_str();
+      fields["Back"] = card.back.c_str();
+      JsonArray tags = note["tags"].to<JsonArray>();
+      tags.add("crosspoint");
+      if (!card.context.empty()) {
+        tags.add(card.context.c_str());
+      }
+      note["options"]["allowDuplicate"] = false;
+    }
+
+    std::string body;
+    body.reserve(256 + cards.size() * 128);
+    serializeJson(payload, body);
+
+    const std::string url(SETTINGS.ankiConnectUrl);
+    std::string response;
+    if (!HttpDownloader::postJson(url, body, response)) {
+      server->send(502, "application/json", "{\"error\":\"AnkiConnect unreachable\"}");
+      return;
+    }
+
+    // Parse result array: each entry is a note ID (success) or null (duplicate/error).
+    JsonDocument result;
+    if (deserializeJson(result, response)) {
+      server->send(502, "application/json", "{\"error\":\"Invalid AnkiConnect response\"}");
+      return;
+    }
+    if (!result["error"].isNull()) {
+      std::string errMsg = "{\"error\":\"";
+      errMsg += result["error"].as<const char*>();
+      errMsg += "\"}";
+      server->send(502, "application/json", errMsg.c_str());
+      return;
+    }
+
+    int synced = 0;
+    int skipped = 0;
+    JsonArray resultArr = result["result"];
+    for (JsonVariant v : resultArr) {
+      if (v.isNull()) {
+        ++skipped;
+      } else {
+        ++synced;
+      }
+    }
+
+    char resp[64];
+    snprintf(resp, sizeof(resp), "{\"synced\":%d,\"skipped\":%d}", synced, skipped);
+    LOG_INF("ANKI", "AnkiConnect sync: %d synced, %d skipped", synced, skipped);
+    server->send(200, "application/json", resp);
   });
 }
 

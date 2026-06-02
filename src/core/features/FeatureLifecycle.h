@@ -45,6 +45,14 @@ class FeatureLifecycle {
    * @param renderer  The active GfxRenderer to register font families into.
    */
   static void onFontSetup(GfxRenderer& renderer);
+
+  /**
+   * Called each time the background web server first transitions to the RUNNING
+   * state (WiFi connected, server up). Features may use this to perform
+   * one-shot background fetch tasks (e.g. pulling a TRMNL sleep image).
+   * May be called more than once per session if the server restarts.
+   */
+  static void onBackgroundServerStarted();
 };
 
 }  // namespace core
