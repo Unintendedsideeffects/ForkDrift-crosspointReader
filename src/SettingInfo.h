@@ -29,6 +29,7 @@ enum class SettingAction {
   ClearCrashes,
   SwitchToTrmnl,
   DownloadFonts,
+  TerminusSetup,
 };
 
 struct SettingInfo {
@@ -46,11 +47,11 @@ struct SettingInfo {
   };
   ValueRange valueRange = {};
 
-  const char* key = nullptr;             // JSON API key (nullptr for ACTION types)
-  StrId category = StrId::STR_NONE_OPT;  // Category for web UI grouping
-  bool obfuscated = false;               // Save/load via base64 obfuscation (passwords)
-  bool configuratorExport = false;       // Include in static configurator schema/export
-  bool configuratorHidden = false;       // Export, but render as hidden input in configurator
+  const char* key = nullptr;                     // JSON API key (nullptr for ACTION types)
+  StrId category = StrId::STR_NONE_OPT;          // Category for web UI grouping
+  bool obfuscated = false;                       // Save/load via base64 obfuscation (passwords)
+  bool configuratorExport = false;               // Include in static configurator schema/export
+  bool configuratorHidden = false;               // Export, but render as hidden input in configurator
   const char* configuratorFeatureKey = nullptr;  // Feature-grid key required to expose this setting
 
   // Direct char[] string fields (for settings stored in CrossPointSettings)
@@ -64,8 +65,8 @@ struct SettingInfo {
   std::function<std::vector<std::string>()> dynamicValuesGetter;
   std::function<std::string()> stringGetter;
   std::function<void(const std::string&)> stringSetter;
-  std::vector<uint8_t> enumPersistedValues;       // Optional persisted values per enum option
-  std::vector<const char*> enumOptionFeatureKeys; // Optional feature-grid key per enum option
+  std::vector<uint8_t> enumPersistedValues;        // Optional persisted values per enum option
+  std::vector<const char*> enumOptionFeatureKeys;  // Optional feature-grid key per enum option
 
   // Visibility condition: show this setting only when another setting has a specific value.
   // Both fields are lightweight (const char* + uint8_t) — no heap allocation.

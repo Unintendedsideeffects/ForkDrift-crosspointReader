@@ -681,10 +681,9 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
     list.push_back(SettingInfo::Toggle(StrId::STR_TRMNL_SLEEP_ENABLED, &CrossPointSettings::trmnlSleepEnabled,
                                        "trmnlSleepEnabled", StrId::STR_CAT_DISPLAY)
                        .withConfiguratorExport("trmnl_switch"));
-    list.push_back(SettingInfo::String(StrId::STR_TRMNL_BYOS_URL, SETTINGS.trmnlByosUrl, sizeof(SETTINGS.trmnlByosUrl),
-                                       "trmnlByosUrl", StrId::STR_CAT_DISPLAY)
-                       .withVisibleWhen("trmnlSleepEnabled", 1)
-                       .withConfiguratorExport("trmnl_switch"));
+    // Terminus credentials are managed via /.crosspoint/terminus.json or /plugins/terminus web UI.
+    // A settings action entry allows navigating to the setup page from the on-device settings menu.
+    list.push_back(SettingInfo::Action(StrId::STR_TERMINUS_SETUP, SettingAction::TerminusSetup));
   }
 #if ENABLE_ANKI_SUPPORT
   list.push_back(SettingInfo::String(StrId::STR_ANKI_CONNECT_URL, SETTINGS.ankiConnectUrl,

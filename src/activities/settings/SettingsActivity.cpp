@@ -27,12 +27,14 @@
 #include "ValidateSleepImagesActivity.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/util/ConfirmationActivity.h"
+#include "activities/util/FullScreenMessageActivity.h"
 #include "activities/util/IntervalSelectionActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "network/BackgroundWifiService.h"
 #include "util/MaintenanceUtils.h"
+#include "util/NetworkNames.h"
 
 namespace {
 constexpr char kBackgroundServerModeKey[] = "backgroundServerMode";
@@ -497,6 +499,14 @@ void SettingsActivity::toggleCurrentSetting() {
           esp_ota_set_boot_partition(next_partition);
           esp_restart();
         }
+      } break;
+      case SettingAction::TerminusSetup: {
+        char hostname[40];
+        NetworkNames::getDeviceHostname(hostname, sizeof(hostname));
+        char msg[120];
+        snprintf(msg, sizeof(msg), "Configure Terminus at:\nhttp://%s.local/plugins/terminus", hostname);
+        startActivityForResult(std::make_unique<FullScreenMessageActivity>(renderer, mappedInput, std::string(msg)),
+                               resultHandler);
       } break;
       case SettingAction::ValidateSleepImages:
         startActivityForResult(

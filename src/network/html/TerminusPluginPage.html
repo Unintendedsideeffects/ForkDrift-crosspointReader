@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrossPoint Reader - Terminus / TRMNL</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; line-height: 1.6; color: #333; }
+    h1 { margin-top: 0; }
+    .card { border: 1px solid #ddd; padding: 24px; border-radius: 12px; background: #f9f9f9; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; }
+    .status-badge.ok { background: #d4edda; color: #155724; }
+    .status-badge.warn { background: #fff3cd; color: #856404; }
+    label { display: block; font-weight: 600; margin-bottom: 4px; margin-top: 14px; }
+    input[type=text], input[type=password], select { width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; box-sizing: border-box; }
+    .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; margin-right: 10px; margin-top: 12px; }
+    .btn:hover { background: #0056b3; }
+    .btn-success { background: #28a745; }
+    .btn-success:hover { background: #1e7e34; }
+    .btn-danger { background: #dc3545; }
+    .btn-danger:hover { background: #a71d2a; }
+    .btn-outline { background: transparent; color: #007bff; border: 1px solid #007bff; }
+    .btn-outline:hover { background: #007bff; color: #fff; }
+    .result { margin-top: 10px; padding: 10px 14px; border-radius: 6px; display: none; }
+    .result.ok { background: #d4edda; color: #155724; }
+    .result.err { background: #f8d7da; color: #721c24; }
+    .hint { color: #666; font-size: 0.85rem; margin-top: 4px; }
+    .drop-hint { background: #e8f4fd; border: 1px solid #bee5fb; border-radius: 8px; padding: 12px 16px; margin-top: 16px; font-size: 0.9rem; }
+    .drop-hint code { background: #fff; padding: 2px 5px; border-radius: 3px; border: 1px solid #ccc; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>Terminus / TRMNL Sleep Screen</h1>
+
+  <div class="card" id="status-card">
+    <strong>Status:</strong> <span id="status-badge" class="status-badge warn">Loading…</span>
+    <div id="status-detail" style="margin-top: 8px; color: #555; font-size: 0.9rem;"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Credentials</h3>
+    <p>Enter your Terminus API credentials. Get these from
+      <a href="https://terminus.trmnl.com" target="_blank">terminus.trmnl.com</a> or your BYOS server.</p>
+
+    <label for="api_key">API Key</label>
+    <input type="password" id="api_key" placeholder="Your Terminus API key" autocomplete="off" />
+
+    <label for="device_id">Device ID</label>
+    <input type="text" id="device_id" placeholder="Your device UUID from Terminus" />
+
+    <label for="device_model">Device Model</label>
+    <select id="device_model">
+      <option value="xteink_x4">Xteink X4</option>
+      <option value="xteink_x3">Xteink X3</option>
+    </select>
+    <p class="hint">Select the model registered in Terminus for this device.</p>
+
+    <label for="base_url">Server URL</label>
+    <input type="text" id="base_url" placeholder="https://api.trmnl.com (leave blank for default)" />
+    <p class="hint">Leave blank for Terminus cloud. Enter your BYOS server URL if self-hosting.</p>
+
+    <button onclick="saveCredentials()" class="btn btn-success">Save Credentials</button>
+    <button onclick="clearCredentials()" class="btn btn-danger">Clear</button>
+    <div class="result" id="save-result"></div>
+
+    <div class="drop-hint">
+      <strong>SD card setup:</strong> Drop a <code>terminus.json</code> file at the root of your SD card
+      and reboot. The device will import it automatically. Format:<br>
+      <code>{"api_key":"...","device_id":"...","device_model":"xteink_x4","base_url":"https://api.trmnl.com"}</code>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Test &amp; Fetch</h3>
+    <p>Fetch the current Terminus display image now and pin it as the next sleep screen.
+       The device also does this automatically each time it connects to WiFi on charge.</p>
+    <button onclick="testFetch()" class="btn" id="test-btn">Fetch &amp; Pin Image Now</button>
+    <div class="result" id="test-result"></div>
+  </div>
+
+  <script>
+    async function loadStatus() {
+      try {
+        const r = await fetch('/api/terminus/status');
+        const d = await r.json();
+        const badge = document.getElementById('status-badge');
+        const detail = document.getElementById('status-detail');
+        if (d.configured) {
+          badge.textContent = 'Configured';
+          badge.className = 'status-badge ok';
+          detail.textContent = `Device ID: ${d.device_id} | Model: ${d.device_model} | Sleep: ${d.sleep_enabled ? 'On' : 'Off'}`;
+        } else {
+          badge.textContent = 'Not configured';
+          badge.className = 'status-badge warn';
+          detail.textContent = 'Enter credentials below to enable TRMNL sleep screens.';
+        }
+        if (d.device_id) document.getElementById('device_id').value = d.device_id;
+        if (d.device_model) document.getElementById('device_model').value = d.device_model;
+        if (d.base_url && d.base_url !== 'https://api.trmnl.com') {
+          document.getElementById('base_url').value = d.base_url;
+        }
+      } catch (e) {
+        document.getElementById('status-badge').textContent = 'Error loading status';
+      }
+    }
+
+    function showResult(id, ok, msg) {
+      const el = document.getElementById(id);
+      el.className = 'result ' + (ok ? 'ok' : 'err');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    async function saveCredentials() {
+      const body = {
+        api_key: document.getElementById('api_key').value.trim(),
+        device_id: document.getElementById('device_id').value.trim(),
+        device_model: document.getElementById('device_model').value,
+        base_url: document.getElementById('base_url').value.trim() || 'https://api.trmnl.com',
+      };
+      if (!body.api_key || !body.device_id) {
+        showResult('save-result', false, 'API key and Device ID are required.');
+        return;
+      }
+      try {
+        const r = await fetch('/api/terminus/save', {
+          method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+        });
+        const d = await r.json();
+        if (r.ok) {
+          showResult('save-result', true, 'Credentials saved.');
+          document.getElementById('api_key').value = '';
+          loadStatus();
+        } else {
+          showResult('save-result', false, 'Error: ' + (d.error || r.status));
+        }
+      } catch (e) {
+        showResult('save-result', false, 'Network error.');
+      }
+    }
+
+    async function clearCredentials() {
+      if (!confirm('Clear all Terminus credentials?')) return;
+      try {
+        await fetch('/api/terminus/clear', { method: 'POST' });
+        showResult('save-result', true, 'Credentials cleared.');
+        loadStatus();
+      } catch (e) {
+        showResult('save-result', false, 'Network error.');
+      }
+    }
+
+    async function testFetch() {
+      const btn = document.getElementById('test-btn');
+      btn.disabled = true;
+      btn.textContent = 'Fetching…';
+      document.getElementById('test-result').style.display = 'none';
+      try {
+        const r = await fetch('/api/terminus/test', { method: 'POST' });
+        const d = await r.json();
+        if (r.ok) {
+          showResult('test-result', true, d.message || 'Success — image pinned as next sleep screen.');
+        } else {
+          showResult('test-result', false, 'Error: ' + (d.error || r.status));
+        }
+      } catch (e) {
+        showResult('test-result', false, 'Network error — is the device on WiFi?');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Fetch & Pin Image Now';
+    }
+
+    loadStatus();
+  </script>
+</body>
+</html>

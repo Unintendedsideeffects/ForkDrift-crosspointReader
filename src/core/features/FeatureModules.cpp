@@ -276,6 +276,7 @@ bool FeatureModules::supportsSettingAction(const SettingAction action) {
     case SettingAction::PokemonParty:
       return hasCapability(Capability::PokemonParty);
     case SettingAction::SwitchToTrmnl:
+    case SettingAction::TerminusSetup:
       return hasCapability(Capability::TrmnlSwitch);
     case SettingAction::Language:
       return true;

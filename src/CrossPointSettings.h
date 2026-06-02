@@ -380,9 +380,8 @@ class CrossPointSettings {
   char ankiConnectUrl[128] = "";
   // Anki deck name to add cards into via AnkiConnect.
   char ankiConnectDeck[64] = "CrossPoint";
-  // TRMNL BYOS image endpoint URL; fetched when on charge, pinned as sleep screen.
-  char trmnlByosUrl[256] = "";
-  // Mirror TRMNL image as sleep screen when background server is running (0=off, 1=on).
+  // Fetch Terminus/TRMNL sleep image when background server starts on charge (0=off, 1=on).
+  // Credentials are stored in /.crosspoint/terminus.json via TerminusCredentialStore.
   uint8_t trmnlSleepEnabled = 0;
 
   ~CrossPointSettings() = default;
