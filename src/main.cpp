@@ -699,6 +699,7 @@ void setup() {
     LOG_INF("MAIN", "Simulator: forcing recovery mode (FORKDRIFT_SIMULATOR_RECOVERY)");
   }
 #endif
+  // cppcheck-suppress knownConditionTrueFalse -- always false in simulator-only SIMULATOR path above
   if (!recoveryFirmwareMode && wakeupReason == HalGPIO::WakeupReason::PowerButton) {
     // Refresh the cached button state a few times — isPressed() needs ~half a second to settle
     // after boot per the HalGPIO contract. Use a millis-based deadline so we always wait the full
