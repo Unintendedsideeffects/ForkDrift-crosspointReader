@@ -494,6 +494,11 @@ void SleepActivity::onEnter() {
     return;
   }
 
+  // Full-refresh clear before rendering the sleep image so the previous screen
+  // content (e.g. settings list) doesn't ghost through during deep sleep.
+  renderer.clearScreen();
+  renderer.displayBuffer(HalDisplay::FULL_REFRESH);
+
   switch (SETTINGS.sleepScreen) {
     case (CrossPointSettings::SLEEP_SCREEN_MODE::SMART):
       renderSmartSleepScreen();

@@ -72,6 +72,14 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
 
 void EpubReaderMenuActivity::onEnter() {
   Activity::onEnter();
+  // Capture the framebuffer before we render the menu over it. The reader's last
+  // page render is still in the buffer at this point; ControlsOptionsActivity will
+  // use it to keep the book text visible in the top half while settings are open.
+  const size_t bufSize = renderer.getBufferSize();
+  savedPageBuffer = makeUniqueNoThrow<uint8_t[]>(bufSize);
+  if (savedPageBuffer) {
+    memcpy(savedPageBuffer.get(), renderer.getFrameBuffer(), bufSize);
+  }
   requestUpdate();
 }
 
@@ -100,7 +108,8 @@ void EpubReaderMenuActivity::loop() {
 
     if (selectedAction == MenuAction::CONTROLS_OPTIONS) {
       startActivityForResult(
-          std::make_unique<ControlsOptionsActivity>(renderer, mappedInput), [this](const ActivityResult& ctrlResult) {
+          std::make_unique<ControlsOptionsActivity>(renderer, mappedInput, savedPageBuffer.get()),
+          [this](const ActivityResult& ctrlResult) {
             const bool readerChanged = std::holds_alternative<ControlsOptionsResult>(ctrlResult.data) &&
                                        std::get<ControlsOptionsResult>(ctrlResult.data).readerSettingsChanged;
             ActivityResult result;

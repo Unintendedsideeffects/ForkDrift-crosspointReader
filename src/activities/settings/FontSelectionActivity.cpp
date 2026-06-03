@@ -23,9 +23,15 @@ void FontSelectionActivity::onEnter() {
   fonts_.reserve(CrossPointSettings::BUILTIN_FONT_COUNT + (hasUserFonts ? 1 : 0) +
                  (registry_ ? registry_->getFamilyCount() : 0));
 
-  fonts_.push_back({I18N.get(StrId::STR_NOTO_SERIF), true, 0});
-  fonts_.push_back({I18N.get(StrId::STR_NOTO_SANS), true, 1});
-  fonts_.push_back({I18N.get(StrId::STR_OPEN_DYSLEXIC), true, 2});
+#if ENABLE_BOOKERLY_FONTS
+  fonts_.push_back({I18N.get(StrId::STR_NOTO_SERIF), true, CrossPointSettings::NOTOSERIF});
+#endif
+#if ENABLE_NOTOSANS_FONTS
+  fonts_.push_back({I18N.get(StrId::STR_NOTO_SANS), true, CrossPointSettings::NOTOSANS});
+#endif
+#if ENABLE_OPENDYSLEXIC_FONTS
+  fonts_.push_back({I18N.get(StrId::STR_OPEN_DYSLEXIC), true, CrossPointSettings::OPENDYSLEXIC});
+#endif
 #if ENABLE_LEXENDDECA_FONTS
   fonts_.push_back({I18N.get(StrId::STR_LEXEND_DECA), true, CrossPointSettings::LEXENDDECA});
 #endif

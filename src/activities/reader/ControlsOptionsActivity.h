@@ -13,14 +13,16 @@ class ControlsOptionsActivity final : public Activity {
   int settingsCount = 0;
   std::vector<SettingInfo> settings;
   bool readerSettingsChanged_ = false;
+  const uint8_t* pageBuffer_ = nullptr;
 
   void rebuildSettingsList();
   void moveSelection(bool forward);
   void toggleCurrentSetting();
 
  public:
-  explicit ControlsOptionsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
-      : Activity("ControlsOptions", renderer, mappedInput) {}
+  explicit ControlsOptionsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
+                                   const uint8_t* pageBuffer = nullptr)
+      : Activity("ControlsOptions", renderer, mappedInput), pageBuffer_(pageBuffer) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;

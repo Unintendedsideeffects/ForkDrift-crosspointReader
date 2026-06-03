@@ -1337,10 +1337,8 @@ void HomeActivity::loop() {
           return;
         }
       } else if (!carouselNav) {
-        // Classic list: selectorIndex indexes menuModel directly (slot 0 is the
-        // Continue Reading book card when present).
-        if (selectorIndex >= 0 && selectorIndex < static_cast<int>(menuModel.size())) {
-          activateMenuId(menuModel[selectorIndex]);
+        if (selectedMenuIndex >= 0 && selectedMenuIndex < static_cast<int>(menuModel.size())) {
+          activateMenuId(menuModel[selectedMenuIndex]);
           return;
         }
       }

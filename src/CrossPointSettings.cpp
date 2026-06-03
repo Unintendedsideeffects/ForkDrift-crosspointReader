@@ -497,7 +497,6 @@ void CrossPointSettings::validateAndClamp() {
   if (language >= getLanguageCount()) language = static_cast<uint8_t>(Language::EN);
   if (longPressButtonBehavior >= LONG_PRESS_BUTTON_BEHAVIOR_COUNT) longPressButtonBehavior = CHAPTER_SKIP;
   if (globalStatusBar >= GLOBAL_STATUS_BAR_MODE_COUNT) globalStatusBar = GLOBAL_STATUS_BAR_ON;
-  if (globalStatusBar == GLOBAL_STATUS_BAR_OFF) globalStatusBar = GLOBAL_STATUS_BAR_ON;
   if (globalStatusBarPosition >= GLOBAL_STATUS_BAR_POSITION_COUNT) globalStatusBarPosition = STATUS_BAR_TOP;
 
   if (uiTheme > LYRA_CAROUSEL) uiTheme = LYRA;

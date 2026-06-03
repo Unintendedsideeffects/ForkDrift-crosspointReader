@@ -30,6 +30,7 @@
 #include "activities/util/FullScreenMessageActivity.h"
 #include "activities/util/IntervalSelectionActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
+#include "activities/util/ListPickerActivity.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "network/BackgroundWifiService.h"
@@ -177,13 +178,12 @@ void SettingsActivity::rebuildSettingsLists() {
   // Group Display and Reader by topic, keeping dependent settings adjacent to
   // the setting they depend on (e.g. the sleep-screen sub-options follow Sleep
   // Screen, which gates their visibility via visibleWhen).
-  groupSettingsByTopic(
-      displaySettings,
-      {{StrId::STR_SEC_APPEARANCE, {"uiTheme", "recentBooksView", "darkMode", "globalStatusBarPosition", "fadingFix"}},
-       {StrId::STR_SEC_SLEEP,
-        {"sleepScreen", "sleepScreenSource", "sleepScreenCoverMode", "sleepScreenCoverFilter", "sleepCycleMode",
-         "haikuClockLandscape", "trmnlSleepEnabled"}},
-       {StrId::STR_SEC_DISPLAY_MISC, {"hideBatteryPercentage", "refreshFrequency"}}});
+  groupSettingsByTopic(displaySettings,
+                       {{StrId::STR_SEC_APPEARANCE, {"uiTheme", "recentBooksView", "darkMode", "fadingFix"}},
+                        {StrId::STR_SEC_SLEEP,
+                         {"sleepScreen", "sleepScreenSource", "sleepScreenCoverMode", "sleepScreenCoverFilter",
+                          "sleepCycleMode", "haikuClockLandscape", "trmnlSleepEnabled"}},
+                        {StrId::STR_SEC_DISPLAY_MISC, {"refreshFrequency"}}});
   groupSettingsByTopic(
       readerSettings,
       {{StrId::STR_SEC_TEXT,
@@ -191,7 +191,8 @@ void SettingsActivity::rebuildSettingsLists() {
          "embeddedStyle"}},
        {StrId::STR_SEC_LAYOUT,
         {"screenMargin", "paragraphAlignment", "extraParagraphSpacing", "forceParagraphIndents", "orientation"}},
-       {StrId::STR_SEC_READING_AIDS, {"focusReadingEnabled", "guideReadingEnabled", "imageRendering"}}});
+       {StrId::STR_SEC_READING_AIDS, {"focusReadingEnabled", "guideReadingEnabled", "imageRendering"}},
+       {StrId::STR_SEC_STATUS_BAR, {"globalStatusBarPosition", "hideBatteryPercentage"}}});
 
   // System: a General header over the collected toggles; the network actions get
   // their own Connectivity header below.
@@ -395,6 +396,24 @@ void SettingsActivity::toggleCurrentSetting() {
 
   if (setting.nameId == StrId::STR_TIME_TO_SLEEP) {
     openSleepTimeoutPicker();
+    return;
+  }
+
+  if (setting.key != nullptr && std::strcmp(setting.key, "timeZoneOffset") == 0) {
+    auto items = timezoneOffsetOptions();
+    const int current = SETTINGS.timeZoneOffset;
+    startActivityForResult(std::make_unique<ListPickerActivity>(renderer, mappedInput, StrId::STR_TIMEZONE_OFFSET,
+                                                                std::move(items), current),
+                           [this](const ActivityResult& r) {
+                             if (!r.isCancelled && std::holds_alternative<ListPickerResult>(r.data)) {
+                               const int idx = std::get<ListPickerResult>(r.data).selectedIndex;
+                               if (idx >= 0 && idx <= 26) {
+                                 SETTINGS.timeZoneOffset = static_cast<uint8_t>(idx);
+                                 if (!SETTINGS.saveToFile()) LOG_WRN("SETTINGS", "Failed to persist timezone setting");
+                               }
+                             }
+                             requestUpdate();
+                           });
     return;
   }
 

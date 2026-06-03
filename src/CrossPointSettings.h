@@ -251,7 +251,12 @@ class CrossPointSettings {
   };
 
   // Global status bar overlay position
-  enum GLOBAL_STATUS_BAR_POSITION { STATUS_BAR_TOP = 0, STATUS_BAR_BOTTOM = 1, GLOBAL_STATUS_BAR_POSITION_COUNT };
+  enum GLOBAL_STATUS_BAR_POSITION {
+    STATUS_BAR_TOP = 0,
+    STATUS_BAR_BOTTOM = 1,
+    STATUS_BAR_OFF = 2,
+    GLOBAL_STATUS_BAR_POSITION_COUNT
+  };
 
   // Sleep screen settings
   uint8_t sleepScreen = DARK;

@@ -159,8 +159,6 @@ void ControlsOptionsActivity::loop() {
 }
 
 void ControlsOptionsActivity::render(RenderLock&&) {
-  renderer.clearScreen();
-
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
   const auto& metrics = UITheme::getInstance().getMetrics();
@@ -172,31 +170,45 @@ void ControlsOptionsActivity::render(RenderLock&&) {
   const int contentX = isLandscapeCw ? hintGutterWidth : 0;
   const int contentWidth = pageWidth - hintGutterWidth;
 
-  GUI.drawHeader(renderer, Rect{contentX, metrics.topPadding, contentWidth, metrics.headerHeight}, tr(STR_CAT_CONTROLS),
-                 nullptr);
+  auto rowTitle = [this](int i) { return std::string(I18N.get(settings[i].nameId)); };
+  auto isHeader = [this](int i) { return settings[i].type == SettingType::SECTION_HEADER; };
+  auto rowValue = [this](int i) {
+    const auto& setting = settings[i];
+    std::string valueText;
+    if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {
+      valueText = SETTINGS.*(setting.valuePtr) ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
+    } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
+      const uint8_t value = SETTINGS.*(setting.valuePtr);
+      const uint8_t safeValue = value < setting.enumValues.size() ? value : 0;
+      valueText = I18N.get(setting.enumValues[safeValue]);
+    } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
+      valueText = std::to_string(SETTINGS.*(setting.valuePtr));
+    }
+    return valueText;
+  };
 
-  GUI.drawList(
-      renderer,
-      Rect{contentX, metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing, contentWidth,
-           pageHeight -
-               (metrics.topPadding + metrics.headerHeight + metrics.buttonHintsHeight + metrics.verticalSpacing * 2)},
-      settingsCount, selectedIndex, [this](int i) { return std::string(I18N.get(settings[i].nameId)); }, nullptr,
-      nullptr,
-      [this](int i) {
-        const auto& setting = settings[i];
-        std::string valueText;
-        if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {
-          valueText = SETTINGS.*(setting.valuePtr) ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
-        } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
-          const uint8_t value = SETTINGS.*(setting.valuePtr);
-          const uint8_t safeValue = value < setting.enumValues.size() ? value : 0;
-          valueText = I18N.get(setting.enumValues[safeValue]);
-        } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
-          valueText = std::to_string(SETTINGS.*(setting.valuePtr));
-        }
-        return valueText;
-      },
-      true, nullptr, [this](int i) { return settings[i].type == SettingType::SECTION_HEADER; });
+  if (pageBuffer_) {
+    // Half-screen overlay: restore the book page into the top half, then draw
+    // the settings panel over the bottom half so the text remains visible.
+    memcpy(renderer.getFrameBuffer(), pageBuffer_, renderer.getBufferSize());
+    const int panelY = pageHeight / 2;
+    renderer.fillRect(0, panelY, pageWidth, pageHeight - panelY, false);
+    renderer.drawLine(0, panelY, pageWidth - 1, panelY, true);
+
+    const int listTop = panelY + metrics.verticalSpacing;
+    const int listHeight = pageHeight - panelY - metrics.buttonHintsHeight - metrics.verticalSpacing * 2;
+    GUI.drawList(renderer, Rect{contentX, listTop, contentWidth, listHeight}, settingsCount, selectedIndex, rowTitle,
+                 nullptr, nullptr, rowValue, true, nullptr, isHeader);
+  } else {
+    renderer.clearScreen();
+    GUI.drawHeader(renderer, Rect{contentX, metrics.topPadding, contentWidth, metrics.headerHeight},
+                   tr(STR_CAT_CONTROLS), nullptr);
+    const int listTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+    const int listHeight = pageHeight - (metrics.topPadding + metrics.headerHeight + metrics.buttonHintsHeight +
+                                         metrics.verticalSpacing * 2);
+    GUI.drawList(renderer, Rect{contentX, listTop, contentWidth, listHeight}, settingsCount, selectedIndex, rowTitle,
+                 nullptr, nullptr, rowValue, true, nullptr, isHeader);
+  }
 
   const bool currentIsAction =
       selectedIndex >= 0 && selectedIndex < settingsCount && settings[selectedIndex].type == SettingType::ACTION;

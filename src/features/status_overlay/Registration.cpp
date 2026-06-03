@@ -69,6 +69,7 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
   const int barH = barHeight();
   const int padTopPx = textTop(renderer);
   const int padHPx = padH();
+  if (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_OFF) return;
   const int barY = (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? screenH - barH : 0;
   const int sepY = (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? barY : barY + barH - 1;
   const int textY = barY + padTopPx;

@@ -71,9 +71,14 @@ struct ControlsOptionsResult {
   bool readerSettingsChanged = false;
 };
 
-using ResultVariant = std::variant<std::monostate, WifiResult, KeyboardResult, MenuResult, ChapterResult, PercentResult,
-                                   IntervalResult, PageResult, SyncResult, NetworkModeResult, FootnoteResult,
-                                   FileBrowserActionResult, FilePathResult, BookmarkResult, ControlsOptionsResult>;
+struct ListPickerResult {
+  int selectedIndex = -1;
+};
+
+using ResultVariant =
+    std::variant<std::monostate, WifiResult, KeyboardResult, MenuResult, ChapterResult, PercentResult, IntervalResult,
+                 PageResult, SyncResult, NetworkModeResult, FootnoteResult, FileBrowserActionResult, FilePathResult,
+                 BookmarkResult, ControlsOptionsResult, ListPickerResult>;
 
 struct ActivityResult {
   bool isCancelled = false;

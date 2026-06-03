@@ -1,7 +1,9 @@
 #pragma once
 
 #include <I18n.h>
+#include <Memory.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -71,4 +73,5 @@ class EpubReaderMenuActivity final : public Activity {
   int currentPage = 0;
   int totalPages = 0;
   int bookProgressPercent = 0;
+  std::unique_ptr<uint8_t[]> savedPageBuffer;
 };

@@ -253,98 +253,106 @@ inline std::vector<std::string> timezoneOffsetOptions() {
 // Build the font family setting dynamically. When registry is non-null, SD card fonts
 // are appended after the built-in fonts. Otherwise only built-in fonts are listed.
 inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
-  // Built-in font labels (StrId)
-  std::vector<StrId> enumValues = {StrId::STR_NOTO_SERIF, StrId::STR_NOTO_SANS, StrId::STR_OPEN_DYSLEXIC};
   const bool hasUserFonts = core::FeatureModules::hasCapability(core::Capability::UserFonts);
-  // Runtime string labels for SD card fonts
-  std::vector<std::string> enumStringValues;
 
-  // Reserve: first CrossPointSettings::BUILTIN_FONT_COUNT entries use StrId, rest use strings
-  if (registry) {
-    const auto& families = registry->getFamilies();
-    enumStringValues.reserve(families.size());
-    std::transform(families.begin(), families.end(), std::back_inserter(enumStringValues),
-                   [](const SdCardFontFamilyInfo& f) { return f.name; });
+  // Build available built-in fonts in the same order as FontSelectionActivity,
+  // guarded by the same compile-time flags. Position in this list is the index
+  // the getter returns; stored value is SETTINGS.fontFamily (enum value).
+  std::vector<uint8_t> builtinVals;
+  std::vector<std::string> labels;
+  std::vector<const char*> featureKeys;
+
+  auto addBuiltin = [&](uint8_t val, StrId nameId, bool enabled, const char* featureKey) {
+    if (enabled) {
+      builtinVals.push_back(val);
+      labels.push_back(I18N.get(nameId));
+      featureKeys.push_back(featureKey);
+    }
+  };
+
+#if ENABLE_BOOKERLY_FONTS
+  addBuiltin(CrossPointSettings::NOTOSERIF, StrId::STR_NOTO_SERIF, true, "bookerly_fonts");
+#endif
+#if ENABLE_NOTOSANS_FONTS
+  addBuiltin(CrossPointSettings::NOTOSANS, StrId::STR_NOTO_SANS, true, "notosans_fonts");
+#endif
+#if ENABLE_OPENDYSLEXIC_FONTS
+  addBuiltin(CrossPointSettings::OPENDYSLEXIC, StrId::STR_OPEN_DYSLEXIC, true, "opendyslexic_fonts");
+#endif
+#if ENABLE_LEXENDDECA_FONTS
+  addBuiltin(CrossPointSettings::LEXENDDECA, StrId::STR_LEXEND_DECA, true, "lexenddeca_fonts");
+#endif
+#if ENABLE_BITTER_FONTS
+  addBuiltin(CrossPointSettings::BITTER, StrId::STR_BITTER, true, "bitter_fonts");
+#endif
+#if ENABLE_CHAREINK_FONTS
+  addBuiltin(CrossPointSettings::CHAREINK, StrId::STR_CHARE_INK, true, "chareink_fonts");
+#endif
+
+  const int builtinCount = static_cast<int>(builtinVals.size());
+
+  if (hasUserFonts) {
+    labels.push_back(I18N.get(StrId::STR_EXTERNAL_FONT));
+    featureKeys.push_back("user_fonts");
   }
 
-  // Capture the SD font count for the lambdas
-  const int sdFontCount = static_cast<int>(enumStringValues.size());
-
-  // Total option count = built-in + SD card families
-  // For the combined enumStringValues: we need all entries as strings (built-in names + SD names)
-  // The render code checks enumStringValues first, then enumValues. So we build enumStringValues
-  // with all options when SD fonts are present.
-  std::vector<std::string> allStringValues;
-  if (sdFontCount > 0 || hasUserFonts) {
-    allStringValues.push_back(I18N.get(StrId::STR_NOTO_SERIF));
-    allStringValues.push_back(I18N.get(StrId::STR_NOTO_SANS));
-    allStringValues.push_back(I18N.get(StrId::STR_OPEN_DYSLEXIC));
-    if (hasUserFonts) {
-      allStringValues.push_back(I18N.get(StrId::STR_EXTERNAL_FONT));
+  std::vector<std::string> sdFamilyNames;
+  if (registry) {
+    const auto& families = registry->getFamilies();
+    sdFamilyNames.reserve(families.size());
+    for (const auto& f : families) {
+      sdFamilyNames.push_back(f.name);
+      labels.push_back(f.name);
+      featureKeys.push_back(nullptr);
     }
-    allStringValues.insert(allStringValues.end(), enumStringValues.begin(), enumStringValues.end());
   }
 
   SettingInfo s;
   s.nameId = StrId::STR_FONT_FAMILY;
   s.type = SettingType::ENUM;
-  s.enumValues = std::move(enumValues);
-  s.enumStringValues = std::move(allStringValues);
+  s.enumStringValues = labels;
   s.key = "fontFamily";
   s.category = StrId::STR_CAT_READER;
 
-  // Capture registry families by copy for the lambdas
-  std::vector<std::string> sdFamilyNames;
-  if (registry) {
-    const auto& families = registry->getFamilies();
-    sdFamilyNames.reserve(families.size());
-    std::transform(families.begin(), families.end(), std::back_inserter(sdFamilyNames),
-                   [](const SdCardFontFamilyInfo& f) { return f.name; });
-  }
-
-  s.valueGetter = [sdFamilyNames, hasUserFonts]() -> uint8_t {
+  s.valueGetter = [builtinVals, sdFamilyNames, hasUserFonts, builtinCount]() -> uint8_t {
     if (hasUserFonts && SETTINGS.fontFamily == CrossPointSettings::USER_SD) {
-      return CrossPointSettings::BUILTIN_FONT_COUNT;
+      return static_cast<uint8_t>(builtinCount);
     }
-
-    // If an SD card font is selected, find its index
     if (SETTINGS.sdFontFamilyName[0] != '\0') {
+      const int sdBase = builtinCount + (hasUserFonts ? 1 : 0);
       for (int i = 0; i < static_cast<int>(sdFamilyNames.size()); i++) {
         if (sdFamilyNames[i] == SETTINGS.sdFontFamilyName) {
-          return static_cast<uint8_t>(CrossPointSettings::BUILTIN_FONT_COUNT + (hasUserFonts ? 1 : 0) + i);
+          return static_cast<uint8_t>(sdBase + i);
         }
       }
-      // SD font name not found in registry — fall through to built-in
     }
-    return SETTINGS.fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.fontFamily : 0;
+    for (int i = 0; i < builtinCount; i++) {
+      if (builtinVals[i] == SETTINGS.fontFamily) return static_cast<uint8_t>(i);
+    }
+    return 0;
   };
 
-  s.valueSetter = [sdFamilyNames, hasUserFonts](uint8_t v) {
-    if (v < CrossPointSettings::BUILTIN_FONT_COUNT) {
-      SETTINGS.fontFamily = v;
+  s.valueSetter = [builtinVals, sdFamilyNames, hasUserFonts, builtinCount](uint8_t v) {
+    if (v < static_cast<uint8_t>(builtinCount)) {
+      SETTINGS.fontFamily = builtinVals[v];
       SETTINGS.sdFontFamilyName[0] = '\0';
-    } else if (hasUserFonts && v == CrossPointSettings::BUILTIN_FONT_COUNT) {
+    } else if (hasUserFonts && v == static_cast<uint8_t>(builtinCount)) {
       SETTINGS.fontFamily = CrossPointSettings::USER_SD;
       SETTINGS.sdFontFamilyName[0] = '\0';
     } else {
-      const int sdBase = CrossPointSettings::BUILTIN_FONT_COUNT + (hasUserFonts ? 1 : 0);
-      int sdIdx = v - sdBase;
-      if (sdIdx < static_cast<int>(sdFamilyNames.size())) {
+      const int sdBase = builtinCount + (hasUserFonts ? 1 : 0);
+      const int sdIdx = static_cast<int>(v) - sdBase;
+      if (sdIdx >= 0 && sdIdx < static_cast<int>(sdFamilyNames.size())) {
         strncpy(SETTINGS.sdFontFamilyName, sdFamilyNames[sdIdx].c_str(), sizeof(SETTINGS.sdFontFamilyName) - 1);
         SETTINGS.sdFontFamilyName[sizeof(SETTINGS.sdFontFamilyName) - 1] = '\0';
         if (SETTINGS.fontFamily == CrossPointSettings::USER_SD) {
-          SETTINGS.fontFamily = CrossPointSettings::BOOKERLY;
+          SETTINGS.fontFamily = builtinVals.empty() ? CrossPointSettings::NOTOSERIF : builtinVals[0];
         }
       }
     }
   };
 
-  std::vector<const char*> optionFeatureKeys = {"bookerly_fonts", "notosans_fonts", "opendyslexic_fonts"};
-  if (hasUserFonts) {
-    optionFeatureKeys.push_back("user_fonts");
-  }
-
-  s.withConfiguratorExport().withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
+  s.withConfiguratorExport().withEnumOptionFeatureKeys(std::move(featureKeys));
   return s;
 }
 
@@ -480,7 +488,7 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                      .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(StrId::STR_HIDE_BATTERY, &CrossPointSettings::hideBatteryPercentage,
                                    {StrId::STR_NEVER, StrId::STR_IN_READER, StrId::STR_ALWAYS}, "hideBatteryPercentage",
-                                   StrId::STR_CAT_DISPLAY)
+                                   StrId::STR_CAT_READER)
                      .withConfiguratorExport());
   list.push_back(SettingInfo::Enum(StrId::STR_REFRESH_FREQ, &CrossPointSettings::refreshFrequency,
                                    {StrId::STR_PAGES_1, StrId::STR_PAGES_5, StrId::STR_PAGES_10, StrId::STR_PAGES_15,
@@ -702,8 +710,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 
   if (core::FeatureModules::hasCapability(core::Capability::GlobalStatusBar)) {
     list.push_back(SettingInfo::Enum(StrId::STR_STATUS_BAR_POSITION, &CrossPointSettings::globalStatusBarPosition,
-                                     {StrId::STR_STATUS_BAR_TOP, StrId::STR_STATUS_BAR_BOTTOM},
-                                     "globalStatusBarPosition", StrId::STR_CAT_DISPLAY)
+                                     {StrId::STR_STATUS_BAR_TOP, StrId::STR_STATUS_BAR_BOTTOM, StrId::STR_OFF},
+                                     "globalStatusBarPosition", StrId::STR_CAT_READER)
                        .withConfiguratorExport("global_status_bar"));
   }
 
