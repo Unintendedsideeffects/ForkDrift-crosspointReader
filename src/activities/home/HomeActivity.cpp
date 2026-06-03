@@ -13,6 +13,7 @@
 #include <Xtc.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <numeric>
 #include <optional>
@@ -261,15 +262,7 @@ bool HomeActivity::coverRendered = false;
 bool HomeActivity::coverBufferStored = false;
 uint8_t* HomeActivity::coverBuffer = nullptr;
 std::vector<std::string> HomeActivity::coverCacheBookPaths;
-
-int HomeActivity::getMenuItemCount() const {
-  int count = 3;  // My Library, File transfer, Settings
-  if (hasContinueReading) count++;
-  if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers})) count++;
-  if (core::HomeActionRegistry::shouldExpose("todo_planner", {false})) count++;
-  if (core::HomeActionRegistry::shouldExpose("anki", {false})) count++;
-  return count;
-}
+int HomeActivity::classicCoverCardWidth = 0;
 
 std::string HomeActivity::fallbackTitleFromPath(const std::string& path) {
   auto title = path;
@@ -300,47 +293,60 @@ bool HomeActivity::isPokemonPartyHomeMode() const {
          core::FeatureModules::hasCapability(core::Capability::PokemonParty);
 }
 
-void HomeActivity::rebuildMenuLayout() {
-  if (homeIsGridNav()) {
-    if (isPokemonPartyHomeMode()) {
-      menuOpenBookIndex = -1;
-      menuMyLibraryIndex = -1;
-      menuOpdsIndex = -1;
-      menuTodoIndex = -1;
-      menuAnkiIndex = -1;
-      menuFileTransferIndex = -1;
-      menuSettingsIndex = 0;
-      menuItemCount = 1;
-      return;
-    }
-    menuOpenBookIndex = -1;
-    int idx = 0;
-    menuMyLibraryIndex = idx++;
-    menuOpdsIndex = -1;
-    menuTodoIndex = core::HomeActionRegistry::shouldExpose("todo_planner", {false}) ? idx++ : -1;
-    menuAnkiIndex = core::HomeActionRegistry::shouldExpose("anki", {false}) ? idx++ : -1;
-#if ENABLE_BOOKMARKS
-    hasBookmarks = core::FeatureModules::hasCapability(core::Capability::Bookmarks) && BookmarkStore::hasAnyBookmarks();
-    menuBookmarksIndex = hasBookmarks ? idx++ : -1;
-#endif
-    menuFileTransferIndex = idx++;
-    menuSettingsIndex = idx++;
-    menuItemCount = idx;
-    return;
-  }
-  int idx = 0;
-  menuOpenBookIndex = idx++;
-  menuMyLibraryIndex = idx++;
-  menuOpdsIndex = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers}) ? idx++ : -1;
-  menuTodoIndex = core::HomeActionRegistry::shouldExpose("todo_planner", {false}) ? idx++ : -1;
-  menuAnkiIndex = core::HomeActionRegistry::shouldExpose("anki", {false}) ? idx++ : -1;
+void HomeActivity::buildMenuModel() {
+  menuModel.clear();
+  menuModel.reserve(8);
+
 #if ENABLE_BOOKMARKS
   hasBookmarks = core::FeatureModules::hasCapability(core::Capability::Bookmarks) && BookmarkStore::hasAnyBookmarks();
-  menuBookmarksIndex = hasBookmarks ? idx++ : -1;
 #endif
-  menuFileTransferIndex = idx++;
-  menuSettingsIndex = idx++;
-  menuItemCount = idx;
+  const bool opds = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers});
+  const bool todo = core::HomeActionRegistry::shouldExpose("todo_planner", {false});
+  const bool anki = core::HomeActionRegistry::shouldExpose("anki", {false});
+
+  // Grid (ForkDrift / Pokémon party): cover grid handles books; the button row
+  // holds the actions. Composition matches what the grid actually renders.
+  if (homeIsGridNav()) {
+    if (isPokemonPartyHomeMode()) {
+      menuModel.push_back(HomeMenuId::Settings);
+      return;
+    }
+    menuModel.push_back(HomeMenuId::MyLibrary);
+    if (todo) menuModel.push_back(HomeMenuId::Todo);
+    if (anki) menuModel.push_back(HomeMenuId::Anki);
+    menuModel.push_back(HomeMenuId::Notes);
+    menuModel.push_back(HomeMenuId::FileTransfer);
+    menuModel.push_back(HomeMenuId::Settings);
+    return;
+  }
+
+  // Lyra carousel: book strip + icon menu row. First entry opens the centered
+  // book; the rest are actions.
+  if (homeIsCarouselNav()) {
+    menuModel.push_back(HomeMenuId::OpenBook);
+    menuModel.push_back(HomeMenuId::MyLibrary);
+    if (opds) menuModel.push_back(HomeMenuId::Opds);
+    if (todo) menuModel.push_back(HomeMenuId::Todo);
+    if (anki) menuModel.push_back(HomeMenuId::Anki);
+    menuModel.push_back(HomeMenuId::Notes);
+#if ENABLE_BOOKMARKS
+    if (hasBookmarks) menuModel.push_back(HomeMenuId::Bookmarks);
+#endif
+    menuModel.push_back(HomeMenuId::FileTransfer);
+    menuModel.push_back(HomeMenuId::Settings);
+    return;
+  }
+
+  // Classic list theme. Slot 0 is the "book card" (Continue Reading) when a book
+  // is open; the remaining entries render as tiles below it.
+  if (hasContinueReading) menuModel.push_back(HomeMenuId::ContinueReading);
+  menuModel.push_back(HomeMenuId::MyLibrary);
+  if (opds) menuModel.push_back(HomeMenuId::Opds);
+  if (todo) menuModel.push_back(HomeMenuId::Todo);
+  if (anki) menuModel.push_back(HomeMenuId::Anki);
+  menuModel.push_back(HomeMenuId::Notes);
+  menuModel.push_back(HomeMenuId::FileTransfer);
+  menuModel.push_back(HomeMenuId::Settings);
 }
 
 void HomeActivity::loadRecentBooks() {
@@ -552,121 +558,100 @@ void HomeActivity::openSelectedBook() {
   onContinueReading();
 }
 
-std::string HomeActivity::getMenuItemLabel(const int index) const {
-  if (isPokemonPartyHomeMode()) {
-    if (index == menuSettingsIndex) {
-      return "Settings";
-    }
-    return "";
-  }
-  if (index == menuOpenBookIndex) {
-    return recentBooks.empty() ? "Open Book (empty)" : "Open Book";
-  }
-  if (index == menuMyLibraryIndex) {
-    return "My Library";
-  }
-  if (index == menuOpdsIndex) {
-    return "OPDS Browser";
-  }
-  if (index == menuTodoIndex) {
-    return tr(STR_TODO_HOME_LABEL);
-  }
-  if (index == menuAnkiIndex) {
-    return "Anki";
-  }
-#if ENABLE_BOOKMARKS
-  if (index == menuBookmarksIndex) {
-    return tr(STR_BOOKMARKS);
-  }
-#endif
-  if (index == menuFileTransferIndex) {
-    return "File Transfer";
-  }
-  if (index == menuSettingsIndex) {
-    return "Settings";
-  }
-  return "";
+void HomeActivity::openCenteredBook() {
+  selectedBookIndex = lastCarouselBookIndex;
+  openSelectedBook();
 }
 
-UIIcon HomeActivity::getMenuItemIcon(const int index) const {
-  if (index == menuOpenBookIndex) {
-    return UIIcon::Book;
-  }
-  if (index == menuMyLibraryIndex) {
-    return UIIcon::Folder;
-  }
-  if (index == menuOpdsIndex) {
-    return UIIcon::Library;
-  }
-  if (index == menuTodoIndex) {
-    return UIIcon::Calendar;
-  }
-  if (index == menuAnkiIndex) {
-    return UIIcon::Text;
-  }
+std::string HomeActivity::menuIdLabel(const HomeMenuId id, const bool gridStyle) const {
+  switch (id) {
+    case HomeMenuId::ContinueReading:
+      return "Continue Reading";
+    case HomeMenuId::OpenBook:
+      return recentBooks.empty() ? "Open Book (empty)" : "Open Book";
+    case HomeMenuId::MyLibrary:
+      return gridStyle ? std::string(tr(STR_BOOKS)) : std::string("My Library");
+    case HomeMenuId::Opds:
+      return "OPDS Browser";
+    case HomeMenuId::Todo:
+      return gridStyle ? std::string("Agenda") : std::string(tr(STR_TODO_HOME_LABEL));
+    case HomeMenuId::Anki:
+      return "Anki";
+    case HomeMenuId::Notes:
+      return std::string(tr(STR_NOTES));
 #if ENABLE_BOOKMARKS
-  if (index == menuBookmarksIndex) {
-    return UIIcon::Book;
-  }
+    case HomeMenuId::Bookmarks:
+      return tr(STR_BOOKMARKS);
 #endif
-  if (index == menuFileTransferIndex) {
-    return UIIcon::Transfer;
+    case HomeMenuId::FileTransfer:
+      return std::string(tr(STR_FILE_TRANSFER));
+    case HomeMenuId::Settings:
+      return std::string(tr(STR_SETTINGS_TITLE));
+    default:
+      return "";
   }
-  return UIIcon::Settings;
 }
 
-std::vector<int> HomeActivity::getCarouselMenuOrder() const {
-  std::vector<int> menuOrder;
-  menuOrder.reserve(8);
-  if (menuOpenBookIndex >= 0) {
-    menuOrder.push_back(menuOpenBookIndex);
-  }
-  if (menuMyLibraryIndex >= 0) {
-    menuOrder.push_back(menuMyLibraryIndex);
-  }
-  if (menuOpdsIndex >= 0) {
-    menuOrder.push_back(menuOpdsIndex);
-  }
-  if (menuTodoIndex >= 0) {
-    menuOrder.push_back(menuTodoIndex);
-  }
-  if (menuAnkiIndex >= 0) {
-    menuOrder.push_back(menuAnkiIndex);
-  }
+UIIcon HomeActivity::menuIdIcon(const HomeMenuId id) const {
+  switch (id) {
+    case HomeMenuId::ContinueReading:
+    case HomeMenuId::OpenBook:
+      return UIIcon::Book;
+    case HomeMenuId::MyLibrary:
+      return UIIcon::Folder;
+    case HomeMenuId::Opds:
+      return UIIcon::Library;
+    case HomeMenuId::Todo:
+      return UIIcon::Calendar;
+    case HomeMenuId::Anki:
+    case HomeMenuId::Notes:
+      return UIIcon::Text;
 #if ENABLE_BOOKMARKS
-  if (menuBookmarksIndex >= 0) {
-    menuOrder.push_back(menuBookmarksIndex);
-  }
+    case HomeMenuId::Bookmarks:
+      return UIIcon::Book;
 #endif
-  if (menuFileTransferIndex >= 0) {
-    menuOrder.push_back(menuFileTransferIndex);
+    case HomeMenuId::FileTransfer:
+      return UIIcon::Transfer;
+    case HomeMenuId::Settings:
+    default:
+      return UIIcon::Settings;
   }
-  if (menuSettingsIndex >= 0) {
-    menuOrder.push_back(menuSettingsIndex);
-  }
-  return menuOrder;
 }
 
-void HomeActivity::activateCarouselMenuIndex(const int menuIndex) {
-  if (menuIndex == menuOpenBookIndex) {
-    selectedBookIndex = lastCarouselBookIndex;
-    openSelectedBook();
-  } else if (menuIndex == menuMyLibraryIndex) {
-    onMyLibraryOpen();
-  } else if (menuIndex == menuOpdsIndex) {
-    onOpdsBrowserOpen();
-  } else if (menuIndex == menuTodoIndex) {
-    onTodoOpen();
-  } else if (menuIndex == menuAnkiIndex) {
-    onAnkiOpen();
+void HomeActivity::activateMenuId(const HomeMenuId id) {
+  switch (id) {
+    case HomeMenuId::ContinueReading:
+      onContinueReading();
+      break;
+    case HomeMenuId::OpenBook:
+      openCenteredBook();
+      break;
+    case HomeMenuId::MyLibrary:
+      onMyLibraryOpen();
+      break;
+    case HomeMenuId::Opds:
+      onOpdsBrowserOpen();
+      break;
+    case HomeMenuId::Todo:
+      onTodoOpen();
+      break;
+    case HomeMenuId::Anki:
+      onAnkiOpen();
+      break;
+    case HomeMenuId::Notes:
+      onNotesOpen();
+      break;
 #if ENABLE_BOOKMARKS
-  } else if (menuIndex == menuBookmarksIndex) {
-    onBookmarksOpen();
+    case HomeMenuId::Bookmarks:
+      onBookmarksOpen();
+      break;
 #endif
-  } else if (menuIndex == menuFileTransferIndex) {
-    onFileTransferOpen();
-  } else if (menuIndex == menuSettingsIndex) {
-    onSettingsOpen();
+    case HomeMenuId::FileTransfer:
+      onFileTransferOpen();
+      break;
+    case HomeMenuId::Settings:
+      onSettingsOpen();
+      break;
   }
 }
 
@@ -768,7 +753,6 @@ void HomeActivity::onEnter() {
       }
     }
 
-    rebuildMenuLayout();
     selectedMenuIndex = 0;
     inButtonGrid = metrics.homeStartInMenuWhenEmpty && recentBooks.empty();
     hasContinueReading = !recentBooks.empty();
@@ -826,6 +810,10 @@ void HomeActivity::onEnter() {
 
     selectorIndex = 0;
   }
+
+  // Build the single menu model now that hasContinueReading is known for both
+  // the media-picker (grid/carousel) and classic-list paths.
+  buildMenuModel();
 
   // Trigger first update
   requestUpdate();
@@ -989,16 +977,13 @@ void HomeActivity::renderCarouselFrameToCurrentBuffer(int bookIdx, float* outPro
       renderer, Rect{0, metrics.homeTopPadding, pageWidth, metrics.homeCoverTileHeight}, recentBooks, bookCount, dummy1,
       dummy2, dummy3, []() { return true; }, -1.0f);
 
-  const auto menuOrder = getCarouselMenuOrder();
-
   GUI.drawButtonMenu(
       renderer,
       Rect{0, metrics.homeTopPadding + metrics.homeCoverTileHeight + metrics.verticalSpacing, pageWidth,
            pageHeight - (metrics.homeTopPadding + metrics.homeCoverTileHeight + metrics.verticalSpacing * 2 +
                          metrics.buttonHintsHeight)},
-      static_cast<int>(menuOrder.size()), -1,
-      [this, &menuOrder](int index) { return getMenuItemLabel(menuOrder[index]); },
-      [this, &menuOrder](int index) { return getMenuItemIcon(menuOrder[index]); });
+      static_cast<int>(menuModel.size()), -1, [this](int index) { return menuIdLabel(menuModel[index]); },
+      [this](int index) { return menuIdIcon(menuModel[index]); });
 
   const auto labels = mappedInput.mapLabels("", tr(STR_SELECT), tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -1315,6 +1300,7 @@ void HomeActivity::loop() {
     const bool gridNav = homeIsGridNav();
     const bool carouselNav = homeIsCarouselNav();
     const bool pokemonPartyHomeMode = isPokemonPartyHomeMode();
+    const int menuItemCount = static_cast<int>(menuModel.size());
 
     if (pokemonPartyHomeMode && mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       activityManager.goToRecentBooks();
@@ -1322,6 +1308,8 @@ void HomeActivity::loop() {
     }
 
     if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+      // All nav modes activate through the same menuModel — no per-mode index
+      // schemes that can drift from what is rendered.
       if (carouselNav && !recentBooks.empty()) {
         const int bookCount = static_cast<int>(recentBooks.size());
         const bool inCarouselRow = (selectorIndex < bookCount);
@@ -1330,81 +1318,29 @@ void HomeActivity::loop() {
           openSelectedBook();
           return;
         }
-        const auto menuOrder = getCarouselMenuOrder();
         const int menuIdx = selectorIndex - bookCount;
-        if (menuIdx >= 0 && menuIdx < static_cast<int>(menuOrder.size())) {
-          activateCarouselMenuIndex(menuOrder[menuIdx]);
+        if (menuIdx >= 0 && menuIdx < static_cast<int>(menuModel.size())) {
+          activateMenuId(menuModel[menuIdx]);
         }
         return;
       }
 
       if (gridNav) {
         if (inButtonGrid) {
-          if (selectedMenuIndex == menuSettingsIndex) {
-            onSettingsOpen();
-            return;
+          if (selectedMenuIndex >= 0 && selectedMenuIndex < static_cast<int>(menuModel.size())) {
+            activateMenuId(menuModel[selectedMenuIndex]);
           }
-          if (!pokemonPartyHomeMode) {
-            if (selectedMenuIndex == menuMyLibraryIndex) {
-              onMyLibraryOpen();
-              return;
-            }
-            if (selectedMenuIndex == menuTodoIndex) {
-              onTodoOpen();
-              return;
-            }
-            if (selectedMenuIndex == menuAnkiIndex) {
-              onAnkiOpen();
-              return;
-            }
-            if (selectedMenuIndex == menuFileTransferIndex) {
-              onFileTransferOpen();
-              return;
-            }
-#if ENABLE_BOOKMARKS
-            if (selectedMenuIndex == menuBookmarksIndex) {
-              onBookmarksOpen();
-              return;
-            }
-#endif
-          }
-        } else if (!recentBooks.empty()) {
+          return;
+        }
+        if (!recentBooks.empty()) {
           openSelectedBook();
           return;
         }
       } else if (!carouselNav) {
-        if (selectedMenuIndex == menuOpenBookIndex) {
-          openSelectedBook();
-          return;
-        }
-        if (selectedMenuIndex == menuMyLibraryIndex) {
-          onMyLibraryOpen();
-          return;
-        }
-        if (selectedMenuIndex == menuOpdsIndex) {
-          onOpdsBrowserOpen();
-          return;
-        }
-        if (selectedMenuIndex == menuTodoIndex) {
-          onTodoOpen();
-          return;
-        }
-        if (selectedMenuIndex == menuAnkiIndex) {
-          onAnkiOpen();
-          return;
-        }
-        if (selectedMenuIndex == menuFileTransferIndex) {
-          onFileTransferOpen();
-          return;
-        }
-#if ENABLE_BOOKMARKS
-        if (selectedMenuIndex == menuBookmarksIndex) {
-          onBookmarksOpen();
-          return;
-        }
-#endif
-        if (selectedMenuIndex == menuSettingsIndex) {
-          onSettingsOpen();
+        // Classic list: selectorIndex indexes menuModel directly (slot 0 is the
+        // Continue Reading book card when present).
+        if (selectorIndex >= 0 && selectorIndex < static_cast<int>(menuModel.size())) {
+          activateMenuId(menuModel[selectorIndex]);
           return;
         }
       }
@@ -1412,7 +1348,9 @@ void HomeActivity::loop() {
 
     if (carouselNav && !recentBooks.empty()) {
       const int bookCount = static_cast<int>(recentBooks.size());
-      const int menuCount = getMenuItemCount();
+      // Navigation, rendering, and activation all use menuModel — one source of
+      // truth, so the menu-row count can never drift from what is activatable.
+      const int menuCount = static_cast<int>(menuModel.size());
       const bool inCarouselRow = (selectorIndex < bookCount);
 
       if (leftPressed) {
@@ -1508,7 +1446,7 @@ void HomeActivity::loop() {
     return;
   }
 
-  const int menuCount = getMenuItemCount();
+  const int menuCount = static_cast<int>(menuModel.size());
 
   buttonNavigator.onNext([this, menuCount] {
     selectorIndex = ButtonNavigator::nextIndex(selectorIndex, menuCount);
@@ -1521,33 +1459,11 @@ void HomeActivity::loop() {
   });
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    // Calculate dynamic indices based on which options are available
-    int idx = 0;
-    const int continueIdx = hasContinueReading ? idx++ : -1;
-    const int myLibraryIdx = idx++;
-    const int opdsLibraryIdx = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers}) ? idx++ : -1;
-    const int todoIdx = core::HomeActionRegistry::shouldExpose("todo_planner", {false}) ? idx++ : -1;
-    const int ankiIdx = core::HomeActionRegistry::shouldExpose("anki", {false}) ? idx++ : -1;
-    const int notesIdx = idx++;
-    const int fileTransferIdx = idx++;
-    const int settingsIdx = idx;
-
-    if (selectorIndex == continueIdx) {
-      onContinueReading();
-    } else if (selectorIndex == myLibraryIdx) {
-      onMyLibraryOpen();
-    } else if (selectorIndex == opdsLibraryIdx) {
-      onOpdsBrowserOpen();
-    } else if (selectorIndex == todoIdx) {
-      onTodoOpen();
-    } else if (selectorIndex == ankiIdx) {
-      onAnkiOpen();
-    } else if (selectorIndex == notesIdx) {
-      onNotesOpen();
-    } else if (selectorIndex == fileTransferIdx) {
-      onFileTransferOpen();
-    } else if (selectorIndex == settingsIdx) {
-      onSettingsOpen();
+    // selectorIndex indexes menuModel directly (slot 0 is the Continue Reading
+    // book card when a book is open). One model → nav, render, and activation
+    // stay aligned, so e.g. "Settings" can no longer trigger File Transfer.
+    if (selectorIndex >= 0 && selectorIndex < static_cast<int>(menuModel.size())) {
+      activateMenuId(menuModel[selectorIndex]);
     }
   }
 }
@@ -1599,12 +1515,11 @@ void HomeActivity::render(RenderLock&&) {
       GUI.drawCarouselBorder(renderer, Rect{0, metrics.homeTopPadding, pageWidth, metrics.homeCoverTileHeight},
                              recentBooks, centerIdx, inCarouselRow);
       if (!inCarouselRow) {
-        const auto menuOrder = getCarouselMenuOrder();
         const int menuOverlayIdx = selectorIndex - bookCount;
         GUI.drawCarouselMenuSelectionOverlay(
-            renderer, static_cast<int>(menuOrder.size()), menuOverlayIdx,
-            [this, &menuOrder](int index) { return getMenuItemLabel(menuOrder[index]); },
-            [this, &menuOrder](int index) { return getMenuItemIcon(menuOrder[index]); });
+            renderer, static_cast<int>(menuModel.size()), menuOverlayIdx,
+            [this](int index) { return menuIdLabel(menuModel[index]); },
+            [this](int index) { return menuIdIcon(menuModel[index]); });
       }
 
       float frameProgressPercent = -1.0f;
@@ -1674,37 +1589,13 @@ void HomeActivity::render(RenderLock&&) {
     menuLabels.reserve(6);
     menuIcons.reserve(6);
 
-    if (gridNav) {
-      const bool pokemonPartyHomeMode = isPokemonPartyHomeMode();
-      menuLabels.push_back(tr(STR_BOOKS));
-      menuIcons.push_back(Folder);
-      if (pokemonPartyHomeMode) {
-        menuLabels.clear();
-        menuIcons.clear();
-        menuLabels.push_back(tr(STR_SETTINGS_TITLE));
-        menuIcons.push_back(Settings);
-      } else {
-        if (core::HomeActionRegistry::shouldExpose("todo_planner", {false})) {
-          menuLabels.push_back("Agenda");
-          menuIcons.push_back(Calendar);
-        }
-        if (core::HomeActionRegistry::shouldExpose("anki", {false})) {
-          menuLabels.push_back("Anki");
-          menuIcons.push_back(Text);
-        }
-        menuLabels.push_back(tr(STR_FILE_TRANSFER));
-        menuIcons.push_back(Transfer);
-        menuLabels.push_back(tr(STR_SETTINGS_TITLE));
-        menuIcons.push_back(Settings);
-      }
-    } else {
-      const auto menuOrder = getCarouselMenuOrder();
-      menuLabels.reserve(menuOrder.size());
-      menuIcons.reserve(menuOrder.size());
-      for (const int menuIndex : menuOrder) {
-        menuLabels.push_back(getMenuItemLabel(menuIndex));
-        menuIcons.push_back(getMenuItemIcon(menuIndex));
-      }
+    // Grid uses its own label flavour ("Books"/"Agenda"); both flavours render
+    // the same menuModel, so what is shown always matches what activates.
+    menuLabels.reserve(menuModel.size());
+    menuIcons.reserve(menuModel.size());
+    for (const HomeMenuId id : menuModel) {
+      menuLabels.push_back(menuIdLabel(id, gridNav));
+      menuIcons.push_back(menuIdIcon(id));
     }
 
     GUI.drawButtonMenu(
@@ -1744,30 +1635,27 @@ void HomeActivity::render(RenderLock&&) {
         if (Storage.openFileForRead("HOME", coverBmpPath, file)) {
           Bitmap bitmap(file);
           if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-            // Calculate position to center image within the book card
-            int coverX, coverY;
-
-            if (bitmap.getWidth() > bookWidth || bitmap.getHeight() > bookHeight) {
-              const float imgRatio = static_cast<float>(bitmap.getWidth()) / static_cast<float>(bitmap.getHeight());
-              const float boxRatio = static_cast<float>(bookWidth) / static_cast<float>(bookHeight);
-
-              if (imgRatio > boxRatio) {
-                coverX = bookX;
-                coverY = bookY + (bookHeight - static_cast<int>(bookWidth / imgRatio)) / 2;
-              } else {
-                coverX = bookX + (bookWidth - static_cast<int>(bookHeight * imgRatio)) / 2;
-                coverY = bookY;
-              }
-            } else {
-              coverX = bookX + (bookWidth - bitmap.getWidth()) / 2;
-              coverY = bookY + (bookHeight - bitmap.getHeight()) / 2;
+            // Size the card to the cover's aspect ratio (full card height, width
+            // capped to the fixed box) and centre it, matching how the grid and
+            // carousel themes render covers via BaseTheme::computeBookCardRect.
+            // drawBitmap preserves aspect ratio and fits within the rect, so
+            // filling an aspect-sized rect renders the cover edge-to-edge with a
+            // tight border — the same result a portrait cover gets elsewhere,
+            // instead of being letterboxed inside a fixed wide box.
+            int coverW = bookWidth;
+            const int coverH = bookHeight;
+            const int imgW = bitmap.getWidth();
+            const int imgH = bitmap.getHeight();
+            if (imgW > 0 && imgH > 0) {
+              coverW = static_cast<int>(coverH * (static_cast<float>(imgW) / static_cast<float>(imgH)));
+              if (coverW > bookWidth) coverW = bookWidth;
             }
+            const int coverX = (pageWidth - coverW) / 2;
+            const int coverY = bookY;
+            classicCoverCardWidth = coverW;
 
-            // Draw the cover image centered within the book card
-            renderer.drawBitmap(bitmap, coverX, coverY, bookWidth, bookHeight);
-
-            // Draw border around the card
-            renderer.drawRect(bookX, bookY, bookWidth, bookHeight);
+            renderer.drawBitmap(bitmap, coverX, coverY, coverW, coverH);
+            renderer.drawRect(coverX, coverY, coverW, coverH);
 
             // Store the buffer with cover image for fast navigation
             coverBufferStored = storeCoverBuffer();
@@ -1775,8 +1663,8 @@ void HomeActivity::render(RenderLock&&) {
 
             // First render: if selected, draw selection indicators now
             if (bookSelected) {
-              renderer.drawRect(bookX + 1, bookY + 1, bookWidth - 2, bookHeight - 2);
-              renderer.drawRect(bookX + 2, bookY + 2, bookWidth - 4, bookHeight - 4);
+              renderer.drawRect(coverX + 1, coverY + 1, coverW - 2, coverH - 2);
+              renderer.drawRect(coverX + 2, coverY + 2, coverW - 4, coverH - 4);
             }
           }
           file.close();
@@ -1814,11 +1702,14 @@ void HomeActivity::render(RenderLock&&) {
         }
       }
 
-      // If buffer was restored, draw selection indicators if needed
+      // If buffer was restored, draw selection indicators if needed. Hug the
+      // aspect-sized cover rect (matching first render) rather than the fixed
+      // box, so the selection border lines up with the stored cover + border.
       if (bufferRestored && bookSelected && coverRendered) {
-        // Draw selection border (no bookmark inversion needed since cover has no bookmark)
-        renderer.drawRect(bookX + 1, bookY + 1, bookWidth - 2, bookHeight - 2);
-        renderer.drawRect(bookX + 2, bookY + 2, bookWidth - 4, bookHeight - 4);
+        const int selW = classicCoverCardWidth > 0 ? classicCoverCardWidth : bookWidth;
+        const int selX = (pageWidth - selW) / 2;
+        renderer.drawRect(selX + 1, bookY + 1, selW - 2, bookHeight - 2);
+        renderer.drawRect(selX + 2, bookY + 2, selW - 4, bookHeight - 4);
       }
     }
 
@@ -1910,18 +1801,16 @@ void HomeActivity::render(RenderLock&&) {
     int menuTileHeight = 45;
     int menuSpacing = 10;
 
-    std::vector<const char*> labels_text = {"My Library"};
-    if (core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers})) {
-      labels_text.push_back("OPDS Browser");
+    // Tiles below the book card are the menuModel entries other than the
+    // Continue Reading slot (which is rendered as the card above). Same model
+    // drives selection, so the visible tile and the activated action always
+    // agree (previously "Settings" could trigger File Transfer).
+    std::vector<std::string> labels_text;
+    labels_text.reserve(menuModel.size());
+    for (const HomeMenuId id : menuModel) {
+      if (id == HomeMenuId::ContinueReading) continue;
+      labels_text.push_back(menuIdLabel(id));
     }
-    if (core::HomeActionRegistry::shouldExpose("todo_planner", {false})) {
-      labels_text.push_back(tr(STR_TODO_HOME_LABEL));
-    }
-    if (core::HomeActionRegistry::shouldExpose("anki", {false})) {
-      labels_text.push_back("Anki");
-    }
-    labels_text.push_back("File Transfer");
-    labels_text.push_back("Settings");
     for (size_t i = 0; i < labels_text.size(); ++i) {
       int tileY = menuStartY + i * (menuTileHeight + menuSpacing);
       bool selected = (selectorIndex == (int)i + (hasContinueReading ? 1 : 0));
@@ -1930,7 +1819,7 @@ void HomeActivity::render(RenderLock&&) {
       else
         renderer.drawRect(20, tileY, menuTileWidth, menuTileHeight);
       renderer.drawCenteredText(UI_10_FONT_ID, tileY + (menuTileHeight - renderer.getLineHeight(UI_10_FONT_ID)) / 2,
-                                labels_text[i], !selected);
+                                labels_text[i].c_str(), !selected);
     }
 
     const auto hints = mappedInput.mapLabels("", "Select", "Up", "Down");

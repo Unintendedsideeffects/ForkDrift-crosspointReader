@@ -12,6 +12,25 @@
 struct Rect;
 enum UIIcon : uint8_t;
 
+// Identity for each Home menu entry. The ordered `menuModel` below is the ONE
+// source of truth for what the menu contains and in what order. Navigation
+// (count), rendering (labels/icons), and activation all index into it, so they
+// can never drift apart — which is what previously caused selection misfires
+// (carousel last-item unreachable, classic list "Settings" opening File
+// Transfer, etc.). Themes only render what they are handed.
+enum class HomeMenuId : uint8_t {
+  ContinueReading,  // classic list "book card" (slot 0 when a book is open)
+  OpenBook,         // carousel: open the centered book
+  MyLibrary,
+  Opds,
+  Todo,
+  Anki,
+  Notes,
+  Bookmarks,
+  FileTransfer,
+  Settings,
+};
+
 class HomeActivity final : public Activity {
  public:
   static constexpr int kCarouselFrameCount = 1;
@@ -22,16 +41,10 @@ class HomeActivity final : public Activity {
   int selectorIndex = 0;
   int selectedMenuIndex = 0;
   int selectedBookIndex = 0;
-  int menuItemCount = 0;
-  int menuOpenBookIndex = -1;
-  int menuMyLibraryIndex = -1;
-  int menuOpdsIndex = -1;
-  int menuTodoIndex = -1;
-  int menuAnkiIndex = -1;
-  int menuFileTransferIndex = -1;
-  int menuSettingsIndex = -1;
+  // Single ordered source of truth for the Home menu (see HomeMenuId). Rebuilt
+  // for the current nav mode in buildMenuModel(); every consumer indexes it.
+  std::vector<HomeMenuId> menuModel;
 #if ENABLE_BOOKMARKS
-  int menuBookmarksIndex = -1;
   bool hasBookmarks = false;
   void onBookmarksOpen();
 #endif
@@ -59,6 +72,12 @@ class HomeActivity final : public Activity {
   static bool coverBufferStored;
   static uint8_t* coverBuffer;
   static std::vector<std::string> coverCacheBookPaths;
+  // Width of the classic-list book card, derived from the cover's aspect ratio
+  // on first render. Static so it persists with the static cover buffer above:
+  // the buffer-restore selection overlay hugs the same rect the cover was drawn
+  // into, even on a fresh HomeActivity instance reusing the cache (0 = no cover
+  // / full-box fallback).
+  static int classicCoverCardWidth;
 
   std::string lastBookTitle;
   std::string lastBookAuthor;
@@ -91,18 +110,17 @@ class HomeActivity final : public Activity {
   void loadBookProgress();
 
  protected:
-  int getMenuItemCount() const;
   bool storeCoverBuffer();    // Store frame buffer for cover image
   bool restoreCoverBuffer();  // Restore frame buffer from stored cover
   void loadRecentBooks();
   void loadRecentCovers(int coverHeight);
   void openSelectedBook();
-  void rebuildMenuLayout();
+  void openCenteredBook();  // carousel: activate the centered book
+  void buildMenuModel();    // (re)build menuModel for the current nav mode
   bool isPokemonPartyHomeMode() const;
-  std::string getMenuItemLabel(int index) const;
-  UIIcon getMenuItemIcon(int index) const;
-  std::vector<int> getCarouselMenuOrder() const;
-  void activateCarouselMenuIndex(int menuIndex);
+  void activateMenuId(HomeMenuId id);
+  std::string menuIdLabel(HomeMenuId id, bool gridStyle = false) const;
+  UIIcon menuIdIcon(HomeMenuId id) const;
   bool drawCoverAt(const std::string& coverPath, int x, int y, int width, int height) const;
 
   static std::string fallbackTitleFromPath(const std::string& path);
