@@ -34,6 +34,7 @@ enum class SmokeStep : uint8_t {
   ReaderInput,
   HomeNav,
   HomeNavRun,
+  RecoveryRun,
   Done,
 };
 
@@ -48,6 +49,19 @@ class SimulatorSmokeTest {
     } catch (...) {
       fail("Unhandled non-standard exception");
     }
+  }
+
+  // Runs from the main loop's safe-mode branch (which returns before tick()).
+  // Reaching Safe Mode is the pass condition only when we asked for it via
+  // FORKDRIFT_SIMULATOR_SD_FAIL; any other route into Safe Mode is a failure.
+  void safeModeTick() {
+    if (!enabled()) return;
+    if (sdFailRequested()) {
+      LOG_INF("SMOKE", "Safe Mode reached as expected (SD unavailable)");
+      LOG_INF("SMOKE", "Simulator smoke test passed");
+      std::_Exit(0);
+    }
+    fail("Entered Safe Mode unexpectedly during smoke test");
   }
 
  private:
@@ -72,6 +86,10 @@ class SimulatorSmokeTest {
   SmokeStep scriptDoneStep = SmokeStep::Done;
 
   static bool enabled() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_TEST") != nullptr; }
+
+  static bool recoveryRequested() { return std::getenv("FORKDRIFT_SIMULATOR_RECOVERY") != nullptr; }
+
+  static bool sdFailRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SD_FAIL") != nullptr; }
 
   static int pageTurnCount() {
     const char* raw = std::getenv("FORKDRIFT_SIMULATOR_SMOKE_PAGE_TURNS");
@@ -131,6 +149,15 @@ class SimulatorSmokeTest {
       case SmokeStep::Start:
         LOG_INF("SMOKE", "Starting ForkDrift simulator smoke test");
         applyRequestedTheme();
+        if (recoveryRequested()) {
+          // main.cpp already made RecoveryMenuActivity the root; drive it rather
+          // than navigating Home (goHome would replace the recovery menu).
+          buildRecoveryNavScript();
+          scriptStep = SmokeStep::RecoveryRun;
+          scriptDoneStep = SmokeStep::Done;
+          step = SmokeStep::RecoveryRun;
+          break;
+        }
         activityManager.goHome();
         queueStep("Home", SmokeStep::Home);
         break;
@@ -206,6 +233,10 @@ class SimulatorSmokeTest {
         break;
 
       case SmokeStep::HomeNavRun:
+        runInputScript();
+        break;
+
+      case SmokeStep::RecoveryRun:
         runInputScript();
         break;
 
@@ -293,6 +324,31 @@ class SimulatorSmokeTest {
     LOG_INF("SMOKE", "Running settings navigation script");
   }
 
+  // Drives the recovery menu (RecoveryMenuActivity) that main.cpp forced as the
+  // root via FORKDRIFT_SIMULATOR_RECOVERY. Exercises the menu render, selection
+  // navigation, and one sub-activity round-trip (Clear Cache → cancel) without
+  // touching the destructive items: it never confirms Factory Reset or Restart,
+  // and never presses Back at the menu root (which would reboot the simulator).
+  // The run ends by exhausting the script into the Done step.
+  void buildRecoveryNavScript() {
+    inputScript.clear();
+    scriptIndex = 0;
+    inputScript.push_back(render("Recovery menu", 4));
+    addTap(MappedInputManager::Button::Down);  // -> Clear Reading Cache
+    inputScript.push_back(render("Recovery: Clear Cache selected", 2));
+    addTap(MappedInputManager::Button::Confirm);  // open Clear Cache warning
+    inputScript.push_back(render("Recovery: Clear Cache warning", 3));
+    addTap(MappedInputManager::Button::Back);  // cancel back to the menu
+    inputScript.push_back(render("Recovery: back at menu", 3));
+    addTap(MappedInputManager::Button::Down);  // -> Reset Settings
+    inputScript.push_back(render("Recovery: Reset Settings selected", 2));
+    addTap(MappedInputManager::Button::Down);  // -> Factory Reset (highlight only)
+    inputScript.push_back(render("Recovery: Factory Reset selected", 2));
+    addTap(MappedInputManager::Button::Up);  // back up to Reset Settings
+    inputScript.push_back(render("Recovery: Reset Settings selected", 2));
+    LOG_INF("SMOKE", "Running recovery menu navigation script");
+  }
+
   void runInputScript() {
     if (scriptIndex >= inputScript.size()) {
       step = scriptDoneStep;
@@ -318,5 +374,7 @@ SimulatorSmokeTest smokeTest;
 }  // namespace
 
 void runSimulatorSmokeTestTick() { smokeTest.tick(); }
+
+void runSimulatorSmokeTestSafeModeTick() { smokeTest.safeModeTick(); }
 
 #endif

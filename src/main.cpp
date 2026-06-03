@@ -13,6 +13,7 @@
 #include <WiFi.h>
 #include <builtinFonts/all.h>
 
+#include <cstdlib>
 #include <cstring>
 #include <string>
 
@@ -625,7 +626,16 @@ void setup() {
 
   LOG_INF("MAIN", "Hardware detect: %s", gpio.deviceIsX3() ? "X3" : "X4");
 
-  if (!Storage.begin()) {
+  bool sdReady = Storage.begin();
+#ifdef SIMULATOR
+  // Let the smoke harness exercise the SD-missing Safe Mode path, which is
+  // otherwise hardware-only (the simulator's HalStorage::begin() always succeeds).
+  if (std::getenv("FORKDRIFT_SIMULATOR_SD_FAIL") != nullptr) {
+    LOG_WRN("MAIN", "Simulator: forcing SD init failure (FORKDRIFT_SIMULATOR_SD_FAIL)");
+    sdReady = false;
+  }
+#endif
+  if (!sdReady) {
     LOG_ERR("MAIN", "SD card initialization failed");
     if (setupDisplayAndFonts()) {
       enterSafeMode("SD card unavailable");
@@ -681,7 +691,15 @@ void setup() {
   // boot to skip directly to the SD-card firmware update screen. Useful on devices where USB
   // flashing has been locked down (e.g. recent X3 firmware).
   bool recoveryFirmwareMode = false;
-  if (wakeupReason == HalGPIO::WakeupReason::PowerButton) {
+#ifdef SIMULATOR
+  // Let the smoke harness boot straight into the recovery menu without the
+  // physical UP+POWER combo (which the simulator cannot inject at boot).
+  if (std::getenv("FORKDRIFT_SIMULATOR_RECOVERY") != nullptr) {
+    recoveryFirmwareMode = true;
+    LOG_INF("MAIN", "Simulator: forcing recovery mode (FORKDRIFT_SIMULATOR_RECOVERY)");
+  }
+#endif
+  if (!recoveryFirmwareMode && wakeupReason == HalGPIO::WakeupReason::PowerButton) {
     // Refresh the cached button state a few times — isPressed() needs ~half a second to settle
     // after boot per the HalGPIO contract. Use a millis-based deadline so we always wait the full
     // settle window even if the loop body takes longer than expected on slow boots.
@@ -785,6 +803,11 @@ void loop() {
   static bool screenshotComboActive = false;
 
   if (safeModeActive) {
+#ifdef SIMULATOR
+    // The smoke tick below the safe-mode early-return never runs, so verify the
+    // Safe Mode landing here instead (passes only when SD failure was requested).
+    runSimulatorSmokeTestSafeModeTick();
+#endif
     gpio.update();
     if (gpio.isPressed(HalGPIO::BTN_POWER) && gpio.getHeldTime() > kSafeModeSleepHoldMs) {
       if (renderer.getFrameBuffer()) {

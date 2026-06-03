@@ -4,10 +4,16 @@
 Usage:
   python scripts/run_simulator_smoke_test.py [--book PATH] [--theme NAME]
       [--timeout SECS] [--page-turns N] [--no-build] [--window]
-      [--fs-root DIR]
+      [--fs-root DIR] [--recovery | --sd-fail]
 
 The smoke test boots the firmware, navigates Home → FileBrowser → RecentBooks →
 Settings → Sleep → Reader (with page turns), then exits with code 0 on success.
+
+Boot-flow modes (simulator-only firmware hooks, exit 0 on success):
+  --recovery  Boot into the recovery menu and drive it (cache/settings/factory
+              reset menu) without confirming destructive actions.
+  --sd-fail   Force SD init failure so the SD-missing Safe Mode path runs (the
+              real detection is hardware-only; the sim's begin() always succeeds).
 
 By default it runs against a throwaway fs_ directory containing a single copied
 book. Pass --fs-root DIR to instead run against a persistent folder you have
@@ -151,6 +157,15 @@ def run_smoke(args: argparse.Namespace) -> int:
 
     env = base_env(args)
 
+    # Boot-flow modes (simulator-only firmware hooks). Recovery boots straight
+    # into the recovery menu; sd-fail forces SD init failure → Safe Mode. Neither
+    # opens a book, so the Reader/book steps are skipped.
+    if args.recovery:
+        env["FORKDRIFT_SIMULATOR_RECOVERY"] = "1"
+    if args.sd_fail:
+        env["FORKDRIFT_SIMULATOR_SD_FAIL"] = "1"
+    needs_book = not (args.recovery or args.sd_fail)
+
     # Persistent, caller-supplied file tree: run the simulator against it in place
     # (CROSSPOINT_SIM_SD), leaving the tree untouched. Useful for exercising real
     # on-disk content — multiple books, a populated .crosspoint/ cache, settings.
@@ -160,17 +175,26 @@ def run_smoke(args: argparse.Namespace) -> int:
             print(f"--fs-root is not a directory: {fs_root}", file=sys.stderr)
             return 2
 
-        book_path = resolve_book_in_tree(fs_root, args.book if args.book != str(DEFAULT_BOOK) else "")
-        if not book_path:
-            print(f"No book to open: pass --book or place a *.epub under {fs_root / 'books'}", file=sys.stderr)
-            return 2
+        if needs_book:
+            book_path = resolve_book_in_tree(fs_root, args.book if args.book != str(DEFAULT_BOOK) else "")
+            if not book_path:
+                print(f"No book to open: pass --book or place a *.epub under {fs_root / 'books'}", file=sys.stderr)
+                return 2
+            env["FORKDRIFT_SIMULATOR_SMOKE_BOOK"] = book_path
 
         env["CROSSPOINT_SIM_SD"] = str(fs_root)
-        env["FORKDRIFT_SIMULATOR_SMOKE_BOOK"] = book_path
-        print(f"Running simulator smoke test against fs root: {fs_root} (book {book_path})", flush=True)
+        print(f"Running simulator smoke test against fs root: {fs_root}", flush=True)
         return run_program(env, cwd=fs_root, timeout=args.timeout)
 
-    # Default: throwaway isolated fs_ seeded with a single copied book.
+    # Default: throwaway isolated fs_ (seeded with a single copied book unless a
+    # boot-flow mode that opens no book is selected).
+    if not needs_book:
+        with tempfile.TemporaryDirectory(prefix="forkdrift-sim-smoke-") as temp_dir_name:
+            temp_root = Path(temp_dir_name)
+            (temp_root / "fs_" / "books").mkdir(parents=True, exist_ok=True)
+            print(f"Running simulator smoke test with isolated fs_: {temp_root / 'fs_'}", flush=True)
+            return run_program(env, cwd=temp_root, timeout=args.timeout)
+
     book = Path(args.book).resolve()
     if not book.exists():
         print(f"Smoke test book not found: {book}", file=sys.stderr)
@@ -200,6 +224,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fs-root", default=None,
                         help="Run against this folder as the simulator SD root (CROSSPOINT_SIM_SD) "
                              "instead of a throwaway fs_; the runner does not seed or wipe it")
+    parser.add_argument("--recovery", action="store_true",
+                        help="Boot straight into the recovery menu and drive it (no book opened)")
+    parser.add_argument("--sd-fail", action="store_true",
+                        help="Force SD init failure to exercise the Safe Mode path (no book opened)")
     parser.set_defaults(build=True, headless=True)
     return parser.parse_args()
 
