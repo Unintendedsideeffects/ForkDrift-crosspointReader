@@ -73,6 +73,44 @@ const std::vector<SettingInfo>* settingsForCategory(int categoryIndex, const std
       return &displaySettings;
   }
 }
+
+// A named topic group within a settings tab: a section header plus the ordered
+// list of setting keys that belong under it.
+struct SettingsTopic {
+  StrId header;
+  std::vector<const char*> keys;
+};
+
+// Reorders `settings` into the given topic groups, inserting a SectionHeader
+// before each non-empty group. Settings whose key matches no group are kept and
+// appended after the grouped ones, so a typo (or a newly added setting that was
+// not assigned a topic) can never silently drop an entry from the menu.
+void groupSettingsByTopic(std::vector<SettingInfo>& settings, const std::vector<SettingsTopic>& topics) {
+  std::vector<SettingInfo> out;
+  out.reserve(settings.size() + topics.size());
+  std::vector<bool> used(settings.size(), false);
+
+  for (const auto& topic : topics) {
+    std::vector<SettingInfo> groupItems;
+    for (const char* key : topic.keys) {
+      for (size_t i = 0; i < settings.size(); ++i) {
+        if (!used[i] && settings[i].key != nullptr && std::strcmp(settings[i].key, key) == 0) {
+          groupItems.push_back(std::move(settings[i]));
+          used[i] = true;
+          break;
+        }
+      }
+    }
+    if (groupItems.empty()) continue;
+    out.push_back(SettingInfo::SectionHeader(topic.header));
+    for (auto& item : groupItems) out.push_back(std::move(item));  // cppcheck-suppress useStlAlgorithm
+  }
+
+  for (size_t i = 0; i < settings.size(); ++i) {
+    if (!used[i]) out.push_back(std::move(settings[i]));  // cppcheck-suppress useStlAlgorithm
+  }
+  settings = std::move(out);
+}
 }  // namespace
 
 const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_READER,
@@ -136,6 +174,31 @@ void SettingsActivity::rebuildSettingsLists() {
     }
   }
 
+  // Group Display and Reader by topic, keeping dependent settings adjacent to
+  // the setting they depend on (e.g. the sleep-screen sub-options follow Sleep
+  // Screen, which gates their visibility via visibleWhen).
+  groupSettingsByTopic(
+      displaySettings,
+      {{StrId::STR_SEC_APPEARANCE, {"uiTheme", "recentBooksView", "darkMode", "globalStatusBarPosition", "fadingFix"}},
+       {StrId::STR_SEC_SLEEP,
+        {"sleepScreen", "sleepScreenSource", "sleepScreenCoverMode", "sleepScreenCoverFilter", "sleepCycleMode",
+         "haikuClockLandscape", "trmnlSleepEnabled"}},
+       {StrId::STR_SEC_DISPLAY_MISC, {"hideBatteryPercentage", "refreshFrequency"}}});
+  groupSettingsByTopic(
+      readerSettings,
+      {{StrId::STR_SEC_TEXT,
+        {"fontFamily", "fontSize", "lineSpacing", "userFontPath", "hyphenationEnabled", "textAntiAliasing",
+         "embeddedStyle"}},
+       {StrId::STR_SEC_LAYOUT,
+        {"screenMargin", "paragraphAlignment", "extraParagraphSpacing", "forceParagraphIndents", "orientation"}},
+       {StrId::STR_SEC_READING_AIDS, {"focusReadingEnabled", "guideReadingEnabled", "imageRendering"}}});
+
+  // System: a General header over the collected toggles; the network actions get
+  // their own Connectivity header below.
+  if (!systemSettings.empty()) {
+    systemSettings.insert(systemSettings.begin(), SettingInfo::SectionHeader(StrId::STR_SEC_GENERAL));
+  }
+
   // Build controls settings with section headers in desired display order
   controlsSettings.reserve(15);
   controlsSettings.push_back(SettingInfo::SectionHeader(StrId::STR_POWER_BUTTON));
@@ -150,6 +213,7 @@ void SettingsActivity::rebuildSettingsLists() {
   addControlSetting(StrId::STR_SIDE_BTN_LAYOUT);
   addControlSettingByKey("sideButtonOrientationAware");
   addControlSetting(StrId::STR_SIDE_BTN_LONG_PRESS);
+  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_CONNECTIVITY));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_WIFI_NETWORKS, SettingAction::Network));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser));
@@ -175,9 +239,12 @@ void SettingsActivity::rebuildSettingsLists() {
   addSystemSettingByKey("developerMode");
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_LOGS, SettingAction::ClearLogs));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_CRASHES, SettingAction::ClearCrashes));
+  // Manage Fonts sits under the Text section, right after the font picker.
   if (!readerSettings.empty()) {
-    readerSettings.insert(readerSettings.begin() + 1,
-                          SettingInfo::Action(StrId::STR_MANAGE_FONTS, SettingAction::DownloadFonts));
+    const auto fontIt = std::find_if(readerSettings.begin(), readerSettings.end(),
+                                     [](const SettingInfo& s) { return s.nameId == StrId::STR_FONT_FAMILY; });
+    const auto insertPos = (fontIt != readerSettings.end()) ? std::next(fontIt) : readerSettings.begin();
+    readerSettings.insert(insertPos, SettingInfo::Action(StrId::STR_MANAGE_FONTS, SettingAction::DownloadFonts));
   }
   readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
 
