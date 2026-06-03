@@ -27,6 +27,7 @@
 #include "activities/ActivityManager.h"
 #include "activities/RenderLock.h"
 #include "activities/boot_sleep/SleepActivity.h"
+#include "activities/settings/RecoveryMenuActivity.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
 #include "components/UITheme.h"
 #include "core/CoreBootstrap.h"
@@ -710,9 +711,10 @@ void setup() {
   RECENT_BOOKS.loadFromFile();
 
   if (recoveryFirmwareMode) {
-    // Skip normal home/reader routing: jump straight into the SD firmware picker.
-    activityManager.replaceActivity(
-        std::make_unique<SdFirmwareUpdateActivity>(renderer, mappedInputManager, /*recoveryMode=*/true));
+    // Skip normal home/reader routing: open the recovery menu (firmware flash,
+    // clear cache, reset settings, factory reset) so a device made unusable by
+    // bad settings or corrupt cache can be recovered without USB flashing.
+    activityManager.replaceActivity(std::make_unique<RecoveryMenuActivity>(renderer, mappedInputManager));
   } else if (HalSystem::isRebootFromPanic()) {
     // If we rebooted from a panic, go to crash report screen to show the panic info
     activityManager.goToCrashReport();
