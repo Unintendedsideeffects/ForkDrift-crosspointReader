@@ -141,7 +141,7 @@ FEATURES = {
     'xtc_support': Feature(
         name='XTC Support',
         flag='ENABLE_XTC_SUPPORT',
-        size_kb=21,
+        size_kb=20,
         description='XTC format reader with chapter navigation'
     ),
     'lyra_theme': Feature(
@@ -165,7 +165,7 @@ FEATURES = {
     'anki_support': Feature(
         name='Anki Support',
         flag='ENABLE_ANKI_SUPPORT',
-        size_kb=10,
+        size_kb=15,
         description='Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop.'
     ),
     'dark_mode': Feature(
@@ -225,7 +225,7 @@ FEATURES = {
     'roman_clock_sleep': Feature(
         name='Roman Clock Sleep Screen',
         flag='ENABLE_ROMAN_CLOCK_SLEEP',
-        size_kb=3,
+        size_kb=2,
         description='Optional block-style Roman numeral sleep screen that reuses the WiFi clock time source'
     ),
     'haiku_clock_sleep': Feature(
