@@ -27,9 +27,13 @@ enum class SmokeStep : uint8_t {
   FileBrowser,
   RecentBooks,
   Settings,
+  SettingsNavRun,
+  SettingsDone,
   Sleep,
   Reader,
   ReaderInput,
+  HomeNav,
+  HomeNavRun,
   Done,
 };
 
@@ -61,6 +65,11 @@ class SimulatorSmokeTest {
   const char* activeStepName = nullptr;
   std::vector<ScriptAction> inputScript;
   size_t scriptIndex = 0;
+  // The step a Render action re-queues to (the script that owns it), and the
+  // step to advance to once the running script is exhausted. Lets ReaderInput
+  // and CarouselNav share one script runner.
+  SmokeStep scriptStep = SmokeStep::ReaderInput;
+  SmokeStep scriptDoneStep = SmokeStep::Done;
 
   static bool enabled() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_TEST") != nullptr; }
 
@@ -142,6 +151,19 @@ class SimulatorSmokeTest {
         break;
 
       case SmokeStep::Settings:
+        // Drive the Settings menu: cycle every category tab and scroll each
+        // (now topic-grouped, section-header) list to exercise header skipping.
+        buildSettingsInputScript();
+        scriptStep = SmokeStep::SettingsNavRun;
+        scriptDoneStep = SmokeStep::SettingsDone;
+        step = SmokeStep::SettingsNavRun;
+        break;
+
+      case SmokeStep::SettingsNavRun:
+        runInputScript();
+        break;
+
+      case SmokeStep::SettingsDone:
         activityManager.goToSleep();
         queueStep("Sleep", SmokeStep::Sleep);
         break;
@@ -163,11 +185,28 @@ class SimulatorSmokeTest {
 
       case SmokeStep::Reader:
         buildReaderInputScript();
+        scriptStep = SmokeStep::ReaderInput;
+        // After the reader closes we are back Home with a recent book present.
+        // Drive the Home menu for whatever theme is active to exercise its
+        // selection navigation + activation path (all themes now share one
+        // menuModel, so this covers carousel, grid, and classic-list nav).
+        scriptDoneStep = SmokeStep::HomeNav;
         step = SmokeStep::ReaderInput;
         break;
 
       case SmokeStep::ReaderInput:
-        runReaderInputScript();
+        runInputScript();
+        break;
+
+      case SmokeStep::HomeNav:
+        buildHomeNavInputScript();
+        scriptStep = SmokeStep::HomeNavRun;
+        scriptDoneStep = SmokeStep::Done;
+        step = SmokeStep::HomeNavRun;
+        break;
+
+      case SmokeStep::HomeNavRun:
+        runInputScript();
         break;
 
       case SmokeStep::Done:
@@ -202,9 +241,61 @@ class SimulatorSmokeTest {
     LOG_INF("SMOKE", "Running reader input script with %d page turn(s)", turns);
   }
 
-  void runReaderInputScript() {
+  // Drives the Home menu to exercise the selection navigation + activation path
+  // for whatever theme is active. All three nav modes (Lyra carousel, ForkDrift
+  // grid, classic list) now index the single HomeActivity::menuModel, so the
+  // same Down/Right/Up/Confirm sequence is safe and meaningful for each: it
+  // moves into the menu, cycles past the end to wrap, and finally activates an
+  // entry. Because the count cycled matches the activatable entries by
+  // construction, this guards the unification against regression.
+  void buildHomeNavInputScript() {
+    inputScript.clear();
+    scriptIndex = 0;
+    inputScript.push_back(render("Home menu nav", 4));
+    addTap(MappedInputManager::Button::Down);  // into menu row / move selection
+    inputScript.push_back(render("Home menu enter", 3));
+    // Cycle further than any plausible menu length to wrap fully and revisit
+    // every reachable item without depending on the exact feature-gated count.
+    for (int i = 0; i < 10; i++) {
+      addTap(MappedInputManager::Button::Right);
+      inputScript.push_back(render("Home menu cycle", 1));
+    }
+    for (int i = 0; i < 10; i++) {
+      addTap(MappedInputManager::Button::Down);
+      inputScript.push_back(render("Home menu down", 1));
+    }
+    addTap(MappedInputManager::Button::Up);
+    inputScript.push_back(render("Home menu up", 3));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Home menu activated", 5));
+    LOG_INF("SMOKE", "Running home menu navigation script");
+  }
+
+  // Cycles all four Settings category tabs and scrolls each list. Settings nav
+  // skips SECTION_HEADER rows, so this exercises the topic-grouped layout
+  // (Appearance/Sleep/Text/Layout/General/Connectivity/... headers). A Down tap
+  // scrolls items; Confirm at the tab row (index 0) advances the category, and
+  // Back from a scrolled position only returns to the tab row (never exits), so
+  // the sequence can't fall out of Settings mid-script.
+  void buildSettingsInputScript() {
+    inputScript.clear();
+    scriptIndex = 0;
+    inputScript.push_back(render("Settings", 4));
+    for (int cat = 0; cat < 4; cat++) {
+      for (int i = 0; i < 8; i++) {
+        addTap(MappedInputManager::Button::Down);
+        inputScript.push_back(render("Settings scroll", 1));
+      }
+      addTap(MappedInputManager::Button::Back);     // scrolled position -> tab row
+      addTap(MappedInputManager::Button::Confirm);  // tab row -> next category
+      inputScript.push_back(render("Settings category", 3));
+    }
+    LOG_INF("SMOKE", "Running settings navigation script");
+  }
+
+  void runInputScript() {
     if (scriptIndex >= inputScript.size()) {
-      step = SmokeStep::Done;
+      step = scriptDoneStep;
       return;
     }
     const auto& action = inputScript[scriptIndex++];
@@ -216,7 +307,7 @@ class SimulatorSmokeTest {
         mappedInputManager.simulatorInjectRelease(action.button);
         break;
       case ScriptActionType::Render:
-        queueStep(action.label, SmokeStep::ReaderInput, action.settleFrames);
+        queueStep(action.label, scriptStep, action.settleFrames);
         break;
     }
   }
