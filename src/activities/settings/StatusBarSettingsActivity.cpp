@@ -1,10 +1,13 @@
 #include "StatusBarSettingsActivity.h"
 
 #include <GfxRenderer.h>
+#include <HalClock.h>
 #include <I18n.h>
 
 #include <cstring>
+#include <memory>
 
+#include "ClockSyncActivity.h"
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
@@ -13,13 +16,30 @@
 #include "fontIds.h"
 
 namespace {
-constexpr int MENU_ITEMS = 6;
-const StrId menuNames[MENU_ITEMS] = {StrId::STR_CHAPTER_PAGE_COUNT,
+// Base items shown on every device. The two clock items are appended only when the
+// DS3231 RTC is present (X3), so X4 never sees them (visibleItemCount in onEnter()).
+constexpr int BASE_MENU_ITEMS = 6;
+enum MenuItem {
+  ITEM_CHAPTER_PAGE_COUNT = 0,
+  ITEM_BOOK_PROGRESS_PERCENTAGE,
+  ITEM_PROGRESS_BAR,
+  ITEM_PROGRESS_BAR_THICKNESS,
+  ITEM_TITLE,
+  ITEM_BATTERY,
+  ITEM_CLOCK_FORMAT,  // X3 only
+  ITEM_CLOCK_SYNC,    // X3 only, launches ClockSyncActivity
+  ITEM_COUNT
+};
+const StrId menuNames[ITEM_COUNT] = {StrId::STR_CHAPTER_PAGE_COUNT,
                                      StrId::STR_BOOK_PROGRESS_PERCENTAGE,
                                      StrId::STR_PROGRESS_BAR,
                                      StrId::STR_PROGRESS_BAR_THICKNESS,
                                      StrId::STR_TITLE,
-                                     StrId::STR_BATTERY};
+                                     StrId::STR_BATTERY,
+                                     StrId::STR_CLOCK_FORMAT,
+                                     StrId::STR_CLOCK_SYNC};
+constexpr int CLOCK_FORMAT_ITEMS = 2;
+const StrId clockFormatNames[CLOCK_FORMAT_ITEMS] = {StrId::STR_CLOCK_FORMAT_24H, StrId::STR_CLOCK_FORMAT_12H};
 constexpr int PROGRESS_BAR_ITEMS = 3;
 const StrId progressBarNames[PROGRESS_BAR_ITEMS] = {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE};
 
@@ -39,6 +59,12 @@ void StatusBarSettingsActivity::onEnter() {
   Activity::onEnter();
 
   selectedIndex = 0;
+  // Clock entries are X3-only (DS3231 RTC); hide them entirely on X4.
+  visibleItemCount = halClock.isAvailable() ? ITEM_COUNT : BASE_MENU_ITEMS;
+
+  if (SETTINGS.clockFormat >= CLOCK_FORMAT_ITEMS) {
+    SETTINGS.clockFormat = 0;
+  }
 
   // Clamp statusBarProgressBar and statusBarTitle in case of corrupt/migrated data
   if (SETTINGS.statusBarProgressBar >= PROGRESS_BAR_ITEMS) {
@@ -78,22 +104,22 @@ void StatusBarSettingsActivity::loop() {
 
   // Handle navigation
   buttonNavigator.onNextRelease([this] {
-    selectedIndex = ButtonNavigator::nextIndex(selectedIndex, MENU_ITEMS);
+    selectedIndex = ButtonNavigator::nextIndex(selectedIndex, visibleItemCount);
     requestUpdate();
   });
 
   buttonNavigator.onPreviousRelease([this] {
-    selectedIndex = ButtonNavigator::previousIndex(selectedIndex, MENU_ITEMS);
+    selectedIndex = ButtonNavigator::previousIndex(selectedIndex, visibleItemCount);
     requestUpdate();
   });
 
   buttonNavigator.onNextContinuous([this] {
-    selectedIndex = ButtonNavigator::nextIndex(selectedIndex, MENU_ITEMS);
+    selectedIndex = ButtonNavigator::nextIndex(selectedIndex, visibleItemCount);
     requestUpdate();
   });
 
   buttonNavigator.onPreviousContinuous([this] {
-    selectedIndex = ButtonNavigator::previousIndex(selectedIndex, MENU_ITEMS);
+    selectedIndex = ButtonNavigator::previousIndex(selectedIndex, visibleItemCount);
     requestUpdate();
   });
 }
@@ -118,6 +144,14 @@ void StatusBarSettingsActivity::handleSelection() {
   } else if (selectedIndex == 5) {
     // Show Battery
     SETTINGS.statusBarBattery = (SETTINGS.statusBarBattery + 1) % 2;
+  } else if (selectedIndex == ITEM_CLOCK_FORMAT) {
+    // Clock display format (X3): 24-hour / 12-hour
+    SETTINGS.clockFormat = (SETTINGS.clockFormat + 1) % CLOCK_FORMAT_ITEMS;
+  } else if (selectedIndex == ITEM_CLOCK_SYNC) {
+    // Force a manual NTP re-sync of the RTC. ClockSyncActivity persists its own
+    // state, so there is nothing to save here.
+    startActivityForResult(std::make_unique<ClockSyncActivity>(renderer, mappedInput), nullptr);
+    return;
   }
   const bool saved = SETTINGS.saveToFile();
   if (!saved) {
@@ -137,7 +171,7 @@ void StatusBarSettingsActivity::render(RenderLock&&) {
   const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
   const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing * 2;
   GUI.drawList(
-      renderer, Rect{0, contentTop, pageWidth, contentHeight}, static_cast<int>(MENU_ITEMS),
+      renderer, Rect{0, contentTop, pageWidth, contentHeight}, static_cast<int>(visibleItemCount),
       static_cast<int>(selectedIndex), [](int index) { return std::string(I18N.get(menuNames[index])); }, nullptr,
       nullptr,
       [this](int index) {
@@ -154,6 +188,10 @@ void StatusBarSettingsActivity::render(RenderLock&&) {
           return I18N.get(titleNames[SETTINGS.statusBarTitle]);
         } else if (index == 5) {
           return SETTINGS.statusBarBattery ? tr(STR_SHOW) : tr(STR_HIDE);
+        } else if (index == ITEM_CLOCK_FORMAT) {
+          return I18N.get(clockFormatNames[SETTINGS.clockFormat % CLOCK_FORMAT_ITEMS]);
+        } else if (index == ITEM_CLOCK_SYNC) {
+          return "";  // action item — launches the sync screen
         } else {
           return tr(STR_HIDE);
         }

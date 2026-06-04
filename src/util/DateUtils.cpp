@@ -1,5 +1,6 @@
 #include "DateUtils.h"
 
+#include <HalClock.h>
 #include <HalStorage.h>
 
 #include <algorithm>
@@ -82,6 +83,37 @@ std::string currentClockLabel() {
     std::snprintf(buffer, sizeof(buffer), "%s", hour);
   } else {
     std::snprintf(buffer, sizeof(buffer), "%s:%s", hour, minute);
+  }
+  return std::string(buffer);
+}
+
+std::string currentDigitalClockLabel() {
+  const bool use12Hour = SETTINGS.clockFormat == 1;
+
+  // Prefer the DS3231 RTC when present (X3): it keeps time across deep sleep and
+  // power loss, unlike the X4 which relies on volatile system time. The RTC stores
+  // UTC, so apply the same timezone setting the Roman clock uses (whole-hour steps
+  // → quarter-hour-biased units expected by HalClock::formatTime).
+  if (halClock.isAvailable()) {
+    char buf[12];
+    const auto offsetBiasedQ = static_cast<uint8_t>(SETTINGS.timeZoneOffset * 4);
+    if (halClock.formatTime(buf, sizeof(buf), offsetBiasedQ, use12Hour)) {
+      return std::string(buf);
+    }
+    return {};
+  }
+
+  std::tm timeInfo{};
+  if (!getAdjustedTime(timeInfo)) {
+    return {};
+  }
+  char buffer[12] = {};
+  if (use12Hour) {
+    int hour12 = timeInfo.tm_hour % 12;
+    if (hour12 == 0) hour12 = 12;
+    std::snprintf(buffer, sizeof(buffer), "%d:%02d %s", hour12, timeInfo.tm_min, timeInfo.tm_hour >= 12 ? "PM" : "AM");
+  } else {
+    std::snprintf(buffer, sizeof(buffer), "%02d:%02d", timeInfo.tm_hour, timeInfo.tm_min);
   }
   return std::string(buffer);
 }

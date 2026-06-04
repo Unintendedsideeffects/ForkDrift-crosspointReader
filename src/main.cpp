@@ -2,6 +2,7 @@
 #include <FontCacheManager.h>
 #include <FontDecompressor.h>
 #include <GfxRenderer.h>
+#include <HalClock.h>
 #include <HalDisplay.h>
 #include <HalGPIO.h>
 #include <HalPowerManager.h>
@@ -611,6 +612,9 @@ void setup() {
 #endif
   gpio.begin();
   powerManager.begin();
+  // Probe the DS3231 RTC (X3 only; no-op on X4). Must follow powerManager.begin(),
+  // which initialises the shared I2C bus.
+  halClock.begin();
 
   const bool usbConnectedAtBoot = gpio.isUsbConnected();
 #ifdef ENABLE_SERIAL_LOG

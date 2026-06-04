@@ -56,7 +56,10 @@ void ClockSyncActivity::runSync() {
   // Read the freshly synced time back for the user-facing confirmation.
   if (halClock.isAvailable()) {
     char buf[9];
-    if (halClock.formatTime(buf, sizeof(buf), SETTINGS.clockUtcOffsetQ, SETTINGS.clockFormat == 1)) {
+    // Same offset source as the status-bar clock: the timezone picker
+    // (whole-hour steps → quarter-hour-biased units for HalClock::formatTime).
+    if (halClock.formatTime(buf, sizeof(buf), static_cast<uint8_t>(SETTINGS.timeZoneOffset * 4),
+                            SETTINGS.clockFormat == 1)) {
       snprintf(syncedTime, sizeof(syncedTime), "%s", buf);
     }
   } else {

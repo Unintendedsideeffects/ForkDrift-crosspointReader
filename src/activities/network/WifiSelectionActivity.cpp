@@ -1,6 +1,7 @@
 #include "WifiSelectionActivity.h"
 
 #include <GfxRenderer.h>
+#include <HalClock.h>
 #include <I18n.h>
 #include <Logging.h>
 #include <WiFi.h>
@@ -8,6 +9,7 @@
 #include <algorithm>
 #include <map>
 
+#include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "activities/TaskShutdown.h"
 #include "activities/util/KeyboardEntryActivity.h"
@@ -304,6 +306,18 @@ void WifiSelectionActivity::checkConnectionStatus() {
 
     // Save this as the last connected network
     WIFI_STORE.setLastConnectedSsid(selectedSSID);
+
+    // X3 only: sync the DS3231 RTC from NTP on the first successful connection.
+    // The RTC drifts only ~2 ppm, so one sync suffices; users can force a re-sync
+    // from Settings > Customise Status Bar > Sync Clock.
+    if (halClock.isAvailable() && !SETTINGS.clockHasBeenSynced) {
+      if (halClock.syncFromNTP()) {
+        SETTINGS.clockHasBeenSynced = 1;
+        if (!SETTINGS.saveToFile()) {
+          LOG_ERR("WIFI", "Failed to persist clock sync flag");
+        }
+      }
+    }
 
     // If we entered a new password, ask if user wants to save it
     // Otherwise, immediately complete so parent can start web server

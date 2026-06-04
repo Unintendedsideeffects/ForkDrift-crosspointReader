@@ -1,4 +1,5 @@
 #pragma once
+#include <FeatureFlags.h>
 #include <GfxRenderer.h>
 
 #include <cstdint>
@@ -8,6 +9,12 @@
 
 #include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
+
+#if ENABLE_REMOTE_KEYBOARD_INPUT
+#include <memory>
+
+#include "network/RemoteKeyboardNetworkSession.h"
+#endif
 
 struct KeyDef {
   char primary;
@@ -42,6 +49,11 @@ class KeyboardEntryActivity : public Activity {
   void onExit() override;
   void loop() override;
   void render(RenderLock&&) override;
+#if ENABLE_REMOTE_KEYBOARD_INPUT
+  bool skipLoopDelay() override;
+  bool preventAutoSleep() override;
+  bool blocksBackgroundServer() override;
+#endif
 
  private:
   std::string title;
@@ -49,6 +61,21 @@ class KeyboardEntryActivity : public Activity {
   size_t maxLength;
   InputType inputType;
   bool passwordVisible = false;
+
+#if ENABLE_REMOTE_KEYBOARD_INPUT
+  // When remote keyboard input is available, the activity opens in Remote mode
+  // (text entered from the phone app / browser) and the user can press Confirm
+  // to fall back to the on-device keyboard (Local mode).
+  enum class InputMode { Remote, Local };
+  InputMode inputMode = InputMode::Local;
+  uint32_t remoteSessionId = 0;
+  std::unique_ptr<RemoteKeyboardNetworkSession> remoteNetworkSession;
+  unsigned long lastRemoteRefreshAt = 0;
+
+  void switchToLocalInput();
+  void renderRemoteMode(RenderLock&&);
+  void endRemoteSession();
+#endif
 
   ButtonNavigator buttonNavigator;
 

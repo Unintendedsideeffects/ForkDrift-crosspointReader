@@ -11,6 +11,13 @@ std::string currentDate();
 // Returns empty string if system time is not set.
 std::string currentClockLabel();
 
+// Returns a precise digital clock label ("HH:MM", or "H:MM AM/PM" when
+// SETTINGS.clockFormat selects 12-hour). Prefers the DS3231 RTC when present
+// (X3 — survives deep sleep / power loss); otherwise falls back to system time.
+// Both sources use the same timezone-offset setting as the Roman clock.
+// Returns empty string if no time source is available.
+std::string currentDigitalClockLabel();
+
 bool getHourAndMinute(int& hour, int& minute);
 
 std::string offsetDate(const std::string& isoDate, int days);

@@ -2,6 +2,7 @@
 
 #include <FeatureFlags.h>
 #include <GfxRenderer.h>
+#include <HalClock.h>
 #include <HalPowerManager.h>
 #include <WiFi.h>
 
@@ -16,9 +17,8 @@
 #include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
 #include "network/BackgroundWebServer.h"
-#if ENABLE_WIFI_CLOCK
+#include "network/BackgroundWifiService.h"
 #include "util/DateUtils.h"
-#endif
 
 namespace features::status_overlay {
 
@@ -61,7 +61,7 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
   const bool isWifiConnected =
       (mode & WIFI_MODE_STA) && WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0);
   const bool shouldShowIp = isWifiConnected && activityManager.showsStatusBarIp();
-  const bool isFileServerRunning = BackgroundWebServer::getInstance().isRunning();
+  const bool isFileServerRunning = BackgroundWebServer::getInstance().isRunning() || BG_WIFI.isServing();
   const auto& metrics = UITheme::getInstance().getMetrics();
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
@@ -142,8 +142,18 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
     const bool showIp = shouldShowIp;
     const int leftTextW = showIp ? renderer.getTextWidth(SMALL_FONT_ID, "255.255.255.255") : 0;
 
+    // One overlay clock, time source chosen by hardware: the X3 DS3231 RTC drives
+    // a precise digital clock; otherwise the X4 shows the Roman-numeral clock from
+    // system time (gated by ENABLE_WIFI_CLOCK).
+    std::string clockText;
+    if (halClock.isAvailable()) {
+      clockText = DateUtils::currentDigitalClockLabel();
+    }
 #if ENABLE_WIFI_CLOCK
-    const std::string clockText = DateUtils::currentClockLabel();
+    else {
+      clockText = DateUtils::currentClockLabel();
+    }
+#endif
     if (!clockText.empty()) {
       const int clockW = renderer.getTextWidth(SMALL_FONT_ID, clockText.c_str());
       const int clockX = (screenW - clockW) / 2;
@@ -151,7 +161,6 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
         renderer.drawText(SMALL_FONT_ID, clockX, textY, clockText.c_str(), true);
       }
     }
-#endif
 
     if (showIp) {
       char ipBuf[22];
