@@ -45,12 +45,7 @@ void OpdsBookBrowserActivity::onExit() {
   Activity::onExit();
   entries.clear();
   navigationHistory.clear();
-
-  if (WiFi.getMode() != WIFI_MODE_NULL) {
-    WiFi.disconnect(false);
-    delay(30);
-    silentRestart();
-  }
+  recoverHeapAfterWifi("OPDS");
 }
 
 void OpdsBookBrowserActivity::loop() {

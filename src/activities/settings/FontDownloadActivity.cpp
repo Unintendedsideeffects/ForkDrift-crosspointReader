@@ -31,12 +31,7 @@ void FontDownloadActivity::onEnter() {
 
 void FontDownloadActivity::onExit() {
   Activity::onExit();
-
-  if (WiFi.getMode() != WIFI_MODE_NULL) {
-    WiFi.disconnect(false);
-    delay(30);
-    silentRestart();
-  }
+  recoverHeapAfterWifi("FONT");
 }
 
 void FontDownloadActivity::onWifiSelectionComplete(const bool success) {

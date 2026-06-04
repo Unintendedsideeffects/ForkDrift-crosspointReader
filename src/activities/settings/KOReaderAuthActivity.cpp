@@ -98,11 +98,7 @@ void KOReaderAuthActivity::onExit() {
     authTaskHandle = nullptr;
   }
 
-  if (WiFi.getMode() != WIFI_MODE_NULL) {
-    WiFi.disconnect(false);
-    delay(30);
-    silentRestart();
-  }
+  recoverHeapAfterWifi("KOAUTH");
 }
 
 void KOReaderAuthActivity::render(RenderLock&&) {
