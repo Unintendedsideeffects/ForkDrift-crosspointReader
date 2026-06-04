@@ -36,13 +36,23 @@ bool PageLine::serialize(HalFile& file) {
 }
 
 std::unique_ptr<PageLine> PageLine::deserialize(HalFile& file) {
-  int16_t xPos;
-  int16_t yPos;
+  int16_t xPos = 0;
+  int16_t yPos = 0;
   serialization::readPod(file, xPos);
   serialization::readPod(file, yPos);
 
   auto tb = TextBlock::deserialize(file);
-  return std::unique_ptr<PageLine>(new PageLine(std::move(tb), xPos, yPos));
+  if (!tb) {
+    // TextBlock failed (OOM or corrupt). PageLine::render dereferences block
+    // unconditionally, so a null block must never reach a constructed PageLine.
+    LOG_ERR("PGE", "Deserialization failed: null TextBlock for PageLine");
+    return nullptr;
+  }
+  auto pl = std::unique_ptr<PageLine>(new (std::nothrow) PageLine(std::move(tb), xPos, yPos));
+  if (!pl) {
+    LOG_ERR("PGE", "OOM: PageLine");
+  }
+  return pl;
 }
 
 void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
@@ -74,7 +84,12 @@ std::unique_ptr<PageImage> PageImage::deserialize(HalFile& file) {
   }
 
   std::shared_ptr<ImageBlock> imageBlock = std::move(imageBlockUnique);
-  return std::unique_ptr<PageImage>(new PageImage(std::move(imageBlock), xPos, yPos));
+  auto* pi = new (std::nothrow) PageImage(std::move(imageBlock), xPos, yPos);
+  if (!pi) {
+    LOG_ERR("PGE", "OOM: PageImage");
+    return nullptr;
+  }
+  return std::unique_ptr<PageImage>(pi);
 }
 
 bool TableFragmentCell::serialize(HalFile& file) const {
@@ -352,10 +367,17 @@ std::unique_ptr<PageHorizontalRule> PageHorizontalRule::deserialize(HalFile& fil
 }
 
 std::unique_ptr<Page> Page::deserialize(HalFile& file) {
-  auto page = std::unique_ptr<Page>(new Page());
+  auto page = std::unique_ptr<Page>(new (std::nothrow) Page());
+  if (!page) {
+    LOG_ERR("PGE", "OOM: Page");
+    return nullptr;
+  }
 
-  uint16_t count;
-  serialization::readPod(file, count);
+  uint16_t count = 0;
+  if (!serialization::readPod(file, count) || count > MAX_PAGE_ELEMENTS) {
+    LOG_ERR("PGE", "Deserialization failed: bad element count %u (max %u)", count, MAX_PAGE_ELEMENTS);
+    return nullptr;
+  }
 
   for (uint16_t i = 0; i < count; i++) {
     uint8_t tag;
@@ -363,6 +385,9 @@ std::unique_ptr<Page> Page::deserialize(HalFile& file) {
 
     if (tag == TAG_PageLine) {
       auto pl = PageLine::deserialize(file);
+      if (!pl) {
+        return nullptr;
+      }
       page->elements.push_back(std::move(pl));
     } else if (tag == TAG_PageImage) {
       auto pi = PageImage::deserialize(file);

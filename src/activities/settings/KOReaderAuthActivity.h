@@ -1,5 +1,9 @@
 #pragma once
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+#include <atomic>
 #include <functional>
 
 #include "activities/Activity.h"
@@ -24,6 +28,11 @@ class KOReaderAuthActivity final : public Activity {
   State state = WIFI_SELECTION;
   std::string statusMessage;
   std::string errorMessage;
+
+  // Background auth task (already-connected path). onExit() must wait for it to
+  // finish before the heap-allocated activity is destroyed (use-after-free).
+  TaskHandle_t authTaskHandle = nullptr;
+  std::atomic<bool> authTaskExited{false};
 
   void onWifiSelectionComplete(bool success);
   void performAuthentication();

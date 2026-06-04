@@ -121,6 +121,7 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
     }
 
     nextStartAllowedMs = 0;
+    serving = true;
     LOG_DBG("BGWIFI", "Background web server running on port %d", server->getPort());
 
     // ── Service loop ──────────────────────────────────────────────────────
@@ -139,6 +140,7 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
 
     LOG_DBG("BGWIFI", "Background task stopping. Requests served: %lu", requestCount);
 
+    serving = false;
     server->stop();
     delete server;
     server = nullptr;
@@ -157,6 +159,7 @@ cleanup:
   }
 
   connected = false;
+  serving = false;
   wifiOwned = false;
   keepWifiOnStop = false;
 
@@ -177,6 +180,7 @@ void BackgroundWifiService::start(const char* ssid, const char* password) {
   stopRequested = false;
   keepWifiOnStop = false;
   connected = false;
+  serving = false;
   wifiOwned = false;
   requestCount = 0;
 
@@ -219,6 +223,7 @@ void BackgroundWifiService::startUsingCurrentConnection() {
   stopRequested = false;
   keepWifiOnStop = false;
   connected = false;
+  serving = false;
   wifiOwned = false;
   requestCount = 0;
 
@@ -278,6 +283,7 @@ void BackgroundWifiService::stop(const bool keepWifi) {
       vTaskDelete(taskHandle);
       taskHandle = nullptr;
       connected = false;
+      serving = false;
       if (wifiOwned && !keepWifi) {
         WiFi.disconnect(false);
         WiFi.mode(WIFI_OFF);

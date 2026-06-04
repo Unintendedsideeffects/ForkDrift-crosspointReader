@@ -60,13 +60,17 @@ void KOReaderAuthActivity::onEnter() {
     requestUpdate();
 
     // Perform authentication in a separate task
+    authTaskExited.store(false);
     xTaskCreate(
         [](void* param) {
           auto* self = static_cast<KOReaderAuthActivity*>(param);
           self->performAuthentication();
+          // Signal completion before self-deleting so onExit() can free the
+          // activity without a use-after-free.
+          self->authTaskExited.store(true);
           vTaskDelete(nullptr);
         },
-        "AuthTask", 4096, this, 1, nullptr);
+        "AuthTask", 4096, this, 1, &authTaskHandle);
     return;
   }
 
@@ -77,6 +81,20 @@ void KOReaderAuthActivity::onEnter() {
 
 void KOReaderAuthActivity::onExit() {
   Activity::onExit();
+
+  // Wait for the background auth task to finish before destroying this
+  // heap-allocated activity (and before any restart below).
+  if (authTaskHandle) {
+    constexpr int timeoutMs = 10000;
+    constexpr int pollMs = 20;
+    for (int waited = 0; !authTaskExited.load() && waited < timeoutMs; waited += pollMs) {
+      vTaskDelay(pdMS_TO_TICKS(pollMs));
+    }
+    while (!authTaskExited.load()) {
+      vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    authTaskHandle = nullptr;
+  }
 
   if (WiFi.getMode() != WIFI_MODE_NULL) {
     WiFi.disconnect(false);

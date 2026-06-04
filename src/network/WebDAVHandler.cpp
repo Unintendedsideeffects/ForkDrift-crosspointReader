@@ -183,6 +183,13 @@ void WebDAVHandler::handlePropfind(WebServer& s) {
 
   LOG_DBG("DAV", "PROPFIND %s depth=%d", path.c_str(), depth);
 
+  // Match the other verbs: don't let PROPFIND enumerate protected paths
+  // (e.g. /.crosspoint), which would leak reading-history metadata.
+  if (isProtectedPath(path)) {
+    s.send(403, "text/plain", "Forbidden");
+    return;
+  }
+
   // Check if path exists
   if (!existsLocked(path) && path != "/") {
     s.send(404, "text/plain", "Not Found");

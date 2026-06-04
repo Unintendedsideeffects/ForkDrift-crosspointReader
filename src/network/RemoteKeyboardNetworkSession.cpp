@@ -1,5 +1,7 @@
 #include "network/RemoteKeyboardNetworkSession.h"
 
+#include <Logging.h>
+#include <Memory.h>
 #include <WiFi.h>
 
 #include "activities/ActivityManager.h"
@@ -81,7 +83,12 @@ bool RemoteKeyboardNetworkSession::startServerOnCurrentConnection() {
     return true;
   }
 
-  ownedServer = std::make_unique<CrossPointWebServer>();
+  ownedServer = makeUniqueNoThrow<CrossPointWebServer>();
+  if (!ownedServer) {
+    LOG_ERR("RKS", "OOM: CrossPointWebServer");
+    state = {};
+    return false;
+  }
   ownedServer->begin();
   if (!ownedServer->isRunning()) {
     ownedServer.reset();
@@ -120,11 +127,21 @@ bool RemoteKeyboardNetworkSession::startAccessPointAndServer() {
   state.ip = WiFi.softAPIP().toString().c_str();
   state.url = "http://" + state.ip + "/remote-input";
 
-  dnsServer = std::make_unique<DNSServer>();
+  dnsServer = makeUniqueNoThrow<DNSServer>();
+  if (!dnsServer) {
+    LOG_ERR("RKS", "OOM: DNSServer");
+    end();
+    return false;
+  }
   dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
   dnsServer->start(kDnsPort, "*", WiFi.softAPIP());
 
-  ownedServer = std::make_unique<CrossPointWebServer>();
+  ownedServer = makeUniqueNoThrow<CrossPointWebServer>();
+  if (!ownedServer) {
+    LOG_ERR("RKS", "OOM: CrossPointWebServer");
+    end();
+    return false;
+  }
   ownedServer->setApRedirectPath("/remote-input");
   ownedServer->begin();
   if (!ownedServer->isRunning()) {

@@ -91,7 +91,13 @@ void CalibreConnectActivity::startWebServer() {
     }
   }
 
-  webServer.reset(new CrossPointWebServer());
+  webServer.reset(new (std::nothrow) CrossPointWebServer());
+  if (!webServer) {
+    LOG_ERR("CAL", "OOM: CrossPointWebServer");
+    state = CalibreConnectState::ERROR;
+    requestUpdate();
+    return;
+  }
   webServer->begin();
 
   if (webServer->isRunning()) {

@@ -344,7 +344,14 @@ void MarkdownReaderActivity::renderScreen() {
   if (useAstRenderer.load()) {
     if (!mdSection) {
       sectionInitialized = true;
-      mdSection.reset(new MarkdownSection(markdown->getCachePath(), markdown->getContentBasePath(), renderer));
+      mdSection.reset(new (std::nothrow)
+                          MarkdownSection(markdown->getCachePath(), markdown->getContentBasePath(), renderer));
+      if (!mdSection) {
+        LOG_ERR("MDR", "OOM: MarkdownSection, falling back to HTML");
+        useAstRenderer.store(false);
+        requestUpdate();
+        return;
+      }
 
       bool sectionLoaded = false;
       {
@@ -420,8 +427,15 @@ void MarkdownReaderActivity::renderScreen() {
 
     if (!htmlSection) {
       sectionInitialized = true;
-      htmlSection.reset(
-          new HtmlSection(markdown->getHtmlPath(), markdown->getCachePath(), markdown->getContentBasePath(), renderer));
+      htmlSection.reset(new (std::nothrow) HtmlSection(markdown->getHtmlPath(), markdown->getCachePath(),
+                                                       markdown->getContentBasePath(), renderer));
+      if (!htmlSection) {
+        LOG_ERR("MDR", "OOM: HtmlSection");
+        renderer.fillRect(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), false);
+        renderer.drawCenteredText(UI_12_FONT_ID, 300, "Markdown error", true, EpdFontFamily::BOLD);
+        renderer.displayBuffer();
+        return;
+      }
 
       bool sectionLoaded = false;
       {
@@ -527,7 +541,13 @@ void MarkdownReaderActivity::renderContents(std::unique_ptr<Page> page, int orie
     pagesUntilFullRefresh--;
   }
 
-  renderer.storeBwBuffer();
+  // If the temp BW buffer can't be allocated, skip grayscale entirely — proceeding
+  // would overwrite the already-displayed BW page with grayscale data that
+  // restoreBwBuffer() then can't undo, corrupting the framebuffer.
+  if (!renderer.storeBwBuffer()) {
+    LOG_WRN("MDR", "Skipping grayscale render: BW buffer allocation failed");
+    return;
+  }
 
   // Grayscale antialiasing is skipped in dark mode for the same reason as EpubReaderActivity:
   // the EPD grayscale LUT is polarity-dependent and produces ghosting after a dark-mode BW refresh.
@@ -734,7 +754,9 @@ void MarkdownReaderActivity::showTableOfContents() {
   }
 
   exitActivity();
-  enterNewActivity(new TocActivity(
+  // enterNewActivity null-checks its argument, so nothrow OOM degrades to a no-op
+  // instead of aborting the device.
+  enterNewActivity(new (std::nothrow) TocActivity(
       renderer, mappedInput, nav->getToc(),
       [this] {
         exitActivity();

@@ -14,14 +14,20 @@ struct StackBuffer {
   static constexpr size_t CAPACITY = 1024;
   char data[CAPACITY];
   size_t len = 0;
+  bool overflowed = false;  // set once a char is dropped (selector too long)
 
   void push_back(char c) {
     if (len < CAPACITY - 1) {
       data[len++] = c;
+    } else {
+      overflowed = true;
     }
   }
 
-  void clear() { len = 0; }
+  void clear() {
+    len = 0;
+    overflowed = false;
+  }
   bool empty() const { return len == 0; }
   size_t size() const { return len; }
 
@@ -489,11 +495,9 @@ void CssParser::processRuleBlockWithStyle(const std::string& selectorGroup, cons
       rule.style = style;
 
       // Merge with existing rule for same selector pair, or append
-      auto it = std::find_if(descendantRules_.begin(), descendantRules_.end(),
-                             [&](const DescendantRule& r) {
-                               return r.ancestorSelector == rule.ancestorSelector &&
-                                      r.subjectSelector == rule.subjectSelector;
-                             });
+      auto it = std::find_if(descendantRules_.begin(), descendantRules_.end(), [&](const DescendantRule& r) {
+        return r.ancestorSelector == rule.ancestorSelector && r.subjectSelector == rule.subjectSelector;
+      });
       if (it != descendantRules_.end()) {
         it->style.applyOver(style);
       } else {
@@ -572,7 +576,10 @@ bool CssParser::loadFromStream(HalFile& source) {
         bodyDepth = 1;
         currentStyle = CssStyle{};
         declBuffer.clear();
-        if (selector.size() > MAX_SELECTOR_LENGTH * 4) {
+        // A selector that overflowed the buffer was silently truncated; skip
+        // the rule rather than match on a truncated (wrong) selector. The
+        // size() comparison alone was dead — push_back caps len below CAPACITY.
+        if (selector.overflowed || selector.size() > MAX_SELECTOR_LENGTH * 4) {
           skippingRule = true;
         }
         return;
@@ -669,7 +676,7 @@ bool CssParser::loadFromStream(HalFile& source) {
 // Style resolution
 
 CssStyle CssParser::resolveStyle(const std::string& tagName, const std::string& classAttr,
-                                  const std::vector<CssAncestorEntry>& ancestors) const {
+                                 const std::vector<CssAncestorEntry>& ancestors) const {
   static bool lowHeapWarningLogged = false;
   if (ESP.getFreeHeap() < MIN_FREE_HEAP_FOR_CSS) {
     if (!lowHeapWarningLogged) {

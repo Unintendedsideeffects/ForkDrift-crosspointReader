@@ -56,7 +56,6 @@ class CrossPointWebServerActivity final : public Activity {
 
   // Cached signal-strength bracket (0..4) for the WiFi indicator.
   int lastWifiBars = 0;
-
   void renderServerRunning() const;
   void renderCalibreUI() const;
   void renderFileTransferUI() const;

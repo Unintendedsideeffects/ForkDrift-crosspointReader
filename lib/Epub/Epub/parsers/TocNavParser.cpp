@@ -6,6 +6,10 @@
 
 #include "Epub/BookMetadataCache.h"
 
+namespace {
+constexpr uint16_t kMaxXmlElementDepth = 256;
+}
+
 bool TocNavParser::setup() {
   parser = XML_ParserCreate(nullptr);
   if (!parser) {
@@ -56,6 +60,12 @@ size_t TocNavParser::write(const uint8_t* buffer, const size_t size) {
 
 void XMLCALL TocNavParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<TocNavParser*>(userData);
+
+  if (++self->elementDepth > kMaxXmlElementDepth) {
+    LOG_ERR("NAV", "XML element nesting too deep");
+    XML_StopParser(self->parser, XML_FALSE);
+    return;
+  }
 
   // Track HTML structure loosely - we mainly care about finding <nav epub:type="toc">
   if (strcmp(name, "html") == 0) {
@@ -114,8 +124,11 @@ void XMLCALL TocNavParser::startElement(void* userData, const XML_Char* name, co
 void XMLCALL TocNavParser::characterData(void* userData, const XML_Char* s, const int len) {
   auto* self = static_cast<TocNavParser*>(userData);
 
-  // Only collect text when inside an anchor within the TOC nav
-  if (self->state == IN_ANCHOR) {
+  // Only collect text when inside an anchor within the TOC nav.
+  // Cap accumulation: expat fires characterData repeatedly, so an oversized anchor
+  // text would grow currentLabel unbounded → OOM. Excess beyond a sane label is dropped.
+  constexpr size_t kMaxTocLabelLen = 1024;
+  if (self->state == IN_ANCHOR && self->currentLabel.size() < kMaxTocLabelLen) {
     self->currentLabel.append(s, len);
   }
 }
@@ -144,12 +157,12 @@ void XMLCALL TocNavParser::endElement(void* userData, const XML_Char* name) {
       self->currentHref.clear();
     }
     self->state = IN_LI;
-    return;
+    goto done;
   }
 
   if (strcmp(name, "li") == 0 && (self->state == IN_LI || self->state == IN_OL)) {
     self->state = IN_OL;
-    return;
+    goto done;
   }
 
   if (strcmp(name, "ol") == 0 && self->state >= IN_NAV_TOC) {
@@ -159,12 +172,17 @@ void XMLCALL TocNavParser::endElement(void* userData, const XML_Char* name) {
     } else {
       self->state = IN_LI;  // Back to parent li
     }
-    return;
+    goto done;
   }
 
   if (strcmp(name, "nav") == 0 && self->state >= IN_NAV_TOC) {
     self->state = IN_BODY;
     LOG_DBG("NAV", "Finished parsing nav toc");
-    return;
+    goto done;
+  }
+
+done:
+  if (self->elementDepth > 0) {
+    self->elementDepth--;
   }
 }

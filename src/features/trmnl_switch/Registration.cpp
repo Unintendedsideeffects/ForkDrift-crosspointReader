@@ -2,23 +2,25 @@
 
 #include <ArduinoJson.h>
 #include <FeatureFlags.h>
-#include <HTTPClient.h>
+#include <HalStorage.h>
 #include <Logging.h>
+#include <Stream.h>
 #include <WebServer.h>
-#include <WiFiClientSecure.h>
+#include <esp_crt_bundle.h>
+#include <esp_http_client.h>
 
 #include <cstring>
-#include <memory>
 
 #include "CrossPointSettings.h"
+#include "SpiBusMutex.h"
 #include "core/features/FeatureCatalog.h"
 #include "core/features/FeatureModules.h"
 #include "core/registries/LifecycleRegistry.h"
 #include "core/registries/WebRouteRegistry.h"
-#include "network/HttpDownloader.h"
 #include "network/WebUtils.h"
 #include "network/html/TerminusPluginPageHtml.generated.h"
 #include "util/TerminusCredentialStore.h"
+#include "util/UrlUtils.h"
 
 namespace features::trmnl_switch {
 
@@ -27,6 +29,128 @@ namespace {
 
 static constexpr const char* TRMNL_DEST_PATH = "/sleep/trmnl_latest.bmp";
 static constexpr const char* TRMNL_DEFAULT_BASE = "https://api.trmnl.com";
+static constexpr size_t TRMNL_MAX_MANIFEST_BYTES = 16u * 1024u;
+static constexpr int TRMNL_HTTP_BUFFER_BYTES = 2048;
+
+extern "C" esp_err_t arduino_esp_crt_bundle_attach(void* conf);
+
+class BoundedManifestSink final : public Stream {
+ public:
+  size_t write(uint8_t byte) override { return write(&byte, 1); }
+
+  size_t write(const uint8_t* buffer, size_t size) override {
+    const size_t room = (body_.size() < TRMNL_MAX_MANIFEST_BYTES) ? TRMNL_MAX_MANIFEST_BYTES - body_.size() : 0;
+    const size_t take = size < room ? size : room;
+    if (take > 0) {
+      body_.append(reinterpret_cast<const char*>(buffer), take);
+    }
+    if (take < size) {
+      overflowed_ = true;
+    }
+    return size;
+  }
+
+  int available() override { return 0; }
+  int read() override { return -1; }
+  int peek() override { return -1; }
+
+  bool overflowed() const { return overflowed_; }
+  std::string& body() { return body_; }
+
+ private:
+  std::string body_;
+  bool overflowed_ = false;
+};
+
+struct VerifiedFileSink {
+  const char* path = nullptr;
+  HalFile file;
+  size_t bytes = 0;
+  bool opened = false;
+  bool writeFailed = false;
+};
+
+static bool isAllowedRemoteUrl(const std::string& url) { return UrlUtils::isHttpsUrl(url); }
+
+static esp_err_t manifestEventHandler(esp_http_client_event_t* evt) {
+  auto* sink = static_cast<BoundedManifestSink*>(evt->user_data);
+  if (evt->event_id == HTTP_EVENT_ON_DATA && sink) {
+    sink->write(static_cast<const uint8_t*>(evt->data), static_cast<size_t>(evt->data_len));
+    if (sink->overflowed()) {
+      return ESP_FAIL;
+    }
+  }
+  return ESP_OK;
+}
+
+static esp_err_t imageEventHandler(esp_http_client_event_t* evt) {
+  auto* sink = static_cast<VerifiedFileSink*>(evt->user_data);
+  if (evt->event_id != HTTP_EVENT_ON_DATA || !sink || !sink->opened) {
+    return ESP_OK;
+  }
+
+  auto guard = SpiBusMutex::lock();
+  const size_t written =
+      sink->file.write(reinterpret_cast<const uint8_t*>(evt->data), static_cast<size_t>(evt->data_len));
+  sink->bytes += written;
+  if (written != static_cast<size_t>(evt->data_len)) {
+    sink->writeFailed = true;
+    return ESP_FAIL;
+  }
+  return ESP_OK;
+}
+
+static bool downloadVerifiedImage(const std::string& url, const char* path) {
+  if (!isAllowedRemoteUrl(url)) {
+    return false;
+  }
+
+  Storage.ensureDirectoryExists("/sleep");
+  if (Storage.exists(path)) {
+    Storage.remove(path);
+  }
+
+  VerifiedFileSink sink{};
+  sink.path = path;
+  if (!Storage.openFileForWrite("TRMNL", path, sink.file, false)) {
+    LOG_ERR("TRMNL", "Failed to open %s for image download", path);
+    return false;
+  }
+  sink.opened = true;
+
+  esp_http_client_config_t config = {};
+  config.url = url.c_str();
+  config.event_handler = imageEventHandler;
+  config.user_data = &sink;
+  config.timeout_ms = 30000;
+  config.buffer_size = TRMNL_HTTP_BUFFER_BYTES;
+  config.buffer_size_tx = TRMNL_HTTP_BUFFER_BYTES;
+  config.crt_bundle_attach = arduino_esp_crt_bundle_attach;
+
+  esp_http_client_handle_t client = esp_http_client_init(&config);
+  if (!client) {
+    sink.file.close();
+    Storage.remove(path);
+    LOG_ERR("TRMNL", "Failed to create image HTTP client");
+    return false;
+  }
+
+  esp_http_client_set_header(client, "User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
+  const esp_err_t err = esp_http_client_perform(client);
+  const int code = esp_http_client_get_status_code(client);
+  esp_http_client_cleanup(client);
+
+  sink.file.close();
+  if (err != ESP_OK || code != 200 || sink.writeFailed || sink.bytes == 0) {
+    Storage.remove(path);
+    LOG_ERR("TRMNL", "Image download failed: HTTP %d err=%d written=%zu failed=%d", code, err, sink.bytes,
+            sink.writeFailed ? 1 : 0);
+    return false;
+  }
+
+  LOG_INF("TRMNL", "Image downloaded (%zu bytes)", sink.bytes);
+  return true;
+}
 
 // Poll /api/display, get image_url, download, pin as next sleep screen.
 static bool fetchAndPinTrmnlImage() {
@@ -37,40 +161,49 @@ static bool fetchAndPinTrmnlImage() {
 
   const std::string& rawBase = TERMINUS_STORE.baseUrl();
   const std::string base = rawBase.empty() ? std::string(TRMNL_DEFAULT_BASE) : rawBase;
+  if (!isAllowedRemoteUrl(base)) {
+    LOG_ERR("TRMNL", "Refusing non-HTTPS base URL: %s", base.c_str());
+    return false;
+  }
   const std::string displayUrl = base + "/api/display";
 
-  LOG_INF("TRMNL", "Polling %s (id=%s model=%s)", displayUrl.c_str(), TERMINUS_STORE.deviceId().c_str(),
-          TERMINUS_STORE.deviceModel().c_str());
+  LOG_INF("TRMNL", "Polling %s (model=%s)", displayUrl.c_str(), TERMINUS_STORE.deviceModel().c_str());
 
   std::string manifest;
   {
-    auto* raw = new (std::nothrow) WiFiClientSecure();
-    if (!raw) {
-      LOG_ERR("TRMNL", "OOM: WiFiClientSecure");
+    BoundedManifestSink sink;
+    esp_http_client_config_t config = {};
+    config.url = displayUrl.c_str();
+    config.event_handler = manifestEventHandler;
+    config.user_data = &sink;
+    config.timeout_ms = 10000;
+    config.buffer_size = TRMNL_HTTP_BUFFER_BYTES;
+    config.buffer_size_tx = TRMNL_HTTP_BUFFER_BYTES;
+    config.crt_bundle_attach = arduino_esp_crt_bundle_attach;
+
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    if (!client) {
+      LOG_ERR("TRMNL", "Failed to create HTTP client");
       return false;
     }
-    std::unique_ptr<WiFiClientSecure> client(raw);
-    client->setInsecure();
 
-    HTTPClient http;
-    http.begin(*client, displayUrl.c_str());
-    http.addHeader("ID", TERMINUS_STORE.deviceId().c_str());
-    http.addHeader("Access-Token", TERMINUS_STORE.apiKey().c_str());
-    http.addHeader("Device-Model", TERMINUS_STORE.deviceModel().c_str());
-    http.addHeader("Firmware-Version", CROSSPOINT_VERSION);
-    http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
-    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    http.setTimeout(10000);
+    esp_http_client_set_header(client, "ID", TERMINUS_STORE.deviceId().c_str());
+    esp_http_client_set_header(client, "Access-Token", TERMINUS_STORE.apiKey().c_str());
+    esp_http_client_set_header(client, "Device-Model", TERMINUS_STORE.deviceModel().c_str());
+    esp_http_client_set_header(client, "Firmware-Version", CROSSPOINT_VERSION);
+    esp_http_client_set_header(client, "User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
 
-    const int code = http.GET();
-    if (code == HTTP_CODE_OK) {
-      manifest = http.getString().c_str();
+    const esp_err_t err = esp_http_client_perform(client);
+    const int code = esp_http_client_get_status_code(client);
+    esp_http_client_cleanup(client);
+
+    if (err == ESP_OK && code == 200 && !sink.overflowed()) {
+      manifest = std::move(sink.body());
       LOG_INF("TRMNL", "Display manifest received (%zu bytes)", manifest.size());
     } else {
-      LOG_ERR("TRMNL", "Display poll failed: HTTP %d", code);
+      LOG_ERR("TRMNL", "Display poll failed: HTTP %d err=%d overflow=%d", code, err, sink.overflowed() ? 1 : 0);
     }
-    http.end();
-  }  // client destroyed here
+  }
 
   if (manifest.empty()) {
     return false;
@@ -83,15 +216,13 @@ static bool fetchAndPinTrmnlImage() {
   }
 
   const char* imageUrl = doc["image_url"] | "";
-  if (imageUrl[0] == '\0') {
+  if (imageUrl[0] == '\0' || !isAllowedRemoteUrl(imageUrl)) {
     LOG_ERR("TRMNL", "No image_url in display manifest");
     return false;
   }
 
   LOG_INF("TRMNL", "Downloading image: %s", imageUrl);
-  const auto err = HttpDownloader::downloadToFile(std::string(imageUrl), TRMNL_DEST_PATH);
-  if (err != HttpDownloader::OK) {
-    LOG_ERR("TRMNL", "Image download failed (err=%d)", static_cast<int>(err));
+  if (!downloadVerifiedImage(std::string(imageUrl), TRMNL_DEST_PATH)) {
     return false;
   }
 
@@ -160,6 +291,10 @@ static void mountTerminusRoutes(WebServer* server) {
     }
     const char* url = doc["base_url"] | "";
     if (url[0] != '\0') {
+      if (!isAllowedRemoteUrl(url)) {
+        server->send(400, "application/json", "{\"error\":\"base_url must be https\"}");
+        return;
+      }
       TERMINUS_STORE.setBaseUrl(url);
     }
     if (!TERMINUS_STORE.save()) {

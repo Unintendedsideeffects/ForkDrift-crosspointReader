@@ -1,6 +1,7 @@
 #include "network/OtaWebCheck.h"
 
 #include <FeatureFlags.h>
+#include <Logging.h>
 
 #if ENABLE_OTA_UPDATES
 #include <freertos/FreeRTOS.h>
@@ -73,7 +74,12 @@ OtaWebStartResult OtaWebCheck::start() {
   }
   otaWebCheckData.state.store(OtaWebCheckState::Checking, std::memory_order_release);
 
-  auto* updater = new OtaUpdater();
+  auto* updater = new (std::nothrow) OtaUpdater();
+  if (!updater) {
+    LOG_ERR("OTA", "OOM: OtaUpdater");
+    otaWebCheckData.state.store(OtaWebCheckState::Idle, std::memory_order_release);
+    return OtaWebStartResult::StartTaskFailed;
+  }
   if (xTaskCreate(otaWebCheckTask, "OtaWebCheckTask", kOtaWebCheckStackBytes, updater, 1, nullptr) != pdPASS) {
     delete updater;
     otaWebCheckData.state.store(OtaWebCheckState::Idle, std::memory_order_release);

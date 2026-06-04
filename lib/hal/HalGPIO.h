@@ -2,6 +2,8 @@
 
 #include <Arduino.h>
 #include <InputManager.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
 
 // Display SPI pins (custom pins for XteinkX4, not hardware SPI defaults)
 #define EPD_SCLK 8   // SPI Clock
@@ -81,7 +83,7 @@ class HalGPIO {
   // Clear all pending virtual button bits. Call at the end of each main loop
   // iteration so unconsumed bits from activities that don't handle them cannot
   // accumulate and falsely prevent auto-sleep on subsequent frames.
-  void drainVirtualMask() { virtualButtonMask = 0; }
+  void drainVirtualMask();
 
   // Setup wake up GPIO and enter deep sleep
   void startDeepSleep();
@@ -106,6 +108,7 @@ class HalGPIO {
   // (cleared) by wasPressed() / wasReleased(). mutable because consumption
   // is internal edge-state, not part of the observable logical const-ness.
   mutable uint8_t virtualButtonMask = 0;
+  mutable portMUX_TYPE virtualButtonMux = portMUX_INITIALIZER_UNLOCKED;
 
  public:
   // Button indices

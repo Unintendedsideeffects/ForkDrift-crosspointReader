@@ -278,13 +278,17 @@ XtcError XtcParser::readChapters() {
     return XtcError::OK;
   }
 
-  uint64_t chapterOffset = 0;
+  // chapterOffset is a uint32_t field at 0x30 (followed by uint32_t padding at
+  // 0x34). Read exactly 4 bytes — reading sizeof(uint64_t) would fold the
+  // padding into the value and corrupt the offset when padding is non-zero.
+  uint32_t chapterOffset32 = 0;
   if (!m_file.seek(0x30)) {
     return XtcError::READ_ERROR;
   }
-  if (m_file.read(reinterpret_cast<uint8_t*>(&chapterOffset), sizeof(chapterOffset)) != sizeof(chapterOffset)) {
+  if (m_file.read(reinterpret_cast<uint8_t*>(&chapterOffset32), sizeof(chapterOffset32)) != sizeof(chapterOffset32)) {
     return XtcError::READ_ERROR;
   }
+  const uint64_t chapterOffset = chapterOffset32;
 
   if (chapterOffset == 0) {
     return XtcError::OK;

@@ -2,6 +2,7 @@
 #include <Print.h>
 #include <expat.h>
 
+#include <cstdint>
 #include <string>
 
 class BookMetadataCache;
@@ -14,10 +15,14 @@ class TocNcxParser final : public Print {
   XML_Parser parser = nullptr;
   ParserState state = START;
   BookMetadataCache* cache;
+  uint16_t elementDepth = 0;
 
   std::string currentLabel;
   std::string currentSrc;
-  uint8_t currentDepth = 0;
+  // uint16_t (not uint8_t): a malicious NCX nested 256 navPoints deep would wrap a
+  // uint8_t 255→0, prematurely resetting the parser state. expat enforces matching
+  // tags (so ++/-- stay balanced) and OOMs on its tag stack well before 65536.
+  uint16_t currentDepth = 0;
 
   static void startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void characterData(void* userData, const XML_Char* s, int len);

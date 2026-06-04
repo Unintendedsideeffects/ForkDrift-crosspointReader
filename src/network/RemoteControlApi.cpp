@@ -71,6 +71,11 @@ OpenBookDecision evaluateOpenBookPath(const char* path) {
   if (!PathUtils::isValidSdPath(String(path))) {
     return {RemoteControlError::InvalidPath, {}};
   }
+  // Reject protected paths (e.g. /.crosspoint cache) so this endpoint can't be
+  // used as an existence oracle to enumerate reading history.
+  if (PathUtils::pathContainsProtectedItem(path)) {
+    return {RemoteControlError::InvalidPath, {}};
+  }
 
   bool exists = false;
   {

@@ -14,6 +14,7 @@ constexpr char MEDIA_TYPE_NCX[] = "application/x-dtbncx+xml";
 constexpr char MEDIA_TYPE_CSS[] = "text/css";
 constexpr char MEDIA_TYPE_IMAGE_PREFIX[] = "image/";
 constexpr char itemCacheFile[] = "/.items.bin";
+constexpr uint16_t kMaxXmlElementDepth = 256;
 
 bool startsWithImageMediaType(const std::string& mediaType) {
   constexpr size_t prefixLen = sizeof(MEDIA_TYPE_IMAGE_PREFIX) - 1;
@@ -94,6 +95,12 @@ size_t ContentOpfParser::write(const uint8_t* buffer, const size_t size) {
 void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ContentOpfParser*>(userData);
   (void)atts;
+
+  if (++self->elementDepth > kMaxXmlElementDepth) {
+    LOG_ERR("COF", "XML element nesting too deep");
+    XML_StopParser(self->parser, XML_FALSE);
+    return;
+  }
 
   if (self->state == START && (strcmp(name, "package") == 0 || strcmp(name, "opf:package") == 0)) {
     self->state = IN_PACKAGE;
@@ -194,8 +201,11 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       }
     }
 
-    // Record index entry for fast lookup later
-    if (self->tempItemStore) {
+    // Record index entry for fast lookup later. Cap the in-memory index: a malicious
+    // OPF with hundreds of thousands of <item>s would otherwise grow this deque until
+    // OOM-abort. Real EPUBs stay well under this; excess items just aren't fast-indexed.
+    constexpr size_t kMaxManifestItems = 8192;
+    if (self->tempItemStore && self->itemIndex.size() < kMaxManifestItems) {
       ItemIndexEntry entry;
       entry.idHash = fnvHash(itemId);
       entry.idLen = static_cast<uint16_t>(itemId.size());
@@ -226,8 +236,10 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       }
     }
 
-    // Collect CSS files
-    if (mediaType == MEDIA_TYPE_CSS) {
+    // Collect CSS files (cap: no legitimate EPUB needs this many stylesheets; bounds
+    // the vector against a malformed manifest stuffed with CSS <item>s).
+    constexpr size_t kMaxCssFiles = 256;
+    if (mediaType == MEDIA_TYPE_CSS && self->cssFiles.size() < kMaxCssFiles) {
       self->cssFiles.push_back(href);
     }
 
@@ -332,69 +344,83 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
 void XMLCALL ContentOpfParser::characterData(void* userData, const XML_Char* s, const int len) {
   auto* self = static_cast<ContentOpfParser*>(userData);
 
+  // Cap each metadata field: expat fires characterData repeatedly for one text node,
+  // so an oversized <dc:title>/<dc:creator> would grow the string unbounded → OOM.
+  constexpr size_t kMaxMetadataLen = 1024;
+
   if (self->state == IN_BOOK_TITLE) {
-    self->title.append(s, len);
+    if (self->title.size() < kMaxMetadataLen) {
+      self->title.append(s, len);
+    }
     return;
   }
 
   if (self->state == IN_BOOK_AUTHOR) {
-    if (!self->author.empty()) {
-      self->author.append(", ");  // Add separator for multiple authors
+    if (self->author.size() < kMaxMetadataLen) {
+      if (!self->author.empty()) {
+        self->author.append(", ");  // Add separator for multiple authors
+      }
+      self->author.append(s, len);
     }
-    self->author.append(s, len);
     return;
   }
 
   if (self->state == IN_BOOK_LANGUAGE) {
-    self->language.append(s, len);
+    if (self->language.size() < kMaxMetadataLen) {
+      self->language.append(s, len);
+    }
     return;
   }
 }
 
 void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) {
   auto* self = static_cast<ContentOpfParser*>(userData);
-  (void)name;
 
   if (self->state == IN_SPINE && (strcmp(name, "spine") == 0 || strcmp(name, "opf:spine") == 0)) {
     self->state = IN_PACKAGE;
     self->tempItemStore.close();
-    return;
+    goto done;
   }
 
   if (self->state == IN_GUIDE && (strcmp(name, "guide") == 0 || strcmp(name, "opf:guide") == 0)) {
     self->state = IN_PACKAGE;
     self->tempItemStore.close();
-    return;
+    goto done;
   }
 
   if (self->state == IN_MANIFEST && (strcmp(name, "manifest") == 0 || strcmp(name, "opf:manifest") == 0)) {
     self->state = IN_PACKAGE;
     self->tempItemStore.close();
-    return;
+    goto done;
   }
 
   if (self->state == IN_BOOK_TITLE && strcmp(name, "dc:title") == 0) {
     self->state = IN_METADATA;
-    return;
+    goto done;
   }
 
   if (self->state == IN_BOOK_AUTHOR && strcmp(name, "dc:creator") == 0) {
     self->state = IN_METADATA;
-    return;
+    goto done;
   }
 
   if (self->state == IN_BOOK_LANGUAGE && strcmp(name, "dc:language") == 0) {
     self->state = IN_METADATA;
-    return;
+    goto done;
   }
 
   if (self->state == IN_METADATA && (strcmp(name, "metadata") == 0 || strcmp(name, "opf:metadata") == 0)) {
     self->state = IN_PACKAGE;
-    return;
+    goto done;
   }
 
   if (self->state == IN_PACKAGE && (strcmp(name, "package") == 0 || strcmp(name, "opf:package") == 0)) {
     self->state = START;
-    return;
+    goto done;
+  }
+
+done:
+  if (self->elementDepth > 0) {
+    self->elementDepth--;
   }
 }

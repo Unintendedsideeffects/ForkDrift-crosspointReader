@@ -141,8 +141,11 @@ static void mountAnkiRoutes(WebServer* server) {
       return;
     }
     if (!result["error"].isNull()) {
+      // as<const char*>() returns nullptr when "error" is present but not a
+      // string (e.g. a number/bool); appending nullptr to std::string is UB.
+      const char* errStr = result["error"].as<const char*>();
       std::string errMsg = "{\"error\":\"";
-      errMsg += result["error"].as<const char*>();
+      errMsg += (errStr != nullptr) ? errStr : "unknown";
       errMsg += "\"}";
       server->send(502, "application/json", errMsg.c_str());
       return;

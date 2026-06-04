@@ -25,9 +25,9 @@ void createBmpHeader(BmpHeader* bmpHeader, int width, int height, BmpRowOrder ro
 class Atkinson1BitDitherer {
  public:
   explicit Atkinson1BitDitherer(int width) : width(width) {
-    errorRow0 = new int16_t[width + 4]();  // Current row
-    errorRow1 = new int16_t[width + 4]();  // Next row
-    errorRow2 = new int16_t[width + 4]();  // Row after next
+    errorRow0 = new (std::nothrow) int16_t[width + 4]();  // Current row
+    errorRow1 = new (std::nothrow) int16_t[width + 4]();  // Next row
+    errorRow2 = new (std::nothrow) int16_t[width + 4]();  // Row after next
   }
 
   ~Atkinson1BitDitherer() {
@@ -41,6 +41,8 @@ class Atkinson1BitDitherer {
 
   // EXPLICITLY DELETE THE COPY ASSIGNMENT OPERATOR
   Atkinson1BitDitherer& operator=(const Atkinson1BitDitherer& other) = delete;
+
+  bool isReady() const { return errorRow0 && errorRow1 && errorRow2; }
 
   uint8_t processPixel(int gray, int x) {
     // Apply brightness/contrast/gamma adjustments

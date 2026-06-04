@@ -3,13 +3,12 @@
 #include <Epub.h>
 #include <Epub/FootnoteEntry.h>
 #include <Epub/Section.h>
+#include <FeatureFlags.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
 #include <optional>
 #include <string>
-
-#include <FeatureFlags.h>
 
 #if ENABLE_READING_STATS
 #include "BookReadingStats.h"
@@ -78,7 +77,7 @@ class EpubReaderActivity final : public Activity {
     std::string cachePath;
     std::string title;
   };
-  static void readFolderMoveTask(void* arg);
+  static void moveReadFolder(ReadFolderMoveParams* params);
 
   void setBookCompleted(bool isCompleted);
 #endif

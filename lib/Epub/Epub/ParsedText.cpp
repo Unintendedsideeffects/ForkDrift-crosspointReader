@@ -2,12 +2,14 @@
 
 #include <FeatureFlags.h>
 #include <GfxRenderer.h>
+#include <Logging.h>
 #include <Utf8.h>
 
 #include <algorithm>
 #include <cmath>
 #include <functional>
 #include <limits>
+#include <new>
 #include <vector>
 
 #if ENABLE_HYPHENATION
@@ -754,8 +756,16 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   }
 
   if (!lineHasFocusSplit) {
-    processLine(std::make_shared<TextBlock>(std::move(lineWords), std::move(lineXPos), std::move(lineWordStyles),
-                                            std::vector<uint8_t>{}, std::vector<uint16_t>{}, blockStyle));
+    // make_shared aborts on OOM under -fno-exceptions. Allocate the (large) TextBlock
+    // nothrow and degrade to a dropped line instead of crashing; the residual control-
+    // block alloc is ~16 bytes and statistically safe right after the object alloc.
+    auto* tb = new (std::nothrow) TextBlock(std::move(lineWords), std::move(lineXPos), std::move(lineWordStyles),
+                                            std::vector<uint8_t>{}, std::vector<uint16_t>{}, blockStyle);
+    if (!tb) {
+      LOG_ERR("PTX", "OOM: TextBlock; dropping line");
+      return;
+    }
+    processLine(std::shared_ptr<TextBlock>(tb));
     return;
   }
 
@@ -799,6 +809,11 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     }
   }
 
-  processLine(std::make_shared<TextBlock>(std::move(outWords), std::move(outXPos), std::move(outStyles),
-                                          std::move(outBoundaries), std::move(outSuffixX), blockStyle));
+  auto* tb = new (std::nothrow) TextBlock(std::move(outWords), std::move(outXPos), std::move(outStyles),
+                                          std::move(outBoundaries), std::move(outSuffixX), blockStyle);
+  if (!tb) {
+    LOG_ERR("PTX", "OOM: TextBlock; dropping line");
+    return;
+  }
+  processLine(std::shared_ptr<TextBlock>(tb));
 }

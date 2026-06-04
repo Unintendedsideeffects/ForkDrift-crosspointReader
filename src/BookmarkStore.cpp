@@ -275,12 +275,16 @@ bool BookmarkStore::getAllBookmarkedBooks(std::vector<BookmarkedBookEntry>& out)
 
     // Reads a length-prefixed string, returning false if the file is truncated.
     auto readCheckedString = [&f](std::string& s) -> bool {
-      uint32_t len;
+      uint32_t len = 0;
       if (f.available() < static_cast<int>(sizeof(len))) return false;
-      serialization::readPod(f, len);
+      if (!serialization::readPod(f, len)) return false;
+      // Cap before resize: a corrupt length casts to a negative int and would
+      // slip past the available() guard, then resize() aborts on OOM.
+      constexpr uint32_t kMaxBookmarkString = 1024;
+      if (len > kMaxBookmarkString) return false;
       if (f.available() < static_cast<int>(len)) return false;
       s.resize(len);
-      f.read(reinterpret_cast<uint8_t*>(&s[0]), len);
+      if (len > 0 && f.read(reinterpret_cast<uint8_t*>(&s[0]), len) != len) return false;
       return true;
     };
 

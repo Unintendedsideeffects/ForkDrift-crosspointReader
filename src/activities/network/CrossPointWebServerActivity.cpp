@@ -38,6 +38,8 @@ constexpr uint16_t DNS_PORT = 53;
 // Task shutdown timeout
 constexpr int TASK_EXIT_TIMEOUT_MS = 500;
 constexpr int TASK_EXIT_POLL_MS = 10;
+constexpr int TIME_SYNC_EXIT_TIMEOUT_MS = 5000;
+std::atomic<bool> foregroundTimeSyncRunning{false};
 
 bool hasStaWifiConnection() { return WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0); }
 
@@ -95,6 +97,15 @@ void CrossPointWebServerActivity::onExit() {
 
   // Stop the web server first (before disconnecting WiFi)
   stopWebServer();
+
+  const unsigned long waitStart = millis();
+  while (foregroundTimeSyncRunning.load(std::memory_order_acquire) &&
+         millis() - waitStart < TIME_SYNC_EXIT_TIMEOUT_MS) {
+    delay(TASK_EXIT_POLL_MS);
+  }
+  if (foregroundTimeSyncRunning.load(std::memory_order_acquire)) {
+    LOG_WRN("WEBACT", "Time sync task still running during shutdown");
+  }
 
   // Stop mDNS
   MDNS.end();
@@ -202,12 +213,17 @@ void CrossPointWebServerActivity::onWifiSelectionComplete(const bool connected) 
 
     // Sync time via NTP in a background task — syncTimeWithNtpLowMemory() blocks up to 3s
     // and accesses the SD card (SETTINGS.saveToFile), so run it off the main task.
-    xTaskCreate(
-        [](void*) {
-          TimeSync::syncTimeWithNtpLowMemory();
-          vTaskDelete(nullptr);
-        },
-        "TimeSyncTask", 4096, nullptr, 1, nullptr);
+    foregroundTimeSyncRunning.store(true, std::memory_order_release);
+    if (xTaskCreate(
+            [](void*) {
+              TimeSync::syncTimeWithNtpLowMemory();
+              foregroundTimeSyncRunning.store(false, std::memory_order_release);
+              vTaskDelete(nullptr);
+            },
+            "TimeSyncTask", 4096, nullptr, 1, nullptr) != pdPASS) {
+      foregroundTimeSyncRunning.store(false, std::memory_order_release);
+      LOG_ERR("WEBACT", "Failed to start time sync task");
+    }
 
     // Start mDNS for hostname resolution
     {

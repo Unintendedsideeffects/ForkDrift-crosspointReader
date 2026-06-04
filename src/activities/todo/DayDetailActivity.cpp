@@ -284,7 +284,8 @@ void DayDetailActivity::openInspector() {
   if (!isTaskRow(selectedIndex)) {
     return;
   }
-  enterNewActivity(new TodoInspectorSubactivity(renderer, mappedInput, *this, selectedIndex));
+  // enterNewActivity null-checks its argument; nothrow OOM degrades to a no-op.
+  enterNewActivity(new (std::nothrow) TodoInspectorSubactivity(renderer, mappedInput, *this, selectedIndex));
 }
 
 void DayDetailActivity::moveSelectedTask(const int delta) {

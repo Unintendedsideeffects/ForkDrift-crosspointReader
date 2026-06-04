@@ -155,7 +155,11 @@ void XMLCALL OpdsParser::endElement(void* userData, const XML_Char* name) {
   auto* self = static_cast<OpdsParser*>(userData);
 
   if (strcmp(name, "entry") == 0 || strstr(name, ":entry") != nullptr) {
-    if (!self->currentEntry.title.empty() && !self->currentEntry.href.empty()) {
+    // Cap entries: defense-in-depth against a feed with a huge number of <entry>s
+    // (the body is already 64KB-capped by fetchUrl, but guard the count regardless).
+    constexpr size_t kMaxOpdsEntries = 4096;
+    if (!self->currentEntry.title.empty() && !self->currentEntry.href.empty() &&
+        self->entries.size() < kMaxOpdsEntries) {
       self->entries.push_back(self->currentEntry);
     }
     self->inEntry = false;
@@ -177,7 +181,10 @@ void XMLCALL OpdsParser::endElement(void* userData, const XML_Char* name) {
 
 void XMLCALL OpdsParser::characterData(void* userData, const XML_Char* s, const int len) {
   auto* self = static_cast<OpdsParser*>(userData);
-  if (self->inTitle || self->inAuthorName || self->inId) {
+  // Cap a single field's accumulation: expat fires this repeatedly, so one oversized
+  // <title>/<name>/<id> could otherwise absorb the whole feed buffer. Excess dropped.
+  constexpr size_t kMaxOpdsFieldLen = 2048;
+  if ((self->inTitle || self->inAuthorName || self->inId) && self->currentText.size() < kMaxOpdsFieldLen) {
     self->currentText.append(s, len);
   }
 }

@@ -1,6 +1,9 @@
 #pragma once
 #include <Epub.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -77,6 +80,12 @@ class KOReaderSyncActivity final : public Activity {
 
   // Selection in result screen (0=Apply, 1=Upload)
   int selectedOption = 0;
+
+  // Background sync task (used on the already-connected path). onExit() must wait
+  // for it to finish before the heap-allocated activity is deleted, or the task
+  // dereferences freed members (use-after-free).
+  TaskHandle_t syncTaskHandle = nullptr;
+  std::atomic<bool> syncTaskExited{false};
 
   // Tracks whether this session activated WiFi. Set in onEnter past the credentials
   // check; checked in onExit to decide whether to silent-reboot. Can't rely on

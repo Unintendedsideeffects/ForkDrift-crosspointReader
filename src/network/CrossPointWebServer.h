@@ -183,6 +183,11 @@ class CrossPointWebServer {
     std::string filePath;
     bool valid = false;
     bool magicChecked = false;
+    // Accumulates the first 8 file bytes across however many write chunks the
+    // HTTP stack delivers, so the magic check works even if the first chunk is
+    // < 8 bytes (TCP gives no minimum-segment guarantee).
+    uint8_t magicHeader[8] = {0};
+    size_t magicHeaderPos = 0;
     size_t bytesWritten = 0;
     static constexpr size_t BUFFER_SIZE = 4096;
     std::vector<uint8_t> buffer;

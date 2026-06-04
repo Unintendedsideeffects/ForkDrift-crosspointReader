@@ -3,6 +3,10 @@
 #include <Logging.h>
 #include <XmlParserUtils.h>
 
+namespace {
+constexpr uint16_t kMaxXmlElementDepth = 256;
+}
+
 bool ContainerParser::setup() {
   parser = XML_ParserCreate(nullptr);
   if (!parser) {
@@ -52,6 +56,12 @@ size_t ContainerParser::write(const uint8_t* buffer, const size_t size) {
 void XMLCALL ContainerParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ContainerParser*>(userData);
 
+  if (++self->elementDepth > kMaxXmlElementDepth) {
+    LOG_ERR("CTR", "XML element nesting too deep");
+    XML_StopParser(self->parser, XML_FALSE);
+    return;
+  }
+
   // Simple state tracking to ensure we are looking at the valid schema structure
   if (self->state == START && strcmp(name, "container") == 0) {
     self->state = IN_CONTAINER;
@@ -89,5 +99,9 @@ void XMLCALL ContainerParser::endElement(void* userData, const XML_Char* name) {
     self->state = IN_CONTAINER;
   } else if (self->state == IN_CONTAINER && strcmp(name, "container") == 0) {
     self->state = START;
+  }
+
+  if (self->elementDepth > 0) {
+    self->elementDepth--;
   }
 }

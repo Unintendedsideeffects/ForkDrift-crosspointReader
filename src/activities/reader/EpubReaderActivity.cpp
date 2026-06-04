@@ -307,14 +307,9 @@ void EpubReaderActivity::onExit() {
 
 #if ENABLE_READING_STATS
   if (pendingReadFolderMove && epub) {
-    auto* params = new ReadFolderMoveParams{epub->getPath(), epub->getCachePath(), epub->getTitle()};
+    ReadFolderMoveParams params{epub->getPath(), epub->getCachePath(), epub->getTitle()};
     epub.reset();
-    TaskHandle_t moveTaskHandle = nullptr;
-    xTaskCreate(&readFolderMoveTask, "ReadFolderMove", 4096, params, 1, &moveTaskHandle);
-    if (!moveTaskHandle) {
-      LOG_ERR("ERS", "Failed to create readFolderMoveTask");
-      delete params;
-    }
+    moveReadFolder(&params);
   } else {
 #endif  // ENABLE_READING_STATS
     epub.reset();
@@ -1694,9 +1689,7 @@ void EpubReaderActivity::setBookCompleted(bool isCompleted) {
   globalStats.save();
 }
 
-void EpubReaderActivity::readFolderMoveTask(void* arg) {
-  auto* params = static_cast<ReadFolderMoveParams*>(arg);
-
+void EpubReaderActivity::moveReadFolder(ReadFolderMoveParams* params) {
   const size_t lastSlash = params->epubPath.rfind('/');
   const std::string filename =
       (lastSlash != std::string::npos) ? params->epubPath.substr(lastSlash + 1) : params->epubPath;
@@ -1722,8 +1715,6 @@ void EpubReaderActivity::readFolderMoveTask(void* arg) {
     snprintf(APP_STATE.pendingAlertBody, sizeof(APP_STATE.pendingAlertBody), tr(STR_MOVE_TO_READ_FAILED_BODY),
              params->title.c_str());
     APP_STATE.hasPendingAlert.store(true, std::memory_order_release);
-    delete params;
-    vTaskDelete(nullptr);
     return;
   }
 
@@ -1743,7 +1734,5 @@ void EpubReaderActivity::readFolderMoveTask(void* arg) {
   }
 
   LOG_INF("ERS", "Move to /Read/ complete");
-  delete params;
-  vTaskDelete(nullptr);
 }
 #endif  // ENABLE_READING_STATS

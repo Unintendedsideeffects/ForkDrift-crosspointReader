@@ -285,6 +285,13 @@ esp_err_t event_handler(esp_http_client_event_t* event) {
   // realloc(NULL, n) behaves as malloc(n), so this handles the first call correctly.
   auto* buf = static_cast<HttpBuf*>(event->user_data);
   const size_t data_len = static_cast<size_t>(event->data_len);
+  // Cap the accumulated body so a server can't drive unbounded heap growth on a
+  // 380KB-RAM device. Release/catalog JSON is well under this.
+  constexpr size_t kMaxResponseBuf = 256 * 1024;
+  if (buf->len + data_len + 1 > kMaxResponseBuf) {
+    LOG_ERR("OTA", "HTTP response exceeds %zu byte limit", kMaxResponseBuf);
+    return ESP_ERR_NO_MEM;
+  }
   char* new_data = static_cast<char*>(realloc(buf->data, buf->len + data_len + 1));
   if (new_data == NULL) {
     LOG_ERR("OTA", "Failed to allocate HTTP response buffer (%zu bytes)", buf->len + data_len + 1);
@@ -592,6 +599,17 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   // meaningful version strings like "12345-dev", "20240218", or "1.0.0".
   // Fall back to tag_name for older releases that predate this convention.
   latestVersion = parsedReleaseName.isEmpty() ? parsedTag.c_str() : parsedReleaseName.c_str();
+
+  // Reject an image that won't fit the OTA partition before downloading it —
+  // mirrors the feature-store catalog path so we fail fast instead of mid-flash.
+  const size_t maxPartitionSize = getMaxOtaPartitionSize();
+  if (maxPartitionSize > 0 && parsedFirmwareSize > maxPartitionSize) {
+    LOG_ERR("OTA", "Firmware size %zu exceeds OTA partition %zu", static_cast<size_t>(parsedFirmwareSize),
+            maxPartitionSize);
+    lastError = "Update too large for OTA partition";
+    return NO_UPDATE;
+  }
+
   otaUrl = parsedFirmwareUrl.c_str();
   otaSize = parsedFirmwareSize;
   totalSize = otaSize;
@@ -631,13 +649,23 @@ bool OtaUpdater::loadFeatureStoreCatalog() {
 
   for (const auto& bundle : doc["bundles"].as<JsonArray>()) {
     FeatureStoreEntry entry;
-    entry.id = bundle["id"].as<const char*>();
-    entry.displayName = bundle["displayName"].as<const char*>();
-    entry.version = bundle["version"].as<const char*>();
-    entry.featureFlags = bundle["featureFlags"].as<const char*>();
-    entry.downloadUrl = bundle["downloadUrl"].as<const char*>();
+    // Use the `| ""` default-value operator: a missing JSON key would make
+    // .as<const char*>() return nullptr. Arduino String tolerates that, but
+    // `| ""` is explicit and lets the empty-id/url skip below be meaningful.
+    entry.id = bundle["id"] | "";
+    entry.displayName = bundle["displayName"] | "";
+    entry.version = bundle["version"] | "";
+    entry.featureFlags = bundle["featureFlags"] | "";
+    entry.downloadUrl = bundle["downloadUrl"] | "";
     entry.checksum = bundle["checksum"] | "";
     entry.binarySize = bundle["binarySize"] | 0;
+
+    // An entry with no id or no download URL is unselectable and would only
+    // fail later at install time with an empty URL — skip it at parse time.
+    if (entry.id.isEmpty() || entry.downloadUrl.isEmpty()) {
+      LOG_DBG("OTA", "Skipping feature-store entry with empty id/downloadUrl");
+      continue;
+    }
 
     const char* board = bundle["board"] | "";
     if (strcmp(board, expectedBoard) != 0) {

@@ -2,6 +2,7 @@
 #include <Print.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <deque>
 #include <vector>
 
@@ -29,6 +30,7 @@ class ContentOpfParser final : public Print {
   XML_Parser parser = nullptr;
   ParserState state = START;
   BookMetadataCache* cache;
+  uint16_t elementDepth = 0;
   HalFile tempItemStore;
   std::string coverItemId;
 

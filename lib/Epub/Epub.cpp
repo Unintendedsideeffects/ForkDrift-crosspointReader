@@ -288,6 +288,7 @@ bool Epub::parseTocNavFile() const {
 
   while (tempNavFile.available()) {
     const auto readSize = tempNavFile.read(navBuffer, 1024);
+    if (readSize == 0) break;  // guard against a 0-byte read spinning forever (watchdog)
     const auto processedSize = navParser.write(navBuffer, readSize);
 
     if (processedSize != readSize) {
@@ -393,9 +394,13 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
   LOG_DBG("EBP", "Loading ePub: %s", filepath.c_str());
 
   // Initialize spine/TOC cache
-  bookMetadataCache.reset(new BookMetadataCache(cachePath));
+  bookMetadataCache.reset(new (std::nothrow) BookMetadataCache(cachePath));
   // Always create CssParser - needed for inline style parsing even without CSS files
-  cssParser.reset(new CssParser(cachePath));
+  cssParser.reset(new (std::nothrow) CssParser(cachePath));
+  if (!bookMetadataCache || !cssParser) {
+    LOG_ERR("EBP", "OOM: book metadata cache / CSS parser");
+    return false;
+  }
 
   // Try to load existing cache first
   if (bookMetadataCache->load()) {
@@ -498,7 +503,11 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
   }
 
   // Reload the cache from disk so it's in the correct state
-  bookMetadataCache.reset(new BookMetadataCache(cachePath));
+  bookMetadataCache.reset(new (std::nothrow) BookMetadataCache(cachePath));
+  if (!bookMetadataCache) {
+    LOG_ERR("EBP", "OOM: BookMetadataCache (reload)");
+    return false;
+  }
   if (!bookMetadataCache->load()) {
     LOG_ERR("EBP", "Failed to reload cache after writing");
     return false;
@@ -829,8 +838,7 @@ bool Epub::generateThumbBmp(int width, int height) const {
     if (!Storage.openFileForRead("EBP", coverJpgTempPath, coverJpg)) return false;
     HalFile thumbBmp;
     if (!Storage.openFileForWrite("EBP", getThumbBmpPath(width, height), thumbBmp)) return false;
-    const bool success =
-        JpegToBmpConverter::jpegFileTo1BitBmpStreamWithSize(coverJpg, thumbBmp, width, height);
+    const bool success = JpegToBmpConverter::jpegFileTo1BitBmpStreamWithSize(coverJpg, thumbBmp, width, height);
     coverJpg.close();
     thumbBmp.close();
     Storage.remove(coverJpgTempPath.c_str());
@@ -845,8 +853,7 @@ bool Epub::generateThumbBmp(int width, int height) const {
     if (!Storage.openFileForRead("EBP", coverPngTempPath, coverPng)) return false;
     HalFile thumbBmp;
     if (!Storage.openFileForWrite("EBP", getThumbBmpPath(width, height), thumbBmp)) return false;
-    const bool success =
-        PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(coverPng, thumbBmp, width, height);
+    const bool success = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(coverPng, thumbBmp, width, height);
     coverPng.close();
     thumbBmp.close();
     Storage.remove(coverPngTempPath.c_str());
@@ -871,8 +878,7 @@ bool Epub::generateThumbBmp(int width, int height) const {
         Storage.remove(coverTempPath.c_str());
         return false;
       }
-      const bool success =
-          ImageConverter::convertTo1BitBmpStream(coverImage, format, thumbBmp, width, height);
+      const bool success = ImageConverter::convertTo1BitBmpStream(coverImage, format, thumbBmp, width, height);
       coverImage.close();
       thumbBmp.close();
       Storage.remove(coverTempPath.c_str());

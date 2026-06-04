@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -81,8 +82,8 @@ class FontDownloadActivity : public Activity {
   // Download progress
   size_t currentFileIndex_ = 0;
   size_t currentFileTotal_ = 0;
-  size_t fileProgress_ = 0;
-  size_t fileTotal_ = 0;
+  std::atomic<size_t> fileProgress_{0};
+  std::atomic<size_t> fileTotal_{0};
   int downloadingFamilyIndex_ = 0;
   std::string errorMessage_;
   bool cancelRequested_ = false;

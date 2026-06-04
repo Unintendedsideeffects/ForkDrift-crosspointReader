@@ -73,7 +73,13 @@ bool BleWifiProvisioner::start(const std::string& deviceName) {
     return false;
   }
 
-  serverCallbacks = new ServerDisconnectCallbacks();
+  serverCallbacks = new (std::nothrow) ServerDisconnectCallbacks();
+  if (!serverCallbacks) {
+    setStatusMessage("OOM: BLE server callbacks");
+    BLEDevice::deinit(true);
+    server = nullptr;
+    return false;
+  }
   server->setCallbacks(serverCallbacks);
 
   service = server->createService(kServiceUuid);
@@ -94,7 +100,14 @@ bool BleWifiProvisioner::start(const std::string& deviceName) {
     return false;
   }
 
-  callbacks = new CredentialCharacteristicCallbacks(this);
+  callbacks = new (std::nothrow) CredentialCharacteristicCallbacks(this);
+  if (!callbacks) {
+    setStatusMessage("OOM: BLE characteristic callbacks");
+    BLEDevice::deinit(true);
+    server = nullptr;
+    service = nullptr;
+    return false;
+  }
   characteristic->setCallbacks(callbacks);
   characteristic->setValue("Send WiFi credentials payload");
 

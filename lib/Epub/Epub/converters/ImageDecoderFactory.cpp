@@ -25,12 +25,20 @@ ImageToFramebufferDecoder* ImageDecoderFactory::getDecoder(const std::string& im
 
   if (JpegToFramebufferConverter::supportsFormat(ext)) {
     if (!jpegDecoder) {
-      jpegDecoder.reset(new JpegToFramebufferConverter());
+      jpegDecoder.reset(new (std::nothrow) JpegToFramebufferConverter());
+      if (!jpegDecoder) {
+        LOG_ERR("DEC", "OOM: JpegToFramebufferConverter");
+        return nullptr;
+      }
     }
     return jpegDecoder.get();
   } else if (PngToFramebufferConverter::supportsFormat(ext)) {
     if (!pngDecoder) {
-      pngDecoder.reset(new PngToFramebufferConverter());
+      pngDecoder.reset(new (std::nothrow) PngToFramebufferConverter());
+      if (!pngDecoder) {
+        LOG_ERR("DEC", "OOM: PngToFramebufferConverter");
+        return nullptr;
+      }
     }
     return pngDecoder.get();
   }

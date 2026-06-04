@@ -147,6 +147,16 @@ BmpReaderError Bitmap::parseHeaders() {
     }
   }
 
+  // Reject a pixel-data offset that points into the headers/palette: such a
+  // value would seek backward and parse header/palette bytes as pixels with no
+  // error. Minimum legal offset = 14-byte file header + 40-byte DIB header +
+  // palette (colorsUsed * 4). The upper bound is enforced by file.seek() below
+  // failing past EOF.
+  const uint32_t minOffBits = 54u + colorsUsed * 4u;
+  if (bfOffBits < minOffBits) {
+    return BmpReaderError::SeekPixelDataFailed;
+  }
+
   if (!file.seek(bfOffBits)) {
     return BmpReaderError::SeekPixelDataFailed;
   }

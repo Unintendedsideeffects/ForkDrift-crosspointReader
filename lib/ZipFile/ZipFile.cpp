@@ -67,7 +67,13 @@ bool ZipFile::loadAllFileStatSlims() {
   uint32_t sig;
   char itemName[256];
   fileStatSlimCache.clear();
-  fileStatSlimCache.reserve(zipDetails.totalEntries);
+  // totalEntries comes straight from the (possibly corrupt) EOCD record. reserve()
+  // preallocates the bucket array up front, so a bogus 65535 would grab ~256KB on a
+  // 380KB device before a single entry exists. Cap the hint; the map still grows on
+  // demand for the rare legitimate archive with more entries.
+  constexpr uint16_t kMaxReserveEntries = 4096;
+  fileStatSlimCache.reserve(zipDetails.totalEntries < kMaxReserveEntries ? zipDetails.totalEntries
+                                                                         : kMaxReserveEntries);
 
   while (file.available()) {
     file.read(&sig, 4);
@@ -245,7 +251,11 @@ bool ZipFile::loadZipDetails() {
   int foundOffset = -1;
   for (int i = scanRange - 22; i >= 0; i--) {
     constexpr uint32_t signature = 0x06054b50;
-    if (*reinterpret_cast<uint32_t*>(&buffer[i]) == signature) {
+    // &buffer[i] is unaligned for 3 of every 4 offsets; a direct uint32_t load
+    // faults on RISC-V (ESP32-C3). memcpy the candidate word out instead.
+    uint32_t candidate;
+    memcpy(&candidate, &buffer[i], sizeof(candidate));
+    if (candidate == signature) {
       foundOffset = i;
       break;
     }
@@ -261,8 +271,11 @@ bool ZipFile::loadZipDetails() {
   // Relative positions within EOCD:
   // Offset 10: Total number of entries (2 bytes)
   // Offset 16: Offset of start of central directory with respect to the starting disk number (4 bytes)
-  zipDetails.totalEntries = *reinterpret_cast<uint16_t*>(&buffer[foundOffset + 10]);
-  zipDetails.centralDirOffset = *reinterpret_cast<uint32_t*>(&buffer[foundOffset + 16]);
+  // foundOffset is found by scanning arbitrary ZIP bytes, so &buffer[foundOffset+N]
+  // is rarely 2/4-byte aligned. A direct reinterpret_cast load faults on RISC-V;
+  // memcpy the fields out instead.
+  memcpy(&zipDetails.totalEntries, &buffer[foundOffset + 10], sizeof(zipDetails.totalEntries));
+  memcpy(&zipDetails.centralDirOffset, &buffer[foundOffset + 16], sizeof(zipDetails.centralDirOffset));
   zipDetails.isSet = true;
 
   free(buffer);
@@ -378,7 +391,16 @@ uint8_t* ZipFile::readFileToMemory(const char* filename, size_t* size, const boo
 
   const auto deflatedDataSize = fileStat.compressedSize;
   const auto inflatedDataSize = fileStat.uncompressedSize;
-  const auto dataSize = trailingNullByte ? inflatedDataSize + 1 : inflatedDataSize;
+  // Reject absurd sizes a 380KB-RAM device can never hold. Also prevents the
+  // uint32_t `inflatedDataSize + 1` from wrapping to 0 on a crafted entry
+  // (uncompressedSize=0xFFFFFFFF), which would malloc(0) then read ~4GB OOB.
+  constexpr uint32_t kMaxInflatedSize = 4u * 1024u * 1024u;
+  if (inflatedDataSize > kMaxInflatedSize) {
+    LOG_ERR("ZIP", "Entry too large: %u bytes", (unsigned)inflatedDataSize);
+    return nullptr;
+  }
+  const size_t dataSize =
+      trailingNullByte ? static_cast<size_t>(inflatedDataSize) + 1 : static_cast<size_t>(inflatedDataSize);
   const auto data = static_cast<uint8_t*>(malloc(dataSize));
   if (data == nullptr) {
     LOG_ERR("ZIP", "Failed to allocate memory for output buffer (%zu bytes)", dataSize);
@@ -397,6 +419,14 @@ uint8_t* ZipFile::readFileToMemory(const char* filename, size_t* size, const boo
 
     // Continue out of block with data set
   } else if (fileStat.method == ZIP_METHOD_DEFLATED) {
+    // compressedSize is an unvalidated uint32_t from the central directory. The
+    // deflated buffer lives in RAM alongside the inflated one, so cap it the same
+    // way (a legit deflate stream is never larger than its inflated output anyway).
+    if (deflatedDataSize > kMaxInflatedSize) {
+      LOG_ERR("ZIP", "Compressed entry too large: %u bytes", (unsigned)deflatedDataSize);
+      free(data);
+      return nullptr;
+    }
     // Read out deflated content from file
     const auto deflatedData = static_cast<uint8_t*>(malloc(deflatedDataSize));
     if (deflatedData == nullptr) {

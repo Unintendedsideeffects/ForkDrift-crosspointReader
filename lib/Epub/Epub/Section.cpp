@@ -281,19 +281,26 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
     return false;
   }
 
-  // Write anchor-to-page map for fragment navigation (e.g. footnote targets)
+  // Write anchor-to-page map for fragment navigation (e.g. footnote targets).
+  // Clamp the count to what the uint16_t header can express AND only write that many:
+  // writing all entries under a truncated count would desync the file on readback
+  // (the reader would parse trailing anchor bytes as the next section). A malicious
+  // chapter with >65535 id attributes is the trigger.
   const uint32_t anchorMapOffset = file.position();
   const auto& anchors = visitor.getAnchors();
-  serialization::writePod(file, static_cast<uint16_t>(anchors.size()));
-  for (const auto& [anchor, page] : anchors) {
-    serialization::writeString(file, anchor);
-    serialization::writePod(file, page);
+  const size_t anchorCount = anchors.size() > UINT16_MAX ? UINT16_MAX : anchors.size();
+  serialization::writePod(file, static_cast<uint16_t>(anchorCount));
+  for (size_t i = 0; i < anchorCount; i++) {
+    serialization::writeString(file, anchors[i].first);
+    serialization::writePod(file, anchors[i].second);
   }
 
+  // Same clamp rationale for the paragraph LUT count.
   const uint32_t paragraphLutOffset = file.position();
-  serialization::writePod(file, static_cast<uint16_t>(lut.size()));
-  for (const auto& entry : lut) {
-    serialization::writePod(file, entry.paragraphIndex);
+  const size_t lutCount = lut.size() > UINT16_MAX ? UINT16_MAX : lut.size();
+  serialization::writePod(file, static_cast<uint16_t>(lutCount));
+  for (size_t i = 0; i < lutCount; i++) {
+    serialization::writePod(file, lut[i].paragraphIndex);
   }
 
   const uint32_t liLutFileOffset = static_cast<uint32_t>(file.position());
@@ -317,6 +324,14 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
 }
 
 std::unique_ptr<Page> Section::loadPageFromSectionFile() {
+  // Guard internally too: a negative currentPage would make static_cast<uint32_t>
+  // below wrap to a huge offset that can slip past the lutEntryOffset bounds check
+  // and seek to an arbitrary position. Callers guard, but don't rely on that here.
+  if (currentPage < 0) {
+    LOG_ERR("SECTION", "negative currentPage=%d", currentPage);
+    return nullptr;
+  }
+
   if (!Storage.openFileForRead("SCT", filePath, file)) {
     return nullptr;
   }
@@ -329,9 +344,19 @@ std::unique_ptr<Page> Section::loadPageFromSectionFile() {
     file.close();
     return nullptr;
   }
-  file.seek(lutOffset + sizeof(uint32_t) * currentPage);
+  const uint32_t lutEntryOffset = lutOffset + sizeof(uint32_t) * static_cast<uint32_t>(currentPage);
+  if (lutEntryOffset + sizeof(uint32_t) > file.size()) {
+    LOG_ERR("SECTION", "LUT entry for page %d out of bounds", currentPage);
+    file.close();
+    return nullptr;
+  }
+  file.seek(lutEntryOffset);
   uint32_t pagePos;
-  serialization::readPod(file, pagePos);
+  if (!serialization::readPod(file, pagePos) || pagePos == 0 || pagePos >= file.size()) {
+    LOG_ERR("SECTION", "invalid pagePos=%u for page %d", (unsigned)pagePos, currentPage);
+    file.close();
+    return nullptr;
+  }
   file.seek(pagePos);
 
   auto page = Page::deserialize(file);
@@ -396,8 +421,8 @@ std::optional<uint16_t> Section::getPageForParagraphIndex(const uint16_t pIndex)
     return std::nullopt;
   }
 
-  const uint32_t lutEnd = paragraphLutOffset + sizeof(uint16_t) + count * sizeof(uint16_t);
-  if (lutEnd > fileSize) {
+  const uint32_t lutBytes = sizeof(uint16_t) + count * sizeof(uint16_t);
+  if (paragraphLutOffset > fileSize || lutBytes > fileSize - paragraphLutOffset) {
     f.close();
     return std::nullopt;
   }
@@ -439,8 +464,8 @@ std::optional<uint16_t> Section::getParagraphIndexForPage(const uint16_t page) c
     return std::nullopt;
   }
 
-  const uint32_t entryEnd = paragraphLutOffset + sizeof(uint16_t) + (page + 1) * sizeof(uint16_t);
-  if (entryEnd > fileSize) {
+  const uint32_t entryBytes = sizeof(uint16_t) + (page + 1) * sizeof(uint16_t);
+  if (paragraphLutOffset > fileSize || entryBytes > fileSize - paragraphLutOffset) {
     f.close();
     return std::nullopt;
   }
@@ -481,8 +506,8 @@ std::optional<uint16_t> Section::getPageForListItemIndex(const uint16_t liIndex)
     return std::nullopt;
   }
 
-  const uint32_t lutEnd = liLutOffset + count * sizeof(uint16_t);
-  if (lutEnd > fileSize) {
+  const uint32_t lutBytes = count * sizeof(uint16_t);
+  if (liLutOffset > fileSize || lutBytes > fileSize - liLutOffset) {
     return std::nullopt;
   }
 

@@ -1,6 +1,7 @@
 #pragma once
 #include <Print.h>
 
+#include <cstdint>
 #include <string>
 
 #include "expat.h"
@@ -15,6 +16,7 @@ class ContainerParser final : public Print {
   size_t remainingSize;
   XML_Parser parser = nullptr;
   ParserState state = START;
+  uint16_t elementDepth = 0;
 
   static void startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void endElement(void* userData, const XML_Char* name);

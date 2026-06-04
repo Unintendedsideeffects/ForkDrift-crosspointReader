@@ -129,6 +129,14 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
 
   // flush the buffer
   partWordBuffer[partWordBufferIndex] = '\0';
+  if (!currentTextBlock) {
+    // currentTextBlock can be null if a prior `new (std::nothrow) ParsedText`
+    // OOM'd in startNewTextBlock(). Flushing into a null block is a no-op
+    // (the word is lost) — far better than dereferencing null.
+    partWordBufferIndex = 0;
+    nextWordContinues = false;
+    return;
+  }
   currentTextBlock->addWord(partWordBuffer, fontStyle, false, nextWordContinues);
   partWordBufferIndex = 0;
   nextWordContinues = false;
@@ -162,8 +170,14 @@ void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
     anchorData.push_back({std::move(pendingAnchorId), static_cast<uint16_t>(completedPageCount)});
     pendingAnchorId.clear();
   }
-  currentTextBlock.reset(new ParsedText(extraParagraphSpacing, forceParagraphIndents, hyphenationEnabled,
-                                        focusReadingEnabled, blockStyle, guideReadingEnabled));
+  currentTextBlock.reset(new (std::nothrow) ParsedText(extraParagraphSpacing, forceParagraphIndents, hyphenationEnabled,
+                                                       focusReadingEnabled, blockStyle, guideReadingEnabled));
+  if (!currentTextBlock) {
+    // OOM. Leave currentTextBlock null; all downstream derefs are now guarded
+    // (flushPartWordBuffer, the <li> bullet path, makePages) so this degrades
+    // to dropped content rather than a null-deref crash.
+    LOG_ERR("EHP", "OOM: ParsedText");
+  }
   wordsExtractedInBlock = 0;
 }
 
@@ -271,7 +285,11 @@ void ChapterHtmlSlimParser::finalizeCurrentTableCell() {
 
 void ChapterHtmlSlimParser::emitBufferedTableAsParagraphs(BufferedTable& table) {
   if (!currentPage) {
-    currentPage.reset(new Page());
+    currentPage.reset(new (std::nothrow) Page());
+    if (!currentPage) {
+      LOG_ERR("EHP", "OOM: Page (table paragraphs)");
+      return;
+    }
     currentPageNextY = 0;
   }
 
@@ -321,7 +339,11 @@ void ChapterHtmlSlimParser::emitBufferedTableAsFragments(BufferedTable& table) {
   };
 
   if (!currentPage) {
-    currentPage.reset(new Page());
+    currentPage.reset(new (std::nothrow) Page());
+    if (!currentPage) {
+      LOG_ERR("EHP", "OOM: Page (table fragments)");
+      return;
+    }
     currentPageNextY = 0;
   }
 
@@ -585,7 +607,11 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     const float emSize = self->renderer.getLineHeight(self->fontId) * self->lineCompression;
     auto tableBlockStyle = BlockStyle::fromCssStyle(cssStyle, emSize, CssTextAlign::Left, self->viewportWidth);
 
-    self->currentTableBuffer.reset(new BufferedTable());
+    self->currentTableBuffer.reset(new (std::nothrow) BufferedTable());
+    if (!self->currentTableBuffer) {
+      LOG_ERR("EHP", "OOM: BufferedTable");
+      return;
+    }
     self->currentTableBuffer->blockStyle = tableBlockStyle;
     self->tableDepth += 1;
     self->tableRowIndex = 0;
@@ -892,14 +918,14 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                   self->completePageFn(std::move(self->currentPage), self->xpathParagraphIndex,
                                        self->xpathListItemIndex);
                   self->completedPageCount++;
-                  self->currentPage.reset(new Page());
+                  self->currentPage.reset(new (std::nothrow) Page());
                   if (!self->currentPage) {
                     LOG_ERR("EHP", "Failed to create new page");
                     return;
                   }
                   self->currentPageNextY = 0;
                 } else if (!self->currentPage) {
-                  self->currentPage.reset(new Page());
+                  self->currentPage.reset(new (std::nothrow) Page());
                   if (!self->currentPage) {
                     LOG_ERR("EHP", "Failed to create initial page");
                     return;
@@ -1174,7 +1200,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->startNewTextBlock(accumulated.withoutBottom());
       self->updateEffectiveInlineStyle();
 
-      if (strcmp(name, "li") == 0) {
+      if (strcmp(name, "li") == 0 && self->currentTextBlock) {
         self->currentTextBlock->addWord("\xe2\x80\xa2", EpdFontFamily::REGULAR);
       }
     }
@@ -1728,14 +1754,22 @@ void ChapterHtmlSlimParser::addLineToPage(const std::shared_ptr<TextBlock>& line
   const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
 
   if (!currentPage) {
-    currentPage.reset(new Page());
+    currentPage.reset(new (std::nothrow) Page());
+    if (!currentPage) {
+      LOG_ERR("EHP", "OOM: Page (addLineToPage)");
+      return;
+    }
     currentPageNextY = 0;
   }
 
   if (currentPageNextY + lineHeight > viewportHeight) {
     completePageFn(std::move(currentPage), xpathParagraphIndex, xpathListItemIndex);
     completedPageCount++;
-    currentPage.reset(new Page());
+    currentPage.reset(new (std::nothrow) Page());
+    if (!currentPage) {
+      LOG_ERR("EHP", "OOM: Page (addLineToPage break)");
+      return;
+    }
     currentPageNextY = 0;
   }
 
@@ -1761,7 +1795,11 @@ void ChapterHtmlSlimParser::makePages() {
   }
 
   if (!currentPage) {
-    currentPage.reset(new Page());
+    currentPage.reset(new (std::nothrow) Page());
+    if (!currentPage) {
+      LOG_ERR("EHP", "OOM: Page (makePages)");
+      return;
+    }
     currentPageNextY = 0;
   }
 

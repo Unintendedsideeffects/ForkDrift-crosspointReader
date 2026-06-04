@@ -28,17 +28,23 @@ extern "C" esp_err_t arduino_esp_crt_bundle_attach(void* conf);
 // failing with MBEDTLS_ERR_X509_ALLOC_FAILED (-0x2880). Check total free heap (not max
 // contiguous block) because the failure mode is aggregate exhaustion, not one large alloc.
 constexpr uint32_t MIN_HEAP_FOR_TLS = 55000;
+constexpr int MAX_RESPONSE_BYTES = 16 * 1024;
 
 // Response buffer for reading HTTP body
 struct ResponseBuffer {
   char* data = nullptr;
   int len = 0;
   int capacity = 0;
+  bool overflowed = false;
 
   ~ResponseBuffer() { free(data); }
 
   bool ensure(int size) {
     if (size <= capacity) return true;
+    if (size > MAX_RESPONSE_BYTES) {
+      overflowed = true;
+      return false;
+    }
     char* newData = (char*)realloc(data, size);
     if (!newData) return false;
     data = newData;
@@ -56,7 +62,8 @@ esp_err_t httpEventHandler(esp_http_client_event_t* evt) {
       buf->len += evt->data_len;
       buf->data[buf->len] = '\0';
     } else {
-      LOG_ERR("KOSync", "Response buffer allocation failed (%d bytes)", evt->data_len);
+      LOG_ERR("KOSync", "Response buffer rejected/failed (%d-byte chunk)", evt->data_len);
+      return ESP_FAIL;
     }
   }
   return ESP_OK;
@@ -123,6 +130,7 @@ KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
   LOG_DBG("KOSync", "Auth response: %d (err: %d)", httpCode, err);
 
   if (err != ESP_OK) return NETWORK_ERROR;
+  if (buf.overflowed) return SERVER_ERROR;
   if (httpCode == 200) return OK;
   if (httpCode == 401) return AUTH_FAILED;
   return SERVER_ERROR;
@@ -156,6 +164,7 @@ KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& doc
   LOG_DBG("KOSync", "Get progress response: %d (err: %d)", httpCode, err);
 
   if (err != ESP_OK) return NETWORK_ERROR;
+  if (buf.overflowed) return SERVER_ERROR;
 
   if (httpCode == 200 && buf.data) {
     JsonDocument doc;
@@ -163,6 +172,20 @@ KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& doc
 
     if (error) {
       LOG_ERR("KOSync", "JSON parse failed: %s", error.c_str());
+      return JSON_ERROR;
+    }
+
+    // A compliant KOSync 200 response carries a numeric percentage. Reject a
+    // malformed body rather than silently treating a missing field as 0%.
+    if (!doc["percentage"].is<float>() && !doc["percentage"].is<int>()) {
+      LOG_ERR("KOSync", "Response missing numeric 'percentage'");
+      return JSON_ERROR;
+    }
+    if ((!doc["progress"].isNull() && !doc["progress"].is<const char*>()) ||
+        (!doc["device"].isNull() && !doc["device"].is<const char*>()) ||
+        (!doc["device_id"].isNull() && !doc["device_id"].is<const char*>()) ||
+        (!doc["timestamp"].isNull() && !doc["timestamp"].is<int64_t>())) {
+      LOG_ERR("KOSync", "Response field has unexpected type");
       return JSON_ERROR;
     }
 
@@ -229,6 +252,7 @@ KOReaderSyncClient::Error KOReaderSyncClient::updateProgress(const KOReaderProgr
   LOG_DBG("KOSync", "Update progress response: %d (err: %d)", httpCode, err);
 
   if (err != ESP_OK) return NETWORK_ERROR;
+  if (buf.overflowed) return SERVER_ERROR;
   if (httpCode == 200 || httpCode == 202) return OK;
   if (httpCode == 401) return AUTH_FAILED;
   return SERVER_ERROR;

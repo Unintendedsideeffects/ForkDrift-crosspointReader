@@ -259,8 +259,14 @@ void CrossPointWebServer::begin() {
   // Collect WebDAV headers and register handler
   const char* davHeaders[] = {"Depth", "Destination", "Overwrite", "If", "Lock-Token", "Timeout"};
   server->collectHeaders(davHeaders, 6);
-  server->addHandler(new WebDAVHandler());  // Note: WebDAVHandler will be deleted by WebServer when server is stopped
-  LOG_DBG("WEB", "WebDAV handler initialized");
+  // Note: WebDAVHandler will be deleted by WebServer when server is stopped
+  auto* davHandler = new (std::nothrow) WebDAVHandler();
+  if (davHandler) {
+    server->addHandler(davHandler);
+    LOG_DBG("WEB", "WebDAV handler initialized");
+  } else {
+    LOG_ERR("WEB", "OOM: WebDAVHandler; WebDAV disabled");
+  }
 #endif
 
   server->begin();
@@ -1246,6 +1252,7 @@ void CrossPointWebServer::handleFontUploadData() {
       String family = server->arg("family");
       fontUpload.valid = false;
       fontUpload.magicChecked = false;
+      fontUpload.magicHeaderPos = 0;
       fontUpload.bytesWritten = 0;
       fontUpload.bufferPos = 0;
 
@@ -1291,14 +1298,25 @@ void CrossPointWebServer::handleFontUploadData() {
       if (!fontUpload.valid) break;
       esp_task_wdt_reset();
 
-      // Validate magic bytes on first chunk only
-      if (!fontUpload.magicChecked && upload.currentSize >= 8) {
-        if (memcmp(upload.buf, "CPFONT\0\0", 8) != 0) {
-          LOG_ERR("WEB", "Invalid .cpfont magic bytes");
-          fontUpload.valid = false;
-          break;
+      // Validate magic bytes once the first 8 file bytes have accumulated.
+      // Accumulating (rather than checking only when the first chunk is >= 8
+      // bytes) closes a bypass: a 1-7 byte first chunk would otherwise skip the
+      // check permanently and let an arbitrary blob be written under a .cpfont
+      // name. Cleanup of the partial file is handled by UPLOAD_FILE_END when
+      // valid == false, matching the existing error path.
+      if (!fontUpload.magicChecked) {
+        const size_t need = sizeof(fontUpload.magicHeader) - fontUpload.magicHeaderPos;
+        const size_t take = (upload.currentSize < need) ? upload.currentSize : need;
+        memcpy(fontUpload.magicHeader + fontUpload.magicHeaderPos, upload.buf, take);
+        fontUpload.magicHeaderPos += take;
+        if (fontUpload.magicHeaderPos >= sizeof(fontUpload.magicHeader)) {
+          if (memcmp(fontUpload.magicHeader, "CPFONT\0\0", 8) != 0) {
+            LOG_ERR("WEB", "Invalid .cpfont magic bytes");
+            fontUpload.valid = false;
+            break;
+          }
+          fontUpload.magicChecked = true;
         }
-        fontUpload.magicChecked = true;
       }
 
       // Buffer writes for efficiency
@@ -1313,7 +1331,12 @@ void CrossPointWebServer::handleFontUploadData() {
         remaining -= chunk;
 
         if (fontUpload.bufferPos >= FontUploadState::BUFFER_SIZE) {
-          fontUpload.file.write(fontUpload.buffer.data(), fontUpload.bufferPos);
+          if (fontUpload.file.write(fontUpload.buffer.data(), fontUpload.bufferPos) != fontUpload.bufferPos) {
+            LOG_ERR("WEB", "Font write failed (SD full?)");
+            fontUpload.valid = false;
+            fontUpload.bufferPos = 0;
+            break;
+          }
           fontUpload.bytesWritten += fontUpload.bufferPos;
           fontUpload.bufferPos = 0;
           esp_task_wdt_reset();
@@ -1325,11 +1348,22 @@ void CrossPointWebServer::handleFontUploadData() {
     case UPLOAD_FILE_END: {
       // Flush remaining buffer
       if (fontUpload.valid && fontUpload.bufferPos > 0) {
-        fontUpload.file.write(fontUpload.buffer.data(), fontUpload.bufferPos);
-        fontUpload.bytesWritten += fontUpload.bufferPos;
+        if (fontUpload.file.write(fontUpload.buffer.data(), fontUpload.bufferPos) != fontUpload.bufferPos) {
+          LOG_ERR("WEB", "Font write failed on final flush (SD full?)");
+          fontUpload.valid = false;
+        } else {
+          fontUpload.bytesWritten += fontUpload.bufferPos;
+        }
         fontUpload.bufferPos = 0;
       }
       fontUpload.file.close();
+
+      // A file shorter than the 8-byte magic header can never be a valid
+      // .cpfont — reject it so the magic check can't be skipped by truncation.
+      if (fontUpload.valid && !fontUpload.magicChecked) {
+        LOG_ERR("WEB", "Font upload too small to validate magic bytes");
+        fontUpload.valid = false;
+      }
 
       if (!fontUpload.valid && !fontUpload.filePath.empty()) {
         Storage.remove(fontUpload.filePath.c_str());

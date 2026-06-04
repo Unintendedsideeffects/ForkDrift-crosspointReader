@@ -6,6 +6,10 @@
 
 #include "Epub/BookMetadataCache.h"
 
+namespace {
+constexpr uint16_t kMaxXmlElementDepth = 256;
+}
+
 bool TocNcxParser::setup() {
   parser = XML_ParserCreate(nullptr);
   if (!parser) {
@@ -71,6 +75,12 @@ void XMLCALL TocNcxParser::startElement(void* userData, const XML_Char* name, co
 
   auto* self = static_cast<TocNcxParser*>(userData);
 
+  if (++self->elementDepth > kMaxXmlElementDepth) {
+    LOG_ERR("TOC", "XML element nesting too deep");
+    XML_StopParser(self->parser, XML_FALSE);
+    return;
+  }
+
   if (self->state == START && strcmp(name, "ncx") == 0) {
     self->state = IN_NCX;
     return;
@@ -114,7 +124,11 @@ void XMLCALL TocNcxParser::startElement(void* userData, const XML_Char* name, co
 
 void XMLCALL TocNcxParser::characterData(void* userData, const XML_Char* s, const int len) {
   auto* self = static_cast<TocNcxParser*>(userData);
-  if (self->state == IN_NAV_LABEL_TEXT) {
+  // Cap accumulation: expat fires characterData repeatedly for one text node, so an
+  // oversized <text> would grow currentLabel unbounded → OOM. A TOC label never
+  // needs more than this; excess is dropped.
+  constexpr size_t kMaxTocLabelLen = 1024;
+  if (self->state == IN_NAV_LABEL_TEXT && self->currentLabel.size() < kMaxTocLabelLen) {
     self->currentLabel.append(s, len);
   }
 }
@@ -124,12 +138,12 @@ void XMLCALL TocNcxParser::endElement(void* userData, const XML_Char* name) {
 
   if (self->state == IN_NAV_LABEL_TEXT && strcmp(name, "text") == 0) {
     self->state = IN_NAV_LABEL;
-    return;
+    goto done;
   }
 
   if (self->state == IN_NAV_LABEL && strcmp(name, "navLabel") == 0) {
     self->state = IN_NAV_POINT;
-    return;
+    goto done;
   }
 
   if (self->state == IN_NAV_POINT && strcmp(name, "navPoint") == 0) {
@@ -137,7 +151,7 @@ void XMLCALL TocNcxParser::endElement(void* userData, const XML_Char* name) {
     if (self->currentDepth == 0) {
       self->state = IN_NAV_MAP;
     }
-    return;
+    goto done;
   }
 
   if (self->state == IN_NAV_POINT && strcmp(name, "content") == 0) {
@@ -162,5 +176,10 @@ void XMLCALL TocNcxParser::endElement(void* userData, const XML_Char* name) {
       self->currentLabel.clear();
       self->currentSrc.clear();
     }
+  }
+
+done:
+  if (self->elementDepth > 0) {
+    self->elementDepth--;
   }
 }

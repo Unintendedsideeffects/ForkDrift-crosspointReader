@@ -120,7 +120,9 @@ bool parseDimensionToken(const std::string& token, int& outWidth, int& outHeight
   }
 
   auto parseInt = [](const std::string& value, int& out) -> bool {
-    if (value.empty()) {
+    // Cap digit count: an unbounded run of digits overflows the signed int below
+    // (UB). Image dimensions never exceed 5 digits, so anything longer is invalid.
+    if (value.empty() || value.size() > 5) {
       return false;
     }
     int result = 0;
@@ -560,6 +562,13 @@ bool Markdown::shouldSkipKnownBadParseFailure() const {
 void Markdown::markKnownBadParseFailure() const {
   SourceVersion currentVersion;
   if (readSourceVersion(filepath, currentVersion)) {
+    // This map only avoids re-parsing known-bad files. Browsing many distinct
+    // corrupt files would otherwise grow it unbounded for the firmware's lifetime;
+    // drop it wholesale past a cap rather than leak (worst case: one extra parse).
+    constexpr size_t kMaxKnownBadEntries = 64;
+    if (knownBadParseFailures.size() >= kMaxKnownBadEntries) {
+      knownBadParseFailures.clear();
+    }
     knownBadParseFailures[filepath] = currentVersion;
   }
 }

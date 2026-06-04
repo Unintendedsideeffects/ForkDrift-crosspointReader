@@ -385,15 +385,20 @@ bool BookMetadataCache::load() {
     return false;
   }
 
-  serialization::readPod(bookFile, lutOffset);
-  serialization::readPod(bookFile, spineCount);
-  serialization::readPod(bookFile, tocCount);
-
-  serialization::readString(bookFile, coreMetadata.title);
-  serialization::readString(bookFile, coreMetadata.author);
-  serialization::readString(bookFile, coreMetadata.language);
-  serialization::readString(bookFile, coreMetadata.coverItemHref);
-  serialization::readString(bookFile, coreMetadata.textReferenceHref);
+  // A truncated book.bin (e.g. power-loss during a first-open write) reads short.
+  // readPod/readString return false on a short read; bail rather than accept
+  // partial/garbage offsets behind loaded=true.
+  if (!serialization::readPod(bookFile, lutOffset) || !serialization::readPod(bookFile, spineCount) ||
+      !serialization::readPod(bookFile, tocCount) || !serialization::readString(bookFile, coreMetadata.title) ||
+      !serialization::readString(bookFile, coreMetadata.author) ||
+      !serialization::readString(bookFile, coreMetadata.language) ||
+      !serialization::readString(bookFile, coreMetadata.coverItemHref) ||
+      !serialization::readString(bookFile, coreMetadata.textReferenceHref)) {
+    LOG_ERR("BMC", "Truncated or corrupt book.bin; rejecting cache");
+    // Explicit close() required: member variable persists beyond function scope
+    bookFile.close();
+    return false;
+  }
 
   loaded = true;
   LOG_DBG("BMC", "Loaded cache data: %d spine, %d TOC entries", spineCount, tocCount);
@@ -411,10 +416,24 @@ BookMetadataCache::SpineEntry BookMetadataCache::getSpineEntry(const int index) 
     return {};
   }
 
+  // lutOffset and the per-entry positions come from the file; a corrupt book.bin
+  // could point them anywhere. Validate against the actual file size before each
+  // seek so a garbage offset becomes a logged miss instead of a silent garbage read.
+  const uint64_t fileSize = bookFile.fileSize64();
+  const uint64_t lutPos = static_cast<uint64_t>(lutOffset) + sizeof(uint32_t) * static_cast<uint64_t>(index);
+  if (lutPos + sizeof(uint32_t) > fileSize) {
+    LOG_ERR("BMC", "Spine LUT offset out of range");
+    return {};
+  }
+
   // Seek to spine LUT item, read from LUT and get out data
-  bookFile.seek(lutOffset + sizeof(uint32_t) * index);
+  bookFile.seek(lutPos);
   uint32_t spineEntryPos;
   serialization::readPod(bookFile, spineEntryPos);
+  if (spineEntryPos >= fileSize) {
+    LOG_ERR("BMC", "Spine entry pos out of range");
+    return {};
+  }
   bookFile.seek(spineEntryPos);
   return readSpineEntry(bookFile);
 }
@@ -430,10 +449,23 @@ BookMetadataCache::TocEntry BookMetadataCache::getTocEntry(const int index) {
     return {};
   }
 
+  // As in getSpineEntry: validate file-derived offsets before seeking.
+  const uint64_t fileSize = bookFile.fileSize64();
+  const uint64_t lutPos = static_cast<uint64_t>(lutOffset) + sizeof(uint32_t) * static_cast<uint64_t>(spineCount) +
+                          sizeof(uint32_t) * static_cast<uint64_t>(index);
+  if (lutPos + sizeof(uint32_t) > fileSize) {
+    LOG_ERR("BMC", "TOC LUT offset out of range");
+    return {};
+  }
+
   // Seek to TOC LUT item, read from LUT and get out data
-  bookFile.seek(lutOffset + sizeof(uint32_t) * spineCount + sizeof(uint32_t) * index);
+  bookFile.seek(lutPos);
   uint32_t tocEntryPos;
   serialization::readPod(bookFile, tocEntryPos);
+  if (tocEntryPos >= fileSize) {
+    LOG_ERR("BMC", "TOC entry pos out of range");
+    return {};
+  }
   bookFile.seek(tocEntryPos);
   return readTocEntry(bookFile);
 }

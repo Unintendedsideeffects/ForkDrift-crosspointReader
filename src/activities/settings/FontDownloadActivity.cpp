@@ -113,7 +113,10 @@ bool FontDownloadActivity::fetchAndParseManifest() {
   fontInstaller_.refreshRegistry();
 
   JsonArray familiesArr = doc["families"].as<JsonArray>();
-  families_.reserve(familiesArr.size());
+  // familiesArr.size() is server-controlled; reserve() uses throwing new and would
+  // abort on a bogus huge count. Cap the hint; the vector still grows on demand.
+  constexpr size_t kMaxFamiliesReserve = 256;
+  families_.reserve(familiesArr.size() < kMaxFamiliesReserve ? familiesArr.size() : kMaxFamiliesReserve);
 
   for (JsonObject fObj : familiesArr) {
     ManifestFamily family;
@@ -598,8 +601,9 @@ void FontDownloadActivity::render(RenderLock&&) {
     renderer.drawCenteredText(UI_10_FONT_ID, centerY - lineHeight, statusText.c_str());
 
     float progress = 0;
-    if (fileTotal_ > 0) {
-      progress = static_cast<float>(fileProgress_) / static_cast<float>(fileTotal_);
+    const size_t fileTotal = fileTotal_.load(std::memory_order_acquire);
+    if (fileTotal > 0) {
+      progress = static_cast<float>(fileProgress_.load(std::memory_order_acquire)) / static_cast<float>(fileTotal);
     }
 
     int barY = centerY + metrics.verticalSpacing;

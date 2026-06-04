@@ -12,6 +12,9 @@ FontInstaller::FontInstaller(SdCardFontRegistry& registry) : registry_(registry)
 
 bool FontInstaller::isValidFamilyName(const char* name) {
   if (name == nullptr || name[0] == '\0') return false;
+  // Bound the length so family+filename can't silently truncate the 128-byte
+  // path buffer in buildFontPath().
+  if (strlen(name) > 48) return false;
 
   // Reject path traversal
   if (strstr(name, "..") != nullptr) return false;
@@ -29,6 +32,9 @@ bool FontInstaller::isValidFamilyName(const char* name) {
 
 bool FontInstaller::isValidCpfontFilename(const char* name) {
   if (name == nullptr || name[0] == '\0') return false;
+  // Bound the length so family+filename can't silently truncate the 128-byte
+  // path buffer in buildFontPath().
+  if (strlen(name) > 64) return false;
 
   // Reject path separators / traversal up front. Anything that could escape
   // the family directory or refer to a different one is a hard reject.

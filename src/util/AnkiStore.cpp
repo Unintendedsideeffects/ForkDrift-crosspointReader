@@ -7,6 +7,10 @@
 #include <SpiBusMutex.h>
 
 namespace util {
+namespace {
+constexpr size_t kMaxAnkiCardsFileBytes = 256u * 1024u;
+constexpr size_t kMaxAnkiCards = 1024;
+}  // namespace
 
 AnkiStore::AnkiStore() : mutex_(xSemaphoreCreateMutexStatic(&mutexBuf_)) {}
 
@@ -29,6 +33,11 @@ bool AnkiStore::load() {
   if (!Storage.openFileForRead("ANKI", kFilePath, file)) {
     return false;
   }
+  if (file.size() > kMaxAnkiCardsFileBytes) {
+    LOG_ERR("ANKI", "Cards file too large: %u bytes", static_cast<unsigned>(file.size()));
+    file.close();
+    return false;
+  }
 
   // Parse outside the mutex — JSON parse is CPU-bound, not a shared-state concern.
   JsonDocument doc;
@@ -43,8 +52,11 @@ bool AnkiStore::load() {
   xSemaphoreTake(mutex_, portMAX_DELAY);
   cards.clear();
   JsonArray arr = doc.as<JsonArray>();
-  cards.reserve(arr.size());
+  cards.reserve(arr.size() < kMaxAnkiCards ? arr.size() : kMaxAnkiCards);
   for (JsonObject obj : arr) {
+    if (cards.size() >= kMaxAnkiCards) {
+      break;
+    }
     AnkiCard card;
     card.front = obj["f"] | "";
     card.back = obj["b"] | "";

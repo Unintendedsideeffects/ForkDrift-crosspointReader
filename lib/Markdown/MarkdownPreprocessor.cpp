@@ -403,7 +403,9 @@ bool parseDimensionToken(const std::string& token, int& outWidth, int& outHeight
   }
 
   auto parseInt = [](const std::string& value, int& out) -> bool {
-    if (value.empty()) {
+    // Cap at 5 digits: a pixel dimension is never larger, and the bound stops
+    // `result * 10` from overflowing a signed int (undefined behavior).
+    if (value.empty() || value.size() > 5) {
       return false;
     }
     int result = 0;

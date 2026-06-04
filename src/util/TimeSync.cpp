@@ -18,7 +18,10 @@ constexpr std::time_t kMinValidTime = 1577836800;  // 2020-01-01 00:00:00 UTC
 // Persisted time loaded at boot is only a stale snapshot of "last successful
 // sync". Until NTP corrects it this session we treat it as untrusted so
 // shouldSync() forces an attempt regardless of the 23-hour throttle.
-bool gPersistedTimeUntrusted = false;
+// volatile: written by the background NTP task, read by the main task in
+// shouldSync(); without it the compiler may cache the read and never observe
+// the clear, forcing endless re-sync attempts.
+volatile bool gPersistedTimeUntrusted = false;
 
 #if ENABLE_WIFI_CLOCK
 // Steady-state interval after a successful sync.

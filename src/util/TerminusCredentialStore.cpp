@@ -4,6 +4,10 @@
 #include <HalStorage.h>
 #include <Logging.h>
 
+namespace {
+constexpr size_t kMaxCredentialJsonBytes = 4096;
+}
+
 TerminusCredentialStore& TerminusCredentialStore::getInstance() {
   static TerminusCredentialStore instance;
   return instance;
@@ -35,13 +39,18 @@ bool TerminusCredentialStore::loadFromJson(const char* json) {
     baseUrl_.pop_back();
   }
 
-  LOG_INF("TERMINUS", "Credentials loaded: id=%s model=%s", deviceId_.c_str(), deviceModel_.c_str());
+  LOG_INF("TERMINUS", "Credentials loaded: model=%s", deviceModel_.c_str());
   return true;
 }
 
 static std::string readFileToString(const char* tag, const char* path) {
   HalFile f;
   if (!Storage.openFileForRead(tag, path, f)) {
+    return {};
+  }
+  if (f.size() > kMaxCredentialJsonBytes) {
+    LOG_ERR(tag, "JSON file too large: %s (%u bytes)", path, static_cast<unsigned>(f.size()));
+    f.close();
     return {};
   }
   String buf;
@@ -66,6 +75,8 @@ bool TerminusCredentialStore::load() {
       LOG_INF("TERMINUS", "Drop file consumed");
       return save();
     }
+    Storage.remove(kDropPath);
+    LOG_ERR("TERMINUS", "Drop file invalid; removed");
   }
 
   if (!Storage.exists(kStoredPath)) {
@@ -86,6 +97,7 @@ bool TerminusCredentialStore::save() const {
   String json;
   serializeJson(doc, json);
 
+  Storage.ensureDirectoryExists("/.crosspoint");
   if (!Storage.writeFile(kStoredPath, json)) {
     LOG_ERR("TERMINUS", "Failed to save credentials to %s", kStoredPath);
     return false;

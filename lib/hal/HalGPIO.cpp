@@ -215,35 +215,61 @@ bool HalGPIO::isPressed(uint8_t buttonIndex) const { return inputMgr.isPressed(b
 
 bool HalGPIO::wasPressed(uint8_t buttonIndex) const {
   const uint8_t bit = static_cast<uint8_t>(1u << buttonIndex);
-  if (virtualButtonMask & bit) {
+  portENTER_CRITICAL(&virtualButtonMux);
+  const bool virtualPressed = (virtualButtonMask & bit) != 0;
+  if (virtualPressed) {
     virtualButtonMask &= static_cast<uint8_t>(~bit);
-    return true;
   }
+  portEXIT_CRITICAL(&virtualButtonMux);
+  if (virtualPressed) return true;
   return inputMgr.wasPressed(buttonIndex);
 }
 
-bool HalGPIO::wasAnyPressed() const { return virtualButtonMask != 0 || inputMgr.wasAnyPressed(); }
+bool HalGPIO::wasAnyPressed() const {
+  portENTER_CRITICAL(&virtualButtonMux);
+  const bool hasVirtual = virtualButtonMask != 0;
+  portEXIT_CRITICAL(&virtualButtonMux);
+  return hasVirtual || inputMgr.wasAnyPressed();
+}
 
 bool HalGPIO::wasReleased(uint8_t buttonIndex) const {
   const uint8_t bit = static_cast<uint8_t>(1u << buttonIndex);
-  if (virtualButtonMask & bit) {
+  portENTER_CRITICAL(&virtualButtonMux);
+  const bool virtualReleased = (virtualButtonMask & bit) != 0;
+  if (virtualReleased) {
     virtualButtonMask &= static_cast<uint8_t>(~bit);
-    return true;
   }
+  portEXIT_CRITICAL(&virtualButtonMux);
+  if (virtualReleased) return true;
   return inputMgr.wasReleased(buttonIndex);
 }
 
 bool HalGPIO::peekReleased(uint8_t buttonIndex) const {
   const uint8_t bit = static_cast<uint8_t>(1u << buttonIndex);
-  if (virtualButtonMask & bit) {
-    return true;
-  }
-  return inputMgr.peekReleased(buttonIndex);
+  portENTER_CRITICAL(&virtualButtonMux);
+  const bool hasVirtual = (virtualButtonMask & bit) != 0;
+  portEXIT_CRITICAL(&virtualButtonMux);
+  return hasVirtual || inputMgr.peekReleased(buttonIndex);
 }
 
-bool HalGPIO::wasAnyReleased() const { return virtualButtonMask != 0 || inputMgr.wasAnyReleased(); }
+bool HalGPIO::wasAnyReleased() const {
+  portENTER_CRITICAL(&virtualButtonMux);
+  const bool hasVirtual = virtualButtonMask != 0;
+  portEXIT_CRITICAL(&virtualButtonMux);
+  return hasVirtual || inputMgr.wasAnyReleased();
+}
 
-void HalGPIO::injectVirtualButton(uint8_t buttonIndex) { virtualButtonMask |= static_cast<uint8_t>(1u << buttonIndex); }
+void HalGPIO::injectVirtualButton(uint8_t buttonIndex) {
+  portENTER_CRITICAL(&virtualButtonMux);
+  virtualButtonMask |= static_cast<uint8_t>(1u << buttonIndex);
+  portEXIT_CRITICAL(&virtualButtonMux);
+}
+
+void HalGPIO::drainVirtualMask() {
+  portENTER_CRITICAL(&virtualButtonMux);
+  virtualButtonMask = 0;
+  portEXIT_CRITICAL(&virtualButtonMux);
+}
 
 unsigned long HalGPIO::getHeldTime() const { return inputMgr.getHeldTime(); }
 

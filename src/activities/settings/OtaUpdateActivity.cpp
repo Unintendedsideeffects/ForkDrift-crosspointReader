@@ -141,11 +141,17 @@ void OtaUpdateActivity::onEnter() {
   workerCmd.store(OtaWorkerCmd::NONE);
   updater.setCancelFlag(&workerExitRequested);
 
-  xTaskCreate(&OtaUpdateActivity::otaWorkerTrampoline, "OtaWorkerTask", 16384,
-              this,                 // Parameters
-              1,                    // Priority
-              &otaWorkerTaskHandle  // Task handle
-  );
+  // Clear any stale handle from a prior enter/exit cycle so a failed create
+  // can't leave onExit() notifying a dead task.
+  otaWorkerTaskHandle = nullptr;
+  if (xTaskCreate(&OtaUpdateActivity::otaWorkerTrampoline, "OtaWorkerTask", 16384,
+                  this,                  // Parameters
+                  1,                     // Priority
+                  &otaWorkerTaskHandle)  // Task handle
+      != pdPASS) {
+    LOG_ERR("OTA", "Failed to create OTA worker task");
+    otaWorkerTaskHandle = nullptr;
+  }
 
   // Turn on WiFi immediately
   LOG_INF("OTA", "Turning on WiFi...");
@@ -222,6 +228,11 @@ void OtaUpdateActivity::render(RenderLock&&) {
 
   if (state == SELECTING_FEATURE_STORE_BUNDLE) {
     const auto& entries = updater.getFeatureStoreEntries();
+    if (selectedBundleIndex >= entries.size()) {
+      renderer.drawCenteredText(UI_10_FONT_ID, 300, "No feature bundles available", true, EpdFontFamily::BOLD);
+      renderer.displayBuffer();
+      return;
+    }
     const auto& entry = entries[selectedBundleIndex];
     const bool isInstalled = (String(SETTINGS.installedOtaBundle) == entry.id);
 

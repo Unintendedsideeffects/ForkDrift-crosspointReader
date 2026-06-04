@@ -46,7 +46,7 @@ struct ByteArrayBudget {
 TEST_CASE("network task stack budgets stay above safe minimums") {
   const StackBudgetExpectation expectations[] = {
       {"src/network/BackgroundWifiService.h", "background WiFi task stack", std::regex(R"(TASK_STACK\s*=\s*(\d+))"),
-       4096},
+       8192},
       {"src/util/TimeSync.cpp", "background NTP sync task stack",
        std::regex(R"(xTaskCreate\(\s*backgroundSyncTask\s*,\s*"TimeSyncTask"\s*,\s*(\d+))"), 4096},
       {"src/network/RemoteKeyboardManager.cpp", "remote keyboard hotspot task stack",

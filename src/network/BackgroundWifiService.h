@@ -27,6 +27,7 @@ class BackgroundWifiService {
   volatile bool stopRequested = false;
   volatile bool keepWifiOnStop = false;
   volatile bool connected = false;
+  volatile bool serving = false;
   volatile bool wifiOwned = false;
   volatile uint32_t requestCount = 0;
   volatile unsigned long nextStartAllowedMs = 0;
@@ -38,8 +39,8 @@ class BackgroundWifiService {
   bool startRetryActive() const;
   void deferStartRetry(const char* reason);
 
-  // Stack size: 4096 bytes — WiFi connect + WebServer + handler parsing
-  static constexpr uint32_t TASK_STACK = 4096;
+  // Route-heavy CrossPointWebServer handlers run on this task in Always mode.
+  static constexpr uint32_t TASK_STACK = 8192;
   static constexpr uint32_t CONNECT_TIMEOUT_MS = 15000;
   static constexpr uint32_t START_RETRY_MS = 30000;
   static constexpr uint32_t MIN_START_HEAP_BYTES = 60000;
@@ -66,6 +67,7 @@ class BackgroundWifiService {
   // Use this in reconcile loops to suppress repeated start attempts during the retry window.
   bool isPendingOrRunning() const { return taskHandle != nullptr || startRetryActive(); }
   bool isConnected() const { return connected; }
+  bool isServing() const { return serving; }
   uint32_t getRequestCount() const { return requestCount; }
   bool hadApiActivity() const { return requestCount > 0; }
 };

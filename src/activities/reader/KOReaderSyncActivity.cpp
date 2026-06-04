@@ -311,6 +311,7 @@ void KOReaderSyncActivity::onEnter() {
     requestUpdate(true);
 
     // Perform sync directly in a background task
+    syncTaskExited.store(false);
     xTaskCreate(
         [](void* param) {
           auto* self = static_cast<KOReaderSyncActivity*>(param);
@@ -322,9 +323,12 @@ void KOReaderSyncActivity::onEnter() {
           }
           self->requestUpdate(true);
           self->performSync();
+          // Signal completion before self-deleting so onExit() can safely free
+          // the activity without a use-after-free.
+          self->syncTaskExited.store(true);
           vTaskDelete(nullptr);
         },
-        "SyncTask", 4096, this, 1, nullptr);
+        "SyncTask", 4096, this, 1, &syncTaskHandle);
     return;
   }
 
@@ -337,8 +341,27 @@ void KOReaderSyncActivity::onEnter() {
 void KOReaderSyncActivity::onExit() {
   Activity::onExit();
 
-  // Turn off wifi
+  // Turn off wifi — this also makes any in-flight HTTP in the sync task fail fast.
   wifiOff();
+
+  // Wait for the background sync task to finish before this heap-allocated
+  // activity is destroyed; otherwise the task would touch freed members.
+  if (syncTaskHandle) {
+    constexpr int timeoutMs = 10000;
+    constexpr int pollMs = 20;
+    for (int waited = 0; !syncTaskExited.load() && waited < timeoutMs; waited += pollMs) {
+      vTaskDelay(pdMS_TO_TICKS(pollMs));
+    }
+    if (!syncTaskExited.load()) {
+      // WiFi is off so the task must be near exit; keep waiting rather than risk
+      // freeing the activity out from under it.
+      LOG_WRN("KOSync", "Sync task still running after %d ms; waiting", timeoutMs);
+      while (!syncTaskExited.load()) {
+        vTaskDelay(pdMS_TO_TICKS(50));
+      }
+    }
+    syncTaskHandle = nullptr;
+  }
 }
 
 void KOReaderSyncActivity::render(RenderLock&&) {

@@ -15,6 +15,32 @@
 namespace network {
 namespace {
 
+// Reads a daily planner file but rejects anything implausibly large so a single
+// oversized /daily/<date>.md (organic growth or a file dropped on the SD card)
+// can't slurp megabytes into the 380KB heap. Caller already holds SpiBusMutex.
+std::string readDailyFileCapped(const std::string& path) {
+  constexpr size_t kMaxDailyBytes = 256u * 1024u;
+  HalFile file;
+  if (!Storage.openFileForRead("WEB", path.c_str(), file)) {
+    return {};
+  }
+  const size_t sz = static_cast<size_t>(file.fileSize64());
+  if (sz > kMaxDailyBytes) {
+    LOG_ERR("WEB", "Daily file too large (%zu bytes); ignoring", sz);
+    return {};
+  }
+  std::string out;
+  if (sz > 0) {
+    out.resize(sz);
+    const int rd = file.read(&out[0], sz);
+    if (rd < 0 || static_cast<size_t>(rd) != sz) {
+      LOG_ERR("WEB", "Daily file read short");
+      return {};
+    }
+  }
+  return out;
+}
+
 std::string normalizeTodoEntryText(const std::string& input) {
   std::string normalized;
   normalized.reserve(input.size());
@@ -159,7 +185,7 @@ TodoPlannerHttpResult handleTodoEntryRequest(const bool plannerEnabled, const bo
       }
     }
     if (Storage.exists(targetPath.c_str())) {
-      content = Storage.readFile(targetPath.c_str()).c_str();
+      content = readDailyFileCapped(targetPath);
       if (!content.empty() && content.back() != '\n') {
         content.push_back('\n');
       }
@@ -196,7 +222,7 @@ TodoPlannerHttpResult handleTodoTodayGetRequest(const bool plannerEnabled, const
     const bool textExists = Storage.exists(textPath.c_str());
     targetPath = TodoPlannerStorage::dailyPath(today, markdownEnabled, markdownExists, textExists);
     if (Storage.exists(targetPath.c_str())) {
-      content = Storage.readFile(targetPath.c_str()).c_str();
+      content = readDailyFileCapped(targetPath);
     }
   }
 

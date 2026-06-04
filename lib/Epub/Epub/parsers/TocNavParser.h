@@ -2,6 +2,7 @@
 #include <Print.h>
 #include <expat.h>
 
+#include <cstdint>
 #include <string>
 
 class BookMetadataCache;
@@ -24,9 +25,13 @@ class TocNavParser final : public Print {
   XML_Parser parser = nullptr;
   ParserState state = START;
   BookMetadataCache* cache;
+  uint16_t elementDepth = 0;
 
-  // Track nesting depth for <ol> elements to determine TOC depth
-  uint8_t olDepth = 0;
+  // Track nesting depth for <ol> elements to determine TOC depth.
+  // uint16_t (not uint8_t): a malicious nav nested 256 <ol> deep would wrap a uint8_t
+  // 255→0, prematurely resetting parser state. expat enforces matching tags and OOMs
+  // on its tag stack long before 65536.
+  uint16_t olDepth = 0;
   // Current entry data being collected
   std::string currentLabel;
   std::string currentHref;
