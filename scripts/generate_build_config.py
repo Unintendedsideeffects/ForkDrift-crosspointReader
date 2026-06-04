@@ -845,6 +845,8 @@ extends = base
 build_flags =
   ${{base.build_flags}}
   -DCROSSPOINT_VERSION=\\"${{crosspoint.version}}-{profile_name}\\"
+  -DENABLE_SERIAL_LOG
+  -DLOG_LEVEL=0
 {chr(10).join(f'  {flag}' for flag in build_flags)}
 """
 
