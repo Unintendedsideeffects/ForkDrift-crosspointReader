@@ -9,6 +9,7 @@
 #include "SilentRestart.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "fontIds.h"
+#include "util/TimeSync.h"
 
 void KOReaderAuthActivity::onWifiSelectionComplete(const bool success) {
   if (!success) {
@@ -32,6 +33,7 @@ void KOReaderAuthActivity::onWifiSelectionComplete(const bool success) {
 }
 
 void KOReaderAuthActivity::performAuthentication() {
+  TimeSync::ensureTrustedClock();
   const auto result = KOReaderSyncClient::authenticate();
 
   {

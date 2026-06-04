@@ -168,6 +168,13 @@ bool syncTimeWithNtpLowMemory(const bool force) {
   return false;
 }
 
+bool ensureTrustedClock() {
+  if (isTimeValid() && !gPersistedTimeUntrusted) {
+    return true;
+  }
+  return syncTimeWithNtpLowMemory(/*force=*/true);
+}
+
 #if ENABLE_WIFI_CLOCK
 void loop(const bool wifiConnected) {
   static unsigned long lastAttemptMs = 0;

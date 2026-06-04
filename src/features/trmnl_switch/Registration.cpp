@@ -20,6 +20,7 @@
 #include "network/WebUtils.h"
 #include "network/html/TerminusPluginPageHtml.generated.h"
 #include "util/TerminusCredentialStore.h"
+#include "util/TimeSync.h"
 #include "util/UrlUtils.h"
 
 namespace features::trmnl_switch {
@@ -118,6 +119,8 @@ static bool downloadVerifiedImage(const std::string& url, const char* path) {
   }
   sink.opened = true;
 
+  TimeSync::ensureTrustedClock();
+
   esp_http_client_config_t config = {};
   config.url = url.c_str();
   config.event_handler = imageEventHandler;
@@ -168,6 +171,8 @@ static bool fetchAndPinTrmnlImage() {
   const std::string displayUrl = base + "/api/display";
 
   LOG_INF("TRMNL", "Polling %s (model=%s)", displayUrl.c_str(), TERMINUS_STORE.deviceModel().c_str());
+
+  TimeSync::ensureTrustedClock();
 
   std::string manifest;
   {

@@ -16,6 +16,7 @@
 #include "esp_https_ota.h"
 #include "esp_ota_ops.h"
 #include "esp_wifi.h"
+#include "util/TimeSync.h"
 
 namespace {
 constexpr char stableReleaseUrl[] =
@@ -323,6 +324,8 @@ esp_err_t release_event_handler(esp_http_client_event_t* event) {
 ReleaseFetchResult fetchReleaseJson(const char* url, JsonDocument& doc, const JsonDocument& filter) {
   HttpBuf httpBuf;
 
+  TimeSync::ensureTrustedClock();
+
   esp_http_client_config_t client_config = {
       .url = url,
       .timeout_ms = 20000,
@@ -412,6 +415,8 @@ ReleaseFetchResult fetchReleaseJson(const char* url, JsonDocument& doc, const Js
 
 ReleaseFetchResult fetchReleaseStream(const char* url, ReleaseJsonParser& parser) {
   parser.reset();
+
+  TimeSync::ensureTrustedClock();
 
   esp_http_client_config_t client_config = {
       .url = url,
@@ -786,6 +791,8 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
   }
 
   esp_err_t esp_err;
+
+  TimeSync::ensureTrustedClock();
 
   esp_http_client_config_t client_config = {
       .url = otaUrl.c_str(),

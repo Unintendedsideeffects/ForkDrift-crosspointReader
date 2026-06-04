@@ -6,7 +6,6 @@
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <base64.h>
-#include <esp_crt_bundle.h>
 #include <esp_http_client.h>
 #include <strings.h>
 
@@ -23,14 +22,16 @@ namespace {
 // 16KB mbedTLS defaults, which need a ~40KB *contiguous* heap block for the
 // handshake; once the heap fragments (e.g. after parsing a multi-family font
 // manifest) that block no longer exists and GET() fails with -1. esp_http_client
-// with small buffers shrinks the requirement to a few KB, the same fix proven
-// in KOReaderSyncClient.
+// with small buffers shrinks the requirement to a few KB. Server certificates
+// are intentionally not verified (no crt bundle), matching the prior
+// setInsecure() behaviour: these are public assets and the device clock is not
+// reliably NTP-synced at download time, which breaks certificate validity checks.
 constexpr int kTlsBufferSize = 2048;
 
-// Total free-heap floor before attempting an HTTPS handshake. mbedTLS makes many
-// small allocations during cert validation, so the aggregate (not the largest
-// block) is what matters here. Kept below the ~50KB seen during font downloads
-// so it only rejects genuinely starved cases instead of viable ones.
+// Total free-heap floor before attempting an HTTPS handshake. The aggregate of
+// many small mbedTLS allocations (not the largest block) is what matters here.
+// Kept below the ~50KB seen during font downloads so it only rejects genuinely
+// starved cases instead of viable ones.
 constexpr uint32_t kMinHeapForTls = 38000;
 
 // Carries download state into the esp_http_client event handler.
@@ -262,7 +263,6 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   config.buffer_size = kTlsBufferSize;
   config.buffer_size_tx = kTlsBufferSize;
   config.user_agent = "CrossPoint-ESP32-" CROSSPOINT_VERSION;
-  if (isHttps) config.crt_bundle_attach = arduino_esp_crt_bundle_attach;
 
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (!client) {

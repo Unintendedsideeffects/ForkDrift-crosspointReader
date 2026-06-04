@@ -15,6 +15,13 @@ void restorePersistedTime();
 // (used by manual user-initiated sync flows).
 bool syncTimeWithNtpLowMemory(bool force = false);
 
+// Blocks on an NTP sync when the clock has not been confirmed this session, so
+// callers that verify TLS server certificates (OTA, KOReader, TRMNL) reject
+// stale-clock false negatives. Returns true once the wall clock is trustworthy.
+// No-op cost once the clock is confirmed; safe to call before every secure
+// request. Requires an active WiFi connection to actually sync.
+bool ensureTrustedClock();
+
 #if ENABLE_WIFI_CLOCK
 // Starts a background NTP sync when WiFi is connected and the sync interval has elapsed.
 // Safe to call from the main loop.
