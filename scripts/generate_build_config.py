@@ -162,6 +162,12 @@ FEATURES = {
         size_kb=15,
         description='Standalone daily TODO/agenda planner with .md/.txt fallback and web quick-entry'
     ),
+    'notes': Feature(
+        name='Notes',
+        flag='ENABLE_NOTES',
+        size_kb=3,
+        description='Line-based /notes.txt store with API, optional home app, and sleep-screen mode'
+    ),
     'anki_support': Feature(
         name='Anki Support',
         flag='ENABLE_ANKI_SUPPORT',
@@ -457,6 +463,13 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=['markdown']
     ),
+    'notes': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=[],
+        conflicts=[],
+        recommends=['todo_planner']
+    ),
     'anki_support': FeatureMetadata(
         implemented=True,
         stable=True,
@@ -737,6 +750,7 @@ PROFILES = {
             'lyra_theme': True,
             'ota_updates': True,
             'todo_planner': True,
+            'notes': True,
             'anki_support': True,
             'background_server': True,
             'background_server_on_charge': True,

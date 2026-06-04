@@ -2537,6 +2537,17 @@
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
 
+              <label class="skill-card" data-feature="notes" data-node-id="notes">
+                <input type="checkbox" id="notes" data-feature="notes" />
+                <div class="card-icon"><span>&#x270E;</span></div>
+                <div class="card-body">
+                  <div class="card-name">Notes</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">Line-based notes API, optional home app, and notes sleep screen</div>
+                </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
               <label class="skill-card" data-feature="xtc_support" data-node-id="xtc_support">
                 <input type="checkbox" id="xtc_support" data-feature="xtc_support" />
                 <div class="card-icon"><span>&#x25C7;</span></div>
@@ -3691,6 +3702,11 @@
           flag: "ENABLE_TODO_PLANNER",
           default: false,
         },
+        notes: {
+          sizeKb: 3,
+          flag: "ENABLE_NOTES",
+          default: true,
+        },
         anki_support: {
           sizeKb: 15,
           flag: "ENABLE_ANKI_SUPPORT",
@@ -3802,7 +3818,8 @@
         lyra_theme: "The Lyra visual theme — refined typography scale, softer borders, and consistent iconography. Disabling it falls back to the base pixel-art UI. Recommended on for all builds.",
         ota_updates: "Over-the-air firmware updates via the Background Server's web UI. Streams the binary directly to flash without a USB cable. Includes a verification step before commit; safe to enable in all builds.",
         remote_keyboard_input: "Turns the Android companion app or any phone browser into a keyboard for device text-entry prompts (WiFi passwords, search fields). Prefers the Android app; falls back to a QR-code web page; can start a local hotspot if no WiFi is available.",
-        todo_planner: "A minimal to-do list accessible from the nav bar. Items persist to the SD card. Useful for reading notes, wish lists, or errand reminders without leaving the device. Adds ~15 KB.",
+        todo_planner: "A minimal to-do list accessible from the nav bar. Items persist to the SD card. Useful for reading notes, wish lists, or errand reminders without leaving the device. When Notes is also enabled, Planner becomes the unified home-screen surface while Notes remains available through API and sleep-screen modes. Adds ~15 KB.",
+        notes: "A lightweight line-based notes store backed by /notes.txt. Adds a standalone home-screen Notes app when Planner is disabled, exposes /api/notes endpoints and USB notes_add, and can render notes as a dedicated sleep screen.",
         anki_support: "Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop. Adds ~10 KB.",
         dark_mode: "Inverts the display for night reading — white-on-black instead of black-on-paper. Toggle from the settings menu. Negligible binary cost; the flag controls whether the option is exposed at all.",
         visual_cover_picker: "Lets you choose cover art for books that lack an embedded thumbnail. Opens a scrollable image browser pointed at a configurable folder on the SD card. Requires Home Media Picker.",
@@ -3858,7 +3875,7 @@
       };
 
       const HUB_FEATURES = {
-        reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "anki_support", "reading_stats", "focus_reading", "guide_dots"],
+        reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "notes", "anki_support", "reading_stats", "focus_reading", "guide_dots"],
         interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "web_wallpaper_plugin", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts", "minimal_theme"],
         network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "haiku_clock_sleep", "remote_control", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
         storage_hub: ["usb_mass_storage"],
@@ -3919,6 +3936,7 @@
           roman_clock_sleep: true,
           haiku_clock_sleep: true,
           todo_planner: true,
+          notes: true,
           anki_support: true,
           background_server: true,
           background_server_on_charge: true,
@@ -5308,6 +5326,7 @@
           book_images:                     'image',
           markdown:                        'hash',
           todo_planner:                    'square-check',
+          notes:                           'notebook-pen',
           xtc_support:                     'file-text',
           // Interface — fonts
           opendyslexic_fonts:              'type',

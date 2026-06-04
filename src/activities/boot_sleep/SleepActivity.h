@@ -34,6 +34,12 @@ class SleepActivity final : public Activity {
 #if ENABLE_READING_STATS
   void renderReadingStatsSleepScreen() const;
 #endif
+#if ENABLE_NOTES
+  void renderNotesSleepScreen() const;
+#endif
+#if ENABLE_TODO_PLANNER
+  void renderPlannerSleepScreen() const;
+#endif
 #if ENABLE_ROMAN_CLOCK_SLEEP
   void renderRomanClockSleepScreen() const;
 #endif

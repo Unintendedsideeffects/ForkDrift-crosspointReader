@@ -57,6 +57,7 @@ FEATURES = [
     'xtc_support',
     'ota_updates',
     'todo_planner',
+    'notes',
     'anki_support',
     'remote_keyboard_input',
     'dark_mode',

@@ -36,6 +36,7 @@
 #include "html/js/jszip_minJs.generated.h"
 #include "network/BufferedHttpUpload.h"
 #include "network/HttpDownloader.h"
+#include "network/NotesApi.h"
 #include "network/RecentBookJson.h"
 #include "network/SleepCoverApi.h"
 #include "network/TodoPlannerApi.h"
@@ -323,6 +324,9 @@ void CrossPointWebServer::mountRoutes() {
   server->on("/api/todo/entry", HTTP_POST, [this] { handleTodoEntry(); });
   server->on("/api/todo/today", HTTP_GET, [this] { handleTodoTodayGet(); });
   server->on("/api/todo/today", HTTP_POST, [this] { handleTodoTodaySave(); });
+  server->on("/api/notes/entry", HTTP_POST, [this] { handleNotesEntry(); });
+  server->on("/api/notes", HTTP_GET, [this] { handleNotesGet(); });
+  server->on("/api/notes", HTTP_POST, [this] { handleNotesSave(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
   server->on("/download", HTTP_GET, [this] { handleDownload(); });
 
@@ -569,6 +573,34 @@ void CrossPointWebServer::handleTodoTodaySave() const {
                                           server->hasArg("plain") ? server->arg("plain") : String(), today);
   if (result.ok() && !result.targetPath.empty()) {
     invalidateFeatureCachesIfNeeded(String(result.targetPath.c_str()));
+  }
+  server->send(result.statusCode, result.contentType, result.body);
+}
+
+void CrossPointWebServer::handleNotesEntry() const {
+  const network::NotesHttpResult result =
+      network::handleNotesEntryRequest(core::FeatureCatalog::isEnabled("notes"), server->arg("text"));
+  if (result.ok()) {
+    requestCount++;
+    invalidateFeatureCachesIfNeeded("/notes.txt");
+  }
+  server->send(result.statusCode, result.contentType, result.body);
+}
+
+void CrossPointWebServer::handleNotesGet() const {
+  const network::NotesHttpResult result = network::handleNotesGetRequest(core::FeatureCatalog::isEnabled("notes"));
+  if (result.ok()) {
+    requestCount++;
+  }
+  server->send(result.statusCode, result.contentType, result.body);
+}
+
+void CrossPointWebServer::handleNotesSave() const {
+  const network::NotesHttpResult result = network::handleNotesSaveRequest(
+      core::FeatureCatalog::isEnabled("notes"), server->hasArg("plain"), server->arg("plain"));
+  if (result.ok()) {
+    requestCount++;
+    invalidateFeatureCachesIfNeeded("/notes.txt");
   }
   server->send(result.statusCode, result.contentType, result.body);
 }

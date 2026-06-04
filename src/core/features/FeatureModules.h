@@ -35,6 +35,7 @@ enum class Capability {
   LyraTheme,
   MarkdownSupport,
   MinimalTheme,
+  Notes,
   OtaUpdates,
   PokemonParty,
   PokemonWallpaperPlugin,

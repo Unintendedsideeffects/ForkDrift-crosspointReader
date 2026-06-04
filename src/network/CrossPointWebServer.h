@@ -136,6 +136,9 @@ class CrossPointWebServer {
   void handleTodoEntry();
   void handleTodoTodayGet() const;
   void handleTodoTodaySave() const;
+  void handleNotesEntry() const;
+  void handleNotesGet() const;
+  void handleNotesSave() const;
   void handleFileList() const;
   void handleFileListData() const;
   void handleDownload() const;

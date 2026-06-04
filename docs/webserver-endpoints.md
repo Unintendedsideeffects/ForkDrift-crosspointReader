@@ -22,6 +22,9 @@ This document describes all HTTP and WebSocket endpoints available on the CrossP
     - [POST `/api/todo/entry` - Add TODO or Agenda Entry](#post-apitodoentry---add-todo-or-agenda-entry)
     - [GET `/api/todo/today` - Read Daily Planner Entries](#get-apitodotoday---read-daily-planner-entries)
     - [POST `/api/todo/today` - Save Daily Planner Entries](#post-apitodotoday---save-daily-planner-entries)
+    - [POST `/api/notes/entry` - Add Note](#post-apinotesentry---add-note)
+    - [GET `/api/notes` - Read Notes](#get-apinotes---read-notes)
+    - [POST `/api/notes` - Save Notes](#post-apinotes---save-notes)
     - [GET `/download` - Download File](#get-download---download-file)
     - [POST `/upload` - Upload File](#post-upload---upload-file)
     - [POST `/api/user-fonts/rescan` - Rescan SD User Fonts](#post-apiuser-fontsrescan---rescan-sd-user-fonts)
@@ -657,6 +660,87 @@ curl -X POST \
 | 404 | `TODO planner disabled` | Feature is not compiled in |
 | 503 | `Date unavailable` | Device date could not be resolved |
 | 500 | `Failed to write TODO file` | SD write failed |
+
+---
+
+### POST `/api/notes/entry` - Add Note
+
+Appends a note to `/notes.txt` when the Notes feature is compiled in.
+
+**Request:**
+```bash
+curl -X POST -d "text=Remember page 42" http://crosspoint.local/api/notes/entry
+```
+
+**Form Parameters:**
+
+| Parameter | Required | Description |
+| --------- | -------- | ----------- |
+| `text` | Yes | Note text (1-120 chars, newlines are normalized to spaces) |
+
+**Response (200 OK):**
+```json
+{"ok":true}
+```
+
+**Error Responses:**
+
+| Status | Body | Cause |
+| ------ | ---- | ----- |
+| 400 | `Invalid text` | Empty text |
+| 404 | `Notes disabled` | Feature is not compiled in |
+| 500 | `Failed to write note` | SD write failed |
+
+---
+
+### GET `/api/notes` - Read Notes
+
+Returns line-based notes from `/notes.txt`.
+
+**Request:**
+```bash
+curl http://crosspoint.local/api/notes
+```
+
+**Response (200 OK):**
+```json
+{
+  "ok": true,
+  "path": "/notes.txt",
+  "items": [
+    {"text": "Remember page 42"}
+  ]
+}
+```
+
+---
+
+### POST `/api/notes` - Save Notes
+
+Rewrites `/notes.txt` from a JSON payload. `items` may contain strings or objects with a `text` field.
+
+**Request:**
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"items":["Remember page 42",{"text":"Look up author interview"}]}' \
+  http://crosspoint.local/api/notes
+```
+
+**Response (200 OK):**
+```json
+{"ok":true,"path":"/notes.txt"}
+```
+
+**Error Responses:**
+
+| Status | Body | Cause |
+| ------ | ---- | ----- |
+| 400 | `Missing body` | Request body missing |
+| 400 | `Invalid JSON body` | Invalid JSON payload |
+| 400 | `Missing items array` | `items` key missing/not an array |
+| 404 | `Notes disabled` | Feature is not compiled in |
+| 500 | `Failed to write notes` | SD write failed |
 
 ---
 

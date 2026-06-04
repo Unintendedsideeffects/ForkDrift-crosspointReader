@@ -375,8 +375,12 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
   list.push_back([] {
     using M = CrossPointSettings::SLEEP_SCREEN_MODE;
     const std::vector<StrId> ids = {
-        StrId::STR_DARK,          StrId::STR_LIGHT,       StrId::STR_FOLLOW_THEME,
-        StrId::STR_CUSTOM,        StrId::STR_TRANSPARENT, StrId::STR_SLEEP_SMART,
+        StrId::STR_DARK,
+        StrId::STR_LIGHT,
+        StrId::STR_FOLLOW_THEME,
+        StrId::STR_CUSTOM,
+        StrId::STR_TRANSPARENT,
+        StrId::STR_SLEEP_SMART,
 #if ENABLE_ROMAN_CLOCK_SLEEP
         StrId::STR_ROMAN_CLOCK,
 #endif
@@ -385,6 +389,12 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 #endif
 #if ENABLE_READING_STATS
         StrId::STR_READING_STATS,
+#endif
+#if ENABLE_NOTES
+        StrId::STR_NOTES,
+#endif
+#if ENABLE_TODO_PLANNER
+        StrId::STR_TODO_HOME_LABEL,
 #endif
     };
     const std::vector<uint8_t> vals = {
@@ -403,6 +413,12 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 #if ENABLE_READING_STATS
         M::READING_STATS_SLEEP,
 #endif
+#if ENABLE_NOTES
+        M::NOTES_SLEEP,
+#endif
+#if ENABLE_TODO_PLANNER
+        M::PLANNER_SLEEP,
+#endif
     };
     std::vector<const char*> optionFeatureKeys = {
         nullptr,
@@ -419,6 +435,12 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 #endif
 #if ENABLE_READING_STATS
         "reading_stats",
+#endif
+#if ENABLE_NOTES
+        "notes",
+#endif
+#if ENABLE_TODO_PLANNER
+        "todo_planner",
 #endif
     };
     return SettingInfo::DynamicEnum(

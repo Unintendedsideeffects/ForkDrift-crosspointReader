@@ -91,6 +91,7 @@ def _default_plugins():
         "remote_page_turn": True,
         "user_fonts": False,
         "todo_planner": False,
+        "notes": False,
     }
 
 

@@ -303,6 +303,7 @@ void HomeActivity::buildMenuModel() {
   const bool opds = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers});
   const bool todo = core::HomeActionRegistry::shouldExpose("todo_planner", {false});
   const bool anki = core::HomeActionRegistry::shouldExpose("anki", {false});
+  const bool notes = core::FeatureModules::hasCapability(core::Capability::Notes) && !todo;
 
   // Grid (ForkDrift / Pokémon party): cover grid handles books; the button row
   // holds the actions. Composition matches what the grid actually renders.
@@ -314,7 +315,7 @@ void HomeActivity::buildMenuModel() {
     menuModel.push_back(HomeMenuId::MyLibrary);
     if (todo) menuModel.push_back(HomeMenuId::Todo);
     if (anki) menuModel.push_back(HomeMenuId::Anki);
-    menuModel.push_back(HomeMenuId::Notes);
+    if (notes) menuModel.push_back(HomeMenuId::Notes);
     menuModel.push_back(HomeMenuId::FileTransfer);
     menuModel.push_back(HomeMenuId::Settings);
     return;
@@ -328,7 +329,7 @@ void HomeActivity::buildMenuModel() {
     if (opds) menuModel.push_back(HomeMenuId::Opds);
     if (todo) menuModel.push_back(HomeMenuId::Todo);
     if (anki) menuModel.push_back(HomeMenuId::Anki);
-    menuModel.push_back(HomeMenuId::Notes);
+    if (notes) menuModel.push_back(HomeMenuId::Notes);
 #if ENABLE_BOOKMARKS
     if (hasBookmarks) menuModel.push_back(HomeMenuId::Bookmarks);
 #endif
@@ -344,7 +345,7 @@ void HomeActivity::buildMenuModel() {
   if (opds) menuModel.push_back(HomeMenuId::Opds);
   if (todo) menuModel.push_back(HomeMenuId::Todo);
   if (anki) menuModel.push_back(HomeMenuId::Anki);
-  menuModel.push_back(HomeMenuId::Notes);
+  if (notes) menuModel.push_back(HomeMenuId::Notes);
   menuModel.push_back(HomeMenuId::FileTransfer);
   menuModel.push_back(HomeMenuId::Settings);
 }

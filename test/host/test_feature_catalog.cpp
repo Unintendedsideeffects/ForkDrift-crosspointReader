@@ -41,6 +41,7 @@ TEST_CASE("testFeatureCatalogApi") {
 
   CHECK(core::FeatureCatalog::isEnabled("epub_support") == (ENABLE_EPUB_SUPPORT != 0));
   CHECK(core::FeatureCatalog::isEnabled("home_media_picker") == (ENABLE_HOME_MEDIA_PICKER != 0));
+  CHECK(core::FeatureCatalog::isEnabled("notes") == (ENABLE_NOTES != 0));
   CHECK(core::FeatureCatalog::isEnabled("pokemon_party") == (ENABLE_POKEMON_PARTY != 0));
   CHECK(core::FeatureCatalog::isEnabled("remote_keyboard_input") == (ENABLE_REMOTE_KEYBOARD_INPUT != 0));
   CHECK(core::FeatureCatalog::isEnabled("missing_feature") == false);
@@ -73,6 +74,7 @@ TEST_CASE("testFeatureCatalogApi") {
   CHECK(json.indexOf("\"pokemon_party\":") != -1);
   CHECK(json.indexOf("\"remote_keyboard_input\":") != -1);
   CHECK(json.indexOf("\"todo_planner\":") != -1);
+  CHECK(json.indexOf("\"notes\":") != -1);
 
   const String buildString = core::FeatureCatalog::buildString();
   CHECK(!buildString.isEmpty());

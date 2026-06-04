@@ -22,6 +22,7 @@
 #if ENABLE_REMOTE_CONTROL
 #include "network/RemoteControlApi.h"
 #endif
+#include "network/NotesApi.h"
 #include "network/RemoteKeyboardSession.h"
 #include "util/BookProgressDataStore.h"
 #include "util/DateUtils.h"
@@ -867,6 +868,16 @@ static void handleTodoAdd(const char* text, const char* type) {
   sendOk();
 }
 
+static void handleNotesAdd(const char* text) {
+  const network::NotesHttpResult result =
+      network::handleNotesEntryRequest(core::FeatureModules::hasCapability(core::Capability::Notes), text ? text : "");
+  if (!result.ok()) {
+    sendError(result.body.c_str());
+    return;
+  }
+  sendOk();
+}
+
 // Saves credentials so they're picked up on next WiFi connection attempt.
 static void handleWifiConnect(const char* ssid, const char* password) {
   if (!ssid || ssid[0] == '\0') {
@@ -1046,6 +1057,9 @@ static void processCommand(const char* line) {
   } else if (strcmp(name, "todo_add") == 0) {
     const JsonObjectConst arg = cmd["arg"].as<JsonObjectConst>();
     handleTodoAdd(arg["text"] | "", arg["type"] | "todo");
+  } else if (strcmp(name, "notes_add") == 0) {
+    const JsonObjectConst arg = cmd["arg"].as<JsonObjectConst>();
+    handleNotesAdd(arg["text"] | "");
   } else if (strcmp(name, "ota_begin") == 0) {
     handleOtaBegin(cmd["arg"]["size"] | (uint32_t)0);
   } else if (strcmp(name, "ota_chunk") == 0) {

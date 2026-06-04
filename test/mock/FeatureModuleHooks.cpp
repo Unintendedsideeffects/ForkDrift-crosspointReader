@@ -79,6 +79,12 @@ bool FeatureModules::hasCapability(const Capability capability) {
 #else
       return false;
 #endif
+    case Capability::Notes:
+#if ENABLE_NOTES
+      return true;
+#else
+      return false;
+#endif
     case Capability::PokemonParty:
 #if ENABLE_POKEMON_PARTY
       return true;

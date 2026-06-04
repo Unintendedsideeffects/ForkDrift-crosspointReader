@@ -446,6 +446,24 @@ uint8_t CrossPointSettings::normalizeSleepScreenMode(const uint8_t rawValue) {
     return DARK;
   }
 #endif
+#if ENABLE_NOTES
+  if (rawValue == NOTES_SLEEP) {
+    return NOTES_SLEEP;
+  }
+#else
+  if (rawValue == NOTES_SLEEP) {
+    return DARK;
+  }
+#endif
+#if ENABLE_TODO_PLANNER
+  if (rawValue == PLANNER_SLEEP) {
+    return PLANNER_SLEEP;
+  }
+#else
+  if (rawValue == PLANNER_SLEEP) {
+    return DARK;
+  }
+#endif
   return rawValue < SLEEP_SCREEN_MODE_COUNT ? rawValue : DARK;
 }
 

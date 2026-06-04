@@ -74,6 +74,7 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"reading_stats", "Reading Stats", ENABLE_READING_STATS != 0, nullptr, 0, nullptr, 0},
     {"ota_updates", "OTA Updates", ENABLE_OTA_UPDATES != 0, nullptr, 0, nullptr, 0},
     {"todo_planner", "Todo Planner", ENABLE_TODO_PLANNER != 0, nullptr, 0, nullptr, 0},
+    {"notes", "Notes", ENABLE_NOTES != 0, nullptr, 0, nullptr, 0},
     {"dark_mode", "Dark Mode", ENABLE_DARK_MODE != 0, nullptr, 0, nullptr, 0},
     {"visual_cover_picker", "Visual Cover Picker", ENABLE_VISUAL_COVER_PICKER != 0, nullptr, 0, nullptr, 0},
     {"ble_wifi_provisioning", "BLE WiFi Provisioning", ENABLE_BLE_WIFI_PROVISIONING != 0,

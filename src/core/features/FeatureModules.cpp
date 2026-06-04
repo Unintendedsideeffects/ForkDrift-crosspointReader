@@ -70,6 +70,7 @@ constexpr std::array<const char*, toIndex(Capability::Count)> kCapabilityFeature
     "lyra_theme",
     "markdown",
     "minimal_theme",
+    "notes",
     "ota_updates",
     "pokemon_party",
     "pokemon_wallpaper_plugin",

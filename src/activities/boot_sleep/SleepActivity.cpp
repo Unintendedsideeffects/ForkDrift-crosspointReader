@@ -14,9 +14,14 @@
 #include <cctype>
 #include <cstring>
 #include <ctime>
+#include <vector>
 
 #if ENABLE_READING_STATS
 #include "../reader/BookStatsView.h"
+#endif
+#if ENABLE_TODO_PLANNER
+#include "activities/todo/TodoItem.h"
+#include "activities/todo/TodoPlannerStorage.h"
 #endif
 #include "BrandScreen.h"
 #include "CrossPointSettings.h"
@@ -225,6 +230,117 @@ bool tryRenderExternalSleepApp(GfxRenderer& renderer, MappedInputManager& mapped
   }
   return rendered;
 }
+
+#if ENABLE_NOTES || ENABLE_TODO_PLANNER
+void drawTextListSleepScreen(GfxRenderer& renderer, const char* title, const std::vector<std::string>& rows,
+                             const char* emptyText) {
+  const int W = renderer.getScreenWidth();
+  const int H = renderer.getScreenHeight();
+  static constexpr int kPad = 34;
+  static constexpr int kTitleGap = 18;
+  renderer.clearScreen();
+  renderer.drawCenteredText(UI_12_FONT_ID, kPad, title, true, EpdFontFamily::BOLD);
+  renderer.drawLine(kPad, kPad + 25, W - kPad, kPad + 25);
+
+  int y = kPad + 25 + kTitleGap;
+  const int lineH = renderer.getLineHeight(UI_10_FONT_ID) + 6;
+  const int maxTextW = W - kPad * 2;
+  const int bottom = H - kPad;
+  if (rows.empty()) {
+    renderer.drawCenteredText(UI_10_FONT_ID, H / 2, emptyText);
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    return;
+  }
+
+  for (const std::string& row : rows) {
+    if (y + lineH > bottom) {
+      break;
+    }
+    const std::string fitted = renderer.truncatedText(UI_10_FONT_ID, row.c_str(), maxTextW);
+    renderer.drawText(UI_10_FONT_ID, kPad, y, fitted.c_str(), true);
+    y += lineH;
+  }
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+}
+#endif
+
+#if ENABLE_NOTES
+std::vector<std::string> loadSleepNotesRows() {
+  std::vector<std::string> rows;
+  SpiBusMutex::Guard guard;
+  HalFile file;
+  if (!Storage.openFileForRead("SLP", "/notes.txt", file)) {
+    return rows;
+  }
+  constexpr size_t kMaxBytes = 16u * 1024u;
+  const size_t size = file.fileSize();
+  if (size > kMaxBytes) {
+    LOG_ERR("SLP", "Notes sleep file too large (%zu bytes)", size);
+    return rows;
+  }
+  std::string content(size, '\0');
+  if (size > 0 && static_cast<size_t>(file.read(content.data(), size)) != size) {
+    LOG_ERR("SLP", "Notes sleep file read short");
+    return {};
+  }
+
+  std::string line;
+  for (const char c : content) {
+    if (c == '\n' || c == '\r') {
+      if (!line.empty()) {
+        rows.push_back(line);
+        if (rows.size() >= 12) break;
+      }
+      line.clear();
+      continue;
+    }
+    line.push_back(c);
+  }
+  if (!line.empty() && rows.size() < 12) {
+    rows.push_back(line);
+  }
+  return rows;
+}
+#endif
+
+#if ENABLE_TODO_PLANNER
+std::vector<std::string> loadPlannerSleepRows() {
+  std::vector<std::string> rows;
+  const std::string today = DateUtils::currentDate();
+  if (today.empty()) {
+    return rows;
+  }
+
+  std::string content;
+  {
+    SpiBusMutex::Guard guard;
+    const std::string markdownPath = "/daily/" + today + ".md";
+    const std::string textPath = "/daily/" + today + ".txt";
+    const bool markdownExists = Storage.exists(markdownPath.c_str());
+    const bool textExists = Storage.exists(textPath.c_str());
+    const std::string targetPath = TodoPlannerStorage::dailyPath(
+        today, core::FeatureModules::hasCapability(core::Capability::MarkdownSupport), markdownExists, textExists);
+    if (Storage.exists(targetPath.c_str())) {
+      content = Storage.readFile(targetPath.c_str()).c_str();
+    }
+  }
+
+  std::vector<TodoItem> items;
+  TodoPlannerStorage::parseFile(content, items);
+  for (const TodoItem& item : items) {
+    std::string row;
+    if (!item.isHeader) {
+      row = item.checked ? "[x] " : "[ ] ";
+    }
+    row += item.text;
+    if (!row.empty()) {
+      rows.push_back(row);
+      if (rows.size() >= 12) break;
+    }
+  }
+  return rows;
+}
+#endif
 
 const char* getSleepSourceName(const uint8_t sourceMode) {
   switch (sourceMode) {
@@ -511,6 +627,16 @@ void SleepActivity::onEnter() {
       renderReadingStatsSleepScreen();
       return;
 #endif  // ENABLE_READING_STATS
+#if ENABLE_NOTES
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::NOTES_SLEEP):
+      renderNotesSleepScreen();
+      return;
+#endif
+#if ENABLE_TODO_PLANNER
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::PLANNER_SLEEP):
+      renderPlannerSleepScreen();
+      return;
+#endif
 #if ENABLE_ROMAN_CLOCK_SLEEP
     case (CrossPointSettings::SLEEP_SCREEN_MODE::ROMAN_CLOCK_SLEEP):
       renderRomanClockSleepScreen();
@@ -740,6 +866,18 @@ void SleepActivity::renderReadingStatsSleepScreen() const {
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
 #endif  // ENABLE_READING_STATS
+
+#if ENABLE_NOTES
+void SleepActivity::renderNotesSleepScreen() const {
+  drawTextListSleepScreen(renderer, tr(STR_NOTES), loadSleepNotesRows(), tr(STR_NOTES_EMPTY));
+}
+#endif
+
+#if ENABLE_TODO_PLANNER
+void SleepActivity::renderPlannerSleepScreen() const {
+  drawTextListSleepScreen(renderer, tr(STR_TODO_HOME_LABEL), loadPlannerSleepRows(), tr(STR_TODO_FRESH_PAGE));
+}
+#endif
 
 #if ENABLE_ROMAN_CLOCK_SLEEP
 void SleepActivity::renderRomanClockSleepScreen() const {

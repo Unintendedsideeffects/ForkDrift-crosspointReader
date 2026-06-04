@@ -13,13 +13,16 @@
 #include "boot_sleep/BootActivity.h"
 #include "boot_sleep/SleepActivity.h"
 #include "browser/OpdsBookBrowserActivity.h"
+#include "core/features/FeatureModules.h"
 #include "core/registries/HomeActionRegistry.h"
 #include "core/registries/ReaderRegistry.h"
 #include "home/AlertActivity.h"
 #include "home/CrashActivity.h"
 #include "home/HomeActivity.h"
 #include "home/MyLibraryActivity.h"
+#if ENABLE_NOTES
 #include "home/NotesActivity.h"
+#endif
 #include "home/RecentBooksActivity.h"
 #include "home/RecentBooksGridActivity.h"
 #include "network/CrossPointWebServer.h"
@@ -259,7 +262,15 @@ void ActivityManager::goToTodo() {
   }
 }
 
-void ActivityManager::goToNotes() { replaceActivity(std::make_unique<NotesActivity>(renderer, mappedInput)); }
+void ActivityManager::goToNotes() {
+#if ENABLE_NOTES
+  if (core::FeatureModules::hasCapability(core::Capability::Notes)) {
+    replaceActivity(std::make_unique<NotesActivity>(renderer, mappedInput));
+    return;
+  }
+#endif
+  goHome();
+}
 
 void ActivityManager::goToAnki() {
   if (Activity* anki = core::HomeActionRegistry::create("anki", renderer, mappedInput, {false}, nullptr, nullptr)) {

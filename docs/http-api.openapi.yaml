@@ -46,6 +46,8 @@ tags:
     description: Runtime settings metadata and mutation endpoints
   - name: todo
     description: Daily planner endpoints
+  - name: notes
+    description: Line-based notes endpoints
   - name: sleep
     description: Sleep screen asset and pinning endpoints
   - name: wifi
@@ -597,6 +599,76 @@ paths:
           $ref: '#/components/responses/NotFoundText'
         '503':
           $ref: '#/components/responses/ServiceUnavailableText'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorText'
+  /api/notes/entry:
+    post:
+      tags: [notes]
+      operationId: addNoteEntry
+      summary: Append a note to /notes.txt
+      x-crosspoint-feature-gates: [notes]
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 120
+      responses:
+        '200':
+          description: Note appended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorText'
+  /api/notes:
+    get:
+      tags: [notes]
+      operationId: getNotes
+      summary: Get line-based notes
+      x-crosspoint-feature-gates: [notes]
+      responses:
+        '200':
+          description: Notes from /notes.txt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotesResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+    post:
+      tags: [notes]
+      operationId: saveNotes
+      summary: Rewrite line-based notes
+      x-crosspoint-feature-gates: [notes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotesSaveRequest'
+      responses:
+        '200':
+          description: Notes file updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotesSaveResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '404':
+          $ref: '#/components/responses/NotFoundText'
         '500':
           $ref: '#/components/responses/InternalServerErrorText'
   /api/cover:
@@ -1323,6 +1395,8 @@ components:
           type: boolean
         todo_planner:
           type: boolean
+        notes:
+          type: boolean
         remote_keyboard_input:
           type: boolean
         pokemon_party:
@@ -1601,6 +1675,46 @@ components:
         date:
           type: string
           format: date
+        path:
+          $ref: '#/components/schemas/DevicePath'
+    NoteItem:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          maxLength: 120
+    NotesResponse:
+      type: object
+      required: [ok, path, items]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        path:
+          $ref: '#/components/schemas/DevicePath'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoteItem'
+    NotesSaveRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            oneOf:
+              - type: string
+                maxLength: 120
+              - $ref: '#/components/schemas/NoteItem'
+    NotesSaveResponse:
+      type: object
+      required: [ok, path]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
         path:
           $ref: '#/components/schemas/DevicePath'
     SleepImage:
