@@ -34,7 +34,7 @@ std::string prettyName(const std::string& raw) {
 }
 
 // Draw a Poké Ball outline as the offline / unconverted-sprite placeholder.
-void drawPokeball(GfxRenderer& renderer, int cx, int cy, int radius) {
+void drawPokeball(const GfxRenderer& renderer, int cx, int cy, int radius) {
   if (radius < 6) {
     return;
   }
@@ -46,7 +46,7 @@ void drawPokeball(GfxRenderer& renderer, int cx, int cy, int radius) {
 }
 
 // Render a cached 1-bit sprite (or cover) BMP fitted into a square box.
-bool drawBmpInBox(GfxRenderer& renderer, const std::string& path, int x, int y, int size) {
+bool drawBmpInBox(const GfxRenderer& renderer, const std::string& path, int x, int y, int size) {
   if (path.empty() || !Storage.exists(path.c_str())) {
     return false;
   }
@@ -145,7 +145,7 @@ void PokemonPartyTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
 
     // --- HP-style progress bar (bottom of slot) ---
     const int barY = y + rowH - kPad - kHpBarHeight;
-    char hpLabel[4] = "HP";
+    const char hpLabel[4] = "HP";
     const int hpLabelW = renderer.getTextWidth(SMALL_FONT_ID, hpLabel);
     renderer.drawText(SMALL_FONT_ID, tx, barY + (kHpBarHeight - smallH) / 2, hpLabel, true);
     const int barX = tx + hpLabelW + 6;
