@@ -1,11 +1,8 @@
 name: Update Screen Previews
 
 on:
-  push:
-    branches:
-      - fork-drift
-    paths-ignore:
-      - "docs/configurator/screen-previews/**"
+  # Push-triggered runs disabled to conserve Actions minutes; run manually when
+  # screen previews need regenerating.
   workflow_dispatch:
 
 permissions:
