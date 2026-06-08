@@ -175,7 +175,7 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
   const int batteryX = screenW - padHPx - metrics.batteryWidth;
   const int batteryY = itemY(barY, barH, metrics.batteryHeight);
   GUI.drawBatteryRight(renderer, Rect{batteryX, batteryY, metrics.batteryWidth, metrics.batteryHeight},
-                       showBatteryPercentage);
+                       showBatteryPercentage, textY);
 
   int iconRight = batteryX - kStatusIconGap;
   if (isWifiConnected) {
@@ -209,8 +209,8 @@ int padH() { return UITheme::getInstance().getBaseMetrics().statusBarHorizontalM
 
 int textTop(const GfxRenderer& renderer) {
   const int h = barHeight();
-  const int textH = renderer.getTextHeight(SMALL_FONT_ID);
-  return h > textH ? (h - textH) / 2 : 0;
+  const int lineH = renderer.getLineHeight(SMALL_FONT_ID);
+  return h > lineH ? (h - lineH) / 2 : 0;
 }
 
 int itemY(const int barY, const int barH, const int itemH) { return barY + (barH > itemH ? (barH - itemH) / 2 : 0); }

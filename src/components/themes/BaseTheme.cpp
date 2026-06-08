@@ -95,15 +95,16 @@ void BaseTheme::drawBatteryLeft(const GfxRenderer& renderer, Rect rect, const bo
   fillBatteryIcon(renderer, iconRect, percentage);
 }
 
-void BaseTheme::drawBatteryRight(const GfxRenderer& renderer, Rect rect, const bool showPercentage) const {
+void BaseTheme::drawBatteryRight(const GfxRenderer& renderer, Rect rect, const bool showPercentage,
+                                 const int textY) const {
   const uint16_t percentage = powerManager.getBatteryPercentage();
   const int iconY = rect.y;
 
   if (showPercentage) {
     const auto percentageText = std::to_string(percentage) + "%";
     const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, percentageText.c_str());
-    const int textY = iconY + (rect.height - renderer.getTextHeight(SMALL_FONT_ID)) / 2;
-    renderer.drawText(SMALL_FONT_ID, rect.x - textWidth - batteryPercentSpacing, textY, percentageText.c_str());
+    const int resolvedTextY = textY >= 0 ? textY : iconY + (rect.height - renderer.getLineHeight(SMALL_FONT_ID)) / 2;
+    renderer.drawText(SMALL_FONT_ID, rect.x - textWidth - batteryPercentSpacing, resolvedTextY, percentageText.c_str());
   }
 
   const Rect iconRect{rect.x, iconY, rect.width, rect.height};
@@ -566,8 +567,8 @@ void BaseTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount
     constexpr int margin = 15;
 
     const int centerX = rect.x + rect.width - indicatorWidth / 2 - margin;
-    const int menuHeight =
-        maxVisibleItems * (BaseMetrics::values.menuRowHeight + BaseMetrics::values.menuSpacing) - BaseMetrics::values.menuSpacing;
+    const int menuHeight = maxVisibleItems * (BaseMetrics::values.menuRowHeight + BaseMetrics::values.menuSpacing) -
+                           BaseMetrics::values.menuSpacing;
     const int indicatorTop = rect.y + BaseMetrics::values.verticalSpacing;
     const int indicatorBottom = indicatorTop + menuHeight - arrowSize;
 
@@ -588,8 +589,9 @@ void BaseTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount
 
   for (int i = pageStartIndex; i < buttonCount && i < pageStartIndex + maxVisibleItems; ++i) {
     const int displayIndex = i - pageStartIndex;
-    const int tileY = BaseMetrics::values.verticalSpacing + rect.y +
-                      static_cast<int>(displayIndex) * (BaseMetrics::values.menuRowHeight + BaseMetrics::values.menuSpacing);
+    const int tileY =
+        BaseMetrics::values.verticalSpacing + rect.y +
+        static_cast<int>(displayIndex) * (BaseMetrics::values.menuRowHeight + BaseMetrics::values.menuSpacing);
     int tileWidth = rect.width - BaseMetrics::values.contentSidePadding * 2;
     if (totalPages > 1) {
       tileWidth -= 30;

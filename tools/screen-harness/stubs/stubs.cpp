@@ -1,23 +1,23 @@
-#include "Arduino.h"
+#include <algorithm>
+
 #include "ActivityManager.h"
+#include "Arduino.h"
 #include "CrossPointSettings.h"
 #include "HalGPIO.h"
 #include "MappedInputManager.h"
-#include "activities/RenderLock.h"
 #include "SPI.h"
 #include "SdCardFont.h"
 #include "SdCardFontManager.h"
 #include "SdCardFontRegistry.h"
 #include "SdCardFontSystem.h"
+#include "activities/RenderLock.h"
 #include "core/features/FeatureModules.h"
 #include "network/BackgroundWifiService.h"
 #include "util/ButtonNavigator.h"
 
-#include <algorithm>
-
 namespace FactoryResetUtils {
 bool resetCrossPointMetadataPreservingContent() { return true; }
-}
+}  // namespace FactoryResetUtils
 
 HardwareSerial Serial;
 EspClass ESP;
@@ -83,7 +83,9 @@ void ButtonNavigator::onRelease(const Buttons&, const Callback&) {}
 void ButtonNavigator::onNextContinuous(const Callback&) {}
 void ButtonNavigator::onPreviousContinuous(const Callback&) {}
 void ButtonNavigator::onContinuous(const Buttons&, const Callback&) {}
-int ButtonNavigator::nextIndex(int currentIndex, int totalItems) { return totalItems > 0 ? (currentIndex + 1) % totalItems : 0; }
+int ButtonNavigator::nextIndex(int currentIndex, int totalItems) {
+  return totalItems > 0 ? (currentIndex + 1) % totalItems : 0;
+}
 int ButtonNavigator::previousIndex(int currentIndex, int totalItems) {
   return totalItems > 0 ? (currentIndex + totalItems - 1) % totalItems : 0;
 }
@@ -155,3 +157,64 @@ std::vector<std::string> FeatureModules::getUserFontFamilies() { return {}; }
 uint8_t FeatureModules::getSelectedUserFontFamilyIndex() { return 0; }
 void FeatureModules::setSelectedUserFontFamilyIndex(uint8_t) {}
 }  // namespace core
+
+#include <cstdlib>
+#include <cstring>
+
+#include "util/BookProgressDataStore.h"
+#include "util/PokemonProgress.h"
+#include "util/PokemonSpriteCache.h"
+
+bool BookProgressDataStore::supportsBookPath(const std::string&) { return true; }
+bool BookProgressDataStore::resolveCachePath(const std::string&, std::string& outCachePath) {
+  outCachePath.clear();
+  return false;
+}
+bool BookProgressDataStore::loadProgress(const std::string& bookPath, ProgressData& outProgress) {
+  outProgress = {};
+  const char* lastDash = ::strrchr(bookPath.c_str(), '-');
+  if (lastDash != nullptr) {
+    outProgress.percent = static_cast<float>((std::atoi(lastDash + 1) + 1) * 14);
+  } else {
+    outProgress.percent = 57.0f;
+  }
+  return true;
+}
+const char* BookProgressDataStore::kindName(BookKind) { return "epub"; }
+std::string BookProgressDataStore::formatPositionLabel(const ProgressData&) { return ""; }
+
+namespace PokemonProgress {
+PokemonAssignment loadForBook(const std::string& bookPath) {
+  static constexpr const char* kNames[] = {"pikachu", "kadabra", "diglett", "pidgeotto", "gyarados", "chansey"};
+  PokemonAssignment out;
+  const char* lastDash = ::strrchr(bookPath.c_str(), '-');
+  int index = lastDash != nullptr ? std::atoi(lastDash + 1) : 0;
+  index = std::max(0, std::min(index, 5));
+  out.valid = true;
+  out.id = index + 1;
+  out.speciesId = out.id;
+  out.name = kNames[index];
+  return out;
+}
+
+int levelForPercent(const float percent) {
+  if (percent <= 0.0f) {
+    return 1;
+  }
+  return std::clamp(static_cast<int>(percent * 0.35f) + 1, 1, kMaxLevel);
+}
+
+int activeStageIndex(const PokemonAssignment&, const int) { return 0; }
+
+int activeSpeciesId(const PokemonAssignment& assignment, const int) {
+  return assignment.speciesId > 0 ? assignment.speciesId : assignment.id;
+}
+}  // namespace PokemonProgress
+
+namespace PokemonSpriteCache {
+std::string spritePath(int) { return ""; }
+bool isCached(int) { return false; }
+bool ensureSprite(int, const std::string&, int, int) { return false; }
+bool ensureSpriteById(int, int, int) { return false; }
+bool saveSpriteBmp(int, const uint8_t*, size_t) { return false; }
+}  // namespace PokemonSpriteCache

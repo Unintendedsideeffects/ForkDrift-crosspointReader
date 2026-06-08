@@ -19,12 +19,12 @@
 
 #include "CrossPointSettings.h"
 #include "activities/boot_sleep/BootActivity.h"
+#include "activities/boot_sleep/BrandScreen.h"
 #include "activities/boot_sleep/RomanClockFontRenderer.h"
 #include "activities/settings/FactoryResetActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "activities/boot_sleep/BrandScreen.h"
 #include "util/RecentBooksStore.h"
 
 namespace {
@@ -218,6 +218,18 @@ std::vector<RecentBook> sampleBooks(int count) {
   return books;
 }
 
+std::vector<RecentBook> samplePartyBooks() {
+  static constexpr const char* kTitles[] = {
+      "Frankenstein", "Thinking, Fast and Slow", "Journey to the Center...", "To Kill a Mockingbird",
+      "Moby Dick",    "The Secret Garden"};
+  std::vector<RecentBook> books;
+  books.reserve(6);
+  for (int i = 0; i < 6; ++i) {
+    books.push_back({std::string("/books/mock-") + std::to_string(i) + ".txt", kTitles[i], "Demo", ""});
+  }
+  return books;
+}
+
 struct HomePreviewScenario {
   std::string name;
   CrossPointSettings::UI_THEME theme;
@@ -248,12 +260,15 @@ void drawHomeThemePreview(GfxRenderer& renderer, const HomePreviewScenario& scen
   const int bookCount = static_cast<int>(scenario.books.size());
   const bool forkDriftLayout =
       scenario.theme == CrossPointSettings::FORK_DRIFT || scenario.theme == CrossPointSettings::POKEMON_PARTY;
-  const int singleRowHeight = metrics.homeCoverTileHeight / 2;
-  const int rawCoverTileHeight = forkDriftLayout ? ((bookCount > 3 ? 2 : 1) * singleRowHeight)
-                                                 : metrics.homeCoverTileHeight;
+  const bool pokemonPartyLayout = scenario.theme == CrossPointSettings::POKEMON_PARTY;
+  const int gridRows = pokemonPartyLayout ? metrics.homeCoverGridRows : 2;
+  const int booksForFullGrid = pokemonPartyLayout ? metrics.homeCoverGridColumns : 3;
+  const int singleRowHeight = metrics.homeCoverTileHeight / gridRows;
+  const int rawCoverTileHeight =
+      forkDriftLayout ? ((bookCount > booksForFullGrid ? gridRows : 1) * singleRowHeight) : metrics.homeCoverTileHeight;
   const int menuMinHeight = metrics.verticalSpacing * 2 + metrics.buttonHintsHeight + metrics.menuRowHeight;
-  const int coverTileHeight = forkDriftLayout ? std::min(rawCoverTileHeight, pageHeight - menuMinHeight)
-                                              : rawCoverTileHeight;
+  const int coverTileHeight =
+      forkDriftLayout ? std::min(rawCoverTileHeight, pageHeight - menuMinHeight) : rawCoverTileHeight;
   const int menuRectY = coverTileHeight + metrics.verticalSpacing;
   const int menuRectHeight = pageHeight - (coverTileHeight + metrics.verticalSpacing * 2 + metrics.buttonHintsHeight);
   const int coverSelector = forkDriftLayout && scenario.inButtonGrid ? -1 : scenario.selectedBookIndex;
@@ -265,8 +280,8 @@ void drawHomeThemePreview(GfxRenderer& renderer, const HomePreviewScenario& scen
 
   renderer.clearScreen();
   theme.drawRecentBookCover(
-      renderer, Rect{0, 0, pageWidth, coverTileHeight}, scenario.books, coverSelector,
-      coverRendered, coverBufferStored, bufferRestored, []() { return false; }, 57.0f);
+      renderer, Rect{0, 0, pageWidth, coverTileHeight}, scenario.books, coverSelector, coverRendered, coverBufferStored,
+      bufferRestored, []() { return false; }, 57.0f);
   theme.drawButtonMenu(
       renderer, Rect{0, menuRectY, pageWidth, menuRectHeight}, static_cast<int>(scenario.menuLabels.size()),
       menuSelector, [&scenario](int index) { return scenario.menuLabels[index]; },
@@ -341,9 +356,14 @@ void drawFactoryResetMock(GfxRenderer& renderer) {
   y += 26;
 
   static constexpr const char* erased[] = {
-      "• Settings and preferences", "• WiFi and network credentials", "• Reading progress and bookmarks",
-      "• Daily notes and todo entries", "• Feature store configuration", "• Anki cards and study data",
-      "• Cover image cache", "• EPUB layout cache",
+      "• Settings and preferences",
+      "• WiFi and network credentials",
+      "• Reading progress and bookmarks",
+      "• Daily notes and todo entries",
+      "• Feature store configuration",
+      "• Anki cards and study data",
+      "• Cover image cache",
+      "• EPUB layout cache",
   };
   for (const char* item : erased) {
     renderer.drawText(UI_10_FONT_ID, 38, y, item, true);
@@ -488,7 +508,8 @@ void drawSleepRomanClockMock(GfxRenderer& renderer, const std::string& labelText
 
   const bool hasMinute = !label.minute.empty();
   if (!hasMinute) {
-    const int hourScale = RomanClockFontRenderer::fitTextScale(renderer, label.hour, contentWidth, contentHeight * 7 / 12);
+    const int hourScale =
+        RomanClockFontRenderer::fitTextScale(renderer, label.hour, contentWidth, contentHeight * 7 / 12);
     const int hourHeight = RomanClockFontRenderer::baseTextHeight(renderer) * hourScale;
     const int hourWidth = RomanClockFontRenderer::scaledTextWidth(renderer, label.hour, hourScale);
     RomanClockFontRenderer::drawScaledText(renderer, label.hour, contentX + (contentWidth - hourWidth) / 2,
@@ -626,22 +647,83 @@ int main(int argc, char* argv[]) {
   MappedInputManager mappedInput(gpio);
 
   const std::vector<HomePreviewScenario> homeScenarios = {
-      {"02_home_classic", CrossPointSettings::CLASSIC, sampleBooks(1), {"Open Book", "My Library", "File Transfer", "Settings"},
-       {Book, Folder, Transfer, Settings}, 0, 0, true, "", "Prev", "Next"},
-      {"03_home_lyra", CrossPointSettings::LYRA, sampleBooks(1), {"Open Book", "My Library", "File Transfer", "Settings"},
-       {Book, Folder, Transfer, Settings}, 0, 0, true, "", "Prev", "Next"},
-      {"04_home_visual_covers", CrossPointSettings::LYRA_EXTENDED, sampleBooks(3),
-       {"Open Book", "My Library", "File Transfer", "Settings"}, {Book, Folder, Transfer, Settings}, 1, 0, true, "",
-       "Prev", "Next"},
-      {"05_home_forkdrift", CrossPointSettings::FORK_DRIFT, sampleBooks(6), {"Books", "Agenda", "File Transfer", "Settings"},
-       {Folder, Text, Transfer, Settings}, 0, 0, true, "", "Up", "Down"},
-      {"06_home_pokemon_party", CrossPointSettings::POKEMON_PARTY, sampleBooks(6), {"Settings"}, {Settings}, -1, 0,
-       true, "Party", "Up", ""},
-      {"07_home_minimal", CrossPointSettings::MINIMAL, sampleBooks(1), {"Open Book", "My Library", "File Transfer", "Settings"},
-       {Book, Folder, Transfer, Settings}, 0, 0, true, "", "Prev", "Next"},
-      {"08_home_lyra_carousel", CrossPointSettings::LYRA_CAROUSEL, sampleBooks(6),
-       {"Open Book", "My Library", "File Transfer", "Settings"}, {Book, Folder, Transfer, Settings}, 2, 0, true, "",
-       "Prev", "Next"},
+      {"02_home_classic",
+       CrossPointSettings::CLASSIC,
+       sampleBooks(1),
+       {"Open Book", "My Library", "File Transfer", "Settings"},
+       {Book, Folder, Transfer, Settings},
+       0,
+       0,
+       true,
+       "",
+       "Prev",
+       "Next"},
+      {"03_home_lyra",
+       CrossPointSettings::LYRA,
+       sampleBooks(1),
+       {"Open Book", "My Library", "File Transfer", "Settings"},
+       {Book, Folder, Transfer, Settings},
+       0,
+       0,
+       true,
+       "",
+       "Prev",
+       "Next"},
+      {"04_home_visual_covers",
+       CrossPointSettings::LYRA_EXTENDED,
+       sampleBooks(3),
+       {"Open Book", "My Library", "File Transfer", "Settings"},
+       {Book, Folder, Transfer, Settings},
+       1,
+       0,
+       true,
+       "",
+       "Prev",
+       "Next"},
+      {"05_home_forkdrift",
+       CrossPointSettings::FORK_DRIFT,
+       sampleBooks(6),
+       {"Books", "Agenda", "File Transfer", "Settings"},
+       {Folder, Text, Transfer, Settings},
+       0,
+       0,
+       true,
+       "",
+       "Up",
+       "Down"},
+      {"06_home_pokemon_party",
+       CrossPointSettings::POKEMON_PARTY,
+       samplePartyBooks(),
+       {"Books", "Agenda", "File Transfer", "Settings"},
+       {Folder, Text, Transfer, Settings},
+       4,
+       0,
+       false,
+       "Library",
+       "Select",
+       "Down"},
+      {"07_home_minimal",
+       CrossPointSettings::MINIMAL,
+       sampleBooks(1),
+       {"Open Book", "My Library", "File Transfer", "Settings"},
+       {Book, Folder, Transfer, Settings},
+       0,
+       0,
+       true,
+       "",
+       "Prev",
+       "Next"},
+      {"08_home_lyra_carousel",
+       CrossPointSettings::LYRA_CAROUSEL,
+       sampleBooks(6),
+       {"Open Book", "My Library", "File Transfer", "Settings"},
+       {Book, Folder, Transfer, Settings},
+       2,
+       0,
+       true,
+       "",
+       "Prev",
+       "Next"},
   };
 
   const std::vector<std::pair<std::string, std::function<void()>>> scenarios = {

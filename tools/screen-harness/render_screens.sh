@@ -27,6 +27,7 @@ pushd "$ROOT_DIR" >/dev/null
   -Wl,--gc-sections \
   -DEINK_DISPLAY_SINGLE_BUFFER_MODE=1 \
   -DHOST_BUILD=1 \
+  -DENABLE_POKEMON_PARTY=1 \
   '-DCROSSPOINT_VERSION="screen-harness"' \
   "${DEVICE_FLAGS[@]}" \
   -Itools/screen-harness/stubs \
@@ -40,6 +41,7 @@ pushd "$ROOT_DIR" >/dev/null
   -Ilib/third_party/uzlib/src \
   -Ilib/Utf8 \
   -Ilib/Logging \
+  -Ilib/Memory \
   -Ilib/Serialization \
   -Iopen-x4-sdk/libs/display/EInkDisplay/include \
   -Iopen-x4-sdk/libs/hardware/InputManager/include \
@@ -54,6 +56,7 @@ pushd "$ROOT_DIR" >/dev/null
   src/components/themes/lyra/LyraTheme.cpp \
   src/components/themes/lyra/Lyra3CoversTheme.cpp \
   src/components/themes/lyra/ForkDriftTheme.cpp \
+  src/components/themes/pokemon/PokemonPartyTheme.cpp \
   src/components/themes/lyra/LyraCarouselTheme.cpp \
   src/activities/Activity.cpp \
   src/activities/ActivityWithSubactivity.cpp \

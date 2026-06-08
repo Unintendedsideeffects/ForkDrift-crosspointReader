@@ -311,13 +311,6 @@ void HomeActivity::buildMenuModel() {
   // Grid (ForkDrift / Pokémon party): cover grid handles books; the button row
   // holds the actions. Composition matches what the grid actually renders.
   if (homeIsGridNav()) {
-    if (isPokemonPartyHomeMode()) {
-#if ENABLE_POKEMON_PARTY
-      menuModel.push_back(HomeMenuId::AssignPokemon);
-#endif
-      menuModel.push_back(HomeMenuId::Settings);
-      return;
-    }
     menuModel.push_back(HomeMenuId::MyLibrary);
     if (todo) menuModel.push_back(HomeMenuId::Todo);
     if (anki) menuModel.push_back(HomeMenuId::Anki);
@@ -1442,11 +1435,11 @@ void HomeActivity::loop() {
             inButtonGrid = false;  // step up out of the menu, back onto the cover region
             selectedBookIndex = std::min(std::max(selectedBookIndex, 0), bookCount - 1);
             requestUpdate();
-          } else if (!pokemonPartyHomeMode && selectedMenuIndex > 0) {
+          } else if (selectedMenuIndex > 0) {
             selectedMenuIndex--;
             requestUpdate();
           }
-        } else if (!pokemonPartyHomeMode && downPressed) {
+        } else if (downPressed) {
           if (selectedMenuIndex < menuItemCount - 1) {
             selectedMenuIndex++;
             requestUpdate();
@@ -1641,7 +1634,7 @@ void HomeActivity::render(RenderLock&&) {
         static_cast<int>(menuLabels.size()), menuSelector, [&menuLabels](const int index) { return menuLabels[index]; },
         [&menuIcons](const int index) { return menuIcons[index]; });
 
-    const char* backLabel = isPokemonPartyHomeMode() ? "Party" : "";
+    const char* backLabel = isPokemonPartyHomeMode() ? tr(STR_MENU_RECENT_BOOKS) : "";
     const auto labels = mappedInput.mapLabels(backLabel, tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else {
