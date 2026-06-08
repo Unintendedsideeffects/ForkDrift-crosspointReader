@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CrossPoint Plugin: X4 Pokemon Party Team Builder</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root { --black: #000; --white: #fff; --gray-10: #f5f5f5; --gray-4: #666; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Courier New", Courier, monospace;
+      margin: 0; padding: 24px; background: var(--white); color: var(--black);
+      max-width: 880px; margin: 0 auto; line-height: 1.4;
+    }
+    h1 { font-size: 1.4em; margin: 0 0 4px; }
+    .subtitle { color: var(--gray-4); font-size: 0.85em; margin: 0 0 16px; }
+    .card { border: 2px solid var(--black); padding: 16px; margin-bottom: 16px; }
+    .status { border: 1px solid #ddd; background: var(--gray-10); padding: 8px; font-size: 0.85em; margin-top: 8px; }
+    .picker { position: relative; }
+    .picker input {
+      width: 100%; padding: 10px; border: 2px solid var(--black);
+      font-family: inherit; font-size: 0.95em; background: var(--white);
+    }
+    .results {
+      display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+      border: 2px solid var(--black); background: var(--white); max-height: 260px;
+      overflow-y: auto; z-index: 10;
+    }
+    .results.is-open { display: block; }
+    .opt { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid #ddd;
+      background: var(--white); padding: 8px 10px; font-family: inherit; font-size: 0.9em; cursor: pointer; }
+    .opt:hover, .opt.is-active { background: var(--black); color: var(--white); }
+    .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    .slot { border: 2px solid var(--black); padding: 10px; display: grid; gap: 6px; justify-items: center; text-align: center; }
+    .slot.empty { border-style: dashed; color: var(--gray-4); align-content: center; min-height: 150px; }
+    .sprite { width: 96px; height: 96px; border: 2px solid var(--black); image-rendering: pixelated; object-fit: contain; background: var(--white); }
+    .name { font-weight: 700; }
+    .evos { font-size: 0.72em; color: var(--gray-4); word-break: break-word; }
+    .btn { border: 2px solid var(--black); background: var(--white); color: var(--black);
+      padding: 8px 16px; font-family: inherit; font-size: 0.9em; cursor: pointer; }
+    .btn:hover { background: var(--black); color: var(--white); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn.primary { background: var(--black); color: var(--white); }
+    ol { font-size: 0.85em; color: var(--gray-4); padding-left: 18px; }
+    code { background: var(--gray-10); padding: 1px 4px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Pokemon Party — Team Builder</h1>
+    <p class="subtitle">Build a team of up to six Pokemon, then download a bundle to drop on your CrossPoint SD card. Sprites for every evolution stage are baked here so the device works fully offline.</p>
+    <div class="status" id="status">Loading Pokemon list...</div>
+  </div>
+
+  <div class="card">
+    <h1>Add Pokemon</h1>
+    <div class="picker">
+      <input type="text" id="search" placeholder="Search by name or #id (max 6)" autocomplete="off" spellcheck="false" disabled />
+      <div class="results" id="results"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h1>Your Team</h1>
+    <div class="team-grid" id="team"></div>
+    <p style="margin-top:14px;">
+      <button class="btn primary" id="download" disabled>Download team bundle (.zip)</button>
+    </p>
+  </div>
+
+  <div class="card">
+    <h1>Install on device</h1>
+    <ol>
+      <li>Unzip the downloaded bundle.</li>
+      <li>Copy the <code>.crosspoint</code> folder to the <strong>root of your SD card</strong> (merge with the existing one).</li>
+      <li>It writes <code>/.crosspoint/pokemon/team.json</code> and <code>/.crosspoint/pokemon/sprite_&lt;id&gt;.bmp</code>.</li>
+      <li>Reinsert the card; assign team members to books from the device (Pokemon Party theme &rarr; Assign Pokemon) — no network needed.</li>
+    </ol>
+  </div>
+
+<script>
+  const MAX_POKEMON_ID = 1025;
+  const SPRITE_SIZE = 96;            // matches PokemonSpriteCache::kDefaultSpriteSize
+  const MAX_TEAM = 6;
+  const statusEl = document.getElementById("status");
+  const searchEl = document.getElementById("search");
+  const resultsEl = document.getElementById("results");
+  const teamEl = document.getElementById("team");
+  const downloadEl = document.getElementById("download");
+
+  let catalog = [];                  // [{id, name, label}]
+  let team = [];                     // [{payload, sprites: {speciesId: Uint8Array}}]
+  let busy = false;
+
+  function setStatus(msg, err) {
+    statusEl.textContent = msg;
+    statusEl.style.borderColor = err ? "#000" : "#ddd";
+  }
+  function titleCase(v) { return String(v).replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()); }
+  function extractResourceId(url) { const m = String(url || "").match(/\/(\d+)\/?$/); return m ? parseInt(m[1], 10) : null; }
+
+  async function fetchJson(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("Request failed: " + r.status);
+    return r.json();
+  }
+
+  // --- Sprite -> device 1-bit BMP (byte-for-byte match to PngToBmpConverter:
+  //     14+40 headers, negative height/top-down, palette idx0 black / idx1 white,
+  //     MSB-first, rows padded to 4 bytes, bit=1 => light/transparent). ---
+  function loadImage(url) {
+    return new Promise((res, rej) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => res(img);
+      img.onerror = () => rej(new Error("sprite load failed: " + url));
+      img.src = url;
+    });
+  }
+  function encode1BitBmp(rgba, w, h) {
+    const bytesPerRow = (((w + 31) >> 5) << 2);
+    const imageSize = bytesPerRow * h;
+    const buf = new Uint8Array(62 + imageSize);
+    let p = 0;
+    const u16 = v => { buf[p++] = v & 255; buf[p++] = (v >> 8) & 255; };
+    const u32 = v => { buf[p++] = v & 255; buf[p++] = (v >>> 8) & 255; buf[p++] = (v >>> 16) & 255; buf[p++] = (v >>> 24) & 255; };
+    buf[p++] = 0x42; buf[p++] = 0x4D;
+    u32(62 + imageSize); u32(0); u32(62);
+    u32(40); u32(w); u32((-h) >>> 0); u16(1); u16(1); u32(0); u32(imageSize);
+    u32(2835); u32(2835); u32(2); u32(2);
+    buf[p++] = 0; buf[p++] = 0; buf[p++] = 0; buf[p++] = 0;        // idx0 black
+    buf[p++] = 0xFF; buf[p++] = 0xFF; buf[p++] = 0xFF; buf[p++] = 0;  // idx1 white
+    const start = 62;
+    for (let y = 0; y < h; y++) {
+      const row = start + y * bytesPerRow;
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const a = rgba[i + 3];
+        const luma = rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114;
+        if (!(a >= 128 && luma < 128)) buf[row + (x >> 3)] |= (0x80 >> (x & 7));  // set => white
+      }
+    }
+    return buf;
+  }
+  function canonicalSpriteUrl(speciesId) {
+    return "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/" + speciesId + ".png";
+  }
+  async function spriteToBmp(speciesId) {
+    const img = await loadImage(canonicalSpriteUrl(speciesId));
+    const c = document.createElement("canvas");
+    c.width = SPRITE_SIZE; c.height = SPRITE_SIZE;
+    const ctx = c.getContext("2d");
+    ctx.clearRect(0, 0, SPRITE_SIZE, SPRITE_SIZE);
+    const scale = Math.min(SPRITE_SIZE / img.width, SPRITE_SIZE / img.height) || 1;
+    const dw = Math.max(1, Math.round(img.width * scale));
+    const dh = Math.max(1, Math.round(img.height * scale));
+    ctx.drawImage(img, (SPRITE_SIZE - dw) >> 1, (SPRITE_SIZE - dh) >> 1, dw, dh);
+    return encode1BitBmp(ctx.getImageData(0, 0, SPRITE_SIZE, SPRITE_SIZE).data, SPRITE_SIZE, SPRITE_SIZE);
+  }
+
+  // --- PokeAPI bundle -> assignment payload (same shape as the device writes) ---
+  function getSpriteUrl(p, style) {
+    if (style === "pixel") return p.sprites && p.sprites.front_default;
+    if (style === "home") return p.sprites && p.sprites.other && p.sprites.other.home && p.sprites.other.home.front_default;
+    return p.sprites && p.sprites.other && p.sprites.other["official-artwork"] && p.sprites.other["official-artwork"].front_default;
+  }
+  function getEvolutionText(d) {
+    if (!d) return null;
+    if (d.min_level) return "Lvl " + d.min_level;
+    if (d.item && d.item.name) return titleCase(d.item.name);
+    if (d.trigger && d.trigger.name === "trade") return "Trade";
+    if (d.min_happiness) return "Friendship";
+    if (d.trigger && d.trigger.name && d.trigger.name !== "level-up") return titleCase(d.trigger.name);
+    return "Special";
+  }
+  function linearStages(evo) {
+    if (!evo || !evo.chain) return [];
+    const out = []; let cur = evo.chain;
+    while (cur && out.length < 3) {
+      out.push({
+        name: cur.species && cur.species.name,
+        url: cur.species && cur.species.url,
+        details: out.length === 0 ? null : (cur.evolution_details && cur.evolution_details[0]) || null,
+      });
+      cur = cur.evolves_to && cur.evolves_to.length ? cur.evolves_to[0] : null;
+    }
+    return out.filter(f => f && f.name && f.url);
+  }
+  function buildPayload(bundle) {
+    const p = bundle.pokemon, s = bundle.species || null;
+    return {
+      id: p.id,
+      name: p.name || "",
+      speciesId: (s && s.id) || extractResourceId(s && s.url),
+      speciesName: (s && s.name) || (p.name || ""),
+      types: (p.types || []).map(t => t && t.type && t.type.name).filter(Boolean),
+      sprites: { pixel: getSpriteUrl(p, "pixel") || "", official: getSpriteUrl(p, "official") || "", home: getSpriteUrl(p, "home") || "" },
+      evolutionChain: linearStages(bundle.evolution).map((st, i) => ({
+        order: i + 1,
+        speciesId: extractResourceId(st.url),
+        name: st.name || "",
+        minLevel: st.details && typeof st.details.min_level === "number" ? st.details.min_level : null,
+        trigger: (st.details && st.details.trigger && st.details.trigger.name) || null,
+        text: i === 0 ? null : getEvolutionText(st.details),
+      })),
+      assignedAt: new Date().toISOString(),
+    };
+  }
+  async function fetchBundle(id) {
+    const pokemon = await fetchJson("https://pokeapi.co/api/v2/pokemon/" + encodeURIComponent(String(id)));
+    const species = await fetchJson(pokemon.species.url).catch(() => null);
+    const evolution = species && species.evolution_chain && species.evolution_chain.url
+      ? await fetchJson(species.evolution_chain.url).catch(() => null) : null;
+    return { pokemon, species, evolution };
+  }
+
+  function evolutionSummary(payload) {
+    const c = payload.evolutionChain || [];
+    if (c.length <= 1) return "No evolutions";
+    return c.map(s => titleCase(s.name || "") + (s.minLevel ? " (Lv" + s.minLevel + ")" : "")).join(" -> ");
+  }
+
+  function renderTeam() {
+    const slots = [];
+    for (let i = 0; i < MAX_TEAM; i++) {
+      const m = team[i];
+      if (!m) { slots.push('<div class="slot empty">Empty slot ' + (i + 1) + '</div>'); continue; }
+      const sid = m.payload.speciesId || m.payload.id;
+      slots.push(
+        '<div class="slot">' +
+        '<img class="sprite" src="' + canonicalSpriteUrl(sid) + '" alt="" loading="lazy" />' +
+        '<div class="name">' + titleCase(m.payload.name) + '</div>' +
+        '<div class="evos">' + evolutionSummary(m.payload) + '</div>' +
+        '<button class="btn" data-remove="' + i + '">Remove</button>' +
+        '</div>'
+      );
+    }
+    teamEl.innerHTML = slots.join("");
+    Array.from(teamEl.querySelectorAll("[data-remove]")).forEach(b =>
+      b.addEventListener("click", () => { if (!busy) { team.splice(parseInt(b.dataset.remove, 10), 1); renderTeam(); } }));
+    downloadEl.disabled = busy || team.length === 0;
+  }
+
+  async function addById(id) {
+    if (busy) return;
+    if (team.length >= MAX_TEAM) { setStatus("Team is full (max " + MAX_TEAM + ").", true); return; }
+    if (team.some(m => (m.payload.speciesId || m.payload.id) === id || m.payload.id === id)) {
+      setStatus("Already on the team.", true); return;
+    }
+    busy = true; searchEl.disabled = true; renderTeam();
+    try {
+      setStatus("Fetching data + baking sprites...", false);
+      const payload = buildPayload(await fetchBundle(id));
+      const sprites = {};
+      const ids = [payload.speciesId, ...payload.evolutionChain.map(s => s.speciesId)].filter(Boolean);
+      for (const sid of ids) { if (!sprites[sid]) sprites[sid] = await spriteToBmp(sid); }
+      team.push({ payload, sprites });
+      renderTeam();
+      setStatus("Added " + titleCase(payload.name) + ".", false);
+    } catch (e) {
+      console.error(e); setStatus("Add failed: " + e.message, true);
+    } finally { busy = false; searchEl.disabled = false; }
+  }
+
+  function renderResults() {
+    const q = searchEl.value.trim().toLowerCase();
+    if (!q) { resultsEl.classList.remove("is-open"); resultsEl.innerHTML = ""; return; }
+    const byId = /^#?\d+$/.test(q) ? parseInt(q.replace("#", ""), 10) : null;
+    const matches = catalog.filter(e => byId ? e.id === byId : e.name.includes(q)).slice(0, 10);
+    resultsEl.innerHTML = matches.length
+      ? matches.map((e, i) => '<button class="opt' + (i === 0 ? ' is-active' : '') + '" data-id="' + e.id + '">' + e.label + '</button>').join("")
+      : '<div class="opt">No match.</div>';
+    resultsEl.classList.add("is-open");
+    Array.from(resultsEl.querySelectorAll("[data-id]")).forEach(b =>
+      b.addEventListener("click", () => { searchEl.value = ""; resultsEl.classList.remove("is-open"); addById(parseInt(b.dataset.id, 10)); }));
+  }
+
+  async function downloadBundle() {
+    if (busy || team.length === 0) return;
+    busy = true; downloadEl.disabled = true;
+    try {
+      setStatus("Packaging bundle...", false);
+      const zip = new JSZip();
+      const dir = zip.folder(".crosspoint").folder("pokemon");
+      dir.file("team.json", JSON.stringify({ team: team.map(m => m.payload) }, null, 2));
+      const seen = new Set();
+      for (const m of team) {
+        for (const sid of Object.keys(m.sprites)) {
+          if (seen.has(sid)) continue;
+          seen.add(sid);
+          dir.file("sprite_" + sid + ".bmp", m.sprites[sid]);
+        }
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "forkdrift-pokemon-team.zip";
+      a.click();
+      URL.revokeObjectURL(a.href);
+      setStatus("Bundle downloaded. Unzip the .crosspoint folder to your SD card root.", false);
+    } catch (e) {
+      console.error(e); setStatus("Packaging failed: " + e.message, true);
+    } finally { busy = false; downloadEl.disabled = team.length === 0; }
+  }
+
+  async function init() {
+    try {
+      const list = await fetchJson("https://pokeapi.co/api/v2/pokemon?limit=" + MAX_POKEMON_ID);
+      catalog = (list.results || []).map((r, i) => {
+        const id = extractResourceId(r.url) || (i + 1);
+        return { id, name: r.name, label: "#" + id + " " + titleCase(r.name) };
+      });
+      searchEl.disabled = false;
+      setStatus("Search for a Pokemon to add to your team (max " + MAX_TEAM + ").", false);
+    } catch (e) {
+      setStatus("Could not load Pokemon list: " + e.message + " (needs internet).", true);
+    }
+    renderTeam();
+  }
+
+  searchEl.addEventListener("input", renderResults);
+  searchEl.addEventListener("focus", renderResults);
+  searchEl.addEventListener("blur", () => setTimeout(() => resultsEl.classList.remove("is-open"), 150));
+  searchEl.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const q = searchEl.value.trim().toLowerCase();
+      const byId = /^#?\d+$/.test(q) ? parseInt(q.replace("#", ""), 10) : null;
+      const m = catalog.find(x => byId ? x.id === byId : x.name.includes(q));
+      if (m) { searchEl.value = ""; resultsEl.classList.remove("is-open"); addById(m.id); }
+    }
+  });
+  downloadEl.addEventListener("click", downloadBundle);
+  document.addEventListener("DOMContentLoaded", init);
+  if (document.readyState !== "loading") init();
+</script>
+</body>
+</html>
