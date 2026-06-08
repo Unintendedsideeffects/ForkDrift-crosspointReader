@@ -35,6 +35,7 @@ enum class SmokeStep : uint8_t {
   HomeNav,
   HomeNavRun,
   RecoveryRun,
+  SettingsLoopRun,
   Done,
 };
 
@@ -65,7 +66,7 @@ class SimulatorSmokeTest {
   }
 
  private:
-  enum class ScriptActionType : uint8_t { Press, Release, Render };
+  enum class ScriptActionType : uint8_t { Press, Release, Render, HashFrame };
 
   struct ScriptAction {
     ScriptActionType type;
@@ -88,6 +89,10 @@ class SimulatorSmokeTest {
   static bool enabled() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_TEST") != nullptr; }
 
   static bool recoveryRequested() { return std::getenv("FORKDRIFT_SIMULATOR_RECOVERY") != nullptr; }
+
+  static bool settingsLoopRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SETTINGS_LOOP") != nullptr; }
+
+  static bool homeSelectRequested() { return std::getenv("FORKDRIFT_SIMULATOR_HOME_SELECT") != nullptr; }
 
   static bool sdFailRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SD_FAIL") != nullptr; }
 
@@ -156,6 +161,29 @@ class SimulatorSmokeTest {
           scriptStep = SmokeStep::RecoveryRun;
           scriptDoneStep = SmokeStep::Done;
           step = SmokeStep::RecoveryRun;
+          break;
+        }
+        if (homeSelectRequested()) {
+          // Diagnostic: navigate the cover row (Left/Right) and the menu (Down),
+          // pressing Confirm after each, to see which HomeMenuId actually fires.
+          // Reproduces "anything you select opens the current book".
+          activityManager.goHome();
+          buildHomeSelectScript();
+          scriptStep = SmokeStep::SettingsLoopRun;
+          scriptDoneStep = SmokeStep::Done;
+          step = SmokeStep::SettingsLoopRun;
+          break;
+        }
+        if (settingsLoopRequested()) {
+          // Reproduce the menu-driven Settings round-trip: open Settings from the
+          // Home menu, return Back, then open it again. goToSettings() (used by the
+          // normal smoke path) bypasses the Home menu's own activation, so it does
+          // not exercise the "Settings opens only once" interaction regression.
+          activityManager.goHome();
+          buildSettingsLoopScript();
+          scriptStep = SmokeStep::SettingsLoopRun;
+          scriptDoneStep = SmokeStep::Done;
+          step = SmokeStep::SettingsLoopRun;
           break;
         }
         activityManager.goHome();
@@ -240,6 +268,10 @@ class SimulatorSmokeTest {
         runInputScript();
         break;
 
+      case SmokeStep::SettingsLoopRun:
+        runInputScript();
+        break;
+
       case SmokeStep::Done:
         LOG_INF("SMOKE", "Simulator smoke test passed");
         std::_Exit(0);
@@ -252,6 +284,25 @@ class SimulatorSmokeTest {
   }
   static ScriptAction render(const char* label, int frames = 3) {
     return {ScriptActionType::Render, MappedInputManager::Button::Back, label, frames};
+  }
+  static ScriptAction hashFrame(const char* label) {
+    return {ScriptActionType::HashFrame, MappedInputManager::Button::Back, label, 0};
+  }
+
+  // FNV-1a hash of the current firmware framebuffer. Lets the headless runner
+  // detect *visual* regressions (e.g. a garbled Home re-render) that a crash/
+  // onEnter-only smoke check is blind to.
+  static void logFrameHash(const char* label) {
+    const uint8_t* fb = renderer.getFrameBuffer();
+    const size_t size = renderer.getBufferSize();
+    uint64_t hash = 1469598103934665603ULL;
+    if (fb != nullptr) {
+      for (size_t i = 0; i < size; ++i) {
+        hash ^= fb[i];
+        hash *= 1099511628211ULL;
+      }
+    }
+    LOG_INF("SMOKE", "FRAMEHASH %s = %016llx", label, static_cast<unsigned long long>(hash));
   }
 
   void addTap(MappedInputManager::Button button) {
@@ -349,6 +400,81 @@ class SimulatorSmokeTest {
     LOG_INF("SMOKE", "Running recovery menu navigation script");
   }
 
+  // Opens Settings *from the Home menu* (not via goToSettings) three times in a
+  // row, returning Back to Home between each. "Settings" is always the last entry
+  // in every Home nav mode's menuModel, so a single Up tap wraps the selection to
+  // it regardless of theme/feature gating. Each successful open logs an
+  // ActivityManager onEnter for "Settings"; the runner asserts it appears three
+  // times. The reported regression is that only the first open works for non-grid
+  // themes, so the second/third Up+Confirm would no-op and the count would be < 3.
+  void buildSettingsLoopScript() {
+    inputScript.clear();
+    scriptIndex = 0;
+    // Carousel nav reaches the menu row via Down, then Left wraps to the last menu
+    // entry (Settings). All other nav modes move the menu selection with Up, which
+    // wraps to the last entry (Settings) directly.
+    const bool carousel = SETTINGS.uiTheme == CrossPointSettings::UI_THEME::LYRA_CAROUSEL;
+    // Pristine boot Home, before any Settings round-trip — the known-good baseline.
+    inputScript.push_back(render("Home (pristine)", 8));
+    inputScript.push_back(hashFrame("home#0"));
+    for (int i = 0; i < 3; i++) {
+      inputScript.push_back(render("Home (settings loop)", 5));
+      if (carousel) {
+        addTap(MappedInputManager::Button::Down);  // carousel row -> menu row (first entry)
+        inputScript.push_back(render("Menu row", 2));
+        addTap(MappedInputManager::Button::Left);  // wrap within menu row to Settings (last)
+      } else {
+        addTap(MappedInputManager::Button::Up);  // wrap selection to Settings (last entry)
+      }
+      inputScript.push_back(render("Settings selected", 3));
+      addTap(MappedInputManager::Button::Confirm);  // open Settings from the menu
+      inputScript.push_back(render("Settings opened", 6));
+      addTap(MappedInputManager::Button::Back);  // back to Home
+      inputScript.push_back(render("Back at Home", 8));
+      inputScript.push_back(hashFrame(i == 0 ? "home#1" : (i == 1 ? "home#2" : "home#3")));
+    }
+    LOG_INF("SMOKE", "Running settings-loop script (open Settings from Home menu x3)");
+  }
+
+  // Diagnostic for "anything you select opens the current book". For the active
+  // theme, tries Confirm at: (1) default selection, (2) after moving the cover
+  // row Right, (3) after moving the menu Down once, (4) after Down twice. Each
+  // Confirm logs a HOMESEL "activate id=..." line, then Back returns Home. Lets
+  // us see whether activation follows the on-screen selection or always fires the
+  // current book (ContinueReading).
+  void buildHomeSelectScript() {
+    inputScript.clear();
+    scriptIndex = 0;
+    inputScript.push_back(render("Home (select diag)", 8));
+    // (1) Confirm with default selection.
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("after Confirm @default", 8));
+    addTap(MappedInputManager::Button::Back);
+    inputScript.push_back(render("Home", 6));
+    // (2) Move cover Right, then Confirm.
+    addTap(MappedInputManager::Button::Right);
+    inputScript.push_back(render("after Right", 3));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("after Confirm @cover", 8));
+    addTap(MappedInputManager::Button::Back);
+    inputScript.push_back(render("Home", 6));
+    // (3) Move menu Down once, then Confirm.
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("after Down", 3));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("after Confirm @down1", 8));
+    addTap(MappedInputManager::Button::Back);
+    inputScript.push_back(render("Home", 6));
+    // (4) Move menu Down twice, then Confirm.
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("after Down", 2));
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("after Down", 3));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("after Confirm @down2", 8));
+    LOG_INF("SMOKE", "Running home-select diagnostic script");
+  }
+
   void runInputScript() {
     if (scriptIndex >= inputScript.size()) {
       step = scriptDoneStep;
@@ -364,6 +490,9 @@ class SimulatorSmokeTest {
         break;
       case ScriptActionType::Render:
         queueStep(action.label, scriptStep, action.settleFrames);
+        break;
+      case ScriptActionType::HashFrame:
+        logFrameHash(action.label);
         break;
     }
   }

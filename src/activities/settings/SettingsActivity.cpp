@@ -761,6 +761,8 @@ void SettingsActivity::render(RenderLock&&) {
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), confirmLabel, tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
-  // Always use standard refresh for settings screen
-  renderer.displayBuffer();
+  // First paint clears ghosting from the previous screen with a full refresh;
+  // subsequent in-place updates stay on FAST to avoid flashing on every keypress.
+  renderer.displayBuffer(firstRenderDone ? HalDisplay::FAST_REFRESH : HalDisplay::FULL_REFRESH);
+  firstRenderDone = true;
 }

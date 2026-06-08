@@ -517,7 +517,7 @@ void CrossPointSettings::validateAndClamp() {
   if (globalStatusBar >= GLOBAL_STATUS_BAR_MODE_COUNT) globalStatusBar = GLOBAL_STATUS_BAR_ON;
   if (globalStatusBarPosition >= GLOBAL_STATUS_BAR_POSITION_COUNT) globalStatusBarPosition = STATUS_BAR_TOP;
 
-  if (uiTheme > LYRA_CAROUSEL) uiTheme = LYRA;
+  if (uiTheme > TERMINAL) uiTheme = LYRA;
   if (recentBooksView >= RECENT_BOOKS_VIEW_COUNT) recentBooksView = RECENT_BOOKS_LIST;
 #if !ENABLE_LYRA_THEME
   uiTheme = CLASSIC;

@@ -289,7 +289,7 @@ std::string HomeActivity::fallbackAuthor(const RecentBook& book) {
 }
 
 bool HomeActivity::isPokemonPartyHomeMode() const {
-  return SETTINGS.uiTheme == CrossPointSettings::FORK_DRIFT &&
+  return SETTINGS.uiTheme == CrossPointSettings::POKEMON_PARTY &&
          core::FeatureModules::hasCapability(core::Capability::PokemonParty);
 }
 
@@ -620,6 +620,9 @@ UIIcon HomeActivity::menuIdIcon(const HomeMenuId id) const {
 }
 
 void HomeActivity::activateMenuId(const HomeMenuId id) {
+  LOG_DBG("HOME", "activate id=%d selMenu=%d selBook=%d selector=%d hasCR=%d modelSize=%d", static_cast<int>(id),
+          selectedMenuIndex, selectedBookIndex, selectorIndex, hasContinueReading ? 1 : 0,
+          static_cast<int>(menuModel.size()));
   switch (id) {
     case HomeMenuId::ContinueReading:
       onContinueReading();
@@ -1298,7 +1301,6 @@ void HomeActivity::loop() {
     const bool rightPressed = mappedInput.wasPressed(MappedInputManager::Button::Right);
     const bool upPressed = mappedInput.wasPressed(MappedInputManager::Button::Up);
     const bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
-    const bool gridNav = homeIsGridNav();
     const bool carouselNav = homeIsCarouselNav();
     const bool pokemonPartyHomeMode = isPokemonPartyHomeMode();
     const int menuItemCount = static_cast<int>(menuModel.size());
@@ -1326,22 +1328,24 @@ void HomeActivity::loop() {
         return;
       }
 
-      if (gridNav) {
-        if (inButtonGrid) {
+      if (!carouselNav) {
+        // Grid and cover-menu themes share one focus model: the cover area XOR the
+        // button row is active, and Confirm acts on whichever is focused. Cover-menu
+        // previously always activated selectedMenuIndex while Left/Right moved a
+        // *separate* cover cursor — so scrubbing the covers and pressing Confirm
+        // kept firing menuModel[0] (Continue Reading -> open current book), and
+        // Settings was unreachable. ForkDrift's grid avoided this by toggling focus;
+        // cover-menu now does too. See home_menu_single_model: one model, no
+        // per-mode cursor that can drift from what is rendered.
+        const bool menuFocused = inButtonGrid || recentBooks.empty();
+        if (menuFocused) {
           if (selectedMenuIndex >= 0 && selectedMenuIndex < static_cast<int>(menuModel.size())) {
             activateMenuId(menuModel[selectedMenuIndex]);
           }
-          return;
-        }
-        if (!recentBooks.empty()) {
+        } else {
           openSelectedBook();
-          return;
         }
-      } else if (!carouselNav) {
-        if (selectedMenuIndex >= 0 && selectedMenuIndex < static_cast<int>(menuModel.size())) {
-          activateMenuId(menuModel[selectedMenuIndex]);
-          return;
-        }
+        return;
       }
     }
 
@@ -1372,30 +1376,52 @@ void HomeActivity::loop() {
         requestUpdate();
       } else if (downPressed) {
         if (inCarouselRow) {
-          selectorIndex = bookCount;  // enter menu row
+          selectorIndex = bookCount;  // drop from the cover strip into the menu row
           requestUpdate();
+        } else {
+          // Already in the (horizontal) menu row: Down advances to the next item
+          // too, not just Left/Right. Without this, Down past item 0 was a no-op,
+          // trapping the user on the first action so Settings was unreachable by
+          // the natural "press Down to go deeper" gesture.
+          const int menuOffset = selectorIndex - bookCount;
+          if (menuOffset < menuCount - 1) {
+            selectorIndex = bookCount + menuOffset + 1;
+            requestUpdate();
+          }
         }
       } else if (upPressed) {
         if (!inCarouselRow) {
-          selectorIndex = lastCarouselBookIndex;  // back to carousel row
+          const int menuOffset = selectorIndex - bookCount;
+          if (menuOffset > 0) {
+            selectorIndex = bookCount + menuOffset - 1;  // previous menu item
+          } else {
+            selectorIndex = lastCarouselBookIndex;  // step back up to the cover strip
+          }
           requestUpdate();
         }
       }
       return;
     }
 
-    if (gridNav) {
+    // One nav path for every non-carousel theme (grid AND cover-menu). The only
+    // difference between them is the cover layout — captured entirely by the
+    // homeCoverGridColumns / homeCoverGridRows metrics — so navigateCoverGrid
+    // handles a 1x1 single card, a 1xN cover row, and an MxN grid identically.
+    // inButtonGrid is the single focus flag shared by nav, Confirm, and render;
+    // bookCount == 0 forces menu focus so themes that don't start-in-menu when
+    // empty are still navigable. (Carousel keeps its own linear-selector path.)
+    if (!carouselNav) {
       const ThemeMetrics& navMetrics = homeMetrics();
       const int coverCols = navMetrics.homeCoverGridColumns;
       const int bookCount = static_cast<int>(recentBooks.size());
       const int coverRows = bookCount > navMetrics.homeCoverGridColumns ? navMetrics.homeCoverGridRows : 1;
+      const bool menuFocus = inButtonGrid || bookCount == 0;
 
-      if (inButtonGrid) {
+      if (menuFocus) {
         if (upPressed) {
           if (selectedMenuIndex == 0 && bookCount > 0) {
-            inButtonGrid = false;
-            selectedBookIndex = std::min(selectedBookIndex, bookCount - 1);
-            selectedBookIndex = std::max(0, selectedBookIndex);
+            inButtonGrid = false;  // step up out of the menu, back onto the cover region
+            selectedBookIndex = std::min(std::max(selectedBookIndex, 0), bookCount - 1);
             requestUpdate();
           } else if (!pokemonPartyHomeMode && selectedMenuIndex > 0) {
             selectedMenuIndex--;
@@ -1407,39 +1433,16 @@ void HomeActivity::loop() {
             requestUpdate();
           }
         }
-      } else {
-        if (bookCount > 0 && (leftPressed || rightPressed || upPressed || downPressed)) {
-          const auto nav = ForkDriftNavigation::navigateCoverGrid(selectedBookIndex, bookCount, coverCols, coverRows,
-                                                                  leftPressed, rightPressed, upPressed, downPressed);
-          if (nav.enterButtonGrid) {
-            inButtonGrid = true;
-            selectedMenuIndex = 0;
-          } else {
-            selectedBookIndex = nav.bookIndex;
-          }
-          requestUpdate();
+      } else if (leftPressed || rightPressed || upPressed || downPressed) {
+        const auto nav = ForkDriftNavigation::navigateCoverGrid(selectedBookIndex, bookCount, coverCols, coverRows,
+                                                                leftPressed, rightPressed, upPressed, downPressed);
+        if (nav.enterButtonGrid) {
+          inButtonGrid = true;
+          selectedMenuIndex = 0;
+        } else {
+          selectedBookIndex = nav.bookIndex;
         }
-      }
-    } else {
-      if (!recentBooks.empty()) {
-        const int bookCount = static_cast<int>(recentBooks.size());
-        if (leftPressed) {
-          selectedBookIndex = (selectedBookIndex + bookCount - 1) % bookCount;
-          requestUpdate();
-        } else if (rightPressed) {
-          selectedBookIndex = (selectedBookIndex + 1) % bookCount;
-          requestUpdate();
-        }
-      }
-
-      if (menuItemCount > 0) {
-        if (upPressed) {
-          selectedMenuIndex = (selectedMenuIndex + menuItemCount - 1) % menuItemCount;
-          requestUpdate();
-        } else if (downPressed) {
-          selectedMenuIndex = (selectedMenuIndex + 1) % menuItemCount;
-          requestUpdate();
-        }
+        requestUpdate();
       }
     }
     return;
@@ -1538,7 +1541,13 @@ void HomeActivity::render(RenderLock&&) {
                                         recentBooks, centerIdx, frameProgressPercent);
       }
 
-      renderer.displayBuffer();
+      // First paint on (re)entering Home clears ghosting from the previous screen
+      // (Settings/Reader/...) with a full refresh; later carousel slides stay on
+      // FAST to avoid a black/white flash on every move. The sparse carousel layout
+      // shows leftover ghosting far more than ForkDrift's dense cover grid.
+      const bool doFullCarousel = !firstRenderDone && APP_STATE.pendingHomeFullRefresh;
+      if (doFullCarousel) APP_STATE.pendingHomeFullRefresh = false;
+      renderer.displayBuffer(doFullCarousel ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
       updateSlidingWindowCache(centerIdx, bookCount);
       if (!firstRenderDone) {
         firstRenderDone = true;
@@ -1568,8 +1577,17 @@ void HomeActivity::render(RenderLock&&) {
   const bool mediaPickerEnabled = core::FeatureModules::hasCapability(core::Capability::HomeMediaPicker);
   if (mediaPickerEnabled) {
     const bool gridNav = homeIsGridNav();
-    const int coverSelector = gridNav && inButtonGrid ? -1 : selectedBookIndex;
-    const int menuSelector = gridNav && !inButtonGrid ? -1 : selectedMenuIndex;
+    const bool carouselNav = homeIsCarouselNav();
+    // Grid and CoverMenu both split into a cover region on top and a menu below,
+    // with inButtonGrid tracking which region has focus. Show the highlight only
+    // on the focused region so Confirm's target is unambiguous — one visible
+    // cursor, never two competing ones. (Carousel's slow fallback keeps both.)
+    const bool regionFocusNav = !carouselNav;
+    // Same focus predicate the nav and Confirm paths use, so the visible cursor
+    // always sits on the region Confirm will act on (no books => menu focused).
+    const bool menuFocused = inButtonGrid || recentBooks.empty();
+    const int coverSelector = regionFocusNav && menuFocused ? -1 : selectedBookIndex;
+    const int menuSelector = regionFocusNav && !menuFocused ? -1 : selectedMenuIndex;
 
     const int bookCountRender = static_cast<int>(recentBooks.size());
     const int singleRowH = metrics.homeCoverTileHeight / metrics.homeCoverGridRows;
