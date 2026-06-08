@@ -13,6 +13,7 @@
 #include "components/themes/lyra/LyraCarouselTheme.h"
 #include "components/themes/lyra/LyraTheme.h"
 #include "components/themes/minimal/MinimalTheme.h"
+#include "components/themes/pokemon/PokemonPartyTheme.h"
 #include "components/themes/terminal/TerminalTheme.h"
 #include "core/features/FeatureCatalog.h"
 #include "features/status_overlay/Layout.h"
@@ -66,9 +67,16 @@ void UITheme::setTheme(CrossPointSettings::UI_THEME type) {
       currentMetrics = &ForkDriftMetrics::values;
       break;
     case CrossPointSettings::UI_THEME::POKEMON_PARTY:
+#if ENABLE_POKEMON_PARTY
       LOG_DBG("UI", "Using Pokemon Party theme");
+      currentTheme = std::make_unique<PokemonPartyTheme>();
+      currentMetrics = &PokemonPartyMetrics::values;
+#else
+      // Feature not compiled in: fall back to the grid theme it is based on.
+      LOG_DBG("UI", "Pokemon Party unavailable; using Fork Drift theme");
       currentTheme = std::make_unique<ForkDriftTheme>();
       currentMetrics = &ForkDriftMetrics::values;
+#endif
       break;
     case CrossPointSettings::UI_THEME::MINIMAL:
       LOG_DBG("UI", "Using Minimal theme");

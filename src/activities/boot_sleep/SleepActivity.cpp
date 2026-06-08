@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <vector>
@@ -40,6 +41,11 @@
 #include "network/BackgroundWifiService.h"
 #include "util/DateUtils.h"
 #include "util/PokemonBookDataStore.h"
+#if ENABLE_POKEMON_PARTY
+#include "util/BookProgressDataStore.h"
+#include "util/PokemonProgress.h"
+#include "util/PokemonSpriteCache.h"
+#endif
 #include "util/RecentBooksStore.h"
 #include "util/ScreenshotUtil.h"
 
@@ -685,6 +691,11 @@ void SleepActivity::renderCustomSleepScreen() const {
 #if ENABLE_POKEMON_PARTY
   if (SETTINGS.sleepScreenSource == CrossPointSettings::SLEEP_SCREEN_SOURCE::SLEEP_SOURCE_POKEDEX &&
       !APP_STATE.openEpubPath.empty()) {
+    // Preferred: composite the book cover with its assigned Pokémon on-device.
+    if (renderPokemonCoverSleepScreen()) {
+      return;
+    }
+    // Fallback: a pre-baked sleep image authored over the web plugin.
     JsonDocument pokemonDoc;
     if (PokemonBookDataStore::loadPokemonDocument(APP_STATE.openEpubPath, pokemonDoc)) {
       const char* sleepImagePath = pokemonDoc["pokemon"]["sleepImagePath"] | "";
@@ -1092,6 +1103,146 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
     renderer.setRenderMode(GfxRenderer::BW);
   }
 }
+
+#if ENABLE_POKEMON_PARTY
+namespace {
+// Resolve a cover thumbnail that actually exists on the SD card. Covers are
+// pre-rendered by the home screen as `thumb_<height>.bmp`, so we can only use a
+// height that was already generated. Probe screen-height first (best fit) then a
+// few common home-grid heights; return "" when nothing usable is cached.
+std::string resolveCachedCoverPath(const std::string& coverBmpPath, int screenHeight) {
+  if (coverBmpPath.empty()) {
+    return "";
+  }
+  const int candidates[] = {screenHeight, 540, 400, 390, 370, 226, 200, 120};
+  for (const int height : candidates) {
+    if (height <= 0) {
+      continue;
+    }
+    const std::string path = UITheme::getCoverThumbPath(coverBmpPath, height);
+    if (Storage.exists(path.c_str())) {
+      return path;
+    }
+  }
+  return "";
+}
+
+// Look up the open book's cover path, preferring the in-memory recent-books list
+// (what the home screen actually rendered) before falling back to a fresh
+// resolve.
+std::string coverPathForOpenBook(const std::string& bookPath) {
+  for (const RecentBook& book : RECENT_BOOKS.getBooks()) {
+    if (book.path == bookPath) {
+      return book.coverBmpPath;
+    }
+  }
+  return RECENT_BOOKS.getDataFromBook(bookPath).coverBmpPath;
+}
+
+// Draw a cached 1-bit BMP fitted into a square box (mirrors the party theme's
+// helper). Returns false when the file is missing/unparseable.
+bool drawCoverBmpInBox(GfxRenderer& renderer, const std::string& path, int x, int y, int size) {
+  if (path.empty() || !Storage.exists(path.c_str())) {
+    return false;
+  }
+  HalFile file;
+  if (!Storage.openFileForRead("SLP", path, file)) {
+    return false;
+  }
+  Bitmap bitmap(file);
+  bool drew = false;
+  if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+    renderer.drawBitmap1Bit(bitmap, x, y, size, size);
+    drew = true;
+  }
+  file.close();
+  return drew;
+}
+}  // namespace
+
+bool SleepActivity::renderPokemonCoverSleepScreen() const {
+  if (APP_STATE.openEpubPath.empty()) {
+    return false;
+  }
+  const std::string bookPath = APP_STATE.openEpubPath;
+
+  // A composite only makes sense when the book has an assigned Pokémon; without
+  // one, defer to the regular sleep-screen sources.
+  const PokemonAssignment assignment = PokemonProgress::loadForBook(bookPath);
+  if (!assignment.valid) {
+    return false;
+  }
+
+  const auto pageWidth = renderer.getScreenWidth();
+  const auto pageHeight = renderer.getScreenHeight();
+
+  // Reading progress IS the level; the level selects the active evolution stage.
+  BookProgressDataStore::ProgressData pd;
+  const float percent = BookProgressDataStore::loadProgress(bookPath, pd) ? pd.percent : 0.0f;
+  const int level = PokemonProgress::levelForPercent(percent);
+  const int speciesId = PokemonProgress::activeSpeciesId(assignment, level);
+
+  renderer.clearScreen();
+
+  // --- Cover, centered and scaled to fit the panel ---
+  const std::string coverPath = resolveCachedCoverPath(coverPathForOpenBook(bookPath), pageHeight);
+  if (!coverPath.empty()) {
+    HalFile file;
+    if (Storage.openFileForRead("SLP", coverPath, file)) {
+      Bitmap bitmap(file, true);
+      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+        const int bw = bitmap.getWidth();
+        const int bh = bitmap.getHeight();
+        // drawBitmap scales down to fit (maxWidth, maxHeight); center the result.
+        const float scale = std::min(1.0f, std::min(static_cast<float>(pageWidth) / static_cast<float>(bw),
+                                                    static_cast<float>(pageHeight) / static_cast<float>(bh)));
+        const int drawW = static_cast<int>(static_cast<float>(bw) * scale);
+        const int drawH = static_cast<int>(static_cast<float>(bh) * scale);
+        const int cx = (pageWidth - drawW) / 2;
+        const int cy = (pageHeight - drawH) / 2;
+        renderer.drawBitmap(bitmap, cx, cy, pageWidth, pageHeight);
+      }
+      file.close();
+    }
+  }
+
+  // --- Pokémon panel, bottom-right corner ---
+  // A filled rounded panel masks the cover so the sprite + label stay legible.
+  const int panelW = std::clamp(pageWidth / 3, 96, 200);
+  const int spriteSz = panelW - 2 * 8;
+  const int labelH = renderer.getLineHeight(UI_12_FONT_ID);
+  const int panelH = 8 + spriteSz + 4 + labelH + 8;
+  const int panelMargin = 12;
+  const int panelX = pageWidth - panelW - panelMargin;
+  const int panelY = pageHeight - panelH - panelMargin;
+
+  renderer.fillRect(panelX, panelY, panelW, panelH, false);  // white backdrop (clears cover)
+  renderer.drawRoundedRect(panelX, panelY, panelW, panelH, 2, 8, true);
+
+  const int sx = panelX + 8;
+  const int sy = panelY + 8;
+  bool drewSprite = drawCoverBmpInBox(renderer, PokemonSpriteCache::spritePath(speciesId), sx, sy, spriteSz);
+  if (!drewSprite) {
+    // Offline / not-yet-cached sprite: fall back to the book's cover thumbnail.
+    drewSprite = drawCoverBmpInBox(renderer, coverPath, sx, sy, spriteSz);
+  }
+  (void)drewSprite;  // empty box is acceptable; the label still conveys level
+
+  // "<Name> Lv N" centered under the sprite.
+  char label[40];
+  std::string name = assignment.name;
+  if (!name.empty()) {
+    name[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
+  }
+  std::snprintf(label, sizeof(label), "%s Lv%d", name.c_str(), level);
+  const std::string labelText = renderer.truncatedText(UI_12_FONT_ID, label, panelW - 12);
+  const int labelW = renderer.getTextWidth(UI_12_FONT_ID, labelText.c_str());
+  renderer.drawText(UI_12_FONT_ID, panelX + (panelW - labelW) / 2, sy + spriteSz + 4, labelText.c_str(), true);
+
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  return true;
+}
+#endif  // ENABLE_POKEMON_PARTY
 
 void SleepActivity::renderImageSleepScreen(const std::string& imagePath) const {
   const auto pageWidth = renderer.getScreenWidth();

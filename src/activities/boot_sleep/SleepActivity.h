@@ -46,6 +46,12 @@ class SleepActivity final : public Activity {
 #if ENABLE_HAIKU_CLOCK
   void renderHaikuClockSleepScreen() const;
 #endif
+#if ENABLE_POKEMON_PARTY
+  // Renders the open book's cover full-screen with its assigned Pokémon (current
+  // evolution stage for the reading-progress level) overlaid in the corner.
+  // Returns false when there is no current book / assignment to composite.
+  bool renderPokemonCoverSleepScreen() const;
+#endif
   bool tryRenderImagePath(const std::string& path) const;
 
   void drawLockIcon(int cx, int cy) const;

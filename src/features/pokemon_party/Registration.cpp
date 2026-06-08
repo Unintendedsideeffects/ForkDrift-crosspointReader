@@ -9,6 +9,7 @@
 #include "core/registries/WebRouteRegistry.h"
 #include "util/PathUtils.h"
 #include "util/PokemonBookDataStore.h"
+#include "util/PokemonSpriteCache.h"
 
 namespace features::pokemon_party {
 namespace {
@@ -95,6 +96,20 @@ void mountPokemonRoutes(WebServer* server) {
       server->send(500, "text/plain", "Failed to save pokemon data");
       return;
     }
+
+    // Best-effort: while the device is online for this web session, pre-fetch and
+    // convert the sprite for every evolution stage so the party theme and sleep
+    // screen can render real Pokémon (instead of the Poké Ball placeholder) as the
+    // reading level crosses each evolution threshold. Offline / SoftAP-only
+    // sessions simply skip this; the renderers fall back gracefully.
+    JsonVariantConst pokemon = request["pokemon"];
+    PokemonSpriteCache::ensureSpriteById(pokemon["speciesId"] | 0, PokemonSpriteCache::kDefaultSpriteSize,
+                                         PokemonSpriteCache::kDefaultSpriteSize);
+    for (JsonVariantConst stage : pokemon["evolutionChain"].as<JsonArrayConst>()) {
+      PokemonSpriteCache::ensureSpriteById(stage["speciesId"] | 0, PokemonSpriteCache::kDefaultSpriteSize,
+                                           PokemonSpriteCache::kDefaultSpriteSize);
+    }
+
     JsonDocument response;
     response["ok"] = true;
     response["path"] = bookPath;
