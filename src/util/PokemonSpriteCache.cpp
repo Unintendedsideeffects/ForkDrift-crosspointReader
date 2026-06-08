@@ -77,6 +77,29 @@ bool ensureSprite(int speciesId, const std::string& spriteUrl, int targetWidth, 
   return true;
 }
 
+bool saveSpriteBmp(int speciesId, const uint8_t* bmpBytes, size_t length) {
+  if (speciesId <= 0 || bmpBytes == nullptr || length == 0) {
+    return false;
+  }
+  Storage.mkdir("/.crosspoint");
+  Storage.mkdir(kPokemonDir);
+
+  const std::string outPath = spritePath(speciesId);
+  HalFile bmpFile;
+  if (!Storage.openFileForWrite("PKM", outPath, bmpFile)) {
+    return false;
+  }
+  const size_t written = bmpFile.write(bmpBytes, length);
+  bmpFile.close();
+  if (written != length) {
+    LOG_ERR("PKM", "sprite write short id=%d (%d/%d)", speciesId, (int)written, (int)length);
+    Storage.remove(outPath.c_str());
+    return false;
+  }
+  LOG_INF("PKM", "saved uploaded sprite id=%d (%d bytes)", speciesId, (int)length);
+  return true;
+}
+
 bool ensureSpriteById(int speciesId, int targetWidth, int targetHeight) {
   if (speciesId <= 0) {
     return false;

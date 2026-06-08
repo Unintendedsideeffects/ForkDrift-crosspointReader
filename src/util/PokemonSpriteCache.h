@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 
 // Shared, per-species cache of 1-bit Pokémon sprites rendered for the e-ink
@@ -34,5 +36,12 @@ bool ensureSprite(int speciesId, const std::string& spriteUrl, int targetWidth, 
 // Convenience: ensureSprite using the canonical PokéAPI pixel-sprite URL derived
 // from speciesId, so callers don't need the URL from pokemon.json.
 bool ensureSpriteById(int speciesId, int targetWidth, int targetHeight);
+
+// Store an already-converted 1-bit BMP for speciesId (bytes produced by the web
+// plugin, which downloads + converts in the browser so the device needs no
+// network). Overwrites any existing cached sprite. Returns false on bad args or
+// write failure. This is the offline-first population path; ensureSprite* remain
+// the on-device fallback when the device itself has connectivity.
+bool saveSpriteBmp(int speciesId, const uint8_t* bmpBytes, size_t length);
 
 }  // namespace PokemonSpriteCache
