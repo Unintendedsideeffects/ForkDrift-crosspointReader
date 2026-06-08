@@ -399,6 +399,10 @@ void SettingsActivity::toggleCurrentSetting() {
     return;
   }
 
+#if ENABLE_WIFI_CLOCK
+  // The timezone setting only exists when the WiFi clock is compiled in (the menu
+  // entry is gated the same way at buildSettingsLists); timezoneOffsetOptions() is
+  // likewise gated, so this handler must be too or lean profiles fail to link.
   if (setting.key != nullptr && std::strcmp(setting.key, "timeZoneOffset") == 0) {
     auto items = timezoneOffsetOptions();
     const int current = SETTINGS.timeZoneOffset;
@@ -416,6 +420,7 @@ void SettingsActivity::toggleCurrentSetting() {
                            });
     return;
   }
+#endif
 
   if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {
     // Toggle the boolean value using the member pointer

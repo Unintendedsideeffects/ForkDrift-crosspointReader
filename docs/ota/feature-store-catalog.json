@@ -30,7 +30,7 @@
       "featureFlags": "epub_support,bookerly_fonts,notosans_fonts,ota_updates,dark_mode,ble_wifi_provisioning,web_wifi_setup,usb_mass_storage",
       "downloadUrl": "https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases/download/latest/crosspoint-standard.bin",
       "checksum": "",
-      "binarySize": 0
+      "binarySize": 6070496
     },
     {
       "id": "latest-lean",
@@ -40,7 +40,7 @@
       "featureFlags": "epub_support",
       "downloadUrl": "https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases/download/latest/crosspoint-lean.bin",
       "checksum": "",
-      "binarySize": 0
+      "binarySize": 2633296
     },
     {
       "id": "latest-full",
@@ -50,7 +50,7 @@
       "featureFlags": "epub_support,lexenddeca_fonts,chareink_fonts,markdown,ota_updates,dark_mode,ble_wifi_provisioning,web_wifi_setup,usb_mass_storage,koreader_sync,calibre_sync,todo_planner,notes",
       "downloadUrl": "https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases/download/latest/crosspoint-full.bin",
       "checksum": "",
-      "binarySize": 0
+      "binarySize": 6094112
     }
   ]
 }
