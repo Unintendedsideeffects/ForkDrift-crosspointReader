@@ -633,6 +633,98 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* --- Party Team builder (extension of the wallpaper tool) --- */
+    .team-section {
+      scroll-margin-top: 16px;
+    }
+
+    .team-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .team-head h2 {
+      font-family: Georgia, "Times New Roman", Times, serif;
+      font-size: clamp(18px, 2vw, 24px);
+    }
+
+    .team-count {
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--gray-4);
+    }
+
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .slot {
+      border: 2px solid var(--black);
+      padding: 10px;
+      display: grid;
+      gap: 6px;
+      justify-items: center;
+      text-align: center;
+    }
+
+    .slot.empty {
+      border-style: dashed;
+      color: var(--gray-4);
+      align-content: center;
+      min-height: 168px;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .slot .sprite {
+      width: 96px;
+      height: 96px;
+      border: 2px solid var(--black);
+      image-rendering: pixelated;
+      object-fit: contain;
+      background: var(--white);
+    }
+
+    .slot .slot-name {
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .slot .slot-evos {
+      font-size: 11px;
+      color: var(--gray-4);
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .team-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .install-steps {
+      margin: 10px 0 0 18px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--gray-4);
+    }
+
+    .install-steps code {
+      background: var(--gray-10);
+      border: 1px solid var(--gray-8);
+      padding: 0 4px;
+    }
   </style>
 </head>
 <body>
@@ -641,6 +733,7 @@
       <a href="../../">Pages Home</a>
       <a href="../../configurator/">Configurator</a>
       <a class="active" href="./">Pokedex</a>
+      <a href="#teamSection">Party Team</a>
     </nav>
 
     <section class="layout">
@@ -658,6 +751,7 @@
             </div>
             <div class="search-live-name" id="pokemonResolvedName" hidden aria-live="polite"></div>
             <div class="search-suggestions" id="pokemonSuggestions" hidden></div>
+            <button class="btn" id="addToTeamBtn" type="button">★ Add this Pokemon to your Party</button>
           </div>
         </section>
 
@@ -807,6 +901,33 @@
         <a class="inline-link" href="https://m86-tech.github.io/BOOX-Pokedex-Wallpaper-Generator/" target="_blank" rel="noopener noreferrer">BOOX Pokedex Wallpaper Generator</a>
         by m86-tech, adapted for CrossPoint Reader and XTEink X4.
       </p>
+    </section>
+
+    <section class="card team-section" id="teamSection">
+      <div class="team-head">
+        <h2>Your Party Team</h2>
+        <span class="team-count" id="teamCount">0 / 6</span>
+      </div>
+      <p class="hint">
+        Search for a Pokemon above, then add it here. Build a team of up to six, then
+        download a bundle to drop on your CrossPoint SD card. Sprites for every evolution
+        stage are baked offline so the device needs no network to show or evolve them.
+      </p>
+      <div class="team-grid" id="teamGrid"></div>
+      <div class="team-actions">
+        <button class="btn" id="downloadTeamBtn" type="button" disabled>Download team bundle (.zip)</button>
+        <button class="btn secondary" id="clearTeamBtn" type="button" disabled>Clear team</button>
+      </div>
+      <div class="status" id="teamStatus">Your team is empty.</div>
+      <details>
+        <summary class="hint" style="cursor:pointer;">How to install the bundle on your device</summary>
+        <ol class="install-steps">
+          <li>Unzip the downloaded bundle.</li>
+          <li>Copy the <code>.crosspoint</code> folder to the <strong>root of your SD card</strong> (merge with the existing one).</li>
+          <li>It writes <code>/.crosspoint/pokemon/team.json</code> and <code>/.crosspoint/pokemon/sprite_&lt;id&gt;.bmp</code>.</li>
+          <li>Reinsert the card, then assign team members to books on the device (Pokemon Party theme &rarr; Assign Pokemon) — no network needed.</li>
+        </ol>
+      </details>
     </section>
   </div>
 
@@ -2892,6 +3013,263 @@
       refreshResolvedPokemonName(input.value, suggestionToken);
       previewSelection();
     });
+
+    // ===================================================================
+    // Party Team builder — an extension of the wallpaper tool above.
+    // It reuses the SAME search/getPokemonBundle pipeline; the only extra
+    // step is "add the resolved Pokemon to a team" and bake an offline
+    // bundle (.crosspoint/pokemon/{team.json, sprite_<id>.bmp}) the device
+    // reads with no network. Sprite bytes match PngToBmpConverter exactly.
+    // ===================================================================
+    const TEAM_SPRITE_SIZE = 96;   // == PokemonSpriteCache::kDefaultSpriteSize
+    const MAX_TEAM = 6;
+    const addToTeamBtn = document.getElementById("addToTeamBtn");
+    const teamGrid = document.getElementById("teamGrid");
+    const teamCountEl = document.getElementById("teamCount");
+    const teamStatusEl = document.getElementById("teamStatus");
+    const downloadTeamBtn = document.getElementById("downloadTeamBtn");
+    const clearTeamBtn = document.getElementById("clearTeamBtn");
+
+    const team = [];   // [{ payload, sprites: { speciesId: Uint8Array } }]
+    let teamBusy = false;
+
+    function setTeamStatus(message, isError) {
+      teamStatusEl.textContent = message;
+      teamStatusEl.classList.toggle("is-error", !!isError);
+    }
+
+    function extractResourceId(url) {
+      const match = String(url || "").match(/\/(\d+)\/?$/);
+      return match ? parseInt(match[1], 10) : null;
+    }
+
+    function canonicalSpriteUrl(speciesId) {
+      return "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/" + speciesId + ".png";
+    }
+
+    // RGBA -> device 1-bit BMP: 14+40 headers, negative height (top-down),
+    // palette idx0 black / idx1 white, MSB-first, rows padded to 4 bytes,
+    // bit=1 => light/transparent (matches quantize1bit polarity).
+    function encode1BitBmp(rgba, width, height) {
+      const bytesPerRow = (((width + 31) >> 5) << 2);
+      const imageSize = bytesPerRow * height;
+      const buf = new Uint8Array(62 + imageSize);
+      let p = 0;
+      const u16 = function(v) { buf[p++] = v & 255; buf[p++] = (v >> 8) & 255; };
+      const u32 = function(v) { buf[p++] = v & 255; buf[p++] = (v >>> 8) & 255; buf[p++] = (v >>> 16) & 255; buf[p++] = (v >>> 24) & 255; };
+      buf[p++] = 0x42; buf[p++] = 0x4D;
+      u32(62 + imageSize); u32(0); u32(62);
+      u32(40); u32(width); u32((-height) >>> 0); u16(1); u16(1); u32(0); u32(imageSize);
+      u32(2835); u32(2835); u32(2); u32(2);
+      buf[p++] = 0; buf[p++] = 0; buf[p++] = 0; buf[p++] = 0;             // idx0 black
+      buf[p++] = 0xFF; buf[p++] = 0xFF; buf[p++] = 0xFF; buf[p++] = 0;    // idx1 white
+      const start = 62;
+      for (let y = 0; y < height; y++) {
+        const row = start + y * bytesPerRow;
+        for (let x = 0; x < width; x++) {
+          const i = (y * width + x) * 4;
+          const alpha = rgba[i + 3];
+          const luma = rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114;
+          if (!(alpha >= 128 && luma < 128)) buf[row + (x >> 3)] |= (0x80 >> (x & 7));  // set => white
+        }
+      }
+      return buf;
+    }
+
+    async function spriteToBmp(speciesId) {
+      const img = await loadImage(canonicalSpriteUrl(speciesId));
+      const c = document.createElement("canvas");
+      c.width = TEAM_SPRITE_SIZE;
+      c.height = TEAM_SPRITE_SIZE;
+      const sctx = c.getContext("2d");
+      sctx.clearRect(0, 0, TEAM_SPRITE_SIZE, TEAM_SPRITE_SIZE);
+      const scale = Math.min(TEAM_SPRITE_SIZE / img.width, TEAM_SPRITE_SIZE / img.height) || 1;
+      const dw = Math.max(1, Math.round(img.width * scale));
+      const dh = Math.max(1, Math.round(img.height * scale));
+      sctx.drawImage(img, (TEAM_SPRITE_SIZE - dw) >> 1, (TEAM_SPRITE_SIZE - dh) >> 1, dw, dh);
+      return encode1BitBmp(sctx.getImageData(0, 0, TEAM_SPRITE_SIZE, TEAM_SPRITE_SIZE).data, TEAM_SPRITE_SIZE, TEAM_SPRITE_SIZE);
+    }
+
+    // Walk the evolution chain keeping speciesId + minLevel (the page's own
+    // getLinearEvolutionForms drops both, which the device payload needs).
+    function teamEvolutionStages(evolutionData) {
+      if (!evolutionData || !evolutionData.chain) return [];
+      const out = [];
+      let cur = evolutionData.chain;
+      while (cur && out.length < 3) {
+        const det = out.length === 0 ? null : (cur.evolution_details && cur.evolution_details[0]) || null;
+        out.push({
+          speciesId: extractResourceId(cur.species && cur.species.url),
+          name: cur.species && cur.species.name,
+          minLevel: det && typeof det.min_level === "number" ? det.min_level : null,
+          trigger: (det && det.trigger && det.trigger.name) || null,
+          text: getEvolutionText(det)
+        });
+        cur = cur.evolves_to && cur.evolves_to.length ? cur.evolves_to[0] : null;
+      }
+      return out.filter(function(f) { return f && f.name && f.speciesId; });
+    }
+
+    function buildTeamPayload(bundle) {
+      const pokemon = bundle.pokemon;
+      const species = bundle.species || null;
+      const stages = teamEvolutionStages(bundle.evolution);
+      return {
+        id: pokemon.id,
+        name: pokemon.name || "",
+        speciesId: (species && species.id) || extractResourceId(species && species.url) || pokemon.id,
+        speciesName: (species && species.name) || (pokemon.name || ""),
+        types: (pokemon.types || []).map(function(t) { return t && t.type && t.type.name; }).filter(Boolean),
+        sprites: {
+          pixel: getSpriteUrl(pokemon, "pixel") || "",
+          official: getSpriteUrl(pokemon, "official") || "",
+          home: getSpriteUrl(pokemon, "home") || ""
+        },
+        evolutionChain: stages.map(function(st, i) {
+          return {
+            order: i + 1,
+            speciesId: st.speciesId,
+            name: st.name || "",
+            minLevel: typeof st.minLevel === "number" ? st.minLevel : null,
+            trigger: st.trigger || null,
+            text: i === 0 ? null : st.text
+          };
+        }),
+        assignedAt: new Date().toISOString()
+      };
+    }
+
+    function evolutionSummary(payload) {
+      const chain = payload.evolutionChain || [];
+      if (chain.length <= 1) return "No evolutions";
+      return chain.map(function(s) {
+        return titleCase(s.name || "") + (s.minLevel ? " (Lv" + s.minLevel + ")" : "");
+      }).join(" → ");
+    }
+
+    function syncTeamButtons() {
+      downloadTeamBtn.disabled = teamBusy || team.length === 0;
+      clearTeamBtn.disabled = teamBusy || team.length === 0;
+      addToTeamBtn.disabled = teamBusy || team.length >= MAX_TEAM;
+      addToTeamBtn.textContent = team.length >= MAX_TEAM
+        ? "Party full (6 / 6)"
+        : "★ Add this Pokemon to your Party";
+      teamCountEl.textContent = team.length + " / " + MAX_TEAM;
+    }
+
+    function renderTeamGrid() {
+      const slots = [];
+      for (let i = 0; i < MAX_TEAM; i++) {
+        const member = team[i];
+        if (!member) {
+          slots.push('<div class="slot empty">Empty slot ' + (i + 1) + '</div>');
+          continue;
+        }
+        const sid = member.payload.speciesId || member.payload.id;
+        slots.push(
+          '<div class="slot">' +
+            '<img class="sprite" src="' + canonicalSpriteUrl(sid) + '" alt="" loading="lazy" />' +
+            '<div class="slot-name">' + escapeHtml(titleCase(member.payload.name)) + '</div>' +
+            '<div class="slot-evos">' + escapeHtml(evolutionSummary(member.payload)) + '</div>' +
+            '<button class="btn secondary" type="button" data-remove="' + i + '">Remove</button>' +
+          '</div>'
+        );
+      }
+      teamGrid.innerHTML = slots.join("");
+      Array.prototype.forEach.call(teamGrid.querySelectorAll("[data-remove]"), function(btn) {
+        btn.addEventListener("click", function() {
+          if (teamBusy) return;
+          team.splice(parseInt(btn.dataset.remove, 10), 1);
+          renderTeamGrid();
+          syncTeamButtons();
+          setTeamStatus(team.length ? "Removed. " + team.length + " on your team." : "Your team is empty.");
+        });
+      });
+      syncTeamButtons();
+    }
+
+    async function addCurrentToTeam() {
+      if (teamBusy) return;
+      if (team.length >= MAX_TEAM) {
+        setTeamStatus("Team is full (max " + MAX_TEAM + ").", true);
+        return;
+      }
+      // Reuse the wallpaper tool's resolved/previewed Pokemon and its cached
+      // bundle pipeline — same search, no second lookup engine.
+      const rawInput = lastRendered ? String(lastRendered.id) : getActivePokemonSearchInput();
+      if (!rawInput) {
+        setTeamStatus("Search for a Pokemon above first.", true);
+        return;
+      }
+
+      teamBusy = true;
+      syncTeamButtons();
+      try {
+        setTeamStatus("Fetching data + baking offline sprites...");
+        const bundle = await getPokemonBundle(rawInput);
+        const payload = buildTeamPayload(bundle);
+        if (team.some(function(m) { return m.payload.id === payload.id; })) {
+          setTeamStatus(titleCase(payload.name) + " is already on your team.", true);
+          return;
+        }
+        const sprites = {};
+        const ids = [payload.speciesId].concat(payload.evolutionChain.map(function(s) { return s.speciesId; })).filter(Boolean);
+        for (let i = 0; i < ids.length; i++) {
+          const sid = ids[i];
+          if (!sprites[sid]) sprites[sid] = await spriteToBmp(sid);
+        }
+        team.push({ payload: payload, sprites: sprites });
+        renderTeamGrid();
+        setTeamStatus("Added " + titleCase(payload.name) + " (" + team.length + " / " + MAX_TEAM + ").");
+      } catch (error) {
+        console.error(error);
+        setTeamStatus("Could not add: " + error.message, true);
+      } finally {
+        teamBusy = false;
+        syncTeamButtons();
+      }
+    }
+
+    function clearTeam() {
+      if (teamBusy || !team.length) return;
+      team.length = 0;
+      renderTeamGrid();
+      setTeamStatus("Your team is empty.");
+    }
+
+    async function downloadTeamBundle() {
+      if (teamBusy || team.length === 0) return;
+      teamBusy = true;
+      syncTeamButtons();
+      try {
+        setTeamStatus("Packaging bundle...");
+        const zip = new JSZip();
+        const dir = zip.folder(".crosspoint").folder("pokemon");
+        dir.file("team.json", JSON.stringify({ team: team.map(function(m) { return m.payload; }) }, null, 2));
+        const seen = {};
+        team.forEach(function(member) {
+          Object.keys(member.sprites).forEach(function(sid) {
+            if (seen[sid]) return;
+            seen[sid] = true;
+            dir.file("sprite_" + sid + ".bmp", member.sprites[sid]);
+          });
+        });
+        const blob = await zip.generateAsync({ type: "blob" });
+        saveAs(blob, "forkdrift-pokemon-team.zip");
+        setTeamStatus("Bundle downloaded. Unzip the .crosspoint folder to your SD card root.");
+      } catch (error) {
+        console.error(error);
+        setTeamStatus("Packaging failed: " + error.message, true);
+      } finally {
+        teamBusy = false;
+        syncTeamButtons();
+      }
+    }
+
+    addToTeamBtn.addEventListener("click", addCurrentToTeam);
+    downloadTeamBtn.addEventListener("click", downloadTeamBundle);
+    clearTeamBtn.addEventListener("click", clearTeam);
+    renderTeamGrid();
 
     syncCustomFontField();
     updateSpriteScaleLabel();
