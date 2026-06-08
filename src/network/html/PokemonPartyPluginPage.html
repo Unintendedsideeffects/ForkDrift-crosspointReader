@@ -281,6 +281,69 @@
       flex: 1 1 120px;
     }
 
+    .team-search {
+      position: relative;
+      margin-bottom: 12px;
+    }
+
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+    }
+
+    .team-slot {
+      border: 2px solid var(--black);
+      background: var(--white);
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+      justify-items: center;
+      text-align: center;
+    }
+
+    .team-slot.is-empty {
+      border-style: dashed;
+      color: var(--gray-4);
+      align-content: center;
+      min-height: 150px;
+    }
+
+    .team-sprite {
+      width: 96px;
+      height: 96px;
+      border: 2px solid var(--black);
+      background: var(--white);
+      image-rendering: pixelated;
+      object-fit: contain;
+    }
+
+    .team-name {
+      font-size: 0.9em;
+      font-weight: 700;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    .team-evos {
+      font-size: 0.72em;
+      color: var(--gray-4);
+      line-height: 1.3;
+      word-break: break-word;
+    }
+
+    .team-pick-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .team-pick-row .btn {
+      flex: 1 1 auto;
+      padding: 6px 8px;
+      font-size: 0.8em;
+    }
+
     @media (max-width: 640px) {
       .party-book {
         grid-template-columns: 60px 1fr;
@@ -301,11 +364,23 @@
 
 <div class="card">
   <h1>Pokemon Party</h1>
-  <p class="subtitle">The six most recent books become the active roster. Search for a Pokemon, store it on the book cache, or clear the slot.</p>
-  <div class="status" id="statusBox">Loading recent books...</div>
+  <p class="subtitle">Build a team of up to six Pokemon here, then assign them to books. Sprites and evolutions are downloaded and baked onto the device now, so the party screen works fully offline afterward.</p>
+  <div class="status" id="statusBox">Loading...</div>
 </div>
 
 <div class="card">
+  <h1>Your Team</h1>
+  <p class="subtitle">Search to add a Pokemon to your team (max 6). Each one is prebaked: its data and every evolution-stage sprite are stored on the device.</p>
+  <div class="team-search pokemon-picker">
+    <input type="text" id="teamSearchInput" placeholder="Search Pokemon by name or #id to add to team" autocomplete="off" spellcheck="false" />
+    <div class="pokemon-picker-results" id="teamSearchResults"></div>
+  </div>
+  <div class="team-grid" id="teamGrid"></div>
+</div>
+
+<div class="card">
+  <h1>Assign To Books</h1>
+  <p class="subtitle">The six most recent books are the active party. Assign a team member to each, search a Pokemon directly, or clear the slot.</p>
   <div class="party-grid" id="partyGrid"></div>
 </div>
 
@@ -524,6 +599,13 @@
     Array.from(document.querySelectorAll("input[data-assign-input]")).forEach(function(input) {
       input.disabled = busy;
     });
+    Array.from(document.querySelectorAll("[data-team-add],[data-team-remove]")).forEach(function(button) {
+      button.disabled = busy;
+    });
+    const teamInput = document.getElementById("teamSearchInput");
+    if (teamInput) {
+      teamInput.disabled = busy;
+    }
     if (busy) {
       closeAllPickerResults();
     }
@@ -772,6 +854,12 @@
          '      ' + assignedText,
          '    </div>',
          '  </div>',
+              team.length
+                ? '  <div class="team-pick-row">' + team.map(function(member, teamIndex) {
+                    const memberName = escapeHtml(titleCase(member.name || ("#" + getTeamMemberSpeciesId(member))));
+                    return '<button class="btn" type="button" data-team-assign="' + teamIndex + '" data-book-path="' + encodedPath + '">' + memberName + '</button>';
+                  }).join("") + '</div>'
+                : '',
          '  <div class="assign-row">',
          '    <div class="pokemon-picker">',
          '      <input type="text" data-assign-input="1" data-book-path="' + encodedPath + '" data-selected-pokemon-id="' + (assignedId || "") + '" value="' + escapeHtml(inputValue) + '" placeholder="Search Pokemon by name or #id" autocomplete="off" spellcheck="false" />',
@@ -795,6 +883,13 @@
     Array.from(partyGrid.querySelectorAll("[data-party-action='clear']")).forEach(function(button) {
       button.addEventListener("click", function() {
         clearAssignedPokemon(decodeURIComponent(button.getAttribute("data-book-path") || ""));
+      });
+    });
+
+    Array.from(partyGrid.querySelectorAll("[data-team-assign]")).forEach(function(button) {
+      button.addEventListener("click", function() {
+        const path = decodeURIComponent(button.getAttribute("data-book-path") || "");
+        assignTeamMemberToBook(path, parseInt(button.getAttribute("data-team-assign"), 10));
       });
     });
 
@@ -901,6 +996,8 @@
       } catch (fetchError) {
         console.error(fetchError);
       }
+      // Bake sprites for every evolution stage so this book renders offline too.
+      await prebakeBundleSprites(payload);
       const response = await fetch("/api/book-pokemon", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -946,7 +1043,344 @@
     }
   }
 
+  // ---- Browser-side sprite baking (offline-first) ----
+  // The browser has internet; the device may not. So we download each sprite
+  // from PokeAPI here, convert it to the device's exact 1-bit BMP, and upload the
+  // bytes. The device then renders real Pokemon (and their evolutions) offline.
+  const teamGrid = document.getElementById("teamGrid");
+  const teamSearchInput = document.getElementById("teamSearchInput");
+  const teamSearchResults = document.getElementById("teamSearchResults");
+  const MAX_TEAM = 6;
+  const SPRITE_SIZE = 96;  // matches PokemonSpriteCache::kDefaultSpriteSize
+  let team = [];
+  const uploadedSpecies = new Set();
+
+  function canonicalPixelSpriteUrl(speciesId) {
+    // Same URL the device's PokemonSpriteCache::ensureSpriteById would use.
+    return "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/" + speciesId + ".png";
+  }
+
+  function getTeamMemberSpeciesId(member) {
+    return (member && (member.speciesId || member.id)) || 0;
+  }
+
+  function loadImage(url) {
+    return new Promise(function(resolve, reject) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";  // raw.githubusercontent.com sends ACAO:* so the canvas stays untainted
+      img.onload = function() { resolve(img); };
+      img.onerror = function() { reject(new Error("Sprite image failed: " + url)); };
+      img.src = url;
+    });
+  }
+
+  function bytesToBase64(bytes) {
+    let binary = "";
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+  }
+
+  // Encode RGBA pixels into the device's exact 1-bit BMP, matching
+  // PngToBmpConverter byte-for-byte: 14-byte file header + 40-byte DIB header,
+  // negative height (top-down rows), bitCount=1, 8-byte palette (idx0 black,
+  // idx1 white), rows padded to 4 bytes, MSB-first. Polarity matches the device's
+  // quantize1bit: bit=1 => light/transparent (white), bit=0 => dark (black), so
+  // the Pokemon paints as a black-on-white silhouette suited to e-ink.
+  function encode1BitBmpBase64(rgba, width, height) {
+    const bytesPerRow = (((width + 31) >> 5) << 2);
+    const imageSize = bytesPerRow * height;
+    const fileSize = 62 + imageSize;
+    const buf = new Uint8Array(fileSize);
+    let p = 0;
+    function u16(v) { buf[p++] = v & 255; buf[p++] = (v >> 8) & 255; }
+    function u32(v) { buf[p++] = v & 255; buf[p++] = (v >>> 8) & 255; buf[p++] = (v >>> 16) & 255; buf[p++] = (v >>> 24) & 255; }
+    buf[p++] = 0x42; buf[p++] = 0x4D;            // "BM"
+    u32(fileSize); u32(0); u32(62);              // file header (size, reserved, pixel offset)
+    u32(40); u32(width); u32((-height) >>> 0);   // DIB: header size, width, -height
+    u16(1); u16(1); u32(0); u32(imageSize);      // planes=1, bpp=1, no compression
+    u32(2835); u32(2835); u32(2); u32(2);        // x/y ppm, colors used/important
+    buf[p++] = 0x00; buf[p++] = 0x00; buf[p++] = 0x00; buf[p++] = 0x00;  // palette idx0 = black
+    buf[p++] = 0xFF; buf[p++] = 0xFF; buf[p++] = 0xFF; buf[p++] = 0x00;  // palette idx1 = white
+    const dataStart = 62;
+    for (let y = 0; y < height; y++) {
+      const rowBase = dataStart + y * bytesPerRow;
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        const alpha = rgba[i + 3];
+        const luma = rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114;
+        const isBlack = alpha >= 128 && luma < 128;
+        if (!isBlack) {
+          buf[rowBase + (x >> 3)] |= (0x80 >> (x & 7));  // set bit => white
+        }
+      }
+    }
+    return bytesToBase64(buf);
+  }
+
+  async function spriteUrlToDeviceBmpBase64(url, size) {
+    const img = await loadImage(url);
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, size, size);
+    const scale = Math.min(size / img.width, size / img.height) || 1;
+    const dw = Math.max(1, Math.round(img.width * scale));
+    const dh = Math.max(1, Math.round(img.height * scale));
+    ctx.drawImage(img, (size - dw) >> 1, (size - dh) >> 1, dw, dh);
+    const imageData = ctx.getImageData(0, 0, size, size);
+    return encode1BitBmpBase64(imageData.data, size, size);
+  }
+
+  async function uploadSpriteForSpecies(speciesId) {
+    if (!speciesId || uploadedSpecies.has(speciesId)) {
+      return;
+    }
+    const bmpBase64 = await spriteUrlToDeviceBmpBase64(canonicalPixelSpriteUrl(speciesId), SPRITE_SIZE);
+    const response = await fetch("/api/pokemon-sprite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ speciesId: speciesId, bmpBase64: bmpBase64 })
+    });
+    if (!response.ok) {
+      throw new Error("Sprite upload failed (" + response.status + ")");
+    }
+    uploadedSpecies.add(speciesId);
+  }
+
+  // Bake the base species + every evolution stage, so evolutions render offline.
+  async function prebakeBundleSprites(payload) {
+    const ids = [];
+    if (payload.speciesId) ids.push(payload.speciesId);
+    (payload.evolutionChain || []).forEach(function(stage) {
+      if (stage && stage.speciesId) ids.push(stage.speciesId);
+    });
+    for (let i = 0; i < ids.length; i++) {
+      try {
+        await uploadSpriteForSpecies(ids[i]);
+      } catch (error) {
+        console.error(error);  // best-effort; device draws a Poke Ball placeholder if a sprite is missing
+      }
+    }
+  }
+
+  // ---- Team roster (prebaked, stored on device) ----
+  async function loadTeam() {
+    try {
+      const response = await fetch("/api/pokemon-team");
+      if (response.ok) {
+        const data = await response.json();
+        team = Array.isArray(data) ? data.slice(0, MAX_TEAM) : [];
+      }
+    } catch (error) {
+      console.error(error);
+      team = [];
+    }
+    renderTeam();
+  }
+
+  async function saveTeam() {
+    const response = await fetch("/api/pokemon-team", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ team: team })
+    });
+    if (!response.ok) {
+      throw new Error("Saving team failed (" + response.status + ")");
+    }
+  }
+
+  function evolutionSummary(member) {
+    const chain = (member && member.evolutionChain) || [];
+    if (chain.length <= 1) return "No evolutions";
+    return chain.map(function(stage) {
+      const name = titleCase(stage.name || "");
+      return stage.minLevel ? name + " (Lv" + stage.minLevel + ")" : name;
+    }).join(" -> ");
+  }
+
+  function renderTeam() {
+    if (!teamGrid) return;
+    const slots = [];
+    for (let i = 0; i < MAX_TEAM; i++) {
+      const member = team[i];
+      if (!member) {
+        slots.push('<div class="team-slot is-empty">Empty slot ' + (i + 1) + '</div>');
+        continue;
+      }
+      const speciesId = getTeamMemberSpeciesId(member);
+      const name = escapeHtml(titleCase(member.name || member.speciesName || ("#" + speciesId)));
+      slots.push([
+        '<div class="team-slot">',
+        '  <img class="team-sprite" src="' + canonicalPixelSpriteUrl(speciesId) + '" alt="' + name + '" loading="lazy" />',
+        '  <div class="team-name">' + name + '</div>',
+        '  <div class="team-evos">' + escapeHtml(evolutionSummary(member)) + '</div>',
+        '  <button class="btn secondary" type="button" data-team-remove="' + i + '">Remove</button>',
+        '</div>'
+      ].join(""));
+    }
+    teamGrid.innerHTML = slots.join("");
+    Array.from(teamGrid.querySelectorAll("[data-team-remove]")).forEach(function(button) {
+      button.addEventListener("click", function() {
+        removeFromTeam(parseInt(button.getAttribute("data-team-remove"), 10));
+      });
+    });
+    syncButtons();
+  }
+
+  async function addPokemonToTeamById(id) {
+    if (busy) return;
+    if (team.length >= MAX_TEAM) {
+      setStatus("Team is full (max " + MAX_TEAM + "). Remove one first.", true);
+      return;
+    }
+    if (team.some(function(m) { return m.id === id || getTeamMemberSpeciesId(m) === id; })) {
+      setStatus("That Pokemon is already on your team.", true);
+      return;
+    }
+    const entry = getPokemonEntryById(id);
+    try {
+      busy = true;
+      syncButtons();
+      setStatus("Adding " + (entry ? entry.label : ("#" + id)) + " and baking sprites...", false);
+      let payload = null;
+      try {
+        payload = buildPokemonAssignmentPayload(await fetchPokemonBundleById(id));
+      } catch (error) {
+        console.error(error);
+        payload = entry ? buildFallbackPokemonAssignment(entry) : null;
+      }
+      if (!payload) {
+        throw new Error("Could not load that Pokemon.");
+      }
+      await prebakeBundleSprites(payload);
+      team.push(payload);
+      await saveTeam();
+      renderTeam();
+      renderParty();  // refresh the from-team quick-pick rows
+      setStatus("Added " + titleCase(payload.name || "") + " to your team.", false);
+    } catch (error) {
+      console.error(error);
+      setStatus("Add failed: " + error.message, true);
+    } finally {
+      busy = false;
+      syncButtons();
+    }
+  }
+
+  async function removeFromTeam(index) {
+    if (busy || !team[index]) return;
+    try {
+      busy = true;
+      syncButtons();
+      team.splice(index, 1);
+      await saveTeam();
+      renderTeam();
+      renderParty();
+      setStatus("Removed from team.", false);
+    } catch (error) {
+      console.error(error);
+      setStatus("Remove failed: " + error.message, true);
+    } finally {
+      busy = false;
+      syncButtons();
+    }
+  }
+
+  async function assignTeamMemberToBook(path, teamIndex) {
+    if (busy) return;
+    const member = team[teamIndex];
+    if (!member) return;
+    const book = getBookByPath(path);
+    try {
+      busy = true;
+      syncButtons();
+      setStatus("Assigning " + titleCase(member.name || "") + " to " + (book && book.title ? book.title : path) + "...", false);
+      await prebakeBundleSprites(member);  // already baked at team time; deduped + cheap
+      const payload = Object.assign({}, member, { assignedAt: new Date().toISOString() });
+      const response = await fetch("/api/book-pokemon", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: path, pokemon: payload })
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      await loadPartyBooks();
+      setStatus("Assigned " + titleCase(member.name || "") + " to " + (book && book.title ? book.title : path) + ".", false);
+    } catch (error) {
+      console.error(error);
+      setStatus("Assign failed: " + error.message, true);
+    } finally {
+      busy = false;
+      syncButtons();
+    }
+  }
+
+  function renderTeamSearchResults() {
+    if (!teamSearchResults) return;
+    const rawQuery = String(teamSearchInput.value || "").trim();
+    if (!rawQuery || busy) {
+      teamSearchResults.innerHTML = "";
+      teamSearchResults.classList.remove("is-open");
+      return;
+    }
+    const matches = getPokemonMatches(rawQuery, 8);
+    if (!matches.length) {
+      teamSearchResults.innerHTML = '<div class="pokemon-picker-empty">No Pokemon match.</div>';
+      teamSearchResults.classList.add("is-open");
+      return;
+    }
+    teamSearchResults.innerHTML = matches.map(function(entry, index) {
+      return [
+        '<button class="pokemon-picker-option' + (index === 0 ? ' is-active' : '') + '" type="button" data-team-add="' + entry.id + '">',
+        '  <div class="pokemon-picker-option-name">' + escapeHtml(entry.label) + '</div>',
+        '  <div class="pokemon-picker-option-meta">' + escapeHtml(entry.name) + '</div>',
+        '</button>'
+      ].join("");
+    }).join("");
+    teamSearchResults.classList.add("is-open");
+    Array.from(teamSearchResults.querySelectorAll("[data-team-add]")).forEach(function(button) {
+      button.addEventListener("click", function() {
+        const id = parseInt(button.getAttribute("data-team-add"), 10);
+        teamSearchInput.value = "";
+        teamSearchResults.innerHTML = "";
+        teamSearchResults.classList.remove("is-open");
+        addPokemonToTeamById(id);
+      });
+    });
+  }
+
+  function wireTeamSearch() {
+    if (!teamSearchInput) return;
+    teamSearchInput.addEventListener("input", renderTeamSearchResults);
+    teamSearchInput.addEventListener("focus", renderTeamSearchResults);
+    teamSearchInput.addEventListener("blur", function() {
+      setTimeout(function() {
+        teamSearchResults.innerHTML = "";
+        teamSearchResults.classList.remove("is-open");
+      }, 120);
+    });
+    teamSearchInput.addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const matches = getPokemonMatches(teamSearchInput.value, 1);
+        if (matches.length) {
+          teamSearchInput.value = "";
+          teamSearchResults.innerHTML = "";
+          teamSearchResults.classList.remove("is-open");
+          addPokemonToTeamById(matches[0].id);
+        }
+      }
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function() {
+    wireTeamSearch();
+    loadTeam();
     loadPartyBooks();
   });
 </script>

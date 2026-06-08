@@ -28,6 +28,9 @@ enum class HomeMenuId : uint8_t {
   Notes,
   Bookmarks,
   FileTransfer,
+#if ENABLE_POKEMON_PARTY
+  AssignPokemon,  // Pokémon-party theme only: offline assign of a team member to a book
+#endif
   Settings,
 };
 
@@ -89,6 +92,9 @@ class HomeActivity final : public Activity {
   void onNotesOpen();
   void onSettingsOpen();
   void onFileTransferOpen();
+#if ENABLE_POKEMON_PARTY
+  void onAssignPokemonOpen();
+#endif
   void onOpdsBrowserOpen();
   void onTodoOpen();
   void onAnkiOpen();

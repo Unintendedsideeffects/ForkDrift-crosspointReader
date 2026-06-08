@@ -23,6 +23,9 @@
 #include "BookmarkStore.h"
 #include "activities/home/BookmarksHomeActivity.h"
 #endif
+#if ENABLE_POKEMON_PARTY
+#include "activities/home/PokemonAssignActivity.h"
+#endif
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
@@ -309,6 +312,9 @@ void HomeActivity::buildMenuModel() {
   // holds the actions. Composition matches what the grid actually renders.
   if (homeIsGridNav()) {
     if (isPokemonPartyHomeMode()) {
+#if ENABLE_POKEMON_PARTY
+      menuModel.push_back(HomeMenuId::AssignPokemon);
+#endif
       menuModel.push_back(HomeMenuId::Settings);
       return;
     }
@@ -586,6 +592,10 @@ std::string HomeActivity::menuIdLabel(const HomeMenuId id, const bool gridStyle)
 #endif
     case HomeMenuId::FileTransfer:
       return std::string(tr(STR_FILE_TRANSFER));
+#if ENABLE_POKEMON_PARTY
+    case HomeMenuId::AssignPokemon:
+      return std::string(tr(STR_PARTY_ASSIGN));
+#endif
     case HomeMenuId::Settings:
       return std::string(tr(STR_SETTINGS_TITLE));
     default:
@@ -613,6 +623,10 @@ UIIcon HomeActivity::menuIdIcon(const HomeMenuId id) const {
 #endif
     case HomeMenuId::FileTransfer:
       return UIIcon::Transfer;
+#if ENABLE_POKEMON_PARTY
+    case HomeMenuId::AssignPokemon:
+      return UIIcon::Book;
+#endif
     case HomeMenuId::Settings:
     default:
       return UIIcon::Settings;
@@ -653,6 +667,11 @@ void HomeActivity::activateMenuId(const HomeMenuId id) {
     case HomeMenuId::FileTransfer:
       onFileTransferOpen();
       break;
+#if ENABLE_POKEMON_PARTY
+    case HomeMenuId::AssignPokemon:
+      onAssignPokemonOpen();
+      break;
+#endif
     case HomeMenuId::Settings:
       onSettingsOpen();
       break;
@@ -1876,6 +1895,13 @@ void HomeActivity::onMyLibraryOpen() { activityManager.goToMyLibrary(); }
 void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
 
 void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
+
+#if ENABLE_POKEMON_PARTY
+void HomeActivity::onAssignPokemonOpen() {
+  startActivityForResult(std::make_unique<PokemonAssignActivity>(renderer, mappedInput),
+                         [this](const ActivityResult&) { requestUpdate(); });
+}
+#endif
 
 void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
 
