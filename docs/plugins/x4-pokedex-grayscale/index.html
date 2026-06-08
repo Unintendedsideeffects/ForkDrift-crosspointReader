@@ -668,12 +668,57 @@
     }
 
     .slot {
+      position: relative;
       border: 2px solid var(--black);
       padding: 10px;
       display: grid;
       gap: 6px;
       justify-items: center;
       text-align: center;
+    }
+
+    .slot[draggable="true"] {
+      cursor: grab;
+    }
+
+    .slot[draggable="true"]:active {
+      cursor: grabbing;
+    }
+
+    .slot.dragging {
+      opacity: 0.35;
+    }
+
+    .slot.drag-over {
+      outline: 3px dashed var(--black);
+      outline-offset: -3px;
+      background: var(--gray-12);
+    }
+
+    .slot-order {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 4px;
+      border: 2px solid var(--black);
+      background: var(--black);
+      color: var(--white);
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 16px;
+      text-align: center;
+    }
+
+    .slot-handle {
+      position: absolute;
+      top: 4px;
+      right: 6px;
+      font-size: 12px;
+      color: var(--gray-4);
+      letter-spacing: -1px;
+      pointer-events: none;
     }
 
     .slot.empty {
@@ -909,12 +954,15 @@
         <span class="team-count" id="teamCount">0 / 6</span>
       </div>
       <p class="hint">
-        Search for a Pokemon above, then add it here. Build a team of up to six, then
-        download a bundle to drop on your CrossPoint SD card. Sprites for every evolution
-        stage are baked offline so the device needs no network to show or evolve them.
+        Search for a Pokemon above, then add it here — or roll a random team. Drag the
+        slots to reorder; <strong>order matters</strong> (slot 1 is your lead). Build a team
+        of up to six, then download a bundle to drop on your CrossPoint SD card. Sprites for
+        every evolution stage are baked offline so the device needs no network to show or
+        evolve them.
       </p>
       <div class="team-grid" id="teamGrid"></div>
       <div class="team-actions">
+        <button class="btn secondary" id="randomTeamBtn" type="button">🎲 Random team</button>
         <button class="btn" id="downloadTeamBtn" type="button" disabled>Download team bundle (.zip)</button>
         <button class="btn secondary" id="clearTeamBtn" type="button" disabled>Clear team</button>
       </div>
@@ -3029,9 +3077,11 @@
     const teamStatusEl = document.getElementById("teamStatus");
     const downloadTeamBtn = document.getElementById("downloadTeamBtn");
     const clearTeamBtn = document.getElementById("clearTeamBtn");
+    const randomTeamBtn = document.getElementById("randomTeamBtn");
 
-    const team = [];   // [{ payload, sprites: { speciesId: Uint8Array } }]
+    const team = [];   // [{ payload, sprites: { speciesId: Uint8Array } }] — order == team.json order
     let teamBusy = false;
+    let dragFromIndex = null;
 
     function setTeamStatus(message, isError) {
       teamStatusEl.textContent = message;
@@ -3148,13 +3198,21 @@
     }
 
     function syncTeamButtons() {
+      const full = team.length >= MAX_TEAM;
       downloadTeamBtn.disabled = teamBusy || team.length === 0;
       clearTeamBtn.disabled = teamBusy || team.length === 0;
-      addToTeamBtn.disabled = teamBusy || team.length >= MAX_TEAM;
-      addToTeamBtn.textContent = team.length >= MAX_TEAM
+      randomTeamBtn.disabled = teamBusy || full;
+      addToTeamBtn.disabled = teamBusy || full;
+      addToTeamBtn.textContent = full
         ? "Party full (6 / 6)"
         : "★ Add this Pokemon to your Party";
       teamCountEl.textContent = team.length + " / " + MAX_TEAM;
+    }
+
+    function moveTeamMember(from, to) {
+      if (from === to || from < 0 || to < 0 || from >= team.length || to >= team.length) return;
+      const moved = team.splice(from, 1)[0];
+      team.splice(to, 0, moved);
     }
 
     function renderTeamGrid() {
@@ -3162,13 +3220,15 @@
       for (let i = 0; i < MAX_TEAM; i++) {
         const member = team[i];
         if (!member) {
-          slots.push('<div class="slot empty">Empty slot ' + (i + 1) + '</div>');
+          slots.push('<div class="slot empty" data-slot="' + i + '">Empty slot ' + (i + 1) + '</div>');
           continue;
         }
         const sid = member.payload.speciesId || member.payload.id;
         slots.push(
-          '<div class="slot">' +
-            '<img class="sprite" src="' + canonicalSpriteUrl(sid) + '" alt="" loading="lazy" />' +
+          '<div class="slot" draggable="true" data-slot="' + i + '">' +
+            '<span class="slot-order">#' + (i + 1) + '</span>' +
+            '<span class="slot-handle" aria-hidden="true">⠿</span>' +
+            '<img class="sprite" src="' + canonicalSpriteUrl(sid) + '" alt="" loading="lazy" draggable="false" />' +
             '<div class="slot-name">' + escapeHtml(titleCase(member.payload.name)) + '</div>' +
             '<div class="slot-evos">' + escapeHtml(evolutionSummary(member.payload)) + '</div>' +
             '<button class="btn secondary" type="button" data-remove="' + i + '">Remove</button>' +
@@ -3176,16 +3236,73 @@
         );
       }
       teamGrid.innerHTML = slots.join("");
+
       Array.prototype.forEach.call(teamGrid.querySelectorAll("[data-remove]"), function(btn) {
         btn.addEventListener("click", function() {
           if (teamBusy) return;
           team.splice(parseInt(btn.dataset.remove, 10), 1);
           renderTeamGrid();
-          syncTeamButtons();
           setTeamStatus(team.length ? "Removed. " + team.length + " on your team." : "Your team is empty.");
         });
       });
+
+      // Drag-to-reorder: the slot order IS the team.json order (slot 1 = lead).
+      Array.prototype.forEach.call(teamGrid.querySelectorAll('.slot[draggable="true"]'), function(slot) {
+        slot.addEventListener("dragstart", function(event) {
+          if (teamBusy) { event.preventDefault(); return; }
+          dragFromIndex = parseInt(slot.dataset.slot, 10);
+          slot.classList.add("dragging");
+          event.dataTransfer.effectAllowed = "move";
+          try { event.dataTransfer.setData("text/plain", String(dragFromIndex)); } catch (_e) {}
+        });
+        slot.addEventListener("dragend", function() {
+          dragFromIndex = null;
+          Array.prototype.forEach.call(teamGrid.querySelectorAll(".slot"), function(s) {
+            s.classList.remove("dragging", "drag-over");
+          });
+        });
+        slot.addEventListener("dragover", function(event) {
+          if (dragFromIndex === null) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          slot.classList.add("drag-over");
+        });
+        slot.addEventListener("dragleave", function() {
+          slot.classList.remove("drag-over");
+        });
+        slot.addEventListener("drop", function(event) {
+          event.preventDefault();
+          slot.classList.remove("drag-over");
+          if (dragFromIndex === null) return;
+          const to = parseInt(slot.dataset.slot, 10);
+          if (to < team.length) {
+            moveTeamMember(dragFromIndex, to);
+            renderTeamGrid();
+            setTeamStatus("Reordered — slot 1 is your lead.");
+          }
+          dragFromIndex = null;
+        });
+      });
+
       syncTeamButtons();
+    }
+
+    function teamHasId(id) {
+      return team.some(function(m) { return m.payload.id === id; });
+    }
+
+    // Fetch via the wallpaper tool's cached bundle pipeline (same search), build
+    // the device payload, and bake a 1-bit sprite for every evolution stage.
+    async function bakeMember(rawInput) {
+      const bundle = await getPokemonBundle(rawInput);
+      const payload = buildTeamPayload(bundle);
+      const sprites = {};
+      const ids = [payload.speciesId].concat(payload.evolutionChain.map(function(s) { return s.speciesId; })).filter(Boolean);
+      for (let i = 0; i < ids.length; i++) {
+        const sid = ids[i];
+        if (!sprites[sid]) sprites[sid] = await spriteToBmp(sid);
+      }
+      return { payload: payload, sprites: sprites };
     }
 
     async function addCurrentToTeam() {
@@ -3194,8 +3311,6 @@
         setTeamStatus("Team is full (max " + MAX_TEAM + ").", true);
         return;
       }
-      // Reuse the wallpaper tool's resolved/previewed Pokemon and its cached
-      // bundle pipeline — same search, no second lookup engine.
       const rawInput = lastRendered ? String(lastRendered.id) : getActivePokemonSearchInput();
       if (!rawInput) {
         setTeamStatus("Search for a Pokemon above first.", true);
@@ -3205,25 +3320,56 @@
       teamBusy = true;
       syncTeamButtons();
       try {
+        // Manual adds may duplicate a Pokemon on purpose (two of the same is fine).
         setTeamStatus("Fetching data + baking offline sprites...");
-        const bundle = await getPokemonBundle(rawInput);
-        const payload = buildTeamPayload(bundle);
-        if (team.some(function(m) { return m.payload.id === payload.id; })) {
-          setTeamStatus(titleCase(payload.name) + " is already on your team.", true);
-          return;
-        }
-        const sprites = {};
-        const ids = [payload.speciesId].concat(payload.evolutionChain.map(function(s) { return s.speciesId; })).filter(Boolean);
-        for (let i = 0; i < ids.length; i++) {
-          const sid = ids[i];
-          if (!sprites[sid]) sprites[sid] = await spriteToBmp(sid);
-        }
-        team.push({ payload: payload, sprites: sprites });
+        const member = await bakeMember(rawInput);
+        team.push(member);
         renderTeamGrid();
-        setTeamStatus("Added " + titleCase(payload.name) + " (" + team.length + " / " + MAX_TEAM + ").");
+        setTeamStatus("Added " + titleCase(member.payload.name) + " (" + team.length + " / " + MAX_TEAM + ").");
       } catch (error) {
         console.error(error);
         setTeamStatus("Could not add: " + error.message, true);
+      } finally {
+        teamBusy = false;
+        syncTeamButtons();
+      }
+    }
+
+    async function generateRandomTeam() {
+      if (teamBusy) return;
+      if (team.length >= MAX_TEAM) {
+        setTeamStatus("Team is already full (max " + MAX_TEAM + ").", true);
+        return;
+      }
+
+      teamBusy = true;
+      syncTeamButtons();
+      try {
+        const need = MAX_TEAM - team.length;
+        const maxAttempts = need * 25 + 50;
+        let added = 0;
+        let attempts = 0;
+        while (added < need && attempts < maxAttempts) {
+          attempts++;
+          const id = Math.floor(Math.random() * MAX_POKEMON_ID) + 1;
+          // Random NEVER duplicates — skip ids already on the team.
+          if (teamHasId(id)) continue;
+          setTeamStatus("Rolling random team... (" + (team.length + 1) + " / " + MAX_TEAM + ")");
+          try {
+            const member = await bakeMember(String(id));
+            if (teamHasId(member.payload.id)) continue;  // guard against alias/redirect collisions
+            team.push(member);
+            added++;
+            renderTeamGrid();
+          } catch (_error) {
+            // Skip a transient PokeAPI/sprite failure and roll another id.
+          }
+        }
+        if (added === 0) {
+          setTeamStatus("Could not roll a random team (network?). Try again.", true);
+        } else {
+          setTeamStatus("Rolled " + added + " random Pokemon (" + team.length + " / " + MAX_TEAM + ").");
+        }
       } finally {
         teamBusy = false;
         syncTeamButtons();
@@ -3267,6 +3413,7 @@
     }
 
     addToTeamBtn.addEventListener("click", addCurrentToTeam);
+    randomTeamBtn.addEventListener("click", generateRandomTeam);
     downloadTeamBtn.addEventListener("click", downloadTeamBundle);
     clearTeamBtn.addEventListener("click", clearTeam);
     renderTeamGrid();
