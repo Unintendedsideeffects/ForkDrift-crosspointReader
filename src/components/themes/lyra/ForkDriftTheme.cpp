@@ -12,7 +12,7 @@
 
 #include "CrossPointSettings.h"
 #include "components/UITheme.h"
-#include "components/icons/calendar24.h"
+#include "components/icons/calendar.h"
 #include "components/icons/cover.h"
 #include "components/icons/folder.h"
 #include "components/icons/settings2.h"
@@ -31,8 +31,8 @@ constexpr int cornerRadius = 6;
 constexpr int gridCols = 3;
 constexpr int gridRows = 2;
 
-const uint8_t* iconFor(UIIcon icon, int size) {
-  if (size == 24) {
+const uint8_t* iconFor(UIIcon icon, const int size) {
+  if (size == 32) {
     switch (icon) {
       case UIIcon::Folder:
         return FolderIcon;
@@ -40,13 +40,14 @@ const uint8_t* iconFor(UIIcon icon, int size) {
         return Settings2Icon;
       case UIIcon::Transfer:
         return TransferIcon;
-      case UIIcon::Text:
-        return Text24Icon;
       case UIIcon::Calendar:
-        return Calendar24Icon;
+        return CalendarIcon;
       default:
         return nullptr;
     }
+  }
+  if (size == 24 && icon == UIIcon::Text) {
+    return Text24Icon;
   }
   return nullptr;
 }
@@ -180,9 +181,11 @@ void ForkDriftTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int button
     return;
   }
 
+  const auto& menuMetrics = UITheme::getInstance().getMetrics();
   const int pad = ForkDriftMetrics::values.contentSidePadding;
-  const int tileH = ForkDriftMetrics::values.menuRowHeight;
-  constexpr int iconSize = 24;
+  const int tileH = menuMetrics.menuRowHeight;
+  constexpr int iconSize = 32;
+  constexpr int smallIconSize = 24;
   // The last button (Settings) is slightly inset to visually distinguish it.
   constexpr int lastInset = hPadding;
 
@@ -197,7 +200,7 @@ void ForkDriftTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int button
     const int scrollReserve = (totalPages > 1) ? 20 : 0;
     const int tileW = rect.width - 2 * pad - 2 * inset - scrollReserve;
     const int x = rect.x + pad + inset;
-    const int y = rect.y + displayIndex * (tileH + ForkDriftMetrics::values.menuSpacing);
+    const int y = rect.y + displayIndex * (tileH + menuMetrics.menuSpacing);
     const bool selected = (selectedIndex == i);
 
     if (selected) {
@@ -207,10 +210,15 @@ void ForkDriftTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int button
     const std::string label = buttonLabel(i);
     const UIIcon icon = rowIcon ? rowIcon(i) : UIIcon::Settings;
     const uint8_t* iconBmp = iconFor(icon, iconSize);
+    int drawnIconSize = iconSize;
+    if (iconBmp == nullptr) {
+      iconBmp = iconFor(icon, smallIconSize);
+      drawnIconSize = smallIconSize;
+    }
     int textX = x + 12;
     if (iconBmp) {
-      renderer.drawIcon(iconBmp, x + 12, y + (tileH - iconSize) / 2, iconSize, iconSize);
-      textX += iconSize + hPadding;
+      renderer.drawIcon(iconBmp, x + 12, y + (tileH - drawnIconSize) / 2, drawnIconSize, drawnIconSize);
+      textX += drawnIconSize + hPadding;
     }
     const int lineH = renderer.getLineHeight(UI_10_FONT_ID);
     const int textY = y + (tileH - lineH) / 2;
@@ -220,8 +228,7 @@ void ForkDriftTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int button
   if (totalPages > 1) {
     constexpr int arrowSize = 5;
     const int centerX = rect.x + rect.width - pad / 2;
-    const int menuH =
-        maxVisibleItems * (tileH + ForkDriftMetrics::values.menuSpacing) - ForkDriftMetrics::values.menuSpacing;
+    const int menuH = maxVisibleItems * (tileH + menuMetrics.menuSpacing) - menuMetrics.menuSpacing;
     const int top = rect.y + arrowSize;
     const int bot = rect.y + menuH - arrowSize * 2;
     for (int i = 0; i < arrowSize; ++i) {

@@ -168,13 +168,13 @@ cleanup:
   vTaskDelete(nullptr);
 }
 
-void BackgroundWifiService::start(const char* ssid, const char* password) {
+bool BackgroundWifiService::start(const char* ssid, const char* password) {
   if (taskHandle != nullptr) {
     LOG_DBG("BGWIFI", "Already running, ignoring start()");
-    return;
+    return false;
   }
   if (!canStartNow()) {
-    return;
+    return false;
   }
 
   stopRequested = false;
@@ -189,7 +189,7 @@ void BackgroundWifiService::start(const char* ssid, const char* password) {
   if (params == nullptr) {
     LOG_ERR("BGWIFI", "Failed to allocate WiFi task params");
     deferStartRetry("params alloc failed");
-    return;
+    return false;
   }
 
   strncpy(params->ssid, ssid, sizeof(params->ssid) - 1);
@@ -206,18 +206,20 @@ void BackgroundWifiService::start(const char* ssid, const char* password) {
     delete params;
     taskHandle = nullptr;
     deferStartRetry("task create failed");
-  } else {
-    LOG_DBG("BGWIFI", "Background WiFi task started");
+    return false;
   }
+
+  LOG_DBG("BGWIFI", "Background WiFi task started");
+  return true;
 }
 
-void BackgroundWifiService::startUsingCurrentConnection() {
+bool BackgroundWifiService::startUsingCurrentConnection() {
   if (taskHandle != nullptr) {
     LOG_DBG("BGWIFI", "Already running, ignoring startUsingCurrentConnection()");
-    return;
+    return false;
   }
   if (!canStartNow()) {
-    return;
+    return false;
   }
 
   stopRequested = false;
@@ -231,7 +233,7 @@ void BackgroundWifiService::startUsingCurrentConnection() {
   if (params == nullptr) {
     LOG_ERR("BGWIFI", "Failed to allocate WiFi task params");
     deferStartRetry("params alloc failed");
-    return;
+    return false;
   }
 
   params->ssid[0] = '\0';
@@ -246,9 +248,11 @@ void BackgroundWifiService::startUsingCurrentConnection() {
     delete params;
     taskHandle = nullptr;
     deferStartRetry("task create failed");
-  } else {
-    LOG_DBG("BGWIFI", "Background WiFi task started on existing connection");
+    return false;
   }
+
+  LOG_DBG("BGWIFI", "Background WiFi task started on existing connection");
+  return true;
 }
 
 void BackgroundWifiService::stop(const bool keepWifi) {

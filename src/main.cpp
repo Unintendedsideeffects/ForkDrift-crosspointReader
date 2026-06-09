@@ -37,6 +37,7 @@
 #include "core/features/FeatureModules.h"
 #include "features/status_overlay/Layout.h"
 #include "fontIds.h"
+#include "network/BackgroundServerPolicy.h"
 #include "network/BackgroundWebServer.h"
 #include "network/BackgroundWifiService.h"
 #include "util/ButtonNavigator.h"
@@ -102,11 +103,8 @@ void recoverHeapAfterWifi(const char* tag) {
   }
 
   // When a background-server mode wants WiFi kept up while awake (Always mode, or
-  // On-Charge while plugged in), the only path that restores the server after this
-  // activity is the boot-time auto-connect: reconcileBackgroundWifiServer() only
-  // resumes on a live STA connection and never re-issues the credential connect
-  // while awake, and the on-charge server owns its own WiFi from a clean boot.
-  // Reboot to that known-good path instead of silently leaving the server down.
+  // On-Charge while plugged in), reboot to the boot-time auto-connect path if a
+  // foreground activity tears WiFi down while the server should stay available.
   if (backgroundServerKeepsWifiWhileAwake()) {
     WiFi.disconnect(false);
     delay(30);
@@ -264,33 +262,83 @@ bool hasStaWifiConnection() {
   return WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0);
 }
 
+static background_server::AutoConnectInput buildBackgroundWifiAutoConnectInput() {
+  const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
+  const WifiCredential* cred = lastSsid.empty() ? nullptr : WIFI_STORE.findCredential(lastSsid);
+
+  return background_server::AutoConnectInput{
+      .alwaysModeEnabled = SETTINGS.keepsBackgroundServerOnWifiWhileAwake(),
+      .waitingForNewCredential = APP_STATE.wifiAutoConnectWaitingForNewCredential,
+      .skipCount = APP_STATE.wifiAutoConnectSkipCount,
+      .lastConnectedSsid = lastSsid,
+      .hasCredentialForLastSsid = cred != nullptr,
+  };
+}
+
+static bool attemptBackgroundWifiAutoConnect(const char* logTag) {
+  const background_server::AutoConnectDecision decision =
+      background_server::evaluateAutoConnect(buildBackgroundWifiAutoConnectInput());
+
+  switch (decision.action) {
+    case background_server::AutoConnectAction::None:
+    case background_server::AutoConnectAction::SkipDueToBackoff:
+    case background_server::AutoConnectAction::NoLastSsid:
+      return false;
+    case background_server::AutoConnectAction::BlockedWaitingForCredential:
+      LOG_DBG(logTag, "WiFi auto-connect disabled until a new credential is added");
+      return false;
+    case background_server::AutoConnectAction::MissingCredentialForLastSsid: {
+      APP_STATE.wifiAutoConnectWaitingForNewCredential = true;
+      APP_STATE.wifiAutoConnectSkipCount = 0;
+      APP_STATE.wifiAutoConnectBackoffLevel = 0;
+      if (!APP_STATE.saveToFile()) {
+        LOG_WRN(logTag, "Failed to persist WiFi credential recovery state");
+      }
+      LOG_DBG(logTag,
+              "Saved WiFi credentials missing for last SSID; auto-connect disabled until a new credential is added");
+      return false;
+    }
+    case background_server::AutoConnectAction::StartWithLastCredential: {
+      const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
+      const WifiCredential* cred = WIFI_STORE.findCredential(lastSsid);
+      if (cred == nullptr) {
+        return false;
+      }
+      LOG_DBG(logTag, "Starting background WiFi auto-connect to: %s", lastSsid.c_str());
+      return BG_WIFI.start(cred->ssid.c_str(), cred->password.c_str());
+    }
+  }
+
+  return false;
+}
+
 void reconcileBackgroundWifiServer() {
-  const bool backgroundWifiEnabled = core::FeatureModules::hasCapability(core::Capability::BackgroundServer) &&
-                                     SETTINGS.keepsBackgroundServerOnWifiWhileAwake();
-  const bool blockedByActivity = activityManager.blocksBackgroundServer();
-  const bool staConnected = hasStaWifiConnection();
-  const bool autoConnectInFlight = BG_WIFI.isRunning() && wifiAutoConnectAttempted && !staConnected;
+  const background_server::ReconcileDecision decision =
+      background_server::evaluateReconcile(background_server::ReconcileInput{
+          .backgroundWifiEnabled = core::FeatureModules::hasCapability(core::Capability::BackgroundServer) &&
+                                   SETTINGS.keepsBackgroundServerOnWifiWhileAwake(),
+          .blockedByActivity = activityManager.blocksBackgroundServer(),
+          .usbBackgroundServerRunning = backgroundServer.isRunning(),
+          .staConnected = hasStaWifiConnection(),
+          .bgWifiRunning = BG_WIFI.isRunning(),
+          .bgWifiPendingOrRunning = BG_WIFI.isPendingOrRunning(),
+          .wifiAutoConnectAttempted = wifiAutoConnectAttempted,
+      });
 
-  if (backgroundServer.isRunning()) {
-    return;
-  }
-
-  if (!backgroundWifiEnabled || blockedByActivity) {
-    if (BG_WIFI.isRunning()) {
-      BG_WIFI.stop(blockedByActivity);
-    }
-    return;
-  }
-
-  if (staConnected) {
-    if (!BG_WIFI.isPendingOrRunning()) {
+  switch (decision.action) {
+    case background_server::ReconcileAction::None:
+      return;
+    case background_server::ReconcileAction::StopBgWifi:
+      BG_WIFI.stop(decision.stopKeepWifi);
+      return;
+    case background_server::ReconcileAction::StartUsingCurrentConnection:
       BG_WIFI.startUsingCurrentConnection();
-    }
-    return;
-  }
-
-  if (!autoConnectInFlight && BG_WIFI.isRunning()) {
-    BG_WIFI.stop(true);
+      return;
+    case background_server::ReconcileAction::AttemptAutoConnect:
+      if (attemptBackgroundWifiAutoConnect("MAIN")) {
+        wifiAutoConnectAttempted = true;
+      }
+      return;
   }
 }
 
@@ -616,36 +664,14 @@ void setup() {
   // keepsBackgroundServerOnWifiWhileAwake() is true only for BACKGROUND_SERVER_ALWAYS,
   // so the wokeFromSleep guard is intentionally omitted here — "always on" means every boot.
   if (SETTINGS.keepsBackgroundServerOnWifiWhileAwake()) {
-    if (APP_STATE.wifiAutoConnectWaitingForNewCredential) {
-      LOG_DBG("MAIN", "WiFi auto-connect disabled until a new credential is added");
-    } else if (APP_STATE.wifiAutoConnectSkipCount > 0) {
-      // Still in backoff — consume one skip cycle
+    if (APP_STATE.wifiAutoConnectSkipCount > 0) {
       APP_STATE.wifiAutoConnectSkipCount--;
       if (!APP_STATE.saveToFile()) {
         LOG_WRN("MAIN", "Failed to persist WiFi auto-connect backoff state");
       }
       LOG_DBG("MAIN", "WiFi auto-connect skipped (backoff remaining: %d)", APP_STATE.wifiAutoConnectSkipCount);
-    } else {
-      // Attempt silent background connect using last known credentials
-      const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
-      if (!lastSsid.empty()) {
-        const auto* cred = WIFI_STORE.findCredential(lastSsid);
-        if (cred) {
-          LOG_DBG("MAIN", "Starting background WiFi auto-connect to: %s", lastSsid.c_str());
-          BG_WIFI.start(cred->ssid.c_str(), cred->password.c_str());
-          wifiAutoConnectAttempted = true;
-        } else {
-          APP_STATE.wifiAutoConnectWaitingForNewCredential = true;
-          APP_STATE.wifiAutoConnectSkipCount = 0;
-          APP_STATE.wifiAutoConnectBackoffLevel = 0;
-          if (!APP_STATE.saveToFile()) {
-            LOG_WRN("MAIN", "Failed to persist WiFi credential recovery state");
-          }
-          LOG_DBG(
-              "MAIN",
-              "Saved WiFi credentials missing for last SSID; auto-connect disabled until a new credential is added");
-        }
-      }
+    } else if (attemptBackgroundWifiAutoConnect("MAIN")) {
+      wifiAutoConnectAttempted = true;
     }
   }
 
@@ -767,9 +793,13 @@ void loop() {
   {
     const bool usbConn = gpio.isUsbConnected();
     const bool suppressUsbBackgroundServer = BG_WIFI.isRunning();
-    const bool allowRun = core::FeatureModules::hasCapability(core::Capability::BackgroundServer) &&
-                          SETTINGS.backgroundServerOnCharge && usbConn && !activityManager.blocksBackgroundServer() &&
-                          !suppressUsbBackgroundServer;
+    const bool allowRun = background_server::shouldRunOnChargeBackgroundServer(background_server::OnChargeServerInput{
+        .hasBackgroundServerCapability = core::FeatureModules::hasCapability(core::Capability::BackgroundServer),
+        .backgroundServerOnCharge = SETTINGS.backgroundServerOnCharge != 0,
+        .usbConnected = usbConn,
+        .blockedByActivity = activityManager.blocksBackgroundServer(),
+        .bgWifiRunning = suppressUsbBackgroundServer,
+    });
     static bool bgServerWasRunning = false;
     backgroundServer.loop(usbConn, allowRun);
     const bool bgServerIsRunning = backgroundServer.isRunning();

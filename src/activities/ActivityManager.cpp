@@ -325,13 +325,13 @@ void ActivityManager::goToFullScreenMessage(std::string message, EpdFontFamily::
 void ActivityManager::goToCrashReport() { replaceActivity(std::make_unique<CrashActivity>(renderer, mappedInput)); }
 
 void ActivityManager::goHome() {
-  // Returning Home always does one full refresh to clear the e-ink panel of the
-  // screen we are leaving (Settings, File Browser, Reader, ...). Without it the
-  // previous screen ghosts under the new Home — barely visible on the dense
-  // ForkDrift cover grid, but it renders the sparse list/carousel/terminal themes
-  // unreadable after a single round-trip. Subsequent in-place Home updates
-  // (selection moves, cover loads) stay on FAST_REFRESH (see HomeActivity::render).
-  APP_STATE.pendingHomeFullRefresh = true;
+  // Full refresh only when leaving the reader — dense text ghosting is the main
+  // case worth the flash. Home ↔ Settings and other list UIs stay on FAST_REFRESH;
+  // see HomeActivity::render (pendingHomeFullRefresh gate). Wake-from-reader boot
+  // sets the flag explicitly in main.cpp.
+  if (isReaderActivity()) {
+    APP_STATE.pendingHomeFullRefresh = true;
+  }
   replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInput));
 }
 

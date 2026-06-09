@@ -11,7 +11,8 @@
 EpubReaderMenuActivity::EpubReaderMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                                const std::string& title, const int currentPage, const int totalPages,
                                                const int bookProgressPercent, const uint8_t currentOrientation,
-                                               const bool hasFootnotes, const bool isBookCompleted
+                                               const bool hasFootnotes, const bool isBookCompleted,
+                                               ReaderPreviewRefreshFn previewRefresh
 #if ENABLE_BOOKMARKS
                                                ,
                                                const bool hasBookmarks, const bool isCurrentPageBookmarked
@@ -28,7 +29,8 @@ EpubReaderMenuActivity::EpubReaderMenuActivity(GfxRenderer& renderer, MappedInpu
       pendingOrientation(currentOrientation),
       currentPage(currentPage),
       totalPages(totalPages),
-      bookProgressPercent(bookProgressPercent) {
+      bookProgressPercent(bookProgressPercent),
+      previewRefresh_(std::move(previewRefresh)) {
 }
 
 std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuItems(bool hasFootnotes,
@@ -42,6 +44,7 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
   std::vector<MenuItem> items;
   items.reserve(15);
   items.push_back({MenuAction::SELECT_CHAPTER, StrId::STR_SELECT_CHAPTER});
+  items.push_back({MenuAction::READER_OPTIONS, StrId::STR_CAT_READER});
   items.push_back({MenuAction::CONTROLS_OPTIONS, StrId::STR_CAT_CONTROLS});
   if (hasFootnotes) {
     items.push_back({MenuAction::FOOTNOTES, StrId::STR_FOOTNOTES});
@@ -103,6 +106,22 @@ void EpubReaderMenuActivity::loop() {
       // Cycle orientation preview locally; actual rotation happens on menu exit.
       pendingOrientation = (pendingOrientation + 1) % orientationLabels.size();
       requestUpdate();
+      return;
+    }
+
+    if (selectedAction == MenuAction::READER_OPTIONS) {
+      startActivityForResult(
+          std::make_unique<ReaderOptionsActivity>(renderer, mappedInput, savedPageBuffer.get(), previewRefresh_),
+          [this](const ActivityResult& readerResult) {
+            const bool readerChanged = std::holds_alternative<ControlsOptionsResult>(readerResult.data) &&
+                                       std::get<ControlsOptionsResult>(readerResult.data).readerSettingsChanged;
+            ActivityResult result;
+            result.isCancelled = !readerChanged;
+            result.data = MenuResult{readerChanged ? static_cast<int>(MenuAction::READER_SETTINGS_CHANGED) : -1,
+                                     pendingOrientation};
+            setResult(std::move(result));
+            finish();
+          });
       return;
     }
 

@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/build/host_tests"
 ARDUINOJSON_DIR="$ROOT_DIR/.pio/libdeps/default/ArduinoJson/src"
+SIMULATOR_MBEDTLS_DIR="$ROOT_DIR/.pio/libdeps/simulator/simulator/src"
 
 mkdir -p "$BUILD_DIR"
 
@@ -26,6 +27,20 @@ if [ ! -d "$ARDUINOJSON_DIR" ]; then
   exit 1
 fi
 
+if [ ! -f "$SIMULATOR_MBEDTLS_DIR/mbedtls/base64.h" ]; then
+  echo "Bootstrapping simulator mbedtls stubs for host tests..."
+  (
+    cd "$ROOT_DIR"
+    uv run pio pkg install -e simulator
+  )
+fi
+
+if [ ! -f "$SIMULATOR_MBEDTLS_DIR/mbedtls/base64.h" ]; then
+  echo "mbedtls base64 stub not found: $SIMULATOR_MBEDTLS_DIR/mbedtls/base64.h" >&2
+  echo "Install it with: uv run pio pkg install -e simulator" >&2
+  exit 1
+fi
+
 gcc -c "$ROOT_DIR/lib/third_party/md4c/md4c.c" -I"$ROOT_DIR/lib/third_party/md4c" -o "$BUILD_DIR/md4c.o"
 gcc -c "$ROOT_DIR/lib/third_party/md4c/entity.c" -I"$ROOT_DIR/lib/third_party/md4c" -o "$BUILD_DIR/entity.o"
 
@@ -37,6 +52,9 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -DENABLE_POKEMON_WALLPAPER_PLUGIN=1 \
   -DENABLE_POKEMON_PARTY=1 \
   -DENABLE_IMAGE_SLEEP=1 \
+  -DENABLE_BACKGROUND_SERVER=1 \
+  -DENABLE_BACKGROUND_SERVER_ON_CHARGE=1 \
+  -DENABLE_BACKGROUND_SERVER_ALWAYS=1 \
   -I"$ROOT_DIR" \
   -I"$ROOT_DIR/test" \
   -I"$ROOT_DIR/test/mock" \
@@ -52,6 +70,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -I"$ROOT_DIR/include" \
   -I"$ROOT_DIR/src" \
   -I"$ARDUINOJSON_DIR" \
+  -I"$SIMULATOR_MBEDTLS_DIR" \
   "$ROOT_DIR/test/host/"*.cpp \
   "$ROOT_DIR/src/network/BleCredentialParser.cpp" \
   "$ROOT_DIR/src/network/AssetReadApi.cpp" \
@@ -82,9 +101,11 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/PathUtils.cpp" \
   "$ROOT_DIR/src/util/PokemonBookDataStore.cpp" \
   "$ROOT_DIR/src/CrossPointSettings.cpp" \
+  "$ROOT_DIR/src/network/BackgroundServerPolicy.cpp" \
   "$ROOT_DIR/src/BookmarkStore.cpp" \
   "$ROOT_DIR/lib/Xtc/Xtc/XtcParser.cpp" \
   "$ROOT_DIR/test/mock/FeatureModuleHooks.cpp" \
+  "$ROOT_DIR/test/mock/PokemonPartyStores.cpp" \
   "$ROOT_DIR/test/mock/JsonSettingsIO.cpp" \
   "$ROOT_DIR/lib/GfxRenderer/Bitmap.cpp" \
   "$ROOT_DIR/lib/GfxRenderer/BitmapHelpers.cpp" \

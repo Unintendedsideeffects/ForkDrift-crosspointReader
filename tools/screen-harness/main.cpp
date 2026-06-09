@@ -13,16 +13,17 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <regex>
 #include <string>
 #include <vector>
 
 #include "CrossPointSettings.h"
+#include "HalStorage.h"
 #include "activities/boot_sleep/BootActivity.h"
 #include "activities/boot_sleep/BrandScreen.h"
 #include "activities/boot_sleep/RomanClockFontRenderer.h"
 #include "activities/settings/FactoryResetActivity.h"
-#include "activities/settings/SettingsActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/RecentBooksStore.h"
@@ -330,14 +331,6 @@ void drawSettingsMock(GfxRenderer& renderer) {
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
-void drawSettings(GfxRenderer& renderer, MappedInputManager& mappedInput) {
-  applySettingsJson(gSettingsJsonPath);
-  UITheme::getInstance().reload();
-  SettingsActivity activity(renderer, mappedInput);
-  activity.onEnter();
-  activity.render(RenderLock(activity));
-}
-
 void drawFactoryResetMock(GfxRenderer& renderer) {
   renderer.clearScreen();
   drawHeader(renderer, "Factory Reset");
@@ -616,6 +609,38 @@ void drawFeatureStoreMock(GfxRenderer& renderer) {
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
+void seedPokemonSpriteFixtures() {
+  const std::filesystem::path fixtureDir =
+      std::filesystem::absolute(std::filesystem::path(__FILE__).parent_path() / "fixtures" / "pokemon");
+  if (!std::filesystem::exists(fixtureDir)) {
+    return;
+  }
+
+  Storage.mkdir("/.crosspoint");
+  Storage.mkdir("/.crosspoint/pokemon");
+
+  for (int speciesId = 1; speciesId <= 6; ++speciesId) {
+    const std::filesystem::path file = fixtureDir / ("sprite_" + std::to_string(speciesId) + ".bmp");
+    if (!std::filesystem::exists(file)) {
+      continue;
+    }
+    std::ifstream input(file, std::ios::binary);
+    if (!input) {
+      continue;
+    }
+    std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    if (bytes.empty()) {
+      continue;
+    }
+    const std::string path = "/.crosspoint/pokemon/sprite_" + std::to_string(speciesId) + ".bmp";
+    HalFile out;
+    if (Storage.openFileForWrite("HARNESS", path, out)) {
+      out.write(bytes.data(), bytes.size());
+      out.close();
+    }
+  }
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -627,6 +652,7 @@ int main(int argc, char* argv[]) {
   gSettingsJsonPath = settingsJsonPath;
   std::filesystem::create_directories(outputDir);
   applySettingsJson(settingsJsonPath);
+  seedPokemonSpriteFixtures();
 
   HalDisplay display;
   display.begin();
@@ -735,7 +761,7 @@ int main(int argc, char* argv[]) {
       {"06_home_pokemon_party", [&] { drawHomeThemePreview(renderer, homeScenarios[4]); }},
       {"07_home_minimal", [&] { drawHomeThemePreview(renderer, homeScenarios[5]); }},
       {"08_home_lyra_carousel", [&] { drawHomeThemePreview(renderer, homeScenarios[6]); }},
-      {"09_settings", [&] { drawSettings(renderer, mappedInput); }},
+      {"09_settings", [&] { drawSettingsMock(renderer); }},
       {"10_factory_reset", [&] { drawFactoryReset(renderer, mappedInput); }},
       {"11_reader_mock", [&] { drawReaderMock(renderer); }},
       {"12_feature_store_mock", [&] { drawFeatureStoreMock(renderer); }},

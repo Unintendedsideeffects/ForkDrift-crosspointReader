@@ -7,6 +7,7 @@ OUT_DIR="${1:-$ROOT_DIR/build/screen-previews}"
 SETTINGS_JSON="${2:-${SCREEN_PREVIEW_SETTINGS_JSON:-}}"
 
 mkdir -p "$BUILD_DIR" "$OUT_DIR"
+python3 "$ROOT_DIR/tools/screen-harness/generate_pokemon_fixtures.py"
 
 CXX_BIN="${CXX:-g++}"
 BIN_PATH="$BUILD_DIR/screen-harness"
@@ -62,8 +63,9 @@ pushd "$ROOT_DIR" >/dev/null
   src/activities/ActivityWithSubactivity.cpp \
   src/activities/boot_sleep/BootActivity.cpp \
   src/activities/settings/FactoryResetActivity.cpp \
-  src/activities/settings/SettingsActivity.cpp \
   lib/GfxRenderer/GfxRenderer.cpp \
+  lib/GfxRenderer/Bitmap.cpp \
+  lib/GfxRenderer/BitmapHelpers.cpp \
   lib/GfxRenderer/FontCacheManager.cpp \
   lib/EpdFont/EpdFont.cpp \
   lib/EpdFont/EpdFontFamily.cpp \

@@ -1325,8 +1325,14 @@ void HomeActivity::loop() {
     if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
       // All nav modes activate through the same menuModel — no per-mode index
       // schemes that can drift from what is rendered.
-      if (carouselNav && !recentBooks.empty()) {
+      if (carouselNav) {
         const int bookCount = static_cast<int>(recentBooks.size());
+        if (bookCount == 0) {
+          if (selectorIndex >= 0 && selectorIndex < static_cast<int>(menuModel.size())) {
+            activateMenuId(menuModel[selectorIndex]);
+          }
+          return;
+        }
         const bool inCarouselRow = (selectorIndex < bookCount);
         if (inCarouselRow) {
           selectedBookIndex = selectorIndex;
@@ -1361,11 +1367,21 @@ void HomeActivity::loop() {
       }
     }
 
-    if (carouselNav && !recentBooks.empty()) {
+    if (carouselNav) {
       const int bookCount = static_cast<int>(recentBooks.size());
+      const int menuCount = static_cast<int>(menuModel.size());
+      if (bookCount == 0) {
+        if (leftPressed || downPressed) {
+          selectorIndex = (selectorIndex + 1) % menuCount;
+          requestUpdate();
+        } else if (rightPressed || upPressed) {
+          selectorIndex = (selectorIndex + menuCount - 1) % menuCount;
+          requestUpdate();
+        }
+        return;
+      }
       // Navigation, rendering, and activation all use menuModel — one source of
       // truth, so the menu-row count can never drift from what is activatable.
-      const int menuCount = static_cast<int>(menuModel.size());
       const bool inCarouselRow = (selectorIndex < bookCount);
 
       if (leftPressed) {
@@ -1553,10 +1569,8 @@ void HomeActivity::render(RenderLock&&) {
                                         recentBooks, centerIdx, frameProgressPercent);
       }
 
-      // First paint on (re)entering Home clears ghosting from the previous screen
-      // (Settings/Reader/...) with a full refresh; later carousel slides stay on
-      // FAST to avoid a black/white flash on every move. The sparse carousel layout
-      // shows leftover ghosting far more than ForkDrift's dense cover grid.
+      // Full refresh only when pendingHomeFullRefresh (reader exit / explicit boot);
+      // Home ↔ Settings and carousel slides stay on FAST.
       const bool doFullCarousel = !firstRenderDone && APP_STATE.pendingHomeFullRefresh;
       if (doFullCarousel) APP_STATE.pendingHomeFullRefresh = false;
       renderer.displayBuffer(doFullCarousel ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
@@ -1590,18 +1604,16 @@ void HomeActivity::render(RenderLock&&) {
   if (mediaPickerEnabled) {
     const bool gridNav = homeIsGridNav();
     const bool carouselNav = homeIsCarouselNav();
-    // Grid and CoverMenu both split into a cover region on top and a menu below,
-    // with inButtonGrid tracking which region has focus. Show the highlight only
-    // on the focused region so Confirm's target is unambiguous — one visible
-    // cursor, never two competing ones. (Carousel's slow fallback keeps both.)
+    // Grid and CoverMenu split into cover + menu with inButtonGrid focus.
+    // Carousel uses unified selectorIndex for both regions in nav and render.
     const bool regionFocusNav = !carouselNav;
     // Same focus predicate the nav and Confirm paths use, so the visible cursor
     // always sits on the region Confirm will act on (no books => menu focused).
     const bool menuFocused = inButtonGrid || recentBooks.empty();
-    const int coverSelector = regionFocusNav && menuFocused ? -1 : selectedBookIndex;
-    const int menuSelector = regionFocusNav && !menuFocused ? -1 : selectedMenuIndex;
-
     const int bookCountRender = static_cast<int>(recentBooks.size());
+    const int coverSelector = carouselNav ? selectorIndex : (regionFocusNav && menuFocused ? -1 : selectedBookIndex);
+    const int menuSelector = carouselNav ? (selectorIndex >= bookCountRender ? selectorIndex - bookCountRender : -1)
+                                         : (regionFocusNav && !menuFocused ? -1 : selectedMenuIndex);
     const int singleRowH = metrics.homeCoverTileHeight / metrics.homeCoverGridRows;
     const int coverTileH_raw =
         gridNav ? ((bookCountRender > metrics.homeCoverGridColumns ? metrics.homeCoverGridRows : 1) * singleRowH)

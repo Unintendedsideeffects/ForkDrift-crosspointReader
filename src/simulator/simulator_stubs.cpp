@@ -15,8 +15,8 @@ void registerFeature() {}
 // Provide the static instance + no-op method stubs so callers link cleanly.
 BackgroundWifiService BackgroundWifiService::instance;
 
-void BackgroundWifiService::start(const char*, const char*) {}
-void BackgroundWifiService::startUsingCurrentConnection() {}
+bool BackgroundWifiService::start(const char*, const char*) { return false; }
+bool BackgroundWifiService::startUsingCurrentConnection() { return false; }
 void BackgroundWifiService::stop(bool) {}
 bool BackgroundWifiService::startRetryActive() const { return false; }
 

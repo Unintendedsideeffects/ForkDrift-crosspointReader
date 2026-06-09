@@ -52,11 +52,12 @@ class BackgroundWifiService {
 
   static BackgroundWifiService& getInstance() { return instance; }
 
-  // Start background WiFi + web server (no-op if already running)
-  void start(const char* ssid, const char* password);
+  // Start background WiFi + web server (no-op if already running).
+  // Returns true when a background task was created.
+  bool start(const char* ssid, const char* password);
 
   // Start the background web server using the current STA connection.
-  void startUsingCurrentConnection();
+  bool startUsingCurrentConnection();
 
   // Stop the background task. If keepWifi is true, preserve the current STA
   // connection so a foreground activity can reuse it.

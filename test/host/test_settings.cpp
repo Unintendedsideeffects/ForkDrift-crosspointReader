@@ -288,6 +288,86 @@ TEST_CASE("testSettingsIgnoresRemovedBinarySettingsFile") {
   CHECK_FALSE(Storage.exists("/.crosspoint/settings.bin.bak"));
 }
 
+TEST_CASE("testSleepScreenSettingSchemaIsConsistent") {
+  const auto settings = getSettingsList();
+  const SettingInfo* sleepSetting = findSettingByKey(settings, "sleepScreen");
+  REQUIRE(sleepSetting != nullptr);
+  REQUIRE(sleepSetting->valueGetter != nullptr);
+  REQUIRE(sleepSetting->valueSetter != nullptr);
+  REQUIRE(!sleepSetting->enumValues.empty());
+  CHECK(sleepSetting->enumValues.size() == sleepSetting->enumPersistedValues.size());
+  CHECK(sleepSetting->enumValues.size() == sleepSetting->enumOptionFeatureKeys.size());
+
+  for (const uint8_t persisted : sleepSetting->enumPersistedValues) {
+    const size_t index = optionIndexForValue(*sleepSetting, persisted);
+    REQUIRE(index != sleepSetting->enumPersistedValues.size());
+    CHECK(index < sleepSetting->enumValues.size());
+  }
+}
+
+TEST_CASE("testSleepScreenEnumCyclesAllPersistedValues") {
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+  const auto settings = getSettingsList();
+  const SettingInfo* sleepSetting = findSettingByKey(settings, "sleepScreen");
+  REQUIRE(sleepSetting != nullptr);
+  REQUIRE(sleepSetting->valueGetter != nullptr);
+  REQUIRE(sleepSetting->valueSetter != nullptr);
+  REQUIRE(!sleepSetting->enumPersistedValues.empty());
+
+  const size_t optionCount = sleepSetting->enumPersistedValues.size();
+  for (size_t start = 0; start < optionCount; ++start) {
+    s.sleepScreen = sleepSetting->enumPersistedValues[start];
+    s.sleepScreen = CrossPointSettings::normalizeSleepScreenMode(s.sleepScreen);
+    CHECK(sleepSetting->valueGetter() == static_cast<uint8_t>(start));
+
+    for (size_t step = 0; step < optionCount; ++step) {
+      const uint8_t index = sleepSetting->valueGetter();
+      REQUIRE(index < optionCount);
+      const uint8_t nextIndex = static_cast<uint8_t>((index + 1) % optionCount);
+      sleepSetting->valueSetter(nextIndex);
+      s.sleepScreen = CrossPointSettings::normalizeSleepScreenMode(s.sleepScreen);
+      CHECK(s.sleepScreen == sleepSetting->enumPersistedValues[nextIndex]);
+      CHECK(sleepSetting->valueGetter() == nextIndex);
+    }
+  }
+}
+
+TEST_CASE("testNormalizeSleepScreenModeClampsUnknownValues") {
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+
+  s.sleepScreen = 99;
+  s.validateAndClamp();
+  CHECK(s.sleepScreen == CrossPointSettings::DARK);
+
+  s.sleepScreen = CrossPointSettings::COVER;
+  s.validateAndClamp();
+  CHECK(s.sleepScreen == CrossPointSettings::DARK);
+
+#if ENABLE_READING_STATS
+  s.sleepScreen = CrossPointSettings::READING_STATS_SLEEP;
+  s.validateAndClamp();
+  CHECK(s.sleepScreen == CrossPointSettings::READING_STATS_SLEEP);
+#endif
+
+#if ENABLE_HAIKU_CLOCK
+  s.sleepScreen = CrossPointSettings::HAIKU_CLOCK_SLEEP;
+  s.validateAndClamp();
+  CHECK(s.sleepScreen == CrossPointSettings::HAIKU_CLOCK_SLEEP);
+#endif
+
+#if ENABLE_NOTES
+  s.sleepScreen = CrossPointSettings::NOTES_SLEEP;
+  s.validateAndClamp();
+  CHECK(s.sleepScreen == CrossPointSettings::NOTES_SLEEP);
+#endif
+
+#if ENABLE_TODO_PLANNER
+  s.sleepScreen = CrossPointSettings::PLANNER_SLEEP;
+  s.validateAndClamp();
+  CHECK(s.sleepScreen == CrossPointSettings::PLANNER_SLEEP);
+#endif
+}
+
 TEST_CASE("testSettingsJsonPreservesSpecialSleepModes") {
   CrossPointSettings& s = CrossPointSettings::getInstance();
 

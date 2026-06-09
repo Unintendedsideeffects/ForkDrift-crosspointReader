@@ -11,7 +11,7 @@
 #include <cstdio>
 #include <string>
 
-#include "components/icons/cover.h"
+#include "components/icons/book24.h"
 #include "fontIds.h"
 #include "util/BookProgressDataStore.h"
 #include "util/PokemonProgress.h"
@@ -48,6 +48,17 @@ void drawPartyBackground(const GfxRenderer& renderer, const Rect& rect) {
   }
 }
 
+void drawPokeball(const GfxRenderer& renderer, const int cx, const int cy, const int radius) {
+  if (radius < 6) {
+    return;
+  }
+  renderer.drawRoundedRect(cx - radius, cy - radius, radius * 2, radius * 2, 2, radius, true);
+  renderer.drawLine(cx - radius, cy, cx - radius / 3, cy, 2, true);
+  renderer.drawLine(cx + radius / 3, cy, cx + radius, cy, 2, true);
+  const int inner = std::max(3, radius / 3);
+  renderer.drawRoundedRect(cx - inner, cy - inner, inner * 2, inner * 2, 2, inner, true);
+}
+
 bool drawBmpInBox(const GfxRenderer& renderer, const std::string& path, const int x, const int y, const int size) {
   if (path.empty() || !Storage.exists(path.c_str())) {
     return false;
@@ -70,7 +81,7 @@ void drawBookIcon(const GfxRenderer& renderer, const RecentBook& book, const int
   if (drawBmpInBox(renderer, book.coverBmpPath, x, y, kCoverIconSize)) {
     return;
   }
-  renderer.drawIcon(CoverIcon, x, y, kCoverIconSize, kCoverIconSize);
+  renderer.drawIcon(Book24Icon, x, y, kCoverIconSize, kCoverIconSize);
 }
 
 void drawHpBar(const GfxRenderer& renderer, const int x, const int y, const int width, const float percent) {
@@ -113,7 +124,10 @@ void drawPartySlot(const GfxRenderer& renderer, const int x, const int y, const 
     drewSprite = drawBmpInBox(renderer, PokemonSpriteCache::spritePath(speciesId), spriteX, spriteY, kSpriteSize);
   }
   if (!drewSprite) {
-    drawBmpInBox(renderer, book.coverBmpPath, spriteX, spriteY, kSpriteSize);
+    drewSprite = drawBmpInBox(renderer, book.coverBmpPath, spriteX, spriteY, kSpriteSize);
+  }
+  if (!drewSprite) {
+    drawPokeball(renderer, spriteX + kSpriteSize / 2, spriteY + kSpriteSize / 2, kSpriteSize / 2 - 2);
   }
 
   const int textX = spriteX + kSpriteSize + kPad;

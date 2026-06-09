@@ -386,10 +386,11 @@ void EpubReaderActivity::loop() {
             renderer, mappedInput, epub->getTitle(), currentPage, totalPages, bookProgressPercent, SETTINGS.orientation,
             !currentPageFootnotes.empty(),
 #if ENABLE_READING_STATS
-            stats.isCompleted
+            stats.isCompleted,
 #else
-            false
+            false,
 #endif
+            [this](uint8_t* buffer, const size_t bufferSize) { refreshReaderPreviewBuffer(buffer, bufferSize); }
 #if ENABLE_BOOKMARKS
             ,
             BOOKMARKS.hasAnyBookmarks(),
@@ -611,6 +612,31 @@ void EpubReaderActivity::reindexCurrentSection() {
     section.reset();
   }
   requestUpdate();
+}
+
+void EpubReaderActivity::refreshReaderPreviewBuffer(uint8_t* dest, const size_t size) {
+  if (dest == nullptr || size < renderer.getBufferSize()) {
+    return;
+  }
+
+  {
+    RenderLock lock(*this);
+    if (section) {
+      cachedSpineIndex = currentSpineIndex;
+      cachedChapterTotalPageCount = section->pageCount;
+      nextPageNumber = section->currentPage;
+    }
+    section.reset();
+  }
+
+  previewRenderOnly = true;
+  {
+    RenderLock lock(*this);
+    render(std::move(lock));
+  }
+  previewRenderOnly = false;
+
+  memcpy(dest, renderer.getFrameBuffer(), renderer.getBufferSize());
 }
 
 void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS_MENU_ACTION action) {
@@ -1225,7 +1251,9 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                                   SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled)) {
       LOG_DBG("ERS", "Cache not found, building...");
 
-      GUI.drawPopup(renderer, tr(STR_INDEXING));
+      if (!previewRenderOnly) {
+        GUI.drawPopup(renderer, tr(STR_INDEXING));
+      }
 
       if (!section->createSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                       SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
@@ -1360,22 +1388,26 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     renderContents(std::move(p), orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
     LOG_DBG("ERS", "Rendered page in %dms", millis() - start);
   }
-  silentIndexNextChapterIfNeeded(viewportWidth, viewportHeight);
-
-  if (currentSpineIndex != lastSavedSpineIndex || section->currentPage != lastSavedPage) {
-    saveProgress(currentSpineIndex, section->currentPage, section->pageCount);
-    lastSavedSpineIndex = currentSpineIndex;
-    lastSavedPage = section->currentPage;
+  if (!previewRenderOnly) {
+    silentIndexNextChapterIfNeeded(viewportWidth, viewportHeight);
   }
+
+  if (!previewRenderOnly) {
+    if (currentSpineIndex != lastSavedSpineIndex || section->currentPage != lastSavedPage) {
+      saveProgress(currentSpineIndex, section->currentPage, section->pageCount);
+      lastSavedSpineIndex = currentSpineIndex;
+      lastSavedPage = section->currentPage;
+    }
 #if ENABLE_READING_STATS
-  queueCompletionPromptIfNeeded();
+    queueCompletionPromptIfNeeded();
 #endif  // ENABLE_READING_STATS
 
-  showPendingSyncSaveError();
+    showPendingSyncSaveError();
 
-  if (pendingScreenshot) {
-    pendingScreenshot = false;
-    ScreenshotUtil::takeScreenshot(renderer);
+    if (pendingScreenshot) {
+      pendingScreenshot = false;
+      ScreenshotUtil::takeScreenshot(renderer);
+    }
   }
 }
 
@@ -1471,30 +1503,24 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   const auto tBwRender = millis();
 
   if (pageHasImages) {
-    // Double FAST_REFRESH with selective image blanking (pablohc's technique):
-    // HALF_REFRESH sets particles too firmly for the grayscale LUT to adjust.
-    // Instead, blank only the image area and do two fast refreshes.
-    // Step 1: Display page with image area blanked (text appears, image area white)
-    // Step 2: Re-render with images and display again (images appear clean)
-    int16_t imgX, imgY, imgW, imgH;
-    if (page->getImageBoundingBox(imgX, imgY, imgW, imgH)) {
-      renderer.fillRect(imgX + orientedMarginLeft, imgY + orientedMarginTop, imgW, imgH, false);
-      renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    if (!previewRenderOnly) {
+      int16_t imgX, imgY, imgW, imgH;
+      if (page->getImageBoundingBox(imgX, imgY, imgW, imgH)) {
+        renderer.fillRect(imgX + orientedMarginLeft, imgY + orientedMarginTop, imgW, imgH, false);
+        renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
-      // Re-render page content to restore images into the blanked area
-      // Status bar is not re-rendered here to avoid reading stale dynamic values (e.g. battery %)
-      page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
-      renderer.displayBuffer(HalDisplay::FAST_REFRESH);
-    } else {
-      renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+        page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
+        renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+      } else {
+        renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+      }
     }
-    // Double FAST_REFRESH handles ghosting for image pages; don't count toward full refresh cadence
-  } else {
+  } else if (!previewRenderOnly) {
     ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
   }
   const auto tDisplay = millis();
 
-  if (needsAnyGrayscale) {
+  if (needsAnyGrayscale && !previewRenderOnly) {
     const bool bwBufferStored = renderer.storeBwBuffer();
     const auto tBwStore = millis();
     if (!bwBufferStored) {

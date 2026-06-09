@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "ControlsOptionsActivity.h"
+#include "ReaderOptionsActivity.h"
 #include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
 
@@ -15,6 +16,7 @@ class EpubReaderMenuActivity final : public Activity {
  public:
   enum class MenuAction {
     SELECT_CHAPTER,
+    READER_OPTIONS,
     CONTROLS_OPTIONS,
     READER_SETTINGS_CHANGED,
     FOOTNOTES,
@@ -37,7 +39,8 @@ class EpubReaderMenuActivity final : public Activity {
 
   explicit EpubReaderMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const std::string& title,
                                   int currentPage, int totalPages, int bookProgressPercent, uint8_t currentOrientation,
-                                  bool hasFootnotes, bool isBookCompleted
+                                  bool hasFootnotes, bool isBookCompleted,
+                                  ReaderPreviewRefreshFn previewRefresh = nullptr
 #if ENABLE_BOOKMARKS
                                   ,
                                   bool hasBookmarks = false, bool isCurrentPageBookmarked = false
@@ -74,4 +77,5 @@ class EpubReaderMenuActivity final : public Activity {
   int totalPages = 0;
   int bookProgressPercent = 0;
   std::unique_ptr<uint8_t[]> savedPageBuffer;
+  ReaderPreviewRefreshFn previewRefresh_;
 };

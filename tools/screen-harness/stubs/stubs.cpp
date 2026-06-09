@@ -212,8 +212,18 @@ int activeSpeciesId(const PokemonAssignment& assignment, const int) {
 }  // namespace PokemonProgress
 
 namespace PokemonSpriteCache {
-std::string spritePath(int) { return ""; }
-bool isCached(int) { return false; }
+std::string spritePath(const int speciesId) {
+  if (speciesId <= 0) {
+    return "";
+  }
+  return "/.crosspoint/pokemon/sprite_" + std::to_string(speciesId) + ".bmp";
+}
+
+bool isCached(const int speciesId) {
+  const std::string path = spritePath(speciesId);
+  return !path.empty() && Storage.exists(path.c_str());
+}
+
 bool ensureSprite(int, const std::string&, int, int) { return false; }
 bool ensureSpriteById(int, int, int) { return false; }
 bool saveSpriteBmp(int, const uint8_t*, size_t) { return false; }

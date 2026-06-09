@@ -318,6 +318,18 @@ class SimulatorSmokeTest {
       addTap(MappedInputManager::Button::PageForward);
       inputScript.push_back(render("Reader after page forward", 4));
     }
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Reader menu", 4));
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("Reader menu reader item", 2));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Reader options overlay", 6));
+    inputScript.push_back(hashFrame("Reader options overlay"));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Reader options after toggle", 10));
+    inputScript.push_back(hashFrame("Reader options after toggle"));
+    addTap(MappedInputManager::Button::Back);
+    inputScript.push_back(render("Reader after options", 6));
     addTap(MappedInputManager::Button::Back);
     inputScript.push_back(render("Home after closing reader", 4));
     LOG_INF("SMOKE", "Running reader input script with %d page turn(s)", turns);

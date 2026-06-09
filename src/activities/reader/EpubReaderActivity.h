@@ -40,6 +40,7 @@ class EpubReaderActivity final : public Activity {
   bool pendingSyncSaveError = false;
   bool skipNextButtonCheck = false;  // Skip button processing for one frame after subactivity exit
   bool automaticPageTurnActive = false;
+  bool previewRenderOnly = false;
 #if ENABLE_READING_STATS
   BookReadingStats stats;
   GlobalReadingStats globalStats;
@@ -108,6 +109,7 @@ class EpubReaderActivity final : public Activity {
 #endif
   void resetPageLoadRetryState();
   void renderReaderError(StrId messageId);
+  void refreshReaderPreviewBuffer(uint8_t* dest, size_t size);
   void navigateToHref(const std::string& href, bool savePosition = false);
   void restoreSavedPosition();
   static void showLoadingPopupTrampoline(void* ctx);

@@ -11,9 +11,6 @@ class SettingsActivity final : public Activity {
   int selectedCategoryIndex = 0;  // Currently selected category
   int selectedSettingIndex = 0;
   int settingsCount = 0;
-  // The first paint after entering Settings must fully refresh the panel to clear
-  // ghosting left by the screen we came from (Home); later in-place updates stay
-  // on FAST_REFRESH to avoid a black/white flash on every keypress.
   bool firstRenderDone = false;
 
   // Per-category settings derived from shared list + device-only actions
@@ -22,6 +19,7 @@ class SettingsActivity final : public Activity {
   std::vector<SettingInfo> controlsSettings;
   std::vector<SettingInfo> systemSettings;
   const std::vector<SettingInfo>* currentSettings = nullptr;
+  std::vector<SettingInfo> cachedMasterSettings;
 
   static constexpr int categoryCount = 4;
   static const StrId categoryNames[categoryCount];
@@ -30,6 +28,7 @@ class SettingsActivity final : public Activity {
   void enterCategory(int categoryIndex);
   void toggleCurrentSetting();
   void rebuildSettingsLists();
+  void invalidateMasterSettingsCache();
   void openSleepTimeoutPicker();
 
  public:

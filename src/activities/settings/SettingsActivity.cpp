@@ -11,6 +11,7 @@
 #include "ButtonRemapActivity.h"
 #include "ClearCacheActivity.h"
 #include "CrossPointSettings.h"
+#include "CrossPointState.h"
 #include "FactoryResetActivity.h"
 #include "FontDownloadActivity.h"
 #include "FontSelectionActivity.h"
@@ -40,6 +41,29 @@
 namespace {
 constexpr char kBackgroundServerModeKey[] = "backgroundServerMode";
 constexpr uint32_t kMinHeapForSettingsRebuild = 48000;
+
+size_t enumOptionCount(const SettingInfo& setting) {
+  if (!setting.enumStringValues.empty()) {
+    return setting.enumStringValues.size();
+  }
+  if (setting.dynamicValuesGetter) {
+    return setting.dynamicValuesGetter().size();
+  }
+  return setting.enumValues.size();
+}
+
+uint8_t cycleEnumOptionIndex(const SettingInfo& setting) {
+  const size_t optionCount = enumOptionCount(setting);
+  if (optionCount == 0 || optionCount > 255) {
+    return 0;
+  }
+
+  const size_t currentIndex = setting.valueGetter
+                                  ? setting.valueGetter()
+                                  : (setting.valuePtr ? static_cast<size_t>(SETTINGS.*(setting.valuePtr)) : 0);
+  const size_t normalizedIndex = currentIndex < optionCount ? currentIndex : 0;
+  return static_cast<uint8_t>((normalizedIndex + 1) % optionCount);
+}
 
 bool controlSettingVisible(const SettingInfo& setting) {
   if (setting.key != nullptr && std::strcmp(setting.key, "timeZoneOffset") == 0) {
@@ -117,6 +141,8 @@ void groupSettingsByTopic(std::vector<SettingInfo>& settings, const std::vector<
 const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_READER,
                                                               StrId::STR_CAT_CONTROLS, StrId::STR_CAT_SYSTEM};
 
+void SettingsActivity::invalidateMasterSettingsCache() { cachedMasterSettings.clear(); }
+
 void SettingsActivity::rebuildSettingsLists() {
   displaySettings.clear();
   readerSettings.clear();
@@ -124,10 +150,18 @@ void SettingsActivity::rebuildSettingsLists() {
   systemSettings.clear();
 
   if (ESP.getFreeHeap() >= kMinHeapForSettingsRebuild) {
+    const size_t priorFamilyCount = cachedMasterSettings.empty() ? 0 : sdFontSystem.registry().getFamilies().size();
     sdFontSystem.refreshIfDirty();
+    if (!cachedMasterSettings.empty() && sdFontSystem.registry().getFamilies().size() != priorFamilyCount) {
+      cachedMasterSettings.clear();
+    }
   }
 
-  const auto& allSettings = getSettingsList(&sdFontSystem.registry());
+  if (cachedMasterSettings.empty()) {
+    cachedMasterSettings = getSettingsList(&sdFontSystem.registry());
+  }
+
+  const auto& allSettings = cachedMasterSettings;
   auto addControlSetting = [&](StrId nameId) {
     const auto it =
         std::find_if(allSettings.begin(), allSettings.end(), [nameId](const auto& s) { return s.nameId == nameId; });
@@ -264,6 +298,7 @@ void SettingsActivity::onEnter() {
   selectedCategoryIndex = 0;
   selectedSettingIndex = 0;
 
+  invalidateMasterSettingsCache();
   rebuildSettingsLists();
 
   // Trigger first update
@@ -434,34 +469,26 @@ void SettingsActivity::toggleCurrentSetting() {
                                if (!SETTINGS.saveToFile()) {
                                  LOG_ERR("SET", "Failed to save settings");
                                }
+                               invalidateMasterSettingsCache();
                                rebuildSettingsLists();
                                requestUpdate();
                              });
       return;
     }
 
-    std::vector<std::string> values;
-    if (!setting.enumStringValues.empty()) {
-      values = setting.enumStringValues;
-    } else if (setting.dynamicValuesGetter) {
-      values = setting.dynamicValuesGetter();
-    } else {
-      values.reserve(setting.enumValues.size());
-      std::transform(setting.enumValues.begin(), setting.enumValues.end(), std::back_inserter(values),
-                     [](StrId id) { return std::string(I18N.get(id)); });
-    }
-    if (values.empty()) {
+    if (enumOptionCount(setting) == 0) {
       return;
     }
-    const uint8_t currentValue = (setting.valueGetter) ? setting.valueGetter() : SETTINGS.*(setting.valuePtr);
-    const uint8_t maxIndex = static_cast<uint8_t>(values.size() - 1);
-    const uint8_t normalizedValue = (currentValue > maxIndex) ? 0 : currentValue;
-    const uint8_t newValue = (normalizedValue + 1) % static_cast<uint8_t>(values.size());
+    const uint8_t newValue = cycleEnumOptionIndex(setting);
     const auto applyEnumValue = [this](const SettingInfo& targetSetting, const uint8_t value) {
       if (targetSetting.valueSetter) {
         targetSetting.valueSetter(value);
       } else if (targetSetting.valuePtr) {
         SETTINGS.*(targetSetting.valuePtr) = value;
+      }
+
+      if (targetSetting.key != nullptr && std::strcmp(targetSetting.key, "sleepScreen") == 0) {
+        SETTINGS.sleepScreen = CrossPointSettings::normalizeSleepScreenMode(SETTINGS.sleepScreen);
       }
 
       if (targetSetting.valuePtr == &CrossPointSettings::frontButtonLayout) {
@@ -473,8 +500,11 @@ void SettingsActivity::toggleCurrentSetting() {
         core::FeatureModules::onFontFamilySettingChanged(value);
       }
     };
+    const uint8_t currentIndex = setting.valueGetter
+                                     ? setting.valueGetter()
+                                     : (setting.valuePtr ? SETTINGS.*(setting.valuePtr) : static_cast<uint8_t>(0));
     const bool requiresBatteryWarning = setting.key != nullptr && strcmp(setting.key, kBackgroundServerModeKey) == 0 &&
-                                        normalizedValue != CrossPointSettings::BACKGROUND_SERVER_ALWAYS &&
+                                        currentIndex != CrossPointSettings::BACKGROUND_SERVER_ALWAYS &&
                                         newValue == CrossPointSettings::BACKGROUND_SERVER_ALWAYS;
 
     if (requiresBatteryWarning) {
@@ -572,6 +602,7 @@ void SettingsActivity::toggleCurrentSetting() {
                                  if (!SETTINGS.saveToFile()) {
                                    LOG_ERR("SET", "Failed to save settings");
                                  }
+                                 invalidateMasterSettingsCache();
                                  rebuildSettingsLists();
                                });
         break;
@@ -607,6 +638,7 @@ void SettingsActivity::toggleCurrentSetting() {
       case SettingAction::ResetSettings:
         startActivityForResult(std::make_unique<ResetSettingsActivity>(renderer, mappedInput),
                                [this](const ActivityResult&) {
+                                 invalidateMasterSettingsCache();
                                  rebuildSettingsLists();
                                  requestUpdate();
                                });
@@ -766,8 +798,6 @@ void SettingsActivity::render(RenderLock&&) {
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), confirmLabel, tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
-  // First paint clears ghosting from the previous screen with a full refresh;
-  // subsequent in-place updates stay on FAST to avoid flashing on every keypress.
   renderer.displayBuffer(firstRenderDone ? HalDisplay::FAST_REFRESH : HalDisplay::FULL_REFRESH);
   firstRenderDone = true;
 }
