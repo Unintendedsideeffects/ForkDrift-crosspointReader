@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
@@ -42,7 +43,7 @@ void groupSettingsByTopic(std::vector<SettingInfo>& settings, const std::vector<
     }
     if (groupItems.empty()) continue;
     out.push_back(SettingInfo::SectionHeader(topic.header));
-    for (auto& item : groupItems) out.push_back(std::move(item));
+    std::move(groupItems.begin(), groupItems.end(), std::back_inserter(out));
   }
 
   for (size_t i = 0; i < settings.size(); ++i) {
@@ -111,11 +112,8 @@ void ReaderOptionsActivity::rebuildSettingsList() {
 
   const auto allSettings = getSettingsList(&sdFontSystem.registry());
   settings.reserve(allSettings.size());
-  for (const auto& setting : allSettings) {
-    if (setting.category == StrId::STR_CAT_READER) {
-      settings.push_back(setting);
-    }
-  }
+  std::copy_if(allSettings.begin(), allSettings.end(), std::back_inserter(settings),
+               [](const SettingInfo& setting) { return setting.category == StrId::STR_CAT_READER; });
 
   groupSettingsByTopic(
       settings,

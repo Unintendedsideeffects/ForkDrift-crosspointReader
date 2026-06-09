@@ -36,9 +36,8 @@ constexpr int kSpriteSize = 34;
 
 std::string upperName(const std::string& raw) {
   std::string out = raw;
-  for (char& ch : out) {
-    ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
-  }
+  std::transform(out.begin(), out.end(), out.begin(),
+                 [](const char ch) { return static_cast<char>(std::toupper(static_cast<unsigned char>(ch))); });
   return out;
 }
 
