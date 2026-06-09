@@ -57,7 +57,7 @@ FEATURES = {
     'markdown': Feature(
         name='Markdown/Obsidian',
         flag='ENABLE_MARKDOWN',
-        size_kb=192,
+        size_kb=203,
         description='Markdown and Obsidian vault reading support'
     ),
     'integrations': Feature(
@@ -99,7 +99,7 @@ FEATURES = {
     'background_server_always': Feature(
         name='Background Server Always',
         flag='ENABLE_BACKGROUND_SERVER_ALWAYS',
-        size_kb=1,
+        size_kb=3,
         description='Auto-connect to WiFi on wake even when not charging'
     ),
     'home_media_picker': Feature(
@@ -123,13 +123,13 @@ FEATURES = {
     'pokemon_party': Feature(
         name='Pokemon Party',
         flag='ENABLE_POKEMON_PARTY',
-        size_kb=18,
+        size_kb=37,
         description='Per-book Pokemon metadata and REST API for recent-book party views'
     ),
     'epub_support': Feature(
         name='EPUB Support',
         flag='ENABLE_EPUB_SUPPORT',
-        size_kb=120,
+        size_kb=141,
         description='EPUB e-book reader with CSS and chapter navigation'
     ),
     'hyphenation': Feature(
@@ -141,7 +141,7 @@ FEATURES = {
     'xtc_support': Feature(
         name='XTC Support',
         flag='ENABLE_XTC_SUPPORT',
-        size_kb=20,
+        size_kb=23,
         description='XTC format reader with chapter navigation'
     ),
     'lyra_theme': Feature(
@@ -159,13 +159,13 @@ FEATURES = {
     'todo_planner': Feature(
         name='Todo Planner',
         flag='ENABLE_TODO_PLANNER',
-        size_kb=15,
+        size_kb=16,
         description='Standalone daily TODO/agenda planner with .md/.txt fallback and web quick-entry'
     ),
     'notes': Feature(
         name='Notes',
         flag='ENABLE_NOTES',
-        size_kb=3,
+        size_kb=4,
         description='Line-based /notes.txt store with API, optional home app, and sleep-screen mode'
     ),
     'anki_support': Feature(
@@ -213,7 +213,7 @@ FEATURES = {
     'remote_keyboard_input': Feature(
         name='Remote Keyboard Input',
         flag='ENABLE_REMOTE_KEYBOARD_INPUT',
-        size_kb=7,
+        size_kb=11,
         description='Android-first remote text entry with browser QR and hotspot fallback'
     ),
     'usb_mass_storage': Feature(
@@ -225,7 +225,7 @@ FEATURES = {
     'wifi_clock': Feature(
         name='WiFi Clock',
         flag='ENABLE_WIFI_CLOCK',
-        size_kb=2,
+        size_kb=4,
         description='NTP-backed 24-hour Roman numeral clock label that refreshes every 15 minutes while WiFi is connected'
     ),
     'roman_clock_sleep': Feature(
@@ -788,7 +788,7 @@ def empty_feature_state() -> Dict[str, bool]:
 
 def calculate_size(enabled_features: Dict[str, bool]) -> float:
     """Calculate estimated firmware size in MB."""
-    base_size_mb = 2.42  # Lean profile size baseline (measured)
+    base_size_mb = 2.51  # Lean profile size baseline (measured)
 
     for feature_key, enabled in enabled_features.items():
         if enabled:
