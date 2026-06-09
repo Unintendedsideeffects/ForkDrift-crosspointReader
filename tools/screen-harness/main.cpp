@@ -647,6 +647,9 @@ int main(int argc, char* argv[]) {
 
   const std::vector<RecentBook> deviceRecentBooks =
       usingDeviceFilesystem ? loadRecentBooksFromDevice() : std::vector<RecentBook>{};
+  if (usingDeviceFilesystem) {
+    RECENT_BOOKS.loadFromFile();
+  }
   const std::vector<RecentBook>& partyBooks = deviceRecentBooks.empty() ? samplePartyBooks() : deviceRecentBooks;
 
   const std::vector<HomePreviewScenario> homeScenarios = {

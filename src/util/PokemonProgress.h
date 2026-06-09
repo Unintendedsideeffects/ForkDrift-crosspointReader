@@ -31,8 +31,10 @@ namespace PokemonProgress {
 // Highest level any book can reach.
 constexpr int kMaxLevel = 100;
 
-// Load + parse pokemon.json for a book. Returns a struct with valid=false when
-// the book has no assignment (or the file is missing/corrupt).
+// Load a book's Pokémon assignment from its pokemon.json sidecar. When that file
+// is missing, fall back to the prebaked team roster entry at the same recent-
+// books index (party slot 0 uses team[0], etc.). Returns valid=false only when
+// neither source has data for the book.
 PokemonAssignment loadForBook(const std::string& bookPath);
 
 // Map a reading percentage (0..100; negative => unknown/unstarted) to a level

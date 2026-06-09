@@ -6,20 +6,12 @@
 #include <cmath>
 
 #include "util/PokemonBookDataStore.h"
+#include "util/PokemonTeamStore.h"
+#include "util/RecentBooksStore.h"
 
-namespace PokemonProgress {
-
-PokemonAssignment loadForBook(const std::string& bookPath) {
+namespace {
+PokemonAssignment assignmentFromPokemonJson(JsonVariantConst pokemon) {
   PokemonAssignment out;
-  if (!PokemonBookDataStore::supportsBookPath(bookPath)) {
-    return out;
-  }
-
-  JsonDocument doc;
-  if (!PokemonBookDataStore::loadPokemonDocument(bookPath, doc)) {
-    return out;
-  }
-  JsonVariantConst pokemon = doc["pokemon"];
   if (!pokemon.is<JsonObjectConst>()) {
     return out;
   }
@@ -37,7 +29,6 @@ PokemonAssignment loadForBook(const std::string& bookPath) {
       entry.speciesId = stage["speciesId"] | 0;
       const char* stageName = stage["name"] | "";
       entry.name = stageName ? stageName : "";
-      // minLevel is null for the base form; treat null/<=0 as level 1.
       const int minLevel = stage["minLevel"] | 0;
       entry.minLevel = minLevel > 0 ? minLevel : 1;
       if (entry.speciesId > 0) {
@@ -46,10 +37,41 @@ PokemonAssignment loadForBook(const std::string& bookPath) {
     }
   }
 
-  // A valid assignment needs at least a base species to render.
   out.valid = out.speciesId > 0 || !out.chain.empty();
   if (out.speciesId <= 0 && !out.chain.empty()) {
     out.speciesId = out.chain.front().speciesId;
+  }
+  return out;
+}
+}  // namespace
+
+namespace PokemonProgress {
+
+PokemonAssignment loadForBook(const std::string& bookPath) {
+  PokemonAssignment out;
+  if (!PokemonBookDataStore::supportsBookPath(bookPath)) {
+    return out;
+  }
+
+  JsonDocument doc;
+  if (PokemonBookDataStore::loadPokemonDocument(bookPath, doc)) {
+    return assignmentFromPokemonJson(doc["pokemon"]);
+  }
+
+  JsonDocument teamDoc;
+  if (!PokemonTeamStore::loadTeamDocument(teamDoc) || !teamDoc["team"].is<JsonArrayConst>()) {
+    return out;
+  }
+  const JsonArrayConst team = teamDoc["team"].as<JsonArrayConst>();
+  const auto& recent = RECENT_BOOKS.getBooks();
+  for (size_t i = 0; i < recent.size(); ++i) {
+    if (recent[i].path != bookPath) {
+      continue;
+    }
+    if (i < team.size()) {
+      return assignmentFromPokemonJson(team[i]);
+    }
+    break;
   }
   return out;
 }

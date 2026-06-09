@@ -95,6 +95,7 @@ class HalStorage {
   bool openFileForRead(const char* tag, const char* path, HalFile& file);
   bool exists(const char* path) const;
   bool remove(const char* path);
+  bool writeFile(const char* path, const char* content);
 
  private:
   HalStorage();

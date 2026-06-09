@@ -3,6 +3,7 @@
 #include "ActivityManager.h"
 #include "Arduino.h"
 #include "CrossPointSettings.h"
+#include "CrossPointState.h"
 #include "HalGPIO.h"
 #include "MappedInputManager.h"
 #include "SPI.h"
@@ -25,6 +26,7 @@ SPIClass SPI;
 HalGPIO gpio;
 ActivityManager activityManager;
 CrossPointSettings CrossPointSettings::instance;
+CrossPointState CrossPointState::instance;
 SdCardFontSystem sdFontSystem;
 BackgroundWifiService BackgroundWifiService::instance;
 
@@ -160,12 +162,8 @@ void FeatureModules::setSelectedUserFontFamilyIndex(uint8_t) {}
 
 #include <cstdlib>
 #include <cstring>
-#include <regex>
 
-#include "BookCachePath.h"
-#include "device_fs_data.h"
 #include "util/BookProgressDataStore.h"
-#include "util/PokemonProgress.h"
 #include "util/PokemonSpriteCache.h"
 
 bool BookProgressDataStore::supportsBookPath(const std::string&) { return true; }
@@ -185,73 +183,6 @@ bool BookProgressDataStore::loadProgress(const std::string& bookPath, ProgressDa
 }
 const char* BookProgressDataStore::kindName(BookKind) { return "epub"; }
 std::string BookProgressDataStore::formatPositionLabel(const ProgressData&) { return ""; }
-
-namespace PokemonProgress {
-PokemonAssignment loadForBook(const std::string& bookPath) {
-  PokemonAssignment out;
-  if (!Storage.hasRoot()) {
-    static constexpr const char* kNames[] = {"pikachu", "kadabra", "diglett", "pidgeotto", "gyarados", "chansey"};
-    const char* lastDash = ::strrchr(bookPath.c_str(), '-');
-    int index = lastDash != nullptr ? std::atoi(lastDash + 1) : 0;
-    index = std::max(0, std::min(index, 5));
-    out.valid = true;
-    out.id = index + 1;
-    out.speciesId = out.id;
-    out.name = kNames[index];
-    return out;
-  }
-
-  const int bookIndex = harnessBookIndex(bookPath);
-  const auto& team = harnessTeamMembers();
-  if (bookIndex >= 0 && bookIndex < static_cast<int>(team.size())) {
-    const HarnessTeamMember& member = team[static_cast<size_t>(bookIndex)];
-    out.valid = member.speciesId > 0;
-    out.id = member.speciesId;
-    out.speciesId = member.speciesId;
-    out.name = member.name;
-    return out;
-  }
-
-  std::string cachePath;
-  if (BookCachePath::resolve("/.crosspoint", bookPath, cachePath)) {
-    const std::string pokemonPath = cachePath + "/pokemon.json";
-    if (Storage.exists(pokemonPath.c_str())) {
-      HalFile file;
-      if (Storage.openFileForRead("PKM", pokemonPath, file)) {
-        std::string json;
-        json.resize(static_cast<size_t>(file.fileSize64()));
-        file.read(reinterpret_cast<uint8_t*>(json.data()), json.size());
-        file.close();
-        const std::regex speciesPattern(R"re("speciesId"\s*:\s*([0-9]+))re");
-        const std::regex namePattern(R"re("name"\s*:\s*"([^"]*)")re");
-        std::smatch match;
-        if (std::regex_search(json, match, speciesPattern)) {
-          out.speciesId = std::stoi(match[1].str());
-          out.id = out.speciesId;
-          out.valid = out.speciesId > 0;
-        }
-        if (std::regex_search(json, match, namePattern)) {
-          out.name = match[1].str();
-        }
-      }
-    }
-  }
-  return out;
-}
-
-int levelForPercent(const float percent) {
-  if (percent <= 0.0f) {
-    return 1;
-  }
-  return std::clamp(static_cast<int>(percent * 0.35f) + 1, 1, kMaxLevel);
-}
-
-int activeStageIndex(const PokemonAssignment&, const int) { return 0; }
-
-int activeSpeciesId(const PokemonAssignment& assignment, const int) {
-  return assignment.speciesId > 0 ? assignment.speciesId : assignment.id;
-}
-}  // namespace PokemonProgress
 
 namespace PokemonSpriteCache {
 std::string spritePath(const int speciesId) {

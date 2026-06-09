@@ -94,6 +94,9 @@ class HomeActivity final : public Activity {
   void onFileTransferOpen();
 #if ENABLE_POKEMON_PARTY
   void onAssignPokemonOpen();
+  bool handlePokemonPartySpriteRefresh();
+  int pokemonSpriteRefreshRetries = 0;
+  uint32_t pokemonSpriteCacheFingerprint = 0;
 #endif
   void onOpdsBrowserOpen();
   void onTodoOpen();

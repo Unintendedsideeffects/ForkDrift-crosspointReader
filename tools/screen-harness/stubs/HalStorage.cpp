@@ -123,6 +123,30 @@ bool HalStorage::exists(const char* path) const {
   return false;
 }
 
+bool HalStorage::writeFile(const char* path, const char* content) {
+  if (path == nullptr || content == nullptr) {
+    return false;
+  }
+  const std::string normalized = normalizePath(path);
+  ensureParentDirs(normalized);
+  if (hasRoot()) {
+    const auto host = hostPath(normalized);
+    std::error_code ec;
+    std::filesystem::create_directories(host.parent_path(), ec);
+    std::ofstream output(host, std::ios::binary);
+    if (!output) {
+      return false;
+    }
+    output.write(content, static_cast<std::streamsize>(std::strlen(content)));
+    return output.good();
+  }
+  auto buf = std::make_shared<std::vector<uint8_t>>();
+  const size_t len = std::strlen(content);
+  buf->assign(reinterpret_cast<const uint8_t*>(content), reinterpret_cast<const uint8_t*>(content) + len);
+  overlay_[normalized] = std::move(buf);
+  return true;
+}
+
 bool HalStorage::remove(const char* path) {
   if (path == nullptr) {
     return false;

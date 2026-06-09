@@ -100,6 +100,10 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/InputValidation.cpp" \
   "$ROOT_DIR/src/util/PathUtils.cpp" \
   "$ROOT_DIR/src/util/PokemonBookDataStore.cpp" \
+  "$ROOT_DIR/src/util/PokemonProgress.cpp" \
+  "$ROOT_DIR/src/util/PokemonPartySprites.cpp" \
+  "$ROOT_DIR/src/util/PokemonTeamStore.cpp" \
+  "$ROOT_DIR/src/util/RecentBooksStore.cpp" \
   "$ROOT_DIR/src/CrossPointSettings.cpp" \
   "$ROOT_DIR/src/network/BackgroundServerPolicy.cpp" \
   "$ROOT_DIR/src/BookmarkStore.cpp" \

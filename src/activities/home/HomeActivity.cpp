@@ -25,6 +25,7 @@
 #endif
 #if ENABLE_POKEMON_PARTY
 #include "activities/home/PokemonAssignActivity.h"
+#include "util/PokemonPartySprites.h"
 #endif
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
@@ -715,6 +716,10 @@ void HomeActivity::onEnter() {
   firstRenderDone = false;
   carouselFramesReady = false;
   carouselWarmupPending = usesCarouselCache;
+#if ENABLE_POKEMON_PARTY
+  pokemonSpriteRefreshRetries = 0;
+  pokemonSpriteCacheFingerprint = 0;
+#endif
 
   if (blocksBackgroundServer() && BG_WIFI.isRunning()) {
     BG_WIFI.stop(true);
@@ -1873,8 +1878,13 @@ void HomeActivity::render(RenderLock&&) {
     GUI.drawButtonHints(renderer, hints.btn1, hints.btn2, hints.btn3, hints.btn4);
   }
 
-  const bool doFull = !firstRenderDone && APP_STATE.pendingHomeFullRefresh && !APP_STATE.transparentSleepRestoredOnWake;
+  bool doFull = !firstRenderDone && APP_STATE.pendingHomeFullRefresh && !APP_STATE.transparentSleepRestoredOnWake;
   if (doFull) APP_STATE.pendingHomeFullRefresh = false;
+#if ENABLE_POKEMON_PARTY
+  if (handlePokemonPartySpriteRefresh()) {
+    doFull = true;
+  }
+#endif
   renderer.displayBuffer(doFull ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
 
   if (!firstRenderDone) {
@@ -1908,9 +1918,28 @@ void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
 void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
 
 #if ENABLE_POKEMON_PARTY
+bool HomeActivity::handlePokemonPartySpriteRefresh() {
+  if (!isPokemonPartyHomeMode() || recentBooks.empty()) {
+    return false;
+  }
+
+  PokemonPartySprites::RefreshState state{pokemonSpriteRefreshRetries, pokemonSpriteCacheFingerprint};
+  const PokemonPartySprites::SyncResult sync = PokemonPartySprites::syncPartySprites(recentBooks);
+  const PokemonPartySprites::RefreshDecision decision = PokemonPartySprites::decideRefresh(state, sync);
+  pokemonSpriteRefreshRetries = state.retries;
+  pokemonSpriteCacheFingerprint = state.cacheFingerprint;
+  if (decision.requestRedraw) {
+    requestUpdate();
+  }
+  return decision.forceFullRefresh;
+}
+
 void HomeActivity::onAssignPokemonOpen() {
-  startActivityForResult(std::make_unique<PokemonAssignActivity>(renderer, mappedInput),
-                         [this](const ActivityResult&) { requestUpdate(); });
+  startActivityForResult(std::make_unique<PokemonAssignActivity>(renderer, mappedInput), [this](const ActivityResult&) {
+    pokemonSpriteRefreshRetries = 0;
+    pokemonSpriteCacheFingerprint = 0;
+    requestUpdate();
+  });
 }
 #endif
 

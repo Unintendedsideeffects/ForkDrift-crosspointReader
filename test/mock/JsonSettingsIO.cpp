@@ -17,6 +17,7 @@
 #include <cstring>
 
 #include "CrossPointSettings.h"
+#include "util/RecentBooksStore.h"
 
 // ---- CrossPointSettings ----
 
@@ -200,8 +201,51 @@ bool JsonSettingsIO::saveWifi(const WifiCredentialStore&, const char*) { return 
 bool JsonSettingsIO::loadWifi(WifiCredentialStore&, const char*, bool*) { return false; }
 bool JsonSettingsIO::loadWifi(WifiCredentialStore&, HalFile&, bool*) { return false; }
 bool JsonSettingsIO::saveRecentBooks(const RecentBooksStore&, const char*) { return true; }
-bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, const char*) { return false; }
-bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, HalFile&) { return false; }
+
+bool JsonSettingsIO::loadRecentBooks(RecentBooksStore& store, const char* json) {
+  JsonDocument doc;
+  if (deserializeJson(doc, json)) {
+    return false;
+  }
+
+  store.recentBooks.clear();
+  const JsonArrayConst arr = doc["books"].as<JsonArrayConst>();
+  for (JsonObjectConst obj : arr) {
+    if (store.getCount() >= 10) {
+      break;
+    }
+    RecentBook book;
+    book.path = obj["path"] | std::string("");
+    book.title = obj["title"] | std::string("");
+    book.author = obj["author"] | std::string("");
+    book.coverBmpPath = obj["coverBmpPath"] | std::string("");
+    store.recentBooks.push_back(std::move(book));
+  }
+  return true;
+}
+
+bool JsonSettingsIO::loadRecentBooks(RecentBooksStore& store, HalFile& file) {
+  FsFileJsonReader reader(file);
+  JsonDocument doc;
+  if (deserializeJson(doc, reader)) {
+    return false;
+  }
+
+  store.recentBooks.clear();
+  const JsonArrayConst arr = doc["books"].as<JsonArrayConst>();
+  for (JsonObjectConst obj : arr) {
+    if (store.getCount() >= 10) {
+      break;
+    }
+    RecentBook book;
+    book.path = obj["path"] | std::string("");
+    book.title = obj["title"] | std::string("");
+    book.author = obj["author"] | std::string("");
+    book.coverBmpPath = obj["coverBmpPath"] | std::string("");
+    store.recentBooks.push_back(std::move(book));
+  }
+  return true;
+}
 bool JsonSettingsIO::saveOpds(const OpdsServerStore&, const char*) { return true; }
 bool JsonSettingsIO::loadOpds(OpdsServerStore&, const char*, bool*) { return false; }
 bool JsonSettingsIO::loadOpds(OpdsServerStore&, HalFile&, bool*) { return false; }

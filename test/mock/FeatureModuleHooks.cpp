@@ -158,6 +158,8 @@ uint8_t FeatureModules::getSelectedUserFontFamilyIndex() { return 0; }
 
 void FeatureModules::setSelectedUserFontFamilyIndex(uint8_t) {}
 
+FeatureModules::RecentBookDataResult FeatureModules::resolveRecentBookData(const std::string&) { return {}; }
+
 }  // namespace core
 
 void invalidateSleepImageCache() {}
