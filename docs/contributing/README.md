@@ -29,8 +29,8 @@ From the ForkDrift monorepo root, use `crosspoint-reader/scripts/hooks` instead.
 
 The current hooks do the following:
 
-- `pre-commit`: regenerates staged generated assets, auto-formats staged C/C++ files, and runs a firmware build.
-- `pre-push`: runs the heavier local CI checks (`cppcheck` + firmware build) before push.
+- `pre-commit`: regenerates staged generated assets, auto-formats staged C/C++ files, and runs a **full** profile build (`pio run -e custom`).
+- `pre-push`: runs `cppcheck`, then the same **full** profile build. Skips the rebuild when pre-commit already built the same tree (typical single-commit push).
 
 ## Additional Resources
 

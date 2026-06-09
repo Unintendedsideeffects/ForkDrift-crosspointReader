@@ -2,7 +2,10 @@
 # Pre-push hook to replicate GitHub Actions CI checks using uv
 # Steps:
 # 1. uv run pio check (cppcheck)
-# 2. uv run pio run (build)
+# 2. uv run pio run -e custom (full profile by default)
+#
+# Reuses the pre-commit full build when HEAD's tree was already built
+# (.cache/build-results/<profile>-<tree>). Set FORCE_BUILD=1 to override.
 #
 # Install: git config core.hooksPath scripts/hooks
 # (or copy to .git/hooks/ manually)
@@ -11,27 +14,23 @@
 
 set -e
 
-# ANSI color codes
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 echo -e "${YELLOW}Running pre-push checks with uv...${NC}"
 
-# Ensure we are at the project root
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
 
-# Check for uv
 if ! command -v uv &> /dev/null; then
     echo -e "${RED}Error: 'uv' not found in PATH.${NC}"
     exit 1
 fi
 
-# Skip all checks if this exact commit was already verified (success) or
-# already known-broken (failure). Stamps live in .cache/ which is gitignored
-# and machine-local. Set FORCE_BUILD=1 to bypass the failure cache.
+BUILD_PROFILE="${CROSSPOINT_PREPUSH_PROFILE:-${CROSSPOINT_PRECOMMIT_PROFILE:-full}}"
+
 STAMP_FILE="$REPO_ROOT/.cache/pre-push-verified"
 STAMP_FAIL="$REPO_ROOT/.cache/pre-push-failed"
 HEAD_COMMIT=$(git rev-parse HEAD)
@@ -46,34 +45,50 @@ if [ "${FORCE_BUILD:-0}" != "1" ] && [ -f "$STAMP_FAIL" ] \
     exit 1
 fi
 
-# Serialize against any other concurrent pio invocation. Two pio processes
-# share /tmp/crosspoint-pio-build/default and corrupt each other's .o files,
-# which surfaces as bogus "undefined reference" link errors. Refuse the
-# duplicate so the user notices the collision immediately.
 LOCKFILE=/tmp/crosspoint-pio-build.lock
 exec 9>"$LOCKFILE"
 if ! flock -n 9; then
-    echo -e "${RED:-}ERROR: another pio build is already running (lockfile: $LOCKFILE).${NC:-}" >&2
-    echo "       Concurrent builds corrupt /tmp/crosspoint-pio-build/. Refusing duplicate." >&2
+    echo -e "${RED}ERROR: another pio build is already running (lockfile: $LOCKFILE).${NC}" >&2
+    echo "       Concurrent builds corrupt shared PlatformIO output. Refusing duplicate." >&2
     echo "       Wait for the in-flight build to finish, then retry the push." >&2
     exit 1
 fi
 
-# Record failure on any unsuccessful exit so a re-push of the same broken
-# commit fails fast instead of redoing the 5-minute build.
 mkdir -p "$REPO_ROOT/.cache"
 trap 'rc=$?; if [ "$rc" -ne 0 ]; then echo "$HEAD_COMMIT" > "$STAMP_FAIL"; fi' EXIT
 
-# 1. Static Analysis (cppcheck)
 echo -e "${YELLOW}Step 1/2: Running static analysis (cppcheck)...${NC}"
 uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
 
-# 2. Build Firmware
-echo -e "${YELLOW}Step 2/2: Building firmware...${NC}"
-uv run pio run
+CACHE_DIR="$REPO_ROOT/.cache/build-results"
+mkdir -p "$CACHE_DIR"
+STATE_KEY="$(git rev-parse 'HEAD^{tree}')"
+CACHE_FILE="$CACHE_DIR/${BUILD_PROFILE}-$STATE_KEY"
+if [ "${FORCE_BUILD:-0}" != "1" ] && [ -f "$CACHE_FILE" ]; then
+    CACHED_EXIT="$(cat "$CACHE_FILE")"
+    if [ "$CACHED_EXIT" = "0" ]; then
+        echo -e "${GREEN}Cached: HEAD tree $STATE_KEY already built OK (${BUILD_PROFILE}) — skipping rebuild.${NC}"
+        echo "$HEAD_COMMIT" > "$STAMP_FILE"
+        rm -f "$STAMP_FAIL"
+        echo -e "${GREEN}All checks passed! Ready to push.${NC}"
+        exit 0
+    fi
+    echo -e "${RED}Cached: HEAD tree $STATE_KEY previously FAILED build (exit $CACHED_EXIT).${NC}" >&2
+    echo "       Fix the code or set FORCE_BUILD=1 to retry." >&2
+    exit "$CACHED_EXIT"
+fi
 
-# Record this commit as verified so retries / re-pushes are instant. Clear any
-# stale failure stamp from a previous bad attempt at the same SHA.
+echo -e "${YELLOW}Step 2/2: Building firmware (${BUILD_PROFILE} profile)...${NC}"
+uv run python scripts/generate_build_config.py --profile "$BUILD_PROFILE"
+set +e
+uv run pio run -e custom
+BUILD_EXIT=$?
+set -e
+echo "$BUILD_EXIT" > "$CACHE_FILE"
+if [ "$BUILD_EXIT" -ne 0 ]; then
+    exit "$BUILD_EXIT"
+fi
+
 echo "$HEAD_COMMIT" > "$STAMP_FILE"
 rm -f "$STAMP_FAIL"
 

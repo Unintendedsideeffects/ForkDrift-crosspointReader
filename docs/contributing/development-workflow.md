@@ -41,10 +41,11 @@ git config core.hooksPath scripts/hooks
   - Regenerates staged generated assets when needed.
   - Automatically formats staged C/C++ files with `clang-format`.
   - Guards against manual edits to `I18nStrings.cpp` (which is generated).
-  - Runs a local firmware build.
+  - Generates the **full** profile and runs `uv run pio run -e custom`.
 - **`pre-push`**:
   - Runs `uv run pio check` (static analysis).
-  - Performs a local `uv run pio run` build to ensure compilation success.
+  - Builds the same **full** profile (`pio run -e custom`).
+  - Reuses the pre-commit build cache when `HEAD^{tree}` matches (so commit-then-push is usually cppcheck-only).
 
 ## 5) Manual Local Checks
 
@@ -55,7 +56,8 @@ uv run ./bin/clang-format-fix
 uv run pio check --fail-on-defect low --fail-on-defect medium --fail-on-defect high
 bash test/run_host_tests.sh
 python3 scripts/validate_contract_server.py
-uv run pio run
+uv run python scripts/generate_build_config.py --profile full
+uv run pio run -e custom
 ```
 
 ## 6) Open the PR
