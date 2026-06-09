@@ -17,7 +17,7 @@ static void writePod(HalFile& file, const T& value) {
 template <typename T>
 static bool readPod(std::istream& is, T& value) {
   is.read(reinterpret_cast<char*>(&value), sizeof(T));
-  return is.good();
+  return is.gcount() == static_cast<std::streamsize>(sizeof(T));
 }
 
 template <typename T>
@@ -47,7 +47,7 @@ static bool readString(std::istream& is, std::string& s) {
   }
   s.resize(len);
   is.read(&s[0], len);
-  return is.good();
+  return is.gcount() == static_cast<std::streamsize>(len);
 }
 
 static bool readString(HalFile& file, std::string& s) {
