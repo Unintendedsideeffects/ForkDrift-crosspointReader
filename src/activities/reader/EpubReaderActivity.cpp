@@ -1325,6 +1325,19 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     }
   }
 
+  if (APP_STATE.consumeTransparentSleepWakePaint()) {
+    if (!previewRenderOnly && section) {
+      if (currentSpineIndex != lastSavedSpineIndex || section->currentPage != lastSavedPage) {
+        saveProgress(currentSpineIndex, section->currentPage, section->pageCount);
+        lastSavedSpineIndex = currentSpineIndex;
+        lastSavedPage = section->currentPage;
+      }
+      silentIndexNextChapterIfNeeded(viewportWidth, viewportHeight);
+    }
+    showPendingSyncSaveError();
+    return;
+  }
+
   renderer.clearScreen();
 
   if (section->pageCount == 0) {

@@ -491,6 +491,11 @@ void MarkdownReaderActivity::renderScreen() {
     }
   }
 
+  if (APP_STATE.consumeTransparentSleepWakePaint()) {
+    saveProgress();
+    return;
+  }
+
   renderer.clearScreen();
 
   if (!hasActiveSection() || getActivePageCount() == 0) {

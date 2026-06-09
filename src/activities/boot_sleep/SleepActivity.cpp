@@ -610,14 +610,15 @@ void SleepActivity::onEnter() {
     return;
   }
 
-  // Transparent mode: preserve current screen content, just overlay lock icon
-  if (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::TRANSPARENT) {
+  const bool preserveCurrentScreen =
+      SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::TRANSPARENT ||
+      (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::SMART && APP_STATE.lastSleepFromReader);
+
+  if (preserveCurrentScreen) {
     renderTransparentSleepScreen();
     return;
   }
 
-  // Full-refresh clear before rendering the sleep image so the previous screen
-  // content (e.g. settings list) doesn't ghost through during deep sleep.
   renderer.clearScreen();
   renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 

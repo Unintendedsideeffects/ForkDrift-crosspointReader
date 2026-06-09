@@ -691,6 +691,11 @@ void SettingsActivity::openSleepTimeoutPicker() {
 #endif
 
 void SettingsActivity::render(RenderLock&&) {
+  if (APP_STATE.consumeTransparentSleepWakePaint()) {
+    firstRenderDone = true;
+    return;
+  }
+
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
@@ -778,6 +783,7 @@ void SettingsActivity::render(RenderLock&&) {
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), confirmLabel, tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
-  renderer.displayBuffer(firstRenderDone ? HalDisplay::FAST_REFRESH : HalDisplay::FULL_REFRESH);
+  const bool firstPaint = !firstRenderDone && !APP_STATE.transparentSleepRestoredOnWake;
+  renderer.displayBuffer(firstPaint ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
   firstRenderDone = true;
 }

@@ -1499,6 +1499,11 @@ void HomeActivity::loop() {
 }
 
 void HomeActivity::render(RenderLock&&) {
+  if (APP_STATE.consumeTransparentSleepWakePaint()) {
+    firstRenderDone = true;
+    return;
+  }
+
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
@@ -1571,7 +1576,8 @@ void HomeActivity::render(RenderLock&&) {
 
       // Full refresh only when pendingHomeFullRefresh (reader exit / explicit boot);
       // Home ↔ Settings and carousel slides stay on FAST.
-      const bool doFullCarousel = !firstRenderDone && APP_STATE.pendingHomeFullRefresh;
+      const bool doFullCarousel =
+          !firstRenderDone && APP_STATE.pendingHomeFullRefresh && !APP_STATE.transparentSleepRestoredOnWake;
       if (doFullCarousel) APP_STATE.pendingHomeFullRefresh = false;
       renderer.displayBuffer(doFullCarousel ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
       updateSlidingWindowCache(centerIdx, bookCount);
@@ -1867,7 +1873,7 @@ void HomeActivity::render(RenderLock&&) {
     GUI.drawButtonHints(renderer, hints.btn1, hints.btn2, hints.btn3, hints.btn4);
   }
 
-  const bool doFull = !firstRenderDone && APP_STATE.pendingHomeFullRefresh;
+  const bool doFull = !firstRenderDone && APP_STATE.pendingHomeFullRefresh && !APP_STATE.transparentSleepRestoredOnWake;
   if (doFull) APP_STATE.pendingHomeFullRefresh = false;
   renderer.displayBuffer(doFull ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
 

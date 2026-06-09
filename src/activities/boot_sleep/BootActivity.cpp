@@ -6,6 +6,7 @@
 
 #include "BrandScreen.h"
 #include "CrossPointSettings.h"
+#include "CrossPointState.h"
 #include "fontIds.h"
 
 void BootActivity::onEnter() {
@@ -24,6 +25,7 @@ void BootActivity::onEnter() {
         renderer.drawBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), 0, 0);
         renderer.displayBuffer(HalDisplay::RefreshMode::FAST_REFRESH);
         renderedTransparent = true;
+        APP_STATE.transparentSleepRestoredOnWake = true;
       }
       file.close();
     }

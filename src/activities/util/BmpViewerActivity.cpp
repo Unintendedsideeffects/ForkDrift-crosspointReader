@@ -11,6 +11,7 @@
 #include <cstring>
 
 #include "CrossPointSettings.h"
+#include "CrossPointState.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -60,6 +61,10 @@ void BmpViewerActivity::loadSiblingImages() {
 
 void BmpViewerActivity::onEnter() {
   Activity::onEnter();
+
+  if (APP_STATE.consumeTransparentSleepWakePaint()) {
+    return;
+  }
 
   if (siblingImages.empty() && !filePath.empty()) {
     loadSiblingImages();

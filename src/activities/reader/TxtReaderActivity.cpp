@@ -340,6 +340,11 @@ void TxtReaderActivity::render(RenderLock&&) {
     return;
   }
 
+  if (APP_STATE.consumeTransparentSleepWakePaint()) {
+    saveProgress();
+    return;
+  }
+
   renderer.clearScreen();
   renderPage();
 

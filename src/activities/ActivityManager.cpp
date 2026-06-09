@@ -329,7 +329,7 @@ void ActivityManager::goHome() {
   // case worth the flash. Home ↔ Settings and other list UIs stay on FAST_REFRESH;
   // see HomeActivity::render (pendingHomeFullRefresh gate). Wake-from-reader boot
   // sets the flag explicitly in main.cpp.
-  if (isReaderActivity()) {
+  if (isReaderActivity() && !APP_STATE.transparentSleepRestoredOnWake) {
     APP_STATE.pendingHomeFullRefresh = true;
   }
   replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInput));

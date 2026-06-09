@@ -1,5 +1,6 @@
 #pragma once
 #include <freertos/FreeRTOS.h>
+
 #include <atomic>
 #include <climits>
 #include <cstdint>
@@ -32,6 +33,7 @@ class CrossPointState {
   uint8_t recentSleepFill = 0;                          // valid entries (0..SLEEP_RECENT_COUNT)
   uint8_t readerActivityLoadCount = 0;
   bool lastSleepFromReader = false;
+  bool transparentSleepRestoredOnWake = false;
   bool showBootScreen = true;
 
   // Returns true if idx was shown within the last checkCount picks.
@@ -43,6 +45,14 @@ class CrossPointState {
 
   // Get singleton instance
   static CrossPointState& getInstance() { return instance; }
+
+  bool consumeTransparentSleepWakePaint() {
+    if (!transparentSleepRestoredOnWake) {
+      return false;
+    }
+    transparentSleepRestoredOnWake = false;
+    return true;
+  }
 
   bool saveToFile() const;
 

@@ -155,10 +155,14 @@ void XtcReaderActivity::render(RenderLock&&) {
 
   // Bounds check
   if (currentPage >= xtc->getPageCount()) {
-    // Show end of book screen
     renderer.clearScreen();
     renderer.drawCenteredText(UI_12_FONT_ID, 300, "End of book", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
+    return;
+  }
+
+  if (APP_STATE.consumeTransparentSleepWakePaint()) {
+    saveProgress();
     return;
   }
 
