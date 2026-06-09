@@ -22,6 +22,13 @@
 constexpr size_t MIN_SIZE_FOR_POPUP = 10 * 1024;  // 10KB
 constexpr size_t PARSE_BUFFER_SIZE = 1024;
 
+// Hard cap on the number of anchor IDs recorded per chapter. Legitimate navigation
+// anchors (TOC entries, footnotes, cross-references) rarely exceed a few hundred per
+// chapter. A runaway count usually means a converter injected machine-generated IDs on
+// every text fragment (e.g. Kobo KePub spans). The cap prevents unbounded heap growth
+// on resource-constrained devices (~380KB heap). TOC anchors bypass this cap.
+constexpr size_t MAX_ANCHORS_PER_CHAPTER = 1024;
+
 constexpr const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
 constexpr const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "pre"};
 constexpr const char* BOLD_TAGS[] = {"b", "strong"};
@@ -60,6 +67,14 @@ const char* getAttribute(const XML_Char** atts, const char* attrName) {
   }
   return nullptr;
 }
+
+// Returns true if the HTML element is a purely inline, non-navigable wrapper.
+// IDs on these elements are never meaningful navigation targets in epub content.
+// Reading-system converters (Kobo KePub, Calibre, etc.) frequently inject thousands
+// of such IDs for progress tracking or internal bookkeeping, and recording each one
+// as a navigation anchor exhausts the heap on memory-constrained devices.
+// Block-level, sectioning, and structural elements are always considered navigable.
+bool isNonNavigableInlineElement(const char* name) { return strcmp(name, "span") == 0; }
 
 bool isInternalEpubLink(const char* href) {
   if (!href || href[0] == '\0') return false;
@@ -578,8 +593,15 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       } else if (strcmp(atts[i], "style") == 0) {
         styleAttr = atts[i + 1];
       } else if (strcmp(atts[i], "id") == 0) {
-        // Defer recording until startNewTextBlock, after previous block is flushed to pages
-        self->pendingAnchorId = atts[i + 1];
+        // Defer recording until startNewTextBlock, after previous block is flushed to pages.
+        //
+        // Skip IDs on non-navigable inline elements (e.g. <span>): these are never
+        // link targets in epub content, but reading-system converters can inject tens
+        // of thousands of them per chapter, exhausting the heap. Also cap total
+        // anchors per chapter for the same reason.
+        if (!isNonNavigableInlineElement(name) && self->anchorData.size() < MAX_ANCHORS_PER_CHAPTER) {
+          self->pendingAnchorId = atts[i + 1];
+        }
       }
     }
   }
