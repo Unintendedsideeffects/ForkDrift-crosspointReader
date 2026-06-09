@@ -27,6 +27,7 @@
 #include "StatusBarSettingsActivity.h"
 #include "ValidateSleepImagesActivity.h"
 #include "activities/network/WifiSelectionActivity.h"
+#include "activities/settings/SettingsTopics.h"
 #include "activities/util/ConfirmationActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
 #include "activities/util/IntervalSelectionActivity.h"
@@ -99,43 +100,6 @@ const std::vector<SettingInfo>* settingsForCategory(int categoryIndex, const std
   }
 }
 
-// A named topic group within a settings tab: a section header plus the ordered
-// list of setting keys that belong under it.
-struct SettingsTopic {
-  StrId header;
-  std::vector<const char*> keys;
-};
-
-// Reorders `settings` into the given topic groups, inserting a SectionHeader
-// before each non-empty group. Settings whose key matches no group are kept and
-// appended after the grouped ones, so a typo (or a newly added setting that was
-// not assigned a topic) can never silently drop an entry from the menu.
-void groupSettingsByTopic(std::vector<SettingInfo>& settings, const std::vector<SettingsTopic>& topics) {
-  std::vector<SettingInfo> out;
-  out.reserve(settings.size() + topics.size());
-  std::vector<bool> used(settings.size(), false);
-
-  for (const auto& topic : topics) {
-    std::vector<SettingInfo> groupItems;
-    for (const char* key : topic.keys) {
-      for (size_t i = 0; i < settings.size(); ++i) {
-        if (!used[i] && settings[i].key != nullptr && std::strcmp(settings[i].key, key) == 0) {
-          groupItems.push_back(std::move(settings[i]));
-          used[i] = true;
-          break;
-        }
-      }
-    }
-    if (groupItems.empty()) continue;
-    out.push_back(SettingInfo::SectionHeader(topic.header));
-    for (auto& item : groupItems) out.push_back(std::move(item));  // cppcheck-suppress useStlAlgorithm
-  }
-
-  for (size_t i = 0; i < settings.size(); ++i) {
-    if (!used[i]) out.push_back(std::move(settings[i]));  // cppcheck-suppress useStlAlgorithm
-  }
-  settings = std::move(out);
-}
 }  // namespace
 
 const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_READER,
@@ -192,10 +156,31 @@ void SettingsActivity::rebuildSettingsLists() {
     }
   };
 
+  auto addSystemAction = [&](SettingAction action) {
+    if (!core::FeatureModules::supportsSettingAction(action)) return;
+    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [&](const SettingInfo& setting) {
+      return setting.type == SettingType::ACTION && setting.action == action;
+    });
+    if (it != allSettings.end()) {
+      systemSettings.push_back(*it);
+    }
+  };
+  auto appendSystemTopic = [&](StrId header, const auto& addItems) {
+    const size_t before = systemSettings.size();
+    systemSettings.push_back(SettingInfo::SectionHeader(header));
+    addItems();
+    if (systemSettings.size() == before + 1) {
+      systemSettings.pop_back();
+    }
+  };
+
   for (auto& setting : allSettings) {
     if (setting.category == StrId::STR_NONE_OPT || setting.category == StrId::STR_CAT_CONTROLS) continue;
     if (setting.key != nullptr &&
         (std::strcmp(setting.key, "developerMode") == 0 || std::strcmp(setting.key, "deviceName") == 0)) {
+      continue;
+    }
+    if (setting.category == StrId::STR_CAT_SYSTEM && settings_topics::isDeferredSystemSettingKey(setting.key)) {
       continue;
     }
     if (setting.category == StrId::STR_CAT_DISPLAY) {
@@ -204,37 +189,17 @@ void SettingsActivity::rebuildSettingsLists() {
       }
     } else if (setting.category == StrId::STR_CAT_READER) {
       readerSettings.push_back(setting);
-    } else if (setting.category == StrId::STR_CAT_SYSTEM) {
-      systemSettings.push_back(setting);
     }
   }
 
-  // Group Display and Reader by topic, keeping dependent settings adjacent to
-  // the setting they depend on (e.g. the sleep-screen sub-options follow Sleep
-  // Screen, which gates their visibility via visibleWhen).
-  groupSettingsByTopic(displaySettings,
-                       {{StrId::STR_SEC_APPEARANCE, {"uiTheme", "recentBooksView", "darkMode", "fadingFix"}},
-                        {StrId::STR_SEC_SLEEP,
-                         {"sleepScreen", "sleepScreenSource", "sleepScreenCoverMode", "sleepScreenCoverFilter",
-                          "sleepCycleMode", "haikuClockLandscape", "trmnlSleepEnabled"}},
-                        {StrId::STR_SEC_DISPLAY_MISC, {"refreshFrequency"}}});
-  groupSettingsByTopic(
-      readerSettings,
-      {{StrId::STR_SEC_TEXT,
-        {"fontFamily", "fontSize", "lineSpacing", "userFontPath", "hyphenationEnabled", "textAntiAliasing",
-         "embeddedStyle"}},
-       {StrId::STR_SEC_LAYOUT,
-        {"screenMargin", "paragraphAlignment", "extraParagraphSpacing", "forceParagraphIndents", "orientation"}},
-       {StrId::STR_SEC_READING_AIDS, {"focusReadingEnabled", "guideReadingEnabled", "imageRendering"}},
-       {StrId::STR_SEC_STATUS_BAR, {"globalStatusBarPosition", "hideBatteryPercentage"}}});
+  groupSettingsByTopic(displaySettings, settings_topics::kDisplay);
+  groupSettingsByTopic(readerSettings, settings_topics::kReader);
 
-  // System: a General header over the collected toggles; the network actions get
-  // their own Connectivity header below.
-  if (!systemSettings.empty()) {
-    systemSettings.insert(systemSettings.begin(), SettingInfo::SectionHeader(StrId::STR_SEC_GENERAL));
+  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_GENERAL));
+  for (const char* key : settings_topics::kGeneralSystemKeys) {
+    addSystemSettingByKey(key);
   }
 
-  // Build controls settings with section headers in desired display order
   controlsSettings.reserve(15);
   controlsSettings.push_back(SettingInfo::SectionHeader(StrId::STR_POWER_BUTTON));
   addControlSetting(StrId::STR_SHORT_PWR_BTN);
@@ -248,6 +213,7 @@ void SettingsActivity::rebuildSettingsLists() {
   addControlSetting(StrId::STR_SIDE_BTN_LAYOUT);
   addControlSettingByKey("sideButtonOrientationAware");
   addControlSetting(StrId::STR_SIDE_BTN_LONG_PRESS);
+
   systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_CONNECTIVITY));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_WIFI_NETWORKS, SettingAction::Network));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync));
@@ -256,7 +222,6 @@ void SettingsActivity::rebuildSettingsLists() {
     systemSettings.push_back(SettingInfo::Action(StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates));
   }
   systemSettings.push_back(SettingInfo::Action(StrId::STR_SD_FIRMWARE_UPDATE, SettingAction::SdFirmwareUpdate));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_FACTORY_RESET, SettingAction::FactoryReset));
   if (core::FeatureModules::supportsSettingAction(SettingAction::Language)) {
     systemSettings.push_back(SettingInfo::Action(StrId::STR_LANGUAGE, SettingAction::Language));
   }
@@ -266,19 +231,34 @@ void SettingsActivity::rebuildSettingsLists() {
   addSystemSettingByKey("timeZoneOffset");
 #endif
   systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_ADVANCED));
+  addSystemAction(SettingAction::TerminusSetup);
+  addSystemAction(SettingAction::SwitchToTrmnl);
+  appendSystemTopic(StrId::STR_SEC_FILE_SERVER, [&] {
+    addSystemSettingByKey("usbMscPromptOnConnect");
+    addSystemSettingByKey("backgroundServerMode");
+  });
+  appendSystemTopic(StrId::STR_SEC_ANKI_CONNECT, [&] {
+    addSystemSettingByKey("ankiConnectUrl");
+    addSystemSettingByKey("ankiConnectDeck");
+  });
+  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_MAINTENANCE));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_VALIDATE_SLEEP_IMAGES, SettingAction::ValidateSleepImages));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache));
-  addSystemSettingByKey("deviceName");
   systemSettings.push_back(SettingInfo::Action(StrId::STR_RESET_SETTINGS, SettingAction::ResetSettings));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_WIFI_NETWORKS, SettingAction::ClearWifiNetworks));
-  addSystemSettingByKey("developerMode");
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_LOGS, SettingAction::ClearLogs));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_CRASHES, SettingAction::ClearCrashes));
-  // Manage Fonts sits under the Text section, right after the font picker.
+  addSystemSettingByKey("deviceName");
+  addSystemSettingByKey("developerMode");
+  if (core::FeatureModules::supportsSettingAction(SettingAction::FactoryReset)) {
+    systemSettings.push_back(SettingInfo::Action(StrId::STR_FACTORY_RESET, SettingAction::FactoryReset));
+  }
+
   if (!readerSettings.empty()) {
-    const auto fontIt = std::find_if(readerSettings.begin(), readerSettings.end(),
-                                     [](const SettingInfo& s) { return s.nameId == StrId::STR_FONT_FAMILY; });
-    const auto insertPos = (fontIt != readerSettings.end()) ? std::next(fontIt) : readerSettings.begin();
+    const auto layoutHeaderIt = std::find_if(readerSettings.begin(), readerSettings.end(), [](const SettingInfo& s) {
+      return s.type == SettingType::SECTION_HEADER && s.nameId == StrId::STR_SEC_LAYOUT;
+    });
+    const auto insertPos = layoutHeaderIt != readerSettings.end() ? layoutHeaderIt : readerSettings.end();
     readerSettings.insert(insertPos, SettingInfo::Action(StrId::STR_MANAGE_FONTS, SettingAction::DownloadFonts));
   }
   readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));

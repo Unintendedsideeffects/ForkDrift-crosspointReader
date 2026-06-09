@@ -16,6 +16,29 @@ window.ConfiguratorSettingsDeviceUi = (function () {
     'Advanced',
   ];
 
+  const SETTINGS_TAB_TOPICS = [
+    [
+      { label: 'APPEARANCE', keys: ['uiTheme', 'recentBooksView', 'darkMode', 'fadingFix'] },
+      { label: 'SLEEP SCREEN', keys: ['sleepScreen', 'sleepScreenSource', 'sleepScreenCoverMode', 'sleepScreenCoverFilter', 'sleepCycleMode', 'haikuClockLandscape', 'trmnlSleepEnabled', 'sleepPinnedPath'] },
+      { label: 'DISPLAY', keys: ['refreshFrequency'] },
+    ],
+    [
+      { label: 'TEXT', keys: ['fontFamily', 'userFontPath', 'fontSize', 'lineSpacing', 'textAntiAliasing', 'hyphenationEnabled', 'embeddedStyle'] },
+      { label: 'LAYOUT', keys: ['orientation', 'paragraphAlignment', 'screenMargin', 'extraParagraphSpacing', 'forceParagraphIndents'] },
+      { label: 'READING AIDS', keys: ['focusReadingEnabled', 'guideReadingEnabled', 'imageRendering'] },
+      { label: 'STATUS BAR', keys: ['globalStatusBarPosition', 'hideBatteryPercentage'] },
+    ],
+    [],
+    [
+      { label: 'GENERAL', keys: ['sleepTimeoutMinutes', 'showHiddenFiles', 'todoOpenDirectToToday', 'moveFinishedToReadFolder'] },
+      { label: 'TIME', keys: ['timeMode', 'timeZoneOffset'] },
+      { label: 'ADVANCED', keys: [], headerOnly: true },
+      { label: 'FILE SERVER', keys: ['usbMscPromptOnConnect', 'backgroundServerMode'] },
+      { label: 'ANKICONNECT', keys: ['ankiConnectUrl', 'ankiConnectDeck'] },
+      { label: null, keys: ['deviceName', 'developerMode'] },
+    ],
+  ];
+
   function isSettingVisible(setting, values, active) {
     if (setting.hidden) return false;
     if (setting.visibleWhen && values[setting.visibleWhen.key] !== setting.visibleWhen.eq) return false;
@@ -41,24 +64,68 @@ window.ConfiguratorSettingsDeviceUi = (function () {
     return String(value ?? '');
   }
 
+  function makeSettingItem(setting, values, active, featureNames) {
+    const enabled = isSettingEnabled(setting, active);
+    return {
+      type: 'setting',
+      key: setting.key,
+      label: setting.label,
+      value: formatSettingValue(setting, values[setting.key]),
+      settingType: setting.type,
+      disabled: !enabled,
+      requiredFeature: !enabled ? (featureNames[setting.featureKey] ?? setting.featureKey) : undefined,
+    };
+  }
+
   function buildItemsForTab(schemaSettings, tabIndex, values, active, featureNames = {}) {
     const tab = SETTINGS_TABS[tabIndex];
     if (!tab) return [];
 
-    const items = [];
+    const byKey = new Map();
     schemaSettings.forEach(setting => {
       if (!tab.categories.includes(setting.category)) return;
       if (!isSettingVisible(setting, values, active)) return;
-      const enabled = isSettingEnabled(setting, active);
-      items.push({
-        type: 'setting',
-        key: setting.key,
-        label: setting.label,
-        value: formatSettingValue(setting, values[setting.key]),
-        settingType: setting.type,
-        disabled: !enabled,
-        requiredFeature: !enabled ? (featureNames[setting.featureKey] ?? setting.featureKey) : undefined,
+      byKey.set(setting.key, setting);
+    });
+
+    const items = [];
+    const used = new Set();
+    const topics = SETTINGS_TAB_TOPICS[tabIndex] || [];
+
+    const appendTopic = (topic) => {
+      const topicItems = [];
+      (topic.keys || []).forEach(key => {
+        const setting = byKey.get(key);
+        if (!setting) return;
+        topicItems.push(makeSettingItem(setting, values, active, featureNames));
+        used.add(key);
       });
+      if (!topicItems.length && !topic.headerOnly) return;
+      if (topic.label) items.push({ type: 'header', label: topic.label });
+      topicItems.forEach(item => items.push(item));
+    };
+
+    if (topics.length) {
+      topics.forEach(appendTopic);
+      schemaSettings.forEach(setting => {
+        if (used.has(setting.key)) return;
+        if (!tab.categories.includes(setting.category)) return;
+        if (tabIndex === 1 && setting.category === 'Reader') return;
+        if (!isSettingVisible(setting, values, active)) return;
+        if (setting.category === 'Customise Status Bar' && tabIndex === 1) {
+          if (!items.some(item => item.type === 'header' && item.label === 'CUSTOMISE STATUS BAR')) {
+            items.push({ type: 'header', label: 'CUSTOMISE STATUS BAR' });
+          }
+        }
+        items.push(makeSettingItem(setting, values, active, featureNames));
+      });
+      return items;
+    }
+
+    schemaSettings.forEach(setting => {
+      if (!tab.categories.includes(setting.category)) return;
+      if (!isSettingVisible(setting, values, active)) return;
+      items.push(makeSettingItem(setting, values, active, featureNames));
     });
     return items;
   }
@@ -307,6 +374,7 @@ window.ConfiguratorSettingsDeviceUi = (function () {
 
   return {
     SETTINGS_TABS,
+    SETTINGS_TAB_TOPICS,
     CATEGORY_ORDER,
     isSettingVisible,
     getAllowedOptions,

@@ -14,43 +14,11 @@
 #include "SdCardFontSystem.h"
 #include "SettingsList.h"
 #include "activities/ActivityResult.h"
+#include "activities/settings/SettingsTopics.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
-#include "fontIds.h"
 
 namespace {
-
-struct SettingsTopic {
-  StrId header;
-  std::vector<const char*> keys;
-};
-
-void groupSettingsByTopic(std::vector<SettingInfo>& settings, const std::vector<SettingsTopic>& topics) {
-  std::vector<SettingInfo> out;
-  out.reserve(settings.size() + topics.size());
-  std::vector<bool> used(settings.size(), false);
-
-  for (const auto& topic : topics) {
-    std::vector<SettingInfo> groupItems;
-    for (const char* key : topic.keys) {
-      for (size_t i = 0; i < settings.size(); ++i) {
-        if (!used[i] && settings[i].key != nullptr && std::strcmp(settings[i].key, key) == 0) {
-          groupItems.push_back(std::move(settings[i]));
-          used[i] = true;
-          break;
-        }
-      }
-    }
-    if (groupItems.empty()) continue;
-    out.push_back(SettingInfo::SectionHeader(topic.header));
-    std::move(groupItems.begin(), groupItems.end(), std::back_inserter(out));
-  }
-
-  for (size_t i = 0; i < settings.size(); ++i) {
-    if (!used[i]) out.push_back(std::move(settings[i]));
-  }
-  settings = std::move(out);
-}
 
 uint8_t readEnumValue(const SettingInfo& setting) {
   if (setting.valueGetter) {
@@ -115,15 +83,7 @@ void ReaderOptionsActivity::rebuildSettingsList() {
   std::copy_if(allSettings.begin(), allSettings.end(), std::back_inserter(settings),
                [](const SettingInfo& setting) { return setting.category == StrId::STR_CAT_READER; });
 
-  groupSettingsByTopic(
-      settings,
-      {{StrId::STR_SEC_TEXT,
-        {"fontFamily", "fontSize", "lineSpacing", "userFontPath", "hyphenationEnabled", "textAntiAliasing",
-         "embeddedStyle"}},
-       {StrId::STR_SEC_LAYOUT,
-        {"screenMargin", "paragraphAlignment", "extraParagraphSpacing", "forceParagraphIndents", "orientation"}},
-       {StrId::STR_SEC_READING_AIDS, {"focusReadingEnabled", "guideReadingEnabled", "imageRendering"}},
-       {StrId::STR_SEC_STATUS_BAR, {"globalStatusBarPosition", "hideBatteryPercentage"}}});
+  groupSettingsByTopic(settings, settings_topics::kReader);
 
   settingsCount = static_cast<int>(settings.size());
   selectedIndex = 0;
