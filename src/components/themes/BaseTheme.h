@@ -59,6 +59,7 @@ struct ThemeMetrics {
   HomeNavigationMode homeNavigationMode;
   int homeCoverGridColumns;
   int homeCoverGridRows;
+  int homeMenuColumns;
   bool homeUsesCarouselCache;
   bool homeUsesDualSizeCoverThumbs;
   int homeCoverThumbCenterW;
@@ -158,6 +159,7 @@ constexpr ThemeMetrics values = {.batteryWidth = 15,
                                  .homeNavigationMode = HomeNavigationMode::CoverMenu,
                                  .homeCoverGridColumns = 1,
                                  .homeCoverGridRows = 1,
+                                 .homeMenuColumns = 1,
                                  .homeUsesCarouselCache = false,
                                  .homeUsesDualSizeCoverThumbs = false,
                                  .homeCoverThumbCenterW = 0,

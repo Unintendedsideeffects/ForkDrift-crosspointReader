@@ -11,7 +11,13 @@
 #include <cstdio>
 #include <string>
 
+#include "components/UITheme.h"
 #include "components/icons/book24.h"
+#include "components/icons/calendar.h"
+#include "components/icons/folder.h"
+#include "components/icons/settings2.h"
+#include "components/icons/text24.h"
+#include "components/icons/transfer.h"
 #include "fontIds.h"
 #include "util/BookProgressDataStore.h"
 #include "util/PokemonProgress.h"
@@ -33,6 +39,30 @@ constexpr int kSelectBorder = 4;
 constexpr int kStripeStep = 8;
 constexpr int kCoverIconSize = 24;
 constexpr int kSpriteSize = 34;
+constexpr int kMenuCols = 2;
+constexpr int kMenuIconSize = 24;
+constexpr int kMenuCornerRadius = 6;
+constexpr int kMenuHPadding = 8;
+constexpr int kMenuLastInset = 8;
+
+const uint8_t* menuIconFor(UIIcon icon) {
+  switch (icon) {
+    case UIIcon::Folder:
+      return FolderIcon;
+    case UIIcon::Settings:
+      return Settings2Icon;
+    case UIIcon::Transfer:
+      return TransferIcon;
+    case UIIcon::Calendar:
+      return CalendarIcon;
+    case UIIcon::Text:
+      return Text24Icon;
+    case UIIcon::Book:
+      return Book24Icon;
+    default:
+      return nullptr;
+  }
+}
 
 std::string upperName(const std::string& raw) {
   std::string out = raw;
@@ -216,7 +246,43 @@ void PokemonPartyTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
 void PokemonPartyTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                                        const std::function<std::string(int index)>& buttonLabel,
                                        const std::function<UIIcon(int index)>& rowIcon) const {
-  ForkDriftTheme::drawButtonMenu(renderer, rect, buttonCount, selectedIndex, buttonLabel, rowIcon);
+  if (buttonCount <= 0) {
+    return;
+  }
+
+  const auto& menuMetrics = UITheme::getInstance().getMetrics();
+  const int pad = ForkDriftMetrics::values.contentSidePadding;
+  const int tileH = menuMetrics.menuRowHeight;
+  const int spacing = menuMetrics.menuSpacing;
+  const int areaW = rect.width - 2 * pad;
+  const int tileW = (areaW - spacing * (kMenuCols - 1)) / kMenuCols;
+
+  for (int i = 0; i < buttonCount; ++i) {
+    const int col = i % kMenuCols;
+    const int row = i / kMenuCols;
+    const bool isLast = i == buttonCount - 1;
+    const int inset = isLast ? kMenuLastInset : 0;
+    const int x = rect.x + pad + col * (tileW + spacing) + inset;
+    const int y = rect.y + row * (tileH + spacing);
+    const int w = tileW - 2 * inset;
+    const bool selected = selectedIndex == i;
+
+    if (selected) {
+      renderer.fillRoundedRect(x, y, w, tileH, kMenuCornerRadius, Color::LightGray);
+    }
+
+    const std::string label = buttonLabel(i);
+    const UIIcon icon = rowIcon ? rowIcon(i) : UIIcon::Settings;
+    const uint8_t* iconBmp = menuIconFor(icon);
+    int textX = x + 10;
+    if (iconBmp) {
+      renderer.drawIcon(iconBmp, textX, y + (tileH - kMenuIconSize) / 2, kMenuIconSize, kMenuIconSize);
+      textX += kMenuIconSize + kMenuHPadding;
+    }
+    const int lineH = renderer.getLineHeight(UI_10_FONT_ID);
+    const int textY = y + (tileH - lineH) / 2;
+    renderer.drawText(UI_10_FONT_ID, textX, textY, label.c_str(), true);
+  }
 }
 
 void PokemonPartyTheme::drawButtonHints(GfxRenderer& renderer, const char* /*btn1*/, const char* /*btn2*/,

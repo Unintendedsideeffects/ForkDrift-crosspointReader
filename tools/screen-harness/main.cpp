@@ -268,7 +268,11 @@ void drawHomeThemePreview(GfxRenderer& renderer, const HomePreviewScenario& scen
   const int singleRowHeight = metrics.homeCoverTileHeight / gridRows;
   const int rawCoverTileHeight =
       forkDriftLayout ? ((bookCount > booksForFullGrid ? gridRows : 1) * singleRowHeight) : metrics.homeCoverTileHeight;
-  const int menuMinHeight = metrics.verticalSpacing * 2 + metrics.buttonHintsHeight + metrics.menuRowHeight;
+  const int menuCols = pokemonPartyLayout ? metrics.homeMenuColumns : 1;
+  const int menuRowsForLayout = (static_cast<int>(scenario.menuLabels.size()) + menuCols - 1) / menuCols;
+  const int menuMinHeight = metrics.verticalSpacing * 2 + metrics.buttonHintsHeight +
+                            menuRowsForLayout * metrics.menuRowHeight +
+                            std::max(0, menuRowsForLayout - 1) * metrics.menuSpacing;
   const int coverTileHeight =
       forkDriftLayout ? std::min(rawCoverTileHeight, pageHeight - menuMinHeight) : rawCoverTileHeight;
   const int menuRectY = coverTileHeight + metrics.verticalSpacing;

@@ -19,6 +19,7 @@ constexpr ThemeMetrics values = [] {
   v.menuRowHeight = 92;
   v.verticalSpacing = 8;
   v.statusBarVerticalMargin = 30;
+  v.homeMenuColumns = 2;
   return v;
 }();
 }  // namespace PokemonPartyMetrics

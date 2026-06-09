@@ -1451,9 +1451,21 @@ void HomeActivity::loop() {
       const bool menuFocus = inButtonGrid || bookCount == 0;
 
       if (menuFocus) {
-        if (upPressed) {
+        if (pokemonPartyHomeMode && navMetrics.homeMenuColumns > 1) {
+          const int menuCols = navMetrics.homeMenuColumns;
+          const auto nav = ForkDriftNavigation::navigateMenuGrid(selectedMenuIndex, menuItemCount, menuCols,
+                                                                 leftPressed, rightPressed, upPressed, downPressed);
+          if (nav.exitToCoverGrid && bookCount > 0) {
+            inButtonGrid = false;
+            selectedBookIndex = std::min(std::max(selectedBookIndex, 0), bookCount - 1);
+            requestUpdate();
+          } else if (nav.menuIndex != selectedMenuIndex) {
+            selectedMenuIndex = nav.menuIndex;
+            requestUpdate();
+          }
+        } else if (upPressed) {
           if (selectedMenuIndex == 0 && bookCount > 0) {
-            inButtonGrid = false;  // step up out of the menu, back onto the cover region
+            inButtonGrid = false;
             selectedBookIndex = std::min(std::max(selectedBookIndex, 0), bookCount - 1);
             requestUpdate();
           } else if (selectedMenuIndex > 0) {
@@ -1629,7 +1641,11 @@ void HomeActivity::render(RenderLock&&) {
     const int coverTileH_raw =
         gridNav ? ((bookCountRender > metrics.homeCoverGridColumns ? metrics.homeCoverGridRows : 1) * singleRowH)
                 : metrics.homeCoverTileHeight;
-    const int menuMinH = metrics.verticalSpacing * 2 + metrics.buttonHintsHeight + metrics.menuRowHeight;
+    const int menuCols = std::max(1, metrics.homeMenuColumns);
+    const int menuRowsForLayout = (static_cast<int>(menuModel.size()) + menuCols - 1) / menuCols;
+    const int menuMinH = metrics.verticalSpacing * 2 + metrics.buttonHintsHeight +
+                         menuRowsForLayout * metrics.menuRowHeight +
+                         std::max(0, menuRowsForLayout - 1) * metrics.menuSpacing;
     const int coverTileH = gridNav ? std::min(coverTileH_raw, usablePageHeight - menuMinH) : coverTileH_raw;
 
     GUI.drawRecentBookCover(
@@ -1658,7 +1674,10 @@ void HomeActivity::render(RenderLock&&) {
         [&menuIcons](const int index) { return menuIcons[index]; });
 
     const char* backLabel = isPokemonPartyHomeMode() ? tr(STR_MENU_RECENT_BOOKS) : "";
-    const auto labels = mappedInput.mapLabels(backLabel, tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
+    const bool pokemonMenuFocus = isPokemonPartyHomeMode() && (inButtonGrid || recentBooks.empty());
+    const char* dirHintA = pokemonMenuFocus ? tr(STR_DIR_LEFT) : tr(STR_DIR_UP);
+    const char* dirHintB = pokemonMenuFocus ? tr(STR_DIR_RIGHT) : tr(STR_DIR_DOWN);
+    const auto labels = mappedInput.mapLabels(backLabel, tr(STR_SELECT), dirHintA, dirHintB);
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else {
     constexpr int margin = 20;

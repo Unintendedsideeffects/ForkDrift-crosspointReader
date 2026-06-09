@@ -34,4 +34,11 @@ struct CoverNavResult {
 CoverNavResult navigateCoverGrid(int selectedIndex, int bookCount, int cols, int rows, bool left, bool right, bool up,
                                  bool down);
 
+struct MenuNavResult {
+  int menuIndex;
+  bool exitToCoverGrid;
+};
+
+MenuNavResult navigateMenuGrid(int selectedIndex, int itemCount, int cols, bool left, bool right, bool up, bool down);
+
 }  // namespace ForkDriftNavigation

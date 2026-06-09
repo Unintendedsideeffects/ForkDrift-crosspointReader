@@ -110,3 +110,18 @@ TEST_CASE("testForkDriftCoverNavigation") {
     CHECK((r.bookIndex == 2 && !r.enterButtonGrid));
   }
 }
+
+TEST_CASE("ForkDriftNavigation menu grid uses two columns without leaving the menu row") {
+  using ForkDriftNavigation::navigateMenuGrid;
+
+  constexpr int cols = 2;
+
+  auto r = navigateMenuGrid(0, 4, cols, false, true, false, false);
+  CHECK((r.menuIndex == 1 && !r.exitToCoverGrid));
+  r = navigateMenuGrid(1, 4, cols, false, false, false, true);
+  CHECK((r.menuIndex == 3 && !r.exitToCoverGrid));
+  r = navigateMenuGrid(3, 4, cols, false, false, true, false);
+  CHECK((r.menuIndex == 1 && !r.exitToCoverGrid));
+  r = navigateMenuGrid(0, 4, cols, false, false, true, false);
+  CHECK(r.exitToCoverGrid);
+}
