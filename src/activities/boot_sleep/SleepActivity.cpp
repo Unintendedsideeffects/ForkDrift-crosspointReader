@@ -1209,7 +1209,7 @@ bool SleepActivity::renderPokemonCoverSleepScreen() const {
 
   // --- Pokémon panel, bottom-right corner ---
   // A filled rounded panel masks the cover so the sprite + label stay legible.
-  const int panelW = std::clamp(pageWidth / 3, 96, 200);
+  const int panelW = std::clamp(pageWidth / 2, 160, 280);
   const int spriteSz = panelW - 2 * 8;
   const int labelH = renderer.getLineHeight(UI_12_FONT_ID);
   const int panelH = 8 + spriteSz + 4 + labelH + 8;

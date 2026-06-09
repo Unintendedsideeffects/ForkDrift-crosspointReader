@@ -1120,17 +1120,60 @@
     return bytesToBase64(buf);
   }
 
+  const spriteBoundsCache = new Map();
+
+  function getSpriteBounds(sprite) {
+    const key = sprite.currentSrc || sprite.src || (String(sprite.naturalWidth || sprite.width) + "x" + String(sprite.naturalHeight || sprite.height));
+    if (spriteBoundsCache.has(key)) {
+      return spriteBoundsCache.get(key);
+    }
+
+    const width = sprite.naturalWidth || sprite.width;
+    const height = sprite.naturalHeight || sprite.height;
+    const tc = document.createElement("canvas");
+    tc.width = width;
+    tc.height = height;
+    const tctx = tc.getContext("2d", { willReadFrequently: true });
+    tctx.drawImage(sprite, 0, 0, width, height);
+
+    const data = tctx.getImageData(0, 0, width, height).data;
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const alpha = data[((y * width) + x) * 4 + 3];
+        if (alpha <= 8) continue;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+
+    const bounds = maxX >= minX
+      ? { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 }
+      : { x: 0, y: 0, width: width, height: height };
+    spriteBoundsCache.set(key, bounds);
+    return bounds;
+  }
+
   async function spriteUrlToDeviceBmpBase64(url, size) {
     const img = await loadImage(url);
+    const bounds = getSpriteBounds(img);
     const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, size, size);
-    const scale = Math.min(size / img.width, size / img.height) || 1;
-    const dw = Math.max(1, Math.round(img.width * scale));
-    const dh = Math.max(1, Math.round(img.height * scale));
-    ctx.drawImage(img, (size - dw) >> 1, (size - dh) >> 1, dw, dh);
+    const scale = Math.min(size / bounds.width, size / bounds.height) || 1;
+    const dw = Math.max(1, Math.round(bounds.width * scale));
+    const dh = Math.max(1, Math.round(bounds.height * scale));
+    const dx = (size - dw) >> 1;
+    const dy = (size - dh) >> 1;
+    ctx.drawImage(img, bounds.x, bounds.y, bounds.width, bounds.height, dx, dy, dw, dh);
     const imageData = ctx.getImageData(0, 0, size, size);
     return encode1BitBmpBase64(imageData.data, size, size);
   }

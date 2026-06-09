@@ -830,12 +830,23 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
                                  const int maxHeight) const {
   float scale = 1.0f;
   bool isScaled = false;
-  if (maxWidth > 0 && bitmap.getWidth() > maxWidth) {
+  if (maxWidth > 0 && maxHeight > 0) {
+    if (bitmap.getWidth() > maxWidth || bitmap.getHeight() > maxHeight) {
+      // Downscale
+      scale = std::min(static_cast<float>(maxWidth) / static_cast<float>(bitmap.getWidth()),
+                       static_cast<float>(maxHeight) / static_cast<float>(bitmap.getHeight()));
+      isScaled = true;
+    } else if (bitmap.getWidth() < maxWidth && bitmap.getHeight() < maxHeight) {
+      // Upscale
+      scale = std::min(static_cast<float>(maxWidth) / static_cast<float>(bitmap.getWidth()),
+                       static_cast<float>(maxHeight) / static_cast<float>(bitmap.getHeight()));
+      isScaled = true;
+    }
+  } else if (maxWidth > 0 && bitmap.getWidth() > maxWidth) {
     scale = static_cast<float>(maxWidth) / static_cast<float>(bitmap.getWidth());
     isScaled = true;
-  }
-  if (maxHeight > 0 && bitmap.getHeight() > maxHeight) {
-    scale = std::min(scale, static_cast<float>(maxHeight) / static_cast<float>(bitmap.getHeight()));
+  } else if (maxHeight > 0 && bitmap.getHeight() > maxHeight) {
+    scale = static_cast<float>(maxHeight) / static_cast<float>(bitmap.getHeight());
     isScaled = true;
   }
 
@@ -851,43 +862,82 @@ void GfxRenderer::drawBitmap1Bit(const Bitmap& bitmap, const int x, const int y,
     return;
   }
 
-  for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
-    // Read rows sequentially using readNextRow
-    if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
-      LOG_ERR("GFX", "Failed to read row %d from 1-bit bitmap", bmpY);
-      free(outputRow);
-      free(rowBytes);
-      return;
-    }
-
-    // Calculate screen Y based on whether BMP is top-down or bottom-up
-    const int bmpYOffset = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
-    int screenY = y + (isScaled ? static_cast<int>(std::floor(bmpYOffset * scale)) : bmpYOffset);
-    if (screenY >= getScreenHeight()) {
-      continue;  // Continue reading to keep row counter in sync
-    }
-    if (screenY < 0) {
-      continue;
-    }
-
-    for (int bmpX = 0; bmpX < bitmap.getWidth(); bmpX++) {
-      int screenX = x + (isScaled ? static_cast<int>(std::floor(bmpX * scale)) : bmpX);
-      if (screenX >= getScreenWidth()) {
-        break;
+  if (isScaled && scale > 1.0f) {
+    // Upscaling path: nearest neighbor without gaps
+    for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
+      if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
+        LOG_ERR("GFX", "Failed to read row %d from 1-bit bitmap", bmpY);
+        free(outputRow);
+        free(rowBytes);
+        return;
       }
-      if (screenX < 0) {
+
+      const int bmpYOffset = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
+      const int dyStart = static_cast<int>(std::floor(bmpYOffset * scale));
+      const int dyEnd = static_cast<int>(std::floor((bmpYOffset + 1) * scale));
+
+      for (int dy = dyStart; dy < dyEnd; dy++) {
+        int screenY = y + dy;
+        if (screenY >= getScreenHeight() || screenY < 0) {
+          continue;
+        }
+
+        for (int bmpX = 0; bmpX < bitmap.getWidth(); bmpX++) {
+          const uint8_t val = outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
+          if (val < 3) {
+            const int dxStart = static_cast<int>(std::floor(bmpX * scale));
+            const int dxEnd = static_cast<int>(std::floor((bmpX + 1) * scale));
+            for (int dx = dxStart; dx < dxEnd; dx++) {
+              int screenX = x + dx;
+              if (screenX >= getScreenWidth() || screenX < 0) {
+                continue;
+              }
+              drawPixel(screenX, screenY, true);
+            }
+          }
+        }
+      }
+    }
+  } else {
+    // Downscaling or 1:1 path (identical to original code)
+    for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
+      // Read rows sequentially using readNextRow
+      if (bitmap.readNextRow(outputRow, rowBytes) != BmpReaderError::Ok) {
+        LOG_ERR("GFX", "Failed to read row %d from 1-bit bitmap", bmpY);
+        free(outputRow);
+        free(rowBytes);
+        return;
+      }
+
+      // Calculate screen Y based on whether BMP is top-down or bottom-up
+      const int bmpYOffset = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
+      int screenY = y + (isScaled ? static_cast<int>(std::floor(bmpYOffset * scale)) : bmpYOffset);
+      if (screenY >= getScreenHeight()) {
+        continue;  // Continue reading to keep row counter in sync
+      }
+      if (screenY < 0) {
         continue;
       }
 
-      // Get 2-bit value (result of readNextRow quantization)
-      const uint8_t val = outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
+      for (int bmpX = 0; bmpX < bitmap.getWidth(); bmpX++) {
+        int screenX = x + (isScaled ? static_cast<int>(std::floor(bmpX * scale)) : bmpX);
+        if (screenX >= getScreenWidth()) {
+          break;
+        }
+        if (screenX < 0) {
+          continue;
+        }
 
-      // For 1-bit source: 0 or 1 -> map to black (0,1,2) or white (3)
-      // val < 3 means black pixel (draw it)
-      if (val < 3) {
-        drawPixel(screenX, screenY, true);
+        // Get 2-bit value (result of readNextRow quantization)
+        const uint8_t val = outputRow[bmpX / 4] >> (6 - ((bmpX * 2) % 8)) & 0x3;
+
+        // For 1-bit source: 0 or 1 -> map to black (0,1,2) or white (3)
+        // val < 3 means black pixel (draw it)
+        if (val < 3) {
+          drawPixel(screenX, screenY, true);
+        }
+        // White pixels (val == 3) are not drawn (leave background)
       }
-      // White pixels (val == 3) are not drawn (leave background)
     }
   }
 

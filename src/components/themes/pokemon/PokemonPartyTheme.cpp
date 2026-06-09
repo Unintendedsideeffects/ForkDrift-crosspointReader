@@ -37,8 +37,7 @@ constexpr int kHpLabelW = 18;
 constexpr int kHpLabelH = 12;
 constexpr int kSelectBorder = 4;
 constexpr int kStripeStep = 8;
-constexpr int kCoverIconSize = 24;
-constexpr int kSpriteSize = 34;
+constexpr int kCoverIconSize = 56;
 constexpr int kMenuCols = 2;
 constexpr int kMenuIconSize = 24;
 constexpr int kMenuCornerRadius = 6;
@@ -62,13 +61,6 @@ const uint8_t* menuIconFor(UIIcon icon) {
     default:
       return nullptr;
   }
-}
-
-std::string upperName(const std::string& raw) {
-  std::string out = raw;
-  std::transform(out.begin(), out.end(), out.begin(),
-                 [](const char ch) { return static_cast<char>(std::toupper(static_cast<unsigned char>(ch))); });
-  return out;
 }
 
 void drawPartyBackground(const GfxRenderer& renderer, const Rect& rect) {
@@ -128,7 +120,9 @@ void drawBookIcon(const GfxRenderer& renderer, const RecentBook& book, const int
   if (drawBmpInBox(renderer, book.coverBmpPath, x, y, kCoverIconSize)) {
     return;
   }
-  renderer.drawIcon(Book24Icon, x, y, kCoverIconSize, kCoverIconSize);
+  const int iconX = x + (kCoverIconSize - 24) / 2;
+  const int iconY = y + (kCoverIconSize - 24) / 2;
+  renderer.drawIcon(Book24Icon, iconX, iconY, 24, 24);
 }
 
 void drawHpBar(const GfxRenderer& renderer, const int x, const int y, const int width, const float percent) {
@@ -159,43 +153,64 @@ void drawPartySlot(const GfxRenderer& renderer, const int x, const int y, const 
   const int level = PokemonProgress::levelForPercent(percent);
   const PokemonAssignment assignment = PokemonProgress::loadForBook(book.path);
 
-  const int iconX = x + kPad;
-  const int iconY = y + kPad + 4;
-  drawBookIcon(renderer, book, iconX, iconY);
+  // 1. Title row first across full tile width
+  const int titleMaxW = std::max(0, w - 2 * kPad);
+  const std::string nickname = renderer.truncatedText(UI_12_FONT_ID, book.title.c_str(), titleMaxW);
+  renderer.drawText(UI_12_FONT_ID, x + kPad, y + kPad, nickname.c_str(), true);
 
-  const int spriteX = iconX + kCoverIconSize + 4;
-  const int spriteY = y + kPad + 2;
-  bool drewSprite = false;
-  if (assignment.valid) {
-    const int speciesId = PokemonProgress::activeSpeciesId(assignment, level);
-    drewSprite = drawSpriteInBox(renderer, PokemonSpriteCache::spritePath(speciesId), spriteX, spriteY, kSpriteSize);
-  }
-  if (!drewSprite) {
-    drawPokeball(renderer, spriteX + kSpriteSize / 2, spriteY + kSpriteSize / 2, kSpriteSize / 2 - 2);
-  }
-
-  const int textX = spriteX + kSpriteSize + kPad;
-  const int textRight = x + w - kPad;
   const int lineH = renderer.getLineHeight(UI_12_FONT_ID);
   const int smallH = renderer.getLineHeight(SMALL_FONT_ID);
 
-  const int nickMaxW = std::max(0, textRight - textX);
-  const std::string nickname = renderer.truncatedText(UI_12_FONT_ID, book.title.c_str(), nickMaxW);
-  renderer.drawText(UI_12_FONT_ID, textX, y + kPad, nickname.c_str(), true);
+  // 2. Sprite at NATIVE 96px (no upscale in the slot) at the left edge below title
+  const int spriteSize = std::max(0, std::min(96, h - 2 * kPad - lineH - 4));
+  const int spriteX = x + kPad;
+  const int spriteY = y + kPad + lineH + 4;
 
-  const int hpY = y + kPad + lineH + 4;
-  drawHpBar(renderer, textX, hpY, textRight - textX, percent);
+  bool drewSprite = false;
+  if (assignment.valid && spriteSize > 0) {
+    const int speciesId = PokemonProgress::activeSpeciesId(assignment, level);
+    drewSprite = drawSpriteInBox(renderer, PokemonSpriteCache::spritePath(speciesId), spriteX, spriteY, spriteSize);
+  }
+  if (!drewSprite && spriteSize > 0) {
+    drawPokeball(renderer, spriteX + spriteSize / 2, spriteY + spriteSize / 2, spriteSize / 2 - 2);
+  }
+
+  // 3. Right column in the remaining width
+  const int textX = spriteX + spriteSize + kPad;
+  const int textRight = x + w - kPad;
+  const int remainingWidth = std::max(0, textRight - textX);
+
+  const int coverX = textX + std::max(0, (remainingWidth - kCoverIconSize) / 2);
+  const int coverY = y + kPad + lineH + 4;
+
+  if (remainingWidth > 0) {
+    drawBookIcon(renderer, book, coverX, coverY);
+  }
+
+  const int hpY = coverY + kCoverIconSize + 4;
+  if (remainingWidth > 0 && hpY + kHpLabelH < y + h) {
+    drawHpBar(renderer, textX, hpY, remainingWidth, percent);
+  }
 
   const int bottomY = y + h - kPad - smallH;
-  char levelText[16];
-  std::snprintf(levelText, sizeof(levelText), "Lvl %d", level);
-  renderer.drawText(SMALL_FONT_ID, x + kPad, bottomY, levelText, true);
+  if (remainingWidth > 0 && bottomY > hpY) {
+    char levelText[16];
+    std::snprintf(levelText, sizeof(levelText), "Lvl %d", level);
+    renderer.drawText(SMALL_FONT_ID, textX, bottomY, levelText, true);
 
-  if (assignment.valid && !assignment.name.empty()) {
-    const std::string species = upperName(assignment.name);
-    const std::string speciesText = renderer.truncatedText(SMALL_FONT_ID, species.c_str(), textRight - textX);
-    const int speciesW = renderer.getTextWidth(SMALL_FONT_ID, speciesText.c_str());
-    renderer.drawText(SMALL_FONT_ID, textRight - speciesW, bottomY, speciesText.c_str(), true, EpdFontFamily::BOLD);
+    if (assignment.valid && !assignment.name.empty()) {
+      char speciesUpper[64];
+      size_t len = std::min(assignment.name.size(), sizeof(speciesUpper) - 1);
+      for (size_t idx = 0; idx < len; ++idx) {
+        speciesUpper[idx] = static_cast<char>(std::toupper(static_cast<unsigned char>(assignment.name[idx])));
+      }
+      speciesUpper[len] = '\0';
+
+      const std::string speciesText = renderer.truncatedText(SMALL_FONT_ID, speciesUpper, remainingWidth);
+      const int speciesW = renderer.getTextWidth(SMALL_FONT_ID, speciesText.c_str());
+      const int speciesX = std::max(textX, textRight - speciesW);
+      renderer.drawText(SMALL_FONT_ID, speciesX, bottomY, speciesText.c_str(), true, EpdFontFamily::BOLD);
+    }
   }
 
   if (selected) {

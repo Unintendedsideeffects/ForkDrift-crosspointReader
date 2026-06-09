@@ -16,7 +16,8 @@
 namespace PokemonSpriteCache {
 
 // PokéAPI pixel sprites are 96x96 native; caching at that size keeps the BMP
-// small and lets the renderers scale up cleanly for larger party/sleep slots.
+// small, and GfxRenderer::drawBitmap1Bit scales them up using nearest-neighbor
+// interpolation to fill larger slots cleanly.
 constexpr int kDefaultSpriteSize = 96;
 
 // Absolute SD path where a species' 1-bit sprite BMP lives (whether or not it
