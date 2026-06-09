@@ -76,6 +76,24 @@ bool drawBmpInBox(const GfxRenderer& renderer, const std::string& path, const in
   return drew;
 }
 
+bool drawSpriteInBox(const GfxRenderer& renderer, const std::string& path, const int x, const int y, const int size) {
+  if (path.empty() || !Storage.exists(path.c_str())) {
+    return false;
+  }
+  HalFile file;
+  if (!Storage.openFileForRead("PKM", path, file)) {
+    return false;
+  }
+  Bitmap bitmap(file);
+  bool drew = false;
+  if (bitmap.parseHeaders() == BmpReaderError::Ok && bitmap.is1Bit()) {
+    renderer.drawBitmap1Bit(bitmap, x, y, size, size);
+    drew = true;
+  }
+  file.close();
+  return drew;
+}
+
 void drawBookIcon(const GfxRenderer& renderer, const RecentBook& book, const int x, const int y) {
   if (drawBmpInBox(renderer, book.coverBmpPath, x, y, kCoverIconSize)) {
     return;
@@ -120,10 +138,7 @@ void drawPartySlot(const GfxRenderer& renderer, const int x, const int y, const 
   bool drewSprite = false;
   if (assignment.valid) {
     const int speciesId = PokemonProgress::activeSpeciesId(assignment, level);
-    drewSprite = drawBmpInBox(renderer, PokemonSpriteCache::spritePath(speciesId), spriteX, spriteY, kSpriteSize);
-  }
-  if (!drewSprite) {
-    drewSprite = drawBmpInBox(renderer, book.coverBmpPath, spriteX, spriteY, kSpriteSize);
+    drewSprite = drawSpriteInBox(renderer, PokemonSpriteCache::spritePath(speciesId), spriteX, spriteY, kSpriteSize);
   }
   if (!drewSprite) {
     drawPokeball(renderer, spriteX + kSpriteSize / 2, spriteY + kSpriteSize / 2, kSpriteSize / 2 - 2);

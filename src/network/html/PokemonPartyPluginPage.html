@@ -1179,6 +1179,13 @@
       console.error(error);
       team = [];
     }
+    for (let i = 0; i < team.length; i++) {
+      try {
+        await prebakeBundleSprites(team[i]);
+      } catch (error) {
+        console.error(error);
+      }
+    }
     renderTeam();
   }
 

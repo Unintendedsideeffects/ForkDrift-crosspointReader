@@ -7,7 +7,6 @@ OUT_DIR="${1:-$ROOT_DIR/build/screen-previews}"
 SETTINGS_JSON="${2:-${SCREEN_PREVIEW_SETTINGS_JSON:-}}"
 
 mkdir -p "$BUILD_DIR" "$OUT_DIR"
-python3 "$ROOT_DIR/tools/screen-harness/generate_pokemon_fixtures.py"
 
 CXX_BIN="${CXX:-g++}"
 BIN_PATH="$BUILD_DIR/screen-harness"
@@ -31,6 +30,7 @@ pushd "$ROOT_DIR" >/dev/null
   -DENABLE_POKEMON_PARTY=1 \
   '-DCROSSPOINT_VERSION="screen-harness"' \
   "${DEVICE_FLAGS[@]}" \
+  -Itools/screen-harness \
   -Itools/screen-harness/stubs \
   -Iinclude \
   -Ilib/hal \
@@ -49,6 +49,8 @@ pushd "$ROOT_DIR" >/dev/null
   -Iopen-x4-sdk/libs/hardware/BatteryMonitor/include \
   -Isrc \
   tools/screen-harness/main.cpp \
+  tools/screen-harness/device_fs_data.cpp \
+  tools/screen-harness/stubs/HalStorage.cpp \
   tools/screen-harness/stubs/stubs.cpp \
   src/components/UITheme.cpp \
   src/components/themes/BaseTheme.cpp \

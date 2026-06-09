@@ -25,6 +25,7 @@
 #include "activities/boot_sleep/RomanClockFontRenderer.h"
 #include "activities/settings/FactoryResetActivity.h"
 #include "components/UITheme.h"
+#include "device_fs_data.h"
 #include "fontIds.h"
 #include "util/RecentBooksStore.h"
 
@@ -609,38 +610,6 @@ void drawFeatureStoreMock(GfxRenderer& renderer) {
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
-void seedPokemonSpriteFixtures() {
-  const std::filesystem::path fixtureDir =
-      std::filesystem::absolute(std::filesystem::path(__FILE__).parent_path() / "fixtures" / "pokemon");
-  if (!std::filesystem::exists(fixtureDir)) {
-    return;
-  }
-
-  Storage.mkdir("/.crosspoint");
-  Storage.mkdir("/.crosspoint/pokemon");
-
-  for (int speciesId = 1; speciesId <= 6; ++speciesId) {
-    const std::filesystem::path file = fixtureDir / ("sprite_" + std::to_string(speciesId) + ".bmp");
-    if (!std::filesystem::exists(file)) {
-      continue;
-    }
-    std::ifstream input(file, std::ios::binary);
-    if (!input) {
-      continue;
-    }
-    std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-    if (bytes.empty()) {
-      continue;
-    }
-    const std::string path = "/.crosspoint/pokemon/sprite_" + std::to_string(speciesId) + ".bmp";
-    HalFile out;
-    if (Storage.openFileForWrite("HARNESS", path, out)) {
-      out.write(bytes.data(), bytes.size());
-      out.close();
-    }
-  }
-}
-
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -651,8 +620,12 @@ int main(int argc, char* argv[]) {
                  : (settingsJsonEnv != nullptr ? std::filesystem::path(settingsJsonEnv) : std::filesystem::path{});
   gSettingsJsonPath = settingsJsonPath;
   std::filesystem::create_directories(outputDir);
+  std::filesystem::path deviceFsRoot;
+  const bool usingDeviceFilesystem = mountDeviceFilesystem(deviceFsRoot);
+  if (usingDeviceFilesystem) {
+    applySettingsFromDevice();
+  }
   applySettingsJson(settingsJsonPath);
-  seedPokemonSpriteFixtures();
 
   HalDisplay display;
   display.begin();
@@ -671,6 +644,10 @@ int main(int argc, char* argv[]) {
 
   HalGPIO gpio;
   MappedInputManager mappedInput(gpio);
+
+  const std::vector<RecentBook> deviceRecentBooks =
+      usingDeviceFilesystem ? loadRecentBooksFromDevice() : std::vector<RecentBook>{};
+  const std::vector<RecentBook>& partyBooks = deviceRecentBooks.empty() ? samplePartyBooks() : deviceRecentBooks;
 
   const std::vector<HomePreviewScenario> homeScenarios = {
       {"02_home_classic",
@@ -719,7 +696,7 @@ int main(int argc, char* argv[]) {
        "Down"},
       {"06_home_pokemon_party",
        CrossPointSettings::POKEMON_PARTY,
-       samplePartyBooks(),
+       partyBooks,
        {"Books", "Agenda", "File Transfer", "Settings"},
        {Folder, Text, Transfer, Settings},
        4,

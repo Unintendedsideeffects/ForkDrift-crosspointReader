@@ -1,8 +1,8 @@
 #pragma once
 
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <set>
@@ -85,88 +85,28 @@ class HalStorage {
     return instance;
   }
 
-  bool mkdir(const char* path) {
-    ensureDirectory(path != nullptr ? path : "/");
-    return true;
-  }
+  void setRoot(std::filesystem::path root);
+  const std::filesystem::path& root() const { return root_; }
+  bool hasRoot() const;
 
-  bool openFileForWrite(const char* /*tag*/, const std::string& path, HalFile& file) {
-    ensureParentDirs(path);
-    auto buf = std::make_shared<std::vector<uint8_t>>();
-    files_[path] = buf;
-    file = HalFile::forRead(buf);
-    return true;
-  }
-
-  bool openFileForRead(const char* /*tag*/, const std::string& path, HalFile& file) {
-    const auto it = files_.find(path);
-    if (it == files_.end()) {
-      return false;
-    }
-    file = HalFile::forRead(it->second);
-    return true;
-  }
-
-  bool openFileForRead(const char* tag, const char* path, HalFile& file) {
-    return openFileForRead(tag, std::string(path), file);
-  }
-
-  bool exists(const char* path) const {
-    if (path == nullptr) {
-      return false;
-    }
-    const std::string normalized = normalizePath(path);
-    return files_.count(normalized) > 0 || directories_.count(normalized) > 0;
-  }
-
-  bool remove(const char* path) {
-    if (path == nullptr) {
-      return false;
-    }
-    const std::string normalized = normalizePath(path);
-    if (files_.erase(normalized) > 0) {
-      return true;
-    }
-    return normalized != "/" && directories_.erase(normalized) > 0;
-  }
+  bool mkdir(const char* path);
+  bool openFileForWrite(const char* tag, const std::string& path, HalFile& file);
+  bool openFileForRead(const char* tag, const std::string& path, HalFile& file);
+  bool openFileForRead(const char* tag, const char* path, HalFile& file);
+  bool exists(const char* path) const;
+  bool remove(const char* path);
 
  private:
-  HalStorage() { directories_.insert("/"); }
+  HalStorage();
 
-  static std::string normalizePath(const std::string& path) {
-    if (path.empty()) {
-      return "/";
-    }
-    if (path.size() > 1 && path.back() == '/') {
-      return path.substr(0, path.size() - 1);
-    }
-    return path;
-  }
+  static std::string normalizePath(const std::string& path);
+  std::filesystem::path hostPath(const std::string& sdPath) const;
+  bool loadFromDisk(const std::string& sdPath, HalFile& file) const;
+  void ensureDirectory(const std::string& path);
+  void ensureParentDirs(const std::string& path);
 
-  void ensureDirectory(const std::string& path) {
-    const std::string normalized = normalizePath(path);
-    if (normalized.empty()) {
-      return;
-    }
-    directories_.insert(normalized);
-    size_t pos = 1;
-    while ((pos = normalized.find('/', pos)) != std::string::npos) {
-      directories_.insert(normalizePath(normalized.substr(0, pos)));
-      ++pos;
-    }
-  }
-
-  void ensureParentDirs(const std::string& path) {
-    const std::string normalized = normalizePath(path);
-    const size_t slash = normalized.find_last_of('/');
-    if (slash == std::string::npos || slash == 0) {
-      directories_.insert("/");
-      return;
-    }
-    ensureDirectory(normalized.substr(0, slash));
-  }
-
-  std::map<std::string, std::shared_ptr<std::vector<uint8_t>>> files_;
+  std::filesystem::path root_;
+  std::map<std::string, std::shared_ptr<std::vector<uint8_t>>> overlay_;
   std::set<std::string> directories_;
 };
 

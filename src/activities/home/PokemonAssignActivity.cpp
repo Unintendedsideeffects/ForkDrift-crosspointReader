@@ -15,6 +15,7 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/PokemonBookDataStore.h"
+#include "util/PokemonSpriteCache.h"
 #include "util/PokemonTeamStore.h"
 #include "util/RecentBooksStore.h"
 
@@ -28,6 +29,21 @@ std::string prettyName(const char* raw) {
   }
   out[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(out[0])));
   return out;
+}
+
+void ensureSpritesForMember(JsonVariantConst member) {
+  const int speciesId = member["speciesId"] | member["id"] | 0;
+  if (speciesId > 0) {
+    PokemonSpriteCache::ensureSpriteById(speciesId, PokemonSpriteCache::kDefaultSpriteSize,
+                                         PokemonSpriteCache::kDefaultSpriteSize);
+  }
+  for (JsonVariantConst stage : member["evolutionChain"].as<JsonArrayConst>()) {
+    const int stageId = stage["speciesId"] | 0;
+    if (stageId > 0) {
+      PokemonSpriteCache::ensureSpriteById(stageId, PokemonSpriteCache::kDefaultSpriteSize,
+                                           PokemonSpriteCache::kDefaultSpriteSize);
+    }
+  }
 }
 }  // namespace
 
@@ -123,7 +139,9 @@ void PokemonAssignActivity::writeAssignment(int memberIndex) {
   }
 
   const std::string& bookPath = books_[chosenBookIndex_].path;
-  if (PokemonBookDataStore::savePokemonDocument(bookPath, teamDoc_["team"][memberIndex])) {
+  JsonVariantConst member = teamDoc_["team"][memberIndex];
+  if (PokemonBookDataStore::savePokemonDocument(bookPath, member)) {
+    ensureSpritesForMember(member);
     statusMessage_ = teamNames_[memberIndex] + " -> " + books_[chosenBookIndex_].title;
   } else {
     LOG_ERR("PKM", "on-device assign save failed: %s", bookPath.c_str());
