@@ -15,6 +15,7 @@
 #include "SettingsList.h"
 #include "activities/ActivityResult.h"
 #include "activities/settings/SettingsTopics.h"
+#include "activities/util/ListPickerActivity.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 
@@ -142,6 +143,43 @@ void ReaderOptionsActivity::toggleCurrentSetting() {
     if (optionCount == 0) {
       return;
     }
+
+    if (optionCount > 4) {
+      std::vector<std::string> items;
+      items.reserve(optionCount);
+      for (size_t i = 0; i < optionCount; ++i) {
+        items.push_back(enumOptionLabel(setting, i));
+      }
+      const uint8_t cur = readEnumValue(setting);
+      const uint8_t maxIndex = static_cast<uint8_t>(optionCount - 1);
+      const uint8_t safeIndex = cur <= maxIndex ? cur : 0;
+
+      startActivityForResult(
+          std::make_unique<ListPickerActivity>(renderer, mappedInput, setting.nameId, std::move(items), safeIndex),
+          [this, setting, optionCount](const ActivityResult& result) {
+            if (!result.isCancelled && std::holds_alternative<ListPickerResult>(result.data)) {
+              const int idx = std::get<ListPickerResult>(result.data).selectedIndex;
+              if (idx >= 0 && idx < static_cast<int>(optionCount)) {
+                const uint8_t newValue = static_cast<uint8_t>(idx);
+                writeEnumValue(setting, newValue);
+                if (setting.key != nullptr && std::strcmp(setting.key, "fontFamily") == 0) {
+                  core::FeatureModules::onFontFamilySettingChanged(SETTINGS.fontFamily);
+                }
+                if (setting.key != nullptr && std::strcmp(setting.key, "orientation") == 0) {
+                  ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+                }
+                if (!SETTINGS.saveToFile()) {
+                  LOG_ERR("RDR", "Failed to save settings");
+                }
+                readerSettingsChanged_ = true;
+                refreshPreviewIfNeeded(setting);
+              }
+            }
+            requestUpdate();
+          });
+      return;
+    }
+
     const uint8_t cur = readEnumValue(setting);
     const uint8_t maxIndex = static_cast<uint8_t>(optionCount - 1);
     uint8_t newValue;

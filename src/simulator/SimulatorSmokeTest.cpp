@@ -30,6 +30,8 @@ enum class SmokeStep : uint8_t {
   Settings,
   SettingsNavRun,
   SettingsDone,
+  SettingsPickerRun,
+  SettingsPickerDone,
   Sleep,
   Reader,
   ReaderInput,
@@ -87,6 +89,7 @@ class SimulatorSmokeTest {
   SmokeStep scriptStep = SmokeStep::ReaderInput;
   SmokeStep scriptDoneStep = SmokeStep::Done;
   uint64_t lastFrameHash = 0;
+  uint8_t pickerStartValue = 0;
 
   static bool enabled() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_TEST") != nullptr; }
 
@@ -221,9 +224,31 @@ class SimulatorSmokeTest {
         break;
 
       case SmokeStep::SettingsDone:
+        // Drive the >4-option enum picker (R1): refreshFrequency has 5 static
+        // options, so Confirm must open ListPickerActivity instead of cycling.
+        pickerStartValue = SETTINGS.refreshFrequency;
+        buildSettingsPickerScript();
+        scriptStep = SmokeStep::SettingsPickerRun;
+        scriptDoneStep = SmokeStep::SettingsPickerDone;
+        step = SmokeStep::SettingsPickerRun;
+        break;
+
+      case SmokeStep::SettingsPickerRun:
+        runInputScript();
+        break;
+
+      case SmokeStep::SettingsPickerDone: {
+        // Select leg picked the next option; cancel leg must not have changed it.
+        const uint8_t expected =
+            static_cast<uint8_t>((pickerStartValue + 1) % CrossPointSettings::REFRESH_FREQUENCY_COUNT);
+        if (SETTINGS.refreshFrequency != expected) {
+          fail("Settings picker assertion failed: refreshFrequency=%u, expected %u (start %u)",
+               SETTINGS.refreshFrequency, expected, pickerStartValue);
+        }
         activityManager.goToSleep();
         queueStep("Sleep", SmokeStep::Sleep);
         break;
+      }
 
       case SmokeStep::Sleep: {
         const char* bookPath = std::getenv("FORKDRIFT_SIMULATOR_SMOKE_BOOK");
@@ -400,7 +425,10 @@ class SimulatorSmokeTest {
     scriptIndex = 0;
     inputScript.push_back(render("Settings", 4));
     for (int cat = 0; cat < 4; cat++) {
-      for (int i = 0; i < 8; i++) {
+      // 4 Downs, not more: selection wraps through the tab row, and a wrapped
+      // position turns the Back below into "exit Settings" (goHome). Every
+      // category has at least 5 navigation stops, so 4 Downs can never wrap.
+      for (int i = 0; i < 4; i++) {
         addTap(MappedInputManager::Button::Down);
         inputScript.push_back(render("Settings scroll", 1));
       }
@@ -409,6 +437,40 @@ class SimulatorSmokeTest {
       inputScript.push_back(render("Settings category", 3));
     }
     LOG_INF("SMOKE", "Running settings navigation script");
+  }
+
+  // Drives the >4-option picker on refreshFrequency (Display tab). The category
+  // walk in buildSettingsInputScript ends with Confirm on the tab row, and the
+  // tab-row Confirm handler keeps selection on the tab row (index 0). From
+  // there Up wraps to the last list row (the un-topic'd showButtonHints) and a
+  // second Up reaches refreshFrequency, without counting the feature-gated
+  // sleep rows in between. The value assertion in SettingsPickerDone fails
+  // loudly if either assumption drifts.
+  void buildSettingsPickerScript() {
+    inputScript.clear();
+    scriptIndex = 0;
+    inputScript.push_back(hashFrame("Settings picker: start"));
+    addTap(MappedInputManager::Button::Up);
+    inputScript.push_back(render("Settings picker: last row", 2));
+    inputScript.push_back(checkHashDiff("Settings picker: after first Up"));
+    addTap(MappedInputManager::Button::Up);
+    inputScript.push_back(render("Settings picker: refresh frequency row", 2));
+    inputScript.push_back(hashFrame("Settings refresh row before picker"));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Settings picker open", 5));
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("Settings picker moved", 2));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Settings picker selected", 4));
+    inputScript.push_back(checkHashDiff("Settings refresh row after select"));
+    // Cancel leg: reopen, move, Back out — must leave the value untouched.
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Settings picker reopened", 5));
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("Settings picker moved again", 2));
+    addTap(MappedInputManager::Button::Back);
+    inputScript.push_back(render("Settings picker cancelled", 4));
+    LOG_INF("SMOKE", "Running settings picker script");
   }
 
   // Drives the recovery menu (RecoveryMenuActivity) that main.cpp forced as the

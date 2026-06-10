@@ -68,6 +68,20 @@ uint8_t cycleEnumOptionIndex(const SettingInfo& setting) {
   return static_cast<uint8_t>((currentIndex + 1) % optionCount);
 }
 
+std::string enumOptionLabel(const SettingInfo& setting, const uint8_t index) {
+  if (!setting.enumStringValues.empty()) {
+    return index < setting.enumStringValues.size() ? setting.enumStringValues[index] : std::string();
+  }
+  if (setting.dynamicValuesGetter) {
+    const auto values = setting.dynamicValuesGetter();
+    return index < values.size() ? values[index] : std::string();
+  }
+  if (index < setting.enumValues.size()) {
+    return I18N.get(setting.enumValues[index]);
+  }
+  return std::string();
+}
+
 bool controlSettingVisible(const SettingInfo& setting) {
   if (setting.key != nullptr && std::strcmp(setting.key, "timeZoneOffset") == 0) {
     return SETTINGS.timeMode != CrossPointSettings::TIME_MODE_MANUAL;
@@ -458,10 +472,10 @@ void SettingsActivity::toggleCurrentSetting() {
       return;
     }
 
-    if (enumOptionCount(setting) == 0) {
+    const size_t optionCount = enumOptionCount(setting);
+    if (optionCount == 0) {
       return;
     }
-    const uint8_t newValue = cycleEnumOptionIndex(setting);
     const auto applyEnumValue = [this](const SettingInfo& targetSetting, const uint8_t value) {
       if (targetSetting.valueSetter) {
         targetSetting.valueSetter(value);
@@ -482,6 +496,70 @@ void SettingsActivity::toggleCurrentSetting() {
         core::FeatureModules::onFontFamilySettingChanged(value);
       }
     };
+
+    if (optionCount > 4) {
+      std::vector<std::string> items;
+      items.reserve(optionCount);
+      for (size_t i = 0; i < optionCount; ++i) {
+        items.push_back(enumOptionLabel(setting, i));
+      }
+      const uint8_t currentIndex = setting.valueGetter
+                                       ? setting.valueGetter()
+                                       : (setting.valuePtr ? SETTINGS.*(setting.valuePtr) : static_cast<uint8_t>(0));
+      const uint8_t safeIndex = currentIndex < optionCount ? currentIndex : 0;
+
+      startActivityForResult(
+          std::make_unique<ListPickerActivity>(renderer, mappedInput, setting.nameId, std::move(items), safeIndex),
+          [this, setting, applyEnumValue, persistSettings, optionCount](const ActivityResult& result) {
+            if (!result.isCancelled && std::holds_alternative<ListPickerResult>(result.data)) {
+              const int idx = std::get<ListPickerResult>(result.data).selectedIndex;
+              if (idx >= 0 && idx < static_cast<int>(optionCount)) {
+                const uint8_t newValue = static_cast<uint8_t>(idx);
+                const uint8_t currentIndex =
+                    setting.valueGetter ? setting.valueGetter()
+                                        : (setting.valuePtr ? SETTINGS.*(setting.valuePtr) : static_cast<uint8_t>(0));
+                const bool requiresBatteryWarning = setting.key != nullptr &&
+                                                    strcmp(setting.key, kBackgroundServerModeKey) == 0 &&
+                                                    currentIndex != CrossPointSettings::BACKGROUND_SERVER_ALWAYS &&
+                                                    newValue == CrossPointSettings::BACKGROUND_SERVER_ALWAYS;
+                if (requiresBatteryWarning) {
+                  startActivityForResult(
+                      std::make_unique<ConfirmationActivity>(
+                          renderer, mappedInput, std::string(I18N.get(StrId::STR_BACKGROUND_SERVER_WARNING_TITLE)),
+                          std::string(I18N.get(StrId::STR_BACKGROUND_SERVER_WARNING_BODY))),
+                      [this, setting, newValue, applyEnumValue, persistSettings](const ActivityResult& res) {
+                        if (!res.isCancelled) {
+                          applyEnumValue(setting, newValue);
+                          persistSettings();
+                          if (setting.key != nullptr && (std::strcmp(setting.key, "timeMode") == 0 ||
+                                                         std::strcmp(setting.key, "sleepScreen") == 0)) {
+                            const int previousSelection = selectedSettingIndex;
+                            rebuildSettingsLists();
+                            selectedSettingIndex = std::min(previousSelection, settingsCount);
+                          }
+                        }
+                        requestUpdate();
+                      });
+                } else {
+                  applyEnumValue(setting, newValue);
+                  persistSettings();
+                  if (setting.key != nullptr &&
+                      (std::strcmp(setting.key, "timeMode") == 0 || std::strcmp(setting.key, "sleepScreen") == 0)) {
+                    const int previousSelection = selectedSettingIndex;
+                    rebuildSettingsLists();
+                    selectedSettingIndex = std::min(previousSelection, settingsCount);
+                  }
+                  requestUpdate();
+                }
+              }
+            } else {
+              requestUpdate();
+            }
+          });
+      return;
+    }
+
+    const uint8_t newValue = cycleEnumOptionIndex(setting);
     const uint8_t currentIndex = setting.valueGetter
                                      ? setting.valueGetter()
                                      : (setting.valuePtr ? SETTINGS.*(setting.valuePtr) : static_cast<uint8_t>(0));
