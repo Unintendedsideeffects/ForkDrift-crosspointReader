@@ -416,3 +416,49 @@ TEST_CASE("testCondensedSettings") {
   CHECK(encoded3.length() == 88);
   CHECK(encoded2 != encoded3);
 }
+
+TEST_CASE("testSettingsVisibilityEvaluator") {
+  Storage.reset();
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+
+  auto settings = getSettingsList();
+
+  // 1. Test progress bar thickness visibility based on progress bar setting
+  const SettingInfo* thicknessSetting = findSettingByKey(settings, "statusBarProgressBarThickness");
+  REQUIRE(thicknessSetting != nullptr);
+  CHECK(thicknessSetting->visibleWhen.key != nullptr);
+  CHECK(std::strcmp(thicknessSetting->visibleWhen.key, "statusBarProgressBar") == 0);
+  CHECK(thicknessSetting->visibleWhen.eq == CrossPointSettings::HIDE_PROGRESS);
+  CHECK(thicknessSetting->visibleWhen.notEqual == true);
+
+  // 2. Test developer-gated rows (deviceName)
+  const SettingInfo* deviceNameSetting = findSettingByKey(settings, "deviceName");
+  REQUIRE(deviceNameSetting != nullptr);
+  CHECK(deviceNameSetting->visibleWhen.key != nullptr);
+  CHECK(std::strcmp(deviceNameSetting->visibleWhen.key, "developerMode") == 0);
+  CHECK(deviceNameSetting->visibleWhen.eq == 1);
+  CHECK(deviceNameSetting->visibleWhen.notEqual == false);
+
+  // sideButtonLongPress intentionally has NO visibility chain: side and front
+  // long-press are independent (EpubReaderActivity picks per fromSideBtn), so
+  // gating the side row on longPressButtonBehavior would hide a live setting.
+  const SettingInfo* sideLongPressSetting = findSettingByKey(settings, "sideButtonLongPress");
+  REQUIRE(sideLongPressSetting != nullptr);
+  CHECK(sideLongPressSetting->visibleWhen.key == nullptr);
+
+  // 4. Test side-button orientation-aware visibility based on orientation setting
+  const SettingInfo* sideOrientSetting = findSettingByKey(settings, "sideButtonOrientationAware");
+  REQUIRE(sideOrientSetting != nullptr);
+  CHECK(sideOrientSetting->visibleWhen.key != nullptr);
+  CHECK(std::strcmp(sideOrientSetting->visibleWhen.key, "orientation") == 0);
+  CHECK(sideOrientSetting->visibleWhen.eq == CrossPointSettings::PORTRAIT);
+  CHECK(sideOrientSetting->visibleWhen.notEqual == true);
+
+  // 5. Test front-button orientation-aware visibility based on orientation setting
+  const SettingInfo* frontOrientSetting = findSettingByKey(settings, "frontButtonOrientationAware");
+  REQUIRE(frontOrientSetting != nullptr);
+  CHECK(frontOrientSetting->visibleWhen.key != nullptr);
+  CHECK(std::strcmp(frontOrientSetting->visibleWhen.key, "orientation") == 0);
+  CHECK(frontOrientSetting->visibleWhen.eq == CrossPointSettings::PORTRAIT);
+  CHECK(frontOrientSetting->visibleWhen.notEqual == true);
+}

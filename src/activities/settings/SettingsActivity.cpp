@@ -82,20 +82,45 @@ std::string enumOptionLabel(const SettingInfo& setting, const uint8_t index) {
   return std::string();
 }
 
-bool controlSettingVisible(const SettingInfo& setting) {
+bool isSettingKeyReferencedInDependencies(const char* key, const std::vector<SettingInfo>& allSettings) {
+  if (key == nullptr) return false;
+  for (const auto& s : allSettings) {
+    if (s.visibleWhen.key != nullptr && std::strcmp(s.visibleWhen.key, key) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool controlSettingVisible(const SettingInfo& setting, const std::vector<SettingInfo>& allSettings) {
   if (setting.key != nullptr && std::strcmp(setting.key, "timeZoneOffset") == 0) {
     return SETTINGS.timeMode != CrossPointSettings::TIME_MODE_MANUAL;
   }
   if (setting.visibleWhen.key == nullptr) {
     return true;
   }
-  if (std::strcmp(setting.visibleWhen.key, "timeMode") == 0) {
-    return SETTINGS.timeMode == setting.visibleWhen.eq;
+
+  const auto it = std::find_if(allSettings.begin(), allSettings.end(), [&](const SettingInfo& s) {
+    return s.key && std::strcmp(s.key, setting.visibleWhen.key) == 0;
+  });
+  if (it == allSettings.end()) {
+    return true;
   }
-  if (std::strcmp(setting.visibleWhen.key, "sleepScreen") == 0) {
-    return SETTINGS.sleepScreen == setting.visibleWhen.eq;
+
+  uint8_t value = 0;
+  if (it->valueGetter) {
+    value = it->valueGetter();
+  } else if (it->valuePtr) {
+    value = SETTINGS.*(it->valuePtr);
+  } else {
+    return true;
   }
-  return true;
+
+  if (setting.visibleWhen.notEqual) {
+    return value != setting.visibleWhen.eq;
+  } else {
+    return value == setting.visibleWhen.eq;
+  }
 }
 
 const std::vector<SettingInfo>* settingsForCategory(int categoryIndex, const std::vector<SettingInfo>& displaySettings,
@@ -145,7 +170,7 @@ void SettingsActivity::rebuildSettingsLists() {
   auto addControlSetting = [&](StrId nameId) {
     const auto it =
         std::find_if(allSettings.begin(), allSettings.end(), [nameId](const auto& s) { return s.nameId == nameId; });
-    if (it != allSettings.end()) {
+    if (it != allSettings.end() && controlSettingVisible(*it, allSettings)) {
       controlsSettings.push_back(*it);
     }
   };
@@ -154,7 +179,9 @@ void SettingsActivity::rebuildSettingsLists() {
       return setting.key && std::strcmp(setting.key, key) == 0;
     });
     if (it != allSettings.end()) {
-      controlsSettings.push_back(*it);
+      if (controlSettingVisible(*it, allSettings)) {
+        controlsSettings.push_back(*it);
+      }
       return;
     }
     LOG_ERR("SET", "Missing control setting definition for key=%s", key);
@@ -167,7 +194,7 @@ void SettingsActivity::rebuildSettingsLists() {
       LOG_ERR("SET", "Missing system setting definition for key=%s", key);
       return;
     }
-    if (controlSettingVisible(*it)) {
+    if (controlSettingVisible(*it, allSettings)) {
       systemSettings.push_back(*it);
     }
   };
@@ -200,7 +227,7 @@ void SettingsActivity::rebuildSettingsLists() {
       continue;
     }
     if (setting.category == StrId::STR_CAT_DISPLAY) {
-      if (controlSettingVisible(setting)) {
+      if (controlSettingVisible(setting, allSettings)) {
         displaySettings.push_back(setting);
       }
     } else if (setting.category == StrId::STR_CAT_READER) {
@@ -457,6 +484,11 @@ void SettingsActivity::toggleCurrentSetting() {
     // Toggle the boolean value using the member pointer
     const bool currentValue = SETTINGS.*(setting.valuePtr);
     SETTINGS.*(setting.valuePtr) = !currentValue;
+    if (setting.key != nullptr && isSettingKeyReferencedInDependencies(setting.key, cachedMasterSettings)) {
+      const int previousSelection = selectedSettingIndex;
+      rebuildSettingsLists();
+      selectedSettingIndex = std::min(previousSelection, settingsCount);
+    }
   } else if (setting.type == SettingType::ENUM) {
     if (setting.nameId == StrId::STR_FONT_FAMILY) {
       startActivityForResult(std::make_unique<FontSelectionActivity>(renderer, mappedInput, &sdFontSystem.registry()),
@@ -531,8 +563,8 @@ void SettingsActivity::toggleCurrentSetting() {
                         if (!res.isCancelled) {
                           applyEnumValue(setting, newValue);
                           persistSettings();
-                          if (setting.key != nullptr && (std::strcmp(setting.key, "timeMode") == 0 ||
-                                                         std::strcmp(setting.key, "sleepScreen") == 0)) {
+                          if (setting.key != nullptr &&
+                              isSettingKeyReferencedInDependencies(setting.key, cachedMasterSettings)) {
                             const int previousSelection = selectedSettingIndex;
                             rebuildSettingsLists();
                             selectedSettingIndex = std::min(previousSelection, settingsCount);
@@ -544,7 +576,7 @@ void SettingsActivity::toggleCurrentSetting() {
                   applyEnumValue(setting, newValue);
                   persistSettings();
                   if (setting.key != nullptr &&
-                      (std::strcmp(setting.key, "timeMode") == 0 || std::strcmp(setting.key, "sleepScreen") == 0)) {
+                      isSettingKeyReferencedInDependencies(setting.key, cachedMasterSettings)) {
                     const int previousSelection = selectedSettingIndex;
                     rebuildSettingsLists();
                     selectedSettingIndex = std::min(previousSelection, settingsCount);
@@ -583,8 +615,7 @@ void SettingsActivity::toggleCurrentSetting() {
     }
 
     applyEnumValue(setting, newValue);
-    if (setting.key != nullptr &&
-        (std::strcmp(setting.key, "timeMode") == 0 || std::strcmp(setting.key, "sleepScreen") == 0)) {
+    if (setting.key != nullptr && isSettingKeyReferencedInDependencies(setting.key, cachedMasterSettings)) {
       const int previousSelection = selectedSettingIndex;
       rebuildSettingsLists();
       selectedSettingIndex = std::min(previousSelection, settingsCount);

@@ -73,11 +73,17 @@ struct SettingInfo {
   struct VisibleWhen {
     const char* key = nullptr;  // Key of the controlling setting (null = always visible)
     uint8_t eq = 0;             // Required value of the controlling setting
+    bool notEqual = false;      // True if condition is negation (not equal to eq)
   };
   VisibleWhen visibleWhen;
 
   SettingInfo& withVisibleWhen(const char* dependsOnKey, uint8_t requiredValue) {
-    visibleWhen = {dependsOnKey, requiredValue};
+    visibleWhen = {dependsOnKey, requiredValue, false};
+    return *this;
+  }
+
+  SettingInfo& withVisibleWhenNot(const char* dependsOnKey, uint8_t requiredValue) {
+    visibleWhen = {dependsOnKey, requiredValue, true};
     return *this;
   }
 

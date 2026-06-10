@@ -41,7 +41,11 @@ window.ConfiguratorSettingsDeviceUi = (function () {
 
   function isSettingVisible(setting, values, active) {
     if (setting.hidden) return false;
-    if (setting.visibleWhen && values[setting.visibleWhen.key] !== setting.visibleWhen.eq) return false;
+    if (setting.visibleWhen) {
+      const parentVal = values[setting.visibleWhen.key];
+      if (setting.visibleWhen.eq !== undefined && parentVal !== setting.visibleWhen.eq) return false;
+      if (setting.visibleWhen.ne !== undefined && parentVal === setting.visibleWhen.ne) return false;
+    }
     return true;
   }
 

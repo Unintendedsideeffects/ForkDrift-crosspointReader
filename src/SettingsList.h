@@ -12,6 +12,7 @@
 #include "CrossPointSettings.h"
 #include "SettingInfo.h"
 #include "core/features/FeatureModules.h"
+#include "util/TerminusCredentialStore.h"
 
 inline bool supportsBackgroundServerModeSetting() {
   return core::FeatureModules::hasCapability(core::Capability::BackgroundServerOnCharge);
@@ -500,7 +501,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
       SettingInfo::Enum(StrId::STR_PROGRESS_BAR_THICKNESS, &CrossPointSettings::statusBarProgressBarThickness,
                         {StrId::STR_PROGRESS_BAR_THIN, StrId::STR_PROGRESS_BAR_MEDIUM, StrId::STR_PROGRESS_BAR_THICK},
                         "statusBarProgressBarThickness", StrId::STR_CUSTOMISE_STATUS_BAR)
-          .withConfiguratorExport());
+          .withConfiguratorExport()
+          .withVisibleWhenNot("statusBarProgressBar", CrossPointSettings::HIDE_PROGRESS));
   list.push_back(SettingInfo::Enum(StrId::STR_TITLE, &CrossPointSettings::statusBarTitle,
                                    {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE}, "statusBarTitle",
                                    StrId::STR_CUSTOMISE_STATUS_BAR)
@@ -632,7 +634,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
   list.push_back(SettingInfo::Enum(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::sideButtonOrientationAware,
                                    {StrId::STR_NO, StrId::STR_YES}, "sideButtonOrientationAware",
                                    StrId::STR_CAT_CONTROLS)
-                     .withConfiguratorExport());
+                     .withConfiguratorExport()
+                     .withVisibleWhenNot("orientation", CrossPointSettings::PORTRAIT));
   list.push_back(SettingInfo::Enum(StrId::STR_SIDE_BTN_LONG_PRESS, &CrossPointSettings::sideButtonLongPress,
                                    {StrId::STR_CHAPTER_SKIP_OPT, StrId::STR_CHANGE_FONT_SIZE, StrId::STR_OFF},
                                    "sideButtonLongPress", StrId::STR_CAT_CONTROLS)
@@ -640,7 +643,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
   list.push_back(SettingInfo::Enum(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::frontButtonOrientationAware,
                                    {StrId::STR_NO, StrId::STR_NAV_BUTTONS, StrId::STR_ALL_BUTTONS},
                                    "frontButtonOrientationAware", StrId::STR_CAT_CONTROLS)
-                     .withConfiguratorExport());
+                     .withConfiguratorExport()
+                     .withVisibleWhenNot("orientation", CrossPointSettings::PORTRAIT));
   list.push_back(SettingInfo::Enum(StrId::STR_LONG_PRESS_BEHAVIOR, &CrossPointSettings::longPressButtonBehavior,
                                    {StrId::STR_LONG_PRESS_BEHAVIOR_OFF, StrId::STR_LONG_PRESS_BEHAVIOR_SKIP,
                                     StrId::STR_LONG_PRESS_BEHAVIOR_ORIENTATION},
@@ -710,10 +714,12 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 #endif
 
   if (core::FeatureModules::hasCapability(core::Capability::TrmnlSwitch)) {
-    list.push_back(SettingInfo::Action(StrId::STR_SWITCH_TO_TRMNL, SettingAction::SwitchToTrmnl));
-    list.push_back(SettingInfo::Toggle(StrId::STR_TRMNL_SLEEP_ENABLED, &CrossPointSettings::trmnlSleepEnabled,
-                                       "trmnlSleepEnabled", StrId::STR_CAT_DISPLAY)
-                       .withConfiguratorExport("trmnl_switch"));
+    if (TERMINUS_STORE.hasCredentials()) {
+      list.push_back(SettingInfo::Action(StrId::STR_SWITCH_TO_TRMNL, SettingAction::SwitchToTrmnl));
+      list.push_back(SettingInfo::Toggle(StrId::STR_TRMNL_SLEEP_ENABLED, &CrossPointSettings::trmnlSleepEnabled,
+                                         "trmnlSleepEnabled", StrId::STR_CAT_DISPLAY)
+                         .withConfiguratorExport("trmnl_switch"));
+    }
     // Terminus credentials are managed via /.crosspoint/terminus.json or /plugins/terminus web UI.
     // A settings action entry allows navigating to the setup page from the on-device settings menu.
     list.push_back(SettingInfo::Action(StrId::STR_TERMINUS_SETUP, SettingAction::TerminusSetup));
@@ -762,7 +768,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                      .withConfiguratorExport());
   list.push_back(SettingInfo::String(StrId::STR_DEVICE_NAME, SETTINGS.deviceName, sizeof(SETTINGS.deviceName),
                                      "deviceName", StrId::STR_CAT_ADVANCED)
-                     .withConfiguratorExport());
+                     .withConfiguratorExport()
+                     .withVisibleWhen("developerMode", 1));
 
 #if ENABLE_WIFI_CLOCK
   list.push_back(SettingInfo::Enum(StrId::STR_TIME_MODE, &CrossPointSettings::timeMode,

@@ -5878,8 +5878,12 @@
               }
             }
 
-            if (setting.visibleWhen && normalized[setting.visibleWhen.key] !== setting.visibleWhen.eq) {
-              normalized[setting.key] = defaultValue;
+            if (setting.visibleWhen) {
+              const parentVal = normalized[setting.visibleWhen.key];
+              if ((setting.visibleWhen.eq !== undefined && parentVal !== setting.visibleWhen.eq) ||
+                  (setting.visibleWhen.ne !== undefined && parentVal === setting.visibleWhen.ne)) {
+                normalized[setting.key] = defaultValue;
+              }
             }
           });
 
