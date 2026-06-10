@@ -243,6 +243,10 @@ void ReaderOptionsActivity::render(RenderLock&&) {
       memcpy(renderer.getFrameBuffer(), pageBuffer_, renderer.getBufferSize());
     }
     const int panelY = pageHeight / 2;
+#ifdef SIMULATOR
+    extern bool g_sim_reader_options_full_screen;
+    g_sim_reader_options_full_screen = false;
+#endif
     renderer.fillRect(0, panelY, pageWidth, pageHeight - panelY, false);
     renderer.drawLine(0, panelY, pageWidth - 1, panelY, true);
 
@@ -251,6 +255,10 @@ void ReaderOptionsActivity::render(RenderLock&&) {
     GUI.drawList(renderer, Rect{contentX, listTop, contentWidth, listHeight}, settingsCount, selectedIndex, rowTitle,
                  nullptr, nullptr, rowValue, true, nullptr, isHeader);
   } else {
+#ifdef SIMULATOR
+    extern bool g_sim_reader_options_full_screen;
+    g_sim_reader_options_full_screen = true;
+#endif
     LOG_INF("RDR", "ReaderOptions: full-screen fallback mode");
     renderer.clearScreen();
     GUI.drawHeader(renderer, Rect{contentX, metrics.topPadding, contentWidth, metrics.headerHeight}, tr(STR_CAT_READER),

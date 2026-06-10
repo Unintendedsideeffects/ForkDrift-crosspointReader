@@ -37,7 +37,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PROGRAM = ROOT / ".pio" / "build" / "simulator" / "program"
-DEFAULT_BOOK = ROOT / "test" / "epubs" / "test_reader_rendering_matrix.epub"
+DEFAULT_BOOK = ROOT / "test" / "epubs" / "test_tables.epub"
 CRASH_PATTERNS = (
     "std::bad_alloc",
     "terminating due to uncaught exception",

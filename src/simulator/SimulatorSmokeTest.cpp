@@ -18,6 +18,7 @@
 extern ActivityManager activityManager;
 extern GfxRenderer renderer;
 extern MappedInputManager mappedInputManager;
+extern bool g_sim_reader_options_full_screen;
 
 namespace {
 
@@ -255,6 +256,9 @@ class SimulatorSmokeTest {
         break;
 
       case SmokeStep::HomeNav:
+        if (g_sim_reader_options_full_screen) {
+          fail("Smoke test failed: ReaderOptions entered full-screen fallback mode instead of half-screen preview");
+        }
         buildHomeNavInputScript();
         scriptStep = SmokeStep::HomeNavRun;
         scriptDoneStep = SmokeStep::Done;
@@ -274,6 +278,11 @@ class SimulatorSmokeTest {
         break;
 
       case SmokeStep::Done:
+        if (ESP.getFreeHeap() == 1024 * 1024) {
+          fail("Smoke test failed: Heap tracking machinery is not active (ESP.getFreeHeap() == 1024*1024)");
+        }
+        // std::_Exit skips the static-destructor SIM HEAP SUMMARY, so report here.
+        LOG_INF("SMOKE", "Sim heap: free=%u min_free=%u", ESP.getFreeHeap(), ESP.getMinFreeHeap());
         LOG_INF("SMOKE", "Simulator smoke test passed");
         std::_Exit(0);
     }
@@ -333,7 +342,7 @@ class SimulatorSmokeTest {
     addTap(MappedInputManager::Button::Confirm);
     inputScript.push_back(render("Reader options overlay", 6));
 
-    // Navigate deterministically to focusReadingEnabled (10 downs)
+    // Navigate deterministically to forceParagraphIndents (10 downs)
     for (int i = 0; i < 10; i++) {
       addTap(MappedInputManager::Button::Down);
       inputScript.push_back(render("Reader options down", 1));
