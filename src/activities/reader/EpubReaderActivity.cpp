@@ -1262,10 +1262,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                                       SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled,
                                       {this, &EpubReaderActivity::showLoadingPopupTrampoline})) {
         LOG_ERR("ERS", "Failed to persist page data to SD");
-        // #region agent log
-        LOG_ERR("DBG", "c0388c hyp=H4 loc=EpubReader:persistFail heap=%u",
-                static_cast<unsigned>(esp_get_free_heap_size()));
-        // #endregion
+
         section.reset();
         resetPageLoadRetryState();
         showPendingSyncSaveError();

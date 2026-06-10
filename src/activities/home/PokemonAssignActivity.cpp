@@ -133,13 +133,13 @@ void PokemonAssignActivity::writeAssignment(int memberIndex) {
   if (memberIndex < 0 || memberIndex >= static_cast<int>(teamNames_.size()) || chosenBookIndex_ < 0 ||
       chosenBookIndex_ >= static_cast<int>(books_.size())) {
     phase_ = Phase::Done;
-    statusMessage_ = std::string(tr(STR_PARTY_NO_TEAM));
+    statusMessage_ = std::string(tr(STR_PARTY_SAVE_FAILED));
     requestUpdate();
     return;
   }
 
   phase_ = Phase::Done;
-  statusMessage_ = "Caching sprites...";
+  statusMessage_ = std::string(tr(STR_PARTY_CACHING_SPRITES));
   requestUpdateAndWait();
 
   const std::string& bookPath = books_[chosenBookIndex_].path;
@@ -149,7 +149,7 @@ void PokemonAssignActivity::writeAssignment(int memberIndex) {
     statusMessage_ = teamNames_[memberIndex] + " -> " + books_[chosenBookIndex_].title;
   } else {
     LOG_ERR("PKM", "on-device assign save failed: %s", bookPath.c_str());
-    statusMessage_ = std::string(tr(STR_PARTY_NO_TEAM));
+    statusMessage_ = std::string(tr(STR_PARTY_SAVE_FAILED));
   }
   requestUpdate();
 }

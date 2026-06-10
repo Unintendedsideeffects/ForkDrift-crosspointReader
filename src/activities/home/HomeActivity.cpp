@@ -1106,35 +1106,23 @@ bool HomeActivity::buildCarouselCacheFile(const std::string& cacheKey, uint64_t 
 
 bool HomeActivity::readCarouselFrameFromDisk(uint64_t cacheKeyHash, int bookCount, int bookIdx, uint8_t* dest) const {
   if (!dest || bookIdx < 0 || bookIdx >= bookCount) {
-    // #region agent log
-    LOG_DBG("DBG", "c0388c hyp=H6 loc=readCarouselFrame:bad-args book=%d count=%d", bookIdx, bookCount);
-    // #endregion
     return false;
   }
   SpiBusMutex::Guard guard;
   HalFile file;
   if (!Storage.openFileForRead("HOME", CAROUSEL_CACHE_PATH, file)) {
-    // #region agent log
-    LOG_DBG("DBG", "c0388c hyp=H6 loc=readCarouselFrame:open-fail book=%d", bookIdx);
-    // #endregion
     return false;
   }
 
   CarouselCacheHeader header{};
   if (!readCarouselCacheHeader(file, header)) {
     file.close();
-    // #region agent log
-    LOG_DBG("DBG", "c0388c hyp=H6 loc=readCarouselFrame:header-read-fail book=%d", bookIdx);
-    // #endregion
+
     return false;
   }
   if (!isCarouselCacheHeaderValid(header, cacheKeyHash, bookCount, renderer)) {
     file.close();
-    // #region agent log
-    LOG_DBG("DBG", "c0388c hyp=H6 loc=readCarouselFrame:header-invalid book=%d hash=%llu hdrHash=%llu fc=%u/%d",
-            bookIdx, static_cast<unsigned long long>(cacheKeyHash), static_cast<unsigned long long>(header.keyHash),
-            header.frameCount, bookCount);
-    // #endregion
+
     return false;
   }
 
@@ -1558,16 +1546,10 @@ void HomeActivity::render(RenderLock&&) {
         } else if (readCarouselFrameFromDisk(gCarouselCache.keyHash, bookCount, centerIdx, frameBuffer)) {
           slotIdx = 0;
           frameLoadedDirectToBuffer = true;
-          // #region agent log
-          LOG_DBG("DBG", "c0388c hyp=H6 loc=HomeActivity:carousel disk-direct heap=%u", ESP.getFreeHeap());
-          // #endregion
         }
       } else if (readCarouselFrameFromDisk(gCarouselCache.keyHash, bookCount, centerIdx, frameBuffer)) {
         slotIdx = 0;
         frameLoadedDirectToBuffer = true;
-        // #region agent log
-        LOG_DBG("DBG", "c0388c hyp=H6 loc=HomeActivity:carousel disk-direct heap=%u", ESP.getFreeHeap());
-        // #endregion
       }
     }
 
@@ -1626,12 +1608,6 @@ void HomeActivity::render(RenderLock&&) {
       }
       return;
     }
-    // #region agent log
-    if (gCarouselCache.keyHash != 0) {
-      LOG_DBG("DBG", "c0388c hyp=H6 loc=HomeActivity:carousel slow-fallback slot=%d heap=%u fc=%d", slotIdx,
-              ESP.getFreeHeap(), gCarouselCache.frameCount);
-    }
-    // #endregion
   }
 
   renderer.clearScreen();

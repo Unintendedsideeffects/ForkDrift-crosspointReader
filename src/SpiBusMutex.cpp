@@ -26,15 +26,7 @@ void SpiBusMutex::unlock() {
   if (mutex == nullptr) {
     return;
   }
-  // #region agent log
-  const TaskHandle_t self = xTaskGetCurrentTaskHandle();
-  const TaskHandle_t holder = xSemaphoreGetMutexHolder(mutex);
-  if (holder != nullptr && holder != self) {
-    LOG_ERR("DBG", "c0388c hyp=H1 loc=SpiBusMutex:unlock self=%s holder=%s", pcTaskGetName(self),
-            pcTaskGetName(holder));
-    return;
-  }
-  // #endregion
+
   xSemaphoreGiveRecursive(mutex);
 }
 

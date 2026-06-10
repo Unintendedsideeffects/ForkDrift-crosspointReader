@@ -182,10 +182,7 @@ void ActivityManager::loop() {
       activityChanged = true;
 
       lock.unlock();  // onEnter may acquire its own lock
-      // #region agent log
-      LOG_DBG("DBG", "c0388c hyp=H5 loc=ActivityManager:onEnter name=%s heap=%u", currentActivity->name.c_str(),
-              ESP.getFreeHeap());
-      // #endregion
+
       currentActivity->onEnter();
 
       // onEnter may request another pending action, we will handle it in the next loop iteration
@@ -462,10 +459,6 @@ RenderLock::~RenderLock() {
     const TaskHandle_t self = xTaskGetCurrentTaskHandle();
     const TaskHandle_t holder = xSemaphoreGetMutexHolder(activityManager.renderingMutex);
     if (holder != self) {
-      // #region agent log
-      LOG_ERR("DBG", "c0388c hyp=H3 loc=RenderLock:dtor self=%s holder=%s", pcTaskGetName(self),
-              holder ? pcTaskGetName(holder) : "<none>");
-      // #endregion
       LOG_ERR("RDL", "skip give (not holder): self='%s' holder='%s'", pcTaskGetName(self),
               holder ? pcTaskGetName(holder) : "<none>");
       return;
