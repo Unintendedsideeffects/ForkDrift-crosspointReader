@@ -1,5 +1,6 @@
 #include "ActivityManager.h"
 
+#include <Arduino.h>
 #include <HalPowerManager.h>
 #include <HalStorage.h>
 #include <Logging.h>
@@ -139,6 +140,8 @@ void ActivityManager::loop() {
         currentActivity = std::move(stackActivities.back());
         stackActivities.pop_back();
         LOG_DBG("ACT", "Popped from activity stack, new size = %zu", stackActivities.size());
+        LOG_INF("MEM", "enter %s: free=%u min=%u", currentActivity->name.c_str(),
+                static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(ESP.getMinFreeHeap()));
         activityChanged = true;
         // Handle result if necessary
         if (currentActivity->resultHandler) {
@@ -169,6 +172,8 @@ void ActivityManager::loop() {
         exitActivity(lock);
         // Clear the stack
         while (!stackActivities.empty()) {
+          LOG_INF("MEM", "exit %s: free=%u min=%u", stackActivities.back()->name.c_str(),
+                  static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(ESP.getMinFreeHeap()));
           stackActivities.back()->onExit();
           stackActivities.pop_back();
         }
@@ -183,6 +188,8 @@ void ActivityManager::loop() {
 
       lock.unlock();  // onEnter may acquire its own lock
 
+      LOG_INF("MEM", "enter %s: free=%u min=%u", currentActivity->name.c_str(),
+              static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(ESP.getMinFreeHeap()));
       currentActivity->onEnter();
 
       // onEnter may request another pending action, we will handle it in the next loop iteration
@@ -212,6 +219,8 @@ void ActivityManager::loop() {
 void ActivityManager::exitActivity(const RenderLock& lock) {
   // Note: lock must be held by the caller
   if (currentActivity) {
+    LOG_INF("MEM", "exit %s: free=%u min=%u", currentActivity->name.c_str(),
+            static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(ESP.getMinFreeHeap()));
     currentActivity->onExit();
     currentActivity.reset();
   }
@@ -227,6 +236,8 @@ void ActivityManager::replaceActivity(std::unique_ptr<Activity>&& newActivity) {
   } else {
     // No current activity, safe to launch immediately
     currentActivity = std::move(newActivity);
+    LOG_INF("MEM", "enter %s: free=%u min=%u", currentActivity->name.c_str(),
+            static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(ESP.getMinFreeHeap()));
     currentActivity->onEnter();
   }
 }
