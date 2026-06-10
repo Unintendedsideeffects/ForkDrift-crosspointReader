@@ -62,8 +62,10 @@ uint8_t cycleEnumOptionIndex(const SettingInfo& setting) {
   const size_t currentIndex = setting.valueGetter
                                   ? setting.valueGetter()
                                   : (setting.valuePtr ? static_cast<size_t>(SETTINGS.*(setting.valuePtr)) : 0);
-  const size_t normalizedIndex = currentIndex < optionCount ? currentIndex : 0;
-  return static_cast<uint8_t>((normalizedIndex + 1) % optionCount);
+  if (currentIndex >= optionCount) {
+    return 0;
+  }
+  return static_cast<uint8_t>((currentIndex + 1) % optionCount);
 }
 
 bool controlSettingVisible(const SettingInfo& setting) {
@@ -741,16 +743,16 @@ void SettingsActivity::render(RenderLock&&) {
 
           if (hasValue) {
             if (!setting.enumStringValues.empty()) {
-              const size_t valueIndex = std::min(static_cast<size_t>(value), setting.enumStringValues.size() - 1);
+              const size_t valueIndex = (value < setting.enumStringValues.size()) ? value : 0;
               valueText = setting.enumStringValues[valueIndex];
             } else if (setting.dynamicValuesGetter) {
               const auto dynamicValues = setting.dynamicValuesGetter();
               if (!dynamicValues.empty()) {
-                const size_t valueIndex = std::min(static_cast<size_t>(value), dynamicValues.size() - 1);
+                const size_t valueIndex = (value < dynamicValues.size()) ? value : 0;
                 valueText = dynamicValues[valueIndex];
               }
             } else if (!setting.enumValues.empty()) {
-              const size_t valueIndex = std::min(static_cast<size_t>(value), setting.enumValues.size() - 1);
+              const size_t valueIndex = (value < setting.enumValues.size()) ? value : 0;
               valueText = I18N.get(setting.enumValues[valueIndex]);
             }
           }

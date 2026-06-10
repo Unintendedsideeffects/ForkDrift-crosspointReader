@@ -82,6 +82,8 @@ void EpubReaderMenuActivity::onEnter() {
   savedPageBuffer = makeUniqueNoThrow<uint8_t[]>(bufSize);
   if (savedPageBuffer) {
     memcpy(savedPageBuffer.get(), renderer.getFrameBuffer(), bufSize);
+  } else {
+    LOG_ERR("RDR", "OOM: %d bytes for savedPageBuffer", static_cast<int>(bufSize));
   }
   requestUpdate();
 }

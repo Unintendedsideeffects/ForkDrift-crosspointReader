@@ -144,8 +144,12 @@ void ReaderOptionsActivity::toggleCurrentSetting() {
     }
     const uint8_t cur = readEnumValue(setting);
     const uint8_t maxIndex = static_cast<uint8_t>(optionCount - 1);
-    const uint8_t normalizedValue = cur > maxIndex ? 0 : cur;
-    const uint8_t newValue = (normalizedValue + 1) % static_cast<uint8_t>(optionCount);
+    uint8_t newValue;
+    if (cur > maxIndex) {
+      newValue = 0;
+    } else {
+      newValue = (cur + 1) % static_cast<uint8_t>(optionCount);
+    }
     writeEnumValue(setting, newValue);
     if (setting.key != nullptr && std::strcmp(setting.key, "fontFamily") == 0) {
       core::FeatureModules::onFontFamilySettingChanged(SETTINGS.fontFamily);
@@ -230,8 +234,14 @@ void ReaderOptionsActivity::render(RenderLock&&) {
     return valueText;
   };
 
-  if (pageBuffer_) {
-    memcpy(renderer.getFrameBuffer(), pageBuffer_, renderer.getBufferSize());
+  if (pageBuffer_ || previewRefresh_) {
+    if (!pageBuffer_) {
+      LOG_INF("RDR", "ReaderOptions: half-screen preview mode (rebuilt)");
+      previewRefresh_(renderer.getFrameBuffer(), renderer.getBufferSize());
+    } else {
+      LOG_INF("RDR", "ReaderOptions: half-screen preview mode (cached)");
+      memcpy(renderer.getFrameBuffer(), pageBuffer_, renderer.getBufferSize());
+    }
     const int panelY = pageHeight / 2;
     renderer.fillRect(0, panelY, pageWidth, pageHeight - panelY, false);
     renderer.drawLine(0, panelY, pageWidth - 1, panelY, true);
@@ -241,6 +251,7 @@ void ReaderOptionsActivity::render(RenderLock&&) {
     GUI.drawList(renderer, Rect{contentX, listTop, contentWidth, listHeight}, settingsCount, selectedIndex, rowTitle,
                  nullptr, nullptr, rowValue, true, nullptr, isHeader);
   } else {
+    LOG_INF("RDR", "ReaderOptions: full-screen fallback mode");
     renderer.clearScreen();
     GUI.drawHeader(renderer, Rect{contentX, metrics.topPadding, contentWidth, metrics.headerHeight}, tr(STR_CAT_READER),
                    nullptr);

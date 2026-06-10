@@ -66,7 +66,7 @@ class SimulatorSmokeTest {
   }
 
  private:
-  enum class ScriptActionType : uint8_t { Press, Release, Render, HashFrame };
+  enum class ScriptActionType : uint8_t { Press, Release, Render, HashFrame, CheckHashDiff };
 
   struct ScriptAction {
     ScriptActionType type;
@@ -85,6 +85,7 @@ class SimulatorSmokeTest {
   // and CarouselNav share one script runner.
   SmokeStep scriptStep = SmokeStep::ReaderInput;
   SmokeStep scriptDoneStep = SmokeStep::Done;
+  uint64_t lastFrameHash = 0;
 
   static bool enabled() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_TEST") != nullptr; }
 
@@ -288,11 +289,14 @@ class SimulatorSmokeTest {
   static ScriptAction hashFrame(const char* label) {
     return {ScriptActionType::HashFrame, MappedInputManager::Button::Back, label, 0};
   }
+  static ScriptAction checkHashDiff(const char* label) {
+    return {ScriptActionType::CheckHashDiff, MappedInputManager::Button::Back, label, 0};
+  }
 
   // FNV-1a hash of the current firmware framebuffer. Lets the headless runner
   // detect *visual* regressions (e.g. a garbled Home re-render) that a crash/
   // onEnter-only smoke check is blind to.
-  static void logFrameHash(const char* label) {
+  static uint64_t getFrameHash() {
     const uint8_t* fb = renderer.getFrameBuffer();
     const size_t size = renderer.getBufferSize();
     uint64_t hash = 1469598103934665603ULL;
@@ -302,6 +306,10 @@ class SimulatorSmokeTest {
         hash *= 1099511628211ULL;
       }
     }
+    return hash;
+  }
+
+  static void logFrameHash(const char* label, uint64_t hash) {
     LOG_INF("SMOKE", "FRAMEHASH %s = %016llx", label, static_cast<unsigned long long>(hash));
   }
 
@@ -324,10 +332,17 @@ class SimulatorSmokeTest {
     inputScript.push_back(render("Reader menu reader item", 2));
     addTap(MappedInputManager::Button::Confirm);
     inputScript.push_back(render("Reader options overlay", 6));
-    inputScript.push_back(hashFrame("Reader options overlay"));
+
+    // Navigate deterministically to focusReadingEnabled (10 downs)
+    for (int i = 0; i < 10; i++) {
+      addTap(MappedInputManager::Button::Down);
+      inputScript.push_back(render("Reader options down", 1));
+    }
+
+    inputScript.push_back(hashFrame("Reader options overlay before toggle"));
     addTap(MappedInputManager::Button::Confirm);
     inputScript.push_back(render("Reader options after toggle", 10));
-    inputScript.push_back(hashFrame("Reader options after toggle"));
+    inputScript.push_back(checkHashDiff("Reader options after toggle"));
     addTap(MappedInputManager::Button::Back);
     inputScript.push_back(render("Reader after options", 6));
     addTap(MappedInputManager::Button::Back);
@@ -504,8 +519,17 @@ class SimulatorSmokeTest {
         queueStep(action.label, scriptStep, action.settleFrames);
         break;
       case ScriptActionType::HashFrame:
-        logFrameHash(action.label);
+        lastFrameHash = getFrameHash();
+        logFrameHash(action.label, lastFrameHash);
         break;
+      case ScriptActionType::CheckHashDiff: {
+        uint64_t newHash = getFrameHash();
+        logFrameHash(action.label, newHash);
+        if (newHash == lastFrameHash) {
+          fail("FRAMEHASH unchanged after toggle! Hash equality assertion failed.");
+        }
+        break;
+      }
     }
   }
 };

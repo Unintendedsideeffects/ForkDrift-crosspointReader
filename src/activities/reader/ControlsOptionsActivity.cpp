@@ -108,7 +108,12 @@ void ControlsOptionsActivity::toggleCurrentSetting() {
     }
   } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
     const uint8_t cur = SETTINGS.*(setting.valuePtr);
-    SETTINGS.*(setting.valuePtr) = (cur + 1) % static_cast<uint8_t>(setting.enumValues.size());
+    const uint8_t optionCount = static_cast<uint8_t>(setting.enumValues.size());
+    if (cur >= optionCount) {
+      SETTINGS.*(setting.valuePtr) = 0;
+    } else {
+      SETTINGS.*(setting.valuePtr) = (cur + 1) % optionCount;
+    }
     if (!SETTINGS.saveToFile()) {
       LOG_ERR("CTRL", "Failed to save settings");
     }
@@ -188,6 +193,7 @@ void ControlsOptionsActivity::render(RenderLock&&) {
   };
 
   if (pageBuffer_) {
+    LOG_INF("RDR", "ControlsOptions: half-screen preview mode (cached)");
     // Half-screen overlay: restore the book page into the top half, then draw
     // the settings panel over the bottom half so the text remains visible.
     memcpy(renderer.getFrameBuffer(), pageBuffer_, renderer.getBufferSize());
@@ -200,6 +206,7 @@ void ControlsOptionsActivity::render(RenderLock&&) {
     GUI.drawList(renderer, Rect{contentX, listTop, contentWidth, listHeight}, settingsCount, selectedIndex, rowTitle,
                  nullptr, nullptr, rowValue, true, nullptr, isHeader);
   } else {
+    LOG_INF("RDR", "ControlsOptions: full-screen fallback mode");
     renderer.clearScreen();
     GUI.drawHeader(renderer, Rect{contentX, metrics.topPadding, contentWidth, metrics.headerHeight},
                    tr(STR_CAT_CONTROLS), nullptr);
