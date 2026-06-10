@@ -6,7 +6,8 @@ bool ImageToFramebufferDecoder::validateImageDimensions(int width, int height, c
   // Reject non-positive dims: a decoder that fails to open returns 0x0, which would
   // otherwise pass the cap (0 < MAX) and drive a 0-width Bresenham loop into a hang.
   // Negative values arise from int16_t truncation of an oversized dimension.
-  if (width <= 0 || height <= 0) {
+  // We also reject width/height exceeding INT16_MAX to prevent truncation wrap-around.
+  if (width <= 0 || height <= 0 || width > INT16_MAX || height > INT16_MAX) {
     LOG_ERR("IMG", "Invalid image dimensions (%dx%d %s)", width, height, format.c_str());
     return false;
   }

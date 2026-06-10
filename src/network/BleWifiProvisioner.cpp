@@ -40,7 +40,11 @@ class BleWifiProvisioner::CredentialCharacteristicCallbacks : public BLECharacte
   BleWifiProvisioner* owner;
 };
 
-BleWifiProvisioner::BleWifiProvisioner() : stateMutex(xSemaphoreCreateMutex()) {}
+BleWifiProvisioner::BleWifiProvisioner() : stateMutex(xSemaphoreCreateMutex()) {
+  if (!stateMutex) {
+    LOG_ERR("BLE", "Failed to create state mutex - BLE Wifi Provisioner init failed");
+  }
+}
 
 BleWifiProvisioner::~BleWifiProvisioner() {
   stop();
@@ -178,6 +182,10 @@ std::string BleWifiProvisioner::getStatusMessage() const {
 }
 
 void BleWifiProvisioner::handleIncomingPayload(const std::string& payload) {
+  if (!stateMutex) {
+    LOG_ERR("BLE", "State mutex is null, handleIncomingPayload aborted");
+    return;
+  }
   std::string ssid;
   std::string password;
   if (!ble_credential_parser::parse(payload, ssid, password)) {

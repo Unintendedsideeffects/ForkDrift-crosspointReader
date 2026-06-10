@@ -351,6 +351,73 @@ void OpdsBookBrowserActivity::performSearch(const std::string& query) {
   const size_t pos = url.find(placeholder);
   if (pos != std::string::npos) url.replace(pos, placeholder.length(), urlEncode(query));
 
+  // Strip remaining optional parameters {name?}
+  size_t startPos = 0;
+  while ((startPos = url.find('{', startPos)) != std::string::npos) {
+    size_t endPos = url.find('}', startPos);
+    if (endPos != std::string::npos) {
+      if (endPos > startPos + 1 && url[endPos - 1] == '?') {
+        url.erase(startPos, endPos - startPos + 1);
+      } else {
+        startPos = endPos + 1;
+      }
+    } else {
+      break;
+    }
+  }
+
+  // Tidy dangling '&'/'?' separators left by emptied params
+  size_t qPos = url.find('?');
+  if (qPos != std::string::npos) {
+    std::string queryStr = url.substr(qPos + 1);
+    std::string baseUrl = url.substr(0, qPos);
+    std::vector<std::string> params;
+    size_t pos = 0;
+    while (true) {
+      size_t nextAmp = queryStr.find('&', pos);
+      std::string param = (nextAmp == std::string::npos) ? queryStr.substr(pos) : queryStr.substr(pos, nextAmp - pos);
+      bool isEmpty = false;
+      if (param.empty()) {
+        isEmpty = true;
+      } else {
+        size_t eqPos = param.find('=');
+        if (eqPos != std::string::npos) {
+          if (eqPos == param.size() - 1) {
+            isEmpty = true;
+          }
+        }
+      }
+      if (!isEmpty) {
+        params.push_back(param);
+      }
+      if (nextAmp == std::string::npos) break;
+      pos = nextAmp + 1;
+    }
+    std::string newQuery;
+    for (const auto& p : params) {
+      if (!newQuery.empty()) newQuery += "&";
+      newQuery += p;
+    }
+    if (!newQuery.empty()) {
+      url = baseUrl + "?" + newQuery;
+    } else {
+      url = baseUrl;
+    }
+  }
+
+  while (url.find("&&") != std::string::npos) {
+    url.replace(url.find("&&"), 2, "&");
+  }
+  while (url.find("?&") != std::string::npos) {
+    url.replace(url.find("?&"), 2, "?");
+  }
+  if (!url.empty() && url.back() == '&') {
+    url.pop_back();
+  }
+  if (!url.empty() && url.back() == '?') {
+    url.pop_back();
+  }
+
   navigationHistory.push_back(currentPath);
   currentPath = url;
 

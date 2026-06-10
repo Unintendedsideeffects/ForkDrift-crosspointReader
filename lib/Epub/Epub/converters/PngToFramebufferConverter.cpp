@@ -102,10 +102,19 @@ int bytesPerPixelFromType(int pixelType) {
   }
 }
 
-int requiredPngInternalBufferBytes(int srcWidth, int pixelType) {
+size_t requiredPngInternalBufferBytes(int srcWidth, int pixelType) {
+  if (srcWidth <= 0) {
+    return SIZE_MAX;
+  }
   // +1 filter byte per scanline, *2 for current+previous lines, +32 for alignment margin.
-  int pitch = srcWidth * bytesPerPixelFromType(pixelType);
-  return ((pitch + 1) * 2) + 32;
+  int64_t bpp = bytesPerPixelFromType(pixelType);
+  int64_t pitch = static_cast<int64_t>(srcWidth) * bpp;
+  const int64_t MAX_PITCH = 1000000;  // Cap to prevent overflow
+  if (pitch > MAX_PITCH) {
+    return SIZE_MAX;
+  }
+  int64_t total = ((pitch + 1) * 2) + 32;
+  return static_cast<size_t>(total);
 }
 
 // Convert entire source line to grayscale with alpha blending to white background.
@@ -279,8 +288,13 @@ bool PngToFramebufferConverter::getDimensionsStatic(const std::string& imagePath
     return false;
   }
 
-  out.width = png->getWidth();
-  out.height = png->getHeight();
+  int w = png->getWidth();
+  int h = png->getHeight();
+  if (!validateImageDimensions(w, h, "PNG")) {
+    return false;
+  }
+  out.width = static_cast<int16_t>(w);
+  out.height = static_cast<int16_t>(h);
 
   return true;
 }
@@ -345,7 +359,7 @@ bool PngToFramebufferConverter::decodeToFramebuffer(const std::string& imagePath
           ctx.scale, png->getBpp());
 
   const int pixelType = png->getPixelType();
-  const int requiredInternal = requiredPngInternalBufferBytes(ctx.srcWidth, pixelType);
+  const size_t requiredInternal = requiredPngInternalBufferBytes(ctx.srcWidth, pixelType);
   if (requiredInternal > PNG_MAX_BUFFERED_PIXELS) {
     LOG_ERR("PNG",
             "PNG row buffer too small: need %d bytes for width=%d type=%d, configured PNG_MAX_BUFFERED_PIXELS=%d",

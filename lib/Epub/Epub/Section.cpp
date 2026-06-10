@@ -421,8 +421,9 @@ std::optional<uint16_t> Section::getPageForParagraphIndex(const uint16_t pIndex)
     return std::nullopt;
   }
 
-  const uint32_t lutBytes = sizeof(uint16_t) + count * sizeof(uint16_t);
-  if (paragraphLutOffset > fileSize || lutBytes > fileSize - paragraphLutOffset) {
+  const uint64_t lutEnd =
+      static_cast<uint64_t>(paragraphLutOffset) + sizeof(uint16_t) + static_cast<uint64_t>(count) * sizeof(uint16_t);
+  if (lutEnd > fileSize) {
     f.close();
     return std::nullopt;
   }
@@ -464,8 +465,9 @@ std::optional<uint16_t> Section::getParagraphIndexForPage(const uint16_t page) c
     return std::nullopt;
   }
 
-  const uint32_t entryBytes = sizeof(uint16_t) + (page + 1) * sizeof(uint16_t);
-  if (paragraphLutOffset > fileSize || entryBytes > fileSize - paragraphLutOffset) {
+  const uint64_t entryEnd =
+      static_cast<uint64_t>(paragraphLutOffset) + sizeof(uint16_t) + static_cast<uint64_t>(page + 1) * sizeof(uint16_t);
+  if (entryEnd > fileSize) {
     f.close();
     return std::nullopt;
   }
@@ -506,8 +508,8 @@ std::optional<uint16_t> Section::getPageForListItemIndex(const uint16_t liIndex)
     return std::nullopt;
   }
 
-  const uint32_t lutBytes = count * sizeof(uint16_t);
-  if (liLutOffset > fileSize || lutBytes > fileSize - liLutOffset) {
+  const uint64_t lutEnd = static_cast<uint64_t>(liLutOffset) + static_cast<uint64_t>(count) * sizeof(uint16_t);
+  if (lutEnd > fileSize) {
     return std::nullopt;
   }
 

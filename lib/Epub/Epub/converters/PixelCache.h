@@ -67,10 +67,11 @@ struct PixelCache {
     uint16_t h = height;
     cacheFile.write(&w, 2);
     cacheFile.write(&h, 2);
-    cacheFile.write(buffer, bytesPerRow * height);
+    cacheFile.write(buffer, static_cast<size_t>(bytesPerRow) * static_cast<size_t>(height));
     cacheFile.close();
 
-    LOG_DBG("IMG", "Cache written: %s (%dx%d, %d bytes)", cachePath.c_str(), width, height, 4 + bytesPerRow * height);
+    LOG_DBG("IMG", "Cache written: %s (%dx%d, %zu bytes)", cachePath.c_str(), width, height,
+            4 + static_cast<size_t>(bytesPerRow) * static_cast<size_t>(height));
     return true;
   }
 
