@@ -14,7 +14,7 @@ constexpr char MEDIA_TYPE_NCX[] = "application/x-dtbncx+xml";
 constexpr char MEDIA_TYPE_CSS[] = "text/css";
 constexpr char MEDIA_TYPE_IMAGE_PREFIX[] = "image/";
 constexpr char itemCacheFile[] = "/.items.bin";
-constexpr uint16_t kMaxXmlElementDepth = 256;
+constexpr uint16_t kMaxXmlElementDepth = 64;
 
 bool startsWithImageMediaType(const std::string& mediaType) {
   constexpr size_t prefixLen = sizeof(MEDIA_TYPE_IMAGE_PREFIX) - 1;

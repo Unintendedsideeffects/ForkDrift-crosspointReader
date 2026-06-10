@@ -4,7 +4,7 @@
 #include <XmlParserUtils.h>
 
 namespace {
-constexpr uint16_t kMaxXmlElementDepth = 256;
+constexpr uint16_t kMaxXmlElementDepth = 64;
 }
 
 bool ContainerParser::setup() {

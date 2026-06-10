@@ -234,6 +234,7 @@ void RecentBooksGridActivity::onEnter() {
   Activity::onEnter();
   loadRecentBooks();
   selectorIndex = 0;
+  previousSelectorIndex = -1;
   loadedPageStart = -1;
   ensureProgressLoaded(0);
   requestUpdate();
@@ -244,6 +245,7 @@ void RecentBooksGridActivity::onExit() {
   recentBooks.clear();
   recentBookProgress.clear();
   recentBookProgressLoaded.clear();
+  previousSelectorIndex = -1;
 }
 
 void RecentBooksGridActivity::loop() {
@@ -306,13 +308,9 @@ void RecentBooksGridActivity::loop() {
 }
 
 void RecentBooksGridActivity::render(RenderLock&&) {
-  renderer.clearScreen();
-
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
   const auto& metrics = UITheme::getInstance().getMetrics();
-
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_MENU_RECENT_BOOKS));
 
   const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
   constexpr int titleStripHeight = 32;
@@ -327,6 +325,88 @@ void RecentBooksGridActivity::render(RenderLock&&) {
   const int pageStart = currentPage * BOOKS_PER_PAGE;
   const int pageCount = std::min(BOOKS_PER_PAGE, totalBooks - pageStart);
 
+  bool canDoFastSelection = (previousSelectorIndex >= 0) && (previousSelectorIndex != selectorIndex) &&
+                            (previousSelectorIndex / BOOKS_PER_PAGE == currentPage) && (loadedPageStart == pageStart) &&
+                            (!recentBooks.empty());
+
+  if (canDoFastSelection) {
+    // 1. Erase old selection border
+    const int prevPageIdx = previousSelectorIndex - pageStart;
+    if (prevPageIdx >= 0 && prevPageIdx < BOOKS_PER_PAGE) {
+      const int prevBx = coverX[prevPageIdx];
+      const int prevBy = coverY[prevPageIdx];
+      const int prevBw = coverW[prevPageIdx];
+      const int prevBh = coverH[prevPageIdx];
+      renderer.drawRoundedRect(prevBx - kSelectionPadding, prevBy - kSelectionPadding, prevBw + kSelectionPadding * 2,
+                               prevBh + kSelectionPadding * 2, 3, kCoverCornerRadius + kSelectionPadding, false);
+      renderer.drawRoundedRect(prevBx - kSelectionOuterInset, prevBy - kSelectionOuterInset,
+                               prevBw + kSelectionOuterInset * 2, prevBh + kSelectionOuterInset * 2, 1,
+                               kCoverCornerRadius + kSelectionOuterInset, false);
+    }
+
+    // 2. Erase old title/progress strip and redraw new one
+    renderer.fillRect(startXOffset, contentTop, totalGridWidth, titleStripHeight, false);
+    if (selectorIndex < recentBooks.size()) {
+      const int titleLh = renderer.getLineHeight(UI_10_FONT_ID);
+      const int titleY = contentTop + (titleStripHeight - titleLh) / 2;
+      char progressLabel[8];
+      progressLabel[0] = '\0';
+      const bool hasProgress =
+          selectorIndex < recentBookProgress.size() && selectorIndex < recentBookProgressLoaded.size() &&
+          recentBookProgressLoaded[selectorIndex] && hasProgressPercent(recentBookProgress[selectorIndex]);
+      if (hasProgress) {
+        formatProgressPercent(recentBookProgress[selectorIndex], progressLabel, sizeof(progressLabel));
+      }
+
+      const int progressIconSize = hasProgress ? std::max(8, titleLh - 2) : 0;
+      const char* progressSeparator = "  |  ";
+      const int separatorWidth =
+          hasProgress ? renderer.getTextWidth(UI_10_FONT_ID, progressSeparator, EpdFontFamily::REGULAR) : 0;
+      const int progressWidth =
+          hasProgress ? renderer.getTextWidth(UI_10_FONT_ID, progressLabel, EpdFontFamily::REGULAR) : 0;
+      const int progressIconGap = hasProgress ? renderer.getTextWidth(UI_10_FONT_ID, "  ", EpdFontFamily::REGULAR) : 0;
+      const int progressSuffixWidth =
+          hasProgress ? separatorWidth + progressWidth + progressIconGap + progressIconSize : 0;
+      const int titleMaxWidth = std::max(0, totalGridWidth - progressSuffixWidth);
+      const std::string truncTitle = renderer.truncatedText(UI_10_FONT_ID, recentBooks[selectorIndex].title.c_str(),
+                                                            titleMaxWidth, EpdFontFamily::REGULAR);
+      renderer.drawText(UI_10_FONT_ID, startXOffset, titleY, truncTitle.c_str(), true, EpdFontFamily::REGULAR);
+      if (hasProgress) {
+        const int titleWidth = renderer.getTextWidth(UI_10_FONT_ID, truncTitle.c_str(), EpdFontFamily::REGULAR);
+        int progressX = startXOffset + titleWidth;
+        progressX = std::min(progressX, startXOffset + totalGridWidth - progressSuffixWidth);
+        renderer.drawText(UI_10_FONT_ID, progressX, titleY, progressSeparator, true, EpdFontFamily::REGULAR);
+        progressX += separatorWidth;
+        renderer.drawText(UI_10_FONT_ID, progressX, titleY, progressLabel, true, EpdFontFamily::REGULAR);
+        const int iconX = progressX + progressWidth + progressIconGap;
+        const int iconY = titleY + (titleLh - progressIconSize) / 2;
+        drawInlineProgressCircle(renderer, iconX, iconY, progressIconSize, recentBookProgress[selectorIndex]);
+      }
+    }
+
+    // 3. Draw new selection border
+    const int currPageIdx = selectorIndex - pageStart;
+    if (currPageIdx >= 0 && currPageIdx < BOOKS_PER_PAGE) {
+      const int currBx = coverX[currPageIdx];
+      const int currBy = coverY[currPageIdx];
+      const int currBw = coverW[currPageIdx];
+      const int currBh = coverH[currPageIdx];
+      renderer.drawRoundedRect(currBx - kSelectionPadding, currBy - kSelectionPadding, currBw + kSelectionPadding * 2,
+                               currBh + kSelectionPadding * 2, 3, kCoverCornerRadius + kSelectionPadding, true);
+      renderer.drawRoundedRect(currBx - kSelectionOuterInset, currBy - kSelectionOuterInset,
+                               currBw + kSelectionOuterInset * 2, currBh + kSelectionOuterInset * 2, 1,
+                               kCoverCornerRadius + kSelectionOuterInset, true);
+    }
+
+    // 4. Fast refresh
+    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    previousSelectorIndex = selectorIndex;
+    return;
+  }
+
+  renderer.clearScreen();
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_MENU_RECENT_BOOKS));
+
   if (recentBooks.empty()) {
     renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, contentTop + 20, tr(STR_NO_RECENT_BOOKS));
   } else {
@@ -335,9 +415,9 @@ void RecentBooksGridActivity::render(RenderLock&&) {
       const int titleY = contentTop + (titleStripHeight - titleLh) / 2;
       char progressLabel[8];
       progressLabel[0] = '\0';
-      const bool hasProgress = selectorIndex < recentBookProgress.size() && selectorIndex < recentBookProgressLoaded.size() &&
-                               recentBookProgressLoaded[selectorIndex] &&
-                               hasProgressPercent(recentBookProgress[selectorIndex]);
+      const bool hasProgress =
+          selectorIndex < recentBookProgress.size() && selectorIndex < recentBookProgressLoaded.size() &&
+          recentBookProgressLoaded[selectorIndex] && hasProgressPercent(recentBookProgress[selectorIndex]);
       if (hasProgress) {
         formatProgressPercent(recentBookProgress[selectorIndex], progressLabel, sizeof(progressLabel));
       }
@@ -405,6 +485,13 @@ void RecentBooksGridActivity::render(RenderLock&&) {
         renderer.drawRoundedRect(bx, by, bw, bh, 2, kCoverCornerRadius, true);
         renderer.drawIcon(BookIcon, bx + (bw - 32) / 2, by + (bh - 32) / 2, 32, 32);
       }
+
+      // Store the cover dimensions/position for the fast selection redraw path
+      coverX[i] = bx;
+      coverY[i] = by;
+      coverW[i] = bw;
+      coverH[i] = bh;
+
       if (bookIdx == selectorIndex) {
         renderer.drawRoundedRect(bx - kSelectionPadding, by - kSelectionPadding, bw + kSelectionPadding * 2,
                                  bh + kSelectionPadding * 2, 3, kCoverCornerRadius + kSelectionPadding, true);
@@ -438,4 +525,6 @@ void RecentBooksGridActivity::render(RenderLock&&) {
   if (!recentBooks.empty() && loadedPageStart != pageStart) {
     loadPageCovers(pageStart);
   }
+
+  previousSelectorIndex = selectorIndex;
 }

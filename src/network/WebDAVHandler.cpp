@@ -9,6 +9,7 @@
 #include <esp_task_wdt.h>
 
 #include "SpiBusMutex.h"
+#include "util/PathUtils.h"
 
 namespace {
 constexpr const char* HIDDEN_ITEMS[] = {"System Volume Information", "XTCache"};
@@ -53,6 +54,10 @@ void WebDAVHandler::raw(WebServer& server, const String& uri, HTTPRaw& raw) {
     _putPath = getRequestPath(server);
     _putTempPath = _putPath + ".davtmp";
     _putBackupPath = _putPath + ".davbak";
+    if (!PathUtils::isValidSdPath(_putTempPath) || !PathUtils::isValidSdPath(_putBackupPath)) {
+      _putOk = false;
+      return;
+    }
     if (isProtectedPath(_putPath)) {
       _putOk = false;
       return;

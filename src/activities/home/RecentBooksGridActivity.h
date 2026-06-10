@@ -21,6 +21,11 @@ class RecentBooksGridActivity final : public Activity {
   std::vector<float> recentBookProgress;
   std::vector<bool> recentBookProgressLoaded;
   int loadedPageStart = -1;
+  int previousSelectorIndex = -1;
+  int coverX[BOOKS_PER_PAGE] = {0};
+  int coverY[BOOKS_PER_PAGE] = {0};
+  int coverW[BOOKS_PER_PAGE] = {0};
+  int coverH[BOOKS_PER_PAGE] = {0};
 
   void loadRecentBooks();
   void loadPageCovers(int pageStart);

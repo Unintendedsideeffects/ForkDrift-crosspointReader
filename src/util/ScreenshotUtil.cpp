@@ -121,10 +121,8 @@ bool ScreenshotUtil::saveFramebufferAsBmp(const char* filename, const uint8_t* f
   size_t last_slash = path.find_last_of('/');
   if (last_slash != std::string::npos) {
     std::string dir = path.substr(0, last_slash);
-    if (!Storage.exists(dir.c_str())) {
-      if (!Storage.mkdir(dir.c_str())) {
-        return false;
-      }
+    if (!Storage.ensureDirectoryExists(dir.c_str())) {
+      return false;
     }
   }
 
