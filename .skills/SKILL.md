@@ -510,6 +510,14 @@ renderer.drawText(FONT_UI_MEDIUM, x, y, "Hello", true);
 ### Build Commands
 
 **Via CLI**:
+
+> **Concurrency**: never run two pio builds at once — the build dir
+> (`~/.cache/crosspoint-pio-build` via `platformio.local.ini`) and
+> `~/.platformio`'s package cache are shared across checkouts/worktrees and
+> corrupt under parallel access. Use `scripts/pio-locked.sh run -e default`
+> (same args as `pio`), which queues on the same lock the pre-commit and
+> pre-push hook builds take.
+
 ```bash
 # Build firmware (default environment)
 uv run pio run

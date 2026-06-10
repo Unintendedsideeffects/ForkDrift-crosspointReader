@@ -45,13 +45,18 @@ if [ "${FORCE_BUILD:-0}" != "1" ] && [ -f "$STAMP_FAIL" ] \
     exit 1
 fi
 
+# Queue behind any in-flight pio build (hook, wrapper, other checkout) instead
+# of refusing — see pre-commit and scripts/pio-locked.sh for the rationale.
 LOCKFILE=/tmp/crosspoint-pio-build.lock
+LOCK_TIMEOUT="${PIO_LOCK_TIMEOUT:-3600}"
 exec 9>"$LOCKFILE"
 if ! flock -n 9; then
-    echo -e "${RED}ERROR: another pio build is already running (lockfile: $LOCKFILE).${NC}" >&2
-    echo "       Concurrent builds corrupt shared PlatformIO output. Refusing duplicate." >&2
-    echo "       Wait for the in-flight build to finish, then retry the push." >&2
-    exit 1
+    echo -e "${YELLOW}pre-push: waiting for in-flight pio build (lock: $LOCKFILE, timeout ${LOCK_TIMEOUT}s)...${NC}"
+    if ! flock -w "$LOCK_TIMEOUT" 9; then
+        echo -e "${RED}ERROR: timed out after ${LOCK_TIMEOUT}s waiting for $LOCKFILE.${NC}" >&2
+        echo "       A pio build appears stuck; check for orphaned pio processes." >&2
+        exit 1
+    fi
 fi
 
 mkdir -p "$REPO_ROOT/.cache"

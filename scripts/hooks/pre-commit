@@ -234,17 +234,23 @@ if [ "${FORCE_BUILD:-0}" != "1" ] && [ -f "$CACHE_FILE" ]; then
 fi
 
 # Serialize against any other concurrent `pio run` (manual shell, other hook,
-# editor task). Concurrent builds share /tmp/crosspoint-pio-build/default and
-# corrupt each other's .o files, producing spurious link errors. We refuse a
-# duplicate rather than queue, so the user sees the collision immediately
-# instead of waiting on an opaque slow build.
+# another checkout/worktree, agent task). Concurrent builds corrupt two shared
+# resources: the build dir (~/.cache/crosspoint-pio-build, shared across
+# checkouts via platformio.local.ini) and ~/.platformio's package cache (VCS
+# clones race and leave half-installed libdeps). We queue behind the in-flight
+# build rather than refuse, so background/agent-driven commits don't fail
+# spuriously; the message below makes the wait visible. Manual builds should
+# use scripts/pio-locked.sh, which takes the same lock.
 LOCKFILE=/tmp/crosspoint-pio-build.lock
+LOCK_TIMEOUT="${PIO_LOCK_TIMEOUT:-3600}"
 exec 9>"$LOCKFILE"
 if ! flock -n 9; then
-    echo "ERROR: another pio build is already running (lockfile: $LOCKFILE)." >&2
-    echo "       Concurrent builds corrupt /tmp/crosspoint-pio-build/. Refusing duplicate." >&2
-    echo "       Wait for the in-flight build to finish, then retry the commit." >&2
-    exit 1
+    echo "pre-commit: waiting for in-flight pio build (lock: $LOCKFILE, timeout ${LOCK_TIMEOUT}s)..."
+    if ! flock -w "$LOCK_TIMEOUT" 9; then
+        echo "ERROR: timed out after ${LOCK_TIMEOUT}s waiting for $LOCKFILE." >&2
+        echo "       A pio build appears stuck; check for orphaned pio processes." >&2
+        exit 1
+    fi
 fi
 
 echo "Generating ${BUILD_PROFILE} build profile for pre-commit..."
