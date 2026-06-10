@@ -1,6 +1,10 @@
 #pragma once
 #include <FeatureFlags.h>
 
+#if ENABLE_POKEMON_PARTY
+#include "util/PokemonPartySprites.h"
+#endif
+
 #include <array>
 #include <optional>
 #include <vector>
@@ -97,6 +101,9 @@ class HomeActivity final : public Activity {
   bool handlePokemonPartySpriteRefresh();
   int pokemonSpriteRefreshRetries = 0;
   uint32_t pokemonSpriteCacheFingerprint = 0;
+  PokemonPartySprites::SyncResult cachedPartySyncResult;
+  bool retrySyncPending = false;
+  void runPartySpritesSync();
 #endif
   void onOpdsBrowserOpen();
   void onTodoOpen();

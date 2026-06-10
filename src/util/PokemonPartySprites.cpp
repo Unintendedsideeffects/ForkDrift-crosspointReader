@@ -77,7 +77,7 @@ RefreshDecision decideRefresh(RefreshState& state, const SyncResult& sync) {
 
   if (sync.missingCount > 0 && state.retries < kMaxRefreshRetries) {
     state.retries++;
-    decision.forceFullRefresh = true;
+    decision.forceFullRefresh = false;
     decision.requestRedraw = true;
   }
 

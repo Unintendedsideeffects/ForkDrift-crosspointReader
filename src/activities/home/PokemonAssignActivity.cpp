@@ -130,13 +130,17 @@ void PokemonAssignActivity::launchPokemonPicker() {
 }
 
 void PokemonAssignActivity::writeAssignment(int memberIndex) {
-  phase_ = Phase::Done;
   if (memberIndex < 0 || memberIndex >= static_cast<int>(teamNames_.size()) || chosenBookIndex_ < 0 ||
       chosenBookIndex_ >= static_cast<int>(books_.size())) {
+    phase_ = Phase::Done;
     statusMessage_ = std::string(tr(STR_PARTY_NO_TEAM));
     requestUpdate();
     return;
   }
+
+  phase_ = Phase::Done;
+  statusMessage_ = "Caching sprites...";
+  requestUpdateAndWait();
 
   const std::string& bookPath = books_[chosenBookIndex_].path;
   JsonVariantConst member = teamDoc_["team"][memberIndex];

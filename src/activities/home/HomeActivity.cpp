@@ -25,6 +25,7 @@
 #endif
 #if ENABLE_POKEMON_PARTY
 #include "activities/home/PokemonAssignActivity.h"
+#include "components/themes/pokemon/PokemonPartyTheme.h"
 #include "util/PokemonPartySprites.h"
 #endif
 #include "CrossPointSettings.h"
@@ -373,6 +374,10 @@ void HomeActivity::loadRecentBooks() {
     recentBooks.push_back(entry);
   }
 
+#if ENABLE_POKEMON_PARTY
+  runPartySpritesSync();
+#endif
+
   if (recentBooks.empty()) {
     selectedBookIndex = 0;
     return;
@@ -719,6 +724,7 @@ void HomeActivity::onEnter() {
 #if ENABLE_POKEMON_PARTY
   pokemonSpriteRefreshRetries = 0;
   pokemonSpriteCacheFingerprint = 0;
+  retrySyncPending = false;
 #endif
 
   if (blocksBackgroundServer() && BG_WIFI.isRunning()) {
@@ -1311,6 +1317,14 @@ bool HomeActivity::preRenderCarouselFrames(bool showProgressPopup) {
 }
 
 void HomeActivity::loop() {
+#if ENABLE_POKEMON_PARTY
+  if (retrySyncPending) {
+    retrySyncPending = false;
+    runPartySpritesSync();
+    requestUpdate();
+  }
+#endif
+
   const bool mediaPickerEnabled = core::FeatureModules::hasCapability(core::Capability::HomeMediaPicker);
 
   if (mediaPickerEnabled) {
@@ -1943,12 +1957,12 @@ bool HomeActivity::handlePokemonPartySpriteRefresh() {
   }
 
   PokemonPartySprites::RefreshState state{pokemonSpriteRefreshRetries, pokemonSpriteCacheFingerprint};
-  const PokemonPartySprites::SyncResult sync = PokemonPartySprites::syncPartySprites(recentBooks);
+  const PokemonPartySprites::SyncResult sync = cachedPartySyncResult;
   const PokemonPartySprites::RefreshDecision decision = PokemonPartySprites::decideRefresh(state, sync);
   pokemonSpriteRefreshRetries = state.retries;
   pokemonSpriteCacheFingerprint = state.cacheFingerprint;
   if (decision.requestRedraw) {
-    requestUpdate();
+    retrySyncPending = true;
   }
   return decision.forceFullRefresh;
 }
@@ -1957,8 +1971,17 @@ void HomeActivity::onAssignPokemonOpen() {
   startActivityForResult(std::make_unique<PokemonAssignActivity>(renderer, mappedInput), [this](const ActivityResult&) {
     pokemonSpriteRefreshRetries = 0;
     pokemonSpriteCacheFingerprint = 0;
+    retrySyncPending = false;
+    runPartySpritesSync();
     requestUpdate();
   });
+}
+
+void HomeActivity::runPartySpritesSync() {
+  if (isPokemonPartyHomeMode() && !recentBooks.empty()) {
+    PokemonPartyTheme::invalidateCache();
+    cachedPartySyncResult = PokemonPartySprites::syncPartySprites(recentBooks);
+  }
 }
 #endif
 

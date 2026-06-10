@@ -86,10 +86,26 @@ TEST_CASE("PokemonPartySprites refresh stops after max retries without cache cha
   sync.missingCount = 1;
   sync.cacheFingerprint = 0xABCDEF01u;
 
-  CHECK(PokemonPartySprites::decideRefresh(state, sync).forceFullRefresh);
-  CHECK(PokemonPartySprites::decideRefresh(state, sync).forceFullRefresh);
-  CHECK(PokemonPartySprites::decideRefresh(state, sync).forceFullRefresh);
-  CHECK_FALSE(PokemonPartySprites::decideRefresh(state, sync).forceFullRefresh);
+  {
+    auto dec = PokemonPartySprites::decideRefresh(state, sync);
+    CHECK_FALSE(dec.forceFullRefresh);
+    CHECK(dec.requestRedraw);
+  }
+  {
+    auto dec = PokemonPartySprites::decideRefresh(state, sync);
+    CHECK_FALSE(dec.forceFullRefresh);
+    CHECK(dec.requestRedraw);
+  }
+  {
+    auto dec = PokemonPartySprites::decideRefresh(state, sync);
+    CHECK_FALSE(dec.forceFullRefresh);
+    CHECK(dec.requestRedraw);
+  }
+  {
+    auto dec = PokemonPartySprites::decideRefresh(state, sync);
+    CHECK_FALSE(dec.forceFullRefresh);
+    CHECK_FALSE(dec.requestRedraw);
+  }
   CHECK(state.retries == PokemonPartySprites::kMaxRefreshRetries);
 }
 
