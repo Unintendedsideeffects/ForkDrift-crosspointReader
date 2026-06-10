@@ -627,8 +627,8 @@ void setup() {
     // clear cache, reset settings, factory reset) so a device made unusable by
     // bad settings or corrupt cache can be recovered without USB flashing.
     activityManager.replaceActivity(std::make_unique<RecoveryMenuActivity>(renderer, mappedInputManager));
-  } else if (HalSystem::isRebootFromPanic()) {
-    // If we rebooted from a panic, go to crash report screen to show the panic info
+  } else if (HalSystem::isRebootFromCrash()) {
+    // If we rebooted from a panic/WDT/brownout, go to crash report screen to show the info
     activityManager.goToCrashReport();
   } else if (silentReboot) {
     if (silentRebootDestination == SILENT_REBOOT_TARGET_READER && !APP_STATE.openEpubPath.empty()) {

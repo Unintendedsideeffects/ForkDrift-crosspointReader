@@ -9,6 +9,8 @@ struct StackFrame {
   uint32_t spp[8];
 };
 
+enum class ResetClass { Normal, Panic, InterruptWdt, TaskWdt, OtherWdt, Brownout };
+
 void begin();
 
 // Register a callback so getPanicInfo(true) can include a settings snapshot.
@@ -21,4 +23,7 @@ void clearPanic();
 
 std::string getPanicInfo(bool full = false);
 bool isRebootFromPanic();
+bool isRebootFromCrash();
+ResetClass getResetClass();
+std::string getResetClassString(ResetClass rc);
 }  // namespace HalSystem

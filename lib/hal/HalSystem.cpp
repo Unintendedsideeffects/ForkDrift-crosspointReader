@@ -7,6 +7,7 @@
 #include "Logging.h"
 #include "esp_attr.h"
 #include "esp_debug_helpers.h"
+#include "esp_system.h"
 #include "riscv/rvruntime-frames.h"
 
 #define MAX_PANIC_STACK_DEPTH 32
@@ -79,9 +80,20 @@ void begin() {
   // This is mostly for the first boot, we need to initialize the panic info and logs to empty state
   // If we reboot from a panic state, we want to keep the panic info until we successfully dump it to the SD card, use
   // `clearPanic()` to clear it after dumping
-  if (!isRebootFromPanic()) {
+  ResetClass rc = getResetClass();
+  if (rc == ResetClass::Normal) {
     clearPanic();
   } else {
+    if (rc != ResetClass::Panic) {
+      // WDT or brownout: populate panicMessage with the reason name
+      std::string reasonStr = getResetClassString(rc);
+      snprintf(panicMessage, sizeof(panicMessage), "%s", reasonStr.c_str());
+      // clear panic stack
+      for (size_t i = 0; i < MAX_PANIC_STACK_DEPTH; i++) {
+        panicStack[i].sp = 0;
+      }
+    }
+
     // Panic reboot: preserve logs and panic info, but clamp logHead in case the
     // panic occurred before begin() ever ran (e.g. in a static constructor).
     // If logHead was out of range, logMessages is also garbage — clear it so
@@ -94,7 +106,7 @@ void begin() {
 }
 
 void checkPanic() {
-  if (isRebootFromPanic()) {
+  if (isRebootFromCrash()) {
     const auto panicInfo = pendingPanicReport.empty() ? getPanicInfo(true) : pendingPanicReport;
     auto file = Storage.open("/crash_report.txt", O_WRITE | O_CREAT | O_APPEND);
     if (file) {
@@ -104,7 +116,7 @@ void checkPanic() {
       }
       file.write(panicInfo.c_str(), panicInfo.size());
       file.close();
-      LOG_INF("SYS", "Appended panic info to crash_report.txt");
+      LOG_INF("SYS", "Appended crash info to crash_report.txt");
     } else {
       LOG_ERR("SYS", "Failed to open crash_report.txt for writing");
     }
@@ -127,27 +139,35 @@ std::string getPanicInfo(bool full) {
     std::string info;
 
     info += "CrossPoint version: " CROSSPOINT_VERSION;
-    info += "\n\nPanic reason: " + std::string(panicMessage);
+    ResetClass rc = getResetClass();
+    if (rc == ResetClass::Panic) {
+      info += "\n\nPanic reason: " + std::string(panicMessage);
+    } else {
+      info += "\n\nReset reason: " + std::string(panicMessage);
+    }
     info += "\n\nLast logs:\n" + getLastLogs();
     if (settingsProvider) {
       info += "\n\nSettings combo: " + settingsProvider();
     }
-    info += "\n\nStack memory:\n";
 
-    auto toHex = [](uint32_t value) {
-      char buffer[9];
-      snprintf(buffer, sizeof(buffer), "%08X", value);
-      return std::string(buffer);
-    };
-    for (size_t i = 0; i < MAX_PANIC_STACK_DEPTH; i++) {
-      if (panicStack[i].sp == 0) {
-        break;
+    if (panicStack[0].sp != 0) {
+      info += "\n\nStack memory:\n";
+
+      auto toHex = [](uint32_t value) {
+        char buffer[9];
+        snprintf(buffer, sizeof(buffer), "%08X", value);
+        return std::string(buffer);
+      };
+      for (size_t i = 0; i < MAX_PANIC_STACK_DEPTH; i++) {
+        if (panicStack[i].sp == 0) {
+          break;
+        }
+        info += "0x" + toHex(panicStack[i].sp) + ": ";
+        for (size_t j = 0; j < 8; j++) {
+          info += "0x" + toHex(panicStack[i].spp[j]) + " ";
+        }
+        info += "\n";
       }
-      info += "0x" + toHex(panicStack[i].sp) + ": ";
-      for (size_t j = 0; j < 8; j++) {
-        info += "0x" + toHex(panicStack[i].spp[j]) + " ";
-      }
-      info += "\n";
     }
 
     return info;
@@ -157,6 +177,47 @@ std::string getPanicInfo(bool full) {
 bool isRebootFromPanic() {
   const auto resetReason = esp_reset_reason();
   return resetReason == ESP_RST_PANIC;
+}
+
+bool isRebootFromCrash() {
+  ResetClass rc = getResetClass();
+  return rc != ResetClass::Normal;
+}
+
+ResetClass getResetClass() {
+  const auto resetReason = esp_reset_reason();
+  switch (resetReason) {
+    case ESP_RST_PANIC:
+      return ResetClass::Panic;
+    case ESP_RST_INT_WDT:
+      return ResetClass::InterruptWdt;
+    case ESP_RST_TASK_WDT:
+      return ResetClass::TaskWdt;
+    case ESP_RST_WDT:
+      return ResetClass::OtherWdt;
+    case ESP_RST_BROWNOUT:
+      return ResetClass::Brownout;
+    default:
+      return ResetClass::Normal;
+  }
+}
+
+std::string getResetClassString(ResetClass rc) {
+  switch (rc) {
+    case ResetClass::Panic:
+      return "Panic";
+    case ResetClass::InterruptWdt:
+      return "Interrupt Watchdog Reset";
+    case ResetClass::TaskWdt:
+      return "Task Watchdog Reset";
+    case ResetClass::OtherWdt:
+      return "Watchdog Reset";
+    case ResetClass::Brownout:
+      return "Brownout Reset";
+    case ResetClass::Normal:
+    default:
+      return "Normal";
+  }
 }
 
 }  // namespace HalSystem
