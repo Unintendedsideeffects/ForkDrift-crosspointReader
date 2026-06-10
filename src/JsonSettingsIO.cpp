@@ -129,6 +129,7 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
   s.longPressMenuAction =
       clamp(doc["longPressMenuAction"] | (uint8_t)S::LONG_MENU_OFF, S::LONG_PRESS_MENU_ACTION_COUNT, S::LONG_MENU_OFF);
   s.hyphenationEnabled = doc["hyphenationEnabled"] | (uint8_t)0;
+  s.showButtonHints = doc["showButtonHints"] | (uint8_t)1;
   s.focusReadingEnabled = doc["focusReadingEnabled"] | (uint8_t)0;
   s.guideReadingEnabled = doc["guideReadingEnabled"] | (uint8_t)0;
   s.backgroundServerOnCharge = doc["backgroundServerOnCharge"] | (uint8_t)0;
@@ -282,6 +283,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["longPressButtonBehavior"] = s.longPressButtonBehavior;
   doc["longPressMenuAction"] = s.longPressMenuAction;
   doc["hyphenationEnabled"] = s.hyphenationEnabled;
+  doc["showButtonHints"] = s.showButtonHints;
   doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
   doc["timeMode"] = s.timeMode;
   doc["timeZoneOffset"] = s.timeZoneOffset;

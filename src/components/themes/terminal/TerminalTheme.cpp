@@ -232,6 +232,9 @@ void TerminalTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCou
 
 void TerminalTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
                                     const char* btn4, const bool allowInvertedText) const {
+  if (!SETTINGS.showButtonHints) {
+    return;
+  }
   const GfxRenderer::Orientation origOrientation = renderer.getOrientation();
   const bool invertText = allowInvertedText && origOrientation == GfxRenderer::Orientation::PortraitInverted;
   renderer.setOrientation(invertText ? GfxRenderer::Orientation::PortraitInverted : GfxRenderer::Orientation::Portrait);

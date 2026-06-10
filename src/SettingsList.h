@@ -566,6 +566,9 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
   list.push_back(SettingInfo::Toggle(StrId::STR_SUNLIGHT_FADING_FIX, &CrossPointSettings::fadingFix, "fadingFix",
                                      StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport());
+  list.push_back(SettingInfo::Toggle(StrId::STR_SHOW_BUTTON_HINTS, &CrossPointSettings::showButtonHints,
+                                     "showButtonHints", StrId::STR_CAT_DISPLAY)
+                     .withConfiguratorExport());
 
   // --- Reader ---
   list.push_back(buildFontFamilySetting(registry));

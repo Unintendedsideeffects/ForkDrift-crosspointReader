@@ -537,6 +537,7 @@ void CrossPointSettings::validateAndClamp() {
   extraParagraphSpacing = extraParagraphSpacing ? 1 : 0;
   textAntiAliasing = textAntiAliasing ? 1 : 0;
   hyphenationEnabled = hyphenationEnabled ? 1 : 0;
+  showButtonHints = showButtonHints ? 1 : 0;
   statusBarChapterPageCount = statusBarChapterPageCount ? 1 : 0;
   statusBarBookProgressPercentage = statusBarBookProgressPercentage ? 1 : 0;
   statusBarBattery = statusBarBattery ? 1 : 0;

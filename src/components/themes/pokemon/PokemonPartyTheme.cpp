@@ -342,11 +342,4 @@ void PokemonPartyTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int but
     renderer.drawText(UI_10_FONT_ID, textX, textY, label.c_str(), true);
   }
 }
-
-void PokemonPartyTheme::drawButtonHints(GfxRenderer& renderer, const char* /*btn1*/, const char* /*btn2*/,
-                                        const char* /*btn3*/, const char* /*btn4*/,
-                                        const bool /*allowInvertedText*/) const {
-  (void)renderer;
-}
-
 #endif  // ENABLE_POKEMON_PARTY

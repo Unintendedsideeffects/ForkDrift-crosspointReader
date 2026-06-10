@@ -33,8 +33,6 @@ class PokemonPartyTheme : public ForkDriftTheme {
   void drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                       const std::function<std::string(int index)>& buttonLabel,
                       const std::function<UIIcon(int index)>& rowIcon) const override;
-  void drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3, const char* btn4,
-                       bool allowInvertedText = false) const override;
 };
 
 #endif  // ENABLE_POKEMON_PARTY

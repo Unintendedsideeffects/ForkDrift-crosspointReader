@@ -67,6 +67,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.sleepTimeoutMinutes = 23;
   s.refreshFrequency = CrossPointSettings::REFRESH_10;
   s.hyphenationEnabled = 1;
+  s.showButtonHints = 0;
   s.screenMargin = 12;
   s.hideBatteryPercentage = CrossPointSettings::HIDE_READER;
   s.uiTheme = CrossPointSettings::LYRA;
@@ -114,6 +115,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.sleepTimeoutMinutes = 10;
   s.refreshFrequency = CrossPointSettings::REFRESH_15;
   s.hyphenationEnabled = 0;
+  s.showButtonHints = 1;
   s.screenMargin = 5;
   s.hideBatteryPercentage = CrossPointSettings::HIDE_NEVER;
   s.uiTheme = CrossPointSettings::LYRA;
@@ -154,6 +156,7 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(s.sleepTimeoutMinutes == 23);
   CHECK(s.refreshFrequency == CrossPointSettings::REFRESH_10);
   CHECK(s.hyphenationEnabled == 1);
+  CHECK(s.showButtonHints == 0);
   CHECK(s.screenMargin == 12);
   CHECK(s.hideBatteryPercentage == CrossPointSettings::HIDE_READER);
   CHECK(s.longPressButtonBehavior == CrossPointSettings::OFF);
