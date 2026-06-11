@@ -110,6 +110,16 @@ bool controlSettingVisible(const SettingInfo& setting, const std::vector<Setting
   uint8_t value = 0;
   if (it->valueGetter) {
     value = it->valueGetter();
+    // Dynamic enums report the option INDEX; visibleWhen targets the
+    // persisted value (e.g. HAIKU_CLOCK_SLEEP=13 vs menu position 7), so
+    // translate through the persisted-values table when one exists.
+    if (!it->enumPersistedValues.empty()) {
+      if (value < it->enumPersistedValues.size()) {
+        value = it->enumPersistedValues[value];
+      } else {
+        return true;
+      }
+    }
   } else if (it->valuePtr) {
     value = SETTINGS.*(it->valuePtr);
   } else {
