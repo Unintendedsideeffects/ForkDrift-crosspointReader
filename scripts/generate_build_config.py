@@ -99,7 +99,7 @@ FEATURES = {
     'background_server_always': Feature(
         name='Background Server Always',
         flag='ENABLE_BACKGROUND_SERVER_ALWAYS',
-        size_kb=3,
+        size_kb=0,
         description='Auto-connect to WiFi on wake even when not charging'
     ),
     'home_media_picker': Feature(
@@ -123,13 +123,13 @@ FEATURES = {
     'pokemon_party': Feature(
         name='Pokemon Party',
         flag='ENABLE_POKEMON_PARTY',
-        size_kb=37,
+        size_kb=38,
         description='Per-book Pokemon metadata and REST API for recent-book party views'
     ),
     'epub_support': Feature(
         name='EPUB Support',
         flag='ENABLE_EPUB_SUPPORT',
-        size_kb=141,
+        size_kb=145,
         description='EPUB e-book reader with CSS and chapter navigation'
     ),
     'hyphenation': Feature(
@@ -788,7 +788,7 @@ def empty_feature_state() -> Dict[str, bool]:
 
 def calculate_size(enabled_features: Dict[str, bool]) -> float:
     """Calculate estimated firmware size in MB."""
-    base_size_mb = 2.51  # Lean profile size baseline (measured)
+    base_size_mb = 2.52  # Lean profile size baseline (measured)
 
     for feature_key, enabled in enabled_features.items():
         if enabled:
