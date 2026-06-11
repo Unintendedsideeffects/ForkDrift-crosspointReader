@@ -4,6 +4,7 @@
 
 #include "CrossPointState.h"
 #include "CrossPointWebServer.h"
+#include "core/registries/WebRouteRegistry.h"
 #include "html/FilesPageHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
 #include "html/SettingsPageHtml.generated.h"
@@ -13,6 +14,28 @@
 static_assert(HomePageHtmlCompressedSize == sizeof(HomePageHtml), "Home page compressed size mismatch");
 static_assert(FilesPageHtmlCompressedSize == sizeof(FilesPageHtml), "Files page compressed size mismatch");
 static_assert(SettingsPageHtmlCompressedSize == sizeof(SettingsPageHtml), "Settings page compressed size mismatch");
+
+namespace {
+
+bool shouldRegisterHealthRoute() { return true; }
+
+void mountHealthRoute(WebServer* server) {
+  server->on("/health", HTTP_GET, [server] { server->send(200, "application/json", "{\"status\":\"ok\"}"); });
+}
+
+struct HealthRouteRegistration {
+  HealthRouteRegistration() {
+    core::WebRouteEntry entry{};
+    entry.routeId = "health";
+    entry.shouldRegister = shouldRegisterHealthRoute;
+    entry.mountRoutes = mountHealthRoute;
+    core::WebRouteRegistry::add(entry);
+  }
+};
+
+HealthRouteRegistration healthRouteRegistration;
+
+}  // namespace
 
 void CrossPointWebServer::handleRoot() const {
   noteWebUiAccess();

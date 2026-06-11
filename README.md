@@ -153,6 +153,18 @@ Legend: ✅ present · ❌ absent · ⚙️ compile-time flag (off by default)
 | OTA firmware updates | ✅ | ✅ | ✅ |
 | SD card firmware update | ❌ | ❌ | ✅ |
 
+### Remote access through Tailscale
+
+CrossPoint Reader does not run Tailscale itself. It remains an ordinary device on your LAN and can be reached remotely
+through a separate Tailscale subnet router that advertises the reader's LAN subnet. Approve that subnet route in
+Tailscale, restrict access with tailnet ACLs, then open the reader's LAN IP address from an authorized tailnet device.
+Use the LAN IP rather than the reader's mDNS `.local` name, because mDNS generally does not cross routed tailnet subnet
+boundaries.
+
+For dependable access, use the existing **Background Server** setting. **Only on Charge** is recommended; **Always**
+keeps WiFi available more often but increases battery use. The reader is unreachable whenever it enters deep sleep or
+otherwise turns WiFi off. `GET /health` provides a minimal availability check while the web server is running.
+
 ### Sleep Screen
 
 | Feature | Upstream | CrossInk | ForkDrift |

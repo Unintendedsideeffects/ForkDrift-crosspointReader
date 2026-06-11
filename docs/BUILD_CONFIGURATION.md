@@ -284,6 +284,17 @@ Keeps the WiFi file management server running in the background while reading.
 
 **Use case:** Disable for slightly lower memory usage if you never upload files while reading. Enable "Always On" if you want seamless remote access without needing to plug in.
 
+#### Tailscale subnet-router access
+
+No native Tailscale client runs on the reader. The reader remains an ordinary LAN device; a separate Tailscale subnet
+router must advertise the reader's LAN subnet to the tailnet. Approve the advertised route, use tailnet ACLs to limit
+which users and devices can reach the reader, and connect to the reader by its LAN IP address. mDNS and `.local` names
+generally do not cross routed tailnet subnet boundaries.
+
+For remote access, **Only on Charge** is the recommended Background Server setting. **Always** improves availability
+away from USB power but increases battery use. Deep sleep or any state that turns WiFi off makes the reader unreachable.
+While the web server is running, `GET /health` returns `{"status":"ok"}` without exposing device or network details.
+
 ---
 
 ### Remote Control
