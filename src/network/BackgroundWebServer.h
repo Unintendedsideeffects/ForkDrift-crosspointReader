@@ -65,8 +65,9 @@ class BackgroundWebServer {
   static constexpr unsigned long SCAN_TIMEOUT_MS = 20000;
   static constexpr unsigned long RETRY_BASE_MS = 15000;
   static constexpr unsigned long RETRY_MAX_MS = 5UL * 60 * 1000;
-  static constexpr unsigned long SERVER_WINDOW_MS = 2UL * 60 * 1000;
-  static constexpr unsigned long SESSION_MAX_MS = 20UL * 60 * 1000;
+  static constexpr unsigned long SERVER_WINDOW_MS =
+      2UL * 60 * 1000;  // Deprecated: on-charge server now runs continuously
+  static constexpr unsigned long SESSION_MAX_MS = 20UL * 60 * 1000;  // Deprecated: session is no longer timed out
   // Pre-start floor: need enough headroom for server alloc + route setup (~16-18 KB).
   static constexpr unsigned long MIN_FREE_HEAP_TO_START = 76000;
   // Post-start steady state is much lower (~55-60 KB on device). Reusing the

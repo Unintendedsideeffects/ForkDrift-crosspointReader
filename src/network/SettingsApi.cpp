@@ -1,13 +1,16 @@
 #include "network/SettingsApi.h"
 
 #include <ArduinoJson.h>
+#include <Logging.h>
 
 #include <algorithm>
 #include <cstring>
 #include <string>
 
 #include "CrossPointSettings.h"
+#include "SdCardFontSystem.h"
 #include "SettingsList.h"
+#include "SpiBusMutex.h"
 #include "core/features/FeatureModules.h"
 
 namespace {
@@ -16,7 +19,7 @@ bool isPasswordField(const char* key) {
   return key != nullptr && (strstr(key, "password") != nullptr || strstr(key, "Password") != nullptr);
 }
 
-void appendSettingJson(String& json, const SettingInfo& s) {
+bool appendSettingJson(String& json, const SettingInfo& s) {
   JsonDocument doc;
   char output[768];
   constexpr size_t outputSize = sizeof(output);
@@ -77,7 +80,7 @@ void appendSettingJson(String& json, const SettingInfo& s) {
       break;
     }
     default:
-      return;
+      return true;
   }
 
   if (s.visibleWhen.key) {
@@ -86,15 +89,19 @@ void appendSettingJson(String& json, const SettingInfo& s) {
     vis["eq"] = static_cast<int>(s.visibleWhen.eq);
   }
 
-  const size_t written = serializeJson(doc, output, outputSize);
-  if (written >= outputSize) {
-    return;
+  const size_t requiredSize = measureJson(doc);
+  if (requiredSize >= outputSize) {
+    LOG_ERR("WEB", "Dropping oversized setting key=%s required=%u bytes", s.key ? s.key : "(null)",
+            static_cast<unsigned>(requiredSize + 1));
+    return false;
   }
+  serializeJson(doc, output, outputSize);
 
   if (json.length() > 1) {
     json += ",";
   }
   json += output;
+  return true;
 }
 
 }  // namespace
@@ -102,17 +109,29 @@ void appendSettingJson(String& json, const SettingInfo& s) {
 namespace network {
 
 String buildSettingsListJson() {
-  const auto settings = getSettingsList();
+  std::vector<SettingInfo> settings;
+  {
+    SpiBusMutex::Guard guard;
+    sdFontSystem.refreshIfDirty();
+    settings = getSettingsList(&sdFontSystem.registry());
+  }
+
   String json = "[";
+  size_t droppedCount = 0;
 
   for (const auto& s : settings) {
     if (!s.key) {
       continue;
     }
-    appendSettingJson(json, s);
+    if (!appendSettingJson(json, s)) {
+      droppedCount++;
+    }
   }
 
   json += "]";
+  if (droppedCount > 0) {
+    LOG_WRN("WEB", "Dropped %u oversized setting entries", static_cast<unsigned>(droppedCount));
+  }
   return json;
 }
 

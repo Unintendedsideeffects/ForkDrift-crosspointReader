@@ -313,6 +313,41 @@ static bool attemptBackgroundWifiAutoConnect(const char* logTag) {
 }
 
 void reconcileBackgroundWifiServer() {
+  enum class AlwaysBgServerState {
+    STATE_UNKNOWN,
+    STATE_RUNNING,
+    STATE_BACKOFF,
+    STATE_IDLE_NO_CREDENTIAL,
+    STATE_STOPPED
+  };
+
+  const bool alwaysEnabled = core::FeatureModules::hasCapability(core::Capability::BackgroundServer) &&
+                             SETTINGS.keepsBackgroundServerOnWifiWhileAwake();
+
+  static AlwaysBgServerState lastState = AlwaysBgServerState::STATE_UNKNOWN;
+  AlwaysBgServerState currentState = AlwaysBgServerState::STATE_STOPPED;
+
+  if (alwaysEnabled) {
+    if (BG_WIFI.isRunning()) {
+      currentState = AlwaysBgServerState::STATE_RUNNING;
+    } else if (BG_WIFI.isPendingOrRunning()) {
+      currentState = AlwaysBgServerState::STATE_BACKOFF;
+    } else {
+      const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
+      const WifiCredential* cred = lastSsid.empty() ? nullptr : WIFI_STORE.findCredential(lastSsid);
+      if (cred == nullptr) {
+        currentState = AlwaysBgServerState::STATE_IDLE_NO_CREDENTIAL;
+      }
+    }
+  }
+
+  if (currentState != lastState) {
+    if (currentState == AlwaysBgServerState::STATE_IDLE_NO_CREDENTIAL) {
+      LOG_WRN("MAIN", "bg server idle: no saved credential");
+    }
+    lastState = currentState;
+  }
+
   const background_server::ReconcileDecision decision =
       background_server::evaluateReconcile(background_server::ReconcileInput{
           .backgroundWifiEnabled = core::FeatureModules::hasCapability(core::Capability::BackgroundServer) &&

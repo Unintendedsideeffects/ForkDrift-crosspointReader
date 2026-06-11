@@ -1,6 +1,7 @@
 #include "BackgroundWifiService.h"
 
 #include <Arduino.h>
+#include <ESPmDNS.h>
 #include <Logging.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
@@ -13,6 +14,7 @@
 #include "CrossPointState.h"
 #include "HalStorage.h"
 #include "network/CrossPointWebServer.h"
+#include "util/NetworkNames.h"
 #include "util/WifiCredentialStore.h"
 
 // Defined in CrossPointState.cpp — returns the FreeRTOS task that currently
@@ -44,6 +46,7 @@ void BackgroundWifiService::deferStartRetry(const char* reason) {
   nextStartAllowedMs = millis() + START_RETRY_MS;
   LOG_DBG("BGWIFI", "Background server start deferred (%s, heap: %u)", reason,
           static_cast<unsigned int>(ESP.getFreeHeap()));
+  LOG_WRN("BGWIFI", "bg server backoff: waiting %lus", static_cast<unsigned long>(START_RETRY_MS / 1000));
 }
 
 bool BackgroundWifiService::canStartNow() {
@@ -51,6 +54,7 @@ bool BackgroundWifiService::canStartNow() {
     return false;
   }
   if (ESP.getFreeHeap() < MIN_START_HEAP_BYTES) {
+    LOG_WRN("BGWIFI", "bg server deferred: low heap (%u)", static_cast<unsigned int>(ESP.getFreeHeap()));
     deferStartRetry("low heap");
     return false;
   }
@@ -124,6 +128,15 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
     serving = true;
     LOG_DBG("BGWIFI", "Background web server running on port %d", server->getPort());
 
+    char hostname[40];
+    NetworkNames::getDeviceHostname(hostname, sizeof(hostname));
+    if (MDNS.begin(hostname)) {
+      mdnsStarted = true;
+      LOG_DBG("BGWIFI", "mDNS started: http://%s.local/", hostname);
+    } else {
+      LOG_ERR("BGWIFI", "mDNS failed to start");
+    }
+
     // ── Service loop ──────────────────────────────────────────────────────
     while (!stopRequested) {
       esp_task_wdt_reset();
@@ -139,6 +152,11 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
     }
 
     LOG_DBG("BGWIFI", "Background task stopping. Requests served: %lu", requestCount);
+
+    if (mdnsStarted) {
+      MDNS.end();
+      mdnsStarted = false;
+    }
 
     serving = false;
     server->stop();
@@ -183,6 +201,7 @@ bool BackgroundWifiService::start(const char* ssid, const char* password) {
   serving = false;
   wifiOwned = false;
   requestCount = 0;
+  mdnsStarted = false;
 
   // Heap-allocate params so the pointers remain valid after this function returns
   auto* params = new (std::nothrow) WifiTaskParams();
@@ -228,6 +247,7 @@ bool BackgroundWifiService::startUsingCurrentConnection() {
   serving = false;
   wifiOwned = false;
   requestCount = 0;
+  mdnsStarted = false;
 
   auto* params = new (std::nothrow) WifiTaskParams();
   if (params == nullptr) {
@@ -288,9 +308,15 @@ void BackgroundWifiService::stop(const bool keepWifi) {
       taskHandle = nullptr;
       connected = false;
       serving = false;
+      if (mdnsStarted) {
+        MDNS.end();
+        mdnsStarted = false;
+      }
       if (wifiOwned && !keepWifi) {
         WiFi.disconnect(false);
+        delay(30);
         WiFi.mode(WIFI_OFF);
+        delay(30);
       }
       wifiOwned = false;
       keepWifiOnStop = false;

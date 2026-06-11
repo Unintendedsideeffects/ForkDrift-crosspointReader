@@ -31,6 +31,7 @@ class BackgroundWifiService {
   volatile bool wifiOwned = false;
   volatile uint32_t requestCount = 0;
   volatile unsigned long nextStartAllowedMs = 0;
+  volatile bool mdnsStarted = false;
 
   // FreeRTOS task entry point
   static void taskEntry(void* arg);

@@ -15,6 +15,7 @@
 #include "Logging.h"
 #include "core/features/FeatureModules.h"
 #include "util/NetworkNames.h"
+#include "util/WifiScanPolicy.h"
 
 namespace {
 
@@ -91,7 +92,7 @@ void BackgroundWebServer::startScan() {
   WiFi.disconnect();
   delay(100);
   WiFi.scanDelete();
-  WiFi.scanNetworks(true);
+  startWifiScanAsync();
   LOG_INF("BWS", "Started WiFi scan");
 }
 
@@ -252,15 +253,6 @@ void BackgroundWebServer::loop(const bool usbConnected, const bool allowRun) {
   if (sessionStartMs == 0) {
     resetSession();
   }
-  // SESSION_MAX_MS is a safety cap for the original charge-only mode. In
-  // Always mode the user has explicitly opted in to a permanent server, so
-  // do not hard-block after 20 minutes (the block was sticky until USB
-  // re-toggled, which manifested as "not always on after ~20 min uptime").
-  if (!SETTINGS.keepsBackgroundServerOnWifiWhileAwake() && hasSessionExpired()) {
-    stopAll();
-    sessionBlocked = true;
-    return;
-  }
 
   ensureCredentialsLoaded();
   static bool warnedEmpty = false;
@@ -304,7 +296,7 @@ void BackgroundWebServer::loop(const bool usbConnected, const bool allowRun) {
         scanFailureBurst++;
         delay(250);
         WiFi.scanDelete();
-        WiFi.scanNetworks(true);
+        startWifiScanAsync();
         stateStartMs = millis();
         return;
       }
@@ -358,14 +350,6 @@ void BackgroundWebServer::loop(const bool usbConnected, const bool allowRun) {
     }
     if (WiFi.status() != WL_CONNECTED) {
       scheduleRetry("wifi disconnected");
-      return;
-    }
-    // SERVER_WINDOW_MS (2 min) was the "expose briefly on long-press" window
-    // from the original design (see header TODO). Cycling WiFi off/on every
-    // 2 minutes destroys long uploads and incurs ~3-5s reconnect latency that
-    // users experience as "slow / unreliable". In Always mode, skip it.
-    if (!SETTINGS.keepsBackgroundServerOnWifiWhileAwake() && millis() - stateStartMs >= SERVER_WINDOW_MS) {
-      scheduleRetry("server window expired");
       return;
     }
     return;

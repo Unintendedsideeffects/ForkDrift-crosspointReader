@@ -4,7 +4,19 @@
 #include "CrossPointWebServer.h"
 #include "network/SettingsApi.h"
 
+namespace {
+// Keep in sync with kMinHeapForSettingsRebuild in SettingsActivity.cpp.
+constexpr uint32_t kMinHeapForSettingsList = 48000;
+}  // namespace
+
 void CrossPointWebServer::handleGetSettings() const {
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  if (freeHeap < kMinHeapForSettingsList) {
+    LOG_WRN("WEB", "Settings API rejected at low heap: %u bytes free", freeHeap);
+    server->send(503, "application/json", "{\"error\":\"low memory\"}");
+    return;
+  }
+
   const String settingsJson = network::buildSettingsListJson();
   server->send(200, "application/json", settingsJson);
   LOG_DBG("WEB", "Served settings API");

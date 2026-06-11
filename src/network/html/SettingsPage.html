@@ -388,6 +388,9 @@
     <div id="wifi-networks">
       <p style="font-size: 0.8em; color: var(--gray-5); text-align: center; padding: 10px;">Click 'Scan' to see available networks</p>
     </div>
+    <p id="wifi-scan-unavailable" style="display:none; font-size:0.8em; color:var(--gray-4); margin:10px 0 0;">
+      Scanning is unavailable while the device hosts its own network &mdash; enter the SSID manually.
+    </p>
     <div style="text-align: center; margin-top: 10px;">
       <button class="save-btn" style="padding: 8px 20px; font-size: 0.8em;" onclick="scanWifi()" id="scanBtn">Scan WiFi</button>
     </div>
@@ -559,6 +562,29 @@
     card.style.display = 'block';
   }
 
+  function setWifiScanUnavailable() {
+    const btn = document.getElementById('scanBtn');
+    const note = document.getElementById('wifi-scan-unavailable');
+    const networks = document.getElementById('wifi-networks');
+    btn.disabled = true;
+    btn.style.display = 'none';
+    note.style.display = 'block';
+    networks.innerHTML = '';
+  }
+
+  async function updateWifiScanAvailability() {
+    try {
+      const response = await fetch('/api/wifi/status');
+      if (!response.ok) return;
+      const status = await response.json();
+      if (status.mode === 'AP') {
+        setWifiScanUnavailable();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   async function loadSettings() {
     try {
       // Check features first to see if we should show WiFi setup
@@ -568,6 +594,7 @@
         updatePokedexCard(features);
         if (features.web_wifi_setup) {
           document.getElementById('wifi-container').style.display = 'block';
+          updateWifiScanAvailability();
         }
         if (features.ota_updates) {
           document.getElementById('ota-container').style.display = 'block';
@@ -698,6 +725,10 @@
         if (response.status === 200) {
           networks = await response.json();
           break;
+        }
+        if (response.status === 409) {
+          setWifiScanUnavailable();
+          return;
         }
         if (response.status !== 202) {
           throw new Error(await response.text());

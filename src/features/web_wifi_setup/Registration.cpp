@@ -10,6 +10,7 @@
 #include "core/features/FeatureCatalog.h"
 #include "core/registries/WebRouteRegistry.h"
 #include "util/WifiCredentialStore.h"
+#include "util/WifiScanPolicy.h"
 
 namespace features::web_wifi_setup {
 namespace {
@@ -19,6 +20,11 @@ bool shouldRegisterWebWifiSetupApiRoute() { return core::FeatureCatalog::isEnabl
 
 void mountWifiRoutes(WebServer* server) {
   server->on("/api/wifi/scan", HTTP_GET, [server] {
+    if (WiFi.getMode() & WIFI_MODE_AP) {
+      server->send(409, "application/json", "{\"error\":\"scan unavailable in access-point mode\"}");
+      return;
+    }
+
     // Non-blocking scan: start async scan on first call and return HTTP 202
     // immediately. The browser re-polls until it receives HTTP 200 with results.
     // This prevents blocking the main task (and thus the display) for the
@@ -60,7 +66,7 @@ void mountWifiRoutes(WebServer* server) {
       return;
     }
     // Start a fresh async scan.
-    WiFi.scanNetworks(/*async=*/true);
+    startWifiScanAsync();
     scanActive = true;
     server->send(202, "application/json", "{\"scanning\":true}");
   });
@@ -121,7 +127,7 @@ void mountWifiRoutes(WebServer* server) {
     const wl_status_t wifiSt = WiFi.status();
     const bool connected = wifiSt == WL_CONNECTED;
     doc["connected"] = connected;
-    if (WiFi.getMode() == WIFI_MODE_AP) {
+    if (WiFi.getMode() & WIFI_MODE_AP) {
       doc["mode"] = "AP";
       doc["ssid"] = WiFi.softAPSSID();
     } else if (connected) {

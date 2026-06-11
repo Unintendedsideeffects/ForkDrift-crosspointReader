@@ -19,6 +19,7 @@
 #include "network/BackgroundWifiService.h"
 #include "util/NetworkNames.h"
 #include "util/WifiCredentialStore.h"
+#include "util/WifiScanPolicy.h"
 
 void WifiSelectionActivity::onEnter() {
   Activity::onEnter();
@@ -101,8 +102,7 @@ void WifiSelectionActivity::startWifiScan() {
   delay(100);
   WiFi.scanDelete();
 
-  // Start async scan
-  WiFi.scanNetworks(true);  // true = async scan
+  startWifiScanAsync();
 }
 
 void WifiSelectionActivity::processWifiScanResults() {
@@ -128,7 +128,7 @@ void WifiSelectionActivity::processWifiScanResults() {
     std::string ssid = WiFi.SSID(i).c_str();
     const int32_t rssi = WiFi.RSSI(i);
 
-    // Skip hidden networks (empty SSID)
+    // Hidden networks have no usable list label and require manual SSID entry.
     if (ssid.empty()) {
       continue;
     }
