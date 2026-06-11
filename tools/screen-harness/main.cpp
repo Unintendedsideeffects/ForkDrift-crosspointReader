@@ -743,6 +743,12 @@ int main(int argc, char* argv[]) {
       {"04_home_visual_covers", [&] { drawHomeThemePreview(renderer, homeScenarios[2]); }},
       {"05_home_forkdrift", [&] { drawHomeThemePreview(renderer, homeScenarios[3]); }},
       {"06_home_pokemon_party", [&] { drawHomeThemePreview(renderer, homeScenarios[4]); }},
+      {"06b_home_pokemon_party_landscape",
+       [&] {
+         renderer.setOrientation(GfxRenderer::LandscapeCounterClockwise);
+         drawHomeThemePreview(renderer, homeScenarios[4]);
+         renderer.setOrientation(GfxRenderer::Portrait);
+       }},
       {"07_home_minimal", [&] { drawHomeThemePreview(renderer, homeScenarios[5]); }},
       {"08_home_lyra_carousel", [&] { drawHomeThemePreview(renderer, homeScenarios[6]); }},
       {"09_settings", [&] { drawSettingsMock(renderer); }},

@@ -227,34 +227,90 @@ void drawPokemonOrBook(const GfxRenderer& renderer, const RecentBook& book, cons
   drawBookIcon(renderer, book, x, y, size);
 }
 
+struct FeaturedSlotLayout {
+  int spriteX;
+  int spriteY;
+  int spriteSize;
+  int textX;
+  int titleY;
+  int titleW;
+  int levelY;
+  int hpX;
+  int hpY;
+  int hpW;
+  int fractionRight;
+  int fractionY;
+};
+
+FeaturedSlotLayout featuredSlotLayout(const GfxRenderer& renderer, const int x, const int y, const int w, const int h) {
+  const int titleH = renderer.getLineHeight(UI_12_FONT_ID);
+  const int smallH = renderer.getLineHeight(SMALL_FONT_ID);
+  const bool stacked = h > w;
+
+  if (stacked) {
+    const int textX = x + kPad;
+    const int right = x + w - kPad;
+    const int textW = std::max(0, right - textX);
+    const int fractionY = y + h - kPad - smallH;
+    const int hpY = fractionY - kFractionGap - kHpLabelH;
+    const int levelY = hpY - kFractionGap - smallH;
+    const int titleY = levelY - 2 - titleH;
+    const int spriteMaxH = std::max(0, titleY - kPad - (y + kPad));
+    const int spriteSize = std::max(0, std::min({96, w - 2 * kPad, spriteMaxH}));
+    return {x + (w - spriteSize) / 2,
+            y + kPad,
+            spriteSize,
+            textX,
+            titleY,
+            textW,
+            levelY,
+            textX,
+            hpY,
+            textW,
+            right,
+            fractionY};
+  }
+
+  const int spriteSize = std::max(0, std::min(96, h - 2 * kPad));
+  const int spriteX = x + kPad;
+  const int textX = spriteX + spriteSize + kPad;
+  const int right = x + w - kPad;
+  const int textW = std::max(0, right - textX);
+  const int fractionY = y + h - kPad - smallH;
+  const int hpY = fractionY - kFractionGap - kHpLabelH;
+  return {spriteX,
+          y + (h - spriteSize) / 2,
+          spriteSize,
+          textX,
+          y + kPad,
+          textW,
+          y + kPad + titleH + 2,
+          textX,
+          hpY,
+          textW,
+          right,
+          fractionY};
+}
+
 void drawFeaturedSlot(const GfxRenderer& renderer, const int x, const int y, const int w, const int h,
                       const RecentBook& book, const bool selected) {
   renderer.fillRoundedRect(x, y, w, h, kCorner, Color::LightGray);
   renderer.drawRoundedRect(x, y, w, h, 2, kCorner, true);
 
   const CachedSlotData& data = slotDataFor(book);
-  const int titleH = renderer.getLineHeight(UI_12_FONT_ID);
-  const int smallH = renderer.getLineHeight(SMALL_FONT_ID);
-  const int spriteSize = std::max(0, std::min(96, h - 2 * kPad));
-  const int spriteX = x + kPad;
-  const int spriteY = y + (h - spriteSize) / 2;
-  drawPokemonOrBook(renderer, book, data, spriteX, spriteY, spriteSize);
+  const FeaturedSlotLayout layout = featuredSlotLayout(renderer, x, y, w, h);
+  drawPokemonOrBook(renderer, book, data, layout.spriteX, layout.spriteY, layout.spriteSize);
 
-  const int textX = spriteX + spriteSize + kPad;
-  const int right = x + w - kPad;
-  const int textW = std::max(0, right - textX);
-  if (textW > 0) {
-    const std::string title = renderer.truncatedText(UI_12_FONT_ID, book.title.c_str(), textW);
-    renderer.drawText(UI_12_FONT_ID, textX, y + kPad, title.c_str(), true, EpdFontFamily::BOLD);
+  if (layout.titleW > 0) {
+    const std::string title = renderer.truncatedText(UI_12_FONT_ID, book.title.c_str(), layout.titleW);
+    renderer.drawText(UI_12_FONT_ID, layout.textX, layout.titleY, title.c_str(), true, EpdFontFamily::BOLD);
 
     char levelText[16];
     std::snprintf(levelText, sizeof(levelText), "Lv %d", data.level);
-    renderer.drawText(SMALL_FONT_ID, textX, y + kPad + titleH + 2, levelText, true);
+    renderer.drawText(SMALL_FONT_ID, layout.textX, layout.levelY, levelText, true);
 
-    const int fractionY = y + h - kPad - smallH;
-    const int hpY = fractionY - kFractionGap - kHpLabelH;
-    drawHpBar(renderer, textX, hpY, textW, data.hpPercent);
-    drawFraction(renderer, data, right, fractionY);
+    drawHpBar(renderer, layout.hpX, layout.hpY, layout.hpW, data.hpPercent);
+    drawFraction(renderer, data, layout.fractionRight, layout.fractionY);
   }
 
   if (selected) {
@@ -281,19 +337,46 @@ void drawCompactSlot(const GfxRenderer& renderer, const int x, const int y, cons
   const int hpX = textX + leftW + kPad;
   const int hpW = std::max(0, right - hpX);
 
+  // Landscape rows are too short to stack title over level; in that "tight"
+  // mode everything shares one vertically-centered line and the fraction sits
+  // inline after a shortened HP bar instead of beneath it.
+  const int titleH = renderer.getLineHeight(UI_10_FONT_ID);
+  const bool tight = h < 2 * kPad + titleH + smallH;
+
+  char levelText[16];
+  std::snprintf(levelText, sizeof(levelText), "Lv %d", data.level);
+
   if (leftW > 0) {
-    const std::string title = renderer.truncatedText(UI_10_FONT_ID, book.title.c_str(), leftW);
-    renderer.drawText(UI_10_FONT_ID, textX, y + kPad, title.c_str(), true, EpdFontFamily::BOLD);
-    char levelText[16];
-    std::snprintf(levelText, sizeof(levelText), "Lv %d", data.level);
-    renderer.drawText(SMALL_FONT_ID, textX, y + h - kPad - smallH, levelText, true);
+    if (tight) {
+      const int levelW = renderer.getTextWidth(SMALL_FONT_ID, levelText);
+      const int titleW = std::max(0, leftW - levelW - kPad);
+      const std::string title = renderer.truncatedText(UI_10_FONT_ID, book.title.c_str(), titleW);
+      renderer.drawText(UI_10_FONT_ID, textX, y + (h - titleH) / 2, title.c_str(), true, EpdFontFamily::BOLD);
+      renderer.drawText(SMALL_FONT_ID, textX + leftW - levelW, y + (h - smallH) / 2, levelText, true);
+    } else {
+      const std::string title = renderer.truncatedText(UI_10_FONT_ID, book.title.c_str(), leftW);
+      renderer.drawText(UI_10_FONT_ID, textX, y + kPad, title.c_str(), true, EpdFontFamily::BOLD);
+      renderer.drawText(SMALL_FONT_ID, textX, y + h - kPad - smallH, levelText, true);
+    }
   }
 
   if (hpW > 0) {
-    const int fractionY = y + h - kPad - smallH;
-    const int hpY = std::max(y + kPad, fractionY - kFractionGap - kHpLabelH);
-    drawHpBar(renderer, hpX, hpY, hpW, data.hpPercent);
-    drawFraction(renderer, data, right, fractionY);
+    if (tight) {
+      int fractionW = 0;
+      if (data.positionTotal > 0) {
+        char fraction[32];
+        std::snprintf(fraction, sizeof(fraction), "%lu/%lu", static_cast<unsigned long>(data.positionCurrent),
+                      static_cast<unsigned long>(data.positionTotal));
+        fractionW = renderer.getTextWidth(SMALL_FONT_ID, fraction) + kPad;
+      }
+      drawHpBar(renderer, hpX, y + (h - kHpLabelH) / 2, std::max(0, hpW - fractionW), data.hpPercent);
+      drawFraction(renderer, data, right, y + (h - smallH) / 2);
+    } else {
+      const int fractionY = y + h - kPad - smallH;
+      const int hpY = std::max(y + kPad, fractionY - kFractionGap - kHpLabelH);
+      drawHpBar(renderer, hpX, hpY, hpW, data.hpPercent);
+      drawFraction(renderer, data, right, fractionY);
+    }
   }
 
   if (selected) {
@@ -318,16 +401,32 @@ void PokemonPartyTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
 
   const int areaW = rect.width - 2 * kMargin;
   const int areaH = rect.height - 2 * kMargin;
+  const int x = rect.x + kMargin;
+  const int y = rect.y + kMargin;
+
+  if (rect.width > rect.height) {
+    const int featuredW = areaW * 2 / 5;
+    const int rowsX = x + featuredW + kGap;
+    const int rowsW = std::max(0, areaW - featuredW - kGap);
+    const int rowH = std::max(0, areaH - kGap * (kCompactSlots - 1)) / kCompactSlots;
+
+    drawFeaturedSlot(renderer, x, y, featuredW, areaH, recentBooks[0], selectorIndex == 0);
+
+    for (int i = 1; i < bookCount; ++i) {
+      const int rowY = y + (i - 1) * (rowH + kGap);
+      drawCompactSlot(renderer, rowsX, rowY, rowsW, rowH, recentBooks[static_cast<size_t>(i)], selectorIndex == i);
+    }
+    return;
+  }
+
   const int rowsAreaH = std::max(0, areaH - kGap * kCompactSlots);
   const int rowH = rowsAreaH / (kCompactSlots + 2);
   const int featuredH = std::max(0, areaH - kCompactSlots * (rowH + kGap));
-  const int x = rect.x + kMargin;
-  const int featuredY = rect.y + kMargin;
 
-  drawFeaturedSlot(renderer, x, featuredY, areaW, featuredH, recentBooks[0], selectorIndex == 0);
+  drawFeaturedSlot(renderer, x, y, areaW, featuredH, recentBooks[0], selectorIndex == 0);
 
   for (int i = 1; i < bookCount; ++i) {
-    const int rowY = featuredY + featuredH + kGap + (i - 1) * (rowH + kGap);
+    const int rowY = y + featuredH + kGap + (i - 1) * (rowH + kGap);
     drawCompactSlot(renderer, x, rowY, areaW, rowH, recentBooks[static_cast<size_t>(i)], selectorIndex == i);
   }
 }
