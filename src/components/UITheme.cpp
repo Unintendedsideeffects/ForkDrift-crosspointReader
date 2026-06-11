@@ -149,8 +149,34 @@ Rect UITheme::getScreenSafeArea(const GfxRenderer& renderer, bool hasFrontButton
   return safeArea;
 }
 
+namespace {
+// Recent-book entries written before the [HEIGHT] template stored a concrete
+// thumb file name ("thumb_120.bmp", "thumb_W56_H56.bmp"). Re-templating them
+// here lets every consumer request any size for legacy entries; without this
+// the substitution silently returns the old size and rescaled-dither bugs
+// reappear for pre-template libraries.
+std::string retemplateLegacyThumbPath(std::string coverBmpPath) {
+  const size_t slash = coverBmpPath.find_last_of('/');
+  const size_t base = (slash == std::string::npos) ? 0 : slash + 1;
+  constexpr char kPrefix[] = "thumb_";
+  constexpr char kSuffix[] = ".bmp";
+  if (coverBmpPath.compare(base, sizeof(kPrefix) - 1, kPrefix) != 0) return coverBmpPath;
+  if (coverBmpPath.size() < sizeof(kSuffix) ||
+      coverBmpPath.compare(coverBmpPath.size() - (sizeof(kSuffix) - 1), sizeof(kSuffix) - 1, kSuffix) != 0) {
+    return coverBmpPath;
+  }
+  coverBmpPath.replace(base + sizeof(kPrefix) - 1,
+                       coverBmpPath.size() - (sizeof(kSuffix) - 1) - (base + sizeof(kPrefix) - 1), "[HEIGHT]");
+  return coverBmpPath;
+}
+}  // namespace
+
 std::string UITheme::getCoverThumbPath(std::string coverBmpPath, int coverHeight) {
   size_t pos = coverBmpPath.find("[HEIGHT]", 0);
+  if (pos == std::string::npos) {
+    coverBmpPath = retemplateLegacyThumbPath(std::move(coverBmpPath));
+    pos = coverBmpPath.find("[HEIGHT]", 0);
+  }
   if (pos != std::string::npos) {
     coverBmpPath.replace(pos, 8, std::to_string(coverHeight));
   }
@@ -160,6 +186,10 @@ std::string UITheme::getCoverThumbPath(std::string coverBmpPath, int coverHeight
 std::string UITheme::getCoverThumbPath(std::string coverBmpPath, int coverWidth, int coverHeight) {
   // Replace [HEIGHT] with a WxH-specific suffix so carousel-sized thumbs get distinct file names.
   size_t pos = coverBmpPath.find("[HEIGHT]", 0);
+  if (pos == std::string::npos) {
+    coverBmpPath = retemplateLegacyThumbPath(std::move(coverBmpPath));
+    pos = coverBmpPath.find("[HEIGHT]", 0);
+  }
   if (pos != std::string::npos) {
     coverBmpPath.replace(pos, 8, "W" + std::to_string(coverWidth) + "_H" + std::to_string(coverHeight));
   }

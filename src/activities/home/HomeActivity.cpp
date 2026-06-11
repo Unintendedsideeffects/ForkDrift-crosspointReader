@@ -858,6 +858,14 @@ void HomeActivity::onEnter() {
     } else {
       freeCoverBuffer();
       coverRendered = false;
+#if ENABLE_POKEMON_PARTY
+      // The party home draws per-card covers via the theme and never reaches
+      // the classic/carousel branches that call loadRecentCovers(), so the
+      // square card thumbs would never generate. Run the ensure pass here.
+      if (isPokemonPartyHomeMode() && !recentsLoading) {
+        loadRecentCovers(metrics.homeCoverHeight);
+      }
+#endif
     }
 
   } else {
@@ -1008,6 +1016,19 @@ bool HomeActivity::isCoverCacheValid(const int coverHeight, const bool usesDualS
     if (thumbPath.empty() || !Storage.exists(thumbPath.c_str())) {
       return false;
     }
+
+#if ENABLE_POKEMON_PARTY
+    // Party cards draw a square thumb; without this check the cache reads as
+    // valid on devices that already have the legacy sizes and the ensure-loop
+    // in loadRecentCovers() never gets a chance to generate the square one.
+    if (isPokemonPartyHomeMode()) {
+      const std::string squarePath = UITheme::getCoverThumbPath(book.coverBmpPath, PokemonPartyTheme::kCoverIconSize,
+                                                                PokemonPartyTheme::kCoverIconSize);
+      if (squarePath.empty() || !Storage.exists(squarePath.c_str())) {
+        return false;
+      }
+    }
+#endif
   }
 
   return true;
