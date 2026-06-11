@@ -5881,7 +5881,8 @@
             if (setting.visibleWhen) {
               const parentVal = normalized[setting.visibleWhen.key];
               if ((setting.visibleWhen.eq !== undefined && parentVal !== setting.visibleWhen.eq) ||
-                  (setting.visibleWhen.ne !== undefined && parentVal === setting.visibleWhen.ne)) {
+                  (setting.visibleWhen.ne !== undefined && parentVal === setting.visibleWhen.ne) ||
+                  (setting.visibleWhen.eqAnyOf && !setting.visibleWhen.eqAnyOf.includes(parentVal))) {
                 normalized[setting.key] = defaultValue;
               }
             }

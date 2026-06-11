@@ -612,7 +612,8 @@ void SleepActivity::onEnter() {
 
   const bool preserveCurrentScreen =
       SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::TRANSPARENT ||
-      (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::SMART && APP_STATE.lastSleepFromReader);
+      (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::SMART && APP_STATE.lastSleepFromReader &&
+       SETTINGS.smartSleepReaderMode == CrossPointSettings::SMART_READER_TRANSPARENT);
 
   if (preserveCurrentScreen) {
     renderTransparentSleepScreen();
@@ -809,8 +810,11 @@ bool SleepActivity::tryRenderImagePath(const std::string& path) const {
 }
 
 void SleepActivity::renderSmartSleepScreen() const {
-  // Reader context: preserve last-rendered page, just overlay the lock icon.
+  // Reader context: preserve the page or replace it with the current cover.
   if (APP_STATE.lastSleepFromReader) {
+    if (SETTINGS.smartSleepReaderMode == CrossPointSettings::SMART_READER_COVER && tryRenderCurrentBookCover()) {
+      return;
+    }
     renderTransparentSleepScreen();
     return;
   }
@@ -826,18 +830,54 @@ void SleepActivity::renderSmartSleepScreen() const {
   }
 
   // 2) Current book cover (if a book is open and its file still exists)
-  if (!APP_STATE.openEpubPath.empty() && Storage.exists(APP_STATE.openEpubPath.c_str())) {
-    const auto homeCardData =
-        core::FeatureModules::resolveHomeCardData(APP_STATE.openEpubPath, renderer.getScreenHeight());
-    if (!homeCardData.coverPath.empty() && Storage.exists(homeCardData.coverPath.c_str())) {
-      LOG_INF("SLP", "Smart: trying current book cover: %s", homeCardData.coverPath.c_str());
-      if (tryRenderImagePath(homeCardData.coverPath)) return;
-      LOG_WRN("SLP", "Smart: book cover failed, falling back to sleep folder");
-    }
+  if (tryRenderCurrentBookCover()) {
+    return;
   }
 
-  // 3) Sleep folder (+ default)
-  renderCustomSleepScreen();
+  // 3) Configured fallback
+  switch (SETTINGS.smartSleepHomeMode) {
+#if ENABLE_HAIKU_CLOCK
+    case CrossPointSettings::SMART_HOME_HAIKU:
+      renderHaikuClockSleepScreen();
+      return;
+#endif
+#if ENABLE_ROMAN_CLOCK_SLEEP
+    case CrossPointSettings::SMART_HOME_ROMAN:
+      renderRomanClockSleepScreen();
+      return;
+#endif
+    case CrossPointSettings::SMART_HOME_DARK:
+      renderDefaultSleepScreen();
+      return;
+    case CrossPointSettings::SMART_HOME_IMAGES:
+    default:
+      renderCustomSleepScreen();
+      return;
+  }
+}
+
+bool SleepActivity::tryRenderCurrentBookCover() const {
+  if (APP_STATE.openEpubPath.empty() || !Storage.exists(APP_STATE.openEpubPath.c_str())) {
+    return false;
+  }
+
+  const auto homeCardData =
+      core::FeatureModules::resolveHomeCardData(APP_STATE.openEpubPath, renderer.getScreenHeight());
+  if (homeCardData.coverPath.empty() || !Storage.exists(homeCardData.coverPath.c_str())) {
+    return false;
+  }
+
+  LOG_INF("SLP", "Smart: trying current book cover: %s", homeCardData.coverPath.c_str());
+  if (!tryRenderImagePath(homeCardData.coverPath)) {
+    LOG_WRN("SLP", "Smart: book cover failed");
+    return false;
+  }
+#if ENABLE_POKEMON_PARTY
+  if (drawPokemonCoverOverlay(APP_STATE.openEpubPath, homeCardData.coverPath)) {
+    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  }
+#endif
+  return true;
 }
 
 void SleepActivity::drawLockIcon(const int cx, const int cy) const {
@@ -1167,26 +1207,13 @@ bool SleepActivity::renderPokemonCoverSleepScreen() const {
   }
   const std::string bookPath = APP_STATE.openEpubPath;
 
-  // A composite only makes sense when the book has an assigned Pokémon; without
-  // one, defer to the regular sleep-screen sources.
-  const PokemonAssignment assignment = PokemonProgress::loadForBook(bookPath);
-  if (!assignment.valid) {
-    return false;
-  }
-
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
-
-  // Reading progress IS the level; the level selects the active evolution stage.
-  BookProgressDataStore::ProgressData pd;
-  const float percent = BookProgressDataStore::loadProgress(bookPath, pd) ? pd.percent : 0.0f;
-  const int level = PokemonProgress::levelForPercent(percent);
-  const int speciesId = PokemonProgress::activeSpeciesId(assignment, level);
+  const std::string coverPath = resolveCachedCoverPath(coverPathForOpenBook(bookPath), pageHeight);
 
   renderer.clearScreen();
 
   // --- Cover, centered and scaled to fit the panel ---
-  const std::string coverPath = resolveCachedCoverPath(coverPathForOpenBook(bookPath), pageHeight);
   if (!coverPath.empty()) {
     HalFile file;
     if (Storage.openFileForRead("SLP", coverPath, file)) {
@@ -1206,6 +1233,26 @@ bool SleepActivity::renderPokemonCoverSleepScreen() const {
       file.close();
     }
   }
+
+  if (!drawPokemonCoverOverlay(bookPath, coverPath)) {
+    return false;
+  }
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  return true;
+}
+
+bool SleepActivity::drawPokemonCoverOverlay(const std::string& bookPath, const std::string& coverPath) const {
+  const PokemonAssignment assignment = PokemonProgress::loadForBook(bookPath);
+  if (!assignment.valid) {
+    return false;
+  }
+
+  BookProgressDataStore::ProgressData pd;
+  const float percent = BookProgressDataStore::loadProgress(bookPath, pd) ? pd.percent : 0.0f;
+  const int level = PokemonProgress::levelForPercent(percent);
+  const int speciesId = PokemonProgress::activeSpeciesId(assignment, level);
+  const auto pageWidth = renderer.getScreenWidth();
+  const auto pageHeight = renderer.getScreenHeight();
 
   // --- Pokémon panel, bottom-right corner ---
   // A filled rounded panel masks the cover so the sprite + label stay legible.
@@ -1240,7 +1287,6 @@ bool SleepActivity::renderPokemonCoverSleepScreen() const {
   const int labelW = renderer.getTextWidth(UI_12_FONT_ID, labelText.c_str());
   renderer.drawText(UI_12_FONT_ID, panelX + (panelW - labelW) / 2, sy + spriteSz + 4, labelText.c_str(), true);
 
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   return true;
 }
 #endif  // ENABLE_POKEMON_PARTY

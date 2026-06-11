@@ -51,7 +51,9 @@ class SleepActivity final : public Activity {
   // evolution stage for the reading-progress level) overlaid in the corner.
   // Returns false when there is no current book / assignment to composite.
   bool renderPokemonCoverSleepScreen() const;
+  bool drawPokemonCoverOverlay(const std::string& bookPath, const std::string& coverPath) const;
 #endif
+  bool tryRenderCurrentBookCover() const;
   bool tryRenderImagePath(const std::string& path) const;
 
   void drawLockIcon(int cx, int cy) const;

@@ -86,7 +86,16 @@ bool appendSettingJson(String& json, const SettingInfo& s) {
   if (s.visibleWhen.key) {
     JsonObject vis = doc["visibleWhen"].to<JsonObject>();
     vis["key"] = s.visibleWhen.key;
-    vis["eq"] = static_cast<int>(s.visibleWhen.eq);
+    if (!s.visibleWhen.eqAnyOf.empty()) {
+      JsonArray values = vis["eqAnyOf"].to<JsonArray>();
+      for (const uint8_t value : s.visibleWhen.eqAnyOf) {
+        values.add(value);
+      }
+    } else if (s.visibleWhen.notEqual) {
+      vis["ne"] = static_cast<int>(s.visibleWhen.eq);
+    } else {
+      vis["eq"] = static_cast<int>(s.visibleWhen.eq);
+    }
   }
 
   const size_t requiredSize = measureJson(doc);

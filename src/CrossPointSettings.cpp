@@ -471,6 +471,8 @@ void CrossPointSettings::validateAndClamp() {
   sleepScreen = normalizeSleepScreenMode(sleepScreen);
   if (sleepScreenCoverMode > CROP) sleepScreenCoverMode = FIT;
   if (sleepScreenSource >= SLEEP_SCREEN_SOURCE_COUNT) sleepScreenSource = SLEEP_SOURCE_SLEEP;
+  if (smartSleepReaderMode >= SMART_SLEEP_READER_MODE_COUNT) smartSleepReaderMode = SMART_READER_TRANSPARENT;
+  if (smartSleepHomeMode >= SMART_SLEEP_HOME_MODE_COUNT) smartSleepHomeMode = SMART_HOME_IMAGES;
   if (statusBar >= STATUS_BAR_MODE_COUNT) statusBar = FULL;
   if (statusBarProgressBar >= STATUS_BAR_PROGRESS_BAR_COUNT) statusBarProgressBar = HIDE_PROGRESS;
   if (statusBarProgressBarThickness >= STATUS_BAR_PROGRESS_BAR_THICKNESS_COUNT) {

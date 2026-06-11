@@ -503,6 +503,43 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         .withEnumPersistedValues(vals)
         .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
   }());
+  list.push_back(SettingInfo::Enum(StrId::STR_SMART_READER_MODE, &CrossPointSettings::smartSleepReaderMode,
+                                   {StrId::STR_TRANSPARENT, StrId::STR_BOOK_COVER}, "smartSleepReaderMode",
+                                   StrId::STR_CAT_DISPLAY)
+                     .withVisibleWhen("sleepScreen", CrossPointSettings::SMART)
+                     .withConfiguratorExport());
+  list.push_back([&] {
+    using M = CrossPointSettings::SMART_SLEEP_HOME_MODE;
+    std::vector<StrId> ids = {StrId::STR_IMAGES};
+    std::vector<uint8_t> vals = {M::SMART_HOME_IMAGES};
+#if ENABLE_HAIKU_CLOCK
+    ids.push_back(StrId::STR_HAIKU_CLOCK);
+    vals.push_back(M::SMART_HOME_HAIKU);
+#endif
+#if ENABLE_ROMAN_CLOCK_SLEEP
+    ids.push_back(StrId::STR_ROMAN_CLOCK);
+    vals.push_back(M::SMART_HOME_ROMAN);
+#endif
+    ids.push_back(StrId::STR_DARK);
+    vals.push_back(M::SMART_HOME_DARK);
+
+    return SettingInfo::DynamicEnum(
+               StrId::STR_SMART_HOME_MODE, ids,
+               [vals] {
+                 const uint8_t cur = SETTINGS.smartSleepHomeMode;
+                 for (size_t i = 0; i < vals.size(); i++) {
+                   if (vals[i] == cur) return static_cast<uint8_t>(i);
+                 }
+                 return uint8_t{0};
+               },
+               [vals](uint8_t idx) {
+                 if (idx < vals.size()) SETTINGS.smartSleepHomeMode = vals[idx];
+               },
+               "smartSleepHomeMode", StrId::STR_CAT_DISPLAY)
+        .withVisibleWhen("sleepScreen", CrossPointSettings::SMART)
+        .withConfiguratorExport()
+        .withEnumPersistedValues(vals);
+  }());
   {
     std::vector<StrId> sleepSourceLabels = {StrId::STR_SLEEP};
     std::vector<const char*> sleepSourceFeatureKeys = {nullptr};
@@ -516,21 +553,21 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                                      "sleepScreenSource", StrId::STR_CAT_DISPLAY)
                        .withConfiguratorExport()
                        .withEnumOptionFeatureKeys(sleepSourceFeatureKeys)
-                       .withVisibleWhen("sleepScreen", CrossPointSettings::CUSTOM));
+                       .withVisibleWhenAnyOf("sleepScreen", {CrossPointSettings::CUSTOM, CrossPointSettings::SMART}));
   }
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_COVER_MODE, &CrossPointSettings::sleepScreenCoverMode,
                                    {StrId::STR_FIT, StrId::STR_CROP}, "sleepScreenCoverMode", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()
-                     .withVisibleWhen("sleepScreen", CrossPointSettings::CUSTOM));
+                     .withVisibleWhenAnyOf("sleepScreen", {CrossPointSettings::CUSTOM, CrossPointSettings::SMART}));
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_COVER_FILTER, &CrossPointSettings::sleepScreenCoverFilter,
                                    {StrId::STR_NONE_OPT, StrId::STR_FILTER_CONTRAST, StrId::STR_INVERTED},
                                    "sleepScreenCoverFilter", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()
-                     .withVisibleWhen("sleepScreen", CrossPointSettings::CUSTOM));
+                     .withVisibleWhenAnyOf("sleepScreen", {CrossPointSettings::CUSTOM, CrossPointSettings::SMART}));
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_CYCLE_MODE, &CrossPointSettings::sleepCycleMode,
                                    {StrId::STR_RANDOM, StrId::STR_SEQUENTIAL}, "sleepCycleMode", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()
-                     .withVisibleWhen("sleepScreen", CrossPointSettings::CUSTOM));
+                     .withVisibleWhenAnyOf("sleepScreen", {CrossPointSettings::CUSTOM, CrossPointSettings::SMART}));
 #if ENABLE_HAIKU_CLOCK
   list.push_back(SettingInfo::Toggle(StrId::STR_HAIKU_CLOCK_LANDSCAPE, &CrossPointSettings::haikuClockLandscape,
                                      "haikuClockLandscape", StrId::STR_CAT_DISPLAY)

@@ -105,6 +105,10 @@ bool controlSettingVisible(const SettingInfo& setting, const std::vector<Setting
 
   const uint8_t value = it->persistedValue();
 
+  if (!setting.visibleWhen.eqAnyOf.empty()) {
+    return std::find(setting.visibleWhen.eqAnyOf.begin(), setting.visibleWhen.eqAnyOf.end(), value) !=
+           setting.visibleWhen.eqAnyOf.end();
+  }
   if (setting.visibleWhen.notEqual) {
     return value != setting.visibleWhen.eq;
   } else {

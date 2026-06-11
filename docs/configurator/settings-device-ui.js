@@ -19,7 +19,7 @@ window.ConfiguratorSettingsDeviceUi = (function () {
   const SETTINGS_TAB_TOPICS = [
     [
       { label: 'APPEARANCE', keys: ['uiTheme', 'recentBooksView', 'darkMode', 'fadingFix'] },
-      { label: 'SLEEP SCREEN', keys: ['sleepScreen', 'sleepScreenSource', 'sleepScreenCoverMode', 'sleepScreenCoverFilter', 'sleepCycleMode', 'haikuClockLandscape', 'trmnlSleepEnabled', 'sleepPinnedPath'] },
+      { label: 'SLEEP SCREEN', keys: ['sleepScreen', 'smartSleepReaderMode', 'smartSleepHomeMode', 'sleepScreenSource', 'sleepScreenCoverMode', 'sleepScreenCoverFilter', 'sleepCycleMode', 'haikuClockLandscape', 'trmnlSleepEnabled', 'sleepPinnedPath'] },
       { label: 'DISPLAY', keys: ['refreshFrequency'] },
     ],
     [
@@ -45,6 +45,7 @@ window.ConfiguratorSettingsDeviceUi = (function () {
       const parentVal = values[setting.visibleWhen.key];
       if (setting.visibleWhen.eq !== undefined && parentVal !== setting.visibleWhen.eq) return false;
       if (setting.visibleWhen.ne !== undefined && parentVal === setting.visibleWhen.ne) return false;
+      if (setting.visibleWhen.eqAnyOf && !setting.visibleWhen.eqAnyOf.includes(parentVal)) return false;
     }
     return true;
   }

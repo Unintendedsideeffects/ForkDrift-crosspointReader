@@ -66,6 +66,10 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
       clamp(doc["sleepScreenCoverFilter"] | (uint8_t)S::NO_FILTER, S::SLEEP_SCREEN_COVER_FILTER_COUNT, S::NO_FILTER);
   s.sleepCycleMode =
       clamp(doc["sleepCycleMode"] | (uint8_t)S::SLEEP_CYCLE_RANDOM, S::SLEEP_CYCLE_MODE_COUNT, S::SLEEP_CYCLE_RANDOM);
+  s.smartSleepReaderMode = clamp(doc["smartSleepReaderMode"] | (uint8_t)S::SMART_READER_TRANSPARENT,
+                                 S::SMART_SLEEP_READER_MODE_COUNT, S::SMART_READER_TRANSPARENT);
+  s.smartSleepHomeMode = clamp(doc["smartSleepHomeMode"] | (uint8_t)S::SMART_HOME_IMAGES,
+                               S::SMART_SLEEP_HOME_MODE_COUNT, S::SMART_HOME_IMAGES);
 #if ENABLE_HAIKU_CLOCK
   s.haikuClockLandscape = doc["haikuClockLandscape"] | (uint8_t)0;
 #endif
@@ -240,6 +244,8 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["sleepScreenCoverMode"] = s.sleepScreenCoverMode;
   doc["sleepScreenCoverFilter"] = s.sleepScreenCoverFilter;
   doc["sleepCycleMode"] = s.sleepCycleMode;
+  doc["smartSleepReaderMode"] = s.smartSleepReaderMode;
+  doc["smartSleepHomeMode"] = s.smartSleepHomeMode;
 #if ENABLE_HAIKU_CLOCK
   doc["haikuClockLandscape"] = s.haikuClockLandscape;
 #endif

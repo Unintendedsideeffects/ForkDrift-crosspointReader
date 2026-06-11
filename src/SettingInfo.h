@@ -76,16 +76,31 @@ struct SettingInfo {
     const char* key = nullptr;  // Key of the controlling setting (null = always visible)
     uint8_t eq = 0;             // Required value of the controlling setting
     bool notEqual = false;      // True if condition is negation (not equal to eq)
+    std::vector<uint8_t> eqAnyOf;
   };
   VisibleWhen visibleWhen;
 
   SettingInfo& withVisibleWhen(const char* dependsOnKey, uint8_t requiredValue) {
-    visibleWhen = {dependsOnKey, requiredValue, false};
+    visibleWhen.key = dependsOnKey;
+    visibleWhen.eq = requiredValue;
+    visibleWhen.notEqual = false;
+    visibleWhen.eqAnyOf.clear();
     return *this;
   }
 
   SettingInfo& withVisibleWhenNot(const char* dependsOnKey, uint8_t requiredValue) {
-    visibleWhen = {dependsOnKey, requiredValue, true};
+    visibleWhen.key = dependsOnKey;
+    visibleWhen.eq = requiredValue;
+    visibleWhen.notEqual = true;
+    visibleWhen.eqAnyOf.clear();
+    return *this;
+  }
+
+  SettingInfo& withVisibleWhenAnyOf(const char* dependsOnKey, std::vector<uint8_t> requiredValues) {
+    visibleWhen.key = dependsOnKey;
+    visibleWhen.eq = 0;
+    visibleWhen.notEqual = false;
+    visibleWhen.eqAnyOf = std::move(requiredValues);
     return *this;
   }
 

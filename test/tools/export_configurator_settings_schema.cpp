@@ -126,7 +126,12 @@ void appendSchemaSetting(JsonArray out, const std::vector<SettingInfo>& settings
   if (setting.visibleWhen.key != nullptr) {
     JsonObject visibleWhen = item["visibleWhen"].to<JsonObject>();
     visibleWhen["key"] = setting.visibleWhen.key;
-    if (setting.visibleWhen.notEqual) {
+    if (!setting.visibleWhen.eqAnyOf.empty()) {
+      JsonArray values = visibleWhen["eqAnyOf"].to<JsonArray>();
+      for (const uint8_t value : setting.visibleWhen.eqAnyOf) {
+        values.add(value);
+      }
+    } else if (setting.visibleWhen.notEqual) {
       visibleWhen["ne"] = mapVisibleWhenValue(setting.visibleWhen);
     } else {
       visibleWhen["eq"] = mapVisibleWhenValue(setting.visibleWhen);

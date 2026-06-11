@@ -51,6 +51,14 @@ class CrossPointSettings {
     SLEEP_SCREEN_SOURCE_COUNT
   };
   enum SLEEP_CYCLE_MODE { SLEEP_CYCLE_RANDOM = 0, SLEEP_CYCLE_SEQUENTIAL = 1, SLEEP_CYCLE_MODE_COUNT };
+  enum SMART_SLEEP_READER_MODE { SMART_READER_TRANSPARENT = 0, SMART_READER_COVER = 1, SMART_SLEEP_READER_MODE_COUNT };
+  enum SMART_SLEEP_HOME_MODE {
+    SMART_HOME_IMAGES = 0,
+    SMART_HOME_HAIKU = 1,
+    SMART_HOME_ROMAN = 2,
+    SMART_HOME_DARK = 3,
+    SMART_SLEEP_HOME_MODE_COUNT
+  };
 
   // Status bar display type enum
   enum STATUS_BAR_MODE {
@@ -270,6 +278,9 @@ class CrossPointSettings {
   uint8_t sleepScreenSource = SLEEP_SOURCE_SLEEP;
   // Sleep image cycle mode (random or sequential)
   uint8_t sleepCycleMode = SLEEP_CYCLE_RANDOM;
+  // Smart sleep behavior for reader and home contexts
+  uint8_t smartSleepReaderMode = SMART_READER_TRANSPARENT;
+  uint8_t smartSleepHomeMode = SMART_HOME_IMAGES;
   // Pinned sleep cover path — if non-empty and sleepScreen==CUSTOM, always use this image.
   char sleepPinnedPath[256] = "";
 #if ENABLE_HAIKU_CLOCK
