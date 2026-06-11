@@ -3,12 +3,14 @@
 #if ENABLE_POKEMON_PARTY
 
 #include <Bitmap.h>
+#include <Epub/BookMetadataCache.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 
 #include <algorithm>
-#include <cctype>
 #include <cstdio>
+#include <memory>
+#include <new>
 #include <string>
 #include <unordered_map>
 
@@ -26,16 +28,17 @@
 #include "util/RecentBooksStore.h"
 
 namespace {
-constexpr int kCols = 2;
-constexpr int kRows = 3;
-constexpr int kSlots = kCols * kRows;
+constexpr int kSlots = 6;
+constexpr int kCompactSlots = kSlots - 1;
 
 struct CachedSlotData {
   bool valid = false;
   float percent = 0.0f;
+  float hpPercent = 0.0f;
+  uint32_t positionCurrent = 0;
+  uint32_t positionTotal = 0;
   int level = 1;
   int speciesId = 0;
-  std::string speciesName;
   std::string spritePath;
 };
 
@@ -49,6 +52,7 @@ constexpr int kHpLabelW = 18;
 constexpr int kHpLabelH = 12;
 constexpr int kSelectBorder = 4;
 constexpr int kStripeStep = 8;
+constexpr int kFractionGap = 3;
 
 constexpr int kMenuCols = 2;
 constexpr int kMenuIconSize = 24;
@@ -79,17 +83,6 @@ void drawPartyBackground(const GfxRenderer& renderer, const Rect& rect) {
   for (int x = rect.x; x < rect.x + rect.width; x += kStripeStep) {
     renderer.fillRectDither(x, rect.y, 1, rect.height, Color::LightGray);
   }
-}
-
-void drawPokeball(const GfxRenderer& renderer, const int cx, const int cy, const int radius) {
-  if (radius < 6) {
-    return;
-  }
-  renderer.drawRoundedRect(cx - radius, cy - radius, radius * 2, radius * 2, 2, radius, true);
-  renderer.drawLine(cx - radius, cy, cx - radius / 3, cy, 2, true);
-  renderer.drawLine(cx + radius / 3, cy, cx + radius, cy, 2, true);
-  const int inner = std::max(3, radius / 3);
-  renderer.drawRoundedRect(cx - inner, cy - inner, inner * 2, inner * 2, 2, inner, true);
 }
 
 bool drawBmpInBox(const GfxRenderer& renderer, const std::string& path, const int x, const int y, const int size) {
@@ -164,120 +157,148 @@ void drawHpBar(const GfxRenderer& renderer, const int x, const int y, const int 
   }
 }
 
-void drawPartySlot(const GfxRenderer& renderer, const int x, const int y, const int w, const int h,
-                   const RecentBook& book, const bool selected) {
+void drawSelectionRing(const GfxRenderer& renderer, const int x, const int y, const int w, const int h) {
+  renderer.drawRoundedRect(x - 2, y - 2, w + 4, h + 4, kSelectBorder, kCorner + 2, true);
+  renderer.drawRoundedRect(x + 2, y + 2, w - 4, h - 4, 2, std::max(1, kCorner - 2), true);
+}
+
+void drawFraction(const GfxRenderer& renderer, const CachedSlotData& data, const int right, const int y) {
+  if (data.positionTotal == 0) {
+    return;
+  }
+  char fraction[32];
+  std::snprintf(fraction, sizeof(fraction), "%lu/%lu", static_cast<unsigned long>(data.positionCurrent),
+                static_cast<unsigned long>(data.positionTotal));
+  renderer.drawText(SMALL_FONT_ID, right - renderer.getTextWidth(SMALL_FONT_ID, fraction), y, fraction, true);
+}
+
+CachedSlotData loadSlotData(const RecentBook& book) {
+  CachedSlotData data;
+  BookProgressDataStore::ProgressData progress;
+  const bool hasProgress = BookProgressDataStore::loadProgress(book.path, progress);
+  data.percent = hasProgress ? progress.percent : 0.0f;
+  data.hpPercent = data.percent;
+  data.level = PokemonProgress::levelForPercent(data.percent);
+
+  if (hasProgress && progress.kind == BookProgressDataStore::BookKind::Epub && progress.spineIndex >= 0) {
+    std::string cachePath;
+    if (BookProgressDataStore::resolveCachePath(book.path, cachePath)) {
+      std::unique_ptr<BookMetadataCache> metadata(new (std::nothrow) BookMetadataCache(cachePath));
+      if (metadata && metadata->load() && metadata->getSpineCount() > 0) {
+        data.positionTotal = static_cast<uint32_t>(metadata->getSpineCount());
+        data.positionCurrent =
+            std::clamp(static_cast<uint32_t>(progress.spineIndex + 1), uint32_t{1}, data.positionTotal);
+      }
+    }
+  } else if (hasProgress && progress.pageCount > 0) {
+    data.positionTotal = progress.pageCount;
+    data.positionCurrent = std::clamp(progress.page, uint32_t{1}, progress.pageCount);
+  }
+
+  if (data.positionTotal > 0) {
+    data.hpPercent = static_cast<float>(data.positionCurrent) * 100.0f / static_cast<float>(data.positionTotal);
+  }
+
+  const PokemonAssignment assignment = PokemonProgress::loadForBook(book.path);
+  data.valid = assignment.valid;
+  data.speciesId = assignment.valid ? PokemonProgress::activeSpeciesId(assignment, data.level) : 0;
+  if (data.speciesId > 0) {
+    data.spritePath = PokemonSpriteCache::spritePath(data.speciesId);
+  }
+  return data;
+}
+
+const CachedSlotData& slotDataFor(const RecentBook& book) {
+  const auto cached = g_partySlotCache.find(book.path);
+  if (cached != g_partySlotCache.end()) {
+    return cached->second;
+  }
+  return g_partySlotCache.emplace(book.path, loadSlotData(book)).first->second;
+}
+
+void drawPokemonOrBook(const GfxRenderer& renderer, const RecentBook& book, const CachedSlotData& data, const int x,
+                       const int y, const int size) {
+  if (size <= 0) {
+    return;
+  }
+  if (data.valid && data.speciesId > 0 && drawSpriteInBox(renderer, data.spritePath, x, y, size)) {
+    return;
+  }
+  drawBookIcon(renderer, book, x, y, size);
+}
+
+void drawFeaturedSlot(const GfxRenderer& renderer, const int x, const int y, const int w, const int h,
+                      const RecentBook& book, const bool selected) {
   renderer.fillRoundedRect(x, y, w, h, kCorner, Color::LightGray);
   renderer.drawRoundedRect(x, y, w, h, 2, kCorner, true);
 
-  CachedSlotData cachedData;
-  auto it = g_partySlotCache.find(book.path);
-  if (it != g_partySlotCache.end()) {
-    cachedData = it->second;
-  } else {
-    BookProgressDataStore::ProgressData pd;
-    cachedData.percent = BookProgressDataStore::loadProgress(book.path, pd) ? pd.percent : 0.0f;
-    cachedData.level = PokemonProgress::levelForPercent(cachedData.percent);
-
-    PokemonAssignment assignment = PokemonProgress::loadForBook(book.path);
-    cachedData.valid = assignment.valid;
-    if (assignment.valid) {
-      cachedData.speciesId = PokemonProgress::activeSpeciesId(assignment, cachedData.level);
-      cachedData.speciesName = assignment.name;
-    } else {
-      cachedData.speciesId = 0;
-      cachedData.speciesName = "";
-    }
-
-    if (cachedData.speciesId > 0) {
-      cachedData.spritePath = PokemonSpriteCache::spritePath(cachedData.speciesId);
-    } else {
-      cachedData.spritePath = "";
-    }
-
-    g_partySlotCache[book.path] = cachedData;
-  }
-
-  // 1. Title row first across full tile width
-  const int titleMaxW = std::max(0, w - 2 * kPad);
-  const std::string nickname = renderer.truncatedText(UI_12_FONT_ID, book.title.c_str(), titleMaxW);
-  renderer.drawText(UI_12_FONT_ID, x + kPad, y + kPad, nickname.c_str(), true);
-
-  const int lineH = renderer.getLineHeight(UI_12_FONT_ID);
+  const CachedSlotData& data = slotDataFor(book);
+  const int titleH = renderer.getLineHeight(UI_12_FONT_ID);
   const int smallH = renderer.getLineHeight(SMALL_FONT_ID);
-
-  // 2. Sprite at NATIVE 96px (no upscale in the slot) at the left edge below title
-  const int spriteSize = std::max(0, std::min(96, h - 2 * kPad - lineH - 4));
+  const int spriteSize = std::max(0, std::min(96, h - 2 * kPad));
   const int spriteX = x + kPad;
-  const int spriteY = y + kPad + lineH + 4;
+  const int spriteY = y + (h - spriteSize) / 2;
+  drawPokemonOrBook(renderer, book, data, spriteX, spriteY, spriteSize);
 
-  bool drewSprite = false;
-  if (cachedData.valid && cachedData.speciesId > 0 && spriteSize > 0) {
-    drewSprite = drawSpriteInBox(renderer, cachedData.spritePath, spriteX, spriteY, spriteSize);
-  }
-  if (!drewSprite && spriteSize > 0) {
-    drawPokeball(renderer, spriteX + spriteSize / 2, spriteY + spriteSize / 2, spriteSize / 2 - 2);
-  }
-
-  // 3. Right column in the remaining width
   const int textX = spriteX + spriteSize + kPad;
-  const int textRight = x + w - kPad;
-  const int remainingWidth = std::max(0, textRight - textX);
+  const int right = x + w - kPad;
+  const int textW = std::max(0, right - textX);
+  if (textW > 0) {
+    const std::string title = renderer.truncatedText(UI_12_FONT_ID, book.title.c_str(), textW);
+    renderer.drawText(UI_12_FONT_ID, textX, y + kPad, title.c_str(), true, EpdFontFamily::BOLD);
 
-  const int coverX = textX + std::max(0, (remainingWidth - PokemonPartyTheme::kCoverIconSize) / 2);
-  const int coverY = y + kPad + lineH + 4;
-
-  if (remainingWidth > 0) {
-    if (coverY + PokemonPartyTheme::kCoverIconSize <= y + h) {
-      drawBookIcon(renderer, book, coverX, coverY, PokemonPartyTheme::kCoverIconSize);
-    } else {
-      const int shrunkSize = (y + h) - coverY;
-      if (shrunkSize >= 24) {
-        drawBookIcon(renderer, book, coverX, coverY, shrunkSize);
-      }
-    }
-  }
-
-  const int hpY = coverY + PokemonPartyTheme::kCoverIconSize + 4;
-  if (remainingWidth > 0 && hpY + kHpLabelH < y + h) {
-    drawHpBar(renderer, textX, hpY, remainingWidth, cachedData.percent);
-  }
-
-  const int bottomY = y + h - kPad - smallH;
-  if (remainingWidth > 0 && bottomY > hpY) {
     char levelText[16];
-    std::snprintf(levelText, sizeof(levelText), "Lvl %d", cachedData.level);
-    renderer.drawText(SMALL_FONT_ID, textX, bottomY, levelText, true);
+    std::snprintf(levelText, sizeof(levelText), "Lv %d", data.level);
+    renderer.drawText(SMALL_FONT_ID, textX, y + kPad + titleH + 2, levelText, true);
 
-    if (cachedData.valid && !cachedData.speciesName.empty()) {
-      char speciesUpper[64];
-      size_t len = std::min(cachedData.speciesName.size(), sizeof(speciesUpper) - 1);
-      for (size_t idx = 0; idx < len; ++idx) {
-        speciesUpper[idx] = static_cast<char>(std::toupper(static_cast<unsigned char>(cachedData.speciesName[idx])));
-      }
-      speciesUpper[len] = '\0';
-
-      // The species shares the bottom row with the level text: budget it
-      // against the space RIGHT of "Lvl N", not the full column width, or the
-      // right-aligned name overprints the level on narrow cards.
-      const int levelW = renderer.getTextWidth(SMALL_FONT_ID, levelText);
-      const int speciesAvail = remainingWidth - levelW - 6;
-      if (speciesAvail > 12) {
-        const std::string speciesText = renderer.truncatedText(SMALL_FONT_ID, speciesUpper, speciesAvail);
-        const int speciesW = renderer.getTextWidth(SMALL_FONT_ID, speciesText.c_str());
-        const int speciesX = std::max(textX + levelW + 6, textRight - speciesW);
-        renderer.drawText(SMALL_FONT_ID, speciesX, bottomY, speciesText.c_str(), true, EpdFontFamily::BOLD);
-      }
-    }
+    const int fractionY = y + h - kPad - smallH;
+    const int hpY = fractionY - kFractionGap - kHpLabelH;
+    drawHpBar(renderer, textX, hpY, textW, data.hpPercent);
+    drawFraction(renderer, data, right, fractionY);
   }
 
   if (selected) {
-    renderer.drawRoundedRect(x - 2, y - 2, w + 4, h + 4, kSelectBorder, kCorner + 2, true);
-    renderer.drawRoundedRect(x - 1, y - 1, w + 2, h + 2, 1, kCorner + 1, true);
+    drawSelectionRing(renderer, x, y, w, h);
   }
 }
 
-void drawEmptySlot(const GfxRenderer& renderer, const int x, const int y, const int w, const int h) {
-  renderer.drawRoundedRect(x, y, w, h, 1, kCorner, true);
+void drawCompactSlot(const GfxRenderer& renderer, const int x, const int y, const int w, const int h,
+                     const RecentBook& book, const bool selected) {
+  renderer.fillRoundedRect(x, y, w, h, kCorner, Color::LightGray);
+  renderer.drawRoundedRect(x, y, w, h, 2, kCorner, true);
+
+  const CachedSlotData& data = slotDataFor(book);
+  const int smallH = renderer.getLineHeight(SMALL_FONT_ID);
+  const int spriteSize = std::max(0, h - 2 * kPad);
+  const int spriteX = x + kPad;
+  const int spriteY = y + kPad;
+  drawPokemonOrBook(renderer, book, data, spriteX, spriteY, spriteSize);
+
+  const int textX = spriteX + spriteSize + kPad;
+  const int right = x + w - kPad;
+  const int contentW = std::max(0, right - textX);
+  const int leftW = contentW * 2 / 5;
+  const int hpX = textX + leftW + kPad;
+  const int hpW = std::max(0, right - hpX);
+
+  if (leftW > 0) {
+    const std::string title = renderer.truncatedText(UI_10_FONT_ID, book.title.c_str(), leftW);
+    renderer.drawText(UI_10_FONT_ID, textX, y + kPad, title.c_str(), true, EpdFontFamily::BOLD);
+    char levelText[16];
+    std::snprintf(levelText, sizeof(levelText), "Lv %d", data.level);
+    renderer.drawText(SMALL_FONT_ID, textX, y + h - kPad - smallH, levelText, true);
+  }
+
+  if (hpW > 0) {
+    const int fractionY = y + h - kPad - smallH;
+    const int hpY = std::max(y + kPad, fractionY - kFractionGap - kHpLabelH);
+    drawHpBar(renderer, hpX, hpY, hpW, data.hpPercent);
+    drawFraction(renderer, data, right, fractionY);
+  }
+
+  if (selected) {
+    drawSelectionRing(renderer, x, y, w, h);
+  }
 }
 }  // namespace
 
@@ -290,30 +311,24 @@ void PokemonPartyTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
                                             float /*progressPercent*/) const {
   drawPartyBackground(renderer, rect);
 
-  const int bookCount = static_cast<int>(recentBooks.size());
-  const int usedRows = bookCount > kCols ? kRows : 1;
+  const int bookCount = std::min(static_cast<int>(recentBooks.size()), kSlots);
+  if (bookCount <= 0) {
+    return;
+  }
+
   const int areaW = rect.width - 2 * kMargin;
   const int areaH = rect.height - 2 * kMargin;
-  const int tileW = (areaW - kGap * (kCols - 1)) / kCols;
-  const int tileH = (areaH - kGap * (usedRows - 1)) / usedRows;
+  const int rowsAreaH = std::max(0, areaH - kGap * kCompactSlots);
+  const int rowH = rowsAreaH / (kCompactSlots + 2);
+  const int featuredH = std::max(0, areaH - kCompactSlots * (rowH + kGap));
+  const int x = rect.x + kMargin;
+  const int featuredY = rect.y + kMargin;
 
-  for (int i = 0; i < kSlots; ++i) {
-    const int col = i % kCols;
-    const int row = i / kCols;
-    if (row >= usedRows) {
-      continue;
-    }
+  drawFeaturedSlot(renderer, x, featuredY, areaW, featuredH, recentBooks[0], selectorIndex == 0);
 
-    const int x = rect.x + kMargin + col * (tileW + kGap);
-    const int y = rect.y + kMargin + row * (tileH + kGap);
-    const bool selected = selectorIndex == i;
-
-    if (i >= bookCount) {
-      drawEmptySlot(renderer, x, y, tileW, tileH);
-      continue;
-    }
-
-    drawPartySlot(renderer, x, y, tileW, tileH, recentBooks[static_cast<size_t>(i)], selected);
+  for (int i = 1; i < bookCount; ++i) {
+    const int rowY = featuredY + featuredH + kGap + (i - 1) * (rowH + kGap);
+    drawCompactSlot(renderer, x, rowY, areaW, rowH, recentBooks[static_cast<size_t>(i)], selectorIndex == i);
   }
 }
 

@@ -50,6 +50,7 @@ pushd "$ROOT_DIR" >/dev/null
   -Ilib/Utf8 \
   -Ilib/Logging \
   -Ilib/Memory \
+  -Ilib/Epub \
   -Ilib/Serialization \
   -Iopen-x4-sdk/libs/display/EInkDisplay/include \
   -Iopen-x4-sdk/libs/hardware/InputManager/include \
@@ -65,6 +66,7 @@ pushd "$ROOT_DIR" >/dev/null
   src/util/PokemonBookDataStore.cpp \
   src/util/RecentBooksStore.cpp \
   tools/screen-harness/stubs/JsonSettingsIO.cpp \
+  tools/screen-harness/stubs/BookMetadataCache.cpp \
   src/components/UITheme.cpp \
   src/components/themes/BaseTheme.cpp \
   src/components/themes/minimal/MinimalTheme.cpp \
@@ -109,6 +111,7 @@ pushd "$ROOT_DIR" >/dev/null
   -Ilib/GfxRenderer \
   -Ilib/Logging \
   -Ilib/Memory \
+  -Ilib/Epub \
   -Ilib/Serialization \
   -Isrc \
   "${JSON_INCLUDE[@]}" \
@@ -122,6 +125,7 @@ pushd "$ROOT_DIR" >/dev/null
   src/util/RecentBooksStore.cpp \
   src/util/PokemonPartySprites.cpp \
   tools/screen-harness/stubs/JsonSettingsIO.cpp \
+  tools/screen-harness/stubs/BookMetadataCache.cpp \
   lib/GfxRenderer/Bitmap.cpp \
   lib/GfxRenderer/BitmapHelpers.cpp \
   lib/Logging/Logging.cpp \
