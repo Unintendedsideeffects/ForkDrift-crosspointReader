@@ -372,10 +372,11 @@ void OpdsBookBrowserActivity::performSearch(const std::string& query) {
     std::string queryStr = url.substr(qPos + 1);
     std::string baseUrl = url.substr(0, qPos);
     std::vector<std::string> params;
-    size_t pos = 0;
+    size_t scanPos = 0;
     while (true) {
-      size_t nextAmp = queryStr.find('&', pos);
-      std::string param = (nextAmp == std::string::npos) ? queryStr.substr(pos) : queryStr.substr(pos, nextAmp - pos);
+      size_t nextAmp = queryStr.find('&', scanPos);
+      std::string param =
+          (nextAmp == std::string::npos) ? queryStr.substr(scanPos) : queryStr.substr(scanPos, nextAmp - scanPos);
       bool isEmpty = false;
       if (param.empty()) {
         isEmpty = true;
@@ -391,7 +392,7 @@ void OpdsBookBrowserActivity::performSearch(const std::string& query) {
         params.push_back(param);
       }
       if (nextAmp == std::string::npos) break;
-      pos = nextAmp + 1;
+      scanPos = nextAmp + 1;
     }
     std::string newQuery;
     for (const auto& p : params) {

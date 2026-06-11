@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 
 #include "ButtonRemapActivity.h"
 #include "ClearCacheActivity.h"
@@ -84,12 +85,9 @@ std::string enumOptionLabel(const SettingInfo& setting, const uint8_t index) {
 
 bool isSettingKeyReferencedInDependencies(const char* key, const std::vector<SettingInfo>& allSettings) {
   if (key == nullptr) return false;
-  for (const auto& s : allSettings) {
-    if (s.visibleWhen.key != nullptr && std::strcmp(s.visibleWhen.key, key) == 0) {
-      return true;
-    }
-  }
-  return false;
+  return std::any_of(allSettings.begin(), allSettings.end(), [key](const SettingInfo& s) {
+    return s.visibleWhen.key != nullptr && std::strcmp(s.visibleWhen.key, key) == 0;
+  });
 }
 
 bool controlSettingVisible(const SettingInfo& setting, const std::vector<SettingInfo>& allSettings) {
@@ -162,11 +160,8 @@ void SettingsActivity::rebuildSettingsLists() {
 
   // 1. Reading (Index 0)
   auto& readingSettings = settingsByCategory[0];
-  for (auto& setting : allSettings) {
-    if (setting.category == StrId::STR_CAT_READER) {
-      readingSettings.push_back(setting);
-    }
-  }
+  std::copy_if(allSettings.begin(), allSettings.end(), std::back_inserter(readingSettings),
+               [](const SettingInfo& s) { return s.category == StrId::STR_CAT_READER; });
   groupSettingsByTopic(readingSettings, settings_topics::kReader);
   if (!readingSettings.empty()) {
     const auto layoutHeaderIt = std::find_if(readingSettings.begin(), readingSettings.end(), [](const SettingInfo& s) {
