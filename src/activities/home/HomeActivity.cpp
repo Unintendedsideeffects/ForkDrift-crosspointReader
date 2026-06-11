@@ -33,6 +33,7 @@
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
 #include "SpiBusMutex.h"
+#include "activities/browser/OpdsBookBrowserActivity.h"
 #include "components/ScreenComponents.h"
 #include "components/UITheme.h"
 #include "components/themes/lyra/LyraCarouselTheme.h"
@@ -325,12 +326,15 @@ bool HomeActivity::isPokemonPartyHomeMode() const {
 
 void HomeActivity::buildMenuModel() {
   menuModel.clear();
-  menuModel.reserve(8);
+  menuModel.reserve(9);
 
 #if ENABLE_BOOKMARKS
   hasBookmarks = core::FeatureModules::hasCapability(core::Capability::Bookmarks) && BookmarkStore::hasAnyBookmarks();
 #endif
   const bool opds = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers});
+  // Library = direct entry into the first configured OPDS catalog; same
+  // feature exposure as the OPDS browser, gated on a server existing.
+  const bool library = opds && !OPDS_STORE.getServers().empty();
   const bool todo = core::HomeActionRegistry::shouldExpose("todo_planner", {false});
   const bool anki = core::HomeActionRegistry::shouldExpose("anki", {false});
   const bool notes = core::FeatureModules::hasCapability(core::Capability::Notes) && !todo;
@@ -339,6 +343,7 @@ void HomeActivity::buildMenuModel() {
   // holds the actions. Composition matches what the grid actually renders.
   if (homeIsGridNav()) {
     menuModel.push_back(HomeMenuId::MyLibrary);
+    if (library) menuModel.push_back(HomeMenuId::Library);
     if (todo) menuModel.push_back(HomeMenuId::Todo);
     if (anki) menuModel.push_back(HomeMenuId::Anki);
     if (notes) menuModel.push_back(HomeMenuId::Notes);
@@ -352,6 +357,7 @@ void HomeActivity::buildMenuModel() {
   if (homeIsCarouselNav()) {
     menuModel.push_back(HomeMenuId::OpenBook);
     menuModel.push_back(HomeMenuId::MyLibrary);
+    if (library) menuModel.push_back(HomeMenuId::Library);
     if (opds) menuModel.push_back(HomeMenuId::Opds);
     if (todo) menuModel.push_back(HomeMenuId::Todo);
     if (anki) menuModel.push_back(HomeMenuId::Anki);
@@ -368,6 +374,7 @@ void HomeActivity::buildMenuModel() {
   // is open; the remaining entries render as tiles below it.
   if (hasContinueReading) menuModel.push_back(HomeMenuId::ContinueReading);
   menuModel.push_back(HomeMenuId::MyLibrary);
+  if (library) menuModel.push_back(HomeMenuId::Library);
   if (opds) menuModel.push_back(HomeMenuId::Opds);
   if (todo) menuModel.push_back(HomeMenuId::Todo);
   if (anki) menuModel.push_back(HomeMenuId::Anki);
@@ -627,6 +634,8 @@ std::string HomeActivity::menuIdLabel(const HomeMenuId id, const bool gridStyle)
       return recentBooks.empty() ? "Open Book (empty)" : "Open Book";
     case HomeMenuId::MyLibrary:
       return gridStyle ? std::string(tr(STR_BOOKS)) : std::string("My Library");
+    case HomeMenuId::Library:
+      return std::string(tr(STR_LIBRARY));
     case HomeMenuId::Opds:
       return "OPDS Browser";
     case HomeMenuId::Todo:
@@ -659,6 +668,8 @@ UIIcon HomeActivity::menuIdIcon(const HomeMenuId id) const {
       return UIIcon::Book;
     case HomeMenuId::MyLibrary:
       return UIIcon::Folder;
+    case HomeMenuId::Library:
+      return UIIcon::Book;
     case HomeMenuId::Opds:
       return UIIcon::Library;
     case HomeMenuId::Todo:
@@ -695,6 +706,9 @@ void HomeActivity::activateMenuId(const HomeMenuId id) {
       break;
     case HomeMenuId::MyLibrary:
       onMyLibraryOpen();
+      break;
+    case HomeMenuId::Library:
+      onLibraryOpen();
       break;
     case HomeMenuId::Opds:
       onOpdsBrowserOpen();
@@ -2057,6 +2071,13 @@ void HomeActivity::render(RenderLock&&) {
 void HomeActivity::onContinueReading() { activityManager.goToReader(APP_STATE.openEpubPath); }
 
 void HomeActivity::onMyLibraryOpen() { activityManager.goToMyLibrary(); }
+
+void HomeActivity::onLibraryOpen() {
+  const auto& servers = OPDS_STORE.getServers();
+  if (!servers.empty()) {
+    activityManager.replaceActivity(std::make_unique<OpdsBookBrowserActivity>(renderer, mappedInput, servers[0]));
+  }
+}
 
 void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
 

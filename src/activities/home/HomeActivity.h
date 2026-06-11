@@ -26,6 +26,7 @@ enum class HomeMenuId : uint8_t {
   ContinueReading,  // classic list "book card" (slot 0 when a book is open)
   OpenBook,         // carousel: open the centered book
   MyLibrary,
+  Library,
   Opds,
   Todo,
   Anki,
@@ -93,6 +94,7 @@ class HomeActivity final : public Activity {
   std::vector<RecentBook> recentBooks;
   void onContinueReading();
   void onMyLibraryOpen();
+  void onLibraryOpen();
   void onNotesOpen();
   void onSettingsOpen();
   void onFileTransferOpen();
