@@ -123,36 +123,18 @@ bool controlSettingVisible(const SettingInfo& setting, const std::vector<Setting
   }
 }
 
-const std::vector<SettingInfo>* settingsForCategory(int categoryIndex, const std::vector<SettingInfo>& displaySettings,
-                                                    const std::vector<SettingInfo>& readerSettings,
-                                                    const std::vector<SettingInfo>& controlsSettings,
-                                                    const std::vector<SettingInfo>& systemSettings) {
-  switch (categoryIndex) {
-    case 0:
-      return &displaySettings;
-    case 1:
-      return &readerSettings;
-    case 2:
-      return &controlsSettings;
-    case 3:
-      return &systemSettings;
-    default:
-      return &displaySettings;
-  }
-}
-
 }  // namespace
 
-const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_READER,
-                                                              StrId::STR_CAT_CONTROLS, StrId::STR_CAT_SYSTEM};
+const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_TAB_READING,  StrId::STR_TAB_LOOKS,
+                                                              StrId::STR_TAB_CONTROLS, StrId::STR_TAB_CONNECT,
+                                                              StrId::STR_TAB_SYSTEM,   StrId::STR_TAB_ADVANCED};
 
 void SettingsActivity::invalidateMasterSettingsCache() { cachedMasterSettings.clear(); }
 
 void SettingsActivity::rebuildSettingsLists() {
-  displaySettings.clear();
-  readerSettings.clear();
-  controlsSettings.clear();
-  systemSettings.clear();
+  for (auto& list : settingsByCategory) {
+    list.clear();
+  }
 
   if (ESP.getFreeHeap() >= kMinHeapForSettingsRebuild) {
     const size_t priorFamilyCount = cachedMasterSettings.empty() ? 0 : sdFontSystem.registry().getFamilies().size();
@@ -167,6 +149,37 @@ void SettingsActivity::rebuildSettingsLists() {
   }
 
   const auto& allSettings = cachedMasterSettings;
+
+  // 1. Reading (Index 0)
+  auto& readingSettings = settingsByCategory[0];
+  for (auto& setting : allSettings) {
+    if (setting.category == StrId::STR_CAT_READER) {
+      readingSettings.push_back(setting);
+    }
+  }
+  groupSettingsByTopic(readingSettings, settings_topics::kReader);
+  if (!readingSettings.empty()) {
+    const auto layoutHeaderIt = std::find_if(readingSettings.begin(), readingSettings.end(), [](const SettingInfo& s) {
+      return s.type == SettingType::SECTION_HEADER && s.nameId == StrId::STR_SEC_LAYOUT;
+    });
+    const auto insertPos = layoutHeaderIt != readingSettings.end() ? layoutHeaderIt : readingSettings.end();
+    readingSettings.insert(insertPos, SettingInfo::Action(StrId::STR_MANAGE_FONTS, SettingAction::DownloadFonts));
+  }
+  readingSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
+
+  // 2. Looks (Index 1)
+  auto& looksSettings = settingsByCategory[1];
+  for (auto& setting : allSettings) {
+    if (setting.category == StrId::STR_CAT_DISPLAY) {
+      if (controlSettingVisible(setting, allSettings)) {
+        looksSettings.push_back(setting);
+      }
+    }
+  }
+  groupSettingsByTopic(looksSettings, settings_topics::kDisplay);
+
+  // 3. Controls (Index 2)
+  auto& controlsSettings = settingsByCategory[2];
   auto addControlSetting = [&](StrId nameId) {
     const auto it =
         std::find_if(allSettings.begin(), allSettings.end(), [nameId](const auto& s) { return s.nameId == nameId; });
@@ -186,63 +199,6 @@ void SettingsActivity::rebuildSettingsLists() {
     }
     LOG_ERR("SET", "Missing control setting definition for key=%s", key);
   };
-  auto addSystemSettingByKey = [&](const char* key) {
-    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
-      return setting.key && std::strcmp(setting.key, key) == 0;
-    });
-    if (it == allSettings.end()) {
-      LOG_ERR("SET", "Missing system setting definition for key=%s", key);
-      return;
-    }
-    if (controlSettingVisible(*it, allSettings)) {
-      systemSettings.push_back(*it);
-    }
-  };
-
-  auto addSystemAction = [&](SettingAction action) {
-    if (!core::FeatureModules::supportsSettingAction(action)) return;
-    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [&](const SettingInfo& setting) {
-      return setting.type == SettingType::ACTION && setting.action == action;
-    });
-    if (it != allSettings.end()) {
-      systemSettings.push_back(*it);
-    }
-  };
-  auto appendSystemTopic = [&](StrId header, const auto& addItems) {
-    const size_t before = systemSettings.size();
-    systemSettings.push_back(SettingInfo::SectionHeader(header));
-    addItems();
-    if (systemSettings.size() == before + 1) {
-      systemSettings.pop_back();
-    }
-  };
-
-  for (auto& setting : allSettings) {
-    if (setting.category == StrId::STR_NONE_OPT || setting.category == StrId::STR_CAT_CONTROLS) continue;
-    if (setting.key != nullptr &&
-        (std::strcmp(setting.key, "developerMode") == 0 || std::strcmp(setting.key, "deviceName") == 0)) {
-      continue;
-    }
-    if (setting.category == StrId::STR_CAT_SYSTEM && settings_topics::isDeferredSystemSettingKey(setting.key)) {
-      continue;
-    }
-    if (setting.category == StrId::STR_CAT_DISPLAY) {
-      if (controlSettingVisible(setting, allSettings)) {
-        displaySettings.push_back(setting);
-      }
-    } else if (setting.category == StrId::STR_CAT_READER) {
-      readerSettings.push_back(setting);
-    }
-  }
-
-  groupSettingsByTopic(displaySettings, settings_topics::kDisplay);
-  groupSettingsByTopic(readerSettings, settings_topics::kReader);
-
-  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_GENERAL));
-  for (const char* key : settings_topics::kGeneralSystemKeys) {
-    addSystemSettingByKey(key);
-  }
-
   controlsSettings.reserve(15);
   controlsSettings.push_back(SettingInfo::SectionHeader(StrId::STR_POWER_BUTTON));
   addControlSetting(StrId::STR_SHORT_PWR_BTN);
@@ -257,57 +213,131 @@ void SettingsActivity::rebuildSettingsLists() {
   addControlSettingByKey("sideButtonOrientationAware");
   addControlSetting(StrId::STR_SIDE_BTN_LONG_PRESS);
 
-  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_CONNECTIVITY));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_WIFI_NETWORKS, SettingAction::Network));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser));
-  if (core::FeatureModules::supportsSettingAction(SettingAction::CheckForUpdates)) {
-    systemSettings.push_back(SettingInfo::Action(StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates));
+  // 4. Connect (Index 3)
+  auto& connectSettings = settingsByCategory[3];
+  auto addConnectSettingByKey = [&](const char* key) {
+    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
+      return setting.key && std::strcmp(setting.key, key) == 0;
+    });
+    if (it == allSettings.end()) {
+      LOG_ERR("SET", "Missing connect setting definition for key=%s", key);
+      return;
+    }
+    if (controlSettingVisible(*it, allSettings)) {
+      connectSettings.push_back(*it);
+    }
+  };
+  auto addConnectAction = [&](SettingAction action) {
+    if (!core::FeatureModules::supportsSettingAction(action)) return;
+    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [&](const SettingInfo& setting) {
+      return setting.type == SettingType::ACTION && setting.action == action;
+    });
+    if (it != allSettings.end()) {
+      connectSettings.push_back(*it);
+    }
+  };
+  auto addConnectActionDirect = [&](StrId nameId, SettingAction action) {
+    if (!core::FeatureModules::supportsSettingAction(action)) return;
+    connectSettings.push_back(SettingInfo::Action(nameId, action));
+  };
+  auto appendConnectTopic = [&](StrId header, const auto& addItems) {
+    const size_t before = connectSettings.size();
+    connectSettings.push_back(SettingInfo::SectionHeader(header));
+    addItems();
+    if (connectSettings.size() == before + 1) {
+      connectSettings.pop_back();
+    }
+  };
+
+  const size_t beforeConnect = connectSettings.size();
+  connectSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_CONNECTIVITY));
+  addConnectActionDirect(StrId::STR_WIFI_NETWORKS, SettingAction::Network);
+  addConnectActionDirect(StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync);
+  addConnectActionDirect(StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser);
+  addConnectAction(SettingAction::TerminusSetup);
+  addConnectAction(SettingAction::SwitchToTrmnl);
+  if (connectSettings.size() == beforeConnect + 1) {
+    connectSettings.pop_back();
   }
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_SD_FIRMWARE_UPDATE, SettingAction::SdFirmwareUpdate));
-  if (core::FeatureModules::supportsSettingAction(SettingAction::Language)) {
-    systemSettings.push_back(SettingInfo::Action(StrId::STR_LANGUAGE, SettingAction::Language));
+
+  appendConnectTopic(StrId::STR_SEC_FILE_SERVER, [&] {
+    addConnectSettingByKey("usbMscPromptOnConnect");
+    addConnectSettingByKey("backgroundServerMode");
+  });
+  appendConnectTopic(StrId::STR_SEC_ANKI_CONNECT, [&] {
+    addConnectSettingByKey("ankiConnectUrl");
+    addConnectSettingByKey("ankiConnectDeck");
+  });
+
+  // 5. System (Index 4)
+  auto& systemSettings = settingsByCategory[4];
+  auto addSystemSettingByKey = [&](const char* key) {
+    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
+      return setting.key && std::strcmp(setting.key, key) == 0;
+    });
+    if (it == allSettings.end()) {
+      LOG_ERR("SET", "Missing system setting definition for key=%s", key);
+      return;
+    }
+    if (controlSettingVisible(*it, allSettings)) {
+      systemSettings.push_back(*it);
+    }
+  };
+  auto addSystemActionDirect = [&](StrId nameId, SettingAction action) {
+    if (!core::FeatureModules::supportsSettingAction(action)) return;
+    systemSettings.push_back(SettingInfo::Action(nameId, action));
+  };
+
+  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_GENERAL));
+  for (const char* key : settings_topics::kGeneralSystemKeys) {
+    addSystemSettingByKey(key);
   }
+
 #if ENABLE_WIFI_CLOCK
   systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_TIME));
   addSystemSettingByKey("timeMode");
   addSystemSettingByKey("timeZoneOffset");
 #endif
-  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_ADVANCED));
-  addSystemAction(SettingAction::TerminusSetup);
-  addSystemAction(SettingAction::SwitchToTrmnl);
-  appendSystemTopic(StrId::STR_SEC_FILE_SERVER, [&] {
-    addSystemSettingByKey("usbMscPromptOnConnect");
-    addSystemSettingByKey("backgroundServerMode");
-  });
-  appendSystemTopic(StrId::STR_SEC_ANKI_CONNECT, [&] {
-    addSystemSettingByKey("ankiConnectUrl");
-    addSystemSettingByKey("ankiConnectDeck");
-  });
+
+  addSystemActionDirect(StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates);
+  addSystemActionDirect(StrId::STR_SD_FIRMWARE_UPDATE, SettingAction::SdFirmwareUpdate);
+  addSystemActionDirect(StrId::STR_LANGUAGE, SettingAction::Language);
+
   systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_MAINTENANCE));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_VALIDATE_SLEEP_IMAGES, SettingAction::ValidateSleepImages));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_RESET_SETTINGS, SettingAction::ResetSettings));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_WIFI_NETWORKS, SettingAction::ClearWifiNetworks));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_LOGS, SettingAction::ClearLogs));
-  systemSettings.push_back(SettingInfo::Action(StrId::STR_CLEAR_CRASHES, SettingAction::ClearCrashes));
-  addSystemSettingByKey("deviceName");
-  addSystemSettingByKey("developerMode");
-  if (core::FeatureModules::supportsSettingAction(SettingAction::FactoryReset)) {
-    systemSettings.push_back(SettingInfo::Action(StrId::STR_FACTORY_RESET, SettingAction::FactoryReset));
-  }
+  addSystemActionDirect(StrId::STR_VALIDATE_SLEEP_IMAGES, SettingAction::ValidateSleepImages);
+  addSystemActionDirect(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache);
+  addSystemActionDirect(StrId::STR_CLEAR_LOGS, SettingAction::ClearLogs);
 
-  if (!readerSettings.empty()) {
-    const auto layoutHeaderIt = std::find_if(readerSettings.begin(), readerSettings.end(), [](const SettingInfo& s) {
-      return s.type == SettingType::SECTION_HEADER && s.nameId == StrId::STR_SEC_LAYOUT;
+  // 6. Advanced (Index 5)
+  auto& advancedSettings = settingsByCategory[5];
+  auto addAdvancedSettingByKey = [&](const char* key) {
+    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
+      return setting.key && std::strcmp(setting.key, key) == 0;
     });
-    const auto insertPos = layoutHeaderIt != readerSettings.end() ? layoutHeaderIt : readerSettings.end();
-    readerSettings.insert(insertPos, SettingInfo::Action(StrId::STR_MANAGE_FONTS, SettingAction::DownloadFonts));
-  }
-  readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
+    if (it == allSettings.end()) {
+      LOG_ERR("SET", "Missing advanced setting definition for key=%s", key);
+      return;
+    }
+    if (controlSettingVisible(*it, allSettings)) {
+      advancedSettings.push_back(*it);
+    }
+  };
+  auto addAdvancedActionDirect = [&](StrId nameId, SettingAction action) {
+    if (!core::FeatureModules::supportsSettingAction(action)) return;
+    advancedSettings.push_back(SettingInfo::Action(nameId, action));
+  };
 
-  currentSettings =
-      settingsForCategory(selectedCategoryIndex, displaySettings, readerSettings, controlsSettings, systemSettings);
+  advancedSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_ADVANCED));
+  addAdvancedSettingByKey("developerMode");
+  addAdvancedSettingByKey("deviceName");
+
+  advancedSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_MAINTENANCE));
+  addAdvancedActionDirect(StrId::STR_RESET_SETTINGS, SettingAction::ResetSettings);
+  addAdvancedActionDirect(StrId::STR_CLEAR_WIFI_NETWORKS, SettingAction::ClearWifiNetworks);
+  addAdvancedActionDirect(StrId::STR_CLEAR_CRASHES, SettingAction::ClearCrashes);
+  addAdvancedActionDirect(StrId::STR_FACTORY_RESET, SettingAction::FactoryReset);
+
+  currentSettings = &settingsByCategory[selectedCategoryIndex];
   settingsCount = static_cast<int>(currentSettings->size());
 }
 
@@ -396,8 +426,7 @@ void SettingsActivity::loop() {
 
   if (hasChangedCategory) {
     selectedSettingIndex = (selectedSettingIndex == 0) ? 0 : 1;
-    currentSettings =
-        settingsForCategory(selectedCategoryIndex, displaySettings, readerSettings, controlsSettings, systemSettings);
+    currentSettings = &settingsByCategory[selectedCategoryIndex];
     settingsCount = static_cast<int>(currentSettings->size());
     // Advance past any leading section headers
     while (selectedSettingIndex > 0 && selectedSettingIndex <= settingsCount &&
@@ -421,8 +450,7 @@ void SettingsActivity::enterCategory(int categoryIndex) {
   selectedCategoryIndex = categoryIndex;
   selectedSettingIndex = 1;
 
-  currentSettings =
-      settingsForCategory(selectedCategoryIndex, displaySettings, readerSettings, controlsSettings, systemSettings);
+  currentSettings = &settingsByCategory[selectedCategoryIndex];
   settingsCount = static_cast<int>(currentSettings->size());
 
   requestUpdate();

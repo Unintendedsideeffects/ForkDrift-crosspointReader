@@ -13,6 +13,7 @@
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "activities/ActivityManager.h"
+#include "activities/settings/SettingsActivity.h"
 #include "components/UITheme.h"
 
 extern ActivityManager activityManager;
@@ -424,10 +425,12 @@ class SimulatorSmokeTest {
     inputScript.clear();
     scriptIndex = 0;
     inputScript.push_back(render("Settings", 4));
-    for (int cat = 0; cat < 4; cat++) {
+    for (int cat = 0; cat < SettingsActivity::categoryCount; cat++) {
       // 4 Downs, not more: selection wraps through the tab row, and a wrapped
       // position turns the Back below into "exit Settings" (goHome). Every
       // category has at least 5 navigation stops, so 4 Downs can never wrap.
+      // Category stop counts (excluding tab row): Reading: 19, Looks: 11, Controls: 9, Connect: 5, System: 12,
+      // Advanced: 5.
       for (int i = 0; i < 4; i++) {
         addTap(MappedInputManager::Button::Down);
         inputScript.push_back(render("Settings scroll", 1));
@@ -440,16 +443,18 @@ class SimulatorSmokeTest {
   }
 
   // Drives the >4-option picker on refreshFrequency (Display tab). The category
-  // walk in buildSettingsInputScript ends with Confirm on the tab row, and the
-  // tab-row Confirm handler keeps selection on the tab row (index 0). From
-  // there Up wraps to the last list row (the un-topic'd showButtonHints) and a
-  // second Up reaches refreshFrequency, without counting the feature-gated
+  // walk in buildSettingsInputScript ends with Confirm on the tab row, wrapping
+  // to Reading (index 0). Confirm advances to the Looks tab row (index 1).
+  // From there Up wraps to the last list row (the un-topic'd showButtonHints)
+  // and a second Up reaches refreshFrequency, without counting the feature-gated
   // sleep rows in between. The value assertion in SettingsPickerDone fails
   // loudly if either assumption drifts.
   void buildSettingsPickerScript() {
     inputScript.clear();
     scriptIndex = 0;
     inputScript.push_back(hashFrame("Settings picker: start"));
+    addTap(MappedInputManager::Button::Confirm);  // Reading tab -> Looks tab
+    inputScript.push_back(render("Settings picker: Looks tab", 2));
     addTap(MappedInputManager::Button::Up);
     inputScript.push_back(render("Settings picker: last row", 2));
     inputScript.push_back(checkHashDiff("Settings picker: after first Up"));

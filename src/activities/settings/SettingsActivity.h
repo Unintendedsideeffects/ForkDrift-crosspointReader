@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <atomic>
 
 #include "SettingInfo.h"
@@ -13,15 +14,16 @@ class SettingsActivity final : public Activity {
   int settingsCount = 0;
   bool firstRenderDone = false;
 
+ public:
+  static constexpr int categoryCount = 6;
+
+ private:
   // Per-category settings derived from shared list + device-only actions
-  std::vector<SettingInfo> displaySettings;
-  std::vector<SettingInfo> readerSettings;
-  std::vector<SettingInfo> controlsSettings;
-  std::vector<SettingInfo> systemSettings;
+  std::array<std::vector<SettingInfo>, categoryCount> settingsByCategory;
   const std::vector<SettingInfo>* currentSettings = nullptr;
   std::vector<SettingInfo> cachedMasterSettings;
 
-  static constexpr int categoryCount = 4;
+ public:
   static const StrId categoryNames[categoryCount];
 
  protected:
