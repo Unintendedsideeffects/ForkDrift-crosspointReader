@@ -638,6 +638,16 @@ Success response:
 object terminated by `\n`. The firmware must reply with a single JSON object
 terminated by `\n`.
 
+**Stream discipline:** the JSON-RPC channel is the same CDC stream the
+firmware uses for log output. The firmware suppresses serial log output while
+a protocol session is active (from the first received command line until 60 s
+pass without a complete command, or until the protocol is reset). Clients must
+still tolerate stray non-JSON lines — especially before the first response —
+by skipping any line that does not parse as a JSON object instead of failing
+the command. The firmware's CDC RX buffer holds one outstanding command line
+(up to ~4.2 KB for `ota_chunk`); clients must not pipeline a second command
+before the previous response arrives.
+
 **Command format:**
 ```json
 {"cmd": "<command>", "arg": <argument>}

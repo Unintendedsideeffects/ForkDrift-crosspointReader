@@ -39,6 +39,10 @@ constexpr uint8_t CROSSPOINT_PROTOCOL_VERSION = 1;
 static char s_lineBuf[4200];
 static int s_lineLen = 0;
 
+// Serial-log quiet-mode session tracking (see loop()).
+constexpr unsigned long kSessionIdleMs = 60000;
+static unsigned long s_lastCommandMs = 0;
+
 // File upload state machine ───────────────────────────────────────────────
 static HalFile s_uploadFile;
 static bool s_uploadInProgress = false;
@@ -1078,13 +1082,24 @@ static void processCommand(const char* line) {
 // ── Public interface ───────────────────────────────────────────────────────
 
 void UsbSerialProtocol::loop() {
+  // Log output shares the CDC stream with the JSON-RPC responses; while a
+  // protocol session is active, serial logging is suppressed so log lines
+  // can't interleave with (and corrupt) responses. The session is presumed
+  // over after 60s without a complete command.
+  if (isSerialLogSuppressed() && millis() - s_lastCommandMs > kSessionIdleMs) {
+    setSerialLogSuppressed(false);
+  }
   while (logSerial.available()) {
     const int c = logSerial.read();
     if (c < 0) break;
     if (c == '\r') continue;  // tolerate CRLF line endings
     if (c == '\n') {
       s_lineBuf[s_lineLen] = '\0';
-      if (s_lineLen > 0) processCommand(s_lineBuf);
+      if (s_lineLen > 0) {
+        setSerialLogSuppressed(true);
+        s_lastCommandMs = millis();
+        processCommand(s_lineBuf);
+      }
       s_lineLen = 0;
       return;  // process one command per loop() call
     }
@@ -1097,6 +1112,7 @@ void UsbSerialProtocol::loop() {
 }
 
 void UsbSerialProtocol::reset() {
+  setSerialLogSuppressed(false);
   s_lineLen = 0;
   if (s_uploadInProgress) {
     SpiBusMutex::Guard guard;

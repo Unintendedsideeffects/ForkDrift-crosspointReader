@@ -38,7 +38,12 @@ namespace {
 constexpr char DEVELOPER_LOG_FILE[] = "/crosspoint-debug.log";
 bool developerModeLoggingEnabled = false;
 bool developerLogWriteInProgress = false;
+bool serialLogSuppressed = false;
 }  // namespace
+
+bool isSerialLogSuppressed() { return serialLogSuppressed; }
+
+void setSerialLogSuppressed(const bool suppressed) { serialLogSuppressed = suppressed; }
 
 bool isDeveloperModeLoggingEnabled() { return developerModeLoggingEnabled; }
 
@@ -136,7 +141,7 @@ void logPrintf(const char* level, const char* origin, const char* format, ...) {
     }
   }
   va_end(args);
-  if (logSerial) {
+  if (logSerial && !serialLogSuppressed) {
     logSerial.print(buf);
   }
   addToLogRingBuffer(buf);

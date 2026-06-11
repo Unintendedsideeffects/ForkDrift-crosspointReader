@@ -53,6 +53,14 @@ void logPrintf(const char* level, const char* origin, const char* format, ...);
 bool isDeveloperModeLoggingEnabled();
 void setDeveloperModeLoggingEnabled(bool enabled);
 
+// Gates ONLY the serial (CDC) output of LOG_* — the crash-report ring buffer
+// and developer SD log keep receiving entries. Used by the USB serial JSON-RPC
+// protocol, which shares the CDC stream with logging: stray log lines corrupt
+// in-flight JSON responses. Written from the main loop only; other tasks read
+// it without synchronization (a torn read costs at most one stray log line).
+bool isSerialLogSuppressed();
+void setSerialLogSuppressed(bool suppressed);
+
 #ifdef ENABLE_SERIAL_LOG
 #if LOG_LEVEL >= 0
 #define LOG_ERR(origin, format, ...) logPrintf("ERR", origin, format "\n", ##__VA_ARGS__)
@@ -99,7 +107,18 @@ bool sanitizeLogHead();
 
 class MySerialImpl : public Print {
  public:
-  void begin(unsigned long baud) { logSerial.begin(baud); }
+  void begin(unsigned long baud) {
+#ifndef SIMULATOR
+    // USB serial JSON-RPC lines reach ~4.2KB (ota_chunk, see
+    // UsbSerialProtocol.cpp); HWCDC's default RX buffer (256B) drops inbound
+    // bytes whenever the main loop can't drain promptly — an e-ink render
+    // blocks it for seconds. 8KB holds one outstanding protocol line with
+    // headroom. Must be called before begin() to take effect. Only costs
+    // DRAM when USB is connected at boot (the only path that calls begin()).
+    logSerial.setRxBufferSize(8192);
+#endif
+    logSerial.begin(baud);
+  }
 
   // Support boolean conversion for compatibility with code like:
 
