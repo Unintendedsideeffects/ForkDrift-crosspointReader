@@ -257,6 +257,31 @@ void demoteCarouselToDiskOnly() {
   }
   gCarouselCache.frameCount = 0;
 }
+
+struct NegativeExistCache {
+  static constexpr size_t CAPACITY = 64;
+  size_t hashes[CAPACITY] = {0};
+  bool occupied[CAPACITY] = {false};
+
+  void clear() {
+    for (size_t i = 0; i < CAPACITY; ++i) {
+      occupied[i] = false;
+    }
+  }
+
+  void add(size_t h) {
+    size_t idx = h % CAPACITY;
+    hashes[idx] = h;
+    occupied[idx] = true;
+  }
+
+  bool contains(size_t h) const {
+    size_t idx = h % CAPACITY;
+    return occupied[idx] && hashes[idx] == h;
+  }
+};
+
+static NegativeExistCache g_homeNegativeCache;
 }  // namespace
 
 static_assert(HomeActivity::kMaxCachedBooks >= LyraCarouselMetrics::values.homeRecentBooksCount,
@@ -352,6 +377,7 @@ void HomeActivity::buildMenuModel() {
 }
 
 void HomeActivity::loadRecentBooks() {
+  g_homeNegativeCache.clear();
   auto metrics = UITheme::getInstance().getMetrics();
   const int maxBooks = metrics.homeRecentBooksCount;
 
@@ -679,7 +705,17 @@ void HomeActivity::activateMenuId(const HomeMenuId id) {
 
 bool HomeActivity::drawCoverAt(const std::string& coverPath, const int x, const int y, const int width,
                                const int height) const {
-  if (coverPath.empty() || !Storage.exists(coverPath.c_str())) {
+  if (coverPath.empty()) {
+    return false;
+  }
+
+  size_t h = std::hash<std::string>{}(coverPath);
+  if (g_homeNegativeCache.contains(h)) {
+    return false;
+  }
+
+  if (!Storage.exists(coverPath.c_str())) {
+    g_homeNegativeCache.add(h);
     return false;
   }
 
@@ -1798,10 +1834,39 @@ void HomeActivity::render(RenderLock&&) {
         }
         int wordWidth = renderer.getTextWidth(UI_12_FONT_ID, word.c_str());
         if (wordWidth > maxLineWidth) {
-          while (renderer.getTextWidth(UI_12_FONT_ID, (word + "...").c_str()) > maxLineWidth && !word.empty()) {
-            utf8RemoveLastChar(word);
+          // 120 char boundaries (240B stack, under the <256B local rule): a
+          // word longer than that can never fit on a line, so the binary
+          // search outcome is unchanged by the cap.
+          uint16_t utf8Indices[120];
+          int utf8Count = 0;
+          for (size_t i = 0; i < word.size() && i <= UINT16_MAX; ++i) {
+            if ((static_cast<unsigned char>(word[i]) & 0xC0) != 0x80) {
+              if (utf8Count < 120) {
+                utf8Indices[utf8Count++] = static_cast<uint16_t>(i);
+              } else {
+                break;
+              }
+            }
           }
-          word += "...";
+
+          int low = 0;
+          int high = utf8Count;
+          int bestMid = 0;
+
+          while (low <= high) {
+            int mid = low + (high - low) / 2;
+            size_t len = (mid < utf8Count) ? utf8Indices[mid] : word.size();
+            std::string candidate = word.substr(0, len) + "...";
+            if (renderer.getTextWidth(UI_12_FONT_ID, candidate.c_str()) <= maxLineWidth) {
+              bestMid = mid;
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+
+          size_t finalLen = (bestMid < utf8Count) ? utf8Indices[bestMid] : word.size();
+          word = word.substr(0, finalLen) + "...";
         }
 
         int curWidth = renderer.getTextWidth(UI_12_FONT_ID, currentLine.c_str());
@@ -1841,10 +1906,36 @@ void HomeActivity::render(RenderLock&&) {
         titleYStart += renderer.getLineHeight(UI_10_FONT_ID) * 0.5;
         std::string author = lastBookAuthor;
         if (renderer.getTextWidth(UI_10_FONT_ID, author.c_str()) > maxLineWidth) {
-          while (renderer.getTextWidth(UI_10_FONT_ID, (author + "...").c_str()) > maxLineWidth && !author.empty()) {
-            utf8RemoveLastChar(author);
+          int utf8Indices[256];
+          int utf8Count = 0;
+          for (size_t i = 0; i < author.size(); ++i) {
+            if ((static_cast<unsigned char>(author[i]) & 0xC0) != 0x80) {
+              if (utf8Count < 256) {
+                utf8Indices[utf8Count++] = i;
+              } else {
+                break;
+              }
+            }
           }
-          author += "...";
+
+          int low = 0;
+          int high = utf8Count;
+          int bestMid = 0;
+
+          while (low <= high) {
+            int mid = low + (high - low) / 2;
+            size_t len = (mid < utf8Count) ? utf8Indices[mid] : author.size();
+            std::string candidate = author.substr(0, len) + "...";
+            if (renderer.getTextWidth(UI_10_FONT_ID, candidate.c_str()) <= maxLineWidth) {
+              bestMid = mid;
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+
+          size_t finalLen = (bestMid < utf8Count) ? utf8Indices[bestMid] : author.size();
+          author = author.substr(0, finalLen) + "...";
         }
         renderer.drawCenteredText(UI_10_FONT_ID, titleYStart, author.c_str(), !bookSelected);
       }

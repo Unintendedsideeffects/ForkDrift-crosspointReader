@@ -93,9 +93,35 @@ void sortFileList(std::vector<std::string>& strs) {
     return *s1 == '\0' && *s2 != '\0';
   });
 }
+
+struct NegativeExistCache {
+  static constexpr size_t CAPACITY = 64;
+  size_t hashes[CAPACITY] = {0};
+  bool occupied[CAPACITY] = {false};
+
+  void clear() {
+    for (size_t i = 0; i < CAPACITY; ++i) {
+      occupied[i] = false;
+    }
+  }
+
+  void add(size_t h) {
+    size_t idx = h % CAPACITY;
+    hashes[idx] = h;
+    occupied[idx] = true;
+  }
+
+  bool contains(size_t h) const {
+    size_t idx = h % CAPACITY;
+    return occupied[idx] && hashes[idx] == h;
+  }
+};
+
+NegativeExistCache g_negativeCache;
 }  // namespace
 
 void MyLibraryActivity::loadFiles() {
+  g_negativeCache.clear();
   SpiBusMutex::Guard guard;
   files.clear();
 
@@ -130,6 +156,7 @@ void MyLibraryActivity::loadFiles() {
 }
 
 void MyLibraryActivity::loadRecentBooks() {
+  g_negativeCache.clear();
   recentBooks.clear();
   const auto& books = RECENT_BOOKS.getBooks();
   recentBooks.reserve(books.size());
@@ -505,7 +532,13 @@ bool MyLibraryActivity::drawCoverAt(const std::string& path, const int x, const 
   std::string cacheKey = BookCachePath::build("/.crosspoint", "epub_", path);
   std::string thumbPath = cacheKey + "/thumb_" + std::to_string(height) + ".bmp";
 
+  size_t h = std::hash<std::string>{}(thumbPath);
+  if (g_negativeCache.contains(h)) {
+    return false;
+  }
+
   if (!Storage.exists(thumbPath.c_str())) {
+    g_negativeCache.add(h);
     return false;
   }
 

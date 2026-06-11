@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
+#include <cstring>
 #include <string>
 
 #include "I18n.h"
@@ -396,6 +397,41 @@ void BaseTheme::drawSubHeader(const GfxRenderer& renderer, Rect rect, const char
   renderer.drawText(UI_12_FONT_ID, currentX, rect.y, truncatedLabel.c_str(), true, EpdFontFamily::REGULAR);
 }
 
+namespace {
+struct TabWidthCacheEntry {
+  const char* label = nullptr;
+  EpdFontFamily::Style style = EpdFontFamily::REGULAR;
+  int width = 0;
+};
+
+constexpr size_t TAB_WIDTH_CACHE_SIZE = 16;
+static TabWidthCacheEntry s_tabWidthCache[TAB_WIDTH_CACHE_SIZE];
+static size_t s_tabWidthCacheCount = 0;
+static size_t s_tabWidthCacheNext = 0;
+
+static int getTabLabelWidth(const GfxRenderer& renderer, const char* label, EpdFontFamily::Style style) {
+  if (!label) return 0;
+  for (size_t i = 0; i < s_tabWidthCacheCount; ++i) {
+    if (s_tabWidthCache[i].label == label || strcmp(s_tabWidthCache[i].label, label) == 0) {
+      if (s_tabWidthCache[i].style == style) {
+        s_tabWidthCache[i].label = label;
+        return s_tabWidthCache[i].width;
+      }
+    }
+  }
+
+  int w = renderer.getTextWidth(UI_12_FONT_ID, label, style);
+
+  if (s_tabWidthCacheCount < TAB_WIDTH_CACHE_SIZE) {
+    s_tabWidthCache[s_tabWidthCacheCount++] = {label, style, w};
+  } else {
+    s_tabWidthCache[s_tabWidthCacheNext] = {label, style, w};
+    s_tabWidthCacheNext = (s_tabWidthCacheNext + 1) % TAB_WIDTH_CACHE_SIZE;
+  }
+  return w;
+}
+}  // namespace
+
 void BaseTheme::drawTabBar(const GfxRenderer& renderer, const Rect rect, const std::vector<TabInfo>& tabs,
                            bool selected) const {
   constexpr int underlineHeight = 2;  // Height of selection underline
@@ -407,7 +443,7 @@ void BaseTheme::drawTabBar(const GfxRenderer& renderer, const Rect rect, const s
 
   for (const auto& tab : tabs) {
     const int textWidth =
-        renderer.getTextWidth(UI_12_FONT_ID, tab.label, tab.selected ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
+        getTabLabelWidth(renderer, tab.label, tab.selected ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
 
     // Draw underline for selected tab
     if (tab.selected) {
