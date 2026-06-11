@@ -49,7 +49,7 @@ constexpr int kHpLabelW = 18;
 constexpr int kHpLabelH = 12;
 constexpr int kSelectBorder = 4;
 constexpr int kStripeStep = 8;
-constexpr int kCoverIconSize = 56;
+
 constexpr int kMenuCols = 2;
 constexpr int kMenuIconSize = 24;
 constexpr int kMenuCornerRadius = 6;
@@ -129,8 +129,17 @@ bool drawSpriteInBox(const GfxRenderer& renderer, const std::string& path, const
 }
 
 void drawBookIcon(const GfxRenderer& renderer, const RecentBook& book, const int x, const int y, const int size) {
-  if (drawBmpInBox(renderer, book.coverBmpPath, x, y, size)) {
-    return;
+  if (!book.coverBmpPath.empty()) {
+    const std::string squarePath = UITheme::getCoverThumbPath(book.coverBmpPath, PokemonPartyTheme::kCoverIconSize,
+                                                              PokemonPartyTheme::kCoverIconSize);
+    if (!squarePath.empty() && Storage.exists(squarePath.c_str())) {
+      if (drawBmpInBox(renderer, squarePath, x, y, size)) {
+        return;
+      }
+    }
+    if (drawBmpInBox(renderer, book.coverBmpPath, x, y, size)) {
+      return;
+    }
   }
   const int iconX = x + (size - 24) / 2;
   const int iconY = y + (size - 24) / 2;
@@ -214,12 +223,12 @@ void drawPartySlot(const GfxRenderer& renderer, const int x, const int y, const 
   const int textRight = x + w - kPad;
   const int remainingWidth = std::max(0, textRight - textX);
 
-  const int coverX = textX + std::max(0, (remainingWidth - kCoverIconSize) / 2);
+  const int coverX = textX + std::max(0, (remainingWidth - PokemonPartyTheme::kCoverIconSize) / 2);
   const int coverY = y + kPad + lineH + 4;
 
   if (remainingWidth > 0) {
-    if (coverY + kCoverIconSize <= y + h) {
-      drawBookIcon(renderer, book, coverX, coverY, kCoverIconSize);
+    if (coverY + PokemonPartyTheme::kCoverIconSize <= y + h) {
+      drawBookIcon(renderer, book, coverX, coverY, PokemonPartyTheme::kCoverIconSize);
     } else {
       const int shrunkSize = (y + h) - coverY;
       if (shrunkSize >= 24) {
@@ -228,7 +237,7 @@ void drawPartySlot(const GfxRenderer& renderer, const int x, const int y, const 
     }
   }
 
-  const int hpY = coverY + kCoverIconSize + 4;
+  const int hpY = coverY + PokemonPartyTheme::kCoverIconSize + 4;
   if (remainingWidth > 0 && hpY + kHpLabelH < y + h) {
     drawHpBar(renderer, textX, hpY, remainingWidth, cachedData.percent);
   }

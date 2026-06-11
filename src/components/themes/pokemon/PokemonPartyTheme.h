@@ -26,6 +26,7 @@ constexpr ThemeMetrics values = [] {
 
 class PokemonPartyTheme : public ForkDriftTheme {
  public:
+  static constexpr int kCoverIconSize = 56;
   static void invalidateCache();
   void drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                            const int selectorIndex, bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,

@@ -451,18 +451,32 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
     }
 
     if (!book.coverBmpPath.empty()) {
-      if (usesDualSizeCoverThumbs) {
+      if (usesDualSizeCoverThumbs || isPokemonPartyHomeMode()) {
         int centerW = 0;
         int centerH = 0;
         int sideW = 0;
         int sideH = 0;
-        getCarouselThumbSizes(centerW, centerH, sideW, sideH);
-        const std::string centerPath = UITheme::getCoverThumbPath(book.coverBmpPath, centerW, centerH);
-        const std::string sidePath = UITheme::getCoverThumbPath(book.coverBmpPath, sideW, sideH);
-        const bool centerMissing = !Storage.exists(centerPath.c_str());
-        const bool sideMissing = !Storage.exists(sidePath.c_str());
+        if (usesDualSizeCoverThumbs) {
+          getCarouselThumbSizes(centerW, centerH, sideW, sideH);
+        }
+        const std::string centerPath =
+            usesDualSizeCoverThumbs ? UITheme::getCoverThumbPath(book.coverBmpPath, centerW, centerH) : "";
+        const std::string sidePath =
+            usesDualSizeCoverThumbs ? UITheme::getCoverThumbPath(book.coverBmpPath, sideW, sideH) : "";
+        const bool centerMissing = usesDualSizeCoverThumbs && !Storage.exists(centerPath.c_str());
+        const bool sideMissing = usesDualSizeCoverThumbs && !Storage.exists(sidePath.c_str());
 
-        if (centerMissing || sideMissing) {
+        bool squareMissing = false;
+        std::string squarePath;
+#if ENABLE_POKEMON_PARTY
+        if (isPokemonPartyHomeMode()) {
+          squarePath = UITheme::getCoverThumbPath(book.coverBmpPath, PokemonPartyTheme::kCoverIconSize,
+                                                  PokemonPartyTheme::kCoverIconSize);
+          squareMissing = !Storage.exists(squarePath.c_str());
+        }
+#endif
+
+        if (centerMissing || sideMissing || squareMissing) {
           if (FsHelpers::hasEpubExtension(book.path)) {
             Epub epub(book.path, "/.crosspoint");
             if (!showingLoading) {
@@ -482,6 +496,11 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
             bool success = true;
             if (centerMissing) success = epub.generateThumbBmp(centerW, centerH) && success;
             if (sideMissing) success = epub.generateThumbBmp(sideW, sideH) && success;
+#if ENABLE_POKEMON_PARTY
+            if (squareMissing)
+              success = epub.generateThumbBmp(PokemonPartyTheme::kCoverIconSize, PokemonPartyTheme::kCoverIconSize) &&
+                        success;
+#endif
             if (!success) {
               RECENT_BOOKS.updateBook(book.path, book.title, book.author, "");
               book.coverBmpPath = "";
@@ -501,6 +520,11 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
               bool success = true;
               if (centerMissing) success = xtc.generateThumbBmp(centerW, centerH) && success;
               if (sideMissing) success = xtc.generateThumbBmp(sideW, sideH) && success;
+#if ENABLE_POKEMON_PARTY
+              if (squareMissing)
+                success = xtc.generateThumbBmp(PokemonPartyTheme::kCoverIconSize, PokemonPartyTheme::kCoverIconSize) &&
+                          success;
+#endif
               if (!success) {
                 RECENT_BOOKS.updateBook(book.path, book.title, book.author, "");
                 book.coverBmpPath = "";
