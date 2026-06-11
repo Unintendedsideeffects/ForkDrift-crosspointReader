@@ -1052,7 +1052,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     }
 
     for (size_t wordIdx = 0; wordIdx < reorderedWidthsScratch.size(); wordIdx++) {
-      lineXPos.push_back(static_cast<int16_t>(xpos < 0 ? 0 : xpos));
+      lineXPos.push_back(static_cast<int16_t>(xpos));
       xpos += reorderedWidthsScratch[wordIdx];
 
       const bool nextIsContinuation =
@@ -1087,7 +1087,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     // Standard LTR/RTL positioning loop when no visual reordering is needed
     if (blockStyle.isRtl) {
       // RTL: position words from right to left
-      auto xpos = static_cast<int>(effectivePageWidth);
+      int xpos = effectivePageWidth;
       if (effectiveAlignment == CssTextAlign::Left) {
         // Explicit left alignment in RTL context
         xpos = lineWordWidthSum + totalNaturalGaps;
@@ -1098,7 +1098,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
 
       for (size_t wordIdx = 0; wordIdx < lineWordCount; wordIdx++) {
         xpos -= wordWidths[lastBreakAt + wordIdx];
-        lineXPos.push_back(static_cast<int16_t>(xpos < 0 ? 0 : xpos));
+        lineXPos.push_back(static_cast<int16_t>(xpos));
 
         const bool nextIsContinuation = wordIdx + 1 < lineWordCount && continuesVec[lastBreakAt + wordIdx + 1];
         if (nextIsContinuation) {
@@ -1128,7 +1128,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
       }
     } else {
       // LTR: position words from left to right
-      auto xpos = static_cast<int16_t>(firstLineIndent);
+      int xpos = firstLineIndent;
       if (effectiveAlignment == CssTextAlign::Right) {
         xpos = effectivePageWidth - lineWordWidthSum - totalNaturalGaps;
       } else if (effectiveAlignment == CssTextAlign::Center) {
@@ -1136,7 +1136,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
       }
 
       for (size_t wordIdx = 0; wordIdx < lineWordCount; wordIdx++) {
-        lineXPos.push_back(static_cast<int16_t>(xpos < 0 ? 0 : xpos));
+        lineXPos.push_back(static_cast<int16_t>(xpos));
 
         const bool nextIsContinuation = wordIdx + 1 < lineWordCount && continuesVec[lastBreakAt + wordIdx + 1];
         if (nextIsContinuation) {
