@@ -32,6 +32,7 @@ class BackgroundWifiService {
   volatile uint32_t requestCount = 0;
   volatile unsigned long nextStartAllowedMs = 0;
   volatile bool mdnsStarted = false;
+  volatile bool shelfRefreshAttempted = false;
 
   // FreeRTOS task entry point
   static void taskEntry(void* arg);
@@ -45,6 +46,7 @@ class BackgroundWifiService {
   static constexpr uint32_t CONNECT_TIMEOUT_MS = 15000;
   static constexpr uint32_t START_RETRY_MS = 30000;
   static constexpr uint32_t MIN_START_HEAP_BYTES = 60000;
+  static constexpr uint32_t LIBRARY_SHELF_HEAP_MARGIN_BYTES = 24000;
 
  public:
   BackgroundWifiService() = default;

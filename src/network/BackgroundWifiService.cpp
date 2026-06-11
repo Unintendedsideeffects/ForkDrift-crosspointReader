@@ -13,7 +13,11 @@
 
 #include "CrossPointState.h"
 #include "HalStorage.h"
+#include "OpdsServerStore.h"
+#include "SpiBusMutex.h"
 #include "network/CrossPointWebServer.h"
+#include "network/OpdsShelfFetcher.h"
+#include "util/LibraryShelfStore.h"
 #include "util/NetworkNames.h"
 #include "util/WifiCredentialStore.h"
 
@@ -137,6 +141,26 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
       LOG_ERR("BGWIFI", "mDNS failed to start");
     }
 
+    if (mdnsStarted && !shelfRefreshAttempted) {
+      shelfRefreshAttempted = true;
+      const auto& opdsServers = OPDS_STORE.getServers();
+      const uint32_t shelfHeapThreshold = MIN_START_HEAP_BYTES + LIBRARY_SHELF_HEAP_MARGIN_BYTES;
+      if (opdsServers.empty()) {
+        LOG_DBG("BGWIFI", "Library shelf refresh skipped: no OPDS server");
+      } else if (ESP.getFreeHeap() < shelfHeapThreshold) {
+        LOG_DBG("BGWIFI", "Library shelf refresh skipped: low heap (%u, need %u)",
+                static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(shelfHeapThreshold));
+      } else {
+        std::vector<LibraryShelfEntry> shelfEntries;
+        if (OpdsShelfFetcher::fetchRootBooks(opdsServers[0], shelfEntries)) {
+          SpiBusMutex::Guard guard;
+          LIBRARY_SHELF.replaceEntries(opdsServers[0].name, std::move(shelfEntries));
+        } else {
+          LOG_DBG("BGWIFI", "Library shelf refresh failed");
+        }
+      }
+    }
+
     // ── Service loop ──────────────────────────────────────────────────────
     while (!stopRequested) {
       esp_task_wdt_reset();
@@ -202,6 +226,7 @@ bool BackgroundWifiService::start(const char* ssid, const char* password) {
   wifiOwned = false;
   requestCount = 0;
   mdnsStarted = false;
+  shelfRefreshAttempted = false;
 
   // Heap-allocate params so the pointers remain valid after this function returns
   auto* params = new (std::nothrow) WifiTaskParams();
@@ -248,6 +273,7 @@ bool BackgroundWifiService::startUsingCurrentConnection() {
   wifiOwned = false;
   requestCount = 0;
   mdnsStarted = false;
+  shelfRefreshAttempted = false;
 
   auto* params = new (std::nothrow) WifiTaskParams();
   if (params == nullptr) {

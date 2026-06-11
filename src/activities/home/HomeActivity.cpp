@@ -44,6 +44,7 @@
 #include "network/BackgroundWifiService.h"
 #include "util/BookProgressDataStore.h"
 #include "util/ForkDriftNavigation.h"
+#include "util/LibraryShelfStore.h"
 #include "util/RecentBooksStore.h"
 
 namespace {
@@ -52,6 +53,8 @@ constexpr uint16_t CAROUSEL_CACHE_VERSION = 2;
 constexpr char CAROUSEL_CACHE_PATH[] = "/.crosspoint/home_carousel_cache.bin";
 constexpr char CAROUSEL_CACHE_TMP_PATH[] = "/.crosspoint/home_carousel_cache.tmp";
 constexpr size_t kCarouselFrameCacheHeadroom = 4096;
+
+bool isOpdsShelfPath(const std::string& path) { return path.rfind("opds://", 0) == 0; }
 
 const ThemeMetrics& homeMetrics() { return UITheme::getInstance().getMetrics(); }
 
@@ -80,6 +83,9 @@ bool carouselCoverThumbsReady(const std::vector<RecentBook>& books) {
     return false;
   }
   return std::all_of(books.begin(), books.end(), [](const RecentBook& book) {
+    if (isOpdsShelfPath(book.path)) {
+      return true;
+    }
     if (book.coverBmpPath.empty()) {
       return false;
     }
@@ -407,6 +413,12 @@ void HomeActivity::loadRecentBooks() {
     recentBooks.push_back(entry);
   }
 
+  const auto shelfEntries = LIBRARY_SHELF.getSnapshot();
+  recentBooks.reserve(recentBooks.size() + shelfEntries.size());
+  for (const auto& shelfEntry : shelfEntries) {
+    recentBooks.push_back({"opds://" + shelfEntry.href, shelfEntry.title, shelfEntry.author, ""});
+  }
+
 #if ENABLE_POKEMON_PARTY
   runPartySpritesSync();
 #endif
@@ -443,6 +455,10 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
   int progress = 0;
   for (size_t bookIdx = 0; bookIdx < recentBooks.size(); ++bookIdx) {
     RecentBook& book = recentBooks[bookIdx];
+    if (isOpdsShelfPath(book.path)) {
+      progress++;
+      continue;
+    }
     if (book.coverBmpPath.empty() && supportsGeneratedHomeCover(book)) {
       const auto recentBookData = core::FeatureModules::resolveRecentBookData(book.path);
       if (recentBookData.handled) {
@@ -607,6 +623,10 @@ void HomeActivity::openSelectedBook() {
   }
 
   const auto& selected = recentBooks[static_cast<size_t>(selectedBookIndex)];
+  if (isOpdsShelfPath(selected.path)) {
+    onLibraryOpen();
+    return;
+  }
   if (!Storage.exists(selected.path.c_str())) {
     loadRecentBooks();
     requestUpdate();
@@ -815,7 +835,7 @@ void HomeActivity::onEnter() {
     currentBookProgressPercent = -1.0f;
     if (!recentBooks.empty()) {
       BookProgressDataStore::ProgressData progress{};
-      if (BookProgressDataStore::loadProgress(recentBooks[0].path, progress)) {
+      if (!isOpdsShelfPath(recentBooks[0].path) && BookProgressDataStore::loadProgress(recentBooks[0].path, progress)) {
         currentBookProgressPercent = progress.percent;
       }
     }
@@ -1004,6 +1024,9 @@ bool HomeActivity::isCoverCacheValid(const int coverHeight, const bool usesDualS
 
   // cppcheck-suppress useStlAlgorithm -- multi-exit loop with mixed conditions; not expressible as std::all_of
   for (const auto& book : recentBooks) {
+    if (isOpdsShelfPath(book.path)) {
+      continue;
+    }
     if (book.coverBmpPath.empty()) {
       if (supportsGeneratedHomeCover(book)) {
         return false;
@@ -1055,6 +1078,10 @@ bool HomeActivity::isCoverCacheValid(const int coverHeight, const bool usesDualS
 void HomeActivity::loadBookProgress() {
   const int count = std::min(static_cast<int>(recentBooks.size()), kMaxCachedBooks);
   for (int i = 0; i < count; ++i) {
+    if (isOpdsShelfPath(recentBooks[i].path)) {
+      cachedBookProgress[i] = -1.0f;
+      continue;
+    }
     BookProgressDataStore::ProgressData pd{};
     cachedBookProgress[i] = BookProgressDataStore::loadProgress(recentBooks[i].path, pd) ? pd.percent : -1.0f;
   }
@@ -1671,7 +1698,8 @@ void HomeActivity::render(RenderLock&&) {
           frameProgressPercent = cachedBookProgress[centerIdx];
         } else {
           BookProgressDataStore::ProgressData pd{};
-          if (BookProgressDataStore::loadProgress(recentBooks[centerIdx].path, pd)) {
+          if (!isOpdsShelfPath(recentBooks[centerIdx].path) &&
+              BookProgressDataStore::loadProgress(recentBooks[centerIdx].path, pd)) {
             frameProgressPercent = pd.percent;
           }
         }
@@ -2113,7 +2141,14 @@ void HomeActivity::onAssignPokemonOpen() {
 void HomeActivity::runPartySpritesSync() {
   if (isPokemonPartyHomeMode() && !recentBooks.empty()) {
     PokemonPartyTheme::invalidateCache();
-    cachedPartySyncResult = PokemonPartySprites::syncPartySprites(recentBooks);
+    std::vector<RecentBook> deviceBooks;
+    deviceBooks.reserve(recentBooks.size());
+    for (const auto& book : recentBooks) {
+      if (!isOpdsShelfPath(book.path)) {
+        deviceBooks.push_back(book);
+      }
+    }
+    cachedPartySyncResult = PokemonPartySprites::syncPartySprites(deviceBooks);
   }
 }
 #endif

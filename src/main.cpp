@@ -43,6 +43,7 @@
 #include "util/ButtonNavigator.h"
 #include "util/FactoryResetUtils.h"
 #include "util/FirmwareUpdateUtil.h"
+#include "util/LibraryShelfStore.h"
 #include "util/RecentBooksStore.h"
 #include "util/ScreenshotUtil.h"
 #if ENABLE_WIFI_CLOCK
@@ -655,6 +656,7 @@ void setup() {
 
   APP_STATE.loadFromFile();
   RECENT_BOOKS.loadFromFile();
+  LIBRARY_SHELF.loadFromFile();
 
   if (recoveryFirmwareMode) {
     // Skip normal home/reader routing: open the recovery menu (firmware flash,

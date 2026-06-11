@@ -11,11 +11,13 @@
 
 #include "MappedInputManager.h"
 #include "SilentRestart.h"
+#include "SpiBusMutex.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "network/HttpDownloader.h"
+#include "util/LibraryShelfStore.h"
 #include "util/StringUtils.h"
 #include "util/UrlUtils.h"
 
@@ -230,6 +232,25 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
   const auto& nextUrl = parser.getNextPageUrl();
   const auto& prevUrl = parser.getPrevPageUrl();
   entries = std::move(parser).getEntries();
+
+  const auto& servers = OPDS_STORE.getServers();
+  const bool isRootFeed = navigationHistory.empty() && path.empty();
+  const bool isFirstServer = !servers.empty() && (server.url == servers[0].url || server.name == servers[0].name);
+  if (isRootFeed && isFirstServer) {
+    std::vector<LibraryShelfEntry> shelfEntries;
+    shelfEntries.reserve(6);
+    for (const auto& entry : entries) {
+      if (entry.type != OpdsEntryType::BOOK) {
+        continue;
+      }
+      shelfEntries.push_back({entry.title, entry.author, entry.href});
+      if (shelfEntries.size() >= 6) {
+        break;
+      }
+    }
+    SpiBusMutex::Guard guard;
+    LIBRARY_SHELF.replaceEntries(server.name, std::move(shelfEntries));
+  }
 
   if (!prevUrl.empty()) {
     entries.insert(entries.begin(), OpdsEntry{OpdsEntryType::NAVIGATION, tr(STR_PREV_PAGE), "", prevUrl, ""});
