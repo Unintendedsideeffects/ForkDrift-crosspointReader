@@ -6,6 +6,8 @@
 #include <Logging.h>
 
 #include <algorithm>
+#include <cctype>
+#include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <vector>
@@ -136,6 +138,57 @@ class SimulatorSmokeTest {
   static void renderCurrentStep(const char* name) {
     LOG_INF("SMOKE", "Rendering %s", name);
     activityManager.requestUpdateAndWait();
+    dumpFrameIfRequested(name);
+  }
+
+  // When FORKDRIFT_SIMULATOR_SMOKE_FRAMES names a directory, save every settled
+  // frame there as a portrait P4 PBM (same rotation/polarity as the SDK's
+  // saveFrameBufferAsPBM) so a headless run can be inspected visually.
+  static void dumpFrameIfRequested(const char* label) {
+    const char* dir = std::getenv("FORKDRIFT_SIMULATOR_SMOKE_FRAMES");
+    if (dir == nullptr || dir[0] == '\0') return;
+    const uint8_t* buffer = renderer.getFrameBuffer();
+    if (buffer == nullptr) return;
+
+    static int counter = 0;
+    char safeLabel[48];
+    size_t n = 0;
+    for (const char* p = label; *p != '\0' && n < sizeof(safeLabel) - 1; ++p) {
+      const unsigned char c = static_cast<unsigned char>(*p);
+      safeLabel[n++] = std::isalnum(c) ? static_cast<char>(c) : '-';
+    }
+    safeLabel[n] = '\0';
+    char path[256];
+    std::snprintf(path, sizeof(path), "%s/%03d-%s.pbm", dir, counter++, safeLabel);
+
+    // X4 panel: native landscape 800x480, 1bpp, bit 1 = white. Rotate 90deg CCW
+    // to portrait and invert (PBM 1 = black), mirroring EInkDisplay's writer.
+    constexpr int inputWidth = 800;
+    constexpr int inputHeight = 480;
+    constexpr int inputWidthBytes = inputWidth / 8;
+    constexpr int outputWidth = inputHeight;
+    constexpr int outputHeight = inputWidth;
+    constexpr int outputWidthBytes = (outputWidth + 7) / 8;
+    if (renderer.getBufferSize() < static_cast<size_t>(inputWidthBytes * inputHeight)) return;
+
+    std::vector<uint8_t> rotated(static_cast<size_t>(outputWidthBytes) * outputHeight, 0);
+    for (int outY = 0; outY < outputHeight; outY++) {
+      for (int outX = 0; outX < outputWidth; outX++) {
+        const int inX = outY;
+        const int inY = inputHeight - 1 - outX;
+        const bool isWhite = (buffer[inY * inputWidthBytes + (inX / 8)] >> (7 - (inX % 8))) & 1;
+        if (!isWhite) {
+          rotated[outY * outputWidthBytes + (outX / 8)] |= (1 << (7 - (outX % 8)));
+        }
+      }
+    }
+
+    std::FILE* f = std::fopen(path, "wb");
+    if (f == nullptr) return;
+    std::fprintf(f, "P4\n%d %d\n", outputWidth, outputHeight);
+    std::fwrite(rotated.data(), 1, rotated.size(), f);
+    std::fclose(f);
+    LOG_INF("SMOKE", "Frame dumped: %s", path);
   }
 
   void queueStep(const char* name, SmokeStep nextStep, int framesToSettle = 3) {

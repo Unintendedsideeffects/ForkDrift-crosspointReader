@@ -13,13 +13,20 @@ constexpr ThemeMetrics values = [] {
   ThemeMetrics v = ForkDriftMetrics::values;
   v.homeRecentBooksCount = 6;
   v.homeNavigationMode = HomeNavigationMode::CoverGridDualFocus;
-  v.homeCoverGridColumns = 2;
-  v.homeCoverGridRows = 3;
+  // One column of six slots: up/down walks the featured slot + rows in visual
+  // order, down from the last row drops into the icon menu.
+  v.homeCoverGridColumns = 1;
+  v.homeCoverGridRows = 6;
+  // Tall enough that the party area is only bounded by the menu strip; the
+  // render path clamps to usablePageHeight - menuMinH.
+  v.homeCoverTileHeight = 720;
   v.homeStartInMenuWhenEmpty = true;
-  v.menuRowHeight = 92;
+  // Single carousel-style icon row (icons + selected label) instead of tiles:
+  // 32px icon + 2*6 pad + 4 gap + ~16px label line.
+  v.menuRowHeight = 68;
   v.verticalSpacing = 8;
   v.statusBarVerticalMargin = 30;
-  v.homeMenuColumns = 2;
+  v.homeMenuColumns = 8;
   return v;
 }();
 }  // namespace PokemonPartyMetrics

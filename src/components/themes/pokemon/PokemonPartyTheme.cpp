@@ -51,37 +51,37 @@ constexpr int kHpBarHeight = 10;
 constexpr int kHpLabelW = 18;
 constexpr int kHpLabelH = 12;
 constexpr int kSelectBorder = 4;
-constexpr int kStripeStep = 8;
 constexpr int kFractionGap = 3;
 
-constexpr int kMenuCols = 2;
-constexpr int kMenuIconSize = 24;
+constexpr int kMenuIconBox = 32;  // largest icon; the strip layout centers smaller ones
 constexpr int kMenuCornerRadius = 6;
-constexpr int kMenuHPadding = 8;
-constexpr int kMenuLastInset = 8;
+constexpr int kMenuIconPad = 6;
+constexpr int kMenuHighlightPad = 5;
+constexpr int kMenuLabelGap = 4;
 
-const uint8_t* menuIconFor(UIIcon icon) {
+// Icon bitmaps come in two native sizes; drawing one with the wrong stride
+// produces noise, so each entry carries its real dimensions.
+struct MenuIcon {
+  const uint8_t* bmp = nullptr;
+  int size = 0;
+};
+
+MenuIcon menuIconFor(UIIcon icon) {
   switch (icon) {
     case UIIcon::Folder:
-      return FolderIcon;
+      return {FolderIcon, 32};
     case UIIcon::Settings:
-      return Settings2Icon;
+      return {Settings2Icon, 32};
     case UIIcon::Transfer:
-      return TransferIcon;
+      return {TransferIcon, 32};
     case UIIcon::Calendar:
-      return CalendarIcon;
+      return {CalendarIcon, 32};
     case UIIcon::Text:
-      return Text24Icon;
+      return {Text24Icon, 24};
     case UIIcon::Book:
-      return Book24Icon;
+      return {Book24Icon, 24};
     default:
-      return nullptr;
-  }
-}
-
-void drawPartyBackground(const GfxRenderer& renderer, const Rect& rect) {
-  for (int x = rect.x; x < rect.x + rect.width; x += kStripeStep) {
-    renderer.fillRectDither(x, rect.y, 1, rect.height, Color::LightGray);
+      return {};
   }
 }
 
@@ -392,8 +392,6 @@ void PokemonPartyTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
                                             bool& /*coverRendered*/, bool& /*coverBufferStored*/,
                                             bool& /*bufferRestored*/, const std::function<bool()>& /*storeCoverBuffer*/,
                                             float /*progressPercent*/) const {
-  drawPartyBackground(renderer, rect);
-
   const int bookCount = std::min(static_cast<int>(recentBooks.size()), kSlots);
   if (bookCount <= 0) {
     return;
@@ -438,38 +436,38 @@ void PokemonPartyTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int but
     return;
   }
 
-  const auto& menuMetrics = UITheme::getInstance().getMetrics();
-  const int pad = ForkDriftMetrics::values.contentSidePadding;
-  const int tileH = menuMetrics.menuRowHeight;
-  const int spacing = menuMetrics.menuSpacing;
-  const int areaW = rect.width - 2 * pad;
-  const int tileW = (areaW - spacing * (kMenuCols - 1)) / kMenuCols;
+  // Carousel-style strip: one row of evenly spaced icons with the selected
+  // action's label centered beneath. The party area above gets the rest of
+  // the screen.
+  const int labelH = renderer.getLineHeight(UI_10_FONT_ID);
+  const int iconRowH = kMenuIconBox + 2 * kMenuIconPad;
+  const int stripH = iconRowH + kMenuLabelGap + labelH;
+  const int rowY = rect.y + std::max(0, (rect.height - stripH) / 2);
+  const int tileW = rect.width / buttonCount;
 
   for (int i = 0; i < buttonCount; ++i) {
-    const int col = i % kMenuCols;
-    const int row = i / kMenuCols;
-    const bool isLast = i == buttonCount - 1;
-    const int inset = isLast ? kMenuLastInset : 0;
-    const int x = rect.x + pad + col * (tileW + spacing) + inset;
-    const int y = rect.y + row * (tileH + spacing);
-    const int w = tileW - 2 * inset;
-    const bool selected = selectedIndex == i;
+    const int boxX = rect.x + i * tileW + (tileW - kMenuIconBox) / 2;
+    const int boxY = rowY + kMenuIconPad;
 
-    if (selected) {
-      renderer.fillRoundedRect(x, y, w, tileH, kMenuCornerRadius, Color::LightGray);
+    if (selectedIndex == i) {
+      const int highlight = kMenuIconBox + 2 * kMenuHighlightPad;
+      renderer.fillRoundedRect(boxX - kMenuHighlightPad, boxY - kMenuHighlightPad, highlight, highlight,
+                               kMenuCornerRadius, Color::LightGray);
     }
 
-    const std::string label = buttonLabel(i);
-    const UIIcon icon = rowIcon ? rowIcon(i) : UIIcon::Settings;
-    const uint8_t* iconBmp = menuIconFor(icon);
-    int textX = x + 10;
-    if (iconBmp) {
-      renderer.drawIcon(iconBmp, textX, y + (tileH - kMenuIconSize) / 2, kMenuIconSize, kMenuIconSize);
-      textX += kMenuIconSize + kMenuHPadding;
+    const MenuIcon icon = menuIconFor(rowIcon ? rowIcon(i) : UIIcon::Settings);
+    if (icon.bmp != nullptr && icon.size > 0) {
+      const int inset = (kMenuIconBox - icon.size) / 2;
+      renderer.drawIcon(icon.bmp, boxX + inset, boxY + inset, icon.size, icon.size);
     }
-    const int lineH = renderer.getLineHeight(UI_10_FONT_ID);
-    const int textY = y + (tileH - lineH) / 2;
-    renderer.drawText(UI_10_FONT_ID, textX, textY, label.c_str(), true);
+  }
+
+  if (selectedIndex >= 0 && selectedIndex < buttonCount && buttonLabel) {
+    const std::string label =
+        renderer.truncatedText(UI_10_FONT_ID, buttonLabel(selectedIndex).c_str(), rect.width - 40);
+    const int labelW = renderer.getTextWidth(UI_10_FONT_ID, label.c_str());
+    renderer.drawText(UI_10_FONT_ID, rect.x + (rect.width - labelW) / 2, rowY + iconRowH + kMenuLabelGap, label.c_str(),
+                      true);
   }
 }
 #endif  // ENABLE_POKEMON_PARTY
