@@ -526,8 +526,6 @@ void setup() {
     return;
   }
 
-  HalSystem::checkPanic();
-
   core::FeatureLifecycle::onStorageReady();
 
   applyPendingFactoryReset();
@@ -540,6 +538,7 @@ void setup() {
   }
 
   SETTINGS.loadFromFile();
+  HalSystem::checkPanic();
   invalidateSleepImageCache();
   I18N.setLanguage(static_cast<Language>(SETTINGS.language));
 #if ENABLE_WIFI_CLOCK

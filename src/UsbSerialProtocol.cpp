@@ -46,6 +46,8 @@ static unsigned long s_lastCommandMs = 0;
 // File upload state machine ───────────────────────────────────────────────
 static HalFile s_uploadFile;
 static bool s_uploadInProgress = false;
+static String s_uploadDestPath;
+static String s_uploadPartPath;
 
 // OTA flash state machine ─────────────────────────────────────────────────
 static esp_ota_handle_t s_otaHandle = 0;
@@ -145,6 +147,30 @@ static bool streamFileBase64(HalFile& file) {
     logSerial.write(s_encBuf, encLen);
   }
   return true;
+}
+
+static void abortUpload() {
+  SpiBusMutex::Guard guard;
+  if (s_uploadInProgress) {
+    s_uploadFile.close();
+  }
+  if (!s_uploadPartPath.isEmpty()) {
+    Storage.remove(s_uploadPartPath.c_str());
+  }
+  s_uploadInProgress = false;
+  s_uploadDestPath = "";
+  s_uploadPartPath = "";
+}
+
+static bool dailyFileTooLarge(const char* path) {
+  constexpr size_t kMaxDailyBytes = 256u * 1024u;
+  HalFile file;
+  if (!Storage.openFileForRead("USB", path, file)) {
+    return false;
+  }
+  const bool tooLarge = static_cast<size_t>(file.fileSize64()) > kMaxDailyBytes;
+  file.close();
+  return tooLarge;
 }
 
 // ── Command handlers ───────────────────────────────────────────────────────
@@ -389,9 +415,7 @@ static void handleDownload(const char* path) {
 // Android sends: {"cmd":"upload_start","arg":{"name":"file.epub","path":"/dir","size":1234}}
 static void handleUploadStart(const char* name, const char* dir, uint32_t /*size*/) {
   if (s_uploadInProgress) {
-    SpiBusMutex::Guard guard;
-    s_uploadFile.close();
-    s_uploadInProgress = false;
+    abortUpload();
   }
 
   String destPath(dir);
@@ -403,10 +427,17 @@ static void handleUploadStart(const char* name, const char* dir, uint32_t /*size
     return;
   }
 
+  String partPath = destPath + ".part";
+  if (!PathUtils::isValidSdPath(partPath)) {
+    sendError("invalid path");
+    return;
+  }
+
   bool opened = false;
   {
     SpiBusMutex::Guard guard;
-    opened = Storage.openFileForWrite("USB", destPath.c_str(), s_uploadFile);
+    Storage.remove(partPath.c_str());
+    opened = Storage.openFileForWrite("USB", partPath.c_str(), s_uploadFile);
   }
 
   if (!opened) {
@@ -414,6 +445,8 @@ static void handleUploadStart(const char* name, const char* dir, uint32_t /*size
     return;
   }
 
+  s_uploadDestPath = destPath;
+  s_uploadPartPath = partPath;
   s_uploadInProgress = true;
   sendOk();
 }
@@ -429,9 +462,7 @@ static void handleUploadChunk(const char* b64data) {
   size_t decodedLen = 0;
   const int rc = mbedtls_base64_decode(s_decodeBuf, sizeof(s_decodeBuf), &decodedLen, (const uint8_t*)b64data, b64len);
   if (rc != 0) {
-    SpiBusMutex::Guard guard;
-    s_uploadFile.close();
-    s_uploadInProgress = false;
+    abortUpload();
     sendError("base64 decode error");
     return;
   }
@@ -443,9 +474,7 @@ static void handleUploadChunk(const char* b64data) {
   }
 
   if (!writeOk) {
-    SpiBusMutex::Guard guard;
-    s_uploadFile.close();
-    s_uploadInProgress = false;
+    abortUpload();
     sendError("write failed");
     return;
   }
@@ -458,11 +487,25 @@ static void handleUploadDone() {
     sendError("no upload in progress");
     return;
   }
+  bool renamed = false;
   {
     SpiBusMutex::Guard guard;
     s_uploadFile.close();
+    if (Storage.exists(s_uploadDestPath.c_str())) {
+      Storage.remove(s_uploadDestPath.c_str());
+    }
+    renamed = Storage.rename(s_uploadPartPath.c_str(), s_uploadDestPath.c_str());
+    if (!renamed) {
+      Storage.remove(s_uploadPartPath.c_str());
+    }
   }
   s_uploadInProgress = false;
+  s_uploadDestPath = "";
+  s_uploadPartPath = "";
+  if (!renamed) {
+    sendError("rename failed");
+    return;
+  }
   sendOk();
 }
 
@@ -856,6 +899,10 @@ static void handleTodoAdd(const char* text, const char* type) {
         today, core::FeatureModules::hasCapability(core::Capability::MarkdownSupport), mdExists, txtExists);
     if (!Storage.exists(dirPath.c_str())) Storage.mkdir(dirPath.c_str());
     if (Storage.exists(targetPath.c_str())) {
+      if (dailyFileTooLarge(targetPath.c_str())) {
+        sendError("daily file too large");
+        return;
+      }
       content = Storage.readFile(targetPath.c_str()).c_str();
       if (!content.empty() && content.back() != '\n') content.push_back('\n');
     }
@@ -1115,9 +1162,7 @@ void UsbSerialProtocol::reset() {
   setSerialLogSuppressed(false);
   s_lineLen = 0;
   if (s_uploadInProgress) {
-    SpiBusMutex::Guard guard;
-    s_uploadFile.close();
-    s_uploadInProgress = false;
+    abortUpload();
   }
   if (s_otaInProgress) {
     esp_ota_abort(s_otaHandle);

@@ -180,16 +180,22 @@ bool BookmarkStore::readFromFile() {
     Bookmark bm{};
     if (f.available() < static_cast<int>(sizeof(bm.spineIndex))) {
       LOG_ERR("BKS", "Bookmark file truncated at spineIndex, record %u", i);
+      bookmarks.clear();
+      bookmarks.shrink_to_fit();
       return false;
     }
     serialization::readPod(f, bm.spineIndex);
     if (f.available() < static_cast<int>(sizeof(bm.progress))) {
       LOG_ERR("BKS", "Bookmark file truncated at progress, record %u", i);
+      bookmarks.clear();
+      bookmarks.shrink_to_fit();
       return false;
     }
     serialization::readPod(f, bm.progress);
     if (f.available() < static_cast<int>(sizeof(bm.timestamp))) {
       LOG_ERR("BKS", "Bookmark file truncated at timestamp, record %u", i);
+      bookmarks.clear();
+      bookmarks.shrink_to_fit();
       return false;
     }
     serialization::readPod(f, bm.timestamp);
@@ -197,6 +203,8 @@ bool BookmarkStore::readFromFile() {
     bm.chapterTitle[sizeof(bm.chapterTitle) - 1] = '\0';
     if (chRead != static_cast<int>(sizeof(bm.chapterTitle))) {
       LOG_ERR("BKS", "Bookmark file truncated at chapterTitle, record %u", i);
+      bookmarks.clear();
+      bookmarks.shrink_to_fit();
       return false;
     }
     bookmarks.push_back(bm);

@@ -704,7 +704,7 @@ void CrossPointWebServer::handleUploadPost() {
 }
 
 void CrossPointWebServer::handleRecentBooks() const {
-  const auto& books = RECENT_BOOKS.getBooks();
+  const auto books = RECENT_BOOKS.getBooksSnapshot();
   const bool includePokemon = core::FeatureCatalog::isEnabled("pokemon_party");
 
   server->setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -779,7 +779,7 @@ void CrossPointWebServer::handleSleepCoverPin() {
       server->hasArg("plain"), server->hasArg("plain") ? server->arg("plain") : String(), SETTINGS.sleepPinnedPath,
       sizeof(SETTINGS.sleepPinnedPath),
       [](const String& bookPath, std::string& coverPath) {
-        const auto& books = RECENT_BOOKS.getBooks();
+        const auto books = RECENT_BOOKS.getBooksSnapshot();
         for (const auto& book : books) {
           if (book.path == bookPath.c_str()) {
             coverPath = book.coverBmpPath;
@@ -1284,9 +1284,12 @@ void CrossPointWebServer::handleFontUploadData() {
       FontInstaller::buildFontPath(family.c_str(), filename.c_str(), path, sizeof(path));
       fontUpload.filePath = path;
 
-      if (!Storage.openFileForWrite("WEB", path, fontUpload.file)) {
-        LOG_ERR("WEB", "Failed to open font file for write: %s", path);
-        break;
+      {
+        SpiBusMutex::Guard guard;
+        if (!Storage.openFileForWrite("WEB", path, fontUpload.file)) {
+          LOG_ERR("WEB", "Failed to open font file for write: %s", path);
+          break;
+        }
       }
 
       fontUpload.valid = true;
@@ -1331,7 +1334,12 @@ void CrossPointWebServer::handleFontUploadData() {
         remaining -= chunk;
 
         if (fontUpload.bufferPos >= FontUploadState::BUFFER_SIZE) {
-          if (fontUpload.file.write(fontUpload.buffer.data(), fontUpload.bufferPos) != fontUpload.bufferPos) {
+          size_t written = 0;
+          {
+            SpiBusMutex::Guard guard;
+            written = fontUpload.file.write(fontUpload.buffer.data(), fontUpload.bufferPos);
+          }
+          if (written != fontUpload.bufferPos) {
             LOG_ERR("WEB", "Font write failed (SD full?)");
             fontUpload.valid = false;
             fontUpload.bufferPos = 0;
@@ -1348,7 +1356,12 @@ void CrossPointWebServer::handleFontUploadData() {
     case UPLOAD_FILE_END: {
       // Flush remaining buffer
       if (fontUpload.valid && fontUpload.bufferPos > 0) {
-        if (fontUpload.file.write(fontUpload.buffer.data(), fontUpload.bufferPos) != fontUpload.bufferPos) {
+        size_t written = 0;
+        {
+          SpiBusMutex::Guard guard;
+          written = fontUpload.file.write(fontUpload.buffer.data(), fontUpload.bufferPos);
+        }
+        if (written != fontUpload.bufferPos) {
           LOG_ERR("WEB", "Font write failed on final flush (SD full?)");
           fontUpload.valid = false;
         } else {
@@ -1356,7 +1369,10 @@ void CrossPointWebServer::handleFontUploadData() {
         }
         fontUpload.bufferPos = 0;
       }
-      fontUpload.file.close();
+      {
+        SpiBusMutex::Guard guard;
+        fontUpload.file.close();
+      }
 
       // A file shorter than the 8-byte magic header can never be a valid
       // .cpfont — reject it so the magic check can't be skipped by truncation.
@@ -1366,6 +1382,7 @@ void CrossPointWebServer::handleFontUploadData() {
       }
 
       if (!fontUpload.valid && !fontUpload.filePath.empty()) {
+        SpiBusMutex::Guard guard;
         Storage.remove(fontUpload.filePath.c_str());
       }
 
@@ -1374,8 +1391,12 @@ void CrossPointWebServer::handleFontUploadData() {
     }
 
     case UPLOAD_FILE_ABORTED: {
-      fontUpload.file.close();
+      {
+        SpiBusMutex::Guard guard;
+        fontUpload.file.close();
+      }
       if (!fontUpload.filePath.empty()) {
+        SpiBusMutex::Guard guard;
         Storage.remove(fontUpload.filePath.c_str());
       }
       fontUpload.valid = false;

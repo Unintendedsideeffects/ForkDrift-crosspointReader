@@ -1,22 +1,21 @@
-#include "CrossPointWebServer.h"
-
 #include <HalStorage.h>
 #include <Logging.h>
 #include <esp_task_wdt.h>
 
 #include <string>
 
+#include "CrossPointWebServer.h"
 #include "SpiBusMutex.h"
 #include "core/features/FeatureModules.h"
 #include "network/AssetReadApi.h"
 #include "util/RecentBooksStore.h"
 
 void CrossPointWebServer::handleCover() const {
-  const auto result = network::resolveCoverAssetPath(server->arg("path"), RECENT_BOOKS.getBooks(),
-                                                     [](const String& bookPath, std::string& coverPath) {
-                                                       core::FeatureModules::tryGetDocumentCoverPath(bookPath, coverPath);
-                                                       return !coverPath.empty();
-                                                     });
+  const auto result = network::resolveCoverAssetPath(
+      server->arg("path"), RECENT_BOOKS.getBooksSnapshot(), [](const String& bookPath, std::string& coverPath) {
+        core::FeatureModules::tryGetDocumentCoverPath(bookPath, coverPath);
+        return !coverPath.empty();
+      });
   if (!result.ok()) {
     server->send(result.statusCode, result.contentType, result.body);
     return;

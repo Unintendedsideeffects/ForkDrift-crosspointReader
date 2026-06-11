@@ -2,6 +2,7 @@
 
 #include <HalStorage.h>
 
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -25,6 +26,11 @@ class RecentBooksStore {
   static RecentBooksStore instance;
 
   std::vector<RecentBook> recentBooks;
+  // std::mutex (not a FreeRTOS semaphore) so the host-test and simulator
+  // builds compile unchanged; on ESP32 it maps to a FreeRTOS mutex anyway.
+  mutable std::mutex booksMutex;
+
+  bool saveToFileUnlocked() const;
 
   friend bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, const char*);
   friend bool JsonSettingsIO::loadRecentBooks(RecentBooksStore&, HalFile&);
@@ -46,9 +52,14 @@ class RecentBooksStore {
                   const std::string& newCachePath);
 
   // Get the list of recent books (most recent first)
+  // Cross-task callers must use getBooksSnapshot() instead.
   const std::vector<RecentBook>& getBooks() const { return recentBooks; }
 
+  // Get a copy of the list of recent books under the lock for cross-task safety
+  std::vector<RecentBook> getBooksSnapshot() const;
+
   // Get the count of recent books
+  // Cross-task callers must use getBooksSnapshot() instead.
   int getCount() const { return static_cast<int>(recentBooks.size()); }
 
   bool saveToFile() const;

@@ -1,5 +1,6 @@
 #include "Logging.h"
 
+#include <atomic>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -38,7 +39,7 @@ namespace {
 constexpr char DEVELOPER_LOG_FILE[] = "/crosspoint-debug.log";
 bool developerModeLoggingEnabled = false;
 bool developerLogWriteInProgress = false;
-bool serialLogSuppressed = false;
+std::atomic<bool> serialLogSuppressed{false};
 }  // namespace
 
 bool isSerialLogSuppressed() { return serialLogSuppressed; }

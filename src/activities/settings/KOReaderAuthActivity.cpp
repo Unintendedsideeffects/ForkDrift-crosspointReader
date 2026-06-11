@@ -1,6 +1,7 @@
 #include "KOReaderAuthActivity.h"
 
 #include <GfxRenderer.h>
+#include <Logging.h>
 #include <WiFi.h>
 
 #include "KOReaderCredentialStore.h"
@@ -22,6 +23,11 @@ void KOReaderAuthActivity::onWifiSelectionComplete(const bool success) {
     return;
   }
 
+  if (authTaskHandle != nullptr && !authTaskExited.load()) {
+    LOG_WRN("KOAUTH", "Auth task already running, skipping second task creation");
+    return;
+  }
+
   {
     RenderLock lock(*this);
     state = AUTHENTICATING;
@@ -29,7 +35,15 @@ void KOReaderAuthActivity::onWifiSelectionComplete(const bool success) {
   }
   requestUpdate();
 
-  performAuthentication();
+  authTaskExited.store(false);
+  xTaskCreate(
+      [](void* param) {
+        auto* self = static_cast<KOReaderAuthActivity*>(param);
+        self->performAuthentication();
+        self->authTaskExited.store(true);
+        vTaskDelete(nullptr);
+      },
+      "AuthTask", 4096, this, 1, &authTaskHandle);
 }
 
 void KOReaderAuthActivity::performAuthentication() {

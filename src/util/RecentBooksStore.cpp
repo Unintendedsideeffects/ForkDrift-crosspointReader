@@ -17,6 +17,7 @@ RecentBooksStore RecentBooksStore::instance;
 
 void RecentBooksStore::addBook(const std::string& path, const std::string& title, const std::string& author,
                                const std::string& coverBmpPath) {
+  std::lock_guard<std::mutex> lock(booksMutex);
   // Remove existing entry if present
   auto it =
       std::find_if(recentBooks.begin(), recentBooks.end(), [&](const RecentBook& book) { return book.path == path; });
@@ -32,11 +33,12 @@ void RecentBooksStore::addBook(const std::string& path, const std::string& title
     recentBooks.resize(MAX_RECENT_BOOKS);
   }
 
-  saveToFile();
+  saveToFileUnlocked();
 }
 
 void RecentBooksStore::updateBook(const std::string& path, const std::string& title, const std::string& author,
                                   const std::string& coverBmpPath) {
+  std::lock_guard<std::mutex> lock(booksMutex);
   auto it =
       std::find_if(recentBooks.begin(), recentBooks.end(), [&](const RecentBook& book) { return book.path == path; });
   if (it != recentBooks.end()) {
@@ -44,12 +46,13 @@ void RecentBooksStore::updateBook(const std::string& path, const std::string& ti
     book.title = title;
     book.author = author;
     book.coverBmpPath = coverBmpPath;
-    saveToFile();
+    saveToFileUnlocked();
   }
 }
 
 void RecentBooksStore::updatePath(const std::string& oldPath, const std::string& newPath,
                                   const std::string& oldCachePath, const std::string& newCachePath) {
+  std::lock_guard<std::mutex> lock(booksMutex);
   auto it = std::find_if(recentBooks.begin(), recentBooks.end(),
                          [&](const RecentBook& book) { return book.path == oldPath; });
   if (it == recentBooks.end()) {
@@ -59,12 +62,22 @@ void RecentBooksStore::updatePath(const std::string& oldPath, const std::string&
   if (!oldCachePath.empty() && !it->coverBmpPath.empty() && it->coverBmpPath.rfind(oldCachePath, 0) == 0) {
     it->coverBmpPath = newCachePath + it->coverBmpPath.substr(oldCachePath.size());
   }
-  saveToFile();
+  saveToFileUnlocked();
+}
+
+std::vector<RecentBook> RecentBooksStore::getBooksSnapshot() const {
+  std::lock_guard<std::mutex> lock(booksMutex);
+  return recentBooks;
+}
+
+bool RecentBooksStore::saveToFileUnlocked() const {
+  Storage.mkdir("/.crosspoint");
+  return JsonSettingsIO::saveRecentBooks(*this, RECENT_BOOKS_FILE_JSON);
 }
 
 bool RecentBooksStore::saveToFile() const {
-  Storage.mkdir("/.crosspoint");
-  return JsonSettingsIO::saveRecentBooks(*this, RECENT_BOOKS_FILE_JSON);
+  std::lock_guard<std::mutex> lock(booksMutex);
+  return saveToFileUnlocked();
 }
 
 RecentBook RecentBooksStore::getDataFromBook(std::string path) const {
@@ -79,6 +92,7 @@ RecentBook RecentBooksStore::getDataFromBook(std::string path) const {
 }
 
 bool RecentBooksStore::loadFromFile() {
+  std::lock_guard<std::mutex> lock(booksMutex);
   if (Storage.exists(RECENT_BOOKS_FILE_JSON)) {
     HalFile file;
     if (Storage.openFileForRead("RBS", RECENT_BOOKS_FILE_JSON, file)) {

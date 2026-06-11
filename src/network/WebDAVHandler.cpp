@@ -8,6 +8,9 @@
 #include <Logging.h>
 #include <esp_task_wdt.h>
 
+#include <memory>
+#include <new>
+
 #include "SpiBusMutex.h"
 #include "util/PathUtils.h"
 
@@ -381,18 +384,24 @@ void WebDAVHandler::handleGet(WebServer& s) {
     return;
   }
 
+  std::unique_ptr<uint8_t[]> buffer(new (std::nothrow) uint8_t[4096]);
+  if (!buffer) {
+    closeLocked(file);
+    s.send(500, "text/plain", "Failed to allocate transfer buffer");
+    return;
+  }
+
   String contentType = getMimeType(path);
   s.setContentLength(fileSize);
   s.send(200, contentType.c_str(), "");
 
-  uint8_t buffer[4096];
   WiFiClient client = s.client();
   while (true) {
     esp_task_wdt_reset();
     size_t bytesRead = 0;
     {
       SpiBusMutex::Guard guard;
-      bytesRead = file.read(buffer, sizeof(buffer));
+      bytesRead = file.read(buffer.get(), 4096);
     }
     if (bytesRead == 0) {
       break;
@@ -401,7 +410,7 @@ void WebDAVHandler::handleGet(WebServer& s) {
     size_t totalWritten = 0;
     while (totalWritten < bytesRead) {
       esp_task_wdt_reset();
-      const size_t written = client.write(buffer + totalWritten, bytesRead - totalWritten);
+      const size_t written = client.write(buffer.get() + totalWritten, bytesRead - totalWritten);
       if (written == 0) {
         closeLocked(file);
         return;
@@ -633,17 +642,27 @@ void WebDAVHandler::handleMove(WebServer& s) {
     return;
   }
 
-  if (dstExists && !removeLocked(dstPath)) {
-    s.send(500, "text/plain", "Failed to remove destination");
-    return;
+  String backupPath;
+  if (dstExists) {
+    backupPath = dstPath + ".bak-mv";
+    if (!renameLocked(dstPath, backupPath)) {
+      s.send(500, "text/plain", "Failed to backup destination");
+      return;
+    }
   }
 
   clearEpubCacheIfNeeded(srcPath);
   const bool success = renameLocked(srcPath, dstPath);
 
   if (success) {
+    if (dstExists) {
+      removeLocked(backupPath);
+    }
     s.send(dstExists ? 204 : 201);
   } else {
+    if (dstExists) {
+      renameLocked(backupPath, dstPath);
+    }
     s.send(500, "text/plain", "Move failed");
   }
 }
@@ -712,6 +731,13 @@ void WebDAVHandler::handleCopy(WebServer& s) {
     return;
   }
 
+  std::unique_ptr<uint8_t[]> buf(new (std::nothrow) uint8_t[4096]);
+  if (!buf) {
+    closeLocked(srcFile);
+    s.send(500, "text/plain", "Failed to allocate transfer buffer");
+    return;
+  }
+
   if (dstExists && !removeLocked(dstPath)) {
     closeLocked(srcFile);
     s.send(500, "text/plain", "Failed to remove destination");
@@ -728,8 +754,6 @@ void WebDAVHandler::handleCopy(WebServer& s) {
     }
   }
 
-  // Streaming copy with 4KB buffer on stack
-  uint8_t buf[4096];
   bool copyOk = true;
   while (copyOk) {
     esp_task_wdt_reset();
@@ -739,13 +763,13 @@ void WebDAVHandler::handleCopy(WebServer& s) {
       if (!srcFile.available()) {
         break;
       }
-      bytesRead = srcFile.read(buf, sizeof(buf));
+      bytesRead = srcFile.read(buf.get(), 4096);
     }
     if (bytesRead <= 0) break;
     size_t written = 0;
     {
       SpiBusMutex::Guard guard;
-      written = dstFile.write(buf, bytesRead);
+      written = dstFile.write(buf.get(), bytesRead);
     }
     if (written != (size_t)bytesRead) {
       copyOk = false;

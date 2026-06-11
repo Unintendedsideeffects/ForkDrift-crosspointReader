@@ -15,6 +15,8 @@
 namespace network {
 namespace {
 
+constexpr size_t kMaxTodoItems = 256;
+
 // Reads a daily planner file but rejects anything implausibly large so a single
 // oversized /daily/<date>.md (organic growth or a file dropped on the SD card)
 // can't slurp megabytes into the 380KB heap. Caller already holds SpiBusMutex.
@@ -281,6 +283,9 @@ TodoPlannerHttpResult handleTodoTodaySaveRequest(const bool plannerEnabled, cons
     TodoItem item = todoItemFromJson(jsonItem);
     if (item.text.empty()) {
       continue;
+    }
+    if (items.size() >= kMaxTodoItems) {
+      return {400, "text/plain", "Too many items", {}};
     }
     items.push_back(std::move(item));
   }
