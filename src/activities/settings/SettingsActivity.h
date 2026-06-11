@@ -12,7 +12,6 @@ class SettingsActivity final : public Activity {
   int selectedCategoryIndex = 0;  // Currently selected category
   int selectedSettingIndex = 0;
   int settingsCount = 0;
-  bool firstRenderDone = false;
 
  public:
   static constexpr int categoryCount = 6;
