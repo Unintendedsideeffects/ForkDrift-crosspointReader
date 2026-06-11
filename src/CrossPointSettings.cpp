@@ -413,6 +413,8 @@ void CrossPointSettings::enforceButtonLayoutConstraints() {
 }
 
 uint8_t CrossPointSettings::normalizeSleepScreenMode(const uint8_t rawValue) {
+  if (rawValue == COVER) return COVER;
+  if (rawValue == SMART) return DARK;
   if (rawValue == COVER_CUSTOM) {
     return CUSTOM;
   }
@@ -471,8 +473,9 @@ void CrossPointSettings::validateAndClamp() {
   sleepScreen = normalizeSleepScreenMode(sleepScreen);
   if (sleepScreenCoverMode > CROP) sleepScreenCoverMode = FIT;
   if (sleepScreenSource >= SLEEP_SCREEN_SOURCE_COUNT) sleepScreenSource = SLEEP_SOURCE_SLEEP;
-  if (smartSleepReaderMode >= SMART_SLEEP_READER_MODE_COUNT) smartSleepReaderMode = SMART_READER_TRANSPARENT;
-  if (smartSleepHomeMode >= SMART_SLEEP_HOME_MODE_COUNT) smartSleepHomeMode = SMART_HOME_IMAGES;
+  if (sleepScreenSplit >= SLEEP_SCREEN_SPLIT_COUNT) sleepScreenSplit = SLEEP_SPLIT_UNIFIED;
+  sleepScreenReader = normalizeSleepScreenMode(sleepScreenReader);
+  sleepScreenHome = normalizeSleepScreenMode(sleepScreenHome);
   if (statusBar >= STATUS_BAR_MODE_COUNT) statusBar = FULL;
   if (statusBarProgressBar >= STATUS_BAR_PROGRESS_BAR_COUNT) statusBarProgressBar = HIDE_PROGRESS;
   if (statusBarProgressBarThickness >= STATUS_BAR_PROGRESS_BAR_THICKNESS_COUNT) {
@@ -580,6 +583,13 @@ void CrossPointSettings::validateAndClamp() {
   }
 
   enforceButtonLayoutConstraints();
+}
+
+bool CrossPointSettings::sleepModeActive(uint8_t mode) {
+  if (SETTINGS.sleepScreenSplit == SLEEP_SPLIT_SMART) {
+    return SETTINGS.sleepScreenReader == mode || SETTINGS.sleepScreenHome == mode;
+  }
+  return SETTINGS.sleepScreen == mode;
 }
 
 float CrossPointSettings::getReaderLineCompression() const {

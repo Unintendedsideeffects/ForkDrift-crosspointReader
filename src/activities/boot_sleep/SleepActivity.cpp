@@ -598,6 +598,13 @@ SleepImageValidationStats validateSleepImagesWithStats() {
 
 int validateAndCountSleepImages() { return validateSleepImagesWithStats().valid; }
 
+uint8_t SleepActivity::effectiveSleepMode() const {
+  if (SETTINGS.sleepScreenSplit == CrossPointSettings::SLEEP_SPLIT_SMART) {
+    return APP_STATE.lastSleepFromReader ? SETTINGS.sleepScreenReader : SETTINGS.sleepScreenHome;
+  }
+  return SETTINGS.sleepScreen;
+}
+
 void SleepActivity::onEnter() {
   Activity::onEnter();
 
@@ -610,10 +617,7 @@ void SleepActivity::onEnter() {
     return;
   }
 
-  const bool preserveCurrentScreen =
-      SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::TRANSPARENT ||
-      (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::SMART && APP_STATE.lastSleepFromReader &&
-       SETTINGS.smartSleepReaderMode == CrossPointSettings::SMART_READER_TRANSPARENT);
+  const bool preserveCurrentScreen = effectiveSleepMode() == CrossPointSettings::SLEEP_SCREEN_MODE::TRANSPARENT;
 
   if (preserveCurrentScreen) {
     renderTransparentSleepScreen();
@@ -623,9 +627,9 @@ void SleepActivity::onEnter() {
   renderer.clearScreen();
   renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 
-  switch (SETTINGS.sleepScreen) {
-    case (CrossPointSettings::SLEEP_SCREEN_MODE::SMART):
-      renderSmartSleepScreen();
+  switch (effectiveSleepMode()) {
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::COVER):
+      if (!tryRenderCurrentBookCover()) renderCustomSleepScreen();
       return;
     case (CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM):
       renderCustomSleepScreen();
@@ -775,14 +779,14 @@ void SleepActivity::renderCustomSleepScreen() const {
   renderDefaultSleepScreen();
 }
 
-bool SleepActivity::tryRenderImagePath(const std::string& path) const {
+bool SleepActivity::tryRenderImagePath(const std::string& path, CoverDrawRect* drawnRect) const {
   SpiBusMutex::Guard guard;
   if (isBmpFile(path)) {
     HalFile file;
     if (Storage.openFileForRead("SLP", path, file)) {
       Bitmap bitmap(file, true);
       if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        renderBitmapSleepScreen(bitmap);
+        renderBitmapSleepScreen(bitmap, drawnRect);
         file.close();
         return true;
       }
@@ -795,7 +799,7 @@ bool SleepActivity::tryRenderImagePath(const std::string& path) const {
     if (decoder) {
       ImageDimensions dims = {0, 0};
       if (decoder->getDimensions(path, dims) && dims.width > 0 && dims.height > 0) {
-        renderImageSleepScreen(path);
+        renderImageSleepScreen(path, drawnRect);
         return true;
       }
       LOG_WRN("SLP", "Image dimensions invalid: %s", path.c_str());
@@ -807,53 +811,6 @@ bool SleepActivity::tryRenderImagePath(const std::string& path) const {
 #endif
   }
   return false;
-}
-
-void SleepActivity::renderSmartSleepScreen() const {
-  // Reader context: preserve the page or replace it with the current cover.
-  if (APP_STATE.lastSleepFromReader) {
-    if (SETTINGS.smartSleepReaderMode == CrossPointSettings::SMART_READER_COVER && tryRenderCurrentBookCover()) {
-      return;
-    }
-    renderTransparentSleepScreen();
-    return;
-  }
-
-  // Home context: pinned → current book cover → sleep folder → default.
-
-  // 1) Pinned cover (if configured)
-  if (SETTINGS.sleepPinnedPath[0] != '\0') {
-    const std::string pinnedPath(SETTINGS.sleepPinnedPath);
-    LOG_INF("SLP", "Smart: trying pinned cover: %s", pinnedPath.c_str());
-    if (tryRenderImagePath(pinnedPath)) return;
-    LOG_WRN("SLP", "Smart: pinned failed, trying current book cover");
-  }
-
-  // 2) Current book cover (if a book is open and its file still exists)
-  if (tryRenderCurrentBookCover()) {
-    return;
-  }
-
-  // 3) Configured fallback
-  switch (SETTINGS.smartSleepHomeMode) {
-#if ENABLE_HAIKU_CLOCK
-    case CrossPointSettings::SMART_HOME_HAIKU:
-      renderHaikuClockSleepScreen();
-      return;
-#endif
-#if ENABLE_ROMAN_CLOCK_SLEEP
-    case CrossPointSettings::SMART_HOME_ROMAN:
-      renderRomanClockSleepScreen();
-      return;
-#endif
-    case CrossPointSettings::SMART_HOME_DARK:
-      renderDefaultSleepScreen();
-      return;
-    case CrossPointSettings::SMART_HOME_IMAGES:
-    default:
-      renderCustomSleepScreen();
-      return;
-  }
 }
 
 bool SleepActivity::tryRenderCurrentBookCover() const {
@@ -868,12 +825,20 @@ bool SleepActivity::tryRenderCurrentBookCover() const {
   }
 
   LOG_INF("SLP", "Smart: trying current book cover: %s", homeCardData.coverPath.c_str());
-  if (!tryRenderImagePath(homeCardData.coverPath)) {
+  CoverDrawRect drawnRect;
+  if (!tryRenderImagePath(homeCardData.coverPath, &drawnRect)) {
     LOG_WRN("SLP", "Smart: book cover failed");
     return false;
   }
 #if ENABLE_POKEMON_PARTY
-  if (drawPokemonCoverOverlay(APP_STATE.openEpubPath, homeCardData.coverPath)) {
+  int cx = 0, cy = 0, cw = renderer.getScreenWidth(), ch = renderer.getScreenHeight();
+  if (drawnRect.valid) {
+    cx = drawnRect.x;
+    cy = drawnRect.y;
+    cw = drawnRect.w;
+    ch = drawnRect.h;
+  }
+  if (drawPokemonCoverOverlay(APP_STATE.openEpubPath, cx, cy, cw, ch)) {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 #endif
@@ -1073,7 +1038,7 @@ void SleepActivity::renderDefaultSleepScreen() const {
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
 
-void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
+void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, CoverDrawRect* drawnRect) const {
   int x, y;
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
@@ -1143,6 +1108,14 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
     renderer.displayGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);
   }
+
+  if (drawnRect) {
+    drawnRect->x = x;
+    drawnRect->y = y;
+    drawnRect->w = pageWidth - 2 * x;
+    drawnRect->h = pageHeight - 2 * y;
+    drawnRect->valid = true;
+  }
 }
 
 #if ENABLE_POKEMON_PARTY
@@ -1180,25 +1153,6 @@ std::string coverPathForOpenBook(const std::string& bookPath) {
   return RECENT_BOOKS.getDataFromBook(bookPath).coverBmpPath;
 }
 
-// Draw a cached 1-bit BMP fitted into a square box (mirrors the party theme's
-// helper). Returns false when the file is missing/unparseable.
-bool drawCoverBmpInBox(GfxRenderer& renderer, const std::string& path, int x, int y, int size) {
-  if (path.empty() || !Storage.exists(path.c_str())) {
-    return false;
-  }
-  HalFile file;
-  if (!Storage.openFileForRead("SLP", path, file)) {
-    return false;
-  }
-  Bitmap bitmap(file);
-  bool drew = false;
-  if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-    renderer.drawBitmap1Bit(bitmap, x, y, size, size);
-    drew = true;
-  }
-  file.close();
-  return drew;
-}
 }  // namespace
 
 bool SleepActivity::renderPokemonCoverSleepScreen() const {
@@ -1213,6 +1167,8 @@ bool SleepActivity::renderPokemonCoverSleepScreen() const {
 
   renderer.clearScreen();
 
+  int cx = 0, cy = 0, drawW = pageWidth, drawH = pageHeight;
+
   // --- Cover, centered and scaled to fit the panel ---
   if (!coverPath.empty()) {
     HalFile file;
@@ -1224,24 +1180,25 @@ bool SleepActivity::renderPokemonCoverSleepScreen() const {
         // drawBitmap scales down to fit (maxWidth, maxHeight); center the result.
         const float scale = std::min(1.0f, std::min(static_cast<float>(pageWidth) / static_cast<float>(bw),
                                                     static_cast<float>(pageHeight) / static_cast<float>(bh)));
-        const int drawW = static_cast<int>(static_cast<float>(bw) * scale);
-        const int drawH = static_cast<int>(static_cast<float>(bh) * scale);
-        const int cx = (pageWidth - drawW) / 2;
-        const int cy = (pageHeight - drawH) / 2;
+        drawW = static_cast<int>(static_cast<float>(bw) * scale);
+        drawH = static_cast<int>(static_cast<float>(bh) * scale);
+        cx = (pageWidth - drawW) / 2;
+        cy = (pageHeight - drawH) / 2;
         renderer.drawBitmap(bitmap, cx, cy, pageWidth, pageHeight);
       }
       file.close();
     }
   }
 
-  if (!drawPokemonCoverOverlay(bookPath, coverPath)) {
+  if (!drawPokemonCoverOverlay(bookPath, cx, cy, drawW, drawH)) {
     return false;
   }
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   return true;
 }
 
-bool SleepActivity::drawPokemonCoverOverlay(const std::string& bookPath, const std::string& coverPath) const {
+bool SleepActivity::drawPokemonCoverOverlay(const std::string& bookPath, int coverX, int coverY, int coverW,
+                                            int coverH) const {
   const PokemonAssignment assignment = PokemonProgress::loadForBook(bookPath);
   if (!assignment.valid) {
     return false;
@@ -1251,47 +1208,43 @@ bool SleepActivity::drawPokemonCoverOverlay(const std::string& bookPath, const s
   const float percent = BookProgressDataStore::loadProgress(bookPath, pd) ? pd.percent : 0.0f;
   const int level = PokemonProgress::levelForPercent(percent);
   const int speciesId = PokemonProgress::activeSpeciesId(assignment, level);
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
 
-  // --- Pokémon panel, bottom-right corner ---
-  // A filled rounded panel masks the cover so the sprite + label stay legible.
-  const int panelW = std::clamp(pageWidth / 2, 160, 280);
-  const int spriteSz = panelW - 2 * 8;
-  const int labelH = renderer.getLineHeight(UI_12_FONT_ID);
-  const int panelH = 8 + spriteSz + 4 + labelH + 8;
-  const int panelMargin = 12;
-  const int panelX = pageWidth - panelW - panelMargin;
-  const int panelY = pageHeight - panelH - panelMargin;
-
-  renderer.fillRect(panelX, panelY, panelW, panelH, false);  // white backdrop (clears cover)
-  renderer.drawRoundedRect(panelX, panelY, panelW, panelH, 2, 8, true);
-
-  const int sx = panelX + 8;
-  const int sy = panelY + 8;
-  bool drewSprite = drawCoverBmpInBox(renderer, PokemonSpriteCache::spritePath(speciesId), sx, sy, spriteSz);
-  if (!drewSprite) {
-    // Offline / not-yet-cached sprite: fall back to the book's cover thumbnail.
-    drewSprite = drawCoverBmpInBox(renderer, coverPath, sx, sy, spriteSz);
+  const std::string spritePath = PokemonSpriteCache::spritePath(speciesId);
+  if (spritePath.empty() || !Storage.exists(spritePath.c_str())) {
+    return false;
   }
-  (void)drewSprite;  // empty box is acceptable; the label still conveys level
 
-  // "<Name> Lv N" centered under the sprite.
-  char label[40];
-  std::string name = assignment.name;
-  if (!name.empty()) {
-    name[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
+  HalFile file;
+  if (!Storage.openFileForRead("SLP", spritePath, file)) {
+    return false;
   }
-  std::snprintf(label, sizeof(label), "%s Lv%d", name.c_str(), level);
-  const std::string labelText = renderer.truncatedText(UI_12_FONT_ID, label, panelW - 12);
-  const int labelW = renderer.getTextWidth(UI_12_FONT_ID, labelText.c_str());
-  renderer.drawText(UI_12_FONT_ID, panelX + (panelW - labelW) / 2, sy + spriteSz + 4, labelText.c_str(), true);
 
+  Bitmap bitmap(file);
+  if (bitmap.parseHeaders() != BmpReaderError::Ok) {
+    file.close();
+    return false;
+  }
+
+  const int bw = bitmap.getWidth();
+  const int bh = bitmap.getHeight();
+
+  const int screenW = renderer.getScreenWidth();
+  const int screenH = renderer.getScreenHeight();
+
+  int sx = coverX + coverW - bw;
+  int sy = coverY + coverH - bh;
+
+  sx = std::clamp(sx, 0, std::max(0, screenW - bw));
+  sy = std::clamp(sy, 0, std::max(0, screenH - bh));
+
+  renderer.drawBitmap1Bit(bitmap, sx, sy, bw, bh);
+
+  file.close();
   return true;
 }
 #endif  // ENABLE_POKEMON_PARTY
 
-void SleepActivity::renderImageSleepScreen(const std::string& imagePath) const {
+void SleepActivity::renderImageSleepScreen(const std::string& imagePath, CoverDrawRect* drawnRect) const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
@@ -1379,6 +1332,21 @@ void SleepActivity::renderImageSleepScreen(const std::string& imagePath) const {
 
     renderer.displayGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);
+  }
+
+  if (drawnRect) {
+    if (SETTINGS.sleepScreenCoverMode == CrossPointSettings::SLEEP_SCREEN_COVER_MODE::CROP) {
+      drawnRect->x = 0;
+      drawnRect->y = 0;
+      drawnRect->w = pageWidth;
+      drawnRect->h = pageHeight;
+    } else {
+      drawnRect->x = x;
+      drawnRect->y = y;
+      drawnRect->w = displayWidth;
+      drawnRect->h = displayHeight;
+    }
+    drawnRect->valid = true;
   }
 }
 

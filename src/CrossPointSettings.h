@@ -27,7 +27,7 @@ class CrossPointSettings {
     SMART = 7,
     ROMAN_CLOCK_SLEEP = 8,
     SLEEP_SCREEN_MODE_COUNT = 9,
-    // Former names kept as internal sentinels; never assigned via UI.
+    // Former names kept as internal sentinels (COVER is now UI-selectable).
     COVER = 9,          // was 3
     BLANK = 10,         // was 4
     COVER_CUSTOM = 11,  // was 5
@@ -51,14 +51,7 @@ class CrossPointSettings {
     SLEEP_SCREEN_SOURCE_COUNT
   };
   enum SLEEP_CYCLE_MODE { SLEEP_CYCLE_RANDOM = 0, SLEEP_CYCLE_SEQUENTIAL = 1, SLEEP_CYCLE_MODE_COUNT };
-  enum SMART_SLEEP_READER_MODE { SMART_READER_TRANSPARENT = 0, SMART_READER_COVER = 1, SMART_SLEEP_READER_MODE_COUNT };
-  enum SMART_SLEEP_HOME_MODE {
-    SMART_HOME_IMAGES = 0,
-    SMART_HOME_HAIKU = 1,
-    SMART_HOME_ROMAN = 2,
-    SMART_HOME_DARK = 3,
-    SMART_SLEEP_HOME_MODE_COUNT
-  };
+  enum SLEEP_SCREEN_SPLIT { SLEEP_SPLIT_UNIFIED = 0, SLEEP_SPLIT_SMART = 1, SLEEP_SCREEN_SPLIT_COUNT };
 
   // Status bar display type enum
   enum STATUS_BAR_MODE {
@@ -162,6 +155,7 @@ class CrossPointSettings {
   static constexpr uint8_t MIN_SLEEP_TIMEOUT_MINUTES = 1;
   static constexpr uint8_t MAX_SLEEP_TIMEOUT_MINUTES = 30;
   static uint8_t normalizeSleepScreenMode(uint8_t rawValue);
+  static bool sleepModeActive(uint8_t mode);
 
   // E-ink refresh frequency (pages between full refreshes)
   enum REFRESH_FREQUENCY {
@@ -279,8 +273,9 @@ class CrossPointSettings {
   // Sleep image cycle mode (random or sequential)
   uint8_t sleepCycleMode = SLEEP_CYCLE_RANDOM;
   // Smart sleep behavior for reader and home contexts
-  uint8_t smartSleepReaderMode = SMART_READER_TRANSPARENT;
-  uint8_t smartSleepHomeMode = SMART_HOME_IMAGES;
+  uint8_t sleepScreenSplit = SLEEP_SPLIT_UNIFIED;
+  uint8_t sleepScreenReader = TRANSPARENT;
+  uint8_t sleepScreenHome = CUSTOM;
   // Pinned sleep cover path — if non-empty and sleepScreen==CUSTOM, always use this image.
   char sleepPinnedPath[256] = "";
 #if ENABLE_HAIKU_CLOCK

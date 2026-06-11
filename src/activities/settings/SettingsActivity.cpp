@@ -92,28 +92,29 @@ bool controlSettingVisible(const SettingInfo& setting, const std::vector<Setting
   if (setting.key != nullptr && std::strcmp(setting.key, "timeZoneOffset") == 0) {
     return SETTINGS.timeMode != CrossPointSettings::TIME_MODE_MANUAL;
   }
-  if (setting.visibleWhen.key == nullptr) {
-    return true;
+  bool isVisible = true;
+  if (setting.visibleWhen.key != nullptr) {
+    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [&](const SettingInfo& s) {
+      return s.key && std::strcmp(s.key, setting.visibleWhen.key) == 0;
+    });
+    if (it != allSettings.end()) {
+      const uint8_t value = it->persistedValue();
+      if (!setting.visibleWhen.eqAnyOf.empty()) {
+        isVisible = std::find(setting.visibleWhen.eqAnyOf.begin(), setting.visibleWhen.eqAnyOf.end(), value) !=
+                    setting.visibleWhen.eqAnyOf.end();
+      } else if (setting.visibleWhen.notEqual) {
+        isVisible = value != setting.visibleWhen.eq;
+      } else {
+        isVisible = value == setting.visibleWhen.eq;
+      }
+    }
   }
 
-  const auto it = std::find_if(allSettings.begin(), allSettings.end(), [&](const SettingInfo& s) {
-    return s.key && std::strcmp(s.key, setting.visibleWhen.key) == 0;
-  });
-  if (it == allSettings.end()) {
-    return true;
+  if (isVisible && setting.visiblePredicate != nullptr) {
+    isVisible = setting.visiblePredicate();
   }
 
-  const uint8_t value = it->persistedValue();
-
-  if (!setting.visibleWhen.eqAnyOf.empty()) {
-    return std::find(setting.visibleWhen.eqAnyOf.begin(), setting.visibleWhen.eqAnyOf.end(), value) !=
-           setting.visibleWhen.eqAnyOf.end();
-  }
-  if (setting.visibleWhen.notEqual) {
-    return value != setting.visibleWhen.eq;
-  } else {
-    return value == setting.visibleWhen.eq;
-  }
+  return isVisible;
 }
 
 }  // namespace
@@ -464,11 +465,8 @@ void SettingsActivity::toggleCurrentSetting() {
     }
   };
 
-  // Sleep source only applies when custom sleep screen mode is enabled.
-  if (setting.key != nullptr && std::strcmp(setting.key, "sleepScreenSource") == 0 &&
-      SETTINGS.sleepScreen != CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM) {
-    return;
-  }
+  // sleepScreenSource activation is gated by its row's visibility predicate
+  // (sleepCustomOrCoverActive); the row never renders when it doesn't apply.
 
   if (setting.nameId == StrId::STR_TIME_TO_SLEEP) {
     openSleepTimeoutPicker();

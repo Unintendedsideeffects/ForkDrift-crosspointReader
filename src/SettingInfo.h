@@ -104,6 +104,13 @@ struct SettingInfo {
     return *this;
   }
 
+  bool (*visiblePredicate)() = nullptr;
+
+  SettingInfo& withVisiblePredicate(bool (*fn)()) {
+    visiblePredicate = fn;
+    return *this;
+  }
+
   SettingInfo& withObfuscated() {
     obfuscated = true;
     return *this;

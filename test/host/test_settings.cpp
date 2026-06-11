@@ -394,9 +394,28 @@ TEST_CASE("testNormalizeSleepScreenModeClampsUnknownValues") {
   s.validateAndClamp();
   CHECK(s.sleepScreen == CrossPointSettings::DARK);
 
+  // COVER is a first-class UI-selectable mode (sleep split rework); it must
+  // survive normalization.
   s.sleepScreen = CrossPointSettings::COVER;
   s.validateAndClamp();
+  CHECK(s.sleepScreen == CrossPointSettings::COVER);
+
+  // SMART is no longer a mode (it became the sleepScreenSplit flag); stored
+  // legacy values normalize away.
+  s.sleepScreen = CrossPointSettings::SMART;
+  s.validateAndClamp();
   CHECK(s.sleepScreen == CrossPointSettings::DARK);
+
+  // The per-context pickers run through the same normalization.
+  s.sleepScreenReader = CrossPointSettings::SMART;
+  s.sleepScreenHome = 99;
+  s.validateAndClamp();
+  CHECK(s.sleepScreenReader == CrossPointSettings::DARK);
+  CHECK(s.sleepScreenHome == CrossPointSettings::DARK);
+
+  s.sleepScreenSplit = 7;
+  s.validateAndClamp();
+  CHECK(s.sleepScreenSplit == CrossPointSettings::SLEEP_SPLIT_UNIFIED);
 
 #if ENABLE_READING_STATS
   s.sleepScreen = CrossPointSettings::READING_STATS_SLEEP;

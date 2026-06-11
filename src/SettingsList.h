@@ -406,6 +406,76 @@ inline bool dirHasAnyImage(const char* path) {
   return false;
 }
 
+inline void buildSleepModeOptions(std::vector<StrId>& ids, std::vector<uint8_t>& vals,
+                                  std::vector<const char*>& optionFeatureKeys, bool hasSleepImages,
+                                  bool hasPokedexImages) {
+  using M = CrossPointSettings::SLEEP_SCREEN_MODE;
+
+  ids.push_back(StrId::STR_DARK);
+  vals.push_back(M::DARK);
+  optionFeatureKeys.push_back(nullptr);
+
+  ids.push_back(StrId::STR_LIGHT);
+  vals.push_back(M::LIGHT);
+  optionFeatureKeys.push_back(nullptr);
+
+  ids.push_back(StrId::STR_FOLLOW_THEME);
+  vals.push_back(M::FOLLOW_THEME);
+  optionFeatureKeys.push_back(nullptr);
+
+  const bool keepCustom = hasSleepImages || hasPokedexImages || (SETTINGS.sleepPinnedPath[0] != '\0');
+  if (keepCustom) {
+    ids.push_back(StrId::STR_CUSTOM);
+    vals.push_back(M::CUSTOM);
+    optionFeatureKeys.push_back("image_sleep");
+  }
+
+  ids.push_back(StrId::STR_BOOK_COVER);
+  vals.push_back(M::COVER);
+  optionFeatureKeys.push_back(nullptr);
+
+  ids.push_back(StrId::STR_TRANSPARENT);
+  vals.push_back(M::TRANSPARENT);
+  optionFeatureKeys.push_back(nullptr);
+
+#if ENABLE_ROMAN_CLOCK_SLEEP
+  ids.push_back(StrId::STR_ROMAN_CLOCK);
+  vals.push_back(M::ROMAN_CLOCK_SLEEP);
+  optionFeatureKeys.push_back("roman_clock_sleep");
+#endif
+#if ENABLE_HAIKU_CLOCK
+  ids.push_back(StrId::STR_HAIKU_CLOCK);
+  vals.push_back(M::HAIKU_CLOCK_SLEEP);
+  optionFeatureKeys.push_back("haiku_clock_sleep");
+#endif
+#if ENABLE_READING_STATS
+  ids.push_back(StrId::STR_READING_STATS);
+  vals.push_back(M::READING_STATS_SLEEP);
+  optionFeatureKeys.push_back("reading_stats");
+#endif
+#if ENABLE_NOTES
+  ids.push_back(StrId::STR_NOTES);
+  vals.push_back(M::NOTES_SLEEP);
+  optionFeatureKeys.push_back("notes");
+#endif
+#if ENABLE_TODO_PLANNER
+  ids.push_back(StrId::STR_TODO_HOME_LABEL);
+  vals.push_back(M::PLANNER_SLEEP);
+  optionFeatureKeys.push_back("todo_planner");
+#endif
+}
+
+inline bool sleepCustomOrCoverActive() {
+  return CrossPointSettings::sleepModeActive(CrossPointSettings::CUSTOM) ||
+         CrossPointSettings::sleepModeActive(CrossPointSettings::COVER);
+}
+
+#if ENABLE_HAIKU_CLOCK
+inline bool sleepHaikuClockActive() {
+  return CrossPointSettings::sleepModeActive(CrossPointSettings::HAIKU_CLOCK_SLEEP);
+}
+#endif
+
 // Shared settings list for the device settings UI and web /api/settings.
 // Each entry has a JSON key (SettingInfo::key) and StrId category; configuratorExport
 // entries also carry a FeatureCatalog key (configuratorFeatureKey). ACTION entries
@@ -427,65 +497,16 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 
   // Sleep screen uses DynamicEnum with explicit value mapping so display order
   // stays independent of the persisted enum values.
+  list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_STYLE, &CrossPointSettings::sleepScreenSplit,
+                                   {StrId::STR_SLEEP_UNIFIED, StrId::STR_SLEEP_SMART}, "sleepScreenSplit",
+                                   StrId::STR_CAT_DISPLAY)
+                     .withConfiguratorExport());
+
   list.push_back([&] {
-    using M = CrossPointSettings::SLEEP_SCREEN_MODE;
     std::vector<StrId> ids;
     std::vector<uint8_t> vals;
     std::vector<const char*> optionFeatureKeys;
-
-    ids.push_back(StrId::STR_DARK);
-    vals.push_back(M::DARK);
-    optionFeatureKeys.push_back(nullptr);
-
-    ids.push_back(StrId::STR_LIGHT);
-    vals.push_back(M::LIGHT);
-    optionFeatureKeys.push_back(nullptr);
-
-    ids.push_back(StrId::STR_FOLLOW_THEME);
-    vals.push_back(M::FOLLOW_THEME);
-    optionFeatureKeys.push_back(nullptr);
-
-    const bool keepCustom = hasSleepImages || hasPokedexImages || (SETTINGS.sleepPinnedPath[0] != '\0');
-    if (keepCustom) {
-      ids.push_back(StrId::STR_CUSTOM);
-      vals.push_back(M::CUSTOM);
-      optionFeatureKeys.push_back("image_sleep");
-    }
-
-    ids.push_back(StrId::STR_TRANSPARENT);
-    vals.push_back(M::TRANSPARENT);
-    optionFeatureKeys.push_back(nullptr);
-
-    ids.push_back(StrId::STR_SLEEP_SMART);
-    vals.push_back(M::SMART);
-    optionFeatureKeys.push_back(nullptr);
-
-#if ENABLE_ROMAN_CLOCK_SLEEP
-    ids.push_back(StrId::STR_ROMAN_CLOCK);
-    vals.push_back(M::ROMAN_CLOCK_SLEEP);
-    optionFeatureKeys.push_back("roman_clock_sleep");
-#endif
-#if ENABLE_HAIKU_CLOCK
-    ids.push_back(StrId::STR_HAIKU_CLOCK);
-    vals.push_back(M::HAIKU_CLOCK_SLEEP);
-    optionFeatureKeys.push_back("haiku_clock_sleep");
-#endif
-#if ENABLE_READING_STATS
-    ids.push_back(StrId::STR_READING_STATS);
-    vals.push_back(M::READING_STATS_SLEEP);
-    optionFeatureKeys.push_back("reading_stats");
-#endif
-#if ENABLE_NOTES
-    ids.push_back(StrId::STR_NOTES);
-    vals.push_back(M::NOTES_SLEEP);
-    optionFeatureKeys.push_back("notes");
-#endif
-#if ENABLE_TODO_PLANNER
-    ids.push_back(StrId::STR_TODO_HOME_LABEL);
-    vals.push_back(M::PLANNER_SLEEP);
-    optionFeatureKeys.push_back("todo_planner");
-#endif
-
+    buildSleepModeOptions(ids, vals, optionFeatureKeys, hasSleepImages, hasPokedexImages);
     return SettingInfo::DynamicEnum(
                StrId::STR_SLEEP_SCREEN, ids,
                [vals] {
@@ -499,46 +520,58 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                  if (idx < vals.size()) SETTINGS.sleepScreen = vals[idx];
                },
                "sleepScreen", StrId::STR_CAT_DISPLAY)
+        .withVisibleWhen("sleepScreenSplit", CrossPointSettings::SLEEP_SPLIT_UNIFIED)
         .withConfiguratorExport()
         .withEnumPersistedValues(vals)
         .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
   }());
-  list.push_back(SettingInfo::Enum(StrId::STR_SMART_READER_MODE, &CrossPointSettings::smartSleepReaderMode,
-                                   {StrId::STR_TRANSPARENT, StrId::STR_BOOK_COVER}, "smartSleepReaderMode",
-                                   StrId::STR_CAT_DISPLAY)
-                     .withVisibleWhen("sleepScreen", CrossPointSettings::SMART)
-                     .withConfiguratorExport());
-  list.push_back([&] {
-    using M = CrossPointSettings::SMART_SLEEP_HOME_MODE;
-    std::vector<StrId> ids = {StrId::STR_IMAGES};
-    std::vector<uint8_t> vals = {M::SMART_HOME_IMAGES};
-#if ENABLE_HAIKU_CLOCK
-    ids.push_back(StrId::STR_HAIKU_CLOCK);
-    vals.push_back(M::SMART_HOME_HAIKU);
-#endif
-#if ENABLE_ROMAN_CLOCK_SLEEP
-    ids.push_back(StrId::STR_ROMAN_CLOCK);
-    vals.push_back(M::SMART_HOME_ROMAN);
-#endif
-    ids.push_back(StrId::STR_DARK);
-    vals.push_back(M::SMART_HOME_DARK);
 
+  list.push_back([&] {
+    std::vector<StrId> ids;
+    std::vector<uint8_t> vals;
+    std::vector<const char*> optionFeatureKeys;
+    buildSleepModeOptions(ids, vals, optionFeatureKeys, hasSleepImages, hasPokedexImages);
     return SettingInfo::DynamicEnum(
-               StrId::STR_SMART_HOME_MODE, ids,
+               StrId::STR_SLEEP_READER_SCREEN, ids,
                [vals] {
-                 const uint8_t cur = SETTINGS.smartSleepHomeMode;
+                 const uint8_t cur = SETTINGS.sleepScreenReader;
                  for (size_t i = 0; i < vals.size(); i++) {
                    if (vals[i] == cur) return static_cast<uint8_t>(i);
                  }
                  return uint8_t{0};
                },
                [vals](uint8_t idx) {
-                 if (idx < vals.size()) SETTINGS.smartSleepHomeMode = vals[idx];
+                 if (idx < vals.size()) SETTINGS.sleepScreenReader = vals[idx];
                },
-               "smartSleepHomeMode", StrId::STR_CAT_DISPLAY)
-        .withVisibleWhen("sleepScreen", CrossPointSettings::SMART)
+               "sleepScreenReader", StrId::STR_CAT_DISPLAY)
+        .withVisibleWhen("sleepScreenSplit", CrossPointSettings::SLEEP_SPLIT_SMART)
         .withConfiguratorExport()
-        .withEnumPersistedValues(vals);
+        .withEnumPersistedValues(vals)
+        .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
+  }());
+
+  list.push_back([&] {
+    std::vector<StrId> ids;
+    std::vector<uint8_t> vals;
+    std::vector<const char*> optionFeatureKeys;
+    buildSleepModeOptions(ids, vals, optionFeatureKeys, hasSleepImages, hasPokedexImages);
+    return SettingInfo::DynamicEnum(
+               StrId::STR_SLEEP_GENERAL_SCREEN, ids,
+               [vals] {
+                 const uint8_t cur = SETTINGS.sleepScreenHome;
+                 for (size_t i = 0; i < vals.size(); i++) {
+                   if (vals[i] == cur) return static_cast<uint8_t>(i);
+                 }
+                 return uint8_t{0};
+               },
+               [vals](uint8_t idx) {
+                 if (idx < vals.size()) SETTINGS.sleepScreenHome = vals[idx];
+               },
+               "sleepScreenHome", StrId::STR_CAT_DISPLAY)
+        .withVisibleWhen("sleepScreenSplit", CrossPointSettings::SLEEP_SPLIT_SMART)
+        .withConfiguratorExport()
+        .withEnumPersistedValues(vals)
+        .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
   }());
   {
     std::vector<StrId> sleepSourceLabels = {StrId::STR_SLEEP};
@@ -553,26 +586,26 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                                      "sleepScreenSource", StrId::STR_CAT_DISPLAY)
                        .withConfiguratorExport()
                        .withEnumOptionFeatureKeys(sleepSourceFeatureKeys)
-                       .withVisibleWhenAnyOf("sleepScreen", {CrossPointSettings::CUSTOM, CrossPointSettings::SMART}));
+                       .withVisiblePredicate(sleepCustomOrCoverActive));
   }
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_COVER_MODE, &CrossPointSettings::sleepScreenCoverMode,
                                    {StrId::STR_FIT, StrId::STR_CROP}, "sleepScreenCoverMode", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()
-                     .withVisibleWhenAnyOf("sleepScreen", {CrossPointSettings::CUSTOM, CrossPointSettings::SMART}));
+                     .withVisiblePredicate(sleepCustomOrCoverActive));
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_COVER_FILTER, &CrossPointSettings::sleepScreenCoverFilter,
                                    {StrId::STR_NONE_OPT, StrId::STR_FILTER_CONTRAST, StrId::STR_INVERTED},
                                    "sleepScreenCoverFilter", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()
-                     .withVisibleWhenAnyOf("sleepScreen", {CrossPointSettings::CUSTOM, CrossPointSettings::SMART}));
+                     .withVisiblePredicate(sleepCustomOrCoverActive));
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_CYCLE_MODE, &CrossPointSettings::sleepCycleMode,
                                    {StrId::STR_RANDOM, StrId::STR_SEQUENTIAL}, "sleepCycleMode", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()
-                     .withVisibleWhenAnyOf("sleepScreen", {CrossPointSettings::CUSTOM, CrossPointSettings::SMART}));
+                     .withVisiblePredicate(sleepCustomOrCoverActive));
 #if ENABLE_HAIKU_CLOCK
   list.push_back(SettingInfo::Toggle(StrId::STR_HAIKU_CLOCK_LANDSCAPE, &CrossPointSettings::haikuClockLandscape,
                                      "haikuClockLandscape", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()
-                     .withVisibleWhen("sleepScreen", CrossPointSettings::HAIKU_CLOCK_SLEEP));
+                     .withVisiblePredicate(sleepHaikuClockActive));
 #endif
   list.push_back(SettingInfo::Toggle(StrId::STR_CHAPTER_PAGE_COUNT, &CrossPointSettings::statusBarChapterPageCount,
                                      "statusBarChapterPageCount", StrId::STR_CUSTOMISE_STATUS_BAR)
