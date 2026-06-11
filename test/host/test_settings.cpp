@@ -321,18 +321,70 @@ TEST_CASE("testSleepScreenEnumCyclesAllPersistedValues") {
   for (size_t start = 0; start < optionCount; ++start) {
     s.sleepScreen = sleepSetting->enumPersistedValues[start];
     s.sleepScreen = CrossPointSettings::normalizeSleepScreenMode(s.sleepScreen);
-    CHECK(sleepSetting->valueGetter() == static_cast<uint8_t>(start));
+    CHECK(sleepSetting->optionPosition() == start);
 
     for (size_t step = 0; step < optionCount; ++step) {
-      const uint8_t index = sleepSetting->valueGetter();
+      const size_t index = sleepSetting->optionPosition();
       REQUIRE(index < optionCount);
-      const uint8_t nextIndex = static_cast<uint8_t>((index + 1) % optionCount);
-      sleepSetting->valueSetter(nextIndex);
+      const size_t nextIndex = (index + 1) % optionCount;
+      sleepSetting->activateOption(nextIndex);
       s.sleepScreen = CrossPointSettings::normalizeSleepScreenMode(s.sleepScreen);
       CHECK(s.sleepScreen == sleepSetting->enumPersistedValues[nextIndex]);
-      CHECK(sleepSetting->valueGetter() == nextIndex);
+      CHECK(sleepSetting->persistedValue() == sleepSetting->enumPersistedValues[nextIndex]);
+      CHECK(sleepSetting->optionPosition() == nextIndex);
     }
   }
+}
+
+TEST_CASE("testSettingInfoDynamicEnumCanonicalValueAccessors") {
+  uint8_t persisted = 0;
+  const std::vector<uint8_t> values = {0, 1, 4, 2, 3, 7, 8, 13};
+  SettingInfo setting =
+      SettingInfo::DynamicEnum(
+          StrId::STR_NONE_OPT, {},
+          [&] {
+            const auto it = std::find(values.begin(), values.end(), persisted);
+            return it == values.end() ? uint8_t{0} : static_cast<uint8_t>(std::distance(values.begin(), it));
+          },
+          [&](const uint8_t position) { persisted = values[position]; })
+          .withEnumPersistedValues(values);
+
+  persisted = 13;
+  CHECK(setting.persistedValue() == 13);
+  CHECK(setting.optionPosition() == 7);
+
+  setting.activateOption(2);
+  CHECK(persisted == 4);
+  CHECK(setting.persistedValue() == 4);
+  CHECK(setting.optionPosition() == 2);
+
+  setting.setPersistedValue(7);
+  CHECK(persisted == 7);
+  CHECK(setting.optionPosition() == 5);
+}
+
+TEST_CASE("testVisibleWhenUsesDynamicEnumPersistedValue") {
+  uint8_t persisted = 0;
+  const std::vector<uint8_t> values = {0, 1, 4, 2, 3, 7, 8, 13};
+  SettingInfo anchor =
+      SettingInfo::DynamicEnum(
+          StrId::STR_NONE_OPT, {},
+          [&] {
+            const auto it = std::find(values.begin(), values.end(), persisted);
+            return it == values.end() ? uint8_t{0} : static_cast<uint8_t>(std::distance(values.begin(), it));
+          },
+          [&](const uint8_t position) { persisted = values[position]; }, "sleepScreen")
+          .withEnumPersistedValues(values);
+  SettingInfo dependent = SettingInfo::Toggle(StrId::STR_NONE_OPT, &CrossPointSettings::darkMode);
+  dependent.withVisibleWhen("sleepScreen", 13);
+
+  const auto visible = [&] { return anchor.persistedValue() == dependent.visibleWhen.eq; };
+  anchor.setPersistedValue(8);
+  CHECK_FALSE(visible());
+  anchor.setPersistedValue(13);
+  CHECK(visible());
+  anchor.setPersistedValue(0);
+  CHECK_FALSE(visible());
 }
 
 TEST_CASE("testNormalizeSleepScreenModeClampsUnknownValues") {

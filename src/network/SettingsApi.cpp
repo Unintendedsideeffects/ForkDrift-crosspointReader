@@ -2,6 +2,7 @@
 
 #include <ArduinoJson.h>
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 
@@ -17,7 +18,7 @@ bool isPasswordField(const char* key) {
 
 void appendSettingJson(String& json, const SettingInfo& s) {
   JsonDocument doc;
-  char output[640];
+  char output[768];
   constexpr size_t outputSize = sizeof(output);
 
   doc["key"] = s.key;
@@ -27,19 +28,14 @@ void appendSettingJson(String& json, const SettingInfo& s) {
   switch (s.type) {
     case SettingType::TOGGLE: {
       doc["type"] = "toggle";
-      if (s.valuePtr) {
-        doc["value"] = static_cast<int>(SETTINGS.*(s.valuePtr));
-      }
+      doc["value"] = static_cast<int>(s.persistedValue());
       break;
     }
     case SettingType::ENUM: {
       doc["type"] = "enum";
-      if (s.valuePtr) {
-        doc["value"] = static_cast<int>(SETTINGS.*(s.valuePtr));
-      } else if (s.valueGetter) {
-        doc["value"] = static_cast<int>(s.valueGetter());
-      }
+      doc["value"] = static_cast<int>(s.persistedValue());
       JsonArray options = doc["options"].to<JsonArray>();
+      JsonArray optionValues = doc["optionValues"].to<JsonArray>();
       if (s.dynamicValuesGetter) {
         for (const auto& opt : s.dynamicValuesGetter()) {
           options.add(opt.c_str());
@@ -49,13 +45,14 @@ void appendSettingJson(String& json, const SettingInfo& s) {
           options.add(I18N.get(opt));
         }
       }
+      for (size_t i = 0; i < options.size(); ++i) {
+        optionValues.add(i < s.enumPersistedValues.size() ? s.enumPersistedValues[i] : static_cast<uint8_t>(i));
+      }
       break;
     }
     case SettingType::VALUE: {
       doc["type"] = "value";
-      if (s.valuePtr) {
-        doc["value"] = static_cast<int>(SETTINGS.*(s.valuePtr));
-      }
+      doc["value"] = static_cast<int>(s.persistedValue());
       doc["min"] = s.valueRange.min;
       doc["max"] = s.valueRange.max;
       doc["step"] = s.valueRange.step;
@@ -138,9 +135,7 @@ SettingsApplyResult applySettingsJson(const String& body) {
     switch (s.type) {
       case SettingType::TOGGLE: {
         const int val = doc[s.key].as<int>() ? 1 : 0;
-        if (s.valuePtr) {
-          SETTINGS.*(s.valuePtr) = val;
-        }
+        s.setPersistedValue(val);
         applied++;
         updatedKoreaderSettings = updatedKoreaderSettings || (s.category == StrId::STR_KOREADER_SYNC);
         break;
@@ -148,15 +143,16 @@ SettingsApplyResult applySettingsJson(const String& body) {
       case SettingType::ENUM: {
         const int val = doc[s.key].as<int>();
         const size_t optionCount = s.dynamicValuesGetter ? s.dynamicValuesGetter().size() : s.enumValues.size();
-        if (val >= 0 && val < static_cast<int>(optionCount)) {
-          if (s.valuePtr) {
-            if (s.valuePtr == &CrossPointSettings::frontButtonLayout) {
-              SETTINGS.applyFrontButtonLayoutPreset(static_cast<CrossPointSettings::FRONT_BUTTON_LAYOUT>(val));
-            } else {
-              SETTINGS.*(s.valuePtr) = static_cast<uint8_t>(val);
-            }
-          } else if (s.valueSetter) {
-            s.valueSetter(static_cast<uint8_t>(val));
+        const bool validValue =
+            val >= 0 && val <= UINT8_MAX &&
+            (s.enumPersistedValues.empty() ? val < static_cast<int>(optionCount)
+                                           : std::find(s.enumPersistedValues.begin(), s.enumPersistedValues.end(),
+                                                       static_cast<uint8_t>(val)) != s.enumPersistedValues.end());
+        if (validValue) {
+          s.setPersistedValue(static_cast<uint8_t>(val));
+          if (s.key != nullptr && std::strcmp(s.key, "frontButtonLayout") == 0) {
+            SETTINGS.applyFrontButtonLayoutPreset(
+                static_cast<CrossPointSettings::FRONT_BUTTON_LAYOUT>(s.persistedValue()));
           }
           applied++;
           updatedKoreaderSettings = updatedKoreaderSettings || (s.category == StrId::STR_KOREADER_SYNC);
@@ -166,9 +162,7 @@ SettingsApplyResult applySettingsJson(const String& body) {
       case SettingType::VALUE: {
         const int val = doc[s.key].as<int>();
         if (val >= s.valueRange.min && val <= s.valueRange.max) {
-          if (s.valuePtr) {
-            SETTINGS.*(s.valuePtr) = static_cast<uint8_t>(val);
-          }
+          s.setPersistedValue(static_cast<uint8_t>(val));
           applied++;
           updatedKoreaderSettings = updatedKoreaderSettings || (s.category == StrId::STR_KOREADER_SYNC);
         }

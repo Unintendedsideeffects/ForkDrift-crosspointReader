@@ -10,29 +10,8 @@
 
 namespace {
 
-const SettingInfo* findByKey(const std::vector<SettingInfo>& settings, const char* key) {
-  if (key == nullptr) return nullptr;
-  for (const auto& setting : settings) {
-    if (setting.key != nullptr && std::string(setting.key) == key) {
-      return &setting;
-    }
-  }
-  return nullptr;
-}
-
-uint8_t mapVisibleWhenValue(const std::vector<SettingInfo>& settings, const SettingInfo::VisibleWhen& visibleWhen) {
-  const SettingInfo* controller = findByKey(settings, visibleWhen.key);
-  if (controller == nullptr || controller->enumPersistedValues.empty()) {
-    return visibleWhen.eq;
-  }
-  for (const uint8_t persisted : controller->enumPersistedValues) {
-    if (persisted == visibleWhen.eq) {
-      return visibleWhen.eq;
-    }
-  }
-  if (visibleWhen.eq < controller->enumPersistedValues.size()) {
-    return controller->enumPersistedValues[visibleWhen.eq];
-  }
+uint8_t mapVisibleWhenValue(const SettingInfo::VisibleWhen& visibleWhen) {
+  // visibleWhen.eq is always declared in persisted-value space.
   return visibleWhen.eq;
 }
 
@@ -67,15 +46,7 @@ std::vector<std::string> buildOptionLabels(const SettingInfo& setting) {
   return labels;
 }
 
-int getNumericDefaultValue(const SettingInfo& setting) {
-  if (setting.valuePtr != nullptr) {
-    return static_cast<int>(SETTINGS.*(setting.valuePtr));
-  }
-  if (setting.valueGetter) {
-    return static_cast<int>(setting.valueGetter());
-  }
-  return 0;
-}
+int getNumericDefaultValue(const SettingInfo& setting) { return static_cast<int>(setting.persistedValue()); }
 
 void appendEmitRule(JsonArray emits, const char* key, const std::vector<uint8_t>& values) {
   JsonObject emit = emits.add<JsonObject>();
@@ -156,9 +127,9 @@ void appendSchemaSetting(JsonArray out, const std::vector<SettingInfo>& settings
     JsonObject visibleWhen = item["visibleWhen"].to<JsonObject>();
     visibleWhen["key"] = setting.visibleWhen.key;
     if (setting.visibleWhen.notEqual) {
-      visibleWhen["ne"] = mapVisibleWhenValue(settings, setting.visibleWhen);
+      visibleWhen["ne"] = mapVisibleWhenValue(setting.visibleWhen);
     } else {
-      visibleWhen["eq"] = mapVisibleWhenValue(settings, setting.visibleWhen);
+      visibleWhen["eq"] = mapVisibleWhenValue(setting.visibleWhen);
     }
   }
 }

@@ -60,9 +60,7 @@ uint8_t cycleEnumOptionIndex(const SettingInfo& setting) {
     return 0;
   }
 
-  const size_t currentIndex = setting.valueGetter
-                                  ? setting.valueGetter()
-                                  : (setting.valuePtr ? static_cast<size_t>(SETTINGS.*(setting.valuePtr)) : 0);
+  const size_t currentIndex = setting.optionPosition();
   if (currentIndex >= optionCount) {
     return 0;
   }
@@ -105,24 +103,7 @@ bool controlSettingVisible(const SettingInfo& setting, const std::vector<Setting
     return true;
   }
 
-  uint8_t value = 0;
-  if (it->valueGetter) {
-    value = it->valueGetter();
-    // Dynamic enums report the option INDEX; visibleWhen targets the
-    // persisted value (e.g. HAIKU_CLOCK_SLEEP=13 vs menu position 7), so
-    // translate through the persisted-values table when one exists.
-    if (!it->enumPersistedValues.empty()) {
-      if (value < it->enumPersistedValues.size()) {
-        value = it->enumPersistedValues[value];
-      } else {
-        return true;
-      }
-    }
-  } else if (it->valuePtr) {
-    value = SETTINGS.*(it->valuePtr);
-  } else {
-    return true;
-  }
+  const uint8_t value = it->persistedValue();
 
   if (setting.visibleWhen.notEqual) {
     return value != setting.visibleWhen.eq;
@@ -480,7 +461,7 @@ void SettingsActivity::toggleCurrentSetting() {
   };
 
   // Sleep source only applies when custom sleep screen mode is enabled.
-  if (setting.valuePtr == &CrossPointSettings::sleepScreenSource &&
+  if (setting.key != nullptr && std::strcmp(setting.key, "sleepScreenSource") == 0 &&
       SETTINGS.sleepScreen != CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM) {
     return;
   }
@@ -513,10 +494,8 @@ void SettingsActivity::toggleCurrentSetting() {
   }
 #endif
 
-  if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {
-    // Toggle the boolean value using the member pointer
-    const bool currentValue = SETTINGS.*(setting.valuePtr);
-    SETTINGS.*(setting.valuePtr) = !currentValue;
+  if (setting.type == SettingType::TOGGLE) {
+    setting.setPersistedValue(!setting.persistedValue());
     if (setting.key != nullptr && isSettingKeyReferencedInDependencies(setting.key, cachedMasterSettings)) {
       const int previousSelection = selectedSettingIndex;
       rebuildSettingsLists();
@@ -541,24 +520,20 @@ void SettingsActivity::toggleCurrentSetting() {
     if (optionCount == 0) {
       return;
     }
-    const auto applyEnumValue = [this](const SettingInfo& targetSetting, const uint8_t value) {
-      if (targetSetting.valueSetter) {
-        targetSetting.valueSetter(value);
-      } else if (targetSetting.valuePtr) {
-        SETTINGS.*(targetSetting.valuePtr) = value;
-      }
+    const auto applyEnumValue = [this](const SettingInfo& targetSetting, const size_t position) {
+      targetSetting.activateOption(position);
 
       if (targetSetting.key != nullptr && std::strcmp(targetSetting.key, "sleepScreen") == 0) {
         SETTINGS.sleepScreen = CrossPointSettings::normalizeSleepScreenMode(SETTINGS.sleepScreen);
       }
 
-      if (targetSetting.valuePtr == &CrossPointSettings::frontButtonLayout) {
+      if (targetSetting.key != nullptr && std::strcmp(targetSetting.key, "frontButtonLayout") == 0) {
         SETTINGS.applyFrontButtonLayoutPreset(
             static_cast<CrossPointSettings::FRONT_BUTTON_LAYOUT>(SETTINGS.frontButtonLayout));
       }
 
-      if (targetSetting.valuePtr == &CrossPointSettings::fontFamily) {
-        core::FeatureModules::onFontFamilySettingChanged(value);
+      if (targetSetting.key != nullptr && std::strcmp(targetSetting.key, "fontFamily") == 0) {
+        core::FeatureModules::onFontFamilySettingChanged(targetSetting.persistedValue());
       }
     };
 
@@ -568,10 +543,8 @@ void SettingsActivity::toggleCurrentSetting() {
       for (size_t i = 0; i < optionCount; ++i) {
         items.push_back(enumOptionLabel(setting, i));
       }
-      const uint8_t currentIndex = setting.valueGetter
-                                       ? setting.valueGetter()
-                                       : (setting.valuePtr ? SETTINGS.*(setting.valuePtr) : static_cast<uint8_t>(0));
-      const uint8_t safeIndex = currentIndex < optionCount ? currentIndex : 0;
+      const size_t currentIndex = setting.optionPosition();
+      const size_t safeIndex = currentIndex < optionCount ? currentIndex : 0;
 
       startActivityForResult(
           std::make_unique<ListPickerActivity>(renderer, mappedInput, setting.nameId, std::move(items), safeIndex),
@@ -579,10 +552,8 @@ void SettingsActivity::toggleCurrentSetting() {
             if (!result.isCancelled && std::holds_alternative<ListPickerResult>(result.data)) {
               const int idx = std::get<ListPickerResult>(result.data).selectedIndex;
               if (idx >= 0 && idx < static_cast<int>(optionCount)) {
-                const uint8_t newValue = static_cast<uint8_t>(idx);
-                const uint8_t currentIndex =
-                    setting.valueGetter ? setting.valueGetter()
-                                        : (setting.valuePtr ? SETTINGS.*(setting.valuePtr) : static_cast<uint8_t>(0));
+                const size_t newValue = static_cast<size_t>(idx);
+                const size_t currentIndex = setting.optionPosition();
                 const bool requiresBatteryWarning = setting.key != nullptr &&
                                                     strcmp(setting.key, kBackgroundServerModeKey) == 0 &&
                                                     currentIndex != CrossPointSettings::BACKGROUND_SERVER_ALWAYS &&
@@ -625,9 +596,7 @@ void SettingsActivity::toggleCurrentSetting() {
     }
 
     const uint8_t newValue = cycleEnumOptionIndex(setting);
-    const uint8_t currentIndex = setting.valueGetter
-                                     ? setting.valueGetter()
-                                     : (setting.valuePtr ? SETTINGS.*(setting.valuePtr) : static_cast<uint8_t>(0));
+    const size_t currentIndex = setting.optionPosition();
     const bool requiresBatteryWarning = setting.key != nullptr && strcmp(setting.key, kBackgroundServerModeKey) == 0 &&
                                         currentIndex != CrossPointSettings::BACKGROUND_SERVER_ALWAYS &&
                                         newValue == CrossPointSettings::BACKGROUND_SERVER_ALWAYS;
@@ -653,12 +622,12 @@ void SettingsActivity::toggleCurrentSetting() {
       rebuildSettingsLists();
       selectedSettingIndex = std::min(previousSelection, settingsCount);
     }
-  } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
-    const int8_t currentValue = SETTINGS.*(setting.valuePtr);
+  } else if (setting.type == SettingType::VALUE) {
+    const int8_t currentValue = setting.persistedValue();
     if (currentValue + setting.valueRange.step > setting.valueRange.max) {
-      SETTINGS.*(setting.valuePtr) = setting.valueRange.min;
+      setting.setPersistedValue(setting.valueRange.min);
     } else {
-      SETTINGS.*(setting.valuePtr) = currentValue + setting.valueRange.step;
+      setting.setPersistedValue(currentValue + setting.valueRange.step);
     }
   } else if (setting.type == SettingType::STRING) {
     char* const stringPtr = setting.stringPtr;
@@ -868,43 +837,32 @@ void SettingsActivity::render(RenderLock&&) {
       [&settings](int i) {
         const auto& setting = settings[i];
         std::string valueText = "";
-        if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {
-          const bool value = SETTINGS.*(setting.valuePtr);
+        if (setting.type == SettingType::TOGGLE) {
+          const bool value = setting.persistedValue();
           valueText = value ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
         } else if (setting.type == SettingType::ENUM) {
-          uint8_t value = 0;
-          bool hasValue = false;
-          if (setting.valuePtr != nullptr) {
-            value = SETTINGS.*(setting.valuePtr);
-            hasValue = true;
-          } else if (setting.valueGetter) {
-            value = setting.valueGetter();
-            hasValue = true;
-          }
-
-          if (hasValue) {
-            if (!setting.enumStringValues.empty()) {
-              const size_t valueIndex = (value < setting.enumStringValues.size()) ? value : 0;
-              valueText = setting.enumStringValues[valueIndex];
-            } else if (setting.dynamicValuesGetter) {
-              const auto dynamicValues = setting.dynamicValuesGetter();
-              if (!dynamicValues.empty()) {
-                const size_t valueIndex = (value < dynamicValues.size()) ? value : 0;
-                valueText = dynamicValues[valueIndex];
-              }
-            } else if (!setting.enumValues.empty()) {
-              const size_t valueIndex = (value < setting.enumValues.size()) ? value : 0;
-              valueText = I18N.get(setting.enumValues[valueIndex]);
+          const size_t valueIndex = setting.optionPosition();
+          if (!setting.enumStringValues.empty()) {
+            const size_t safeIndex = (valueIndex < setting.enumStringValues.size()) ? valueIndex : 0;
+            valueText = setting.enumStringValues[safeIndex];
+          } else if (setting.dynamicValuesGetter) {
+            const auto dynamicValues = setting.dynamicValuesGetter();
+            if (!dynamicValues.empty()) {
+              const size_t safeIndex = (valueIndex < dynamicValues.size()) ? valueIndex : 0;
+              valueText = dynamicValues[safeIndex];
             }
+          } else if (!setting.enumValues.empty()) {
+            const size_t safeIndex = (valueIndex < setting.enumValues.size()) ? valueIndex : 0;
+            valueText = I18N.get(setting.enumValues[safeIndex]);
           }
-        } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
+        } else if (setting.type == SettingType::VALUE) {
           if (setting.nameId == StrId::STR_TIME_TO_SLEEP) {
             char valueBuffer[32];
             snprintf(valueBuffer, sizeof(valueBuffer), tr(STR_SLEEP_TIMER_VALUE_FORMAT),
-                     static_cast<unsigned int>(SETTINGS.*(setting.valuePtr)));
+                     static_cast<unsigned int>(setting.persistedValue()));
             valueText = valueBuffer;
           } else {
-            valueText = std::to_string(SETTINGS.*(setting.valuePtr));
+            valueText = std::to_string(setting.persistedValue());
           }
         } else if (setting.type == SettingType::STRING) {
           if (setting.stringGetter) {

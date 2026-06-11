@@ -466,8 +466,9 @@
         : '';
       let html = '<select id="' + id + '"' + lastValueAttr + ' onchange="markChanged(\'' + setting.key + '\')">';
       setting.options.forEach(function(opt, idx) {
-        const selected = idx === setting.value ? ' selected' : '';
-        html += '<option value="' + idx + '"' + selected + '>' + escapeHtml(opt) + '</option>';
+        const optionValue = setting.optionValues[idx];
+        const selected = optionValue === setting.value ? ' selected' : '';
+        html += '<option value="' + optionValue + '"' + selected + '>' + escapeHtml(opt) + '</option>';
       });
       html += '</select>';
       return html;

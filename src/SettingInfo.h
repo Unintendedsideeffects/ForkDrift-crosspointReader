@@ -1,6 +1,8 @@
 #pragma once
 #include <I18n.h>
 
+#include <algorithm>
+#include <cstddef>
 #include <functional>
 #include <string>
 #include <vector>
@@ -107,6 +109,64 @@ struct SettingInfo {
   SettingInfo& withEnumOptionFeatureKeys(std::vector<const char*> values) {
     enumOptionFeatureKeys = std::move(values);
     return *this;
+  }
+
+  // valueGetter/valueSetter speak option positions; valuePtr speaks persisted
+  // values; everything outside SettingInfo must use these four accessors.
+  uint8_t persistedValue() const {
+    if (valuePtr != nullptr) {
+      return SETTINGS.*valuePtr;
+    }
+    if (!valueGetter) {
+      return 0;
+    }
+
+    const uint8_t position = valueGetter();
+    if (!enumPersistedValues.empty() && position < enumPersistedValues.size()) {
+      return enumPersistedValues[position];
+    }
+    return position;
+  }
+
+  void setPersistedValue(const uint8_t value) const {
+    if (valueSetter) {
+      if (!enumPersistedValues.empty()) {
+        const auto it = std::find(enumPersistedValues.begin(), enumPersistedValues.end(), value);
+        if (it != enumPersistedValues.end()) {
+          valueSetter(static_cast<uint8_t>(std::distance(enumPersistedValues.begin(), it)));
+          return;
+        }
+      }
+      valueSetter(value);
+    } else if (valuePtr != nullptr) {
+      SETTINGS.*valuePtr = value;
+    }
+  }
+
+  size_t optionPosition() const {
+    if (valueGetter) {
+      return valueGetter();
+    }
+    if (valuePtr == nullptr) {
+      return 0;
+    }
+
+    const uint8_t value = SETTINGS.*valuePtr;
+    if (!enumPersistedValues.empty()) {
+      const auto it = std::find(enumPersistedValues.begin(), enumPersistedValues.end(), value);
+      return it == enumPersistedValues.end() ? enumPersistedValues.size()
+                                             : static_cast<size_t>(std::distance(enumPersistedValues.begin(), it));
+    }
+    return value;
+  }
+
+  void activateOption(const size_t position) const {
+    if (valueSetter) {
+      valueSetter(static_cast<uint8_t>(position));
+    } else if (valuePtr != nullptr) {
+      SETTINGS.*valuePtr =
+          position < enumPersistedValues.size() ? enumPersistedValues[position] : static_cast<uint8_t>(position);
+    }
   }
 
   static SettingInfo Toggle(StrId nameId, uint8_t CrossPointSettings::* ptr, const char* key = nullptr,
