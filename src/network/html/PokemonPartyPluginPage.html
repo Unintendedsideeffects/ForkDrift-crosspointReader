@@ -1105,17 +1105,40 @@
     buf[p++] = 0x00; buf[p++] = 0x00; buf[p++] = 0x00; buf[p++] = 0x00;  // palette idx0 = black
     buf[p++] = 0xFF; buf[p++] = 0xFF; buf[p++] = 0xFF; buf[p++] = 0x00;  // palette idx1 = white
     const dataStart = 62;
+    // Atkinson error-diffusion dithering, mirroring the firmware's
+    // Atkinson1BitDitherer (BitmapHelpers.h): hard thresholding turns
+    // midtone-heavy mons into solid black blobs; diffusing 6/8 of the
+    // quantization error keeps their shading readable at 1-bit.
+    let err0 = new Int16Array(width + 4);  // current row
+    let err1 = new Int16Array(width + 4);  // next row
+    let err2 = new Int16Array(width + 4);  // row after next
     for (let y = 0; y < height; y++) {
       const rowBase = dataStart + y * bytesPerRow;
       for (let x = 0; x < width; x++) {
         const i = (y * width + x) * 4;
         const alpha = rgba[i + 3];
-        const luma = rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114;
-        const isBlack = alpha >= 128 && luma < 128;
-        if (!isBlack) {
+        // Transparent pixels are white background (luma 255 => zero error).
+        const luma = alpha >= 128 ? rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114 : 255;
+        let adjusted = luma + err0[x + 2];
+        if (adjusted < 0) adjusted = 0;
+        if (adjusted > 255) adjusted = 255;
+        const white = adjusted >= 128;
+        const error = ((adjusted - (white ? 255 : 0)) / 8) | 0;
+        err0[x + 3] += error;  // right
+        err0[x + 4] += error;  // right+1
+        err1[x + 1] += error;  // bottom-left
+        err1[x + 2] += error;  // bottom
+        err1[x + 3] += error;  // bottom-right
+        err2[x + 2] += error;  // two rows down
+        if (white) {
           buf[rowBase + (x >> 3)] |= (0x80 >> (x & 7));  // set bit => white
         }
       }
+      const recycled = err0;
+      err0 = err1;
+      err1 = err2;
+      err2 = recycled;
+      err2.fill(0);
     }
     return bytesToBase64(buf);
   }

@@ -247,10 +247,17 @@ void drawPartySlot(const GfxRenderer& renderer, const int x, const int y, const 
       }
       speciesUpper[len] = '\0';
 
-      const std::string speciesText = renderer.truncatedText(SMALL_FONT_ID, speciesUpper, remainingWidth);
-      const int speciesW = renderer.getTextWidth(SMALL_FONT_ID, speciesText.c_str());
-      const int speciesX = std::max(textX, textRight - speciesW);
-      renderer.drawText(SMALL_FONT_ID, speciesX, bottomY, speciesText.c_str(), true, EpdFontFamily::BOLD);
+      // The species shares the bottom row with the level text: budget it
+      // against the space RIGHT of "Lvl N", not the full column width, or the
+      // right-aligned name overprints the level on narrow cards.
+      const int levelW = renderer.getTextWidth(SMALL_FONT_ID, levelText);
+      const int speciesAvail = remainingWidth - levelW - 6;
+      if (speciesAvail > 12) {
+        const std::string speciesText = renderer.truncatedText(SMALL_FONT_ID, speciesUpper, speciesAvail);
+        const int speciesW = renderer.getTextWidth(SMALL_FONT_ID, speciesText.c_str());
+        const int speciesX = std::max(textX + levelW + 6, textRight - speciesW);
+        renderer.drawText(SMALL_FONT_ID, speciesX, bottomY, speciesText.c_str(), true, EpdFontFamily::BOLD);
+      }
     }
   }
 
