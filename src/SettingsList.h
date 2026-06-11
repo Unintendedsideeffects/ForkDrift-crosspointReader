@@ -1,10 +1,12 @@
 #pragma once
 
 #include <FeatureFlags.h>
+#include <HalStorage.h>
 #include <I18n.h>
 #include <SdCardFontRegistry.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <iterator>
 #include <vector>
@@ -357,6 +359,53 @@ inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
   return s;
 }
 
+inline bool dirHasAnyImage(const char* path) {
+  auto dir = Storage.open(path);
+  if (!(dir && dir.isDirectory())) {
+    if (dir) dir.close();
+    return false;
+  }
+
+  char name[200];
+  for (auto file = dir.openNextFile(); file; file = dir.openNextFile()) {
+    if (file.isDirectory()) {
+      file.close();
+      continue;
+    }
+    file.getName(name, sizeof(name));
+    if (name[0] == '\0' || name[0] == '.') {
+      file.close();
+      continue;
+    }
+    file.close();
+
+    std::string filename(name);
+    if (filename.length() < 4) {
+      continue;
+    }
+    std::string lowerFilename = filename;
+    std::transform(lowerFilename.begin(), lowerFilename.end(), lowerFilename.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+    const char* exts[] = {".bmp", ".png", ".jpg", ".jpeg"};
+    bool found = false;
+    for (const char* ext : exts) {
+      size_t extLen = strlen(ext);
+      if (lowerFilename.length() >= extLen &&
+          lowerFilename.compare(lowerFilename.length() - extLen, extLen, ext) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (found) {
+      dir.close();
+      return true;
+    }
+  }
+  dir.close();
+  return false;
+}
+
 // Shared settings list for the device settings UI and web /api/settings.
 // Each entry has a JSON key (SettingInfo::key) and StrId category; configuratorExport
 // entries also carry a FeatureCatalog key (configuratorFeatureKey). ACTION entries
@@ -371,79 +420,72 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
   list.reserve(48);  // Upper-bound estimate; prevents repeated 2× heap reallocation at low heap
 
   // --- Display ---
+  // Sleep-image folders are scanned once per list build; both the Custom option
+  // and the Pokédex source options are hidden when there is nothing to show.
+  const bool hasSleepImages = dirHasAnyImage("/sleep");
+  const bool hasPokedexImages = dirHasAnyImage("/sleep/pokedex");
+
   // Sleep screen uses DynamicEnum with explicit value mapping so display order
   // stays independent of the persisted enum values.
-  list.push_back([] {
+  list.push_back([&] {
     using M = CrossPointSettings::SLEEP_SCREEN_MODE;
-    const std::vector<StrId> ids = {
-        StrId::STR_DARK,
-        StrId::STR_LIGHT,
-        StrId::STR_FOLLOW_THEME,
-        StrId::STR_CUSTOM,
-        StrId::STR_TRANSPARENT,
-        StrId::STR_SLEEP_SMART,
+    std::vector<StrId> ids;
+    std::vector<uint8_t> vals;
+    std::vector<const char*> optionFeatureKeys;
+
+    ids.push_back(StrId::STR_DARK);
+    vals.push_back(M::DARK);
+    optionFeatureKeys.push_back(nullptr);
+
+    ids.push_back(StrId::STR_LIGHT);
+    vals.push_back(M::LIGHT);
+    optionFeatureKeys.push_back(nullptr);
+
+    ids.push_back(StrId::STR_FOLLOW_THEME);
+    vals.push_back(M::FOLLOW_THEME);
+    optionFeatureKeys.push_back(nullptr);
+
+    const bool keepCustom = hasSleepImages || hasPokedexImages || (SETTINGS.sleepPinnedPath[0] != '\0');
+    if (keepCustom) {
+      ids.push_back(StrId::STR_CUSTOM);
+      vals.push_back(M::CUSTOM);
+      optionFeatureKeys.push_back("image_sleep");
+    }
+
+    ids.push_back(StrId::STR_TRANSPARENT);
+    vals.push_back(M::TRANSPARENT);
+    optionFeatureKeys.push_back(nullptr);
+
+    ids.push_back(StrId::STR_SLEEP_SMART);
+    vals.push_back(M::SMART);
+    optionFeatureKeys.push_back(nullptr);
+
 #if ENABLE_ROMAN_CLOCK_SLEEP
-        StrId::STR_ROMAN_CLOCK,
+    ids.push_back(StrId::STR_ROMAN_CLOCK);
+    vals.push_back(M::ROMAN_CLOCK_SLEEP);
+    optionFeatureKeys.push_back("roman_clock_sleep");
 #endif
 #if ENABLE_HAIKU_CLOCK
-        StrId::STR_HAIKU_CLOCK,
+    ids.push_back(StrId::STR_HAIKU_CLOCK);
+    vals.push_back(M::HAIKU_CLOCK_SLEEP);
+    optionFeatureKeys.push_back("haiku_clock_sleep");
 #endif
 #if ENABLE_READING_STATS
-        StrId::STR_READING_STATS,
+    ids.push_back(StrId::STR_READING_STATS);
+    vals.push_back(M::READING_STATS_SLEEP);
+    optionFeatureKeys.push_back("reading_stats");
 #endif
 #if ENABLE_NOTES
-        StrId::STR_NOTES,
+    ids.push_back(StrId::STR_NOTES);
+    vals.push_back(M::NOTES_SLEEP);
+    optionFeatureKeys.push_back("notes");
 #endif
 #if ENABLE_TODO_PLANNER
-        StrId::STR_TODO_HOME_LABEL,
+    ids.push_back(StrId::STR_TODO_HOME_LABEL);
+    vals.push_back(M::PLANNER_SLEEP);
+    optionFeatureKeys.push_back("todo_planner");
 #endif
-    };
-    const std::vector<uint8_t> vals = {
-        M::DARK,
-        M::LIGHT,
-        M::FOLLOW_THEME,
-        M::CUSTOM,
-        M::TRANSPARENT,
-        M::SMART,
-#if ENABLE_ROMAN_CLOCK_SLEEP
-        M::ROMAN_CLOCK_SLEEP,
-#endif
-#if ENABLE_HAIKU_CLOCK
-        M::HAIKU_CLOCK_SLEEP,
-#endif
-#if ENABLE_READING_STATS
-        M::READING_STATS_SLEEP,
-#endif
-#if ENABLE_NOTES
-        M::NOTES_SLEEP,
-#endif
-#if ENABLE_TODO_PLANNER
-        M::PLANNER_SLEEP,
-#endif
-    };
-    std::vector<const char*> optionFeatureKeys = {
-        nullptr,
-        nullptr,
-        nullptr,
-        "image_sleep",
-        nullptr,
-        nullptr,
-#if ENABLE_ROMAN_CLOCK_SLEEP
-        "roman_clock_sleep",
-#endif
-#if ENABLE_HAIKU_CLOCK
-        "haiku_clock_sleep",
-#endif
-#if ENABLE_READING_STATS
-        "reading_stats",
-#endif
-#if ENABLE_NOTES
-        "notes",
-#endif
-#if ENABLE_TODO_PLANNER
-        "todo_planner",
-#endif
-    };
+
     return SettingInfo::DynamicEnum(
                StrId::STR_SLEEP_SCREEN, ids,
                [vals] {
@@ -461,12 +503,21 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         .withEnumPersistedValues(vals)
         .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
   }());
-  list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_SOURCE, &CrossPointSettings::sleepScreenSource,
-                                   {StrId::STR_SLEEP, StrId::STR_POKEDEX, StrId::STR_ALL}, "sleepScreenSource",
-                                   StrId::STR_CAT_DISPLAY)
-                     .withConfiguratorExport()
-                     .withEnumOptionFeatureKeys({nullptr, "pokemon_party", "pokemon_party"})
-                     .withVisibleWhen("sleepScreen", CrossPointSettings::CUSTOM));
+  {
+    std::vector<StrId> sleepSourceLabels = {StrId::STR_SLEEP};
+    std::vector<const char*> sleepSourceFeatureKeys = {nullptr};
+    if (hasPokedexImages) {
+      sleepSourceLabels.push_back(StrId::STR_POKEDEX);
+      sleepSourceLabels.push_back(StrId::STR_ALL);
+      sleepSourceFeatureKeys.push_back("pokemon_party");
+      sleepSourceFeatureKeys.push_back("pokemon_party");
+    }
+    list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_SOURCE, &CrossPointSettings::sleepScreenSource, sleepSourceLabels,
+                                     "sleepScreenSource", StrId::STR_CAT_DISPLAY)
+                       .withConfiguratorExport()
+                       .withEnumOptionFeatureKeys(sleepSourceFeatureKeys)
+                       .withVisibleWhen("sleepScreen", CrossPointSettings::CUSTOM));
+  }
   list.push_back(SettingInfo::Enum(StrId::STR_SLEEP_COVER_MODE, &CrossPointSettings::sleepScreenCoverMode,
                                    {StrId::STR_FIT, StrId::STR_CROP}, "sleepScreenCoverMode", StrId::STR_CAT_DISPLAY)
                      .withConfiguratorExport()

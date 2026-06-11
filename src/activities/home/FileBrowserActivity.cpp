@@ -256,6 +256,7 @@ void FileBrowserActivity::toggleEpubCompleted(const std::string& fullPath, const
 void FileBrowserActivity::pinSleepFavorite(const std::string& fullPath) {
   strncpy(SETTINGS.sleepPinnedPath, fullPath.c_str(), sizeof(SETTINGS.sleepPinnedPath) - 1);
   SETTINGS.sleepPinnedPath[sizeof(SETTINGS.sleepPinnedPath) - 1] = '\0';
+  SETTINGS.sleepScreen = CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM;
   if (!SETTINGS.saveToFile()) {
     LOG_ERR("FileBrowser", "Failed to save pinned sleep image path: %s", fullPath.c_str());
     return;

@@ -53,24 +53,37 @@ void FontSelectionActivity::onEnter() {
     }
   }
 
-  // Find current selection
-  selectedIndex_ = 0;
-  if (hasUserFonts && SETTINGS.fontFamily == CrossPointSettings::USER_SD) {
-    selectedIndex_ = CrossPointSettings::BUILTIN_FONT_COUNT;
-  } else if (SETTINGS.sdFontFamilyName[0] != '\0' && registry_) {
-    const auto& families = registry_->getFamilies();
-    const int sdBase = CrossPointSettings::BUILTIN_FONT_COUNT + (hasUserFonts ? 1 : 0);
-    for (int i = 0; i < static_cast<int>(families.size()); i++) {
-      if (families[i].name == SETTINGS.sdFontFamilyName) {
-        selectedIndex_ = sdBase + i;
-        break;
-      }
-    }
-  } else {
-    selectedIndex_ = SETTINGS.fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.fontFamily : 0;
-  }
+  selectedIndex_ = findCurrentSelectionIndex(hasUserFonts);
 
   requestUpdate();
+}
+
+int FontSelectionActivity::findCurrentSelectionIndex(bool hasUserFonts) const {
+  if (hasUserFonts && SETTINGS.fontFamily == CrossPointSettings::USER_SD) {
+    for (int i = 0; i < static_cast<int>(fonts_.size()); i++) {
+      if (fonts_[i].settingIndex == CrossPointSettings::USER_SD) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  if (SETTINGS.sdFontFamilyName[0] != '\0') {
+    for (int i = 0; i < static_cast<int>(fonts_.size()); i++) {
+      if (!fonts_[i].isBuiltin && fonts_[i].settingIndex != CrossPointSettings::USER_SD &&
+          fonts_[i].name == SETTINGS.sdFontFamilyName) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  for (int i = 0; i < static_cast<int>(fonts_.size()); i++) {
+    if (fonts_[i].settingIndex == SETTINGS.fontFamily) {
+      return i;
+    }
+  }
+  return 0;
 }
 
 void FontSelectionActivity::onExit() { Activity::onExit(); }
@@ -147,23 +160,8 @@ void FontSelectionActivity::render(RenderLock&&) {
   const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
   const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
 
-  // Determine which font index is currently active (to mark as "Selected")
   const bool hasUserFonts = core::FeatureModules::hasCapability(core::Capability::UserFonts);
-  int currentFontIndex = 0;
-  if (hasUserFonts && SETTINGS.fontFamily == CrossPointSettings::USER_SD) {
-    currentFontIndex = CrossPointSettings::BUILTIN_FONT_COUNT;
-  } else if (SETTINGS.sdFontFamilyName[0] != '\0' && registry_) {
-    const auto& families = registry_->getFamilies();
-    const int sdBase = CrossPointSettings::BUILTIN_FONT_COUNT + (hasUserFonts ? 1 : 0);
-    for (int i = 0; i < static_cast<int>(families.size()); i++) {
-      if (families[i].name == SETTINGS.sdFontFamilyName) {
-        currentFontIndex = sdBase + i;
-        break;
-      }
-    }
-  } else {
-    currentFontIndex = SETTINGS.fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? SETTINGS.fontFamily : 0;
-  }
+  const int currentFontIndex = findCurrentSelectionIndex(hasUserFonts);
 
   GUI.drawList(
       renderer, Rect{0, contentTop, pageWidth, contentHeight}, static_cast<int>(fonts_.size()), selectedIndex_,

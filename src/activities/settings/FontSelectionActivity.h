@@ -19,6 +19,7 @@ class FontSelectionActivity final : public Activity {
   void render(RenderLock&&) override;
 
  private:
+  int findCurrentSelectionIndex(bool hasUserFonts) const;
   void handleSelection();
 
   struct FontEntry {

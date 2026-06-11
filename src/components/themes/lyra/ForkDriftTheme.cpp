@@ -132,8 +132,8 @@ void ForkDriftTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const
       }
 
       if (selected) {
-        renderer.drawRect(tileX, tileY, tileWidth, tileHeight, false);
-        renderer.drawRect(tileX + 1, tileY + 1, tileWidth - 2, tileHeight - 2, false);
+        renderer.drawRect(tileX, tileY, tileWidth, tileHeight, true);
+        renderer.drawRect(tileX + 1, tileY + 1, tileWidth - 2, tileHeight - 2, true);
       }
     }
   } else {
