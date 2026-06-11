@@ -59,6 +59,7 @@ namespace {
 constexpr uint8_t maxPageLoadRetryCount = 1;
 constexpr uint32_t minHeapForFontPrewarm = 40000;
 constexpr uint32_t minHeapForPageRender = 45000;
+
 constexpr uint16_t DEFAULT_AUTO_PAGE_TURN_INTERVAL_S = 30;
 constexpr uint16_t MIN_AUTO_PAGE_TURN_INTERVAL_S = 5;
 constexpr uint16_t MAX_AUTO_PAGE_TURN_INTERVAL_S = 120;
@@ -323,6 +324,26 @@ void EpubReaderActivity::loop() {
     // Should never happen
     finish();
     return;
+  }
+
+  if (pendingSilentIndexing) {
+    bool isAnyButtonPressed = false;
+    for (int i = 0; i < static_cast<int>(MappedInputManager::Button::PageForward) + 1; ++i) {
+      if (mappedInput.isPressed(static_cast<MappedInputManager::Button>(i))) {
+        isAnyButtonPressed = true;
+        break;
+      }
+    }
+
+    const bool isRenderQueued = activityManager.isUpdateRequested() || RenderLock::peek();
+
+    const bool isInputPending = mappedInput.wasAnyPressed() || mappedInput.wasAnyReleased() || isAnyButtonPressed;
+
+    if (!isRenderQueued && !isInputPending) {
+      pendingSilentIndexing = false;
+      performDeferredSilentIndexing();
+      return;
+    }
   }
 
   if (automaticPageTurnActive) {
@@ -1172,6 +1193,7 @@ void EpubReaderActivity::pageTurn(bool isForwardTurn) {
 }
 
 void EpubReaderActivity::render(RenderLock&& lock) {
+  pendingSilentIndexing = false;
   if (!epub) {
     renderer.clearScreen();
     renderer.drawCenteredText(UI_12_FONT_ID, 300, "Error: No book loaded", true, EpdFontFamily::BOLD);
@@ -1422,6 +1444,33 @@ void EpubReaderActivity::render(RenderLock&& lock) {
 }
 
 void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportWidth, const uint16_t viewportHeight) {
+  if (previewRenderOnly) {
+    return;
+  }
+
+  if (!epub || !section || section->pageCount < 2) {
+    return;
+  }
+
+  // Build the next chapter cache while the penultimate page is on screen.
+  if (section->currentPage != section->pageCount - 2) {
+    return;
+  }
+
+  const int nextSpineIndex = currentSpineIndex + 1;
+  if (nextSpineIndex < 0 || nextSpineIndex >= epub->getSpineItemsCount()) {
+    return;
+  }
+
+  pendingSilentIndexing = true;
+  cachedViewportWidth = viewportWidth;
+  cachedViewportHeight = viewportHeight;
+}
+
+void EpubReaderActivity::performDeferredSilentIndexing() {
+  if (previewRenderOnly) {
+    return;
+  }
   if (!epub || !section || section->pageCount < 2) {
     return;
   }
@@ -1439,7 +1488,7 @@ void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportW
   Section nextSection(epub, nextSpineIndex, renderer);
   if (nextSection.loadSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                   SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
-                                  SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
+                                  SETTINGS.paragraphAlignment, cachedViewportWidth, cachedViewportHeight,
                                   SETTINGS.hyphenationEnabled, SETTINGS.embeddedStyle, SETTINGS.imageRendering,
                                   SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled)) {
     return;
@@ -1448,7 +1497,7 @@ void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportW
   LOG_DBG("ERS", "Silently indexing next chapter: %d", nextSpineIndex);
   if (!nextSection.createSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                      SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
-                                     SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
+                                     SETTINGS.paragraphAlignment, cachedViewportWidth, cachedViewportHeight,
                                      SETTINGS.hyphenationEnabled, SETTINGS.embeddedStyle, SETTINGS.imageRendering,
                                      SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled)) {
     LOG_ERR("ERS", "Failed silent indexing for chapter: %d", nextSpineIndex);

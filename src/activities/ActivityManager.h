@@ -68,6 +68,10 @@ class ActivityManager {
   explicit ActivityManager(GfxRenderer& renderer, MappedInputManager& mappedInput);
   ~ActivityManager();
 
+  // Read by activities that defer SD-heavy work to idle loops (main loop only,
+  // same thread that writes requestedUpdate).
+  bool isUpdateRequested() const { return requestedUpdate; }
+
   bool begin();
   void loop();
 

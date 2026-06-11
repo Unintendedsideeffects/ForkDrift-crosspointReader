@@ -114,6 +114,11 @@ class EpubReaderActivity final : public Activity {
   void restoreSavedPosition();
   static void showLoadingPopupTrampoline(void* ctx);
 
+  bool pendingSilentIndexing = false;
+  uint16_t cachedViewportWidth = 0;
+  uint16_t cachedViewportHeight = 0;
+  void performDeferredSilentIndexing();
+
  public:
   explicit EpubReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::unique_ptr<Epub> epub)
       : Activity("EpubReader", renderer, mappedInput), epub(std::move(epub)) {}
