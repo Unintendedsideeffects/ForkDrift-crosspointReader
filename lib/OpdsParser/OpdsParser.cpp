@@ -83,7 +83,7 @@ const char* OpdsParser::findAttribute(const XML_Char** atts, const char* name) {
 void XMLCALL OpdsParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<OpdsParser*>(userData);
 
-  if (strcmp(name, "link") == 0 || strstr(name, ":link") != nullptr) {
+  if (xmlNameMatches(name, "link")) {
     const char* href = findAttribute(atts, "href");
     if (href) {
       const char* rel = findAttribute(atts, "rel");
@@ -129,7 +129,7 @@ void XMLCALL OpdsParser::startElement(void* userData, const XML_Char* name, cons
     }
   }
 
-  if (strcmp(name, "entry") == 0 || strstr(name, ":entry") != nullptr) {
+  if (xmlNameMatches(name, "entry")) {
     self->inEntry = true;
     self->currentEntry = OpdsEntry{};
     return;
@@ -137,15 +137,15 @@ void XMLCALL OpdsParser::startElement(void* userData, const XML_Char* name, cons
 
   if (!self->inEntry) return;
 
-  if (strcmp(name, "title") == 0 || strstr(name, ":title") != nullptr) {
+  if (xmlNameMatches(name, "title")) {
     self->inTitle = true;
     self->currentText.clear();
-  } else if (strcmp(name, "author") == 0 || strstr(name, ":author") != nullptr) {
+  } else if (xmlNameMatches(name, "author")) {
     self->inAuthor = true;
-  } else if (self->inAuthor && (strcmp(name, "name") == 0 || strstr(name, ":name") != nullptr)) {
+  } else if (self->inAuthor && (xmlNameMatches(name, "name"))) {
     self->inAuthorName = true;
     self->currentText.clear();
-  } else if (strcmp(name, "id") == 0 || strstr(name, ":id") != nullptr) {
+  } else if (xmlNameMatches(name, "id")) {
     self->inId = true;
     self->currentText.clear();
   }
@@ -154,7 +154,7 @@ void XMLCALL OpdsParser::startElement(void* userData, const XML_Char* name, cons
 void XMLCALL OpdsParser::endElement(void* userData, const XML_Char* name) {
   auto* self = static_cast<OpdsParser*>(userData);
 
-  if (strcmp(name, "entry") == 0 || strstr(name, ":entry") != nullptr) {
+  if (xmlNameMatches(name, "entry")) {
     // Cap entries: defense-in-depth against a feed with a huge number of <entry>s
     // (the body is already 64KB-capped by fetchUrl, but guard the count regardless).
     constexpr size_t kMaxOpdsEntries = 4096;
@@ -164,15 +164,15 @@ void XMLCALL OpdsParser::endElement(void* userData, const XML_Char* name) {
     }
     self->inEntry = false;
   } else if (self->inEntry) {
-    if (strcmp(name, "title") == 0 || strstr(name, ":title") != nullptr) {
+    if (xmlNameMatches(name, "title")) {
       if (self->inTitle) self->currentEntry.title = self->currentText;
       self->inTitle = false;
-    } else if (strcmp(name, "author") == 0 || strstr(name, ":author") != nullptr) {
+    } else if (xmlNameMatches(name, "author")) {
       self->inAuthor = false;
-    } else if (self->inAuthorName && (strcmp(name, "name") == 0 || strstr(name, ":name") != nullptr)) {
+    } else if (self->inAuthorName && (xmlNameMatches(name, "name"))) {
       self->currentEntry.author = self->currentText;
       self->inAuthorName = false;
-    } else if (strcmp(name, "id") == 0 || strstr(name, ":id") != nullptr) {
+    } else if (xmlNameMatches(name, "id")) {
       if (self->inId) self->currentEntry.id = self->currentText;
       self->inId = false;
     }

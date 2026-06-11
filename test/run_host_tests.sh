@@ -67,11 +67,15 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -I"$ROOT_DIR/lib/third_party/md4c" \
   -I"$ROOT_DIR/lib/Serialization" \
   -I"$ROOT_DIR/lib/GfxRenderer" \
+  -I"$ROOT_DIR/lib/OpdsParser" \
+  -I"$ROOT_DIR/lib/XmlParserUtils" \
   -I"$ROOT_DIR/include" \
   -I"$ROOT_DIR/src" \
   -I"$ARDUINOJSON_DIR" \
   -I"$SIMULATOR_MBEDTLS_DIR" \
   "$ROOT_DIR/test/host/"*.cpp \
+  "$ROOT_DIR/lib/OpdsParser/OpenSearchParser.cpp" \
+  "$ROOT_DIR/lib/OpdsParser/OpdsParser.cpp" \
   "$ROOT_DIR/src/network/BleCredentialParser.cpp" \
   "$ROOT_DIR/src/network/AssetReadApi.cpp" \
   "$ROOT_DIR/src/network/FileListApi.cpp" \
@@ -116,6 +120,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/GfxRenderer/BitmapHelpers.cpp" \
   "$BUILD_DIR/md4c.o" \
   "$BUILD_DIR/entity.o" \
+  -lexpat \
   -o "$BUILD_DIR/HostTests"
 
 export ASAN_OPTIONS="detect_leaks=1:halt_on_error=1"

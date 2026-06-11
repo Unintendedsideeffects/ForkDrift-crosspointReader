@@ -22,7 +22,7 @@ const char* findAttribute(const XML_Char** atts, const char* name) {
 
 void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   // Element is "Url" (default namespace) or "<prefix>:Url".
-  if (strcmp(name, "Url") != 0 && strstr(name, ":Url") == nullptr) return;
+  if (!xmlNameMatches(name, "Url")) return;
 
   auto* state = static_cast<OpenSearchState*>(userData);
   if (state->foundAtom) return;  // an Atom endpoint already won
