@@ -84,6 +84,12 @@ class WifiSelectionActivity final : public Activity {
   static constexpr unsigned long CONNECT_FAILURE_GRACE_MS = 2500;
   unsigned long connectionStartTime = 0;
   unsigned long connectFailureGraceUntilMs = 0;
+
+  // The first scan after STA power-up often fails (an in-flight SDK
+  // auto-connect aborts it); retry silently before showing an empty list,
+  // mirroring BackgroundWebServer's scanFailureBurst.
+  static constexpr uint8_t SCAN_RETRY_MAX = 3;
+  uint8_t scanRetryCount = 0;
   BleWifiProvisioner bleProvisioner;
 
   void renderNetworkList() const;

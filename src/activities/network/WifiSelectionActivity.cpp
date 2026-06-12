@@ -94,11 +94,15 @@ void WifiSelectionActivity::startWifiScan() {
   autoConnecting = false;
   state = WifiSelectionState::SCANNING;
   networks.clear();
+  scanRetryCount = 0;
   requestUpdate();
 
-  // Set WiFi mode to station
+  // Set WiFi mode to station. The SDK starts an NVS auto-connect on STA
+  // power-up which aborts a concurrent scan, so kill it before scanning —
+  // same hardening attemptConnection() already has.
+  WiFi.persistent(false);  // Credentials are managed by WifiCredentialStore
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
+  WiFi.disconnect(false, true);
   delay(100);
   WiFi.scanDelete();
 
@@ -114,6 +118,14 @@ void WifiSelectionActivity::processWifiScanResults() {
   }
 
   if (scanResult == WIFI_SCAN_FAILED) {
+    if (scanRetryCount < SCAN_RETRY_MAX) {
+      scanRetryCount++;
+      LOG_DBG("WIFISEL", "Scan failed; retrying (%u/%u)", scanRetryCount, SCAN_RETRY_MAX);
+      WiFi.scanDelete();
+      startWifiScanAsync();
+      return;
+    }
+    LOG_ERR("WIFISEL", "WiFi scan failed %u times; showing empty list", static_cast<unsigned>(SCAN_RETRY_MAX) + 1);
     WiFi.scanDelete();
     state = WifiSelectionState::NETWORK_LIST;
     requestUpdate();
@@ -124,9 +136,14 @@ void WifiSelectionActivity::processWifiScanResults() {
   // Use a map to deduplicate networks by SSID, keeping the strongest signal
   std::map<std::string, WifiNetworkInfo> uniqueNetworks;
 
+  LOG_DBG("WIFISEL", "Scan complete: %d results", scanResult);
   for (int i = 0; i < scanResult; i++) {
     std::string ssid = WiFi.SSID(i).c_str();
     const int32_t rssi = WiFi.RSSI(i);
+    // Dump every beacon pre-filtering (ssid may be empty=hidden) — invaluable
+    // for "network not found" reports, and free at LOG_LEVEL<2.
+    LOG_DBG("WIFISEL", "  [%d] ssid='%s' ch=%d rssi=%d auth=%d", i, ssid.c_str(), static_cast<int>(WiFi.channel(i)),
+            static_cast<int>(rssi), static_cast<int>(WiFi.encryptionType(i)));
 
     // Hidden networks have no usable list label and require manual SSID entry.
     if (ssid.empty()) {
