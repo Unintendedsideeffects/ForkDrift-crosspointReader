@@ -1,0 +1,11 @@
+# Minimal non-destructive smoke walk: screenshot Home, move the selection
+# down and back up, screenshotting each state. No CONFIRM presses, so no
+# activity is entered and no device state is mutated.
+#
+#   uv run python scripts/device_walk.py run scripts/walks/example.walk --outdir runs/smoke
+
+shot home
+press DOWN
+shot home-selection-down
+press UP
+shot home-selection-restored

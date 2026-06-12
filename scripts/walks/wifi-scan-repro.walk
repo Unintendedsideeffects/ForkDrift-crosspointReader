@@ -1,0 +1,18 @@
+# From a fresh boot at Home (featured party slot selected): navigate to
+# File Transfer -> Join a Network and let the WiFi flow run to completion.
+# Captures the scan beacon dump / failure ordering in serial.log.
+press DOWN 1
+press DOWN 1
+press DOWN 1
+press DOWN 1
+press DOWN 1
+press DOWN 1.5
+press RIGHT 1
+press RIGHT 1.5
+shot icon-file-transfer
+press CONFIRM 3
+shot submenu
+press CONFIRM 3
+shot wifi-flow-start
+sleep 20
+shot wifi-flow-result

@@ -759,6 +759,47 @@ void loop() {
         uint8_t* buf = display.getFrameBuffer();
         logSerial.write(buf, bufferSize);
         logSerial.printf("SCREENSHOT_END\n");
+      } else if (cmd == "PING") {
+        logSerial.printf("PONG\n");
+      } else if (cmd.startsWith("BTN:")) {
+        // Test harness: inject a logical button press; consumed by the current
+        // activity exactly like a physical press (orientation/remap aware).
+        static const struct {
+          const char* name;
+          MappedInputManager::Button button;
+        } kBtnMap[] = {
+            {"BACK", MappedInputManager::Button::Back},
+            {"CONFIRM", MappedInputManager::Button::Confirm},
+            {"LEFT", MappedInputManager::Button::Left},
+            {"RIGHT", MappedInputManager::Button::Right},
+            {"UP", MappedInputManager::Button::Up},
+            {"DOWN", MappedInputManager::Button::Down},
+            {"PAGEBACK", MappedInputManager::Button::PageBack},
+            {"PAGEFWD", MappedInputManager::Button::PageForward},
+        };
+        const String name = cmd.substring(4);
+        bool matched = false;
+        for (const auto& entry : kBtnMap) {
+          if (name.equalsIgnoreCase(entry.name)) {
+            mappedInputManager.injectVirtualActivation(entry.button);
+            matched = true;
+            break;
+          }
+        }
+        logSerial.printf(matched ? "BTN_OK:%s\n" : "BTN_ERR:%s\n", name.c_str());
+      } else if (cmd.startsWith("WIFICRED:")) {
+        // Test harness: set or update a saved WiFi credential and persist it.
+        // Format: CMD:WIFICRED:<ssid>\t<password>
+        const String payload = cmd.substring(9);
+        const int sep = payload.indexOf('\t');
+        if (sep <= 0) {
+          logSerial.printf("WIFICRED_ERR:format\n");
+        } else {
+          const std::string ssid(payload.substring(0, sep).c_str());
+          const std::string password(payload.substring(sep + 1).c_str());
+          const bool ok = WIFI_STORE.addCredential(ssid, password);
+          logSerial.printf(ok ? "WIFICRED_OK:%s\n" : "WIFICRED_ERR:%s\n", ssid.c_str());
+        }
       }
     }
   }
