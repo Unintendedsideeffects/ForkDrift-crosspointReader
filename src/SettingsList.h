@@ -834,16 +834,20 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                      .withConfiguratorExport("reading_stats"));
 #endif
 
-  if (core::FeatureModules::hasCapability(core::Capability::TrmnlSwitch)) {
+  if (core::FeatureModules::hasCapability(core::Capability::TerminusSleep)) {
     if (TERMINUS_STORE.hasCredentials()) {
-      list.push_back(SettingInfo::Action(StrId::STR_SWITCH_TO_TRMNL, SettingAction::SwitchToTrmnl));
-      list.push_back(SettingInfo::Toggle(StrId::STR_TRMNL_SLEEP_ENABLED, &CrossPointSettings::trmnlSleepEnabled,
-                                         "trmnlSleepEnabled", StrId::STR_CAT_DISPLAY)
-                         .withConfiguratorExport("trmnl_switch"));
+      list.push_back(SettingInfo::Toggle(StrId::STR_TERMINUS_SLEEP_ENABLED, &CrossPointSettings::terminusSleepEnabled,
+                                         "terminusSleepEnabled", StrId::STR_CAT_DISPLAY)
+                         .withConfiguratorExport("terminus_sleep"));
     }
     // Terminus credentials are managed via /.crosspoint/terminus.json or /plugins/terminus web UI.
     // A settings action entry allows navigating to the setup page from the on-device settings menu.
     list.push_back(SettingInfo::Action(StrId::STR_TERMINUS_SETUP, SettingAction::TerminusSetup));
+  }
+  // Boot-partition switch into a co-installed TRMNL firmware; only meaningful
+  // once Terminus credentials prove the user is on the TRMNL ecosystem.
+  if (core::FeatureModules::hasCapability(core::Capability::TrmnlSwitch) && TERMINUS_STORE.hasCredentials()) {
+    list.push_back(SettingInfo::Action(StrId::STR_SWITCH_TO_TRMNL, SettingAction::SwitchToTrmnl));
   }
 #if ENABLE_ANKI_SUPPORT
   list.push_back(SettingInfo::String(StrId::STR_ANKI_CONNECT_URL, SETTINGS.ankiConnectUrl,

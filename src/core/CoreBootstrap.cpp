@@ -8,17 +8,17 @@
 #include "features/calibre_sync/Registration.h"
 #include "features/dark_mode/Registration.h"
 #include "features/epub/Registration.h"
-#include "features/koreader_sync/Registration.h"
 #include "features/focus_reading/Registration.h"
+#include "features/koreader_sync/Registration.h"
 #include "features/lyra_theme/Registration.h"
-#include "features/minimal_theme/Registration.h"
 #include "features/markdown/Registration.h"
+#include "features/minimal_theme/Registration.h"
 #include "features/ota_updates/Registration.h"
 #include "features/pokemon_party/Registration.h"
 #include "features/remote_keyboard_input/Registration.h"
 #include "features/status_overlay/Registration.h"
+#include "features/terminus_sleep/Registration.h"
 #include "features/todo_planner/Registration.h"
-#include "features/trmnl_switch/Registration.h"
 #include "features/txt/Registration.h"
 #include "features/usb_mass_storage/Registration.h"
 #include "features/visual_cover_picker/Registration.h"
@@ -59,7 +59,7 @@ void registerFeatureModules() {
   features::lyra_theme::registerFeature();
   features::minimal_theme::registerFeature();
   features::focus_reading::registerFeature();
-  features::trmnl_switch::registerFeature();
+  features::terminus_sleep::registerFeature();
   features::ble_wifi_provisioning::registerFeature();
   features::usb_mass_storage::registerFeature();
   features::visual_cover_picker::registerFeature();

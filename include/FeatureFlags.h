@@ -228,6 +228,13 @@
 #define ENABLE_TRMNL_SWITCH 0
 #endif
 
+// Terminus (TRMNL BYOS) integration: credential store web setup page and
+// sleep-screen image polling. Independent of ENABLE_TRMNL_SWITCH, which only
+// gates the boot-partition switch into a co-installed TRMNL firmware.
+#ifndef ENABLE_TERMINUS_SLEEP
+#define ENABLE_TERMINUS_SLEEP 0
+#endif
+
 #ifndef ENABLE_EPUB_SUPPORT
 #define ENABLE_EPUB_SUPPORT 1
 #endif

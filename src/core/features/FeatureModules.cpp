@@ -77,6 +77,7 @@ constexpr std::array<const char*, toIndex(Capability::Count)> kCapabilityFeature
     "remote_keyboard_input",
     nullptr,
     nullptr,
+    "terminus_sleep",
     "todo_planner",
     "trmnl_switch",
     "usb_mass_storage",
@@ -277,8 +278,9 @@ bool FeatureModules::supportsSettingAction(const SettingAction action) {
     case SettingAction::PokemonParty:
       return hasCapability(Capability::PokemonParty);
     case SettingAction::SwitchToTrmnl:
-    case SettingAction::TerminusSetup:
       return hasCapability(Capability::TrmnlSwitch);
+    case SettingAction::TerminusSetup:
+      return hasCapability(Capability::TerminusSleep);
     case SettingAction::Language:
       return true;
     case SettingAction::None:

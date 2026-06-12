@@ -1,4 +1,4 @@
-#include "features/trmnl_switch/Registration.h"
+#include "features/terminus_sleep/Registration.h"
 
 #include <ArduinoJson.h>
 #include <FeatureFlags.h>
@@ -23,9 +23,9 @@
 #include "util/TimeSync.h"
 #include "util/UrlUtils.h"
 
-namespace features::trmnl_switch {
+namespace features::terminus_sleep {
 
-#if ENABLE_TRMNL_SWITCH
+#if ENABLE_TERMINUS_SLEEP
 namespace {
 
 static constexpr const char* TRMNL_DEST_PATH = "/sleep/trmnl_latest.bmp";
@@ -71,7 +71,12 @@ struct VerifiedFileSink {
   bool writeFailed = false;
 };
 
-static bool isAllowedRemoteUrl(const std::string& url) { return UrlUtils::isHttpsUrl(url); }
+// HTTPS anywhere; plain HTTP only toward numeric private-LAN hosts so a
+// self-hosted Terminus (BYOS) works without exposing API keys in cleartext
+// beyond the local network.
+static bool isAllowedRemoteUrl(const std::string& url) {
+  return UrlUtils::isHttpsUrl(url) || UrlUtils::isPrivateLanHttpUrl(url);
+}
 
 static esp_err_t manifestEventHandler(esp_http_client_event_t* evt) {
   auto* sink = static_cast<BoundedManifestSink*>(evt->user_data);
@@ -90,7 +95,7 @@ static esp_err_t imageEventHandler(esp_http_client_event_t* evt) {
     return ESP_OK;
   }
 
-  auto guard = SpiBusMutex::lock();
+  SpiBusMutex::Guard guard;
   const size_t written =
       sink->file.write(reinterpret_cast<const uint8_t*>(evt->data), static_cast<size_t>(evt->data_len));
   sink->bytes += written;
@@ -113,7 +118,7 @@ static bool downloadVerifiedImage(const std::string& url, const char* path) {
 
   VerifiedFileSink sink{};
   sink.path = path;
-  if (!Storage.openFileForWrite("TRMNL", path, sink.file, false)) {
+  if (!Storage.openFileForWrite("TRMNL", path, sink.file)) {
     LOG_ERR("TRMNL", "Failed to open %s for image download", path);
     return false;
   }
@@ -244,13 +249,13 @@ static bool fetchAndPinTrmnlImage() {
 static void onStorageReady() { TERMINUS_STORE.load(); }
 
 static void onBackgroundServerStarted() {
-  if (!SETTINGS.trmnlSleepEnabled) {
+  if (!SETTINGS.terminusSleepEnabled) {
     return;
   }
   fetchAndPinTrmnlImage();
 }
 
-static bool shouldRegisterTerminusRoutes() { return core::FeatureCatalog::isEnabled("trmnl_switch"); }
+static bool shouldRegisterTerminusRoutes() { return core::FeatureCatalog::isEnabled("terminus_sleep"); }
 
 static void mountTerminusRoutes(WebServer* server) {
   server->on("/plugins/terminus", HTTP_GET, [server] {
@@ -265,7 +270,7 @@ static void mountTerminusRoutes(WebServer* server) {
     doc["device_model"] = TERMINUS_STORE.deviceModel().c_str();
     doc["base_url"] = TERMINUS_STORE.baseUrl().c_str();
     doc["has_api_key"] = !TERMINUS_STORE.apiKey().empty();
-    doc["sleep_enabled"] = static_cast<bool>(SETTINGS.trmnlSleepEnabled);
+    doc["sleep_enabled"] = static_cast<bool>(SETTINGS.terminusSleepEnabled);
     std::string out;
     serializeJson(doc, out);
     server->send(200, "application/json", out.c_str());
@@ -297,7 +302,7 @@ static void mountTerminusRoutes(WebServer* server) {
     const char* url = doc["base_url"] | "";
     if (url[0] != '\0') {
       if (!isAllowedRemoteUrl(url)) {
-        server->send(400, "application/json", "{\"error\":\"base_url must be https\"}");
+        server->send(400, "application/json", "{\"error\":\"base_url must be https (or http to a private LAN IP)\"}");
         return;
       }
       TERMINUS_STORE.setBaseUrl(url);
@@ -332,8 +337,8 @@ static void mountTerminusRoutes(WebServer* server) {
 #endif
 
 void registerFeature() {
-#if ENABLE_TRMNL_SWITCH
-  if (!core::FeatureModules::hasCapability(core::Capability::TrmnlSwitch)) {
+#if ENABLE_TERMINUS_SLEEP
+  if (!core::FeatureModules::hasCapability(core::Capability::TerminusSleep)) {
     return;
   }
 
@@ -350,4 +355,4 @@ void registerFeature() {
 #endif
 }
 
-}  // namespace features::trmnl_switch
+}  // namespace features::terminus_sleep

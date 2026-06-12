@@ -9,6 +9,13 @@ namespace UrlUtils {
 bool isHttpsUrl(const std::string& url);
 
 /**
+ * Returns true for plain-http URLs whose host is a numeric private/loopback
+ * IPv4 address (10/8, 172.16/12, 192.168/16, 127/8). Hostnames are rejected
+ * so DNS can't be used to smuggle a public origin past the check.
+ */
+bool isPrivateLanHttpUrl(const std::string& url);
+
+/**
  * Prepend http:// if no protocol specified (server will redirect to https if needed)
  */
 std::string ensureProtocol(const std::string& url);

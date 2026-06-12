@@ -14,6 +14,7 @@ constexpr const char* kRequiresBookImagesAny[] = {"epub_support", "markdown"};
 constexpr const char* kRequiresKOReaderSyncAll[] = {"integrations"};
 constexpr const char* kRequiresCalibreSyncAll[] = {"integrations"};
 constexpr const char* kRequiresOpdsAll[] = {"calibre_sync"};
+constexpr const char* kRequiresTerminusSleepAll[] = {"background_server"};
 constexpr const char* kRequiresPokemonWallpaperPluginAll[] = {"image_sleep"};
 constexpr const char* kRequiresPokemonPartyAll[] = {};
 constexpr const char* kRequiresHyphenationAll[] = {"epub_support"};
@@ -58,6 +59,8 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"web_wallpaper_plugin", "Web Wallpaper", ENABLE_WEB_WALLPAPER_PLUGIN != 0, nullptr, 0, nullptr, 0},
     {"anki_support", "Anki Support", ENABLE_ANKI_SUPPORT != 0, nullptr, 0, nullptr, 0},
     {"trmnl_switch", "TRMNL Switch", ENABLE_TRMNL_SWITCH != 0, nullptr, 0, nullptr, 0},
+    {"terminus_sleep", "Terminus Sleep Screen", ENABLE_TERMINUS_SLEEP != 0, kRequiresTerminusSleepAll,
+     sizeof(kRequiresTerminusSleepAll) / sizeof(kRequiresTerminusSleepAll[0]), nullptr, 0},
     {"epub_support", "EPUB Support", ENABLE_EPUB_SUPPORT != 0, nullptr, 0, nullptr, 0},
     {"hyphenation", "Hyphenation", ENABLE_HYPHENATION != 0, kRequiresHyphenationAll,
      sizeof(kRequiresHyphenationAll) / sizeof(kRequiresHyphenationAll[0]), nullptr, 0},

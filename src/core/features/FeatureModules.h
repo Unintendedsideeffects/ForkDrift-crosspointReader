@@ -42,6 +42,7 @@ enum class Capability {
   RemoteKeyboardInput,
   RemoteOpenBook,
   RemotePageTurn,
+  TerminusSleep,
   TodoPlanner,
   TrmnlSwitch,
   UsbMassStorage,

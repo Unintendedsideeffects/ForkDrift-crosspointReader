@@ -44,7 +44,8 @@ inline const std::vector<SettingsTopicGroup> kDisplay{
     {StrId::STR_SEC_APPEARANCE, {"uiTheme", "recentBooksView", "darkMode", "fadingFix"}},
     {StrId::STR_SEC_SLEEP,
      {"sleepScreenSplit", "sleepScreen", "sleepScreenReader", "sleepScreenHome", "sleepScreenSource",
-      "sleepScreenCoverMode", "sleepScreenCoverFilter", "sleepCycleMode", "haikuClockLandscape", "trmnlSleepEnabled"}},
+      "sleepScreenCoverMode", "sleepScreenCoverFilter", "sleepCycleMode", "haikuClockLandscape",
+      "terminusSleepEnabled"}},
     {StrId::STR_SEC_DISPLAY_MISC, {"refreshFrequency"}},
 };
 

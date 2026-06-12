@@ -1,9 +1,34 @@
 #include "UrlUtils.h"
 
+#include <cstdlib>
+
 namespace UrlUtils {
 
-bool isHttpsUrl(const std::string& url) {
-  return url.size() >= 8 && url.compare(0, 8, "https://") == 0;
+bool isHttpsUrl(const std::string& url) { return url.size() >= 8 && url.compare(0, 8, "https://") == 0; }
+
+bool isPrivateLanHttpUrl(const std::string& url) {
+  static constexpr char kPrefix[] = "http://";
+  static constexpr size_t kPrefixLen = sizeof(kPrefix) - 1;
+  if (url.compare(0, kPrefixLen, kPrefix) != 0) {
+    return false;
+  }
+  const size_t hostEnd = url.find_first_of(":/", kPrefixLen);
+  const std::string host =
+      url.substr(kPrefixLen, hostEnd == std::string::npos ? std::string::npos : hostEnd - kPrefixLen);
+  // Numeric IPv4 only — a hostname here could resolve to a public address.
+  for (const char c : host) {
+    if ((c < '0' || c > '9') && c != '.') {
+      return false;
+    }
+  }
+  if (host.rfind("10.", 0) == 0 || host.rfind("192.168.", 0) == 0 || host.rfind("127.", 0) == 0) {
+    return true;
+  }
+  if (host.rfind("172.", 0) == 0) {
+    const int secondOctet = std::atoi(host.c_str() + 4);
+    return secondOctet >= 16 && secondOctet <= 31;
+  }
+  return false;
 }
 
 std::string ensureProtocol(const std::string& url) {

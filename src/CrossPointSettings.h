@@ -396,7 +396,7 @@ class CrossPointSettings {
   char ankiConnectDeck[64] = "CrossPoint";
   // Fetch Terminus/TRMNL sleep image when background server starts on charge (0=off, 1=on).
   // Credentials are stored in /.crosspoint/terminus.json via TerminusCredentialStore.
-  uint8_t trmnlSleepEnabled = 0;
+  uint8_t terminusSleepEnabled = 0;
 
   ~CrossPointSettings() = default;
 
