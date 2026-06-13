@@ -23,6 +23,17 @@ void CrossPointWebServer::handleGetSettings() const {
 }
 
 void CrossPointWebServer::handlePostSettings() {
+  // applySettingsJson builds the full settings list (getSettingsList) — the
+  // same allocation burst the GET guard above protects against. Without this
+  // check a low-heap POST dies in a throwing vector allocation (bad_alloc ->
+  // terminate -> abort) instead of returning an error.
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  if (freeHeap < kMinHeapForSettingsList) {
+    LOG_WRN("WEB", "Settings POST rejected at low heap: %u bytes free", freeHeap);
+    server->send(503, "application/json", "{\"error\":\"low memory\"}");
+    return;
+  }
+
   if (!server->hasArg("plain")) {
     server->send(400, "text/plain", "Missing JSON body");
     return;

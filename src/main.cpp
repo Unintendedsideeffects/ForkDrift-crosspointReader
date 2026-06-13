@@ -40,6 +40,7 @@
 #include "network/BackgroundServerPolicy.h"
 #include "network/BackgroundWebServer.h"
 #include "network/BackgroundWifiService.h"
+#include "network/SettingsApi.h"
 #include "util/ButtonNavigator.h"
 #include "util/FactoryResetUtils.h"
 #include "util/FirmwareUpdateUtil.h"
@@ -799,6 +800,19 @@ void loop() {
           const std::string password(payload.substring(sep + 1).c_str());
           const bool ok = WIFI_STORE.addCredential(ssid, password);
           logSerial.printf(ok ? "WIFICRED_OK:%s\n" : "WIFICRED_ERR:%s\n", ssid.c_str());
+        }
+      } else if (cmd.startsWith("SETTINGS:")) {
+        // Test harness: apply settings by key, same payload as POST
+        // /api/settings. Format: CMD:SETTINGS:{"key":value,...}
+        // applySettingsJson rebuilds the settings list (~tens of KB burst), so
+        // require the same heap floor as the web handlers before attempting.
+        constexpr uint32_t kMinHeapForSettingsApply = 48000;
+        if (ESP.getFreeHeap() < kMinHeapForSettingsApply) {
+          logSerial.printf("SETTINGS_ERR:low heap (%u free)\n", ESP.getFreeHeap());
+        } else {
+          const auto result = network::applySettingsJson(cmd.substring(9));
+          logSerial.printf(result.ok() ? "SETTINGS_OK:%d applied\n" : "SETTINGS_ERR:http %d\n",
+                           result.ok() ? result.appliedCount : result.statusCode);
         }
       }
     }

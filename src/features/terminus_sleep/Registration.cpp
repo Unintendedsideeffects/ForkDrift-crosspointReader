@@ -28,7 +28,14 @@ namespace features::terminus_sleep {
 #if ENABLE_TERMINUS_SLEEP
 namespace {
 
-static constexpr const char* TRMNL_DEST_PATH = "/sleep/trmnl_latest.bmp";
+// Download lands on a temp name, then gets renamed to trmnl_latest.<ext>
+// where <ext> matches the sniffed content type. The extension matters: the
+// sleep renderer dispatches by it (SleepActivity isBmpFile vs
+// renderImageSleepScreen), so a PNG pinned under .bmp renders nothing.
+static constexpr const char* TRMNL_TEMP_PATH = "/sleep/trmnl_latest.dl";
+static constexpr const char* TRMNL_DEST_BMP = "/sleep/trmnl_latest.bmp";
+static constexpr const char* TRMNL_DEST_PNG = "/sleep/trmnl_latest.png";
+static constexpr const char* TRMNL_DEST_JPG = "/sleep/trmnl_latest.jpg";
 static constexpr const char* TRMNL_DEFAULT_BASE = "https://api.trmnl.com";
 static constexpr size_t TRMNL_MAX_MANIFEST_BYTES = 16u * 1024u;
 static constexpr int TRMNL_HTTP_BUFFER_BYTES = 2048;
@@ -69,7 +76,24 @@ struct VerifiedFileSink {
   size_t bytes = 0;
   bool opened = false;
   bool writeFailed = false;
+  uint8_t magic[4] = {0, 0, 0, 0};
+  size_t magicLen = 0;
 };
+
+// Map the first bytes of the downloaded image to the extension the sleep
+// renderer keys its decoder choice on. Returns nullptr for unknown content.
+static const char* destPathForMagic(const uint8_t* magic, size_t len) {
+  if (len >= 2 && magic[0] == 'B' && magic[1] == 'M') {
+    return TRMNL_DEST_BMP;
+  }
+  if (len >= 4 && magic[0] == 0x89 && magic[1] == 'P' && magic[2] == 'N' && magic[3] == 'G') {
+    return TRMNL_DEST_PNG;
+  }
+  if (len >= 2 && magic[0] == 0xFF && magic[1] == 0xD8) {
+    return TRMNL_DEST_JPG;
+  }
+  return nullptr;
+}
 
 // HTTPS anywhere; plain HTTP only toward numeric private-LAN hosts so a
 // self-hosted Terminus (BYOS) works without exposing API keys in cleartext
@@ -95,6 +119,14 @@ static esp_err_t imageEventHandler(esp_http_client_event_t* evt) {
     return ESP_OK;
   }
 
+  if (sink->magicLen < sizeof(sink->magic)) {
+    const size_t take = static_cast<size_t>(evt->data_len) < sizeof(sink->magic) - sink->magicLen
+                            ? static_cast<size_t>(evt->data_len)
+                            : sizeof(sink->magic) - sink->magicLen;
+    memcpy(sink->magic + sink->magicLen, evt->data, take);
+    sink->magicLen += take;
+  }
+
   SpiBusMutex::Guard guard;
   const size_t written =
       sink->file.write(reinterpret_cast<const uint8_t*>(evt->data), static_cast<size_t>(evt->data_len));
@@ -106,21 +138,31 @@ static esp_err_t imageEventHandler(esp_http_client_event_t* evt) {
   return ESP_OK;
 }
 
-static bool downloadVerifiedImage(const std::string& url, const char* path) {
+// Download url to TRMNL_TEMP_PATH, sniff the content type, and move the file
+// to the matching trmnl_latest.<ext>. Returns the final path, or nullptr on
+// any failure (temp file is cleaned up).
+static const char* downloadVerifiedImage(const std::string& url) {
   if (!isAllowedRemoteUrl(url)) {
-    return false;
+    return nullptr;
   }
 
-  Storage.ensureDirectoryExists("/sleep");
-  if (Storage.exists(path)) {
-    Storage.remove(path);
-  }
-
+  const char* path = TRMNL_TEMP_PATH;
   VerifiedFileSink sink{};
   sink.path = path;
-  if (!Storage.openFileForWrite("TRMNL", path, sink.file)) {
-    LOG_ERR("TRMNL", "Failed to open %s for image download", path);
-    return false;
+  {
+    // SD and the e-ink panel share the SPI bus; every SD touch from this task
+    // must hold SpiBusMutex or a concurrent display refresh trips the FreeRTOS
+    // mutex-holder assert (queue.c:832) — that was the original on-device
+    // crash, not the download itself.
+    SpiBusMutex::Guard guard;
+    Storage.ensureDirectoryExists("/sleep");
+    if (Storage.exists(path)) {
+      Storage.remove(path);
+    }
+    if (!Storage.openFileForWrite("TRMNL", path, sink.file)) {
+      LOG_ERR("TRMNL", "Failed to open %s for image download", path);
+      return nullptr;
+    }
   }
   sink.opened = true;
 
@@ -140,7 +182,7 @@ static bool downloadVerifiedImage(const std::string& url, const char* path) {
     sink.file.close();
     Storage.remove(path);
     LOG_ERR("TRMNL", "Failed to create image HTTP client");
-    return false;
+    return nullptr;
   }
 
   esp_http_client_set_header(client, "User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
@@ -148,16 +190,38 @@ static bool downloadVerifiedImage(const std::string& url, const char* path) {
   const int code = esp_http_client_get_status_code(client);
   esp_http_client_cleanup(client);
 
+  SpiBusMutex::Guard guard;
   sink.file.close();
   if (err != ESP_OK || code != 200 || sink.writeFailed || sink.bytes == 0) {
     Storage.remove(path);
     LOG_ERR("TRMNL", "Image download failed: HTTP %d err=%d written=%zu failed=%d", code, err, sink.bytes,
             sink.writeFailed ? 1 : 0);
-    return false;
+    return nullptr;
   }
 
-  LOG_INF("TRMNL", "Image downloaded (%zu bytes)", sink.bytes);
-  return true;
+  const char* destPath = destPathForMagic(sink.magic, sink.magicLen);
+  if (!destPath) {
+    Storage.remove(path);
+    LOG_ERR("TRMNL", "Image content not BMP/PNG/JPEG (magic %02x %02x %02x %02x)", sink.magic[0], sink.magic[1],
+            sink.magic[2], sink.magic[3]);
+    return nullptr;
+  }
+
+  // Drop every stale variant so an old pin under another extension can't
+  // shadow or outlive the fresh image.
+  for (const char* stale : {TRMNL_DEST_BMP, TRMNL_DEST_PNG, TRMNL_DEST_JPG}) {
+    if (Storage.exists(stale)) {
+      Storage.remove(stale);
+    }
+  }
+  if (!Storage.rename(path, destPath)) {
+    Storage.remove(path);
+    LOG_ERR("TRMNL", "Failed to move image into place: %s", destPath);
+    return nullptr;
+  }
+
+  LOG_INF("TRMNL", "Image downloaded (%zu bytes) -> %s", sink.bytes, destPath);
+  return destPath;
 }
 
 // Poll /api/display, get image_url, download, pin as next sleep screen.
@@ -232,17 +296,53 @@ static bool fetchAndPinTrmnlImage() {
   }
 
   LOG_INF("TRMNL", "Downloading image: %s", imageUrl);
-  if (!downloadVerifiedImage(std::string(imageUrl), TRMNL_DEST_PATH)) {
+  const char* pinnedPath = downloadVerifiedImage(std::string(imageUrl));
+  if (!pinnedPath) {
     return false;
   }
 
-  strncpy(SETTINGS.sleepPinnedPath, TRMNL_DEST_PATH, sizeof(SETTINGS.sleepPinnedPath) - 1);
+  strncpy(SETTINGS.sleepPinnedPath, pinnedPath, sizeof(SETTINGS.sleepPinnedPath) - 1);
   SETTINGS.sleepPinnedPath[sizeof(SETTINGS.sleepPinnedPath) - 1] = '\0';
   if (SETTINGS.sleepScreen != CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM) {
     SETTINGS.sleepScreen = CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM;
   }
-  SETTINGS.saveToFile();
+  {
+    SpiBusMutex::Guard guard;
+    SETTINGS.saveToFile();
+  }
   LOG_INF("TRMNL", "Terminus image pinned as next sleep screen");
+  return true;
+}
+
+// fetchAndPinTrmnlImage nests SdFat writes inside esp_http_client_perform's
+// data callback — too deep for the 8 KB bgwifi web-handler task (overflowed on
+// the first successful image download). Run it on a dedicated task with the
+// stack budget OtaWebCheckTask uses for the same workload; the 12 KB is
+// heap-held only for the fetch's lifetime (a static stack would pin that DRAM
+// permanently for a rare operation).
+static constexpr uint32_t TRMNL_FETCH_TASK_STACK = 12288;
+
+static volatile bool fetchTaskRunning = false;
+static volatile bool fetchTaskResult = false;
+
+static void terminusFetchTask(void*) {
+  fetchTaskResult = fetchAndPinTrmnlImage();
+  fetchTaskRunning = false;
+  vTaskDelete(nullptr);
+}
+
+static bool startFetchTask() {
+  if (fetchTaskRunning) {
+    LOG_INF("TRMNL", "Fetch already in progress");
+    return false;
+  }
+  fetchTaskRunning = true;
+  fetchTaskResult = false;
+  if (xTaskCreate(&terminusFetchTask, "TerminusFetch", TRMNL_FETCH_TASK_STACK, nullptr, 1, nullptr) != pdPASS) {
+    fetchTaskRunning = false;
+    LOG_ERR("TRMNL", "Failed to create fetch task");
+    return false;
+  }
   return true;
 }
 
@@ -252,7 +352,7 @@ static void onBackgroundServerStarted() {
   if (!SETTINGS.terminusSleepEnabled) {
     return;
   }
-  fetchAndPinTrmnlImage();
+  startFetchTask();
 }
 
 static bool shouldRegisterTerminusRoutes() { return core::FeatureCatalog::isEnabled("terminus_sleep"); }
@@ -319,8 +419,23 @@ static void mountTerminusRoutes(WebServer* server) {
       server->send(400, "application/json", "{\"error\":\"not configured\"}");
       return;
     }
-    const bool ok = fetchAndPinTrmnlImage();
-    if (ok) {
+    if (!startFetchTask()) {
+      server->send(503, "application/json", "{\"error\":\"fetch busy or task create failed\"}");
+      return;
+    }
+    // The fetch is internally bounded (10 s manifest + 30 s image HTTP
+    // timeouts); the cap below only guards a hung task so this handler
+    // can't wedge the web server loop forever.
+    constexpr unsigned long FETCH_WAIT_CAP_MS = 120000;
+    const unsigned long deadline = millis() + FETCH_WAIT_CAP_MS;
+    while (fetchTaskRunning && millis() < deadline) {
+      delay(50);
+    }
+    if (fetchTaskRunning) {
+      server->send(504, "application/json", "{\"error\":\"Fetch timed out\"}");
+      return;
+    }
+    if (fetchTaskResult) {
       server->send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Image fetched and pinned\"}");
     } else {
       server->send(502, "application/json", "{\"error\":\"Fetch failed\"}");
