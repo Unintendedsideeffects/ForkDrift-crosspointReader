@@ -353,6 +353,61 @@
         width: 60px;
       }
     }
+
+    .evo-picker-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .evo-picker-modal {
+      background: var(--white);
+      border: 2px solid var(--black);
+      padding: 20px;
+      max-width: 520px;
+      width: 92%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .evo-picker-title {
+      font-size: 1rem;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .evo-picker-subtitle {
+      font-size: 0.75rem;
+      color: var(--gray-4);
+      margin-bottom: 16px;
+    }
+
+    .evo-picker-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .evo-picker-option {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px;
+      min-width: 72px;
+      font-size: 0.75rem;
+    }
+
+    .evo-picker-sprite {
+      width: 48px;
+      height: 48px;
+      image-rendering: pixelated;
+    }
   </style>
 </head>
 <body>
@@ -559,6 +614,69 @@
       }),
       assignedAt: new Date().toISOString()
     };
+  }
+
+  function isBaseForm(payload) {
+    const chain = (payload && payload.evolutionChain) || [];
+    if (!chain.length) return true;
+    return chain[0].speciesId === payload.speciesId;
+  }
+
+  // Walk the PokéAPI evolution chain and return all direct evolutions at the first
+  // node where multiple branches exist (e.g. all 8 eeveelutions for Eevee).
+  // Returns [] when the chain is strictly linear.
+  function getFirstBranchingEvolutions(evolutionData) {
+    if (!evolutionData || !evolutionData.chain) return [];
+    let current = evolutionData.chain;
+    while (current) {
+      const nexts = (current.evolves_to || []).filter(function(e) {
+        return e && e.species && e.species.name && e.species.url;
+      });
+      if (nexts.length > 1) {
+        return nexts.map(function(e) {
+          return { name: e.species.name, url: e.species.url, speciesId: extractResourceId(e.species.url) };
+        });
+      }
+      current = nexts.length === 1 ? nexts[0] : null;
+    }
+    return [];
+  }
+
+  // Show a modal asking the user to pick one of `options` (each has .name/.speciesId/.url).
+  // Resolves with the chosen option, or null if the user cancels.
+  function showEvolutionPicker(baseName, options) {
+    return new Promise(function(resolve) {
+      const overlay = document.createElement("div");
+      overlay.className = "evo-picker-overlay";
+      overlay.innerHTML = [
+        '<div class="evo-picker-modal">',
+        '  <div class="evo-picker-title">Which evolution for ' + escapeHtml(titleCase(baseName)) + '?</div>',
+        '  <div class="evo-picker-subtitle">Evolves at 50% reading progress (Lv 50).</div>',
+        '  <div class="evo-picker-options">',
+        options.map(function(opt) {
+          return [
+            '<button class="btn evo-picker-option" type="button" data-evo-pick="1">',
+            opt.speciesId ? '<img class="evo-picker-sprite" src="' + canonicalPixelSpriteUrl(opt.speciesId) + '" alt="" />' : '',
+            '<span>' + escapeHtml(titleCase(opt.name)) + '</span>',
+            '</button>'
+          ].join("");
+        }).join(""),
+        '  </div>',
+        '  <button class="btn secondary" type="button" data-evo-cancel="1">Cancel</button>',
+        '</div>'
+      ].join("");
+      document.body.appendChild(overlay);
+      Array.from(overlay.querySelectorAll("[data-evo-pick]")).forEach(function(btn, i) {
+        btn.addEventListener("click", function() {
+          document.body.removeChild(overlay);
+          resolve(options[i]);
+        });
+      });
+      overlay.querySelector("[data-evo-cancel]").addEventListener("click", function() {
+        document.body.removeChild(overlay);
+        resolve(null);
+      });
+    });
   }
 
   function buildFallbackPokemonAssignment(entry) {
@@ -1318,23 +1436,68 @@
     try {
       busy = true;
       syncButtons();
-      setStatus("Adding " + (entry ? entry.label : ("#" + id)) + " and baking sprites...", false);
+      setStatus("Loading " + (entry ? entry.label : ("#" + id)) + "...", false);
       let payload = null;
+      let bundle = null;
+      let redirectedFrom = null;
       try {
-        payload = buildPokemonAssignmentPayload(await fetchPokemonBundleById(id));
+        bundle = await fetchPokemonBundleById(id);
+        payload = buildPokemonAssignmentPayload(bundle);
       } catch (error) {
         console.error(error);
+        bundle = null;
         payload = entry ? buildFallbackPokemonAssignment(entry) : null;
       }
       if (!payload) {
         throw new Error("Could not load that Pokemon.");
       }
+      if (!isBaseForm(payload)) {
+        const baseStage = payload.evolutionChain && payload.evolutionChain[0];
+        if (!baseStage || !baseStage.speciesId) {
+          throw new Error(titleCase(payload.name || "") + " is evolved but its base form could not be determined.");
+        }
+        redirectedFrom = titleCase(payload.name || "");
+        const baseName = titleCase(baseStage.name || ("#" + baseStage.speciesId));
+        if (team.some(function(m) { return m.id === baseStage.speciesId || getTeamMemberSpeciesId(m) === baseStage.speciesId; })) {
+          throw new Error(redirectedFrom + " is evolved — " + baseName + " is already on your team.");
+        }
+        setStatus(redirectedFrom + " is evolved — adding " + baseName + " instead...", false);
+        const baseEntry = getPokemonEntryById(baseStage.speciesId);
+        try {
+          bundle = await fetchPokemonBundleById(baseStage.speciesId);
+          payload = buildPokemonAssignmentPayload(bundle);
+        } catch (fetchError) {
+          console.error(fetchError);
+          bundle = null;
+          payload = baseEntry ? buildFallbackPokemonAssignment(baseEntry) : null;
+        }
+        if (!payload) {
+          throw new Error("Could not load base form (" + baseName + ").");
+        }
+      }
+      const branchingOptions = getFirstBranchingEvolutions(bundle && bundle.evolution);
+      if (branchingOptions.length > 0) {
+        const chosenEvo = await showEvolutionPicker(payload.name, branchingOptions);
+        if (!chosenEvo) {
+          setStatus("", false);
+          return;
+        }
+        payload.evolutionChain = [
+          { order: 1, speciesId: payload.speciesId, name: payload.name, minLevel: null, trigger: null, text: null },
+          { order: 2, speciesId: chosenEvo.speciesId, name: chosenEvo.name, minLevel: 50, trigger: "level-up", text: "Lv 50" }
+        ];
+      }
+      setStatus("Baking sprites for " + titleCase(payload.name || "") + "...", false);
       await prebakeBundleSprites(payload);
       team.push(payload);
       await saveTeam();
       renderTeam();
       renderParty();  // refresh the from-team quick-pick rows
-      setStatus("Added " + titleCase(payload.name || "") + " to your team.", false);
+      if (redirectedFrom) {
+        setStatus(redirectedFrom + " is evolved — added " + titleCase(payload.name || "") + " instead. It will evolve as you read.", false);
+      } else {
+        setStatus("Added " + titleCase(payload.name || "") + " to your team.", false);
+      }
     } catch (error) {
       console.error(error);
       setStatus("Add failed: " + error.message, true);

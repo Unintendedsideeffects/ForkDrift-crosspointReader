@@ -209,6 +209,17 @@ void mountPokemonRoutes(WebServer* server) {
       server->send(400, "text/plain", "Missing team array");
       return;
     }
+    for (JsonVariantConst member : request["team"].as<JsonArrayConst>()) {
+      const int speciesId = member["speciesId"] | 0;
+      JsonArrayConst chain = member["evolutionChain"].as<JsonArrayConst>();
+      if (!chain.isNull() && chain.size() > 0) {
+        const int firstStageId = chain[0]["speciesId"] | 0;
+        if (firstStageId > 0 && firstStageId != speciesId) {
+          server->send(400, "text/plain", "Only base-form Pokemon may be added to the team");
+          return;
+        }
+      }
+    }
     if (!PokemonTeamStore::saveTeamDocument(request["team"])) {
       server->send(500, "text/plain", "Failed to save team");
       return;

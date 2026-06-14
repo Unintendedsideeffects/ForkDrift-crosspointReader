@@ -470,4 +470,23 @@ void registerFeature() {
 #endif
 }
 
+#if ENABLE_TERMINUS_SLEEP
+bool startTrmnlFetchAndWait(uint32_t capMs) {
+  if (!startFetchTask()) {
+    return false;
+  }
+  const unsigned long deadline = millis() + capMs;
+  while (fetchTaskRunning && millis() < deadline) {
+    delay(50);
+  }
+  if (fetchTaskRunning) {
+    LOG_ERR("TRMNL", "Fetch timed out after %u ms", capMs);
+    return false;
+  }
+  return fetchTaskResult;
+}
+#else
+bool startTrmnlFetchAndWait(uint32_t) { return false; }
+#endif
+
 }  // namespace features::terminus_sleep

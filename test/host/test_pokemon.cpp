@@ -1,14 +1,15 @@
+#include <WebServer.h>
+
+#include <string>
+
 #include "doctest/doctest.h"
 #include "src/core/registries/WebRouteRegistry.h"
 #include "src/features/pokemon_party/Registration.h"
 #include "src/util/PokemonBookDataStore.h"
 #include "test/mock/Arduino.h"
 #include "test/mock/HalStorage.h"
-#include <WebServer.h>
-#include <string>
 
 TEST_CASE("testPokemonBookDataStore") {
-
   Storage.reset();
 
   std::string cachePath;
@@ -43,7 +44,6 @@ TEST_CASE("testPokemonBookDataStore") {
 }
 
 TEST_CASE("testPokemonPartyApiRoutes") {
-
   Storage.reset();
 
   features::pokemon_party::registerFeature();
@@ -111,8 +111,7 @@ TEST_CASE("testPokemonPartyApiRoutes") {
   CHECK(saveResponse["pokemon"]["id"] == 25);
   CHECK(std::string(saveResponse["pokemon"]["name"] | "") == "pikachu");
   CHECK(std::string(saveResponse["pokemon"]["sleepImagePath"] | "") == "/sleep/pokedex/party/party_demo.bmp");
-  CHECK(std::string(saveResponse["pokemon"]["partyVisualPath"] | "") ==
-         "/sleep/pokedex/party/party_visual_demo.bmp");
+  CHECK(std::string(saveResponse["pokemon"]["partyVisualPath"] | "") == "/sleep/pokedex/party/party_visual_demo.bmp");
 
   JsonDocument storedDoc;
   CHECK(PokemonBookDataStore::loadPokemonDocument("/books/demo.epub", storedDoc));
@@ -151,4 +150,51 @@ TEST_CASE("testPokemonPartyApiRoutes") {
   JsonDocument clearedResponse;
   CHECK(!deserializeJson(clearedResponse, server.response().body.c_str()));
   CHECK(clearedResponse["pokemon"].isNull());
+}
+
+TEST_CASE("testPokemonTeamBaseFormValidation") {
+  Storage.reset();
+  features::pokemon_party::registerFeature();
+  WebServer server;
+  core::WebRouteRegistry::mountAll(&server);
+
+  // Evolved form (charizard, speciesId=6, chain starts at charmander=4) must be rejected.
+  server.setRequest(HTTP_PUT, "/api/pokemon-team");
+  server.setBody(
+      "{\"team\":[{\"id\":6,\"speciesId\":6,\"name\":\"charizard\","
+      "\"evolutionChain\":[{\"order\":1,\"speciesId\":4,\"name\":\"charmander\",\"minLevel\":null},"
+      "{\"order\":2,\"speciesId\":5,\"name\":\"charmeleon\",\"minLevel\":16},"
+      "{\"order\":3,\"speciesId\":6,\"name\":\"charizard\",\"minLevel\":36}]}]}");
+  CHECK(server.dispatch());
+  CHECK(server.response().statusCode == 400);
+  CHECK(server.response().body == "Only base-form Pokemon may be added to the team");
+
+  // Base form (charmander, speciesId=4, chain[0].speciesId=4) must be accepted.
+  server.setRequest(HTTP_PUT, "/api/pokemon-team");
+  server.setBody(
+      "{\"team\":[{\"id\":4,\"speciesId\":4,\"name\":\"charmander\","
+      "\"evolutionChain\":[{\"order\":1,\"speciesId\":4,\"name\":\"charmander\",\"minLevel\":null},"
+      "{\"order\":2,\"speciesId\":5,\"name\":\"charmeleon\",\"minLevel\":16},"
+      "{\"order\":3,\"speciesId\":6,\"name\":\"charizard\",\"minLevel\":36}]}]}");
+  CHECK(server.dispatch());
+  CHECK(server.response().statusCode == 200);
+
+  // No-evolution Pokemon (empty chain) must be accepted (can't verify, allow through).
+  server.setRequest(HTTP_PUT, "/api/pokemon-team");
+  server.setBody("{\"team\":[{\"id\":132,\"speciesId\":132,\"name\":\"ditto\",\"evolutionChain\":[]}]}");
+  CHECK(server.dispatch());
+  CHECK(server.response().statusCode == 200);
+
+  // Mixed team: one valid base form + one evolved form must be rejected.
+  server.setRequest(HTTP_PUT, "/api/pokemon-team");
+  server.setBody(
+      "{\"team\":["
+      "{\"id\":4,\"speciesId\":4,\"name\":\"charmander\","
+      "\"evolutionChain\":[{\"order\":1,\"speciesId\":4,\"name\":\"charmander\",\"minLevel\":null}]},"
+      "{\"id\":6,\"speciesId\":6,\"name\":\"charizard\","
+      "\"evolutionChain\":[{\"order\":1,\"speciesId\":4,\"name\":\"charmander\",\"minLevel\":null},"
+      "{\"order\":3,\"speciesId\":6,\"name\":\"charizard\",\"minLevel\":36}]}"
+      "]}");
+  CHECK(server.dispatch());
+  CHECK(server.response().statusCode == 400);
 }
