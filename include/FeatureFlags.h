@@ -436,3 +436,14 @@
 #undef ENABLE_BOOKMARKS
 #define ENABLE_BOOKMARKS 0
 #endif
+
+// Timed sleep refresh: wake on USB power at a user-set interval to silently
+// re-render the sleep screen (Terminus image, Roman Clock, or Haiku Clock).
+// Auto-enabled when any contributing feature is present; overridable.
+#ifndef ENABLE_TIMED_SLEEP_REFRESH
+#if ENABLE_TERMINUS_SLEEP || ENABLE_ROMAN_CLOCK_SLEEP || ENABLE_HAIKU_CLOCK
+#define ENABLE_TIMED_SLEEP_REFRESH 1
+#else
+#define ENABLE_TIMED_SLEEP_REFRESH 0
+#endif
+#endif

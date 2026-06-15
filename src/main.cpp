@@ -13,6 +13,7 @@
 #include <SPI.h>
 #include <WiFi.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -29,6 +30,10 @@
 #include "activities/ActivityManager.h"
 #include "activities/RenderLock.h"
 #include "activities/boot_sleep/SleepActivity.h"
+#if ENABLE_TERMINUS_SLEEP
+#include "features/terminus_sleep/Registration.h"
+#include "util/TerminusCredentialStore.h"
+#endif
 #include "activities/settings/RecoveryMenuActivity.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
 #include "components/UITheme.h"
@@ -396,10 +401,6 @@ void refreshClockOnTick() {
   static unsigned long lastClockRefreshMs = 0;
   constexpr unsigned long kClockRefreshIntervalMs = 15UL * 60UL * 1000UL;
 
-  if (!hasStaWifiConnection()) {
-    return;
-  }
-
   const unsigned long nowMs = millis();
   if (lastClockRefreshMs != 0 && nowMs - lastClockRefreshMs < kClockRefreshIntervalMs) {
     return;
@@ -450,6 +451,94 @@ void waitForPowerRelease() {
   }
 }
 
+#if ENABLE_TIMED_SLEEP_REFRESH
+// Returns true if the effective sleep mode is one that benefits from a timed refresh.
+static bool timedRefreshHasRenderableMode() {
+#if ENABLE_TERMINUS_SLEEP
+  if (SETTINGS.terminusSleepEnabled && TERMINUS_STORE.hasCredentials()) {
+    return true;
+  }
+#endif
+#if ENABLE_ROMAN_CLOCK_SLEEP
+  if (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::ROMAN_CLOCK_SLEEP) {
+    return true;
+  }
+#endif
+#if ENABLE_HAIKU_CLOCK
+  if (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::HAIKU_CLOCK_SLEEP) {
+    return true;
+  }
+#endif
+  return false;
+}
+
+// Called from setup() on ESP_SLEEP_WAKEUP_TIMER: silently re-render the sleep screen
+// and go back to deep sleep. Never returns.
+[[noreturn]] static void runTimedSleepRefresh() {
+  LOG_DBG("MAIN", "Timed sleep refresh: woke from timer");
+
+  // Determine what WiFi work is needed before we can render.
+  const bool needsTerminusFetch =
+#if ENABLE_TERMINUS_SLEEP
+      SETTINGS.terminusSleepEnabled && TERMINUS_STORE.hasCredentials();
+#else
+      false;
+#endif
+  const bool needsNtpSync =
+#if ENABLE_ROMAN_CLOCK_SLEEP || ENABLE_HAIKU_CLOCK
+      SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::ROMAN_CLOCK_SLEEP ||
+      SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::HAIKU_CLOCK_SLEEP;
+#else
+      false;
+#endif
+
+  if (needsTerminusFetch || needsNtpSync) {
+    if (attemptBackgroundWifiAutoConnect("TREFRESH")) {
+      // Wait for STA association (20 s cap)
+      const unsigned long wifiDeadline = millis() + 20000;
+      while (!hasStaWifiConnection() && millis() < wifiDeadline) {
+        delay(50);
+      }
+      if (hasStaWifiConnection()) {
+        if (needsNtpSync) {
+          if (!TimeSync::syncTimeWithNtpLowMemory()) {
+            LOG_WRN("TREFRESH", "NTP sync failed — rendering with potentially stale time");
+          }
+        }
+#if ENABLE_TERMINUS_SLEEP
+        if (needsTerminusFetch) {
+          constexpr uint32_t kFetchCapMs = 60000;
+          if (!features::terminus_sleep::startTrmnlFetchAndWait(kFetchCapMs)) {
+            LOG_WRN("TREFRESH", "Terminus fetch failed or timed out — rendering stale image");
+          }
+        }
+#endif
+      } else {
+        LOG_WRN("TREFRESH", "WiFi association timed out — skipping network work");
+      }
+      if (BG_WIFI.isRunning()) {
+        BG_WIFI.stop(true);
+      }
+    }
+  }
+
+  // Re-render the sleep screen via SleepActivity::onEnter() — single render path
+  // covers CUSTOM (Terminus), ROMAN_CLOCK_SLEEP, HAIKU_CLOCK_SLEEP, and fallbacks.
+  {
+    SleepActivity sleepActivity(renderer, mappedInputManager);
+    sleepActivity.onEnter();
+  }
+
+  display.deepSleep();
+  const uint64_t timerMicros =
+      (gpio.isUsbConnected() && timedRefreshHasRenderableMode() && SETTINGS.getTimedRefreshIntervalMicros() > 0)
+          ? SETTINGS.getTimedRefreshIntervalMicros()
+          : 0;
+  powerManager.startDeepSleep(gpio, timerMicros);
+  __builtin_unreachable();
+}
+#endif  // ENABLE_TIMED_SLEEP_REFRESH
+
 void enterDeepSleep() {
   HalPowerManager::Lock powerLock;
   APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
@@ -491,7 +580,15 @@ void enterDeepSleep() {
   display.deepSleep();
   LOG_DBG("MAIN", "Entering deep sleep");
 
-  powerManager.startDeepSleep(gpio);
+  uint64_t timerMicros = 0;
+#if ENABLE_TIMED_SLEEP_REFRESH
+  if (gpio.isUsbConnected() && timedRefreshHasRenderableMode() && SETTINGS.getTimedRefreshIntervalMicros() > 0) {
+    timerMicros = SETTINGS.getTimedRefreshIntervalMicros();
+    LOG_DBG("MAIN", "Arming timer wakeup: %" PRIu64 " µs", timerMicros);
+  }
+#endif
+  logSerial.flush();  // drain USB CDC TX before CPU halts
+  powerManager.startDeepSleep(gpio, timerMicros);
 }
 
 bool setupDisplayAndFonts() {
@@ -600,6 +697,11 @@ void setup() {
       // USB power connected: stay awake so user can access the file server
       LOG_DBG("MAIN", "Wakeup reason: After USB Power - staying awake for file transfer");
       break;
+#if ENABLE_TIMED_SLEEP_REFRESH
+    case HalGPIO::WakeupReason::TimerRefresh:
+      LOG_DBG("MAIN", "Wakeup reason: Timer (timed sleep refresh)");
+      break;
+#endif
     case HalGPIO::WakeupReason::AfterFlash:
     case HalGPIO::WakeupReason::Other:
     default:
@@ -640,6 +742,12 @@ void setup() {
   if (!setupDisplayAndFonts()) {
     return;
   }
+
+#if ENABLE_TIMED_SLEEP_REFRESH
+  if (wakeupReason == HalGPIO::WakeupReason::TimerRefresh) {
+    runTimedSleepRefresh();
+  }
+#endif
 
   FirmwareUpdateUtil::handleLocalUpdateBootFlow(renderer, mappedInputManager);
 
@@ -779,14 +887,10 @@ void loop() {
             {"PAGEFWD", MappedInputManager::Button::PageForward},
         };
         const String name = cmd.substring(4);
-        bool matched = false;
-        for (const auto& entry : kBtnMap) {
-          if (name.equalsIgnoreCase(entry.name)) {
-            mappedInputManager.injectVirtualActivation(entry.button);
-            matched = true;
-            break;
-          }
-        }
+        const auto it = std::find_if(std::begin(kBtnMap), std::end(kBtnMap),
+                                     [&](const auto& e) { return name.equalsIgnoreCase(e.name); });
+        const bool matched = it != std::end(kBtnMap);
+        if (matched) mappedInputManager.injectVirtualActivation(it->button);
         logSerial.printf(matched ? "BTN_OK:%s\n" : "BTN_ERR:%s\n", name.c_str());
       } else if (cmd.startsWith("WIFICRED:")) {
         // Test harness: set or update a saved WiFi credential and persist it.

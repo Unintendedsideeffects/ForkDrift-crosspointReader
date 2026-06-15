@@ -1,5 +1,6 @@
 #include "UrlUtils.h"
 
+#include <algorithm>
 #include <cstdlib>
 
 namespace UrlUtils {
@@ -16,10 +17,8 @@ bool isPrivateLanHttpUrl(const std::string& url) {
   const std::string host =
       url.substr(kPrefixLen, hostEnd == std::string::npos ? std::string::npos : hostEnd - kPrefixLen);
   // Numeric IPv4 only — a hostname here could resolve to a public address.
-  for (const char c : host) {
-    if ((c < '0' || c > '9') && c != '.') {
-      return false;
-    }
+  if (!std::all_of(host.begin(), host.end(), [](char c) { return (c >= '0' && c <= '9') || c == '.'; })) {
+    return false;
   }
   if (host.rfind("10.", 0) == 0 || host.rfind("192.168.", 0) == 0 || host.rfind("127.", 0) == 0) {
     return true;

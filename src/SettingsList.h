@@ -844,6 +844,14 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
     // A settings action entry allows navigating to the setup page from the on-device settings menu.
     list.push_back(SettingInfo::Action(StrId::STR_TERMINUS_SETUP, SettingAction::TerminusSetup));
   }
+#if ENABLE_TIMED_SLEEP_REFRESH
+  list.push_back(
+      SettingInfo::Enum(StrId::STR_TIMED_REFRESH_INTERVAL, &CrossPointSettings::timedSleepRefreshInterval,
+                        {StrId::STR_OFF, StrId::STR_TIMED_REFRESH_1H, StrId::STR_TIMED_REFRESH_2H,
+                         StrId::STR_TIMED_REFRESH_4H, StrId::STR_TIMED_REFRESH_8H, StrId::STR_TIMED_REFRESH_24H},
+                        "timedSleepRefreshInterval", StrId::STR_CAT_DISPLAY)
+          .withConfiguratorExport("timed_sleep_refresh"));
+#endif
   // Boot-partition switch into a co-installed TRMNL firmware; only meaningful
   // once Terminus credentials prove the user is on the TRMNL ecosystem.
   if (core::FeatureModules::hasCapability(core::Capability::TrmnlSwitch) && TERMINUS_STORE.hasCredentials()) {

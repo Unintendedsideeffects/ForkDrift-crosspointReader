@@ -617,6 +617,14 @@ unsigned long CrossPointSettings::getSleepTimeoutMs() const {
   return static_cast<unsigned long>(minutes) * 60UL * 1000UL;
 }
 
+uint64_t CrossPointSettings::getTimedRefreshIntervalMicros() const {
+  // Interval values: 0=off, 1=1h, 2=2h, 3=4h, 4=8h, 5=24h
+  static constexpr uint64_t kHour = 3600ULL * 1000000ULL;
+  static constexpr uint64_t kHours[] = {0, 1, 2, 4, 8, 24};
+  if (timedSleepRefreshInterval >= sizeof(kHours) / sizeof(kHours[0])) return 0;
+  return kHours[timedSleepRefreshInterval] * kHour;
+}
+
 int CrossPointSettings::getRefreshFrequency() const {
   switch (refreshFrequency) {
     case REFRESH_1:

@@ -397,6 +397,10 @@ class CrossPointSettings {
   // Fetch Terminus/TRMNL sleep image when background server starts on charge (0=off, 1=on).
   // Credentials are stored in /.crosspoint/terminus.json via TerminusCredentialStore.
   uint8_t terminusSleepEnabled = 0;
+  // Timed sleep refresh interval while on USB charge (0=off, 1=1h, 2=2h, 3=4h, 4=8h, 5=24h).
+  // Wakes from deep sleep, re-renders the active sleep screen (Terminus/TRMNL, Roman Clock, Haiku
+  // Clock), then goes back to sleep. USB-only: battery latch MOSFET cuts RTC power on battery.
+  uint8_t timedSleepRefreshInterval = 0;
 
   ~CrossPointSettings() = default;
 
@@ -488,6 +492,7 @@ class CrossPointSettings {
 
   float getReaderLineCompression() const;
   unsigned long getSleepTimeoutMs() const;
+  uint64_t getTimedRefreshIntervalMicros() const;
   int getRefreshFrequency() const;
   int getTimeZoneOffsetSeconds() const;
   std::string getCondensedSettings() const;
