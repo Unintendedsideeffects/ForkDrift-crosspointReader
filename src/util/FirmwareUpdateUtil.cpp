@@ -22,6 +22,7 @@
 #include "fontIds.h"
 #include "util/ButtonNavigator.h"
 #include "util/FirmwareArtifactName.h"
+#include "util/FirmwareUpdateHelpers.h"
 
 namespace {
 constexpr char kSkippedLocalUpdatePath[] = "/.crosspoint/local-update-skip.bin";
@@ -43,25 +44,6 @@ struct LocalUpdateMetadata {
   String path;
   String candidateVersion;
 };
-
-uint32_t fnv1aUpdate(uint32_t hash, const uint8_t* data, const size_t length) {
-  for (size_t i = 0; i < length; ++i) {
-    hash ^= data[i];
-    hash *= 16777619u;
-  }
-  return hash;
-}
-
-bool isFirmwareVersionChar(const char ch) { return ch >= '!' && ch <= '~' && ch != '"' && ch != '\\'; }
-
-void advanceMarkerMatch(const char ch, const char* marker, size_t& matchLength) {
-  if (ch == marker[matchLength]) {
-    ++matchLength;
-    return;
-  }
-
-  matchLength = ch == marker[0] ? 1 : 0;
-}
 
 String findNamedLocalUpdatePath() {
   SpiBusMutex::Guard guard;
@@ -173,7 +155,7 @@ bool hashLocalUpdateSample(const size_t firmwareSize, const size_t offset, Local
     return false;
   }
 
-  fingerprint.sampleHash = fnv1aUpdate(fingerprint.sampleHash, buffer, bytesRead);
+  fingerprint.sampleHash = firmware_update::fnv1aUpdate(fingerprint.sampleHash, buffer, bytesRead);
   return true;
 }
 
@@ -227,7 +209,7 @@ bool readCrossPointVersionMarker(HalFile& file, String& version) {
     for (size_t i = 0; i < bytesRead; ++i) {
       const char ch = static_cast<char>(buffer.data()[i]);
       if (readingVersion) {
-        if (ch != '\0' && isFirmwareVersionChar(ch) && version.length() < kMaxFirmwareVersionLength) {
+        if (ch != '\0' && firmware_update::isFirmwareVersionChar(ch) && version.length() < kMaxFirmwareVersionLength) {
           version += ch;
           continue;
         }
@@ -235,8 +217,8 @@ bool readCrossPointVersionMarker(HalFile& file, String& version) {
         return !version.isEmpty();
       }
 
-      advanceMarkerMatch(ch, userAgentMarker, userAgentMatchLength);
-      advanceMarkerMatch(ch, bootLogMarker, bootLogMatchLength);
+      firmware_update::advanceMarkerMatch(ch, userAgentMarker, userAgentMatchLength);
+      firmware_update::advanceMarkerMatch(ch, bootLogMarker, bootLogMatchLength);
       if (userAgentMarker[userAgentMatchLength] == '\0' || bootLogMarker[bootLogMatchLength] == '\0') {
         readingVersion = true;
         version = "";
@@ -262,8 +244,8 @@ bool computeLocalUpdateFingerprint(const String& path, LocalUpdateFingerprint& f
   }
 
   fingerprint.sampleHash = 2166136261u;
-  fingerprint.sampleHash = fnv1aUpdate(fingerprint.sampleHash, reinterpret_cast<const uint8_t*>(&fingerprint.fileSize),
-                                       sizeof(fingerprint.fileSize));
+  fingerprint.sampleHash = firmware_update::fnv1aUpdate(
+      fingerprint.sampleHash, reinterpret_cast<const uint8_t*>(&fingerprint.fileSize), sizeof(fingerprint.fileSize));
 
   ScopedBuffer buffer(kFingerprintSampleBytes);
   if (!buffer) {

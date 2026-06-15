@@ -73,6 +73,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -I"$ROOT_DIR/src" \
   -I"$ARDUINOJSON_DIR" \
   -I"$SIMULATOR_MBEDTLS_DIR" \
+  -I"$ROOT_DIR/lib/Utf8" \
   "$ROOT_DIR/test/host/"*.cpp \
   "$ROOT_DIR/lib/OpdsParser/OpenSearchParser.cpp" \
   "$ROOT_DIR/lib/OpdsParser/OpdsParser.cpp" \
@@ -103,6 +104,9 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/BookProgressDataStore.cpp" \
   "$ROOT_DIR/src/util/InputValidation.cpp" \
   "$ROOT_DIR/src/util/PathUtils.cpp" \
+  "$ROOT_DIR/src/util/UrlUtils.cpp" \
+  "$ROOT_DIR/src/util/StringUtils.cpp" \
+  "$ROOT_DIR/lib/Utf8/Utf8.cpp" \
   "$ROOT_DIR/src/util/PokemonBookDataStore.cpp" \
   "$ROOT_DIR/src/util/PokemonProgress.cpp" \
   "$ROOT_DIR/src/util/PokemonPartySprites.cpp" \
@@ -118,6 +122,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/test/mock/TerminusCredentialStoreMock.cpp" \
   "$ROOT_DIR/lib/GfxRenderer/Bitmap.cpp" \
   "$ROOT_DIR/lib/GfxRenderer/BitmapHelpers.cpp" \
+  "$ROOT_DIR/src/util/FirmwareUpdateHelpers.cpp" \
   "$BUILD_DIR/md4c.o" \
   "$BUILD_DIR/entity.o" \
   -lexpat \
