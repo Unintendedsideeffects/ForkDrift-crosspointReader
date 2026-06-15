@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstring>
 #include <string>
+#include <utility>
 
 #include "CrossPointSettings.h"
 #include "SdCardFontSystem.h"
@@ -20,10 +21,12 @@ bool isPasswordField(const char* key) {
   return key != nullptr && (strstr(key, "password") != nullptr || strstr(key, "Password") != nullptr);
 }
 
-bool appendSettingJson(String& json, const SettingInfo& s) {
+// Serializes one setting as a JSON object into `output` (null-terminated).
+// Returns the number of bytes written (excluding the null), or 0 if the setting
+// produces no JSON (unhandled type) or does not fit (logged and dropped). The
+// caller frames the surrounding array and commas — see streamSettingsListJson.
+size_t serializeSettingJson(const SettingInfo& s, char* output, size_t outputSize) {
   JsonDocument doc;
-  char output[768];
-  constexpr size_t outputSize = sizeof(output);
 
   doc["key"] = s.key;
   doc["name"] = I18N.get(s.nameId);
@@ -81,7 +84,7 @@ bool appendSettingJson(String& json, const SettingInfo& s) {
       break;
     }
     default:
-      return true;
+      return 0;
   }
 
   if (s.visibleWhen.key) {
@@ -103,46 +106,79 @@ bool appendSettingJson(String& json, const SettingInfo& s) {
   if (requiredSize >= outputSize) {
     LOG_ERR("WEB", "Dropping oversized setting key=%s required=%u bytes", s.key ? s.key : "(null)",
             static_cast<unsigned>(requiredSize + 1));
-    return false;
+    return 0;
   }
-  serializeJson(doc, output, outputSize);
+  return serializeJson(doc, output, outputSize);
+}
 
-  if (json.length() > 1) {
-    json += ",";
+// Per-setting buffer cap. measureJson() drops anything that would not fit rather
+// than truncating, so this bounds peak stack use to one setting at a time.
+constexpr size_t kSettingJsonCap = 768;
+
+struct StreamState {
+  network::SettingChunkSink sink;
+  void* sinkCtx;
+  bool first;
+  uint16_t streamed;  // entries serialized and sent
+  uint16_t dropped;   // keyed entries skipped because their JSON exceeded the buffer
+};
+
+// SettingSink for forEachSetting: serialize one setting and push it to the client
+// as a chunk. Holds no heap state between calls — peak memory is one SettingInfo
+// (from the generator) + one JsonDocument + the stack buffer below.
+void streamSettingToSink(void* vstate, SettingInfo&& s) {
+  auto* state = static_cast<StreamState*>(vstate);
+  if (!s.key) {
+    return;  // ACTION / SECTION_HEADER entries carry no key and emit no JSON.
   }
-  json += output;
-  return true;
+  char buf[kSettingJsonCap + 1];  // +1 leaves room for a leading comma.
+  size_t offset = 0;
+  if (!state->first) {
+    buf[0] = ',';
+    offset = 1;
+  }
+  const size_t written = serializeSettingJson(s, buf + offset, kSettingJsonCap);
+  if (written == 0) {
+    // Oversized: serializeSettingJson already logged the offending key. No comma
+    // emitted and `first` unchanged, so the array stays well-formed.
+    state->dropped++;
+    return;
+  }
+  state->first = false;
+  state->streamed++;
+  state->sink(state->sinkCtx, buf);
 }
 
 }  // namespace
 
 namespace network {
 
-String buildSettingsListJson() {
-  std::vector<SettingInfo> settings;
+void streamSettingsListJson(SettingChunkSink sink, void* ctx) {
+  // All SD / font-registry access is confined to this guarded prelude. The font
+  // family setting captures copies of the family names (see buildFontFamilySetting),
+  // so once built it needs no further SD access. That lets the stream below run
+  // lock-free — we never hold the SPI bus across a chunked network write.
+  bool hasSleepImages = false;
+  bool hasPokedexImages = false;
+  SettingInfo fontFamily;
   {
     SpiBusMutex::Guard guard;
     sdFontSystem.refreshIfDirty();
-    settings = getSettingsList(&sdFontSystem.registry());
+    hasSleepImages = dirHasAnyImage("/sleep");
+    hasPokedexImages = dirHasAnyImage("/sleep/pokedex");
+    fontFamily = buildFontFamilySetting(&sdFontSystem.registry());
   }
 
-  String json = "[";
-  size_t droppedCount = 0;
+  StreamState state{sink, ctx, true, 0, 0};
+  sink(ctx, "[");
+  forEachSetting(&streamSettingToSink, &state, hasSleepImages, hasPokedexImages, std::move(fontFamily));
+  sink(ctx, "]");
 
-  for (const auto& s : settings) {
-    if (!s.key) {
-      continue;
-    }
-    if (!appendSettingJson(json, s)) {
-      droppedCount++;
-    }
+  if (state.dropped > 0) {
+    LOG_WRN("WEB", "Settings stream dropped %u oversized entries", static_cast<unsigned>(state.dropped));
   }
-
-  json += "]";
-  if (droppedCount > 0) {
-    LOG_WRN("WEB", "Dropped %u oversized setting entries", static_cast<unsigned>(droppedCount));
-  }
-  return json;
+  LOG_DBG("WEB", "Settings stream complete: %u sent, %u dropped", static_cast<unsigned>(state.streamed),
+          static_cast<unsigned>(state.dropped));
 }
 
 SettingsApplyResult applySettingsJson(const String& body) {

@@ -351,9 +351,14 @@ paths:
       tags: [settings]
       operationId: getSettings
       summary: List editable settings metadata
+      description: >
+        Sent with HTTP chunked transfer-encoding: the device serializes and
+        streams one setting at a time rather than buffering the whole array,
+        so it never allocates the full document in RAM. Reassembled by the
+        client it is an ordinary JSON array.
       responses:
         '200':
-          description: Settings descriptors
+          description: Settings descriptors (chunked transfer-encoding)
           content:
             application/json:
               schema:
@@ -362,6 +367,20 @@ paths:
                   $ref: '#/components/schemas/SettingEntry'
         '404':
           $ref: '#/components/responses/NotFoundText'
+        '503':
+          description: >
+            Free heap is below the threshold required to build the settings
+            list safely; the request is rejected to avoid an out-of-memory
+            abort rather than risking a crash. Retry after freeing RAM (for
+            example, return to the Home screen so the open book is released).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: low memory
     post:
       tags: [settings]
       operationId: updateSettings

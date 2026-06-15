@@ -317,7 +317,17 @@ Verify: `web_wifi_setup`, `ota_updates`, `remote_keyboard_input`, `remote_open_b
   setting identified by `visibleWhen.key` currently has the value `visibleWhen.eq`.
   Omitted for settings that are always visible.
 
-**Current status:** ✅ Firmware returns this format from `handleGetSettings()`.
+**Transfer:** The response is sent with `Transfer-Encoding: chunked` — the device
+streams one setting at a time instead of buffering the whole array, so it stays
+within RAM limits. The reassembled body is the same JSON array shown above; HTTP
+clients handle de-chunking transparently.
+
+**Low-memory rejection:** If free heap is below the safe threshold, the device
+returns `503` with `{"error":"low memory"}` instead of the array. Treat this as
+retryable (prompt the user to return to the Home screen to free RAM), not a hard
+failure.
+
+**Current status:** ✅ Firmware streams this format from `handleGetSettings()`.
 
 ---
 

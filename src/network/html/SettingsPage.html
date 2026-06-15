@@ -604,7 +604,10 @@
 
       const response = await fetch('/api/settings');
       if (!response.ok) {
-        throw new Error('Failed to load settings: ' + response.status);
+        if (response.status === 503) {
+          throw new Error('Device is low on memory. On the device, return to the Home screen (close any open book), then reload this page.');
+        }
+        throw new Error('Failed to load settings (HTTP ' + response.status + ').');
       }
       allSettings = await response.json();
 
@@ -648,7 +651,8 @@
     } catch (e) {
       console.error(e);
       document.getElementById('settings-container').innerHTML =
-        '<div class="card"><p style="text-align:center;color:#e74c3c;">Failed to load settings</p></div>';
+        '<div class="card"><p style="text-align:center;color:#e74c3c;">' +
+        escapeHtml(e && e.message ? e.message : 'Failed to load settings') + '</p></div>';
     }
   }
 
