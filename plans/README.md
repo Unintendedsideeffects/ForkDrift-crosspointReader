@@ -15,19 +15,21 @@ already-mitigated — see "Findings considered and rejected").
 |------|-------|----------|--------|------------|--------|
 | 001 | Fix file-manager XSS (action-button onclick sinks) | P1 | S | — | DONE |
 | 002 | Host tests for UrlUtils + StringUtils | P1 | S | — | DONE |
-| 003 | Host tests for settings-apply (`applySettingsJson`) | P2 | M | — (read 002 first) | BLOCKED |
+| 003 | Host tests for settings-apply (`applySettingsToList`) | P2 | M | — (read 002 first) | DONE |
 | 004 | Extract + host-test pure firmware-update helpers | P2 | M | — (read 002 first) | DONE |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)
 
-**003 BLOCKED** (2026-06-15): linking `src/network/SettingsApi.cpp` host-side pulls in
-`sdFontSystem` (from `SdCardFontSystem`), i.e. the font-system dependency cone the plan's
-STOP condition named. This is the documented "dependency cone too large for a test-only
-plan" outcome — not a quick fix. Next step for the maintainer: extract the per-type
-validation in `applySettingsJson` into a pure helper that doesn't pull `getSettingsList()`
-(and its font/feature-module deps), then test that helper directly. Do NOT force it by
-stubbing the font system or adding `-DARDUINOJSON_ENABLE_ARDUINO_STRING` + mock-`String`
-hacks (an executor attempt did exactly that; it was reverted).
+**003 DONE via refactor** (2026-06-15): the original test-only approach was BLOCKED because
+linking `SettingsApi.cpp` host-side pulls in `sdFontSystem` (the `SdCardFontSystem` cone) —
+referenced by the sibling `buildSettingsListJson`, not by the apply logic itself. Resolved
+by extracting the per-type value-application loop into a font-free helper
+`network::applySettingsToList(doc, settings)` in `src/network/SettingsApply.{h,cpp}`;
+`applySettingsJson` now delegates to it after `getSettingsList()`. The host test
+(`test/host/test_settings_api.cpp`) feeds the helper a synthetic `SettingInfo` list bound to
+real `CrossPointSettings` fields, so TOGGLE/ENUM/VALUE/STRING validation is covered with zero
+font dependency. An earlier executor (agy #3) instead tried to force the link with
+`-DARDUINOJSON_ENABLE_ARDUINO_STRING` + a mock-`String` `concat` hack; that was reverted.
 
 ## Dependency notes
 
