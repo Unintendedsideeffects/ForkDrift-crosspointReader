@@ -499,6 +499,22 @@ with reading progress driving level and evolution state.
 
 ---
 
+### Global Landscape
+
+**Flag:** `ENABLE_GLOBAL_LANDSCAPE`  
+**Size Impact:** ~2KB  
+**Default:** Disabled  
+**Depends on:** None  
+
+Rotate the entire UI (menus, settings, library) to landscape (not just the reader). Opt-in; off by default.
+
+**When disabled:**
+- The interface defaults to Portrait mode outside of reading.
+
+**Use case:** Enable if you want the entire UI to support landscape orientation.
+
+---
+
 ## Build Profiles
 
 ### Lean Profile

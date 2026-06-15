@@ -22,12 +22,17 @@
 #include "SpiBusMutex.h"
 #include "XtcReaderChapterSelectionActivity.h"
 #include "activities/TaskShutdown.h"
+#include "core/OrientationManager.h"
 #include "fontIds.h"
 #include "util/RecentBooksStore.h"
 
 void XtcReaderActivity::onEnter() {
   Activity::onEnter();
   mappedInput.setReaderMode(true);
+
+  // XTC content is baked at a fixed portrait page size and cannot re-flow.
+  // Force portrait regardless of the global UI orientation.
+  renderer.setOrientation(GfxRenderer::Orientation::Portrait);
 
   if (!xtc) {
     return;
@@ -50,6 +55,7 @@ void XtcReaderActivity::onExit() {
   mappedInput.setReaderMode(false);
   Activity::onExit();
 
+  OrientationManager::applyUiOrientation(renderer);
   xtc.reset();
 }
 

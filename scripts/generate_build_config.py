@@ -282,6 +282,12 @@ FEATURES = {
         size_kb=0,
         description='Inserts an interpunct between every word to make word boundaries explicit'
     ),
+    'global_landscape': Feature(
+        name='Global Landscape',
+        flag='ENABLE_GLOBAL_LANDSCAPE',
+        size_kb=2,
+        description='Rotate the entire UI (menus, settings, library) to landscape, not just the reader'
+    ),
 }
 
 
@@ -603,6 +609,13 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=[]
     ),
+    'global_landscape': FeatureMetadata(
+        implemented=True,
+        stable=False,
+        requires=[],
+        conflicts=[],
+        recommends=[]
+    ),
 }
 
 
@@ -777,6 +790,7 @@ PROFILES = {
             'minimal_theme': True,
             'focus_reading': True,
             'guide_dots': True,
+            'global_landscape': True,
         },
     },
 }

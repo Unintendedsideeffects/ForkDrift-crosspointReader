@@ -30,6 +30,7 @@
 #include "activities/ActivityManager.h"
 #include "activities/RenderLock.h"
 #include "activities/boot_sleep/SleepActivity.h"
+#include "core/OrientationManager.h"
 #if ENABLE_TERMINUS_SLEEP
 #include "features/terminus_sleep/Registration.h"
 #include "util/TerminusCredentialStore.h"
@@ -598,6 +599,10 @@ bool setupDisplayAndFonts() {
 
   display.begin();
   renderer.begin();
+
+  // Apply the global UI orientation so every activity (boot, home, settings, ...)
+  // inherits it. No-op (Portrait) when ENABLE_GLOBAL_LANDSCAPE is off.
+  OrientationManager::applyUiOrientation(renderer);
 
   LOG_DBG("MAIN", "Display initialized");
 

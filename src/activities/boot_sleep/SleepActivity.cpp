@@ -35,6 +35,7 @@
 #include "SleepExtensionHooks.h"
 #include "SpiBusMutex.h"
 #include "components/UITheme.h"
+#include "core/OrientationManager.h"
 #include "core/features/FeatureModules.h"
 #include "features/status_overlay/Layout.h"
 #include "fontIds.h"
@@ -1456,7 +1457,7 @@ void SleepActivity::renderHaikuClockSleepScreen() const {
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 
   if (SETTINGS.haikuClockLandscape) {
-    renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+    OrientationManager::applyUiOrientation(renderer);
   }
 }
 #endif

@@ -17,6 +17,7 @@
 #include "activities/TaskShutdown.h"
 #include "components/ScreenComponents.h"
 #include "components/UITheme.h"
+#include "core/OrientationManager.h"
 #include "features/status_overlay/Layout.h"
 #include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
@@ -116,7 +117,7 @@ void MarkdownReaderActivity::onExit() {
   features::status_overlay::clearReaderContext();
   ActivityWithSubactivity::onExit();
 
-  renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+  OrientationManager::applyUiOrientation(renderer);
 
   mdSection.reset();
   htmlSection.reset();

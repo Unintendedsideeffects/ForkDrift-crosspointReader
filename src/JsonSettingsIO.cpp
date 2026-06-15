@@ -115,6 +115,7 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
   s.shortPwrBtn = clamp(doc["shortPwrBtn"] | (uint8_t)S::IGNORE, S::SHORT_PWRBTN_COUNT, S::IGNORE);
   s.longPwrBtn = clamp(doc["longPwrBtn"] | (uint8_t)S::SLEEP, S::SHORT_PWRBTN_COUNT, S::SLEEP);
   s.orientation = clamp(doc["orientation"] | (uint8_t)S::PORTRAIT, S::ORIENTATION_COUNT, S::PORTRAIT);
+  s.uiOrientation = clamp(doc["uiOrientation"] | (uint8_t)S::PORTRAIT, S::ORIENTATION_COUNT, S::PORTRAIT);
   s.frontButtonLayout = clamp(doc["frontButtonLayout"] | (uint8_t)S::BACK_CONFIRM_LEFT_RIGHT,
                               S::FRONT_BUTTON_LAYOUT_COUNT, S::BACK_CONFIRM_LEFT_RIGHT);
   s.sideButtonLayout =
@@ -289,6 +290,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["shortPwrBtn"] = s.shortPwrBtn;
   doc["longPwrBtn"] = s.longPwrBtn;
   doc["orientation"] = s.orientation;
+  doc["uiOrientation"] = s.uiOrientation;
   doc["frontButtonLayout"] = s.frontButtonLayout;
   doc["sideButtonLayout"] = s.sideButtonLayout;
   doc["sideButtonLongPress"] = s.sideButtonLongPress;

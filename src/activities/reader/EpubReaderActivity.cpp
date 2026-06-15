@@ -31,6 +31,7 @@
 #include "EpubReaderFootnotesActivity.h"
 #include "EpubReaderPercentSelectionActivity.h"
 #include "EpubReaderUtils.h"
+#include "core/OrientationManager.h"
 #if ENABLE_READING_STATS
 #include "GlobalReadingStats.h"
 #endif
@@ -277,8 +278,8 @@ void EpubReaderActivity::onExit() {
     fcm->clearCache();
   }
 
-  // Reset orientation back to portrait for the rest of the UI
-  renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+  // Restore the global UI orientation for the rest of the UI
+  OrientationManager::applyUiOrientation(renderer);
 
   APP_STATE.readerActivityLoadCount = 0;
   APP_STATE.saveToFile();

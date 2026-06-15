@@ -733,6 +733,12 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
                          {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_INVERTED, StrId::STR_LANDSCAPE_CCW},
                          "orientation", StrId::STR_CAT_READER)
            .withConfiguratorExport());
+#if ENABLE_GLOBAL_LANDSCAPE
+  emit(SettingInfo::Enum(StrId::STR_UI_ORIENTATION, &CrossPointSettings::uiOrientation,
+                         {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_INVERTED, StrId::STR_LANDSCAPE_CCW},
+                         "uiOrientation", StrId::STR_CAT_DISPLAY)
+           .withConfiguratorExport());
+#endif
   emit(SettingInfo::Toggle(StrId::STR_EXTRA_SPACING, &CrossPointSettings::extraParagraphSpacing,
                            "extraParagraphSpacing", StrId::STR_CAT_READER)
            .withConfiguratorExport());

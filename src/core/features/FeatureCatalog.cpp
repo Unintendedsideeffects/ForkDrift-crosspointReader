@@ -88,6 +88,7 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"remote_keyboard_input", "Remote Keyboard Input", ENABLE_REMOTE_KEYBOARD_INPUT != 0, nullptr, 0, nullptr, 0},
     {"usb_mass_storage", "USB Mass Storage", ENABLE_USB_MASS_STORAGE != 0, nullptr, 0, nullptr, 0},
     {"global_status_bar", "Global Status Bar", ENABLE_GLOBAL_STATUS_BAR != 0, nullptr, 0, nullptr, 0},
+    {"global_landscape", "Global Landscape", ENABLE_GLOBAL_LANDSCAPE != 0, nullptr, 0, nullptr, 0},
     {"wifi_clock", "WiFi Clock", ENABLE_WIFI_CLOCK != 0, nullptr, 0, nullptr, 0},
     {"roman_clock_sleep", "Roman Clock Sleep Screen", ENABLE_ROMAN_CLOCK_SLEEP != 0, kRequiresRomanClockSleepAll,
      sizeof(kRequiresRomanClockSleepAll) / sizeof(kRequiresRomanClockSleepAll[0]), nullptr, 0},

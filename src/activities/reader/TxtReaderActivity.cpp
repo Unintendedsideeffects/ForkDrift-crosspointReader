@@ -17,6 +17,7 @@
 #include "activities/TaskShutdown.h"
 #include "components/ScreenComponents.h"
 #include "components/UITheme.h"
+#include "core/OrientationManager.h"
 #include "features/status_overlay/Layout.h"
 #include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
@@ -55,8 +56,8 @@ void TxtReaderActivity::onExit() {
   features::status_overlay::clearReaderContext();
   Activity::onExit();
 
-  // Reset orientation back to portrait for the rest of the UI
-  renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+  // Restore the global UI orientation for the rest of the UI
+  OrientationManager::applyUiOrientation(renderer);
 
   pageOffsets.clear();
   currentPageLines.clear();
