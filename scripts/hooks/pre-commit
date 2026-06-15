@@ -202,24 +202,32 @@ if [ -n "$STAGED_FILES" ]; then
     fi
 fi
 
-if command -v uv &> /dev/null; then
-    BUILD_PROFILE="${CROSSPOINT_PRECOMMIT_PROFILE:-full}"
-    BUILD_CMD=(uv run pio run -e custom)
-else
+if ! command -v uv &> /dev/null; then
     echo "Error: uv is required in PATH so the pre-commit build can use the pinned toolchain."
     exit 1
 fi
 
+# When CROSSPOINT_PRECOMMIT_PROFILE is explicitly set, generate a custom profile
+# and build -e custom. Otherwise build -e default (the full build), which shares
+# the SCons cache with normal `pio run` dev builds.
+if [ -n "${CROSSPOINT_PRECOMMIT_PROFILE:-}" ]; then
+    BUILD_PROFILE="$CROSSPOINT_PRECOMMIT_PROFILE"
+    BUILD_CMD=(uv run pio run -e custom)
+else
+    BUILD_PROFILE="default"
+    BUILD_CMD=(uv run pio run)
+fi
+
 # Cache build results keyed by staged-tree SHA. `git write-tree` produces the
 # tree OID for the current index without modifying anything, so identical
-# staged content always hashes to the same key. Include the build profile because
-# `custom` is generated from the selected profile before the build. We cache both
-# successes (skip the 5-minute rebuild) and failures (fail-fast on a known-bad
-# state) — set FORCE_BUILD=1 to override.
+# staged content always hashes to the same key. Include the build profile so
+# a custom-profile override gets its own cache slot. We cache both successes
+# (skip the 5-minute rebuild) and failures (fail-fast on a known-bad state) —
+# set FORCE_BUILD=1 to override.
 CACHE_DIR="$REPO_ROOT/.cache/build-results"
 mkdir -p "$CACHE_DIR"
 STATE_KEY="$(git write-tree)"
-CACHE_FILE="$CACHE_DIR/${BUILD_PROFILE:-full}-$STATE_KEY"
+CACHE_FILE="$CACHE_DIR/$BUILD_PROFILE-$STATE_KEY"
 if [ "${FORCE_BUILD:-0}" != "1" ] && [ -f "$CACHE_FILE" ]; then
     CACHED_EXIT="$(cat "$CACHE_FILE")"
     if [ "$CACHED_EXIT" = "0" ]; then
@@ -253,8 +261,10 @@ if ! flock -n 9; then
     fi
 fi
 
-echo "Generating ${BUILD_PROFILE} build profile for pre-commit..."
-uv run python scripts/generate_build_config.py --profile "$BUILD_PROFILE"
+if [ "$BUILD_PROFILE" != "default" ]; then
+    echo "Generating ${BUILD_PROFILE} build profile for pre-commit..."
+    uv run python scripts/generate_build_config.py --profile "$BUILD_PROFILE"
+fi
 
 echo "Running pre-commit build (${BUILD_PROFILE} profile)..."
 set +e
