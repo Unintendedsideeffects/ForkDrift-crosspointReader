@@ -37,6 +37,9 @@ src/network/html/*.cache.json
 docs/configurator/node_modules/
 lib/EpdFont/fontsrc
 
+# Device walk test output
+runs/
+
 # Crash dumps
 core.*
 *.core
