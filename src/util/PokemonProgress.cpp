@@ -10,6 +10,16 @@
 #include "util/RecentBooksStore.h"
 
 namespace {
+int defaultMinLevelForStage(const size_t stageIndex, const size_t stageCount) {
+  if (stageIndex == 0) {
+    return 1;
+  }
+  if (stageCount <= 2) {
+    return 50;
+  }
+  return stageIndex == 1 ? 33 : 66;
+}
+
 PokemonAssignment assignmentFromPokemonJson(JsonVariantConst pokemon) {
   PokemonAssignment out;
   if (!pokemon.is<JsonObjectConst>()) {
@@ -23,17 +33,20 @@ PokemonAssignment assignmentFromPokemonJson(JsonVariantConst pokemon) {
 
   JsonArrayConst evolution = pokemon["evolutionChain"].as<JsonArrayConst>();
   if (!evolution.isNull()) {
-    out.chain.reserve(evolution.size());
+    const size_t stageCount = evolution.size();
+    out.chain.reserve(stageCount);
+    size_t stageIndex = 0;
     for (JsonVariantConst stage : evolution) {
       PokemonEvolutionStage entry;
       entry.speciesId = stage["speciesId"] | 0;
       const char* stageName = stage["name"] | "";
       entry.name = stageName ? stageName : "";
       const int minLevel = stage["minLevel"] | 0;
-      entry.minLevel = minLevel > 0 ? minLevel : 1;
+      entry.minLevel = minLevel > 0 ? minLevel : defaultMinLevelForStage(stageIndex, stageCount);
       if (entry.speciesId > 0) {
         out.chain.push_back(std::move(entry));
       }
+      ++stageIndex;
     }
   }
 

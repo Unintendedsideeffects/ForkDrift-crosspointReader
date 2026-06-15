@@ -286,6 +286,17 @@
       margin-bottom: 12px;
     }
 
+    .team-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 0 0 12px;
+    }
+
+    .team-actions .btn {
+      flex: 1 1 140px;
+    }
+
     .team-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -429,6 +440,9 @@
   <div class="team-search pokemon-picker">
     <input type="text" id="teamSearchInput" placeholder="Search Pokemon by name or #id to add to team" autocomplete="off" spellcheck="false" />
     <div class="pokemon-picker-results" id="teamSearchResults"></div>
+  </div>
+  <div class="team-actions">
+    <button class="btn secondary" id="randomTeamBtn" type="button">Random team</button>
   </div>
   <div class="team-grid" id="teamGrid"></div>
 </div>
@@ -723,6 +737,10 @@
     const teamInput = document.getElementById("teamSearchInput");
     if (teamInput) {
       teamInput.disabled = busy;
+    }
+    const randomTeamButton = document.getElementById("randomTeamBtn");
+    if (randomTeamButton) {
+      randomTeamButton.disabled = busy || team.length >= MAX_TEAM;
     }
     if (busy) {
       closeAllPickerResults();
@@ -1168,6 +1186,7 @@
   const teamGrid = document.getElementById("teamGrid");
   const teamSearchInput = document.getElementById("teamSearchInput");
   const teamSearchResults = document.getElementById("teamSearchResults");
+  const randomTeamBtn = document.getElementById("randomTeamBtn");
   const MAX_TEAM = 6;
   const SPRITE_SIZE = 96;  // matches PokemonSpriteCache::kDefaultSpriteSize
   let team = [];
@@ -1180,6 +1199,12 @@
 
   function getTeamMemberSpeciesId(member) {
     return (member && (member.speciesId || member.id)) || 0;
+  }
+
+  function teamHasSpecies(speciesId) {
+    return team.some(function(member) {
+      return member.id === speciesId || getTeamMemberSpeciesId(member) === speciesId;
+    });
   }
 
   function loadImage(url) {
@@ -1428,7 +1453,7 @@
       setStatus("Team is full (max " + MAX_TEAM + "). Remove one first.", true);
       return;
     }
-    if (team.some(function(m) { return m.id === id || getTeamMemberSpeciesId(m) === id; })) {
+    if (teamHasSpecies(id)) {
       setStatus("That Pokemon is already on your team.", true);
       return;
     }
@@ -1458,7 +1483,7 @@
         }
         redirectedFrom = titleCase(payload.name || "");
         const baseName = titleCase(baseStage.name || ("#" + baseStage.speciesId));
-        if (team.some(function(m) { return m.id === baseStage.speciesId || getTeamMemberSpeciesId(m) === baseStage.speciesId; })) {
+        if (teamHasSpecies(baseStage.speciesId)) {
           throw new Error(redirectedFrom + " is evolved — " + baseName + " is already on your team.");
         }
         setStatus(redirectedFrom + " is evolved — adding " + baseName + " instead...", false);
@@ -1501,6 +1526,83 @@
     } catch (error) {
       console.error(error);
       setStatus("Add failed: " + error.message, true);
+    } finally {
+      busy = false;
+      syncButtons();
+    }
+  }
+
+  async function buildRandomTeamMember(id) {
+    let bundle = await fetchPokemonBundleById(id);
+    let payload = buildPokemonAssignmentPayload(bundle);
+    if (!payload) {
+      throw new Error("Could not load Pokemon #" + id + ".");
+    }
+    if (!isBaseForm(payload)) {
+      const baseStage = payload.evolutionChain && payload.evolutionChain[0];
+      if (!baseStage || !baseStage.speciesId || teamHasSpecies(baseStage.speciesId)) {
+        throw new Error("Duplicate or unknown base form.");
+      }
+      bundle = await fetchPokemonBundleById(baseStage.speciesId);
+      payload = buildPokemonAssignmentPayload(bundle);
+      if (!payload) {
+        throw new Error("Could not load base form.");
+      }
+    }
+    if (teamHasSpecies(payload.speciesId || payload.id)) {
+      throw new Error("Duplicate Pokemon.");
+    }
+    const branchingOptions = getFirstBranchingEvolutions(bundle && bundle.evolution);
+    if (branchingOptions.length > 0) {
+      const chosenEvo = branchingOptions[Math.floor(Math.random() * branchingOptions.length)];
+      payload.evolutionChain = [
+        { order: 1, speciesId: payload.speciesId, name: payload.name, minLevel: null, trigger: null, text: null },
+        { order: 2, speciesId: chosenEvo.speciesId, name: chosenEvo.name, minLevel: 50, trigger: "level-up", text: "Lv 50" }
+      ];
+    }
+    await prebakeBundleSprites(payload);
+    return payload;
+  }
+
+  async function generateRandomTeam() {
+    if (busy) return;
+    if (team.length >= MAX_TEAM) {
+      setStatus("Team is already full (max " + MAX_TEAM + ").", true);
+      return;
+    }
+
+    try {
+      busy = true;
+      syncButtons();
+      const need = MAX_TEAM - team.length;
+      const maxAttempts = need * 25 + 50;
+      let added = 0;
+      let attempts = 0;
+      while (added < need && attempts < maxAttempts) {
+        attempts++;
+        const id = Math.floor(Math.random() * MAX_POKEMON_ID) + 1;
+        if (teamHasSpecies(id)) continue;
+        setStatus("Rolling random team... (" + (team.length + 1) + " / " + MAX_TEAM + ")", false);
+        try {
+          const payload = await buildRandomTeamMember(id);
+          if (teamHasSpecies(payload.speciesId || payload.id)) continue;
+          team.push(payload);
+          added++;
+          renderTeam();
+        } catch (error) {
+          console.error(error);
+        }
+      }
+      if (added === 0) {
+        setStatus("Could not roll a random team. Check internet access and try again.", true);
+        return;
+      }
+      await saveTeam();
+      renderParty();
+      setStatus("Rolled " + added + " random Pokemon (" + team.length + " / " + MAX_TEAM + ").", false);
+    } catch (error) {
+      console.error(error);
+      setStatus("Random team failed: " + error.message, true);
     } finally {
       busy = false;
       syncButtons();
@@ -1616,6 +1718,9 @@
 
   document.addEventListener("DOMContentLoaded", function() {
     wireTeamSearch();
+    if (randomTeamBtn) {
+      randomTeamBtn.addEventListener("click", generateRandomTeam);
+    }
     loadTeam();
     loadPartyBooks();
   });

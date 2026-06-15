@@ -62,6 +62,72 @@ TEST_CASE("PokemonProgress prefers per-book pokemon.json over team fallback") {
   CHECK(assignment.name == "pikachu");
 }
 
+TEST_CASE("PokemonProgress does not treat unknown evolution requirements as level 1") {
+  Storage.reset();
+
+  JsonDocument pokemonDoc;
+  JsonObject pokemon = pokemonDoc["pokemon"].to<JsonObject>();
+  pokemon["id"] = 172;
+  pokemon["speciesId"] = 172;
+  pokemon["name"] = "pichu";
+  JsonArray chain = pokemon["evolutionChain"].to<JsonArray>();
+  JsonObject base = chain.add<JsonObject>();
+  base["speciesId"] = 172;
+  base["name"] = "pichu";
+  base["minLevel"] = nullptr;
+  JsonObject middle = chain.add<JsonObject>();
+  middle["speciesId"] = 25;
+  middle["name"] = "pikachu";
+  middle["minLevel"] = nullptr;
+  JsonObject final = chain.add<JsonObject>();
+  final["speciesId"] = 26;
+  final["name"] = "raichu";
+  final["minLevel"] = nullptr;
+
+  CHECK(PokemonBookDataStore::savePokemonDocument("/Books/demo.epub", pokemon));
+
+  const PokemonAssignment assignment = PokemonProgress::loadForBook("/Books/demo.epub");
+  REQUIRE(assignment.valid);
+  REQUIRE(assignment.chain.size() == 3);
+  CHECK(assignment.chain[0].minLevel == 1);
+  CHECK(assignment.chain[1].minLevel == 33);
+  CHECK(assignment.chain[2].minLevel == 66);
+  CHECK(PokemonProgress::activeSpeciesId(assignment, 1) == 172);
+  CHECK(PokemonProgress::activeSpeciesId(assignment, 32) == 172);
+  CHECK(PokemonProgress::activeSpeciesId(assignment, 33) == 25);
+  CHECK(PokemonProgress::activeSpeciesId(assignment, 65) == 25);
+  CHECK(PokemonProgress::activeSpeciesId(assignment, 66) == 26);
+}
+
+TEST_CASE("PokemonProgress keeps a two-stage unknown evolution at level 50") {
+  Storage.reset();
+
+  JsonDocument pokemonDoc;
+  JsonObject pokemon = pokemonDoc["pokemon"].to<JsonObject>();
+  pokemon["id"] = 133;
+  pokemon["speciesId"] = 133;
+  pokemon["name"] = "eevee";
+  JsonArray chain = pokemon["evolutionChain"].to<JsonArray>();
+  JsonObject base = chain.add<JsonObject>();
+  base["speciesId"] = 133;
+  base["name"] = "eevee";
+  base["minLevel"] = nullptr;
+  JsonObject evolved = chain.add<JsonObject>();
+  evolved["speciesId"] = 134;
+  evolved["name"] = "vaporeon";
+  evolved["minLevel"] = nullptr;
+
+  CHECK(PokemonBookDataStore::savePokemonDocument("/Books/demo.epub", pokemon));
+
+  const PokemonAssignment assignment = PokemonProgress::loadForBook("/Books/demo.epub");
+  REQUIRE(assignment.valid);
+  REQUIRE(assignment.chain.size() == 2);
+  CHECK(assignment.chain[0].minLevel == 1);
+  CHECK(assignment.chain[1].minLevel == 50);
+  CHECK(PokemonProgress::activeSpeciesId(assignment, 49) == 133);
+  CHECK(PokemonProgress::activeSpeciesId(assignment, 50) == 134);
+}
+
 TEST_CASE("PokemonPartySprites reports missing sprites and stable fingerprint") {
   Storage.reset();
 
