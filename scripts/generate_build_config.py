@@ -123,7 +123,7 @@ FEATURES = {
     'pokemon_party': Feature(
         name='Pokemon Party',
         flag='ENABLE_POKEMON_PARTY',
-        size_kb=41,
+        size_kb=40,
         description='Per-book Pokemon metadata and REST API for recent-book party views'
     ),
     'epub_support': Feature(
@@ -189,7 +189,7 @@ FEATURES = {
     'ble_wifi_provisioning': Feature(
         name='BLE WiFi Provisioning',
         flag='ENABLE_BLE_WIFI_PROVISIONING',
-        size_kb=626,
+        size_kb=627,
         description='Initial WiFi setup via Bluetooth LE'
     ),
     'user_fonts': Feature(
@@ -231,13 +231,13 @@ FEATURES = {
     'roman_clock_sleep': Feature(
         name='Roman Clock Sleep Screen',
         flag='ENABLE_ROMAN_CLOCK_SLEEP',
-        size_kb=3,
+        size_kb=4,
         description='Optional block-style Roman numeral sleep screen that reuses the WiFi clock time source'
     ),
     'haiku_clock_sleep': Feature(
         name='Haiku Clock Sleep Screen',
         flag='ENABLE_HAIKU_CLOCK',
-        size_kb=109,
+        size_kb=110,
         description='E-Ink clock that displays quarter-hourly, syllable-accurate time-mentioning haikus'
     ),
     'lexenddeca_fonts': Feature(
@@ -802,7 +802,7 @@ def empty_feature_state() -> Dict[str, bool]:
 
 def calculate_size(enabled_features: Dict[str, bool]) -> float:
     """Calculate estimated firmware size in MB."""
-    base_size_mb = 2.54  # Lean profile size baseline (measured)
+    base_size_mb = 2.55  # Lean profile size baseline (measured)
 
     for feature_key, enabled in enabled_features.items():
         if enabled:
