@@ -186,6 +186,7 @@ otherwise turns WiFi off. `GET /health` provides a minimal availability check wh
 | Button remapping (front 4 buttons) | ✅ | ✅ | ✅ |
 | Side button swap (reader) | ✅ | ✅ | ✅ |
 | Short power-button action (sleep / page turn / select) | ✅ | ✅ | ✅ |
+| Double-tap power-button action (configurable; default: refresh screen) | ❌ | ❌ | ✅ |
 | Screenshot (power+vol-down, or reader menu) | ✅ | ✅ | ✅ |
 | Language / i18n support (24 languages) | ✅ | ✅ | ✅ |
 | Per-orientation layout | ✅ | ✅ | ✅ |

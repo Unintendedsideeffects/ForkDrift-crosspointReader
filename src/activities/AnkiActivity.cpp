@@ -4,6 +4,7 @@
 #include <I18n.h>
 #include <Logging.h>
 
+#include <algorithm>
 #include <cstdlib>
 #ifndef SIMULATOR
 #include <esp_random.h>
@@ -75,12 +76,9 @@ void AnkiActivity::nextSrsCard() {
     return;
   }
 
-  uint32_t minCount = UINT32_MAX;
-  for (const auto& c : cards) {
-    if (c.readCount < minCount) {
-      minCount = c.readCount;
-    }
-  }
+  const uint32_t minCount = std::min_element(cards.begin(), cards.end(), [](const auto& a, const auto& b) {
+                              return a.readCount < b.readCount;
+                            })->readCount;
 
   std::vector<size_t> candidates;
   for (size_t i = 0; i < cards.size(); ++i) {

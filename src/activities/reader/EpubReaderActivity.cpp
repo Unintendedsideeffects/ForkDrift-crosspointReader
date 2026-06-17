@@ -1694,8 +1694,8 @@ void EpubReaderActivity::renderStatusBar() const {
       (section->pageCount > 0) ? static_cast<float>(section->currentPage) / section->pageCount : 0.0f;
   const float bookProgress = epub->calculateProgress(currentSpineIndex, sectionChapterProg) * 100;
 
-  const int currentPage = section ? section->currentPage + 1 : 0;
-  const int pageCount = section ? section->pageCount : 0;
+  const int currentPage = section->currentPage + 1;
+  const int pageCount = section->pageCount;
 
   std::string title;
 

@@ -267,12 +267,12 @@ void FlowTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
       int drawY = centerY + (centerCoverHeight / 2) - (hMax / 2);
 
       const std::string coverPath = UITheme::getCoverThumbPath(recentBooks[idx].coverBmpPath, centerCoverHeight);
-      FsFile file;
+      HalFile file;
       bool success = false;
       if (!coverPath.empty() && Storage.openFileForRead("HOME", coverPath, file)) {
         Bitmap bitmap(file);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-          renderer.drawPerspectiveBitmap(bitmap, drawX, drawY, w, hL, hR);
+          renderer.drawBitmap(bitmap, drawX, drawY, w, hMax);
           success = true;
         }
         file.close();
@@ -294,7 +294,7 @@ void FlowTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
     renderer.fillRect(cX, centerY, centerCoverWidth, centerCoverHeight, false);
 
     const std::string cp = UITheme::getCoverThumbPath(recentBooks[curIdx].coverBmpPath, centerCoverHeight);
-    FsFile cf;
+    HalFile cf;
     bool cs = false;
     if (!cp.empty() && Storage.openFileForRead("HOME", cp, cf)) {
       Bitmap bitmap(cf);

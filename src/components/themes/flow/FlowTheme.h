@@ -4,40 +4,30 @@
 #if ENABLE_FLOW_THEME
 
 #include "components/themes/BaseTheme.h"
+#include "components/themes/lyra/LyraTheme.h"
 
 class GfxRenderer;
 
-// Flow theme metrics
 namespace FlowMetrics {
-constexpr ThemeMetrics values = {.batteryWidth = 16,
-                                 .batteryHeight = 12,
-                                 .topPadding = 5,
-                                 .batteryBarHeight = 40,
-                                 .headerHeight = 84,
-                                 .verticalSpacing = 16,
-                                 .contentSidePadding = 20,
-                                 .listRowHeight = 45,
-                                 .listWithSubtitleRowHeight = 75,
-                                 .menuRowHeight = 56,  // Increased for better readability
-                                 .menuSpacing = 8,
-                                 .tabSpacing = 12,
-                                 .tabBarHeight = 40,
-                                 .scrollBarWidth = 4,
-                                 .scrollBarRightOffset = 5,
-                                 .homeTopPadding = 56,
-                                 .homeCoverHeight = 320,      // 25-kai book ratio (~0.7)
-                                 .homeCoverTileHeight = 380,  // Cover + Title area
-                                 .homeRecentBooksCount = 7,   // Up to 7 books in carousel
-                                 .buttonHintsHeight = 40,
-                                 .sideButtonHintsWidth = 30,
-                                 .progressBarHeight = 16,
-                                 .bookProgressBarHeight = 4,
-                                 .keyboardKeyWidth = 31,
-                                 .keyboardKeyHeight = 50,
-                                 .keyboardKeySpacing = 0,
-                                 .keyboardBottomAligned = true,
-                                 .keyboardCenteredText = true};
+constexpr ThemeMetrics makeValues() {
+  ThemeMetrics v = LyraMetrics::values;
+  v.topPadding = 5;
+  v.listRowHeight = 45;
+  v.listWithSubtitleRowHeight = 75;
+  v.menuRowHeight = 56;
+  v.menuSpacing = 8;
+  v.tabSpacing = 12;
+  v.homeCoverHeight = 320;
+  v.homeCoverTileHeight = 380;
+  v.homeRecentBooksCount = 7;
+  v.homeUsesCarouselCache = true;
+  v.keyboardKeyHeight = 50;
+  v.keyboardCenteredText = true;
+  return v;
 }
+
+constexpr ThemeMetrics values = makeValues();
+}  // namespace FlowMetrics
 
 class FlowTheme : public BaseTheme {
  public:
