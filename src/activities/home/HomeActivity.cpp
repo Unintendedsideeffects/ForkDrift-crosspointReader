@@ -35,6 +35,10 @@
 #include "SpiBusMutex.h"
 #include "activities/browser/OpdsBookBrowserActivity.h"
 #include "components/ScreenComponents.h"
+#if ENABLE_LUA_PLUGINS
+#include "activities/util/LuaActivity.h"
+#include "activities/util/PluginListActivity.h"
+#endif
 #include "components/UITheme.h"
 #include "components/themes/lyra/LyraCarouselTheme.h"
 #include "core/features/FeatureModules.h"
@@ -289,8 +293,22 @@ struct NegativeExistCache {
 };
 
 static NegativeExistCache g_homeNegativeCache;
-}  // namespace
 
+void maskCorners(const GfxRenderer& renderer, int x, int y, int w, int h, int r) {
+  const bool maskColor = (SETTINGS.darkMode != 0);
+  for (int dy = 0; dy < r; dy++) {
+    for (int dx = 0; dx < r; dx++) {
+      if ((r - dx) * (r - dx) + (r - dy) * (r - dy) > r * r) {
+        renderer.drawPixel(x + dx, y + dy, maskColor);                  // TL
+        renderer.drawPixel(x + w - 1 - dx, y + dy, maskColor);          // TR
+        renderer.drawPixel(x + dx, y + h - 1 - dy, maskColor);          // BL
+        renderer.drawPixel(x + w - 1 - dx, y + h - 1 - dy, maskColor);  // BR
+      }
+    }
+  }
+}
+
+}  // namespace
 static_assert(HomeActivity::kMaxCachedBooks >= LyraCarouselMetrics::values.homeRecentBooksCount,
               "kMaxCachedBooks must cover all carousel slots");
 
@@ -355,6 +373,9 @@ void HomeActivity::buildMenuModel() {
     if (notes) menuModel.push_back(HomeMenuId::Notes);
     menuModel.push_back(HomeMenuId::FileTransfer);
     menuModel.push_back(HomeMenuId::Settings);
+#if ENABLE_LUA_PLUGINS
+    menuModel.push_back(HomeMenuId::Plugins);
+#endif
     return;
   }
 
@@ -373,6 +394,9 @@ void HomeActivity::buildMenuModel() {
 #endif
     menuModel.push_back(HomeMenuId::FileTransfer);
     menuModel.push_back(HomeMenuId::Settings);
+#if ENABLE_LUA_PLUGINS
+    menuModel.push_back(HomeMenuId::Plugins);
+#endif
     return;
   }
 
@@ -387,6 +411,9 @@ void HomeActivity::buildMenuModel() {
   if (notes) menuModel.push_back(HomeMenuId::Notes);
   menuModel.push_back(HomeMenuId::FileTransfer);
   menuModel.push_back(HomeMenuId::Settings);
+#if ENABLE_LUA_PLUGINS
+  menuModel.push_back(HomeMenuId::Plugins);
+#endif
 }
 
 void HomeActivity::loadRecentBooks() {
@@ -676,6 +703,10 @@ std::string HomeActivity::menuIdLabel(const HomeMenuId id, const bool gridStyle)
 #endif
     case HomeMenuId::Settings:
       return std::string(tr(STR_SETTINGS_TITLE));
+#if ENABLE_LUA_PLUGINS
+    case HomeMenuId::Plugins:
+      return "Plugins";
+#endif
     default:
       return "";
   }
@@ -708,6 +739,9 @@ UIIcon HomeActivity::menuIdIcon(const HomeMenuId id) const {
       return UIIcon::Book;
 #endif
     case HomeMenuId::Settings:
+#if ENABLE_LUA_PLUGINS
+    case HomeMenuId::Plugins:
+#endif
     default:
       return UIIcon::Settings;
   }
@@ -758,6 +792,11 @@ void HomeActivity::activateMenuId(const HomeMenuId id) {
     case HomeMenuId::Settings:
       onSettingsOpen();
       break;
+#if ENABLE_LUA_PLUGINS
+    case HomeMenuId::Plugins:
+      onPluginsOpen();
+      break;
+#endif
   }
 }
 
@@ -787,6 +826,7 @@ bool HomeActivity::drawCoverAt(const std::string& coverPath, const int x, const 
   const bool ok = bitmap.parseHeaders() == BmpReaderError::Ok;
   if (ok) {
     renderer.drawBitmap(bitmap, x, y, width, height);
+    maskCorners(renderer, x, y, width, height, 4);
   }
   file.close();
   return ok;
@@ -2167,3 +2207,15 @@ void HomeActivity::onBookmarksOpen() {
 #endif
 
 void HomeActivity::onNotesOpen() { activityManager.goToNotes(); }
+
+#if ENABLE_LUA_PLUGINS
+void HomeActivity::onPluginsOpen() {
+  auto onLaunchPlugin = [this](const std::string& name) {
+    startActivityForResult(
+        std::make_unique<LuaActivity>(renderer, mappedInput, name, [this] { activityManager.popActivity(); }), nullptr);
+  };
+  startActivityForResult(std::make_unique<PluginListActivity>(renderer, mappedInput, onLaunchPlugin,
+                                                              [this] { activityManager.popActivity(); }),
+                         nullptr);
+}
+#endif

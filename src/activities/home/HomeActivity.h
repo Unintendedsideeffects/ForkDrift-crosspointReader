@@ -37,6 +37,9 @@ enum class HomeMenuId : uint8_t {
   AssignPokemon,  // Pokémon-party theme only: offline assign of a team member to a book
 #endif
   Settings,
+#if ENABLE_LUA_PLUGINS
+  Plugins,
+#endif
 };
 
 class HomeActivity final : public Activity {
@@ -110,6 +113,9 @@ class HomeActivity final : public Activity {
   void onOpdsBrowserOpen();
   void onTodoOpen();
   void onAnkiOpen();
+#if ENABLE_LUA_PLUGINS
+  void onPluginsOpen();
+#endif
 
   void freeCoverBuffer();  // Free the stored cover buffer
   bool isCoverCacheValid(int coverHeight, bool usesDualSizeCoverThumbs) const;

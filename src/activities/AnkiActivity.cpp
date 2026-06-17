@@ -5,6 +5,9 @@
 #include <Logging.h>
 
 #include <cstdlib>
+#ifndef SIMULATOR
+#include <esp_random.h>
+#endif
 
 #include "components/ScreenComponents.h"
 #include "components/UITheme.h"
@@ -17,8 +20,12 @@ void AnkiActivity::onEnter() {
   Activity::onEnter();
   // Snapshot under the store's mutex so render/loop never race with web server mutations.
   cards = util::AnkiStore::getInstance().copyCards();
-  selectedIndex = 0;
   showingBack = false;
+  if (!cards.empty()) {
+    nextSrsCard();
+  } else {
+    selectedIndex = 0;
+  }
   requestUpdate();
 }
 
@@ -30,17 +37,24 @@ void AnkiActivity::loop() {
     return;
   }
 
-  buttonNavigator.onNext([this] {
-    nextSrsCard();
+  buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Down}, [this] {
+    selectedIndex = (selectedIndex + 1) % cards.size();
     showingBack = false;
     requestUpdate();
   });
 
-  buttonNavigator.onPrevious([this] {
+  buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Up}, [this] {
     selectedIndex = (selectedIndex + cards.size() - 1) % cards.size();
     showingBack = false;
     requestUpdate();
   });
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Left) ||
+      mappedInput.wasReleased(MappedInputManager::Button::Right)) {
+    nextSrsCard();
+    showingBack = false;
+    requestUpdate();
+  }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     showingBack = !showingBack;
@@ -81,7 +95,13 @@ void AnkiActivity::nextSrsCard() {
     candidates.push_back(selectedIndex);
   }
 
-  selectedIndex = candidates[rand() % candidates.size()];
+  size_t randIdx;
+#ifdef SIMULATOR
+  randIdx = rand() % candidates.size();
+#else
+  randIdx = esp_random() % candidates.size();
+#endif
+  selectedIndex = candidates[randIdx];
   util::AnkiStore::getInstance().incrementCardReadCount(selectedIndex);
   util::AnkiStore::getInstance().save();
   cards[selectedIndex].readCount++;

@@ -50,3 +50,4 @@ lib/EpdFont/scripts/instanced_fonts/
 lib/EpdFont/scripts/output/
 fs_/.crosspoint/*
 fs_/books/*
+fs_/plugins/*

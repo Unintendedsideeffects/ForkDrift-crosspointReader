@@ -12,6 +12,7 @@
 #include <utility>
 
 #include "../util/ConfirmationActivity.h"
+#include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "SpiBusMutex.h"
 #include "activities/TaskShutdown.h"
@@ -118,6 +119,21 @@ struct NegativeExistCache {
 };
 
 NegativeExistCache g_negativeCache;
+
+void maskCorners(const GfxRenderer& renderer, int x, int y, int w, int h, int r) {
+  const bool maskColor = (SETTINGS.darkMode != 0);
+  for (int dy = 0; dy < r; dy++) {
+    for (int dx = 0; dx < r; dx++) {
+      if ((r - dx) * (r - dx) + (r - dy) * (r - dy) > r * r) {
+        renderer.drawPixel(x + dx, y + dy, maskColor);                  // TL
+        renderer.drawPixel(x + w - 1 - dx, y + dy, maskColor);          // TR
+        renderer.drawPixel(x + dx, y + h - 1 - dy, maskColor);          // BL
+        renderer.drawPixel(x + w - 1 - dx, y + h - 1 - dy, maskColor);  // BR
+      }
+    }
+  }
+}
+
 }  // namespace
 
 void MyLibraryActivity::loadFiles() {
@@ -552,6 +568,7 @@ bool MyLibraryActivity::drawCoverAt(const std::string& path, const int x, const 
   const bool ok = bitmap.parseHeaders() == BmpReaderError::Ok;
   if (ok) {
     renderer.drawBitmap(bitmap, x, y, width, height);
+    maskCorners(renderer, x, y, width, height, 4);
   }
   file.close();
   return ok;

@@ -230,6 +230,10 @@
 #define ENABLE_ANKI_SUPPORT 0
 #endif
 
+#ifndef ENABLE_LUA_PLUGINS
+#define ENABLE_LUA_PLUGINS 0
+#endif
+
 #ifndef ENABLE_TRMNL_SWITCH
 #define ENABLE_TRMNL_SWITCH 0
 #endif

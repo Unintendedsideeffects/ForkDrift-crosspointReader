@@ -210,6 +210,18 @@ FEATURES = {
         size_kb=2,
         description='HTTP and USB APIs for open-book and page-turn remote commands'
     ),
+    'ble_page_turner': Feature(
+        name='BLE Page Turner',
+        flag='ENABLE_BLE_PAGE_TURNER',
+        size_kb=45,
+        description='BLE HID Keyboard to remotely turn pages on iOS/Android devices'
+    ),
+    'lua_plugins': Feature(
+        name='Lua Plugins',
+        flag='ENABLE_LUA_PLUGINS',
+        size_kb=80,
+        description='Dynamic Lua 5.4 scripting VM and plugin system loaded from SD card'
+    ),
     'remote_keyboard_input': Feature(
         name='Remote Keyboard Input',
         flag='ENABLE_REMOTE_KEYBOARD_INPUT',
@@ -525,6 +537,20 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=['background_server']
     ),
+    'ble_page_turner': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=[],
+        conflicts=[],
+        recommends=[]
+    ),
+    'lua_plugins': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=[],
+        conflicts=[],
+        recommends=[]
+    ),
     'remote_keyboard_input': FeatureMetadata(
         implemented=True,
         stable=True,
@@ -774,6 +800,7 @@ PROFILES = {
             'pokemon_party': True,
             'remote_control': True,
             'remote_keyboard_input': True,
+            'ble_page_turner': True,
             'dark_mode': True,
             'visual_cover_picker': True,
             'ble_wifi_provisioning': True,
