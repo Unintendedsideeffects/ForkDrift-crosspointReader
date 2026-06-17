@@ -189,7 +189,7 @@ FEATURES = {
     'ble_wifi_provisioning': Feature(
         name='BLE WiFi Provisioning',
         flag='ENABLE_BLE_WIFI_PROVISIONING',
-        size_kb=627,
+        size_kb=626,
         description='Initial WiFi setup via Bluetooth LE'
     ),
     'user_fonts': Feature(
