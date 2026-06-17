@@ -840,6 +840,22 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
         .withEnumOptionFeatureKeys(quickActionFeatureKeys(options));
     return setting;
   }());
+#if ENABLE_DOUBLE_TAP_ACTION
+  emit([] {
+    const auto options = doubleTapPowerButtonOptions();
+    SettingInfo setting = SettingInfo::DynamicEnum(
+        StrId::STR_DOUBLE_TAP_PWR_BTN, {},
+        [options] { return quickActionOptionIndex(options, SETTINGS.doubleTapPwrBtn); },
+        [options](uint8_t index) {
+          SETTINGS.doubleTapPwrBtn = quickActionValueForIndex(options, index, CrossPointSettings::FORCE_REFRESH);
+        },
+        "doubleTapPwrBtn", StrId::STR_CAT_CONTROLS, [options] { return quickActionOptionLabels(options); });
+    setting.withConfiguratorExport()
+        .withEnumPersistedValues(quickActionPersistedValues(options))
+        .withEnumOptionFeatureKeys(quickActionFeatureKeys(options));
+    return setting;
+  }());
+#endif
   emit([] {
     const auto options = longPressMenuActionOptions();
     SettingInfo setting = SettingInfo::DynamicEnum(

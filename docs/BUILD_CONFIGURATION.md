@@ -515,6 +515,25 @@ Rotate the entire UI (menus, settings, library) to landscape (not just the reade
 
 ---
 
+### Configurable Double-tap Action
+
+**Flag:** `ENABLE_DOUBLE_TAP_ACTION`  
+**Size Impact:** <1KB  
+**Default:** Enabled  
+**Depends on:** None  
+
+Makes the power-button double-tap action configurable via Settings → Controls → Double-tap Action.
+
+The double-tap state machine is only active when the short-press action is set to **Select** or the dual-side button layout is in use. Double-tap defaults to **Refresh Screen**; the legacy **Back** behaviour is available as the "Back" option.
+
+**When disabled:**
+- Double-tap always navigates back (original hardcoded behaviour).
+- No "Double-tap Action" setting is exposed.
+
+**Use case:** Leave enabled (default). Disable only for minimal builds that must shave every byte.
+
+---
+
 ## Build Profiles
 
 ### Lean Profile
