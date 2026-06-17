@@ -19,12 +19,12 @@ bool deviceConnected = false;
 class ServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) override {
     deviceConnected = true;
-    LOG_INFO("BLE Page Turner connected");
+    LOG_INF("BLE Page Turner connected");
   }
 
   void onDisconnect(BLEServer* pServer) override {
     deviceConnected = false;
-    LOG_INFO("BLE Page Turner disconnected");
+    LOG_INF("BLE Page Turner disconnected");
     // Restart advertising if disconnected
     BLEDevice::startAdvertising();
   }
@@ -74,7 +74,7 @@ BlePageTurner::BlePageTurner() {}
 BlePageTurner::~BlePageTurner() { stop(); }
 
 void BlePageTurner::start() {
-  LOG_INFO("Initializing BLE Page Turner (HID)...");
+  LOG_INF("Initializing BLE Page Turner (HID)...");
   BLEDevice::init("CrossPoint Reader");
   bleServer = BLEDevice::createServer();
   bleServer->setCallbacks(new ServerCallbacks());
@@ -100,11 +100,11 @@ void BlePageTurner::start() {
   advertising->start();
 
   hidDevice->setBatteryLevel(100);
-  LOG_INFO("BLE Page Turner advertising started.");
+  LOG_INF("BLE Page Turner advertising started.");
 }
 
 void BlePageTurner::stop() {
-  LOG_INFO("Stopping BLE Page Turner...");
+  LOG_INF("Stopping BLE Page Turner...");
   if (bleServer) {
     BLEDevice::stopAdvertising();
     BLEDevice::deinit(true);
