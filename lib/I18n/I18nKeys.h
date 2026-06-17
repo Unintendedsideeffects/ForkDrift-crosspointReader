@@ -663,6 +663,7 @@ enum class StrId : uint16_t {
   STR_RKB_USB_HINT_2,
   STR_RKB_USE_LOCAL,
   STR_RKB_LOCAL_BTN,
+  STR_BLE_PAGE_TURNER,
   // Sentinel - must be last
   STR_COUNT
 };

@@ -4,6 +4,8 @@
 #include <I18n.h>
 #include <Logging.h>
 
+#include <cstdlib>
+
 #include "components/ScreenComponents.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -29,7 +31,7 @@ void AnkiActivity::loop() {
   }
 
   buttonNavigator.onNext([this] {
-    selectedIndex = (selectedIndex + 1) % cards.size();
+    nextSrsCard();
     showingBack = false;
     requestUpdate();
   });
@@ -46,6 +48,43 @@ void AnkiActivity::loop() {
   } else if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     activityManager.goHome();
   }
+}
+
+void AnkiActivity::nextSrsCard() {
+  if (cards.size() <= 1) {
+    selectedIndex = 0;
+    if (cards.size() == 1) {
+      util::AnkiStore::getInstance().incrementCardReadCount(0);
+      util::AnkiStore::getInstance().save();
+      cards[0].readCount++;
+    }
+    return;
+  }
+
+  uint32_t minCount = UINT32_MAX;
+  for (const auto& c : cards) {
+    if (c.readCount < minCount) {
+      minCount = c.readCount;
+    }
+  }
+
+  std::vector<size_t> candidates;
+  for (size_t i = 0; i < cards.size(); ++i) {
+    if (cards[i].readCount == minCount) {
+      if (i != selectedIndex || candidates.empty()) {
+        candidates.push_back(i);
+      }
+    }
+  }
+
+  if (candidates.empty()) {
+    candidates.push_back(selectedIndex);
+  }
+
+  selectedIndex = candidates[rand() % candidates.size()];
+  util::AnkiStore::getInstance().incrementCardReadCount(selectedIndex);
+  util::AnkiStore::getInstance().save();
+  cards[selectedIndex].readCount++;
 }
 
 void AnkiActivity::render(RenderLock&&) {
@@ -84,6 +123,10 @@ void AnkiActivity::render(RenderLock&&) {
         renderer.drawCenteredText(UI_12_FONT_ID, y, line.c_str());
         y += renderer.getLineHeight(UI_12_FONT_ID);
       }
+
+      char countText[32];
+      snprintf(countText, sizeof(countText), "Read count: %u", card.readCount);
+      renderer.drawCenteredText(UI_10_FONT_ID, boxY + boxHeight - 40, countText);
     } else {
       renderer.drawCenteredText(UI_10_FONT_ID, boxY + 30, tr(STR_ANKI_FRONT), false, EpdFontFamily::ITALIC);
       renderer.drawCenteredText(UI_12_FONT_ID, boxY + boxHeight / 2 - 10, card.front.c_str(), true,

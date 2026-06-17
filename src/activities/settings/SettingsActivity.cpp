@@ -27,6 +27,9 @@
 #include "SettingsList.h"
 #include "StatusBarSettingsActivity.h"
 #include "ValidateSleepImagesActivity.h"
+#if ENABLE_BLE_PAGE_TURNER
+#include "activities/ble_page_turner/BlePageTurnerActivity.h"
+#endif
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/settings/SettingsTopics.h"
 #include "activities/util/ConfirmationActivity.h"
@@ -245,6 +248,9 @@ void SettingsActivity::rebuildSettingsLists() {
   addConnectActionDirect(StrId::STR_WIFI_NETWORKS, SettingAction::Network);
   addConnectActionDirect(StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync);
   addConnectActionDirect(StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser);
+#if ENABLE_BLE_PAGE_TURNER
+  addConnectActionDirect(StrId::STR_BLE_PAGE_TURNER, SettingAction::BlePageTurner);
+#endif
   addConnectAction(SettingAction::TerminusSetup);
   addConnectAction(SettingAction::SwitchToTrmnl);
   if (connectSettings.size() == beforeConnect + 1) {
@@ -673,6 +679,11 @@ void SettingsActivity::toggleCurrentSetting() {
       case SettingAction::KOReaderSync:
         startActivityForResult(std::make_unique<KOReaderSettingsActivity>(renderer, mappedInput), resultHandler);
         break;
+#if ENABLE_BLE_PAGE_TURNER
+      case SettingAction::BlePageTurner:
+        startActivityForResult(std::make_unique<BlePageTurnerActivity>(renderer, mappedInput), resultHandler);
+        break;
+#endif
       case SettingAction::OPDSBrowser:
         startActivityForResult(std::make_unique<OpdsServerListActivity>(renderer, mappedInput), resultHandler);
         break;

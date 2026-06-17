@@ -13,6 +13,7 @@ struct AnkiCard {
   std::string back;
   std::string context;  // e.g. the book title or surrounding text
   uint32_t timestamp;   // when it was added
+  uint32_t readCount;   // SRS reading count
 };
 
 class AnkiStore {
@@ -34,6 +35,7 @@ class AnkiStore {
   void addCard(const AnkiCard& card);
   void removeCard(size_t index);
   void updateCardBack(size_t index, const std::string& back);
+  void incrementCardReadCount(size_t index);
   void clear();
 
   size_t count() const;

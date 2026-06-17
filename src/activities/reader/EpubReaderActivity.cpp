@@ -617,6 +617,7 @@ void EpubReaderActivity::jumpToPercent(int percent) {
   nextPageNumber = 0;
   pendingPercentJump = true;
   section.reset();
+  requestUpdate();
 }
 
 void EpubReaderActivity::reindexCurrentSection() {
@@ -1633,6 +1634,10 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
 }
 
 void EpubReaderActivity::renderStatusBar() const {
+  if (!epub || !section) {
+    return;
+  }
+
   // Calculate progress in book
   const float sectionChapterProg =
       (section->pageCount > 0) ? static_cast<float>(section->currentPage) / section->pageCount : 0.0f;

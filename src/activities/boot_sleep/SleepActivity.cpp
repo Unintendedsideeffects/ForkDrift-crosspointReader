@@ -1372,9 +1372,11 @@ void SleepActivity::renderHaikuClockSleepScreen() const {
   // lines and the body as separate flash strings avoids duplicating every
   // body once per format.
   std::string textStr;
+  std::string digitalTime;
   if (!timeSet) {
     textStr = "Time is a shadow,\nMoving across the deep sky,\nWaiting for the sun.";
   } else {
+    digitalTime = DateUtils::currentDigitalClockLabel();
     std::time_t now = std::time(nullptr);
     int day_index = 0;
     if (now > 0) {
@@ -1452,6 +1454,14 @@ void SleepActivity::renderHaikuClockSleepScreen() const {
   }
   if (!line3.empty()) {
     renderer.drawText(fontId, startX, startY + (lineHeight + gap) * 2, line3.c_str(), true, EpdFontFamily::BOLD);
+  }
+
+  if (!digitalTime.empty()) {
+    const int timeW = renderer.getTextWidth(SMALL_FONT_ID, digitalTime.c_str(), EpdFontFamily::BOLD);
+    const int timeH = renderer.getLineHeight(SMALL_FONT_ID);
+    const int timeX = SETTINGS.haikuClockLandscape ? boxLeft : boxLeft + std::max(0, boxW - timeW);
+    const int timeY = SETTINGS.haikuClockLandscape ? boxTop + std::max(0, boxH - timeH) : boxTop;
+    renderer.drawText(SMALL_FONT_ID, timeX, timeY, digitalTime.c_str(), true, EpdFontFamily::BOLD);
   }
 
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);

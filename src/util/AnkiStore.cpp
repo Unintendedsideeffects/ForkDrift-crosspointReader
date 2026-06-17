@@ -62,6 +62,7 @@ bool AnkiStore::load() {
     card.back = obj["b"] | "";
     card.context = obj["c"] | "";
     card.timestamp = obj["t"] | 0;
+    card.readCount = obj["r"] | 0;
     cards.push_back(std::move(card));
   }
   const size_t loaded = cards.size();
@@ -85,6 +86,7 @@ bool AnkiStore::save() const {
       obj["b"] = card.back;
       obj["c"] = card.context;
       obj["t"] = card.timestamp;
+      obj["r"] = card.readCount;
     }
     count = cards.size();
     serializeJson(doc, json);
@@ -119,6 +121,7 @@ void AnkiStore::buildCardsJson(std::string& out) const {
     obj["back"] = card.back;
     obj["context"] = card.context;
     obj["timestamp"] = card.timestamp;
+    obj["readCount"] = card.readCount;
   }
   String json;
   serializeJson(doc, json);
@@ -144,6 +147,14 @@ void AnkiStore::updateCardBack(size_t index, const std::string& back) {
   xSemaphoreTake(mutex_, portMAX_DELAY);
   if (index < cards.size()) {
     cards[index].back = back;
+  }
+  xSemaphoreGive(mutex_);
+}
+
+void AnkiStore::incrementCardReadCount(size_t index) {
+  xSemaphoreTake(mutex_, portMAX_DELAY);
+  if (index < cards.size()) {
+    cards[index].readCount++;
   }
   xSemaphoreGive(mutex_);
 }

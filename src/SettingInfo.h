@@ -32,6 +32,7 @@ enum class SettingAction {
   SwitchToTrmnl,
   DownloadFonts,
   TerminusSetup,
+  BlePageTurner,
 };
 
 struct SettingInfo {

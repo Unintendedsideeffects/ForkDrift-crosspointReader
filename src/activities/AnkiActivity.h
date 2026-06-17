@@ -20,4 +20,5 @@ class AnkiActivity final : public Activity {
   bool showingBack = false;
   ButtonNavigator buttonNavigator;
   std::vector<util::AnkiCard> cards;  // snapshot taken in onEnter()
+  void nextSrsCard();
 };

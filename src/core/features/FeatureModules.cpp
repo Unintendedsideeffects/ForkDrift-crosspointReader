@@ -271,6 +271,10 @@ bool FeatureModules::supportsSettingAction(const SettingAction action) {
     case SettingAction::ClearCrashes:
     case SettingAction::SdFirmwareUpdate:
       return true;
+#if ENABLE_BLE_PAGE_TURNER
+    case SettingAction::BlePageTurner:
+      return true;
+#endif
     case SettingAction::KOReaderSync:
     case SettingAction::OPDSBrowser:
     case SettingAction::CheckForUpdates:

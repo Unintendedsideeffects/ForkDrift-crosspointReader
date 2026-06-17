@@ -453,20 +453,28 @@ void waitForPowerRelease() {
 }
 
 #if ENABLE_TIMED_SLEEP_REFRESH
+static uint8_t effectiveTimedRefreshSleepMode() {
+  if (SETTINGS.sleepScreenSplit == CrossPointSettings::SLEEP_SPLIT_SMART) {
+    return APP_STATE.lastSleepFromReader ? SETTINGS.sleepScreenReader : SETTINGS.sleepScreenHome;
+  }
+  return SETTINGS.sleepScreen;
+}
+
 // Returns true if the effective sleep mode is one that benefits from a timed refresh.
 static bool timedRefreshHasRenderableMode() {
+  const uint8_t sleepMode = effectiveTimedRefreshSleepMode();
 #if ENABLE_TERMINUS_SLEEP
   if (SETTINGS.terminusSleepEnabled && TERMINUS_STORE.hasCredentials()) {
     return true;
   }
 #endif
 #if ENABLE_ROMAN_CLOCK_SLEEP
-  if (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::ROMAN_CLOCK_SLEEP) {
+  if (sleepMode == CrossPointSettings::SLEEP_SCREEN_MODE::ROMAN_CLOCK_SLEEP) {
     return true;
   }
 #endif
 #if ENABLE_HAIKU_CLOCK
-  if (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::HAIKU_CLOCK_SLEEP) {
+  if (sleepMode == CrossPointSettings::SLEEP_SCREEN_MODE::HAIKU_CLOCK_SLEEP) {
     return true;
   }
 #endif
@@ -487,8 +495,11 @@ static bool timedRefreshHasRenderableMode() {
 #endif
   const bool needsNtpSync =
 #if ENABLE_ROMAN_CLOCK_SLEEP || ENABLE_HAIKU_CLOCK
-      SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::ROMAN_CLOCK_SLEEP ||
-      SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::HAIKU_CLOCK_SLEEP;
+      [] {
+        const uint8_t sleepMode = effectiveTimedRefreshSleepMode();
+        return sleepMode == CrossPointSettings::SLEEP_SCREEN_MODE::ROMAN_CLOCK_SLEEP ||
+               sleepMode == CrossPointSettings::SLEEP_SCREEN_MODE::HAIKU_CLOCK_SLEEP;
+      }();
 #else
       false;
 #endif
