@@ -198,11 +198,32 @@ bool MappedInputManager::consumePowerConfirm() {
   return false;
 }
 
+bool MappedInputManager::consumePowerDoubleTap() {
+  updatePowerTapState();
+  if (!doubleTapReady) return false;
+#if ENABLE_DOUBLE_TAP_ACTION
+  const auto action = static_cast<CrossPointSettings::SHORT_PWRBTN>(SETTINGS.doubleTapPwrBtn);
+  if (action == CrossPointSettings::DOUBLE_TAP_BACK || action == CrossPointSettings::IGNORE) {
+    return false;  // consumePowerBack() handles DOUBLE_TAP_BACK; IGNORE lets the tap expire silently
+  }
+#else
+  return false;
+#endif
+  doubleTapReady = false;
+  return true;
+}
+
 bool MappedInputManager::consumePowerBack() {
   updatePowerTapState();
   if (!doubleTapReady) {
     return false;
   }
+#if ENABLE_DOUBLE_TAP_ACTION
+  const auto action = static_cast<CrossPointSettings::SHORT_PWRBTN>(SETTINGS.doubleTapPwrBtn);
+  if (action != CrossPointSettings::DOUBLE_TAP_BACK && action != CrossPointSettings::IGNORE) {
+    return false;  // consumePowerDoubleTap() (called from main loop) owns this event
+  }
+#endif
   doubleTapReady = false;
   return true;
 }

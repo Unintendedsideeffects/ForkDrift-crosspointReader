@@ -96,6 +96,9 @@ class EpubReaderActivity final : public Activity {
   void executeLongPressMenuAction();
   bool executeShortPowerButtonAction();
   bool executeLongPowerButtonAction();
+#if ENABLE_DOUBLE_TAP_ACTION
+  bool executeDoubleTapAction();
+#endif
   void openFileTransfer();
   void applyOrientation(uint8_t orientation);
   void setAutoPageTurnIntervalSeconds(uint16_t seconds);

@@ -192,6 +192,23 @@ void MarkdownReaderActivity::loop() {
     }
   }
 
+#if ENABLE_DOUBLE_TAP_ACTION
+  // Double-tap power button quick action.
+  if (mappedInput.consumePowerDoubleTap()) {
+    using S = CrossPointSettings;
+    switch (static_cast<S::SHORT_PWRBTN>(SETTINGS.doubleTapPwrBtn)) {
+      case S::TOGGLE_GUIDE_DOTS:
+        executeReaderQuickAction(S::LONG_MENU_TOGGLE_GUIDE_DOTS);
+        return;
+      case S::TOGGLE_BIONIC_READING:
+        executeReaderQuickAction(S::LONG_MENU_TOGGLE_BIONIC);
+        return;
+      default:
+        break;
+    }
+  }
+#endif
+
   // Long press for heading navigation (when enabled and AST is available)
   if (SETTINGS.longPressButtonBehavior == CrossPointSettings::CHAPTER_SKIP && astReady.load()) {
     constexpr unsigned long headingSkipMs = 500;

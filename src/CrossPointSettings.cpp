@@ -511,6 +511,10 @@ void CrossPointSettings::validateAndClamp() {
   if (refreshFrequency > REFRESH_30) refreshFrequency = REFRESH_15;
   if (shortPwrBtn >= SHORT_PWRBTN_COUNT || !isShortPowerButtonActionSupported(shortPwrBtn)) shortPwrBtn = IGNORE;
   if (longPwrBtn >= SHORT_PWRBTN_COUNT || !isShortPowerButtonActionSupported(longPwrBtn)) longPwrBtn = IGNORE;
+#if ENABLE_DOUBLE_TAP_ACTION
+  if (doubleTapPwrBtn >= SHORT_PWRBTN_COUNT || !isShortPowerButtonActionSupported(doubleTapPwrBtn))
+    doubleTapPwrBtn = FORCE_REFRESH;
+#endif
   if (longPressMenuAction >= LONG_PRESS_MENU_ACTION_COUNT || !isLongPressMenuActionSupported(longPressMenuAction)) {
     longPressMenuAction = LONG_MENU_OFF;
   }
@@ -522,7 +526,11 @@ void CrossPointSettings::validateAndClamp() {
   if (globalStatusBar >= GLOBAL_STATUS_BAR_MODE_COUNT) globalStatusBar = GLOBAL_STATUS_BAR_ON;
   if (globalStatusBarPosition >= GLOBAL_STATUS_BAR_POSITION_COUNT) globalStatusBarPosition = STATUS_BAR_TOP;
 
+#if ENABLE_FLOW_THEME
+  if (uiTheme > FLOW) uiTheme = LYRA;
+#else
   if (uiTheme > TERMINAL) uiTheme = LYRA;
+#endif
   if (recentBooksView >= RECENT_BOOKS_VIEW_COUNT) recentBooksView = RECENT_BOOKS_LIST;
 #if !ENABLE_LYRA_THEME
   uiTheme = CLASSIC;

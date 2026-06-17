@@ -944,6 +944,29 @@ void loop() {
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   }
 
+#if ENABLE_DOUBLE_TAP_ACTION
+  // Configurable double-tap power button action.
+  // Global actions (FORCE_REFRESH, SLEEP) are dispatched here so they work on any screen.
+  // Reader-specific actions are handled in reader activities via executeDoubleTapAction().
+  if (mappedInputManager.consumePowerDoubleTap()) {
+    using S = CrossPointSettings;
+    switch (static_cast<S::SHORT_PWRBTN>(SETTINGS.doubleTapPwrBtn)) {
+      case S::FORCE_REFRESH: {
+        LOG_DBG("MAIN", "Double-tap screen refresh");
+        RenderLock lock;
+        renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+        break;
+      }
+      case S::SLEEP:
+        enterDeepSleep();
+        break;
+      default:
+        // Reader-specific actions are handled in EpubReaderActivity::executeDoubleTapAction().
+        break;
+    }
+  }
+#endif
+
   // Refresh the battery icon when USB is plugged or unplugged.
   // Placed after sleep guards so we never queue a render that won't be processed.
   if (gpio.wasUsbStateChanged()) {

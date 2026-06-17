@@ -38,6 +38,11 @@ class MappedInputManager {
   Labels mapLabels(const char* back, const char* confirm, const char* previous, const char* next) const;
   // Returns the raw front button index that was pressed this frame (or -1 if none).
   int getPressedFrontButton() const;
+  // Consume a pending double-tap for a configurable action.
+  // Returns true and clears the double-tap state when ENABLE_DOUBLE_TAP_ACTION=1 and the
+  // configured doubleTapPwrBtn action is not DOUBLE_TAP_BACK or IGNORE.
+  // Call from the main loop BEFORE activityManager.loop() so activities never see it as Back.
+  bool consumePowerDoubleTap();
 
 #ifdef SIMULATOR
   void simulatorInjectPress(Button button);

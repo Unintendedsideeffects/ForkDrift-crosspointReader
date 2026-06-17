@@ -114,6 +114,10 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
   s.textAntiAliasing = doc["textAntiAliasing"] | (uint8_t)1;
   s.shortPwrBtn = clamp(doc["shortPwrBtn"] | (uint8_t)S::IGNORE, S::SHORT_PWRBTN_COUNT, S::IGNORE);
   s.longPwrBtn = clamp(doc["longPwrBtn"] | (uint8_t)S::SLEEP, S::SHORT_PWRBTN_COUNT, S::SLEEP);
+#if ENABLE_DOUBLE_TAP_ACTION
+  s.doubleTapPwrBtn =
+      clamp(doc["doubleTapPwrBtn"] | (uint8_t)S::FORCE_REFRESH, S::SHORT_PWRBTN_COUNT, S::FORCE_REFRESH);
+#endif
   s.orientation = clamp(doc["orientation"] | (uint8_t)S::PORTRAIT, S::ORIENTATION_COUNT, S::PORTRAIT);
   s.uiOrientation = clamp(doc["uiOrientation"] | (uint8_t)S::PORTRAIT, S::ORIENTATION_COUNT, S::PORTRAIT);
   s.frontButtonLayout = clamp(doc["frontButtonLayout"] | (uint8_t)S::BACK_CONFIRM_LEFT_RIGHT,
@@ -167,7 +171,11 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
   s.lastTimeSyncEpoch = doc["lastTimeSyncEpoch"] | (uint32_t)0;
   s.releaseChannel =
       clamp(doc["releaseChannel"] | (uint8_t)S::RELEASE_STABLE, S::RELEASE_CHANNEL_COUNT, S::RELEASE_STABLE);
+#if ENABLE_FLOW_THEME
+  s.uiTheme = clamp(doc["uiTheme"] | (uint8_t)S::FORK_DRIFT, static_cast<uint8_t>(S::FLOW + 1), S::FORK_DRIFT);
+#else
   s.uiTheme = clamp(doc["uiTheme"] | (uint8_t)S::FORK_DRIFT, static_cast<uint8_t>(S::TERMINAL + 1), S::FORK_DRIFT);
+#endif
   s.recentBooksView =
       clamp(doc["recentBooksView"] | (uint8_t)S::RECENT_BOOKS_LIST, S::RECENT_BOOKS_VIEW_COUNT, S::RECENT_BOOKS_LIST);
   s.fadingFix = doc["fadingFix"] | (uint8_t)0;
@@ -289,6 +297,9 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["textAntiAliasing"] = s.textAntiAliasing;
   doc["shortPwrBtn"] = s.shortPwrBtn;
   doc["longPwrBtn"] = s.longPwrBtn;
+#if ENABLE_DOUBLE_TAP_ACTION
+  doc["doubleTapPwrBtn"] = s.doubleTapPwrBtn;
+#endif
   doc["orientation"] = s.orientation;
   doc["uiOrientation"] = s.uiOrientation;
   doc["frontButtonLayout"] = s.frontButtonLayout;

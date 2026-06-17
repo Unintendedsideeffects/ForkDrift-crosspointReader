@@ -173,6 +173,40 @@ inline std::vector<QuickActionOption> longPowerButtonOptions() {
   return options;
 }
 
+#if ENABLE_DOUBLE_TAP_ACTION
+inline std::vector<QuickActionOption> doubleTapPowerButtonOptions() {
+  using S = CrossPointSettings;
+  // DOUBLE_TAP_BACK first so "Back" appears as the legacy/fallback option.
+  std::vector<QuickActionOption> options = {
+      {StrId::STR_DOUBLE_TAP_BACK, S::DOUBLE_TAP_BACK}, {StrId::STR_IGNORE, S::IGNORE},
+      {StrId::STR_FORCE_REFRESH, S::FORCE_REFRESH},     {StrId::STR_SLEEP, S::SLEEP},
+      {StrId::STR_CHANGE_FONT, S::TOGGLE_FONT},
+  };
+  if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
+    options.push_back({StrId::STR_TOGGLE_GUIDE_DOTS, S::TOGGLE_GUIDE_DOTS, "guide_dots"});
+  }
+  if (core::FeatureModules::hasCapability(core::Capability::FocusReading)) {
+    options.push_back({StrId::STR_TOGGLE_BIONIC_READING, S::TOGGLE_BIONIC_READING, "focus_reading"});
+  }
+  if (core::FeatureModules::hasCapability(core::Capability::Bookmarks)) {
+    options.push_back({StrId::STR_TOGGLE_BOOKMARK, S::TOGGLE_BOOKMARK, "bookmarks"});
+  }
+  if (core::FeatureModules::hasCapability(core::Capability::KoreaderSync)) {
+    options.push_back({StrId::STR_SYNC_PROGRESS, S::SYNC_PROGRESS, "koreader_sync"});
+  }
+#if ENABLE_READING_STATS
+  options.push_back({StrId::STR_MARK_FINISHED, S::MARK_FINISHED, "reading_stats"});
+  options.push_back({StrId::STR_READING_STATS, S::READING_STATS, "reading_stats"});
+#endif
+  options.push_back({StrId::STR_SCREENSHOT_BUTTON, S::SCREENSHOT});
+  options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::CYCLE_PAGE_TURN});
+  if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
+    options.push_back({StrId::STR_FILE_TRANSFER, S::FILE_TRANSFER, "usb_mass_storage"});
+  }
+  return options;
+}
+#endif
+
 inline std::vector<QuickActionOption> longPressMenuActionOptions() {
   using S = CrossPointSettings;
   std::vector<QuickActionOption> options = {
@@ -658,6 +692,11 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
                                CrossPointSettings::UI_THEME::TERMINAL});
       optionFeatureKeys.insert(optionFeatureKeys.end(),
                                {"lyra_theme", "lyra_theme", "lyra_theme", "lyra_theme", "lyra_theme"});
+#if ENABLE_FLOW_THEME
+      ids.push_back(StrId::STR_THEME_FLOW);
+      vals.push_back(CrossPointSettings::UI_THEME::FLOW);
+      optionFeatureKeys.push_back("flow_theme");
+#endif
       if (core::FeatureModules::hasCapability(core::Capability::MinimalTheme)) {
         ids.push_back(StrId::STR_THEME_MINIMAL);
         vals.push_back(CrossPointSettings::UI_THEME::MINIMAL);

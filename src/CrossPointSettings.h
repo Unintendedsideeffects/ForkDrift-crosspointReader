@@ -184,6 +184,9 @@ class CrossPointSettings {
     SCREENSHOT = 12,
     CYCLE_PAGE_TURN = 13,
     FILE_TRANSFER = 14,
+    // Double-tap navigates back (legacy default when ENABLE_DOUBLE_TAP_ACTION=1).
+    // Not meaningful for shortPwrBtn / longPwrBtn; only used by doubleTapPwrBtn.
+    DOUBLE_TAP_BACK = 15,
     SHORT_PWRBTN_COUNT
   };
 
@@ -197,7 +200,8 @@ class CrossPointSettings {
     POKEMON_PARTY = 4,
     MINIMAL = 5,
     LYRA_CAROUSEL = 6,
-    TERMINAL = 7
+    TERMINAL = 7,
+    FLOW = 8
   };
   enum RECENT_BOOKS_VIEW { RECENT_BOOKS_LIST = 0, RECENT_BOOKS_GRID = 1, RECENT_BOOKS_VIEW_COUNT };
 
@@ -404,6 +408,12 @@ class CrossPointSettings {
   // Wakes from deep sleep, re-renders the active sleep screen (Terminus/TRMNL, Roman Clock, Haiku
   // Clock), then goes back to sleep. USB-only: battery latch MOSFET cuts RTC power on battery.
   uint8_t timedSleepRefreshInterval = 0;
+#if ENABLE_DOUBLE_TAP_ACTION
+  // Double-tap power button action (SHORT_PWRBTN enum; default = refresh screen).
+  // Only active when shortPwrBtn=SELECT or dual-side button layout is in use.
+  // DOUBLE_TAP_BACK restores the legacy navigate-back behaviour.
+  uint8_t doubleTapPwrBtn = FORCE_REFRESH;
+#endif
 
   ~CrossPointSettings() = default;
 

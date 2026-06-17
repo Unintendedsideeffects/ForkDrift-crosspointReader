@@ -8,6 +8,7 @@
 
 #include "MappedInputManager.h"
 #include "components/themes/BaseTheme.h"
+#include "components/themes/flow/FlowTheme.h"
 #include "components/themes/lyra/ForkDriftTheme.h"
 #include "components/themes/lyra/Lyra3CoversTheme.h"
 #include "components/themes/lyra/LyraCarouselTheme.h"
@@ -92,6 +93,17 @@ void UITheme::setTheme(CrossPointSettings::UI_THEME type) {
       LOG_DBG("UI", "Using Terminal theme");
       currentTheme = std::make_unique<TerminalTheme>();
       currentMetrics = &TerminalMetrics::values;
+      break;
+    case CrossPointSettings::UI_THEME::FLOW:
+#if ENABLE_FLOW_THEME
+      LOG_DBG("UI", "Using Flow theme");
+      currentTheme = std::make_unique<FlowTheme>();
+      currentMetrics = &FlowMetrics::values;
+#else
+      LOG_DBG("UI", "Flow theme disabled; falling back to Classic theme");
+      currentTheme = std::make_unique<BaseTheme>();
+      currentMetrics = &BaseMetrics::values;
+#endif
       break;
   }
 }

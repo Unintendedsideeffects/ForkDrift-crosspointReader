@@ -489,6 +489,11 @@ void EpubReaderActivity::loop() {
   if (executeShortPowerButtonAction()) {
     return;
   }
+#if ENABLE_DOUBLE_TAP_ACTION
+  if (executeDoubleTapAction()) {
+    return;
+  }
+#endif
 
   auto [prevTriggered, nextTriggered, fromSideBtn] = ReaderUtils::detectPageTurn(mappedInput);
   if (!prevTriggered && !nextTriggered) {
@@ -825,6 +830,52 @@ bool EpubReaderActivity::executeLongPowerButtonAction() {
       return false;
   }
 }
+
+#if ENABLE_DOUBLE_TAP_ACTION
+bool EpubReaderActivity::executeDoubleTapAction() {
+  using S = CrossPointSettings;
+  const auto dtAction = static_cast<S::SHORT_PWRBTN>(SETTINGS.doubleTapPwrBtn);
+  // FORCE_REFRESH and SLEEP are handled globally in main.cpp before the activity loop.
+  if (dtAction == S::FORCE_REFRESH || dtAction == S::SLEEP) return false;
+  if (!mappedInput.consumePowerDoubleTap()) return false;
+  switch (dtAction) {
+    case S::TOGGLE_FONT:
+      executeReaderQuickAction(S::LONG_MENU_CHANGE_FONT);
+      return true;
+    case S::TOGGLE_GUIDE_DOTS:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_GUIDE_DOTS);
+      return true;
+    case S::TOGGLE_BIONIC_READING:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_BIONIC);
+      return true;
+    case S::TOGGLE_BOOKMARK:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_BOOKMARK);
+      return true;
+    case S::SYNC_PROGRESS:
+      executeReaderQuickAction(S::LONG_MENU_SYNC_PROGRESS);
+      return true;
+#if ENABLE_READING_STATS
+    case S::MARK_FINISHED:
+      executeReaderQuickAction(S::LONG_MENU_MARK_FINISHED);
+      return true;
+    case S::READING_STATS:
+      executeReaderQuickAction(S::LONG_MENU_READING_STATS);
+      return true;
+#endif
+    case S::SCREENSHOT:
+      executeReaderQuickAction(S::LONG_MENU_SCREENSHOT);
+      return true;
+    case S::CYCLE_PAGE_TURN:
+      executeReaderQuickAction(S::LONG_MENU_CYCLE_PAGE_TURN);
+      return true;
+    case S::FILE_TRANSFER:
+      executeReaderQuickAction(S::LONG_MENU_FILE_TRANSFER);
+      return true;
+    default:
+      return false;
+  }
+}
+#endif
 
 void EpubReaderActivity::openFileTransfer() {
   if (epub && section) {

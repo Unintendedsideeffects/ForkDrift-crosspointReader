@@ -150,6 +150,12 @@ FEATURES = {
         size_kb=0,
         description='Alternative UI theme with refined spacing and layout'
     ),
+    'flow_theme': Feature(
+        name='Flow Theme',
+        flag='ENABLE_FLOW_THEME',
+        size_kb=14,
+        description='Flow UI theme with Casio-style today stats clock and 3D cover layout'
+    ),
     'ota_updates': Feature(
         name='OTA Updates',
         flag='ENABLE_OTA_UPDATES',
@@ -467,6 +473,13 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=[]
     ),
+    'flow_theme': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=['home_media_picker'],
+        conflicts=[],
+        recommends=[]
+    ),
     'ota_updates': FeatureMetadata(
         implemented=True,
         stable=True,
@@ -752,6 +765,7 @@ PROFILES = {
             'hyphenation': True,
             'xtc_support': True,
             'lyra_theme': True,
+            'flow_theme': True,
             'ota_updates': True,
             'background_server': True,
             'background_server_on_charge': True,
@@ -787,6 +801,7 @@ PROFILES = {
             'hyphenation': True,
             'xtc_support': True,
             'lyra_theme': True,
+            'flow_theme': True,
             'ota_updates': True,
             'todo_planner': True,
             'notes': True,

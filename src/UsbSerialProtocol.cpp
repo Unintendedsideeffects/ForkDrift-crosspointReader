@@ -94,6 +94,9 @@ static void buildSettingsDoc(JsonDocument& doc) {
   doc["extraParagraphSpacing"] = s.extraParagraphSpacing;
   doc["textAntiAliasing"] = s.textAntiAliasing;
   doc["shortPwrBtn"] = s.shortPwrBtn;
+#if ENABLE_DOUBLE_TAP_ACTION
+  doc["doubleTapPwrBtn"] = s.doubleTapPwrBtn;
+#endif
   doc["orientation"] = s.orientation;
   doc["frontButtonLayout"] = s.frontButtonLayout;
   doc["sideButtonLayout"] = s.sideButtonLayout;
