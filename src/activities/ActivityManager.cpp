@@ -1,6 +1,7 @@
 #include "ActivityManager.h"
 
 #include <Arduino.h>
+#include <FontCacheManager.h>
 #include <HalPowerManager.h>
 #include <HalStorage.h>
 #include <HeapGuard.h>
