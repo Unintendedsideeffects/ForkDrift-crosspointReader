@@ -13,4 +13,5 @@ struct MockESP {
   size_t getFreeHeap() { return 1024 * 1024; }
 };
 extern MockESP ESP;
-inline unsigned long millis() { return 0; }
+inline unsigned long mockMillisVal = 0;
+inline unsigned long millis() { return mockMillisVal; }

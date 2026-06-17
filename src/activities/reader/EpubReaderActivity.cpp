@@ -34,6 +34,7 @@
 #include "core/OrientationManager.h"
 #if ENABLE_READING_STATS
 #include "GlobalReadingStats.h"
+#include "ReadingStatsStore.h"
 #endif
 #include "KOReaderCredentialStore.h"
 #include "KOReaderSyncActivity.h"
@@ -251,6 +252,8 @@ void EpubReaderActivity::onEnter() {
 #endif  // ENABLE_BOOKMARKS
 
 #if ENABLE_READING_STATS
+  ReadingStatsStore::getInstance().beginSession(epub->getCachePath(), epub->getPath(), epub->getTitle(),
+                                                epub->getAuthor(), epub->getThumbBmpPath(240));
   stats = BookReadingStats::load(epub->getCachePath());
   sessionStartMs = millis();
   globalStats = GlobalReadingStats::load();
@@ -286,18 +289,9 @@ void EpubReaderActivity::onExit() {
 
 #if ENABLE_READING_STATS
   if (epub) {
-    const unsigned long elapsedMs = millis() - sessionStartMs;
-    if (elapsedMs >= 60000UL) {
-      stats.sessionCount++;
-      globalStats.totalSessions++;
-    }
-    if (elapsedMs >= 10000UL) {
-      const uint32_t elapsedSecs = static_cast<uint32_t>(elapsedMs / 1000UL);
-      stats.totalReadingSeconds += elapsedSecs;
-      globalStats.totalReadingSeconds += elapsedSecs;
-    }
-    stats.save(epub->getCachePath());
-    globalStats.save();
+    ReadingStatsStore::getInstance().endSession();
+    stats = BookReadingStats::load(epub->getCachePath());
+    globalStats = GlobalReadingStats::load();
   }
 #endif  // ENABLE_READING_STATS
 
@@ -1240,6 +1234,9 @@ void EpubReaderActivity::pageTurn(bool isForwardTurn) {
 #if ENABLE_READING_STATS
   stats.totalPagesTurned++;
   globalStats.totalPagesTurned++;
+  if (epub) {
+    ReadingStatsStore::getInstance().recordPageTurn(epub->getCachePath());
+  }
 #endif  // ENABLE_READING_STATS
   lastPageTurnTime = millis();
   requestUpdate();
@@ -1821,14 +1818,8 @@ void EpubReaderActivity::setBookCompleted(bool isCompleted) {
   } else {
     pendingReadFolderMove = false;
   }
-  if (isCompleted) {
-    globalStats.completedBooks++;
-  } else if (globalStats.completedBooks > 0) {
-    globalStats.completedBooks--;
-  }
-
-  stats.save(epub->getCachePath());
-  globalStats.save();
+  ReadingStatsStore::getInstance().updateProgress(epub->getCachePath(), stats.isCompleted ? 100 : 0, stats.isCompleted);
+  globalStats = GlobalReadingStats::load();
 }
 
 void EpubReaderActivity::moveReadFolder(ReadFolderMoveParams* params) {

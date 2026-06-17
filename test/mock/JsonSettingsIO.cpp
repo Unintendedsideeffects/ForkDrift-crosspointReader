@@ -17,6 +17,7 @@
 #include <cstring>
 
 #include "CrossPointSettings.h"
+#include "src/activities/reader/ReadingStatsStore.h"
 #include "util/RecentBooksStore.h"
 
 // ---- CrossPointSettings ----
@@ -251,3 +252,96 @@ bool JsonSettingsIO::loadRecentBooks(RecentBooksStore& store, HalFile& file) {
 bool JsonSettingsIO::saveOpds(const OpdsServerStore&, const char*) { return true; }
 bool JsonSettingsIO::loadOpds(OpdsServerStore&, const char*, bool*) { return false; }
 bool JsonSettingsIO::loadOpds(OpdsServerStore&, HalFile&, bool*) { return false; }
+
+bool JsonSettingsIO::saveReadingStats(const ReadingStatsStore& store, const char* path) {
+  JsonDocument doc;
+  doc["version"] = 1;
+  doc["globalPagesTurned"] = store.globalPagesTurned;
+  JsonArray books = doc["books"].to<JsonArray>();
+  for (const auto& book : store.books) {
+    JsonObject obj = books.add<JsonObject>();
+    obj["cachePath"] = book.cachePath;
+    obj["path"] = book.path;
+    obj["title"] = book.title;
+    obj["author"] = book.author;
+    obj["coverBmpPath"] = book.coverBmpPath;
+    obj["totalReadingMs"] = book.totalReadingMs;
+    obj["sessions"] = book.sessions;
+    obj["totalPagesTurned"] = book.totalPagesTurned;
+    obj["lastSessionMs"] = book.lastSessionMs;
+    obj["lastProgressPercent"] = book.lastProgressPercent;
+    obj["completed"] = book.completed;
+    JsonArray days = obj["readingDays"].to<JsonArray>();
+    for (const auto& day : book.readingDays) {
+      JsonObject dayObj = days.add<JsonObject>();
+      dayObj["dayOrdinal"] = day.dayOrdinal;
+      dayObj["readingMs"] = day.readingMs;
+    }
+  }
+  JsonArray days = doc["readingDays"].to<JsonArray>();
+  for (const auto& day : store.readingDays) {
+    JsonObject dayObj = days.add<JsonObject>();
+    dayObj["dayOrdinal"] = day.dayOrdinal;
+    dayObj["readingMs"] = day.readingMs;
+  }
+  String json;
+  serializeJson(doc, json);
+  return Storage.writeFile(path, json);
+}
+
+bool JsonSettingsIO::loadReadingStats(ReadingStatsStore& store, const char* json) {
+  JsonDocument doc;
+  if (deserializeJson(doc, json)) {
+    return false;
+  }
+  store.books.clear();
+  store.readingDays.clear();
+  store.globalPagesTurned = doc["globalPagesTurned"] | 0UL;
+  JsonArrayConst books = doc["books"].as<JsonArrayConst>();
+  for (JsonObjectConst obj : books) {
+    ReadingBookStats book;
+    book.cachePath = obj["cachePath"] | std::string("");
+    if (book.cachePath.empty()) {
+      continue;
+    }
+    book.path = obj["path"] | std::string("");
+    book.title = obj["title"] | std::string("");
+    book.author = obj["author"] | std::string("");
+    book.coverBmpPath = obj["coverBmpPath"] | std::string("");
+    book.totalReadingMs = obj["totalReadingMs"] | 0ULL;
+    book.sessions = obj["sessions"] | 0UL;
+    book.totalPagesTurned = obj["totalPagesTurned"] | 0UL;
+    book.lastSessionMs = obj["lastSessionMs"] | 0UL;
+    book.lastProgressPercent = obj["lastProgressPercent"] | 0;
+    book.completed = obj["completed"] | false;
+    JsonArrayConst bookDays = obj["readingDays"].as<JsonArrayConst>();
+    for (JsonObjectConst dayObj : bookDays) {
+      const uint32_t dayOrdinal = dayObj["dayOrdinal"] | 0UL;
+      const uint64_t readingMs = dayObj["readingMs"] | 0ULL;
+      if (dayOrdinal != 0 && readingMs != 0) {
+        book.readingDays.push_back(ReadingDayStats{dayOrdinal, readingMs});
+      }
+    }
+    store.books.push_back(std::move(book));
+  }
+  JsonArrayConst days = doc["readingDays"].as<JsonArrayConst>();
+  for (JsonObjectConst dayObj : days) {
+    const uint32_t dayOrdinal = dayObj["dayOrdinal"] | 0UL;
+    const uint64_t readingMs = dayObj["readingMs"] | 0ULL;
+    if (dayOrdinal != 0 && readingMs != 0) {
+      store.readingDays.push_back(ReadingDayStats{dayOrdinal, readingMs});
+    }
+  }
+  return true;
+}
+
+bool JsonSettingsIO::loadReadingStats(ReadingStatsStore& store, HalFile& file) {
+  FsFileJsonReader reader(file);
+  JsonDocument doc;
+  if (deserializeJson(doc, reader)) {
+    return false;
+  }
+  String json;
+  serializeJson(doc, json);
+  return loadReadingStats(store, json.c_str());
+}

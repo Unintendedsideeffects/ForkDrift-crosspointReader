@@ -12,6 +12,9 @@
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
 #include "ReaderUtils.h"
+#if ENABLE_READING_STATS
+#include "ReadingStatsStore.h"
+#endif
 #include "ScopedBuffer.h"
 #include "SpiBusMutex.h"
 #include "activities/TaskShutdown.h"
@@ -48,6 +51,10 @@ void TxtReaderActivity::onEnter() {
   APP_STATE.saveToFile();
   RECENT_BOOKS.addBook(filePath, fileName, "", "");
 
+#if ENABLE_READING_STATS
+  ReadingStatsStore::getInstance().beginSession(txt->getCachePath(), filePath, fileName, "", "");
+#endif
+
   // Trigger first update
   requestUpdate();
 }
@@ -63,6 +70,11 @@ void TxtReaderActivity::onExit() {
   currentPageLines.clear();
   APP_STATE.readerActivityLoadCount = 0;
   APP_STATE.saveToFile();
+#if ENABLE_READING_STATS
+  if (txt) {
+    ReadingStatsStore::getInstance().endSession();
+  }
+#endif
   txt.reset();
 }
 
@@ -88,10 +100,20 @@ void TxtReaderActivity::loop() {
 
   if (prevTriggered && currentPage > 0) {
     currentPage--;
+#if ENABLE_READING_STATS
+    if (txt) {
+      ReadingStatsStore::getInstance().recordPageTurn(txt->getCachePath());
+    }
+#endif
     requestUpdate();
   } else if (nextTriggered) {
     if (currentPage < totalPages - 1) {
       currentPage++;
+#if ENABLE_READING_STATS
+      if (txt) {
+        ReadingStatsStore::getInstance().recordPageTurn(txt->getCachePath());
+      }
+#endif
       requestUpdate();
     } else {
       onGoHome();

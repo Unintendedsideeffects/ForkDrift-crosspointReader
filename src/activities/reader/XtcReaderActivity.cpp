@@ -18,6 +18,9 @@
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
 #include "ReaderUtils.h"
+#if ENABLE_READING_STATS
+#include "ReadingStatsStore.h"
+#endif
 #include "ScopedBuffer.h"
 #include "SpiBusMutex.h"
 #include "XtcReaderChapterSelectionActivity.h"
@@ -48,6 +51,11 @@ void XtcReaderActivity::onEnter() {
   APP_STATE.saveToFile();
   RECENT_BOOKS.addBook(xtc->getPath(), xtc->getTitle(), xtc->getAuthor(), xtc->getThumbBmpPath(240));
 
+#if ENABLE_READING_STATS
+  ReadingStatsStore::getInstance().beginSession(xtc->getCachePath(), xtc->getPath(), xtc->getTitle(), xtc->getAuthor(),
+                                                xtc->getThumbBmpPath(240));
+#endif
+
   requestUpdate();
 }
 
@@ -56,6 +64,11 @@ void XtcReaderActivity::onExit() {
   Activity::onExit();
 
   OrientationManager::applyUiOrientation(renderer);
+#if ENABLE_READING_STATS
+  if (xtc) {
+    ReadingStatsStore::getInstance().endSession();
+  }
+#endif
   xtc.reset();
 }
 
@@ -144,12 +157,18 @@ void XtcReaderActivity::loop() {
     } else {
       currentPage = 0;
     }
+#if ENABLE_READING_STATS
+    ReadingStatsStore::getInstance().recordPageTurn(xtc->getCachePath(), static_cast<uint32_t>(skipAmount));
+#endif
     requestUpdate();
   } else if (nextTriggered) {
     currentPage += skipAmount;
     if (currentPage >= xtc->getPageCount()) {
       currentPage = xtc->getPageCount();  // Allow showing "End of book"
     }
+#if ENABLE_READING_STATS
+    ReadingStatsStore::getInstance().recordPageTurn(xtc->getCachePath(), static_cast<uint32_t>(skipAmount));
+#endif
     requestUpdate();
   }
 }
