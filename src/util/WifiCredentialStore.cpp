@@ -5,7 +5,7 @@
 #include <Logging.h>
 
 #include "CrossPointState.h"
-#include "network/BackgroundWebServer.h"
+#include "network/background/BackgroundWebServer.h"
 
 // Initialize the static instance
 WifiCredentialStore WifiCredentialStore::instance;

@@ -7,9 +7,9 @@
 
 #include "core/features/FeatureCatalog.h"
 #include "core/registries/WebRouteRegistry.h"
-#include "network/RemoteKeyboardSession.h"
-#include "network/WebUtils.h"
 #include "network/html/RemoteKeyboardPageHtml.generated.h"
+#include "network/server/RemoteKeyboardSession.h"
+#include "network/server/WebUtils.h"
 
 namespace features::remote_keyboard_input {
 namespace {

@@ -1,6 +1,6 @@
 #include "CrossPointSettings.h"
 #include "doctest/doctest.h"
-#include "network/BackgroundServerPolicy.h"
+#include "network/background/BackgroundServerPolicy.h"
 
 namespace {
 

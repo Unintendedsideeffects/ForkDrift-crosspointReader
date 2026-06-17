@@ -16,8 +16,8 @@
 #include "features/status_overlay/Layout.h"
 #include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
-#include "network/BackgroundWebServer.h"
-#include "network/BackgroundWifiService.h"
+#include "network/background/BackgroundWebServer.h"
+#include "network/background/BackgroundWifiService.h"
 #include "util/DateUtils.h"
 
 namespace features::status_overlay {

@@ -26,8 +26,8 @@
 #endif
 #include "home/RecentBooksActivity.h"
 #include "home/RecentBooksGridActivity.h"
-#include "network/CrossPointWebServer.h"
 #include "network/CrossPointWebServerActivity.h"
+#include "network/server/CrossPointWebServer.h"
 #include "settings/OpdsServerListActivity.h"
 #include "settings/SettingsActivity.h"
 #include "util/FullScreenMessageActivity.h"

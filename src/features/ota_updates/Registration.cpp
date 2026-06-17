@@ -10,7 +10,7 @@
 #include "core/features/FeatureCatalog.h"
 #include "core/registries/SettingsActionRegistry.h"
 #include "core/registries/WebRouteRegistry.h"
-#include "network/OtaWebCheck.h"
+#include "network/ota/OtaWebCheck.h"
 
 namespace features::ota_updates {
 namespace {

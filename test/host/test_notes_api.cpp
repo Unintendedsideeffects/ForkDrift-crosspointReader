@@ -1,6 +1,6 @@
 #include "HalStorage.h"
 #include "doctest/doctest.h"
-#include "network/NotesApi.h"
+#include "network/server/NotesApi.h"
 
 TEST_CASE("testNotesEntryRequestValidation") {
   Storage.remove("/notes.txt");

@@ -1,5 +1,5 @@
 #include "doctest/doctest.h"
-#include "network/RemoteControlApi.h"
+#include "network/server/RemoteControlApi.h"
 #include "test/mock/HalStorage.h"
 
 TEST_CASE("testOpenBookHttpRequestValidation") {

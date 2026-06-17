@@ -1,12 +1,13 @@
-#include "doctest/doctest.h"
-#include "src/core/registries/WebRouteRegistry.h"
-#include "src/features/remote_keyboard_input/Registration.h"
-#include "src/network/RemoteKeyboardSession.h"
 #include <WebServer.h>
+
 #include <string>
 
-TEST_CASE("testRemoteKeyboardSessionAndRoutes") {
+#include "doctest/doctest.h"
+#include "network/server/RemoteKeyboardSession.h"
+#include "src/core/registries/WebRouteRegistry.h"
+#include "src/features/remote_keyboard_input/Registration.h"
 
+TEST_CASE("testRemoteKeyboardSessionAndRoutes") {
   features::remote_keyboard_input::registerFeature();
   CHECK(core::WebRouteRegistry::shouldRegister("remote_keyboard_input_api"));
 

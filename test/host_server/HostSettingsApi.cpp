@@ -5,7 +5,7 @@
 #include <cstring>
 
 #include "HostStorage.h"
-#include "network/SettingsSnapshotApi.h"
+#include "network/server/SettingsSnapshotApi.h"
 #include "src/CrossPointSettings.h"
 
 namespace host {

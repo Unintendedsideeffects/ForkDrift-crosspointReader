@@ -39,7 +39,7 @@
 #include "activities/util/ListPickerActivity.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
-#include "network/BackgroundWifiService.h"
+#include "network/background/BackgroundWifiService.h"
 #include "util/MaintenanceUtils.h"
 #include "util/NetworkNames.h"
 

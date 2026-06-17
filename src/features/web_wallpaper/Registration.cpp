@@ -6,8 +6,8 @@
 
 #include "core/features/FeatureCatalog.h"
 #include "core/registries/WebRouteRegistry.h"
-#include "network/WebUtils.h"
 #include "network/html/WallpaperPluginPageHtml.generated.h"
+#include "network/server/WebUtils.h"
 
 namespace features::web_wallpaper {
 namespace {

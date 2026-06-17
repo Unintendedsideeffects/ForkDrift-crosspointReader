@@ -13,7 +13,7 @@
 #include "SdCardFontSystem.h"
 #include "activities/RenderLock.h"
 #include "core/features/FeatureModules.h"
-#include "network/BackgroundWifiService.h"
+#include "network/background/BackgroundWifiService.h"
 #include "util/ButtonNavigator.h"
 
 namespace FactoryResetUtils {

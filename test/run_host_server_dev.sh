@@ -76,13 +76,13 @@ build() {
     "$ROOT_DIR/test/host_server/HostStorage.cpp" \
     "$ROOT_DIR/test/host_server/HostSettingsApi.cpp" \
     "$ROOT_DIR/test/mock/FeatureModuleHooks.cpp" \
-    "$ROOT_DIR/src/network/CoreWebRoutes.cpp" \
-    "$ROOT_DIR/src/network/FileRoutes.cpp" \
-    "$ROOT_DIR/src/network/FileListApi.cpp" \
-    "$ROOT_DIR/src/network/FileMutationApi.cpp" \
-    "$ROOT_DIR/src/network/FileReadApi.cpp" \
-    "$ROOT_DIR/src/network/UploadApi.cpp" \
-    "$ROOT_DIR/src/network/SettingsSnapshotApi.cpp" \
+    "$ROOT_DIR/src/network/server/CoreWebRoutes.cpp" \
+    "$ROOT_DIR/src/network/server/FileRoutes.cpp" \
+    "$ROOT_DIR/src/network/server/FileListApi.cpp" \
+    "$ROOT_DIR/src/network/server/FileMutationApi.cpp" \
+    "$ROOT_DIR/src/network/server/FileReadApi.cpp" \
+    "$ROOT_DIR/src/network/server/UploadApi.cpp" \
+    "$ROOT_DIR/src/network/server/SettingsSnapshotApi.cpp" \
     "$ROOT_DIR/src/util/InputValidation.cpp" \
     "$ROOT_DIR/src/util/PathUtils.cpp" \
     "$ROOT_DIR/lib/FsHelpers/FsHelpers.cpp" \

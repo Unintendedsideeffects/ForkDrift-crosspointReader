@@ -14,7 +14,7 @@
 #include "activities/todo/TodoPlannerStorage.h"
 #include "core/features/FeatureCatalog.h"
 #include "fontIds.h"
-#include "network/FileListApi.h"
+#include "network/server/FileListApi.h"
 #include "util/DateUtils.h"
 
 namespace {

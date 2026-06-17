@@ -17,7 +17,7 @@
 #include "WifiCredentialStore.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "network/HttpDownloader.h"
+#include "network/http/HttpDownloader.h"
 
 // ─── net module state ─────────────────────────────────────────────────────────
 namespace {

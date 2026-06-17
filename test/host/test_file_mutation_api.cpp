@@ -1,8 +1,7 @@
-#include "doctest/doctest.h"
-
 #include <vector>
 
-#include "network/FileMutationApi.h"
+#include "doctest/doctest.h"
+#include "network/server/FileMutationApi.h"
 #include "test/mock/HalStorage.h"
 
 TEST_CASE("file mutation api creates folders in normalized parent path") {

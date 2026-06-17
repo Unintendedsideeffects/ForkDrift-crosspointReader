@@ -39,7 +39,7 @@
 #include "core/features/FeatureModules.h"
 #include "features/status_overlay/Layout.h"
 #include "fontIds.h"
-#include "network/BackgroundWifiService.h"
+#include "network/background/BackgroundWifiService.h"
 #include "util/DateUtils.h"
 #include "util/PokemonBookDataStore.h"
 #if ENABLE_POKEMON_PARTY

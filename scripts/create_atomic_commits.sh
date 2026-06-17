@@ -173,7 +173,7 @@ Default: Enabled (1)" || echo "Already committed or no changes"
 
 # Component 2d: Background Server
 echo "${BLUE}[9/10]${NC} Background server feature flag..."
-git add src/network/BackgroundWebServer.cpp
+git add src/network/background/BackgroundWebServer.cpp
 git commit -m "feat(server): add ENABLE_BACKGROUND_SERVER feature flag
 
 Make background web server optional.

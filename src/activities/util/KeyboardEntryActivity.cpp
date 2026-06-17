@@ -15,7 +15,7 @@
 #include <cstdio>
 
 #include "core/features/FeatureModules.h"
-#include "network/RemoteKeyboardSession.h"
+#include "network/server/RemoteKeyboardSession.h"
 #include "util/QrUtils.h"
 #endif
 

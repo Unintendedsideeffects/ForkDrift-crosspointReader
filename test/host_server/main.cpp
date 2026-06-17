@@ -10,8 +10,8 @@
 #include "HostSettingsApi.h"
 #include "HostStorage.h"
 #include "HostWebServer.h"
-#include "network/CoreWebRoutes.h"
-#include "network/SettingsSnapshotApi.h"
+#include "network/server/CoreWebRoutes.h"
+#include "network/server/SettingsSnapshotApi.h"
 #include "src/CrossPointSettings.h"
 
 MockESP ESP;

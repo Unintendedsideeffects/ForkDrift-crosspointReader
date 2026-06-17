@@ -4,7 +4,7 @@
 #include <string>
 
 #include "doctest/doctest.h"
-#include "network/SettingsSnapshotApi.h"
+#include "network/server/SettingsSnapshotApi.h"
 #include "src/CrossPointSettings.h"
 
 TEST_CASE("settings snapshot api serializes selected fields") {

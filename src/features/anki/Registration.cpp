@@ -13,9 +13,9 @@
 #include "core/registries/HomeActionRegistry.h"
 #include "core/registries/LifecycleRegistry.h"
 #include "core/registries/WebRouteRegistry.h"
-#include "network/HttpDownloader.h"
-#include "network/WebUtils.h"
 #include "network/html/AnkiPluginPageHtml.generated.h"
+#include "network/http/HttpDownloader.h"
+#include "network/server/WebUtils.h"
 #include "util/AnkiStore.h"
 
 namespace features::anki {

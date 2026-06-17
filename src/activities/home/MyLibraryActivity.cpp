@@ -20,7 +20,7 @@
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "fontIds.h"
-#include "network/BackgroundWifiService.h"
+#include "network/background/BackgroundWifiService.h"
 #include "util/RecentBooksStore.h"
 #include "util/StringUtils.h"
 

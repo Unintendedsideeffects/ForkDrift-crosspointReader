@@ -7,7 +7,7 @@
 #include <string>
 
 #include "fontIds.h"
-#include "network/BackgroundWebServer.h"
+#include "network/background/BackgroundWebServer.h"
 
 void ScreenComponents::drawBattery(const GfxRenderer& renderer, const int left, const int top,
                                    const bool showPercentage) {

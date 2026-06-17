@@ -13,7 +13,7 @@
 #if ENABLE_REMOTE_KEYBOARD_INPUT
 #include <memory>
 
-#include "network/RemoteKeyboardNetworkSession.h"
+#include "network/server/RemoteKeyboardNetworkSession.h"
 #endif
 
 struct KeyDef {

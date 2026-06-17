@@ -1,7 +1,7 @@
 #include <string>
 
 #include "doctest/doctest.h"
-#include "src/network/BleCredentialParser.h"
+#include "network/wifi/BleCredentialParser.h"
 
 namespace {
 

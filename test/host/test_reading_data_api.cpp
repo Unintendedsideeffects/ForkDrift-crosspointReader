@@ -7,7 +7,7 @@
 #include "doctest/doctest.h"
 #include "include/BookCachePath.h"
 #include "lib/Serialization/Serialization.h"
-#include "network/ReadingDataApi.h"
+#include "network/server/ReadingDataApi.h"
 #include "test/mock/HalStorage.h"
 
 namespace {

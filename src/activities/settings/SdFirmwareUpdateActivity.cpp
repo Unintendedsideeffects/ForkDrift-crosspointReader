@@ -12,7 +12,7 @@
 #include "activities/util/ConfirmationActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "network/FirmwareFlasher.h"
+#include "network/ota/FirmwareFlasher.h"
 
 void SdFirmwareUpdateActivity::onEnter() {
   Activity::onEnter();

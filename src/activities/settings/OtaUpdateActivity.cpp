@@ -9,7 +9,7 @@
 #include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "fontIds.h"
-#include "network/OtaUpdater.h"
+#include "network/ota/OtaUpdater.h"
 
 namespace {
 String formatOtaByteCount(const size_t bytes) {

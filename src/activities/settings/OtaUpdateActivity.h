@@ -6,7 +6,7 @@
 #include <cstddef>
 
 #include "activities/Activity.h"
-#include "network/OtaUpdater.h"
+#include "network/ota/OtaUpdater.h"
 
 class OtaUpdateActivity : public Activity {
   enum State {

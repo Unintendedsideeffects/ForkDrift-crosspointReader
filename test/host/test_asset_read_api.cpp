@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "doctest/doctest.h"
-#include "network/AssetReadApi.h"
+#include "network/server/AssetReadApi.h"
 #include "test/mock/HalStorage.h"
 
 TEST_CASE("asset read api validates and resolves cover paths") {

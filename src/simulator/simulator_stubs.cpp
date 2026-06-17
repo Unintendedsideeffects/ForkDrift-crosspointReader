@@ -3,8 +3,8 @@
 // present in the upstream crosspoint-simulator library stubs.
 #ifdef SIMULATOR
 
-#include "network/BackgroundWifiService.h"
-#include "network/CrossPointWebServer.h"
+#include "network/background/BackgroundWifiService.h"
+#include "network/server/CrossPointWebServer.h"
 
 namespace features::web_wifi_setup {
 void registerFeature() {}

@@ -3,7 +3,7 @@
 #include <string>
 
 #include "doctest/doctest.h"
-#include "network/FileReadApi.h"
+#include "network/server/FileReadApi.h"
 #include "test/mock/HalStorage.h"
 
 TEST_CASE("file read api builds file list json for visible entries") {

@@ -5,7 +5,7 @@
 #include <string>
 
 #include "activities/Activity.h"
-#include "network/CrossPointWebServer.h"
+#include "network/server/CrossPointWebServer.h"
 
 enum class CalibreConnectState { WIFI_SELECTION, SERVER_STARTING, SERVER_RUNNING, ERROR };
 

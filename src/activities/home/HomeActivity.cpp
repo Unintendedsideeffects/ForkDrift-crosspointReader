@@ -45,7 +45,7 @@
 #include "core/registries/HomeActionRegistry.h"
 #include "features/status_overlay/Layout.h"
 #include "fontIds.h"
-#include "network/BackgroundWifiService.h"
+#include "network/background/BackgroundWifiService.h"
 #include "util/BookProgressDataStore.h"
 #include "util/ForkDriftNavigation.h"
 #include "util/LibraryShelfStore.h"

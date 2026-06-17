@@ -5,7 +5,7 @@
 #include "doctest/doctest.h"
 #include "include/BookCachePath.h"
 #include "lib/Serialization/Serialization.h"
-#include "src/network/RecentBookJson.h"
+#include "network/server/RecentBookJson.h"
 #include "src/util/PokemonBookDataStore.h"
 #include "test/mock/HalStorage.h"
 

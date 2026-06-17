@@ -1,9 +1,8 @@
-#include "doctest/doctest.h"
-
 #include <string>
 #include <vector>
 
-#include "network/FileListApi.h"
+#include "doctest/doctest.h"
+#include "network/server/FileListApi.h"
 #include "test/mock/HalStorage.h"
 
 static std::vector<network::DirEntry> collectEntries(const char* path, bool showHidden) {
@@ -30,8 +29,16 @@ TEST_CASE("file list api lists files excluding hidden entries by default") {
   bool foundEpub = false;
   bool foundTxt = false;
   for (const auto& e : entries) {
-    if (e.name == "novel.epub") { foundEpub = true; CHECK(e.isEpub); CHECK(!e.isDirectory); }
-    if (e.name == "readme.txt") { foundTxt = true; CHECK(!e.isEpub); CHECK(!e.isDirectory); }
+    if (e.name == "novel.epub") {
+      foundEpub = true;
+      CHECK(e.isEpub);
+      CHECK(!e.isDirectory);
+    }
+    if (e.name == "readme.txt") {
+      foundTxt = true;
+      CHECK(!e.isEpub);
+      CHECK(!e.isDirectory);
+    }
   }
   CHECK(foundEpub);
   CHECK(foundTxt);
@@ -86,13 +93,16 @@ TEST_CASE("file list api excludes named protected web components regardless of s
     if (e.name == ".crosspoint") foundDotCrosspoint = true;
     if (e.name == "XTCache") foundXTCache = true;
   }
-  CHECK(foundDotCrosspoint);   // dotfiles show when showHiddenFiles=true
-  CHECK(!foundXTCache);        // named protected components always hidden
+  CHECK(foundDotCrosspoint);  // dotfiles show when showHiddenFiles=true
+  CHECK(!foundXTCache);       // named protected components always hidden
 
   // At least books directory is visible in both modes
   bool foundBooks = false;
   for (const auto& e : entriesHidden) {
-    if (e.name == "books") { foundBooks = true; CHECK(e.isDirectory); }
+    if (e.name == "books") {
+      foundBooks = true;
+      CHECK(e.isDirectory);
+    }
   }
   CHECK(foundBooks);
 }

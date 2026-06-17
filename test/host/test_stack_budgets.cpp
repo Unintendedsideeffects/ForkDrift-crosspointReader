@@ -45,8 +45,8 @@ struct ByteArrayBudget {
 
 TEST_CASE("network task stack budgets stay above safe minimums") {
   const StackBudgetExpectation expectations[] = {
-      {"src/network/BackgroundWifiService.h", "background WiFi task stack", std::regex(R"(TASK_STACK\s*=\s*(\d+))"),
-       8192},
+      {"src/network/background/BackgroundWifiService.h", "background WiFi task stack",
+       std::regex(R"(TASK_STACK\s*=\s*(\d+))"), 8192},
       {"src/util/TimeSync.cpp", "background NTP sync task stack",
        std::regex(R"(xTaskCreate\(\s*backgroundSyncTask\s*,\s*"TimeSyncTask"\s*,\s*(\d+))"), 4096},
   };
@@ -61,10 +61,10 @@ TEST_CASE("network task stack budgets stay above safe minimums") {
 
 TEST_CASE("fileserver startup code avoids oversized local byte buffers") {
   const ByteArrayBudget budgets[] = {
-      {"src/network/BackgroundWifiService.cpp", 256},
-      {"src/network/BackgroundWebServer.cpp", 256},
+      {"src/network/background/BackgroundWifiService.cpp", 256},
+      {"src/network/background/BackgroundWebServer.cpp", 256},
       {"src/activities/network/CrossPointWebServerActivity.cpp", 256},
-      {"src/network/CrossPointWebServer.cpp", 1024},
+      {"src/network/server/CrossPointWebServer.cpp", 1024},
   };
 
   const std::regex byteArrayPattern(R"(\b(?:char|uint8_t)\s+\w+\[(\d+)\])");

@@ -20,8 +20,9 @@
 #include "components/ScreenComponents.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "network/BackgroundWebServer.h"
-#include "network/BackgroundWifiService.h"
+#include "network/background/BackgroundWebServer.h"
+#include "network/background/BackgroundWifiService.h"
+#include "network/wifi/WifiUtil.h"
 #include "util/NetworkNames.h"
 #include "util/TimeSync.h"
 
@@ -40,8 +41,6 @@ constexpr int TASK_EXIT_TIMEOUT_MS = 500;
 constexpr int TASK_EXIT_POLL_MS = 10;
 constexpr int TIME_SYNC_EXIT_TIMEOUT_MS = 5000;
 std::atomic<bool> foregroundTimeSyncRunning{false};
-
-bool hasStaWifiConnection() { return WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0); }
 
 // 0..4 bars from RSSI (dBm), with 3 dBm hysteresis on currentBars to suppress flicker.
 int barsForRssi(int rssi, int currentBars) {

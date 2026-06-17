@@ -16,7 +16,7 @@
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "fontIds.h"
-#include "network/BackgroundWifiService.h"
+#include "network/background/BackgroundWifiService.h"
 #include "util/NetworkNames.h"
 #include "util/WifiCredentialStore.h"
 #include "util/WifiScanPolicy.h"

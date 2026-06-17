@@ -2,7 +2,7 @@
 #include <string>
 
 #include "doctest/doctest.h"
-#include "network/SleepCoverApi.h"
+#include "network/server/SleepCoverApi.h"
 #include "test/mock/HalStorage.h"
 
 namespace {

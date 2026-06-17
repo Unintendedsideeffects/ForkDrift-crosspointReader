@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "activities/Activity.h"
-#include "network/BleWifiProvisioner.h"
+#include "network/wifi/BleWifiProvisioner.h"
 #include "util/ButtonNavigator.h"
 
 // Structure to hold WiFi network information

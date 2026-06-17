@@ -43,10 +43,12 @@
 #include "core/features/FeatureModules.h"
 #include "features/status_overlay/Layout.h"
 #include "fontIds.h"
-#include "network/BackgroundServerPolicy.h"
-#include "network/BackgroundWebServer.h"
-#include "network/BackgroundWifiService.h"
-#include "network/SettingsApi.h"
+#include "network/background/BackgroundServerPolicy.h"
+#include "network/background/BackgroundWebServer.h"
+#include "network/background/BackgroundWifiCoordinator.h"
+#include "network/background/BackgroundWifiService.h"
+#include "network/server/SettingsApi.h"
+#include "network/wifi/WifiUtil.h"
 #include "util/ButtonNavigator.h"
 #include "util/FactoryResetUtils.h"
 #include "util/FirmwareUpdateUtil.h"
@@ -80,19 +82,27 @@ constexpr uint32_t SILENT_REBOOT_MAGIC = 0xC1EAB007;
 constexpr uint32_t SILENT_REBOOT_TARGET_HOME = 0;
 constexpr uint32_t SILENT_REBOOT_TARGET_READER = 1;
 
-// SILENT RESTART FEATURE - This is a restart without showing the boot splash screen
-void silentRestart() {
-  silentRebootTarget = SILENT_REBOOT_TARGET_HOME;
-  silentRebootMagic = SILENT_REBOOT_MAGIC;
-  LOG_DBG("MAIN", "Silent restart (target=home)");
-  delay(50);
-  ESP.restart();
-}
+// SILENT RESTART FEATURE - This is a restart without showing the boot splash screen -- TODO: This doesn't seem to work
+// for us void silentRestart() {
+//   silentRebootTarget = SILENT_REBOOT_TARGET_HOME;
+//   silentRebootMagic = SILENT_REBOOT_MAGIC;
+//   LOG_DBG("MAIN", "Silent restart (target=home)");
+//   delay(50);
+//   ESP.restart();
+// }
 
-void silentRestartToReader() {
-  silentRebootTarget = SILENT_REBOOT_TARGET_READER;
+// void silentRestartToReader() {
+//   silentRebootTarget = SILENT_REBOOT_TARGET_READER;
+//   silentRebootMagic = SILENT_REBOOT_MAGIC;
+//   LOG_DBG("MAIN", "Silent restart (target=reader)");
+//   delay(50);
+//   ESP.restart();
+// }
+
+void silentRestart(uint32_t target = SILENT_REBOOT_TARGET_HOME) {
+  silentRebootTarget = target;
   silentRebootMagic = SILENT_REBOOT_MAGIC;
-  LOG_DBG("MAIN", "Silent restart (target=reader)");
+  LOG_DBG("MAIN", "Silent restart (target=%d)", target);
   delay(50);
   ESP.restart();
 }
@@ -105,6 +115,7 @@ static bool backgroundServerKeepsWifiWhileAwake() {
          gpio.isUsbConnected();
 }
 
+// TODO: This can be refactored to be leaner
 void recoverHeapAfterWifi(const char* tag) {
   if (WiFi.getMode() == WIFI_MODE_NULL) {
     return;
@@ -139,6 +150,7 @@ void recoverHeapAfterWifi(const char* tag) {
 }
 
 namespace {
+
 constexpr char kCrossPointDataDir[] = "/.crosspoint";
 constexpr char kFactoryResetMarkerFile[] = "/.factory-reset-pending";
 constexpr char kUsbMscSessionMarkerFile[] = "/.crosspoint/usb-msc-active";
@@ -195,6 +207,7 @@ void enterSafeMode(const char* message) {
   renderSafeModeScreen(message);
 }
 
+// TODO: the prompt feature is not fully done
 void renderUsbMscPrompt() {
   renderer.clearScreen();
   renderer.drawCenteredText(UI_12_FONT_ID, 260, "Connect as Mass Storage?", true, EpdFontFamily::BOLD);
@@ -257,133 +270,6 @@ void applyPendingFactoryReset() {
   LOG_INF("RESET", "Factory reset completed from pending marker (cache cleared, user files preserved)");
 }
 }  // namespace
-
-// True if BG_WIFI.start() was called this wake — used by enterDeepSleep() to
-// decide whether to update the WiFi auto-connect backoff counters.
-static bool wifiAutoConnectAttempted = false;
-
-bool hasStaWifiConnection() {
-  const wifi_mode_t wifiMode = WiFi.getMode();
-  if ((wifiMode & WIFI_MODE_STA) == 0) {
-    return false;
-  }
-  return WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0);
-}
-
-static background_server::AutoConnectInput buildBackgroundWifiAutoConnectInput() {
-  const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
-  const WifiCredential* cred = lastSsid.empty() ? nullptr : WIFI_STORE.findCredential(lastSsid);
-
-  return background_server::AutoConnectInput{
-      .alwaysModeEnabled = SETTINGS.keepsBackgroundServerOnWifiWhileAwake(),
-      .waitingForNewCredential = APP_STATE.wifiAutoConnectWaitingForNewCredential,
-      .skipCount = APP_STATE.wifiAutoConnectSkipCount,
-      .lastConnectedSsid = lastSsid,
-      .hasCredentialForLastSsid = cred != nullptr,
-  };
-}
-
-static bool attemptBackgroundWifiAutoConnect(const char* logTag) {
-  const background_server::AutoConnectDecision decision =
-      background_server::evaluateAutoConnect(buildBackgroundWifiAutoConnectInput());
-
-  switch (decision.action) {
-    case background_server::AutoConnectAction::None:
-    case background_server::AutoConnectAction::SkipDueToBackoff:
-    case background_server::AutoConnectAction::NoLastSsid:
-      return false;
-    case background_server::AutoConnectAction::BlockedWaitingForCredential:
-      LOG_DBG(logTag, "WiFi auto-connect disabled until a new credential is added");
-      return false;
-    case background_server::AutoConnectAction::MissingCredentialForLastSsid: {
-      APP_STATE.wifiAutoConnectWaitingForNewCredential = true;
-      APP_STATE.wifiAutoConnectSkipCount = 0;
-      APP_STATE.wifiAutoConnectBackoffLevel = 0;
-      if (!APP_STATE.saveToFile()) {
-        LOG_WRN(logTag, "Failed to persist WiFi credential recovery state");
-      }
-      LOG_DBG(logTag,
-              "Saved WiFi credentials missing for last SSID; auto-connect disabled until a new credential is added");
-      return false;
-    }
-    case background_server::AutoConnectAction::StartWithLastCredential: {
-      const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
-      const WifiCredential* cred = WIFI_STORE.findCredential(lastSsid);
-      if (cred == nullptr) {
-        return false;
-      }
-      LOG_DBG(logTag, "Starting background WiFi auto-connect to: %s", lastSsid.c_str());
-      return BG_WIFI.start(cred->ssid.c_str(), cred->password.c_str());
-    }
-  }
-
-  return false;
-}
-
-void reconcileBackgroundWifiServer() {
-  enum class AlwaysBgServerState {
-    STATE_UNKNOWN,
-    STATE_RUNNING,
-    STATE_BACKOFF,
-    STATE_IDLE_NO_CREDENTIAL,
-    STATE_STOPPED
-  };
-
-  const bool alwaysEnabled = core::FeatureModules::hasCapability(core::Capability::BackgroundServer) &&
-                             SETTINGS.keepsBackgroundServerOnWifiWhileAwake();
-
-  static AlwaysBgServerState lastState = AlwaysBgServerState::STATE_UNKNOWN;
-  AlwaysBgServerState currentState = AlwaysBgServerState::STATE_STOPPED;
-
-  if (alwaysEnabled) {
-    if (BG_WIFI.isRunning()) {
-      currentState = AlwaysBgServerState::STATE_RUNNING;
-    } else if (BG_WIFI.isPendingOrRunning()) {
-      currentState = AlwaysBgServerState::STATE_BACKOFF;
-    } else {
-      const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
-      const WifiCredential* cred = lastSsid.empty() ? nullptr : WIFI_STORE.findCredential(lastSsid);
-      if (cred == nullptr) {
-        currentState = AlwaysBgServerState::STATE_IDLE_NO_CREDENTIAL;
-      }
-    }
-  }
-
-  if (currentState != lastState) {
-    if (currentState == AlwaysBgServerState::STATE_IDLE_NO_CREDENTIAL) {
-      LOG_WRN("MAIN", "bg server idle: no saved credential");
-    }
-    lastState = currentState;
-  }
-
-  const background_server::ReconcileDecision decision =
-      background_server::evaluateReconcile(background_server::ReconcileInput{
-          .backgroundWifiEnabled = core::FeatureModules::hasCapability(core::Capability::BackgroundServer) &&
-                                   SETTINGS.keepsBackgroundServerOnWifiWhileAwake(),
-          .blockedByActivity = activityManager.blocksBackgroundServer(),
-          .usbBackgroundServerRunning = backgroundServer.isRunning(),
-          .staConnected = hasStaWifiConnection(),
-          .bgWifiRunning = BG_WIFI.isRunning(),
-          .bgWifiPendingOrRunning = BG_WIFI.isPendingOrRunning(),
-          .wifiAutoConnectAttempted = wifiAutoConnectAttempted,
-      });
-
-  switch (decision.action) {
-    case background_server::ReconcileAction::None:
-      return;
-    case background_server::ReconcileAction::StopBgWifi:
-      BG_WIFI.stop(decision.stopKeepWifi);
-      return;
-    case background_server::ReconcileAction::StartUsingCurrentConnection:
-      BG_WIFI.startUsingCurrentConnection();
-      return;
-    case background_server::ReconcileAction::AttemptAutoConnect:
-      if (attemptBackgroundWifiAutoConnect("MAIN")) {
-        wifiAutoConnectAttempted = true;
-      }
-      return;
-  }
-}
 
 void refreshGlobalStatusBarOnWifiChange() {
   static bool lastStaConnected = hasStaWifiConnection();
@@ -505,13 +391,9 @@ static bool timedRefreshHasRenderableMode() {
 #endif
 
   if (needsTerminusFetch || needsNtpSync) {
-    if (attemptBackgroundWifiAutoConnect("TREFRESH")) {
-      // Wait for STA association (20 s cap)
-      const unsigned long wifiDeadline = millis() + 20000;
-      while (!hasStaWifiConnection() && millis() < wifiDeadline) {
-        delay(50);
-      }
-      if (hasStaWifiConnection()) {
+    BackgroundWifiCoordinator& wifiCoord = BackgroundWifiCoordinator::getInstance();
+    if (wifiCoord.beginTimedSleepAutoConnect("TREFRESH")) {
+      if (wifiCoord.waitForStaConnection(20000)) {
         if (needsNtpSync) {
           if (!TimeSync::syncTimeWithNtpLowMemory()) {
             LOG_WRN("TREFRESH", "NTP sync failed — rendering with potentially stale time");
@@ -528,9 +410,7 @@ static bool timedRefreshHasRenderableMode() {
       } else {
         LOG_WRN("TREFRESH", "WiFi association timed out — skipping network work");
       }
-      if (BG_WIFI.isRunning()) {
-        BG_WIFI.stop(true);
-      }
+      wifiCoord.endTimedSleepWifi();
     }
   }
 
@@ -555,33 +435,7 @@ void enterDeepSleep() {
   HalPowerManager::Lock powerLock;
   APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
 
-  // Update WiFi auto-connect backoff before sleeping (only if we attempted this wake)
-  if (wifiAutoConnectAttempted) {
-    const bool hadActivity = BG_WIFI.hadApiActivity();
-    if (BG_WIFI.isRunning()) {
-      BG_WIFI.stop();
-    }
-    if (hadActivity || SETTINGS.keepsBackgroundServerOnWifiWhileAwake()) {
-      // Successful sync, OR user explicitly chose Always mode: reset backoff
-      // so the server is available on the very next wake. Backing off in
-      // Always mode is the "not always on" bug — the user opted in to the
-      // battery cost; quiet wakes must not silently disable auto-connect.
-      APP_STATE.wifiAutoConnectBackoffLevel = 0;
-      APP_STATE.wifiAutoConnectSkipCount = 0;
-      LOG_DBG("MAIN", "WiFi auto-connect backoff reset (hadActivity=%d, always=%d)", hadActivity ? 1 : 0,
-              SETTINGS.keepsBackgroundServerOnWifiWhileAwake() ? 1 : 0);
-    } else {
-      // No push/pull received: increase backoff exponentially (cap at level 4 = 15 skips)
-      if (APP_STATE.wifiAutoConnectBackoffLevel < 4) {
-        APP_STATE.wifiAutoConnectBackoffLevel++;
-      }
-      APP_STATE.wifiAutoConnectSkipCount = (1U << APP_STATE.wifiAutoConnectBackoffLevel) - 1U;
-      LOG_DBG("MAIN", "WiFi no API activity — backoff level %d, next skip: %d", APP_STATE.wifiAutoConnectBackoffLevel,
-              APP_STATE.wifiAutoConnectSkipCount);
-    }
-  } else if (BG_WIFI.isRunning()) {
-    BG_WIFI.stop();
-  }
+  BackgroundWifiCoordinator::getInstance().onPrepareDeepSleep();
 
   if (!APP_STATE.saveToFile()) {
     LOG_WRN("MAIN", "Failed to persist app state before deep sleep");
@@ -821,20 +675,7 @@ void setup() {
     activityManager.goToReader(path);
   }
 
-  // WiFi auto-connect on boot or wake from sleep (background, silent).
-  // keepsBackgroundServerOnWifiWhileAwake() is true only for BACKGROUND_SERVER_ALWAYS,
-  // so the wokeFromSleep guard is intentionally omitted here — "always on" means every boot.
-  if (SETTINGS.keepsBackgroundServerOnWifiWhileAwake()) {
-    if (APP_STATE.wifiAutoConnectSkipCount > 0) {
-      APP_STATE.wifiAutoConnectSkipCount--;
-      if (!APP_STATE.saveToFile()) {
-        LOG_WRN("MAIN", "Failed to persist WiFi auto-connect backoff state");
-      }
-      LOG_DBG("MAIN", "WiFi auto-connect skipped (backoff remaining: %d)", APP_STATE.wifiAutoConnectSkipCount);
-    } else if (attemptBackgroundWifiAutoConnect("MAIN")) {
-      wifiAutoConnectAttempted = true;
-    }
-  }
+  BackgroundWifiCoordinator::getInstance().attemptBootAutoConnect();
 
   waitForPowerRelease();
 }
@@ -1020,7 +861,10 @@ void loop() {
     bgServerWasRunning = bgServerIsRunning;
   }
 
-  reconcileBackgroundWifiServer();
+  BackgroundWifiCoordinator::getInstance().reconcile(BackgroundWifiReconcileContext{
+      .blockedByActivity = activityManager.blocksBackgroundServer(),
+      .usbBackgroundServerRunning = backgroundServer.isRunning(),
+  });
 #if ENABLE_WIFI_CLOCK
   TimeSync::loop(hasStaWifiConnection());
 #endif

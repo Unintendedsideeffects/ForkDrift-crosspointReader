@@ -6,7 +6,7 @@
 
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "network/BackgroundWifiService.h"
+#include "network/background/BackgroundWifiService.h"
 
 void CrashActivity::onExit() {
   // Stop background WiFi before the activity stack transitions to prevent a

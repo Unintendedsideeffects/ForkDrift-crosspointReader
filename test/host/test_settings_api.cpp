@@ -4,8 +4,8 @@
 
 #include "CrossPointSettings.h"
 #include "doctest/doctest.h"
+#include "network/server/SettingsApply.h"
 #include "src/SettingInfo.h"
-#include "src/network/SettingsApply.h"
 
 // Exercises network::applySettingsToList — the pure value-application half of the
 // POST /api/settings path. It is split out of applySettingsJson precisely so it can

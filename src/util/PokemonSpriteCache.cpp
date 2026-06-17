@@ -7,7 +7,7 @@
 
 #include <string>
 
-#include "network/HttpDownloader.h"
+#include "network/http/HttpDownloader.h"
 
 namespace {
 constexpr char kPokemonDir[] = "/.crosspoint/pokemon";

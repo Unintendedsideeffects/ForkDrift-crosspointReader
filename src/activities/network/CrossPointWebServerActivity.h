@@ -7,7 +7,7 @@
 
 #include "NetworkModeSelectionActivity.h"
 #include "activities/Activity.h"
-#include "network/CrossPointWebServer.h"
+#include "network/server/CrossPointWebServer.h"
 
 // Web server activity states
 enum class WebServerActivityState {

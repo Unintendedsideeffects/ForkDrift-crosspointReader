@@ -16,7 +16,7 @@
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "network/HttpDownloader.h"
+#include "network/http/HttpDownloader.h"
 #include "util/LibraryShelfStore.h"
 #include "util/StringUtils.h"
 #include "util/UrlUtils.h"

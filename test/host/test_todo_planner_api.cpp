@@ -1,5 +1,5 @@
 #include "doctest/doctest.h"
-#include "network/TodoPlannerApi.h"
+#include "network/server/TodoPlannerApi.h"
 #include "test/mock/HalStorage.h"
 
 TEST_CASE("testTodoEntryRequestValidation") {

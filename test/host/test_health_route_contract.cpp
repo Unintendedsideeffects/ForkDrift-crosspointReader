@@ -5,7 +5,7 @@
 #include "doctest/doctest.h"
 
 TEST_CASE("health route is a fixed unauthenticated availability contract") {
-  std::ifstream source("src/network/StaticHandlers.cpp");
+  std::ifstream source("src/network/server/StaticHandlers.cpp");
   REQUIRE(source.good());
 
   std::ostringstream buffer;

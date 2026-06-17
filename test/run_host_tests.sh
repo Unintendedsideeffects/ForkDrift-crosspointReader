@@ -77,11 +77,11 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/test/host/"*.cpp \
   "$ROOT_DIR/lib/OpdsParser/OpenSearchParser.cpp" \
   "$ROOT_DIR/lib/OpdsParser/OpdsParser.cpp" \
-  "$ROOT_DIR/src/network/BleCredentialParser.cpp" \
-  "$ROOT_DIR/src/network/AssetReadApi.cpp" \
-  "$ROOT_DIR/src/network/FileListApi.cpp" \
-  "$ROOT_DIR/src/network/FileMutationApi.cpp" \
-  "$ROOT_DIR/src/network/FileReadApi.cpp" \
+  "$ROOT_DIR/src/network/wifi/BleCredentialParser.cpp" \
+  "$ROOT_DIR/src/network/server/AssetReadApi.cpp" \
+  "$ROOT_DIR/src/network/server/FileListApi.cpp" \
+  "$ROOT_DIR/src/network/server/FileMutationApi.cpp" \
+  "$ROOT_DIR/src/network/server/FileReadApi.cpp" \
   "$ROOT_DIR/lib/FsHelpers/FsHelpers.cpp" \
   "$ROOT_DIR/lib/I18n/I18n.cpp" \
   "$ROOT_DIR/lib/I18n/I18nStrings.cpp" \
@@ -89,17 +89,17 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/Markdown/MarkdownPreprocessor.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownParser.cpp" \
   "$ROOT_DIR/src/core/features/FeatureCatalog.cpp" \
-  "$ROOT_DIR/src/network/ReadingDataApi.cpp" \
-  "$ROOT_DIR/src/network/RemoteControlApi.cpp" \
-  "$ROOT_DIR/src/network/SleepCoverApi.cpp" \
-  "$ROOT_DIR/src/network/SettingsSnapshotApi.cpp" \
-  "$ROOT_DIR/src/network/NotesApi.cpp" \
-  "$ROOT_DIR/src/network/TodoPlannerApi.cpp" \
+  "$ROOT_DIR/src/network/server/ReadingDataApi.cpp" \
+  "$ROOT_DIR/src/network/server/RemoteControlApi.cpp" \
+  "$ROOT_DIR/src/network/server/SleepCoverApi.cpp" \
+  "$ROOT_DIR/src/network/server/SettingsSnapshotApi.cpp" \
+  "$ROOT_DIR/src/network/server/NotesApi.cpp" \
+  "$ROOT_DIR/src/network/server/TodoPlannerApi.cpp" \
   "$ROOT_DIR/src/activities/todo/TodoPlannerStorage.cpp" \
   "$ROOT_DIR/src/features/pokemon_party/Registration.cpp" \
   "$ROOT_DIR/src/features/remote_keyboard_input/Registration.cpp" \
-  "$ROOT_DIR/src/network/RemoteKeyboardSession.cpp" \
-  "$ROOT_DIR/src/network/RecentBookJson.cpp" \
+  "$ROOT_DIR/src/network/server/RemoteKeyboardSession.cpp" \
+  "$ROOT_DIR/src/network/server/RecentBookJson.cpp" \
   "$ROOT_DIR/src/util/ForkDriftNavigation.cpp" \
   "$ROOT_DIR/src/util/BookProgressDataStore.cpp" \
   "$ROOT_DIR/src/util/InputValidation.cpp" \
@@ -113,7 +113,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/PokemonTeamStore.cpp" \
   "$ROOT_DIR/src/util/RecentBooksStore.cpp" \
   "$ROOT_DIR/src/CrossPointSettings.cpp" \
-  "$ROOT_DIR/src/network/BackgroundServerPolicy.cpp" \
+  "$ROOT_DIR/src/network/background/BackgroundServerPolicy.cpp" \
   "$ROOT_DIR/src/BookmarkStore.cpp" \
   "$ROOT_DIR/lib/Xtc/Xtc/XtcParser.cpp" \
   "$ROOT_DIR/test/mock/FeatureModuleHooks.cpp" \
@@ -123,7 +123,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/GfxRenderer/Bitmap.cpp" \
   "$ROOT_DIR/lib/GfxRenderer/BitmapHelpers.cpp" \
   "$ROOT_DIR/src/util/FirmwareUpdateHelpers.cpp" \
-  "$ROOT_DIR/src/network/SettingsApply.cpp" \
+  "$ROOT_DIR/src/network/server/SettingsApply.cpp" \
   "$BUILD_DIR/md4c.o" \
   "$BUILD_DIR/entity.o" \
   -lexpat \

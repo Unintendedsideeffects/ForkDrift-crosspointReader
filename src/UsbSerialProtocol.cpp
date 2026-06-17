@@ -20,10 +20,10 @@
 #include "core/features/FeatureModules.h"
 #include "esp_ota_ops.h"
 #if ENABLE_REMOTE_CONTROL
-#include "network/RemoteControlApi.h"
+#include "network/server/RemoteControlApi.h"
 #endif
-#include "network/NotesApi.h"
-#include "network/RemoteKeyboardSession.h"
+#include "network/server/NotesApi.h"
+#include "network/server/RemoteKeyboardSession.h"
 #include "util/BookProgressDataStore.h"
 #include "util/DateUtils.h"
 #include "util/PathUtils.h"
