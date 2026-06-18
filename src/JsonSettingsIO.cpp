@@ -154,6 +154,8 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
       std::clamp(doc["sleepTimeoutMinutes"] | (uint8_t)10, S::MIN_SLEEP_TIMEOUT_MINUTES, S::MAX_SLEEP_TIMEOUT_MINUTES);
   s.refreshFrequency =
       clamp(doc["refreshFrequency"] | (uint8_t)S::REFRESH_15, S::REFRESH_FREQUENCY_COUNT, S::REFRESH_15);
+  s.opdsFilenameFormat = clamp(doc["opdsFilenameFormat"] | (uint8_t)S::OPDS_FILENAME_AUTHOR_TITLE,
+                               S::OPDS_FILENAME_FORMAT_COUNT, S::OPDS_FILENAME_AUTHOR_TITLE);
   s.screenMargin = doc["screenMargin"] | (uint8_t)5;
   s.hideBatteryPercentage =
       clamp(doc["hideBatteryPercentage"] | (uint8_t)S::HIDE_NEVER, S::HIDE_BATTERY_PERCENTAGE_COUNT, S::HIDE_NEVER);
@@ -321,6 +323,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["paragraphAlignment"] = s.paragraphAlignment;
   doc["sleepTimeoutMinutes"] = s.sleepTimeoutMinutes;
   doc["refreshFrequency"] = s.refreshFrequency;
+  doc["opdsFilenameFormat"] = s.opdsFilenameFormat;
   doc["screenMargin"] = s.screenMargin;
   doc["hideBatteryPercentage"] = s.hideBatteryPercentage;
   doc["longPressButtonBehavior"] = s.longPressButtonBehavior;

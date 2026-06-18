@@ -229,6 +229,11 @@ class CrossPointSettings {
     BACKGROUND_SERVER_ALWAYS = 2,
     BACKGROUND_SERVER_MODE_COUNT
   };
+  enum OPDS_FILENAME_FORMAT {
+    OPDS_FILENAME_AUTHOR_TITLE = 0,
+    OPDS_FILENAME_TITLE_AUTHOR = 1,
+    OPDS_FILENAME_FORMAT_COUNT
+  };
 
   enum GLOBAL_STATUS_BAR_MODE {
     GLOBAL_STATUS_BAR_OFF = 0,
@@ -337,6 +342,8 @@ class CrossPointSettings {
   uint8_t sleepTimeoutMinutes = 10;
   // E-ink refresh frequency (default 15 pages)
   uint8_t refreshFrequency = REFRESH_15;
+  // OPDS download filename format (default: Author - Title)
+  uint8_t opdsFilenameFormat = OPDS_FILENAME_AUTHOR_TITLE;
   uint8_t hyphenationEnabled = 0;
   uint8_t showButtonHints = 1;
 

@@ -66,6 +66,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.paragraphAlignment = CrossPointSettings::CENTER_ALIGN;
   s.sleepTimeoutMinutes = 23;
   s.refreshFrequency = CrossPointSettings::REFRESH_10;
+  s.opdsFilenameFormat = CrossPointSettings::OPDS_FILENAME_TITLE_AUTHOR;
   s.hyphenationEnabled = 1;
   s.showButtonHints = 0;
   s.screenMargin = 12;
@@ -114,6 +115,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.paragraphAlignment = CrossPointSettings::JUSTIFIED;
   s.sleepTimeoutMinutes = 10;
   s.refreshFrequency = CrossPointSettings::REFRESH_15;
+  s.opdsFilenameFormat = CrossPointSettings::OPDS_FILENAME_AUTHOR_TITLE;
   s.hyphenationEnabled = 0;
   s.showButtonHints = 1;
   s.screenMargin = 5;
@@ -155,6 +157,7 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(s.paragraphAlignment == CrossPointSettings::CENTER_ALIGN);
   CHECK(s.sleepTimeoutMinutes == 23);
   CHECK(s.refreshFrequency == CrossPointSettings::REFRESH_10);
+  CHECK(s.opdsFilenameFormat == CrossPointSettings::OPDS_FILENAME_TITLE_AUTHOR);
   CHECK(s.hyphenationEnabled == 1);
   CHECK(s.showButtonHints == 0);
   CHECK(s.screenMargin == 12);
@@ -209,6 +212,35 @@ TEST_CASE("testBackgroundServerModeClamping") {
 
   s.setBackgroundServerMode(CrossPointSettings::BACKGROUND_SERVER_NEVER);
   CHECK(s.getBackgroundServerMode() == CrossPointSettings::BACKGROUND_SERVER_NEVER);
+
+  s.opdsFilenameFormat = CrossPointSettings::OPDS_FILENAME_FORMAT_COUNT;
+  s.validateAndClamp();
+  CHECK(s.opdsFilenameFormat == CrossPointSettings::OPDS_FILENAME_AUTHOR_TITLE);
+}
+
+TEST_CASE("testOpdsFilenameFormatSettingSchema") {
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+  const auto settings = getSettingsList();
+  const SettingInfo* filenameSetting = findSettingByKey(settings, "opdsFilenameFormat");
+
+#if ENABLE_OPDS
+  REQUIRE(filenameSetting != nullptr);
+  REQUIRE(filenameSetting->dynamicValuesGetter != nullptr);
+  REQUIRE(filenameSetting->valueGetter != nullptr);
+  REQUIRE(filenameSetting->valueSetter != nullptr);
+
+  const auto labels = filenameSetting->dynamicValuesGetter();
+  REQUIRE(labels.size() == CrossPointSettings::OPDS_FILENAME_FORMAT_COUNT);
+  CHECK(labels[CrossPointSettings::OPDS_FILENAME_AUTHOR_TITLE] == "Author - Title");
+  CHECK(labels[CrossPointSettings::OPDS_FILENAME_TITLE_AUTHOR] == "Title - Author");
+
+  s.opdsFilenameFormat = CrossPointSettings::OPDS_FILENAME_AUTHOR_TITLE;
+  CHECK(filenameSetting->persistedValue() == CrossPointSettings::OPDS_FILENAME_AUTHOR_TITLE);
+  filenameSetting->activateOption(CrossPointSettings::OPDS_FILENAME_TITLE_AUTHOR);
+  CHECK(s.opdsFilenameFormat == CrossPointSettings::OPDS_FILENAME_TITLE_AUTHOR);
+#else
+  CHECK(filenameSetting == nullptr);
+#endif
 }
 
 TEST_CASE("testQuickActionClampingAndSettingsWiring") {

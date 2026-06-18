@@ -156,7 +156,7 @@ void renderBookStatsView(GfxRenderer& renderer, const MappedInputManager* mapped
   }
 
   if (showButtonHints && mappedInput) {
-    const auto labels = mappedInput->mapLabels(tr(STR_BACK), "", "", "");
+    const auto labels = mappedInput->mapLabels(tr(STR_BACK), "Profile", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   }
 }

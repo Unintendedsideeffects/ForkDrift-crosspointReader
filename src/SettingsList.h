@@ -33,6 +33,10 @@ inline std::vector<std::string> backgroundServerModeOptions() {
   return options;
 }
 
+inline std::vector<std::string> opdsFilenameFormatOptions() {
+  return {"Author - Title", "Title - Author"};
+}
+
 inline uint8_t getBackgroundServerModeSettingIndex() {
   const uint8_t mode = SETTINGS.getBackgroundServerMode();
   if (supportsBackgroundServerAlwaysSetting()) {
@@ -678,6 +682,17 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
            {StrId::STR_PAGES_1, StrId::STR_PAGES_5, StrId::STR_PAGES_10, StrId::STR_PAGES_15, StrId::STR_PAGES_30},
            "refreshFrequency", StrId::STR_CAT_DISPLAY)
            .withConfiguratorExport());
+  if (core::FeatureModules::hasCapability(core::Capability::CalibreSync)) {
+    emit(SettingInfo::DynamicEnum(
+             StrId::STR_FILENAME, {}, [] { return SETTINGS.opdsFilenameFormat; },
+             [](uint8_t value) {
+               SETTINGS.opdsFilenameFormat = value < CrossPointSettings::OPDS_FILENAME_FORMAT_COUNT
+                                                   ? value
+                                                   : CrossPointSettings::OPDS_FILENAME_AUTHOR_TITLE;
+             },
+             "opdsFilenameFormat", StrId::STR_CAT_SYSTEM, opdsFilenameFormatOptions)
+             .withConfiguratorExport("calibre_sync"));
+  }
   // Build options with explicit enum-value mapping so position != value assumptions
   // don't break when individual themes are optionally included or excluded.
   emit([] {

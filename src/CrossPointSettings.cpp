@@ -509,6 +509,7 @@ void CrossPointSettings::validateAndClamp() {
   if (lineSpacing > WIDE) lineSpacing = NORMAL;
   if (paragraphAlignment >= PARAGRAPH_ALIGNMENT_COUNT) paragraphAlignment = JUSTIFIED;
   if (refreshFrequency > REFRESH_30) refreshFrequency = REFRESH_15;
+  if (opdsFilenameFormat >= OPDS_FILENAME_FORMAT_COUNT) opdsFilenameFormat = OPDS_FILENAME_AUTHOR_TITLE;
   if (shortPwrBtn >= SHORT_PWRBTN_COUNT || !isShortPowerButtonActionSupported(shortPwrBtn)) shortPwrBtn = IGNORE;
   if (longPwrBtn >= SHORT_PWRBTN_COUNT || !isShortPowerButtonActionSupported(longPwrBtn)) longPwrBtn = IGNORE;
 #if ENABLE_DOUBLE_TAP_ACTION

@@ -15,6 +15,7 @@
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
+#include "CrossPointSettings.h"
 #include "fontIds.h"
 #include "network/http/HttpDownloader.h"
 #include "util/LibraryShelfStore.h"
@@ -23,7 +24,13 @@
 
 namespace {
 constexpr int PAGE_ITEMS = 23;
+
+OpdsFilename::Format configuredOpdsFilenameFormat() {
+  return SETTINGS.opdsFilenameFormat == CrossPointSettings::OPDS_FILENAME_TITLE_AUTHOR
+             ? OpdsFilename::Format::TitleAuthor
+             : OpdsFilename::Format::AuthorTitle;
 }
+}  // namespace
 
 void OpdsBookBrowserActivity::onEnter() {
   Activity::onEnter();
@@ -303,8 +310,7 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   // Build full download URL relative to the current feed, not the root server URL
   const std::string feedUrl = UrlUtils::buildUrl(server.url, currentPath);
   std::string downloadUrl = UrlUtils::buildUrl(feedUrl, book.href);
-  std::string filename =
-      "/" + OpdsFilename::format(book.title, book.author, OpdsFilename::Format::AuthorTitle, ".epub");
+  std::string filename = "/" + OpdsFilename::format(book.title, book.author, configuredOpdsFilenameFormat(), ".epub");
   LOG_DBG("OPDS", "Downloading: %s -> %s", downloadUrl.c_str(), filename.c_str());
 
   const auto result = HttpDownloader::downloadToFile(

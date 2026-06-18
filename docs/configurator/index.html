@@ -740,7 +740,8 @@
         margin-left: 5px;
       }
 
-      .card-crossink-badge {
+      .card-crossink-badge,
+      .card-cpr-vortex-badge {
         display: inline-block;
         font-family: 'Silkscreen', monospace;
         font-size: 7px;
@@ -752,6 +753,10 @@
         letter-spacing: 0.06em;
         vertical-align: middle;
         margin-left: 5px;
+      }
+
+      .card-cpr-vortex-badge {
+        background: var(--dk);
       }
 
       /* ── Note items (roadmap/annotations) ── */
@@ -3000,7 +3005,7 @@
                       <div class="card-body">
                         <div class="card-name">OPDS Support</div>
                         <div class="card-size"></div>
-                        <div class="card-desc">Browse and download books from OPDS catalogs, including Calibre wireless libraries</div>
+                        <div class="card-desc">Browse and download OPDS books with configurable Author/Title filename order</div>
                       </div>
                       <div class="card-toggle"><span class="toggle-box"></span></div>
                     </label>
@@ -3682,6 +3687,11 @@
           flag: "ENABLE_LYRA_THEME",
           default: true,
         },
+        flow_theme: {
+          sizeKb: 14,
+          flag: "ENABLE_FLOW_THEME",
+          default: false,
+        },
         ota_updates: {
           sizeKb: 3,
           flag: "ENABLE_OTA_UPDATES",
@@ -3696,6 +3706,16 @@
           sizeKb: 10,
           flag: "ENABLE_REMOTE_KEYBOARD_INPUT",
           default: true,
+        },
+        ble_page_turner: {
+          sizeKb: 45,
+          flag: "ENABLE_BLE_PAGE_TURNER",
+          default: false,
+        },
+        lua_plugins: {
+          sizeKb: 80,
+          flag: "ENABLE_LUA_PLUGINS",
+          default: false,
         },
         todo_planner: {
           sizeKb: 16,
@@ -3741,6 +3761,11 @@
           sizeKb: 15,
           flag: "ENABLE_USB_MASS_STORAGE",
           default: true,
+        },
+        global_landscape: {
+          sizeKb: 2,
+          flag: "ENABLE_GLOBAL_LANDSCAPE",
+          default: false,
         },
         wifi_clock: {
           sizeKb: 2,
@@ -3803,7 +3828,7 @@
         markdown: "Adds a lightweight Markdown renderer so plain .md files can be opened and read as if they were books. Supports headings, bold/italic, lists, blockquotes, and code spans. Adds ~191 KB to the binary.",
         integrations: "Shared runtime layer that enables cloud-service plugins. Required by KOReader Sync and OPDS Support — it handles HTTP connections, JSON serialisation, and retry logic. No UI of its own; other features depend on it.",
         koreader_sync: "Syncs reading position with a KOReader Companion server (e.g. Kavita or a self-hosted KOSync instance). On book open, fetches the last-synced position; on exit, pushes the current page. Requires Integrations.",
-        calibre_sync: "OPDS catalog browser on the device for Calibre wireless libraries and other OPDS servers. Requires Integrations; enables BookLore Support automatically.",
+        calibre_sync: "OPDS catalog browser on the device for Calibre wireless libraries and other OPDS servers, with configurable Author - Title or Title - Author download filenames. Requires Integrations; enables BookLore Support automatically.",
         opds: "BookLore server integration for OPDS browsing and downloads. Always enabled when OPDS Support is on.",
         background_server: "A lightweight HTTP server that runs alongside the reader over WiFi. Powers file transfer, remote control APIs, and the web UI. Launching it takes a few seconds; auto-start modes avoid that delay.",
         background_server_on_charge: "Automatically starts the Background Server whenever the device is connected to a charger. Lets the device act as a wireless book-drop station with no manual steps while it sits on your desk.",
@@ -3816,8 +3841,11 @@
         hyphenation: "Automatic hyphenation using a compressed Knuth–Liang dictionary. Reduces excessive whitespace in justified text, particularly noticeable in narrow columns or landscape mode. Adds ~350 KB for the dictionary data.",
         xtc_support: "Reads .xtc (CrossPoint Theme Config) sidecar files placed alongside books on the SD card. Overrides per-book font, margins, and theme without changing global settings. Lightweight but niche.",
         lyra_theme: "The Lyra visual theme — refined typography scale, softer borders, and consistent iconography. Disabling it falls back to the base pixel-art UI. Recommended on for all builds.",
+        flow_theme: "Flow UI theme with a Casio-style today stats clock and 3D cover layout. Requires Home Media Picker.",
         ota_updates: "Over-the-air firmware updates via the Background Server's web UI. Streams the binary directly to flash without a USB cable. Includes a verification step before commit; safe to enable in all builds.",
         remote_keyboard_input: "Turns the Android companion app or any phone browser into a keyboard for device text-entry prompts (WiFi passwords, search fields). Prefers the Android app; falls back to a QR-code web page; can start a local hotspot if no WiFi is available.",
+        ble_page_turner: "BLE HID keyboard mode for remotely turning pages from iOS and Android devices.",
+        lua_plugins: "Dynamic Lua 5.4 scripting VM and plugin system loaded from the SD card.",
         todo_planner: "A minimal to-do list accessible from the nav bar. Items persist to the SD card. Useful for reading notes, wish lists, or errand reminders without leaving the device. When Notes is also enabled, Planner becomes the unified home-screen surface while Notes remains available through API and sleep-screen modes. Adds ~15 KB.",
         notes: "A lightweight line-based notes store backed by /notes.txt. Adds a standalone home-screen Notes app when Planner is disabled, exposes /api/notes endpoints and USB notes_add, and can render notes as a dedicated sleep screen.",
         anki_support: "Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop. Adds ~10 KB.",
@@ -3827,6 +3855,7 @@
         user_fonts: "Load custom SD-card fonts from /fonts or /.fonts. Use the official CrossPoint Font Manager to convert TTF/OTF families into .cpfont files, then upload them from the device's Fonts page or copy them to the SD card. Upstream currently marks this flow as beta-firmware only.",
         web_wifi_setup: "A captive-portal style WiFi setup wizard served from the Background Server. Scan a QR code, enter credentials, and the device connects — no app required. Small footprint (~3 KB).",
         usb_mass_storage: "Exposes the SD card as a USB mass-storage device when connected to a computer. Lets you drag-and-drop books without a network. The SD card is unmounted from the firmware while in this mode.",
+        global_landscape: "Rotates the entire UI to landscape, including menus, settings, and library screens.",
         wifi_clock: "Shows a 24-hour Roman-numeral quarter-hour clock label in the ForkDrift home header and global status bar when system time is available. The minute marker is blank for :00, I for :15, II for :30, and III for :45. While connected to WiFi, it syncs time by NTP and refreshes the display every 15 minutes.",
         roman_clock_sleep: "Adds a dedicated sleep-screen mode that renders the WiFi Clock time as large block Roman numerals. It reuses the same NTP-backed quarter-hour Roman label as the header/status clock and only appears when both this feature and WiFi Clock are enabled.",
         haiku_clock_sleep: "Adds a dedicated sleep-screen mode that displays quarter-hourly, syllable-accurate, time-mentioning haikus. The haiku changes every 15 minutes, with three days worth of unique variations in total. Requires WiFi Clock.",
@@ -3861,6 +3890,7 @@
         web_wifi_setup: ["background_server"],
         ble_wifi_provisioning: ["web_wifi_setup"],
         lyra_theme: ["home_media_picker"],
+        flow_theme: ["home_media_picker"],
         visual_cover_picker: ["home_media_picker"],
         pokemon_wallpaper_plugin: ["image_sleep"],
         roman_clock_sleep: ["wifi_clock"],
@@ -3885,6 +3915,8 @@
 
       // Features ported from the crossink fork — shown with a "crossink" badge.
       const CROSSINK_FEATURES = new Set(["lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "reading_stats", "minimal_theme", "focus_reading", "guide_dots"]);
+      // Features ported from the CPR-Vortex fork — shown with a "cpr-vortex" badge.
+      const CPR_VORTEX_FEATURES = new Set(["calibre_sync"]);
 
       const PROFILES = {
         lean: {},
@@ -3897,6 +3929,7 @@
           hyphenation: true,
           xtc_support: true,
           lyra_theme: true,
+          flow_theme: true,
           ota_updates: true,
           remote_control: true,
           remote_keyboard_input: true,
@@ -3929,9 +3962,11 @@
           hyphenation: true,
           xtc_support: true,
           lyra_theme: true,
+          flow_theme: true,
           ota_updates: true,
           remote_control: true,
           remote_keyboard_input: true,
+          ble_page_turner: true,
           wifi_clock: true,
           roman_clock_sleep: true,
           haiku_clock_sleep: true,
@@ -3958,6 +3993,7 @@
           minimal_theme: true,
           focus_reading: true,
           guide_dots: true,
+          global_landscape: true,
         },
       };
 
@@ -4596,6 +4632,18 @@
           const badge = document.createElement("span");
           badge.className = "card-crossink-badge";
           badge.textContent = "crossink";
+          nameEl.appendChild(badge);
+        });
+      }
+
+      function stampCprVortexBadges() {
+        document.querySelectorAll(".skill-card[data-feature]").forEach((card) => {
+          if (!CPR_VORTEX_FEATURES.has(card.dataset.feature)) return;
+          const nameEl = card.querySelector(".card-name");
+          if (!nameEl || nameEl.querySelector(".card-cpr-vortex-badge")) return;
+          const badge = document.createElement("span");
+          badge.className = "card-cpr-vortex-badge";
+          badge.textContent = "cpr-vortex";
           nameEl.appendChild(badge);
         });
       }
@@ -6967,6 +7015,7 @@
       setupSettingsTab();
       initPresetDownloadLinks();
       stampCrossinkBadges();
+      stampCprVortexBadges();
       const initialState = parseInitialStateFromUrl();
       baseProfile = initialState.initialProfile;
       initialSelections = Object.assign({}, initialState.selections);

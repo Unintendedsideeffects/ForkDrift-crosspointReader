@@ -70,6 +70,8 @@ FEATURES = [
     'minimal_theme',
     'focus_reading',
     'guide_dots',
+    'global_landscape',
+    'lua_plugins',
     # --- Depend on features above ---
     'opendyslexic_fonts',       # requires at least one full-charset font family
     'lexenddeca_fonts',         # font family feature
@@ -82,9 +84,11 @@ FEATURES = [
     'pokemon_wallpaper_plugin', # requires: image_sleep
     'hyphenation',              # requires: epub_support
     'lyra_theme',               # requires: home_media_picker
+    'flow_theme',               # requires: home_media_picker
     'visual_cover_picker',      # requires: home_media_picker
     'web_wifi_setup',           # requires: background_server
     'ble_wifi_provisioning',    # requires: web_wifi_setup (→ background_server)
+    'ble_page_turner',          # standalone BLE HID page-turn peripheral
     'roman_clock_sleep',        # requires: wifi_clock
     'haiku_clock_sleep',        # requires: wifi_clock
 ]
