@@ -18,7 +18,7 @@
 #include "fontIds.h"
 #include "network/http/HttpDownloader.h"
 #include "util/LibraryShelfStore.h"
-#include "util/StringUtils.h"
+#include "util/OpdsFilename.h"
 #include "util/UrlUtils.h"
 
 namespace {
@@ -304,7 +304,7 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   const std::string feedUrl = UrlUtils::buildUrl(server.url, currentPath);
   std::string downloadUrl = UrlUtils::buildUrl(feedUrl, book.href);
   std::string filename =
-      "/" + StringUtils::sanitizeFilename((book.author.empty() ? "" : book.author + " - ") + book.title) + ".epub";
+      "/" + OpdsFilename::format(book.title, book.author, OpdsFilename::Format::AuthorTitle, ".epub");
   LOG_DBG("OPDS", "Downloading: %s -> %s", downloadUrl.c_str(), filename.c_str());
 
   const auto result = HttpDownloader::downloadToFile(

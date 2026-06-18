@@ -106,12 +106,14 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/PathUtils.cpp" \
   "$ROOT_DIR/src/util/UrlUtils.cpp" \
   "$ROOT_DIR/src/util/StringUtils.cpp" \
+  "$ROOT_DIR/src/util/OpdsFilename.cpp" \
   "$ROOT_DIR/lib/Utf8/Utf8.cpp" \
   "$ROOT_DIR/src/util/PokemonBookDataStore.cpp" \
   "$ROOT_DIR/src/util/PokemonProgress.cpp" \
   "$ROOT_DIR/src/util/PokemonPartySprites.cpp" \
   "$ROOT_DIR/src/util/PokemonTeamStore.cpp" \
   "$ROOT_DIR/src/util/RecentBooksStore.cpp" \
+  "$ROOT_DIR/src/util/FlashcardsStore.cpp" \
   "$ROOT_DIR/src/CrossPointSettings.cpp" \
   "$ROOT_DIR/src/network/background/BackgroundServerPolicy.cpp" \
   "$ROOT_DIR/src/BookmarkStore.cpp" \
@@ -125,6 +127,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/FirmwareUpdateHelpers.cpp" \
   "$ROOT_DIR/src/network/server/SettingsApply.cpp" \
   "$ROOT_DIR/src/activities/reader/ReadingStatsStore.cpp" \
+  "$ROOT_DIR/src/activities/reader/ReadingStatsAnalytics.cpp" \
   "$ROOT_DIR/src/activities/reader/BookReadingStats.cpp" \
   "$ROOT_DIR/src/activities/reader/GlobalReadingStats.cpp" \
   "$BUILD_DIR/md4c.o" \
