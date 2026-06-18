@@ -964,6 +964,11 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
              StrId::STR_CAT_SYSTEM, [] { return backgroundServerModeOptions(); })
              .withConfiguratorExport("background_server_on_charge")
              .withEnumOptionFeatureKeys({nullptr, nullptr, "background_server_always"}));
+#if ENABLE_WIFI_CLOCK
+    emit(SettingInfo::Toggle(StrId::STR_CLOCK_SYNC, &CrossPointSettings::autoSyncDayOnBackgroundPing,
+                             "autoSyncDayOnBackgroundPing", StrId::STR_CAT_SYSTEM)
+             .withConfiguratorExport("wifi_clock"));
+#endif
   }
 
   // Device name for mDNS/DHCP/AP SSID. Editable on-device via keyboard (STRING handler).

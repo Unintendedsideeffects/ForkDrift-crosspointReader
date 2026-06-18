@@ -366,6 +366,8 @@ class CrossPointSettings {
   uint8_t timeMode = TIME_MODE_UTC;
   // Timezone offset index: 0 = UTC-12, 12 = UTC+0, 26 = UTC+14
   uint8_t timeZoneOffset = 12;
+  // Opt-in: request a non-blocking NTP refresh when the background web UI is used.
+  uint8_t autoSyncDayOnBackgroundPing = 0;
   // Last successful NTP sync (epoch seconds, UTC)
   uint32_t lastTimeSyncEpoch = 0;
   // OTA release channel selection

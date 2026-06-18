@@ -31,6 +31,11 @@ void loop(bool wifiConnected);
 // immediate NTP refresh so the clock is corrected when a user is connected.
 void noteWebUiAccess(bool wifiConnected);
 
+// Called when an always-on/on-charge background server is actively contacted.
+// Opt-in via settings; returns immediately and only schedules the existing
+// background NTP path.
+void noteBackgroundServerAccess(bool wifiConnected);
+
 // Sets the system clock to the given epoch and persists it.
 // Used by the /api/time endpoint (manual time mode).
 void setManualTime(std::time_t epoch);

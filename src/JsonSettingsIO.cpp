@@ -171,6 +171,7 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
   s.timeMode = clamp(doc["timeMode"] | (uint8_t)S::TIME_MODE_UTC, static_cast<uint8_t>(S::TIME_MODE_MANUAL + 1),
                      S::TIME_MODE_UTC);
   s.timeZoneOffset = doc["timeZoneOffset"] | (uint8_t)12;
+  s.autoSyncDayOnBackgroundPing = doc["autoSyncDayOnBackgroundPing"] | (uint8_t)0;
   s.lastTimeSyncEpoch = doc["lastTimeSyncEpoch"] | (uint32_t)0;
   s.releaseChannel =
       clamp(doc["releaseChannel"] | (uint8_t)S::RELEASE_STABLE, S::RELEASE_CHANNEL_COUNT, S::RELEASE_STABLE);
@@ -333,6 +334,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
   doc["timeMode"] = s.timeMode;
   doc["timeZoneOffset"] = s.timeZoneOffset;
+  doc["autoSyncDayOnBackgroundPing"] = s.autoSyncDayOnBackgroundPing;
   doc["lastTimeSyncEpoch"] = s.lastTimeSyncEpoch;
   doc["releaseChannel"] = s.releaseChannel;
   doc["uiTheme"] = s.uiTheme;

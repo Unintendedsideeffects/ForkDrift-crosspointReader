@@ -557,6 +557,7 @@ void CrossPointSettings::validateAndClamp() {
   statusBarBattery = statusBarBattery ? 1 : 0;
   backgroundServerOnCharge = backgroundServerOnCharge ? 1 : 0;
   wifiAutoConnect = wifiAutoConnect ? 1 : 0;
+  autoSyncDayOnBackgroundPing = autoSyncDayOnBackgroundPing ? 1 : 0;
   if (!supportsBackgroundServerOnChargeMode()) {
     backgroundServerOnCharge = 0;
   }
@@ -718,7 +719,7 @@ std::string base64Encode(const uint8_t* data, size_t len) {
 }  // namespace
 
 std::string CrossPointSettings::getCondensedSettings() const {
-  uint8_t buffer[64];
+  uint8_t buffer[65];
   buffer[0] = 0x01;  // Version 1
 
   buffer[1] = sleepScreen;
@@ -784,6 +785,7 @@ std::string CrossPointSettings::getCondensedSettings() const {
   buffer[61] = globalStatusBar;
   buffer[62] = globalStatusBarPosition;
   buffer[63] = language;
+  buffer[64] = autoSyncDayOnBackgroundPing;
 
   return base64Encode(buffer, sizeof(buffer));
 }

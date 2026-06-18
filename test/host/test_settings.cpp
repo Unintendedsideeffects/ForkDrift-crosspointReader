@@ -76,6 +76,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.backgroundServerOnCharge = CrossPointSettings::supportsBackgroundServerOnChargeMode() ? 1 : 0;
   s.timeMode = CrossPointSettings::TIME_MODE_LOCAL;
   s.timeZoneOffset = 14;
+  s.autoSyncDayOnBackgroundPing = 1;
   s.lastTimeSyncEpoch = 1700000000UL;
   s.releaseChannel = CrossPointSettings::RELEASE_NIGHTLY;
   s.usbMscPromptOnConnect = 1;
@@ -125,6 +126,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.backgroundServerOnCharge = 0;
   s.timeMode = CrossPointSettings::TIME_MODE_UTC;
   s.timeZoneOffset = 12;
+  s.autoSyncDayOnBackgroundPing = 0;
   s.lastTimeSyncEpoch = 0;
   s.releaseChannel = CrossPointSettings::RELEASE_STABLE;
   s.usbMscPromptOnConnect = 0;
@@ -166,6 +168,7 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(s.backgroundServerOnCharge == (CrossPointSettings::supportsBackgroundServerOnChargeMode() ? 1 : 0));
   CHECK(s.timeMode == CrossPointSettings::TIME_MODE_LOCAL);
   CHECK(s.timeZoneOffset == 14);
+  CHECK(s.autoSyncDayOnBackgroundPing == 1);
   CHECK(s.lastTimeSyncEpoch == 1700000000UL);
   CHECK(s.releaseChannel == CrossPointSettings::RELEASE_NIGHTLY);
   CHECK(s.usbMscPromptOnConnect == 1);
@@ -214,8 +217,10 @@ TEST_CASE("testBackgroundServerModeClamping") {
   CHECK(s.getBackgroundServerMode() == CrossPointSettings::BACKGROUND_SERVER_NEVER);
 
   s.opdsFilenameFormat = CrossPointSettings::OPDS_FILENAME_FORMAT_COUNT;
+  s.autoSyncDayOnBackgroundPing = 7;
   s.validateAndClamp();
   CHECK(s.opdsFilenameFormat == CrossPointSettings::OPDS_FILENAME_AUTHOR_TITLE);
+  CHECK(s.autoSyncDayOnBackgroundPing == 1);
 }
 
 TEST_CASE("testOpdsFilenameFormatSettingSchema") {

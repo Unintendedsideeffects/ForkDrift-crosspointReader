@@ -33,7 +33,7 @@ window.ConfiguratorSettingsDeviceUi = (function () {
       { label: 'GENERAL', keys: ['sleepTimeoutMinutes', 'showHiddenFiles', 'todoOpenDirectToToday', 'moveFinishedToReadFolder'] },
       { label: 'TIME', keys: ['timeMode', 'timeZoneOffset'] },
       { label: 'ADVANCED', keys: [], headerOnly: true },
-      { label: 'FILE SERVER', keys: ['usbMscPromptOnConnect', 'backgroundServerMode', 'opdsFilenameFormat'] },
+      { label: 'FILE SERVER', keys: ['usbMscPromptOnConnect', 'backgroundServerMode', 'autoSyncDayOnBackgroundPing', 'opdsFilenameFormat'] },
       { label: 'ANKICONNECT', keys: ['ankiConnectUrl', 'ankiConnectDeck'] },
       { label: null, keys: ['deviceName', 'developerMode'] },
     ],
