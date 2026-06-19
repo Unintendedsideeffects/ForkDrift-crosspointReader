@@ -32,6 +32,7 @@ enum class SettingAction {
   SwitchToTrmnl,
   DownloadFonts,
   TerminusSetup,
+  ScreenClean,
 #if ENABLE_BLE_PAGE_TURNER
   BlePageTurner,
 #endif

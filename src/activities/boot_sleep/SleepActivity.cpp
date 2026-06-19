@@ -52,6 +52,10 @@
 
 namespace {
 
+void displaySleepBuffer(const GfxRenderer& renderer) {
+  renderer.displayBuffer(SETTINGS.cleanSleepRefresh ? HalDisplay::FULL_REFRESH : HalDisplay::HALF_REFRESH);
+}
+
 void hideOverlayBatteryStrip(GfxRenderer& renderer) {
   if (!SETTINGS.statusBarBattery) {
     return;
@@ -255,7 +259,7 @@ void drawTextListSleepScreen(GfxRenderer& renderer, const char* title, const std
   const int bottom = H - kPad;
   if (rows.empty()) {
     renderer.drawCenteredText(UI_10_FONT_ID, H / 2, emptyText);
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    displaySleepBuffer(renderer);
     return;
   }
 
@@ -267,7 +271,7 @@ void drawTextListSleepScreen(GfxRenderer& renderer, const char* title, const std
     renderer.drawText(UI_10_FONT_ID, kPad, y, fitted.c_str(), true);
     y += lineH;
   }
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  displaySleepBuffer(renderer);
 }
 #endif
 
@@ -840,7 +844,7 @@ bool SleepActivity::tryRenderCurrentBookCover() const {
     ch = drawnRect.h;
   }
   if (drawPokemonCoverOverlay(APP_STATE.openEpubPath, cx, cy, cw, ch)) {
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    displaySleepBuffer(renderer);
   }
 #endif
   return true;
@@ -881,7 +885,7 @@ void SleepActivity::renderReadingStatsSleepScreen() const {
   }
 
   renderBookStatsView(renderer, nullptr, bookTitle, bookStats, globalStats, false);
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  displaySleepBuffer(renderer);
 }
 #endif  // ENABLE_READING_STATS
 
@@ -997,7 +1001,7 @@ void SleepActivity::renderRomanClockSleepScreen() const {
     }
   }
 
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  displaySleepBuffer(renderer);
 }
 #endif
 
@@ -1016,7 +1020,7 @@ void SleepActivity::renderTransparentSleepScreen() const {
 
   hideOverlayBatteryStrip(renderer);
   drawLockIcon(pageWidth / 2, pageHeight - 14);
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  displaySleepBuffer(renderer);
 }
 
 void SleepActivity::renderDefaultSleepScreen() const {
@@ -1036,7 +1040,7 @@ void SleepActivity::renderDefaultSleepScreen() const {
     renderer.invertScreen();
   }
 
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  displaySleepBuffer(renderer);
 }
 
 void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, CoverDrawRect* drawnRect) const {
@@ -1091,7 +1095,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, CoverDrawRect*
     renderer.invertScreen();
   }
 
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  displaySleepBuffer(renderer);
 
   if (hasGreyscale) {
     bitmap.rewindToData();
@@ -1194,7 +1198,7 @@ bool SleepActivity::renderPokemonCoverSleepScreen() const {
   if (!drawPokemonCoverOverlay(bookPath, cx, cy, drawW, drawH)) {
     return false;
   }
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  displaySleepBuffer(renderer);
   return true;
 }
 
@@ -1315,7 +1319,7 @@ void SleepActivity::renderImageSleepScreen(const std::string& imagePath, CoverDr
     renderer.invertScreen();
   }
 
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  displaySleepBuffer(renderer);
 
   // If grayscale is enabled, do additional passes for 4-level grayscale
   if (useGrayscale) {
@@ -1464,7 +1468,7 @@ void SleepActivity::renderHaikuClockSleepScreen() const {
     renderer.drawText(SMALL_FONT_ID, timeX, timeY, digitalTime.c_str(), true, EpdFontFamily::BOLD);
   }
 
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  displaySleepBuffer(renderer);
 
   if (SETTINGS.haikuClockLandscape) {
     OrientationManager::applyUiOrientation(renderer);

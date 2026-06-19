@@ -33,9 +33,7 @@ inline std::vector<std::string> backgroundServerModeOptions() {
   return options;
 }
 
-inline std::vector<std::string> opdsFilenameFormatOptions() {
-  return {"Author - Title", "Title - Author"};
-}
+inline std::vector<std::string> opdsFilenameFormatOptions() { return {"Author - Title", "Title - Author"}; }
 
 inline uint8_t getBackgroundServerModeSettingIndex() {
   const uint8_t mode = SETTINGS.getBackgroundServerMode();
@@ -645,6 +643,9 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
                          {StrId::STR_RANDOM, StrId::STR_SEQUENTIAL}, "sleepCycleMode", StrId::STR_CAT_DISPLAY)
            .withConfiguratorExport()
            .withVisiblePredicate(sleepCustomOrCoverActive));
+  emit(SettingInfo::Toggle(StrId::STR_CLEAN_SLEEP_REFRESH, &CrossPointSettings::cleanSleepRefresh, "cleanSleepRefresh",
+                           StrId::STR_CAT_DISPLAY)
+           .withConfiguratorExport("clean_sleep_refresh"));
 #if ENABLE_HAIKU_CLOCK
   emit(SettingInfo::Toggle(StrId::STR_HAIKU_CLOCK_LANDSCAPE, &CrossPointSettings::haikuClockLandscape,
                            "haikuClockLandscape", StrId::STR_CAT_DISPLAY)
@@ -687,8 +688,8 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
              StrId::STR_FILENAME, {}, [] { return SETTINGS.opdsFilenameFormat; },
              [](uint8_t value) {
                SETTINGS.opdsFilenameFormat = value < CrossPointSettings::OPDS_FILENAME_FORMAT_COUNT
-                                                   ? value
-                                                   : CrossPointSettings::OPDS_FILENAME_AUTHOR_TITLE;
+                                                 ? value
+                                                 : CrossPointSettings::OPDS_FILENAME_AUTHOR_TITLE;
              },
              "opdsFilenameFormat", StrId::STR_CAT_SYSTEM, opdsFilenameFormatOptions)
              .withConfiguratorExport("calibre_sync"));

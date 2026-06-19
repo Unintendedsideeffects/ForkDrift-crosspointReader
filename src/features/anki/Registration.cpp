@@ -9,6 +9,7 @@
 #include "activities/AnkiActivity.h"
 #endif
 #include <algorithm>
+#include <ctime>
 
 #include "CrossPointSettings.h"
 #include "core/features/FeatureCatalog.h"
@@ -26,26 +27,6 @@ namespace features::anki {
 namespace {
 
 #if ENABLE_ANKI_SUPPORT
-static bool isValidDeckPath(const std::string& path) {
-  if (!PathUtils::isValidSdPath(path.c_str())) {
-    return false;
-  }
-  bool startsWithFlashcards = (path.size() >= 12 && path.compare(0, 12, "/flashcards/") == 0);
-  bool startsWithDecks = (path.size() >= 7 && path.compare(0, 7, "/decks/") == 0);
-  if (!startsWithFlashcards && !startsWithDecks) {
-    return false;
-  }
-  if (path.length() < 4) {
-    return false;
-  }
-  std::string suffix = path.substr(path.length() - 4);
-  std::transform(suffix.begin(), suffix.end(), suffix.begin(), ::tolower);
-  if (suffix != ".csv") {
-    return false;
-  }
-  return true;
-}
-
 static bool shouldRegisterAnkiPluginRoute() { return core::FeatureCatalog::isEnabled("anki_support"); }
 
 static void mountAnkiRoutes(WebServer* server) {
@@ -69,7 +50,9 @@ static void mountAnkiRoutes(WebServer* server) {
         std::vector<FlashcardCardProgress> progress;
         FlashcardsStore::loadDeckProgress(deck, progress);
 
-        uint32_t currentDay = 0;
+        // Real day ordinal: seconds since epoch / 86400 (matches ReadingStatsStore).
+        const std::time_t now = std::time(nullptr);
+        const uint32_t currentDay = now > 0 ? static_cast<uint32_t>(now / 86400) : 0u;
         auto newQueue = FlashcardsStore::buildStudyQueue(deck, progress, FlashcardStudyMode::New, currentDay);
         auto dueQueue = FlashcardsStore::buildStudyQueue(deck, progress, FlashcardStudyMode::Due, currentDay);
         auto failedQueue = FlashcardsStore::buildStudyQueue(deck, progress, FlashcardStudyMode::Failed, currentDay);
@@ -115,7 +98,9 @@ static void mountAnkiRoutes(WebServer* server) {
     std::vector<FlashcardCardProgress> progress;
     FlashcardsStore::loadDeckProgress(deck, progress);
 
-    uint32_t currentDay = 0;
+    // Real day ordinal: seconds since epoch / 86400 (matches ReadingStatsStore).
+    const std::time_t now = std::time(nullptr);
+    const uint32_t currentDay = now > 0 ? static_cast<uint32_t>(now / 86400) : 0u;
     auto newQueue = FlashcardsStore::buildStudyQueue(deck, progress, FlashcardStudyMode::New, currentDay);
     auto dueQueue = FlashcardsStore::buildStudyQueue(deck, progress, FlashcardStudyMode::Due, currentDay);
     auto failedQueue = FlashcardsStore::buildStudyQueue(deck, progress, FlashcardStudyMode::Failed, currentDay);

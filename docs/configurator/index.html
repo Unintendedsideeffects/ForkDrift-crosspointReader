@@ -2564,13 +2564,13 @@
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
 
-              <label class="skill-card wip" data-feature="anki_support" data-node-id="anki_support">
-                <input type="checkbox" id="anki_support" data-feature="anki_support" disabled />
+              <label class="skill-card" data-feature="anki_support" data-node-id="anki_support">
+                <input type="checkbox" id="anki_support" data-feature="anki_support" />
                 <div class="card-icon"><span>&#x2660;</span></div>
                 <div class="card-body">
-                  <div class="card-name">Anki Support <span class="card-wip-badge">WIP</span></div>
+                  <div class="card-name">Anki Support</div>
                   <div class="card-size"></div>
-                  <div class="card-desc">Flashcard creation from the reader menu — not yet complete in this build</div>
+                  <div class="card-desc">Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. On-device flashcard hub with offline CSV deck support. Adds ~10 KB.</div>
                 </div>
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
@@ -3039,6 +3039,17 @@
           </div>
           <div class="cat-body">
             <div class="skill-grid">
+              <label class="skill-card wip" data-feature="ble_beacon" data-node-id="ble_beacon">
+                <input type="checkbox" id="ble_beacon" data-feature="ble_beacon" disabled />
+                <div class="card-icon"><span>&#x264B;</span></div>
+                <div class="card-body">
+                  <div class="card-name">BLE Beacon <span class="card-wip-badge">WIP</span></div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">Presence and companion-app beacon while charging</div>
+                </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
               <label class="skill-card" data-feature="usb_mass_storage" data-node-id="usb_mass_storage">
                 <input type="checkbox" id="usb_mass_storage" data-feature="usb_mass_storage" />
                 <div class="card-icon"><span>&#x2398;</span></div>
@@ -3848,7 +3859,7 @@
         lua_plugins: "Dynamic Lua 5.4 scripting VM and plugin system loaded from the SD card.",
         todo_planner: "A minimal to-do list accessible from the nav bar. Items persist to the SD card. Useful for reading notes, wish lists, or errand reminders without leaving the device. When Notes is also enabled, Planner becomes the unified home-screen surface while Notes remains available through API and sleep-screen modes. Adds ~15 KB.",
         notes: "A lightweight line-based notes store backed by /notes.txt. Adds a standalone home-screen Notes app when Planner is disabled, exposes /api/notes endpoints and USB notes_add, and can render notes as a dedicated sleep screen.",
-        anki_support: "Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop. Adds ~10 KB.",
+        anki_support: "Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. On-device flashcard hub with offline CSV deck support (CPR-Vortex). JSON export for import into Anki Desktop. Adds ~10 KB.",
         dark_mode: "Inverts the display for night reading — white-on-black instead of black-on-paper. Toggle from the settings menu. Negligible binary cost; the flag controls whether the option is exposed at all.",
         visual_cover_picker: "Lets you choose cover art for books that lack an embedded thumbnail. Opens a scrollable image browser pointed at a configurable folder on the SD card. Requires Home Media Picker.",
         ble_wifi_provisioning: "Configure WiFi credentials by scanning a QR code or using the companion app over Bluetooth LE — no need to type a password on the device keyboard. Large binary cost (~626 KB) due to the BLE stack.",
@@ -3916,7 +3927,7 @@
       // Features ported from the crossink fork — shown with a "crossink" badge.
       const CROSSINK_FEATURES = new Set(["lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "reading_stats", "minimal_theme", "focus_reading", "guide_dots"]);
       // Features ported from the CPR-Vortex fork — shown with a "cpr-vortex" badge.
-      const CPR_VORTEX_FEATURES = new Set(["calibre_sync"]);
+      const CPR_VORTEX_FEATURES = new Set(["calibre_sync", "anki_support"]);
 
       const PROFILES = {
         lean: {},

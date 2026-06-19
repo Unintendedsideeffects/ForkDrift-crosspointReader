@@ -29,6 +29,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["sleepScreenSource"] = s.sleepScreenSource;
   doc["sleepScreenCoverMode"] = s.sleepScreenCoverMode;
   doc["sleepScreenCoverFilter"] = s.sleepScreenCoverFilter;
+  doc["cleanSleepRefresh"] = s.cleanSleepRefresh;
   doc["statusBarChapterPageCount"] = s.statusBarChapterPageCount;
   doc["statusBarBookProgressPercentage"] = s.statusBarBookProgressPercentage;
   doc["statusBarProgressBar"] = s.statusBarProgressBar;
@@ -98,6 +99,7 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
       clamp(doc["sleepScreenCoverMode"] | (uint8_t)S::FIT, S::SLEEP_SCREEN_COVER_MODE_COUNT, S::FIT);
   s.sleepScreenCoverFilter =
       clamp(doc["sleepScreenCoverFilter"] | (uint8_t)S::NO_FILTER, S::SLEEP_SCREEN_COVER_FILTER_COUNT, S::NO_FILTER);
+  s.cleanSleepRefresh = doc["cleanSleepRefresh"] | (uint8_t)0;
   s.statusBarChapterPageCount = doc["statusBarChapterPageCount"] | (uint8_t)1;
   s.statusBarBookProgressPercentage = doc["statusBarBookProgressPercentage"] | (uint8_t)1;
   s.statusBarProgressBar = clamp(doc["statusBarProgressBar"] | (uint8_t)S::HIDE_PROGRESS,

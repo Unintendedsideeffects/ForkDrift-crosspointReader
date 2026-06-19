@@ -287,6 +287,8 @@ class CrossPointSettings {
   uint8_t sleepScreenHome = CUSTOM;
   // Pinned sleep cover path — if non-empty and sleepScreen==CUSTOM, always use this image.
   char sleepPinnedPath[256] = "";
+  // Use full e-ink refresh (no ghosting) when entering sleep. Default 0 = half-refresh (faster).
+  uint8_t cleanSleepRefresh = 0;
 #if ENABLE_HAIKU_CLOCK
   // Haiku clock: render in landscape orientation
   uint8_t haikuClockLandscape = 0;

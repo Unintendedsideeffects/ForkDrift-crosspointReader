@@ -39,6 +39,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.sleepScreen = CrossPointSettings::LIGHT;
   s.sleepScreenCoverMode = CrossPointSettings::CROP;
   s.sleepScreenCoverFilter = CrossPointSettings::INVERTED_BLACK_AND_WHITE;
+  s.cleanSleepRefresh = 1;
   s.sleepScreenSource = CrossPointSettings::SLEEP_SOURCE_POKEDEX;
   s.statusBarChapterPageCount = 0;
   s.statusBarBookProgressPercentage = 0;
@@ -93,6 +94,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.sleepScreen = CrossPointSettings::DARK;
   s.sleepScreenCoverMode = CrossPointSettings::FIT;
   s.sleepScreenCoverFilter = CrossPointSettings::NO_FILTER;
+  s.cleanSleepRefresh = 0;
   s.sleepScreenSource = CrossPointSettings::SLEEP_SOURCE_SLEEP;
   s.statusBarChapterPageCount = 1;
   s.statusBarBookProgressPercentage = 1;
@@ -142,6 +144,7 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(s.sleepScreen == CrossPointSettings::LIGHT);
   CHECK(s.sleepScreenCoverMode == CrossPointSettings::CROP);
   CHECK(s.sleepScreenCoverFilter == CrossPointSettings::INVERTED_BLACK_AND_WHITE);
+  CHECK(s.cleanSleepRefresh == 1);
   CHECK(s.sleepScreenSource == CrossPointSettings::SLEEP_SOURCE_POKEDEX);
   CHECK(s.statusBarChapterPageCount == 0);
   CHECK(s.statusBarBookProgressPercentage == 0);

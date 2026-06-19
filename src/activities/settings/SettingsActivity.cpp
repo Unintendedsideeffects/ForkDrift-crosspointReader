@@ -22,6 +22,7 @@
 #include "OpdsServerListActivity.h"
 #include "OtaUpdateActivity.h"
 #include "ResetSettingsActivity.h"
+#include "ScreenCleanActivity.h"
 #include "SdCardFontSystem.h"
 #include "SdFirmwareUpdateActivity.h"
 #include "SettingsList.h"
@@ -301,6 +302,7 @@ void SettingsActivity::rebuildSettingsLists() {
   addSystemActionDirect(StrId::STR_LANGUAGE, SettingAction::Language);
 
   systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_MAINTENANCE));
+  addSystemActionDirect(StrId::STR_SCREEN_CLEAN, SettingAction::ScreenClean);
   addSystemActionDirect(StrId::STR_VALIDATE_SLEEP_IMAGES, SettingAction::ValidateSleepImages);
   addSystemActionDirect(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache);
   addSystemActionDirect(StrId::STR_CLEAR_LOGS, SettingAction::ClearLogs);
@@ -695,6 +697,9 @@ void SettingsActivity::toggleCurrentSetting() {
         break;
       case SettingAction::ClearCache:
         startActivityForResult(std::make_unique<ClearCacheActivity>(renderer, mappedInput), resultHandler);
+        break;
+      case SettingAction::ScreenClean:
+        startActivityForResult(std::make_unique<ScreenCleanActivity>(renderer, mappedInput), resultHandler);
         break;
       case SettingAction::CheckForUpdates:
         startActivityForResult(std::make_unique<OtaUpdateActivity>(renderer, mappedInput), resultHandler);

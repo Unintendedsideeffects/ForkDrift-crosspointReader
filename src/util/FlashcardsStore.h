@@ -45,6 +45,7 @@ class FlashcardsStore {
  public:
   // Storage/model layer adapted from CPR-Vortex: https://github.com/franssjz/cpr-vcodex
   static std::vector<FlashcardCard> parseCsvDeck(const std::string& csvContent);
+  static bool isValidDeckPath(const std::string& path);
   static std::vector<std::string> listDecks(const std::string& directoryPath);
   static bool loadDeck(const std::string& path, FlashcardDeck& outDeck, std::string* outError = nullptr);
   static std::string getProgressFilePath(const std::string& deckPath);

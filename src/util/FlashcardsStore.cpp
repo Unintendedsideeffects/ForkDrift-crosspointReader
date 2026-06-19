@@ -9,6 +9,8 @@
 #include <cmath>
 #include <cstdio>
 
+#include "util/PathUtils.h"
+
 namespace {
 
 std::string trimAscii(const std::string& value) {
@@ -81,6 +83,23 @@ std::vector<std::vector<std::string>> parseCsvRows(const std::string& csvContent
 }
 
 }  // namespace
+
+bool FlashcardsStore::isValidDeckPath(const std::string& path) {
+  if (!PathUtils::isValidSdPath(path.c_str())) {
+    return false;
+  }
+  const bool startsWithFlashcards = (path.size() >= 12 && path.compare(0, 12, "/flashcards/") == 0);
+  const bool startsWithDecks = (path.size() >= 7 && path.compare(0, 7, "/decks/") == 0);
+  if (!startsWithFlashcards && !startsWithDecks) {
+    return false;
+  }
+  if (path.length() < 4) {
+    return false;
+  }
+  std::string suffix = path.substr(path.length() - 4);
+  std::transform(suffix.begin(), suffix.end(), suffix.begin(), ::tolower);
+  return suffix == ".csv";
+}
 
 std::vector<FlashcardCard> FlashcardsStore::parseCsvDeck(const std::string& csvContent) {
   auto rows = parseCsvRows(csvContent);
