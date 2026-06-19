@@ -61,6 +61,9 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
   if (core::FeatureCatalog::isEnabled("anki_support")) {
     items.push_back({MenuAction::ADD_TO_ANKI, StrId::STR_ADD_TO_ANKI});
   }
+#if ENABLE_DICTIONARY
+  items.push_back({MenuAction::DICTIONARY, StrId::STR_DICTIONARY});
+#endif
 #if ENABLE_BOOKMARKS
   items.push_back(
       {MenuAction::BOOKMARK_TOGGLE, isCurrentPageBookmarked ? StrId::STR_REMOVE_BOOKMARK : StrId::STR_ADD_BOOKMARK});

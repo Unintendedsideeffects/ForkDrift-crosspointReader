@@ -17,6 +17,9 @@
 #include <limits>
 
 #include "AnkiAddActivity.h"
+#if ENABLE_DICTIONARY
+#include "DictionaryActivity.h"
+#endif
 #if ENABLE_BOOKMARKS
 #include "BookmarkStore.h"
 #include "EpubReaderBookmarkListActivity.h"
@@ -968,6 +971,39 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       requestUpdate();
       break;
     }
+#if ENABLE_DICTIONARY
+    case EpubReaderMenuActivity::MenuAction::DICTIONARY: {
+      if (section && section->currentPage >= 0 && section->currentPage < section->pageCount) {
+        auto p = section->loadPageFromSectionFile();
+        if (p) {
+          std::string firstWords;
+          int wordCount = 0;
+          for (const auto& el : p->elements) {
+            if (el->getTag() == TAG_PageLine) {
+              const auto& line = static_cast<const PageLine&>(*el);
+              if (line.getBlock()) {
+                for (const auto& w : line.getBlock()->getWords()) {
+                  if (!firstWords.empty()) firstWords += " ";
+                  firstWords += w;
+                  if (++wordCount >= 10) break;
+                }
+              }
+            }
+            if (wordCount >= 10) break;
+          }
+          if (!firstWords.empty()) {
+            startActivityForResult(
+                std::make_unique<DictionaryActivity>(renderer, mappedInput, firstWords, epub->getTitle()),
+                [](const ActivityResult&) {});
+            break;
+          }
+          LOG_WRN("EPUB", "DICTIONARY: no text found on current page");
+        }
+      }
+      requestUpdate();
+      break;
+    }
+#endif
     case EpubReaderMenuActivity::MenuAction::ADD_TO_ANKI: {
       if (section && section->currentPage >= 0 && section->currentPage < section->pageCount) {
         auto p = section->loadPageFromSectionFile();

@@ -29,6 +29,9 @@ class EpubReaderMenuActivity final : public Activity {
     SYNC,
     TOGGLE_COMPLETED,
     ADD_TO_ANKI,
+#if ENABLE_DICTIONARY
+    DICTIONARY,
+#endif
     DELETE_CACHE,
 #if ENABLE_BOOKMARKS
     BOOKMARK_TOGGLE,

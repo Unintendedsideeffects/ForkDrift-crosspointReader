@@ -2575,6 +2575,17 @@
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
 
+              <label class="skill-card" data-feature="dictionary_lookup" data-node-id="dictionary_lookup">
+                <input type="checkbox" id="dictionary_lookup" data-feature="dictionary_lookup" />
+                <div class="card-icon"><span>&#x2660;</span></div>
+                <div class="card-body">
+                  <div class="card-name">Dictionary Lookup</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">In-reader SD dictionary lookup. Adds ~5 KB.</div>
+                </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
               <label class="skill-card" data-feature="reading_stats" data-node-id="reading_stats">
                 <input type="checkbox" id="reading_stats" data-feature="reading_stats" />
                 <div class="card-icon"><span>&#x25EF;</span></div>
@@ -3703,6 +3714,20 @@
           flag: "ENABLE_FLOW_THEME",
           default: false,
         },
+        anki_support: {
+          id: "anki_support",
+          name: "Anki Support",
+          deps: [],
+          sizeKb: 15,
+          flag: "ENABLE_ANKI_SUPPORT",
+        },
+        dictionary_lookup: {
+          id: "dictionary_lookup",
+          name: "Dictionary Lookup",
+          deps: [],
+          sizeKb: 5,
+          flag: "ENABLE_DICTIONARY",
+        },
         ota_updates: {
           sizeKb: 3,
           flag: "ENABLE_OTA_UPDATES",
@@ -3860,6 +3885,7 @@
         todo_planner: "A minimal to-do list accessible from the nav bar. Items persist to the SD card. Useful for reading notes, wish lists, or errand reminders without leaving the device. When Notes is also enabled, Planner becomes the unified home-screen surface while Notes remains available through API and sleep-screen modes. Adds ~15 KB.",
         notes: "A lightweight line-based notes store backed by /notes.txt. Adds a standalone home-screen Notes app when Planner is disabled, exposes /api/notes endpoints and USB notes_add, and can render notes as a dedicated sleep screen.",
         anki_support: "Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. On-device flashcard hub with offline CSV deck support (CPR-Vortex). JSON export for import into Anki Desktop. Adds ~10 KB.",
+        dictionary_lookup: "In-reader SD dictionary lookup. Adds ~5 KB.",
         dark_mode: "Inverts the display for night reading — white-on-black instead of black-on-paper. Toggle from the settings menu. Negligible binary cost; the flag controls whether the option is exposed at all.",
         visual_cover_picker: "Lets you choose cover art for books that lack an embedded thumbnail. Opens a scrollable image browser pointed at a configurable folder on the SD card. Requires Home Media Picker.",
         ble_wifi_provisioning: "Configure WiFi credentials by scanning a QR code or using the companion app over Bluetooth LE — no need to type a password on the device keyboard. Large binary cost (~626 KB) due to the BLE stack.",
@@ -3916,7 +3942,7 @@
       };
 
       const HUB_FEATURES = {
-        reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "notes", "anki_support", "reading_stats", "focus_reading", "guide_dots"],
+        reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "notes", "anki_support", "dictionary_lookup", "reading_stats", "focus_reading", "guide_dots"],
         interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "web_wallpaper_plugin", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts", "minimal_theme"],
         network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "haiku_clock_sleep", "remote_control", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
         storage_hub: ["usb_mass_storage"],
@@ -3984,6 +4010,7 @@
           todo_planner: true,
           notes: true,
           anki_support: true,
+          dictionary_lookup: true,
           background_server: true,
           background_server_on_charge: true,
           background_server_always: true,

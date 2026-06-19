@@ -114,6 +114,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/PokemonTeamStore.cpp" \
   "$ROOT_DIR/src/util/RecentBooksStore.cpp" \
   "$ROOT_DIR/src/util/FlashcardsStore.cpp" \
+  "$ROOT_DIR/src/util/DictionaryLookup.cpp" \
   "$ROOT_DIR/src/CrossPointSettings.cpp" \
   "$ROOT_DIR/src/network/background/BackgroundServerPolicy.cpp" \
   "$ROOT_DIR/src/BookmarkStore.cpp" \

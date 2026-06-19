@@ -180,6 +180,12 @@ FEATURES = {
         size_kb=15,
         description='Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop.'
     ),
+    'dictionary_lookup': Feature(
+        name='Dictionary Lookup',
+        flag='ENABLE_DICTIONARY',
+        size_kb=5,
+        description='In-reader dictionary lookup over an SD card dictionary.'
+    ),
     'dark_mode': Feature(
         name='Dark Mode',
         flag='ENABLE_DARK_MODE',

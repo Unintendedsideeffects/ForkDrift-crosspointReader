@@ -499,6 +499,22 @@ with reading progress driving level and evolution state.
 
 ---
 
+### Dictionary Lookup
+
+**Flag:** `ENABLE_DICTIONARY`
+**Size Impact:** ~5KB
+**Default:** Disabled
+**Depends on:** None
+
+In-reader dictionary lookup over an SD card dictionary.
+
+**When disabled:**
+- Dictionary lookup option is hidden from reader menus
+
+**Use case:** Enable if you want to select words while reading to see their definitions.
+
+---
+
 ### Global Landscape
 
 **Flag:** `ENABLE_GLOBAL_LANDSCAPE`  
