@@ -839,6 +839,7 @@ PROFILES = {
             'focus_reading': True,
             'guide_dots': True,
             'global_landscape': True,
+            'dictionary_lookup': True,
         },
     },
 }

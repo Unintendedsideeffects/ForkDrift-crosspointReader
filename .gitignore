@@ -52,3 +52,4 @@ fs_/.crosspoint/*
 fs_/books/*
 fs_/plugins/*
 plans/*
+dist/

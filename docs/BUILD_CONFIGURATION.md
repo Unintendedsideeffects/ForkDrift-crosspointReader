@@ -508,6 +508,17 @@ with reading progress driving level and evolution state.
 
 In-reader dictionary lookup over an SD card dictionary.
 
+**Requires a data file on the SD card:** `/dictionary/en.dict` — a sorted, tab-separated `headword<TAB>definition`
+file. Generate it from a public-domain source with `scripts/generate_dictionary.py` (defaults to Webster's 1913) and
+copy the result to the SD card. The file MUST be sorted by the firmware's case-fold-ASCII key — the generator does this
+and self-checks it; do not hand-edit/re-sort the file with other tools. Without this file the menu item appears but
+every lookup reports "not found". Enabled in the `full` profile.
+
+```bash
+python scripts/generate_dictionary.py --source /path/to/webster.json --out dist/dictionary/en.dict
+# then copy dist/dictionary/en.dict -> <SD>/dictionary/en.dict   (use --sample 200 for a quick test dict)
+```
+
 **When disabled:**
 - Dictionary lookup option is hidden from reader menus
 
