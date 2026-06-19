@@ -36,6 +36,16 @@
     .sync-result.err { background: #f8d7da; color: #721c24; }
     .btn-success { background: #28a745; }
     .btn-success:hover { background: #1e7e34; }
+    .deck-item { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 8px; background: #fff; }
+    .deck-title { font-weight: bold; font-size: 1.05rem; color: #333; margin-bottom: 4px; }
+    .deck-path { font-size: 0.8rem; color: #666; margin-bottom: 8px; font-family: monospace; }
+    .deck-stats { display: flex; gap: 8px; font-size: 0.85rem; }
+    .deck-stat-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; }
+    .badge-total { background: #e2e3e5; color: #383d41; }
+    .badge-new { background: #cce5ff; color: #004085; }
+    .badge-due { background: #d4edda; color: #155724; }
+    .badge-failed { background: #f8d7da; color: #721c24; }
+    .deck-error { color: #dc3545; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -53,6 +63,12 @@
   </div>
 
   <div class="card-list" id="card-list"></div>
+
+  <div class="card" style="margin-top: 20px;">
+    <h3 style="margin-top:0">CSV Decks</h3>
+    <div id="csv-decks-status" style="margin-bottom: 15px; font-weight: bold; color: #555;">Loading CSV decks...</div>
+    <div id="csv-decks-list"></div>
+  </div>
 
   <div class="card" style="margin-top: 20px;">
     <h3 style="margin-top:0">Sync via AnkiConnect</h3>
@@ -208,7 +224,50 @@
       btn.textContent = 'Sync to Anki Desktop';
     }
 
+    async function loadDecks() {
+      const statusEl = document.getElementById('csv-decks-status');
+      const listEl = document.getElementById('csv-decks-list');
+      try {
+        const response = await fetch('/api/anki/decks');
+        if (!response.ok) {
+          throw new Error('Server returned ' + response.status);
+        }
+        const decks = await response.json();
+        statusEl.textContent = `Found ${decks.length} offline CSV deck(s).`;
+        if (decks.length === 0) {
+          listEl.innerHTML = '<div class="empty-state">No CSV decks found in /flashcards or /decks.</div>';
+          return;
+        }
+        listEl.innerHTML = decks.map(deck => {
+          if (deck.error) {
+            return `
+              <div class="deck-item">
+                <div class="deck-path">${esc(deck.path)}</div>
+                <div class="deck-error">Error: ${esc(deck.error)}</div>
+              </div>
+            `;
+          }
+          return `
+            <div class="deck-item">
+              <div class="deck-title">${esc(deck.title)}</div>
+              <div class="deck-path">${esc(deck.path)}</div>
+              <div class="deck-stats">
+                <span class="deck-stat-badge badge-total">${esc(deck.cards)} cards</span>
+                <span class="deck-stat-badge badge-new">${esc(deck.new)} new</span>
+                <span class="deck-stat-badge badge-due">${esc(deck.due)} due</span>
+                <span class="deck-stat-badge badge-failed">${esc(deck.failed)} failed</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        statusEl.textContent = 'Error loading CSV decks.';
+        listEl.innerHTML = `<div class="deck-error" style="padding: 10px;">${esc(e.message || e)}</div>`;
+      }
+    }
+
     loadCards();
+    loadDecks();
   </script>
 </body>
 </html>

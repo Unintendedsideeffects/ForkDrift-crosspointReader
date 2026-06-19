@@ -59,3 +59,38 @@ TEST_CASE("flashcards build queues and summaries") {
   CHECK(summary.failedCount == 1);
   CHECK(summary.newSeenCount == 1);
 }
+
+#include <algorithm>
+
+#include "src/util/PathUtils.h"
+
+static bool isValidDeckPath(const std::string& path) {
+  if (!PathUtils::isValidSdPath(path.c_str())) {
+    return false;
+  }
+  bool startsWithFlashcards = (path.size() >= 12 && path.compare(0, 12, "/flashcards/") == 0);
+  bool startsWithDecks = (path.size() >= 7 && path.compare(0, 7, "/decks/") == 0);
+  if (!startsWithFlashcards && !startsWithDecks) {
+    return false;
+  }
+  if (path.length() < 4) {
+    return false;
+  }
+  std::string suffix = path.substr(path.length() - 4);
+  std::transform(suffix.begin(), suffix.end(), suffix.begin(), ::tolower);
+  if (suffix != ".csv") {
+    return false;
+  }
+  return true;
+}
+
+TEST_CASE("flashcards deck path validation") {
+  CHECK(isValidDeckPath("/flashcards/words.csv") == true);
+  CHECK(isValidDeckPath("/decks/vocab.CSV") == true);
+  CHECK(isValidDeckPath("/decks/sub/dir.csv") == true);
+  CHECK(isValidDeckPath("/flashcards/../decks/words.csv") == false);
+  CHECK(isValidDeckPath("/other/words.csv") == false);
+  CHECK(isValidDeckPath("/decks/words.txt") == false);
+  CHECK(isValidDeckPath("/decks/words.csv\\") == false);
+  CHECK(isValidDeckPath("") == false);
+}

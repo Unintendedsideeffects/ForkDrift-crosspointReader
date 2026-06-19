@@ -8,6 +8,8 @@
 #if ENABLE_ANKI_SUPPORT
 #include "activities/AnkiActivity.h"
 #endif
+#include <algorithm>
+
 #include "CrossPointSettings.h"
 #include "core/features/FeatureCatalog.h"
 #include "core/registries/HomeActionRegistry.h"
@@ -17,17 +19,118 @@
 #include "network/http/HttpDownloader.h"
 #include "network/server/WebUtils.h"
 #include "util/AnkiStore.h"
+#include "util/FlashcardsStore.h"
+#include "util/PathUtils.h"
 
 namespace features::anki {
 namespace {
 
 #if ENABLE_ANKI_SUPPORT
+static bool isValidDeckPath(const std::string& path) {
+  if (!PathUtils::isValidSdPath(path.c_str())) {
+    return false;
+  }
+  bool startsWithFlashcards = (path.size() >= 12 && path.compare(0, 12, "/flashcards/") == 0);
+  bool startsWithDecks = (path.size() >= 7 && path.compare(0, 7, "/decks/") == 0);
+  if (!startsWithFlashcards && !startsWithDecks) {
+    return false;
+  }
+  if (path.length() < 4) {
+    return false;
+  }
+  std::string suffix = path.substr(path.length() - 4);
+  std::transform(suffix.begin(), suffix.end(), suffix.begin(), ::tolower);
+  if (suffix != ".csv") {
+    return false;
+  }
+  return true;
+}
+
 static bool shouldRegisterAnkiPluginRoute() { return core::FeatureCatalog::isEnabled("anki_support"); }
 
 static void mountAnkiRoutes(WebServer* server) {
   server->on("/plugins/anki", HTTP_GET, [server] {
     sendPrecompressedHtml(server, AnkiPluginPageHtml, AnkiPluginPageHtmlCompressedSize);
     LOG_DBG("WEB", "Served anki plugin page");
+  });
+  server->on("/api/anki/decks", HTTP_GET, [server] {
+    std::vector<std::string> allDeckPaths;
+    auto decks1 = FlashcardsStore::listDecks("/flashcards");
+    allDeckPaths.insert(allDeckPaths.end(), decks1.begin(), decks1.end());
+    auto decks2 = FlashcardsStore::listDecks("/decks");
+    allDeckPaths.insert(allDeckPaths.end(), decks2.begin(), decks2.end());
+
+    JsonDocument doc;
+    JsonArray arr = doc.to<JsonArray>();
+    for (const auto& path : allDeckPaths) {
+      FlashcardDeck deck;
+      std::string err;
+      if (FlashcardsStore::loadDeck(path, deck, &err)) {
+        std::vector<FlashcardCardProgress> progress;
+        FlashcardsStore::loadDeckProgress(deck, progress);
+
+        uint32_t currentDay = 0;
+        auto newQueue = FlashcardsStore::buildStudyQueue(deck, progress, FlashcardStudyMode::New, currentDay);
+        auto dueQueue = FlashcardsStore::buildStudyQueue(deck, progress, FlashcardStudyMode::Due, currentDay);
+        auto failedQueue = FlashcardsStore::buildStudyQueue(deck, progress, FlashcardStudyMode::Failed, currentDay);
+
+        JsonObject obj = arr.add<JsonObject>();
+        obj["path"] = deck.path;
+        obj["title"] = deck.title;
+        obj["cards"] = deck.cards.size();
+        obj["new"] = newQueue.size();
+        obj["due"] = dueQueue.size();
+        obj["failed"] = failedQueue.size();
+      } else {
+        JsonObject obj = arr.add<JsonObject>();
+        obj["path"] = path;
+        obj["error"] = err.empty() ? "Load failed" : err;
+      }
+    }
+    String json;
+    serializeJson(doc, json);
+    server->send(200, "application/json", json.c_str());
+  });
+  server->on("/api/anki/deck", HTTP_GET, [server] {
+    if (!server->hasArg("path")) {
+      server->send(400, "application/json", "{\"error\":\"missing path parameter\"}");
+      return;
+    }
+    std::string decodedPath = PathUtils::urlDecode(server->arg("path")).c_str();
+    if (!isValidDeckPath(decodedPath)) {
+      server->send(400, "application/json", "{\"error\":\"invalid deck path\"}");
+      return;
+    }
+    FlashcardDeck deck;
+    std::string err;
+    if (!FlashcardsStore::loadDeck(decodedPath, deck, &err)) {
+      JsonDocument doc;
+      doc["path"] = decodedPath;
+      doc["error"] = err.empty() ? "Load failed" : err;
+      String json;
+      serializeJson(doc, json);
+      server->send(404, "application/json", json.c_str());
+      return;
+    }
+    std::vector<FlashcardCardProgress> progress;
+    FlashcardsStore::loadDeckProgress(deck, progress);
+
+    uint32_t currentDay = 0;
+    auto newQueue = FlashcardsStore::buildStudyQueue(deck, progress, FlashcardStudyMode::New, currentDay);
+    auto dueQueue = FlashcardsStore::buildStudyQueue(deck, progress, FlashcardStudyMode::Due, currentDay);
+    auto failedQueue = FlashcardsStore::buildStudyQueue(deck, progress, FlashcardStudyMode::Failed, currentDay);
+
+    JsonDocument doc;
+    doc["path"] = deck.path;
+    doc["title"] = deck.title;
+    doc["cards"] = deck.cards.size();
+    doc["new"] = newQueue.size();
+    doc["due"] = dueQueue.size();
+    doc["failed"] = failedQueue.size();
+
+    String json;
+    serializeJson(doc, json);
+    server->send(200, "application/json", json.c_str());
   });
   server->on("/api/anki/cards", HTTP_GET, [server] {
     // buildCardsJson holds the AnkiStore mutex internally; release before send().
