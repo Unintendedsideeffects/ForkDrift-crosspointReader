@@ -9,7 +9,7 @@ class BlePageTurner {
   BlePageTurner();
   ~BlePageTurner();
 
-  // Initialize the Bluedroid stack, GAP, and HID over GATT profile
+  // Initialize the NimBLE stack, GAP, and HID over GATT profile
   void start();
 
   // Tear down the stack and free memory

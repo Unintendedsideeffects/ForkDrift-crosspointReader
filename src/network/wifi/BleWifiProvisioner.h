@@ -8,9 +8,9 @@
 #include <string>
 
 #if ENABLE_BLE_WIFI_PROVISIONING
-class BLECharacteristic;
-class BLEServer;
-class BLEService;
+class NimBLECharacteristic;
+class NimBLEServer;
+class NimBLEService;
 
 /**
  * Lightweight BLE GATT endpoint for provisioning WiFi credentials.
@@ -47,9 +47,9 @@ class BleWifiProvisioner final {
   std::string pendingPassword;
   std::string statusMessage = "Waiting for credentials";
 
-  BLEServer* server = nullptr;
-  BLEService* service = nullptr;
-  BLECharacteristic* characteristic = nullptr;
+  NimBLEServer* server = nullptr;
+  NimBLEService* service = nullptr;
+  NimBLECharacteristic* characteristic = nullptr;
   CredentialCharacteristicCallbacks* callbacks = nullptr;
   ServerDisconnectCallbacks* serverCallbacks = nullptr;
 };

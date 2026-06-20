@@ -2,10 +2,9 @@
 
 #if ENABLE_BLE_WIFI_PROVISIONING
 
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
 #include <Logging.h>
+#include <NimBLEDevice.h>
+#include <NimBLEServer.h>
 
 #include "network/wifi/BleCredentialParser.h"
 
@@ -14,20 +13,23 @@ constexpr const char* kServiceUuid = "41cb0001-b8f4-4e4a-9f49-ecb9d6fd4b90";
 constexpr const char* kCharacteristicUuid = "41cb0002-b8f4-4e4a-9f49-ecb9d6fd4b90";
 }  // namespace
 
-class BleWifiProvisioner::ServerDisconnectCallbacks : public BLEServerCallbacks {
+class BleWifiProvisioner::ServerDisconnectCallbacks : public NimBLEServerCallbacks {
  public:
-  void onDisconnect(BLEServer* pServer) override {
+  void onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) override {
     (void)pServer;
-    BLEDevice::startAdvertising();
+    (void)connInfo;
+    (void)reason;
+    NimBLEDevice::startAdvertising();
     LOG_DBG("BLE", "Client disconnected — restarted advertising");
   }
 };
 
-class BleWifiProvisioner::CredentialCharacteristicCallbacks : public BLECharacteristicCallbacks {
+class BleWifiProvisioner::CredentialCharacteristicCallbacks : public NimBLECharacteristicCallbacks {
  public:
   explicit CredentialCharacteristicCallbacks(BleWifiProvisioner* owner) : owner(owner) {}
 
-  void onWrite(BLECharacteristic* characteristic) override {
+  void onWrite(NimBLECharacteristic* characteristic, NimBLEConnInfo& connInfo) override {
+    (void)connInfo;
     if (!owner || !characteristic) {
       return;
     }
@@ -69,18 +71,18 @@ bool BleWifiProvisioner::start(const std::string& deviceName) {
   statusMessage = "Starting BLE...";
   xSemaphoreGive(stateMutex);
 
-  BLEDevice::init(deviceName.c_str());
-  server = BLEDevice::createServer();
+  NimBLEDevice::init(deviceName.c_str());
+  server = NimBLEDevice::createServer();
   if (!server) {
     setStatusMessage("BLE server create failed");
-    BLEDevice::deinit(true);
+    NimBLEDevice::deinit(true);
     return false;
   }
 
   serverCallbacks = new (std::nothrow) ServerDisconnectCallbacks();
   if (!serverCallbacks) {
     setStatusMessage("OOM: BLE server callbacks");
-    BLEDevice::deinit(true);
+    NimBLEDevice::deinit(true);
     server = nullptr;
     return false;
   }
@@ -89,16 +91,15 @@ bool BleWifiProvisioner::start(const std::string& deviceName) {
   service = server->createService(kServiceUuid);
   if (!service) {
     setStatusMessage("BLE service create failed");
-    BLEDevice::deinit(true);
+    NimBLEDevice::deinit(true);
     server = nullptr;
     return false;
   }
 
-  characteristic = service->createCharacteristic(kCharacteristicUuid,
-                                                 BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
+  characteristic = service->createCharacteristic(kCharacteristicUuid, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
   if (!characteristic) {
     setStatusMessage("BLE characteristic create failed");
-    BLEDevice::deinit(true);
+    NimBLEDevice::deinit(true);
     server = nullptr;
     service = nullptr;
     return false;
@@ -107,7 +108,7 @@ bool BleWifiProvisioner::start(const std::string& deviceName) {
   callbacks = new (std::nothrow) CredentialCharacteristicCallbacks(this);
   if (!callbacks) {
     setStatusMessage("OOM: BLE characteristic callbacks");
-    BLEDevice::deinit(true);
+    NimBLEDevice::deinit(true);
     server = nullptr;
     service = nullptr;
     return false;
@@ -116,10 +117,10 @@ bool BleWifiProvisioner::start(const std::string& deviceName) {
   characteristic->setValue("Send WiFi credentials payload");
 
   service->start();
-  BLEAdvertising* advertising = BLEDevice::getAdvertising();
+  NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
   advertising->addServiceUUID(kServiceUuid);
-  advertising->setScanResponse(true);
-  BLEDevice::startAdvertising();
+  advertising->enableScanResponse(true);
+  NimBLEDevice::startAdvertising();
 
   running.store(true);
   setStatusMessage("BLE ready: write SSID/password");
@@ -132,8 +133,8 @@ void BleWifiProvisioner::stop() {
     return;
   }
 
-  BLEDevice::stopAdvertising();
-  BLEDevice::deinit(true);
+  NimBLEDevice::stopAdvertising();
+  NimBLEDevice::deinit(true);
 
   if (callbacks) {
     delete callbacks;

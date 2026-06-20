@@ -80,7 +80,7 @@ static void mountAnkiRoutes(WebServer* server) {
       return;
     }
     std::string decodedPath = PathUtils::urlDecode(server->arg("path")).c_str();
-    if (!isValidDeckPath(decodedPath)) {
+    if (!FlashcardsStore::isValidDeckPath(decodedPath)) {
       server->send(400, "application/json", "{\"error\":\"invalid deck path\"}");
       return;
     }

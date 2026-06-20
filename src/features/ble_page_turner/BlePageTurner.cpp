@@ -2,31 +2,30 @@
 
 #if ENABLE_BLE_PAGE_TURNER && !defined(SIMULATOR)
 
-#include <BLEDevice.h>
-#include <BLEHIDDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
 #include <HIDKeyboardTypes.h>
 #include <HIDTypes.h>
 #include <Logging.h>
+#include <NimBLEDevice.h>
+#include <NimBLEHIDDevice.h>
+#include <NimBLEServer.h>
 
 namespace {
-BLEHIDDevice* hidDevice = nullptr;
-BLECharacteristic* inputCharacteristic = nullptr;
-BLEServer* bleServer = nullptr;
+NimBLEHIDDevice* hidDevice = nullptr;
+NimBLECharacteristic* inputCharacteristic = nullptr;
+NimBLEServer* bleServer = nullptr;
 bool deviceConnected = false;
 
-class ServerCallbacks : public BLEServerCallbacks {
-  void onConnect(BLEServer* pServer) override {
+class ServerCallbacks : public NimBLEServerCallbacks {
+  void onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) override {
     deviceConnected = true;
     LOG_INF("BLE", "Page Turner connected");
   }
 
-  void onDisconnect(BLEServer* pServer) override {
+  void onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) override {
     deviceConnected = false;
     LOG_INF("BLE", "Page Turner disconnected");
     // Restart advertising if disconnected
-    BLEDevice::startAdvertising();
+    NimBLEDevice::startAdvertising();
   }
 };
 
@@ -75,28 +74,29 @@ BlePageTurner::~BlePageTurner() { stop(); }
 
 void BlePageTurner::start() {
   LOG_INF("BLE", "Initializing Page Turner (HID)");
-  BLEDevice::init("CrossPoint Reader");
-  bleServer = BLEDevice::createServer();
+  NimBLEDevice::init("CrossPoint Reader");
+
+  // Security: bonding, no MITM (Just Works), Secure Connections; preserve old intent
+  NimBLEDevice::setSecurityAuth(true, false, true);
+  NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
+  NimBLEDevice::setSecurityInitKey(BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID);
+
+  bleServer = NimBLEDevice::createServer();
   bleServer->setCallbacks(new ServerCallbacks());
 
-  hidDevice = new BLEHIDDevice(bleServer);
-  inputCharacteristic = hidDevice->inputReport(1);
+  hidDevice = new NimBLEHIDDevice(bleServer);
+  inputCharacteristic = hidDevice->getInputReport(1);
 
-  hidDevice->manufacturer()->setValue("CrossPoint");
-  hidDevice->pnp(0x02, 0xe502, 0xa111, 0x0210);
-  hidDevice->hidInfo(0x00, 0x01);
+  hidDevice->setManufacturer("CrossPoint");
+  hidDevice->setPnp(0x02, 0xe502, 0xa111, 0x0210);
+  hidDevice->setHidInfo(0x00, 0x01);
 
-  BLESecurity* pSecurity = new BLESecurity();
-  pSecurity->setAuthenticationMode(ESP_LE_AUTH_REQ_SC_BOND);
-  pSecurity->setCapability(ESP_IO_CAP_NONE);
-  pSecurity->setInitEncryptionKey(ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK);
-
-  hidDevice->reportMap((uint8_t*)hidReportMap, sizeof(hidReportMap));
+  hidDevice->setReportMap((uint8_t*)hidReportMap, sizeof(hidReportMap));
   hidDevice->startServices();
 
-  BLEAdvertising* advertising = bleServer->getAdvertising();
+  NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
   advertising->setAppearance(HID_KEYBOARD);
-  advertising->addServiceUUID(hidDevice->hidService()->getUUID());
+  advertising->addServiceUUID(hidDevice->getHidService()->getUUID());
   advertising->start();
 
   hidDevice->setBatteryLevel(100);
@@ -106,8 +106,8 @@ void BlePageTurner::start() {
 void BlePageTurner::stop() {
   LOG_INF("BLE", "Stopping Page Turner");
   if (bleServer) {
-    BLEDevice::stopAdvertising();
-    BLEDevice::deinit(true);
+    NimBLEDevice::stopAdvertising();
+    NimBLEDevice::deinit(true);
     // Cleanup allocated objects
     delete hidDevice;
     hidDevice = nullptr;
