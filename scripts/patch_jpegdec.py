@@ -57,4 +57,26 @@ def _apply_mcu_skip_fixes(filepath):
         print("Patched JPEGDEC MCU_SKIP progressive decode guards: %s" % filepath)
 
 
+def patch_nimble(env):
+    libdeps_dir = os.path.join(env["PROJECT_DIR"], ".pio", "libdeps")
+    if not os.path.isdir(libdeps_dir):
+        return
+    for env_dir in os.listdir(libdeps_dir):
+        nimble_json = os.path.join(libdeps_dir, env_dir, "NimBLE-Arduino", "library.json")
+        if os.path.isfile(nimble_json):
+            bak_path = nimble_json + ".bak"
+            if os.path.exists(bak_path):
+                try:
+                    os.remove(nimble_json)
+                except Exception:
+                    pass
+            else:
+                try:
+                    os.rename(nimble_json, bak_path)
+                except Exception:
+                    pass
+
+
 patch_jpegdec(env)
+patch_nimble(env)
+
