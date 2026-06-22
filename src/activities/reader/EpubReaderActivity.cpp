@@ -291,6 +291,13 @@ void EpubReaderActivity::onExit() {
   APP_STATE.readerActivityLoadCount = 0;
   APP_STATE.saveToFile();
 
+  // Leaving mid-footnote loses the in-RAM return stack on deep sleep; persist the
+  // pre-footnote position so the book reopens at the link origin, not the footnote.
+  if (footnoteDepth > 0 && epub) {
+    const SavedPosition& origin = savedPositions[0];
+    saveProgress(origin.spineIndex, origin.pageNumber, 0);
+  }
+
 #if ENABLE_READING_STATS
   if (epub) {
     ReadingStatsStore::getInstance().endSession();
