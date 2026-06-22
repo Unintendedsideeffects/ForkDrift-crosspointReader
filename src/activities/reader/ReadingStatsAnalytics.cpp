@@ -73,12 +73,9 @@ SummaryMetrics summarize(const ReadingStatsStore& store) {
   metrics.totalPages = global.totalPagesTurned;
   metrics.totalSeconds = global.totalReadingSeconds;
 
-  uint32_t readingDays = 0;
-  for (const auto& day : store.getReadingDays()) {
-    if (day.readingMs > 0) {
-      readingDays++;
-    }
-  }
+  const auto& days = store.getReadingDays();
+  const uint32_t readingDays = static_cast<uint32_t>(
+      std::count_if(days.begin(), days.end(), [](const ReadingDayStats& day) { return day.readingMs > 0; }));
   if (readingDays > 0) {
     metrics.averageMinutesPerReadingDay = static_cast<double>(metrics.totalSeconds) / 60.0 / readingDays;
   }
@@ -122,11 +119,11 @@ StreakMetrics calculateStreaks(const ReadingStatsStore& store, uint32_t referenc
 GoalProgress calculateGoalProgress(const ReadingStatsStore& store, uint32_t dayOrdinal, uint32_t dailyGoalMinutes) {
   GoalProgress progress;
   progress.goalMs = static_cast<uint64_t>(dailyGoalMinutes) * 60ULL * 1000ULL;
-  for (const auto& day : store.getReadingDays()) {
-    if (day.dayOrdinal == dayOrdinal) {
-      progress.readingMs = day.readingMs;
-      break;
-    }
+  const auto& days = store.getReadingDays();
+  auto it = std::find_if(days.begin(), days.end(),
+                         [dayOrdinal](const ReadingDayStats& day) { return day.dayOrdinal == dayOrdinal; });
+  if (it != days.end()) {
+    progress.readingMs = it->readingMs;
   }
   if (progress.goalMs > 0) {
     progress.percent = static_cast<double>(progress.readingMs) * 100.0 / progress.goalMs;

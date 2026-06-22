@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <numeric>
 #include <string>
 
 #include "MappedInputManager.h"
@@ -19,16 +20,13 @@ constexpr uint64_t DAILY_GOAL_MS = static_cast<uint64_t>(DAILY_GOAL_MINUTES) * 6
 constexpr size_t RECENT_DAY_LIMIT = 6;
 
 uint32_t latestReadingDayOrdinal(const ReadingStatsStore& store) {
-  uint32_t latest = 0;
-  for (const auto& day : store.getReadingDays()) {
-    if (day.readingMs > 0) {
-      latest = std::max(latest, day.dayOrdinal);
-    }
-  }
-  return latest;
+  const auto& days = store.getReadingDays();
+  return std::accumulate(days.begin(), days.end(), 0U, [](uint32_t latest, const ReadingDayStats& day) {
+    return day.readingMs > 0 ? std::max(latest, day.dayOrdinal) : latest;
+  });
 }
 
-void drawMetricCell(GfxRenderer& renderer, int x, int w, int y, int h, const char* value, const char* label) {
+void drawMetricCell(const GfxRenderer& renderer, int x, int w, int y, int h, const char* value, const char* label) {
   const int valueLineH = renderer.getLineHeight(UI_12_FONT_ID);
   const int labelLineH = renderer.getLineHeight(SMALL_FONT_ID);
   const int gap = 6;
@@ -79,8 +77,9 @@ void ReadingProfileActivity::render(RenderLock&&) {
   const uint32_t referenceDay = latestReadingDayOrdinal(store);
   const auto streaks = referenceDay > 0 ? ReadingStatsAnalytics::calculateStreaks(store, referenceDay, DAILY_GOAL_MS)
                                         : ReadingStatsAnalytics::StreakMetrics{};
-  const auto goal = referenceDay > 0 ? ReadingStatsAnalytics::calculateGoalProgress(store, referenceDay, DAILY_GOAL_MINUTES)
-                                     : ReadingStatsAnalytics::GoalProgress{};
+  const auto goal = referenceDay > 0
+                        ? ReadingStatsAnalytics::calculateGoalProgress(store, referenceDay, DAILY_GOAL_MINUTES)
+                        : ReadingStatsAnalytics::GoalProgress{};
 
   int y = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
   const int cardH = 168;

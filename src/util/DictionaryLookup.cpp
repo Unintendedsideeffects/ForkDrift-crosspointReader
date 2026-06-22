@@ -5,11 +5,8 @@
 
 std::string DictionaryLookup::caseFold(const std::string& input) {
   std::string result = input;
-  for (char& c : result) {
-    if (c >= 'A' && c <= 'Z') {
-      c += ('a' - 'A');
-    }
-  }
+  std::transform(result.begin(), result.end(), result.begin(),
+                 [](char c) -> char { return (c >= 'A' && c <= 'Z') ? static_cast<char>(c + ('a' - 'A')) : c; });
   return result;
 }
 

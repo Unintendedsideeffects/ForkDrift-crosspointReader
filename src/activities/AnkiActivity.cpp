@@ -242,7 +242,6 @@ void AnkiActivity::render(RenderLock&& lock) {
 void AnkiActivity::renderHub(RenderLock&&) {
   renderer.clearScreen();
 
-  const int pageHeight = renderer.getScreenHeight();
   const int totalEntries = static_cast<int>(1 + deckPaths.size());
 
   renderer.drawCenteredText(UI_12_FONT_ID, 40, tr(STR_ANKI_CARDS), true, EpdFontFamily::BOLD);
