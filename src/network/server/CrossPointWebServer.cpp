@@ -23,11 +23,11 @@
 #include "SdCardFontSystem.h"
 #include "SettingsList.h"
 #include "SpiBusMutex.h"
-#include "network/server/WebDAVHandler.h"
 #include "activities/boot_sleep/SleepActivity.h"
 #include "activities/todo/TodoPlannerStorage.h"
 #include "core/features/FeatureCatalog.h"
 #include "core/features/FeatureModules.h"
+#include "core/features/KoreaderOpdsBridge.h"
 #include "core/registries/WebRouteRegistry.h"
 #include "network/html/FilesPageHtml.generated.h"
 #include "network/html/FontsPageHtml.generated.h"
@@ -40,6 +40,7 @@
 #include "network/server/RecentBookJson.h"
 #include "network/server/SleepCoverApi.h"
 #include "network/server/TodoPlannerApi.h"
+#include "network/server/WebDAVHandler.h"
 #if ENABLE_REMOTE_CONTROL
 #include "network/server/RemoteControlApi.h"
 #endif
@@ -369,6 +370,7 @@ void CrossPointWebServer::mountRoutes() {
   server->on("/api/opds", HTTP_POST, [this] { handlePostOpdsServer(); });
   server->on("/api/opds/delete", HTTP_POST, [this] { handleDeleteOpdsServer(); });
   server->on("/api/opds/test", HTTP_POST, [this] { handleTestOpdsServer(); });
+  server->on("/api/koreader/use-opds", HTTP_POST, [this] { handleKoreaderUseOpds(); });
 
   // Fork-drift HTTP endpoints — restored after upstream merge bd4f8033 dropped them.
   server->on("/api/book-progress", HTTP_GET, [this] { handleGetBookProgress(); });
@@ -985,6 +987,45 @@ void CrossPointWebServer::handleTestOpdsServer() {
   String json;
   serializeJson(resp, json);
   server->send(200, "application/json", json);
+}
+
+void CrossPointWebServer::handleKoreaderUseOpds() {
+  if (!core::FeatureModules::hasCapability(core::Capability::KoreaderSync)) {
+    server->send(400, "text/plain", "KOReader sync not available in this build");
+    return;
+  }
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+  JsonDocument doc;
+  if (deserializeJson(doc, server->arg("plain")) != DeserializationError::Ok) {
+    server->send(400, "text/plain", "Invalid JSON");
+    return;
+  }
+  const int index = doc["index"] | -1;
+  if (index < 0) {
+    server->send(400, "text/plain", "index required");
+    return;
+  }
+  const OpdsServer* srv = OPDS_STORE.getServer(static_cast<size_t>(index));
+  if (srv == nullptr) {
+    server->send(404, "text/plain", "OPDS server not found");
+    return;
+  }
+  const std::string syncUrl = core::applyOpdsServerToKoreaderSync(*srv);
+  if (syncUrl.empty()) {
+    server->send(400, "text/plain", "Server URL has no usable host");
+    return;
+  }
+  JsonDocument resp;
+  resp["ok"] = true;
+  resp["serverUrl"] = syncUrl;
+  resp["username"] = srv->username;  // password is never returned
+  String json;
+  serializeJson(resp, json);
+  server->send(200, "application/json", json);
+  LOG_DBG("WEB", "KOReader sync configured from OPDS server %d", index);
 }
 
 // ---- Wi-Fi Credentials API ----

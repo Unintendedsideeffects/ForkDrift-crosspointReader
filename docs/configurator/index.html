@@ -3005,7 +3005,7 @@
                     <div class="card-body">
                       <div class="card-name">KOReader Sync</div>
                       <div class="card-size"></div>
-                      <div class="card-desc">Sync reading progress with KOReader</div>
+                      <div class="card-desc">Sync reading progress with a KOReader-compatible (KOSync) server such as Booklore/Grimoire, Kavita, or a self-hosted KOSync. Configure after flashing from the device web UI ("Use for Sync" on an OPDS server) or by dropping a koreader.json on the SD card.</div>
                     </div>
                     <div class="card-toggle"><span class="toggle-box"></span></div>
                   </label>
@@ -3565,6 +3565,38 @@
           </div>
 
           <div class="panel" style="margin-top: 12px;">
+            <div class="panel-heading">KOReader Sync (Booklore/Grimoire)</div>
+            <div class="companion-desc" style="line-height: 1.6; margin-bottom: 4px;">
+              Pre-fill KOReader (KOSync) progress sync. Enter your Booklore/Grimoire base URL and the
+              KOReader credentials you set in Booklore (Settings &rarr; Device). Download
+              <code>koreader.json</code> and place it at <code>/.crosspoint/koreader.json</code> on the
+              SD card. The device imports on first boot and re-saves with device-specific obfuscation.
+              Books must be downloaded via the OPDS feed; matching is Binary.
+            </div>
+            <div class="form-group">
+              <label class="form-label">Booklore / Grimoire base URL</label>
+              <input class="form-input" id="ko-base-url" type="text"
+                placeholder="http://192.168.1.10:8085" autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">KOReader username</label>
+              <input class="form-input" id="ko-username" type="text" autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">KOReader password</label>
+              <input class="form-input" id="ko-password" type="password" autocomplete="new-password" />
+            </div>
+            <div class="actions">
+              <button class="btn btn-solid" id="ko-download-btn" disabled>&#x2193; koreader.json</button>
+            </div>
+            <div class="info-bar" style="margin-top: 10px;">
+              The password is stored as plaintext in this file until the device re-obfuscates it on
+              import — treat it like a password file. Prefer the on-device web UI "Use for Sync" button
+              if you'd rather not write credentials to a file.
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top: 12px;">
             <div class="panel-heading">Custom Fonts</div>
             <div class="companion-row">
               <div style="flex: 1">
@@ -3863,7 +3895,7 @@
         book_images: "Renders inline images embedded inside EPUB books. Decodes JPEG and PNG figures, scales them to fit the page width, and dithers to 1-bit for the e-ink display. Disabled in minimal builds to save RAM during parsing.",
         markdown: "Adds a lightweight Markdown renderer so plain .md files can be opened and read as if they were books. Supports headings, bold/italic, lists, blockquotes, and code spans. Adds ~191 KB to the binary.",
         integrations: "Shared runtime layer that enables cloud-service plugins. Required by KOReader Sync and OPDS Support — it handles HTTP connections, JSON serialisation, and retry logic. No UI of its own; other features depend on it.",
-        koreader_sync: "Syncs reading position with a KOReader Companion server (e.g. Kavita or a self-hosted KOSync instance). On book open, fetches the last-synced position; on exit, pushes the current page. Requires Integrations.",
+        koreader_sync: "Syncs reading position with a KOReader (KOSync) server such as Booklore/Grimoire (endpoint <host>/api/koreader), Kavita, or a self-hosted KOSync. On book open it fetches the last-synced position; on exit it pushes the current page. For Booklore the book must be downloaded via its OPDS feed and Document Matching must be Binary. Requires Integrations.",
         calibre_sync: "OPDS catalog browser on the device for Calibre wireless libraries and other OPDS servers, with configurable Author - Title or Title - Author download filenames. Requires Integrations; enables BookLore Support automatically.",
         opds: "BookLore server integration for OPDS browsing and downloads. Always enabled when OPDS Support is on.",
         background_server: "A lightweight HTTP server that runs alongside the reader over WiFi. Powers file transfer, remote control APIs, and the web UI. Launching it takes a few seconds; auto-start modes avoid that delay.",
@@ -5549,6 +5581,54 @@
       /* ════════════════════════════════════════════════
          OPDS servers tab
          ════════════════════════════════════════════════ */
+      function setupKoreaderTab() {
+        const baseUrl = document.getElementById('ko-base-url');
+        const username = document.getElementById('ko-username');
+        const password = document.getElementById('ko-password');
+        const dlBtn = document.getElementById('ko-download-btn');
+        if (!baseUrl || !dlBtn) return;
+
+        function refresh() {
+          dlBtn.disabled = baseUrl.value.trim() === '';
+        }
+        baseUrl.addEventListener('input', refresh);
+
+        // Derive the KOSync endpoint: <origin of base URL> + "/api/koreader".
+        function deriveSyncUrl(raw) {
+          let v = (raw || '').trim();
+          if (v === '') return '';
+          if (!/^https?:\/\//i.test(v)) v = 'http://' + v;
+          try {
+            return new URL(v).origin + '/api/koreader';
+          } catch (e) {
+            return '';
+          }
+        }
+
+        dlBtn.addEventListener('click', () => {
+          const syncUrl = deriveSyncUrl(baseUrl.value);
+          if (syncUrl === '') return;
+          const payload = {
+            username: username.value,
+            password: password.value,
+            serverUrl: syncUrl,
+            matchMethod: 1  // 1 = Binary (required by Booklore/Grimoire)
+          };
+          const json = JSON.stringify(payload, null, 2);
+          const blob = new Blob([json], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'koreader.json';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        });
+
+        refresh();
+      }
+
       function setupOpdsTab() {
         const list = document.getElementById('opds-server-list');
         const emptyHint = document.getElementById('opds-empty-hint');
@@ -7050,6 +7130,7 @@
       setupGitHubBuildTrigger();
       setupWifiTab();
       setupOpdsTab();
+      setupKoreaderTab();
       setupSettingsTab();
       initPresetDownloadLinks();
       stampCrossinkBadges();

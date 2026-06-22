@@ -1051,6 +1051,7 @@
       '<div class="opds-actions">' +
         '<button class="btn-small btn-save-server" onclick="saveOpdsServer(' + idx + ')">Save</button>' +
         '<button class="btn-small" onclick="testOpdsServer(\'' + id + '\')">Test</button>' +
+        (isNew ? '' : '<button class="btn-small" onclick="useOpdsForSync(' + idx + ')">Use for Sync</button>') +
         (isNew ? '' : '<button class="btn-small btn-delete" onclick="deleteOpdsServer(' + idx + ')">Delete</button>') +
       '</div>' +
       '<div id="opds-test-result-' + id + '" style="margin-top:6px;font-size:0.8em;"></div>' +
@@ -1163,6 +1164,22 @@
       if (!resp.ok) throw new Error(await resp.text());
       showMessage('OPDS server deleted', false);
       await loadOpdsServers();
+    } catch (e) {
+      showMessage('Error: ' + e.message, true);
+    }
+  }
+
+  async function useOpdsForSync(idx) {
+    try {
+      const resp = await fetch('/api/koreader/use-opds', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({index: idx})
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      showMessage('KOReader sync set to ' + (data.serverUrl || 'this server') + '. Authenticate to verify.', false);
+      await loadSettings();
     } catch (e) {
       showMessage('Error: ' + e.message, true);
     }

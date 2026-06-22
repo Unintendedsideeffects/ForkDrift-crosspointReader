@@ -10,6 +10,8 @@
 #include "OpdsServerStore.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
+#include "core/features/FeatureModules.h"
+#include "core/features/KoreaderOpdsBridge.h"
 #include "fontIds.h"
 
 namespace {
@@ -19,7 +21,12 @@ constexpr int BASE_ITEMS = 4;
 }  // namespace
 
 int OpdsSettingsActivity::getMenuItemCount() const {
-  return isNewServer ? BASE_ITEMS : BASE_ITEMS + 1;  // +1 for Delete
+  if (isNewServer) {
+    return BASE_ITEMS;
+  }
+  // Existing server: +1 for Delete, +1 more for "Use for KOReader Sync" when that feature is compiled in.
+  const bool koSync = core::FeatureModules::hasCapability(core::Capability::KoreaderSync);
+  return BASE_ITEMS + 1 + (koSync ? 1 : 0);
 }
 
 void OpdsSettingsActivity::onEnter() {
@@ -28,6 +35,7 @@ void OpdsSettingsActivity::onEnter() {
   selectedIndex = 0;
   isNewServer = (serverIndex < 0);
   showSaveError = false;
+  showSyncConfirmed = false;
 
   if (!isNewServer) {
     // Edit flow: copy the selected server into local editable state.
@@ -61,11 +69,13 @@ void OpdsSettingsActivity::loop() {
   const int menuItems = getMenuItemCount();
   buttonNavigator.onNext([this, menuItems] {
     selectedIndex = (selectedIndex + 1) % menuItems;
+    showSyncConfirmed = false;
     requestUpdate();
   });
 
   buttonNavigator.onPrevious([this, menuItems] {
     selectedIndex = (selectedIndex + menuItems - 1) % menuItems;
+    showSyncConfirmed = false;
     requestUpdate();
   });
 }
@@ -101,6 +111,7 @@ bool OpdsSettingsActivity::saveServer() {
 }
 
 void OpdsSettingsActivity::handleSelection() {
+  showSyncConfirmed = false;
   // Each field edit is saved immediately so partially configured servers
   // survive navigation and power-loss scenarios.
   if (selectedIndex == 0) {
@@ -165,6 +176,12 @@ void OpdsSettingsActivity::handleSelection() {
       return;
     }
     finish();
+  } else if (!isNewServer && static_cast<int>(selectedIndex) == BASE_ITEMS + 1) {
+    // Use this OPDS server's host + credentials for KOReader (KOSync) progress sync:
+    // derives <origin>/api/koreader, copies username/password, sets Binary matching.
+    core::applyOpdsServerToKoreaderSync(editServer);
+    showSyncConfirmed = true;
+    requestUpdate();
   }
 }
 
@@ -194,7 +211,10 @@ void OpdsSettingsActivity::render(RenderLock&&) {
         if (index < BASE_ITEMS) {
           return std::string(I18N.get(fieldNames[index]));
         }
-        return std::string(tr(STR_DELETE_SERVER));
+        if (index == BASE_ITEMS) {
+          return std::string(tr(STR_DELETE_SERVER));
+        }
+        return std::string(tr(STR_USE_FOR_KOREADER_SYNC));
       },
       nullptr, nullptr,
       [this](int index) {
@@ -216,6 +236,8 @@ void OpdsSettingsActivity::render(RenderLock&&) {
 
   if (showSaveError) {
     GUI.drawPopup(renderer, tr(STR_ERROR_GENERAL_FAILURE));
+  } else if (showSyncConfirmed) {
+    GUI.drawPopup(renderer, tr(STR_KOREADER_SYNC_CONFIGURED));
   }
 
   renderer.displayBuffer();

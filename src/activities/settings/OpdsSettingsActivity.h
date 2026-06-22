@@ -29,6 +29,7 @@ class OpdsSettingsActivity final : public Activity {
   OpdsServer editServer;
   bool isNewServer = false;
   bool showSaveError = false;
+  bool showSyncConfirmed = false;  // transient popup after "Use for KOReader Sync"
 
   int getMenuItemCount() const;
   void handleSelection();
