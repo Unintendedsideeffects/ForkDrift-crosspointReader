@@ -73,8 +73,16 @@ BlePageTurner::BlePageTurner() {}
 BlePageTurner::~BlePageTurner() { stop(); }
 
 void BlePageTurner::start() {
-  LOG_INF("BLE", "Initializing Page Turner (HID)");
-  NimBLEDevice::init("CrossPoint Reader");
+  LOG_INF("BLE", "Initializing Page Turner (HID), free heap %u", (unsigned)ESP.getFreeHeap());
+
+  // init() blocks until the controller<->host sync completes and returns false
+  // if the BLE controller fails to come up (e.g. heap exhaustion). Proceeding
+  // past a failed init would dereference an unsynced stack and panic in the NPL
+  // mutex layer, so bail cleanly and leave the feature un-started.
+  if (!NimBLEDevice::init("CrossPoint Reader")) {
+    LOG_ERR("BLE", "NimBLEDevice::init failed; Page Turner not started");
+    return;
+  }
 
   // Security: bonding, no MITM (Just Works), Secure Connections; preserve old intent
   NimBLEDevice::setSecurityAuth(true, false, true);
@@ -82,9 +90,20 @@ void BlePageTurner::start() {
   NimBLEDevice::setSecurityInitKey(BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID);
 
   bleServer = NimBLEDevice::createServer();
-  bleServer->setCallbacks(new ServerCallbacks());
+  if (!bleServer) {
+    LOG_ERR("BLE", "createServer failed; Page Turner not started");
+    NimBLEDevice::deinit(true);
+    return;
+  }
+  bleServer->setCallbacks(new (std::nothrow) ServerCallbacks());
 
-  hidDevice = new NimBLEHIDDevice(bleServer);
+  hidDevice = new (std::nothrow) NimBLEHIDDevice(bleServer);
+  if (!hidDevice) {
+    LOG_ERR("BLE", "OOM: NimBLEHIDDevice; Page Turner not started");
+    NimBLEDevice::deinit(true);
+    bleServer = nullptr;
+    return;
+  }
   inputCharacteristic = hidDevice->getInputReport(1);
 
   hidDevice->setManufacturer("CrossPoint");

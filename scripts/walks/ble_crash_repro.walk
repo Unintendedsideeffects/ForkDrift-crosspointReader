@@ -1,0 +1,28 @@
+# Reproduce the BLE Page Turner NimBLE crash, capturing the full serial panic.
+# Starts from the crash screen (CrashActivity); BACK clears it to home.
+press BACK 3
+# Home carousel -> drop into toolbar -> Settings (sliders) icon
+press DOWN 1
+press DOWN 1
+press DOWN 1
+press DOWN 1
+press DOWN 1
+press DOWN 1
+press RIGHT 1
+press RIGHT 1
+press RIGHT 1
+shot 01-settings-focus
+# Enter Settings, advance to Net tab (CONFIRM on tab bar advances category)
+press CONFIRM 2
+press CONFIRM 1
+press CONFIRM 1
+press CONFIRM 2
+shot 02-net-tab
+# Move into the list: Wi-Fi Networks -> BLE Page Turner, then activate
+press DOWN 1
+press DOWN 1
+shot 03-ble-selected
+press CONFIRM 1
+# Capture the panic as it prints to serial
+expect 12 (assert failed|Backtrace:|Guru Meditation|npl_|panic|mutex_pend)
+shot 04-ble-result
