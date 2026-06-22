@@ -32,7 +32,7 @@ constexpr int kTlsBufferSize = 2048;
 // many small mbedTLS allocations (not the largest block) is what matters here.
 // Kept below the ~50KB seen during font downloads so it only rejects genuinely
 // starved cases instead of viable ones.
-constexpr uint32_t kMinHeapForTls = 38000;
+constexpr uint32_t kMinHeapForTls = HttpDownloader::MIN_HEAP_FOR_HTTPS;
 
 // Carries download state into the esp_http_client event handler.
 struct DownloadContext {
@@ -129,6 +129,15 @@ bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const 
                               const std::string& password) {
   std::unique_ptr<WiFiClient> client;
   if (UrlUtils::isHttpsUrl(url)) {
+    // Guard against TLS allocation failing silently when heap is too fragmented.
+    // The aggregate mbedTLS allocs (not just the largest block) matter here;
+    // the same threshold is used in downloadToFile for the same reason.
+    const uint32_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap < kMinHeapForTls) {
+      LOG_ERR("HTTP", "Heap too low for TLS fetch (%u < %u, largest: %u)", freeHeap, kMinHeapForTls,
+              ESP.getMaxAllocHeap());
+      return false;
+    }
     auto* secureClient = new (std::nothrow) WiFiClientSecure();
     if (!secureClient) {
       LOG_ERR("HTTP", "OOM: WiFiClientSecure");

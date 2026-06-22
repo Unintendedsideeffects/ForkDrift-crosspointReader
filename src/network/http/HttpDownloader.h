@@ -16,6 +16,12 @@ class HttpDownloader {
   // streaming parser consume the response without buffering the whole body.
   using DataCallback = std::function<bool(const uint8_t* data, size_t len)>;
 
+  // Minimum free heap required before attempting an HTTPS connection. Below
+  // this the aggregate mbedTLS allocations are likely to fail or cause heap
+  // exhaustion. Exposed so callers can check and take action (e.g. restart)
+  // before attempting a fetch rather than failing mid-request.
+  static constexpr uint32_t MIN_HEAP_FOR_HTTPS = 38000;
+
   enum DownloadError {
     OK = 0,
     HTTP_ERROR,

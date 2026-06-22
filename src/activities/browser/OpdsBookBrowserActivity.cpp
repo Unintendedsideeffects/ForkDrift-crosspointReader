@@ -9,13 +9,13 @@
 #include <OpenSearchParser.h>
 #include <WiFi.h>
 
+#include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "SilentRestart.h"
 #include "SpiBusMutex.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
-#include "CrossPointSettings.h"
 #include "fontIds.h"
 #include "network/http/HttpDownloader.h"
 #include "util/LibraryShelfStore.h"
@@ -200,7 +200,20 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
   }
 
   std::string url = (path.find("http") == 0) ? path : UrlUtils::buildUrl(server.url, path);
+
+  // If this is an HTTPS fetch and the heap is too fragmented to sustain a TLS
+  // session, restart now rather than letting mbedTLS fail mid-request. The
+  // silent restart recovers the heap; onExit's recoverHeapAfterWifi would do
+  // the same thing, but only after the user dismisses an error screen.
+  if (UrlUtils::isHttpsUrl(url) && ESP.getFreeHeap() < HttpDownloader::MIN_HEAP_FOR_HTTPS) {
+    LOG_ERR("OPDS", "Heap too low for HTTPS feed (%u < %u); silent restart", ESP.getFreeHeap(),
+            HttpDownloader::MIN_HEAP_FOR_HTTPS);
+    silentRestart();
+    return;  // unreachable
+  }
+
   LOG_DBG("OPDS", "Fetching: %s", url.c_str());
+
   OpdsParser parser;
   {
     OpdsParserStream stream{parser};

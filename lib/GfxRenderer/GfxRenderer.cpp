@@ -230,9 +230,21 @@ void GfxRenderer::drawPixel(const int x, const int y, const bool state) const {
   // Note: this call should be inlined for better performance
   rotateCoordinates(orientation, x, y, &phyX, &phyY, panelWidth, panelHeight);
 
-  // Bounds checking against runtime panel dimensions
+  // Bounds checking against runtime panel dimensions. Log only the first
+  // violation per boot to avoid flooding the serial log with one entry per
+  // out-of-bounds pixel (which can be thousands for a single misaligned draw
+  // call). Subsequent violations are silently dropped — the pixel is simply
+  // not drawn, which is the correct safe behaviour.
   if (phyX < 0 || phyX >= panelWidth || phyY < 0 || phyY >= panelHeight) {
-    LOG_ERR("GFX", "!! Outside range (%d, %d) -> (%d, %d)", x, y, phyX, phyY);
+    static bool oobWarned = false;
+    if (!oobWarned) {
+      oobWarned = true;
+      LOG_ERR("GFX",
+              "Out-of-bounds pixel suppressed (first occurrence): logical=(%d,%d) "
+              "physical=(%d,%d) panel=%dx%d orientation=%d — subsequent violations "
+              "are silently dropped",
+              x, y, phyX, phyY, panelWidth, panelHeight, static_cast<int>(orientation));
+    }
     return;
   }
 
