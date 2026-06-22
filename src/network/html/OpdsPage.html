@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OPDS Servers - CrossPoint Reader</title>
+  <style>
+    :root {
+      --theme-token-placeholder: 0;
+      /* THEME_TOKENS_START */
+      /* THEME_TOKENS_END */
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: var(--font-mono);
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: var(--gray-10);
+      color: var(--black);
+      background-image: radial-gradient(circle, var(--gray-8) 1px, transparent 1px);
+      background-size: 4px 4px;
+    }
+    .masthead {
+      text-align: center;
+      padding: 24px 16px 16px;
+      border-bottom: 4px double var(--black);
+    }
+    .masthead-rule {
+      display: block;
+      border: none;
+      border-top: 1px solid var(--black);
+      margin: 0 auto 8px;
+      width: 60%;
+    }
+    .masthead h1 {
+      font-family: var(--font-display);
+      font-weight: 900;
+      font-size: 2.2em;
+      letter-spacing: 0.04em;
+      line-height: 1;
+    }
+    .masthead-sub {
+      font-family: var(--font-mono);
+      font-size: 0.7em;
+      color: var(--gray-4);
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+    .nav {
+      display: flex;
+      border-bottom: 2px solid var(--black);
+      background: var(--white);
+    }
+    .nav a {
+      flex: 1;
+      text-align: center;
+      padding: 10px 0;
+      text-decoration: none;
+      color: var(--black);
+      font-family: var(--font-mono);
+      font-size: 0.8em;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border-right: 1px solid var(--gray-7);
+      transition: background 0.1s;
+    }
+    .nav a:last-child { border-right: none; }
+    .nav a:hover, .nav a.active {
+      background: var(--black);
+      color: var(--white);
+    }
+    .page-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      color: var(--black);
+      font-size: 1.55em;
+      line-height: 1;
+      padding: 18px 16px 8px;
+    }
+    .header-rule {
+      height: 2px;
+      background: var(--black);
+      margin: 0 16px 16px;
+    }
+    .card {
+      background: var(--white);
+      border: 2px solid var(--black);
+      padding: 16px;
+      margin: 12px 16px;
+    }
+    h2 {
+      color: var(--gray-2);
+      margin-bottom: 10px;
+      font-size: 0.95em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 42px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--black);
+    }
+    .setting-row:last-child {
+      border-bottom: none;
+    }
+    .setting-name {
+      font-weight: 600;
+      color: var(--black);
+      flex: 1;
+      min-width: 0;
+      padding-right: 12px;
+      font-size: 0.95em;
+    }
+    .setting-control {
+      flex-shrink: 0;
+      max-width: 48%;
+    }
+    .setting-control input[type="text"],
+    .setting-control input[type="password"] {
+      padding: 0;
+      border: none;
+      font-family: var(--font-mono);
+      font-size: 0.95em;
+      font-weight: 700;
+      background: transparent;
+      color: var(--black);
+      text-align: right;
+    }
+    .setting-control input:focus {
+      outline: none;
+    }
+    .setting-control input[type="text"],
+    .setting-control input[type="password"] {
+      width: 180px;
+    }
+    .opds-server {
+      border: 1px solid var(--black);
+      padding: 12px;
+      margin: 14px 0;
+      background: var(--white);
+    }
+    .opds-server .setting-row:last-child {
+      border-bottom: none;
+    }
+    .opds-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .btn {
+      padding: 8px 14px;
+      border: 2px solid var(--black);
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 0.8em;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transition: background 0.1s, color 0.1s;
+      background: var(--white);
+      color: var(--black);
+    }
+    .btn:hover {
+      background: var(--black);
+      color: var(--white);
+    }
+    .btn-primary {
+      background: var(--black);
+      color: var(--white);
+    }
+    .btn-primary:hover {
+      background: var(--white);
+      color: var(--black);
+    }
+    .btn-danger {
+      background: var(--white);
+      color: var(--black);
+    }
+    .btn-danger:hover {
+      background: var(--gray-9);
+    }
+    .message {
+      padding: 10px;
+      margin: 12px 16px;
+      text-align: center;
+      display: none;
+      border: 1px solid var(--black);
+      font-size: 0.85em;
+    }
+    .message.success {
+      background: var(--gray-9);
+      color: var(--black);
+    }
+    .message.error {
+      background: var(--white);
+      color: var(--black);
+      border-style: double;
+    }
+    .loader-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 20px 0;
+    }
+    .loader {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--gray-6);
+      border-bottom-color: transparent;
+      border-radius: 50%;
+      display: inline-block;
+      box-sizing: border-box;
+      animation: rotation 1s linear infinite;
+    }
+    @keyframes rotation {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .footer {
+      text-align: center;
+      padding: 12px 16px 20px;
+      font-size: 0.65em;
+      color: var(--gray-5);
+      border-top: 1px solid var(--gray-7);
+      margin: 0 16px;
+      letter-spacing: 0.06em;
+    }
+    @media (max-width: 560px) {
+      .masthead h1 { font-size: 1.7em; }
+      .nav { flex-wrap: wrap; }
+      .nav a {
+        flex: 1 1 50%;
+        border-bottom: 1px solid var(--gray-7);
+      }
+      .nav a:nth-child(2n) { border-right: none; }
+      .page-title { font-size: 1.35em; }
+      .setting-row { flex-wrap: wrap; gap: 4px; }
+      .setting-control { max-width: 100%; }
+      .setting-control input[type="text"],
+      .setting-control input[type="password"] {
+        min-width: 0;
+        width: 100%;
+        text-align: left;
+      }
+      .opds-actions {
+        flex-direction: column;
+        gap: 6px;
+      }
+      .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <hr class="masthead-rule">
+    <h1>CrossPoint Reader</h1>
+    <div class="masthead-sub">Personal E-Reader &middot; Open Source</div>
+  </header>
+
+  <nav class="nav">
+    <a href="/">[Home]</a>
+    <a href="/files">[Files]</a>
+    <a href="/settings">[Settings]</a>
+    <a href="/fonts">[Fonts]</a>
+    <a href="/opds" class="active">[OPDS]</a>
+  </nav>
+
+  <h1 class="page-title">OPDS Servers</h1>
+  <div class="header-rule"></div>
+
+  <div id="message" class="message"></div>
+
+  <div id="opds-container">
+    <div class="loader-container">
+      <span class="loader"></span>
+    </div>
+  </div>
+
+  <div class="footer">
+    CrossPoint E-Reader • Open Source
+  </div>
+
+<script>
+  function escapeHtml(unsafe) {
+    return unsafe
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function showMessage(text, isError) {
+    const msg = document.getElementById('message');
+    msg.textContent = text;
+    msg.className = 'message ' + (isError ? 'error' : 'success');
+    msg.style.display = 'block';
+    setTimeout(function() { msg.style.display = 'none'; }, 4000);
+  }
+
+  let opdsServers = [];
+
+  function renderOpdsServer(srv, idx) {
+    const isNew = idx === -1;
+    const id = isNew ? 'new' : idx;
+    return '<div class="opds-server" id="opds-' + id + '">' +
+      '<div class="setting-row">' +
+        '<span class="setting-name">Server Name</span>' +
+        '<span class="setting-control"><input type="text" id="opds-name-' + id + '" value="' + escapeHtml(srv.name || '') + '"></span>' +
+      '</div>' +
+      '<div class="setting-row">' +
+        '<span class="setting-name">URL</span>' +
+        '<span class="setting-control"><input type="text" id="opds-url-' + id + '" value="' + escapeHtml(srv.url || '') + '"></span>' +
+      '</div>' +
+      '<div class="setting-row">' +
+        '<span class="setting-name">Username</span>' +
+        '<span class="setting-control"><input type="text" id="opds-user-' + id + '" value="' + escapeHtml(srv.username || '') + '"></span>' +
+      '</div>' +
+      '<div class="setting-row">' +
+        '<span class="setting-name">Password</span>' +
+        '<span class="setting-control"><input type="password" id="opds-pass-' + id + '" placeholder="' + (srv.hasPassword ? '(unchanged)' : '') + '"></span>' +
+      '</div>' +
+      '<div class="opds-actions">' +
+        '<button class="btn btn-primary" onclick="saveOpdsServer(' + idx + ')">Save</button>' +
+        '<button class="btn" onclick="testOpdsServer(\'' + id + '\')">Test</button>' +
+        (isNew ? '' : '<button class="btn" onclick="useOpdsForSync(' + idx + ')">Use for Sync</button>') +
+        (isNew ? '' : '<button class="btn btn-danger" onclick="deleteOpdsServer(' + idx + ')">Delete</button>') +
+      '</div>' +
+      '<div id="opds-test-result-' + id + '" style="margin-top:8px;font-size:0.85em;font-weight:700;"></div>' +
+    '</div>';
+  }
+
+  function renderOpdsSection() {
+    const container = document.getElementById('opds-container');
+    let html = '<div class="card"><h2>OPDS Servers</h2>';
+
+    if (opdsServers.length === 0) {
+      html += '<p style="text-align:center;padding:20px;color:var(--gray-5);">No OPDS servers configured</p>';
+    } else {
+      opdsServers.forEach(function(srv, idx) {
+        html += renderOpdsServer(srv, idx);
+      });
+    }
+
+    html += '<div style="margin-top:12px;text-align:center;">' +
+      '<button class="btn btn-primary" onclick="addOpdsServer()">+ Add Server</button>' +
+    '</div></div>';
+    container.innerHTML = html;
+  }
+
+  async function testOpdsServer(id) {
+    const url = (document.getElementById('opds-url-' + id) || {}).value || '';
+    const username = (document.getElementById('opds-user-' + id) || {}).value || '';
+    const password = (document.getElementById('opds-pass-' + id) || {}).value || '';
+    const resultEl = document.getElementById('opds-test-result-' + id);
+    if (!resultEl) return;
+    if (!url) { resultEl.textContent = 'Enter a URL first.'; resultEl.style.color = '#c00'; return; }
+    resultEl.textContent = 'Testing…';
+    resultEl.style.color = 'inherit';
+    try {
+      const resp = await fetch('/api/opds/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, username, password })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        resultEl.textContent = '✓ Connected (HTTP ' + data.status + ')';
+        resultEl.style.color = 'green';
+      } else {
+        resultEl.textContent = '✗ ' + (data.error || ('HTTP ' + data.status));
+        resultEl.style.color = '#c00';
+      }
+    } catch (e) {
+      resultEl.textContent = '✗ Request failed';
+      resultEl.style.color = '#c00';
+    }
+  }
+
+  async function loadOpdsServers() {
+    try {
+      const resp = await fetch('/api/opds');
+      if (!resp.ok) throw new Error('Failed to load');
+      opdsServers = await resp.json();
+    } catch (e) {
+      console.error('OPDS load error:', e);
+      opdsServers = [];
+    }
+    renderOpdsSection();
+  }
+
+  function addOpdsServer() {
+    const container = document.getElementById('opds-container');
+    const card = container.querySelector('.card');
+    const addBtn = card.querySelector('button[onclick="addOpdsServer()"]').parentElement;
+    if (document.getElementById('opds-new')) return;
+    addBtn.insertAdjacentHTML('beforebegin', renderOpdsServer({name:'',url:'',username:'',hasPassword:false}, -1));
+  }
+
+  async function saveOpdsServer(idx) {
+    const id = idx === -1 ? 'new' : idx;
+    const data = {
+      name: document.getElementById('opds-name-' + id).value,
+      url: document.getElementById('opds-url-' + id).value,
+      username: document.getElementById('opds-user-' + id).value,
+    };
+    const pass = document.getElementById('opds-pass-' + id).value;
+    if (pass) data.password = pass;
+    if (idx >= 0) data.index = idx;
+
+    try {
+      const resp = await fetch('/api/opds', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      showMessage('OPDS server saved!', false);
+      await loadOpdsServers();
+    } catch (e) {
+      showMessage('Error: ' + e.message, true);
+    }
+  }
+
+  async function deleteOpdsServer(idx) {
+    if (!confirm('Delete this OPDS server?')) return;
+    try {
+      const resp = await fetch('/api/opds/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({index: idx})
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      showMessage('OPDS server deleted', false);
+      await loadOpdsServers();
+    } catch (e) {
+      showMessage('Error: ' + e.message, true);
+    }
+  }
+
+  async function useOpdsForSync(idx) {
+    try {
+      const resp = await fetch('/api/koreader/use-opds', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({index: idx})
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      showMessage('KOReader sync set to ' + (data.serverUrl || 'this server') + '.', false);
+    } catch (e) {
+      showMessage('Error: ' + e.message, true);
+    }
+  }
+
+  loadOpdsServers();
+</script>
+</body>
+</html>

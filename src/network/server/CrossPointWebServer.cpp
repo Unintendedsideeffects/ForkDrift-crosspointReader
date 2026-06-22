@@ -366,6 +366,7 @@ void CrossPointWebServer::mountRoutes() {
   server->on("/api/fonts/delete", HTTP_POST, [this] { handleFontDelete(); });
 
   // OPDS server endpoints
+  server->on("/opds", HTTP_GET, [this] { handleOpdsPage(); });
   server->on("/api/opds", HTTP_GET, [this] { handleGetOpdsServers(); });
   server->on("/api/opds", HTTP_POST, [this] { handlePostOpdsServer(); });
   server->on("/api/opds/delete", HTTP_POST, [this] { handleDeleteOpdsServer(); });

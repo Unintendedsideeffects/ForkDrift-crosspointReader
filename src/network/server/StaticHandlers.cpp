@@ -8,12 +8,14 @@
 #include "network/html/FilesPageHtml.generated.h"
 #include "network/html/HomePageHtml.generated.h"
 #include "network/html/SettingsPageHtml.generated.h"
+#include "network/html/OpdsPageHtml.generated.h"
 #include "network/html/js/jszip_minJs.generated.h"
 #include "network/server/WebUtils.h"
 
 static_assert(HomePageHtmlCompressedSize == sizeof(HomePageHtml), "Home page compressed size mismatch");
 static_assert(FilesPageHtmlCompressedSize == sizeof(FilesPageHtml), "Files page compressed size mismatch");
 static_assert(SettingsPageHtmlCompressedSize == sizeof(SettingsPageHtml), "Settings page compressed size mismatch");
+static_assert(OpdsPageHtmlCompressedSize == sizeof(OpdsPageHtml), "OPDS page compressed size mismatch");
 
 namespace {
 
@@ -77,6 +79,12 @@ void CrossPointWebServer::handleSettingsPage() const {
   noteWebUiAccess();
   sendPrecompressedHtml(server.get(), SettingsPageHtml, SettingsPageHtmlCompressedSize);
   LOG_DBG("WEB", "Served settings page");
+}
+
+void CrossPointWebServer::handleOpdsPage() const {
+  noteWebUiAccess();
+  sendPrecompressedHtml(server.get(), OpdsPageHtml, OpdsPageHtmlCompressedSize);
+  LOG_DBG("WEB", "Served OPDS page");
 }
 
 void CrossPointWebServer::handleScreenshot() {

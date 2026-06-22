@@ -3746,19 +3746,10 @@
           flag: "ENABLE_FLOW_THEME",
           default: false,
         },
-        anki_support: {
-          id: "anki_support",
-          name: "Anki Support",
-          deps: [],
-          sizeKb: 15,
-          flag: "ENABLE_ANKI_SUPPORT",
-        },
         dictionary_lookup: {
-          id: "dictionary_lookup",
-          name: "Dictionary Lookup",
-          deps: [],
           sizeKb: 5,
           flag: "ENABLE_DICTIONARY",
+          default: false,
         },
         ota_updates: {
           sizeKb: 3,
@@ -4069,6 +4060,7 @@
 
       let baseProfile = "standard";
       let initialSelections = null;
+      let currentFeatureSelections = null;
 
       function getRepoInfo() {
         const host = window.location.hostname;
@@ -4105,6 +4097,7 @@
       function setSelections(selections) {
         Object.keys(FEATURES).forEach((feature) => {
           const checkbox = document.getElementById(feature);
+          if (!checkbox) return;
           if (checkbox.disabled) return;
           checkbox.checked = Boolean(selections[feature]);
         });
@@ -4211,7 +4204,8 @@
       function applyProfile(name) {
         if (!PROFILES[name]) return;
         baseProfile = name;
-        setSelections(profileToSelections(name));
+        currentFeatureSelections = profileToSelections(name);
+        setSelections(currentFeatureSelections);
         highlightProfile(name);
         updateAll();
       }
@@ -4226,10 +4220,12 @@
       }
 
       function readSelections() {
-        const selections = {};
+        const selections = Object.assign({}, currentFeatureSelections || {});
         Object.keys(FEATURES).forEach((feature) => {
           const cb = document.getElementById(feature);
-          selections[feature] = cb.disabled ? false : cb.checked;
+          if (cb) {
+            selections[feature] = cb.disabled ? false : cb.checked;
+          }
         });
         return selections;
       }
@@ -4451,7 +4447,7 @@
 
           card.classList.toggle("active", isEnabled);
           card.classList.toggle("locked", isBlocked);
-          checkbox.disabled = isBlocked;
+          if (checkbox) checkbox.disabled = isBlocked;
 
           const sizeEl = card.querySelector(".card-size");
           if (sizeEl) {
@@ -4503,6 +4499,7 @@
       function updateAll(changedFeature = null, enabled = null) {
         const selections = readSelections();
         applyDependencyRules(selections, changedFeature, enabled);
+        currentFeatureSelections = selections;
         setSelections(selections);
         updateVisuals(selections);
         const matchingProfile = detectMatchingProfile(selections);
@@ -7138,6 +7135,7 @@
       const initialState = parseInitialStateFromUrl();
       baseProfile = initialState.initialProfile;
       initialSelections = Object.assign({}, initialState.selections);
+      currentFeatureSelections = Object.assign({}, initialState.selections);
       setSelections(initialState.selections);
       highlightProfile(baseProfile);
       updateAll();

@@ -514,6 +514,13 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=[]
     ),
+    'dictionary_lookup': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=[],
+        conflicts=[],
+        recommends=[]
+    ),
     'dark_mode': FeatureMetadata(
         implemented=True,
         stable=True,

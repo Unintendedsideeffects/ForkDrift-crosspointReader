@@ -1826,7 +1826,7 @@ void HomeActivity::render(RenderLock&&) {
         static_cast<int>(menuLabels.size()), menuSelector, [&menuLabels](const int index) { return menuLabels[index]; },
         [&menuIcons](const int index) { return menuIcons[index]; });
 
-    const char* backLabel = isPokemonPartyHomeMode() ? tr(STR_MENU_RECENT_BOOKS) : "";
+    const char* backLabel = isPokemonPartyHomeMode() ? tr(STR_RECENTS) : "";
     const bool pokemonMenuFocus = isPokemonPartyHomeMode() && (inButtonGrid || recentBooks.empty());
     const char* dirHintA = pokemonMenuFocus ? tr(STR_DIR_LEFT) : tr(STR_DIR_UP);
     const char* dirHintB = pokemonMenuFocus ? tr(STR_DIR_RIGHT) : tr(STR_DIR_DOWN);

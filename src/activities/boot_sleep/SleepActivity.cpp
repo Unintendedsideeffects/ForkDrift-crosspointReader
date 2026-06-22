@@ -843,7 +843,7 @@ bool SleepActivity::tryRenderCurrentBookCover() const {
     cw = drawnRect.w;
     ch = drawnRect.h;
   }
-  if (drawPokemonCoverOverlay(APP_STATE.openEpubPath, cx, cy, cw, ch)) {
+  if (drawPokemonCoverOverlay(APP_STATE.openEpubPath)) {
     displaySleepBuffer(renderer);
   }
 #endif
@@ -1195,15 +1195,14 @@ bool SleepActivity::renderPokemonCoverSleepScreen() const {
     }
   }
 
-  if (!drawPokemonCoverOverlay(bookPath, cx, cy, drawW, drawH)) {
+  if (!drawPokemonCoverOverlay(bookPath)) {
     return false;
   }
   displaySleepBuffer(renderer);
   return true;
 }
 
-bool SleepActivity::drawPokemonCoverOverlay(const std::string& bookPath, int coverX, int coverY, int coverW,
-                                            int coverH) const {
+bool SleepActivity::drawPokemonCoverOverlay(const std::string& bookPath) const {
   const PokemonAssignment assignment = PokemonProgress::loadForBook(bookPath);
   if (!assignment.valid) {
     return false;
@@ -1236,8 +1235,10 @@ bool SleepActivity::drawPokemonCoverOverlay(const std::string& bookPath, int cov
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
 
-  int sx = coverX + coverW - bw;
-  int sy = coverY + coverH - bh;
+  // Position in the bottom right corner of the screen, with a 4px margin from the borders
+  const int margin = 4;
+  int sx = screenW - bw - margin;
+  int sy = screenH - bh - margin;
 
   sx = std::clamp(sx, 0, std::max(0, screenW - bw));
   sy = std::clamp(sy, 0, std::max(0, screenH - bh));

@@ -59,6 +59,7 @@ FEATURES = [
     'todo_planner',
     'notes',
     'anki_support',
+    'dictionary_lookup',
     'remote_keyboard_input',
     'dark_mode',
     'web_wallpaper_plugin',
