@@ -2,6 +2,9 @@
 
 #include <Logging.h>
 #include <WiFi.h>
+#ifndef SIMULATOR
+#include <NimBLEDevice.h>
+#endif
 #include <esp_sleep.h>
 
 #include <cassert>
@@ -55,9 +58,16 @@ void HalPowerManager::setPowerSaving(bool enabled) {
     return;  // invalid state
   }
 
+  bool bleActive = false;
+#ifndef SIMULATOR
+  if (NimBLEDevice::isInitialized()) {
+    bleActive = true;
+  }
+#endif
+
   auto wifiMode = WiFi.getMode();
-  if (wifiMode != WIFI_MODE_NULL) {
-    // Wifi is active, force disabling power saving
+  if (wifiMode != WIFI_MODE_NULL || bleActive) {
+    // Wifi or BLE is active, force disabling power saving
     enabled = false;
   }
 
@@ -66,6 +76,12 @@ void HalPowerManager::setPowerSaving(bool enabled) {
   const int count = lockCount;
 
   if (count == 0 && enabled && !isLowPower) {
+    // Only scale down to low-power mode if the device is actually idle
+    extern unsigned long lastActivityTime;
+    if (millis() - lastActivityTime < IDLE_POWER_SAVING_MS) {
+      return;
+    }
+
     LOG_DBG("PWR", "Going to low-power mode");
     if (!setCpuFrequencyMhz(LOW_POWER_FREQ)) {
       LOG_DBG("PWR", "Failed to set CPU frequency = %d MHz", LOW_POWER_FREQ);

@@ -487,7 +487,10 @@ bool setupDisplayAndFonts() {
   return true;
 }
 
+unsigned long lastActivityTime = 0;
+
 void setup() {
+  lastActivityTime = millis();
   t1 = millis();
 
   HalSystem::begin();
@@ -685,7 +688,6 @@ void loop() {
   static unsigned long maxLoopDuration = 0;
   const unsigned long loopStartTime = millis();
   static unsigned long lastMemPrint = 0;
-  static unsigned long lastActivityTime = millis();
   static bool screenshotButtonsReleased = true;
   static bool screenshotComboActive = false;
 
