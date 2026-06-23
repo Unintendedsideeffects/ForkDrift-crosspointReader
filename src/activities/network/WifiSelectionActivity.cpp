@@ -141,9 +141,16 @@ void WifiSelectionActivity::processWifiScanResults() {
     std::string ssid = WiFi.SSID(i).c_str();
     const int32_t rssi = WiFi.RSSI(i);
     // Dump every beacon pre-filtering (ssid may be empty=hidden) — invaluable
-    // for "network not found" reports, and free at LOG_LEVEL<2.
-    LOG_DBG("WIFISEL", "  [%d] ssid='%s' ch=%d rssi=%d auth=%d", i, ssid.c_str(), static_cast<int>(WiFi.channel(i)),
-            static_cast<int>(rssi), static_cast<int>(WiFi.encryptionType(i)));
+    // for "network not found" reports, and free at LOG_LEVEL<2. The desktop
+    // simulator's WiFi mock has no channel(int), so that field is stubbed there
+    // (encryptionType(int) is available, so it stays real).
+#ifdef SIMULATOR
+    const int chan = -1;
+#else
+    const int chan = static_cast<int>(WiFi.channel(i));
+#endif
+    LOG_DBG("WIFISEL", "  [%d] ssid='%s' ch=%d rssi=%d auth=%d", i, ssid.c_str(), chan, static_cast<int>(rssi),
+            static_cast<int>(WiFi.encryptionType(i)));
 
     // Hidden networks have no usable list label and require manual SSID entry.
     if (ssid.empty()) {
