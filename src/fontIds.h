@@ -25,6 +25,7 @@
 #define CHAREINK_14_FONT_ID (334455661)
 #define CHAREINK_16_FONT_ID (334455662)
 #define CHAREINK_18_FONT_ID (334455663)
+#define UI_8_FONT_ID (-357386271)
 #define UI_10_FONT_ID (22918846)
 #define UI_12_FONT_ID (1635686837)
 #define SMALL_FONT_ID (674098198)
@@ -55,6 +56,7 @@ static_assert(CHAREINK_12_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(CHAREINK_14_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(CHAREINK_16_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(CHAREINK_18_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(UI_8_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(UI_10_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(UI_12_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(SMALL_FONT_ID != 0, "Font ID collision with sentinel");

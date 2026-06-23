@@ -340,7 +340,7 @@ void drawCompactSlot(const GfxRenderer& renderer, const int x, const int y, cons
   // Landscape rows are too short to stack title over level; in that "tight"
   // mode everything shares one vertically-centered line and the fraction sits
   // inline after a shortened HP bar instead of beneath it.
-  const int titleH = renderer.getLineHeight(UI_10_FONT_ID);
+  const int titleH = renderer.getLineHeight(UI_8_FONT_ID);
   const bool tight = h < 2 * kPad + titleH + smallH;
 
   char levelText[16];
@@ -350,16 +350,16 @@ void drawCompactSlot(const GfxRenderer& renderer, const int x, const int y, cons
     if (tight) {
       const int levelW = renderer.getTextWidth(SMALL_FONT_ID, levelText);
       const int titleW = std::max(0, leftW - levelW - kPad);
-      const std::string title = renderer.truncatedText(UI_10_FONT_ID, book.title.c_str(), titleW);
-      renderer.drawText(UI_10_FONT_ID, textX, y + (h - titleH) / 2, title.c_str(), true, EpdFontFamily::BOLD);
+      const std::string title = renderer.truncatedText(UI_8_FONT_ID, book.title.c_str(), titleW);
+      renderer.drawText(UI_8_FONT_ID, textX, y + (h - titleH) / 2, title.c_str(), true, EpdFontFamily::BOLD);
       renderer.drawText(SMALL_FONT_ID, textX + leftW - levelW, y + (h - smallH) / 2, levelText, true);
     } else {
       // Non-tight: title spans the full content width on its own top line; the
       // bottom line carries the Lv label on the left and the HP bar + fraction
       // on the right (one info row, so it never collides with the full-width
       // title above it).
-      const std::string title = renderer.truncatedText(UI_10_FONT_ID, book.title.c_str(), contentW);
-      renderer.drawText(UI_10_FONT_ID, textX, y + kPad, title.c_str(), true, EpdFontFamily::BOLD);
+      const std::string title = renderer.truncatedText(UI_8_FONT_ID, book.title.c_str(), contentW);
+      renderer.drawText(UI_8_FONT_ID, textX, y + kPad, title.c_str(), true, EpdFontFamily::BOLD);
 
       const int infoH = std::max(smallH, kHpLabelH);
       const int infoY = y + h - kPad - infoH;

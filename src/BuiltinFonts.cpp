@@ -172,6 +172,9 @@ EpdFontFamily charein18FontFamily(&charein18RegularFont, &charein18BoldFont, &ch
 
 EpdFont smallFont(&ubuntu_10_regular);
 EpdFontFamily smallFontFamily(&smallFont);
+EpdFont ui8RegularFont(&ubuntu_8_regular);
+EpdFont ui8BoldFont(&ubuntu_8_bold);
+EpdFontFamily ui8FontFamily(&ui8RegularFont, &ui8BoldFont);
 EpdFont ui10RegularFont(&ubuntu_10_regular);
 EpdFont ui10BoldFont(&ubuntu_10_bold);
 EpdFontFamily ui10FontFamily(&ui10RegularFont, &ui10BoldFont);
@@ -220,6 +223,7 @@ void registerBuiltinFonts(GfxRenderer& renderer) {
   renderer.insertFont(CHAREINK_16_FONT_ID, charein16FontFamily);
   renderer.insertFont(CHAREINK_18_FONT_ID, charein18FontFamily);
 #endif
+  renderer.insertFont(UI_8_FONT_ID, ui8FontFamily);
   renderer.insertFont(UI_10_FONT_ID, ui10FontFamily);
   renderer.insertFont(UI_12_FONT_ID, ui12FontFamily);
   renderer.insertFont(SMALL_FONT_ID, smallFontFamily);

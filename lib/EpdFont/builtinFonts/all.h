@@ -61,6 +61,8 @@
 #endif  // ENABLE_OPENDYSLEXIC_FONTS
 
 // Ubuntu is the UI font — always compiled in regardless of reading font selection.
+#include <builtinFonts/ubuntu_8_bold.h>
+#include <builtinFonts/ubuntu_8_regular.h>
 #include <builtinFonts/ubuntu_10_bold.h>
 #include <builtinFonts/ubuntu_10_regular.h>
 #include <builtinFonts/ubuntu_12_bold.h>
