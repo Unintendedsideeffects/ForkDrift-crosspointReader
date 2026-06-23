@@ -68,6 +68,20 @@ bool FontDownloadActivity::fetchAndParseManifest() {
   // TLS buffers and the full JSON string in RAM simultaneously.
   static constexpr const char* MANIFEST_TMP = "/fonts_manifest.tmp";
 
+  // Pre-flight heap gate. The HTTPS handshake needs a single ~38 KB contiguous
+  // block for its TLS buffers (see HttpDownloader). On a fragmented heap the
+  // handshake fails partway and drags free heap low enough to trip main.cpp's
+  // low-heap "Silent restart" recovery — which the user perceives as "Manage
+  // Fonts does nothing". Fail fast with actionable guidance instead. We gate on
+  // the largest free block, not total free, because that is what TLS allocates.
+  constexpr uint32_t kMinFreeHeapForTls = 48000;
+  constexpr uint32_t kMinLargestBlockForTls = 42000;
+  if (ESP.getFreeHeap() < kMinFreeHeapForTls || ESP.getMaxAllocHeap() < kMinLargestBlockForTls) {
+    LOG_ERR("FONT", "Low heap for font download: free=%u largest=%u", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+    errorMessage_ = "Low memory. Reboot the device, then open Manage Fonts before reading a book.";
+    return false;
+  }
+
   auto result = HttpDownloader::downloadToFile(FONT_MANIFEST_URL, MANIFEST_TMP, nullptr);
   if (result != HttpDownloader::OK) {
     LOG_ERR("FONT", "Failed to fetch manifest from %s", FONT_MANIFEST_URL);

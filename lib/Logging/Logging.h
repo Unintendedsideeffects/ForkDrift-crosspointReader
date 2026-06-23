@@ -10,6 +10,11 @@
 
 #include <string>
 
+// Registered by the storage layer after it has initialized. Logging remains a
+// leaf library: it never includes or calls the storage implementation directly.
+using DeveloperLogAppendFn = void (*)(const char* message, size_t length);
+void setDeveloperLogAppendFn(DeveloperLogAppendFn appendFn);
+
 /*
 Define ENABLE_SERIAL_LOG to enable logging
 Can be set in platformio.ini build_flags or as a compile definition

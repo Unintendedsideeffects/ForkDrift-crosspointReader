@@ -48,6 +48,7 @@ class HalStorage {
 
   static HalStorage& getInstance() { return instance; }
   static TaskHandle_t storageMutexHolder();
+  static bool storageMutexHeldByCurrentTask();
 
   class StorageLock;  // private class, used internally
 

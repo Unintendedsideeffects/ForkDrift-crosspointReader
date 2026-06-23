@@ -13,8 +13,27 @@
 
 HalStorage HalStorage::instance;
 
+namespace {
+void appendDeveloperLogLineToStorage(const char* message, const size_t length) {
+  if (message == nullptr || length == 0 || !Storage.ready() || HalStorage::storageMutexHeldByCurrentTask()) {
+    return;
+  }
+
+  HalFile file = Storage.open("/crosspoint-debug.log", O_WRITE | O_CREAT | O_APPEND);
+  if (file) {
+    file.write(message, length);
+    file.close();
+  }
+}
+}  // namespace
+
 TaskHandle_t HalStorage::storageMutexHolder() {
   return instance.storageMutex ? xSemaphoreGetMutexHolder(instance.storageMutex) : nullptr;
+}
+
+bool HalStorage::storageMutexHeldByCurrentTask() {
+  return instance.storageMutex != nullptr &&
+         xSemaphoreGetMutexHolder(instance.storageMutex) == xTaskGetCurrentTaskHandle();
 }
 
 HalStorage::HalStorage() {
@@ -24,7 +43,13 @@ HalStorage::HalStorage() {
 
 // begin() and ready() are only called from setup, no need to acquire mutex for them
 
-bool HalStorage::begin() { return SDCard.begin(); }
+bool HalStorage::begin() {
+  const bool ready = SDCard.begin();
+  if (ready) {
+    setDeveloperLogAppendFn(appendDeveloperLogLineToStorage);
+  }
+  return ready;
+}
 
 bool HalStorage::ready() const { return SDCard.ready(); }
 

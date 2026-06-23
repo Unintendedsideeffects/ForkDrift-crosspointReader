@@ -7,13 +7,6 @@
 #include <cstring>
 #include <string>
 
-#if __has_include("SDCardManager.h")
-#include <SDCardManager.h>
-#define LOGGING_HAS_SD_CARD_MANAGER 1
-#else
-#define LOGGING_HAS_SD_CARD_MANAGER 0
-#endif
-
 #if __has_include("esp_attr.h")
 #include "esp_attr.h"
 #endif
@@ -37,8 +30,9 @@ RTC_NOINIT_ATTR uint32_t rtcLogMagic;
 static constexpr uint32_t LOG_RTC_MAGIC = 0xDEADBEEF;
 namespace {
 constexpr char DEVELOPER_LOG_FILE[] = "/crosspoint-debug.log";
-bool developerModeLoggingEnabled = false;
-bool developerLogWriteInProgress = false;
+std::atomic<bool> developerModeLoggingEnabled{false};
+std::atomic_flag developerLogWriteInProgress = ATOMIC_FLAG_INIT;
+std::atomic<DeveloperLogAppendFn> developerLogAppendFn{nullptr};
 std::atomic<bool> serialLogSuppressed{false};
 }  // namespace
 
@@ -46,26 +40,28 @@ bool isSerialLogSuppressed() { return serialLogSuppressed; }
 
 void setSerialLogSuppressed(const bool suppressed) { serialLogSuppressed = suppressed; }
 
-bool isDeveloperModeLoggingEnabled() { return developerModeLoggingEnabled; }
+bool isDeveloperModeLoggingEnabled() { return developerModeLoggingEnabled.load(std::memory_order_relaxed); }
 
-void setDeveloperModeLoggingEnabled(const bool enabled) { developerModeLoggingEnabled = enabled; }
+void setDeveloperModeLoggingEnabled(const bool enabled) { developerModeLoggingEnabled.store(enabled, std::memory_order_relaxed); }
+
+void setDeveloperLogAppendFn(const DeveloperLogAppendFn appendFn) { developerLogAppendFn.store(appendFn); }
 
 void appendDeveloperLogLine(const char* message) {
-#if LOGGING_HAS_SD_CARD_MANAGER
-  if (!developerModeLoggingEnabled || developerLogWriteInProgress || message == nullptr || !SdMan.ready()) {
+  if (!developerModeLoggingEnabled.load(std::memory_order_relaxed) || message == nullptr) {
     return;
   }
 
-  developerLogWriteInProgress = true;
-  FsFile file = SdMan.open(DEVELOPER_LOG_FILE, O_WRITE | O_CREAT | O_APPEND);
-  if (file) {
-    file.write(message, strnlen(message, MAX_ENTRY_LEN));
-    file.close();
+  // Logging can be called by several FreeRTOS tasks. Use HalStorage so every
+  // SdFat operation shares the storage mutex; skip nested logging rather than
+  // blocking a task that is already performing a storage operation.
+  if (developerLogWriteInProgress.test_and_set(std::memory_order_acquire)) {
+    return;
   }
-  developerLogWriteInProgress = false;
-#else
-  (void)message;
-#endif
+  const auto appendFn = developerLogAppendFn.load();
+  if (appendFn != nullptr) {
+    appendFn(message, strnlen(message, MAX_ENTRY_LEN));
+  }
+  developerLogWriteInProgress.clear(std::memory_order_release);
 }
 
 void addToLogRingBuffer(const char* message) {

@@ -12,6 +12,7 @@ class ReaderOptionsActivity final : public Activity {
   ButtonNavigator buttonNavigator;
   int selectedIndex = 0;
   int settingsCount = 0;
+  bool lowMemory_ = false;
   std::vector<SettingInfo> settings;
   bool readerSettingsChanged_ = false;
   uint8_t* pageBuffer_ = nullptr;

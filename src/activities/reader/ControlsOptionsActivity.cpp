@@ -1,5 +1,6 @@
 #include "ControlsOptionsActivity.h"
 
+#include <Arduino.h>
 #include <GfxRenderer.h>
 #include <I18n.h>
 #include <Logging.h>
@@ -25,6 +26,17 @@ void ControlsOptionsActivity::onExit() { Activity::onExit(); }
 
 void ControlsOptionsActivity::rebuildSettingsList() {
   settings.clear();
+
+  constexpr uint32_t kMinHeapForSettingsRebuild = 96000;
+  constexpr uint32_t kMinLargestBlockForSettingsRebuild = 48000;
+  lowMemory_ =
+      ESP.getFreeHeap() < kMinHeapForSettingsRebuild || ESP.getMaxAllocHeap() < kMinLargestBlockForSettingsRebuild;
+  if (lowMemory_) {
+    LOG_WRN("CTRL", "Control options unavailable: free=%u largest=%u", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+    settingsCount = 0;
+    selectedIndex = 0;
+    return;
+  }
 
   const auto allSettings = getSettingsList();
   auto addControlSetting = [&](StrId nameId) {
@@ -174,6 +186,18 @@ void ControlsOptionsActivity::render(RenderLock&&) {
   const int hintGutterWidth = (isLandscapeCw || isLandscapeCcw) ? metrics.buttonHintsHeight : 0;
   const int contentX = isLandscapeCw ? hintGutterWidth : 0;
   const int contentWidth = pageWidth - hintGutterWidth;
+
+  if (lowMemory_) {
+    renderer.clearScreen();
+    GUI.drawHeader(renderer, Rect{contentX, metrics.topPadding, contentWidth, metrics.headerHeight},
+                   tr(STR_CAT_CONTROLS), nullptr);
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 8, "Not enough free memory", true);
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 12, "Return to the reader and try again", true);
+    const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
+    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
+    renderer.displayBuffer();
+    return;
+  }
 
   auto rowTitle = [this](int i) { return std::string(I18N.get(settings[i].nameId)); };
   auto isHeader = [this](int i) { return settings[i].type == SettingType::SECTION_HEADER; };
