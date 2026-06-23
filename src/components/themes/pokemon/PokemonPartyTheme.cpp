@@ -406,8 +406,8 @@ void PokemonPartyTheme::invalidateCache() { g_partySlotCache.clear(); }
 
 void PokemonPartyTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
                                             const std::vector<RecentBook>& recentBooks, const int selectorIndex,
-                                            bool& /*coverRendered*/, bool& /*coverBufferStored*/,
-                                            bool& /*bufferRestored*/, const std::function<bool()>& /*storeCoverBuffer*/,
+                                            bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
+                                            const std::function<bool()>& storeCoverBuffer,
                                             float /*progressPercent*/) const {
   const int bookCount = std::min(static_cast<int>(recentBooks.size()), kSlots);
   if (bookCount <= 0) {
@@ -419,30 +419,63 @@ void PokemonPartyTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
   const int x = rect.x + kMargin;
   const int y = rect.y + kMargin;
 
+  // Slot geometry (pure arithmetic, no SD). Featured slot is index 0; the compact
+  // rows follow. Layout differs for landscape (featured left, rows right) vs
+  // portrait (featured top, rows below).
+  int fw, fh, rowsX, rowsW, rowH, rowYBase;
   if (rect.width > rect.height) {
-    const int featuredW = areaW * 2 / 5;
-    const int rowsX = x + featuredW + kGap;
-    const int rowsW = std::max(0, areaW - featuredW - kGap);
-    const int rowH = std::max(0, areaH - kGap * (kCompactSlots - 1)) / kCompactSlots;
-
-    drawFeaturedSlot(renderer, x, y, featuredW, areaH, recentBooks[0], selectorIndex == 0);
-
-    for (int i = 1; i < bookCount; ++i) {
-      const int rowY = y + (i - 1) * (rowH + kGap);
-      drawCompactSlot(renderer, rowsX, rowY, rowsW, rowH, recentBooks[static_cast<size_t>(i)], selectorIndex == i);
-    }
-    return;
+    fw = areaW * 2 / 5;
+    fh = areaH;
+    rowsX = x + fw + kGap;
+    rowsW = std::max(0, areaW - fw - kGap);
+    rowH = std::max(0, areaH - kGap * (kCompactSlots - 1)) / kCompactSlots;
+    rowYBase = y;
+  } else {
+    const int rowsAreaH = std::max(0, areaH - kGap * kCompactSlots);
+    rowH = rowsAreaH / (kCompactSlots + 2);
+    fh = std::max(0, areaH - kCompactSlots * (rowH + kGap));
+    fw = areaW;
+    rowsX = x;
+    rowsW = areaW;
+    rowYBase = y + fh + kGap;
   }
 
-  const int rowsAreaH = std::max(0, areaH - kGap * kCompactSlots);
-  const int rowH = rowsAreaH / (kCompactSlots + 2);
-  const int featuredH = std::max(0, areaH - kCompactSlots * (rowH + kGap));
+  const auto slotRect = [&](int i, int& rx, int& ry, int& rw, int& rh) {
+    if (i == 0) {
+      rx = x, ry = y, rw = fw, rh = fh;
+    } else {
+      rx = rowsX, ry = rowYBase + (i - 1) * (rowH + kGap), rw = rowsW, rh = rowH;
+    }
+  };
 
-  drawFeaturedSlot(renderer, x, y, areaW, featuredH, recentBooks[0], selectorIndex == 0);
+  // Expensive pass: render every slot's content (including the SD sprite/cover
+  // reads) WITHOUT its selection ring, then snapshot the ring-free party. On a
+  // cursor move HomeActivity restores that snapshot and we only redraw the ring
+  // below — zero per-move SD I/O (the dominant home-redraw cost). HomeActivity
+  // resets coverRendered on book/progress changes, forcing a fresh pass. If the
+  // snapshot fails (OOM), coverRendered stays false and we safely fall back to a
+  // full render each frame (the prior behaviour).
+  if (!coverRendered) {
+    for (int i = 0; i < bookCount; ++i) {
+      int rx, ry, rw, rh;
+      slotRect(i, rx, ry, rw, rh);
+      if (i == 0) {
+        drawFeaturedSlot(renderer, rx, ry, rw, rh, recentBooks[0], /*selected=*/false);
+      } else {
+        drawCompactSlot(renderer, rx, ry, rw, rh, recentBooks[static_cast<size_t>(i)], /*selected=*/false);
+      }
+    }
+    coverBufferStored = storeCoverBuffer();
+    coverRendered = coverBufferStored;
+  }
+  (void)bufferRestored;
 
-  for (int i = 1; i < bookCount; ++i) {
-    const int rowY = y + featuredH + kGap + (i - 1) * (rowH + kGap);
-    drawCompactSlot(renderer, x, rowY, areaW, rowH, recentBooks[static_cast<size_t>(i)], selectorIndex == i);
+  // Cheap pass, every frame: the selection ring on the focused slot, drawn on top
+  // of the (freshly restored) ring-free party snapshot.
+  if (selectorIndex >= 0 && selectorIndex < bookCount) {
+    int rx, ry, rw, rh;
+    slotRect(selectorIndex, rx, ry, rw, rh);
+    drawSelectionRing(renderer, rx, ry, rw, rh);
   }
 }
 
