@@ -354,9 +354,29 @@ void drawCompactSlot(const GfxRenderer& renderer, const int x, const int y, cons
       renderer.drawText(UI_10_FONT_ID, textX, y + (h - titleH) / 2, title.c_str(), true, EpdFontFamily::BOLD);
       renderer.drawText(SMALL_FONT_ID, textX + leftW - levelW, y + (h - smallH) / 2, levelText, true);
     } else {
-      const std::string title = renderer.truncatedText(UI_10_FONT_ID, book.title.c_str(), leftW);
+      // Non-tight: title spans the full content width on its own top line; the
+      // bottom line carries the Lv label on the left and the HP bar + fraction
+      // on the right (one info row, so it never collides with the full-width
+      // title above it).
+      const std::string title = renderer.truncatedText(UI_10_FONT_ID, book.title.c_str(), contentW);
       renderer.drawText(UI_10_FONT_ID, textX, y + kPad, title.c_str(), true, EpdFontFamily::BOLD);
-      renderer.drawText(SMALL_FONT_ID, textX, y + h - kPad - smallH, levelText, true);
+
+      const int infoH = std::max(smallH, kHpLabelH);
+      const int infoY = y + h - kPad - infoH;
+      const int levelW = renderer.getTextWidth(SMALL_FONT_ID, levelText);
+      renderer.drawText(SMALL_FONT_ID, textX, infoY + (infoH - smallH) / 2, levelText, true);
+
+      int fractionW = 0;
+      if (data.positionTotal > 0) {
+        char fraction[32];
+        std::snprintf(fraction, sizeof(fraction), "%lu/%lu", static_cast<unsigned long>(data.positionCurrent),
+                      static_cast<unsigned long>(data.positionTotal));
+        fractionW = renderer.getTextWidth(SMALL_FONT_ID, fraction) + kPad;
+      }
+      const int hpLineX = textX + levelW + kPad;
+      const int hpLineW = std::max(0, right - hpLineX - fractionW);
+      drawHpBar(renderer, hpLineX, infoY + (infoH - kHpLabelH) / 2, hpLineW, data.hpPercent);
+      drawFraction(renderer, data, right, infoY + (infoH - smallH) / 2);
     }
   }
 
@@ -372,10 +392,7 @@ void drawCompactSlot(const GfxRenderer& renderer, const int x, const int y, cons
       drawHpBar(renderer, hpX, y + (h - kHpLabelH) / 2, std::max(0, hpW - fractionW), data.hpPercent);
       drawFraction(renderer, data, right, y + (h - smallH) / 2);
     } else {
-      const int fractionY = y + h - kPad - smallH;
-      const int hpY = std::max(y + kPad, fractionY - kFractionGap - kHpLabelH);
-      drawHpBar(renderer, hpX, hpY, hpW, data.hpPercent);
-      drawFraction(renderer, data, right, fractionY);
+      // HP bar and fraction are now drawn in the non-tight text block above.
     }
   }
 
