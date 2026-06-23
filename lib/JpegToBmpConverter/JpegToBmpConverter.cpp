@@ -412,8 +412,8 @@ static bool isProgressiveJpeg(HalFile& file) {
 }  // namespace
 
 // Internal implementation with configurable target size and bit depth
-bool JpegToBmpConverter::jpegFileToBmpStreamInternal(HalFile& jpegFile, Print& bmpOut, int targetWidth, int targetHeight,
-                                                     bool oneBit, bool crop) {
+bool JpegToBmpConverter::jpegFileToBmpStreamInternal(HalFile& jpegFile, Print& bmpOut, int targetWidth,
+                                                     int targetHeight, bool oneBit, bool crop) {
   LOG_DBG("JPG", "Converting JPEG to %s BMP (target: %dx%d)", oneBit ? "1-bit" : "2-bit", targetWidth, targetHeight);
 
   if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
@@ -451,6 +451,23 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(HalFile& jpegFile, Print& b
     LOG_DBG("JPG", "Image too large or invalid (%dx%d), max supported: %dx%d", srcWidth, srcHeight, MAX_IMAGE_WIDTH,
             MAX_IMAGE_HEIGHT);
     return false;
+  }
+
+  // Progressive JPEGs cannot be streamed MCU-by-MCU: JPEGDEC must buffer the
+  // full-resolution coefficient frame (~srcWidth*srcHeight bytes) before it can
+  // emit any output, regardless of the 1/8 output scale we request below. On the
+  // C3's tiny heap that allocation OOM-crashes for any real cover (e.g. an
+  // 800x1340 progressive cover needs ~1.07 MB). Refuse up-front and let the
+  // caller fall back to a placeholder instead of aborting on the doomed `new`.
+  if (progressive) {
+    const size_t progressiveFrameBytes = static_cast<size_t>(srcWidth) * static_cast<size_t>(srcHeight);
+    const size_t freeHeap = ESP.getFreeHeap();
+    // Need room for the full coefficient frame plus JPEGDEC working memory.
+    if (progressiveFrameBytes + 32 * 1024 > freeHeap) {
+      LOG_WRN("JPG", "Progressive JPEG %dx%d needs ~%uB but only %uB free; skipping cover", srcWidth, srcHeight,
+              static_cast<unsigned>(progressiveFrameBytes), static_cast<unsigned>(freeHeap));
+      return false;
+    }
   }
 
   const int effectiveSrcW = progressive ? (srcWidth + 7) / 8 : srcWidth;
