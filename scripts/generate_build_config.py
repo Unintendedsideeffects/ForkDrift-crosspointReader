@@ -153,7 +153,7 @@ FEATURES = {
     'flow_theme': Feature(
         name='Flow Theme',
         flag='ENABLE_FLOW_THEME',
-        size_kb=14,
+        size_kb=4,
         description='Flow UI theme with Casio-style today stats clock and 3D cover layout'
     ),
     'ota_updates': Feature(
@@ -177,13 +177,13 @@ FEATURES = {
     'anki_support': Feature(
         name='Anki Support',
         flag='ENABLE_ANKI_SUPPORT',
-        size_kb=15,
+        size_kb=30,
         description='Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop.'
     ),
     'dictionary_lookup': Feature(
         name='Dictionary Lookup',
         flag='ENABLE_DICTIONARY',
-        size_kb=5,
+        size_kb=0,
         description='In-reader dictionary lookup over an SD card dictionary.'
     ),
     'dark_mode': Feature(
@@ -201,7 +201,7 @@ FEATURES = {
     'ble_wifi_provisioning': Feature(
         name='BLE WiFi Provisioning',
         flag='ENABLE_BLE_WIFI_PROVISIONING',
-        size_kb=626,
+        size_kb=187,
         description='Initial WiFi setup via Bluetooth LE'
     ),
     'user_fonts': Feature(
@@ -225,13 +225,13 @@ FEATURES = {
     'ble_page_turner': Feature(
         name='BLE Page Turner',
         flag='ENABLE_BLE_PAGE_TURNER',
-        size_kb=45,
+        size_kb=186,
         description='BLE HID Keyboard to remotely turn pages on iOS/Android devices'
     ),
     'lua_plugins': Feature(
         name='Lua Plugins',
         flag='ENABLE_LUA_PLUGINS',
-        size_kb=80,
+        size_kb=154,
         description='Dynamic Lua 5.4 scripting VM and plugin system loaded from SD card'
     ),
     'remote_keyboard_input': Feature(
@@ -249,7 +249,7 @@ FEATURES = {
     'wifi_clock': Feature(
         name='WiFi Clock',
         flag='ENABLE_WIFI_CLOCK',
-        size_kb=2,
+        size_kb=3,
         description='NTP-backed 24-hour Roman numeral clock label that refreshes every 15 minutes while WiFi is connected'
     ),
     'roman_clock_sleep': Feature(
@@ -285,7 +285,7 @@ FEATURES = {
     'reading_stats': Feature(
         name='Reading Stats',
         flag='ENABLE_READING_STATS',
-        size_kb=6,
+        size_kb=12,
         description='Tracks reading time, pages turned, and completion status. Enables "Mark Finished" and book statistics screen'
     ),
     'minimal_theme': Feature(
@@ -309,7 +309,7 @@ FEATURES = {
     'global_landscape': Feature(
         name='Global Landscape',
         flag='ENABLE_GLOBAL_LANDSCAPE',
-        size_kb=2,
+        size_kb=0,
         description='Rotate the entire UI (menus, settings, library) to landscape, not just the reader'
     ),
 }
@@ -858,7 +858,7 @@ def empty_feature_state() -> Dict[str, bool]:
 
 def calculate_size(enabled_features: Dict[str, bool]) -> float:
     """Calculate estimated firmware size in MB."""
-    base_size_mb = 2.55  # Lean profile size baseline (measured)
+    base_size_mb = 2.56  # Lean profile size baseline (measured)
 
     for feature_key, enabled in enabled_features.items():
         if enabled:
