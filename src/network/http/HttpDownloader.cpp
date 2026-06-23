@@ -165,6 +165,7 @@ bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const 
   if (!username.empty()) {
     std::string credentials = username + ":" + password;
     String encoded = base64::encode(credentials.c_str());
+    encoded.trim();
     http.addHeader("Authorization", "Basic " + encoded);
   }
 
@@ -224,7 +225,9 @@ int HttpDownloader::probeUrl(const std::string& url, const std::string& username
   http.setTimeout(8000);
   if (!username.empty()) {
     const std::string credentials = username + ":" + password;
-    http.addHeader("Authorization", "Basic " + base64::encode(credentials.c_str()));
+    String encoded = base64::encode(credentials.c_str());
+    encoded.trim();
+    http.addHeader("Authorization", "Basic " + encoded);
   }
   const int code = http.GET();
   http.end();
@@ -290,9 +293,10 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     return HTTP_ERROR;
   }
 
-  if (!username.empty() && !password.empty()) {
+  if (!username.empty()) {
     const std::string credentials = username + ":" + password;
-    const String encoded = base64::encode(credentials.c_str());
+    String encoded = base64::encode(credentials.c_str());
+    encoded.trim();
     const std::string authHeader = std::string("Basic ") + encoded.c_str();
     esp_http_client_set_header(client, "Authorization", authHeader.c_str());
   }

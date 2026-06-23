@@ -238,7 +238,7 @@ bool MappedInputManager::wasPressed(const Button button) {
   if (button == Button::Back && consumePowerBack()) {
     return true;
   }
-  if (isDualSideLayout()) {
+  if (readerMode && isDualSideLayout()) {
     if (button == Button::Left) {
       return gpio.wasPressed(HalGPIO::BTN_BACK) || gpio.wasPressed(HalGPIO::BTN_LEFT);
     }
@@ -268,7 +268,7 @@ bool MappedInputManager::wasReleased(const Button button) {
   if (button == Button::Back && consumePowerBack()) {
     return true;
   }
-  if (isDualSideLayout()) {
+  if (readerMode && isDualSideLayout()) {
     if (button == Button::Left) {
       return gpio.wasReleased(HalGPIO::BTN_BACK) || gpio.wasReleased(HalGPIO::BTN_LEFT);
     }
@@ -341,7 +341,7 @@ void MappedInputManager::injectVirtualActivation(const Button button) {
 }
 
 bool MappedInputManager::isPressed(const Button button) const {
-  if (isDualSideLayout()) {
+  if (readerMode && isDualSideLayout()) {
     if (button == Button::Left) {
       return gpio.isPressed(HalGPIO::BTN_BACK) || gpio.isPressed(HalGPIO::BTN_LEFT);
     }
@@ -386,7 +386,7 @@ unsigned long MappedInputManager::getHeldTime() const {
 
 MappedInputManager::Labels MappedInputManager::mapLabels(const char* back, const char* confirm, const char* previous,
                                                          const char* next) const {
-  if (isDualSideLayout()) {
+  if (readerMode && isDualSideLayout()) {
     // In dual-side mode, front buttons map to logical Left/Right.
     // Reword generic vertical hints to match physical behavior.
     const bool verticalHints = equalsLabel(previous, "Up") && equalsLabel(next, "Down");
