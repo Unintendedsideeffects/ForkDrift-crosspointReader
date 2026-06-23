@@ -4427,7 +4427,7 @@
           const enabled = features.filter((f) => selections[f]).length;
           const total = features.length;
           const sizeKb = features.reduce((sum, f) => {
-            return sum + (selections[f] ? FEATURES[f].sizeKb : 0);
+            return sum + (selections[f] && FEATURES[f] ? FEATURES[f].sizeKb : 0);
           }, 0);
           const sizeStr = formatSize(sizeKb);
 
@@ -4450,7 +4450,10 @@
           if (checkbox) checkbox.disabled = isBlocked;
 
           const sizeEl = card.querySelector(".card-size");
-          if (sizeEl) {
+          // Guard FEATURES[feature]: some cards are WIP placeholders (e.g. ble_beacon)
+          // with no FEATURES entry. An unguarded .sizeKb here threw and aborted
+          // updateAll() before updateSizeDisplay(), freezing the flash estimate.
+          if (sizeEl && FEATURES[feature]) {
             sizeEl.textContent = formatSize(FEATURES[feature].sizeKb);
           }
         });
