@@ -1,3 +1,9 @@
+# HISTORICAL: pre-fix reproduction of the BLE Page Turner NimBLE crash.
+# The crash is FIXED (plans/019 -- libbt.a IDF-host strip), so the 'expect'
+# panic regex at the bottom will now TIME OUT (the panic no longer happens).
+# For verification use scripts/walks/ble-page-turner-verify.walk, which asserts
+# the success log line instead. Kept here only as the documented repro.
+#
 # Reproduce the BLE Page Turner NimBLE crash, capturing the full serial panic.
 # Starts from the crash screen (CrashActivity); BACK clears it to home.
 press BACK 3

@@ -14,6 +14,7 @@
 #include <WiFi.h>
 
 #include <algorithm>
+#include <cinttypes>  // PRIu64 for deep-sleep timer logging (transitively present on ESP32, not on host)
 #include <cstdlib>
 #include <cstring>
 #include <string>

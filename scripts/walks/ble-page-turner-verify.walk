@@ -1,0 +1,39 @@
+# Verify the BLE Page Turner fix (NimBLE two-host strip, see plans/019).
+# Pre-fix this path panicked at NimBLEDevice::init with npl_freertos_mutex_pend;
+# post-fix it must reach "Page Turner advertising started" with no error markers.
+#
+# Navigation mirrors ble_crash_repro.walk (same unit: Pokémon-party grid home,
+# Settings -> Net tab -> BLE Page Turner). If the home layout/SD state differs,
+# the button counts drift -- prefer CMD:launch_activity once that lands (plan 020).
+#
+#   uv run python scripts/device_walk.py run scripts/walks/ble-page-turner-verify.walk --outdir runs/ble-verify
+#
+# Pass criteria: the 'expect' below matches AND run_walk reports no error markers
+# (the harness fails the run if it sees [ERR]/Backtrace/Guru Meditation/panic).
+
+press BACK 3
+# Home grid -> drop into the action/toolbar row -> Settings (sliders) icon
+press DOWN 1
+press DOWN 1
+press DOWN 1
+press DOWN 1
+press DOWN 1
+press DOWN 1
+press RIGHT 1
+press RIGHT 1
+press RIGHT 1
+shot 01-settings-focus
+# Enter Settings, advance to the Net category
+press CONFIRM 2
+press CONFIRM 1
+press CONFIRM 1
+press CONFIRM 2
+shot 02-net-tab
+# Into the list: Wi-Fi Networks -> BLE Page Turner, then activate
+press DOWN 1
+press DOWN 1
+shot 03-ble-selected
+press CONFIRM 1
+# The fix's success contract: advertising comes up instead of an NPL panic.
+expect 15 Page Turner advertising started
+shot 04-ble-advertising
