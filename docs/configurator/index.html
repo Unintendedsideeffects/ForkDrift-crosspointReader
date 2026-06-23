@@ -5673,7 +5673,7 @@
                   value="${escapeHtml(srv.password)}" placeholder="(optional)"
                   autocomplete="new-password" />
               </div>
-              <button class="wifi-remove-btn opds-test-btn" data-idx="${idx}" title="Test connection">&#x25BA;</button>
+              <button class="wifi-remove-btn opds-test-btn" data-idx="${idx}" title="Validate authenticated OPDS feed">&#x25BA;</button>
               <button class="wifi-remove-btn" data-idx="${idx}" title="Remove">&#xD7;</button>
             `;
             const resultDiv = document.createElement('div');
@@ -5696,13 +5696,21 @@
               try {
                 const headers = {};
                 if (username) headers['Authorization'] = 'Basic ' + btoa(username + ':' + password);
-                const resp = await fetch(url, { headers, signal: AbortSignal.timeout(8000), mode: 'no-cors' });
-                // no-cors: response is opaque — we can't read status, but no error = server reached
-                resultDiv.textContent = '✓ Server reachable (credentials not verified — use device UI to confirm auth)';
+                const resp = await fetch(url, { headers, signal: AbortSignal.timeout(8000), mode: 'cors', credentials: 'omit' });
+                if (!resp.ok) throw new Error(resp.status === 401 ? 'Unauthorized — check credentials' : 'HTTP ' + resp.status);
+                const xml = await resp.text();
+                const doc = new DOMParser().parseFromString(xml, 'application/xml');
+                if (doc.querySelector('parsererror') || !doc.documentElement || !/feed$/i.test(doc.documentElement.localName || doc.documentElement.nodeName)) {
+                  throw new Error('Response is not a valid OPDS Atom feed');
+                }
+                const entries = doc.getElementsByTagNameNS('http://www.w3.org/2005/Atom', 'entry').length;
+                resultDiv.textContent = '✓ Authenticated OPDS feed parsed (' + entries + ' entries)';
                 resultDiv.style.color = 'green';
               } catch (e) {
-                if (e.name === 'AbortError') { resultDiv.textContent = '✗ Timeout'; }
-                else { resultDiv.textContent = '✗ Unreachable — check URL and network'; }
+                if (e.name === 'AbortError') resultDiv.textContent = '✗ Timeout';
+                else if (e instanceof TypeError) resultDiv.textContent = '✗ Unreachable or blocked by CORS (server must allow browser access)';
+                else if (e.message) resultDiv.textContent = '✗ ' + e.message;
+                else resultDiv.textContent = '✗ Validation failed';
                 resultDiv.style.color = '#c00';
               }
             });

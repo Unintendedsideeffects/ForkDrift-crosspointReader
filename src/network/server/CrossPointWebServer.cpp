@@ -7,6 +7,8 @@
 #include <HTTPClient.h>
 #include <HalStorage.h>
 #include <Logging.h>
+#include <OpdsParser.h>
+#include <OpdsStream.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
 
@@ -956,12 +958,30 @@ void CrossPointWebServer::handleTestOpdsServer() {
     return;
   }
 
-  const int code = HttpDownloader::probeUrl(url, username, password);
-
   JsonDocument resp;
+  OpdsParser parser;
+  bool fetched = false;
+  {
+    OpdsParserStream stream{parser};
+    fetched = HttpDownloader::fetchUrl(url, stream, username, password);
+  }
+  if (fetched && parser) {
+    resp["ok"] = true;
+    resp["status"] = 200;
+    resp["entries"] = parser.getEntries().size();
+    resp["error"] = nullptr;
+    String json;
+    serializeJson(resp, json);
+    server->send(200, "application/json", json);
+    return;
+  }
+
+  // A failed streamed fetch does not expose its HTTP status. Probe once more so
+  // the UI can distinguish bad credentials/URLs from a malformed OPDS document.
+  const int code = HttpDownloader::probeUrl(url, username, password);
   resp["status"] = code;
+  resp["ok"] = false;
   if (code > 0) {
-    resp["ok"] = (code >= 200 && code < 300);
     if (code == 401)
       resp["error"] = "Unauthorized — check credentials";
     else if (code == 403)
@@ -969,11 +989,10 @@ void CrossPointWebServer::handleTestOpdsServer() {
     else if (code == 404)
       resp["error"] = "Not found — check URL";
     else if (code >= 200 && code < 300)
-      resp["error"] = nullptr;
+      resp["error"] = "Response is not a valid OPDS feed";
     else
       resp["error"] = "Server returned " + std::to_string(code);
   } else {
-    resp["ok"] = false;
     // Negative codes are HTTPClient error constants
     if (code == HTTPC_ERROR_CONNECTION_REFUSED)
       resp["error"] = "Connection refused";

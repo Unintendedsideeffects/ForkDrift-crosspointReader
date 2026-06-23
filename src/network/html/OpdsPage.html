@@ -371,7 +371,7 @@
       });
       const data = await resp.json();
       if (data.ok) {
-        resultEl.textContent = '✓ Connected (HTTP ' + data.status + ')';
+        resultEl.textContent = '✓ Authenticated OPDS feed parsed (' + data.entries + ' entries)';
         resultEl.style.color = 'green';
       } else {
         resultEl.textContent = '✗ ' + (data.error || ('HTTP ' + data.status));

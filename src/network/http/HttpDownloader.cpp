@@ -160,7 +160,9 @@ bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const 
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
 
-  if (!username.empty() && !password.empty()) {
+  // Basic authentication permits an empty password. Match probeUrl() so an
+  // OPDS validation/fetch never silently drops a supplied username.
+  if (!username.empty()) {
     std::string credentials = username + ":" + password;
     String encoded = base64::encode(credentials.c_str());
     http.addHeader("Authorization", "Basic " + encoded);
@@ -173,10 +175,16 @@ bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const 
     return false;
   }
 
-  http.writeToStream(&outContent);
+  const int contentLength = http.getSize();
+  const int written = http.writeToStream(&outContent);
   http.end();
 
-  LOG_DBG("HTTP", "Fetch success");
+  if (written < 0 || (contentLength >= 0 && written != contentLength)) {
+    LOG_ERR("HTTP", "Fetch body failed: wrote %d of %d bytes", written, contentLength);
+    return false;
+  }
+
+  LOG_DBG("HTTP", "Fetch success (%d bytes)", written);
   return true;
 }
 
