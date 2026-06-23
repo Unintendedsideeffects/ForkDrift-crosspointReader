@@ -207,15 +207,13 @@ if ! command -v uv &> /dev/null; then
     exit 1
 fi
 
-# When CROSSPOINT_PRECOMMIT_PROFILE is explicitly set, generate a custom profile
-# and build -e custom. Otherwise build -e default (the full build), which shares
-# the SCons cache with normal `pio run` dev builds.
-if [ -n "${CROSSPOINT_PRECOMMIT_PROFILE:-}" ]; then
-    BUILD_PROFILE="$CROSSPOINT_PRECOMMIT_PROFILE"
-    BUILD_CMD=(uv run pio run -e custom)
-else
-    BUILD_PROFILE="default"
+# Build the specified profile, defaulting to 'full'. Pre-push matches this default
+# to allow reusing pre-commit builds from the cache.
+BUILD_PROFILE="${CROSSPOINT_PRECOMMIT_PROFILE:-full}"
+if [ "$BUILD_PROFILE" = "default" ]; then
     BUILD_CMD=(uv run pio run)
+else
+    BUILD_CMD=(uv run pio run -e custom)
 fi
 
 # Cache build results keyed by staged-tree SHA. `git write-tree` produces the

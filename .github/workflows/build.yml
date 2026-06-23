@@ -1,9 +1,16 @@
 name: Build
 
 on:
-  # Push-triggered builds are disabled to conserve Actions minutes; firmware is
-  # built locally and uploaded to releases (see scripts/release.sh). Runs on PRs
-  # and manual dispatch only.
+  push:
+    branches:
+      - fork-drift
+    paths:
+      - "src/**"
+      - "lib/**"
+      - "open-x4-sdk/**"
+      - "platformio.ini"
+      - "scripts/generate_build_config.py"
+      - ".github/workflows/build.yml"
   pull_request:
     paths:
       - "src/**"
