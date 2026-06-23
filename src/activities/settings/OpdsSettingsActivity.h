@@ -34,4 +34,5 @@ class OpdsSettingsActivity final : public Activity {
   int getMenuItemCount() const;
   void handleSelection();
   bool saveServer();
+  void runTestConnection();
 };
