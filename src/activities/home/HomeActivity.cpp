@@ -501,6 +501,15 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
     }
 
     if (!book.coverBmpPath.empty()) {
+#if ENABLE_POKEMON_PARTY
+      // Party cover thumbnails are baked by the reader's idle worker. Home must
+      // remain a render-only consumer: decoding a source PNG/JPEG here creates
+      // large transient allocations exactly when its cover cache is resident.
+      if (isPokemonPartyHomeMode()) {
+        progress++;
+        continue;
+      }
+#endif
       if (usesDualSizeCoverThumbs || isPokemonPartyHomeMode()) {
         int centerW = 0;
         int centerH = 0;
@@ -933,12 +942,9 @@ void HomeActivity::onEnter() {
       freeCoverBuffer();
       coverRendered = false;
 #if ENABLE_POKEMON_PARTY
-      // The party home draws per-card covers via the theme and never reaches
-      // the classic/carousel branches that call loadRecentCovers(), so the
-      // square card thumbs would never generate. Run the ensure pass here.
-      if (isPokemonPartyHomeMode() && !recentsLoading) {
-        loadRecentCovers(metrics.homeCoverHeight);
-      }
+      // Party cards are render-only. Their compact cache is produced by the
+      // reader-idle worker, never during Home entry.
+      if (isPokemonPartyHomeMode()) recentsLoaded = true;
 #endif
     }
 
@@ -1074,6 +1080,12 @@ bool HomeActivity::isCoverCacheValid(const int coverHeight, const bool usesDualS
       continue;
     }
 
+#if ENABLE_POKEMON_PARTY
+    // Party Home consumes only its compact cache. A missing compact thumbnail
+    // is an icon-rendering state, not a reason to synchronously bake on Home.
+    if (isPokemonPartyHomeMode()) continue;
+#endif
+
     if (usesDualSizeCoverThumbs) {
       int centerW = 0;
       int centerH = 0;
@@ -1093,19 +1105,6 @@ bool HomeActivity::isCoverCacheValid(const int coverHeight, const bool usesDualS
     if (thumbPath.empty() || !Storage.exists(thumbPath.c_str())) {
       return false;
     }
-
-#if ENABLE_POKEMON_PARTY
-    // Party cards draw a square thumb; without this check the cache reads as
-    // valid on devices that already have the legacy sizes and the ensure-loop
-    // in loadRecentCovers() never gets a chance to generate the square one.
-    if (isPokemonPartyHomeMode()) {
-      const std::string squarePath = UITheme::getCoverThumbPath(book.coverBmpPath, PokemonPartyTheme::kCoverIconSize,
-                                                                PokemonPartyTheme::kCoverIconSize);
-      if (squarePath.empty() || !Storage.exists(squarePath.c_str())) {
-        return false;
-      }
-    }
-#endif
   }
 
   return true;

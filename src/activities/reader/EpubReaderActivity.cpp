@@ -49,6 +49,9 @@
 #include "activities/util/ConfirmationActivity.h"
 #include "activities/util/IntervalSelectionActivity.h"
 #include "components/UITheme.h"
+#if ENABLE_POKEMON_PARTY
+#include "components/themes/pokemon/PokemonPartyTheme.h"
+#endif
 #include "features/status_overlay/Layout.h"
 #include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
@@ -64,6 +67,52 @@ namespace {
 constexpr uint8_t maxPageLoadRetryCount = 1;
 constexpr uint32_t minHeapForFontPrewarm = 40000;
 constexpr uint32_t minHeapForPageRender = 45000;
+
+#if ENABLE_POKEMON_PARTY
+constexpr unsigned long kPartyThumbnailIdleMs = 5000;
+constexpr uint32_t kMinFreeHeapForPartyThumbnailBake = 96000;
+constexpr uint32_t kMinLargestBlockForPartyThumbnailBake = 64000;
+std::atomic<bool> partyThumbnailBakeInProgress{false};
+
+struct PartyThumbnailBakeParams {
+  std::shared_ptr<Epub> epub;
+};
+
+void partyThumbnailBakeTask(void* param) {
+  auto* params = static_cast<PartyThumbnailBakeParams*>(param);
+  const auto clearInProgress = []() { partyThumbnailBakeInProgress.store(false); };
+
+  if (params == nullptr) {
+    clearInProgress();
+    vTaskDelete(nullptr);
+    return;
+  }
+  std::shared_ptr<Epub> epub = std::move(params->epub);
+  delete params;
+  if (!epub) {
+    clearInProgress();
+    vTaskDelete(nullptr);
+    return;
+  }
+
+  const std::string thumbnailPath =
+      epub->getThumbBmpPath(PokemonPartyTheme::kCoverIconSize, PokemonPartyTheme::kCoverIconSize);
+  if (!Storage.exists(thumbnailPath.c_str())) {
+    const uint32_t freeHeap = ESP.getFreeHeap();
+    const uint32_t largestBlock = ESP.getMaxAllocHeap();
+    if (freeHeap >= kMinFreeHeapForPartyThumbnailBake && largestBlock >= kMinLargestBlockForPartyThumbnailBake) {
+      const bool success = epub->generateThumbBmp(PokemonPartyTheme::kCoverIconSize, PokemonPartyTheme::kCoverIconSize);
+      LOG_INF("THUMB", "Party thumbnail bake %s for %s", success ? "completed" : "failed", epub->getPath().c_str());
+    } else {
+      LOG_DBG("THUMB", "Party thumbnail bake deferred: free=%u largest=%u", freeHeap, largestBlock);
+    }
+  }
+
+  epub.reset();
+  clearInProgress();
+  vTaskDelete(nullptr);
+}
+#endif
 
 constexpr uint16_t DEFAULT_AUTO_PAGE_TURN_INTERVAL_S = 30;
 constexpr uint16_t MIN_AUTO_PAGE_TURN_INTERVAL_S = 5;
@@ -264,6 +313,10 @@ void EpubReaderActivity::onEnter() {
 #endif  // ENABLE_READING_STATS
 
   // Trigger first update
+#if ENABLE_POKEMON_PARTY
+  pendingPartyThumbnailBake_ = SETTINGS.uiTheme == CrossPointSettings::POKEMON_PARTY;
+  lastReaderInputMs_ = millis();
+#endif
   requestUpdate();
 }
 
@@ -323,6 +376,13 @@ void EpubReaderActivity::loop() {
     finish();
     return;
   }
+
+#if ENABLE_POKEMON_PARTY
+  if (mappedInput.wasAnyPressed() || mappedInput.wasAnyReleased()) {
+    lastReaderInputMs_ = millis();
+  }
+  queuePartyThumbnailBakeIfIdle();
+#endif
 
   if (pendingSilentIndexing) {
     bool isAnyButtonPressed = false;
@@ -556,6 +616,35 @@ void EpubReaderActivity::loop() {
     pageTurn(true);
   }
 }
+
+#if ENABLE_POKEMON_PARTY
+void EpubReaderActivity::queuePartyThumbnailBakeIfIdle() {
+  if (!pendingPartyThumbnailBake_ || partyThumbnailBakeInProgress.load() || !epub ||
+      millis() - lastReaderInputMs_ < kPartyThumbnailIdleMs || activityManager.isUpdateRequested() ||
+      RenderLock::peek()) {
+    return;
+  }
+
+  const std::string thumbnailPath =
+      epub->getThumbBmpPath(PokemonPartyTheme::kCoverIconSize, PokemonPartyTheme::kCoverIconSize);
+  pendingPartyThumbnailBake_ = false;
+  if (Storage.exists(thumbnailPath.c_str())) {
+    return;
+  }
+
+  auto* params = new (std::nothrow) PartyThumbnailBakeParams{epub};
+  if (params == nullptr) {
+    LOG_WRN("THUMB", "Could not allocate Party thumbnail job");
+    return;
+  }
+  partyThumbnailBakeInProgress.store(true);
+  if (xTaskCreate(partyThumbnailBakeTask, "PartyThumb", 6144, params, 0, nullptr) != pdPASS) {
+    partyThumbnailBakeInProgress.store(false);
+    delete params;
+    LOG_WRN("THUMB", "Could not start Party thumbnail job");
+  }
+}
+#endif
 
 // Translate an absolute percent into a spine index plus a normalized position
 // within that spine so we can jump after the section is loaded.

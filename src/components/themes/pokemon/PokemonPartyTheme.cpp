@@ -8,6 +8,8 @@
 #include <HalStorage.h>
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstdio>
 #include <memory>
 #include <new>
@@ -85,6 +87,45 @@ MenuIcon menuIconFor(UIIcon icon) {
   }
 }
 
+// Party thumbnails are bounded at 56x56 1-bit pixels. Render their packed
+// rows directly from SD instead of allocating renderer row buffers or touching
+// white pixels. This keeps the Home cover path fixed-memory even while the
+// normal bitmap renderer remains general-purpose.
+bool drawSparseThumb(const GfxRenderer& renderer, const Bitmap& bitmap, const int x, const int y, const int size) {
+  constexpr size_t kMaxThumbWidth = PokemonPartyTheme::kCoverIconSize;
+  constexpr size_t kMaxThumbRowBytes = (kMaxThumbWidth + 31) / 32 * 4;
+  constexpr size_t kMaxOutputRowBytes = (kMaxThumbWidth + 3) / 4;
+  if (!bitmap.is1Bit() || bitmap.getWidth() <= 0 || bitmap.getHeight() <= 0 ||
+      bitmap.getWidth() > static_cast<int>(kMaxThumbWidth) || bitmap.getRowBytes() > kMaxThumbRowBytes) {
+    return false;
+  }
+
+  std::array<uint8_t, kMaxThumbRowBytes> sourceRow{};
+  std::array<uint8_t, kMaxOutputRowBytes> outputRow{};
+  const float scale =
+      std::min(static_cast<float>(size) / bitmap.getWidth(), static_cast<float>(size) / bitmap.getHeight());
+  for (int bmpY = 0; bmpY < bitmap.getHeight(); ++bmpY) {
+    if (bitmap.readNextRow(outputRow.data(), sourceRow.data()) != BmpReaderError::Ok) {
+      return false;
+    }
+    const int sourceY = bitmap.isTopDown() ? bmpY : bitmap.getHeight() - 1 - bmpY;
+    const int dyStart = static_cast<int>(std::floor(sourceY * scale));
+    const int dyEnd = std::max(dyStart + 1, static_cast<int>(std::floor((sourceY + 1) * scale)));
+    for (int bmpX = 0; bmpX < bitmap.getWidth(); ++bmpX) {
+      const uint8_t value = outputRow[static_cast<size_t>(bmpX) / 4] >> (6 - (bmpX % 4) * 2) & 0x3;
+      if (value == 3) continue;
+      const int dxStart = static_cast<int>(std::floor(bmpX * scale));
+      const int dxEnd = std::max(dxStart + 1, static_cast<int>(std::floor((bmpX + 1) * scale)));
+      for (int dy = dyStart; dy < dyEnd; ++dy) {
+        for (int dx = dxStart; dx < dxEnd; ++dx) {
+          renderer.drawPixel(x + dx, y + dy, true);
+        }
+      }
+    }
+  }
+  return true;
+}
+
 bool drawBmpInBox(const GfxRenderer& renderer, const std::string& path, const int x, const int y, const int size) {
   if (path.empty() || !Storage.exists(path.c_str())) {
     return false;
@@ -96,8 +137,7 @@ bool drawBmpInBox(const GfxRenderer& renderer, const std::string& path, const in
   Bitmap bitmap(file);
   bool drew = false;
   if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-    renderer.drawBitmap1Bit(bitmap, x, y, size, size);
-    drew = true;
+    drew = drawSparseThumb(renderer, bitmap, x, y, size);
   }
   file.close();
   return drew;
@@ -130,9 +170,9 @@ void drawBookIcon(const GfxRenderer& renderer, const RecentBook& book, const int
         return;
       }
     }
-    if (drawBmpInBox(renderer, book.coverBmpPath, x, y, size)) {
-      return;
-    }
+    // The full-size cover is intentionally never decoded on Home. A missing
+    // square thumbnail must degrade to the book icon: decoding PNG/JPEG source
+    // covers here creates large transient allocations and fragments the C3 heap.
   }
   const int iconX = x + (size - 24) / 2;
   const int iconY = y + (size - 24) / 2;

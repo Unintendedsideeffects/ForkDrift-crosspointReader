@@ -7,6 +7,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include <atomic>
 #include <optional>
 #include <string>
 
@@ -121,6 +122,12 @@ class EpubReaderActivity final : public Activity {
   uint16_t cachedViewportWidth = 0;
   uint16_t cachedViewportHeight = 0;
   void performDeferredSilentIndexing();
+
+#if ENABLE_POKEMON_PARTY
+  bool pendingPartyThumbnailBake_ = false;
+  unsigned long lastReaderInputMs_ = 0;
+  void queuePartyThumbnailBakeIfIdle();
+#endif
 
  public:
   explicit EpubReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::unique_ptr<Epub> epub)
