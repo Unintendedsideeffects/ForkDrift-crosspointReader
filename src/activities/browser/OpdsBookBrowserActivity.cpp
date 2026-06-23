@@ -9,6 +9,9 @@
 #include <OpenSearchParser.h>
 #include <WiFi.h>
 
+#include <algorithm>
+#include <iterator>
+
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "SilentRestart.h"
@@ -595,9 +598,9 @@ bool OpdsBookBrowserActivity::loadCachedCatalog() {
   // Confirm does the same from any row). It is a NAVIGATION entry the Confirm
   // handler special-cases via its sentinel href instead of fetching.
   entries.push_back(OpdsEntry{OpdsEntryType::NAVIGATION, tr(STR_SYNC), "", kSyncSentinelHref, ""});
-  for (const auto& e : shelf) {
-    entries.push_back(OpdsEntry{OpdsEntryType::BOOK, e.title, e.author, e.href, ""});
-  }
+  std::transform(shelf.begin(), shelf.end(), std::back_inserter(entries), [](const LibraryShelfEntry& e) {
+    return OpdsEntry{OpdsEntryType::BOOK, e.title, e.author, e.href, ""};
+  });
   selectorIndex = 0;
   return true;
 }
