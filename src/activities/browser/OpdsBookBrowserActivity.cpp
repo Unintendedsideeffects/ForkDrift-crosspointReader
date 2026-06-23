@@ -25,6 +25,14 @@
 namespace {
 constexpr int PAGE_ITEMS = 23;
 
+// Href sentinel marking the synthetic "Sync" row prepended to the cached catalog
+// (a NAVIGATION entry the Confirm handler special-cases instead of fetching). The
+// control char keeps it from ever colliding with a real OPDS href.
+constexpr const char* kSyncSentinelHref = "\x01opds-sync";
+
+// Long-press threshold for Confirm = SYNC.
+constexpr unsigned long kSyncLongPressMs = 600;
+
 OpdsFilename::Format configuredOpdsFilenameFormat() {
   return SETTINGS.opdsFilenameFormat == CrossPointSettings::OPDS_FILENAME_TITLE_AUTHOR
              ? OpdsFilename::Format::TitleAuthor
@@ -35,7 +43,6 @@ OpdsFilename::Format configuredOpdsFilenameFormat() {
 void OpdsBookBrowserActivity::onEnter() {
   Activity::onEnter();
 
-  state = BrowserState::CHECK_WIFI;
   entries.clear();
   navigationHistory.clear();
   searchTemplate = "";
@@ -44,9 +51,25 @@ void OpdsBookBrowserActivity::onEnter() {
   consumeConfirm = false;
   consumeBack = false;
   errorMessage.clear();
+  pendingAction = PendingAction::None;
+  showingCachedCatalog = false;
+  confirmPressStartMs = 0;
+
+  // Cache-first (plan 023 Phase 1): if the root shelf for this server is persisted,
+  // render it offline immediately — no WiFi on enter. The user connects explicitly
+  // via SYNC, or implicitly when acting on an entry (connect-on-demand). With no
+  // cache, fall back to the original online flow.
+  if (loadCachedCatalog()) {
+    showingCachedCatalog = true;
+    state = BrowserState::BROWSING;
+    statusMessage.clear();
+    requestUpdate();
+    return;
+  }
+
+  state = BrowserState::CHECK_WIFI;
   statusMessage = tr(STR_CHECKING_WIFI);
   requestUpdate();
-
   checkAndConnectWifi();
 }
 
@@ -97,10 +120,23 @@ void OpdsBookBrowserActivity::loop() {
   if (state == BrowserState::DOWNLOADING) return;
 
   if (state == BrowserState::BROWSING) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
+      confirmPressStartMs = millis();
+    }
     if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-      if (!entries.empty()) {
+      const bool longPress = confirmPressStartMs != 0 && (millis() - confirmPressStartMs) >= kSyncLongPressMs;
+      confirmPressStartMs = 0;
+      if (longPress) {
+        syncCatalog();  // long-press Confirm = SYNC (connect + refresh), from any row
+      } else if (!entries.empty()) {
         const auto& entry = entries[selectorIndex];
-        entry.type == OpdsEntryType::BOOK ? downloadBook(entry) : navigateToEntry(entry);
+        if (entry.type == OpdsEntryType::NAVIGATION && entry.href == kSyncSentinelHref) {
+          syncCatalog();  // the synthetic "Sync" row
+        } else if (entry.type == OpdsEntryType::BOOK) {
+          downloadBook(entry);
+        } else {
+          navigateToEntry(entry);
+        }
       }
     } else if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       navigateBack();
@@ -286,6 +322,9 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
 }
 
 void OpdsBookBrowserActivity::navigateToEntry(const OpdsEntry& entry) {
+  if (deferUntilOnline(PendingAction::Navigate, entry, "")) {
+    return;  // connect on demand, then re-run from onWifiSelectionComplete
+  }
   navigationHistory.push_back(currentPath);
   // Resolve to a full URL so sub-sub-navigation retains parent path context
   const std::string feedUrl = UrlUtils::buildUrl(server.url, currentPath);
@@ -315,6 +354,9 @@ void OpdsBookBrowserActivity::navigateBack() {
 }
 
 void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
+  if (deferUntilOnline(PendingAction::Download, book, "")) {
+    return;  // connect on demand, then re-run from onWifiSelectionComplete
+  }
   state = BrowserState::DOWNLOADING;
   statusMessage = book.title;
   downloadProgress = downloadTotal = 0;
@@ -369,6 +411,9 @@ void OpdsBookBrowserActivity::performSearch(const std::string& query) {
     state = BrowserState::BROWSING;
     requestUpdate();
     return;
+  }
+  if (deferUntilOnline(PendingAction::Search, OpdsEntry{}, query)) {
+    return;  // connect on demand, then re-run from onWifiSelectionComplete
   }
 
   auto urlEncode = [](const std::string& s) {
@@ -488,15 +533,99 @@ void OpdsBookBrowserActivity::launchWifiSelection() {
 }
 
 void OpdsBookBrowserActivity::onWifiSelectionComplete(const bool connected) {
-  if (connected) {
-    state = BrowserState::LOADING;
-    statusMessage = tr(STR_LOADING);
-    requestUpdate(true);
-    fetchFeed(currentPath);
-  } else {
+  if (!connected) {
     // Leave WiFi up; onExit's silent reboot handles teardown without fragmenting.
+    pendingAction = PendingAction::None;
     state = BrowserState::ERROR;
     errorMessage = tr(STR_WIFI_CONN_FAILED);
     requestUpdate();
+    return;
   }
+
+  // Now online — run whatever action was deferred for connect-on-demand. Copy the
+  // params out first: the action methods mutate `entries`/state and re-enter cleanly.
+  const PendingAction action = pendingAction;
+  pendingAction = PendingAction::None;
+  switch (action) {
+    case PendingAction::Download: {
+      const OpdsEntry book = pendingEntry;
+      downloadBook(book);
+      break;
+    }
+    case PendingAction::Navigate: {
+      const OpdsEntry entry = pendingEntry;
+      navigateToEntry(entry);
+      break;
+    }
+    case PendingAction::Search: {
+      const std::string query = pendingQuery;
+      performSearch(query);
+      break;
+    }
+    case PendingAction::None:
+    default:
+      // Initial connect / SYNC refresh: (re)load the current path (root for SYNC).
+      state = BrowserState::LOADING;
+      statusMessage = tr(STR_LOADING);
+      requestUpdate(true);
+      fetchFeed(currentPath);
+      break;
+  }
+}
+
+bool OpdsBookBrowserActivity::isOnline() const {
+  return WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0);
+}
+
+bool OpdsBookBrowserActivity::loadCachedCatalog() {
+  // Only the first configured server's root shelf is persisted (matches fetchFeed's
+  // write guard), so only offer the cache for that server.
+  const auto& servers = OPDS_STORE.getServers();
+  const bool isFirstServer = !servers.empty() && (server.url == servers[0].url || server.name == servers[0].name);
+  if (!isFirstServer) {
+    return false;
+  }
+  const std::vector<LibraryShelfEntry> shelf = LIBRARY_SHELF.getSnapshot();
+  if (shelf.empty()) {
+    return false;
+  }
+  entries.clear();
+  entries.reserve(shelf.size() + 1);
+  // Synthetic "Sync" row at the top = the menu-item SYNC affordance (long-press
+  // Confirm does the same from any row). It is a NAVIGATION entry the Confirm
+  // handler special-cases via its sentinel href instead of fetching.
+  entries.push_back(OpdsEntry{OpdsEntryType::NAVIGATION, tr(STR_SYNC), "", kSyncSentinelHref, ""});
+  for (const auto& e : shelf) {
+    entries.push_back(OpdsEntry{OpdsEntryType::BOOK, e.title, e.author, e.href, ""});
+  }
+  selectorIndex = 0;
+  return true;
+}
+
+void OpdsBookBrowserActivity::syncCatalog() {
+  // SYNC = connect-on-demand, then force-refresh the root catalog.
+  showingCachedCatalog = false;
+  navigationHistory.clear();
+  currentPath = "";
+  selectorIndex = 0;
+  if (deferUntilOnline(PendingAction::None, OpdsEntry{}, "")) {
+    return;  // refresh happens after WiFi connects (onWifiSelectionComplete, None branch)
+  }
+  state = BrowserState::LOADING;
+  statusMessage = tr(STR_LOADING);
+  entries.clear();
+  requestUpdate(true);
+  fetchFeed("");
+}
+
+bool OpdsBookBrowserActivity::deferUntilOnline(const PendingAction action, const OpdsEntry& entry,
+                                               const std::string& query) {
+  if (isOnline()) {
+    return false;
+  }
+  pendingAction = action;
+  pendingEntry = entry;
+  pendingQuery = query;
+  launchWifiSelection();
+  return true;
 }

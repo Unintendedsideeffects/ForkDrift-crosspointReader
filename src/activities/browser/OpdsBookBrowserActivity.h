@@ -53,5 +53,22 @@ class OpdsBookBrowserActivity final : public Activity {
   void downloadBook(const OpdsEntry& book);
   void launchSearch();
   void performSearch(const std::string& query);
+
+  // Phase 1 (plan 023): browse a cached root catalog offline; SYNC connects + refreshes;
+  // network-needing actions (download/navigate/search) connect on demand.
+  enum class PendingAction { None, Download, Navigate, Search };
+  PendingAction pendingAction = PendingAction::None;
+  OpdsEntry pendingEntry;    // params for a deferred Download / Navigate
+  std::string pendingQuery;  // param for a deferred Search
+  bool showingCachedCatalog = false;
+  unsigned long confirmPressStartMs = 0;  // for long-press-Confirm = SYNC
+
+  bool isOnline() const;
+  bool loadCachedCatalog();  // populate `entries` from the persisted root shelf; true if any
+  void syncCatalog();        // connect-on-demand, then refresh the root feed
+  // If offline, stash a deferred action + launch WiFi selection; returns true (caller returns).
+  // If already online, returns false (caller proceeds with the action).
+  bool deferUntilOnline(PendingAction action, const OpdsEntry& entry, const std::string& query);
+
   bool preventAutoSleep() override { return state == BrowserState::LOADING || state == BrowserState::DOWNLOADING; }
 };
