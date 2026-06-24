@@ -858,7 +858,7 @@ def empty_feature_state() -> Dict[str, bool]:
 
 def calculate_size(enabled_features: Dict[str, bool]) -> float:
     """Calculate estimated firmware size in MB."""
-    base_size_mb = 2.56  # Lean profile size baseline (measured)
+    base_size_mb = 2.65  # Lean profile size baseline (measured)
 
     for feature_key, enabled in enabled_features.items():
         if enabled:
