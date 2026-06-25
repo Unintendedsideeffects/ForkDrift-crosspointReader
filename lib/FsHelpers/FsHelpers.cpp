@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <string_view>
 #include <vector>
 
 namespace FsHelpers {
@@ -36,42 +37,43 @@ std::string decodeUriEscapes(const std::string& path) {
 }
 
 std::string normalisePath(const std::string& path) {
-  std::vector<std::string> components;
-  std::string component;
-  auto flushComponent = [&components](const std::string& part) {
-    if (part.empty() || part == ".") {
-      return;
-    }
-    if (part == "..") {
-      if (!components.empty()) {
-        components.pop_back();
-      }
-      return;
-    }
-    components.push_back(part);
-  };
+  std::vector<std::string_view> components;
+  components.reserve(8);  // Eight nested folders is more than we might expect
 
-  for (const auto c : path) {
-    if (c == '/') {
-      if (!component.empty()) {
-        flushComponent(component);
-        component.clear();
+  size_t start = 0;
+  for (size_t i = 0; i <= path.length(); ++i) {
+    if (i == path.length() || path[i] == '/') {
+      if (i > start) {
+        std::string_view component(path.data() + start, i - start);
+        if (component == "..") {
+          if (!components.empty()) {
+            components.pop_back();
+          }
+        } else if (component != ".") {  // "./" segments are no-ops (common in EPUB hrefs)
+          components.push_back(component);
+        }
       }
-    } else {
-      component += c;
+      start = i + 1;
     }
   }
 
-  if (!component.empty()) {
-    flushComponent(component);
+  if (components.empty()) {
+    return "";
+  }
+
+  size_t total_len = 0;
+  for (const auto& c : components) {
+    total_len += c.length() + 1;
   }
 
   std::string result;
-  for (const auto& c : components) {
-    if (!result.empty()) {
-      result += "/";
+  result.reserve(total_len - 1);
+
+  for (size_t i = 0; i < components.size(); ++i) {
+    if (i > 0) {
+      result += '/';
     }
-    result += c;
+    result.append(components[i].data(), components[i].length());
   }
 
   return result;
