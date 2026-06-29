@@ -10,6 +10,7 @@
 #include "ControlsOptionsActivity.h"
 #include "ReaderOptionsActivity.h"
 #include "activities/Activity.h"
+#include "components/OptionPopup.h"
 #include "util/ButtonNavigator.h"
 
 class EpubReaderMenuActivity final : public Activity {
@@ -72,6 +73,7 @@ class EpubReaderMenuActivity final : public Activity {
 
   int selectedIndex = 0;
   ButtonNavigator buttonNavigator;
+  OptionPopup optionPopup;
   std::string title = "Reader Menu";
   uint8_t pendingOrientation = 0;
   const std::vector<StrId> orientationLabels = {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_INVERTED,

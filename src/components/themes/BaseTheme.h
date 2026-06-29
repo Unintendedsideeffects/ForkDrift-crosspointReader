@@ -108,6 +108,19 @@ struct ThemeMetrics {
   bool popupProgressFillInverted;
   bool popupProgressOutlineInverted;
 
+  int optionPopupItemSpacing;
+  int optionPopupInnerPadding;
+  int optionPopupSelectionHPadding;
+  int optionPopupSelectionVPadding;
+  int optionPopupTitleGap;
+  bool optionPopupUseSmallFont;
+  bool optionPopupOptionFontBold;
+  int optionPopupSelectionRadius;
+  bool optionPopupSelectionLight;
+  bool optionPopupDrawAllRows;
+  int optionPopupDialogSideMargin;
+  bool optionPopupTitleSeparator;
+
   int textFieldHorizontalPadding;
   int textFieldNormalThickness;
   int textFieldCursorThickness;
@@ -203,6 +216,18 @@ constexpr ThemeMetrics values = {.batteryWidth = 15,
                                  .popupProgressClampPercent = false,
                                  .popupProgressFillInverted = true,
                                  .popupProgressOutlineInverted = true,
+                                 .optionPopupItemSpacing = 6,
+                                 .optionPopupInnerPadding = 16,
+                                 .optionPopupSelectionHPadding = 8,
+                                 .optionPopupSelectionVPadding = 4,
+                                 .optionPopupTitleGap = 10,
+                                 .optionPopupUseSmallFont = true,
+                                 .optionPopupOptionFontBold = true,
+                                 .optionPopupSelectionRadius = 0,
+                                 .optionPopupSelectionLight = false,
+                                 .optionPopupDrawAllRows = false,
+                                 .optionPopupDialogSideMargin = 20,
+                                 .optionPopupTitleSeparator = true,
                                  .textFieldHorizontalPadding = 6,
                                  .textFieldNormalThickness = 1,
                                  .textFieldCursorThickness = 3,
@@ -263,6 +288,8 @@ class BaseTheme {
                                            const std::vector<RecentBook>& recentBooks, int centerIdx,
                                            float progressPercent) const {}
   virtual Rect drawPopup(const GfxRenderer& renderer, const char* message) const;
+  virtual void drawOptionPopup(const GfxRenderer& renderer, const char* title, const std::vector<std::string>& options,
+                               int selectedIndex) const;
   virtual void fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, const int progress) const;
   void drawStatusBar(GfxRenderer& renderer, const float bookProgress, const int currentPage, const int pageCount,
                      const std::string& title, bool isPageBookmarked = false) const;

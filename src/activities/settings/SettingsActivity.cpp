@@ -364,6 +364,7 @@ void SettingsActivity::onExit() {
 }
 
 void SettingsActivity::loop() {
+
   bool hasChangedCategory = false;
 
   // Handle actions with early return
