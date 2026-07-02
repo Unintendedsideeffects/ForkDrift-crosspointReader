@@ -88,6 +88,8 @@ void ChapterHtmlSlimParser::updateEffectiveInlineStyle() {
       currentCssStyle.hasTextDecoration() && currentCssStyle.textDecoration == CssTextDecoration::Underline;
   effectiveStrikethrough =
       currentCssStyle.hasTextDecoration() && currentCssStyle.textDecoration == CssTextDecoration::LineThrough;
+  effectiveSup = false;
+  effectiveSub = false;
 
   // Apply inline style stack in order
   for (const auto& entry : inlineStyleStack) {
@@ -102,6 +104,14 @@ void ChapterHtmlSlimParser::updateEffectiveInlineStyle() {
     }
     if (entry.hasStrikethrough) {
       effectiveStrikethrough = entry.strikethrough;
+    }
+    if (entry.hasSup) {
+      effectiveSup = entry.sup;
+      if (entry.sup) effectiveSub = false;
+    }
+    if (entry.hasSub) {
+      effectiveSub = entry.sub;
+      if (entry.sub) effectiveSup = false;
     }
   }
 }
@@ -127,6 +137,11 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
   }
   if (isStrikethrough) {
     fontStyle = static_cast<EpdFontFamily::Style>(fontStyle | EpdFontFamily::STRIKETHROUGH);
+  }
+  if (effectiveSup) {
+    fontStyle = static_cast<EpdFontFamily::Style>(fontStyle | EpdFontFamily::SUP);
+  } else if (effectiveSub) {
+    fontStyle = static_cast<EpdFontFamily::Style>(fontStyle | EpdFontFamily::SUB);
   }
 
   // flush the buffer
@@ -1209,6 +1224,22 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
         self->currentTextBlock->addWord("\xe2\x80\xa2", EpdFontFamily::REGULAR);
       }
     }
+  } else if (strcmp(name, "sup") == 0 || strcmp(name, "sub") == 0) {
+    if (self->partWordBufferIndex > 0) {
+      self->flushPartWordBuffer();
+      self->nextWordContinues = true;
+    }
+    StyleStackEntry entry;
+    entry.depth = self->depth;
+    if (strcmp(name, "sup") == 0) {
+      entry.hasSup = true;
+      entry.sup = true;
+    } else {
+      entry.hasSub = true;
+      entry.sub = true;
+    }
+    self->inlineStyleStack.push_back(entry);
+    self->updateEffectiveInlineStyle();
   } else if (matches(name, STRIKETHROUGH_TAGS, std::size(STRIKETHROUGH_TAGS))) {
     if (self->partWordBufferIndex > 0) {
       self->flushPartWordBuffer();
