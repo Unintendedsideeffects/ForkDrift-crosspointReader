@@ -1,5 +1,5 @@
 #pragma once
-#include <HalStorage.h>
+#include <Serialization.h>
 
 #include <memory>
 #include <string>
@@ -21,8 +21,8 @@ class ImageBlock final : public Block {
   bool isEmpty() override { return false; }
 
   void render(GfxRenderer& renderer, const int x, const int y);
-  bool serialize(HalFile& file);
-  static std::unique_ptr<ImageBlock> deserialize(HalFile& file);
+  bool serialize(serialization::BufferedWriter& file);
+  static std::unique_ptr<ImageBlock> deserialize(serialization::BufferedReader& file);
 
  private:
   std::string imagePath;

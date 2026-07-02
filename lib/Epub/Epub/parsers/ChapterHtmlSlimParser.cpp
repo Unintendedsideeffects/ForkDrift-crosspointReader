@@ -28,7 +28,9 @@ constexpr const char* BOLD_TAGS[] = {"b", "strong"};
 constexpr const char* ITALIC_TAGS[] = {"i", "em"};
 constexpr const char* UNDERLINE_TAGS[] = {"u", "ins"};
 constexpr const char* STRIKETHROUGH_TAGS[] = {"s", "strike", "del"};
-constexpr const char* IMAGE_TAGS[] = {"img"};
+// "image" covers SVG-wrapped figures (<svg><image xlink:href="..."/></svg>),
+// a common EPUB pattern (O'Reilly and friends); handled like <img>.
+constexpr const char* IMAGE_TAGS[] = {"img", "image"};
 constexpr const char* SKIP_TAGS[] = {"head"};
 
 constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
@@ -722,6 +724,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       bool amznM8Removed = false;
       for (int i = 0; atts[i]; i += 2) {
         if (strcmp(atts[i], "src") == 0) {
+          src = atts[i + 1];
+        } else if (src.empty() && (strcmp(atts[i], "xlink:href") == 0 || strcmp(atts[i], "href") == 0)) {
+          // SVG <image> references its bitmap via (xlink:)href instead of src
           src = atts[i + 1];
         } else if (strcmp(atts[i], "alt") == 0) {
           alt = atts[i + 1];

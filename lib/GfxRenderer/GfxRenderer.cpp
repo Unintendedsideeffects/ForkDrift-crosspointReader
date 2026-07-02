@@ -2,6 +2,7 @@
 
 #include <FontDecompressor.h>
 #include <HalGPIO.h>
+#include <HeapGuard.h>
 #include <Logging.h>
 #include <SdCardFont.h>
 #include <Utf8.h>
@@ -133,6 +134,151 @@ static inline void rotateCoordinates(const GfxRenderer::Orientation orientation,
 
 enum class TextRotation { None, Rotated90CW };
 
+// Helper struct to hold affine transformation parameters for fast glyph rendering
+struct GlyphFastPath {
+  int phyX0, phyY0;      // Physical coordinates of glyph origin
+  int dxInner, dyInner;  // Physical delta when inner loop advances by 1
+  int dxOuter, dyOuter;  // Physical delta when outer loop advances by 1
+  bool canUse;           // true if all corners are in bounds
+};
+
+// Compute fast path parameters and check if all glyph corners are in bounds.
+// The inner/outer step vectors are the LOGICAL screen-space deltas of one inner
+// (glyphX+1) / outer (glyphY+1) loop advance; they differ per TextRotation
+// (None: inner=(+1,0), outer=(0,+1); Rotated90CW: inner=(0,-1), outer=(+1,0)).
+// Returns a GlyphFastPath with canUse=false if any corner is out of bounds.
+static GlyphFastPath computeGlyphFastPath(const GfxRenderer::Orientation orientation, int screenX0, int screenY0,
+                                          int innerStepX, int innerStepY, int outerStepX, int outerStepY,
+                                          int glyphWidth, int glyphHeight, uint16_t panelWidth, uint16_t panelHeight) {
+  GlyphFastPath result{};
+
+  // Transform origin to physical coordinates
+  rotateCoordinates(orientation, screenX0, screenY0, &result.phyX0, &result.phyY0, panelWidth, panelHeight);
+
+  // Compute deltas by transforming one inner/outer step through the same
+  // transform and subtracting (rotateCoordinates is affine per orientation)
+  int phyX1, phyY1, phyX2, phyY2;
+  rotateCoordinates(orientation, screenX0 + innerStepX, screenY0 + innerStepY, &phyX1, &phyY1, panelWidth, panelHeight);
+  rotateCoordinates(orientation, screenX0 + outerStepX, screenY0 + outerStepY, &phyX2, &phyY2, panelWidth, panelHeight);
+
+  result.dxInner = phyX1 - result.phyX0;
+  result.dyInner = phyY1 - result.phyY0;
+  result.dxOuter = phyX2 - result.phyX0;
+  result.dyOuter = phyY2 - result.phyY0;
+
+  // Check all four corners
+  // Corner 1: origin
+  if (result.phyX0 < 0 || result.phyX0 >= static_cast<int>(panelWidth) || result.phyY0 < 0 ||
+      result.phyY0 >= static_cast<int>(panelHeight)) {
+    result.canUse = false;
+    return result;
+  }
+
+  // Corner 2: right-bottom origin
+  int corner2X = result.phyX0 + result.dxInner * (glyphWidth - 1) + result.dxOuter * (glyphHeight - 1);
+  int corner2Y = result.phyY0 + result.dyInner * (glyphWidth - 1) + result.dyOuter * (glyphHeight - 1);
+  if (corner2X < 0 || corner2X >= static_cast<int>(panelWidth) || corner2Y < 0 ||
+      corner2Y >= static_cast<int>(panelHeight)) {
+    result.canUse = false;
+    return result;
+  }
+
+  // Corner 3: top-right
+  int corner3X = result.phyX0 + result.dxInner * (glyphWidth - 1);
+  int corner3Y = result.phyY0 + result.dyInner * (glyphWidth - 1);
+  if (corner3X < 0 || corner3X >= static_cast<int>(panelWidth) || corner3Y < 0 ||
+      corner3Y >= static_cast<int>(panelHeight)) {
+    result.canUse = false;
+    return result;
+  }
+
+  // Corner 4: bottom-left
+  int corner4X = result.phyX0 + result.dxOuter * (glyphHeight - 1);
+  int corner4Y = result.phyY0 + result.dyOuter * (glyphHeight - 1);
+  if (corner4X < 0 || corner4X >= static_cast<int>(panelWidth) || corner4Y < 0 ||
+      corner4Y >= static_cast<int>(panelHeight)) {
+    result.canUse = false;
+    return result;
+  }
+
+  result.canUse = true;
+  return result;
+}
+
+// Fast glyph rendering when all pixels are in bounds (no per-pixel rotation/bounds check needed).
+// Renders 1-bit glyphs directly to framebuffer using incremental coordinate updates.
+static void renderCharFastPath1Bit(const GlyphFastPath& fastPath, const uint8_t* bitmap, int glyphWidth,
+                                   int glyphHeight, bool pixelState, uint8_t* frameBuffer,
+                                   uint16_t panelWidthBytes) {
+  int pixelPosition = 0;
+
+  for (int glyphY = 0; glyphY < glyphHeight; glyphY++) {
+    int phyX = fastPath.phyX0 + fastPath.dxOuter * glyphY;
+    int phyY = fastPath.phyY0 + fastPath.dyOuter * glyphY;
+
+    for (int glyphX = 0; glyphX < glyphWidth; glyphX++, pixelPosition++) {
+      const uint8_t byte = bitmap[pixelPosition >> 3];
+      const uint8_t bit_index = 7 - (pixelPosition & 7);
+
+      if ((byte >> bit_index) & 1) {
+        // Directly access framebuffer with incremental coordinates
+        const uint32_t byteIndex = static_cast<uint32_t>(phyY) * panelWidthBytes + (phyX / 8);
+        const uint8_t bitPosition = 7 - (phyX % 8);
+
+        if (pixelState) {
+          frameBuffer[byteIndex] &= ~(1 << bitPosition);  // Clear bit
+        } else {
+          frameBuffer[byteIndex] |= 1 << bitPosition;  // Set bit
+        }
+      }
+
+      phyX += fastPath.dxInner;
+      phyY += fastPath.dyInner;
+    }
+  }
+}
+
+// Fast glyph rendering for 2-bit glyphs when all pixels are in bounds.
+static void renderCharFastPath2Bit(const GlyphFastPath& fastPath, const uint8_t* bitmap, int glyphWidth,
+                                   int glyphHeight, bool pixelState, GfxRenderer::RenderMode renderMode,
+                                   uint8_t* frameBuffer, uint16_t panelWidthBytes) {
+  int pixelPosition = 0;
+
+  for (int glyphY = 0; glyphY < glyphHeight; glyphY++) {
+    int phyX = fastPath.phyX0 + fastPath.dxOuter * glyphY;
+    int phyY = fastPath.phyY0 + fastPath.dyOuter * glyphY;
+
+    for (int glyphX = 0; glyphX < glyphWidth; glyphX++, pixelPosition++) {
+      const uint8_t byte = bitmap[pixelPosition >> 2];
+      const uint8_t bit_index = (3 - (pixelPosition & 3)) * 2;
+      const uint8_t bmpVal = 3 - ((byte >> bit_index) & 0x3);
+
+      bool shouldDraw = false;
+      if (renderMode == GfxRenderer::BW && bmpVal < 3) {
+        shouldDraw = true;
+      } else if ((renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) ||
+                 (renderMode == GfxRenderer::GRAYSCALE_LSB && bmpVal == 1)) {
+        shouldDraw = true;
+      }
+
+      if (shouldDraw) {
+        const uint32_t byteIndex = static_cast<uint32_t>(phyY) * panelWidthBytes + (phyX / 8);
+        const uint8_t bitPosition = 7 - (phyX % 8);
+
+        const bool drawState = (renderMode == GfxRenderer::BW) ? pixelState : false;
+        if (drawState) {
+          frameBuffer[byteIndex] &= ~(1 << bitPosition);  // Clear bit
+        } else {
+          frameBuffer[byteIndex] |= 1 << bitPosition;  // Set bit
+        }
+      }
+
+      phyX += fastPath.dxInner;
+      phyY += fastPath.dyInner;
+    }
+  }
+}
+
 // Shared glyph rendering logic for normal and rotated text.
 // Coordinate mapping and cursor advance direction are selected at compile time via the template parameter.
 template <TextRotation rotation>
@@ -158,62 +304,101 @@ static void renderCharImpl(const GfxRenderer& renderer, GfxRenderer::RenderMode 
     // For Normal:  outer loop advances screenY, inner loop advances screenX
     // For Rotated: outer loop advances screenX, inner loop advances screenY (in reverse)
     int outerBase, innerBase;
+    int screenX0, screenY0;  // Origin for fast path calculation
     if constexpr (rotation == TextRotation::Rotated90CW) {
       outerBase = cursorX + fontData->ascender - top;  // screenX = outerBase + glyphY
       innerBase = cursorY - left;                      // screenY = innerBase - glyphX
+      screenX0 = outerBase;
+      screenY0 = innerBase;
     } else {
       outerBase = cursorY - top;   // screenY = outerBase + glyphY
       innerBase = cursorX + left;  // screenX = innerBase + glyphX
+      screenX0 = innerBase;
+      screenY0 = outerBase;
     }
 
-    if (is2Bit) {
-      int pixelPosition = 0;
-      for (int glyphY = 0; glyphY < height; glyphY++) {
-        const int outerCoord = outerBase + glyphY;
-        for (int glyphX = 0; glyphX < width; glyphX++, pixelPosition++) {
-          int screenX, screenY;
-          if constexpr (rotation == TextRotation::Rotated90CW) {
-            screenX = outerCoord;
-            screenY = innerBase - glyphX;
-          } else {
-            screenX = innerBase + glyphX;
-            screenY = outerCoord;
-          }
+    // Logical screen-space steps of the pixel loops; these must mirror the
+    // slow-path coordinate math exactly (Rotated90CW inner loop moves screenY
+    // DOWNWARD: screenY = innerBase - glyphX).
+    int innerStepX, innerStepY, outerStepX, outerStepY;
+    if constexpr (rotation == TextRotation::Rotated90CW) {
+      innerStepX = 0;
+      innerStepY = -1;
+      outerStepX = 1;
+      outerStepY = 0;
+    } else {
+      innerStepX = 1;
+      innerStepY = 0;
+      outerStepX = 0;
+      outerStepY = 1;
+    }
 
-          const uint8_t byte = bitmap[pixelPosition >> 2];
-          const uint8_t bit_index = (3 - (pixelPosition & 3)) * 2;
-          // the direct bit from the font is 0 -> white, 1 -> light gray, 2 -> dark gray, 3 -> black
-          // we swap this to better match the way images and screen think about colors:
-          // 0 -> black, 1 -> dark grey, 2 -> light grey, 3 -> white
-          const uint8_t bmpVal = 3 - ((byte >> bit_index) & 0x3);
+    // Try fast path if all glyph pixels are in bounds
+    GlyphFastPath fastPath =
+        computeGlyphFastPath(renderer.getOrientation(), screenX0, screenY0, innerStepX, innerStepY, outerStepX,
+                             outerStepY, width, height, renderer.getDisplayWidth(), renderer.getDisplayHeight());
 
-          if (renderMode == GfxRenderer::BW && bmpVal < 3) {
-            renderer.drawPixel(screenX, screenY, pixelState);
-          } else if ((renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) ||
-                     (renderMode == GfxRenderer::GRAYSCALE_LSB && bmpVal == 1)) {
-            renderer.drawPixel(screenX, screenY, false);
-          }
-        }
+    uint8_t* frameBuffer = renderer.getFrameBuffer();
+    if (fastPath.canUse && frameBuffer != nullptr) {
+      // Use fast path with incremental coordinate updates and direct framebuffer access
+      if (is2Bit) {
+        renderCharFastPath2Bit(fastPath, bitmap, width, height, pixelState, renderMode, frameBuffer,
+                               renderer.getDisplayWidthBytes());
+      } else {
+        renderCharFastPath1Bit(fastPath, bitmap, width, height, pixelState, frameBuffer,
+                               renderer.getDisplayWidthBytes());
       }
     } else {
-      int pixelPosition = 0;
-      for (int glyphY = 0; glyphY < height; glyphY++) {
-        const int outerCoord = outerBase + glyphY;
-        for (int glyphX = 0; glyphX < width; glyphX++, pixelPosition++) {
-          int screenX, screenY;
-          if constexpr (rotation == TextRotation::Rotated90CW) {
-            screenX = outerCoord;
-            screenY = innerBase - glyphX;
-          } else {
-            screenX = innerBase + glyphX;
-            screenY = outerCoord;
+      // Fall back to per-pixel drawPixel (handles clipped glyphs and out-of-bounds cases)
+      if (is2Bit) {
+        int pixelPosition = 0;
+        for (int glyphY = 0; glyphY < height; glyphY++) {
+          const int outerCoord = outerBase + glyphY;
+          for (int glyphX = 0; glyphX < width; glyphX++, pixelPosition++) {
+            int screenX, screenY;
+            if constexpr (rotation == TextRotation::Rotated90CW) {
+              screenX = outerCoord;
+              screenY = innerBase - glyphX;
+            } else {
+              screenX = innerBase + glyphX;
+              screenY = outerCoord;
+            }
+
+            const uint8_t byte = bitmap[pixelPosition >> 2];
+            const uint8_t bit_index = (3 - (pixelPosition & 3)) * 2;
+            // the direct bit from the font is 0 -> white, 1 -> light gray, 2 -> dark gray, 3 -> black
+            // we swap this to better match the way images and screen think about colors:
+            // 0 -> black, 1 -> dark grey, 2 -> light grey, 3 -> white
+            const uint8_t bmpVal = 3 - ((byte >> bit_index) & 0x3);
+
+            if (renderMode == GfxRenderer::BW && bmpVal < 3) {
+              renderer.drawPixel(screenX, screenY, pixelState);
+            } else if ((renderMode == GfxRenderer::GRAYSCALE_MSB && (bmpVal == 1 || bmpVal == 2)) ||
+                       (renderMode == GfxRenderer::GRAYSCALE_LSB && bmpVal == 1)) {
+              renderer.drawPixel(screenX, screenY, false);
+            }
           }
+        }
+      } else {
+        int pixelPosition = 0;
+        for (int glyphY = 0; glyphY < height; glyphY++) {
+          const int outerCoord = outerBase + glyphY;
+          for (int glyphX = 0; glyphX < width; glyphX++, pixelPosition++) {
+            int screenX, screenY;
+            if constexpr (rotation == TextRotation::Rotated90CW) {
+              screenX = outerCoord;
+              screenY = innerBase - glyphX;
+            } else {
+              screenX = innerBase + glyphX;
+              screenY = outerCoord;
+            }
 
-          const uint8_t byte = bitmap[pixelPosition >> 3];
-          const uint8_t bit_index = 7 - (pixelPosition & 7);
+            const uint8_t byte = bitmap[pixelPosition >> 3];
+            const uint8_t bit_index = 7 - (pixelPosition & 7);
 
-          if ((byte >> bit_index) & 1) {
-            renderer.drawPixel(screenX, screenY, pixelState);
+            if ((byte >> bit_index) & 1) {
+              renderer.drawPixel(screenX, screenY, pixelState);
+            }
           }
         }
       }
@@ -1500,6 +1685,12 @@ void GfxRenderer::freeBwBufferChunks() {
  * Returns true if buffer was stored successfully, false if allocation failed.
  */
 bool GfxRenderer::storeBwBuffer() {
+  // Pre-flight: grayscale rendering is a luxury feature; refuse on low heap
+  if (!heapguard::canAllocate(frameBufferSize, heapguard::kLowFloorBytes)) {
+    LOG_ERR("GFX", "Skipping grayscale buffer: low heap");
+    return false;
+  }
+
   // Allocate and copy each chunk
   for (size_t i = 0; i < bwBufferChunks.size(); i++) {
     // Check if any chunks are already allocated

@@ -169,6 +169,7 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     }
   }
 
+  invalidateMemoCache();
   ZipFile zip(epubPath);
   // Pre-open zip file to speed up size calculations
   if (!zip.open()) {
@@ -401,6 +402,7 @@ bool BookMetadataCache::load() {
   }
 
   loaded = true;
+  invalidateMemoCache();
   LOG_DBG("BMC", "Loaded cache data: %d spine, %d TOC entries", spineCount, tocCount);
   return true;
 }
@@ -414,6 +416,11 @@ BookMetadataCache::SpineEntry BookMetadataCache::getSpineEntry(const int index) 
   if (index < 0 || index >= static_cast<int>(spineCount)) {
     LOG_ERR("BMC", "getSpineEntry index %d out of range", index);
     return {};
+  }
+
+  // Check memo cache first (avoid repeated seeks for same index)
+  if (cachedSpineIndex == index) {
+    return cachedSpineEntry;
   }
 
   // lutOffset and the per-entry positions come from the file; a corrupt book.bin
@@ -435,7 +442,15 @@ BookMetadataCache::SpineEntry BookMetadataCache::getSpineEntry(const int index) 
     return {};
   }
   bookFile.seek(spineEntryPos);
-  return readSpineEntry(bookFile);
+
+  // Use buffered reader to batch field reads: 1 seek + 1 mutex lock instead of ~5
+  serialization::BufferedReader reader(bookFile);
+  SpineEntry entry = readSpineEntry(reader);
+
+  // Update memo cache
+  cachedSpineIndex = index;
+  cachedSpineEntry = entry;
+  return entry;
 }
 
 BookMetadataCache::TocEntry BookMetadataCache::getTocEntry(const int index) {
@@ -447,6 +462,11 @@ BookMetadataCache::TocEntry BookMetadataCache::getTocEntry(const int index) {
   if (index < 0 || index >= static_cast<int>(tocCount)) {
     LOG_ERR("BMC", "getTocEntry index %d out of range", index);
     return {};
+  }
+
+  // Check memo cache first (avoid repeated seeks for same index)
+  if (cachedTocIndex == index) {
+    return cachedTocEntry;
   }
 
   // As in getSpineEntry: validate file-derived offsets before seeking.
@@ -467,7 +487,15 @@ BookMetadataCache::TocEntry BookMetadataCache::getTocEntry(const int index) {
     return {};
   }
   bookFile.seek(tocEntryPos);
-  return readTocEntry(bookFile);
+
+  // Use buffered reader to batch field reads: 1 seek + 1 mutex lock instead of ~5
+  serialization::BufferedReader reader(bookFile);
+  TocEntry entry = readTocEntry(reader);
+
+  // Update memo cache
+  cachedTocIndex = index;
+  cachedTocEntry = entry;
+  return entry;
 }
 
 BookMetadataCache::SpineEntry BookMetadataCache::readSpineEntry(HalFile& file) const {
@@ -485,5 +513,23 @@ BookMetadataCache::TocEntry BookMetadataCache::readTocEntry(HalFile& file) const
   serialization::readString(file, entry.anchor);
   serialization::readPod(file, entry.level);
   serialization::readPod(file, entry.spineIndex);
+  return entry;
+}
+
+BookMetadataCache::SpineEntry BookMetadataCache::readSpineEntry(serialization::BufferedReader& reader) const {
+  SpineEntry entry;
+  serialization::readString(reader, entry.href);
+  serialization::readPod(reader, entry.cumulativeSize);
+  serialization::readPod(reader, entry.tocIndex);
+  return entry;
+}
+
+BookMetadataCache::TocEntry BookMetadataCache::readTocEntry(serialization::BufferedReader& reader) const {
+  TocEntry entry;
+  serialization::readString(reader, entry.title);
+  serialization::readString(reader, entry.href);
+  serialization::readString(reader, entry.anchor);
+  serialization::readPod(reader, entry.level);
+  serialization::readPod(reader, entry.spineIndex);
   return entry;
 }

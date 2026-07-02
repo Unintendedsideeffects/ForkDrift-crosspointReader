@@ -159,14 +159,14 @@ void ImageBlock::render(GfxRenderer& renderer, const int x, const int y) {
   LOG_DBG("IMG", "Decode successful");
 }
 
-bool ImageBlock::serialize(HalFile& file) {
+bool ImageBlock::serialize(serialization::BufferedWriter& file) {
   serialization::writeString(file, imagePath);
   serialization::writePod(file, width);
   serialization::writePod(file, height);
   return true;
 }
 
-std::unique_ptr<ImageBlock> ImageBlock::deserialize(HalFile& file) {
+std::unique_ptr<ImageBlock> ImageBlock::deserialize(serialization::BufferedReader& file) {
   std::string path;
   serialization::readString(file, path);
   int16_t w, h;

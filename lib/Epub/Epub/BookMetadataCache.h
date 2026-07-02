@@ -1,6 +1,7 @@
 #pragma once
 
 #include <HalStorage.h>
+#include <Serialization.h>
 
 #include <algorithm>
 #include <deque>
@@ -24,6 +25,11 @@ class BookMetadataCache {
     SpineEntry() : cumulativeSize(0), tocIndex(-1) {}
     SpineEntry(std::string href, const uint32_t cumulativeSize, const int16_t tocIndex)
         : href(std::move(href)), cumulativeSize(cumulativeSize), tocIndex(tocIndex) {}
+
+    // Enable comparison for memo cache invalidation
+    bool operator==(const SpineEntry& other) const {
+      return href == other.href && cumulativeSize == other.cumulativeSize && tocIndex == other.tocIndex;
+    }
   };
 
   struct TocEntry {
@@ -40,6 +46,11 @@ class BookMetadataCache {
           anchor(std::move(anchor)),
           level(level),
           spineIndex(spineIndex) {}
+
+    // Enable comparison for memo cache invalidation
+    bool operator==(const TocEntry& other) const {
+      return title == other.title && href == other.href && anchor == other.anchor && level == other.level && spineIndex == other.spineIndex;
+    }
   };
 
  private:
@@ -49,6 +60,17 @@ class BookMetadataCache {
   uint16_t tocCount;
   bool loaded;
   bool buildMode;
+
+  // One-entry memo cache for spine and toc entries (avoid repeated SD seeks)
+  int cachedSpineIndex = -1;
+  SpineEntry cachedSpineEntry;
+  int cachedTocIndex = -1;
+  TocEntry cachedTocEntry;
+
+  void invalidateMemoCache() {
+    cachedSpineIndex = -1;
+    cachedTocIndex = -1;
+  }
 
   HalFile bookFile;
   // Temp file handles during build
@@ -80,6 +102,9 @@ class BookMetadataCache {
   uint32_t writeTocEntry(HalFile& file, const TocEntry& entry) const;
   SpineEntry readSpineEntry(HalFile& file) const;
   TocEntry readTocEntry(HalFile& file) const;
+  // Overloads accepting BufferedReader for efficient batched reads
+  SpineEntry readSpineEntry(serialization::BufferedReader& reader) const;
+  TocEntry readTocEntry(serialization::BufferedReader& reader) const;
 
  public:
   BookMetadata coreMetadata;
