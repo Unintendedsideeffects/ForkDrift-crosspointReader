@@ -34,6 +34,7 @@ class FileBrowserActivity final : public Activity {
   void toggleHiddenFiles();
   void confirmDeleteEntry(const std::string& entry);
   void clearFileMetadata(const std::string& fullPath);
+  void clearMetadataInDirectory(const std::string& dirPath);
   bool clearBookCache(const std::string& fullPath);
 #if ENABLE_READING_STATS
   bool isEpubCompleted(const std::string& fullPath) const;

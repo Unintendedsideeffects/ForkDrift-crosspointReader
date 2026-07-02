@@ -181,6 +181,44 @@ void FileBrowserActivity::clearFileMetadata(const std::string& fullPath) {
   }
 }
 
+// Clear book caches for every file under `dirPath` before the directory is
+// deleted, so .crosspoint entries and bookmarks don't orphan (upstream #1892).
+// Iterative post-order-free walk: we only clear metadata; Storage.removeDir
+// does the actual recursive delete afterwards.
+void FileBrowserActivity::clearMetadataInDirectory(const std::string& dirPath) {
+  std::vector<std::string> stack;
+  stack.reserve(8);
+  stack.push_back(dirPath);
+  char nameBuf[256];
+
+  while (!stack.empty()) {
+    const std::string currentPath = std::move(stack.back());
+    stack.pop_back();
+
+    auto dir = Storage.open(currentPath.c_str());
+    if (!dir || !dir.isDirectory()) {
+      continue;
+    }
+    dir.rewindDirectory();
+    for (auto entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
+      entry.getName(nameBuf, sizeof(nameBuf));
+      if (strcmp(nameBuf, ".") == 0 || strcmp(nameBuf, "..") == 0) {
+        continue;
+      }
+      std::string entryPath = currentPath;
+      if (entryPath.back() != '/') {
+        entryPath += "/";
+      }
+      entryPath += nameBuf;
+      if (entry.isDirectory()) {
+        stack.push_back(std::move(entryPath));
+      } else {
+        clearFileMetadata(entryPath);
+      }
+    }
+  }
+}
+
 bool FileBrowserActivity::clearBookCache(const std::string& fullPath) {
   if (FsHelpers::hasEpubExtension(fullPath)) {
     return Epub(fullPath, "/.crosspoint").clearCache();
@@ -364,6 +402,8 @@ void FileBrowserActivity::confirmDeleteEntry(const std::string& entry) {
       LOG_DBG("FileBrowser", "Attempting to delete: %s", fullPath.c_str());
       if (!isDirectory) {
         clearFileMetadata(fullPath);
+      } else {
+        clearMetadataInDirectory(fullPath);
       }
       const bool deleted = isDirectory ? Storage.removeDir(fullPath.c_str()) : Storage.remove(fullPath.c_str());
       if (deleted) {
