@@ -6,7 +6,10 @@
 #include "activities/Activity.h"
 #include "util/ButtonNavigator.h"
 
+#include "components/OptionPopup.h"
+
 class SettingsActivity final : public Activity {
+  OptionPopup optionPopup;
   ButtonNavigator buttonNavigator;
 
   int selectedCategoryIndex = 0;  // Currently selected category

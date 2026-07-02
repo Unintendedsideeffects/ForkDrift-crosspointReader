@@ -364,6 +364,7 @@ void SettingsActivity::onExit() {
 }
 
 void SettingsActivity::loop() {
+  if (optionPopup.handleInput(mappedInput, [this] { requestUpdate(); })) return;
 
   bool hasChangedCategory = false;
 
@@ -606,6 +607,56 @@ void SettingsActivity::toggleCurrentSetting() {
       return;
     }
 
+    if (optionCount > 2) {
+      // 3-4 options: pick from an inline popup instead of blind cycling
+      // (upstream #2358 Selection Popup, adapted to the topic-group settings).
+      std::vector<std::string> items;
+      items.reserve(optionCount);
+      for (size_t i = 0; i < optionCount; ++i) {
+        items.push_back(enumOptionLabel(setting, i));
+      }
+      const size_t popupCurrent = setting.optionPosition() < optionCount ? setting.optionPosition() : 0;
+      optionPopup.show(setting.nameId, items, static_cast<int>(popupCurrent),
+                       [this, setting, applyEnumValue, persistSettings, optionCount](int idx) {
+                         if (idx < 0 || idx >= static_cast<int>(optionCount)) {
+                           requestUpdate();
+                           return;
+                         }
+                         const auto newValue = static_cast<size_t>(idx);
+                         const size_t currentIndex = setting.optionPosition();
+                         const bool requiresBatteryWarning =
+                             setting.key != nullptr && strcmp(setting.key, kBackgroundServerModeKey) == 0 &&
+                             currentIndex != CrossPointSettings::BACKGROUND_SERVER_ALWAYS &&
+                             newValue == CrossPointSettings::BACKGROUND_SERVER_ALWAYS;
+                         if (requiresBatteryWarning) {
+                           startActivityForResult(
+                               std::make_unique<ConfirmationActivity>(
+                                   renderer, mappedInput,
+                                   std::string(I18N.get(StrId::STR_BACKGROUND_SERVER_WARNING_TITLE)),
+                                   std::string(I18N.get(StrId::STR_BACKGROUND_SERVER_WARNING_BODY))),
+                               [this, setting, newValue, applyEnumValue, persistSettings](const ActivityResult& result) {
+                                 if (!result.isCancelled) {
+                                   applyEnumValue(setting, newValue);
+                                   persistSettings();
+                                 }
+                                 requestUpdate();
+                               });
+                           return;
+                         }
+                         applyEnumValue(setting, newValue);
+                         persistSettings();
+                         if (setting.key != nullptr &&
+                             isSettingKeyReferencedInDependencies(setting.key, cachedMasterSettings)) {
+                           const int previousSelection = selectedSettingIndex;
+                           rebuildSettingsLists();
+                           selectedSettingIndex = std::min(previousSelection, settingsCount);
+                         }
+                         requestUpdate();
+                       });
+      requestUpdate();
+      return;
+    }
+
     const uint8_t newValue = cycleEnumOptionIndex(setting);
     const size_t currentIndex = setting.optionPosition();
     const bool requiresBatteryWarning = setting.key != nullptr && strcmp(setting.key, kBackgroundServerModeKey) == 0 &&
@@ -826,6 +877,7 @@ void SettingsActivity::render(RenderLock&&) {
   if (APP_STATE.consumeTransparentSleepWakePaint()) {
     return;
   }
+  if (optionPopup.processRender(renderer, mappedInput)) return;
 
   renderer.clearScreen();
 
