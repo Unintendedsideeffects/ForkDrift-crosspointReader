@@ -7,6 +7,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
+#include <HeapGuard.h>
 #include <I18n.h>
 #include <Logging.h>
 #include <Memory.h>
@@ -654,12 +655,14 @@ void EpubReaderActivity::refreshReaderPreviewBuffer(uint8_t* dest, const size_t 
     section.reset();
   }
 
+  heapguard::logState("preview refresh start");
   previewRenderOnly = true;
   {
     RenderLock lock(*this);
     render(std::move(lock));
   }
   previewRenderOnly = false;
+  heapguard::logState("preview refresh end");
 
   memcpy(dest, renderer.getFrameBuffer(), renderer.getBufferSize());
 }
@@ -1359,9 +1362,18 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                                   SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled)) {
       LOG_DBG("ERS", "Cache not found, building...");
 
-      if (!previewRenderOnly) {
-        GUI.drawPopup(renderer, tr(STR_INDEXING));
+      if (previewRenderOnly) {
+        // A full section re-index cannot run here: the options overlay path executes on the
+        // main loop task with ~48KB less free heap (menu page buffer + overlay state), and a
+        // failed allocation inside the parse/layout chain aborts (-fno-exceptions). Draw a
+        // placeholder instead; the real rebuild happens when returning to the reader.
+        section.reset();
+        renderer.clearScreen();
+        renderer.drawCenteredText(UI_12_FONT_ID, renderer.getScreenHeight() / 4, tr(STR_PREVIEW_UNAVAILABLE), true,
+                                  EpdFontFamily::BOLD);
+        return;
       }
+      GUI.drawPopup(renderer, tr(STR_INDEXING));
 
       if (!section->createSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                       SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
