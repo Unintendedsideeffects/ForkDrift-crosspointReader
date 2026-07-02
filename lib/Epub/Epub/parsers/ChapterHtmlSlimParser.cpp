@@ -100,9 +100,9 @@ void ChapterHtmlSlimParser::updateEffectiveInlineStyle() {
   effectiveBold = currentCssStyle.hasFontWeight() && currentCssStyle.fontWeight == CssFontWeight::Bold;
   effectiveItalic = currentCssStyle.hasFontStyle() && currentCssStyle.fontStyle == CssFontStyle::Italic;
   effectiveUnderline =
-      currentCssStyle.hasTextDecoration() && currentCssStyle.textDecoration == CssTextDecoration::Underline;
+      currentCssStyle.hasTextDecoration() && hasDecoration(currentCssStyle.textDecoration, CssTextDecoration::Underline);
   effectiveStrikethrough =
-      currentCssStyle.hasTextDecoration() && currentCssStyle.textDecoration == CssTextDecoration::LineThrough;
+      currentCssStyle.hasTextDecoration() && hasDecoration(currentCssStyle.textDecoration, CssTextDecoration::LineThrough);
   effectiveSup = false;
   effectiveSub = false;
 
@@ -1332,9 +1332,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     }
     if (cssStyle.hasTextDecoration()) {
       entry.hasUnderline = true;
-      entry.underline = cssStyle.textDecoration == CssTextDecoration::Underline;
+      entry.underline = hasDecoration(cssStyle.textDecoration, CssTextDecoration::Underline);
       entry.hasStrikethrough = true;
-      entry.strikethrough = cssStyle.textDecoration == CssTextDecoration::LineThrough;
+      entry.strikethrough = hasDecoration(cssStyle.textDecoration, CssTextDecoration::LineThrough);
     }
     self->inlineStyleStack.push_back(entry);
     self->updateEffectiveInlineStyle();
@@ -1356,9 +1356,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     }
     if (cssStyle.hasTextDecoration()) {
       entry.hasUnderline = true;
-      entry.underline = cssStyle.textDecoration == CssTextDecoration::Underline;
+      entry.underline = hasDecoration(cssStyle.textDecoration, CssTextDecoration::Underline);
       entry.hasStrikethrough = true;
-      entry.strikethrough = cssStyle.textDecoration == CssTextDecoration::LineThrough;
+      entry.strikethrough = hasDecoration(cssStyle.textDecoration, CssTextDecoration::LineThrough);
     }
     self->inlineStyleStack.push_back(entry);
     self->updateEffectiveInlineStyle();
@@ -1382,9 +1382,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       }
       if (cssStyle.hasTextDecoration()) {
         entry.hasUnderline = true;
-        entry.underline = cssStyle.textDecoration == CssTextDecoration::Underline;
+        entry.underline = hasDecoration(cssStyle.textDecoration, CssTextDecoration::Underline);
         entry.hasStrikethrough = true;
-        entry.strikethrough = cssStyle.textDecoration == CssTextDecoration::LineThrough;
+        entry.strikethrough = hasDecoration(cssStyle.textDecoration, CssTextDecoration::LineThrough);
       }
       self->inlineStyleStack.push_back(entry);
       self->updateEffectiveInlineStyle();
