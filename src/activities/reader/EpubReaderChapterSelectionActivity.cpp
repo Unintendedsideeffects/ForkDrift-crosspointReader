@@ -107,7 +107,9 @@ void EpubReaderChapterSelectionActivity::loop() {
       setResult(std::move(result));
       finish();
     } else {
-      setResult(ChapterResult{newSpineIndex});
+      // Pass the TOC anchor so sub-chapters that share a spine file land on
+      // their heading instead of the file's first page (upstream #1981).
+      setResult(ChapterResult{newSpineIndex, epub->getTocItem(tocIndex).anchor});
       finish();
     }
   } else if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {

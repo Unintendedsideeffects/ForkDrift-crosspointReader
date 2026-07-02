@@ -895,10 +895,16 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
           std::make_unique<EpubReaderChapterSelectionActivity>(renderer, mappedInput, epub, path, spineIdx, currentPage,
                                                                totalPages),
           [this](const ActivityResult& result) {
-            if (!result.isCancelled && currentSpineIndex != std::get<ChapterResult>(result.data).spineIndex) {
+            if (result.isCancelled) {
+              return;
+            }
+            const auto& chapter = std::get<ChapterResult>(result.data);
+            const bool spineChanged = currentSpineIndex != chapter.spineIndex;
+            if (spineChanged || !chapter.anchor.empty()) {
               RenderLock lock(*this);
-              currentSpineIndex = std::get<ChapterResult>(result.data).spineIndex;
+              currentSpineIndex = chapter.spineIndex;
               nextPageNumber = 0;
+              pendingAnchor = chapter.anchor;  // resolved to a page once the section loads
               section.reset();
             }
           });
