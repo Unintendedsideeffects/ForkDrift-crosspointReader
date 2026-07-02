@@ -747,8 +747,10 @@ void loop() {
             {"PAGEFWD", MappedInputManager::Button::PageForward},
         };
         const String name = cmd.substring(4);
+        // strcasecmp instead of String::equalsIgnoreCase: the simulator's String
+        // mock returns void from equalsIgnoreCase, and c_str() works on both.
         const auto it = std::find_if(std::begin(kBtnMap), std::end(kBtnMap),
-                                     [&](const auto& e) { return name.equalsIgnoreCase(e.name); });
+                                     [&](const auto& e) { return strcasecmp(name.c_str(), e.name) == 0; });
         const bool matched = it != std::end(kBtnMap);
         if (matched) mappedInputManager.injectVirtualActivation(it->button);
         logSerial.printf(matched ? "BTN_OK:%s\n" : "BTN_ERR:%s\n", name.c_str());

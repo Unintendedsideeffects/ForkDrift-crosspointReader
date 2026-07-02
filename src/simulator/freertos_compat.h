@@ -22,8 +22,19 @@ inline void vSemaphoreDelete(SemaphoreHandle_t sem) { delete sem; }
 #define pdMS_TO_TICKS(ms) (ms)
 #endif
 
+#ifndef pdPASS
+#define pdPASS 1
+#endif
+#ifndef pdFAIL
+#define pdFAIL 0
+#endif
+
 #include <esp_ota_ops.h>  // pulls in esp_partition_t, esp_err_t, and OTA stubs
 #include <esp_system.h>   // esp_restart() stub
+
+// Missing from the crosspoint-simulator OTA stubs; boot-partition switching is
+// meaningless in the simulator, so report success.
+inline esp_err_t esp_ota_set_boot_partition(const esp_partition_t*) { return ESP_OK; }
 
 #define ESPMock _ignored_ESPMock
 #define ESP _ignored_ESP
