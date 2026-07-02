@@ -1311,6 +1311,12 @@ void CrossPointWebServer::handleFontUploadData() {
     case UPLOAD_FILE_START: {
       esp_task_wdt_reset();
       String family = server->arg("family");
+      // Reset all upload state up-front: a previous aborted upload can leave a
+      // stale open handle/path that the invalid-filename early-breaks below
+      // would otherwise reuse and crash on (upstream #2253).
+      fontUpload.file = HalFile();
+      fontUpload.familyName.clear();
+      fontUpload.filePath.clear();
       fontUpload.valid = false;
       fontUpload.magicChecked = false;
       fontUpload.magicHeaderPos = 0;
@@ -1323,6 +1329,7 @@ void CrossPointWebServer::handleFontUploadData() {
       }
 
       String filename = upload.filename;
+      filename.replace(' ', '_');
       // Validate filename: rejects path traversal (../, /, \) and enforces
       // a .cpfont basename of alphanumeric + hyphen + underscore. Without
       // this an attacker could supply "../../.crosspoint/settings.json" as
