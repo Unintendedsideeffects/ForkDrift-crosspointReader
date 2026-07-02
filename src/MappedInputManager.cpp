@@ -106,7 +106,14 @@ bool equalsLabel(const char* value, const char* expected) {
 }  // namespace
 
 bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint8_t) const) const {
-  const auto sideLayout = static_cast<CrossPointSettings::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
+  auto sideLayout = static_cast<CrossPointSettings::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
+  // SIDE_BUTTONS_DISABLED: page-turn side buttons produce no action (upstream
+  // #2105, for readers who hold the device by the buttons). Virtual injection
+  // below still uses the PREV_NEXT mapping so remote page turns keep working.
+  const bool sideDisabled = sideLayout == CrossPointSettings::SIDE_BUTTONS_DISABLED;
+  if (sideDisabled) {
+    sideLayout = CrossPointSettings::PREV_NEXT;  // keep table lookup in range
+  }
   const uint8_t orientation = effectiveInputOrientation(readerMode);
   const auto side = mapSideLayoutForOrientation(kSideLayouts[sideLayout], orientation);
 
@@ -137,9 +144,9 @@ bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint
       // Power button bypasses remapping.
       return (gpio.*fn)(HalGPIO::BTN_POWER);
     case Button::PageBack:
-      return (gpio.*fn)(side.pageBack);
+      return !sideDisabled && (gpio.*fn)(side.pageBack);
     case Button::PageForward:
-      return (gpio.*fn)(side.pageForward);
+      return !sideDisabled && (gpio.*fn)(side.pageForward);
   }
 
   return false;
@@ -305,7 +312,10 @@ void MappedInputManager::clearTransientState() {
 
 void MappedInputManager::injectVirtualActivation(const Button button) {
 #ifndef SIMULATOR
-  const auto sideLayout = static_cast<CrossPointSettings::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
+  auto sideLayout = static_cast<CrossPointSettings::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
+  if (sideLayout >= CrossPointSettings::SIDE_BUTTONS_DISABLED) {
+    sideLayout = CrossPointSettings::PREV_NEXT;  // remote turns keep default mapping
+  }
   const auto& side = kSideLayouts[sideLayout];
   switch (button) {
     case Button::PageForward:
