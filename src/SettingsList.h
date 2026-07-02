@@ -119,6 +119,7 @@ inline std::vector<QuickActionOption> shortPowerButtonOptions() {
       {StrId::STR_SELECT, S::SELECT},
       {StrId::STR_FORCE_REFRESH, S::FORCE_REFRESH},
       {StrId::STR_CHANGE_FONT, S::TOGGLE_FONT},
+      {StrId::STR_FOOTNOTES, S::FOOTNOTES},
   };
   if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
     options.push_back({StrId::STR_TOGGLE_GUIDE_DOTS, S::TOGGLE_GUIDE_DOTS, "guide_dots"});
@@ -150,6 +151,7 @@ inline std::vector<QuickActionOption> longPowerButtonOptions() {
       {StrId::STR_IGNORE, S::IGNORE},           {StrId::STR_SLEEP, S::SLEEP},
       {StrId::STR_PAGE_TURN, S::PAGE_TURN},     {StrId::STR_FORCE_REFRESH, S::FORCE_REFRESH},
       {StrId::STR_CHANGE_FONT, S::TOGGLE_FONT},
+      {StrId::STR_FOOTNOTES, S::FOOTNOTES},
   };
   if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
     options.push_back({StrId::STR_TOGGLE_GUIDE_DOTS, S::TOGGLE_GUIDE_DOTS, "guide_dots"});
@@ -183,6 +185,7 @@ inline std::vector<QuickActionOption> doubleTapPowerButtonOptions() {
       {StrId::STR_DOUBLE_TAP_BACK, S::DOUBLE_TAP_BACK}, {StrId::STR_IGNORE, S::IGNORE},
       {StrId::STR_FORCE_REFRESH, S::FORCE_REFRESH},     {StrId::STR_SLEEP, S::SLEEP},
       {StrId::STR_CHANGE_FONT, S::TOGGLE_FONT},
+      {StrId::STR_FOOTNOTES, S::FOOTNOTES},
   };
   if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
     options.push_back({StrId::STR_TOGGLE_GUIDE_DOTS, S::TOGGLE_GUIDE_DOTS, "guide_dots"});

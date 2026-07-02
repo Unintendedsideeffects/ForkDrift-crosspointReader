@@ -187,6 +187,7 @@ class CrossPointSettings {
     // Double-tap navigates back (legacy default when ENABLE_DOUBLE_TAP_ACTION=1).
     // Not meaningful for shortPwrBtn / longPwrBtn; only used by doubleTapPwrBtn.
     DOUBLE_TAP_BACK = 15,
+    FOOTNOTES = 16,
     SHORT_PWRBTN_COUNT
   };
 

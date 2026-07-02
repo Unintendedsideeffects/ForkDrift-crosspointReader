@@ -747,6 +747,12 @@ bool EpubReaderActivity::executeShortPowerButtonAction() {
   }
   using S = CrossPointSettings;
   switch (SETTINGS.shortPwrBtn) {
+    case S::FOOTNOTES:
+      // Quick access to the current page's footnotes (upstream #1658)
+      if (!currentPageFootnotes.empty()) {
+        onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::FOOTNOTES);
+      }
+      return true;
     case S::TOGGLE_FONT:
       executeReaderQuickAction(S::LONG_MENU_CHANGE_FONT);
       return true;
