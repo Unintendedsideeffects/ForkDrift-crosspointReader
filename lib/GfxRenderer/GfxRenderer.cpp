@@ -300,6 +300,23 @@ static void renderCharImpl(const GfxRenderer& renderer, GfxRenderer::RenderMode 
   const int left = glyph->left;
   const int top = glyph->top;
 
+  // Tiled-grayscale band culling: if this glyph's physical y-extent is entirely
+  // outside the active strip, skip it before the expensive bitmap decode. This
+  // is what makes per-band re-rendering cheap. No-op outside strip mode.
+  if constexpr (rotation == TextRotation::Rotated90CW) {
+    const int ob = cursorX + fontData->ascender - top;
+    const int ib = cursorY - left;
+    if (!renderer.glyphIntersectsStrip(ob, ib - (width - 1), ob + height - 1, ib)) {
+      return;
+    }
+  } else {
+    const int gx0 = cursorX + left;
+    const int gy0 = cursorY - top;
+    if (!renderer.glyphIntersectsStrip(gx0, gy0, gx0 + width - 1, gy0 + height - 1)) {
+      return;
+    }
+  }
+
   const uint8_t* bitmap = renderer.getGlyphBitmap(fontData, glyph);
 
   if (bitmap != nullptr) {
@@ -341,7 +358,10 @@ static void renderCharImpl(const GfxRenderer& renderer, GfxRenderer::RenderMode 
                              outerStepY, width, height, renderer.getDisplayWidth(), renderer.getDisplayHeight());
 
     uint8_t* frameBuffer = renderer.getFrameBuffer();
-    if (fastPath.canUse && frameBuffer != nullptr) {
+    // Strip mode: the fast path writes straight to the full framebuffer, which
+    // would corrupt the preserved BW frame and miss the band scratch. drawPixel
+    // honors the strip target, so take the slow path while a strip is active.
+    if (fastPath.canUse && frameBuffer != nullptr && !renderer.stripTargetActive()) {
       // Use fast path with incremental coordinate updates and direct framebuffer access
       if (is2Bit) {
         renderCharFastPath2Bit(fastPath, bitmap, width, height, pixelState, renderMode, frameBuffer,
@@ -422,27 +442,44 @@ void GfxRenderer::drawPixel(const int x, const int y, const bool state) const {
   // out-of-bounds pixel (which can be thousands for a single misaligned draw
   // call). Subsequent violations are silently dropped — the pixel is simply
   // not drawn, which is the correct safe behaviour.
-  if (phyX < 0 || phyX >= panelWidth || phyY < 0 || phyY >= panelHeight) {
-    static bool oobWarned = false;
-    if (!oobWarned) {
-      oobWarned = true;
-      LOG_ERR("GFX",
-              "Out-of-bounds pixel suppressed (first occurrence): logical=(%d,%d) "
-              "physical=(%d,%d) panel=%dx%d orientation=%d — subsequent violations "
-              "are silently dropped",
-              x, y, phyX, phyY, panelWidth, panelHeight, static_cast<int>(orientation));
-    }
+  if (phyX < 0 || phyX >= panelWidth) {
     return;
   }
 
+  // Tiled grayscale: redirect writes to the strip scratch and clip to the
+  // current band. Single predictable branch on the hot per-pixel path.
+  uint8_t* target = frameBuffer;
+  uint32_t rowY = static_cast<uint32_t>(phyY);
+  if (_stripActive) {
+    if (phyY < _stripY0 || phyY >= _stripY0 + _stripRows) {
+      return;  // pixel outside the band currently being rendered
+    }
+    target = _stripBuf;
+    rowY = static_cast<uint32_t>(phyY - _stripY0);
+  } else {
+    // Full-frame mode: bounds check against panel height
+    if (phyY < 0 || phyY >= panelHeight) {
+      static bool oobWarned = false;
+      if (!oobWarned) {
+        oobWarned = true;
+        LOG_ERR("GFX",
+                "Out-of-bounds pixel suppressed (first occurrence): logical=(%d,%d) "
+                "physical=(%d,%d) panel=%dx%d orientation=%d — subsequent violations "
+                "are silently dropped",
+                x, y, phyX, phyY, panelWidth, panelHeight, static_cast<int>(orientation));
+      }
+      return;
+    }
+  }
+
   // Calculate byte position and bit position
-  const uint32_t byteIndex = static_cast<uint32_t>(phyY) * panelWidthBytes + (phyX / 8);
+  const uint32_t byteIndex = rowY * panelWidthBytes + (phyX / 8);
   const uint8_t bitPosition = 7 - (phyX % 8);  // MSB first
 
   if (state) {
-    frameBuffer[byteIndex] &= ~(1 << bitPosition);  // Clear bit
+    target[byteIndex] &= ~(1 << bitPosition);  // Clear bit
   } else {
-    frameBuffer[byteIndex] |= 1 << bitPosition;  // Set bit
+    target[byteIndex] |= 1 << bitPosition;  // Set bit
   }
 }
 
@@ -1841,6 +1878,39 @@ void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuff
 
 void GfxRenderer::displayGrayBuffer() const { display.displayGrayBuffer(fadingFix); }
 
+void GfxRenderer::beginStripTarget(uint8_t* scratch, int stripY0, int stripRows) const {
+  // Band is caller-guaranteed in-bounds (the reader's grayscale loop computes
+  // it); assert catches future misuse in debug before it mis-renders or wraps
+  // the downstream uint16_t cast in writeGrayscalePlaneStrip.
+  assert(scratch != nullptr && stripRows > 0 && stripY0 >= 0 && stripY0 <= static_cast<int>(panelHeight) - stripRows);
+  _stripBuf = scratch;
+  _stripY0 = stripY0;
+  _stripRows = stripRows;
+  _stripActive = true;
+}
+
+void GfxRenderer::endStripTarget() const {
+  _stripActive = false;
+  _stripBuf = nullptr;
+  _stripY0 = 0;
+  _stripRows = 0;
+}
+
+bool GfxRenderer::glyphIntersectsStrip(int x0, int y0, int x1, int y1) const {
+  if (!_stripActive) {
+    return true;
+  }
+  // Rotate the two opposite bbox corners to physical coords. For 90-degree
+  // orientations the physical bbox stays axis-aligned, so min/max of the two
+  // rotated corners' Y bounds the glyph's physical y-extent.
+  int ax, ay, bx, by;
+  rotateCoordinates(orientation, x0, y0, &ax, &ay, panelWidth, panelHeight);
+  rotateCoordinates(orientation, x1, y1, &bx, &by, panelWidth, panelHeight);
+  const int minY = ay < by ? ay : by;
+  const int maxY = ay > by ? ay : by;
+  return !(maxY < _stripY0 || minY >= _stripY0 + _stripRows);
+}
+
 void GfxRenderer::freeBwBufferChunks() {
   for (auto& bwBufferChunk : bwBufferChunks) {
     if (bwBufferChunk) {
@@ -1930,6 +2000,12 @@ void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
   if (frameBuffer) {
     display.cleanupGrayscaleBuffers(frameBuffer);
   }
+}
+
+bool GfxRenderer::supportsStripGrayscale() const { return display.supportsStripGrayscale(); }
+
+void GfxRenderer::writeGrayscalePlaneStrip(bool lsbPlane, const uint8_t* rows, uint16_t yStart, uint16_t numRows) const {
+  display.writeGrayscalePlaneStrip(lsbPlane, rows, yStart, numRows);
 }
 
 void GfxRenderer::getOrientedViewableTRBL(int* outTop, int* outRight, int* outBottom, int* outLeft) const {

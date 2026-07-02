@@ -132,6 +132,14 @@ void ImageBlock::render(GfxRenderer& renderer, const int x, const int y) {
   if (fcm && fcm->isScanning()) return;
 
   SpiBusMutex::Guard guard;
+  // Tiled grayscale: skip the whole image when it doesn't touch the active
+  // band. The per-pixel writer already clips off-band pixels, but without this
+  // each band re-ran the full cache load / pixel walk and discarded the result.
+  // Returns true when no strip is active, so the BW pass renders as before.
+  if (!renderer.glyphIntersectsStrip(x, y, x + width - 1, y + height - 1)) {
+    return;
+  }
+
   LOG_DBG("IMG", "Rendering image at %d,%d: %s (%dx%d)", x, y, imagePath.c_str(), width, height);
 
   const int screenWidth = renderer.getScreenWidth();

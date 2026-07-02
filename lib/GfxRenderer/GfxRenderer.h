@@ -56,6 +56,18 @@ class GfxRenderer {
   // as before, concentrated in a single pointer instead of four fields.
   mutable FontCacheManager* fontCacheManager_ = nullptr;
 
+  // Tiled grayscale strip target. When active, drawPixel()/clearScreen()
+  // operate on a caller-owned scratch holding one horizontal band of physical
+  // rows [_stripY0, _stripY0 + _stripRows) (panelWidthBytes wide) instead of
+  // the shared framebuffer, clipping pixels outside the band. Lets grayscale
+  // planes render band-by-band straight to the controller without destroying
+  // the BW framebuffer (no storeBwBuffer). Mutable because the render path is
+  // const. See beginStripTarget()/endStripTarget().
+  mutable uint8_t* _stripBuf = nullptr;
+  mutable int _stripY0 = 0;
+  mutable int _stripRows = 0;
+  mutable bool _stripActive = false;
+
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, int* y, bool pixelState,
                   EpdFontFamily::Style style) const;
   void freeBwBufferChunks();
@@ -128,6 +140,22 @@ class GfxRenderer {
   void clearScreen(uint8_t color = 0xFF) const;
   void getOrientedViewableTRBL(int* outTop, int* outRight, int* outBottom, int* outLeft) const;
 
+  // Tiled grayscale strip target. While active, drawPixel() and clearScreen()
+  // operate on `scratch` (panelWidthBytes * stripRows bytes, holding physical
+  // rows [stripY0, stripY0 + stripRows)) instead of the framebuffer; pixels
+  // whose physical row falls outside the band are clipped. The clip is applied
+  // after the orientation rotate, so it is orientation-agnostic. Used to render
+  // grayscale planes band-by-band without a full second buffer.
+  void beginStripTarget(uint8_t* scratch, int stripY0, int stripRows) const;
+  void endStripTarget() const;
+
+  // Band culling for tiled grayscale. Takes a glyph bounding box in logical
+  // screen coords and returns false only when a strip is active AND the box's
+  // physical y-extent lies entirely outside the active band, letting callers
+  // skip an expensive bitmap decode. Returns true when no strip is active.
+  // Corners are rotated to physical, so it is orientation-aware.
+  bool glyphIntersectsStrip(int x0, int y0, int x1, int y1) const;
+
   // Drawing
   void drawPixel(int x, int y, bool state = true) const;
   void drawLine(int x1, int y1, int x2, int y2, bool state = true) const;
@@ -193,6 +221,10 @@ class GfxRenderer {
   void restoreBwBuffer();  // Restore and free the stored buffer
   void cleanupGrayscaleWithFrameBuffer() const;
 
+  // Tiled grayscale support (X4 only)
+  bool supportsStripGrayscale() const;
+  void writeGrayscalePlaneStrip(bool lsbPlane, const uint8_t* rows, uint16_t yStart, uint16_t numRows) const;
+
   // Font helpers
   const uint8_t* getGlyphBitmap(const EpdFontData* fontData, const EpdGlyph* glyph) const;
 
@@ -203,10 +235,15 @@ class GfxRenderer {
   uint16_t getDisplayHeight() const { return panelHeight; }
   uint16_t getDisplayWidthBytes() const { return panelWidthBytes; }
 
-  // Strip-write accessors (no tiled-grayscale in this build: full frame, origin at 0)
-  uint8_t* getWriteTarget() const { return getFrameBuffer(); }
-  int getWriteOriginY() const { return 0; }
-  int getWriteRows() const { return static_cast<int>(panelHeight); }
+  // Active pixel-write target for raw writers (DirectPixelWriter) that bypass
+  // drawPixel for speed. When a strip target is active these return the band
+  // scratch plus its physical-row origin and extent; otherwise the full
+  // framebuffer ([0, panelHeight)). Writers subtract the origin and clip to the
+  // extent, so they honor tiled-grayscale banding without per-pixel method calls.
+  bool stripTargetActive() const { return _stripActive; }
+  uint8_t* getWriteTarget() const { return _stripActive ? _stripBuf : getFrameBuffer(); }
+  int getWriteOriginY() const { return _stripActive ? _stripY0 : 0; }
+  int getWriteRows() const { return _stripActive ? _stripRows : static_cast<int>(panelHeight); }
 
   // Region cache: take a logical (orientation-aware) rect, hit the framebuffer
   // bytes that the rect can have touched, and pump them in or out of a caller-
