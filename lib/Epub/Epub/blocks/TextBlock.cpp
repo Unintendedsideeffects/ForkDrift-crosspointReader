@@ -25,8 +25,8 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
     const EpdFontFamily::Style currentStyle = wordStyles[i];
     const uint8_t boundary = hasFocus ? wordFocusBoundary[i] : 0;
 
-    // SUP/SUB shift the baseline passed to drawText; the glyph is also scaled 50% inside
-    // drawText, so these offsets are chosen relative to the full-size ascender:
+    // SUP/SUB shift the baseline passed to drawText (glyphs render full-size;
+    // no 50% scaling is applied). Offsets are relative to the full-size ascender:
     //   SUP: raise by 40% of ascender — sits clearly above the cap-height
     //   SUB: lower by 25% of ascender — descends below baseline without clashing with ascenders below
     int wordY = y;
