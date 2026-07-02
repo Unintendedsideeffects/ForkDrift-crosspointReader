@@ -7,7 +7,7 @@ class DayDetailActivity;
 
 class TodoInspectorSubactivity final : public Activity {
  public:
-  enum class Action { EditText, CyclePriority, SetTime, ClearTime, MoveUp, MoveDown, Delete, Cancel };
+  enum class Action { EditText, CyclePriority, SetTime, ClearTime, MoveUp, MoveDown, NewTask, NewSection, Delete, Cancel };
 
   TodoInspectorSubactivity(GfxRenderer& renderer, MappedInputManager& mappedInput, DayDetailActivity& parent,
                            int taskIndex);
