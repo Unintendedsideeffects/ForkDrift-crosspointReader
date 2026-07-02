@@ -722,7 +722,10 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
           renderer.getKerning(fontId, lastCodepoint(words[lastBreakAt + wordIdx]),
                               firstCodepoint(words[lastBreakAt + wordIdx + 1]), wordStyles[lastBreakAt + wordIdx]);
       // Non-breaking space tokens are stretchable — expand them during justification like normal spaces.
-      if (words[lastBreakAt + wordIdx] == " " && continuesVec[lastBreakAt + wordIdx] &&
+      // wordIdx > 0 mirrors the gap-counting loop above (which skips index 0): a leading
+      // no-break space must not receive justifyExtra, or the line over-stretches by one
+      // gap and the last word is pushed past the right margin (upstream #2185).
+      if (wordIdx > 0 && words[lastBreakAt + wordIdx] == " " && continuesVec[lastBreakAt + wordIdx] &&
           blockStyle.alignment == CssTextAlign::Justify && !isLastLine) {
         advance += justifyExtra;
       }
