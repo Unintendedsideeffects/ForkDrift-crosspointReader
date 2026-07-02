@@ -931,6 +931,10 @@ bool Markdown::parseToAst() {
 
   // Build navigation data from AST
   navigation = md_detail::make_unique<MarkdownNavigation>(*ast);
+  if (!navigation) {
+    LOG_ERR("MD", "Failed to create MarkdownNavigation: OOM");
+    return false;
+  }
 
   LOG_INF("MD", "Parsed to AST: %zu TOC entries, %zu links", navigation->getTotalHeadings(),
           navigation->getTotalLinks());

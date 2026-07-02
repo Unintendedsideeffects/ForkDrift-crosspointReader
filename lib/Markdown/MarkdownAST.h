@@ -7,10 +7,11 @@
 #include <vector>
 
 // C++11 make_unique polyfill (md_detail::make_unique is C++14+)
+// Uses nothrow to avoid abort() on OOM with -fno-exceptions
 namespace md_detail {
 template <typename T, typename... Args>
 std::unique_ptr<T> make_unique(Args&&... args) {
-  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+  return std::unique_ptr<T>(new (std::nothrow) T(std::forward<Args>(args)...));
 }
 }  // namespace md_detail
 

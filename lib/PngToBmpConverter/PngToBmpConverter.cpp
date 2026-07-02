@@ -2,8 +2,10 @@
 
 #include <HalDisplay.h>
 #include <HalStorage.h>
+#include <HeapGuard.h>
 #include <InflateReader.h>
 #include <Logging.h>
+#include <Memory.h>
 
 #include <cstdio>
 #include <cstring>
@@ -508,7 +510,13 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(HalFile& pngFile, Print& bmpO
   ctx.rawRowBytes = rawRowBytes;
   ctx.paletteSize = 0;
 
-  // Allocate scanline buffers
+  // Allocate scanline buffers (cover decoding is optional; refuse on low heap)
+  const size_t scanlineBufferSize = rawRowBytes * 2;
+  if (!heapguard::canAllocate(scanlineBufferSize, heapguard::kCriticalFloorBytes)) {
+    LOG_ERR("PNG", "Skipping cover: low heap for scanline buffers (%zu bytes)", scanlineBufferSize);
+    return false;
+  }
+
   ctx.currentRow = static_cast<uint8_t*>(malloc(rawRowBytes));
   ctx.previousRow = static_cast<uint8_t*>(calloc(rawRowBytes, 1));
   if (!ctx.currentRow || !ctx.previousRow) {
@@ -619,18 +627,63 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(HalFile& pngFile, Print& bmpO
     return false;
   }
 
-  // Create ditherers (same as JpegToBmpConverter)
+  // Create ditherers (same as JpegToBmpConverter) - covers are optional/luxury
   AtkinsonDitherer* atkinsonDitherer = nullptr;
   FloydSteinbergDitherer* fsDitherer = nullptr;
   Atkinson1BitDitherer* atkinson1BitDitherer = nullptr;
 
   if (oneBit) {
-    atkinson1BitDitherer = new Atkinson1BitDitherer(outWidth);
+    // Atkinson1BitDitherer allocates ~800 bytes buffer
+    if (!heapguard::canAllocate(1024, heapguard::kCriticalFloorBytes)) {
+      LOG_ERR("PNG", "Skipping cover: low heap for ditherer");
+      free(rowBuffer);
+      free(ctx.currentRow);
+      free(ctx.previousRow);
+      return false;
+    }
+    atkinson1BitDitherer = new (std::nothrow) Atkinson1BitDitherer(outWidth);
+    if (!atkinson1BitDitherer) {
+      LOG_ERR("PNG", "Failed to allocate Atkinson1BitDitherer");
+      free(rowBuffer);
+      free(ctx.currentRow);
+      free(ctx.previousRow);
+      return false;
+    }
   } else if (!USE_8BIT_OUTPUT) {
     if (USE_ATKINSON) {
-      atkinsonDitherer = new AtkinsonDitherer(outWidth);
+      // AtkinsonDitherer allocates error buffers ~3KB
+      if (!heapguard::canAllocate(3500, heapguard::kCriticalFloorBytes)) {
+        LOG_ERR("PNG", "Skipping cover: low heap for AtkinsonDitherer");
+        free(rowBuffer);
+        free(ctx.currentRow);
+        free(ctx.previousRow);
+        return false;
+      }
+      atkinsonDitherer = new (std::nothrow) AtkinsonDitherer(outWidth);
+      if (!atkinsonDitherer) {
+        LOG_ERR("PNG", "Failed to allocate AtkinsonDitherer");
+        free(rowBuffer);
+        free(ctx.currentRow);
+        free(ctx.previousRow);
+        return false;
+      }
     } else if (USE_FLOYD_STEINBERG) {
-      fsDitherer = new FloydSteinbergDitherer(outWidth);
+      // FloydSteinbergDitherer allocates error buffers ~3KB
+      if (!heapguard::canAllocate(3500, heapguard::kCriticalFloorBytes)) {
+        LOG_ERR("PNG", "Skipping cover: low heap for FloydSteinbergDitherer");
+        free(rowBuffer);
+        free(ctx.currentRow);
+        free(ctx.previousRow);
+        return false;
+      }
+      fsDitherer = new (std::nothrow) FloydSteinbergDitherer(outWidth);
+      if (!fsDitherer) {
+        LOG_ERR("PNG", "Failed to allocate FloydSteinbergDitherer");
+        free(rowBuffer);
+        free(ctx.currentRow);
+        free(ctx.previousRow);
+        return false;
+      }
     }
   }
 
@@ -641,8 +694,42 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(HalFile& pngFile, Print& bmpO
   uint32_t nextOutY_srcStart = 0;
 
   if (needsScaling) {
-    rowAccum = new uint32_t[outWidth]();
-    rowCount = new uint16_t[outWidth]();
+    // Scaling buffers are optional; refuse on low heap
+    const size_t scalingBufferSize = outWidth * 4 + outWidth * 2;
+    if (!heapguard::canAllocate(scalingBufferSize, heapguard::kCriticalFloorBytes)) {
+      LOG_ERR("PNG", "Skipping cover scaling: low heap (%zu bytes)", scalingBufferSize);
+      delete atkinsonDitherer;
+      delete fsDitherer;
+      delete atkinson1BitDitherer;
+      free(rowBuffer);
+      free(ctx.currentRow);
+      free(ctx.previousRow);
+      return false;
+    }
+
+    rowAccum = new (std::nothrow) uint32_t[outWidth]();
+    if (!rowAccum) {
+      LOG_ERR("PNG", "Failed to allocate rowAccum buffer: %d elements", outWidth);
+      delete atkinsonDitherer;
+      delete fsDitherer;
+      delete atkinson1BitDitherer;
+      free(rowBuffer);
+      free(ctx.currentRow);
+      free(ctx.previousRow);
+      return false;
+    }
+    rowCount = new (std::nothrow) uint16_t[outWidth]();
+    if (!rowCount) {
+      LOG_ERR("PNG", "Failed to allocate rowCount buffer: %d elements", outWidth);
+      delete[] rowAccum;
+      delete atkinsonDitherer;
+      delete fsDitherer;
+      delete atkinson1BitDitherer;
+      free(rowBuffer);
+      free(ctx.currentRow);
+      free(ctx.previousRow);
+      return false;
+    }
     nextOutY_srcStart = scaleY_fp;
   }
 

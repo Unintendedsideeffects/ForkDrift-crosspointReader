@@ -1,6 +1,7 @@
 #include "EpubReaderMenuActivity.h"
 
 #include <GfxRenderer.h>
+#include <HeapGuard.h>
 #include <I18n.h>
 
 #include "MappedInputManager.h"
@@ -82,11 +83,17 @@ void EpubReaderMenuActivity::onEnter() {
   // page render is still in the buffer at this point; ControlsOptionsActivity will
   // use it to keep the book text visible in the top half while settings are open.
   const size_t bufSize = renderer.getBufferSize();
-  savedPageBuffer = makeUniqueNoThrow<uint8_t[]>(bufSize);
+  // The saved page is a luxury (half-screen preview under the options panels);
+  // don't take a 48KB bite out of an already-low heap for it. Downstream code
+  // handles a null buffer by falling back to full-screen settings layouts.
+  if (heapguard::canAllocate(bufSize, heapguard::kLowFloorBytes)) {
+    savedPageBuffer = makeUniqueNoThrow<uint8_t[]>(bufSize);
+  }
   if (savedPageBuffer) {
     memcpy(savedPageBuffer.get(), renderer.getFrameBuffer(), bufSize);
   } else {
-    LOG_ERR("RDR", "OOM: %d bytes for savedPageBuffer", static_cast<int>(bufSize));
+    LOG_ERR("RDR", "Skipping savedPageBuffer (%d bytes): low heap (%u free)", static_cast<int>(bufSize),
+            static_cast<unsigned>(heapguard::freeBytes()));
   }
   requestUpdate();
 }

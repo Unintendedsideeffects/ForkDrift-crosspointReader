@@ -3,6 +3,7 @@
 #include <HalDisplay.h>
 #include <HalStorage.h>
 #include <HardwareSerial.h>
+#include <HeapGuard.h>
 #include <JPEGDEC.h>
 #include <Logging.h>
 #include <Memory.h>
@@ -530,12 +531,19 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(HalFile& jpegFile, Print& b
   ctx.error = false;
 
   // MCU row buffer: MAX_MCU_HEIGHT rows × srcWidth columns of grayscale
-  ctx.mcuBuf = makeUniqueNoThrow<uint8_t[]>(MAX_MCU_HEIGHT * effectiveSrcW);
+  // Cover decoding is optional/luxury; refuse on low heap
+  const size_t mcuBufSize = MAX_MCU_HEIGHT * effectiveSrcW;
+  if (!heapguard::canAllocate(mcuBufSize, heapguard::kCriticalFloorBytes)) {
+    LOG_ERR("JPG", "Skipping cover: low heap for MCU buffer (%zu bytes)", mcuBufSize);
+    return false;
+  }
+
+  ctx.mcuBuf = makeUniqueNoThrow<uint8_t[]>(mcuBufSize);
   if (!ctx.mcuBuf) {
     LOG_ERR("JPG", "OOM: MCU buffer (%d bytes)", MAX_MCU_HEIGHT * effectiveSrcW);
     return false;
   }
-  memset(ctx.mcuBuf.get(), 0, MAX_MCU_HEIGHT * effectiveSrcW);
+  memset(ctx.mcuBuf.get(), 0, mcuBufSize);
 
   ctx.bmpRow = makeUniqueNoThrow<uint8_t[]>(bytesPerRow);
   if (!ctx.bmpRow) {
@@ -544,6 +552,13 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(HalFile& jpegFile, Print& b
   }
 
   if (needsScaling) {
+    // Scaling buffers are optional; refuse on low heap
+    const size_t scalingBufSize = outWidth * 4 + outWidth * 4;
+    if (!heapguard::canAllocate(scalingBufSize, heapguard::kCriticalFloorBytes)) {
+      LOG_ERR("JPG", "Skipping cover scaling: low heap (%zu bytes)", scalingBufSize);
+      return false;
+    }
+
     ctx.rowAccum = makeUniqueNoThrow<uint32_t[]>(outWidth);
     ctx.rowCount = makeUniqueNoThrow<uint32_t[]>(outWidth);
     if (!ctx.rowAccum || !ctx.rowCount) {
@@ -554,6 +569,12 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(HalFile& jpegFile, Print& b
   }
 
   if (oneBit) {
+    // Ditherers are optional; refuse on low heap
+    if (!heapguard::canAllocate(1024, heapguard::kCriticalFloorBytes)) {
+      LOG_ERR("JPG", "Skipping cover dithering: low heap");
+      return false;
+    }
+
     ctx.atkinson1BitDitherer = makeUniqueNoThrow<Atkinson1BitDitherer>(outWidth);
     if (!ctx.atkinson1BitDitherer) {
       LOG_ERR("JPG", "OOM: Atkinson1BitDitherer");
@@ -561,12 +582,24 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(HalFile& jpegFile, Print& b
     }
   } else if (!USE_8BIT_OUTPUT) {
     if (USE_ATKINSON) {
+      // Atkinson ditherer allocates error buffers ~3KB
+      if (!heapguard::canAllocate(3500, heapguard::kCriticalFloorBytes)) {
+        LOG_ERR("JPG", "Skipping cover dithering: low heap");
+        return false;
+      }
+
       ctx.atkinsonDitherer = makeUniqueNoThrow<AtkinsonDitherer>(outWidth);
       if (!ctx.atkinsonDitherer) {
         LOG_ERR("JPG", "OOM: AtkinsonDitherer");
         return false;
       }
     } else if (USE_FLOYD_STEINBERG) {
+      // Floyd-Steinberg ditherer allocates error buffers ~3KB
+      if (!heapguard::canAllocate(3500, heapguard::kCriticalFloorBytes)) {
+        LOG_ERR("JPG", "Skipping cover dithering: low heap");
+        return false;
+      }
+
       ctx.fsDitherer = makeUniqueNoThrow<FloydSteinbergDitherer>(outWidth);
       if (!ctx.fsDitherer) {
         LOG_ERR("JPG", "OOM: FloydSteinbergDitherer");

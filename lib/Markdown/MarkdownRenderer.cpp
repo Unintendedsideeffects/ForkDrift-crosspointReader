@@ -8,6 +8,7 @@
 #include <HalStorage.h>
 #include <ImageConverter.h>
 #include <Logging.h>
+#include <Memory.h>
 #include <esp_task_wdt.h>
 
 #include <algorithm>
@@ -918,7 +919,12 @@ void MarkdownRenderer::renderImage(const MdNode& node) {
   }
 
   if (!currentPage) {
-    currentPage.reset(new Page());
+    auto newPage = makeUniqueNoThrow<Page>();
+    if (!newPage) {
+      LOG_ERR("MD", "OOM: Page allocation failed");
+      return;
+    }
+    currentPage = std::move(newPage);
     currentPageNextY = 0;
   }
 
@@ -1067,9 +1073,14 @@ void MarkdownRenderer::startNewTextBlock(uint8_t style) {
   BlockStyle blockStyle;
   blockStyle.textAlignDefined = true;
   blockStyle.alignment = normalizeAlignment(style);
-  currentTextBlock.reset(new ParsedText(extraParagraphSpacing, false, hyphenationEnabled && !isPreformatted,
+  auto newTextBlock = makeUniqueNoThrow<ParsedText>(extraParagraphSpacing, false, hyphenationEnabled && !isPreformatted,
                                         focusReadingEnabled && !isPreformatted, blockStyle,
-                                        guideReadingEnabled && !isPreformatted));
+                                        guideReadingEnabled && !isPreformatted);
+  if (!newTextBlock) {
+    LOG_ERR("MD", "OOM: ParsedText allocation failed");
+    return;
+  }
+  currentTextBlock = std::move(newTextBlock);
 }
 
 void MarkdownRenderer::flushTextBlock() {
@@ -1078,7 +1089,12 @@ void MarkdownRenderer::flushTextBlock() {
   }
 
   if (!currentPage) {
-    currentPage.reset(new Page());
+    auto newPage = makeUniqueNoThrow<Page>();
+    if (!newPage) {
+      LOG_ERR("MD", "OOM: Page allocation failed");
+      return;
+    }
+    currentPage = std::move(newPage);
     currentPageNextY = 0;
   }
 
@@ -1102,7 +1118,12 @@ void MarkdownRenderer::addLineToPage(std::shared_ptr<TextBlock> line) {
 
   if (currentPageNextY + lineHeight > viewportHeight) {
     finalizePage();
-    currentPage.reset(new Page());
+    auto newPage = makeUniqueNoThrow<Page>();
+    if (!newPage) {
+      LOG_ERR("MD", "OOM: Page allocation failed");
+      return;
+    }
+    currentPage = std::move(newPage);
     currentPageNextY = 0;
   }
 
@@ -1116,7 +1137,12 @@ void MarkdownRenderer::addImageToPage(std::shared_ptr<PageImage> image) {
 
   if (currentPageNextY + imageHeight > viewportHeight) {
     finalizePage();
-    currentPage.reset(new Page());
+    auto newPage = makeUniqueNoThrow<Page>();
+    if (!newPage) {
+      LOG_ERR("MD", "OOM: Page allocation failed");
+      return;
+    }
+    currentPage = std::move(newPage);
     currentPageNextY = 0;
   }
 
