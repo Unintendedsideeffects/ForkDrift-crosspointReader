@@ -1677,6 +1677,12 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
       } else {
         renderer.displayBuffer(HalDisplay::HALF_REFRESH);
       }
+      // The grayscale pass below leaves gray charge in the image region that a
+      // plain fast diff on the *next* page can't clear, so text there ghosts
+      // gray (upstream #2190). Force the next ordinary page onto the HALF
+      // ghost-cleanup path, which drives every pixel to its target regardless
+      // of residue.
+      pagesUntilFullRefresh = 1;
     }
   } else if (!previewRenderOnly) {
     ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
