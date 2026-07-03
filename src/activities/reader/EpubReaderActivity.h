@@ -88,6 +88,13 @@ class EpubReaderActivity final : public Activity {
   std::string selectedText() const;
   std::string selectionLocation() const;
   void openSelectionActions();
+  // Shared by selection mode and annotation rendering: flatten the page's
+  // selectable words into screen rects.
+  void collectSelectableWords(const Page& page, int marginLeft, int marginTop, std::vector<SelWord>& out) const;
+#if ENABLE_ANNOTATIONS
+  // Draw persistent highlights for the current page into the BW framebuffer.
+  void renderAnnotations(const Page& page, int marginLeft, int marginTop) const;
+#endif
 #else
   // Feature disabled: keep the call site in loop() trivial.
   bool handleSelectionInput() { return false; }

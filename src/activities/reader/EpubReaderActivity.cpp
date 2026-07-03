@@ -20,6 +20,7 @@
 #include "AnkiAddActivity.h"
 #include "core/features/FeatureCatalog.h"
 #if ENABLE_TEXT_SELECTION
+#include "util/AnnotationStore.h"
 #include "util/NotesStore.h"
 #endif
 #if ENABLE_DICTIONARY
@@ -252,6 +253,9 @@ void EpubReaderActivity::onEnter() {
 
 #if ENABLE_BOOKMARKS
   BOOKMARKS.loadForBook(epub->getPath(), epub->getTitle(), epub->getAuthor(), "epub");
+#if ENABLE_ANNOTATIONS
+  ANNOTATIONS.loadForBook(epub->getCachePath());
+#endif
   // Resume at bookmark selected from the home screen, if any.
   if (APP_STATE.pendingBookmarkSpine != PENDING_BOOKMARK_SPINE_NONE && APP_STATE.pendingBookmarkProgress >= 0.0f) {
     currentSpineIndex = APP_STATE.pendingBookmarkSpine;
@@ -316,6 +320,9 @@ void EpubReaderActivity::onExit() {
 
 #if ENABLE_BOOKMARKS
   BOOKMARKS.unload();
+#if ENABLE_ANNOTATIONS
+  ANNOTATIONS.unload();
+#endif
 #endif
 
 #if ENABLE_READING_STATS
@@ -1701,6 +1708,11 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   const bool needsAnyGrayscale = needsTextGrayscale || needsImageGrayscale;
 
   page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+#if ENABLE_ANNOTATIONS
+  if (!previewRenderOnly && section) {
+    renderAnnotations(*page, orientedMarginLeft, orientedMarginTop);
+  }
+#endif
   renderStatusBar();
 #if ENABLE_BOOKMARKS
   if (pendingBookmarkFeedback) {
@@ -1981,26 +1993,13 @@ void EpubReaderActivity::restoreSavedPosition() {
 #if ENABLE_TEXT_SELECTION
 // ---------- Text selection mode ----------
 
-void EpubReaderActivity::enterSelectionMode() {
-  if (!section || selectionMode) {
-    return;
-  }
-  auto page = section->loadPageFromSectionFile();
-  if (!page) {
-    LOG_ERR("ERS", "Selection: failed to load page");
-    return;
-  }
-
-  int marginTop, marginRight, marginBottom, marginLeft;
-  renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
-  marginTop += SETTINGS.screenMargin + features::status_overlay::topInset();
-  marginLeft += SETTINGS.screenMargin;
-
+void EpubReaderActivity::collectSelectableWords(const Page& page, const int marginLeft, const int marginTop,
+                                                std::vector<SelWord>& out) const {
   const int fontId = SETTINGS.getReaderFontId();
   const int lineHeight = renderer.getLineHeight(fontId);
 
-  selWords.clear();
-  for (const auto& el : page->elements) {
+  out.clear();
+  for (const auto& el : page.elements) {
     if (el->getTag() != TAG_PageLine) {
       continue;
     }
@@ -2023,9 +2022,27 @@ void EpubReaderActivity::enterSelectionMode() {
       sw.w = static_cast<int16_t>(renderer.getTextWidth(fontId, words[i].c_str(), style));
       sw.h = static_cast<int16_t>(lineHeight);
       sw.text = words[i];
-      selWords.push_back(std::move(sw));
+      out.push_back(std::move(sw));
     }
   }
+}
+
+void EpubReaderActivity::enterSelectionMode() {
+  if (!section || selectionMode) {
+    return;
+  }
+  auto page = section->loadPageFromSectionFile();
+  if (!page) {
+    LOG_ERR("ERS", "Selection: failed to load page");
+    return;
+  }
+
+  int marginTop, marginRight, marginBottom, marginLeft;
+  renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
+  marginTop += SETTINGS.screenMargin + features::status_overlay::topInset();
+  marginLeft += SETTINGS.screenMargin;
+
+  collectSelectableWords(*page, marginLeft, marginTop, selWords);
 
   if (selWords.empty()) {
     LOG_INF("ERS", "Selection: no selectable words on page");
@@ -2098,6 +2115,16 @@ void EpubReaderActivity::openSelectionActions() {
   }
   items.push_back(I18N.get(StrId::STR_SAVE_TO_NOTES));
   actions.push_back(2);
+#if ENABLE_ANNOTATIONS
+  items.push_back(I18N.get(StrId::STR_HIGHLIGHT));
+  actions.push_back(3);
+  if (section && ANNOTATIONS.removeCandidateAt(static_cast<uint16_t>(currentSpineIndex),
+                                               static_cast<uint16_t>(section->currentPage),
+                                               static_cast<uint16_t>(selCursor))) {
+    items.push_back(I18N.get(StrId::STR_REMOVE_HIGHLIGHT));
+    actions.push_back(4);
+  }
+#endif
 
   selectionPopup.show(StrId::STR_SELECT_TEXT, items, 0, [this, actions](int idx) {
     if (idx < 0 || idx >= static_cast<int>(actions.size())) {
@@ -2120,6 +2147,32 @@ void EpubReaderActivity::openSelectionActions() {
                                [this](const ActivityResult&) { requestUpdate(); });
         return;
       }
+#if ENABLE_ANNOTATIONS
+      case 3: {
+        Annotation a;
+        a.spineIndex = static_cast<uint16_t>(currentSpineIndex);
+        a.page = section ? static_cast<uint16_t>(section->currentPage) : 0;
+        a.startWord = static_cast<uint16_t>(std::min(selAnchor, selCursor));
+        a.endWord = static_cast<uint16_t>(std::max(selAnchor, selCursor));
+        a.text = text;
+        const bool ok = ANNOTATIONS.add(a);
+        exitSelectionMode();
+        if (!ok) {
+          LOG_ERR("ERS", "Failed to save annotation");
+        }
+        requestUpdate();
+        return;
+      }
+      case 4: {
+        if (section) {
+          ANNOTATIONS.removeAt(static_cast<uint16_t>(currentSpineIndex), static_cast<uint16_t>(section->currentPage),
+                               static_cast<uint16_t>(selCursor));
+        }
+        exitSelectionMode();
+        requestUpdate();
+        return;
+      }
+#endif
       case 2: {
         const bool ok = NotesStore::appendHighlight(epub ? epub->getTitle() : "", selectionLocation(), text);
         exitSelectionMode();
@@ -2207,6 +2260,61 @@ void EpubReaderActivity::drawSelectionOverlay() const {
     renderer.invertRect(w.x - 1, w.y, w.w + 2, w.h);
   }
 }
+
+#if ENABLE_ANNOTATIONS
+void EpubReaderActivity::renderAnnotations(const Page& page, const int marginLeft, const int marginTop) const {
+  // Space-join a word range for text comparison against stored annotations.
+  const auto joinWords = [](const std::vector<SelWord>& ws, const int lo, const int hi) {
+    std::string out;
+    for (int i = lo; i <= hi && i < static_cast<int>(ws.size()); ++i) {
+      if (!out.empty()) {
+        out += ' ';
+      }
+      out += ws[static_cast<size_t>(i)].text;
+    }
+    return out;
+  };
+
+  const auto pageAnnotations =
+      ANNOTATIONS.forPage(static_cast<uint16_t>(currentSpineIndex), static_cast<uint16_t>(section->currentPage));
+  if (pageAnnotations.empty()) {
+    return;
+  }
+
+  std::vector<SelWord> words;
+  collectSelectableWords(page, marginLeft, marginTop, words);
+  if (words.empty()) {
+    return;
+  }
+  const int count = static_cast<int>(words.size());
+
+  for (const Annotation* a : pageAnnotations) {
+    int lo = a->startWord;
+    int hi = a->endWord;
+    // Hint indices are only trusted when the joined text still matches — a
+    // relayout (font/margin change) shifts word indices.
+    bool anchored = lo <= hi && hi < count && joinWords(words, lo, hi) == a->text;
+    if (!anchored) {
+      // Re-anchor by sliding text match over the page's word sequence.
+      const int span = hi - lo;
+      for (int start = 0; !anchored && span >= 0 && start + span < count; ++start) {
+        if (joinWords(words, start, start + span) == a->text) {
+          lo = start;
+          hi = start + span;
+          anchored = true;
+        }
+      }
+    }
+    if (!anchored) {
+      continue;  // text no longer on this page after relayout; keep stored, skip drawing
+    }
+    for (int i = lo; i <= hi; ++i) {
+      const SelWord& w = words[static_cast<size_t>(i)];
+      renderer.invertRect(w.x - 1, w.y, w.w + 2, w.h);
+    }
+  }
+}
+#endif  // ENABLE_ANNOTATIONS
 #endif  // ENABLE_TEXT_SELECTION
 
 void EpubReaderActivity::showLoadingPopupTrampoline(void* ctx) {

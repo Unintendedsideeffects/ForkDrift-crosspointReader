@@ -12,6 +12,7 @@ namespace {
 
 constexpr const char* kRequiresBookImagesAny[] = {"epub_support", "markdown"};
 constexpr const char* kRequiresTextSelectionAll[] = {"epub_support"};
+constexpr const char* kRequiresAnnotationsAll[] = {"text_selection"};
 constexpr const char* kRequiresKOReaderSyncAll[] = {"integrations"};
 constexpr const char* kRequiresCalibreSyncAll[] = {"integrations"};
 constexpr const char* kRequiresOpdsAll[] = {"calibre_sync"};
@@ -61,6 +62,8 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"anki_support", "Anki Support", ENABLE_ANKI_SUPPORT != 0, nullptr, 0, nullptr, 0},
     {"text_selection", "Text Selection", ENABLE_TEXT_SELECTION != 0, kRequiresTextSelectionAll,
      sizeof(kRequiresTextSelectionAll) / sizeof(kRequiresTextSelectionAll[0]), nullptr, 0},
+    {"annotations", "Annotations", ENABLE_ANNOTATIONS != 0, kRequiresAnnotationsAll,
+     sizeof(kRequiresAnnotationsAll) / sizeof(kRequiresAnnotationsAll[0]), nullptr, 0},
     {"trmnl_switch", "TRMNL Switch", ENABLE_TRMNL_SWITCH != 0, nullptr, 0, nullptr, 0},
     {"terminus_sleep", "Terminus Sleep Screen", ENABLE_TERMINUS_SLEEP != 0, kRequiresTerminusSleepAll,
      sizeof(kRequiresTerminusSleepAll) / sizeof(kRequiresTerminusSleepAll[0]), nullptr, 0},

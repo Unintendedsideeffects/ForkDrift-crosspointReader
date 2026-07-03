@@ -241,6 +241,12 @@
 #define ENABLE_TEXT_SELECTION 1
 #endif
 
+// Persistent highlights created from text selection, rendered on the page.
+// Inspired by Inx (github.com/obijuankenobiii/inx, MIT).
+#ifndef ENABLE_ANNOTATIONS
+#define ENABLE_ANNOTATIONS 1
+#endif
+
 #ifndef ENABLE_LUA_PLUGINS
 #define ENABLE_LUA_PLUGINS 0
 #endif
@@ -423,6 +429,12 @@
 #if !ENABLE_EPUB_SUPPORT
 #undef ENABLE_TEXT_SELECTION
 #define ENABLE_TEXT_SELECTION 0
+#endif
+
+// Annotations are created and rendered through the selection machinery.
+#if !ENABLE_TEXT_SELECTION
+#undef ENABLE_ANNOTATIONS
+#define ENABLE_ANNOTATIONS 0
 #endif
 
 // OpenDyslexic only covers Latin + basic punctuation. A full-charset font must

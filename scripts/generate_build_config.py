@@ -186,6 +186,12 @@ FEATURES = {
         size_kb=0,
         description='In-reader dictionary lookup over an SD card dictionary.'
     ),
+    'annotations': Feature(
+        name='Annotations',
+        flag='ENABLE_ANNOTATIONS',
+        size_kb=3,
+        description='Persistent highlights: select text in the reader and keep it highlighted across sessions, per book. Relayout-tolerant (highlights re-anchor by text after font/margin changes). Inspired by Inx (github.com/obijuankenobiii/inx, MIT).'
+    ),
     'text_selection': Feature(
         name='Text Selection',
         flag='ENABLE_TEXT_SELECTION',

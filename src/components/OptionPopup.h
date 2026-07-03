@@ -57,12 +57,15 @@ class OptionPopup {
       selectedIndex = (selectedIndex + 1) % count;
       requestUpdate();
       return true;
-    } else if (input.wasPressed(MappedInputManager::Button::Confirm)) {
+    } else if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+      // Act on RELEASE, like every other screen: acting on press let the
+      // release of the same physical tap leak to the screen underneath the
+      // popup (e.g. re-opening the reader menu right after selecting).
       active = false;
       if (onSelectCallback) onSelectCallback(selectedIndex);
       requestUpdate();
       return true;
-    } else if (input.wasPressed(MappedInputManager::Button::Back)) {
+    } else if (input.wasReleased(MappedInputManager::Button::Back)) {
       active = false;
       requestUpdate();
       return true;
