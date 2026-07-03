@@ -133,12 +133,9 @@ void setActive(BookSettingsOverride* override, const std::string& cachePath, con
   g_snapshot = snapshot;
 }
 
-void saveGlobalsPreservingOverrides() {
+bool saveGlobalsPreservingOverrides() {
   if (g_active == nullptr || !g_active->enabled || !g_active->anySet()) {
-    if (!SETTINGS.saveToFile()) {
-      LOG_ERR("BKS", "Failed to save settings");
-    }
-    return;
+    return SETTINGS.saveToFileRaw();
   }
   // Current per-book values in RAM; restore true globals, save, re-apply.
   BookSettingsOverride current = *g_active;
@@ -156,7 +153,8 @@ void saveGlobalsPreservingOverrides() {
   restore.hasTextAntiAliasing = g_active->hasTextAntiAliasing;
   restore.hasImageRendering = g_active->hasImageRendering;
   restore.applyToGlobals();
-  if (!SETTINGS.saveToFile()) {
+  const bool ok = SETTINGS.saveToFileRaw();
+  if (!ok) {
     LOG_ERR("BKS", "Failed to save settings");
   }
   current.hasFontFamily = restore.hasFontFamily;
@@ -170,6 +168,7 @@ void saveGlobalsPreservingOverrides() {
   current.hasTextAntiAliasing = restore.hasTextAntiAliasing;
   current.hasImageRendering = restore.hasImageRendering;
   current.applyToGlobals();
+  return ok;
 }
 
 void clearActive() {

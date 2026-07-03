@@ -69,7 +69,7 @@ namespace BookSettingsScope {
 void setActive(BookSettingsOverride* override, const std::string& cachePath, const BookSettingsOverride& snapshot);
 // Save the global settings file while per-book overrides are applied in RAM:
 // temporarily restores the snapshot values, saves, then re-applies overrides.
-void saveGlobalsPreservingOverrides();
+bool saveGlobalsPreservingOverrides();
 void clearActive();
 bool isActive();
 BookSettingsOverride* active();

@@ -75,16 +75,11 @@ namespace {
 // per-book-capable keys record into the book override instead of the globals.
 void persistOverlayChange(const char* key) {
 #if ENABLE_PER_BOOK_SETTINGS
-  if (BookSettingsScope::isEnabled()) {
-    if (BookSettingsScope::recordChange(key)) {
-      return;  // recorded into the book's override file
-    }
-    // Non-per-book setting changed while overrides are applied in RAM: save
-    // globals without baking the per-book values into the settings file.
-    BookSettingsScope::saveGlobalsPreservingOverrides();
-    return;
+  if (BookSettingsScope::isEnabled() && BookSettingsScope::recordChange(key)) {
+    return;  // recorded into the book's override file
   }
 #endif
+  // saveToFile is override-aware (snapshot-restoring) when per-book mode is on.
   if (!SETTINGS.saveToFile()) {
     LOG_ERR("RDR", "Failed to save settings");
   }

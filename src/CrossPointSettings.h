@@ -508,6 +508,9 @@ class CrossPointSettings {
   int getReaderFontId() const;
 
   bool saveToFile() const;
+  // Write the current in-RAM values verbatim (no per-book override handling);
+  // only BookSettingsScope should call this.
+  bool saveToFileRaw() const;
   bool loadFromFile();
   static void validateFrontButtonMapping(CrossPointSettings& settings);
   void applyFrontButtonLayoutPreset(FRONT_BUTTON_LAYOUT layout);
