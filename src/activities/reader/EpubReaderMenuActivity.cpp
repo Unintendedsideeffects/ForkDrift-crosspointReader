@@ -45,6 +45,7 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
   std::vector<MenuItem> items;
   items.reserve(15);
   items.push_back({MenuAction::SELECT_CHAPTER, StrId::STR_SELECT_CHAPTER});
+  items.push_back({MenuAction::SELECT_TEXT, StrId::STR_SELECT_TEXT});
   items.push_back({MenuAction::READER_OPTIONS, StrId::STR_CAT_READER});
   items.push_back({MenuAction::CONTROLS_OPTIONS, StrId::STR_CAT_CONTROLS});
   if (hasFootnotes) {

@@ -33,6 +33,7 @@ class PageElement {
 class PageLine final : public PageElement {
   std::shared_ptr<TextBlock> block;
 
+
  public:
   PageLine(std::shared_ptr<TextBlock> block, const int16_t xPos, const int16_t yPos)
       : PageElement(xPos, yPos), block(std::move(block)) {}

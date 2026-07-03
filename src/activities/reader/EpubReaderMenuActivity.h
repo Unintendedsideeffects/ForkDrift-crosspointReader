@@ -17,6 +17,7 @@ class EpubReaderMenuActivity final : public Activity {
  public:
   enum class MenuAction {
     SELECT_CHAPTER,
+    SELECT_TEXT,
     READER_OPTIONS,
     CONTROLS_OPTIONS,
     READER_SETTINGS_CHANGED,

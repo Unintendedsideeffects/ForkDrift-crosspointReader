@@ -240,6 +240,7 @@ inline std::vector<QuickActionOption> longPressMenuActionOptions() {
   options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::LONG_MENU_CYCLE_PAGE_TURN});
   if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
     options.push_back({StrId::STR_FILE_TRANSFER, S::LONG_MENU_FILE_TRANSFER, "usb_mass_storage"});
+    options.push_back({StrId::STR_SELECT_TEXT, S::LONG_MENU_TEXT_SELECT});
   }
   return options;
 }

@@ -19,6 +19,7 @@
 #include "GlobalReadingStats.h"
 #endif
 #include "activities/Activity.h"
+#include "components/OptionPopup.h"
 
 class EpubReaderActivity final : public Activity {
   std::shared_ptr<Epub> epub;
@@ -60,6 +61,32 @@ class EpubReaderActivity final : public Activity {
 #endif  // ENABLE_BOOKMARKS
 
   std::vector<FootnoteEntry> currentPageFootnotes;
+
+  // --- Text selection mode (highlight cursor) ---
+  // Entered from the reader menu or the long-press quick action. Word rects are
+  // collected from the current page's cached layout; the cursor moves word by
+  // word (Up/Down), Confirm anchors then extends, second Confirm opens actions.
+  struct SelWord {
+    int16_t x;
+    int16_t y;
+    int16_t w;
+    int16_t h;
+    std::string text;
+  };
+  bool selectionMode = false;
+  bool selectionAnchored = false;
+  int selCursor = 0;
+  int selAnchor = 0;
+  std::vector<SelWord> selWords;
+  OptionPopup selectionPopup;
+
+  void enterSelectionMode();
+  void exitSelectionMode();
+  bool handleSelectionInput();
+  void drawSelectionOverlay() const;
+  std::string selectedText() const;
+  std::string selectionLocation() const;
+  void openSelectionActions();
   struct SavedPosition {
     int spineIndex;
     int pageNumber;

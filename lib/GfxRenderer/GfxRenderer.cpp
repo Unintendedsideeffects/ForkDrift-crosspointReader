@@ -1475,6 +1475,26 @@ void GfxRenderer::clearScreen(const uint8_t color) const {
   display.clearScreen(color);
 }
 
+void GfxRenderer::invertRect(const int x, const int y, const int width, const int height) const {
+  if (frameBuffer == nullptr || width <= 0 || height <= 0) {
+    return;
+  }
+  // Per-pixel XOR through the same rotate as drawPixel. Selection highlights
+  // cover a few hundred pixels, so per-pixel cost is irrelevant here.
+  for (int dy = 0; dy < height; dy++) {
+    for (int dx = 0; dx < width; dx++) {
+      int phyX = 0;
+      int phyY = 0;
+      rotateCoordinates(orientation, x + dx, y + dy, &phyX, &phyY, panelWidth, panelHeight);
+      if (phyX < 0 || phyX >= panelWidth || phyY < 0 || phyY >= panelHeight) {
+        continue;
+      }
+      const uint32_t byteIndex = static_cast<uint32_t>(phyY) * panelWidthBytes + (phyX / 8);
+      frameBuffer[byteIndex] ^= static_cast<uint8_t>(1u << (7 - (phyX % 8)));
+    }
+  }
+}
+
 void GfxRenderer::invertScreen() const {
   for (uint32_t i = 0; i < frameBufferSize; i++) {
     frameBuffer[i] = ~frameBuffer[i];

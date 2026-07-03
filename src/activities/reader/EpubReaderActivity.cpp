@@ -18,6 +18,8 @@
 #include <limits>
 
 #include "AnkiAddActivity.h"
+#include "core/features/FeatureCatalog.h"
+#include "util/NotesStore.h"
 #if ENABLE_DICTIONARY
 #include "DictionaryActivity.h"
 #endif
@@ -331,6 +333,10 @@ void EpubReaderActivity::loop() {
   if (!epub) {
     // Should never happen
     finish();
+    return;
+  }
+
+  if (handleSelectionInput()) {
     return;
   }
 
@@ -708,6 +714,9 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
     case S::LONG_MENU_FILE_TRANSFER:
       openFileTransfer();
       break;
+    case S::LONG_MENU_TEXT_SELECT:
+      enterSelectionMode();
+      break;
 #if ENABLE_READING_STATS
     case S::LONG_MENU_READING_STATS: {
       BookReadingStats displayStats = stats;
@@ -901,6 +910,9 @@ void EpubReaderActivity::openFileTransfer() {
 
 void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction action) {
   switch (action) {
+    case EpubReaderMenuActivity::MenuAction::SELECT_TEXT:
+      enterSelectionMode();
+      break;
     case EpubReaderMenuActivity::MenuAction::SELECT_CHAPTER: {
       const int spineIdx = currentSpineIndex;
       const int currentPage = section ? section->currentPage : 0;
@@ -1308,6 +1320,27 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     renderer.clearScreen();
     renderer.drawCenteredText(UI_12_FONT_ID, 300, "Error: No book loaded", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
+    return;
+  }
+
+  if (selectionMode) {
+    // Lightweight selection repaint: re-render the page text (no grayscale, no
+    // stats/progress side effects), invert the selected span, fast refresh.
+    if (selectionPopup.processRender(renderer, mappedInput)) {
+      return;
+    }
+    if (section) {
+      if (auto page = section->loadPageFromSectionFile()) {
+        int mTop, mRight, mBottom, mLeft;
+        renderer.getOrientedViewableTRBL(&mTop, &mRight, &mBottom, &mLeft);
+        mTop += SETTINGS.screenMargin + features::status_overlay::topInset();
+        mLeft += SETTINGS.screenMargin;
+        renderer.clearScreen();
+        page->renderText(renderer, SETTINGS.getReaderFontId(), mLeft, mTop);
+        drawSelectionOverlay();
+        renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+      }
+    }
     return;
   }
 
@@ -1934,6 +1967,236 @@ void EpubReaderActivity::restoreSavedPosition() {
     section.reset();
   }
   requestUpdate();
+}
+
+
+// ---------- Text selection mode ----------
+
+void EpubReaderActivity::enterSelectionMode() {
+  if (!section || selectionMode) {
+    return;
+  }
+  auto page = section->loadPageFromSectionFile();
+  if (!page) {
+    LOG_ERR("ERS", "Selection: failed to load page");
+    return;
+  }
+
+  int marginTop, marginRight, marginBottom, marginLeft;
+  renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
+  marginTop += SETTINGS.screenMargin + features::status_overlay::topInset();
+  marginLeft += SETTINGS.screenMargin;
+
+  const int fontId = SETTINGS.getReaderFontId();
+  const int lineHeight = renderer.getLineHeight(fontId);
+
+  selWords.clear();
+  for (const auto& el : page->elements) {
+    if (el->getTag() != TAG_PageLine) {
+      continue;
+    }
+    const auto* line = static_cast<const PageLine*>(el.get());
+    const TextBlock* block = line->getBlock().get();
+    if (block == nullptr) {
+      continue;
+    }
+    const auto& words = block->getWords();
+    const auto& xpos = block->getWordXpos();
+    const auto& styles = block->getWordStyles();
+    for (size_t i = 0; i < words.size() && i < xpos.size(); ++i) {
+      if (words[i].empty() || words[i] == " ") {
+        continue;  // skip stretchable-space tokens; they are not selectable
+      }
+      SelWord sw;
+      sw.x = static_cast<int16_t>(line->xPos + xpos[i] + marginLeft);
+      sw.y = static_cast<int16_t>(line->yPos + marginTop);
+      const auto style = i < styles.size() ? styles[i] : EpdFontFamily::REGULAR;
+      sw.w = static_cast<int16_t>(renderer.getTextWidth(fontId, words[i].c_str(), style));
+      sw.h = static_cast<int16_t>(lineHeight);
+      sw.text = words[i];
+      selWords.push_back(std::move(sw));
+    }
+  }
+
+  if (selWords.empty()) {
+    LOG_INF("ERS", "Selection: no selectable words on page");
+    return;
+  }
+  selectionMode = true;
+  selectionAnchored = false;
+  selCursor = 0;
+  selAnchor = 0;
+  requestUpdate();
+}
+
+void EpubReaderActivity::exitSelectionMode() {
+  selectionMode = false;
+  selectionAnchored = false;
+  selWords.clear();
+  selWords.shrink_to_fit();
+  requestUpdate();
+}
+
+std::string EpubReaderActivity::selectedText() const {
+  const int lo = std::min(selAnchor, selCursor);
+  const int hi = std::max(selAnchor, selCursor);
+  std::string out;
+  for (int i = lo; i <= hi && i < static_cast<int>(selWords.size()); ++i) {
+    if (!out.empty()) {
+      out += ' ';
+    }
+    out += selWords[static_cast<size_t>(i)].text;
+  }
+  return out;
+}
+
+std::string EpubReaderActivity::selectionLocation() const {
+  char buf[96];
+  const int page = section ? section->currentPage + 1 : 0;
+  const int pages = section ? section->pageCount : 0;
+  const int pct = roundPercent(getCurrentBookProgressPercent());
+  const int tocIdx = epub ? epub->getSpineItem(currentSpineIndex).tocIndex : -1;
+  std::string chapter = tocIdx >= 0 && epub ? epub->getTocItem(tocIdx).title : std::string();
+  if (chapter.size() > 40) {
+    chapter.resize(40);
+  }
+  if (!chapter.empty()) {
+    snprintf(buf, sizeof(buf), "%s, p%d/%d (%d%%)", chapter.c_str(), page, pages, pct);
+  } else {
+    snprintf(buf, sizeof(buf), "p%d/%d (%d%%)", page, pages, pct);
+  }
+  return std::string(buf);
+}
+
+void EpubReaderActivity::openSelectionActions() {
+  const int lo = std::min(selAnchor, selCursor);
+  const int hi = std::max(selAnchor, selCursor);
+  const bool singleWord = lo == hi;
+
+  std::vector<std::string> items;
+  items.reserve(4);
+  std::vector<int> actions;  // 0=dict, 1=anki, 2=notes
+  actions.reserve(4);
+#if ENABLE_DICTIONARY
+  if (singleWord) {
+    items.push_back(I18N.get(StrId::STR_DICTIONARY));
+    actions.push_back(0);
+  }
+#endif
+  if (core::FeatureCatalog::isEnabled("anki_support")) {
+    items.push_back(I18N.get(StrId::STR_ADD_TO_ANKI));
+    actions.push_back(1);
+  }
+  items.push_back(I18N.get(StrId::STR_SAVE_TO_NOTES));
+  actions.push_back(2);
+
+  selectionPopup.show(StrId::STR_SELECT_TEXT, items, 0, [this, actions](int idx) {
+    if (idx < 0 || idx >= static_cast<int>(actions.size())) {
+      requestUpdate();
+      return;
+    }
+    const std::string text = selectedText();
+    switch (actions[static_cast<size_t>(idx)]) {
+#if ENABLE_DICTIONARY
+      case 0: {
+        exitSelectionMode();
+        startActivityForResult(std::make_unique<DictionaryActivity>(renderer, mappedInput, text, text),
+                               [this](const ActivityResult&) { requestUpdate(); });
+        return;
+      }
+#endif
+      case 1: {
+        exitSelectionMode();
+        startActivityForResult(std::make_unique<AnkiAddActivity>(renderer, mappedInput, text, epub->getTitle()),
+                               [this](const ActivityResult&) { requestUpdate(); });
+        return;
+      }
+      case 2: {
+        const bool ok = NotesStore::appendHighlight(epub ? epub->getTitle() : "", selectionLocation(), text);
+        exitSelectionMode();
+        {
+          RenderLock lock(*this);
+          GUI.drawPopup(renderer, ok ? tr(STR_NOTE_SAVED) : tr(STR_FAILED_LOWER));
+          renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+        }
+        delay(700);
+        requestUpdate();
+        return;
+      }
+      default:
+        requestUpdate();
+        return;
+    }
+  });
+  requestUpdate();
+}
+
+bool EpubReaderActivity::handleSelectionInput() {
+  if (!selectionMode) {
+    return false;
+  }
+  if (selectionPopup.handleInput(mappedInput, [this] { requestUpdate(); })) {
+    return true;
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    if (selectionAnchored) {
+      selectionAnchored = false;  // step back to cursor-only
+      selCursor = selAnchor;
+      requestUpdate();
+    } else {
+      exitSelectionMode();
+    }
+    return true;
+  }
+
+  const int count = static_cast<int>(selWords.size());
+  auto move = [&](int delta) {
+    selCursor = std::clamp(selCursor + delta, 0, count - 1);
+    if (!selectionAnchored) {
+      selAnchor = selCursor;
+    }
+    requestUpdate();
+  };
+
+  if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
+      mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+    move(-1);
+    return true;
+  }
+  if (mappedInput.wasPressed(MappedInputManager::Button::Down) ||
+      mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+    move(1);
+    return true;
+  }
+  if (mappedInput.wasPressed(MappedInputManager::Button::PageBack)) {
+    move(-8);
+    return true;
+  }
+  if (mappedInput.wasPressed(MappedInputManager::Button::PageForward)) {
+    move(8);
+    return true;
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    if (!selectionAnchored) {
+      selectionAnchored = true;  // anchor; further moves extend
+      requestUpdate();
+    } else {
+      openSelectionActions();
+    }
+    return true;
+  }
+  return true;  // selection mode swallows all input
+}
+
+void EpubReaderActivity::drawSelectionOverlay() const {
+  const int lo = std::min(selAnchor, selCursor);
+  const int hi = std::max(selAnchor, selCursor);
+  for (int i = lo; i <= hi && i < static_cast<int>(selWords.size()); ++i) {
+    const SelWord& w = selWords[static_cast<size_t>(i)];
+    renderer.invertRect(w.x - 1, w.y, w.w + 2, w.h);
+  }
 }
 
 void EpubReaderActivity::showLoadingPopupTrampoline(void* ctx) {

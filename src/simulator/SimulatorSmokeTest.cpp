@@ -425,6 +425,9 @@ class SimulatorSmokeTest {
     }
     addTap(MappedInputManager::Button::Confirm);
     inputScript.push_back(render("Reader menu", 4));
+    // Menu order: Select Chapter, Select Text, Reader options — two Downs.
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("Reader menu select-text item", 2));
     addTap(MappedInputManager::Button::Down);
     inputScript.push_back(render("Reader menu reader item", 2));
     addTap(MappedInputManager::Button::Confirm);
@@ -442,6 +445,31 @@ class SimulatorSmokeTest {
     inputScript.push_back(checkHashDiff("Reader options after toggle"));
     addTap(MappedInputManager::Button::Back);
     inputScript.push_back(render("Reader after options", 6));
+
+    // Text-selection leg: menu -> Select Text -> move cursor, anchor, extend.
+    // The inverted-word highlight must change the frame at each step.
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Reader menu for selection", 4));
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("Reader menu on select-text", 2));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Selection mode entered", 4));
+    inputScript.push_back(hashFrame("Selection cursor at start"));
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("Selection cursor moved", 3));
+    inputScript.push_back(checkHashDiff("Selection cursor moved"));
+    addTap(MappedInputManager::Button::Confirm);  // anchor
+    inputScript.push_back(render("Selection anchored", 3));
+    inputScript.push_back(hashFrame("Selection before extend"));
+    addTap(MappedInputManager::Button::Down);
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("Selection extended", 3));
+    inputScript.push_back(checkHashDiff("Selection extended"));
+    addTap(MappedInputManager::Button::Back);  // un-anchor
+    inputScript.push_back(render("Selection unanchored", 2));
+    addTap(MappedInputManager::Button::Back);  // exit selection mode
+    inputScript.push_back(render("Reader after selection", 4));
+
     addTap(MappedInputManager::Button::Back);
     inputScript.push_back(render("Home after closing reader", 4));
     LOG_INF("SMOKE", "Running reader input script with %d page turn(s)", turns);
