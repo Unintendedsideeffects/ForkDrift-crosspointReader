@@ -1,6 +1,7 @@
 #ifdef SIMULATOR
 
 #include "SimulatorSmokeTest.h"
+#include <FeatureFlags.h>
 
 #include <HalStorage.h>
 #include <Logging.h>
@@ -425,9 +426,11 @@ class SimulatorSmokeTest {
     }
     addTap(MappedInputManager::Button::Confirm);
     inputScript.push_back(render("Reader menu", 4));
-    // Menu order: Select Chapter, Select Text, Reader options — two Downs.
+    // Menu order: Select Chapter, [Select Text,] Reader options.
+#if ENABLE_TEXT_SELECTION
     addTap(MappedInputManager::Button::Down);
     inputScript.push_back(render("Reader menu select-text item", 2));
+#endif
     addTap(MappedInputManager::Button::Down);
     inputScript.push_back(render("Reader menu reader item", 2));
     addTap(MappedInputManager::Button::Confirm);
@@ -446,6 +449,7 @@ class SimulatorSmokeTest {
     addTap(MappedInputManager::Button::Back);
     inputScript.push_back(render("Reader after options", 6));
 
+#if ENABLE_TEXT_SELECTION
     // Text-selection leg: menu -> Select Text -> move cursor, anchor, extend.
     // The inverted-word highlight must change the frame at each step.
     addTap(MappedInputManager::Button::Confirm);
@@ -469,6 +473,7 @@ class SimulatorSmokeTest {
     inputScript.push_back(render("Selection unanchored", 2));
     addTap(MappedInputManager::Button::Back);  // exit selection mode
     inputScript.push_back(render("Reader after selection", 4));
+#endif  // ENABLE_TEXT_SELECTION
 
     addTap(MappedInputManager::Button::Back);
     inputScript.push_back(render("Home after closing reader", 4));

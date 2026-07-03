@@ -19,7 +19,9 @@
 
 #include "AnkiAddActivity.h"
 #include "core/features/FeatureCatalog.h"
+#if ENABLE_TEXT_SELECTION
 #include "util/NotesStore.h"
+#endif
 #if ENABLE_DICTIONARY
 #include "DictionaryActivity.h"
 #endif
@@ -714,9 +716,11 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
     case S::LONG_MENU_FILE_TRANSFER:
       openFileTransfer();
       break;
+#if ENABLE_TEXT_SELECTION
     case S::LONG_MENU_TEXT_SELECT:
       enterSelectionMode();
       break;
+#endif
 #if ENABLE_READING_STATS
     case S::LONG_MENU_READING_STATS: {
       BookReadingStats displayStats = stats;
@@ -910,9 +914,11 @@ void EpubReaderActivity::openFileTransfer() {
 
 void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction action) {
   switch (action) {
+#if ENABLE_TEXT_SELECTION
     case EpubReaderMenuActivity::MenuAction::SELECT_TEXT:
       enterSelectionMode();
       break;
+#endif
     case EpubReaderMenuActivity::MenuAction::SELECT_CHAPTER: {
       const int spineIdx = currentSpineIndex;
       const int currentPage = section ? section->currentPage : 0;
@@ -1323,6 +1329,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     return;
   }
 
+#if ENABLE_TEXT_SELECTION
   if (selectionMode) {
     // Lightweight selection repaint: re-render the page text (no grayscale, no
     // stats/progress side effects), invert the selected span, fast refresh.
@@ -1343,6 +1350,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     }
     return;
   }
+#endif  // ENABLE_TEXT_SELECTION
 
   // Guard: check spine bounds
   const int spineItemsCount = epub->getSpineItemsCount();
@@ -1970,6 +1978,7 @@ void EpubReaderActivity::restoreSavedPosition() {
 }
 
 
+#if ENABLE_TEXT_SELECTION
 // ---------- Text selection mode ----------
 
 void EpubReaderActivity::enterSelectionMode() {
@@ -2198,6 +2207,7 @@ void EpubReaderActivity::drawSelectionOverlay() const {
     renderer.invertRect(w.x - 1, w.y, w.w + 2, w.h);
   }
 }
+#endif  // ENABLE_TEXT_SELECTION
 
 void EpubReaderActivity::showLoadingPopupTrampoline(void* ctx) {
   const auto* const self = static_cast<EpubReaderActivity*>(ctx);

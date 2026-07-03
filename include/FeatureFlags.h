@@ -236,6 +236,11 @@
 #define ENABLE_ANKI_SUPPORT 0
 #endif
 
+// In-reader text selection (highlight cursor + dictionary/Anki/notes actions).
+#ifndef ENABLE_TEXT_SELECTION
+#define ENABLE_TEXT_SELECTION 1
+#endif
+
 #ifndef ENABLE_LUA_PLUGINS
 #define ENABLE_LUA_PLUGINS 0
 #endif
@@ -411,6 +416,13 @@
 #if !ENABLE_EPUB_SUPPORT && !ENABLE_MARKDOWN
 #undef ENABLE_BOOK_IMAGES
 #define ENABLE_BOOK_IMAGES 0
+#endif
+
+// Text selection reads the EPUB page layout; without EPUB support there is
+// nothing to select from, so it auto-disables rather than erroring.
+#if !ENABLE_EPUB_SUPPORT
+#undef ENABLE_TEXT_SELECTION
+#define ENABLE_TEXT_SELECTION 0
 #endif
 
 // OpenDyslexic only covers Latin + basic punctuation. A full-charset font must

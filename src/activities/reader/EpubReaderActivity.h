@@ -62,6 +62,7 @@ class EpubReaderActivity final : public Activity {
 
   std::vector<FootnoteEntry> currentPageFootnotes;
 
+#if ENABLE_TEXT_SELECTION
   // --- Text selection mode (highlight cursor) ---
   // Entered from the reader menu or the long-press quick action. Word rects are
   // collected from the current page's cached layout; the cursor moves word by
@@ -87,6 +88,10 @@ class EpubReaderActivity final : public Activity {
   std::string selectedText() const;
   std::string selectionLocation() const;
   void openSelectionActions();
+#else
+  // Feature disabled: keep the call site in loop() trivial.
+  bool handleSelectionInput() { return false; }
+#endif  // ENABLE_TEXT_SELECTION
   struct SavedPosition {
     int spineIndex;
     int pageNumber;

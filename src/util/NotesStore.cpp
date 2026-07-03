@@ -1,5 +1,9 @@
 #include "NotesStore.h"
 
+#include <FeatureFlags.h>
+
+#if ENABLE_TEXT_SELECTION
+
 #include <HalStorage.h>
 #include <Logging.h>
 
@@ -68,3 +72,4 @@ bool appendHighlight(const std::string& bookTitle, const std::string& location, 
 }
 
 }  // namespace NotesStore
+#endif  // ENABLE_TEXT_SELECTION

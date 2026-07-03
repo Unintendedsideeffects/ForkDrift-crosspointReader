@@ -186,6 +186,12 @@ FEATURES = {
         size_kb=0,
         description='In-reader dictionary lookup over an SD card dictionary.'
     ),
+    'text_selection': Feature(
+        name='Text Selection',
+        flag='ENABLE_TEXT_SELECTION',
+        size_kb=3,
+        description='In-reader highlight cursor: select words/spans on the page, then look up in the dictionary, add to Anki, or save to per-book Markdown notes on the SD card.'
+    ),
     'dark_mode': Feature(
         name='Dark Mode',
         flag='ENABLE_DARK_MODE',
