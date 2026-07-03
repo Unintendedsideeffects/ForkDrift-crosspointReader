@@ -50,7 +50,8 @@ void XtcReaderActivity::onEnter() {
   // Save current XTC as last opened book and add to recent books
   APP_STATE.openEpubPath = xtc->getPath();
   APP_STATE.saveToFile();
-  RECENT_BOOKS.addBook(xtc->getPath(), xtc->getTitle(), xtc->getAuthor(), xtc->getThumbBmpPath(240));
+  // Template path (see EpubReaderActivity): consumers substitute their size.
+  RECENT_BOOKS.addBook(xtc->getPath(), xtc->getTitle(), xtc->getAuthor(), xtc->getThumbBmpPath());
 
 #if ENABLE_READING_STATS
   ReadingStatsStore::getInstance().beginSession(xtc->getCachePath(), xtc->getPath(), xtc->getTitle(), xtc->getAuthor(),

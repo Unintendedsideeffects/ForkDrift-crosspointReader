@@ -825,13 +825,15 @@ bool SleepActivity::tryRenderCurrentBookCover() const {
 
   const auto homeCardData =
       core::FeatureModules::resolveHomeCardData(APP_STATE.openEpubPath, renderer.getScreenHeight());
-  if (homeCardData.coverPath.empty() || !Storage.exists(homeCardData.coverPath.c_str())) {
+  // coverPath is a [HEIGHT] template; substitute the sleep screen's height.
+  const std::string coverPath = UITheme::getCoverThumbPath(homeCardData.coverPath, renderer.getScreenHeight());
+  if (coverPath.empty() || !Storage.exists(coverPath.c_str())) {
     return false;
   }
 
-  LOG_INF("SLP", "Smart: trying current book cover: %s", homeCardData.coverPath.c_str());
+  LOG_INF("SLP", "Smart: trying current book cover: %s", coverPath.c_str());
   CoverDrawRect drawnRect;
-  if (!tryRenderImagePath(homeCardData.coverPath, &drawnRect)) {
+  if (!tryRenderImagePath(coverPath, &drawnRect)) {
     LOG_WRN("SLP", "Smart: book cover failed");
     return false;
   }

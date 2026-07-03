@@ -1,4 +1,5 @@
 #include "util/BookProgressDataStore.h"
+#include <Epub/BookMetadataCache.h>
 
 #include <BookCachePath.h>
 #include <HalStorage.h>
@@ -20,7 +21,7 @@ constexpr char kEpubBookCacheFileName[] = "/book.bin";
 constexpr uint32_t kTxtCacheMagic = 0x54585449;  // "TXTI"
 constexpr uint8_t kTxtCacheVersion = 3;
 constexpr uint8_t kSectionFileVersion = 1;
-constexpr uint8_t kEpubBookCacheVersion = 5;
+constexpr uint8_t kEpubBookCacheVersion = BookMetadataCache::kFormatVersion;
 constexpr uint32_t kMaxSerializedStringLength = 64 * 1024;
 constexpr uint32_t kDiscardBufferSize = 64;
 

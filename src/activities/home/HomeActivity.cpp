@@ -963,7 +963,9 @@ void HomeActivity::onEnter() {
         lastBookAuthor = homeCardData.author;
       }
       if (!homeCardData.coverPath.empty()) {
-        coverBmpPath = homeCardData.coverPath;
+        // coverPath is a [HEIGHT] template; this card draws the file directly,
+        // so substitute the height we asked resolveHomeCardData to generate.
+        coverBmpPath = UITheme::getCoverThumbPath(homeCardData.coverPath, thumbHeight);
         hasCoverImage = true;
       }
 

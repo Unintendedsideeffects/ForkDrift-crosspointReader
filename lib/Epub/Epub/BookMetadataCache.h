@@ -9,6 +9,13 @@
 
 class BookMetadataCache {
  public:
+  // book.bin format version. Bump when the binary layout or the stored string
+  // content changes. Consumers outside this class (BookProgressDataStore's
+  // lightweight parser) validate against this same constant so the two can't
+  // drift apart again (Pokemon levels froze at Lv1 when this hit v6+ while the
+  // parser still expected v5).
+  static constexpr uint8_t kFormatVersion = 8;
+
   struct BookMetadata {
     std::string title;
     std::string author;
