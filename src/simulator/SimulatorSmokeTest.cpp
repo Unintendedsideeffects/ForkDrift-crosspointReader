@@ -440,7 +440,17 @@ class SimulatorSmokeTest {
     addTap(MappedInputManager::Button::Confirm);
     inputScript.push_back(render("Reader options overlay", 6));
 
-    // Navigate deterministically to forceParagraphIndents (10 downs)
+    // Navigate deterministically to forceParagraphIndents (10 downs; the
+    // per-book toggle row adds one more when compiled in)
+#if ENABLE_PER_BOOK_SETTINGS
+    // The overlay opens with the per-book toggle selected; switch it ON so the
+    // forceParagraphIndents toggle below records into book_settings.json
+    // (asserted from the smoke harness after the run).
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Per-book settings on", 2));
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("Reader options down", 1));
+#endif
     for (int i = 0; i < 10; i++) {
       addTap(MappedInputManager::Button::Down);
       inputScript.push_back(render("Reader options down", 1));

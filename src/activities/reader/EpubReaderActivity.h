@@ -20,6 +20,9 @@
 #endif
 #include "activities/Activity.h"
 #include "components/OptionPopup.h"
+#if ENABLE_PER_BOOK_SETTINGS
+#include "util/BookSettingsOverride.h"
+#endif
 
 class EpubReaderActivity final : public Activity {
   std::shared_ptr<Epub> epub;
@@ -61,6 +64,11 @@ class EpubReaderActivity final : public Activity {
 #endif  // ENABLE_BOOKMARKS
 
   std::vector<FootnoteEntry> currentPageFootnotes;
+
+#if ENABLE_PER_BOOK_SETTINGS
+  BookSettingsOverride bookOverride;
+  bool bookOverrideApplied = false;
+#endif
 
 #if ENABLE_TEXT_SELECTION
   // --- Text selection mode (highlight cursor) ---

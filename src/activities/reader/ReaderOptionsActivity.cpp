@@ -9,6 +9,9 @@
 #include <iterator>
 
 #include "CrossPointSettings.h"
+#if ENABLE_PER_BOOK_SETTINGS
+#include "util/BookSettingsOverride.h"
+#endif
 #include "MappedInputManager.h"
 #include "ReaderUtils.h"
 #include "SdCardFontSystem.h"
@@ -67,6 +70,27 @@ std::string enumOptionLabel(const SettingInfo& setting, const uint8_t index) {
 
 }  // namespace
 
+namespace {
+// Persist a setting change made in this overlay: while per-book mode is on,
+// per-book-capable keys record into the book override instead of the globals.
+void persistOverlayChange(const char* key) {
+#if ENABLE_PER_BOOK_SETTINGS
+  if (BookSettingsScope::isEnabled()) {
+    if (BookSettingsScope::recordChange(key)) {
+      return;  // recorded into the book's override file
+    }
+    // Non-per-book setting changed while overrides are applied in RAM: save
+    // globals without baking the per-book values into the settings file.
+    BookSettingsScope::saveGlobalsPreservingOverrides();
+    return;
+  }
+#endif
+  if (!SETTINGS.saveToFile()) {
+    LOG_ERR("RDR", "Failed to save settings");
+  }
+}
+}  // namespace
+
 void ReaderOptionsActivity::onEnter() {
   Activity::onEnter();
   sdFontSystem.refreshIfDirty();
@@ -85,6 +109,22 @@ void ReaderOptionsActivity::rebuildSettingsList() {
                [](const SettingInfo& setting) { return setting.category == StrId::STR_CAT_READER; });
 
   groupSettingsByTopic(settings, settings_topics::kReader);
+
+#if ENABLE_PER_BOOK_SETTINGS
+  if (BookSettingsScope::isActive()) {
+    // "For this book only": while ON, changes made in this overlay record into
+    // the book's override file; globals on disk stay untouched.
+    settings.insert(settings.begin(),
+                    SettingInfo::DynamicEnum(
+                        StrId::STR_PER_BOOK_SETTINGS, {StrId::STR_STATE_OFF, StrId::STR_STATE_ON},
+                        [] { return BookSettingsScope::isEnabled() ? 1 : 0; },
+                        [this](const uint8_t v) {
+                          BookSettingsScope::setEnabled(v != 0);
+                          readerSettingsChanged_ = true;  // relayout with restored globals
+                        },
+                        "perBookToggle"));
+  }
+#endif
 
   settingsCount = static_cast<int>(settings.size());
   selectedIndex = 0;
@@ -133,9 +173,7 @@ void ReaderOptionsActivity::toggleCurrentSetting() {
   if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {
     const bool cur = SETTINGS.*(setting.valuePtr);
     SETTINGS.*(setting.valuePtr) = !cur;
-    if (!SETTINGS.saveToFile()) {
-      LOG_ERR("RDR", "Failed to save settings");
-    }
+    persistOverlayChange(setting.key);
     readerSettingsChanged_ = true;
     refreshPreviewIfNeeded(setting);
   } else if (setting.type == SettingType::ENUM) {
@@ -168,9 +206,7 @@ void ReaderOptionsActivity::toggleCurrentSetting() {
                 if (setting.key != nullptr && std::strcmp(setting.key, "orientation") == 0) {
                   ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
                 }
-                if (!SETTINGS.saveToFile()) {
-                  LOG_ERR("RDR", "Failed to save settings");
-                }
+                persistOverlayChange(setting.key);
                 readerSettingsChanged_ = true;
                 refreshPreviewIfNeeded(setting);
               }
@@ -195,9 +231,7 @@ void ReaderOptionsActivity::toggleCurrentSetting() {
     if (setting.key != nullptr && std::strcmp(setting.key, "orientation") == 0) {
       ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
     }
-    if (!SETTINGS.saveToFile()) {
-      LOG_ERR("RDR", "Failed to save settings");
-    }
+    persistOverlayChange(setting.key);
     readerSettingsChanged_ = true;
     refreshPreviewIfNeeded(setting);
   } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
@@ -207,9 +241,7 @@ void ReaderOptionsActivity::toggleCurrentSetting() {
     } else {
       SETTINGS.*(setting.valuePtr) = cur + setting.valueRange.step;
     }
-    if (!SETTINGS.saveToFile()) {
-      LOG_ERR("RDR", "Failed to save settings");
-    }
+    persistOverlayChange(setting.key);
     readerSettingsChanged_ = true;
     refreshPreviewIfNeeded(setting);
   }
@@ -233,9 +265,7 @@ void ReaderOptionsActivity::loop() {
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-    if (!SETTINGS.saveToFile()) {
-      LOG_ERR("RDR", "Failed to save settings");
-    }
+    persistOverlayChange(nullptr);
     setResult(ControlsOptionsResult{readerSettingsChanged_});
     finish();
     return;

@@ -247,6 +247,11 @@
 #define ENABLE_ANNOTATIONS 1
 #endif
 
+// Per-book reader settings overrides. Inspired by Inx.
+#ifndef ENABLE_PER_BOOK_SETTINGS
+#define ENABLE_PER_BOOK_SETTINGS 1
+#endif
+
 #ifndef ENABLE_LUA_PLUGINS
 #define ENABLE_LUA_PLUGINS 0
 #endif
@@ -429,6 +434,11 @@
 #if !ENABLE_EPUB_SUPPORT
 #undef ENABLE_TEXT_SELECTION
 #define ENABLE_TEXT_SELECTION 0
+#endif
+
+#if !ENABLE_EPUB_SUPPORT
+#undef ENABLE_PER_BOOK_SETTINGS
+#define ENABLE_PER_BOOK_SETTINGS 0
 #endif
 
 // Annotations are created and rendered through the selection machinery.

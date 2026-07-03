@@ -253,6 +253,19 @@ void EpubReaderActivity::onEnter() {
 
 #if ENABLE_BOOKMARKS
   BOOKMARKS.loadForBook(epub->getPath(), epub->getTitle(), epub->getAuthor(), "epub");
+#if ENABLE_PER_BOOK_SETTINGS
+  {
+    BookSettingsOverride snapshot;
+    snapshot.captureFromGlobals();
+    BookSettingsOverride::load(epub->getCachePath(), bookOverride);
+    BookSettingsScope::setActive(&bookOverride, epub->getCachePath(), snapshot);
+    if (bookOverride.enabled && bookOverride.anySet()) {
+      bookOverride.applyToGlobals();
+      bookOverrideApplied = true;
+      LOG_INF("ERS", "Per-book settings applied");
+    }
+  }
+#endif
 #if ENABLE_ANNOTATIONS
   ANNOTATIONS.loadForBook(epub->getCachePath());
 #endif
@@ -320,6 +333,14 @@ void EpubReaderActivity::onExit() {
 
 #if ENABLE_BOOKMARKS
   BOOKMARKS.unload();
+#if ENABLE_PER_BOOK_SETTINGS
+  BookSettingsScope::clearActive();
+  if (bookOverrideApplied || bookOverride.enabled) {
+    // Drop per-book values from RAM; disk globals were never touched.
+    SETTINGS.loadFromFile();
+    bookOverrideApplied = false;
+  }
+#endif
 #if ENABLE_ANNOTATIONS
   ANNOTATIONS.unload();
 #endif

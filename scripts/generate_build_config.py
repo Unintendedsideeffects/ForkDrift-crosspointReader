@@ -186,6 +186,12 @@ FEATURES = {
         size_kb=0,
         description='In-reader dictionary lookup over an SD card dictionary.'
     ),
+    'per_book_settings': Feature(
+        name='Per-Book Settings',
+        flag='ENABLE_PER_BOOK_SETTINGS',
+        size_kb=3,
+        description='Override reader settings (font, size, spacing, margins, alignment...) for a single book via a toggle in the reader options; globals stay untouched. Inspired by Inx (github.com/obijuankenobiii/inx, MIT).'
+    ),
     'annotations': Feature(
         name='Annotations',
         flag='ENABLE_ANNOTATIONS',
