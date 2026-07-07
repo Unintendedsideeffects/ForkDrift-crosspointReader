@@ -7,6 +7,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
+#include <HeapGuard.h>
 #include <I18n.h>
 #include <Logging.h>
 #include <Memory.h>
@@ -17,6 +18,11 @@
 #include <limits>
 
 #include "AnkiAddActivity.h"
+#include "core/features/FeatureCatalog.h"
+#if ENABLE_TEXT_SELECTION
+#include "util/AnnotationStore.h"
+#include "util/NotesStore.h"
+#endif
 #if ENABLE_DICTIONARY
 #include "DictionaryActivity.h"
 #endif
@@ -290,10 +296,28 @@ void EpubReaderActivity::onEnter() {
   // Save current epub as last opened epub and add to recent books
   APP_STATE.openEpubPath = epub->getPath();
   APP_STATE.saveToFile();
-  RECENT_BOOKS.addBook(epub->getPath(), epub->getTitle(), epub->getAuthor(), epub->getThumbBmpPath(240));
+  // Store the [HEIGHT] template, not a concrete size: consumers derive their
+  // own sizes via UITheme::getCoverThumbPath (Pokemon square, carousel, grid).
+  RECENT_BOOKS.addBook(epub->getPath(), epub->getTitle(), epub->getAuthor(), epub->getThumbBmpPath());
 
 #if ENABLE_BOOKMARKS
   BOOKMARKS.loadForBook(epub->getPath(), epub->getTitle(), epub->getAuthor(), "epub");
+#if ENABLE_PER_BOOK_SETTINGS
+  {
+    BookSettingsOverride snapshot;
+    snapshot.captureFromGlobals();
+    BookSettingsOverride::load(epub->getCachePath(), bookOverride);
+    BookSettingsScope::setActive(&bookOverride, epub->getCachePath(), snapshot);
+    if (bookOverride.enabled && bookOverride.anySet()) {
+      bookOverride.applyToGlobals();
+      bookOverrideApplied = true;
+      LOG_INF("ERS", "Per-book settings applied");
+    }
+  }
+#endif
+#if ENABLE_ANNOTATIONS
+  ANNOTATIONS.loadForBook(epub->getCachePath());
+#endif
   // Resume at bookmark selected from the home screen, if any.
   if (APP_STATE.pendingBookmarkSpine != PENDING_BOOKMARK_SPINE_NONE && APP_STATE.pendingBookmarkProgress >= 0.0f) {
     currentSpineIndex = APP_STATE.pendingBookmarkSpine;
@@ -343,6 +367,13 @@ void EpubReaderActivity::onExit() {
   APP_STATE.readerActivityLoadCount = 0;
   APP_STATE.saveToFile();
 
+  // Leaving mid-footnote loses the in-RAM return stack on deep sleep; persist the
+  // pre-footnote position so the book reopens at the link origin, not the footnote.
+  if (footnoteDepth > 0 && epub) {
+    const SavedPosition& origin = savedPositions[0];
+    saveProgress(origin.spineIndex, origin.pageNumber, 0);
+  }
+
 #if ENABLE_READING_STATS
   if (epub) {
     ReadingStatsStore::getInstance().endSession();
@@ -355,6 +386,17 @@ void EpubReaderActivity::onExit() {
 
 #if ENABLE_BOOKMARKS
   BOOKMARKS.unload();
+#if ENABLE_PER_BOOK_SETTINGS
+  BookSettingsScope::clearActive();
+  if (bookOverrideApplied || bookOverride.enabled) {
+    // Drop per-book values from RAM; disk globals were never touched.
+    SETTINGS.loadFromFile();
+    bookOverrideApplied = false;
+  }
+#endif
+#if ENABLE_ANNOTATIONS
+  ANNOTATIONS.unload();
+#endif
 #endif
 
 #if ENABLE_READING_STATS
@@ -381,6 +423,13 @@ void EpubReaderActivity::loop() {
   if (mappedInput.wasAnyPressed() || mappedInput.wasAnyReleased()) {
     lastReaderInputMs_ = millis();
   }
+#endif
+
+  if (handleSelectionInput()) {
+    return;
+  }
+
+#if ENABLE_POKEMON_PARTY
   queuePartyThumbnailBakeIfIdle();
 #endif
 
@@ -743,12 +792,14 @@ void EpubReaderActivity::refreshReaderPreviewBuffer(uint8_t* dest, const size_t 
     section.reset();
   }
 
+  heapguard::logState("preview refresh start");
   previewRenderOnly = true;
   {
     RenderLock lock(*this);
     render(std::move(lock));
   }
   previewRenderOnly = false;
+  heapguard::logState("preview refresh end");
 
   memcpy(dest, renderer.getFrameBuffer(), renderer.getBufferSize());
 }
@@ -785,6 +836,11 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
     case S::LONG_MENU_FILE_TRANSFER:
       openFileTransfer();
       break;
+#if ENABLE_TEXT_SELECTION
+    case S::LONG_MENU_TEXT_SELECT:
+      enterSelectionMode();
+      break;
+#endif
 #if ENABLE_READING_STATS
     case S::LONG_MENU_READING_STATS: {
       BookReadingStats displayStats = stats;
@@ -833,6 +889,12 @@ bool EpubReaderActivity::executeShortPowerButtonAction() {
   }
   using S = CrossPointSettings;
   switch (SETTINGS.shortPwrBtn) {
+    case S::FOOTNOTES:
+      // Quick access to the current page's footnotes (upstream #1658)
+      if (!currentPageFootnotes.empty()) {
+        onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::FOOTNOTES);
+      }
+      return true;
     case S::TOGGLE_FONT:
       executeReaderQuickAction(S::LONG_MENU_CHANGE_FONT);
       return true;
@@ -972,22 +1034,32 @@ void EpubReaderActivity::openFileTransfer() {
 
 void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction action) {
   switch (action) {
+#if ENABLE_TEXT_SELECTION
+    case EpubReaderMenuActivity::MenuAction::SELECT_TEXT:
+      enterSelectionMode();
+      break;
+#endif
     case EpubReaderMenuActivity::MenuAction::SELECT_CHAPTER: {
       const int spineIdx = currentSpineIndex;
       const int currentPage = section ? section->currentPage : 0;
       const int totalPages = section ? section->pageCount : 0;
       const std::string path = epub->getPath();
-      startActivityForResult(
-          std::make_unique<EpubReaderChapterSelectionActivity>(renderer, mappedInput, epub, path, spineIdx, currentPage,
-                                                               totalPages),
-          [this](const ActivityResult& result) {
-            if (!result.isCancelled && currentSpineIndex != std::get<ChapterResult>(result.data).spineIndex) {
-              RenderLock lock(*this);
-              currentSpineIndex = std::get<ChapterResult>(result.data).spineIndex;
-              nextPageNumber = 0;
-              section.reset();
-            }
-          });
+      startActivityForResult(std::make_unique<EpubReaderChapterSelectionActivity>(renderer, mappedInput, epub, path,
+                                                                                  spineIdx, currentPage, totalPages),
+                             [this](const ActivityResult& result) {
+                               if (result.isCancelled) {
+                                 return;
+                               }
+                               const auto& chapter = std::get<ChapterResult>(result.data);
+                               const bool spineChanged = currentSpineIndex != chapter.spineIndex;
+                               if (spineChanged || !chapter.anchor.empty()) {
+                                 RenderLock lock(*this);
+                                 currentSpineIndex = chapter.spineIndex;
+                                 nextPageNumber = 0;
+                                 pendingAnchor = chapter.anchor;  // resolved to a page once the section loads
+                                 section.reset();
+                               }
+                             });
       break;
     }
     case EpubReaderMenuActivity::MenuAction::FOOTNOTES: {
@@ -1376,6 +1448,29 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     return;
   }
 
+#if ENABLE_TEXT_SELECTION
+  if (selectionMode) {
+    // Lightweight selection repaint: re-render the page text (no grayscale, no
+    // stats/progress side effects), invert the selected span, fast refresh.
+    if (selectionPopup.processRender(renderer, mappedInput)) {
+      return;
+    }
+    if (section) {
+      if (auto page = section->loadPageFromSectionFile()) {
+        int mTop, mRight, mBottom, mLeft;
+        renderer.getOrientedViewableTRBL(&mTop, &mRight, &mBottom, &mLeft);
+        mTop += SETTINGS.screenMargin + features::status_overlay::topInset();
+        mLeft += SETTINGS.screenMargin;
+        renderer.clearScreen();
+        page->renderText(renderer, SETTINGS.getReaderFontId(), mLeft, mTop);
+        drawSelectionOverlay();
+        renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+      }
+    }
+    return;
+  }
+#endif  // ENABLE_TEXT_SELECTION
+
   // Guard: check spine bounds
   const int spineItemsCount = epub->getSpineItemsCount();
   const auto showPendingSyncSaveError = [this]() {
@@ -1448,9 +1543,18 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                                   SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled)) {
       LOG_DBG("ERS", "Cache not found, building...");
 
-      if (!previewRenderOnly) {
-        GUI.drawPopup(renderer, tr(STR_INDEXING));
+      if (previewRenderOnly) {
+        // A full section re-index cannot run here: the options overlay path executes on the
+        // main loop task with ~48KB less free heap (menu page buffer + overlay state), and a
+        // failed allocation inside the parse/layout chain aborts (-fno-exceptions). Draw a
+        // placeholder instead; the real rebuild happens when returning to the reader.
+        section.reset();
+        renderer.clearScreen();
+        renderer.drawCenteredText(UI_12_FONT_ID, renderer.getScreenHeight() / 4, tr(STR_PREVIEW_UNAVAILABLE), true,
+                                  EpdFontFamily::BOLD);
+        return;
       }
+      GUI.drawPopup(renderer, tr(STR_INDEXING));
 
       if (!section->createSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                       SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
@@ -1716,6 +1820,11 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   const bool needsAnyGrayscale = needsTextGrayscale || needsImageGrayscale;
 
   page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+#if ENABLE_ANNOTATIONS
+  if (!previewRenderOnly && section) {
+    renderAnnotations(*page, orientedMarginLeft, orientedMarginTop);
+  }
+#endif
   renderStatusBar();
 #if ENABLE_BOOKMARKS
   if (pendingBookmarkFeedback) {
@@ -1748,57 +1857,144 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
       } else {
         renderer.displayBuffer(HalDisplay::HALF_REFRESH);
       }
+      // The grayscale pass below leaves gray charge in the image region that a
+      // plain fast diff on the *next* page can't clear, so text there ghosts
+      // gray (upstream #2190). Force the next ordinary page onto the HALF
+      // ghost-cleanup path, which drives every pixel to its target regardless
+      // of residue.
+      pagesUntilFullRefresh = 1;
     }
   } else if (!previewRenderOnly) {
     ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
   }
   const auto tDisplay = millis();
 
-  if (needsAnyGrayscale && !previewRenderOnly) {
-    const bool bwBufferStored = renderer.storeBwBuffer();
-    const auto tBwStore = millis();
-    if (!bwBufferStored) {
+  // Tiled grayscale: render each plane band-by-band into a small scratch and
+  // stream straight to the controller, leaving the BW framebuffer intact so no
+  // full-frame storeBwBuffer is needed; controller RAM is re-synced from the
+  // live framebuffer afterward. The page is re-rendered ceil(H/STRIP_ROWS) times
+  // per plane, but renderCharImpl culls out-of-band glyphs before decode so the
+  // cost stays close to one render. Both text (drawPixel) and images
+  // (DirectPixelWriter) honor the active strip target.
+  if (needsAnyGrayscale && !previewRenderOnly && renderer.supportsStripGrayscale()) {
+    constexpr int STRIP_ROWS = 80;
+    const int gh = renderer.getDisplayHeight();
+    const int gwBytes = renderer.getDisplayWidthBytes();
+
+    const size_t scratchSize = static_cast<size_t>(gwBytes) * STRIP_ROWS;
+    std::unique_ptr<uint8_t[]> scratch;
+    if (heapguard::canAllocate(scratchSize, heapguard::kLowFloorBytes)) {
+      scratch = makeUniqueNoThrow<uint8_t[]>(scratchSize);
+    }
+    if (!scratch) {
+      LOG_ERR("ERS", "OOM: grayscale strip scratch (%d bytes); skipping AA this page", gwBytes * STRIP_ROWS);
+    } else {
+      // Bands may be streamed in any order: X4 windows each via setRamArea, X3
+      // via PTL.
+      renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+      for (int y = 0; y < gh; y += STRIP_ROWS) {
+        const int rows = (gh - y < STRIP_ROWS) ? (gh - y) : STRIP_ROWS;
+        renderer.beginStripTarget(scratch.get(), y, rows);
+        renderer.clearScreen(0x00);
+        if (needsTextGrayscale) {
+          page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
+        } else {
+          page->renderImages(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
+        }
+        renderer.endStripTarget();
+        renderer.writeGrayscalePlaneStrip(true, scratch.get(), y, rows);
+      }
+      const auto tGrayLsb = millis();
+
+      // MSB plane.
+      renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+      for (int y = 0; y < gh; y += STRIP_ROWS) {
+        const int rows = (gh - y < STRIP_ROWS) ? (gh - y) : STRIP_ROWS;
+        renderer.beginStripTarget(scratch.get(), y, rows);
+        renderer.clearScreen(0x00);
+        if (needsTextGrayscale) {
+          page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
+        } else {
+          page->renderImages(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
+        }
+        renderer.endStripTarget();
+        renderer.writeGrayscalePlaneStrip(false, scratch.get(), y, rows);
+      }
+      const auto tGrayMsb = millis();
+
+      renderer.setRenderMode(GfxRenderer::BW);
+      renderer.displayGrayBuffer();
+      const auto tGrayDisplay = millis();
+
+      // BW framebuffer is intact; re-sync controller RAM for the next
+      // differential page turn directly from it.
+      renderer.cleanupGrayscaleWithFrameBuffer();
+      const auto tCleanup = millis();
+
       const auto tEnd = millis();
-      LOG_WRN("ERS", "Skipping grayscale render: BW buffer allocation failed");
-      LOG_DBG("ERS", "Page render: prewarm=%lums bw_render=%lums display=%lums bw_store=%lums total=%lums",
-              tPrewarm - t0, tBwRender - tPrewarm, tDisplay - tBwRender, tBwStore - tDisplay, tEnd - t0);
-      return;
+      LOG_DBG("ERS",
+              "Page render (tiled): prewarm=%lums bw_render=%lums display=%lums gray_lsb=%lums "
+              "gray_msb=%lums gray_display=%lums cleanup=%lums total=%lums",
+              tPrewarm - t0, tBwRender - tPrewarm, tDisplay - tBwRender, tGrayLsb - tDisplay, tGrayMsb - tGrayLsb,
+              tGrayDisplay - tGrayMsb, tCleanup - tGrayDisplay, tEnd - t0);
     }
+  } else if (needsAnyGrayscale && !previewRenderOnly) {
+    // Fallback path for a controller without strip support. grayscale rendering
+    // TODO: Only do this if font supports it
+    if (SETTINGS.textAntiAliasing) {
+      // Save the BW frame before the grayscale passes overwrite it, restore
+      // after. Only needed when grayscale actually renders.
+      const bool bwBufferStored = renderer.storeBwBuffer();
+      const auto tBwStore = millis();
+      if (!bwBufferStored) {
+        const auto tEnd = millis();
+        LOG_WRN("ERS", "Skipping grayscale render: BW buffer allocation failed");
+        LOG_DBG("ERS", "Page render: prewarm=%lums bw_render=%lums display=%lums bw_store=%lums total=%lums",
+                tPrewarm - t0, tBwRender - tPrewarm, tDisplay - tBwRender, tBwStore - tDisplay, tEnd - t0);
+        return;
+      }
 
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    if (needsTextGrayscale) {
-      page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+      renderer.clearScreen(0x00);
+      renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+      if (needsTextGrayscale) {
+        page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+      } else {
+        page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+      }
+      renderer.copyGrayscaleLsbBuffers();
+      const auto tGrayLsb = millis();
+
+      renderer.clearScreen(0x00);
+      renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+      if (needsTextGrayscale) {
+        page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+      } else {
+        page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+      }
+      renderer.copyGrayscaleMsbBuffers();
+      const auto tGrayMsb = millis();
+
+      // display grayscale part
+      renderer.displayGrayBuffer();
+      const auto tGrayDisplay = millis();
+      renderer.setRenderMode(GfxRenderer::BW);
+      // restore the bw data
+      renderer.restoreBwBuffer();
+      const auto tBwRestore = millis();
+
+      const auto tEnd = millis();
+      LOG_DBG("ERS",
+              "Page render: prewarm=%lums bw_render=%lums display=%lums bw_store=%lums "
+              "gray_lsb=%lums gray_msb=%lums gray_display=%lums bw_restore=%lums total=%lums",
+              tPrewarm - t0, tBwRender - tPrewarm, tDisplay - tBwRender, tBwStore - tDisplay, tGrayLsb - tBwStore,
+              tGrayMsb - tGrayLsb, tGrayDisplay - tGrayMsb, tBwRestore - tGrayDisplay, tEnd - t0);
     } else {
-      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+      // No anti-aliasing: BW frame already displayed above, no grayscale to
+      // render, so no save/restore.
+      const auto tEnd = millis();
+      LOG_DBG("ERS", "Page render: prewarm=%lums bw_render=%lums display=%lums total=%lums", tPrewarm - t0,
+              tBwRender - tPrewarm, tDisplay - tBwRender, tEnd - t0);
     }
-    renderer.copyGrayscaleLsbBuffers();
-    const auto tGrayLsb = millis();
-
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    if (needsTextGrayscale) {
-      page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
-    } else {
-      page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop);
-    }
-    renderer.copyGrayscaleMsbBuffers();
-    const auto tGrayMsb = millis();
-
-    // display grayscale part
-    renderer.displayGrayBuffer();
-    const auto tGrayDisplay = millis();
-    renderer.setRenderMode(GfxRenderer::BW);
-    // restore the bw data
-    renderer.restoreBwBuffer();
-    const auto tBwRestore = millis();
-
-    const auto tEnd = millis();
-    LOG_DBG("ERS",
-            "Page render: prewarm=%lums bw_render=%lums display=%lums bw_store=%lums "
-            "gray_lsb=%lums gray_msb=%lums gray_display=%lums bw_restore=%lums total=%lums",
-            tPrewarm - t0, tBwRender - tPrewarm, tDisplay - tBwRender, tBwStore - tDisplay, tGrayLsb - tBwStore,
-            tGrayMsb - tGrayLsb, tGrayDisplay - tGrayMsb, tBwRestore - tGrayDisplay, tEnd - t0);
   } else {
     const auto tEnd = millis();
     LOG_DBG("ERS", "Page render: prewarm=%lums bw_render=%lums display=%lums total=%lums", tPrewarm - t0,
@@ -1904,6 +2100,333 @@ void EpubReaderActivity::restoreSavedPosition() {
   }
   requestUpdate();
 }
+
+#if ENABLE_TEXT_SELECTION
+// ---------- Text selection mode ----------
+
+void EpubReaderActivity::collectSelectableWords(const Page& page, const int marginLeft, const int marginTop,
+                                                std::vector<SelWord>& out) const {
+  const int fontId = SETTINGS.getReaderFontId();
+  const int lineHeight = renderer.getLineHeight(fontId);
+
+  out.clear();
+  for (const auto& el : page.elements) {
+    if (el->getTag() != TAG_PageLine) {
+      continue;
+    }
+    const auto* line = static_cast<const PageLine*>(el.get());
+    const TextBlock* block = line->getBlock().get();
+    if (block == nullptr) {
+      continue;
+    }
+    const auto& words = block->getWords();
+    const auto& xpos = block->getWordXpos();
+    const auto& styles = block->getWordStyles();
+    for (size_t i = 0; i < words.size() && i < xpos.size(); ++i) {
+      if (words[i].empty() || words[i] == " ") {
+        continue;  // skip stretchable-space tokens; they are not selectable
+      }
+      SelWord sw;
+      sw.x = static_cast<int16_t>(line->xPos + xpos[i] + marginLeft);
+      sw.y = static_cast<int16_t>(line->yPos + marginTop);
+      const auto style = i < styles.size() ? styles[i] : EpdFontFamily::REGULAR;
+      sw.w = static_cast<int16_t>(renderer.getTextWidth(fontId, words[i].c_str(), style));
+      sw.h = static_cast<int16_t>(lineHeight);
+      sw.text = words[i];
+      out.push_back(std::move(sw));
+    }
+  }
+}
+
+void EpubReaderActivity::enterSelectionMode() {
+  if (!section || selectionMode) {
+    return;
+  }
+  auto page = section->loadPageFromSectionFile();
+  if (!page) {
+    LOG_ERR("ERS", "Selection: failed to load page");
+    return;
+  }
+
+  int marginTop, marginRight, marginBottom, marginLeft;
+  renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
+  marginTop += SETTINGS.screenMargin + features::status_overlay::topInset();
+  marginLeft += SETTINGS.screenMargin;
+
+  collectSelectableWords(*page, marginLeft, marginTop, selWords);
+
+  if (selWords.empty()) {
+    LOG_INF("ERS", "Selection: no selectable words on page");
+    return;
+  }
+  selectionMode = true;
+  selectionAnchored = false;
+  selCursor = 0;
+  selAnchor = 0;
+  requestUpdate();
+}
+
+void EpubReaderActivity::exitSelectionMode() {
+  selectionMode = false;
+  selectionAnchored = false;
+  selWords.clear();
+  selWords.shrink_to_fit();
+  requestUpdate();
+}
+
+std::string EpubReaderActivity::selectedText() const {
+  const int lo = std::min(selAnchor, selCursor);
+  const int hi = std::max(selAnchor, selCursor);
+  std::string out;
+  for (int i = lo; i <= hi && i < static_cast<int>(selWords.size()); ++i) {
+    if (!out.empty()) {
+      out += ' ';
+    }
+    out += selWords[static_cast<size_t>(i)].text;
+  }
+  return out;
+}
+
+std::string EpubReaderActivity::selectionLocation() const {
+  char buf[96];
+  const int page = section ? section->currentPage + 1 : 0;
+  const int pages = section ? section->pageCount : 0;
+  const int pct = roundPercent(getCurrentBookProgressPercent());
+  const int tocIdx = epub ? epub->getSpineItem(currentSpineIndex).tocIndex : -1;
+  std::string chapter = tocIdx >= 0 && epub ? epub->getTocItem(tocIdx).title : std::string();
+  if (chapter.size() > 40) {
+    chapter.resize(40);
+  }
+  if (!chapter.empty()) {
+    snprintf(buf, sizeof(buf), "%s, p%d/%d (%d%%)", chapter.c_str(), page, pages, pct);
+  } else {
+    snprintf(buf, sizeof(buf), "p%d/%d (%d%%)", page, pages, pct);
+  }
+  return std::string(buf);
+}
+
+void EpubReaderActivity::openSelectionActions() {
+  const int lo = std::min(selAnchor, selCursor);
+  const int hi = std::max(selAnchor, selCursor);
+  const bool singleWord = lo == hi;
+
+  std::vector<std::string> items;
+  items.reserve(4);
+  std::vector<int> actions;  // 0=dict, 1=anki, 2=notes
+  actions.reserve(4);
+#if ENABLE_DICTIONARY
+  if (singleWord) {
+    items.push_back(I18N.get(StrId::STR_DICTIONARY));
+    actions.push_back(0);
+  }
+#endif
+  if (core::FeatureCatalog::isEnabled("anki_support")) {
+    items.push_back(I18N.get(StrId::STR_ADD_TO_ANKI));
+    actions.push_back(1);
+  }
+  items.push_back(I18N.get(StrId::STR_SAVE_TO_NOTES));
+  actions.push_back(2);
+#if ENABLE_ANNOTATIONS
+  items.push_back(I18N.get(StrId::STR_HIGHLIGHT));
+  actions.push_back(3);
+  if (section &&
+      ANNOTATIONS.removeCandidateAt(static_cast<uint16_t>(currentSpineIndex),
+                                    static_cast<uint16_t>(section->currentPage), static_cast<uint16_t>(selCursor))) {
+    items.push_back(I18N.get(StrId::STR_REMOVE_HIGHLIGHT));
+    actions.push_back(4);
+  }
+#endif
+
+  selectionPopup.show(StrId::STR_SELECT_TEXT, items, 0, [this, actions](int idx) {
+    if (idx < 0 || idx >= static_cast<int>(actions.size())) {
+      requestUpdate();
+      return;
+    }
+    const std::string text = selectedText();
+    switch (actions[static_cast<size_t>(idx)]) {
+#if ENABLE_DICTIONARY
+      case 0: {
+        exitSelectionMode();
+        startActivityForResult(std::make_unique<DictionaryActivity>(renderer, mappedInput, text, text),
+                               [this](const ActivityResult&) { requestUpdate(); });
+        return;
+      }
+#endif
+      case 1: {
+        exitSelectionMode();
+        startActivityForResult(std::make_unique<AnkiAddActivity>(renderer, mappedInput, text, epub->getTitle()),
+                               [this](const ActivityResult&) { requestUpdate(); });
+        return;
+      }
+#if ENABLE_ANNOTATIONS
+      case 3: {
+        Annotation a;
+        a.spineIndex = static_cast<uint16_t>(currentSpineIndex);
+        a.page = section ? static_cast<uint16_t>(section->currentPage) : 0;
+        a.startWord = static_cast<uint16_t>(std::min(selAnchor, selCursor));
+        a.endWord = static_cast<uint16_t>(std::max(selAnchor, selCursor));
+        a.text = text;
+        const bool ok = ANNOTATIONS.add(a);
+        exitSelectionMode();
+        if (!ok) {
+          LOG_ERR("ERS", "Failed to save annotation");
+        }
+        requestUpdate();
+        return;
+      }
+      case 4: {
+        if (section) {
+          ANNOTATIONS.removeAt(static_cast<uint16_t>(currentSpineIndex), static_cast<uint16_t>(section->currentPage),
+                               static_cast<uint16_t>(selCursor));
+        }
+        exitSelectionMode();
+        requestUpdate();
+        return;
+      }
+#endif
+      case 2: {
+        const bool ok = NotesStore::appendHighlight(epub ? epub->getTitle() : "", selectionLocation(), text);
+        exitSelectionMode();
+        {
+          RenderLock lock(*this);
+          GUI.drawPopup(renderer, ok ? tr(STR_NOTE_SAVED) : tr(STR_FAILED_LOWER));
+          renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+        }
+        delay(700);
+        requestUpdate();
+        return;
+      }
+      default:
+        requestUpdate();
+        return;
+    }
+  });
+  requestUpdate();
+}
+
+bool EpubReaderActivity::handleSelectionInput() {
+  if (!selectionMode) {
+    return false;
+  }
+  if (selectionPopup.handleInput(mappedInput, [this] { requestUpdate(); })) {
+    return true;
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    if (selectionAnchored) {
+      selectionAnchored = false;  // step back to cursor-only
+      selCursor = selAnchor;
+      requestUpdate();
+    } else {
+      exitSelectionMode();
+    }
+    return true;
+  }
+
+  const int count = static_cast<int>(selWords.size());
+  auto move = [&](int delta) {
+    selCursor = std::clamp(selCursor + delta, 0, count - 1);
+    if (!selectionAnchored) {
+      selAnchor = selCursor;
+    }
+    requestUpdate();
+  };
+
+  if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
+      mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+    move(-1);
+    return true;
+  }
+  if (mappedInput.wasPressed(MappedInputManager::Button::Down) ||
+      mappedInput.wasPressed(MappedInputManager::Button::Right)) {
+    move(1);
+    return true;
+  }
+  if (mappedInput.wasPressed(MappedInputManager::Button::PageBack)) {
+    move(-8);
+    return true;
+  }
+  if (mappedInput.wasPressed(MappedInputManager::Button::PageForward)) {
+    move(8);
+    return true;
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    if (!selectionAnchored) {
+      selectionAnchored = true;  // anchor; further moves extend
+      requestUpdate();
+    } else {
+      openSelectionActions();
+    }
+    return true;
+  }
+  return true;  // selection mode swallows all input
+}
+
+void EpubReaderActivity::drawSelectionOverlay() const {
+  const int lo = std::min(selAnchor, selCursor);
+  const int hi = std::max(selAnchor, selCursor);
+  for (int i = lo; i <= hi && i < static_cast<int>(selWords.size()); ++i) {
+    const SelWord& w = selWords[static_cast<size_t>(i)];
+    renderer.invertRect(w.x - 1, w.y, w.w + 2, w.h);
+  }
+}
+
+#if ENABLE_ANNOTATIONS
+void EpubReaderActivity::renderAnnotations(const Page& page, const int marginLeft, const int marginTop) const {
+  // Space-join a word range for text comparison against stored annotations.
+  const auto joinWords = [](const std::vector<SelWord>& ws, const int lo, const int hi) {
+    std::string out;
+    for (int i = lo; i <= hi && i < static_cast<int>(ws.size()); ++i) {
+      if (!out.empty()) {
+        out += ' ';
+      }
+      out += ws[static_cast<size_t>(i)].text;
+    }
+    return out;
+  };
+
+  const auto pageAnnotations =
+      ANNOTATIONS.forPage(static_cast<uint16_t>(currentSpineIndex), static_cast<uint16_t>(section->currentPage));
+  if (pageAnnotations.empty()) {
+    return;
+  }
+
+  std::vector<SelWord> words;
+  collectSelectableWords(page, marginLeft, marginTop, words);
+  if (words.empty()) {
+    return;
+  }
+  const int count = static_cast<int>(words.size());
+
+  for (const Annotation* a : pageAnnotations) {
+    int lo = a->startWord;
+    int hi = a->endWord;
+    // Hint indices are only trusted when the joined text still matches — a
+    // relayout (font/margin change) shifts word indices.
+    bool anchored = lo <= hi && hi < count && joinWords(words, lo, hi) == a->text;
+    if (!anchored) {
+      // Re-anchor by sliding text match over the page's word sequence.
+      const int span = hi - lo;
+      for (int start = 0; !anchored && span >= 0 && start + span < count; ++start) {
+        if (joinWords(words, start, start + span) == a->text) {
+          lo = start;
+          hi = start + span;
+          anchored = true;
+        }
+      }
+    }
+    if (!anchored) {
+      continue;  // text no longer on this page after relayout; keep stored, skip drawing
+    }
+    for (int i = lo; i <= hi; ++i) {
+      const SelWord& w = words[static_cast<size_t>(i)];
+      renderer.invertRect(w.x - 1, w.y, w.w + 2, w.h);
+    }
+  }
+}
+#endif  // ENABLE_ANNOTATIONS
+#endif  // ENABLE_TEXT_SELECTION
 
 void EpubReaderActivity::showLoadingPopupTrampoline(void* ctx) {
   const auto* const self = static_cast<EpubReaderActivity*>(ctx);

@@ -213,14 +213,15 @@ CssFontWeight CssParser::interpretFontWeight(const std::string& val) {
 CssTextDecoration CssParser::interpretDecoration(const std::string& val) {
   const std::string v = normalized(val);
 
-  // text-decoration can have multiple space-separated values
+  // text-decoration can have multiple space-separated values; combine them
+  CssTextDecoration deco = CssTextDecoration::None;
   if (v.find("line-through") != std::string::npos) {
-    return CssTextDecoration::LineThrough;
+    deco = deco | CssTextDecoration::LineThrough;
   }
   if (v.find("underline") != std::string::npos) {
-    return CssTextDecoration::Underline;
+    deco = deco | CssTextDecoration::Underline;
   }
-  return CssTextDecoration::None;
+  return deco;
 }
 
 CssLength CssParser::interpretLength(const std::string& val) {
@@ -356,6 +357,24 @@ void CssParser::parseDeclarationIntoStyle(const std::string& decl, CssStyle& sty
     const std::string_view displayValue = stripTrailingImportant(propValueBuf);
     style.display = (displayValue == "none") ? CssDisplay::None : CssDisplay::Block;
     style.defined.display = 1;
+  } else if (propNameBuf == "direction") {
+    const std::string_view directionValue = stripTrailingImportant(propValueBuf);
+    if (directionValue == "rtl") {
+      style.direction = CssTextDirection::Rtl;
+      style.defined.direction = 1;
+    } else if (directionValue == "ltr") {
+      style.direction = CssTextDirection::Ltr;
+      style.defined.direction = 1;
+    }
+  } else if (propNameBuf == "vertical-align") {
+    const std::string v = normalized(propValueBuf);
+    if (v == "super") {
+      style.verticalAlign = CssVerticalAlign::Super;
+      style.defined.verticalAlign = 1;
+    } else if (v == "sub") {
+      style.verticalAlign = CssVerticalAlign::Sub;
+      style.defined.verticalAlign = 1;
+    }
   }
 }
 
@@ -775,6 +794,14 @@ bool CssParser::saveToCache(HalFile& file) const {
     file.write(static_cast<uint8_t>(style.fontStyle));
     file.write(static_cast<uint8_t>(style.fontWeight));
     file.write(static_cast<uint8_t>(style.textDecoration));
+    file.write(static_cast<uint8_t>(style.direction));
+
+    // Write CssLength fields (value + unit)
+    auto writeLength = [&file](const CssLength& len) {
+      file.write(reinterpret_cast<const uint8_t*>(&len.value), sizeof(len.value));
+      file.write(static_cast<uint8_t>(len.unit));
+    };
+
     writeLength(style.textIndent);
     writeLength(style.marginTop);
     writeLength(style.marginBottom);
@@ -787,7 +814,10 @@ bool CssParser::saveToCache(HalFile& file) const {
     writeLength(style.imageHeight);
     writeLength(style.imageWidth);
     file.write(static_cast<uint8_t>(style.display));
-    uint16_t definedBits = 0;
+    file.write(static_cast<uint8_t>(style.verticalAlign));
+
+    // Write defined flags as uint32_t
+    uint32_t definedBits = 0;
     if (style.defined.textAlign) definedBits |= 1 << 0;
     if (style.defined.fontStyle) definedBits |= 1 << 1;
     if (style.defined.fontWeight) definedBits |= 1 << 2;
@@ -804,6 +834,8 @@ bool CssParser::saveToCache(HalFile& file) const {
     if (style.defined.imageHeight) definedBits |= 1 << 13;
     if (style.defined.imageWidth) definedBits |= 1 << 14;
     if (style.defined.display) definedBits |= 1 << 15;
+    if (style.defined.direction) definedBits |= 1 << 16;
+    if (style.defined.verticalAlign) definedBits |= 1 << 17;
     file.write(reinterpret_cast<const uint8_t*>(&definedBits), sizeof(definedBits));
   };
 
@@ -902,6 +934,25 @@ bool CssParser::loadFromCache(HalFile& file) {
     if (file.read(&enumVal, 1) != 1) return false;
     style.textDecoration = static_cast<CssTextDecoration>(enumVal);
 
+    if (file.read(&enumVal, 1) != 1) {
+      rulesBySelector_.clear();
+      return false;
+    }
+    style.direction = static_cast<CssTextDirection>(enumVal);
+
+    // Read CssLength fields
+    auto readLength = [&file](CssLength& len) -> bool {
+      if (file.read(&len.value, sizeof(len.value)) != sizeof(len.value)) {
+        return false;
+      }
+      uint8_t unitVal;
+      if (file.read(&unitVal, 1) != 1) {
+        return false;
+      }
+      len.unit = static_cast<CssUnit>(unitVal);
+      return true;
+    };
+
     if (!readLength(style.textIndent) || !readLength(style.marginTop) || !readLength(style.marginBottom) ||
         !readLength(style.marginLeft) || !readLength(style.marginRight) || !readLength(style.paddingTop) ||
         !readLength(style.paddingBottom) || !readLength(style.paddingLeft) || !readLength(style.paddingRight) ||
@@ -913,7 +964,11 @@ bool CssParser::loadFromCache(HalFile& file) {
     if (file.read(&displayVal, 1) != 1) return false;
     style.display = static_cast<CssDisplay>(displayVal);
 
-    uint16_t definedBits = 0;
+    uint8_t verticalAlignVal;
+    if (file.read(&verticalAlignVal, 1) != 1) return false;
+    style.verticalAlign = static_cast<CssVerticalAlign>(verticalAlignVal);
+
+    uint32_t definedBits = 0;
     if (file.read(&definedBits, sizeof(definedBits)) != sizeof(definedBits)) return false;
     style.defined.textAlign = (definedBits & 1 << 0) != 0;
     style.defined.fontStyle = (definedBits & 1 << 1) != 0;
@@ -931,6 +986,8 @@ bool CssParser::loadFromCache(HalFile& file) {
     style.defined.imageHeight = (definedBits & 1 << 13) != 0;
     style.defined.imageWidth = (definedBits & 1 << 14) != 0;
     style.defined.display = (definedBits & 1 << 15) != 0;
+    style.defined.direction = (definedBits & 1 << 16) != 0;
+    style.defined.verticalAlign = (definedBits & 1 << 17) != 0;
     return true;
   };
 

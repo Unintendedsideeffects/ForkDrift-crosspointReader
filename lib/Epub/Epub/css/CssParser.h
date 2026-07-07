@@ -44,7 +44,8 @@ struct CssAncestorEntry {
 class CssParser {
  public:
   // Bump when CSS cache format or rules change; section caches are invalidated when this changes
-  static constexpr uint8_t CSS_CACHE_VERSION = 5;
+  // v7: textDecoration became combinable bit flags (v6); direction (RTL) added.
+  static constexpr uint8_t CSS_CACHE_VERSION = 7;
 
   static constexpr size_t MAX_DESCENDANT_RULES = 100;
 
@@ -136,8 +137,7 @@ class CssParser {
   // Internal parsing helpers
   void processRuleBlock(const std::string& selectorGroup, const std::string& declarations);
   void processRuleBlockWithStyle(const std::string& selectorGroup, const CssStyle& style);
-  static bool selectorMatchesElement(const std::string& selector, const std::string& tag,
-                                     const std::string& classAttr);
+  static bool selectorMatchesElement(const std::string& selector, const std::string& tag, const std::string& classAttr);
   static CssStyle parseDeclarations(const std::string& declBlock);
   static void parseDeclarationIntoStyle(const std::string& decl, CssStyle& style, std::string& propNameBuf,
                                         std::string& propValueBuf);

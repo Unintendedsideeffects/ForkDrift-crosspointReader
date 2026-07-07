@@ -7,7 +7,6 @@
 #include <WiFi.h>
 
 #include <algorithm>
-#include <map>
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
@@ -132,13 +131,14 @@ void WifiSelectionActivity::processWifiScanResults() {
     return;
   }
 
-  // Scan complete, process results
-  // Use a map to deduplicate networks by SSID, keeping the strongest signal
-  std::map<std::string, WifiNetworkInfo> uniqueNetworks;
+  // Scan complete, process results — deduplicate in-place, keeping strongest signal
+  networks.clear();
+  networks.reserve(scanResult);
 
   LOG_DBG("WIFISEL", "Scan complete: %d results", scanResult);
   for (int i = 0; i < scanResult; i++) {
-    std::string ssid = WiFi.SSID(i).c_str();
+    char ssid[33];
+    strlcpy(ssid, WiFi.SSID(i).c_str(), sizeof(ssid));
     const int32_t rssi = WiFi.RSSI(i);
     // Dump every beacon pre-filtering (ssid may be empty=hidden) — invaluable
     // for "network not found" reports, and free at LOG_LEVEL<2. The desktop
@@ -149,34 +149,30 @@ void WifiSelectionActivity::processWifiScanResults() {
 #else
     const int chan = static_cast<int>(WiFi.channel(i));
 #endif
-    LOG_DBG("WIFISEL", "  [%d] ssid='%s' ch=%d rssi=%d auth=%d", i, ssid.c_str(), chan, static_cast<int>(rssi),
+    LOG_DBG("WIFISEL", "  [%d] ssid='%s' ch=%d rssi=%d auth=%d", i, ssid, chan, static_cast<int>(rssi),
             static_cast<int>(WiFi.encryptionType(i)));
 
     // Hidden networks have no usable list label and require manual SSID entry.
-    if (ssid.empty()) {
+    if (ssid[0] == '\0') {
       continue;
     }
 
-    // Check if we've already seen this SSID
-    auto it = uniqueNetworks.find(ssid);
-    if (it == uniqueNetworks.end() || rssi > it->second.rssi) {
-      // New network or stronger signal than existing entry
+    auto it =
+        std::find_if(networks.begin(), networks.end(), [&ssid](const WifiNetworkInfo& n) { return n.ssid == ssid; });
+    if (it == networks.end()) {
       WifiNetworkInfo network;
       network.ssid = ssid;
       network.rssi = rssi;
       network.isEncrypted = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
       network.hasSavedPassword = WIFI_STORE.hasSavedCredential(network.ssid);
-      uniqueNetworks[ssid] = network;
+      networks.push_back(std::move(network));
+    } else if (rssi > it->rssi) {
+      it->rssi = rssi;
+      it->isEncrypted = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
     }
   }
 
-  // Convert map to vector
-  networks.clear();
-  networks.reserve(uniqueNetworks.size());
-  std::transform(uniqueNetworks.begin(), uniqueNetworks.end(), std::back_inserter(networks),
-                 [](const std::pair<std::string, WifiNetworkInfo>& pair) { return pair.second; });
-
-  // Saved-password networks first; within each group, strongest signal first.
+  // Sort: saved-password networks first, then by signal strength (strongest first)
   std::sort(networks.begin(), networks.end(), [](const WifiNetworkInfo& a, const WifiNetworkInfo& b) {
     if (a.hasSavedPassword != b.hasSavedPassword) return a.hasSavedPassword;
     return a.rssi > b.rssi;

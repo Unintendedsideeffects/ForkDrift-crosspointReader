@@ -83,6 +83,14 @@ constexpr uint32_t SILENT_REBOOT_MAGIC = 0xC1EAB007;
 constexpr uint32_t SILENT_REBOOT_TARGET_HOME = 0;
 constexpr uint32_t SILENT_REBOOT_TARGET_READER = 1;
 
+// Latched true once enterDeepSleep() commits to sleeping, before it tears down
+// the current activity. WiFi activities call silentRestart() in onExit() to
+// clear heap fragmentation on the way out, but deep sleep is a full chip reset
+// on wake and already clears the heap, so rebooting here would just power the
+// device back up against the user's sleep gesture. Never cleared:
+// startDeepSleep() does not return, so a set latch only ends at the wakeup reset.
+static bool deepSleepInProgress = false;
+
 // SILENT RESTART FEATURE - This is a restart without showing the boot splash screen -- TODO: This doesn't seem to work
 // for us void silentRestart() {
 //   silentRebootTarget = SILENT_REBOOT_TARGET_HOME;
@@ -101,6 +109,7 @@ constexpr uint32_t SILENT_REBOOT_TARGET_READER = 1;
 // }
 
 void silentRestart(uint32_t target = SILENT_REBOOT_TARGET_HOME) {
+  if (deepSleepInProgress) return;  // sleeping supersedes the heap-defrag reboot
   silentRebootTarget = target;
   silentRebootMagic = SILENT_REBOOT_MAGIC;
   LOG_DBG("MAIN", "Silent restart (target=%d)", target);
@@ -442,6 +451,10 @@ void enterDeepSleep() {
     LOG_WRN("MAIN", "Failed to persist app state before deep sleep");
   }
 
+  // Commit to sleeping before goToSleep() runs the outgoing activity's onExit():
+  // a WiFi activity would otherwise silentRestart() here and reboot instead.
+  deepSleepInProgress = true;
+
   activityManager.goToSleep();
 
   display.deepSleep();
@@ -747,8 +760,10 @@ void loop() {
             {"PAGEFWD", MappedInputManager::Button::PageForward},
         };
         const String name = cmd.substring(4);
+        // strcasecmp instead of String::equalsIgnoreCase: the simulator's String
+        // mock returns void from equalsIgnoreCase, and c_str() works on both.
         const auto it = std::find_if(std::begin(kBtnMap), std::end(kBtnMap),
-                                     [&](const auto& e) { return name.equalsIgnoreCase(e.name); });
+                                     [&](const auto& e) { return strcasecmp(name.c_str(), e.name) == 0; });
         const bool matched = it != std::end(kBtnMap);
         if (matched) mappedInputManager.injectVirtualActivation(it->button);
         logSerial.printf(matched ? "BTN_OK:%s\n" : "BTN_ERR:%s\n", name.c_str());

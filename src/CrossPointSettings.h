@@ -109,7 +109,7 @@ class CrossPointSettings {
   // Side button layout options
   // Default: Previous, Next
   // Swapped: Next, Previous
-  enum SIDE_BUTTON_LAYOUT { PREV_NEXT = 0, NEXT_PREV = 1, SIDE_BUTTON_LAYOUT_COUNT };
+  enum SIDE_BUTTON_LAYOUT { PREV_NEXT = 0, NEXT_PREV = 1, SIDE_BUTTONS_DISABLED = 2, SIDE_BUTTON_LAYOUT_COUNT };
 
   enum FRONT_BUTTON_ORIENTATION_AWARE {
     FRONT_ORIENTATION_AWARE_OFF = 0,
@@ -187,6 +187,7 @@ class CrossPointSettings {
     // Double-tap navigates back (legacy default when ENABLE_DOUBLE_TAP_ACTION=1).
     // Not meaningful for shortPwrBtn / longPwrBtn; only used by doubleTapPwrBtn.
     DOUBLE_TAP_BACK = 15,
+    FOOTNOTES = 16,
     SHORT_PWRBTN_COUNT
   };
 
@@ -260,6 +261,7 @@ class CrossPointSettings {
     LONG_MENU_SCREENSHOT = 10,
     LONG_MENU_CYCLE_PAGE_TURN = 11,
     LONG_MENU_FILE_TRANSFER = 12,
+    LONG_MENU_TEXT_SELECT = 13,
     LONG_PRESS_MENU_ACTION_COUNT
   };
 
@@ -506,6 +508,9 @@ class CrossPointSettings {
   int getReaderFontId() const;
 
   bool saveToFile() const;
+  // Write the current in-RAM values verbatim (no per-book override handling);
+  // only BookSettingsScope should call this.
+  bool saveToFileRaw() const;
   bool loadFromFile();
   static void validateFrontButtonMapping(CrossPointSettings& settings);
   void applyFrontButtonLayoutPreset(FRONT_BUTTON_LAYOUT layout);

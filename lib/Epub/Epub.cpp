@@ -6,6 +6,7 @@
 #include <JpegToBmpConverter.h>
 #include <Logging.h>
 #include <PngToBmpConverter.h>
+#include <Utf8.h>
 #include <ZipFile.h>
 
 #include "Epub/parsers/ContainerParser.h"
@@ -113,8 +114,9 @@ bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata) {
     return false;
   }
 
-  // Grab data from opfParser into epub
-  bookMetadata.title = opfParser.title;
+  // Grab data from opfParser into epub. Normalize titles to NFC so NFD (combining
+  // mark) text renders correctly — the device fonts have no mark positioning.
+  bookMetadata.title = utf8ComposeNfc(opfParser.title);
   bookMetadata.author = opfParser.author;
   bookMetadata.language = opfParser.language;
   bookMetadata.coverItemHref = opfParser.coverItemHref;
@@ -149,7 +151,9 @@ bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata) {
           const auto endPos = coverPageHtml.find(quote, pos);
           if (endPos != std::string::npos) {
             const std::string_view ref{coverPageHtml.c_str() + pos, endPos - pos};
-            if (FsHelpers::hasPngExtension(ref) || FsHelpers::hasJpgExtension(ref) || FsHelpers::hasGifExtension(ref)) {
+            // Cover BMP generation supports JPG/PNG only; skip GIF so an unsupported
+            // wrapper image does not block a later supported cover reference.
+            if (FsHelpers::hasPngExtension(ref) || FsHelpers::hasJpgExtension(ref)) {
               return std::string(ref);
             }
           }
@@ -168,7 +172,7 @@ bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata) {
       }
 
       if (!imageRef.empty()) {
-        bookMetadata.coverItemHref = FsHelpers::normalisePath(coverPageBase + imageRef);
+        bookMetadata.coverItemHref = FsHelpers::normalisePath(FsHelpers::decodeUriEscapes(coverPageBase + imageRef));
         LOG_DBG("EBP", "Found cover image from guide: %s", bookMetadata.coverItemHref.c_str());
       }
     }
@@ -308,6 +312,28 @@ bool Epub::parseTocNavFile() const {
 }
 
 std::string Epub::getCssRulesCache() const { return cachePath + "/css_rules.cache"; }
+void Epub::discoverCssFilesFromZip() {
+  // Only enumerate entries under the OPF directory; CSS files live there or in
+  // subfolders, and a zip-wide stat scan on large EPUBs is slow and heap-hungry.
+  const std::string& opfDir = contentBasePath;
+  ZipFile zf(filepath);
+
+  if (!zf.enumerateFilePaths([&](std::string_view filePath) {
+        if (!opfDir.empty() && filePath.find(opfDir) != 0) {
+          return;
+        }
+        if (!FsHelpers::hasCssExtension(filePath)) {
+          return;
+        }
+        if (std::find(cssFiles.begin(), cssFiles.end(), filePath) != cssFiles.end()) {
+          return;
+        }
+        LOG_DBG("EBP", "Discovered CSS file via ZIP enumeration: %.*s", (int)filePath.size(), filePath.data());
+        cssFiles.push_back(std::string{filePath});
+      })) {
+    LOG_ERR("EBP", "Failed to enumerate ZIP file paths for CSS discovery");
+  }
+}
 
 bool Epub::loadCssRulesFromCache() const {
   HalFile cssCacheFile;
@@ -386,6 +412,9 @@ void Epub::parseCssFiles() const {
 
     LOG_DBG("EBP", "Loaded %zu CSS style rules from %zu files", cssParser->ruleCount(), cssFiles.size());
   }
+
+  LOG_DBG("EBP", "Loaded %zu CSS style rules from %zu files", cssParser->ruleCount(), cssFiles.size());
+  cssParser->clear();
 }
 
 // load in the meta data for the epub file
@@ -410,6 +439,10 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
       if (!parseContentOpf(bookMetadataCache->coreMetadata)) {
         LOG_ERR("EBP", "Could not parse content.opf from cached bookMetadata for CSS files");
         // continue anyway - book will work without CSS and we'll still load any inline style CSS
+      } else {
+        // Handle case where CSS files are not listed in the OPF manifest but are
+        // still referenced by HTML files - discover them via ZIP enumeration too
+        discoverCssFilesFromZip();
       }
       parseCssFiles();
     }
@@ -514,6 +547,9 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
   }
 
   if (!skipLoadingCss) {
+    // Handle case where CSS files are not listed in OPF manifest
+    // but are still referenced by HTML files - discover and parse them too
+    discoverCssFilesFromZip();
     // Parse CSS files after cache reload
     parseCssFiles();
   }
@@ -1044,10 +1080,10 @@ float Epub::calculateProgress(const int currentSpineIndex, const float currentSp
 int Epub::resolveHrefToSpineIndex(const std::string& href) const {
   if (!bookMetadataCache || !bookMetadataCache->isLoaded()) return -1;
 
-  // Extract filename (remove #anchor)
-  std::string target = href;
-  size_t hashPos = target.find('#');
-  if (hashPos != std::string::npos) target = target.substr(0, hashPos);
+  // Split before decoding so escaped '#' characters in filenames stay part of the path.
+  const size_t hashPos = href.find('#');
+  const std::string rawTarget = hashPos != std::string::npos ? href.substr(0, hashPos) : href;
+  const std::string target = FsHelpers::normalisePath(FsHelpers::decodeUriEscapes(rawTarget));
 
   // Same-file reference (anchor-only)
   if (target.empty()) return -1;

@@ -2586,6 +2586,36 @@
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
 
+              <label class="skill-card" data-feature="text_selection" data-node-id="text_selection">
+                <input type="checkbox" id="text_selection" data-feature="text_selection" />
+                <div class="card-icon"><span>&#x270E;</span></div>
+                <div class="card-body">
+                  <div class="card-name">Text Selection</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">In-reader highlight cursor: select words or spans, then dictionary, Anki, or notes. Adds ~3 KB.</div>
+                </div>
+              </label>
+
+              <label class="skill-card" data-feature="annotations" data-node-id="annotations">
+                <input type="checkbox" id="annotations" data-feature="annotations" />
+                <div class="card-icon"><span>&#x2606;</span></div>
+                <div class="card-body">
+                  <div class="card-name">Annotations</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">Persistent per-book highlights. Inspired by Inx (MIT). Adds ~3 KB.</div>
+                </div>
+              </label>
+
+              <label class="skill-card" data-feature="per_book_settings" data-node-id="per_book_settings">
+                <input type="checkbox" id="per_book_settings" data-feature="per_book_settings" />
+                <div class="card-icon"><span>&#x2699;</span></div>
+                <div class="card-body">
+                  <div class="card-name">Per-Book Settings</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">Per-book reader setting overrides. Inspired by Inx (MIT). Adds ~3 KB.</div>
+                </div>
+              </label>
+
               <label class="skill-card" data-feature="reading_stats" data-node-id="reading_stats">
                 <input type="checkbox" id="reading_stats" data-feature="reading_stats" />
                 <div class="card-icon"><span>&#x25EF;</span></div>
@@ -3751,6 +3781,24 @@
           flag: "ENABLE_DICTIONARY",
           default: false,
         },
+        text_selection: {
+          sizeKb: 3,
+          flag: "ENABLE_TEXT_SELECTION",
+          default: true,
+          requiresAll: ["epub_support"],
+        },
+        annotations: {
+          sizeKb: 3,
+          flag: "ENABLE_ANNOTATIONS",
+          default: true,
+          requiresAll: ["text_selection"],
+        },
+        per_book_settings: {
+          sizeKb: 3,
+          flag: "ENABLE_PER_BOOK_SETTINGS",
+          default: true,
+          requiresAll: ["epub_support"],
+        },
         ota_updates: {
           sizeKb: 3,
           flag: "ENABLE_OTA_UPDATES",
@@ -3909,6 +3957,9 @@
         notes: "A lightweight line-based notes store backed by /notes.txt. Adds a standalone home-screen Notes app when Planner is disabled, exposes /api/notes endpoints and USB notes_add, and can render notes as a dedicated sleep screen.",
         anki_support: "Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. On-device flashcard hub with offline CSV deck support (CPR-Vortex). JSON export for import into Anki Desktop. Adds ~10 KB.",
         dictionary_lookup: "In-reader SD dictionary lookup. Adds ~5 KB.",
+        text_selection: "In-reader highlight cursor: select words or spans, then dictionary, Anki, or per-book Markdown notes. Adds ~3 KB.",
+        annotations: "Persistent highlights that survive across sessions, per book. Relayout-tolerant. Inspired by Inx (MIT). Adds ~3 KB.",
+        per_book_settings: "Override reader settings for a single book from the reader options. Inspired by Inx (MIT). Adds ~3 KB.",
         dark_mode: "Inverts the display for night reading — white-on-black instead of black-on-paper. Toggle from the settings menu. Negligible binary cost; the flag controls whether the option is exposed at all.",
         visual_cover_picker: "Lets you choose cover art for books that lack an embedded thumbnail. Opens a scrollable image browser pointed at a configurable folder on the SD card. Requires Home Media Picker.",
         ble_wifi_provisioning: "Configure WiFi credentials by scanning a QR code or using the companion app over Bluetooth LE — no need to type a password on the device keyboard. Large binary cost (~626 KB) due to the BLE stack.",
@@ -3931,7 +3982,7 @@
         remote_page_turn: "Lets the Android app send forward/back page commands to the device. Implemented via virtual button injection so it's fully orientation-aware. Compiled in when Remote Control is enabled.",
       };
 
-      const BASE_SIZE_MB = 2.56;
+      const BASE_SIZE_MB = 2.65;
       const MAX_FLASH_MB = 6.4;
 
       const base = {
@@ -3965,7 +4016,7 @@
       };
 
       const HUB_FEATURES = {
-        reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "notes", "anki_support", "dictionary_lookup", "reading_stats", "focus_reading", "guide_dots"],
+        reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "notes", "anki_support", "dictionary_lookup", "text_selection", "annotations", "per_book_settings", "reading_stats", "focus_reading", "guide_dots"],
         interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "web_wallpaper_plugin", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts", "minimal_theme"],
         network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "haiku_clock_sleep", "remote_control", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
         storage_hub: ["usb_mass_storage"],

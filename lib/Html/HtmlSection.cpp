@@ -45,7 +45,8 @@ uint32_t HtmlSection::onPageComplete(std::unique_ptr<Page> page) {
   }
 
   const uint32_t position = file.position();
-  if (!page->serialize(file)) {
+  serialization::BufferedWriter writer(file);
+  if (!page->serialize(writer) || !writer.flush()) {
     LOG_ERR("HSC", "Failed to serialize page %d", pageCount);
     return 0;
   }
@@ -292,6 +293,7 @@ std::unique_ptr<Page> HtmlSection::loadPageFromSectionFile() {
     return nullptr;
   }
 
-  auto page = Page::deserialize(file);
+  serialization::BufferedReader reader(file);
+  auto page = Page::deserialize(reader);
   return page;
 }

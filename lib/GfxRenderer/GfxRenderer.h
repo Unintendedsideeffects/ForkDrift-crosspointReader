@@ -1,7 +1,16 @@
 #pragma once
 
+#include <BidiUtils.h>
 #include <EpdFontFamily.h>
 #include <HalDisplay.h>
+
+namespace BidiUtils {
+// Paragraph base direction for the Unicode BiDi algorithm (UAX#9).
+// AUTO: scan text for first strong directional character (P2/P3 rules)
+// LTR:  force left-to-right paragraph embedding level
+// RTL:  force right-to-left paragraph embedding level
+enum class BidiBaseDir : signed char { AUTO = -1, LTR = 0, RTL = 1 };
+}  // namespace BidiUtils
 
 class FontCacheManager;
 class SdCardFont;
@@ -56,6 +65,18 @@ class GfxRenderer {
   // as before, concentrated in a single pointer instead of four fields.
   mutable FontCacheManager* fontCacheManager_ = nullptr;
 
+  // Tiled grayscale strip target. When active, drawPixel()/clearScreen()
+  // operate on a caller-owned scratch holding one horizontal band of physical
+  // rows [_stripY0, _stripY0 + _stripRows) (panelWidthBytes wide) instead of
+  // the shared framebuffer, clipping pixels outside the band. Lets grayscale
+  // planes render band-by-band straight to the controller without destroying
+  // the BW framebuffer (no storeBwBuffer). Mutable because the render path is
+  // const. See beginStripTarget()/endStripTarget().
+  mutable uint8_t* _stripBuf = nullptr;
+  mutable int _stripY0 = 0;
+  mutable int _stripRows = 0;
+  mutable bool _stripActive = false;
+
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, int* y, bool pixelState,
                   EpdFontFamily::Style style) const;
   void freeBwBufferChunks();
@@ -63,6 +84,12 @@ class GfxRenderer {
   void drawPixelDither(int x, int y) const;
   template <Color color>
   void fillArc(int maxRadius, int cx, int cy, int xDir, int yDir) const;
+  // Byte-aligned, orientation-specialized rectangle fill. Rotates the rect's
+  // two opposing corners into physical-framebuffer space once, then walks each
+  // physical row with head-mask / middle memset / tail-mask byte writes — no
+  // per-pixel rotation, no per-pixel RMW.
+  template <Color color>
+  void fillRectImpl(int x, int y, int width, int height) const;
 
  public:
   explicit GfxRenderer(HalDisplay& halDisplay)
@@ -86,6 +113,7 @@ class GfxRenderer {
   }
   void setFontCacheManager(FontCacheManager* m) { fontCacheManager_ = m; }
   FontCacheManager* getFontCacheManager() const { return fontCacheManager_; }
+  bool isFontCacheScanning() const;
   const std::map<int, EpdFontFamily>& getFontMap() const { return fontMap; }
   void registerSdCardFont(int fontId, SdCardFont* font) { sdCardFonts_[fontId] = font; }
   void unregisterSdCardFont(int fontId) { removeFont(fontId); }
@@ -118,8 +146,27 @@ class GfxRenderer {
   // EXPERIMENTAL: Windowed update - display only a rectangular region
   // void displayWindow(int x, int y, int width, int height) const;
   void invertScreen() const;
+  // Invert a logical-coords rectangle in the framebuffer (used by the reader's
+  // text-selection highlight). Orientation-aware; clips to the panel.
+  void invertRect(int x, int y, int width, int height) const;
   void clearScreen(uint8_t color = 0xFF) const;
   void getOrientedViewableTRBL(int* outTop, int* outRight, int* outBottom, int* outLeft) const;
+
+  // Tiled grayscale strip target. While active, drawPixel() and clearScreen()
+  // operate on `scratch` (panelWidthBytes * stripRows bytes, holding physical
+  // rows [stripY0, stripY0 + stripRows)) instead of the framebuffer; pixels
+  // whose physical row falls outside the band are clipped. The clip is applied
+  // after the orientation rotate, so it is orientation-agnostic. Used to render
+  // grayscale planes band-by-band without a full second buffer.
+  void beginStripTarget(uint8_t* scratch, int stripY0, int stripRows) const;
+  void endStripTarget() const;
+
+  // Band culling for tiled grayscale. Takes a glyph bounding box in logical
+  // screen coords and returns false only when a strip is active AND the box's
+  // physical y-extent lies entirely outside the active band, letting callers
+  // skip an expensive bitmap decode. Returns true when no strip is active.
+  // Corners are rotated to physical, so it is orientation-aware.
+  bool glyphIntersectsStrip(int x0, int y0, int x1, int y1) const;
 
   // Drawing
   void drawPixel(int x, int y, bool state = true) const;
@@ -145,11 +192,14 @@ class GfxRenderer {
   void fillPolygon(const int* xPoints, const int* yPoints, int numPoints, bool state = true) const;
 
   // Text
-  int getTextWidth(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+  int getTextWidth(int fontId, const char* text, EpdFontFamily::Style style = EpdFontFamily::REGULAR,
+                   BidiUtils::BidiBaseDir baseDir = BidiUtils::BidiBaseDir::AUTO) const;
   void drawCenteredText(int fontId, int y, const char* text, bool black = true,
-                        EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+                        EpdFontFamily::Style style = EpdFontFamily::REGULAR,
+                        BidiUtils::BidiBaseDir baseDir = BidiUtils::BidiBaseDir::AUTO) const;
   void drawText(int fontId, int x, int y, const char* text, bool black = true,
-                EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
+                EpdFontFamily::Style style = EpdFontFamily::REGULAR,
+                BidiUtils::BidiBaseDir baseDir = BidiUtils::BidiBaseDir::AUTO) const;
   void drawButtonHints(int fontId, const char* btn1, const char* btn2, const char* btn3, const char* btn4) const;
   void drawSideButtonHints(int fontId, const char* topBtn, const char* bottomBtn) const;
   int getSpaceWidth(int fontId, EpdFontFamily::Style style = EpdFontFamily::REGULAR) const;
@@ -186,6 +236,10 @@ class GfxRenderer {
   void restoreBwBuffer();  // Restore and free the stored buffer
   void cleanupGrayscaleWithFrameBuffer() const;
 
+  // Tiled grayscale support (X4 only)
+  bool supportsStripGrayscale() const;
+  void writeGrayscalePlaneStrip(bool lsbPlane, const uint8_t* rows, uint16_t yStart, uint16_t numRows) const;
+
   // Font helpers
   const uint8_t* getGlyphBitmap(const EpdFontData* fontData, const EpdGlyph* glyph) const;
 
@@ -196,10 +250,15 @@ class GfxRenderer {
   uint16_t getDisplayHeight() const { return panelHeight; }
   uint16_t getDisplayWidthBytes() const { return panelWidthBytes; }
 
-  // Strip-write accessors (no tiled-grayscale in this build: full frame, origin at 0)
-  uint8_t* getWriteTarget() const { return getFrameBuffer(); }
-  int getWriteOriginY() const { return 0; }
-  int getWriteRows() const { return static_cast<int>(panelHeight); }
+  // Active pixel-write target for raw writers (DirectPixelWriter) that bypass
+  // drawPixel for speed. When a strip target is active these return the band
+  // scratch plus its physical-row origin and extent; otherwise the full
+  // framebuffer ([0, panelHeight)). Writers subtract the origin and clip to the
+  // extent, so they honor tiled-grayscale banding without per-pixel method calls.
+  bool stripTargetActive() const { return _stripActive; }
+  uint8_t* getWriteTarget() const { return _stripActive ? _stripBuf : getFrameBuffer(); }
+  int getWriteOriginY() const { return _stripActive ? _stripY0 : 0; }
+  int getWriteRows() const { return _stripActive ? _stripRows : static_cast<int>(panelHeight); }
 
   // Region cache: take a logical (orientation-aware) rect, hit the framebuffer
   // bytes that the rect can have touched, and pump them in or out of a caller-

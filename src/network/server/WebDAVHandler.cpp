@@ -5,6 +5,7 @@
 #include <Epub.h>
 #include <FsHelpers.h>
 #include <HalStorage.h>
+#include <HeapGuard.h>
 #include <Logging.h>
 #include <esp_task_wdt.h>
 
@@ -384,6 +385,14 @@ void WebDAVHandler::handleGet(WebServer& s) {
     return;
   }
 
+  // Pre-flight check for transfer buffer (essential network operation)
+  if (!heapguard::canAllocate(4096, heapguard::kCriticalFloorBytes)) {
+    LOG_ERR("WDV", "Skipping file transfer: low heap");
+    closeLocked(file);
+    s.send(500, "text/plain", "Device memory low");
+    return;
+  }
+
   std::unique_ptr<uint8_t[]> buffer(new (std::nothrow) uint8_t[4096]);
   if (!buffer) {
     closeLocked(file);
@@ -728,6 +737,14 @@ void WebDAVHandler::handleCopy(WebServer& s) {
   if (dstExists && !overwrite) {
     closeLocked(srcFile);
     s.send(412, "text/plain", "Destination exists and Overwrite is F");
+    return;
+  }
+
+  // Pre-flight check for transfer buffer (essential network operation)
+  if (!heapguard::canAllocate(4096, heapguard::kCriticalFloorBytes)) {
+    LOG_ERR("WDV", "Skipping file transfer: low heap");
+    closeLocked(srcFile);
+    s.send(500, "text/plain", "Device memory low");
     return;
   }
 

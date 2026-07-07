@@ -1,4 +1,6 @@
 #pragma once
+#include <Serialization.h>
+
 #include <memory>
 #include <optional>
 #include <string>
@@ -19,12 +21,15 @@ class Section {
   GfxRenderer& renderer;
   std::string filePath;
   HalFile file;
+  bool fileOpenForReading = false;
 
-  void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
-                              uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
-                              bool hyphenationEnabled, bool embeddedStyle, uint8_t imageRendering,
-                              bool focusReadingEnabled, bool guideReadingEnabled);
-  uint32_t onPageComplete(std::unique_ptr<Page> page);
+  void writeSectionFileHeader(serialization::BufferedWriter& writer, int fontId, float lineCompression,
+                              bool extraParagraphSpacing, bool forceParagraphIndents, uint8_t paragraphAlignment,
+                              uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled,
+                              bool embeddedStyle, uint8_t imageRendering, bool focusReadingEnabled,
+                              bool guideReadingEnabled);
+  uint32_t onPageComplete(std::unique_ptr<Page> page, serialization::BufferedWriter& writer);
+  void closeSectionFile();
 
  public:
   uint16_t pageCount = 0;
@@ -35,12 +40,12 @@ class Section {
         spineIndex(spineIndex),
         renderer(renderer),
         filePath(epub->getCachePath() + "/sections/" + std::to_string(spineIndex) + ".bin") {}
-  ~Section() = default;
+  ~Section() { closeSectionFile(); }
   bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
                        uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
                        bool hyphenationEnabled, bool embeddedStyle, uint8_t imageRendering, bool focusReadingEnabled,
                        bool guideReadingEnabled);
-  bool clearCache() const;
+  bool clearCache();
   bool createSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, bool forceParagraphIndents,
                          uint8_t paragraphAlignment, uint16_t viewportWidth, uint16_t viewportHeight,
                          bool hyphenationEnabled, bool embeddedStyle, uint8_t imageRendering, bool focusReadingEnabled,

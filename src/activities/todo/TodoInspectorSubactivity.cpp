@@ -27,6 +27,10 @@ const char* actionLabel(const TodoInspectorSubactivity::Action action) {
       return tr(STR_TODO_INSPECTOR_MOVE_UP);
     case TodoInspectorSubactivity::Action::MoveDown:
       return tr(STR_TODO_INSPECTOR_MOVE_DOWN);
+    case TodoInspectorSubactivity::Action::NewTask:
+      return tr(STR_TODO_NEW_TASK);
+    case TodoInspectorSubactivity::Action::NewSection:
+      return tr(STR_TODO_NEW_SECTION);
     case TodoInspectorSubactivity::Action::Delete:
       return tr(STR_TODO_INSPECTOR_DELETE);
     case TodoInspectorSubactivity::Action::Cancel:
@@ -39,6 +43,7 @@ constexpr TodoInspectorSubactivity::Action kActions[] = {
     TodoInspectorSubactivity::Action::EditText, TodoInspectorSubactivity::Action::CyclePriority,
     TodoInspectorSubactivity::Action::SetTime,  TodoInspectorSubactivity::Action::ClearTime,
     TodoInspectorSubactivity::Action::MoveUp,   TodoInspectorSubactivity::Action::MoveDown,
+    TodoInspectorSubactivity::Action::NewTask,  TodoInspectorSubactivity::Action::NewSection,
     TodoInspectorSubactivity::Action::Delete,   TodoInspectorSubactivity::Action::Cancel,
 };
 }  // namespace
@@ -77,6 +82,14 @@ void TodoInspectorSubactivity::applyAction(const Action action) {
     case Action::MoveDown:
       parent.moveSelectedTask(1);
       break;
+    case Action::NewTask:
+      parent.closeInspector();
+      parent.addNewEntry(false);
+      return;
+    case Action::NewSection:
+      parent.closeInspector();
+      parent.addNewEntry(true);
+      return;
     case Action::Delete:
       parent.deleteSelectedTask();
       break;

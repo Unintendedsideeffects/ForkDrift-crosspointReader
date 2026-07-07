@@ -28,8 +28,7 @@ int parseIndex(const std::string& xpath, const char* prefix, bool last = false) 
 
 int parseCharOffset(const std::string& xpath) {
   const size_t textPos = xpath.rfind("text()");
-  if (textPos == std::string::npos) return 0;
-  const size_t dotPos = xpath.find('.', textPos);
+  const size_t dotPos = (textPos != std::string::npos) ? xpath.find('.', textPos) : xpath.rfind('.');
   if (dotPos == std::string::npos || dotPos + 1 >= xpath.size()) return 0;
   int val = 0;
   for (size_t i = dotPos + 1; i < xpath.size(); i++) {
@@ -54,6 +53,70 @@ int parseTextNodeIndex(const std::string& xpath) {
   return val > 0 ? val : 1;
 }
 
+bool isChapterStartXPath(const std::string& xpath) {
+  if (xpath.find("/p[") != std::string::npos || xpath.find("/li[") != std::string::npos) {
+    return false;
+  }
+
+  static constexpr char kDocFragment[] = "/body/DocFragment[";
+  const size_t docFragPos = xpath.find(kDocFragment);
+  if (docFragPos == std::string::npos) {
+    return false;
+  }
+  const size_t docFragEnd = xpath.find(']', docFragPos + strlen(kDocFragment));
+  if (docFragEnd == std::string::npos) {
+    return false;
+  }
+  if (docFragEnd + 1 == xpath.size()) {
+    return true;
+  }
+  if (xpath[docFragEnd + 1] == '.') {
+    if (docFragEnd + 2 >= xpath.size()) {
+      return false;
+    }
+    for (size_t i = docFragEnd + 2; i < xpath.size(); i++) {
+      if (xpath[i] != '0') return false;
+    }
+    return true;
+  }
+
+  static constexpr char kDocBody[] = "]/body";
+  const size_t docBodyPos = xpath.find(kDocBody);
+  if (docBodyPos == std::string::npos) {
+    return false;
+  }
+  size_t bodyContentStart = docBodyPos + strlen(kDocBody);
+  if (bodyContentStart == xpath.size()) {
+    return true;
+  }
+  if (xpath[bodyContentStart] != '/') {
+    return false;
+  }
+  bodyContentStart++;
+  if (bodyContentStart == xpath.size()) {
+    return true;
+  }
+
+  const size_t dotPos = xpath.rfind('.');
+  if (dotPos == std::string::npos || dotPos <= bodyContentStart || dotPos + 1 >= xpath.size()) {
+    return false;
+  }
+  size_t terminalEnd = dotPos;
+  static constexpr char kTextNode[] = "/text()";
+  const size_t textNodePos = xpath.rfind(kTextNode, dotPos);
+  if (textNodePos != std::string::npos && textNodePos >= bodyContentStart) {
+    terminalEnd = textNodePos;
+  }
+  if (xpath.find('/', bodyContentStart) < terminalEnd) {
+    return false;
+  }
+
+  for (size_t i = dotPos + 1; i < xpath.size(); i++) {
+    if (xpath[i] != '0') return false;
+  }
+  return true;
+}
+
 // Parsed representation of one step in the XPath ancestry.
 struct XPathStep {
   char tag[12];      // element name, null-terminated
@@ -62,7 +125,7 @@ struct XPathStep {
 
 static constexpr int MAX_XPATH_DEPTH = 16;
 
-// Parse the XPath segment between /body/DocFragment[N]/body/ and text()[N].offset
+// Parse the XPath segment between /body/DocFragment[N]/body/ and the terminal position
 // into an ordered sequence of steps. Returns step count, 0 on failure.
 // Example input: "/body/DocFragment[1]/body/div[1]/ul/li[4]/text()[1].51"
 // Fills steps with: {div,1}, {ul,1}, {li,4}
@@ -76,13 +139,20 @@ int parseXPathSteps(const std::string& xpath, XPathStep steps[MAX_XPATH_DEPTH]) 
   if (xpath.compare(afterBracket + 1, strlen(kBody), kBody) != 0) return 0;
   size_t pos = afterBracket + 1 + strlen(kBody);
 
-  const size_t textPos = xpath.rfind("/text()");
-  if (textPos == std::string::npos || textPos <= pos) return 0;
+  size_t stepsEnd = xpath.rfind("/text()");
+  if (stepsEnd == std::string::npos) {
+    stepsEnd = xpath.rfind('.');
+    if (stepsEnd == std::string::npos || stepsEnd <= pos || stepsEnd + 1 >= xpath.size()) return 0;
+    for (size_t i = stepsEnd + 1; i < xpath.size(); i++) {
+      if (xpath[i] < '0' || xpath[i] > '9') return 0;
+    }
+  }
+  if (stepsEnd <= pos) return 0;
 
   int count = 0;
-  while (pos < textPos && count < MAX_XPATH_DEPTH) {
+  while (pos < stepsEnd && count < MAX_XPATH_DEPTH) {
     const size_t slash = xpath.find('/', pos);
-    const size_t segEnd = (slash < textPos) ? slash : textPos;
+    const size_t segEnd = (slash < stepsEnd) ? slash : stepsEnd;
 
     XPathStep& step = steps[count];
     const size_t bracket = xpath.find('[', pos);
@@ -106,7 +176,7 @@ int parseXPathSteps(const std::string& xpath, XPathStep steps[MAX_XPATH_DEPTH]) 
     }
 
     count++;
-    pos = (slash < textPos) ? slash + 1 : textPos;
+    pos = (slash < stepsEnd) ? slash + 1 : stepsEnd;
   }
   return count;
 }
@@ -163,10 +233,148 @@ class ParagraphStreamer final : public Print {
   char capturedAnchorId[MAX_ANCHOR_ID] = {};
   int capturedAnchorIdLen = 0;
   bool capturingAnchorTag = false;
-  enum IdScanState { ID_SCAN, ID_I, ID_D, ID_EQ, ID_IN_VALUE_D, ID_IN_VALUE_S } idState = ID_SCAN;
+  enum AnchorAttrState {
+    ATTR_FIND_NAME,
+    ATTR_READ_NAME,
+    ATTR_AFTER_NAME,
+    ATTR_BEFORE_VALUE,
+    ATTR_CAPTURE_D,
+    ATTR_CAPTURE_S
+  } attrState = ATTR_FIND_NAME;
+  uint8_t attrNameLen = 0;
+  bool currentAttrIsId = false;
   bool inAttrQuote =
       false;  // true while inside a quoted attribute value (prevents '/' from being treated as self-close)
   char attrQuoteChar = 0;
+  uint8_t nonVisibleDepth = 0;
+
+  bool isNonVisibleTag() const {
+    return strcasecmp(tagName, "head") == 0 || strcasecmp(tagName, "style") == 0 ||
+           strcasecmp(tagName, "script") == 0 || strcasecmp(tagName, "title") == 0;
+  }
+
+  static bool isAttrWhitespace(uint8_t c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
+
+  static bool isAttrNameChar(uint8_t c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' ||
+           c == ':' || c == '.';
+  }
+
+  void resetAnchorAttrScan() {
+    attrState = ATTR_FIND_NAME;
+    attrNameLen = 0;
+    currentAttrIsId = false;
+  }
+
+  void finishCapturedAnchorId() {
+    capturedAnchorId[capturedAnchorIdLen] = '\0';
+    capturingAnchorTag = false;
+    resetAnchorAttrScan();
+  }
+
+  void beginAnchorIdScan() {
+    capturingAnchorTag = true;
+    resetAnchorAttrScan();
+  }
+
+  void endAnchorIdScan() {
+    if (capturingAnchorTag) {
+      capturedAnchorIdLen = 0;
+    }
+    capturingAnchorTag = false;
+    resetAnchorAttrScan();
+  }
+
+  void appendCapturedAnchorId(uint8_t c) {
+    if (capturedAnchorIdLen + 1 < MAX_ANCHOR_ID) {
+      capturedAnchorId[capturedAnchorIdLen++] = c;
+    }
+  }
+
+  void scanAnchorAttribute(uint8_t c) {
+    switch (attrState) {
+      case ATTR_FIND_NAME:
+        if (isAttrNameChar(c)) {
+          attrState = ATTR_READ_NAME;
+          attrNameLen = 1;
+          currentAttrIsId = c == 'i';
+        }
+        break;
+      case ATTR_READ_NAME:
+        if (isAttrNameChar(c)) {
+          if (attrNameLen == 1) {
+            currentAttrIsId = currentAttrIsId && c == 'd';
+          } else {
+            currentAttrIsId = false;
+          }
+          attrNameLen++;
+        } else {
+          currentAttrIsId = currentAttrIsId && attrNameLen == 2;
+          if (isAttrWhitespace(c)) {
+            attrState = ATTR_AFTER_NAME;
+          } else if (c == '=') {
+            attrState = ATTR_BEFORE_VALUE;
+          } else {
+            resetAnchorAttrScan();
+          }
+        }
+        break;
+      case ATTR_AFTER_NAME:
+        if (isAttrWhitespace(c)) {
+          break;
+        }
+        if (c == '=') {
+          attrState = ATTR_BEFORE_VALUE;
+        } else if (isAttrNameChar(c)) {
+          attrState = ATTR_READ_NAME;
+          attrNameLen = 1;
+          currentAttrIsId = c == 'i';
+        } else {
+          resetAnchorAttrScan();
+        }
+        break;
+      case ATTR_BEFORE_VALUE:
+        if (isAttrWhitespace(c)) {
+          break;
+        }
+        if (currentAttrIsId && c == '"') {
+          capturedAnchorIdLen = 0;
+          attrState = ATTR_CAPTURE_D;
+        } else if (currentAttrIsId && c == '\'') {
+          capturedAnchorIdLen = 0;
+          attrState = ATTR_CAPTURE_S;
+        } else if (c == '"') {
+          attrState = ATTR_CAPTURE_D;
+        } else if (c == '\'') {
+          attrState = ATTR_CAPTURE_S;
+        } else {
+          resetAnchorAttrScan();
+        }
+        break;
+      case ATTR_CAPTURE_D:
+        if (c == '"') {
+          if (currentAttrIsId) {
+            finishCapturedAnchorId();
+          } else {
+            resetAnchorAttrScan();
+          }
+        } else if (currentAttrIsId) {
+          appendCapturedAnchorId(c);
+        }
+        break;
+      case ATTR_CAPTURE_S:
+        if (c == '\'') {
+          if (currentAttrIsId) {
+            finishCapturedAnchorId();
+          } else {
+            resetAnchorAttrScan();
+          }
+        } else if (currentAttrIsId) {
+          appendCapturedAnchorId(c);
+        }
+        break;
+    }
+  }
 
   void onVisibleCodepoint() {
     totalVisChars++;
@@ -226,15 +434,19 @@ class ParagraphStreamer final : public Print {
   void onOpenTag() {
     htmlDepth++;
 
+    if (nonVisibleDepth > 0 || isNonVisibleTag()) {
+      nonVisibleDepth++;
+      return;
+    }
+
     if (stepCount == 0) {
       if (strcasecmp(tagName, "p") == 0) onLegacyP();
       return;
     }
 
-    // Capture <a id> inside the fully-matched element even after target char is found
+    // Capture a child <a id> inside the fully-matched element even after target char is found.
     if (revPFound && matchedDepth == stepCount && capturedAnchorIdLen == 0 && strcasecmp(tagName, "a") == 0) {
-      capturingAnchorTag = true;
-      idState = ID_SCAN;
+      beginAnchorIdScan();
     }
 
     if (revDone) return;
@@ -255,6 +467,7 @@ class ParagraphStreamer final : public Print {
           stepEnteredAtDepth[matchedDepth] = htmlDepth;
           matchedDepth++;
           if (matchedDepth == stepCount) {
+            beginAnchorIdScan();
             paragraphAtMatch = pCount;
             liCountAtMatch = liCount;
             revPFound = true;
@@ -272,6 +485,12 @@ class ParagraphStreamer final : public Print {
   }
 
   void onCloseTag() {
+    if (nonVisibleDepth > 0) {
+      nonVisibleDepth--;
+      if (htmlDepth > 0) htmlDepth--;
+      return;
+    }
+
     // Legacy mode: each direct child element closing advances the text node index.
     if (stepCount == 0 && revPFound && !revDone && paragraphHtmlDepth >= 0 && htmlDepth == paragraphHtmlDepth + 1) {
       currentTextNode++;
@@ -359,42 +578,12 @@ class ParagraphStreamer final : public Print {
           attrQuoteChar = 0;
         }
         if (capturingAnchorTag) {
-          switch (idState) {
-            case ID_SCAN:
-              idState = (c == 'i' || c == 'I') ? ID_I : ID_SCAN;
-              break;
-            case ID_I:
-              idState = (c == 'd' || c == 'D') ? ID_D : ID_SCAN;
-              break;
-            case ID_D:
-              idState = (c == '=') ? ID_EQ : ID_SCAN;
-              break;
-            case ID_EQ:
-              if (c == '"')
-                idState = ID_IN_VALUE_D;
-              else if (c == '\'')
-                idState = ID_IN_VALUE_S;
-              break;
-            case ID_IN_VALUE_D:
-              if (c == '"') {
-                capturedAnchorId[capturedAnchorIdLen] = '\0';
-                capturingAnchorTag = false;
-              } else if (capturedAnchorIdLen + 1 < MAX_ANCHOR_ID)
-                capturedAnchorId[capturedAnchorIdLen++] = c;
-              break;
-            case ID_IN_VALUE_S:
-              if (c == '\'') {
-                capturedAnchorId[capturedAnchorIdLen] = '\0';
-                capturingAnchorTag = false;
-              } else if (capturedAnchorIdLen + 1 < MAX_ANCHOR_ID)
-                capturedAnchorId[capturedAnchorIdLen++] = c;
-              break;
-          }
+          scanAnchorAttribute(c);
         }
         // Only treat '/' as self-closing when outside a quoted attribute value.
         if (c == '/' && !inAttrQuote) {
+          endAnchorIdScan();
           onCloseTag();
-          capturingAnchorTag = false;
         }
         break;
     }
@@ -452,10 +641,13 @@ class ParagraphStreamer final : public Print {
       tagNameLen = 0;
       tagIsClose = false;
       capturingAnchorTag = false;
-      idState = ID_SCAN;
+      resetAnchorAttrScan();
       inAttrQuote = false;
       attrQuoteChar = 0;
     } else if (c == '>') {
+      if (tagState == TAG_ATTRS) {
+        endAnchorIdScan();
+      }
       globalInTag = false;
       inAttrQuote = false;
       if (tagState == TAG_IN_NAME && tagNameLen > 0) {
@@ -469,6 +661,9 @@ class ParagraphStreamer final : public Print {
       tagState = TAG_IDLE;
     } else if (globalInTag) {
       processByteInTag(c);
+    } else if (nonVisibleDepth > 0) {
+      // Ignore head/style/script/title text. KOReader XPaths are body-relative, and CSS text
+      // should not contribute to intra-spine progress.
     } else {
       if (c == '&') {
         globalInEntity = true;
@@ -573,10 +768,12 @@ CrossPointPosition ProgressMapper::toCrossPoint(const std::shared_ptr<Epub>& epu
   if (spineSize == 0 || result.totalPages == 0) return result;
 
   float intra = 0.0f;
+  bool resolvedIntra = false;
   if (useAncestry) {
     ParagraphStreamer s(xpathSteps, xpathStepCount, xpathChar, xpathTextNode);
     if (streamSpine(epub, result.spineIndex, s) && s.found()) {
       intra = s.progress();
+      resolvedIntra = true;
       const int pAtMatch = s.getParagraphAtMatch();
       if (pAtMatch > 0) {
         result.paragraphIndex = static_cast<uint16_t>(pAtMatch);
@@ -602,11 +799,17 @@ CrossPointPosition ProgressMapper::toCrossPoint(const std::shared_ptr<Epub>& epu
     ParagraphStreamer s(xpathP, xpathChar, xpathTextNode);
     if (streamSpine(epub, result.spineIndex, s) && s.found()) {
       intra = s.progress();
+      resolvedIntra = true;
       LOG_DBG("PM", "XPath p[%d]/text()[%d]+%d -> %.1f%% (target=%zu total=%zu)", xpathP, xpathTextNode, xpathChar,
               intra * 100, s.getTargetVisChars(), s.getTotalVisChars());
     }
   }
-  if (intra <= 0.0f) {
+  if (!resolvedIntra && xpathSpine >= 0 && xpathSpine < spineCount && isChapterStartXPath(koPos.xpath)) {
+    intra = 0.0f;
+    resolvedIntra = true;
+    LOG_DBG("PM", "Chapter-start XPath %s -> spine=%d page start", koPos.xpath.c_str(), result.spineIndex);
+  }
+  if (!resolvedIntra) {
     const size_t bytesIn = (targetBytes > prevCum) ? (targetBytes - prevCum) : 0;
     intra = std::max(0.0f, std::min(1.0f, static_cast<float>(bytesIn) / static_cast<float>(spineSize)));
   }

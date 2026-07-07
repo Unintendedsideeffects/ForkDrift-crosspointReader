@@ -45,7 +45,8 @@ uint32_t MarkdownSection::onPageComplete(std::unique_ptr<Page> page) {
   }
 
   const uint32_t position = file.position();
-  if (!page->serialize(file)) {
+  serialization::BufferedWriter writer(file);
+  if (!page->serialize(writer) || !writer.flush()) {
     LOG_ERR("MSC", "Failed to serialize page %d", pageCount);
     return 0;
   }
@@ -262,7 +263,8 @@ std::unique_ptr<Page> MarkdownSection::loadPageFromSectionFile() {
   serialization::readPod(file, pageOffset);
   file.seek(pageOffset);
 
-  auto page = Page::deserialize(file);
+  serialization::BufferedReader reader(file);
+  auto page = Page::deserialize(reader);
   if (!page) {
     LOG_ERR("MSC", "Failed to deserialize page %d", currentPage);
     closeSectionFile();

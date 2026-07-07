@@ -167,7 +167,7 @@ FeatureModules::HomeCardDataResult FeatureModules::resolveHomeCardData(const std
       result.author = epub.getAuthor();
     }
     if (epub.generateThumbBmp(thumbHeight)) {
-      result.coverPath = epub.getThumbBmpPath(thumbHeight);
+      result.coverPath = epub.getThumbBmpPath();  // [HEIGHT] template — consumers substitute
     }
 #endif
     return result;
@@ -194,7 +194,7 @@ FeatureModules::HomeCardDataResult FeatureModules::resolveHomeCardData(const std
       result.author = xtcAuthor;
     }
     if (xtc.generateThumbBmp(thumbHeight)) {
-      result.coverPath = xtc.getThumbBmpPath(thumbHeight);
+      result.coverPath = xtc.getThumbBmpPath();  // [HEIGHT] template — consumers substitute
     }
 #endif
     return result;
@@ -222,7 +222,7 @@ FeatureModules::RecentBookDataResult FeatureModules::resolveRecentBookData(const
     }
     result.title = epub.getTitle();
     result.author = epub.getAuthor();
-    result.coverPath = epub.getThumbBmpPath(kDefaultThumbHeight);
+    result.coverPath = epub.getThumbBmpPath();  // [HEIGHT] template — consumers substitute
 #endif
     return result;
   }
@@ -240,7 +240,7 @@ FeatureModules::RecentBookDataResult FeatureModules::resolveRecentBookData(const
 
     result.title = xtc.getTitle();
     result.author = xtc.getAuthor();
-    result.coverPath = xtc.getThumbBmpPath(kDefaultThumbHeight);
+    result.coverPath = xtc.getThumbBmpPath();  // [HEIGHT] template — consumers substitute
 #endif
     return result;
   }

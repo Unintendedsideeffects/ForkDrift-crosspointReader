@@ -127,6 +127,10 @@ std::unique_ptr<MdNode> MarkdownParser::parse(const std::string& markdown) {
   }
 
   root = MdNode::createDocument();
+  if (!root) {
+    LOG_ERR("MD", "Parse failed: OOM creating document node");
+    return nullptr;
+  }
   nodeStack.clear();
   nodeStack.push_back(root.get());
   nodeCount = 1;
@@ -172,6 +176,11 @@ MdNode* MarkdownParser::currentNode() {
 }
 
 MdNode* MarkdownParser::pushNode(std::unique_ptr<MdNode> node) {
+  if (!node) {
+    // Null node (likely OOM during creation) — mark failure and return
+    setLimitExceeded("OOM: null node in pushNode");
+    return nullptr;
+  }
   MdNode* ptr = node.get();
   MdNode* parent = currentNode();
   const size_t nextDepth = nodeStack.size() + 1;
@@ -685,11 +694,16 @@ bool MarkdownParser::appendTextNode(MdNode* parent, std::string text) {
 
   if (!parent->children.empty()) {
     MdNode* last = parent->children.back().get();
-    if (last->type == MdNodeType::Text) {
+    if (last && last->type == MdNodeType::Text) {
       last->text += text;
       return true;
     }
   }
 
-  return appendChildNode(parent, MdNode::createText(text));
+  auto textNode = MdNode::createText(text);
+  if (!textNode) {
+    setLimitExceeded("OOM: failed to create text node");
+    return false;
+  }
+  return appendChildNode(parent, std::move(textNode));
 }

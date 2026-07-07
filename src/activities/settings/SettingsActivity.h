@@ -4,9 +4,11 @@
 
 #include "SettingInfo.h"
 #include "activities/Activity.h"
+#include "components/OptionPopup.h"
 #include "util/ButtonNavigator.h"
 
 class SettingsActivity final : public Activity {
+  OptionPopup optionPopup;
   ButtonNavigator buttonNavigator;
 
   int selectedCategoryIndex = 0;  // Currently selected category

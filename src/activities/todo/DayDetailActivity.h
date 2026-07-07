@@ -25,6 +25,7 @@ class DayDetailActivity final : public ActivityWithSubactivity {
   void editSelectedTaskText();
   void editSelectedDueTime();
   void closeInspector();
+  void addNewEntry(bool sectionEntry);
   void focusTaskIndex(int index);
 
  private:
@@ -43,7 +44,6 @@ class DayDetailActivity final : public ActivityWithSubactivity {
   void loadTasks();
   void saveTasks();
   void toggleCurrentTask();
-  void addNewEntry(bool sectionEntry);
   void editCurrentEntry();
   void openInspector();
   void navigateDay(int delta);

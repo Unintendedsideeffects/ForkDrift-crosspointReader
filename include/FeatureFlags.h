@@ -236,6 +236,22 @@
 #define ENABLE_ANKI_SUPPORT 0
 #endif
 
+// In-reader text selection (highlight cursor + dictionary/Anki/notes actions).
+#ifndef ENABLE_TEXT_SELECTION
+#define ENABLE_TEXT_SELECTION 1
+#endif
+
+// Persistent highlights created from text selection, rendered on the page.
+// Inspired by Inx (github.com/obijuankenobiii/inx, MIT).
+#ifndef ENABLE_ANNOTATIONS
+#define ENABLE_ANNOTATIONS 1
+#endif
+
+// Per-book reader settings overrides. Inspired by Inx.
+#ifndef ENABLE_PER_BOOK_SETTINGS
+#define ENABLE_PER_BOOK_SETTINGS 1
+#endif
+
 #ifndef ENABLE_LUA_PLUGINS
 #define ENABLE_LUA_PLUGINS 0
 #endif
@@ -411,6 +427,24 @@
 #if !ENABLE_EPUB_SUPPORT && !ENABLE_MARKDOWN
 #undef ENABLE_BOOK_IMAGES
 #define ENABLE_BOOK_IMAGES 0
+#endif
+
+// Text selection reads the EPUB page layout; without EPUB support there is
+// nothing to select from, so it auto-disables rather than erroring.
+#if !ENABLE_EPUB_SUPPORT
+#undef ENABLE_TEXT_SELECTION
+#define ENABLE_TEXT_SELECTION 0
+#endif
+
+#if !ENABLE_EPUB_SUPPORT
+#undef ENABLE_PER_BOOK_SETTINGS
+#define ENABLE_PER_BOOK_SETTINGS 0
+#endif
+
+// Annotations are created and rendered through the selection machinery.
+#if !ENABLE_TEXT_SELECTION
+#undef ENABLE_ANNOTATIONS
+#define ENABLE_ANNOTATIONS 0
 #endif
 
 // OpenDyslexic only covers Latin + basic punctuation. A full-charset font must

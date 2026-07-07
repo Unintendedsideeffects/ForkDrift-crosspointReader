@@ -119,6 +119,7 @@ inline std::vector<QuickActionOption> shortPowerButtonOptions() {
       {StrId::STR_SELECT, S::SELECT},
       {StrId::STR_FORCE_REFRESH, S::FORCE_REFRESH},
       {StrId::STR_CHANGE_FONT, S::TOGGLE_FONT},
+      {StrId::STR_FOOTNOTES, S::FOOTNOTES},
   };
   if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
     options.push_back({StrId::STR_TOGGLE_GUIDE_DOTS, S::TOGGLE_GUIDE_DOTS, "guide_dots"});
@@ -149,7 +150,7 @@ inline std::vector<QuickActionOption> longPowerButtonOptions() {
   std::vector<QuickActionOption> options = {
       {StrId::STR_IGNORE, S::IGNORE},           {StrId::STR_SLEEP, S::SLEEP},
       {StrId::STR_PAGE_TURN, S::PAGE_TURN},     {StrId::STR_FORCE_REFRESH, S::FORCE_REFRESH},
-      {StrId::STR_CHANGE_FONT, S::TOGGLE_FONT},
+      {StrId::STR_CHANGE_FONT, S::TOGGLE_FONT}, {StrId::STR_FOOTNOTES, S::FOOTNOTES},
   };
   if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
     options.push_back({StrId::STR_TOGGLE_GUIDE_DOTS, S::TOGGLE_GUIDE_DOTS, "guide_dots"});
@@ -182,7 +183,7 @@ inline std::vector<QuickActionOption> doubleTapPowerButtonOptions() {
   std::vector<QuickActionOption> options = {
       {StrId::STR_DOUBLE_TAP_BACK, S::DOUBLE_TAP_BACK}, {StrId::STR_IGNORE, S::IGNORE},
       {StrId::STR_FORCE_REFRESH, S::FORCE_REFRESH},     {StrId::STR_SLEEP, S::SLEEP},
-      {StrId::STR_CHANGE_FONT, S::TOGGLE_FONT},
+      {StrId::STR_CHANGE_FONT, S::TOGGLE_FONT},         {StrId::STR_FOOTNOTES, S::FOOTNOTES},
   };
   if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
     options.push_back({StrId::STR_TOGGLE_GUIDE_DOTS, S::TOGGLE_GUIDE_DOTS, "guide_dots"});
@@ -237,6 +238,7 @@ inline std::vector<QuickActionOption> longPressMenuActionOptions() {
   options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::LONG_MENU_CYCLE_PAGE_TURN});
   if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
     options.push_back({StrId::STR_FILE_TRANSFER, S::LONG_MENU_FILE_TRANSFER, "usb_mass_storage"});
+    options.push_back({StrId::STR_SELECT_TEXT, S::LONG_MENU_TEXT_SELECT, "text_selection"});
   }
   return options;
 }
@@ -810,7 +812,8 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
 
   // --- Controls ---
   emit(SettingInfo::Enum(StrId::STR_SIDE_BTN_LAYOUT, &CrossPointSettings::sideButtonLayout,
-                         {StrId::STR_PREV_NEXT, StrId::STR_NEXT_PREV}, "sideButtonLayout", StrId::STR_CAT_CONTROLS)
+                         {StrId::STR_PREV_NEXT, StrId::STR_NEXT_PREV, StrId::STR_DISABLED}, "sideButtonLayout",
+                         StrId::STR_CAT_CONTROLS)
            .withConfiguratorExport());
   emit(SettingInfo::Enum(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::sideButtonOrientationAware,
                          {StrId::STR_NO, StrId::STR_YES}, "sideButtonOrientationAware", StrId::STR_CAT_CONTROLS)

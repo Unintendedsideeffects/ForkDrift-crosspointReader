@@ -85,6 +85,7 @@ void CalibreConnectActivity::startWebServer() {
   {
     char hostname[40];
     NetworkNames::getDeviceHostname(hostname, sizeof(hostname));
+    MDNS.end();  // close any prior responder before re-registering (handle leak otherwise)
     if (MDNS.begin(hostname)) {
       // mDNS is optional for the Calibre plugin but still helpful for users.
       LOG_DBG("CAL", "mDNS started: http://%s.local/", hostname);

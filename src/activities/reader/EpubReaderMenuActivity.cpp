@@ -1,6 +1,8 @@
 #include "EpubReaderMenuActivity.h"
 
+#include <FeatureFlags.h>
 #include <GfxRenderer.h>
+#include <HeapGuard.h>
 #include <I18n.h>
 
 #include "MappedInputManager.h"
@@ -44,6 +46,9 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
   std::vector<MenuItem> items;
   items.reserve(15);
   items.push_back({MenuAction::SELECT_CHAPTER, StrId::STR_SELECT_CHAPTER});
+#if ENABLE_TEXT_SELECTION
+  items.push_back({MenuAction::SELECT_TEXT, StrId::STR_SELECT_TEXT});
+#endif
   items.push_back({MenuAction::READER_OPTIONS, StrId::STR_CAT_READER});
   items.push_back({MenuAction::CONTROLS_OPTIONS, StrId::STR_CAT_CONTROLS});
   if (hasFootnotes) {
@@ -82,11 +87,17 @@ void EpubReaderMenuActivity::onEnter() {
   // page render is still in the buffer at this point; ControlsOptionsActivity will
   // use it to keep the book text visible in the top half while settings are open.
   const size_t bufSize = renderer.getBufferSize();
-  savedPageBuffer = makeUniqueNoThrow<uint8_t[]>(bufSize);
+  // The saved page is a luxury (half-screen preview under the options panels);
+  // don't take a 48KB bite out of an already-low heap for it. Downstream code
+  // handles a null buffer by falling back to full-screen settings layouts.
+  if (heapguard::canAllocate(bufSize, heapguard::kLowFloorBytes)) {
+    savedPageBuffer = makeUniqueNoThrow<uint8_t[]>(bufSize);
+  }
   if (savedPageBuffer) {
     memcpy(savedPageBuffer.get(), renderer.getFrameBuffer(), bufSize);
   } else {
-    LOG_ERR("RDR", "OOM: %d bytes for savedPageBuffer", static_cast<int>(bufSize));
+    LOG_ERR("RDR", "Skipping savedPageBuffer (%d bytes): low heap (%u free)", static_cast<int>(bufSize),
+            static_cast<unsigned>(heapguard::freeBytes()));
   }
   requestUpdate();
 }
@@ -94,6 +105,8 @@ void EpubReaderMenuActivity::onEnter() {
 void EpubReaderMenuActivity::onExit() { Activity::onExit(); }
 
 void EpubReaderMenuActivity::loop() {
+  if (optionPopup.handleInput(mappedInput, [this] { requestUpdate(); })) return;
+
   // Handle navigation
   buttonNavigator.onNext([this] {
     selectedIndex = ButtonNavigator::nextIndex(selectedIndex, static_cast<int>(menuItems.size()));
@@ -108,8 +121,11 @@ void EpubReaderMenuActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     const auto selectedAction = menuItems[selectedIndex].action;
     if (selectedAction == MenuAction::ROTATE_SCREEN) {
-      // Cycle orientation preview locally; actual rotation happens on menu exit.
-      pendingOrientation = (pendingOrientation + 1) % orientationLabels.size();
+      optionPopup.show(StrId::STR_ORIENTATION, orientationLabels.data(), static_cast<int>(orientationLabels.size()),
+                       pendingOrientation, [this](int idx) {
+                         pendingOrientation = idx;
+                         requestUpdate();
+                       });
       requestUpdate();
       return;
     }
@@ -160,6 +176,8 @@ void EpubReaderMenuActivity::loop() {
 }
 
 void EpubReaderMenuActivity::render(RenderLock&&) {
+  if (optionPopup.processRender(renderer, mappedInput)) return;
+
   renderer.clearScreen();
   const auto pageWidth = renderer.getScreenWidth();
   const auto orientation = renderer.getOrientation();

@@ -1,6 +1,6 @@
 #pragma once
 #include <EpdFontFamily.h>
-#include <HalStorage.h>
+#include <Serialization.h>
 
 #include <memory>
 #include <string>
@@ -42,11 +42,13 @@ class TextBlock final : public Block {
   void setBlockStyle(const BlockStyle& blockStyle) { this->blockStyle = blockStyle; }
   const BlockStyle& getBlockStyle() const { return blockStyle; }
   const std::vector<std::string>& getWords() const { return words; }
+  const std::vector<int16_t>& getWordXpos() const { return wordXpos; }
+  const std::vector<EpdFontFamily::Style>& getWordStyles() const { return wordStyles; }
   bool isEmpty() override { return words.empty(); }
   size_t wordCount() const { return words.size(); }
   // given a renderer works out where to break the words into lines
   void render(const GfxRenderer& renderer, int fontId, int x, int y) const;
   BlockType getType() override { return TEXT_BLOCK; }
-  bool serialize(HalFile& file) const;
-  static std::unique_ptr<TextBlock> deserialize(HalFile& file);
+  bool serialize(serialization::BufferedWriter& file) const;
+  static std::unique_ptr<TextBlock> deserialize(serialization::BufferedReader& file);
 };

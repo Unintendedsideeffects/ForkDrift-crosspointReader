@@ -2,6 +2,7 @@
 
 #include <FsHelpers.h>
 #include <HalStorage.h>
+#include <Memory.h>
 
 #include "CrossPointSettings.h"
 #include "Epub.h"

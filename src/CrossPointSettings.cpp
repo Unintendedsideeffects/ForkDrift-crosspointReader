@@ -1,4 +1,7 @@
 #include "CrossPointSettings.h"
+#if ENABLE_PER_BOOK_SETTINGS
+#include "util/BookSettingsOverride.h"
+#endif
 
 #include <HalStorage.h>
 #include <JsonSettingsIO.h>
@@ -253,10 +256,23 @@ bool CrossPointSettings::resetToDefaults() {
   return instance.saveToFile();
 }
 
-bool CrossPointSettings::saveToFile() const {
+bool CrossPointSettings::saveToFileRaw() const {
   Storage.mkdir("/.crosspoint");
   setDeveloperModeLoggingEnabled(developerMode != 0);
   return JsonSettingsIO::saveSettings(*this, SETTINGS_FILE_JSON);
+}
+
+bool CrossPointSettings::saveToFile() const {
+#if ENABLE_PER_BOOK_SETTINGS
+  // While a book's setting overrides are applied in RAM, ANY caller saving the
+  // globals (sleep timers, WiFi flows, reader exits) would bake the per-book
+  // values into the global file. Route every save through the scope, which
+  // restores the pre-apply snapshot for overridden fields, saves, re-applies.
+  if (BookSettingsScope::isEnabled()) {
+    return BookSettingsScope::saveGlobalsPreservingOverrides();
+  }
+#endif
+  return saveToFileRaw();
 }
 
 bool CrossPointSettings::loadFromFile() {

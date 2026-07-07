@@ -395,6 +395,8 @@ If the **Short Power Button Click** setting is set to "Page Turn", you can also 
 This feature can be disabled in the **[Controls Settings](#363-controls)** to help avoid changing chapters by mistake.
 
 
+If the device goes to sleep or you close the book while viewing a footnote, the book reopens to your original reading position, not the footnote.
+
 ### System Navigation
 * **Return to Home:** Press the **Back** button to close the book and return to the **[Home](#31-home-screen)** screen.
 * **Return to Browse Files:** Press and hold the **Back** button to close the book and return to the **[Browse Files](#33-browse-files-screen)** screen.
