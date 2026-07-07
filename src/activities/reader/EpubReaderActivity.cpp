@@ -84,6 +84,21 @@ struct PartyThumbnailBakeParams {
   std::shared_ptr<Epub> epub;
 };
 
+void partyThumbnailBakeTask(void* param);
+
+bool startPartyThumbnailBakeTask(const std::shared_ptr<Epub>& epub) {
+  // cppcheck-suppress unreadVariable
+  auto* params = new (std::nothrow) PartyThumbnailBakeParams{epub};
+  if (!params) {
+    return false;
+  }
+  if (xTaskCreate(partyThumbnailBakeTask, "PartyThumb", 6144, params, 0, nullptr) != pdPASS) {
+    delete params;
+    return false;
+  }
+  return true;
+}
+
 void partyThumbnailBakeTask(void* param) {
   auto* params = static_cast<PartyThumbnailBakeParams*>(param);
   const auto clearInProgress = []() { partyThumbnailBakeInProgress.store(false); };
@@ -681,15 +696,9 @@ void EpubReaderActivity::queuePartyThumbnailBakeIfIdle() {
     return;
   }
 
-  auto* params = new (std::nothrow) PartyThumbnailBakeParams{epub};
-  if (params == nullptr) {
-    LOG_WRN("THUMB", "Could not allocate Party thumbnail job");
-    return;
-  }
   partyThumbnailBakeInProgress.store(true);
-  if (xTaskCreate(partyThumbnailBakeTask, "PartyThumb", 6144, params, 0, nullptr) != pdPASS) {
+  if (!startPartyThumbnailBakeTask(epub)) {
     partyThumbnailBakeInProgress.store(false);
-    delete params;
     LOG_WRN("THUMB", "Could not start Party thumbnail job");
   }
 }

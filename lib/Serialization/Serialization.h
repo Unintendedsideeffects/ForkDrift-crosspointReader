@@ -30,7 +30,7 @@ class BufferedReader {
       const size_t avail = fill_ - pos_;
       if (avail > 0) {
         const size_t n = avail < count ? avail : count;
-        memcpy(out, buf_.get() + pos_, n);
+        memcpy(out, bufData() + pos_, n);
         pos_ += n;
         out += n;
         total += n;
@@ -44,7 +44,7 @@ class BufferedReader {
         }
         return static_cast<int>(total);
       }
-      const int n = file_.read(buf_.get(), kBufSize);
+      const int n = file_.read(bufData(), kBufSize);
       if (n <= 0) {
         break;
       }
@@ -55,6 +55,8 @@ class BufferedReader {
   }
 
  private:
+  uint8_t* bufData() { return buf_.get(); }
+
   static constexpr size_t kBufSize = 512;  // one SD sector
   HalFile& file_;
   std::unique_ptr<uint8_t[]> buf_;
@@ -94,14 +96,14 @@ class BufferedWriter {
     if (fill_ + count > kBufSize && !flush()) {
       return 0;
     }
-    memcpy(buf_.get() + fill_, src, count);
+    memcpy(bufData() + fill_, src, count);
     fill_ += count;
     return count;
   }
 
   bool flush() {
     if (fill_ > 0) {
-      const size_t n = file_.write(buf_.get(), fill_);
+      const size_t n = file_.write(bufData(), fill_);
       if (n != fill_) {
         failed_ = true;
       }
@@ -116,6 +118,8 @@ class BufferedWriter {
   bool failed() const { return failed_; }
 
  private:
+  uint8_t* bufData() { return buf_.get(); }
+
   static constexpr size_t kBufSize = 512;  // one SD sector
   HalFile& file_;
   std::unique_ptr<uint8_t[]> buf_;

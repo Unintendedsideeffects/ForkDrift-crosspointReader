@@ -6,6 +6,8 @@
 #include <Logging.h>
 #include <Serialization.h>
 
+#include <algorithm>
+
 namespace {
 constexpr uint8_t kFileVersion = 1;
 constexpr char kFileName[] = "/annotations.bin";
@@ -84,21 +86,14 @@ int AnnotationStore::removeAt(const uint16_t spineIndex, const uint16_t page, co
 }
 
 bool AnnotationStore::removeCandidateAt(const uint16_t spineIndex, const uint16_t page, const uint16_t wordIdx) const {
-  for (const auto& a : annotations) {
-    if (a.spineIndex == spineIndex && a.page == page && a.startWord <= wordIdx && wordIdx <= a.endWord) {
-      return true;
-    }
-  }
-  return false;
+  return std::any_of(annotations.begin(), annotations.end(), [&](const Annotation& a) {
+    return a.spineIndex == spineIndex && a.page == page && a.startWord <= wordIdx && wordIdx <= a.endWord;
+  });
 }
 
 bool AnnotationStore::hasAnyFor(const uint16_t spineIndex, const uint16_t page) const {
-  for (const auto& a : annotations) {
-    if (a.spineIndex == spineIndex && a.page == page) {
-      return true;
-    }
-  }
-  return false;
+  return std::any_of(annotations.begin(), annotations.end(),
+                     [&](const Annotation& a) { return a.spineIndex == spineIndex && a.page == page; });
 }
 
 std::vector<const Annotation*> AnnotationStore::forPage(const uint16_t spineIndex, const uint16_t page) const {
