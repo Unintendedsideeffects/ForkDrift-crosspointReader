@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 
+#include "Epub/BookMetadataCache.h"
 #include "doctest/doctest.h"
 #include "include/BookCachePath.h"
 #include "lib/Serialization/Serialization.h"
@@ -49,7 +50,7 @@ void writeMarkdownSectionFile(const std::string& path, uint16_t pageCount) {
 void writeEpubBookCache(const std::string& path, const std::vector<uint32_t>& cumulativeSizes) {
   FsFile f;
   CHECK(Storage.openFileForWrite("TST", path, f));
-  serialization::writePod(f, static_cast<uint8_t>(5));
+  serialization::writePod(f, BookMetadataCache::kFormatVersion);
   serialization::writePod(f, static_cast<uint32_t>(0));
   serialization::writePod(f, static_cast<uint16_t>(cumulativeSizes.size()));
   serialization::writePod(f, static_cast<uint16_t>(0));

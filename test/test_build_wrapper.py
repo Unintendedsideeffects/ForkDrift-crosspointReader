@@ -78,9 +78,12 @@ def prepare_wrapper_fixture(tmp_path: Path) -> tuple[Path, Path]:
     fixture_root = tmp_path / "repo"
     fixture_root.mkdir()
 
+    source_script = repo_root / "build-firmware.sh"
+    if not source_script.is_file():
+        raise FileNotFoundError(f"Missing build wrapper script: {source_script}")
     for script_name in ("build-firmware.sh", "build_firmware.sh"):
         target = fixture_root / script_name
-        shutil.copy2(repo_root / script_name, target)
+        shutil.copy2(source_script, target)
         make_executable(target)
 
     firmware_dir = fixture_root / "crosspoint-reader"

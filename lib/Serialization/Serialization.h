@@ -22,7 +22,7 @@ class BufferedReader {
 
   int read(void* dst, size_t count) {
     if (!buf_) {
-      return file_.read(dst, count);  // OOM fallback: correct, just slower
+      return static_cast<int>(file_.read(static_cast<uint8_t*>(dst), count));
     }
     auto* out = static_cast<uint8_t*>(dst);
     size_t total = 0;
@@ -77,7 +77,7 @@ class BufferedWriter {
 
   size_t write(const void* src, size_t count) {
     if (!buf_) {
-      const size_t n = file_.write(src, count);  // OOM fallback
+      const size_t n = file_.write(reinterpret_cast<const uint8_t*>(src), count);
       if (n != count) {
         failed_ = true;
       }
@@ -87,7 +87,7 @@ class BufferedWriter {
       if (!flush()) {
         return 0;
       }
-      const size_t n = file_.write(src, count);
+      const size_t n = file_.write(reinterpret_cast<const uint8_t*>(src), count);
       if (n != count) {
         failed_ = true;
       }

@@ -73,6 +73,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -I"$ROOT_DIR/src" \
   -I"$ARDUINOJSON_DIR" \
   -I"$SIMULATOR_MBEDTLS_DIR" \
+  -I"$ROOT_DIR/lib/Epub" \
   -I"$ROOT_DIR/lib/Utf8" \
   "$ROOT_DIR/test/host/"*.cpp \
   "$ROOT_DIR/lib/OpdsParser/OpenSearchParser.cpp" \
@@ -116,6 +117,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/FlashcardsStore.cpp" \
   "$ROOT_DIR/src/util/DictionaryLookup.cpp" \
   "$ROOT_DIR/src/CrossPointSettings.cpp" \
+  "$ROOT_DIR/src/util/BookSettingsOverride.cpp" \
   "$ROOT_DIR/src/network/background/BackgroundServerPolicy.cpp" \
   "$ROOT_DIR/src/BookmarkStore.cpp" \
   "$ROOT_DIR/lib/Xtc/Xtc/XtcParser.cpp" \

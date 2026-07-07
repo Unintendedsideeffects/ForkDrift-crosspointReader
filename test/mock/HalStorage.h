@@ -46,6 +46,7 @@ class HalFile {
     if (buf_) buf_->insert(buf_->end(), data, data + len);
     return len;
   }
+  size_t write(uint8_t b) { return write(&b, 1); }
 
   size_t read(uint8_t* data, size_t len) {
     if (!buf_) return 0;
