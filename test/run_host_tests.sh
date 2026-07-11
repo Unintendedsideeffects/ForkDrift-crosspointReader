@@ -43,6 +43,7 @@ fi
 
 gcc -c "$ROOT_DIR/lib/third_party/md4c/md4c.c" -I"$ROOT_DIR/lib/third_party/md4c" -o "$BUILD_DIR/md4c.o"
 gcc -c "$ROOT_DIR/lib/third_party/md4c/entity.c" -I"$ROOT_DIR/lib/third_party/md4c" -o "$BUILD_DIR/entity.o"
+gcc -c "$ROOT_DIR/lib/MiniBidi/minibidi.c" -I"$ROOT_DIR/lib/MiniBidi" -o "$BUILD_DIR/minibidi.o"
 
 # Enable the web pokedex/pokemon party routes so host tests compile and exercise them.
 g++ -std=c++20 -O0 -g -Wno-narrowing \
@@ -75,6 +76,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -I"$SIMULATOR_MBEDTLS_DIR" \
   -I"$ROOT_DIR/lib/Epub" \
   -I"$ROOT_DIR/lib/Utf8" \
+  -I"$ROOT_DIR/lib/MiniBidi" \
   "$ROOT_DIR/test/host/"*.cpp \
   "$ROOT_DIR/lib/OpdsParser/OpenSearchParser.cpp" \
   "$ROOT_DIR/lib/OpdsParser/OpdsParser.cpp" \
@@ -118,6 +120,8 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/DictionaryLookup.cpp" \
   "$ROOT_DIR/src/CrossPointSettings.cpp" \
   "$ROOT_DIR/src/util/BookSettingsOverride.cpp" \
+  "$ROOT_DIR/src/util/AnnotationStore.cpp" \
+  "$ROOT_DIR/lib/MiniBidi/BidiUtils.cpp" \
   "$ROOT_DIR/src/network/background/BackgroundServerPolicy.cpp" \
   "$ROOT_DIR/src/BookmarkStore.cpp" \
   "$ROOT_DIR/lib/Xtc/Xtc/XtcParser.cpp" \
@@ -133,8 +137,10 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/activities/reader/ReadingStatsAnalytics.cpp" \
   "$ROOT_DIR/src/activities/reader/BookReadingStats.cpp" \
   "$ROOT_DIR/src/activities/reader/GlobalReadingStats.cpp" \
+  "$ROOT_DIR/src/activities/reader/SelectionModel.cpp" \
   "$BUILD_DIR/md4c.o" \
   "$BUILD_DIR/entity.o" \
+  "$BUILD_DIR/minibidi.o" \
   -lexpat \
   -o "$BUILD_DIR/HostTests"
 

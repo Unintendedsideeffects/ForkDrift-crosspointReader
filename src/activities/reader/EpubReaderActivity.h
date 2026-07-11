@@ -16,6 +16,9 @@
 #endif
 #include "CrossPointSettings.h"
 #include "EpubReaderMenuActivity.h"
+#if ENABLE_TEXT_SELECTION
+#include "SelectionModel.h"
+#endif
 #if ENABLE_READING_STATS
 #include "GlobalReadingStats.h"
 #endif
@@ -76,19 +79,11 @@ class EpubReaderActivity final : public Activity {
   // Entered from the reader menu or the long-press quick action. Word rects are
   // collected from the current page's cached layout; the cursor moves word by
   // word (Up/Down), Confirm anchors then extends, second Confirm opens actions.
-  struct SelWord {
-    int16_t x;
-    int16_t y;
-    int16_t w;
-    int16_t h;
-    std::string text;
-  };
   bool selectionMode = false;
-  bool selectionAnchored = false;
-  int selCursor = 0;
-  int selAnchor = 0;
-  std::vector<SelWord> selWords;
+  selection::Model selModel;
   OptionPopup selectionPopup;
+  std::unique_ptr<uint8_t[]> selectionBaseSnapshot;
+  bool selectionSnapshotFallback = false;
 
   void enterSelectionMode();
   void exitSelectionMode();
@@ -99,7 +94,8 @@ class EpubReaderActivity final : public Activity {
   void openSelectionActions();
   // Shared by selection mode and annotation rendering: flatten the page's
   // selectable words into screen rects.
-  void collectSelectableWords(const Page& page, int marginLeft, int marginTop, std::vector<SelWord>& out) const;
+  void collectSelectableWords(const Page& page, int marginLeft, int marginTop,
+                              std::vector<selection::SelWord>& out) const;
 #if ENABLE_ANNOTATIONS
   // Draw persistent highlights for the current page into the BW framebuffer.
   void renderAnnotations(const Page& page, int marginLeft, int marginTop) const;

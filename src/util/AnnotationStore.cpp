@@ -16,6 +16,10 @@ constexpr char kFileName[] = "/annotations.bin";
 bool AnnotationStore::loadForBook(const std::string& cachePath) {
   unload();
   filePath = cachePath + kFileName;
+  const std::string tmpPath = filePath + ".tmp";
+  if (Storage.exists(tmpPath.c_str())) {
+    Storage.remove(tmpPath.c_str());  // stale temp from an interrupted save
+  }
   loaded = true;
 
   HalFile file;
@@ -106,27 +110,65 @@ std::vector<const Annotation*> AnnotationStore::forPage(const uint16_t spineInde
   return out;
 }
 
+std::vector<const Annotation*> AnnotationStore::forSpine(const uint16_t spineIndex) const {
+  std::vector<const Annotation*> out;
+  for (const auto& a : annotations) {
+    if (a.spineIndex == spineIndex) {
+      out.push_back(&a);
+    }
+  }
+  return out;
+}
+
+bool AnnotationStore::updateHints(const Annotation* const annotation, const uint16_t page, const uint16_t startWord,
+                                  const uint16_t endWord) {
+  for (auto& a : annotations) {
+    if (&a != annotation) {
+      continue;
+    }
+    if (a.page == page && a.startWord == startWord && a.endWord == endWord) {
+      return true;
+    }
+    a.page = page;
+    a.startWord = startWord;
+    a.endWord = endWord;
+    dirty = true;
+    return true;
+  }
+  return false;
+}
+
 void AnnotationStore::saveToFile() {
   if (!loaded || filePath.empty()) {
     return;
   }
-  HalFile file;
-  if (!Storage.openFileForWrite("ANN", filePath, file)) {
-    LOG_ERR("ANN", "Failed to open %s for write", filePath.c_str());
-    return;
+  const std::string tmpPath = filePath + ".tmp";
+  {
+    HalFile file;
+    if (!Storage.openFileForWrite("ANN", tmpPath, file)) {
+      LOG_ERR("ANN", "Failed to open %s for write", tmpPath.c_str());
+      return;
+    }
+    serialization::BufferedWriter writer(file);
+    serialization::writePod(writer, kFileVersion);
+    serialization::writePod(writer, static_cast<uint16_t>(annotations.size()));
+    for (const auto& a : annotations) {
+      serialization::writePod(writer, a.spineIndex);
+      serialization::writePod(writer, a.page);
+      serialization::writePod(writer, a.startWord);
+      serialization::writePod(writer, a.endWord);
+      serialization::writeString(writer, a.text);
+    }
+    if (!writer.flush()) {
+      LOG_ERR("ANN", "Failed to flush annotations");
+      return;
+    }
+    // temp file closes at scope exit (DESTRUCTOR_CLOSES_FILE=1) before rename —
+    // SdFat must not rename a path that still has an open FsFile.
   }
-  serialization::BufferedWriter writer(file);
-  serialization::writePod(writer, kFileVersion);
-  serialization::writePod(writer, static_cast<uint16_t>(annotations.size()));
-  for (const auto& a : annotations) {
-    serialization::writePod(writer, a.spineIndex);
-    serialization::writePod(writer, a.page);
-    serialization::writePod(writer, a.startWord);
-    serialization::writePod(writer, a.endWord);
-    serialization::writeString(writer, a.text);
-  }
-  if (!writer.flush()) {
-    LOG_ERR("ANN", "Failed to flush annotations");
+  Storage.remove(filePath.c_str());
+  if (!Storage.rename(tmpPath.c_str(), filePath.c_str())) {
+    LOG_ERR("ANN", "Failed to rename %s into place", filePath.c_str());
     return;
   }
   dirty = false;

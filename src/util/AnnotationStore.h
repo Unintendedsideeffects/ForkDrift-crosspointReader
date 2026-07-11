@@ -11,10 +11,9 @@
 // Persistent in-book highlights, created from the reader's text-selection mode.
 // Inspired by the Inx firmware's annotations (github.com/obijuankenobiii/inx,
 // MIT) with a more relayout-tolerant key: entries carry the highlighted TEXT as
-// ground truth alongside page/word indices. When the section cache regenerates
-// (font/margin change), stale indices simply stop matching and the highlight is
-// re-anchored by word-sequence match — or shown only in text form, never
-// crashing or highlighting the wrong words.
+// ground truth alongside page/word indices. Rendering looks up annotations by
+// stable spine, lazily re-anchors by word-sequence match after relayout, and
+// heals stale page/word hints when a match is found.
 //
 // Storage: <book cache dir>/annotations.bin, small binary records, one file per
 // book, loaded whole (annotation counts are tens, not thousands; enforced cap).
@@ -50,6 +49,9 @@ class AnnotationStore {
   bool removeCandidateAt(uint16_t spineIndex, uint16_t page, uint16_t wordIdx) const;
   // Annotations on a given page (hint indices; callers must bounds-check).
   std::vector<const Annotation*> forPage(uint16_t spineIndex, uint16_t page) const;
+  // Annotations in a given spine, regardless of page hints.
+  std::vector<const Annotation*> forSpine(uint16_t spineIndex) const;
+  bool updateHints(const Annotation* annotation, uint16_t page, uint16_t startWord, uint16_t endWord);
 
   const std::vector<Annotation>& all() const { return annotations; }
   void saveToFile();

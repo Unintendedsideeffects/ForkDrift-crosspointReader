@@ -105,6 +105,8 @@ class SimulatorSmokeTest {
 
   static bool sdFailRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SD_FAIL") != nullptr; }
 
+  static bool selectionMeasurementRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_SELECTION") != nullptr; }
+
   static int pageTurnCount() {
     const char* raw = std::getenv("FORKDRIFT_SIMULATOR_SMOKE_PAGE_TURNS");
     if (raw == nullptr || raw[0] == '\0') return 2;
@@ -428,6 +430,30 @@ class SimulatorSmokeTest {
     for (int i = 0; i < turns; i++) {
       addTap(MappedInputManager::Button::PageForward);
       inputScript.push_back(render("Reader after page forward", 4));
+    }
+    if (selectionMeasurementRequested()) {
+#if ENABLE_TEXT_SELECTION
+      // Selection-mode scripted leg (plan 028): set FORKDRIFT_SIMULATOR_SMOKE_SELECTION=1 to drive selection-cursor
+      // repaints for perf measurement.
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Reader menu for selection perf", 4));
+      addTap(MappedInputManager::Button::Down);
+      inputScript.push_back(render("Reader menu on select-text perf", 2));
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Selection perf entered", 4));
+      for (int i = 0; i < 10; i++) {
+        addTap(MappedInputManager::Button::Right);
+        inputScript.push_back(render("Selection perf cursor right", 3));
+      }
+      addTap(MappedInputManager::Button::Back);
+      inputScript.push_back(render("Selection perf exited", 3));
+      addTap(MappedInputManager::Button::Back);
+      inputScript.push_back(render("Home after selection perf", 4));
+      LOG_INF("SMOKE", "Running reader selection measurement script with %d page turn(s)", turns);
+      return;
+#else
+      fail("FORKDRIFT_SIMULATOR_SMOKE_SELECTION requested but ENABLE_TEXT_SELECTION is off");
+#endif
     }
     addTap(MappedInputManager::Button::Confirm);
     inputScript.push_back(render("Reader menu", 4));

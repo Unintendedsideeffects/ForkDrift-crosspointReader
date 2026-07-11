@@ -1,24 +1,7 @@
 #ifdef SIMULATOR
-// Link stubs for fork APIs whose real implementations live in files the
-// simulator build excludes (network/server, network/ota). Inert but safe.
+// Link stubs for remote-keyboard session APIs whose real implementation lives
+// in files the simulator build excludes (network/server). Inert but safe.
 #include <Logging.h>
-
-#include "network/ota/OtaUpdater.h"
-
-bool OtaUpdater::loadFeatureStoreCatalog() {
-  LOG_DBG("OTA", "[SIM] feature store catalog not available");
-  return false;
-}
-bool OtaUpdater::hasFeatureStoreCatalog() const { return false; }
-const std::vector<OtaUpdater::FeatureStoreEntry>& OtaUpdater::getFeatureStoreEntries() const {
-  static const std::vector<FeatureStoreEntry> kEmpty;
-  return kEmpty;
-}
-bool OtaUpdater::selectFeatureStoreBundleByIndex(size_t) { return false; }
-const String& OtaUpdater::getLastError() const {
-  static const String kNone = "not supported in simulator";
-  return kNone;
-}
 
 #include "network/server/RemoteKeyboardNetworkSession.h"
 

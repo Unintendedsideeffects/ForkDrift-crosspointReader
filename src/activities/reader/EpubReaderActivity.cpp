@@ -40,6 +40,9 @@
 #include "EpubReaderFootnotesActivity.h"
 #include "EpubReaderPercentSelectionActivity.h"
 #include "EpubReaderUtils.h"
+#if ENABLE_TEXT_SELECTION
+#include "SelectionModel.h"
+#endif
 #include "core/OrientationManager.h"
 #if ENABLE_READING_STATS
 #include "GlobalReadingStats.h"
@@ -315,8 +318,6 @@ void EpubReaderActivity::onEnter() {
   // own sizes via UITheme::getCoverThumbPath (Pokemon square, carousel, grid).
   RECENT_BOOKS.addBook(epub->getPath(), epub->getTitle(), epub->getAuthor(), epub->getThumbBmpPath());
 
-#if ENABLE_BOOKMARKS
-  BOOKMARKS.loadForBook(epub->getPath(), epub->getTitle(), epub->getAuthor(), "epub");
 #if ENABLE_PER_BOOK_SETTINGS
   {
     BookSettingsOverride snapshot;
@@ -333,6 +334,8 @@ void EpubReaderActivity::onEnter() {
 #if ENABLE_ANNOTATIONS
   ANNOTATIONS.loadForBook(epub->getCachePath());
 #endif
+#if ENABLE_BOOKMARKS
+  BOOKMARKS.loadForBook(epub->getPath(), epub->getTitle(), epub->getAuthor(), "epub");
   // Resume at bookmark selected from the home screen, if any.
   if (APP_STATE.pendingBookmarkSpine != PENDING_BOOKMARK_SPINE_NONE && APP_STATE.pendingBookmarkProgress >= 0.0f) {
     currentSpineIndex = APP_STATE.pendingBookmarkSpine;
@@ -399,8 +402,14 @@ void EpubReaderActivity::onExit() {
 
   section.reset();
 
+#if ENABLE_TEXT_SELECTION
+  selectionBaseSnapshot.reset();
+  selectionSnapshotFallback = false;
+#endif
+
 #if ENABLE_BOOKMARKS
   BOOKMARKS.unload();
+#endif
 #if ENABLE_PER_BOOK_SETTINGS
   BookSettingsScope::clearActive();
   if (bookOverrideApplied || bookOverride.enabled) {
@@ -411,7 +420,6 @@ void EpubReaderActivity::onExit() {
 #endif
 #if ENABLE_ANNOTATIONS
   ANNOTATIONS.unload();
-#endif
 #endif
 
 #if ENABLE_READING_STATS
@@ -1459,12 +1467,18 @@ void EpubReaderActivity::render(RenderLock&& lock) {
 
 #if ENABLE_TEXT_SELECTION
   if (selectionMode) {
-    // Lightweight selection repaint: re-render the page text (no grayscale, no
-    // stats/progress side effects), invert the selected span, fast refresh.
+    // Lightweight selection repaint: restore the clean base page snapshot when
+    // available, invert the selected span, fast refresh. The fallback path below
+    // preserves the original reload-per-move behavior if the snapshot cannot be
+    // allocated.
     if (selectionPopup.processRender(renderer, mappedInput)) {
       return;
     }
-    if (section) {
+    if (selectionBaseSnapshot) {
+      memcpy(renderer.getFrameBuffer(), selectionBaseSnapshot.get(), renderer.getBufferSize());
+      drawSelectionOverlay();
+      renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    } else if (section) {
       if (auto page = section->loadPageFromSectionFile()) {
         int mTop, mRight, mBottom, mLeft;
         renderer.getOrientedViewableTRBL(&mTop, &mRight, &mBottom, &mLeft);
@@ -1472,6 +1486,20 @@ void EpubReaderActivity::render(RenderLock&& lock) {
         mLeft += SETTINGS.screenMargin;
         renderer.clearScreen();
         page->renderText(renderer, SETTINGS.getReaderFontId(), mLeft, mTop);
+        if (!selectionSnapshotFallback) {
+          const size_t snapshotSize = renderer.getBufferSize();
+          if (heapguard::canAllocate(snapshotSize, heapguard::kLowFloorBytes)) {
+            selectionBaseSnapshot = makeUniqueNoThrow<uint8_t[]>(snapshotSize);
+          }
+          if (selectionBaseSnapshot) {
+            memcpy(selectionBaseSnapshot.get(), renderer.getFrameBuffer(), snapshotSize);
+            LOG_DBG("ERS", "Selection snapshot captured (%d bytes)", static_cast<int>(snapshotSize));
+          } else {
+            LOG_ERR("ERS", "Selection snapshot unavailable (%d bytes): low heap (%u free)",
+                    static_cast<int>(snapshotSize), static_cast<unsigned>(heapguard::freeBytes()));
+            selectionSnapshotFallback = true;
+          }
+        }
         drawSelectionOverlay();
         renderer.displayBuffer(HalDisplay::FAST_REFRESH);
       }
@@ -2114,7 +2142,7 @@ void EpubReaderActivity::restoreSavedPosition() {
 // ---------- Text selection mode ----------
 
 void EpubReaderActivity::collectSelectableWords(const Page& page, const int marginLeft, const int marginTop,
-                                                std::vector<SelWord>& out) const {
+                                                std::vector<selection::SelWord>& out) const {
   const int fontId = SETTINGS.getReaderFontId();
   const int lineHeight = renderer.getLineHeight(fontId);
 
@@ -2135,7 +2163,7 @@ void EpubReaderActivity::collectSelectableWords(const Page& page, const int marg
       if (words[i].empty() || words[i] == " ") {
         continue;  // skip stretchable-space tokens; they are not selectable
       }
-      SelWord sw;
+      selection::SelWord sw;
       sw.x = static_cast<int16_t>(line->xPos + xpos[i] + marginLeft);
       sw.y = static_cast<int16_t>(line->yPos + marginTop);
       const auto style = i < styles.size() ? styles[i] : EpdFontFamily::REGULAR;
@@ -2162,38 +2190,34 @@ void EpubReaderActivity::enterSelectionMode() {
   marginTop += SETTINGS.screenMargin + features::status_overlay::topInset();
   marginLeft += SETTINGS.screenMargin;
 
-  collectSelectableWords(*page, marginLeft, marginTop, selWords);
+  collectSelectableWords(*page, marginLeft, marginTop, selModel.words);
 
-  if (selWords.empty()) {
+  if (selModel.words.empty()) {
     LOG_INF("ERS", "Selection: no selectable words on page");
     return;
   }
   selectionMode = true;
-  selectionAnchored = false;
-  selCursor = 0;
-  selAnchor = 0;
+  selModel.anchored = false;
+  selModel.cursor = 0;
+  selModel.anchor = 0;
+  selectionBaseSnapshot.reset();
+  selectionSnapshotFallback = false;
   requestUpdate();
 }
 
 void EpubReaderActivity::exitSelectionMode() {
   selectionMode = false;
-  selectionAnchored = false;
-  selWords.clear();
-  selWords.shrink_to_fit();
+  selModel.anchored = false;
+  selectionBaseSnapshot.reset();
+  selectionSnapshotFallback = false;
+  selModel.words.clear();
+  selModel.words.shrink_to_fit();
   requestUpdate();
 }
 
 std::string EpubReaderActivity::selectedText() const {
-  const int lo = std::min(selAnchor, selCursor);
-  const int hi = std::max(selAnchor, selCursor);
-  std::string out;
-  for (int i = lo; i <= hi && i < static_cast<int>(selWords.size()); ++i) {
-    if (!out.empty()) {
-      out += ' ';
-    }
-    out += selWords[static_cast<size_t>(i)].text;
-  }
-  return out;
+  const auto [lo, hi] = selection::span(selModel);
+  return selection::joinSpan(selModel.words, lo, hi);
 }
 
 std::string EpubReaderActivity::selectionLocation() const {
@@ -2215,8 +2239,7 @@ std::string EpubReaderActivity::selectionLocation() const {
 }
 
 void EpubReaderActivity::openSelectionActions() {
-  const int lo = std::min(selAnchor, selCursor);
-  const int hi = std::max(selAnchor, selCursor);
+  const auto [lo, hi] = selection::span(selModel);
   const bool singleWord = lo == hi;
 
   std::vector<std::string> items;
@@ -2238,9 +2261,9 @@ void EpubReaderActivity::openSelectionActions() {
 #if ENABLE_ANNOTATIONS
   items.push_back(I18N.get(StrId::STR_HIGHLIGHT));
   actions.push_back(3);
-  if (section &&
-      ANNOTATIONS.removeCandidateAt(static_cast<uint16_t>(currentSpineIndex),
-                                    static_cast<uint16_t>(section->currentPage), static_cast<uint16_t>(selCursor))) {
+  if (section && ANNOTATIONS.removeCandidateAt(static_cast<uint16_t>(currentSpineIndex),
+                                               static_cast<uint16_t>(section->currentPage),
+                                               static_cast<uint16_t>(selModel.cursor))) {
     items.push_back(I18N.get(StrId::STR_REMOVE_HIGHLIGHT));
     actions.push_back(4);
   }
@@ -2272,8 +2295,9 @@ void EpubReaderActivity::openSelectionActions() {
         Annotation a;
         a.spineIndex = static_cast<uint16_t>(currentSpineIndex);
         a.page = section ? static_cast<uint16_t>(section->currentPage) : 0;
-        a.startWord = static_cast<uint16_t>(std::min(selAnchor, selCursor));
-        a.endWord = static_cast<uint16_t>(std::max(selAnchor, selCursor));
+        const auto [startWord, endWord] = selection::span(selModel);
+        a.startWord = static_cast<uint16_t>(startWord);
+        a.endWord = static_cast<uint16_t>(endWord);
         a.text = text;
         const bool ok = ANNOTATIONS.add(a);
         exitSelectionMode();
@@ -2286,7 +2310,7 @@ void EpubReaderActivity::openSelectionActions() {
       case 4: {
         if (section) {
           ANNOTATIONS.removeAt(static_cast<uint16_t>(currentSpineIndex), static_cast<uint16_t>(section->currentPage),
-                               static_cast<uint16_t>(selCursor));
+                               static_cast<uint16_t>(selModel.cursor));
         }
         exitSelectionMode();
         requestUpdate();
@@ -2317,14 +2341,16 @@ bool EpubReaderActivity::handleSelectionInput() {
   if (!selectionMode) {
     return false;
   }
+  const bool popupWasActive = selectionPopup.isActive();
   if (selectionPopup.handleInput(mappedInput, [this] { requestUpdate(); })) {
+    if (popupWasActive && !selectionPopup.isActive() && selectionMode && !selectionSnapshotFallback) {
+      selectionBaseSnapshot.reset();
+    }
     return true;
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-    if (selectionAnchored) {
-      selectionAnchored = false;  // step back to cursor-only
-      selCursor = selAnchor;
+    if (selection::stepBack(selModel)) {
       requestUpdate();
     } else {
       exitSelectionMode();
@@ -2332,12 +2358,8 @@ bool EpubReaderActivity::handleSelectionInput() {
     return true;
   }
 
-  const int count = static_cast<int>(selWords.size());
   auto move = [&](int delta) {
-    selCursor = std::clamp(selCursor + delta, 0, count - 1);
-    if (!selectionAnchored) {
-      selAnchor = selCursor;
-    }
+    selection::move(selModel, delta);
     requestUpdate();
   };
 
@@ -2361,8 +2383,8 @@ bool EpubReaderActivity::handleSelectionInput() {
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (!selectionAnchored) {
-      selectionAnchored = true;  // anchor; further moves extend
+    if (!selModel.anchored) {
+      selModel.anchored = true;  // anchor; further moves extend
       requestUpdate();
     } else {
       openSelectionActions();
@@ -2373,65 +2395,70 @@ bool EpubReaderActivity::handleSelectionInput() {
 }
 
 void EpubReaderActivity::drawSelectionOverlay() const {
-  const int lo = std::min(selAnchor, selCursor);
-  const int hi = std::max(selAnchor, selCursor);
-  for (int i = lo; i <= hi && i < static_cast<int>(selWords.size()); ++i) {
-    const SelWord& w = selWords[static_cast<size_t>(i)];
+  const auto [lo, hi] = selection::span(selModel);
+  for (int i = lo; i <= hi && i < static_cast<int>(selModel.words.size()); ++i) {
+    const selection::SelWord& w = selModel.words[static_cast<size_t>(i)];
     renderer.invertRect(w.x - 1, w.y, w.w + 2, w.h);
   }
 }
 
 #if ENABLE_ANNOTATIONS
 void EpubReaderActivity::renderAnnotations(const Page& page, const int marginLeft, const int marginTop) const {
-  // Space-join a word range for text comparison against stored annotations.
-  const auto joinWords = [](const std::vector<SelWord>& ws, const int lo, const int hi) {
-    std::string out;
-    for (int i = lo; i <= hi && i < static_cast<int>(ws.size()); ++i) {
-      if (!out.empty()) {
-        out += ' ';
-      }
-      out += ws[static_cast<size_t>(i)].text;
-    }
-    return out;
-  };
-
-  const auto pageAnnotations =
-      ANNOTATIONS.forPage(static_cast<uint16_t>(currentSpineIndex), static_cast<uint16_t>(section->currentPage));
-  if (pageAnnotations.empty()) {
+  const auto spineAnnotations = ANNOTATIONS.forSpine(static_cast<uint16_t>(currentSpineIndex));
+  if (spineAnnotations.empty()) {
     return;
   }
 
-  std::vector<SelWord> words;
+  std::vector<selection::SelWord> words;
   collectSelectableWords(page, marginLeft, marginTop, words);
   if (words.empty()) {
     return;
   }
   const int count = static_cast<int>(words.size());
+  const uint16_t currentPage = static_cast<uint16_t>(section->currentPage);
+  constexpr size_t kMaxOffPageSlidesPerRender = 32;
+  size_t offPageSlides = 0;
+  bool warnedOffPageCap = false;
+  bool hintsChanged = false;
 
-  for (const Annotation* a : pageAnnotations) {
+  for (const Annotation* a : spineAnnotations) {
     int lo = a->startWord;
     int hi = a->endWord;
-    // Hint indices are only trusted when the joined text still matches — a
-    // relayout (font/margin change) shifts word indices.
-    bool anchored = lo <= hi && hi < count && joinWords(words, lo, hi) == a->text;
-    if (!anchored) {
-      // Re-anchor by sliding text match over the page's word sequence.
-      const int span = hi - lo;
-      for (int start = 0; !anchored && span >= 0 && start + span < count; ++start) {
-        if (joinWords(words, start, start + span) == a->text) {
-          lo = start;
-          hi = start + span;
-          anchored = true;
+    const bool hintPageMatches = a->page == currentPage;
+    bool anchored = false;
+    if (hintPageMatches) {
+      // Hint indices are only trusted when the joined text still matches — a
+      // relayout (font/margin change) shifts word indices.
+      anchored = selection::anchorByText(words, a->text, lo, hi, lo, hi);
+    } else {
+      if (offPageSlides >= kMaxOffPageSlidesPerRender) {
+        if (!warnedOffPageCap) {
+          LOG_WRN("ANN", "Skipping annotation re-anchor after %u off-page candidates",
+                  static_cast<unsigned>(kMaxOffPageSlidesPerRender));
+          warnedOffPageCap = true;
         }
+        continue;
       }
+      offPageSlides++;
+      const int span = hi - lo;
+      anchored = selection::anchorByText(words, a->text, count, count + span, lo, hi);
     }
     if (!anchored) {
       continue;  // text no longer on this page after relayout; keep stored, skip drawing
     }
+    if (a->page != currentPage || a->startWord != static_cast<uint16_t>(lo) ||
+        a->endWord != static_cast<uint16_t>(hi)) {
+      if (ANNOTATIONS.updateHints(a, currentPage, static_cast<uint16_t>(lo), static_cast<uint16_t>(hi))) {
+        hintsChanged = true;
+      }
+    }
     for (int i = lo; i <= hi; ++i) {
-      const SelWord& w = words[static_cast<size_t>(i)];
+      const selection::SelWord& w = words[static_cast<size_t>(i)];
       renderer.invertRect(w.x - 1, w.y, w.w + 2, w.h);
     }
+  }
+  if (hintsChanged) {
+    ANNOTATIONS.saveToFile();
   }
 }
 #endif  // ENABLE_ANNOTATIONS
