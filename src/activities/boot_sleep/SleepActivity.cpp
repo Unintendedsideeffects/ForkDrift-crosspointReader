@@ -40,6 +40,7 @@
 #include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "network/background/BackgroundWifiService.h"
+#include "util/CoverThumbSizes.h"
 #include "util/DateUtils.h"
 #include "util/PokemonBookDataStore.h"
 #if ENABLE_POKEMON_PARTY
@@ -1128,19 +1129,39 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, CoverDrawRect*
 #if ENABLE_POKEMON_PARTY
 namespace {
 // Resolve a cover thumbnail that actually exists on the SD card. Covers are
-// pre-rendered by the home screen as `thumb_<height>.bmp`, so we can only use a
-// height that was already generated. Probe screen-height first (best fit) then a
-// few common home-grid heights; return "" when nothing usable is cached.
+// pre-rendered by the home screen, so we can only use a size that was already
+// generated. Probe screen-height first (best fit) using the height-only overload,
+// then probe the registry of cover thumbnail sizes sorted by height descending (so
+// larger source images are preferred). Return "" when nothing usable is cached.
 std::string resolveCachedCoverPath(const std::string& coverBmpPath, int screenHeight) {
   if (coverBmpPath.empty()) {
     return "";
   }
-  const int candidates[] = {screenHeight, 540, 400, 390, 370, 226, 200, 120};
-  for (const int height : candidates) {
-    if (height <= 0) {
-      continue;
+  if (screenHeight > 0) {
+    const std::string path = UITheme::getCoverThumbPath(coverBmpPath, screenHeight);
+    if (Storage.exists(path.c_str())) {
+      return path;
     }
-    const std::string path = UITheme::getCoverThumbPath(coverBmpPath, height);
+  }
+  coverthumbs::Size sizes[8];
+  const int n = coverthumbs::all(sizes, 8);
+  for (int i = 1; i < n; ++i) {
+    coverthumbs::Size key = sizes[i];
+    int j = i - 1;
+    while (j >= 0 && sizes[j].height < key.height) {
+      sizes[j + 1] = sizes[j];
+      j = j - 1;
+    }
+    sizes[j + 1] = key;
+  }
+  for (int i = 0; i < n; ++i) {
+    const auto& size = sizes[i];
+    std::string path;
+    if (size.width == 0) {
+      path = UITheme::getCoverThumbPath(coverBmpPath, size.height);
+    } else {
+      path = UITheme::getCoverThumbPath(coverBmpPath, size.width, size.height);
+    }
     if (Storage.exists(path.c_str())) {
       return path;
     }
