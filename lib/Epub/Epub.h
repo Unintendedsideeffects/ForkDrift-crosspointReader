@@ -41,6 +41,11 @@ class Epub {
   void discoverCssFilesFromZip();
 
  public:
+  struct ThumbSize {
+    int width;
+    int height;
+  };
+
   explicit Epub(std::string filepath, const std::string& cacheDir) : filepath(std::move(filepath)) {
     cachePath = BookCachePath::build(cacheDir, "epub_", this->filepath);
   }
@@ -61,6 +66,7 @@ class Epub {
   std::string getThumbBmpPath(int width, int height) const;
   bool generateThumbBmp(int height) const;
   bool generateThumbBmp(int width, int height) const;
+  bool generateThumbBmps(const ThumbSize* sizes, int count) const;
   uint8_t* readItemContentsToBytes(const std::string& itemHref, size_t* size = nullptr,
                                    bool trailingNullByte = false) const;
   bool readItemContentsToStream(const std::string& itemHref, Print& out, size_t chunkSize) const;

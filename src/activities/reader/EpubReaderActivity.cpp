@@ -13,6 +13,7 @@
 #include <Memory.h>
 #include <esp_system.h>
 
+#include <algorithm>
 #include <cmath>
 #include <iterator>
 #include <limits>
@@ -58,13 +59,11 @@
 #include "activities/util/ConfirmationActivity.h"
 #include "activities/util/IntervalSelectionActivity.h"
 #include "components/UITheme.h"
-#if ENABLE_POKEMON_PARTY
-#include "components/themes/pokemon/PokemonPartyTheme.h"
-#endif
 #include "features/status_overlay/Layout.h"
 #include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
 #include "network/background/BackgroundWifiService.h"
+#include "util/CoverThumbSizes.h"
 #include "util/RecentBooksStore.h"
 #include "util/ScreenshotUtil.h"
 
@@ -77,34 +76,45 @@ constexpr uint8_t maxPageLoadRetryCount = 1;
 constexpr uint32_t minHeapForFontPrewarm = 40000;
 constexpr uint32_t minHeapForPageRender = 45000;
 
-#if ENABLE_POKEMON_PARTY
-constexpr unsigned long kPartyThumbnailIdleMs = 5000;
-constexpr uint32_t kMinFreeHeapForPartyThumbnailBake = 96000;
-constexpr uint32_t kMinLargestBlockForPartyThumbnailBake = 64000;
-std::atomic<bool> partyThumbnailBakeInProgress{false};
+constexpr unsigned long kCoverThumbBakeIdleMs = 5000;
+constexpr uint32_t kMinFreeHeapForCoverThumbBake = 96000;
+constexpr uint32_t kMinLargestBlockForCoverThumbBake = 64000;
+std::atomic<bool> coverThumbBakeInProgress{false};
 
-struct PartyThumbnailBakeParams {
+struct CoverThumbBakeParams {
   std::shared_ptr<Epub> epub;
 };
 
-void partyThumbnailBakeTask(void* param);
+void coverThumbBakeTask(void* param);
 
-bool startPartyThumbnailBakeTask(const std::shared_ptr<Epub>& epub) {
+int copyCoverThumbSizesForEpub(const coverthumbs::Size* source, const int sourceCount, Epub::ThumbSize* dest,
+                               const int destMax) {
+  if (source == nullptr || dest == nullptr || sourceCount <= 0 || destMax <= 0) {
+    return 0;
+  }
+  const int count = std::min(sourceCount, destMax);
+  for (int i = 0; i < count; ++i) {
+    dest[i] = Epub::ThumbSize{source[i].width, source[i].height};
+  }
+  return count;
+}
+
+bool startCoverThumbBakeTask(const std::shared_ptr<Epub>& epub) {
   // cppcheck-suppress unreadVariable
-  auto* params = new (std::nothrow) PartyThumbnailBakeParams{epub};
+  auto* params = new (std::nothrow) CoverThumbBakeParams{epub};
   if (!params) {
     return false;
   }
-  if (xTaskCreate(partyThumbnailBakeTask, "PartyThumb", 6144, params, 0, nullptr) != pdPASS) {
+  if (xTaskCreate(coverThumbBakeTask, "CoverThumb", 6144, params, 0, nullptr) != pdPASS) {
     delete params;
     return false;
   }
   return true;
 }
 
-void partyThumbnailBakeTask(void* param) {
-  auto* params = static_cast<PartyThumbnailBakeParams*>(param);
-  const auto clearInProgress = []() { partyThumbnailBakeInProgress.store(false); };
+void coverThumbBakeTask(void* param) {
+  auto* params = static_cast<CoverThumbBakeParams*>(param);
+  const auto clearInProgress = []() { coverThumbBakeInProgress.store(false); };
 
   if (params == nullptr) {
     clearInProgress();
@@ -119,24 +129,23 @@ void partyThumbnailBakeTask(void* param) {
     return;
   }
 
-  const std::string thumbnailPath =
-      epub->getThumbBmpPath(PokemonPartyTheme::kCoverIconSize, PokemonPartyTheme::kCoverIconSize);
-  if (!Storage.exists(thumbnailPath.c_str())) {
-    const uint32_t freeHeap = ESP.getFreeHeap();
-    const uint32_t largestBlock = ESP.getMaxAllocHeap();
-    if (freeHeap >= kMinFreeHeapForPartyThumbnailBake && largestBlock >= kMinLargestBlockForPartyThumbnailBake) {
-      const bool success = epub->generateThumbBmp(PokemonPartyTheme::kCoverIconSize, PokemonPartyTheme::kCoverIconSize);
-      LOG_INF("THUMB", "Party thumbnail bake %s for %s", success ? "completed" : "failed", epub->getPath().c_str());
-    } else {
-      LOG_DBG("THUMB", "Party thumbnail bake deferred: free=%u largest=%u", freeHeap, largestBlock);
-    }
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  const uint32_t largestBlock = ESP.getMaxAllocHeap();
+  if (freeHeap >= kMinFreeHeapForCoverThumbBake && largestBlock >= kMinLargestBlockForCoverThumbBake) {
+    coverthumbs::Size sizes[8] = {};
+    const int count = coverthumbs::all(sizes, 8);
+    Epub::ThumbSize epubSizes[8] = {};
+    const int epubCount = copyCoverThumbSizesForEpub(sizes, count, epubSizes, 8);
+    const bool success = epub->generateThumbBmps(epubSizes, epubCount);
+    LOG_INF("THUMB", "Cover thumbnail bake %s for %s", success ? "completed" : "failed", epub->getPath().c_str());
+  } else {
+    LOG_DBG("THUMB", "Cover thumbnail bake deferred: free=%u largest=%u", freeHeap, largestBlock);
   }
 
   epub.reset();
   clearInProgress();
   vTaskDelete(nullptr);
 }
-#endif
 
 constexpr uint16_t DEFAULT_AUTO_PAGE_TURN_INTERVAL_S = 30;
 constexpr uint16_t MIN_AUTO_PAGE_TURN_INTERVAL_S = 5;
@@ -354,11 +363,10 @@ void EpubReaderActivity::onEnter() {
   initializeCompletionPromptTrigger();
 #endif  // ENABLE_READING_STATS
 
-  // Trigger first update
-#if ENABLE_POKEMON_PARTY
-  pendingPartyThumbnailBake_ = SETTINGS.uiTheme == CrossPointSettings::POKEMON_PARTY;
+  pendingCoverThumbBake_ = true;
   lastReaderInputMs_ = millis();
-#endif
+
+  // Trigger first update
   requestUpdate();
 }
 
@@ -442,19 +450,15 @@ void EpubReaderActivity::loop() {
     return;
   }
 
-#if ENABLE_POKEMON_PARTY
   if (mappedInput.wasAnyPressed() || mappedInput.wasAnyReleased()) {
     lastReaderInputMs_ = millis();
   }
-#endif
 
   if (handleSelectionInput()) {
     return;
   }
 
-#if ENABLE_POKEMON_PARTY
-  queuePartyThumbnailBakeIfIdle();
-#endif
+  queueCoverThumbBakeIfIdle();
 
   if (pendingSilentIndexing) {
     bool isAnyButtonPressed = false;
@@ -689,28 +693,37 @@ void EpubReaderActivity::loop() {
   }
 }
 
-#if ENABLE_POKEMON_PARTY
-void EpubReaderActivity::queuePartyThumbnailBakeIfIdle() {
-  if (!pendingPartyThumbnailBake_ || partyThumbnailBakeInProgress.load() || !epub ||
-      millis() - lastReaderInputMs_ < kPartyThumbnailIdleMs || activityManager.isUpdateRequested() ||
+void EpubReaderActivity::queueCoverThumbBakeIfIdle() {
+  if (!pendingCoverThumbBake_ || coverThumbBakeInProgress.load() || !epub ||
+      millis() - lastReaderInputMs_ < kCoverThumbBakeIdleMs || activityManager.isUpdateRequested() ||
       RenderLock::peek()) {
     return;
   }
 
-  const std::string thumbnailPath =
-      epub->getThumbBmpPath(PokemonPartyTheme::kCoverIconSize, PokemonPartyTheme::kCoverIconSize);
-  pendingPartyThumbnailBake_ = false;
-  if (Storage.exists(thumbnailPath.c_str())) {
+  coverthumbs::Size sizes[8] = {};
+  const int count = coverthumbs::all(sizes, 8);
+  bool anyMissing = false;
+  for (int i = 0; i < count; ++i) {
+    const coverthumbs::Size& size = sizes[i];
+    const std::string thumbPath =
+        size.width > 0 ? epub->getThumbBmpPath(size.width, size.height) : epub->getThumbBmpPath(size.height);
+    if (!Storage.exists(thumbPath.c_str())) {
+      anyMissing = true;
+      break;
+    }
+  }
+
+  pendingCoverThumbBake_ = false;
+  if (!anyMissing) {
     return;
   }
 
-  partyThumbnailBakeInProgress.store(true);
-  if (!startPartyThumbnailBakeTask(epub)) {
-    partyThumbnailBakeInProgress.store(false);
-    LOG_WRN("THUMB", "Could not start Party thumbnail job");
+  coverThumbBakeInProgress.store(true);
+  if (!startCoverThumbBakeTask(epub)) {
+    coverThumbBakeInProgress.store(false);
+    LOG_WRN("THUMB", "Could not start cover thumbnail job");
   }
 }
-#endif
 
 // Translate an absolute percent into a spine index plus a normalized position
 // within that spine so we can jump after the section is loaded.

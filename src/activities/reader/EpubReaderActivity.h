@@ -166,11 +166,9 @@ class EpubReaderActivity final : public Activity {
   uint16_t cachedViewportHeight = 0;
   void performDeferredSilentIndexing();
 
-#if ENABLE_POKEMON_PARTY
-  bool pendingPartyThumbnailBake_ = false;
+  bool pendingCoverThumbBake_ = false;
   unsigned long lastReaderInputMs_ = 0;
-  void queuePartyThumbnailBakeIfIdle();
-#endif
+  void queueCoverThumbBakeIfIdle();
 
  public:
   explicit EpubReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::unique_ptr<Epub> epub)

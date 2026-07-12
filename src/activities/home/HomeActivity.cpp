@@ -47,6 +47,7 @@
 #include "fontIds.h"
 #include "network/background/BackgroundWifiService.h"
 #include "util/BookProgressDataStore.h"
+#include "util/CoverThumbSizes.h"
 #include "util/ForkDriftNavigation.h"
 #include "util/LibraryShelfStore.h"
 #include "util/RecentBooksStore.h"
@@ -146,6 +147,50 @@ uint64_t fnvHash64(const std::string& s) {
 
 bool supportsGeneratedHomeCover(const RecentBook& book) {
   return FsHelpers::hasEpubExtension(book.path) || FsHelpers::hasXtcExtension(book.path);
+}
+
+bool hasCoverThumbTemplate(const std::string& coverBmpPath) {
+  return coverBmpPath.find("[HEIGHT]") != std::string::npos;
+}
+
+bool isMissingAnyRegisteredCoverThumb(const std::string& coverBmpPath, const coverthumbs::Size* sizes,
+                                      const int sizeCount) {
+  if (!hasCoverThumbTemplate(coverBmpPath)) {
+    return true;
+  }
+  for (int i = 0; i < sizeCount; ++i) {
+    const coverthumbs::Size& size = sizes[i];
+    const std::string thumbPath = size.width > 0 ? UITheme::getCoverThumbPath(coverBmpPath, size.width, size.height)
+                                                 : UITheme::getCoverThumbPath(coverBmpPath, size.height);
+    if (thumbPath.empty() || !Storage.exists(thumbPath.c_str())) {
+      return true;
+    }
+  }
+  return false;
+}
+
+int copyCoverThumbSizesForEpub(const coverthumbs::Size* source, const int sourceCount, Epub::ThumbSize* dest,
+                               const int destMax) {
+  if (source == nullptr || dest == nullptr || sourceCount <= 0 || destMax <= 0) {
+    return 0;
+  }
+  const int count = std::min(sourceCount, destMax);
+  for (int i = 0; i < count; ++i) {
+    dest[i] = Epub::ThumbSize{source[i].width, source[i].height};
+  }
+  return count;
+}
+
+int copyCoverThumbSizesForXtc(const coverthumbs::Size* source, const int sourceCount, Xtc::ThumbSize* dest,
+                              const int destMax) {
+  if (source == nullptr || dest == nullptr || sourceCount <= 0 || destMax <= 0) {
+    return 0;
+  }
+  const int count = std::min(sourceCount, destMax);
+  for (int i = 0; i < count; ++i) {
+    dest[i] = Xtc::ThumbSize{source[i].width, source[i].height};
+  }
+  return count;
 }
 
 void appendCarouselCoverStateToKey(std::string& key, const RecentBook& book) {
@@ -501,103 +546,66 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
     }
 
     if (!book.coverBmpPath.empty()) {
-#if ENABLE_POKEMON_PARTY
-      // Party cover thumbnails are baked by the reader's idle worker. Home must
-      // remain a render-only consumer: decoding a source PNG/JPEG here creates
-      // large transient allocations exactly when its cover cache is resident.
-      if (isPokemonPartyHomeMode()) {
-        progress++;
-        continue;
-      }
-#endif
-      if (usesDualSizeCoverThumbs || isPokemonPartyHomeMode()) {
-        int centerW = 0;
-        int centerH = 0;
-        int sideW = 0;
-        int sideH = 0;
-        if (usesDualSizeCoverThumbs) {
-          getCarouselThumbSizes(centerW, centerH, sideW, sideH);
-        }
-        const std::string centerPath =
-            usesDualSizeCoverThumbs ? UITheme::getCoverThumbPath(book.coverBmpPath, centerW, centerH) : "";
-        const std::string sidePath =
-            usesDualSizeCoverThumbs ? UITheme::getCoverThumbPath(book.coverBmpPath, sideW, sideH) : "";
-        const bool centerMissing = usesDualSizeCoverThumbs && !Storage.exists(centerPath.c_str());
-        const bool sideMissing = usesDualSizeCoverThumbs && !Storage.exists(sidePath.c_str());
-
-        bool squareMissing = false;
-        std::string squarePath;
-#if ENABLE_POKEMON_PARTY
-        if (isPokemonPartyHomeMode()) {
-          squarePath = UITheme::getCoverThumbPath(book.coverBmpPath, PokemonPartyTheme::kCoverIconSize,
-                                                  PokemonPartyTheme::kCoverIconSize);
-          squareMissing = !Storage.exists(squarePath.c_str());
-        }
-#endif
-
-        if (centerMissing || sideMissing || squareMissing) {
-          if (FsHelpers::hasEpubExtension(book.path)) {
-            Epub epub(book.path, "/.crosspoint");
+      coverthumbs::Size sizes[8] = {};
+      const int sizeCount = coverthumbs::all(sizes, 8);
+      const bool staleCoverPath = !hasCoverThumbTemplate(book.coverBmpPath);
+      if (isMissingAnyRegisteredCoverThumb(book.coverBmpPath, sizes, sizeCount)) {
+        if (FsHelpers::hasEpubExtension(book.path)) {
+          Epub epub(book.path, "/.crosspoint");
+          if (!showingLoading) {
+            showingLoading = true;
+            popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+          }
+          GUI.fillPopupProgress(renderer, popupRect, 10 + progress * progressIncrement);
+          if (!epub.load(false, true)) {
+            LOG_ERR("HOME", "failed to load EPUB for thumb: %s", book.path.c_str());
+            RECENT_BOOKS.updateBook(book.path, book.title, book.author, "");
+            book.coverBmpPath = "";
+            coverRendered = false;
+            requestUpdate();
+            progress++;
+            continue;
+          }
+          Epub::ThumbSize epubSizes[8] = {};
+          const int epubSizeCount = copyCoverThumbSizesForEpub(sizes, sizeCount, epubSizes, 8);
+          const bool success = epub.generateThumbBmps(epubSizes, epubSizeCount);
+          if (!success) {
+            RECENT_BOOKS.updateBook(book.path, book.title, book.author, "");
+            book.coverBmpPath = "";
+          } else {
+            if (staleCoverPath) {
+              book.coverBmpPath = epub.getThumbBmpPath();
+              RECENT_BOOKS.updateBook(book.path, book.title, book.author, book.coverBmpPath);
+            }
+            bookUpdated[bookIdx] = true;
+          }
+          coverRendered = false;
+          requestUpdate();
+        } else if (FsHelpers::hasXtcExtension(book.path)) {
+          Xtc xtc(book.path, "/.crosspoint");
+          if (xtc.load()) {
             if (!showingLoading) {
               showingLoading = true;
               popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
             }
             GUI.fillPopupProgress(renderer, popupRect, 10 + progress * progressIncrement);
-            if (!epub.load(false, true)) {
-              LOG_ERR("HOME", "carousel: failed to load EPUB for thumb: %s", book.path.c_str());
-              RECENT_BOOKS.updateBook(book.path, book.title, book.author, "");
-              book.coverBmpPath = "";
-              coverRendered = false;
-              requestUpdate();
-              progress++;
-              continue;
-            }
-            bool success = true;
-            if (centerMissing) success = epub.generateThumbBmp(centerW, centerH) && success;
-            if (sideMissing) success = epub.generateThumbBmp(sideW, sideH) && success;
-#if ENABLE_POKEMON_PARTY
-            if (squareMissing)
-              success = epub.generateThumbBmp(PokemonPartyTheme::kCoverIconSize, PokemonPartyTheme::kCoverIconSize) &&
-                        success;
-#endif
+            Xtc::ThumbSize xtcSizes[8] = {};
+            const int xtcSizeCount = copyCoverThumbSizesForXtc(sizes, sizeCount, xtcSizes, 8);
+            const bool success = xtc.generateThumbBmps(xtcSizes, xtcSizeCount);
             if (!success) {
               RECENT_BOOKS.updateBook(book.path, book.title, book.author, "");
               book.coverBmpPath = "";
             } else {
+              if (staleCoverPath) {
+                book.coverBmpPath = xtc.getThumbBmpPath();
+                RECENT_BOOKS.updateBook(book.path, book.title, book.author, book.coverBmpPath);
+              }
               bookUpdated[bookIdx] = true;
             }
             coverRendered = false;
             requestUpdate();
-          } else if (FsHelpers::hasXtcExtension(book.path)) {
-            Xtc xtc(book.path, "/.crosspoint");
-            if (xtc.load()) {
-              if (!showingLoading) {
-                showingLoading = true;
-                popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
-              }
-              GUI.fillPopupProgress(renderer, popupRect, 10 + progress * progressIncrement);
-              bool success = true;
-              if (centerMissing) success = xtc.generateThumbBmp(centerW, centerH) && success;
-              if (sideMissing) success = xtc.generateThumbBmp(sideW, sideH) && success;
-#if ENABLE_POKEMON_PARTY
-              if (squareMissing)
-                success = xtc.generateThumbBmp(PokemonPartyTheme::kCoverIconSize, PokemonPartyTheme::kCoverIconSize) &&
-                          success;
-#endif
-              if (!success) {
-                RECENT_BOOKS.updateBook(book.path, book.title, book.author, "");
-                book.coverBmpPath = "";
-              } else {
-                bookUpdated[bookIdx] = true;
-              }
-              coverRendered = false;
-              requestUpdate();
-            }
           }
-        }
-      } else {
-        std::string coverPath = UITheme::getCoverThumbPath(book.coverBmpPath, coverHeight);
-        if (!Storage.exists(coverPath.c_str())) {
+        } else if (!usesDualSizeCoverThumbs && !isPokemonPartyHomeMode()) {
           const auto homeCardData = core::FeatureModules::resolveHomeCardData(book.path, coverHeight);
           if (homeCardData.handled) {
             if (!showingLoading) {
@@ -1080,6 +1088,9 @@ bool HomeActivity::isCoverCacheValid(const int coverHeight, const bool usesDualS
         return false;
       }
       continue;
+    }
+    if (!hasCoverThumbTemplate(book.coverBmpPath)) {
+      return false;
     }
 
 #if ENABLE_POKEMON_PARTY

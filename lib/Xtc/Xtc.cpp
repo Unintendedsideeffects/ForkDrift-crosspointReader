@@ -649,6 +649,19 @@ bool Xtc::generateThumbBmp(int width, int height) const {
   return true;
 }
 
+bool Xtc::generateThumbBmps(const ThumbSize* sizes, const int count) const {
+  if (sizes == nullptr || count <= 0) {
+    return true;
+  }
+
+  bool success = true;
+  for (int i = 0; i < count; ++i) {
+    const ThumbSize& size = sizes[i];
+    success = (size.width > 0 ? generateThumbBmp(size.width, size.height) : generateThumbBmp(size.height)) && success;
+  }
+  return success;
+}
+
 uint32_t Xtc::getPageCount() const {
   if (!loaded || !parser) {
     return 0;

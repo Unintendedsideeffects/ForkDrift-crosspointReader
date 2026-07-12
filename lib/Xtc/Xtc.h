@@ -29,6 +29,11 @@ class Xtc {
   bool loaded;
 
  public:
+  struct ThumbSize {
+    int width;
+    int height;
+  };
+
   explicit Xtc(std::string filepath, const std::string& cacheDir) : filepath(std::move(filepath)), loaded(false) {
     cachePath = BookCachePath::build(cacheDir, "xtc_", this->filepath);
   }
@@ -70,6 +75,7 @@ class Xtc {
   std::string getThumbBmpPath(int width, int height) const;
   bool generateThumbBmp(int height) const;
   bool generateThumbBmp(int width, int height) const;
+  bool generateThumbBmps(const ThumbSize* sizes, int count) const;
 
   // Page access
   uint32_t getPageCount() const;
