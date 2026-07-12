@@ -47,27 +47,27 @@ std::string joinSpan(const std::vector<SelWord>& words, const int lo, const int 
 bool anchorByText(const std::vector<SelWord>& words, const std::string& text, const int hintLo, const int hintHi,
                   int& outLo, int& outHi) {
   const int count = static_cast<int>(words.size());
-  if (hintLo <= hintHi && hintHi < count && joinSpan(words, hintLo, hintHi) == text) {
+  if (hintLo > hintHi) {
+    return false;
+  }
+  if (hintHi < count && joinSpan(words, hintLo, hintHi) == text) {
     outLo = hintLo;
     outHi = hintHi;
     return true;
   }
 
-  const int span = hintHi - hintLo;
-  if (span < 0) {
-    return false;
-  }
+  const int spanLen = hintHi - hintLo;
   const std::string first = firstWord(text);
   if (first.empty()) {
     return false;
   }
-  for (int start = 0; start + span < count; ++start) {
+  for (int start = 0; start + spanLen < count; ++start) {
     if (words[static_cast<size_t>(start)].text != first) {
       continue;
     }
-    if (joinSpan(words, start, start + span) == text) {
+    if (joinSpan(words, start, start + spanLen) == text) {
       outLo = start;
-      outHi = start + span;
+      outHi = start + spanLen;
       return true;
     }
   }
