@@ -107,6 +107,8 @@ class SimulatorSmokeTest {
 
   static bool selectionMeasurementRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_SELECTION") != nullptr; }
 
+  static bool readerOptionsRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_READER_OPTIONS") != nullptr; }
+
   static int pageTurnCount() {
     const char* raw = std::getenv("FORKDRIFT_SIMULATOR_SMOKE_PAGE_TURNS");
     if (raw == nullptr || raw[0] == '\0') return 2;
@@ -454,6 +456,53 @@ class SimulatorSmokeTest {
 #else
       fail("FORKDRIFT_SIMULATOR_SMOKE_SELECTION requested but ENABLE_TEXT_SELECTION is off");
 #endif
+    }
+    if (readerOptionsRequested()) {
+      // Reader-options live-preview stress leg: set FORKDRIFT_SIMULATOR_SMOKE_READER_OPTIONS=1 (heap-abort regression
+      // check).
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Reader menu for options stress", 4));
+#if ENABLE_TEXT_SELECTION
+      addTap(MappedInputManager::Button::Down);
+      inputScript.push_back(render("Reader menu select-text item", 2));
+#endif
+      addTap(MappedInputManager::Button::Down);
+      inputScript.push_back(render("Reader menu reader item", 2));
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Reader options overlay", 6));
+
+      // Navigate to fontSize (row 3, which is 2 downs from start row 0 perBookToggle)
+      addTap(MappedInputManager::Button::Down);
+      inputScript.push_back(render("Reader options down to fontFamily", 2));
+      addTap(MappedInputManager::Button::Down);
+      inputScript.push_back(render("Reader options down to fontSize", 2));
+
+      // Toggle fontSize 6 times (font size setting)
+      for (int i = 0; i < 6; i++) {
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Reader options toggle fontSize", 4));
+      }
+
+      // Navigate to lineSpacing (row 4, which is 1 down from fontSize)
+      addTap(MappedInputManager::Button::Down);
+      inputScript.push_back(render("Reader options down to lineSpacing", 2));
+
+      // Toggle lineSpacing 6 times (line spacing setting)
+      for (int i = 0; i < 6; i++) {
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Reader options toggle lineSpacing", 4));
+      }
+
+      // Back out to reader
+      addTap(MappedInputManager::Button::Back);
+      inputScript.push_back(render("Reader after options stress", 6));
+
+      // Back out to Home
+      addTap(MappedInputManager::Button::Back);
+      inputScript.push_back(render("Home after options stress", 4));
+
+      LOG_INF("SMOKE", "Running reader options stress script with %d page turn(s)", turns);
+      return;
     }
     addTap(MappedInputManager::Button::Confirm);
     inputScript.push_back(render("Reader menu", 4));

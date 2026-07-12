@@ -12,6 +12,7 @@ matches what src/main.cpp now expects:
   * HalGPIO::WakeupReason gains the TimerRefresh enumerator (timed sleep refresh).
   * HalPowerManager::startDeepSleep gains the 2-arg overload
     (HalGPIO&, uint64_t timerWakeupMicros = 0); the simulator ignores the timer.
+  * Simulator image-mock OOM: malloc-backed pixel buffers, header-only probes, and deferred PNG decoding.
 
 Each edit is guarded so re-running (or a fresh libdep checkout that already
 carries the fix) is a no-op.
@@ -181,6 +182,241 @@ def patch_simulator_hal(env):
         "  void writeGrayscalePlaneStrip(bool lsbPlane, const uint8_t *rows, uint16_t yStart, uint16_t numRows) {}\n"
         "  bool supportsStripGrayscale() const { return false; }",
         marker="supportsStripGrayscale",
+    )
+
+    # 7) Rule 1: malloc-backed pixel buffer + header-only probe
+    _replace_once(
+        os.path.join(src, "SimulatorImageDecode.h"),
+        "#include <vector>",
+        "#include <cstdlib>\n#include <utility>",
+        marker="#include <cstdlib>",
+    )
+    _replace_once(
+        os.path.join(src, "SimulatorImageDecode.h"),
+        '''struct DecodedImage {
+  int width{0};
+  int height{0};
+  int channels{0};
+  bool hasAlpha{false};
+  std::vector<uint8_t> pixels;
+};
+
+bool decodeImageBytes(const uint8_t *data, size_t size, int requestedChannels,
+                      DecodedImage &out);''',
+        '''// Malloc-backed byte buffer: the simulator heap budget only tracks operator
+// new, and these buffers emulate on-device STREAMING decode paths that never
+// materialize a full frame — they must not count against the device budget.
+class PixelBuffer {
+ public:
+  PixelBuffer() = default;
+  PixelBuffer(PixelBuffer &&other) noexcept { swap(other); }
+  PixelBuffer &operator=(PixelBuffer &&other) noexcept {
+    if (this != &other) { reset(); swap(other); }
+    return *this;
+  }
+  PixelBuffer(const PixelBuffer &) = delete;
+  PixelBuffer &operator=(const PixelBuffer &) = delete;
+  ~PixelBuffer() { reset(); }
+
+  bool allocate(size_t n) {
+    reset();
+    if (n == 0) return false;
+    ptr_ = static_cast<uint8_t *>(std::malloc(n));
+    if (!ptr_) return false;
+    size_ = n;
+    return true;
+  }
+  void reset() {
+    std::free(ptr_);
+    ptr_ = nullptr;
+    size_ = 0;
+  }
+  void swap(PixelBuffer &other) noexcept {
+    std::swap(ptr_, other.ptr_);
+    std::swap(size_, other.size_);
+  }
+  uint8_t *data() { return ptr_; }
+  const uint8_t *data() const { return ptr_; }
+  size_t size() const { return size_; }
+  bool empty() const { return ptr_ == nullptr || size_ == 0; }
+
+ private:
+  uint8_t *ptr_{nullptr};
+  size_t size_{0};
+};
+
+struct DecodedImage {
+  int width{0};
+  int height{0};
+  int channels{0};
+  bool hasAlpha{false};
+  PixelBuffer pixels;
+};
+
+bool decodeImageBytes(const uint8_t *data, size_t size, int requestedChannels,
+                      DecodedImage &out);
+// Header-only probe (stbi_info): dimensions + alpha without decoding pixels.
+bool probeImageInfo(const uint8_t *data, size_t size, int &width, int &height,
+                    bool &hasAlpha);''',
+        marker="PixelBuffer",
+    )
+
+    # 8) Rule 2: hand pixels to PixelBuffer + implement probe
+    _replace_once(
+        os.path.join(src, "SimulatorImageDecode.cpp"),
+        '#include "SimulatorImageDecode.h"',
+        '#include "SimulatorImageDecode.h"\n#include <cstring>',
+        marker='#include <cstring>',
+    )
+    _replace_once(
+        os.path.join(src, "SimulatorImageDecode.cpp"),
+        '''  const size_t byteCount =
+      static_cast<size_t>(width) * static_cast<size_t>(height) *
+      static_cast<size_t>(requestedChannels);
+  out.width = width;
+  out.height = height;
+  out.channels = requestedChannels;
+  out.hasAlpha = sourceChannels == 2 || sourceChannels == 4;
+  out.pixels.assign(decoded, decoded + byteCount);
+  stbi_image_free(decoded);
+  return true;
+}''',
+        '''  const size_t byteCount =
+      static_cast<size_t>(width) * static_cast<size_t>(height) *
+      static_cast<size_t>(requestedChannels);
+  out.width = width;
+  out.height = height;
+  out.channels = requestedChannels;
+  out.hasAlpha = sourceChannels == 2 || sourceChannels == 4;
+  if (!out.pixels.allocate(byteCount)) {
+    stbi_image_free(decoded);
+    out = DecodedImage{};
+    return false;
+  }
+  memcpy(out.pixels.data(), decoded, byteCount);
+  stbi_image_free(decoded);
+  return true;
+}
+
+bool probeImageInfo(const uint8_t *data, size_t size, int &width, int &height,
+                    bool &hasAlpha) {
+  width = 0;
+  height = 0;
+  hasAlpha = false;
+  int channels = 0;
+  if (!data || size == 0 ||
+      !stbi_info_from_memory(data, static_cast<int>(size), &width, &height,
+                             &channels)) {
+    return false;
+  }
+  hasAlpha = channels == 2 || channels == 4;
+  return width > 0 && height > 0;
+}''',
+        marker="probeImageInfo",
+    )
+
+    # 9) Rule 3: probe on open, decode lazily
+    _replace_once(
+        os.path.join(src, "PNGdec.h"),
+        '''    std::vector<uint8_t> encoded(static_cast<size_t>(size));
+    PNGFILE file{handle};
+    int32_t totalRead = 0;
+    while (totalRead < size) {
+      const int32_t bytesRead =
+          readCb(&file, encoded.data() + totalRead, size - totalRead);
+      if (bytesRead <= 0) {
+        break;
+      }
+      totalRead += bytesRead;
+    }
+    closeCb(handle);
+
+    if (totalRead <= 0 ||
+        !simulator_image::decodeImageBytes(encoded.data(),
+                                           static_cast<size_t>(totalRead), 4,
+                                           image_)) {
+      return PNG_INVALID_FILE;
+    }
+
+    return PNG_SUCCESS;
+  }''',
+        '''    if (!encoded_.allocate(static_cast<size_t>(size))) {
+      closeCb(handle);
+      return PNG_INVALID_FILE;
+    }
+    PNGFILE file{handle};
+    int32_t totalRead = 0;
+    while (totalRead < size) {
+      const int32_t bytesRead =
+          readCb(&file, encoded_.data() + totalRead, size - totalRead);
+      if (bytesRead <= 0) {
+        break;
+      }
+      totalRead += bytesRead;
+    }
+    closeCb(handle);
+
+    // Probe header only; the full decode is deferred to decode() so dimension
+    // queries (getDimensionsStatic) never pay a whole-image decode.
+    bool hasAlpha = false;
+    if (totalRead <= 0 ||
+        !simulator_image::probeImageInfo(encoded_.data(),
+                                         static_cast<size_t>(totalRead),
+                                         image_.width, image_.height,
+                                         hasAlpha)) {
+      encoded_.reset();
+      return PNG_INVALID_FILE;
+    }
+    image_.hasAlpha = hasAlpha;
+    encodedBytes_ = static_cast<size_t>(totalRead);
+
+    return PNG_SUCCESS;
+  }''',
+        marker="deferred to decode()",
+    )
+    _replace_once(
+        os.path.join(src, "PNGdec.h"),
+        '''  int decode(void *user, int) {
+    if (!drawCb_ || image_.pixels.empty() || image_.width <= 0 ||
+        image_.height <= 0) {
+      return PNG_INVALID_FILE;
+    }''',
+        '''  int decode(void *user, int) {
+    if (image_.pixels.empty() && !encoded_.empty()) {
+      // Lazy decode: open() only probed the header.
+      if (!simulator_image::decodeImageBytes(encoded_.data(), encodedBytes_, 4,
+                                             image_)) {
+        return PNG_INVALID_FILE;
+      }
+      encoded_.reset();
+    }
+    if (!drawCb_ || image_.pixels.empty() || image_.width <= 0 ||
+        image_.height <= 0) {
+      return PNG_INVALID_FILE;
+    }''',
+        marker="Lazy decode: open() only probed the header",
+    )
+    _replace_once(
+        os.path.join(src, "PNGdec.h"),
+        '  void close() { image_ = simulator_image::DecodedImage{}; }',
+        '  void close() {\n'
+        '    image_ = simulator_image::DecodedImage{};\n'
+        '    encoded_.reset();\n'
+        '    encodedBytes_ = 0;\n'
+        '  }',
+        marker="encodedBytes_ = 0;",
+    )
+    _replace_once(
+        os.path.join(src, "PNGdec.h"),
+        '''private:
+  simulator_image::DecodedImage image_;
+  PNG_DRAW_CALLBACK drawCb_{nullptr};''',
+        '''private:
+  simulator_image::DecodedImage image_;
+  PNG_DRAW_CALLBACK drawCb_{nullptr};
+  simulator_image::PixelBuffer encoded_;
+  size_t encodedBytes_{0};''',
+        marker="encodedBytes_{0};",
     )
 
 
