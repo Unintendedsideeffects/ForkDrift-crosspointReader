@@ -2469,10 +2469,9 @@ void EpubReaderActivity::renderAnnotations(const Page& page, const int marginLef
     // relayout (font/margin change) shifts word indices.
     const bool anchored = selection::anchorByText(words, a->text, lo, hi, lo, hi);
     if (!anchored) {
-      continue;  // text no longer on this page after relayout; keep stored, skip drawing
+      continue;
     }
-    if (a->page != currentPage || a->startWord != static_cast<uint16_t>(lo) ||
-        a->endWord != static_cast<uint16_t>(hi)) {
+    if (a->startWord != static_cast<uint16_t>(lo) || a->endWord != static_cast<uint16_t>(hi)) {
       if (ANNOTATIONS.updateHints(a, currentPage, static_cast<uint16_t>(lo), static_cast<uint16_t>(hi))) {
         hintsChanged = true;
       }
