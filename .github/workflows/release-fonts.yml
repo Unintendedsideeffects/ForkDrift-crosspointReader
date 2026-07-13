@@ -18,16 +18,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.14'
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7.6.0
+
       - name: Install font tools
-        run: pip install freetype-py fonttools pyyaml
+        run: uv sync --frozen
 
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libfreetype6-dev
@@ -36,11 +39,11 @@ jobs:
         id: versions
         run: |
           cd lib/EpdFont/scripts
-          echo "binary=$(python3 -c 'from cpfont_version import CPFONT_VERSION; print(CPFONT_VERSION)')" >> "$GITHUB_OUTPUT"
-          echo "metadata=$(python3 -c 'from cpfont_version import FONTS_MANIFEST_VERSION; print(FONTS_MANIFEST_VERSION)')" >> "$GITHUB_OUTPUT"
+          echo "binary=$(uv run python -c 'from cpfont_version import CPFONT_VERSION; print(CPFONT_VERSION)')" >> "$GITHUB_OUTPUT"
+          echo "metadata=$(uv run python -c 'from cpfont_version import FONTS_MANIFEST_VERSION; print(FONTS_MANIFEST_VERSION)')" >> "$GITHUB_OUTPUT"
 
       - name: Build SD card fonts
-        run: python3 lib/EpdFont/scripts/build-sd-fonts.py --clean --verbose -j 1
+        run: uv run python lib/EpdFont/scripts/build-sd-fonts.py --clean --verbose -j 1
 
       - name: Flatten output for release assets
         run: |
@@ -65,7 +68,7 @@ jobs:
 
       - name: Generate manifest
         run: |
-          python3 scripts/generate-font-manifest.py \
+          uv run python scripts/generate-font-manifest.py \
             --input dist \
             --base-url "https://github.com/${{ env.FONTS_REPO }}/releases/download/${{ steps.tags.outputs.base }}/" \
             --output dist/fonts.json \

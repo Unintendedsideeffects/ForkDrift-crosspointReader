@@ -81,6 +81,12 @@
 #define FEATURE_OVERRIDE_ENABLE_OPDS 0
 #endif
 
+#ifdef ENABLE_BOOKS_TAB_UI
+#define FEATURE_OVERRIDE_ENABLE_BOOKS_TAB_UI 1
+#else
+#define FEATURE_OVERRIDE_ENABLE_BOOKS_TAB_UI 0
+#endif
+
 #ifdef ENABLE_EPUB_SUPPORT
 #define FEATURE_OVERRIDE_ENABLE_EPUB_SUPPORT 1
 #else
@@ -214,6 +220,12 @@
 // BookLore OPDS support is coupled to OPDS Support (ENABLE_CALIBRE_SYNC).
 #ifndef ENABLE_OPDS
 #define ENABLE_OPDS 0
+#endif
+
+// Phase 2 Books tab container. It is deliberately opt-in until the operator
+// completes the dual-state build and simulator/device validation.
+#ifndef ENABLE_BOOKS_TAB_UI
+#define ENABLE_BOOKS_TAB_UI 0
 #endif
 
 #ifndef ENABLE_HOME_MEDIA_PICKER
@@ -382,6 +394,10 @@
 
 #if !ENABLE_CALIBRE_SYNC && FEATURE_OVERRIDE_ENABLE_OPDS && ENABLE_OPDS
 #error "ENABLE_OPDS requires ENABLE_CALIBRE_SYNC=1"
+#endif
+
+#if !ENABLE_OPDS && FEATURE_OVERRIDE_ENABLE_BOOKS_TAB_UI && ENABLE_BOOKS_TAB_UI
+#error "ENABLE_BOOKS_TAB_UI requires ENABLE_OPDS=1"
 #endif
 
 #if !ENABLE_INTEGRATIONS

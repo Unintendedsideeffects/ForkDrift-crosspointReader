@@ -2,6 +2,10 @@
 
 This document describes all HTTP and WebSocket endpoints available on the CrossPoint Reader webserver.
 
+> [!NOTE]
+> **Maintenance Note:** To verify or regenerate the list of endpoints documented here, run this command from the repository root:
+> `grep -rhoE '"(/api/[a-z0-9_/-]+)"' src/network | sort -u`
+
 - [Webserver Endpoints](#webserver-endpoints)
   - [Overview](#overview)
   - [HTTP Endpoints](#http-endpoints)
@@ -27,12 +31,40 @@ This document describes all HTTP and WebSocket endpoints available on the CrossP
     - [POST `/api/notes` - Save Notes](#post-apinotes---save-notes)
     - [GET `/download` - Download File](#get-download---download-file)
     - [POST `/upload` - Upload File](#post-upload---upload-file)
-    - [POST `/api/user-fonts/rescan` - Rescan SD User Fonts](#post-apiuser-fontsrescan---rescan-sd-user-fonts)
+    - [GET `/api/fonts` - List Installed Font Families](#get-apifonts---list-installed-font-families)
+    - [POST `/api/fonts/upload` - Upload Font File](#post-apifontsupload---upload-font-file)
+    - [POST `/api/fonts/delete` - Delete Font Family](#post-apifontsdelete---delete-font-family)
     - [GET `/api/sleep-images` - List Sleep Images](#get-apisleep-images---list-sleep-images)
     - [GET `/api/sleep-cover` - Get Pinned Sleep Cover](#get-apisleep-cover---get-pinned-sleep-cover)
     - [POST `/api/sleep-cover/pin` - Pin Sleep Cover](#post-apisleep-coverpin---pin-sleep-cover)
     - [POST `/mkdir` - Create Folder](#post-mkdir---create-folder)
     - [POST `/delete` - Delete File or Folder](#post-delete---delete-file-or-folder)
+    - [GET `/api/anki/cards` - Export Anki Cards](#get-apiankicards---export-anki-cards)
+    - [GET `/api/cover` - Get Book Cover BMP](#get-apicover---get-book-cover-bmp)
+    - [POST `/api/koreader/use-opds` - KOReader Sync Setup](#post-apikoreaderuse-opds---koreader-sync-setup)
+    - [POST `/api/maintenance/clear-cache` - Clear Reading Cache](#post-apimaintenanceclear-cache---clear-reading-cache)
+    - [POST `/api/maintenance/clear-crashes` - Clear Crash Reports](#post-apimaintenanceclear-crashes---clear-crash-reports)
+    - [POST `/api/maintenance/clear-logs` - Clear Debug Logs](#post-apimaintenanceclear-logs---clear-debug-logs)
+    - [POST `/api/maintenance/reset-settings` - Reset Persisted Settings](#post-apimaintenancereset-settings---reset-persisted-settings)
+    - [POST `/api/maintenance/validate-sleep-images` - Validate Sleep Images](#post-apimaintenancevalidate-sleep-images---validate-sleep-images)
+    - [GET `/api/opds` - List OPDS Servers](#get-apiopds---list-opds-servers)
+    - [POST `/api/opds` - Add or Update OPDS Server](#post-apiopds---add-or-update-opds-server)
+    - [POST `/api/opds/delete` - Remove OPDS Server](#post-apiopdsdelete---remove-opds-server)
+    - [POST `/api/opds/test` - Test OPDS Server Connectivity](#post-apiopdstest---test-opds-server-connectivity)
+    - [POST `/api/open-book` - Open Book Remotely](#post-apiopen-book---open-book-remotely)
+    - [POST `/api/pokemon-sprite` - Cache Pokemon Sprite](#post-apipokemon-sprite---cache-pokemon-sprite)
+    - [GET `/api/pokemon-team` - Get Pokemon Team](#get-apipokemon-team---get-pokemon-team)
+    - [PUT `/api/pokemon-team` - Save Pokemon Team](#put-apipokemon-team---save-pokemon-team)
+    - [POST `/api/remote/button` - Press Remote Button](#post-apiremotebutton---press-remote-button)
+    - [POST `/api/screenshot` - Trigger Screenshot](#post-apiscreenshot---trigger-screenshot)
+    - [GET `/api/settings` - List Settings Descriptors](#get-apisettings---list-settings-descriptors)
+    - [POST `/api/settings` - Update Settings](#post-apisettings---update-settings)
+    - [GET `/api/settings/raw` - Get Raw Settings Configuration](#get-apisettingsraw---get-raw-settings-configuration)
+    - [POST `/api/time` - Set Device Time](#post-apitime---set-device-time)
+    - [GET `/api/wifi` - List Saved Wi-Fi Credentials](#get-apiwifi---list-saved-wi-fi-credentials)
+    - [POST `/api/wifi` - Save or Update Wi-Fi Credential](#post-apiwifi---save-or-update-wi-fi-credential)
+    - [POST `/api/wifi/delete` - Delete Saved Wi-Fi Credential](#post-apiwifidelete---delete-saved-wi-fi-credential)
+    - [POST `/api/wifi/forget-all` - Forget All Wi-Fi Credentials](#post-apiwififorget-all---forget-all-wi-fi-credentials)
   - [WebSocket Endpoint](#websocket-endpoint)
     - [Port 81 - Fast Binary Upload](#port-81---fast-binary-upload)
   - [Network Modes](#network-modes)
@@ -827,27 +859,91 @@ File uploaded successfully: mybook.epub
 
 ---
 
-### POST `/api/user-fonts/rescan` - Rescan SD User Fonts
+### GET `/api/fonts` - List Installed Font Families
 
-Rescans SD-card font roots for `.cpfont` families and reloads the currently selected external font if enabled.
+Returns a JSON object listing installed font families, available sizes, and their files on the SD card.
 
 **Request:**
 ```bash
-curl -X POST http://crosspoint.local/api/user-fonts/rescan
+curl http://crosspoint.local/api/fonts
 ```
 
 **Response (200 OK):**
 ```json
 {
-  "families": 3,
-  "activeLoaded": true
+  "maxFamilies": 6,
+  "families": [
+    {
+      "name": "MyFont",
+      "sizes": [12, 14, 16],
+      "files": [
+        {"name": "MyFont-Regular.cpfont", "size": 12345}
+      ]
+    }
+  ]
 }
 ```
 
-| Field          | Type    | Description |
-| -------------- | ------- | ----------- |
-| `families`     | number  | Number of discovered font families |
-| `activeLoaded` | boolean | `true` when the active external font could be loaded after rescan |
+---
+
+### POST `/api/fonts/upload` - Upload Font File
+
+Uploads a `.cpfont` font file for a specific family via multipart form data.
+
+**Request:**
+```bash
+curl -X POST -F "file=@MyFont-Regular.cpfont" "http://crosspoint.local/api/fonts/upload?family=MyFont"
+```
+
+**Query Parameters:**
+
+| Parameter | Required | Description |
+| --------- | -------- | ----------- |
+| `family`  | Yes      | The name of the font family |
+
+**Response (200 OK):**
+```json
+{
+  "ok": true
+}
+```
+
+**Error Responses:**
+
+| Status | Body | Cause |
+| ------ | ---- | ----- |
+| 400 | `{"error":"Invalid .cpfont file"}` | The uploaded file is invalid or too small to validate magic header |
+
+---
+
+### POST `/api/fonts/delete` - Delete Font Family
+
+Deletes an installed font family from the SD card.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"family":"MyFont"}' http://crosspoint.local/api/fonts/delete
+```
+
+**JSON Body:**
+
+| Field | Required | Description |
+| ----- | -------- | ----------- |
+| `family` | Yes | The name of the font family to delete |
+
+**Response (200 OK):**
+```json
+{
+  "ok": true
+}
+```
+
+**Error Responses:**
+
+| Status | Body | Cause |
+| ------ | ---- | ----- |
+| 400 | `{"error":"Invalid request"}` | Missing family parameter or invalid JSON |
+| 500 | `{"error":"Delete failed"}` | Failed to delete the font family directory/files from SD card |
 
 ---
 
@@ -995,9 +1091,559 @@ All items deleted successfully
 | 500    | `Failed to delete some items: ...`          | One or more paths could not be deleted |
 
 **Protected Items:**
-- Files/folders starting with `.`
 - `System Volume Information`
 - `XTCache`
+
+---
+
+### GET `/api/anki/cards` - Export Anki Cards
+
+Returns the in-memory Anki cards database as a JSON array.
+
+**Request:**
+```bash
+curl http://crosspoint.local/api/anki/cards
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "front": "example word",
+    "back": "definition of the word",
+    "context": "sentence context"
+  }
+]
+```
+
+**Notes:**
+- Only registered when `ENABLE_ANKI_SUPPORT` is enabled.
+
+---
+
+### GET `/api/cover` - Get Book Cover BMP
+
+Serves a BMP cover image for a book specified by `path`.
+
+**Request:**
+```bash
+curl "http://crosspoint.local/api/cover?path=/Books/MyBook.epub" -o cover.bmp
+```
+
+**Query Parameters:**
+
+| Parameter | Required | Description |
+| --------- | -------- | ----------- |
+| `path`    | Yes      | Absolute SD path to a book |
+
+**Response (200 OK):**
+- Binary BMP image stream (`image/bmp`)
+
+---
+
+### POST `/api/koreader/use-opds` - KOReader Sync Setup
+
+Configures the reader sync engine to use the credentials of a specific OPDS server for KOSync.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"index":0}' http://crosspoint.local/api/koreader/use-opds
+```
+
+**Response (200 OK):**
+```text
+OK
+```
+
+---
+
+### POST `/api/maintenance/clear-cache` - Clear Reading Cache
+
+Clears cached book rendering files from `XTCache` on the SD card.
+
+**Request:**
+```bash
+curl -X POST http://crosspoint.local/api/maintenance/clear-cache
+```
+
+**Response (200 OK):**
+```json
+{
+  "removed": 42,
+  "failed": 0,
+  "message": "Cache cleared"
+}
+```
+
+---
+
+### POST `/api/maintenance/clear-crashes` - Clear Crash Reports
+
+Deletes crash reports from the SD card and clears panic flags.
+
+**Request:**
+```bash
+curl -X POST http://crosspoint.local/api/maintenance/clear-crashes
+```
+
+**Response (200 OK):**
+```json
+{
+  "ok": true
+}
+```
+
+---
+
+### POST `/api/maintenance/clear-logs` - Clear Debug Logs
+
+Clears the debug log file from the SD card and empties the in-memory log buffer.
+
+**Request:**
+```bash
+curl -X POST http://crosspoint.local/api/maintenance/clear-logs
+```
+
+**Response (200 OK):**
+```json
+{
+  "ok": true
+}
+```
+
+---
+
+### POST `/api/maintenance/reset-settings` - Reset Persisted Settings
+
+Resets all persisted reader settings to their default values (Wi-Fi credentials, recent books, and progress are preserved).
+
+**Request:**
+```bash
+curl -X POST http://crosspoint.local/api/maintenance/reset-settings
+```
+
+**Response (200 OK):**
+```json
+{
+  "ok": true
+}
+```
+
+---
+
+### POST `/api/maintenance/validate-sleep-images` - Validate Sleep Images
+
+Scans and validates all images in the `/sleep/` directory on the SD card.
+
+**Request:**
+```bash
+curl -X POST http://crosspoint.local/api/maintenance/validate-sleep-images
+```
+
+**Response (200 OK):**
+```json
+{
+  "valid": 10,
+  "invalid": 1,
+  "message": "Validation complete"
+}
+```
+
+---
+
+### GET `/api/opds` - List OPDS Servers
+
+Returns a JSON array of all configured OPDS catalog servers.
+
+**Request:**
+```bash
+curl http://crosspoint.local/api/opds
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "index": 0,
+    "name": "My OPDS Server",
+    "url": "http://192.168.1.50/opds",
+    "username": "user",
+    "hasPassword": true
+  }
+]
+```
+
+---
+
+### POST `/api/opds` - Add or Update OPDS Server
+
+Adds a new OPDS catalog server, or updates an existing one if `index` is specified in the JSON body.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"name":"My OPDS","url":"http://192.168.1.50/opds","username":"user","password":"pass"}' \
+  http://crosspoint.local/api/opds
+```
+
+**JSON Body:**
+
+| Field | Required | Description |
+| ----- | -------- | ----------- |
+| `name` | Yes | Display name for the OPDS server |
+| `url` | Yes | OPDS server URL |
+| `username` | No | Optional username |
+| `password` | No | Optional password |
+| `index` | No | Optional index to update an existing server |
+
+**Response (200 OK):**
+```text
+OK
+```
+
+---
+
+### POST `/api/opds/delete` - Remove OPDS Server
+
+Deletes a configured OPDS server by index.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"index":0}' http://crosspoint.local/api/opds/delete
+```
+
+**Response (200 OK):**
+```text
+OK
+```
+
+---
+
+### POST `/api/opds/test` - Test OPDS Server Connectivity
+
+Tests network connectivity and credentials for an OPDS server.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"name":"My OPDS","url":"http://192.168.1.50/opds","username":"user","password":"pass"}' \
+  http://crosspoint.local/api/opds/test
+```
+
+**Response (200 OK):**
+```text
+Connection successful
+```
+
+---
+
+### POST `/api/open-book` - Open Book Remotely
+
+Commands the reader to open a specific book from the SD card.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"path":"/Books/MyBook.epub"}' \
+  http://crosspoint.local/api/open-book
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "status": "opening"
+}
+```
+
+**Notes:**
+- Gated by `ENABLE_REMOTE_CONTROL`
+
+---
+
+### POST `/api/pokemon-sprite` - Cache Pokemon Sprite
+
+Caches a base64-encoded 1-bit BMP sprite for a given Pokemon species ID on the device for offline rendering.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"speciesId":25,"bmpBase64":"Qk0eAAAAAAAAAD4AAAAoAAAA..."}' \
+  http://crosspoint.local/api/pokemon-sprite
+```
+
+**Response (200 OK):**
+```json
+{
+  "ok": true
+}
+```
+
+**Notes:**
+- Gated by `ENABLE_POKEMON_PARTY`
+
+---
+
+### GET `/api/pokemon-team` - Get Pokemon Team
+
+Returns the prebaked roster of up to six Pokemon in the current party.
+
+**Request:**
+```bash
+curl http://crosspoint.local/api/pokemon-team
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "speciesId": 25,
+    "name": "pikachu",
+    "level": 5,
+    "evolutionChain": []
+  }
+]
+```
+
+**Notes:**
+- Gated by `ENABLE_POKEMON_PARTY`
+
+---
+
+### PUT `/api/pokemon-team` - Save Pokemon Team
+
+Saves the prebaked team roster of up to six Pokemon. Only base-form Pokemon may be added.
+
+**Request:**
+```bash
+curl -X PUT -H "Content-Type: application/json" \
+  -d '{"team":[{"speciesId":25,"name":"pikachu","level":5}]}' \
+  http://crosspoint.local/api/pokemon-team
+```
+
+**Response (200 OK):**
+```json
+{
+  "ok": true
+}
+```
+
+**Notes:**
+- Gated by `ENABLE_POKEMON_PARTY`
+
+---
+
+### POST `/api/remote/button` - Press Remote Button
+
+Simulates a page-turn button event (e.g. forward, back) remotely.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"button":"page_forward"}' \
+  http://crosspoint.local/api/remote/button
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "status": "ok"
+}
+```
+
+**Notes:**
+- Gated by `ENABLE_REMOTE_CONTROL`
+- Valid button values: `page_forward`, `next`, `page_back`, `prev`, `previous`
+
+---
+
+### POST `/api/screenshot` - Trigger Screenshot
+
+Triggers an on-device screenshot capture, saving it to the SD card.
+
+**Request:**
+```bash
+curl -X POST http://crosspoint.local/api/screenshot
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+### GET `/api/settings` - List Settings Descriptors
+
+Lists editable reader settings metadata. Returns as a chunked transfer-encoded JSON array of settings descriptors.
+
+**Request:**
+```bash
+curl http://crosspoint.local/api/settings
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "key": "fontSize",
+    "name": "Font Size",
+    "category": "reader",
+    "type": "value",
+    "value": 3,
+    "min": 1,
+    "max": 10,
+    "step": 1
+  }
+]
+```
+
+---
+
+### POST `/api/settings` - Update Settings
+
+Applies settings mutations using a partial JSON object.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"fontSize":4,"darkMode":true}' \
+  http://crosspoint.local/api/settings
+```
+
+**Response (200 OK):**
+```text
+Applied 2 setting(s)
+```
+
+---
+
+### GET `/api/settings/raw` - Get Raw Settings Configuration
+
+Returns raw setting values as a flat key-value JSON map.
+
+**Request:**
+```bash
+curl http://crosspoint.local/api/settings/raw
+```
+
+**Response (200 OK):**
+```json
+{
+  "fontSize": 3,
+  "darkMode": true,
+  "deviceName": "crosspoint-reader"
+}
+```
+
+---
+
+### POST `/api/time` - Set Device Time
+
+Sets the device clock via epoch timestamp.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"time":1783819200}' \
+  http://crosspoint.local/api/time
+```
+
+**Response (200 OK):**
+```json
+{
+  "ok": true
+}
+```
+
+**Notes:**
+- Gated by `ENABLE_WIFI_CLOCK`
+
+---
+
+### GET `/api/wifi` - List Saved Wi-Fi Credentials
+
+Returns a JSON array of all saved Wi-Fi network credentials (SSIDs, index, connection status).
+
+**Request:**
+```bash
+curl http://crosspoint.local/api/wifi
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "index": 0,
+    "ssid": "MyWiFiNetwork",
+    "hasPassword": true,
+    "isLastConnected": true
+  }
+]
+```
+
+---
+
+### POST `/api/wifi` - Save or Update Wi-Fi Credential
+
+Adds a new saved Wi-Fi credential, or updates an existing one if `index` is specified.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"ssid":"MyWiFiNetwork","password":"my-wifi-password"}' \
+  http://crosspoint.local/api/wifi
+```
+
+**JSON Body:**
+
+| Field | Required | Description |
+| ----- | -------- | ----------- |
+| `ssid` | Yes | Wi-Fi network SSID |
+| `password` | No | Wi-Fi network password (optional) |
+| `index` | No | Optional index to update an existing credential |
+
+**Response (200 OK):**
+```text
+OK
+```
+
+---
+
+### POST `/api/wifi/delete` - Delete Saved Wi-Fi Credential
+
+Removes a saved Wi-Fi credential by SSID.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"ssid":"MyWiFiNetwork"}' \
+  http://crosspoint.local/api/wifi/delete
+```
+
+**Response (200 OK):**
+```text
+OK
+```
+
+---
+
+### POST `/api/wifi/forget-all` - Forget All Wi-Fi Credentials
+
+Removes all saved Wi-Fi network credentials from the device.
+
+**Request:**
+```bash
+curl -X POST http://crosspoint.local/api/wifi/forget-all
+```
+
+**Response (200 OK):**
+```json
+{
+  "ok": true
+}
+```
 
 ---
 

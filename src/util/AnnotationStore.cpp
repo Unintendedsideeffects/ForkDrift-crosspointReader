@@ -18,7 +18,17 @@ bool AnnotationStore::loadForBook(const std::string& cachePath) {
   filePath = cachePath + kFileName;
   const std::string tmpPath = filePath + ".tmp";
   if (Storage.exists(tmpPath.c_str())) {
-    Storage.remove(tmpPath.c_str());  // stale temp from an interrupted save
+    if (!Storage.exists(filePath.c_str())) {
+      // A crash between remove(filePath) and rename(tmp) in saveToFile() leaves
+      // the temp as the only complete copy — promote it instead of deleting it.
+      if (Storage.rename(tmpPath.c_str(), filePath.c_str())) {
+        LOG_INF("ANN", "Recovered annotations from interrupted save");
+      } else {
+        LOG_ERR("ANN", "Failed to promote %s", tmpPath.c_str());
+      }
+    } else {
+      Storage.remove(tmpPath.c_str());  // stale temp from an interrupted save
+    }
   }
   loaded = true;
 

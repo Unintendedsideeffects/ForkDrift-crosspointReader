@@ -74,4 +74,30 @@ bool anchorByText(const std::vector<SelWord>& words, const std::string& text, co
   return false;
 }
 
+bool anchorByTextUnique(const std::vector<SelWord>& words, const std::string& text, const int spanLen, int& outLo,
+                        int& outHi, bool& unique) {
+  const int count = static_cast<int>(words.size());
+  unique = false;
+  const std::string first = firstWord(text);
+  if (first.empty()) {
+    return false;
+  }
+
+  int matchCount = 0;
+  for (int start = 0; start + spanLen < count; ++start) {
+    if (words[static_cast<size_t>(start)].text != first) {
+      continue;
+    }
+    if (joinSpan(words, start, start + spanLen) == text) {
+      if (matchCount == 0) {
+        outLo = start;
+        outHi = start + spanLen;
+      }
+      matchCount++;
+    }
+  }
+  unique = matchCount == 1;
+  return matchCount > 0;
+}
+
 }  // namespace selection

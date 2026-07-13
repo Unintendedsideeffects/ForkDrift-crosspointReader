@@ -3059,8 +3059,18 @@
                           <div class="card-size"></div>
                           <div class="card-desc">BookLore OPDS integration, enabled automatically with OPDS Support</div>
                         </div>
-                        <div class="card-toggle"><span class="toggle-box"></span></div>
+                          <div class="card-toggle"><span class="toggle-box"></span></div>
                       </div>
+                      <label class="skill-card dep-child" data-feature="books_tab_ui" data-node-id="books_tab_ui">
+                        <input type="checkbox" id="books_tab_ui" data-feature="books_tab_ui" />
+                        <div class="card-icon"><span>&#x2261;</span></div>
+                        <div class="card-body">
+                          <div class="card-name">Books Tab UI</div>
+                          <div class="card-size"></div>
+                          <div class="card-desc">Opt-in Books tab container skeleton for the recent-books grid and OPDS browser</div>
+                        </div>
+                        <div class="card-toggle"><span class="toggle-box"></span></div>
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -3731,6 +3741,11 @@
           flag: "ENABLE_OPDS",
           default: false,
         },
+        books_tab_ui: {
+          sizeKb: 0,
+          flag: "ENABLE_BOOKS_TAB_UI",
+          default: false,
+        },
         home_media_picker: {
           sizeKb: 0,
           flag: "ENABLE_HOME_MEDIA_PICKER",
@@ -3937,6 +3952,7 @@
         koreader_sync: "Syncs reading position with a KOReader (KOSync) server such as Booklore/Grimoire (endpoint <host>/api/koreader), Kavita, or a self-hosted KOSync. On book open it fetches the last-synced position; on exit it pushes the current page. For Booklore the book must be downloaded via its OPDS feed and Document Matching must be Binary. Requires Integrations.",
         calibre_sync: "OPDS catalog browser on the device for Calibre wireless libraries and other OPDS servers, with configurable Author - Title or Title - Author download filenames. Requires Integrations; enables BookLore Support automatically.",
         opds: "BookLore server integration for OPDS browsing and downloads. Always enabled when OPDS Support is on.",
+        books_tab_ui: "Opt-in Books tab container skeleton hosting the recent-books grid and OPDS browser. Requires OPDS.",
         background_server: "A lightweight HTTP server that runs alongside the reader over WiFi. Powers file transfer, remote control APIs, and the web UI. Launching it takes a few seconds; auto-start modes avoid that delay.",
         background_server_on_charge: "Automatically starts the Background Server whenever the device is connected to a charger. Lets the device act as a wireless book-drop station with no manual steps while it sits on your desk.",
         background_server_always: "Keeps the Background Server running continuously — on battery or on charge. Maximises availability for remote control and file transfer at the cost of increased WiFi radio power draw.",
@@ -3997,6 +4013,7 @@
         koreader_sync: ["integrations"],
         calibre_sync: ["integrations"],
         opds: ["calibre_sync"],
+        books_tab_ui: ["opds"],
         hyphenation: ["epub_support"],
         web_wifi_setup: ["background_server"],
         ble_wifi_provisioning: ["web_wifi_setup"],
@@ -4018,7 +4035,7 @@
       const HUB_FEATURES = {
         reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "notes", "anki_support", "dictionary_lookup", "text_selection", "annotations", "per_book_settings", "reading_stats", "focus_reading", "guide_dots"],
         interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "web_wallpaper_plugin", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts", "minimal_theme"],
-        network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "haiku_clock_sleep", "remote_control", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
+        network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "books_tab_ui", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "haiku_clock_sleep", "remote_control", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
         storage_hub: ["usb_mass_storage"],
       };
 
@@ -4057,6 +4074,7 @@
           usb_mass_storage: true,
           reading_stats: true,
           minimal_theme: true,
+          books_tab_ui: false,
         },
         full: {
           bookerly_fonts: false,
@@ -4069,6 +4087,7 @@
           koreader_sync: true,
           calibre_sync: true,
           opds: true,
+          books_tab_ui: false,
           epub_support: true,
           hyphenation: true,
           xtc_support: true,

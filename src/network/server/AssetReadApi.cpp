@@ -10,6 +10,7 @@
 #include <string>
 
 #include "SpiBusMutex.h"
+#include "network/server/DirScan.h"
 #include "util/PathUtils.h"
 
 namespace network {
@@ -86,6 +87,51 @@ std::string leafName(const std::string& path) {
   return lastSlash == std::string::npos ? path : path.substr(lastSlash + 1);
 }
 
+struct SleepImageScanContext {
+  const std::string& directoryPath;
+  const char* const* allowedExts;
+  int numAllowed;
+  String& json;
+  bool& seenFirst;
+  JsonDocument& doc;
+  char* output;
+  size_t outputSize;
+};
+
+// NOLINTNEXTLINE(misc-no-recursion) -- intentional: directory tree traversal
+void appendSleepImagesFromDirectory(const std::string& directoryPath, const char* const* allowedExts,
+                                    const int numAllowed, String& json, bool& seenFirst, JsonDocument& doc,
+                                    char* output, const size_t outputSize);
+
+void handleSleepImageEntry(void* rawContext, const DirScanEntry& scanned) {
+  auto& context = *static_cast<SleepImageScanContext*>(rawContext);
+  const std::string entryName(scanned.name);
+  const std::string fullPath = joinSleepPath(context.directoryPath, entryName);
+  const std::string leaf = leafName(entryName);
+  if (leaf.empty() || leaf[0] == '.') return;
+
+  if (scanned.isDirectory) {
+    appendSleepImagesFromDirectory(fullPath, context.allowedExts, context.numAllowed, context.json, context.seenFirst,
+                                   context.doc, context.output, context.outputSize);
+    return;
+  }
+
+  if (!isSupportedSleepImageName(leaf, context.allowedExts, context.numAllowed)) return;
+
+  context.doc.clear();
+  context.doc["path"] = fullPath;
+  context.doc["name"] = leaf;
+  const size_t written = serializeJson(context.doc, context.output, context.outputSize);
+  if (written >= context.outputSize) return;
+
+  if (context.seenFirst) {
+    context.json += ",";
+  } else {
+    context.seenFirst = true;
+  }
+  context.json += context.output;
+}
+
 // NOLINTNEXTLINE(misc-no-recursion) -- intentional: directory tree traversal
 void appendSleepImagesFromDirectory(const std::string& directoryPath, const char* const* allowedExts,
                                     const int numAllowed, String& json, bool& seenFirst, JsonDocument& doc,
@@ -103,56 +149,8 @@ void appendSleepImagesFromDirectory(const std::string& directoryPath, const char
     return;
   }
 
-  while (true) {
-    std::string entryName;
-    bool isEntryDir = false;
-    bool done = false;
-
-    {
-      SpiBusMutex::Guard guard;
-      HalFile file = dir.openNextFile();
-      if (!file) {
-        done = true;
-      } else {
-        char name[260];
-        file.getName(name, sizeof(name));
-        entryName = name;
-        isEntryDir = file.isDirectory();
-        file.close();
-      }
-    }
-
-    if (done) break;
-
-    const std::string fullPath = joinSleepPath(directoryPath, entryName);
-    const std::string leaf = leafName(entryName);
-    if (leaf.empty() || leaf[0] == '.') continue;
-
-    if (isEntryDir) {
-      appendSleepImagesFromDirectory(fullPath, allowedExts, numAllowed, json, seenFirst, doc, output, outputSize);
-      continue;
-    }
-
-    if (!isSupportedSleepImageName(leaf, allowedExts, numAllowed)) continue;
-
-    doc.clear();
-    doc["path"] = fullPath;
-    doc["name"] = leaf;
-    const size_t written = serializeJson(doc, output, outputSize);
-    if (written >= outputSize) continue;
-
-    if (seenFirst) {
-      json += ",";
-    } else {
-      seenFirst = true;
-    }
-    json += output;
-  }
-
-  {
-    SpiBusMutex::Guard guard;
-    dir.close();
-  }
+  SleepImageScanContext context{directoryPath, allowedExts, numAllowed, json, seenFirst, doc, output, outputSize};
+  forEachDirEntry(dir, &context, handleSleepImageEntry);
 }
 
 }  // namespace

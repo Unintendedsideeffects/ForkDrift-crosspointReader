@@ -31,6 +31,9 @@
 #include "BookmarkStore.h"
 #include "EpubReaderBookmarkListActivity.h"
 #endif
+#if ENABLE_ANNOTATIONS
+#include "EpubReaderHighlightListActivity.h"
+#endif
 #if ENABLE_READING_STATS
 #include "BookReadingStats.h"
 #include "BookStatsActivity.h"
@@ -1317,6 +1320,24 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       break;
     }
 #endif  // ENABLE_BOOKMARKS
+#if ENABLE_ANNOTATIONS
+    case EpubReaderMenuActivity::MenuAction::VIEW_HIGHLIGHTS: {
+      startActivityForResult(std::make_unique<EpubReaderHighlightListActivity>(renderer, mappedInput),
+                             [this](const ActivityResult& result) {
+                               if (!result.isCancelled) {
+                                 const auto& highlight = std::get<SyncResult>(result.data);
+                                 RenderLock lock(*this);
+                                 currentSpineIndex = highlight.spineIndex;
+                                 pendingPageJump = static_cast<uint16_t>(highlight.page);
+                                 nextPageNumber = 0;
+                                 section.reset();
+                               } else {
+                                 requestUpdate();
+                               }
+                             });
+      break;
+    }
+#endif  // ENABLE_ANNOTATIONS
     case EpubReaderMenuActivity::MenuAction::READER_SETTINGS_CHANGED:
       reindexCurrentSection();
       break;
@@ -2433,31 +2454,52 @@ void EpubReaderActivity::renderAnnotations(const Page& page, const int marginLef
   size_t offPageSlides = 0;
   bool warnedOffPageCap = false;
   bool hintsChanged = false;
+  std::vector<const Annotation*> offPage;
+  offPage.reserve(spineAnnotations.size());
 
   for (const Annotation* a : spineAnnotations) {
+    if (a->page != currentPage) {
+      offPage.push_back(a);
+      continue;
+    }
+
     int lo = a->startWord;
     int hi = a->endWord;
-    const bool hintPageMatches = a->page == currentPage;
-    bool anchored = false;
-    if (hintPageMatches) {
-      // Hint indices are only trusted when the joined text still matches — a
-      // relayout (font/margin change) shifts word indices.
-      anchored = selection::anchorByText(words, a->text, lo, hi, lo, hi);
-    } else {
-      if (offPageSlides >= kMaxOffPageSlidesPerRender) {
-        if (!warnedOffPageCap) {
-          LOG_WRN("ANN", "Skipping annotation re-anchor after %u off-page candidates",
-                  static_cast<unsigned>(kMaxOffPageSlidesPerRender));
-          warnedOffPageCap = true;
-        }
-        continue;
-      }
-      offPageSlides++;
-      const int span = hi - lo;
-      anchored = selection::anchorByText(words, a->text, count, count + span, lo, hi);
-    }
+    // Hint indices are only trusted when the joined text still matches — a
+    // relayout (font/margin change) shifts word indices.
+    const bool anchored = selection::anchorByText(words, a->text, lo, hi, lo, hi);
     if (!anchored) {
       continue;  // text no longer on this page after relayout; keep stored, skip drawing
+    }
+    if (a->page != currentPage || a->startWord != static_cast<uint16_t>(lo) ||
+        a->endWord != static_cast<uint16_t>(hi)) {
+      if (ANNOTATIONS.updateHints(a, currentPage, static_cast<uint16_t>(lo), static_cast<uint16_t>(hi))) {
+        hintsChanged = true;
+      }
+    }
+    for (int i = lo; i <= hi; ++i) {
+      const selection::SelWord& w = words[static_cast<size_t>(i)];
+      renderer.invertRect(w.x - 1, w.y, w.w + 2, w.h);
+    }
+  }
+
+  for (const Annotation* a : offPage) {
+    if (offPageSlides >= kMaxOffPageSlidesPerRender) {
+      if (!warnedOffPageCap) {
+        LOG_WRN("ANN", "Skipping annotation re-anchor after %u off-page candidates",
+                static_cast<unsigned>(kMaxOffPageSlidesPerRender));
+        warnedOffPageCap = true;
+      }
+      continue;
+    }
+    offPageSlides++;
+
+    int lo = a->startWord;
+    int hi = a->endWord;
+    bool unique = false;
+    const int span = hi - lo;
+    if (!selection::anchorByTextUnique(words, a->text, span, lo, hi, unique) || !unique) {
+      continue;
     }
     if (a->page != currentPage || a->startWord != static_cast<uint16_t>(lo) ||
         a->endWord != static_cast<uint16_t>(hi)) {

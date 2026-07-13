@@ -77,6 +77,9 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
     items.push_back({MenuAction::DELETE_BOOKMARKS, StrId::STR_DELETE_BOOKMARKS});
   }
 #endif
+#if ENABLE_ANNOTATIONS
+  items.push_back({MenuAction::VIEW_HIGHLIGHTS, StrId::STR_HIGHLIGHTS});
+#endif
   items.push_back({MenuAction::DELETE_CACHE, StrId::STR_DELETE_CACHE});
   return items;
 }

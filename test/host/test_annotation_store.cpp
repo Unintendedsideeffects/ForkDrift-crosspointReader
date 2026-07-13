@@ -48,6 +48,51 @@ TEST_CASE("AnnotationStore round-trip loading and saving") {
   store.unload();
 }
 
+TEST_CASE("AnnotationStore crash recovery promotes surviving temp") {
+  Storage.reset();
+  auto& store = AnnotationStore::getInstance();
+
+  CHECK(store.loadForBook("/cache_recovery"));
+  Annotation a1{1, 2, 5, 8, "first annotation"};
+  Annotation a2{1, 3, 10, 15, "second annotation"};
+  CHECK(store.add(a1));
+  CHECK(store.add(a2));
+  store.unload();
+
+  REQUIRE(Storage.rename("/cache_recovery/annotations.bin", "/cache_recovery/annotations.bin.tmp"));
+  CHECK(Storage.exists("/cache_recovery/annotations.bin") == false);
+  CHECK(Storage.exists("/cache_recovery/annotations.bin.tmp"));
+
+  CHECK(store.loadForBook("/cache_recovery"));
+  REQUIRE(store.all().size() == 2);
+  CHECK(store.all()[0].text == "first annotation");
+  CHECK(store.all()[1].text == "second annotation");
+  CHECK(Storage.exists("/cache_recovery/annotations.bin"));
+  CHECK(Storage.exists("/cache_recovery/annotations.bin.tmp") == false);
+
+  store.unload();
+}
+
+TEST_CASE("AnnotationStore stale temp does not replace valid file") {
+  Storage.reset();
+  auto& store = AnnotationStore::getInstance();
+
+  CHECK(store.loadForBook("/cache_stale_temp"));
+  Annotation valid{2, 4, 1, 3, "valid annotation"};
+  CHECK(store.add(valid));
+  store.unload();
+
+  REQUIRE(Storage.writeFile("/cache_stale_temp/annotations.bin.tmp", "stale temp content"));
+  CHECK(store.loadForBook("/cache_stale_temp"));
+
+  REQUIRE(store.all().size() == 1);
+  CHECK(store.all()[0].text == "valid annotation");
+  CHECK(Storage.exists("/cache_stale_temp/annotations.bin"));
+  CHECK(Storage.exists("/cache_stale_temp/annotations.bin.tmp") == false);
+
+  store.unload();
+}
+
 TEST_CASE("AnnotationStore removeAt range semantics") {
   Storage.reset();
   auto& store = AnnotationStore::getInstance();

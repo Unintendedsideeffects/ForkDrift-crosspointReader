@@ -28,5 +28,10 @@ std::pair<int, int> span(const Model& model);
 std::string joinSpan(const std::vector<SelWord>& words, int lo, int hi);
 bool anchorByText(const std::vector<SelWord>& words, const std::string& text, int hintLo, int hintHi, int& outLo,
                   int& outHi);
+// Like anchorByText's slide search, but reports whether the text occurs more
+// than once among `words`. Returns false when there is no match at all.
+// `unique` is set true only when exactly one occurrence exists.
+bool anchorByTextUnique(const std::vector<SelWord>& words, const std::string& text, int spanLen, int& outLo, int& outHi,
+                        bool& unique);
 
 }  // namespace selection

@@ -14,6 +14,7 @@ namespace {
 
 constexpr const char* kPinnedSleepCoverPath = "/sleep/.pinned-cover.bmp";
 
+// Keep the result-returning form for host-testable sleep-cover responses; new server handlers should use sendJson().
 SleepCoverHttpResult jsonResponse(const JsonDocument& doc) {
   String json;
   serializeJson(doc, json);

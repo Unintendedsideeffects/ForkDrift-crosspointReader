@@ -85,6 +85,7 @@ FEATURES = [
     'koreader_sync',            # requires: integrations
     'calibre_sync',             # requires: integrations
     'opds',                     # requires: calibre_sync (→ integrations)
+    'books_tab_ui',             # requires: opds
     'pokemon_wallpaper_plugin', # requires: image_sleep
     'hyphenation',              # requires: epub_support
     'lyra_theme',               # requires: home_media_picker

@@ -62,6 +62,8 @@ tags:
     description: User font management endpoints
   - name: maintenance
     description: Device maintenance and reset endpoints
+  - name: anki
+    description: Anki support endpoints
 paths:
   /api/status:
     get:
@@ -117,6 +119,31 @@ paths:
                     pokemon_party: false
         '404':
           $ref: '#/components/responses/NotFoundText'
+  /api/time:
+    post:
+      tags: [status]
+      operationId: setDeviceTime
+      summary: Set Device Time
+      x-crosspoint-feature-gates: [wifi_clock]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [time]
+              properties:
+                time:
+                  type: integer
+      responses:
+        '200':
+          description: Time set successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestText'
   /api/files:
     get:
       tags: [files]
@@ -540,6 +567,96 @@ paths:
           $ref: '#/components/responses/NotFoundText'
         '500':
           $ref: '#/components/responses/InternalServerErrorText'
+  /api/pokemon-team:
+    get:
+      tags: [books]
+      operationId: getPokemonTeam
+      summary: Get Pokemon Team
+      x-crosspoint-feature-gates: [pokemon_party]
+      responses:
+        '200':
+          description: Pokemon team list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [speciesId, name, level, evolutionChain]
+                  properties:
+                    speciesId:
+                      type: integer
+                    name:
+                      type: string
+                    level:
+                      type: integer
+                    evolutionChain:
+                      type: array
+                      items:
+                        type: integer
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+    put:
+      tags: [books]
+      operationId: savePokemonTeam
+      summary: Save Pokemon Team
+      x-crosspoint-feature-gates: [pokemon_party]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [team]
+              properties:
+                team:
+                  type: array
+                  items:
+                    type: object
+                    required: [speciesId, name, level]
+                    properties:
+                      speciesId:
+                        type: integer
+                      name:
+                        type: string
+                      level:
+                        type: integer
+      responses:
+        '200':
+          description: Pokemon team saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+  /api/pokemon-sprite:
+    post:
+      tags: [books]
+      operationId: cachePokemonSprite
+      summary: Cache Pokemon Sprite
+      x-crosspoint-feature-gates: [pokemon_party]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [speciesId, bmpBase64]
+              properties:
+                speciesId:
+                  type: integer
+                bmpBase64:
+                  type: string
+      responses:
+        '200':
+          description: Sprite cached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestText'
   /api/todo/entry:
     post:
       tags: [todo]
@@ -690,6 +807,32 @@ paths:
           $ref: '#/components/responses/NotFoundText'
         '500':
           $ref: '#/components/responses/InternalServerErrorText'
+  /api/anki/cards:
+    get:
+      tags: [anki]
+      operationId: getAnkiCards
+      summary: Export Anki Cards
+      x-crosspoint-feature-gates: [anki_support]
+      responses:
+        '200':
+          description: Anki cards database JSON
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    front:
+                      type: string
+                    back:
+                      type: string
+                    context:
+                      type: string
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '404':
+          $ref: '#/components/responses/NotFoundText'
   /api/cover:
     get:
       tags: [books]
@@ -785,97 +928,85 @@ paths:
           $ref: '#/components/responses/NotFoundText'
         '500':
           $ref: '#/components/responses/InternalServerErrorText'
-  /api/wifi/scan:
+  /api/wifi:
     get:
       tags: [wifi]
-      operationId: scanWifiNetworks
-      summary: Scan for Wi-Fi networks
-      x-crosspoint-feature-gates: [web_wifi_setup]
+      operationId: getWifiCredentials
+      summary: Get saved Wi-Fi network credentials list
       responses:
         '200':
-          description: Visible Wi-Fi networks
+          description: Saved credentials list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/WifiNetwork'
+                  type: object
+                  required: [index, ssid, hasPassword, isLastConnected]
+                  properties:
+                    index:
+                      type: integer
+                    ssid:
+                      type: string
+                    hasPassword:
+                      type: boolean
+                    isLastConnected:
+                      type: boolean
         '404':
           $ref: '#/components/responses/NotFoundText'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorText'
-        '504':
-          $ref: '#/components/responses/GatewayTimeoutText'
-  /api/wifi/status:
-    get:
-      tags: [wifi]
-      operationId: getWifiStatus
-      summary: Get current Wi-Fi mode and connection state
-      x-crosspoint-feature-gates: [web_wifi_setup]
-      responses:
-        '200':
-          description: Wi-Fi state
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/WifiStatusConnected'
-                  - $ref: '#/components/schemas/WifiStatusDisconnected'
-                  - $ref: '#/components/schemas/WifiStatusAccessPoint'
-        '404':
-          $ref: '#/components/responses/NotFoundText'
-  /api/wifi/connect:
     post:
       tags: [wifi]
-      operationId: saveWifiCredentials
-      summary: Save Wi-Fi credentials
-      x-crosspoint-feature-gates: [web_wifi_setup]
+      operationId: addWifiCredential
+      summary: Add or update a saved Wi-Fi credential
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/WifiConnectRequest'
+              type: object
+              required: [ssid]
+              properties:
+                ssid:
+                  type: string
+                password:
+                  type: string
+                index:
+                  type: integer
       responses:
         '200':
-          description: Credentials saved
+          description: Credential saved
           content:
             text/plain:
               schema:
                 type: string
-              example: WiFi credentials saved
+              example: OK
         '400':
           $ref: '#/components/responses/BadRequestText'
-        '404':
-          $ref: '#/components/responses/NotFoundText'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorText'
-  /api/wifi/forget:
+  /api/wifi/delete:
     post:
       tags: [wifi]
-      operationId: forgetWifiCredentials
-      summary: Remove saved Wi-Fi credentials
-      x-crosspoint-feature-gates: [web_wifi_setup]
+      operationId: deleteWifiCredential
+      summary: Delete a saved Wi-Fi credential by SSID
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/WifiForgetRequest'
+              type: object
+              required: [ssid]
+              properties:
+                ssid:
+                  type: string
       responses:
         '200':
-          description: Credentials removed
+          description: Credential deleted
           content:
             text/plain:
               schema:
                 type: string
-              example: WiFi credentials removed
+              example: OK
         '400':
           $ref: '#/components/responses/BadRequestText'
-        '404':
-          $ref: '#/components/responses/NotFoundText'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorText'
   /api/wifi/forget-all:
     post:
       tags: [wifi]
@@ -1097,82 +1228,57 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OkStatusResponse'
-  /api/ota/check:
+  /api/fonts:
     get:
-      tags: [ota]
-      operationId: getOtaStatus
-      summary: Get OTA check status
-      x-crosspoint-feature-gates: [ota_updates]
-      responses:
-        '200':
-          description: OTA status snapshot
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OtaCheckResponse'
-        '404':
-          description: OTA API disabled
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OtaErrorResponse'
-    post:
-      tags: [ota]
-      operationId: startOtaCheck
-      summary: Start an OTA availability check
-      x-crosspoint-feature-gates: [ota_updates]
-      responses:
-        '200':
-          description: A check is already in progress
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CheckingStatusResponse'
-        '202':
-          description: Check started
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CheckingStatusResponse'
-        '404':
-          description: OTA API disabled
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OtaErrorResponse'
-        '500':
-          description: Failed to start OTA task
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OtaErrorResponse'
-        '503':
-          description: OTA check requires Wi-Fi connectivity
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OtaErrorResponse'
-  /api/user-fonts/rescan:
-    post:
       tags: [fonts]
-      operationId: rescanUserFonts
-      summary: Rescan SD-card user fonts
-      x-crosspoint-feature-gates: [user_fonts]
+      operationId: getFonts
+      summary: List installed font families
       responses:
         '200':
-          description: Font families rescanned
+          description: Font families list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserFontScanResponse'
+                type: object
+                required: [maxFamilies, families]
+                properties:
+                  maxFamilies:
+                    type: integer
+                  families:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, sizes, files]
+                      properties:
+                        name:
+                          type: string
+                        sizes:
+                          type: array
+                          items:
+                            type: integer
+                        files:
+                          type: array
+                          items:
+                            type: object
+                            required: [name, size]
+                            properties:
+                              name:
+                                type: string
+                              size:
+                                type: integer
         '404':
           $ref: '#/components/responses/NotFoundText'
-  /api/user-fonts/upload:
+  /api/fonts/upload:
     post:
       tags: [fonts]
-      operationId: uploadUserFont
-      summary: Upload a `.cpfont` user font
-      x-crosspoint-feature-gates: [user_fonts]
+      operationId: uploadFont
+      summary: Upload a .cpfont font file for a specific family
+      parameters:
+        - name: family
+          in: query
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -1184,18 +1290,46 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: "`.cpfont` font file generated by the upstream Font Manager"
+                  description: ".cpfont font file"
       responses:
         '200':
-          description: Font uploaded and fonts rescanned
+          description: Font uploaded
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserFontUploadResponse'
+                $ref: '#/components/schemas/OkResponse'
         '400':
           $ref: '#/components/responses/BadRequestText'
         '404':
           $ref: '#/components/responses/NotFoundText'
+  /api/fonts/delete:
+    post:
+      tags: [fonts]
+      operationId: deleteFont
+      summary: Delete a font family
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [family]
+              properties:
+                family:
+                  type: string
+      responses:
+        '200':
+          description: Font family deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorText'
   /api/opds:
     get:
       tags: [opds]
@@ -1272,6 +1406,52 @@ paths:
           $ref: '#/components/responses/BadRequestText'
         '404':
           $ref: '#/components/responses/NotFoundText'
+  /api/opds/test:
+    post:
+      tags: [opds]
+      operationId: testOpdsServer
+      summary: Test OPDS server connectivity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpdsServerUpsert'
+      responses:
+        '200':
+          description: Connection successful
+          content:
+            text/plain:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+  /api/koreader/use-opds:
+    post:
+      tags: [opds]
+      operationId: koreaderUseOpds
+      summary: Configure KOReader sync to use OPDS server credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [index]
+              properties:
+                index:
+                  type: integer
+                  minimum: 0
+      responses:
+        '200':
+          description: KOReader sync configured
+          content:
+            text/plain:
+              schema:
+                type: string
+                enum: [OK]
+        '400':
+          $ref: '#/components/responses/BadRequestText'
 components:
   responses:
     BadRequestText:
@@ -1419,6 +1599,8 @@ components:
         remote_keyboard_input:
           type: boolean
         pokemon_party:
+          type: boolean
+        anki_support:
           type: boolean
       additionalProperties:
         type: boolean

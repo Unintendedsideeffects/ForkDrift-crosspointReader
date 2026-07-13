@@ -3,6 +3,7 @@
 #include <HalStorage.h>
 
 #include "SpiBusMutex.h"
+#include "network/server/DirScan.h"
 #include "util/PathUtils.h"
 
 namespace {
@@ -32,6 +33,8 @@ String decodeAndNormalizePath(const String& rawPath) {
   }
   return PathUtils::normalizePath(path);
 }
+
+void markDirectoryEntry(void* ctx, const network::DirScanEntry&) { *static_cast<bool*>(ctx) = true; }
 
 }  // namespace
 
@@ -172,8 +175,7 @@ FileMutationResult renameFile(const String& rawItemPath, const String& rawRename
   }
   file.close();
 
-  return success ? FileMutationResult{200, "Renamed successfully"}
-                 : FileMutationResult{500, "Failed to rename file"};
+  return success ? FileMutationResult{200, "Renamed successfully"} : FileMutationResult{500, "Failed to rename file"};
 }
 
 FileMutationResult moveFile(const String& rawItemPath, const String& rawDestPath,
@@ -250,8 +252,7 @@ FileMutationResult moveFile(const String& rawItemPath, const String& rawDestPath
   }
   file.close();
 
-  return success ? FileMutationResult{200, "Moved successfully"}
-                 : FileMutationResult{500, "Failed to move file"};
+  return success ? FileMutationResult{200, "Moved successfully"} : FileMutationResult{500, "Failed to move file"};
 }
 
 FileMutationResult deletePaths(const std::vector<String>& rawPaths, const FileMutationCallback& onPathChanged) {
@@ -288,25 +289,26 @@ FileMutationResult deletePaths(const std::vector<String>& rawPaths, const FileMu
 
     bool success = false;
     bool folderNotEmpty = false;
+    HalFile file;
+    bool isDirectory = false;
     {
       SpiBusMutex::Guard guard;
-      HalFile file = Storage.open(itemPath.c_str());
-      if (file && file.isDirectory()) {
-        HalFile entry = file.openNextFile();
-        if (entry) {
-          entry.close();
-          folderNotEmpty = true;
-        }
-        file.close();
-        if (!folderNotEmpty) {
-          success = Storage.rmdir(itemPath.c_str());
-        }
-      } else {
-        if (file) {
-          file.close();
-        }
-        success = Storage.remove(itemPath.c_str());
+      file = Storage.open(itemPath.c_str());
+      isDirectory = file && file.isDirectory();
+    }
+
+    if (isDirectory) {
+      forEachDirEntry(file, &folderNotEmpty, markDirectoryEntry);
+      if (!folderNotEmpty) {
+        SpiBusMutex::Guard guard;
+        success = Storage.rmdir(itemPath.c_str());
       }
+    } else {
+      SpiBusMutex::Guard guard;
+      if (file) {
+        file.close();
+      }
+      success = Storage.remove(itemPath.c_str());
     }
 
     if (folderNotEmpty) {

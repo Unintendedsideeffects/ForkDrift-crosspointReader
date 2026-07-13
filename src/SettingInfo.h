@@ -36,6 +36,8 @@ enum class SettingAction {
 #if ENABLE_BLE_PAGE_TURNER
   BlePageTurner,
 #endif
+  BackupSettings,
+  RestoreSettings,
 };
 
 struct SettingInfo {

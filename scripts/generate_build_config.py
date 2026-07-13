@@ -84,6 +84,12 @@ FEATURES = {
         size_kb=0,
         description='BookLore server integration for OPDS browsing and downloads'
     ),
+    'books_tab_ui': Feature(
+        name='Books Tab UI',
+        flag='ENABLE_BOOKS_TAB_UI',
+        size_kb=0,
+        description='Opt-in Books tab container skeleton hosting the recent-books grid and OPDS browser'
+    ),
     'background_server': Feature(
         name='Background Server',
         flag='ENABLE_BACKGROUND_SERVER',
@@ -417,6 +423,13 @@ FEATURE_METADATA = {
         implemented=True,
         stable=True,
         requires=['calibre_sync'],
+        conflicts=[],
+        recommends=[]
+    ),
+    'books_tab_ui': FeatureMetadata(
+        implemented=True,
+        stable=False,
+        requires=['opds'],
         conflicts=[],
         recommends=[]
     ),
@@ -813,6 +826,7 @@ PROFILES = {
             'haiku_clock_sleep': True,
             'reading_stats': True,
             'minimal_theme': True,
+            'books_tab_ui': False,
         },
     },
     'full': {
@@ -828,6 +842,7 @@ PROFILES = {
             'koreader_sync': True,
             'calibre_sync': True,
             'opds': True,
+            'books_tab_ui': False,
             'epub_support': True,
             'hyphenation': True,
             'xtc_support': True,

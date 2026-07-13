@@ -12,11 +12,55 @@
 #endif
 
 #include "SpiBusMutex.h"
+#include "network/server/DirScan.h"
 #include "util/PathUtils.h"
 
 namespace network {
 
-void scanDirectory(const char* path, bool showHiddenFiles, const std::function<void(const DirEntry&)>& callback) {
+namespace {
+
+struct FileListScanContext {
+  bool showHiddenFiles;
+  const std::function<void(const DirEntry&)>* callback;
+};
+
+void handleFileListEntry(void* rawContext, const DirScanEntry& scanned) {
+  auto& context = *static_cast<FileListScanContext*>(rawContext);
+  const String fileName(scanned.name);
+  const bool isDotFile = fileName.startsWith(".");
+  // Dotfiles are hidden when showHiddenFiles is false; they remain visible
+  // when the user explicitly opts in. Named protected components (e.g.
+  // "System Volume Information") are always hidden regardless.
+  const bool shouldHide =
+      (!context.showHiddenFiles && isDotFile) || (!isDotFile && PathUtils::isProtectedWebComponent(fileName));
+
+  if (!shouldHide) {
+    DirEntry entry;
+    entry.name = fileName;
+    entry.isDirectory = scanned.isDirectory;
+    if (entry.isDirectory) {
+      entry.size = 0;
+      entry.isEpub = false;
+    } else {
+      entry.size = scanned.size;
+      entry.isEpub = FsHelpers::hasEpubExtension(fileName);
+    }
+    (*context.callback)(entry);
+  }
+
+  // Yield outside the SPI mutex to allow other tasks to run and prevent WDT
+  // resets during large directory scans.
+#if defined(ARDUINO)
+  yield();
+#if FILELIST_HAS_TASK_WDT
+  esp_task_wdt_reset();
+#endif
+#endif
+}
+
+}  // namespace
+
+void scanDirectory(const char* path, const bool showHiddenFiles, const std::function<void(const DirEntry&)>& callback) {
   HalFile root;
   {
     SpiBusMutex::Guard guard;
@@ -37,62 +81,8 @@ void scanDirectory(const char* path, bool showHiddenFiles, const std::function<v
 
   LOG_DBG("WEB", "Scanning files in: %s", path);
 
-  while (true) {
-    DirEntry entry;
-    bool shouldHide = false;
-
-    {
-      SpiBusMutex::Guard guard;
-      HalFile file = root.openNextFile();
-      if (!file) break;
-
-      char name[500];
-      if (!file.getName(name, sizeof(name))) {
-        LOG_DBG("WEB", "Failed to get file name while scanning directory: %s", path);
-        file.close();
-        continue;
-      }
-      auto fileName = String(name);
-
-      const bool isDotFile = fileName.startsWith(".");
-      // Dotfiles are hidden when showHiddenFiles is false; they remain visible
-      // when the user explicitly opts in. Named protected components (e.g.
-      // "System Volume Information") are always hidden regardless.
-      shouldHide = (!showHiddenFiles && isDotFile) ||
-                   (!isDotFile && PathUtils::isProtectedWebComponent(fileName));
-
-      if (!shouldHide) {
-        entry.name = fileName;
-        entry.isDirectory = file.isDirectory();
-        if (entry.isDirectory) {
-          entry.size = 0;
-          entry.isEpub = false;
-        } else {
-          entry.size = file.size();
-          entry.isEpub = FsHelpers::hasEpubExtension(fileName);
-        }
-      }
-      file.close();
-    }
-
-    if (!shouldHide) {
-      callback(entry);
-    }
-
-    // Yield outside the SPI mutex to allow other tasks to run and prevent WDT
-    // resets during large directory scans.
-#if defined(ARDUINO)
-    yield();
-#if FILELIST_HAS_TASK_WDT
-    esp_task_wdt_reset();
-#endif
-#endif
-  }
-
-  {
-    SpiBusMutex::Guard guard;
-    root.close();
-  }
+  FileListScanContext context{showHiddenFiles, &callback};
+  forEachDirEntry(root, &context, handleFileListEntry);
 }
 
 }  // namespace network

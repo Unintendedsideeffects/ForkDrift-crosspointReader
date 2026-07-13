@@ -16,6 +16,7 @@ constexpr const char* kRequiresAnnotationsAll[] = {"text_selection"};
 constexpr const char* kRequiresKOReaderSyncAll[] = {"integrations"};
 constexpr const char* kRequiresCalibreSyncAll[] = {"integrations"};
 constexpr const char* kRequiresOpdsAll[] = {"calibre_sync"};
+constexpr const char* kRequiresBooksTabUiAll[] = {"opds"};
 constexpr const char* kRequiresTerminusSleepAll[] = {"background_server"};
 constexpr const char* kRequiresPokemonWallpaperPluginAll[] = {"image_sleep"};
 constexpr const char* kRequiresPokemonPartyAll[] = {};
@@ -52,6 +53,8 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
      0},
     {"opds", "BookLore Support", ENABLE_OPDS != 0, kRequiresOpdsAll,
      sizeof(kRequiresOpdsAll) / sizeof(kRequiresOpdsAll[0]), nullptr, 0},
+    {"books_tab_ui", "Books Tab UI", ENABLE_BOOKS_TAB_UI != 0, kRequiresBooksTabUiAll,
+     sizeof(kRequiresBooksTabUiAll) / sizeof(kRequiresBooksTabUiAll[0]), nullptr, 0},
     {"home_media_picker", "Home Media Picker", ENABLE_HOME_MEDIA_PICKER != 0, nullptr, 0, nullptr, 0},
     {"pokemon_wallpaper_plugin", "Pokemon Wallpaper", ENABLE_POKEMON_WALLPAPER_PLUGIN != 0,
      kRequiresPokemonWallpaperPluginAll,

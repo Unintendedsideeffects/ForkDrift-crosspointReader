@@ -18,8 +18,24 @@ Each edit is guarded so re-running (or a fresh libdep checkout that already
 carries the fix) is a no-op.
 """
 
-Import("env")  # noqa: F821
 import os
+
+try:
+    Import("env")  # noqa: F821
+except NameError:
+    # Standalone execution fallback
+    class DummyEnv:
+        def __getitem__(self, key):
+            if key == "PROJECT_DIR":
+                return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            raise KeyError(key)
+        def subst(self, s):
+            if s == "$PROJECT_LIBDEPS_DIR":
+                return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".pio", "libdeps"))
+            return s
+    env = DummyEnv()
+
+_missing_patches = []
 
 
 def _sim_src_dir(env):
@@ -30,26 +46,29 @@ def _sim_src_dir(env):
 
 
 def _replace_once(path, old, new, marker):
-    """Apply old->new in `path` unless `marker` already present. Returns True if changed."""
+    """Apply old->new in `path` unless `marker` already present. Returns status."""
     if not os.path.isfile(path):
-        return False
+        _missing_patches.append((path, marker))
+        return "missing"
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
     if marker in content:
-        return False  # already patched
+        return "already"  # already patched
     if old not in content:
-        print("patch_simulator_hal: anchor not found in %s; skipping (upstream may have changed)" % path)
-        return False
+        _missing_patches.append((path, marker))
+        return "missing"
     with open(path, "w", encoding="utf-8") as f:
         f.write(content.replace(old, new, 1))
     print("patch_simulator_hal: patched %s" % os.path.basename(path))
-    return True
+    return "patched"
 
 
 def patch_simulator_hal(env):
     src = _sim_src_dir(env)
     if not src:
         return
+
+    _missing_patches.clear()
 
     # 1) WakeupReason::TimerRefresh
     _replace_once(
@@ -79,15 +98,30 @@ def patch_simulator_hal(env):
     # 4) network/ header moves: the firmware's refactor(network) split src/network
     #    into subdirs (server/, ota/). The sim shims still include the old flat
     #    paths; remap each to its new home. (marker == the new path -> idempotent)
-    network_moves = {
-        'include "network/CrossPointWebServer.h"': 'include "network/server/CrossPointWebServer.h"',
-        'include "network/FirmwareFlasher.h"': 'include "network/ota/FirmwareFlasher.h"',
-        'include "network/OtaBootSwitch.h"': 'include "network/ota/OtaBootSwitch.h"',
-        'include "network/OtaUpdater.h"': 'include "network/ota/OtaUpdater.h"',
-    }
-    for fname in ("CrossPointWebServer.cpp", "simulator_ota.cpp", "simulator_firmware.cpp"):
-        for old, new in network_moves.items():
-            _replace_once(os.path.join(src, fname), old, new, marker=new)
+    _replace_once(
+        os.path.join(src, "CrossPointWebServer.cpp"),
+        'include "network/CrossPointWebServer.h"',
+        'include "network/server/CrossPointWebServer.h"',
+        marker='include "network/server/CrossPointWebServer.h"',
+    )
+    _replace_once(
+        os.path.join(src, "simulator_ota.cpp"),
+        'include "network/OtaUpdater.h"',
+        'include "network/ota/OtaUpdater.h"',
+        marker='include "network/ota/OtaUpdater.h"',
+    )
+    _replace_once(
+        os.path.join(src, "simulator_firmware.cpp"),
+        'include "network/FirmwareFlasher.h"',
+        'include "network/ota/FirmwareFlasher.h"',
+        marker='include "network/ota/FirmwareFlasher.h"',
+    )
+    _replace_once(
+        os.path.join(src, "simulator_firmware.cpp"),
+        'include "network/OtaBootSwitch.h"',
+        'include "network/ota/OtaBootSwitch.h"',
+        marker='include "network/ota/OtaBootSwitch.h"',
+    )
 
     # 5) String mock gaps: firmware uses Arduino String members the mock lacks.
     _replace_once(
@@ -418,6 +452,23 @@ bool probeImageInfo(const uint8_t *data, size_t size, int &width, int &height,
   size_t encodedBytes_{0};''',
         marker="encodedBytes_{0};",
     )
+
+    # 10) esp_ota_set_boot_partition stub in esp_ota_ops.h
+    _replace_once(
+        os.path.join(src, "esp_ota_ops.h"),
+        "inline esp_err_t esp_ota_mark_app_valid_cancel_rollback() {\n  return ESP_OK;\n}",
+        "inline esp_err_t esp_ota_mark_app_valid_cancel_rollback() {\n  return ESP_OK;\n}\n\n"
+        "inline esp_err_t esp_ota_set_boot_partition(const esp_partition_t *) { return ESP_OK; }",
+        marker="esp_ota_set_boot_partition",
+    )
+
+    if _missing_patches:
+        for path, marker in _missing_patches:
+            print("patch_simulator_hal: missing anchor for marker '%s' in file %s" % (marker, path))
+        raise SystemExit(
+            "patch_simulator_hal: %d required anchors missing — upstream drifted; re-sync anchors and the pin in platformio.ini"
+            % len(_missing_patches)
+        )
 
 
 patch_simulator_hal(env)

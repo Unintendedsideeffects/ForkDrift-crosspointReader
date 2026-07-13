@@ -1,5 +1,6 @@
 #pragma once
 
+#include <FeatureFlags.h>
 #include <I18n.h>
 #include <Memory.h>
 
@@ -39,6 +40,9 @@ class EpubReaderMenuActivity final : public Activity {
     BOOKMARK_TOGGLE,
     VIEW_BOOKMARKS,
     DELETE_BOOKMARKS,
+#endif
+#if ENABLE_ANNOTATIONS
+    VIEW_HIGHLIGHTS,
 #endif
   };
 

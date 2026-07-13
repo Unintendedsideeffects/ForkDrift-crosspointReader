@@ -13,6 +13,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      firmware: ${{ steps.diff.outputs.firmware }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with: { fetch-depth: 0 }
+      - id: diff
+        run: |
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE" 2>/dev/null; then echo "firmware=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if git diff --name-only "$BASE"...HEAD | grep -qvE '^(docs/|plans/|README|BUGS|TODO)'; then
+            echo "firmware=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "firmware=false" >> "$GITHUB_OUTPUT"
+          fi
+
   clang-format:
     runs-on: ubuntu-latest
     steps:
@@ -74,8 +91,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Run host tests
-        run: bash test/run_host_tests.sh
+      - name: Run full test suite
+        run: uv run pytest -q
 
   contract-server:
     runs-on: ubuntu-latest
@@ -134,7 +151,11 @@ jobs:
         run: python3 scripts/check_hardware_patterns.py
 
   simulator-smoke-test:
+    needs: changes
+    if: needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-latest
+    env:
+      CCACHE_DIR: ~/.ccache
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
@@ -160,6 +181,22 @@ jobs:
           key: ${{ runner.os }}-platformio-${{ hashFiles('platformio.ini') }}
           restore-keys: ${{ runner.os }}-platformio-
 
+      - name: Cache ccache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('platformio.ini') }}-
+            ccache-${{ runner.os }}-${{ github.job }}-
+
+      - name: Cache PlatformIO libdeps
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: .pio/libdeps
+          key: libdeps-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: libdeps-${{ runner.os }}-
+
       - name: Run simulator smoke test (basic)
         env:
           FORKDRIFT_SIMULATOR_SMOKE_FRAMES: /tmp/frames
@@ -173,7 +210,13 @@ jobs:
         run: |
           mkdir -p /tmp/simfs/books
           cp test/epubs/test_supsub.epub /tmp/simfs/books/
-          python3 scripts/run_simulator_smoke_test.py --page-turns 3 --fs-root /tmp/simfs --book /books/test_supsub.epub --timeout 300
+          python3 scripts/run_simulator_smoke_test.py --page-turns 3 --fs-root /tmp/simfs --book /books/test_supsub.epub --no-build --timeout 300
+
+      - name: Run simulator recovery smoke test
+        run: python3 scripts/run_simulator_smoke_test.py --recovery --no-build --timeout 120
+
+      - name: Run simulator SD-failure smoke test
+        run: python3 scripts/run_simulator_smoke_test.py --sd-fail --no-build --timeout 120
 
       - name: Upload frame dumps on failure
         if: failure()
@@ -187,6 +230,8 @@ jobs:
   clang-tidy:
     # Non-blocking: intentionally NOT in test-status.needs during rollout.
     # Produces warnings visible in the Actions tab without failing PRs.
+    needs: changes
+    if: needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -242,7 +287,11 @@ jobs:
           done
 
   build:
+    needs: changes
+    if: needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-latest
+    env:
+      CCACHE_DIR: ~/.ccache
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
@@ -275,6 +324,24 @@ jobs:
       - name: Install dependencies
         if: steps.reuse.outputs.found != 'true'
         run: uv sync --frozen
+
+      - name: Cache ccache
+        if: steps.reuse.outputs.found != 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('platformio.ini') }}-
+            ccache-${{ runner.os }}-${{ github.job }}-
+
+      - name: Cache PlatformIO libdeps
+        if: steps.reuse.outputs.found != 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: .pio/libdeps
+          key: libdeps-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: libdeps-${{ runner.os }}-
 
       - name: Build CrossPoint
         if: steps.reuse.outputs.found != 'true'
@@ -329,6 +396,7 @@ jobs:
   test-status:
     name: Test Status
     needs:
+      - changes
       - build
       - clang-format
       - feature-sync

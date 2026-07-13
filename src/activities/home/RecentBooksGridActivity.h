@@ -4,10 +4,11 @@
 #include <vector>
 
 #include "activities/Activity.h"
+#include "activities/books/TabView.h"
 #include "util/ButtonNavigator.h"
 #include "util/RecentBooksStore.h"
 
-class RecentBooksGridActivity final : public Activity {
+class RecentBooksGridActivity final : public Activity, public TabView {
  public:
   static constexpr int BOOKS_PER_PAGE = 9;
   static constexpr int MAX_GRID_BOOKS = BOOKS_PER_PAGE * 2;
@@ -38,4 +39,8 @@ class RecentBooksGridActivity final : public Activity {
   void onExit() override;
   void loop() override;
   void render(RenderLock&&) override;
+  void enter() override { onEnter(); }
+  void exit() override { onExit(); }
+  Activity* asActivity() override { return this; }
+  bool atNavigationTop() const override { return recentBooks.empty() || selectorIndex / 3 == 0; }
 };

@@ -8,13 +8,14 @@
 
 #include "OpdsServerStore.h"
 #include "activities/Activity.h"
+#include "activities/books/TabView.h"
 #include "util/ButtonNavigator.h"
 
 /**
  * Activity for browsing and downloading books from a configured OPDS server
  * (calibre_sync / OPDS Support). Navigates the catalog hierarchy and downloads EPUBs.
  */
-class OpdsBookBrowserActivity final : public Activity {
+class OpdsBookBrowserActivity final : public Activity, public TabView {
  public:
   enum class BrowserState { CHECK_WIFI, WIFI_SELECTION, LOADING, BROWSING, DOWNLOADING, ERROR, SEARCH_INPUT };
 
@@ -25,6 +26,10 @@ class OpdsBookBrowserActivity final : public Activity {
   void onExit() override;
   void loop() override;
   void render(RenderLock&&) override;
+  void enter() override { onEnter(); }
+  void exit() override { onExit(); }
+  Activity* asActivity() override { return this; }
+  bool atNavigationTop() const override { return state == BrowserState::BROWSING && selectorIndex == 0; }
   bool blocksBackgroundServer() override { return true; }
 
  private:

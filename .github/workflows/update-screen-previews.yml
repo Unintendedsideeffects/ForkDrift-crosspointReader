@@ -17,30 +17,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           submodules: true
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.11"
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7.6.0
+
       - name: Install image tooling
-        run: python -m pip install --upgrade pip pillow
+        run: uv sync --frozen
 
       - name: Generate PBM snapshots
         run: tools/screen-harness/render_screens.sh build/screen-previews
 
       - name: Convert PBM to PNG
-        run: tools/screen-harness/pbm_to_png.py build/screen-previews docs/configurator/screen-previews
+        run: uv run python tools/screen-harness/pbm_to_png.py build/screen-previews docs/configurator/screen-previews
 
       - name: Write preview manifest
-        run: python tools/screen-harness/write_preview_manifest.py docs/configurator/screen-previews
+        run: uv run python tools/screen-harness/write_preview_manifest.py docs/configurator/screen-previews
 
       - name: Commit updated previews
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@b863ae1933cb653a53c021fe36dbb774e1fb9403 # v5.2.0
         with:
           commit_message: "chore: update feature picker screen previews [skip ci]"
           file_pattern: docs/configurator/screen-previews/*

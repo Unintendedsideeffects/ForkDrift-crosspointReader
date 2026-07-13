@@ -85,6 +85,8 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/network/server/FileListApi.cpp" \
   "$ROOT_DIR/src/network/server/FileMutationApi.cpp" \
   "$ROOT_DIR/src/network/server/FileReadApi.cpp" \
+  "$ROOT_DIR/src/network/server/DirScan.cpp" \
+  "$ROOT_DIR/src/network/server/WebJsonUtils.cpp" \
   "$ROOT_DIR/lib/FsHelpers/FsHelpers.cpp" \
   "$ROOT_DIR/lib/I18n/I18n.cpp" \
   "$ROOT_DIR/lib/I18n/I18nStrings.cpp" \
@@ -119,6 +121,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/FlashcardsStore.cpp" \
   "$ROOT_DIR/src/util/DictionaryLookup.cpp" \
   "$ROOT_DIR/src/CrossPointSettings.cpp" \
+  "$ROOT_DIR/src/util/SettingsBackup.cpp" \
   "$ROOT_DIR/src/util/BookSettingsOverride.cpp" \
   "$ROOT_DIR/src/util/AnnotationStore.cpp" \
   "$ROOT_DIR/lib/MiniBidi/BidiUtils.cpp" \
@@ -138,6 +141,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/activities/reader/BookReadingStats.cpp" \
   "$ROOT_DIR/src/activities/reader/GlobalReadingStats.cpp" \
   "$ROOT_DIR/src/activities/reader/SelectionModel.cpp" \
+  "$ROOT_DIR/src/activities/home/HomeCarouselCache.cpp" \
   "$BUILD_DIR/md4c.o" \
   "$BUILD_DIR/entity.o" \
   "$BUILD_DIR/minibidi.o" \

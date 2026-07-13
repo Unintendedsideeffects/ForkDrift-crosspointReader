@@ -117,3 +117,61 @@ TEST_CASE("SelectionModel anchorByText uses hints then slides by first word") {
   CHECK(lo == -1);
   CHECK(hi == -1);
 }
+
+TEST_CASE("SelectionModel anchorByTextUnique finds a unique match") {
+  const auto words = makeWords({"alpha", "beta", "gamma"});
+
+  int lo = -1;
+  int hi = -1;
+  bool unique = false;
+  CHECK(selection::anchorByTextUnique(words, "beta gamma", 1, lo, hi, unique));
+  CHECK(unique);
+  CHECK(lo == 1);
+  CHECK(hi == 2);
+}
+
+TEST_CASE("SelectionModel anchorByTextUnique reports duplicate matches") {
+  const auto words = makeWords({"the", "cat", "sat", "the", "cat"});
+
+  int lo = -1;
+  int hi = -1;
+  bool unique = true;
+  CHECK(selection::anchorByTextUnique(words, "the cat", 1, lo, hi, unique));
+  CHECK_FALSE(unique);
+  CHECK(lo == 0);
+  CHECK(hi == 1);
+}
+
+TEST_CASE("SelectionModel anchorByTextUnique reports no match") {
+  const auto words = makeWords({"alpha", "beta", "gamma"});
+
+  int lo = -1;
+  int hi = -1;
+  bool unique = true;
+  CHECK_FALSE(selection::anchorByTextUnique(words, "missing text", 1, lo, hi, unique));
+  CHECK_FALSE(unique);
+}
+
+TEST_CASE("SelectionModel anchorByTextUnique detects duplicate single-word matches") {
+  const auto words = makeWords({"the", "cat", "the"});
+
+  int lo = -1;
+  int hi = -1;
+  bool unique = true;
+  CHECK(selection::anchorByTextUnique(words, "the", 0, lo, hi, unique));
+  CHECK_FALSE(unique);
+  CHECK(lo == 0);
+  CHECK(hi == 0);
+}
+
+TEST_CASE("SelectionModel anchorByTextUnique matches at the end of the page") {
+  const auto words = makeWords({"zero", "one", "two"});
+
+  int lo = -1;
+  int hi = -1;
+  bool unique = false;
+  CHECK(selection::anchorByTextUnique(words, "one two", 1, lo, hi, unique));
+  CHECK(unique);
+  CHECK(lo == 1);
+  CHECK(hi == 2);
+}

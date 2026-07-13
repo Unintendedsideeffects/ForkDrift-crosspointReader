@@ -17,6 +17,13 @@
 class Activity {
   friend class ActivityManager;
 
+ public:
+  using EmbeddedActivityLauncher = void (*)(void*, std::unique_ptr<Activity>&&, ActivityResultHandler);
+
+  // An embedded activity can forward nested result launches through its host.
+  // This keeps ActivityManager's normal current-activity contract unchanged.
+  static void setEmbeddedActivityLauncher(Activity* source, void* context, EmbeddedActivityLauncher launcher);
+
  protected:
   using RenderLock = ::RenderLock;
 
@@ -34,6 +41,9 @@ class Activity {
 
  private:
   std::atomic<bool> renderPending{false};
+  inline static void* embeddedActivityLauncherContext = nullptr;
+  inline static EmbeddedActivityLauncher embeddedActivityLauncher = nullptr;
+  inline static Activity* embeddedActivityLauncherSource = nullptr;
 
  public:
   explicit Activity(std::string name, GfxRenderer& renderer, MappedInputManager& mappedInput)

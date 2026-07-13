@@ -1024,6 +1024,9 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
         [](uint8_t value) { core::FeatureModules::setSelectedUserFontFamilyIndex(value); }, "userFontPath",
         StrId::STR_CAT_READER, [] { return core::FeatureModules::getUserFontFamilies(); }));
   }
+
+  emit(SettingInfo::Action(StrId::STR_BACKUP_SETTINGS, SettingAction::BackupSettings));
+  emit(SettingInfo::Action(StrId::STR_RESTORE_SETTINGS, SettingAction::RestoreSettings));
 }
 
 // Buffered settings list for on-device callers (SettingsActivity and the reader

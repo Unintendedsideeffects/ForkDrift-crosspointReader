@@ -31,6 +31,7 @@
 #if ENABLE_BLE_PAGE_TURNER
 #include "activities/ble_page_turner/BlePageTurnerActivity.h"
 #endif
+#include "SilentRestart.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/settings/SettingsTopics.h"
 #include "activities/util/ConfirmationActivity.h"
@@ -43,6 +44,7 @@
 #include "network/background/BackgroundWifiService.h"
 #include "util/MaintenanceUtils.h"
 #include "util/NetworkNames.h"
+#include "util/SettingsBackup.h"
 
 namespace {
 constexpr char kBackgroundServerModeKey[] = "backgroundServerMode";
@@ -306,6 +308,8 @@ void SettingsActivity::rebuildSettingsLists() {
   addSystemActionDirect(StrId::STR_VALIDATE_SLEEP_IMAGES, SettingAction::ValidateSleepImages);
   addSystemActionDirect(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache);
   addSystemActionDirect(StrId::STR_CLEAR_LOGS, SettingAction::ClearLogs);
+  addSystemActionDirect(StrId::STR_BACKUP_SETTINGS, SettingAction::BackupSettings);
+  addSystemActionDirect(StrId::STR_RESTORE_SETTINGS, SettingAction::RestoreSettings);
 
   // 6. Advanced (Index 5)
   auto& advancedSettings = settingsByCategory[5];
@@ -838,6 +842,35 @@ void SettingsActivity::toggleCurrentSetting() {
                                  requestUpdate();
                                });
         break;
+      case SettingAction::BackupSettings: {
+        const bool success = settings_backup::backup(SETTINGS);
+        startActivityForResult(std::make_unique<ConfirmationActivity>(
+                                   renderer, mappedInput, std::string(I18N.get(StrId::STR_BACKUP_SETTINGS)),
+                                   std::string(I18N.get(success ? StrId::STR_BACKUP_DONE : StrId::STR_BACKUP_FAILED))),
+                               [this](const ActivityResult&) { requestUpdate(); });
+        break;
+      }
+      case SettingAction::RestoreSettings: {
+        if (!settings_backup::hasBackup()) {
+          startActivityForResult(std::make_unique<ConfirmationActivity>(
+                                     renderer, mappedInput, std::string(I18N.get(StrId::STR_RESTORE_SETTINGS)),
+                                     std::string(I18N.get(StrId::STR_NO_BACKUP_FOUND))),
+                                 [this](const ActivityResult&) { requestUpdate(); });
+        } else {
+          startActivityForResult(std::make_unique<ConfirmationActivity>(
+                                     renderer, mappedInput, std::string(I18N.get(StrId::STR_RESTORE_SETTINGS)),
+                                     std::string(I18N.get(StrId::STR_RESTORE_CONFIRM))),
+                                 [this](const ActivityResult& result) {
+                                   if (!result.isCancelled) {
+                                     if (settings_backup::restore(SETTINGS)) {
+                                       silentRestart();
+                                     }
+                                   }
+                                   requestUpdate();
+                                 });
+        }
+        break;
+      }
       case SettingAction::None:
         // Do nothing
         break;

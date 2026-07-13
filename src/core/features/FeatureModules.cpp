@@ -271,6 +271,8 @@ bool FeatureModules::supportsSettingAction(const SettingAction action) {
     case SettingAction::ClearCrashes:
     case SettingAction::SdFirmwareUpdate:
     case SettingAction::ScreenClean:
+    case SettingAction::BackupSettings:
+    case SettingAction::RestoreSettings:
       return true;
 #if ENABLE_BLE_PAGE_TURNER
     case SettingAction::BlePageTurner:

@@ -243,6 +243,21 @@ BookLore server integration for OPDS browsing and downloads.
 
 ---
 
+### Books Tab UI (Phase 2 skeleton)
+
+**Flag:** `ENABLE_BOOKS_TAB_UI`
+**CLI key:** `books_tab_ui`
+**Size Impact:** ~0KB (unmeasured skeleton)
+**Default:** Disabled
+**Depends on:** `ENABLE_OPDS`
+
+Opt-in Books container with a tab strip hosting the recent-books grid and OPDS
+browser. Recent, Files, and Settings remain reserved and hidden until later
+phases. The ON build is intentionally operator-gated while lifecycle and
+device memory behavior are validated.
+
+---
+
 ### Integrations Base
 
 **Flag:** `ENABLE_INTEGRATIONS`
@@ -561,6 +576,347 @@ The double-tap state machine is only active when the short-press action is set t
 
 ---
 
+### Anki Support
+
+**Flag:** `ENABLE_ANKI_SUPPORT`  
+**Size Impact:** ~30KB  
+**Default:** Disabled  
+**Depends on:** None  
+
+Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop.
+
+---
+
+### Annotations
+
+**Flag:** `ENABLE_ANNOTATIONS`  
+**Size Impact:** ~3KB  
+**Default:** Enabled  
+**Depends on:** `ENABLE_TEXT_SELECTION`  
+
+Persistent highlights: select text in the reader and keep it highlighted across sessions, per book. Relayout-tolerant (highlights re-anchor by text after font/margin changes). Inspired by Inx (github.com/obijuankenobiii/inx, MIT).
+
+---
+
+### Bitter Fonts
+
+**Flag:** `ENABLE_BITTER_FONTS`  
+**Size Impact:** ~1177KB  
+**Default:** Disabled  
+**Depends on:** None  
+
+Bitter — a serif designed for on-screen reading with sturdy letterforms. 12–18pt, 4 styles.
+
+---
+
+### BLE WiFi Provisioning
+
+**Flag:** `ENABLE_BLE_WIFI_PROVISIONING`  
+**Size Impact:** ~187KB  
+**Default:** Enabled  
+**Depends on:** `ENABLE_WEB_WIFI_SETUP`  
+
+Initial WiFi setup via Bluetooth LE.
+
+---
+
+### BLE Page Turner
+
+**Flag:** `ENABLE_BLE_PAGE_TURNER`  
+**Size Impact:** ~186KB  
+**Default:** Enabled (on supported hardware)  
+**Depends on:** None  
+
+BLE HID Keyboard emulation to remotely turn pages on iOS/Android devices.
+
+---
+
+### Bookmarks
+
+**Flag:** `ENABLE_BOOKMARKS`  
+**Size Impact:** ~2KB  
+**Default:** Enabled  
+**Depends on:** `ENABLE_EPUB_SUPPORT`, `ENABLE_MARKDOWN`, or `ENABLE_XTC_SUPPORT`  
+
+Bookmarks: save specific positions in books to quickly jump back to them later.
+
+---
+
+### Chare Ink Fonts
+
+**Flag:** `ENABLE_CHAREINK_FONTS`  
+**Size Impact:** ~1029KB  
+**Default:** Disabled  
+**Depends on:** None  
+
+Chare Ink — a monospaced-flavoured reading font tuned for e-ink displays. 12–18pt, 4 styles.
+
+---
+
+### Dark Mode
+
+**Flag:** `ENABLE_DARK_MODE`  
+**Size Impact:** <1KB  
+**Default:** Enabled  
+**Depends on:** None  
+
+System-wide inverted color scheme.
+
+---
+
+### EPUB Support
+
+**Flag:** `ENABLE_EPUB_SUPPORT`  
+**Size Impact:** ~147KB  
+**Default:** Enabled  
+**Depends on:** None  
+
+EPUB e-book reader with CSS and chapter navigation.
+
+---
+
+### Flow Theme
+
+**Flag:** `ENABLE_FLOW_THEME`  
+**Size Impact:** ~4KB  
+**Default:** Disabled  
+**Depends on:** `ENABLE_LYRA_THEME`  
+
+Flow UI theme with Casio-style today stats clock and 3D cover layout.
+
+---
+
+### Focus Reading
+
+**Flag:** `ENABLE_FOCUS_READING`  
+**Size Impact:** <1KB  
+**Default:** Enabled  
+**Depends on:** `ENABLE_EPUB_SUPPORT` or `ENABLE_MARKDOWN`  
+
+Bionic reading / focus reading mode that bolds word beginnings to speed up reading.
+
+---
+
+### Global Status Bar
+
+**Flag:** `ENABLE_GLOBAL_STATUS_BAR`  
+**Size Impact:** <1KB  
+**Default:** Enabled  
+**Depends on:** None  
+
+Displays a global status bar on top of the UI containing battery status, clock, and connection status.
+
+---
+
+### Guide Dots
+
+**Flag:** `ENABLE_GUIDE_DOTS`  
+**Size Impact:** <1KB  
+**Default:** Enabled  
+**Depends on:** `ENABLE_EPUB_SUPPORT` or `ENABLE_MARKDOWN`  
+
+Inserts an interpunct between every word to make word boundaries explicit.
+
+---
+
+### Hyphenation
+
+**Flag:** `ENABLE_HYPHENATION`  
+**Size Impact:** ~350KB  
+**Default:** Enabled  
+**Depends on:** `ENABLE_EPUB_SUPPORT`  
+
+Language-aware hyphenation for justified EPUB text.
+
+---
+
+### Lexend Deca Fonts
+
+**Flag:** `ENABLE_LEXENDDECA_FONTS`  
+**Size Impact:** ~824KB  
+**Default:** Disabled  
+**Depends on:** None  
+
+Lexend Deca — a reading-optimised sans-serif from the Lexend project. 12–18pt, 4 styles.
+
+---
+
+### Lua Plugins
+
+**Flag:** `ENABLE_LUA_PLUGINS`  
+**Size Impact:** ~154KB  
+**Default:** Disabled  
+**Depends on:** None  
+
+Dynamic Lua 5.4 scripting VM and plugin system loaded from SD card.
+
+---
+
+### Lyra Theme
+
+**Flag:** `ENABLE_LYRA_THEME`  
+**Size Impact:** <1KB  
+**Default:** Enabled  
+**Depends on:** None  
+
+Alternative UI theme with refined spacing and layout.
+
+---
+
+### Minimal Theme
+
+**Flag:** `ENABLE_MINIMAL_THEME`  
+**Size Impact:** <1KB  
+**Default:** Enabled  
+**Depends on:** `ENABLE_LYRA_THEME`  
+
+Minimal UI theme for home screen and navigation (requires Lyra Theme).
+
+---
+
+### Notes
+
+**Flag:** `ENABLE_NOTES`  
+**Size Impact:** ~4KB  
+**Default:** Enabled  
+**Depends on:** None  
+
+Line-based /notes.txt store with API, optional home app, and sleep-screen mode.
+
+---
+
+### OTA Updates
+
+**Flag:** `ENABLE_OTA_UPDATES`  
+**Size Impact:** ~3KB  
+**Default:** Enabled  
+**Depends on:** None  
+
+Over-the-air firmware updates via WiFi.
+
+---
+
+### Per-Book Settings
+
+**Flag:** `ENABLE_PER_BOOK_SETTINGS`  
+**Size Impact:** ~3KB  
+**Default:** Enabled  
+**Depends on:** `ENABLE_EPUB_SUPPORT`  
+
+Override reader settings (font, size, spacing, margins, alignment...) for a single book via a toggle in the reader options; globals stay untouched. Inspired by Inx (github.com/obijuankenobiii/inx, MIT).
+
+---
+
+### Reading Stats
+
+**Flag:** `ENABLE_READING_STATS`  
+**Size Impact:** ~12KB  
+**Default:** Enabled  
+**Depends on:** None  
+
+Tracks reading time, pages turned, and completion status. Enables "Mark Finished" and book statistics screen.
+
+---
+
+### Terminus Sleep Screen
+
+**Flag:** `ENABLE_TERMINUS_SLEEP`  
+**Size Impact:** <1KB  
+**Default:** Disabled  
+**Depends on:** `ENABLE_BACKGROUND_SERVER`  
+
+Gates Terminus (TRMNL BYOS) integration: credential store web setup page and sleep-screen image polling.
+
+---
+
+### Text Selection
+
+**Flag:** `ENABLE_TEXT_SELECTION`  
+**Size Impact:** ~3KB  
+**Default:** Enabled  
+**Depends on:** `ENABLE_EPUB_SUPPORT`  
+
+In-reader highlight cursor: select words/spans on the page, then look up in the dictionary, add to Anki, or save to per-book Markdown notes on the SD card.
+
+---
+
+### Timed Sleep Refresh
+
+**Flag:** `ENABLE_TIMED_SLEEP_REFRESH`  
+**Size Impact:** ~1KB  
+**Default:** Enabled if any contributing sleep feature is present  
+**Depends on:** `ENABLE_TERMINUS_SLEEP`, `ENABLE_ROMAN_CLOCK_SLEEP`, or `ENABLE_HAIKU_CLOCK`  
+
+Timed sleep refresh: wake on USB power at a user-set interval to silently re-render the sleep screen (Terminus image, Roman Clock, or Haiku Clock). Auto-enabled when any contributing feature is present; overridable.
+
+---
+
+### Todo Planner
+
+**Flag:** `ENABLE_TODO_PLANNER`  
+**Size Impact:** ~16KB  
+**Default:** Enabled  
+**Depends on:** None  
+
+Standalone daily TODO/agenda planner with .md/.txt fallback and web quick-entry.
+
+---
+
+### TRMNL Switch
+
+**Flag:** `ENABLE_TRMNL_SWITCH`  
+**Size Impact:** <1KB  
+**Default:** Disabled  
+**Depends on:** None  
+
+Gates the boot-partition switch into a co-installed TRMNL firmware.
+
+---
+
+### USB Mass Storage
+
+**Flag:** `ENABLE_USB_MASS_STORAGE`  
+**Size Impact:** ~15KB  
+**Default:** Enabled  
+**Depends on:** None  
+
+On-device prompt for USB SD card access as mass storage.
+
+---
+
+### Visual Covers
+
+**Flag:** `ENABLE_VISUAL_COVER_PICKER`  
+**Size Impact:** <1KB  
+**Default:** Enabled  
+**Depends on:** None  
+
+Grid-based book explorer with thumbnails.
+
+---
+
+### Web WiFi Setup
+
+**Flag:** `ENABLE_WEB_WIFI_SETUP`  
+**Size Impact:** ~3KB  
+**Default:** Enabled  
+**Depends on:** None  
+
+Manage WiFi networks directly from the web interface.
+
+---
+
+### XTC Support
+
+**Flag:** `ENABLE_XTC_SUPPORT`  
+**Size Impact:** ~23KB  
+**Default:** Enabled  
+**Depends on:** None  
+
+XTC format reader with chapter navigation.
+
+---
+
 ## Build Profiles
 
 ### Lean Profile
@@ -651,6 +1007,7 @@ uv run python scripts/generate_build_config.py --profile full
 - ✓ KOReader Sync
 - ✓ OPDS Support
 - ✓ OPDS (BookLore)
+- ✗ Books Tab UI (Phase 2 skeleton)
 - ✓ EPUB Support
 - ✓ Hyphenation
 - ✓ XTC Support
@@ -1014,6 +1371,16 @@ Incompatible bundles are shown in the picker with a warning and cannot be select
 ### Catalog Location
 
 The catalog JSON is stored at `docs/ota/feature-store-catalog.json` in the repository and served from the GitHub releases page at runtime.
+
+---
+
+## Appendix: Internal Build Macros
+
+The following macros are internal build configuration parameters and not feature toggles:
+- `ENABLE_ARDUINO_STRING`: Enables Arduino-compatible String optimizations in the helper libraries.
+- `ENABLE_SERIAL_LOG`: Enables serial output logging for hardware debugging.
+- `ENABLE_VISIBILITY`: Controls GCC symbol visibility flags for target builds.
+- `ENABLE_GRAYSCALE`: Controls grayscale E-Ink display driver layout support.
 
 ---
 
