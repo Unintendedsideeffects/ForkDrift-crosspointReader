@@ -57,7 +57,7 @@ FEATURES = {
     'markdown': Feature(
         name='Markdown/Obsidian',
         flag='ENABLE_MARKDOWN',
-        size_kb=203,
+        size_kb=210,
         description='Markdown and Obsidian vault reading support'
     ),
     'integrations': Feature(
@@ -123,13 +123,13 @@ FEATURES = {
     'pokemon_party': Feature(
         name='Pokemon Party',
         flag='ENABLE_POKEMON_PARTY',
-        size_kb=40,
+        size_kb=41,
         description='Per-book Pokemon metadata and REST API for recent-book party views'
     ),
     'epub_support': Feature(
         name='EPUB Support',
         flag='ENABLE_EPUB_SUPPORT',
-        size_kb=147,
+        size_kb=156,
         description='EPUB e-book reader with CSS and chapter navigation'
     ),
     'hyphenation': Feature(
@@ -141,7 +141,7 @@ FEATURES = {
     'xtc_support': Feature(
         name='XTC Support',
         flag='ENABLE_XTC_SUPPORT',
-        size_kb=23,
+        size_kb=21,
         description='XTC format reader with chapter navigation'
     ),
     'lyra_theme': Feature(
@@ -189,19 +189,19 @@ FEATURES = {
     'per_book_settings': Feature(
         name='Per-Book Settings',
         flag='ENABLE_PER_BOOK_SETTINGS',
-        size_kb=3,
+        size_kb=0,
         description='Override reader settings (font, size, spacing, margins, alignment...) for a single book via a toggle in the reader options; globals stay untouched. Inspired by Inx (github.com/obijuankenobiii/inx, MIT).'
     ),
     'annotations': Feature(
         name='Annotations',
         flag='ENABLE_ANNOTATIONS',
-        size_kb=3,
+        size_kb=0,
         description='Persistent highlights: select text in the reader and keep it highlighted across sessions, per book. Relayout-tolerant (highlights re-anchor by text after font/margin changes). Inspired by Inx (github.com/obijuankenobiii/inx, MIT).'
     ),
     'text_selection': Feature(
         name='Text Selection',
         flag='ENABLE_TEXT_SELECTION',
-        size_kb=3,
+        size_kb=0,
         description='In-reader highlight cursor: select words/spans on the page, then look up in the dictionary, add to Anki, or save to per-book Markdown notes on the SD card.'
     ),
     'dark_mode': Feature(
@@ -249,7 +249,7 @@ FEATURES = {
     'lua_plugins': Feature(
         name='Lua Plugins',
         flag='ENABLE_LUA_PLUGINS',
-        size_kb=154,
+        size_kb=153,
         description='Dynamic Lua 5.4 scripting VM and plugin system loaded from SD card'
     ),
     'remote_keyboard_input': Feature(
@@ -876,7 +876,7 @@ def empty_feature_state() -> Dict[str, bool]:
 
 def calculate_size(enabled_features: Dict[str, bool]) -> float:
     """Calculate estimated firmware size in MB."""
-    base_size_mb = 2.65  # Lean profile size baseline (measured)
+    base_size_mb = 2.68  # Lean profile size baseline (measured)
 
     for feature_key, enabled in enabled_features.items():
         if enabled:
