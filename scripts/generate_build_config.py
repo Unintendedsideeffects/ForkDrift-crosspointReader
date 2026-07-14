@@ -87,7 +87,7 @@ FEATURES = {
     'books_tab_ui': Feature(
         name='Books Tab UI',
         flag='ENABLE_BOOKS_TAB_UI',
-        size_kb=0,
+        size_kb=2,
         description='Opt-in Books tab container skeleton hosting the recent-books grid and OPDS browser'
     ),
     'background_server': Feature(
@@ -129,7 +129,7 @@ FEATURES = {
     'pokemon_party': Feature(
         name='Pokemon Party',
         flag='ENABLE_POKEMON_PARTY',
-        size_kb=41,
+        size_kb=40,
         description='Per-book Pokemon metadata and REST API for recent-book party views'
     ),
     'epub_support': Feature(
