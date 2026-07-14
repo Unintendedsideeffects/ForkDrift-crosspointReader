@@ -13,6 +13,13 @@ if ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
+echo "Generating build-time sources..."
+(
+  cd "$ROOT_DIR"
+  uv run python3 scripts/gen_i18n.py lib/I18n/translations lib/I18n/
+  uv run python3 scripts/build_html.py
+)
+
 if [ ! -d "$ARDUINOJSON_DIR" ]; then
   echo "Bootstrapping ArduinoJson for host tests..."
   (

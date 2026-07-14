@@ -26,9 +26,14 @@ class HostServerTest(unittest.TestCase):
         if not cls.binary:
             cls.binary = os.path.join(root_dir, "build", "host_server", "HostServer")
         
-        if not os.path.exists(cls.binary):
-            print(f"Binary {cls.binary} missing, attempting to build...")
-            subprocess.run(["bash", "test/run_host_server.sh"], cwd=root_dir, check=True, capture_output=True)
+        print("Running test/run_host_server.sh...")
+        try:
+            subprocess.run(["bash", "test/run_host_server.sh"], cwd=root_dir, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            print(f"test/run_host_server.sh failed with code {e.returncode}")
+            print(f"STDOUT:\n{e.stdout}")
+            print(f"STDERR:\n{e.stderr}")
+            raise RuntimeError(f"Failed to build/smoke host server via test/run_host_server.sh: {e}") from e
             
         if not os.path.exists(cls.binary):
             raise RuntimeError(f"Binary still missing at {cls.binary}")

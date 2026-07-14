@@ -63,7 +63,7 @@ run_cleanup_checks() {
   sync_env "$PY_BUILD"
   run_py "$PY_BUILD" vulture scripts
   bash scripts/check_feature_boundaries.sh
-  run_py "$PY_BUILD" pio check -e default
+  run_py "$PY_BUILD" pio check -e default --fail-on-defect low --fail-on-defect medium --fail-on-defect high
 }
 
 run_cppcheck() {
@@ -156,7 +156,7 @@ run_build_workflow() {
   sync_env "$PY_BUILD"
   ensure_pio_python "$PY_BUILD"
   run_py "$PY_BUILD" python scripts/check_feature_key_sync.py
-  run_py "$PY_BUILD" pio check -e default
+  run_py "$PY_BUILD" pio check -e default --fail-on-defect low --fail-on-defect medium --fail-on-defect high
   bash test/run_host_tests.sh
 
   run_custom_profile_build lean ".pio-lean-ci" "-lean"

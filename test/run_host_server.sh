@@ -53,6 +53,7 @@ g++ -std=c++20 -O2 -Wno-narrowing \
   "$ROOT_DIR/test/mock/FeatureModuleHooks.cpp" \
   "$ROOT_DIR/src/network/server/CoreWebRoutes.cpp" \
   "$ROOT_DIR/src/network/server/FileListApi.cpp" \
+  "$ROOT_DIR/src/network/server/DirScan.cpp" \
   "$ROOT_DIR/src/network/server/FileMutationApi.cpp" \
   "$ROOT_DIR/src/network/server/FileRoutes.cpp" \
   "$ROOT_DIR/src/network/server/FileReadApi.cpp" \

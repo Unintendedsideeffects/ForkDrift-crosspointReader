@@ -13,6 +13,9 @@ on:
 env:
   FONTS_REPO: crosspoint-reader/crosspoint-fonts
 
+permissions:
+  contents: read
+
 jobs:
   build-fonts:
     runs-on: ubuntu-latest

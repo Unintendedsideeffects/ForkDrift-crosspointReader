@@ -22,7 +22,3 @@ def test_differential_rounding():
 def test_hyphenation_eval():
     """Runs the C++ hyphenation evaluation."""
     run_script("test/run_hyphenation_eval.sh")
-
-def test_host_server_smoke():
-    """Runs the C++ host server smoke test (curl-based)."""
-    run_script("test/run_host_server.sh")
