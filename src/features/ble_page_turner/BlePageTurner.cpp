@@ -110,7 +110,7 @@ void BlePageTurner::start() {
   hidDevice->setPnp(0x02, 0xe502, 0xa111, 0x0210);
   hidDevice->setHidInfo(0x00, 0x01);
 
-  hidDevice->setReportMap((uint8_t*)hidReportMap, sizeof(hidReportMap));
+  hidDevice->setReportMap(const_cast<uint8_t*>(hidReportMap), sizeof(hidReportMap));
   hidDevice->startServices();
 
   NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
