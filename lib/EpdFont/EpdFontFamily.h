@@ -3,7 +3,16 @@
 
 class EpdFontFamily {
  public:
-  enum Style : uint8_t { REGULAR = 0, BOLD = 1, ITALIC = 2, BOLD_ITALIC = 3, UNDERLINE = 4, STRIKETHROUGH = 8, SUP = 16, SUB = 32 };
+  enum Style : uint8_t {
+    REGULAR = 0,
+    BOLD = 1,
+    ITALIC = 2,
+    BOLD_ITALIC = 3,
+    UNDERLINE = 4,
+    STRIKETHROUGH = 8,
+    SUP = 16,
+    SUB = 32
+  };
 
   explicit EpdFontFamily(const EpdFont* regular, const EpdFont* bold = nullptr, const EpdFont* italic = nullptr,
                          const EpdFont* boldItalic = nullptr)

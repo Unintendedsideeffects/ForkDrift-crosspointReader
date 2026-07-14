@@ -6,8 +6,8 @@
 #include <string>
 
 #include "MappedInputManager.h"
-#include "components/ScreenComponents.h"
 #include "activities/TaskShutdown.h"
+#include "components/ScreenComponents.h"
 #include "fontIds.h"
 
 namespace {

@@ -3,8 +3,8 @@
 
 #include <vector>
 
-#include "network/server/CrossPointWebServer.h"
 #include "network/server/CacheInvalidation.h"
+#include "network/server/CrossPointWebServer.h"
 #include "network/server/FileMutationApi.h"
 
 void CrossPointWebServer::handleCreateFolder() const {

@@ -53,8 +53,7 @@ void EpubReaderBookmarkListActivity::showBookmarkActionMenu(bool ignoreInitialCo
   if (bookmarks.empty() || selectedIndex < 0 || selectedIndex >= static_cast<int>(bookmarks.size())) return;
 
   const Bookmark selectedBookmark = bookmarks[selectedIndex];
-  const char* chapter =
-      (selectedBookmark.chapterTitle[0] != '\0') ? selectedBookmark.chapterTitle : tr(STR_BOOKMARKS);
+  const char* chapter = (selectedBookmark.chapterTitle[0] != '\0') ? selectedBookmark.chapterTitle : tr(STR_BOOKMARKS);
   std::vector<FileBrowserActionActivity::MenuItem> items;
   items.reserve(1);
   items.push_back({FileBrowserAction::Delete, StrId::STR_DELETE});

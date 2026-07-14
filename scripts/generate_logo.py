@@ -2,7 +2,6 @@
 import os
 import io
 import sys
-import xml.etree.ElementTree as ET
 
 def parse_c_array(h_file_path):
     if not os.path.exists(h_file_path):

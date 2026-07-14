@@ -183,7 +183,15 @@ if [ -n "$STAGED_HTML" ] || [ -n "$STAGED_THEME" ]; then
 fi
 
 # Get staged C/C++ files (excluding lib/EpdFont/builtinFonts/ which are generated)
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(c|cpp|h|hpp)$' | grep -v -E '^lib/EpdFont/builtinFonts/' | grep -v -E '\.generated\.h$' || true)
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM \
+    | grep -E '\.(c|cpp|h|hpp)$' \
+    | grep -v -E '^lib/EpdFont/builtinFonts/' \
+    | grep -v -E '^lib/Epub/Epub/hyphenation/generated/' \
+    | grep -v -E '^lib/third_party/uzlib/' \
+    | grep -v -E '^lib/Lua/' \
+    | grep -v -E '^test/doctest/' \
+    | grep -v -E '^src/images/Logo[0-9]+\.h$' \
+    | grep -v -E '\.generated\.h$' || true)
 
 if [ -n "$STAGED_FILES" ]; then
     CLANG_FORMAT_BIN=""

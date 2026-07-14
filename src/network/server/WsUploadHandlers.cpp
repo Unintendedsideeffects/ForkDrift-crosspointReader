@@ -3,9 +3,9 @@
 #include <esp_task_wdt.h>
 
 #include "CrossPointState.h"
-#include "network/server/CrossPointWebServer.h"
 #include "SpiBusMutex.h"
 #include "network/server/CacheInvalidation.h"
+#include "network/server/CrossPointWebServer.h"
 #include "util/InputValidation.h"
 #include "util/PathUtils.h"
 

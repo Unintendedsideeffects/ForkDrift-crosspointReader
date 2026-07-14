@@ -306,9 +306,14 @@ static bool fetchAndPinTrmnlImage() {
   if (SETTINGS.sleepScreen != CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM) {
     SETTINGS.sleepScreen = CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM;
   }
+  bool settingsSaved = false;
   {
     SpiBusMutex::Guard guard;
-    SETTINGS.saveToFile();
+    settingsSaved = SETTINGS.saveToFile();
+  }
+  if (!settingsSaved) {
+    LOG_ERR("TRMNL", "Failed to persist Terminus sleep image settings");
+    return false;
   }
   LOG_INF("TRMNL", "Terminus image pinned as next sleep screen");
   return true;

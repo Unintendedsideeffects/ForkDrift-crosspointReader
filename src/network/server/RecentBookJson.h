@@ -3,8 +3,8 @@
 #include <ArduinoJson.h>
 #include <WString.h>
 
-#include "util/RecentBooksStore.h"
 #include "util/BookProgressDataStore.h"
+#include "util/RecentBooksStore.h"
 
 namespace network {
 

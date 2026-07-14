@@ -10,10 +10,10 @@
 #include <new>
 
 #include "CrossPointSettings.h"
-#include "network/server/CrossPointWebServer.h"
 #include "FeatureFlags.h"
 #include "Logging.h"
 #include "core/features/FeatureModules.h"
+#include "network/server/CrossPointWebServer.h"
 #include "util/NetworkNames.h"
 #include "util/WifiScanPolicy.h"
 

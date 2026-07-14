@@ -116,6 +116,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
@@ -137,7 +138,8 @@ jobs:
       - name: Run cleanup checks
         run: |
           uv run vulture scripts
-          bash scripts/check_feature_boundaries.sh
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          bash scripts/check_feature_boundaries.sh "$BASE"
           uv run pio check -e default --fail-on-defect low --fail-on-defect medium --fail-on-defect high
 
   hardware-patterns:

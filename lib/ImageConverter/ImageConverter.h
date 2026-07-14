@@ -16,6 +16,6 @@ class ImageConverter {
                                  bool crop = true);
 
   // Convert image to 1-bit BMP stream (for thumbnails)
-  static bool convertTo1BitBmpStream(HalFile& imageFile, Format format, Print& bmpOut, int targetWidth, int targetHeight,
-                                     bool crop = true);
+  static bool convertTo1BitBmpStream(HalFile& imageFile, Format format, Print& bmpOut, int targetWidth,
+                                     int targetHeight, bool crop = true);
 };

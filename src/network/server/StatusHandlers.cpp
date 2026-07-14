@@ -5,8 +5,8 @@
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
-#include "network/server/CrossPointWebServer.h"
 #include "core/features/FeatureModules.h"
+#include "network/server/CrossPointWebServer.h"
 #include "network/server/SettingsSnapshotApi.h"
 
 namespace {

@@ -4,10 +4,10 @@
 
 #include <string>
 
-#include "network/server/CrossPointWebServer.h"
 #include "SpiBusMutex.h"
 #include "core/features/FeatureModules.h"
 #include "network/server/AssetReadApi.h"
+#include "network/server/CrossPointWebServer.h"
 #include "util/RecentBooksStore.h"
 
 void CrossPointWebServer::handleCover() const {

@@ -1,8 +1,8 @@
 #pragma once
 
 #include <cstddef>
-#include <cstdlib>
 #include <cstdint>
+#include <cstdlib>
 #include <utility>
 
 class ScopedBuffer {
@@ -32,9 +32,7 @@ class ScopedBuffer {
     return *this;
   }
 
-  uint8_t* release() {
-    return std::exchange(ptr_, nullptr);
-  }
+  uint8_t* release() { return std::exchange(ptr_, nullptr); }
 
   uint8_t* data() { return ptr_; }
   const uint8_t* data() const { return ptr_; }

@@ -122,20 +122,19 @@ void BookmarksHomeActivity::showBookmarkBookActionMenu(int bookIndex, bool ignor
   items.reserve(1);
   items.push_back({FileBrowserAction::Delete, StrId::STR_DELETE});
 
-  startActivityForResult(
-      std::make_unique<FileBrowserActionActivity>(renderer, mappedInput, entry.bookTitle, std::move(items),
-                                                  ignoreInitialConfirmRelease),
-      [this, entry](const ActivityResult& result) {
-        longPressOpenHandled = false;
-        const auto* actionResult = std::get_if<FileBrowserActionResult>(&result.data);
-        if (!result.isCancelled && actionResult &&
-            static_cast<FileBrowserAction>(actionResult->action) == FileBrowserAction::Delete) {
-          BOOKMARKS.loadForBook(entry.bookPath, entry.bookTitle, entry.bookAuthor, entry.bookType);
-          BOOKMARKS.clearAll();
-        }
-        reloadBookmarks();
-        requestUpdate();
-      });
+  startActivityForResult(std::make_unique<FileBrowserActionActivity>(renderer, mappedInput, entry.bookTitle,
+                                                                     std::move(items), ignoreInitialConfirmRelease),
+                         [this, entry](const ActivityResult& result) {
+                           longPressOpenHandled = false;
+                           const auto* actionResult = std::get_if<FileBrowserActionResult>(&result.data);
+                           if (!result.isCancelled && actionResult &&
+                               static_cast<FileBrowserAction>(actionResult->action) == FileBrowserAction::Delete) {
+                             BOOKMARKS.loadForBook(entry.bookPath, entry.bookTitle, entry.bookAuthor, entry.bookType);
+                             BOOKMARKS.clearAll();
+                           }
+                           reloadBookmarks();
+                           requestUpdate();
+                         });
 }
 
 void BookmarksHomeActivity::openBookmarkList(int bookIndex) {

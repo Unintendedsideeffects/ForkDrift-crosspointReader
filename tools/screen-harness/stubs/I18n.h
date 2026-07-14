@@ -1,8 +1,8 @@
 #pragma once
 
-#include <cstdint>
-
 #include_next <I18nKeys.h>
+
+#include <cstdint>
 
 class I18n {
  public:

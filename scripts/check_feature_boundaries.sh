@@ -45,61 +45,59 @@
 #   BleWifiProvisioner.*    — peripheral driver; compile-time option.
 #
 # ─────────────────────────────────────────────────────────────────────────────
-# CATEGORY 2 — TEMPORARY cleanup debt
+# CATEGORY 2 — RATCHETED cleanup debt
 #
-# These files contain ENABLE_* guards that CAN be migrated to
-# src/features/<feature>/Registration.cpp but have not been yet.
-# Each entry below is a TODO: remove it from CLEANUP_DEBT_EXCLUDES (and from
-# this script) once the migration PR for that file lands.
-# The script emits a non-blocking warning for any violations still present.
+# The repository still contains app-shell ENABLE_* guards that can be migrated
+# to src/features/<feature>/Registration.cpp but have not been yet. Compare the
+# exact normalized directives with a Git base revision: existing debt is
+# grandfathered, removals are welcome, and additions fail this check.
 # ─────────────────────────────────────────────────────────────────────────────
 #
-#   BackgroundWebServer.cpp — TODO: move whole-subsystem guard to Registration.cpp
-#                             (ENABLE_BACKGROUND_SERVER guard wrapping server task;
-#                             the class can be compiled independently of the guard).
-#
-#   TxtReaderActivity.cpp   — TODO: split markdown helper functions
-#                             (isHorizontalRule etc.) into a separate compilation
-#                             unit so the guard lives in Registration.cpp instead.
-#                             (ENABLE_MARKDOWN guards at helper-function definitions)
+set -euo pipefail
 
-set -e
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
 
-PERMANENT_PATHS_REGEX='^src/(CrossPointSettings\.cpp|network/CrossPointWebServer\.cpp|network/OtaWebCheck\.cpp|network/BleWifiProvisioner\.(cpp|h)|util/UserFontManager\.(cpp|h)|activities/browser/OpdsBookBrowserActivity\.cpp|activities/boot_sleep/SleepActivity\.cpp):'
+BASE_REF="${1:-HEAD}"
+PATTERN='^[[:space:]]*#[[:space:]]*if(def)?[[:space:]]+.*ENABLE_'
+PERMANENT_PATHS_REGEX='^src/(CrossPointSettings\.cpp|network/server/CrossPointWebServer\.cpp|network/ota/OtaWebCheck\.cpp|network/wifi/BleWifiProvisioner\.(cpp|h)|util/UserFontManager\.(cpp|h)|activities/browser/OpdsBookBrowserActivity\.cpp|activities/boot_sleep/SleepActivity\.cpp):'
 
-# TODO: Remove each entry here once its migration PR lands (Category 2 above).
-CLEANUP_DEBT_PATHS_REGEX='^src/(network/BackgroundWebServer\.cpp|activities/reader/TxtReaderActivity\.cpp):'
+if ! git cat-file -e "${BASE_REF}^{commit}" 2>/dev/null; then
+    echo "Feature boundary base is not a commit: $BASE_REF" >&2
+    exit 2
+fi
 
-ALL_MATCHES=$(
-    grep -rEn "^[[:space:]]*#[[:space:]]*if(def)?[[:space:]]+.*ENABLE_" src/ \
-    --exclude-dir=core \
-    --exclude-dir=features \
-    | grep -vE "^[^:]+:[0-9]+:[[:space:]]*//" \
-    | grep -vE "^[^:]+:[0-9]+:[[:space:]]*#(ifn?def|if)[[:space:]]+ENABLE_SERIAL_LOG([[:space:]]|$)" || true
-)
+collect_debt() {
+    local ref="${1:-}"
+    local matches
+    if [[ -n "$ref" ]]; then
+        matches=$(git grep -n -E "$PATTERN" "$ref" -- src \
+            ':(exclude)src/core/**' ':(exclude)src/features/**' || true)
+    else
+        matches=$(git grep -n -E "$PATTERN" -- src \
+            ':(exclude)src/core/**' ':(exclude)src/features/**' || true)
+    fi
 
-# Hard-fail on violations outside both exemption categories.
-violations=$(
-    echo "$ALL_MATCHES" \
-    | grep -Ev "$PERMANENT_PATHS_REGEX|$CLEANUP_DEBT_PATHS_REGEX" || true
-)
+    printf '%s\n' "$matches" \
+        | sed -E 's/^[^:]+:(src\/)/\1/' \
+        | grep -vE "^[^:]+:[0-9]+:[[:space:]]*//" \
+        | grep -vE "^[^:]+:[0-9]+:[[:space:]]*#(ifn?def|if)[[:space:]]+ENABLE_SERIAL_LOG([[:space:]]|$)" \
+        | grep -Ev "$PERMANENT_PATHS_REGEX" \
+        | sed -E 's/^([^:]+):[0-9]+:/\1:/' \
+        | LC_ALL=C sort || true
+}
 
-if [ -n "$violations" ]; then
-    echo "Feature boundary violations (move to src/features/<name>/Registration.cpp):"
-    echo "$violations"
+BASE_DEBT=$(collect_debt "$BASE_REF")
+CURRENT_DEBT=$(collect_debt)
+NEW_DEBT=$(comm -13 <(printf '%s\n' "$BASE_DEBT") <(printf '%s\n' "$CURRENT_DEBT"))
+if [[ -n "$NEW_DEBT" ]]; then
+    echo "Feature boundary violations (new ENABLE_* app-shell guards):"
+    echo "$NEW_DEBT"
+    echo "Move them to src/features/<name>/Registration.cpp."
     exit 1
 fi
 
-# Non-blocking warning for remaining cleanup-debt violations.
-# Each warning here corresponds to a TODO in CLEANUP_DEBT_EXCLUDES above.
-debt_violations=$(
-    echo "$ALL_MATCHES" | grep -E "$CLEANUP_DEBT_PATHS_REGEX" || true
-)
-
-if [ -n "$debt_violations" ]; then
-    echo "⚠ Cleanup-debt ENABLE_* violations still present (non-blocking — remove"
-    echo "  exclusions from CLEANUP_DEBT_EXCLUDES when each migration PR lands):"
-    echo "$debt_violations"
-fi
-
+current_count=$(printf '%s\n' "$CURRENT_DEBT" | sed '/^$/d' | wc -l)
+base_count=$(printf '%s\n' "$BASE_DEBT" | sed '/^$/d' | wc -l)
+echo "Feature boundary check passed: no new debt ($current_count current, $base_count at $BASE_REF)."
 exit 0

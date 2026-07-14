@@ -3,13 +3,13 @@
 #include <WiFi.h>
 
 #include "CrossPointState.h"
-#include "network/server/CrossPointWebServer.h"
 #include "core/registries/WebRouteRegistry.h"
 #include "network/html/FilesPageHtml.generated.h"
 #include "network/html/HomePageHtml.generated.h"
-#include "network/html/SettingsPageHtml.generated.h"
 #include "network/html/OpdsPageHtml.generated.h"
+#include "network/html/SettingsPageHtml.generated.h"
 #include "network/html/js/jszip_minJs.generated.h"
+#include "network/server/CrossPointWebServer.h"
 #include "network/server/WebUtils.h"
 
 static_assert(HomePageHtmlCompressedSize == sizeof(HomePageHtml), "Home page compressed size mismatch");

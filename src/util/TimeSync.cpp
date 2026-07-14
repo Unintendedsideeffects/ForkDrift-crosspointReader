@@ -219,9 +219,7 @@ void loop(const bool wifiConnected) {
   }
 }
 
-void noteWebUiAccess(const bool wifiConnected) {
-  noteBackgroundServerAccess(wifiConnected);
-}
+void noteWebUiAccess(const bool wifiConnected) { noteBackgroundServerAccess(wifiConnected); }
 
 void noteBackgroundServerAccess(const bool wifiConnected) {
   static unsigned long lastWebAccessSyncMs = 0;

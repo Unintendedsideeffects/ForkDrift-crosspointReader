@@ -12,6 +12,7 @@ matches what src/main.cpp now expects:
   * HalGPIO::WakeupReason gains the TimerRefresh enumerator (timed sleep refresh).
   * HalPowerManager::startDeepSleep gains the 2-arg overload
     (HalGPIO&, uint64_t timerWakeupMicros = 0); the simulator ignores the timer.
+  * OtaUpdater gains non-destructive feature-store catalog stubs.
   * Simulator image-mock OOM: malloc-backed pixel buffers, header-only probes, and deferred PNG decoding.
 
 Each edit is guarded so re-running (or a fresh libdep checkout that already
@@ -154,7 +155,36 @@ def patch_simulator_hal(env):
         marker="OtaUpdater::installUpdate() {",
     )
 
-    # 5c) HalFile::getModifyDateTime: fork API the sim mock lacks; stub as
+    # 5c) Feature-store OTA methods added after the pinned simulator revision.
+    #     Keep native runs offline and expose a useful unsupported diagnostic.
+    _replace_once(
+        os.path.join(src, "simulator_ota.cpp"),
+        "OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {\n"
+        '  LOG_DBG("OTA", "[SIM] OTA check is non-destructive; reporting no update");\n'
+        "  return NO_UPDATE;\n"
+        "}",
+        "OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {\n"
+        '  LOG_DBG("OTA", "[SIM] OTA check is non-destructive; reporting no update");\n'
+        "  return NO_UPDATE;\n"
+        "}\n\n"
+        "bool OtaUpdater::loadFeatureStoreCatalog() {\n"
+        "  featureStoreEntries.clear();\n"
+        "  lastError = CATALOG_UNAVAILABLE_ERROR;\n"
+        "  return false;\n"
+        "}\n"
+        "bool OtaUpdater::hasFeatureStoreCatalog() const { return !featureStoreEntries.empty(); }\n"
+        "const std::vector<OtaUpdater::FeatureStoreEntry>& OtaUpdater::getFeatureStoreEntries() const {\n"
+        "  return featureStoreEntries;\n"
+        "}\n"
+        "bool OtaUpdater::selectFeatureStoreBundleByIndex(size_t) {\n"
+        "  lastError = BUNDLE_UNAVAILABLE_ERROR;\n"
+        "  return false;\n"
+        "}\n"
+        "const String& OtaUpdater::getLastError() const { return lastError; }",
+        marker="OtaUpdater::loadFeatureStoreCatalog()",
+    )
+
+    # 5d) HalFile::getModifyDateTime: fork API the sim mock lacks; stub as
     #     "no timestamp available" (callers fall back to size-only checks).
     _replace_once(
         os.path.join(src, "HalStorage.h"),
@@ -168,7 +198,7 @@ def patch_simulator_hal(env):
         marker="getModifyDateTime",
     )
 
-    # 5d) esp_http_client stub gaps: fork's HttpDownloader sets user_agent and
+    # 5e) esp_http_client stub gaps: fork's HttpDownloader sets user_agent and
     #     handles EAGAIN; add the field and the errno constant.
     _replace_once(
         os.path.join(src, "esp_http_client.h"),
@@ -186,7 +216,7 @@ def patch_simulator_hal(env):
         marker="ESP_ERR_HTTP_EAGAIN",
     )
 
-    # 5e) taskENTER/EXIT_CRITICAL(nullptr): valid on the single-core device
+    # 5f) taskENTER/EXIT_CRITICAL(nullptr): valid on the single-core device
     #     port (global interrupt disable); the sim mock derefs the mux. Route
     #     nullptr to a shared global mutex.
     _replace_once(

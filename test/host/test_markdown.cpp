@@ -1,9 +1,9 @@
+#include <string>
+
 #include "doctest/doctest.h"
 #include "lib/Markdown/MarkdownAST.h"
-#include "lib/Markdown/MarkdownPreprocessor.h"
 #include "lib/Markdown/MarkdownParser.h"
-
-#include <string>
+#include "lib/Markdown/MarkdownPreprocessor.h"
 
 namespace {
 
