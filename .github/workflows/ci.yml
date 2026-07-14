@@ -393,7 +393,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: firmware-default
-          path: .pio/build/default/firmware-*.bin
+          # name_firmware_artifact.py publishes the versioned binary here;
+          # .pio/build/default only retains the unversioned firmware.bin.
+          path: firmware/firmware-*.bin
           retention-days: 7
           if-no-files-found: error
 
