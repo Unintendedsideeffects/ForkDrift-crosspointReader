@@ -53,7 +53,6 @@ check can substitute for a compile-time-absent symbol.
 | `src/activities/reader/OpdsBookBrowserActivity.cpp` | `ENABLE_EPUB_SUPPORT` | `<Epub.h>` header absent when disabled |
 | `src/network/CrossPointWebServer.cpp` | `ENABLE_IMAGE_SLEEP` | Same decoder-absence constraint as SleepActivity |
 | `src/network/OtaWebCheck.cpp` | `ENABLE_OTA_UPDATES` | OtaUpdater symbols absent when disabled |
-| `src/UsbSerialProtocol.*` | `ENABLE_REMOTE_CONTROL`, `ENABLE_USB_MASS_STORAGE`, `ENABLE_IMAGE_SLEEP` | USB protocol paths gated when dependent code is not linked |
 | `src/util/UserFontManager.*` | `ENABLE_USER_FONTS` | User-font pipeline; symbols absent when disabled |
 | `src/network/BleWifiProvisioner.*` | `ENABLE_BLE_WIFI_PROVISIONING` | BLE provisioning driver; compile-time-only option |
 

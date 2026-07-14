@@ -103,38 +103,11 @@ When the on-device keyboard opens and `remote_keyboard_input` is enabled, the de
 **Runtime availability:**
 1. Android app if already connected
 2. Browser fallback over existing WiFi with a QR code
-3. If WiFi is unavailable, firmware starts a hotspot and serves the same browser page; a USB-connected Android app can still claim the session in parallel
+3. If WiFi is unavailable, firmware starts a hotspot and serves the same browser page
 
 ### Android App Behavior
 
 The Android app polls `GET /api/remote-keyboard/session`, claims the session as `android`, then submits the final text over WiFi when connected that way.
-
----
-
-## USB Serial Remote Keyboard Input
-
-The same feature is available to the Android app over USB serial JSON commands.
-
-**Session lookup:**
-```json
-{"cmd":"remote_keyboard_session_get"}
-```
-
-**Claim:**
-```json
-{"cmd":"remote_keyboard_claim","arg":{"id":42,"client":"android"}}
-```
-
-**Submit:**
-```json
-{"cmd":"remote_keyboard_submit","arg":{"id":42,"text":"My remote text"}}
-```
-
-**Response shape:**
-- Session lookup and claim return the active snapshot with `active`, `id`, `title`, `text`, `maxLength`, `isPassword`, and optional `claimedBy`.
-- Submit returns `{"ok":true}` on success.
-
----
 
 ## Technical Implementation Details
 
@@ -142,12 +115,12 @@ For developers working on the firmware, the remote control mechanism uses a "Vir
 
 1. **HalGPIO**: Maintains a `virtualButtonMask`. The `injectVirtualButton(index)` method sets a bit in this mask. Standard methods like `wasPressed()` check both physical hardware state and this virtual mask.
 2. **MappedInputManager**: Provides `injectVirtualActivation(Button button)` which maps a logical button (like `PageForward`) to the correct physical button index based on current user settings (orientation and side-button layout) and then calls the HAL injection.
-3. **Command Handling**: WiFi and USB tasks set a `pendingPageTurn` flag in `CrossPointState`.
+3. **Command Handling**: WiFi tasks set a `pendingPageTurn` flag in `CrossPointState`.
 4. **Main Loop**: The main loop in `src/main.cpp` checks `pendingPageTurn` every tick and triggers the corresponding virtual activation in `MappedInputManager`.
 
 Remote keyboard input uses a separate session-based flow:
 
 1. `KeyboardEntryActivity` creates a `RemoteKeyboardSession` when the keyboard opens.
 2. `RemoteKeyboardNetworkSession` either reuses the current WiFi server or starts an access point and temporary web server.
-3. Browser and Android clients claim the session, then submit final text through the HTTP or USB routes above.
+3. Browser and Android clients claim the session, then submit final text through the HTTP routes above.
 4. The activity consumes the submitted text and closes normally, or falls back to the local on-device keyboard when requested.

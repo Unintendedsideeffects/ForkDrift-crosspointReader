@@ -12,6 +12,10 @@
 #include <Logging.h>
 #include <SPI.h>
 #include <WiFi.h>
+#ifndef SIMULATOR
+#include <esp_ota_ops.h>
+#include <mbedtls/base64.h>
+#endif
 
 #include <algorithm>
 #include <cinttypes>  // PRIu64 for deep-sleep timer logging (transitively present on ESP32, not on host)
@@ -27,7 +31,6 @@
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
 #include "SdCardFontSystem.h"
-#include "UsbSerialProtocol.h"
 #include "activities/ActivityManager.h"
 #include "activities/RenderLock.h"
 #include "activities/boot_sleep/SleepActivity.h"
@@ -59,7 +62,6 @@
 #if ENABLE_WIFI_CLOCK
 #include "util/TimeSync.h"
 #endif
-#include "util/UsbMscPrompt.h"
 #ifdef SIMULATOR
 #include "simulator/SimulatorSmokeTest.h"
 #endif
@@ -108,14 +110,40 @@ static bool deepSleepInProgress = false;
 //   ESP.restart();
 // }
 
+// ── Serial firmware OTA over the USB-CDC CMD: channel ──────────────────────
+// Standalone replacement for the removed USB-mass-storage serial protocol. The
+// host streams a firmware image as base64 chunks over the same unconditional
+// CMD: channel the device_walk test rig uses; we write to the inactive OTA
+// partition and flip the boot pointer on OTA_END (see handleSerialOtaCommand).
+// True only between OTA_BEGIN and OTA_END; silentRestart() consults it so a
+// heap-defrag reboot never aborts an in-flight flash write.
+static bool s_serialOtaInProgress = false;
+bool serialOtaInProgress() { return s_serialOtaInProgress; }
+#ifndef SIMULATOR
+static esp_ota_handle_t s_serialOtaHandle = 0;
+static const esp_partition_t* s_serialOtaPartition = nullptr;
+#endif
+
 void silentRestart(uint32_t target = SILENT_REBOOT_TARGET_HOME) {
   if (deepSleepInProgress) return;  // sleeping supersedes the heap-defrag reboot
+  if (serialOtaInProgress()) {
+    // Never reboot mid-OTA: esp_ota_end has not run, so a restart here aborts the
+    // flash write mid-stream and drops the host's upload. OTA_END issues its own
+    // restart once the image is finalized.
+    LOG_WRN("MAIN", "Silent restart suppressed: serial OTA in progress");
+    return;
+  }
   silentRebootTarget = target;
   silentRebootMagic = SILENT_REBOOT_MAGIC;
   LOG_DBG("MAIN", "Silent restart (target=%d)", target);
   delay(50);
   ESP.restart();
 }
+
+// Resume straight back into the currently open book (APP_STATE.openEpubPath) with
+// a freshly defragmented heap. The boot dispatcher routes SILENT_REBOOT_TARGET_READER
+// in setup() (see the silentReboot branch there).
+void silentRestartToReader() { silentRestart(SILENT_REBOOT_TARGET_READER); }
 
 static bool backgroundServerKeepsWifiWhileAwake() {
   if (SETTINGS.keepsBackgroundServerOnWifiWhileAwake()) {
@@ -163,16 +191,8 @@ namespace {
 
 constexpr char kCrossPointDataDir[] = "/.crosspoint";
 constexpr char kFactoryResetMarkerFile[] = "/.factory-reset-pending";
-constexpr char kUsbMscSessionMarkerFile[] = "/.crosspoint/usb-msc-active";
 constexpr uint32_t kSafeModeSleepHoldMs = 1500;
 
-enum class UsbMscSessionState { Idle, Prompt, Active };
-
-UsbMscSessionState usbMscSessionState = UsbMscSessionState::Idle;
-bool usbConnectedLast = false;
-UsbSerialProtocol usbSerialProtocol;
-bool usbMscScreenNeedsRedraw = false;
-bool usbMscRemountPending = false;
 bool safeModeActive = false;
 bool activityManagerReady = false;
 bool displayAndFontsReady = false;
@@ -215,49 +235,6 @@ void enterSafeMode(const char* message) {
     return;
   }
   renderSafeModeScreen(message);
-}
-
-// TODO: the prompt feature is not fully done
-void renderUsbMscPrompt() {
-  renderer.clearScreen();
-  renderer.drawCenteredText(UI_12_FONT_ID, 260, "Connect as Mass Storage?", true, EpdFontFamily::BOLD);
-  renderer.drawCenteredText(UI_10_FONT_ID, 300, "SD card will be unavailable on-device", true);
-  const auto labels = mappedInputManager.mapLabels(tr(STR_NO), tr(STR_YES), "", "");
-  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
-  renderer.displayBuffer();
-}
-
-void renderUsbMscLockedScreen() {
-  renderer.clearScreen();
-  renderer.drawCenteredText(UI_12_FONT_ID, 260, "Mass Storage Active", true, EpdFontFamily::BOLD);
-  renderer.drawCenteredText(UI_10_FONT_ID, 300, "Disconnect USB cable to return", true);
-  renderer.displayBuffer();
-}
-
-void enterUsbMscSession() {
-  LOG_INF("USBMSC", "Entering USB mass storage lock mode");
-  if (!APP_STATE.saveToFile()) {
-    LOG_WRN("USBMSC", "Failed to persist app state before USB MSC session");
-  }
-  if (!SETTINGS.saveToFile()) {
-    LOG_WRN("USBMSC", "Failed to persist settings before USB MSC session");
-  }
-
-  activityManager.goHome();
-  activityManager.loop();
-
-  Storage.mkdir(kCrossPointDataDir);
-  Storage.writeFile(kUsbMscSessionMarkerFile, "1");
-  usbSerialProtocol.reset();
-  usbMscSessionState = UsbMscSessionState::Active;
-  usbMscScreenNeedsRedraw = true;
-}
-
-void exitUsbMscSession() {
-  LOG_INF("USBMSC", "Exiting USB mass storage lock mode");
-  usbMscSessionState = UsbMscSessionState::Idle;
-  usbMscScreenNeedsRedraw = false;
-  usbMscRemountPending = true;
 }
 
 void applyPendingFactoryReset() {
@@ -550,13 +527,6 @@ void setup() {
   core::FeatureLifecycle::onStorageReady();
 
   applyPendingFactoryReset();
-  if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
-    usbConnectedLast = gpio.isUsbConnected();
-    if (Storage.exists(kUsbMscSessionMarkerFile)) {
-      LOG_WRN("USBMSC", "Detected stale USB MSC marker; recovering SD ownership");
-      Storage.remove(kUsbMscSessionMarkerFile);
-    }
-  }
 
   SETTINGS.loadFromFile();
   HalSystem::checkPanic();
@@ -697,6 +667,101 @@ void setup() {
   waitForPowerRelease();
 }
 
+#ifndef SIMULATOR
+// Host-driven firmware OTA over the USB-CDC CMD: channel. Streams a firmware
+// image to the inactive OTA partition in base64 chunks and flips the boot
+// pointer on OTA_END. Returns true if `cmd` was an OTA command (handled),
+// false so the caller can try other CMD: verbs. All replies are single lines:
+// "OTA_OK" on success, "OTA_ERR:<reason>" on failure. A reboot mid-stream (before
+// OTA_END) leaves the running firmware bootable — the image lands in the inactive
+// partition and is only activated by esp_ota_set_boot_partition below.
+bool handleSerialOtaCommand(const String& cmd) {
+  auto abortOta = [] {
+    if (s_serialOtaInProgress) {
+      esp_ota_abort(s_serialOtaHandle);
+      s_serialOtaHandle = 0;
+      s_serialOtaInProgress = false;
+    }
+  };
+
+  if (cmd == "OTA_BEGIN") {
+    abortOta();  // discard any half-finished prior attempt
+    s_serialOtaPartition = esp_ota_get_next_update_partition(nullptr);
+    if (!s_serialOtaPartition) {
+      logSerial.printf("OTA_ERR:no partition\n");
+      return true;
+    }
+    // OTA_WITH_SEQUENTIAL_WRITES erases sectors on demand — no upfront erase stall.
+    const esp_err_t err = esp_ota_begin(s_serialOtaPartition, OTA_WITH_SEQUENTIAL_WRITES, &s_serialOtaHandle);
+    if (err != ESP_OK) {
+      logSerial.printf("OTA_ERR:%s\n", esp_err_to_name(err));
+      return true;
+    }
+    s_serialOtaInProgress = true;
+    logSerial.printf("OTA_OK\n");
+    return true;
+  }
+
+  if (cmd.startsWith("OTA_DATA:")) {
+    if (!s_serialOtaInProgress) {
+      logSerial.printf("OTA_ERR:not started\n");
+      return true;
+    }
+    // Decode one base64 chunk into a static buffer (avoids per-chunk heap churn).
+    static uint8_t decoded[1536];
+    const char* b64 = cmd.c_str() + 9;  // skip "OTA_DATA:"
+    size_t outLen = 0;
+    const int rc =
+        mbedtls_base64_decode(decoded, sizeof(decoded), &outLen, reinterpret_cast<const uint8_t*>(b64), strlen(b64));
+    if (rc != 0) {
+      abortOta();
+      logSerial.printf("OTA_ERR:base64\n");
+      return true;
+    }
+    const esp_err_t err = esp_ota_write(s_serialOtaHandle, decoded, outLen);
+    if (err != ESP_OK) {
+      abortOta();
+      logSerial.printf("OTA_ERR:%s\n", esp_err_to_name(err));
+      return true;
+    }
+    logSerial.printf("OTA_OK\n");
+    return true;
+  }
+
+  if (cmd == "OTA_END") {
+    if (!s_serialOtaInProgress) {
+      logSerial.printf("OTA_ERR:not started\n");
+      return true;
+    }
+    esp_err_t err = esp_ota_end(s_serialOtaHandle);
+    s_serialOtaHandle = 0;
+    s_serialOtaInProgress = false;
+    if (err != ESP_OK) {
+      logSerial.printf("OTA_ERR:%s\n", esp_err_to_name(err));
+      return true;
+    }
+    err = esp_ota_set_boot_partition(s_serialOtaPartition);
+    if (err != ESP_OK) {
+      logSerial.printf("OTA_ERR:%s\n", esp_err_to_name(err));
+      return true;
+    }
+    logSerial.printf("OTA_OK\n");
+    logSerial.flush();
+    delay(200);  // let the host read the reply before the link drops
+    ESP.restart();
+    return true;
+  }
+
+  if (cmd == "OTA_ABORT") {
+    abortOta();
+    logSerial.printf("OTA_OK\n");
+    return true;
+  }
+
+  return false;  // not an OTA command
+}
+#endif  // SIMULATOR
+
 void loop() {
   static unsigned long maxLoopDuration = 0;
   const unsigned long loopStartTime = millis();
@@ -793,71 +858,12 @@ void loop() {
           logSerial.printf(result.ok() ? "SETTINGS_OK:%d applied\n" : "SETTINGS_ERR:http %d\n",
                            result.ok() ? result.appliedCount : result.statusCode);
         }
+#ifndef SIMULATOR
+      } else if (handleSerialOtaCommand(cmd)) {
+        // Firmware OTA over serial (CMD:OTA_BEGIN / OTA_DATA / OTA_END / OTA_ABORT).
+#endif
       }
     }
-  }
-
-  if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
-    const bool usbConnected = gpio.isUsbConnected();
-    const bool hostSupportsUsbSerial = static_cast<bool>(logSerial);
-
-    if (usbMscRemountPending) {
-      usbMscRemountPending = false;
-      Storage.remove(kUsbMscSessionMarkerFile);
-      if (!Storage.begin()) {
-        LOG_ERR("USBMSC", "SD remount failed after USB MSC exit");
-        enterSafeMode("SD card remount failed");
-        usbConnectedLast = usbConnected;
-        return;
-      }
-      invalidateSleepImageCache();
-      activityManager.goHome();
-      usbConnectedLast = usbConnected;
-      return;
-    }
-    // TODO: this actually doesn't do much, limitation of the hardware
-    if (UsbMscPrompt::shouldShowOnUsbConnect(SETTINGS.usbMscPromptOnConnect != 0, usbConnected, usbConnectedLast,
-                                             hostSupportsUsbSerial, usbMscSessionState == UsbMscSessionState::Idle)) {
-      usbMscSessionState = UsbMscSessionState::Prompt;
-      usbMscScreenNeedsRedraw = true;
-    }
-
-    if (usbMscSessionState == UsbMscSessionState::Prompt) {
-      backgroundServer.loop(usbConnected, false);
-      if (!usbConnected) {
-        usbMscSessionState = UsbMscSessionState::Idle;
-        activityManager.requestUpdate(true);
-      } else {
-        if (usbMscScreenNeedsRedraw) {
-          renderUsbMscPrompt();
-          usbMscScreenNeedsRedraw = false;
-        }
-        if (mappedInputManager.wasReleased(MappedInputManager::Button::Confirm)) {
-          enterUsbMscSession();
-        } else if (mappedInputManager.wasReleased(MappedInputManager::Button::Back)) {
-          usbMscSessionState = UsbMscSessionState::Idle;
-          activityManager.requestUpdate(true);
-        }
-      }
-      usbConnectedLast = usbConnected;
-      delay(20);
-      return;
-    }
-
-    if (usbMscSessionState == UsbMscSessionState::Active) {
-      usbSerialProtocol.loop();
-      if (!usbConnected) {
-        exitUsbMscSession();
-      } else if (usbMscScreenNeedsRedraw) {
-        renderUsbMscLockedScreen();
-        usbMscScreenNeedsRedraw = false;
-      }
-      usbConnectedLast = usbConnected;
-      delay(20);
-      return;
-    }
-
-    usbConnectedLast = usbConnected;
   }
 
   {

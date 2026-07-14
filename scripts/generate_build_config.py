@@ -264,12 +264,6 @@ FEATURES = {
         size_kb=10,
         description='Android-first remote text entry with browser QR and hotspot fallback'
     ),
-    'usb_mass_storage': Feature(
-        name='USB Mass Storage',
-        flag='ENABLE_USB_MASS_STORAGE',
-        size_kb=15,
-        description='On-device prompt for USB SD card access as mass storage'
-    ),
     'wifi_clock': Feature(
         name='WiFi Clock',
         flag='ENABLE_WIFI_CLOCK',
@@ -615,13 +609,6 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=['background_server']
     ),
-    'usb_mass_storage': FeatureMetadata(
-        implemented=True,
-        stable=True,
-        requires=[],
-        conflicts=[],
-        recommends=[]
-    ),
     'wifi_clock': FeatureMetadata(
         implemented=True,
         stable=True,
@@ -820,7 +807,6 @@ PROFILES = {
             'dark_mode': True,
             'ble_wifi_provisioning': True,
             'user_fonts': True,
-            'usb_mass_storage': True,
             'wifi_clock': True,
             'roman_clock_sleep': True,
             'haiku_clock_sleep': True,
@@ -867,7 +853,6 @@ PROFILES = {
             'ble_wifi_provisioning': True,
             'user_fonts': True,
             'web_wifi_setup': True,
-            'usb_mass_storage': True,
             'wifi_clock': True,
             'roman_clock_sleep': True,
             'haiku_clock_sleep': True,

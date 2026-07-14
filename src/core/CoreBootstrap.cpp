@@ -20,7 +20,6 @@
 #include "features/terminus_sleep/Registration.h"
 #include "features/todo_planner/Registration.h"
 #include "features/txt/Registration.h"
-#include "features/usb_mass_storage/Registration.h"
 #include "features/visual_cover_picker/Registration.h"
 #include "features/web_pokemon_party/Registration.h"
 #include "features/web_pokemon_wallpaper/Registration.h"
@@ -61,7 +60,6 @@ void registerFeatureModules() {
   features::focus_reading::registerFeature();
   features::terminus_sleep::registerFeature();
   features::ble_wifi_provisioning::registerFeature();
-  features::usb_mass_storage::registerFeature();
   features::visual_cover_picker::registerFeature();
   features::status_overlay::registerFeature();
 

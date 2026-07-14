@@ -11,7 +11,7 @@ info:
     Scope:
     - Included: HTTP endpoints exposed by the firmware web server.
     - Excluded: UDP discovery, WebSocket upload protocol, BLE provisioning, and
-      USB serial JSON-RPC.
+      the USB-CDC maintenance command channel.
 
     Consumers should discover optional capabilities from `/api/plugins` before
     calling feature-gated endpoints. Operations with

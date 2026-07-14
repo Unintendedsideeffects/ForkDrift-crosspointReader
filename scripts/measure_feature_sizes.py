@@ -67,7 +67,6 @@ FEATURES = [
     'dark_mode',
     'web_wallpaper_plugin',
     'user_fonts',
-    'usb_mass_storage',
     'background_server_on_charge',
     'background_server_always',
     'reading_stats',

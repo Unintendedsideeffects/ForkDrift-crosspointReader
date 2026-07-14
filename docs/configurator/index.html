@@ -3082,11 +3082,10 @@
         </section>
 
         <!-- ── STORAGE ── -->
-        <section class="category" data-hub="storage_hub">
+        <section class="category">
           <div class="cat-head">
             <div class="cat-icon"><span>&#x2398;</span></div>
             <h2 class="cat-title">Storage</h2>
-            <span class="cat-stat" id="stat-storage_hub"></span>
           </div>
           <div class="cat-body">
             <div class="skill-grid">
@@ -3101,22 +3100,12 @@
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
 
-              <label class="skill-card" data-feature="usb_mass_storage" data-node-id="usb_mass_storage">
-                <input type="checkbox" id="usb_mass_storage" data-feature="usb_mass_storage" />
-                <div class="card-icon"><span>&#x2398;</span></div>
-                <div class="card-body">
-                  <div class="card-name">USB Mass Storage</div>
-                  <div class="card-size"></div>
-                  <div class="card-desc">Compile-time USB MSC with runtime System toggle, on-connect prompt, and locked safety mode</div>
-                </div>
-                <div class="card-toggle"><span class="toggle-box"></span></div>
-              </label>
               <div class="skill-card static-card always-enabled" data-node-id="serial_access_with_android_note">
                 <div class="card-icon"><span>&#x25A4;</span></div>
                 <div class="card-body">
-                  <div class="card-name">Serial Access with Android</div>
+                  <div class="card-name">USB Serial Maintenance</div>
                   <div class="card-size">Always available</div>
-                  <div class="card-desc">Use Android USB serial workflows for debug and maintenance tasks</div>
+                  <div class="card-desc">Firmware OTA and test automation over the always-available USB-CDC command channel</div>
                 </div>
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </div>
@@ -3879,11 +3868,6 @@
           flag: "ENABLE_WEB_WIFI_SETUP",
           default: true,
         },
-        usb_mass_storage: {
-          sizeKb: 15,
-          flag: "ENABLE_USB_MASS_STORAGE",
-          default: true,
-        },
         global_landscape: {
           sizeKb: 0,
           flag: "ENABLE_GLOBAL_LANDSCAPE",
@@ -3981,7 +3965,6 @@
         ble_wifi_provisioning: "Configure WiFi credentials by scanning a QR code or using the companion app over Bluetooth LE — no need to type a password on the device keyboard. Large binary cost (~626 KB) due to the BLE stack.",
         user_fonts: "Load custom SD-card fonts from /fonts or /.fonts. Use the official CrossPoint Font Manager to convert TTF/OTF families into .cpfont files, then upload them from the device's Fonts page or copy them to the SD card. Upstream currently marks this flow as beta-firmware only.",
         web_wifi_setup: "A captive-portal style WiFi setup wizard served from the Background Server. Scan a QR code, enter credentials, and the device connects — no app required. Small footprint (~3 KB).",
-        usb_mass_storage: "Exposes the SD card as a USB mass-storage device when connected to a computer. Lets you drag-and-drop books without a network. The SD card is unmounted from the firmware while in this mode.",
         global_landscape: "Rotates the entire UI to landscape, including menus, settings, and library screens.",
         wifi_clock: "Shows a 24-hour Roman-numeral quarter-hour clock label in the ForkDrift home header and global status bar when system time is available. The minute marker is blank for :00, I for :15, II for :30, and III for :45. While connected to WiFi, it syncs time by NTP and refreshes the display every 15 minutes.",
         roman_clock_sleep: "Adds a dedicated sleep-screen mode that renders the WiFi Clock time as large block Roman numerals. It reuses the same NTP-backed quarter-hour Roman label as the header/status clock and only appears when both this feature and WiFi Clock are enabled.",
@@ -3993,7 +3976,7 @@
         minimal_theme: "A streamlined UI skin with reduced visual chrome — tighter spacing, no decorative borders, and a simpler icon set. Intended for readers who want fewer distractions and a faster visual cadence on e-ink. Requires Lyra Theme as its base.",
         focus_reading: "A bionic-reading aid: bolds the first ~45% of each word so the eye anchors on the bold prefix and the brain completes the rest by recognition. Can improve reading speed and reduce fatigue. Toggle from the reader long-press menu.",
         guide_dots: "Inserts an interpunct (·) between every word to make word boundaries explicit. A dyslexia-friendly aid that can help readers who struggle with word separation or lose their place on long lines. Toggle from the reader long-press menu.",
-        remote_control: "Compile-gates the HTTP (/api/open-book, /api/remote/button) and USB serial (open_book, remote_button) remote-control APIs. When disabled, those routes and commands are not compiled in. Open Book and Page Turn are included together; Keyboard Input is a separate optional sub-feature.",
+        remote_control: "Compile-gates the HTTP /api/open-book and /api/remote/button APIs. When disabled, those routes are not compiled in. Open Book and Page Turn are included together; Keyboard Input is a separate optional sub-feature.",
         remote_open_book: "Lets the Android app send an 'open this book' command to the device over WiFi or USB. The device finds the book on the SD card by filename and opens it immediately. Compiled in when Remote Control is enabled.",
         remote_page_turn: "Lets the Android app send forward/back page commands to the device. Implemented via virtual button injection so it's fully orientation-aware. Compiled in when Remote Control is enabled.",
       };
@@ -4036,7 +4019,6 @@
         reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "notes", "anki_support", "dictionary_lookup", "text_selection", "annotations", "per_book_settings", "reading_stats", "focus_reading", "guide_dots"],
         interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "web_wallpaper_plugin", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts", "minimal_theme"],
         network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "books_tab_ui", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "haiku_clock_sleep", "remote_control", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
-        storage_hub: ["usb_mass_storage"],
       };
 
       const NOTE_FEATURES = {};
@@ -4071,7 +4053,6 @@
           dark_mode: true,
           ble_wifi_provisioning: true,
           user_fonts: true,
-          usb_mass_storage: true,
           reading_stats: true,
           minimal_theme: true,
           books_tab_ui: false,
@@ -4116,7 +4097,6 @@
           ble_wifi_provisioning: true,
           user_fonts: true,
           web_wifi_setup: true,
-          usb_mass_storage: true,
           lexenddeca_fonts: true,
           bitter_fonts: false,
           chareink_fonts: true,
@@ -5549,7 +5529,6 @@
           calibre_sync:                    'library',
           opds:                            'book-down',
           // Storage
-          usb_mass_storage:                'hard-drive',
           serial_access_with_android_note: 'cable',
         };
 

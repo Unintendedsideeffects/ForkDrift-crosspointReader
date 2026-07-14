@@ -75,7 +75,7 @@ The firmware utilizes a registry-based system in `src/core/registries/` to manag
 
 ## Feature Modules
 
-Modular functionality is organized in `src/features/`. There are currently 24 feature modules, each encapsulating specific logic (e.g., `anki`, `koreader_sync`, `ota_updates`, `usb_mass_storage`). These modules often interact with the core registries to extend system behavior.
+Modular functionality is organized in `src/features/`. Each module encapsulates specific logic (for example, `anki`, `koreader_sync`, and `ota_updates`) and can interact with the core registries to extend system behavior.
 
 ## HAL Layer
 

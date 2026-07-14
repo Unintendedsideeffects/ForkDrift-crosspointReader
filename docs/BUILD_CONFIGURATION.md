@@ -318,16 +318,14 @@ While the web server is running, `GET /health` returns `{"status":"ok"}` without
 **Size Impact:** ~3KB
 **Default:** Enabled
 
-Compile-gates the HTTP and USB serial remote-control APIs:
+Compile-gates the HTTP remote-control APIs:
 
 - **HTTP:** `POST /api/open-book` (open a book by SD path) and `POST /api/remote/button` (page forward/back)
-- **USB serial:** `open_book` and `remote_button` commands in the USB protocol
 
 **When disabled:**
 - Those HTTP routes are not registered
-- Those USB commands are not dispatched
 - `RemoteControlApi` module is not compiled in
-- Android and other clients that try these endpoints get 404 / command-not-found
+- Android and other clients that try these endpoints get 404
 
 **When enabled:**
 - Open Book and Page Turn are always available as sub-features
@@ -345,10 +343,10 @@ Compile-gates the HTTP and USB serial remote-control APIs:
 
 Adds a modular remote text-entry path for any on-device keyboard prompt:
 
-- Prefers the Android companion app when it is already connected over USB serial or WiFi
+- Prefers the Android companion app when it is already connected over WiFi
 - Falls back to a browser page at `/remote-input` with a QR code shown on-device
 - Starts a temporary hotspot automatically when WiFi is unavailable so the browser fallback remains reachable
-- Exposes the `remote_keyboard_input` capability in `/api/plugins` and the USB `plugins` command
+- Exposes the `remote_keyboard_input` capability in `/api/plugins`
 
 **When disabled:**
 - Keyboard entry always stays on-device
@@ -873,17 +871,6 @@ Gates the boot-partition switch into a co-installed TRMNL firmware.
 
 ---
 
-### USB Mass Storage
-
-**Flag:** `ENABLE_USB_MASS_STORAGE`  
-**Size Impact:** ~15KB  
-**Default:** Enabled  
-**Depends on:** None  
-
-On-device prompt for USB SD card access as mass storage.
-
----
-
 ### Visual Covers
 
 **Flag:** `ENABLE_VISUAL_COVER_PICKER`  
@@ -970,7 +957,6 @@ uv run python scripts/generate_build_config.py --profile standard
 - ✓ Home Media Picker
 - ✓ BLE WiFi Provisioning
 - ✓ User Fonts
-- ✓ USB Mass Storage
 - ✓ Dark Mode
 - ✓ WiFi Clock
 - ✓ Roman Clock Sleep Screen
@@ -1029,7 +1015,6 @@ uv run python scripts/generate_build_config.py --profile full
 - ✓ User Fonts
 - ✓ Web WiFi Setup
 - ✓ BLE WiFi Provisioning
-- ✓ USB Mass Storage
 - ✓ Dark Mode
 - ✓ WiFi Clock
 - ✓ Roman Clock Sleep Screen

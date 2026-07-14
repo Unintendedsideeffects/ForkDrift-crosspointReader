@@ -41,7 +41,6 @@
 #                             compile-time guard cannot be replaced by a runtime registry
 #                             check because the dependent symbols do not exist.
 #
-#   UsbSerialProtocol.*     — peripheral driver; entire protocol is a compile-time option.
 #   UserFontManager.*       — peripheral driver; compile-time option.
 #   BleWifiProvisioner.*    — peripheral driver; compile-time option.
 #
@@ -66,7 +65,7 @@
 
 set -e
 
-PERMANENT_PATHS_REGEX='^src/(CrossPointSettings\.cpp|network/CrossPointWebServer\.cpp|network/OtaWebCheck\.cpp|network/BleWifiProvisioner\.(cpp|h)|util/UserFontManager\.(cpp|h)|UsbSerialProtocol\.(cpp|h)|activities/browser/OpdsBookBrowserActivity\.cpp|activities/boot_sleep/SleepActivity\.cpp):'
+PERMANENT_PATHS_REGEX='^src/(CrossPointSettings\.cpp|network/CrossPointWebServer\.cpp|network/OtaWebCheck\.cpp|network/BleWifiProvisioner\.(cpp|h)|util/UserFontManager\.(cpp|h)|activities/browser/OpdsBookBrowserActivity\.cpp|activities/boot_sleep/SleepActivity\.cpp):'
 
 # TODO: Remove each entry here once its migration PR lands (Category 2 above).
 CLEANUP_DEBT_PATHS_REGEX='^src/(network/BackgroundWebServer\.cpp|activities/reader/TxtReaderActivity\.cpp):'

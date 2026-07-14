@@ -139,9 +139,7 @@ inline std::vector<QuickActionOption> shortPowerButtonOptions() {
 #endif
   options.push_back({StrId::STR_SCREENSHOT_BUTTON, S::SCREENSHOT});
   options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::CYCLE_PAGE_TURN});
-  if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
-    options.push_back({StrId::STR_FILE_TRANSFER, S::FILE_TRANSFER, "usb_mass_storage"});
-  }
+  options.push_back({StrId::STR_FILE_TRANSFER, S::FILE_TRANSFER});
   return options;
 }
 
@@ -170,9 +168,7 @@ inline std::vector<QuickActionOption> longPowerButtonOptions() {
 #endif
   options.push_back({StrId::STR_SCREENSHOT_BUTTON, S::SCREENSHOT});
   options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::CYCLE_PAGE_TURN});
-  if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
-    options.push_back({StrId::STR_FILE_TRANSFER, S::FILE_TRANSFER, "usb_mass_storage"});
-  }
+  options.push_back({StrId::STR_FILE_TRANSFER, S::FILE_TRANSFER});
   return options;
 }
 
@@ -203,9 +199,7 @@ inline std::vector<QuickActionOption> doubleTapPowerButtonOptions() {
 #endif
   options.push_back({StrId::STR_SCREENSHOT_BUTTON, S::SCREENSHOT});
   options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::CYCLE_PAGE_TURN});
-  if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
-    options.push_back({StrId::STR_FILE_TRANSFER, S::FILE_TRANSFER, "usb_mass_storage"});
-  }
+  options.push_back({StrId::STR_FILE_TRANSFER, S::FILE_TRANSFER});
   return options;
 }
 #endif
@@ -236,10 +230,8 @@ inline std::vector<QuickActionOption> longPressMenuActionOptions() {
 #endif
   options.push_back({StrId::STR_SCREENSHOT_BUTTON, S::LONG_MENU_SCREENSHOT});
   options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::LONG_MENU_CYCLE_PAGE_TURN});
-  if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
-    options.push_back({StrId::STR_FILE_TRANSFER, S::LONG_MENU_FILE_TRANSFER, "usb_mass_storage"});
-    options.push_back({StrId::STR_SELECT_TEXT, S::LONG_MENU_TEXT_SELECT, "text_selection"});
-  }
+  options.push_back({StrId::STR_FILE_TRANSFER, S::LONG_MENU_FILE_TRANSFER});
+  options.push_back({StrId::STR_SELECT_TEXT, S::LONG_MENU_TEXT_SELECT, "text_selection"});
   return options;
 }
 
@@ -953,12 +945,6 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
                            {StrId::STR_STATUS_BAR_TOP, StrId::STR_STATUS_BAR_BOTTOM, StrId::STR_OFF},
                            "globalStatusBarPosition", StrId::STR_CAT_READER)
              .withConfiguratorExport("global_status_bar"));
-  }
-
-  if (core::FeatureModules::hasCapability(core::Capability::UsbMassStorage)) {
-    emit(SettingInfo::Toggle(StrId::STR_FILE_TRANSFER, &CrossPointSettings::usbMscPromptOnConnect,
-                             "usbMscPromptOnConnect", StrId::STR_CAT_SYSTEM)
-             .withConfiguratorExport("usb_mass_storage"));
   }
 
   if (supportsBackgroundServerModeSetting()) {

@@ -122,7 +122,6 @@ void seedSettingsFromConfiguratorDefaults() {
   SETTINGS.sideButtonLongPress = CrossPointSettings::SIDE_LONG_CHAPTER_SKIP;
   SETTINGS.shortPwrBtn = 0;
   SETTINGS.longPressButtonBehavior = CrossPointSettings::CHAPTER_SKIP;
-  SETTINGS.usbMscPromptOnConnect = 0;
   SETTINGS.backgroundServerOnCharge = 1;
   SETTINGS.wifiAutoConnect = 0;
   SETTINGS.deviceName[0] = '\0';
@@ -171,7 +170,6 @@ void applySettingsJson(const std::filesystem::path& settingsJsonPath) {
   readJsonNumber(json, "sideButtonLongPress", SETTINGS.sideButtonLongPress);
   readJsonNumber(json, "shortPwrBtn", SETTINGS.shortPwrBtn);
   readJsonNumber(json, "longPressButtonBehavior", SETTINGS.longPressButtonBehavior);
-  readJsonNumber(json, "usbMscPromptOnConnect", SETTINGS.usbMscPromptOnConnect);
   readJsonNumber(json, "backgroundServerOnCharge", SETTINGS.backgroundServerOnCharge);
   readJsonNumber(json, "wifiAutoConnect", SETTINGS.wifiAutoConnect);
   readJsonString(json, "deviceName", SETTINGS.deviceName, sizeof(SETTINGS.deviceName));

@@ -260,10 +260,7 @@ void SettingsActivity::rebuildSettingsLists() {
     connectSettings.pop_back();
   }
 
-  appendConnectTopic(StrId::STR_SEC_FILE_SERVER, [&] {
-    addConnectSettingByKey("usbMscPromptOnConnect");
-    addConnectSettingByKey("backgroundServerMode");
-  });
+  appendConnectTopic(StrId::STR_SEC_FILE_SERVER, [&] { addConnectSettingByKey("backgroundServerMode"); });
   appendConnectTopic(StrId::STR_SEC_ANKI_CONNECT, [&] {
     addConnectSettingByKey("ankiConnectUrl");
     addConnectSettingByKey("ankiConnectDeck");

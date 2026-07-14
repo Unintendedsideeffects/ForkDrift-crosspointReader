@@ -186,7 +186,6 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
   s.fadingFix = doc["fadingFix"] | (uint8_t)0;
   s.darkMode = doc["darkMode"] | (uint8_t)0;
   s.embeddedStyle = doc["embeddedStyle"] | (uint8_t)1;
-  s.usbMscPromptOnConnect = doc["usbMscPromptOnConnect"] | (uint8_t)0;
   s.wifiAutoConnect = doc["wifiAutoConnect"] | (uint8_t)0;
   s.showHiddenFiles = doc["showHiddenFiles"] | (uint8_t)0;
   s.todoOpenDirectToToday = doc["todoOpenDirectToToday"] | (uint8_t)0;
@@ -346,7 +345,6 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["embeddedStyle"] = s.embeddedStyle;
   doc["focusReadingEnabled"] = s.focusReadingEnabled;
   doc["guideReadingEnabled"] = s.guideReadingEnabled;
-  doc["usbMscPromptOnConnect"] = s.usbMscPromptOnConnect;
   doc["userFontPath"] = s.userFontPath;
   doc["selectedOtaBundle"] = s.selectedOtaBundle;
   doc["installedOtaBundle"] = s.installedOtaBundle;

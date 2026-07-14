@@ -97,12 +97,6 @@ bool FeatureModules::hasCapability(const Capability capability) {
 #else
       return false;
 #endif
-    case Capability::UsbMassStorage:
-#if ENABLE_USB_MASS_STORAGE
-      return true;
-#else
-      return false;
-#endif
     case Capability::UserFonts:
 #if ENABLE_USER_FONTS
       return true;

@@ -33,16 +33,13 @@ constexpr char DEVELOPER_LOG_FILE[] = "/crosspoint-debug.log";
 std::atomic<bool> developerModeLoggingEnabled{false};
 std::atomic_flag developerLogWriteInProgress = ATOMIC_FLAG_INIT;
 std::atomic<DeveloperLogAppendFn> developerLogAppendFn{nullptr};
-std::atomic<bool> serialLogSuppressed{false};
 }  // namespace
-
-bool isSerialLogSuppressed() { return serialLogSuppressed; }
-
-void setSerialLogSuppressed(const bool suppressed) { serialLogSuppressed = suppressed; }
 
 bool isDeveloperModeLoggingEnabled() { return developerModeLoggingEnabled.load(std::memory_order_relaxed); }
 
-void setDeveloperModeLoggingEnabled(const bool enabled) { developerModeLoggingEnabled.store(enabled, std::memory_order_relaxed); }
+void setDeveloperModeLoggingEnabled(const bool enabled) {
+  developerModeLoggingEnabled.store(enabled, std::memory_order_relaxed);
+}
 
 void setDeveloperLogAppendFn(const DeveloperLogAppendFn appendFn) { developerLogAppendFn.store(appendFn); }
 
@@ -138,7 +135,7 @@ void logPrintf(const char* level, const char* origin, const char* format, ...) {
     }
   }
   va_end(args);
-  if (logSerial && !serialLogSuppressed) {
+  if (logSerial) {
     logSerial.print(buf);
   }
   addToLogRingBuffer(buf);

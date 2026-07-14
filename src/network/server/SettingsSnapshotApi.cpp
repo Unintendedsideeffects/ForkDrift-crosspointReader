@@ -50,7 +50,6 @@ String buildSettingsSnapshotJson(const CrossPointSettings& s) {
   doc["fadingFix"] = s.fadingFix;
   doc["darkMode"] = s.darkMode;
   doc["embeddedStyle"] = s.embeddedStyle;
-  doc["usbMscPromptOnConnect"] = s.usbMscPromptOnConnect;
   doc["userFontPath"] = s.userFontPath;
   doc["selectedOtaBundle"] = s.selectedOtaBundle;
   doc["installedOtaBundle"] = s.installedOtaBundle;

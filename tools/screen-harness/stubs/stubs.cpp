@@ -123,8 +123,7 @@ bool FeatureModules::isEnabled(const char*) { return true; }
 bool FeatureModules::hasCapability(Capability capability) {
   return capability == Capability::LyraTheme || capability == Capability::DarkMode ||
          capability == Capability::GlobalStatusBar || capability == Capability::HomeMediaPicker ||
-         capability == Capability::OtaUpdates || capability == Capability::UsbMassStorage ||
-         capability == Capability::WebWifiSetup;
+         capability == Capability::OtaUpdates || capability == Capability::WebWifiSetup;
 }
 String FeatureModules::getBuildString() { return "screen-harness"; }
 String FeatureModules::getFeatureMapJson() { return "{}"; }

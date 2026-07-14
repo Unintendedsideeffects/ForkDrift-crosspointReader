@@ -377,7 +377,6 @@ class CrossPointSettings {
   // OTA release channel selection
   uint8_t releaseChannel = RELEASE_STABLE;
   uint8_t darkMode = 0;
-  uint8_t usbMscPromptOnConnect = 0;
   char userFontPath[128] = "";
   char selectedOtaBundle[32] = "";
   char installedOtaBundle[32] = "";

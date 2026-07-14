@@ -157,7 +157,6 @@ bool applySettingsFromDevice() {
   readJsonNumber(json, "sideButtonLongPress", SETTINGS.sideButtonLongPress);
   readJsonNumber(json, "shortPwrBtn", SETTINGS.shortPwrBtn);
   readJsonNumber(json, "longPressButtonBehavior", SETTINGS.longPressButtonBehavior);
-  readJsonNumber(json, "usbMscPromptOnConnect", SETTINGS.usbMscPromptOnConnect);
   readJsonNumber(json, "backgroundServerOnCharge", SETTINGS.backgroundServerOnCharge);
   readJsonNumber(json, "wifiAutoConnect", SETTINGS.wifiAutoConnect);
   readJsonString(json, "deviceName", SETTINGS.deviceName, sizeof(SETTINGS.deviceName));

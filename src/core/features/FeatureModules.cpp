@@ -80,7 +80,6 @@ constexpr std::array<const char*, toIndex(Capability::Count)> kCapabilityFeature
     "terminus_sleep",
     "todo_planner",
     "trmnl_switch",
-    "usb_mass_storage",
     "user_fonts",
     "visual_cover_picker",
     "web_wallpaper_plugin",

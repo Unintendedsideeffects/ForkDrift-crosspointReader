@@ -17,7 +17,7 @@
       "displayName": "Nightly (All Features)",
       "version": "nightly",
       "board": "esp32c3",
-      "featureFlags": "epub_support,markdown,todo_planner,notes,bookerly_fonts,notosans_fonts,ota_updates,dark_mode,ble_wifi_provisioning,web_wifi_setup,usb_mass_storage,koreader_sync,calibre_sync",
+      "featureFlags": "epub_support,markdown,todo_planner,notes,bookerly_fonts,notosans_fonts,ota_updates,dark_mode,ble_wifi_provisioning,web_wifi_setup,koreader_sync,calibre_sync",
       "downloadUrl": "https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases/download/nightly/crosspoint-reader-nightly.bin",
       "checksum": "",
       "binarySize": 0
@@ -27,7 +27,7 @@
       "displayName": "Latest Standard (on push)",
       "version": "dev",
       "board": "esp32c3",
-      "featureFlags": "epub_support,bookerly_fonts,notosans_fonts,ota_updates,dark_mode,ble_wifi_provisioning,web_wifi_setup,usb_mass_storage",
+      "featureFlags": "epub_support,bookerly_fonts,notosans_fonts,ota_updates,dark_mode,ble_wifi_provisioning,web_wifi_setup",
       "downloadUrl": "https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases/download/latest/crosspoint-standard.bin",
       "checksum": "",
       "binarySize": 6070496
@@ -47,7 +47,7 @@
       "displayName": "Latest Full (on push)",
       "version": "dev",
       "board": "esp32c3",
-      "featureFlags": "epub_support,lexenddeca_fonts,chareink_fonts,markdown,ota_updates,dark_mode,ble_wifi_provisioning,web_wifi_setup,usb_mass_storage,koreader_sync,calibre_sync,todo_planner,notes",
+      "featureFlags": "epub_support,lexenddeca_fonts,chareink_fonts,markdown,ota_updates,dark_mode,ble_wifi_provisioning,web_wifi_setup,koreader_sync,calibre_sync,todo_planner,notes",
       "downloadUrl": "https://github.com/Unintendedsideeffects/ForkDrift-crosspointReader/releases/download/latest/crosspoint-full.bin",
       "checksum": "",
       "binarySize": 6094112

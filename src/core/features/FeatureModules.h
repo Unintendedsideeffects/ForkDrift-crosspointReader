@@ -45,7 +45,6 @@ enum class Capability {
   TerminusSleep,
   TodoPlanner,
   TrmnlSwitch,
-  UsbMassStorage,
   UserFonts,
   VisualCoverPicker,
   WebWallpaperPlugin,

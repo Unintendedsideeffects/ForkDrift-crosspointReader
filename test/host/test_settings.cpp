@@ -80,7 +80,6 @@ TEST_CASE("testSettingsRoundTrip") {
   s.autoSyncDayOnBackgroundPing = 1;
   s.lastTimeSyncEpoch = 1700000000UL;
   s.releaseChannel = CrossPointSettings::RELEASE_NIGHTLY;
-  s.usbMscPromptOnConnect = 1;
   s.wifiAutoConnect = CrossPointSettings::supportsBackgroundServerAlwaysMode() ? 1 : 0;
   strncpy(s.userFontPath, "/fonts/MyFont.ttf", sizeof(s.userFontPath) - 1);
   strncpy(s.selectedOtaBundle, "bundle-abc123", sizeof(s.selectedOtaBundle) - 1);
@@ -131,7 +130,6 @@ TEST_CASE("testSettingsRoundTrip") {
   s.autoSyncDayOnBackgroundPing = 0;
   s.lastTimeSyncEpoch = 0;
   s.releaseChannel = CrossPointSettings::RELEASE_STABLE;
-  s.usbMscPromptOnConnect = 0;
   s.wifiAutoConnect = 0;
   s.userFontPath[0] = '\0';
   s.selectedOtaBundle[0] = '\0';
@@ -174,7 +172,6 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(s.autoSyncDayOnBackgroundPing == 1);
   CHECK(s.lastTimeSyncEpoch == 1700000000UL);
   CHECK(s.releaseChannel == CrossPointSettings::RELEASE_NIGHTLY);
-  CHECK(s.usbMscPromptOnConnect == 1);
   CHECK(s.wifiAutoConnect == (CrossPointSettings::supportsBackgroundServerAlwaysMode() ? 1 : 0));
   CHECK(std::string(s.userFontPath) == "/fonts/MyFont.ttf");
   CHECK(std::string(s.selectedOtaBundle) == "bundle-abc123");
@@ -265,11 +262,8 @@ TEST_CASE("testQuickActionClampingAndSettingsWiring") {
   CHECK(s.shortPwrBtn == CrossPointSettings::IGNORE);
 #endif
 
-#if ENABLE_USB_MASS_STORAGE
+  // File Transfer (WiFi web server) is always available, so it survives clamping.
   CHECK(s.longPwrBtn == CrossPointSettings::FILE_TRANSFER);
-#else
-  CHECK(s.longPwrBtn == CrossPointSettings::IGNORE);
-#endif
 
 #if ENABLE_GUIDE_DOTS
   CHECK(s.longPressMenuAction == CrossPointSettings::LONG_MENU_TOGGLE_GUIDE_DOTS);

@@ -25,11 +25,7 @@ stateDiagram-v2
 
     StorageReady --> FeatureBootstrap: CoreBootstrap::initializeFeatureSystem()
     FeatureBootstrap --> SettingsLoaded: SETTINGS + APP_STATE loaded
-    SettingsLoaded --> UsbMassStorage: USB mass storage session requested
     SettingsLoaded --> ResumeDecision: normal interactive boot
-
-    UsbMassStorage --> Reboot: USB session exits
-    Reboot --> [*]
 
     ResumeDecision --> ResumeReader: lastSleepFromReader && openBook exists
     ResumeDecision --> Home: no resumable reader

@@ -334,11 +334,7 @@ static bool isShortPowerButtonActionSupported(const uint8_t action) {
       return false;
 #endif
     case S::FILE_TRANSFER:
-#if ENABLE_USB_MASS_STORAGE
       return true;
-#else
-      return false;
-#endif
     default:
       return action < S::SHORT_PWRBTN_COUNT;
   }
@@ -379,11 +375,7 @@ static bool isLongPressMenuActionSupported(const uint8_t action) {
       return false;
 #endif
     case S::LONG_MENU_FILE_TRANSFER:
-#if ENABLE_USB_MASS_STORAGE
       return true;
-#else
-      return false;
-#endif
     default:
       return action < S::LONG_PRESS_MENU_ACTION_COUNT;
   }
@@ -583,7 +575,6 @@ void CrossPointSettings::validateAndClamp() {
   if (wifiAutoConnect) {
     backgroundServerOnCharge = 1;
   }
-  usbMscPromptOnConnect = usbMscPromptOnConnect ? 1 : 0;
   developerMode = developerMode ? 1 : 0;
   setDeveloperModeLoggingEnabled(developerMode != 0);
 
@@ -787,7 +778,7 @@ std::string CrossPointSettings::getCondensedSettings() const {
   buffer[47] = timeZoneOffset;
   buffer[48] = releaseChannel;
   buffer[49] = darkMode;
-  buffer[50] = usbMscPromptOnConnect;
+  buffer[50] = 0;  // reserved (was usbMscPromptOnConnect; USB mass storage removed) — keep offset stable
   buffer[51] = wifiAutoConnect;
   buffer[52] = focusReadingEnabled;
   buffer[53] = guideReadingEnabled;

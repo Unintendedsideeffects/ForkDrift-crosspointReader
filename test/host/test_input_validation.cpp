@@ -1,11 +1,10 @@
+#include <string>
+
 #include "doctest/doctest.h"
 #include "src/util/InputValidation.h"
 #include "src/util/PathUtils.h"
-#include "src/util/UsbMscPrompt.h"
-#include <string>
 
 TEST_CASE("testInputValidation") {
-
   size_t index = 0;
   CHECK(!InputValidation::findAsciiControlChar("/ok/path", 8, index));
 
@@ -39,7 +38,6 @@ TEST_CASE("testInputValidation") {
 }
 
 TEST_CASE("testPathUtilsSecurity") {
-
   // ── containsTraversal ────────────────────────────────────────────────
   CHECK(PathUtils::containsTraversal("/../secret"));
   CHECK(PathUtils::containsTraversal("/books/.."));
@@ -103,26 +101,4 @@ TEST_CASE("testPathUtilsSecurity") {
     for (int i = 0; i < 260; ++i) longName += 'a';
     CHECK(!PathUtils::isValidFilename(longName));
   }
-}
-
-TEST_CASE("testUsbMscPromptGate") {
-
-  CHECK(!UsbMscPrompt::shouldShowOnUsbConnect(
-      /*promptEnabled=*/true, /*usbConnected=*/true, /*usbConnectedLast=*/false, /*hostSupportsUsbSerial=*/false,
-      /*sessionIdle=*/true));
-  CHECK(!UsbMscPrompt::shouldShowOnUsbConnect(
-      /*promptEnabled=*/true, /*usbConnected=*/false, /*usbConnectedLast=*/false, /*hostSupportsUsbSerial=*/true,
-      /*sessionIdle=*/true));
-  CHECK(!UsbMscPrompt::shouldShowOnUsbConnect(
-      /*promptEnabled=*/true, /*usbConnected=*/true, /*usbConnectedLast=*/true, /*hostSupportsUsbSerial=*/true,
-      /*sessionIdle=*/true));
-  CHECK(!UsbMscPrompt::shouldShowOnUsbConnect(
-      /*promptEnabled=*/false, /*usbConnected=*/true, /*usbConnectedLast=*/false, /*hostSupportsUsbSerial=*/true,
-      /*sessionIdle=*/true));
-  CHECK(!UsbMscPrompt::shouldShowOnUsbConnect(
-      /*promptEnabled=*/true, /*usbConnected=*/true, /*usbConnectedLast=*/false, /*hostSupportsUsbSerial=*/true,
-      /*sessionIdle=*/false));
-  CHECK(UsbMscPrompt::shouldShowOnUsbConnect(
-      /*promptEnabled=*/true, /*usbConnected=*/true, /*usbConnectedLast=*/false, /*hostSupportsUsbSerial=*/true,
-      /*sessionIdle=*/true));
 }

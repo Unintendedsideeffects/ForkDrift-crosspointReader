@@ -16,12 +16,11 @@ Keep both documents up to date when either side changes.
 | Transport | Android class | Status |
 |-----------|--------------|--------|
 | Wi-Fi HTTP/WS | `WifiTransport` | Implemented both sides |
-| USB serial JSON-RPC | `UsbTransport` | Implemented both sides |
-| USB mass storage | `UsbMassStorageTransport` | Implemented both sides (libaums) |
+| USB-CDC maintenance | — | Firmware OTA and test commands |
 | BLE provisioning | `BleTransport` | Implemented both sides |
 
 This document remains the umbrella transport contract for HTTP, UDP discovery,
-USB serial JSON-RPC, BLE provisioning, and other non-OpenAPI surfaces.
+USB-CDC maintenance commands, BLE provisioning, and other non-OpenAPI surfaces.
 
 ---
 
@@ -569,7 +568,6 @@ Use `isHeader` for header rows. Response: `{"ok":true}`.
 ---
 
 **Current status:** ✅ All three HTTP endpoints implemented.
-USB serial `todo_add` command also implemented (see §19).
 
 ---
 
@@ -642,66 +640,26 @@ Success response:
 
 ---
 
-## 19. USB serial JSON-RPC
+## 19. USB-CDC maintenance channel
 
-**Android:** `UsbTransport` at 115200 baud, 8N1. Each message is a single JSON
-object terminated by `\n`. The firmware must reply with a single JSON object
-terminated by `\n`.
+The firmware accepts newline-terminated `CMD:` lines on the USB-CDC logging
+stream. This is a narrow maintenance and test channel, not a general file or
+settings transport. Clients must ignore unrelated log lines and wait for the
+command-specific response before sending the next command.
 
-**Stream discipline:** the JSON-RPC channel is the same CDC stream the
-firmware uses for log output. The firmware suppresses serial log output while
-a protocol session is active (from the first received command line until 60 s
-pass without a complete command, or until the protocol is reset). Clients must
-still tolerate stray non-JSON lines — especially before the first response —
-by skipping any line that does not parse as a JSON object instead of failing
-the command. The firmware's CDC RX buffer holds one outstanding command line
-(up to ~4.2 KB for `ota_chunk`); clients must not pipeline a second command
-before the previous response arrives.
+Firmware OTA uses this sequence:
 
-**Command format:**
-```json
-{"cmd": "<command>", "arg": <argument>}
-```
+| Command | Payload | Response |
+|---------|---------|----------|
+| `CMD:OTA_BEGIN` | none | `OTA_OK` or `OTA_ERR:<reason>` |
+| `CMD:OTA_DATA:<base64>` | one base64 firmware chunk | `OTA_OK` or `OTA_ERR:<reason>` |
+| `CMD:OTA_END` | none | `OTA_OK`, then the device restarts into the verified image |
+| `CMD:OTA_ABORT` | none | `OTA_OK` |
 
-### Commands the Android app sends
-
-| cmd | arg | Expected response |
-|-----|-----|-------------------|
-| `status` | — | `{"ok":true,"version":"...","protocolVersion":1,"freeHeap":...,"uptime":...,"openBook":"...","otaSelectedBundle":"...","otaInstalledBundle":"..."}` |
-| `plugins` | — | `{"ok":true,"plugins":{"remote_open_book":true,"remote_page_turn":true,...}}` |
-| `list` | `"/path"` | `{"ok":true,"files":[{"name":"...","path":"...","dir":false,"size":...,"modified":0}]}` |
-| `download` | `"/path/file.epub"` | `{"ok":true,"data":"<base64>"}` |
-| `upload_start` | `{"name":"file.epub","path":"/dir","size":1234}` | `{"ok":true}` |
-| `upload_chunk` | `{"data":"<base64-chunk>"}` | `{"ok":true}` |
-| `upload_done` | — | `{"ok":true}` |
-| `delete` | `["/path/a", "/path/b"]` | `{"ok":true}` |
-| `mkdir` | `"/new/dir"` | `{"ok":true}` |
-| `rename` | `{"from":"/old","to":"/new"}` | `{"ok":true}` |
-| `move` | `{"from":"/src","to":"/dst"}` | `{"ok":true}` |
-| `settings_get` | — | `{"ok":true,"settings":{"key":value,...}}` |
-| `settings_set` | `{"key":value,...}` | `{"ok":true}` |
-| `recent` | — | `{"ok":true,"books":[{"path":"...","title":"...","author":"...","last_position":"1/12 8%","last_opened":0,"cover":"<base64-optional>"}]}` |
-| `cover` | `"/path/file.epub"` | `{"ok":true,"data":"<base64>"}` or `{"ok":false}` |
-| `wifi_connect` | `{"ssid":"...","password":"..."}` | `{"ok":true}` |
-| `wifi_status` | — | `{"ok":true,"connected":bool,"ssid":"...","ip":"...","rssi":-60}` (when connected) or `{"ok":true,"connected":false,"status":"disconnected\|failed\|no_ssid\|connecting"}` |
-| `open_book` | `"/path/file.epub"` | `{"ok":true}` |
-| `remote_button` | `"page_forward"\|"page_back"` | `{"ok":true}` |
-| `remote_keyboard_session_get` | — | `{"ok":true,"active":false}` or `{"ok":true,"active":true,"id":42,"title":"...","text":"...","maxLength":64,"isPassword":true,"claimedBy":"android"}` |
-| `remote_keyboard_claim` | `{"id":42,"client":"android"}` | same payload shape as `remote_keyboard_session_get` for the claimed session |
-| `remote_keyboard_submit` | `{"id":42,"text":"..."}` | `{"ok":true}` |
-| `todo_add` | `{"text":"...","type":"todo"\|"agenda"}` | `{"ok":true}` |
-
-**Error response** (for any command): `{"ok":false,"error":"<message>"}\n`
-
-**Notes:**
-- Upload is chunked: app sends base64 in 512-character string chunks, so each
-  `upload_chunk` carries ≈384 bytes of actual data.
-- The app reads with a 3 s timeout per window, up to 3 windows (9 s total) before
-  giving up on a response.
-- The `list` response must use `"dir"` not `"isDirectory"` (matches the HTTP contract).
-
-**Current status:** ✅ Implemented on fork-drift. Full protocol implemented in
-`src/UsbSerialProtocol.cpp` covering all commands in the table above.
+The image is written to the inactive OTA partition. The boot partition changes
+only after `OTA_END` validates the completed image, so an interrupted transfer
+leaves the current firmware bootable. `CMD:SCREENSHOT` and
+`CMD:APPLY_SETTINGS:<json>` remain available to the device test harness.
 
 ---
 
@@ -711,7 +669,6 @@ The Android app now supports a global remote keyboard handoff for any on-device 
 
 **Capability discovery:**
 - HTTP/WiFi transports read `remote_keyboard_input` from `GET /api/plugins`.
-- USB serial transports read `remote_keyboard_input` from the `plugins` command response.
 
 **HTTP endpoints:**
 - `GET /api/remote-keyboard/session` returns the active session snapshot or `{"active":false}`.
@@ -726,16 +683,11 @@ The Android app now supports a global remote keyboard handoff for any on-device 
 - `isPassword`
 - `claimedBy`
 
-**USB serial commands:**
-- `remote_keyboard_session_get`
-- `remote_keyboard_claim`
-- `remote_keyboard_submit`
-
 **Runtime behavior on firmware:**
 1. Opening the device keyboard starts a remote keyboard session when `remote_keyboard_input` is compiled in.
 2. If the Android app is already connected, it can claim and answer the session immediately.
 3. When the remote network session is ready, the device renders QR/browser fallback information and serves `/remote-input`.
-4. If WiFi is unavailable, the device starts a hotspot automatically and exposes the same browser flow there; Android can still answer over USB in parallel.
+4. If WiFi is unavailable, the device starts a hotspot automatically and exposes the same browser flow there.
 5. Pressing on-device confirm switches back to the local keyboard; pressing back cancels the keyboard as usual.
 
 **Current status:** ✅ Implemented on both WiFi and USB transports, including contract-test coverage via `WifiContractTransportTest`.
@@ -747,9 +699,7 @@ The Android app now supports a global remote keyboard handoff for any on-device 
 No known backend gaps remain for the Android HTTP contract documented here.
 
 Items resolved on the firmware side (fork-drift):
-- USB serial JSON-RPC — **implemented** in `src/UsbSerialProtocol.cpp`
 - mDNS hostname — **implemented**; hostname is `crosspoint-{name}` or `crosspoint-{last4mac}`
-- USB serial `status` now returns `otaSelectedBundle` and `otaInstalledBundle` — **fixed in `src/UsbSerialProtocol.cpp`**
 - HTTP `handleOpenBook` and `handleRemoteButton` now gate on `remote_open_book` / `remote_page_turn` feature flags — **fixed in `src/network/CrossPointWebServer.cpp`**
 
 Items previously listed as gaps that are now resolved on the Android side:

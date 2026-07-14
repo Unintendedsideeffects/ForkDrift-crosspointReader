@@ -146,8 +146,8 @@ Legend: ✅ present · ❌ absent · ⚙️ compile-time flag (off by default)
 | Web settings UI (WiFi + OPDS via browser) | ✅ | ✅ | ✅ |
 | Background web server (always-on) | ❌ | ❌ | ✅ |
 | BLE WiFi provisioning | ❌ | ❌ | ✅ |
-| USB mass storage | ❌ | ❌ | ✅ |
-| Remote control (virtual button injection over WiFi/USB) | ❌ | ❌ | ✅ |
+| USB serial firmware OTA | ❌ | ❌ | ✅ |
+| Remote control (virtual button injection over WiFi) | ❌ | ❌ | ✅ |
 | Remote keyboard input | ❌ | ❌ | ✅ |
 | WiFi clock (NTP sync) | ❌ | ❌ | ✅ |
 | OTA firmware updates | ✅ | ✅ | ✅ |

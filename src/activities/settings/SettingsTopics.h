@@ -70,8 +70,8 @@ inline bool isDeferredSystemSettingKey(const char* key) {
   if (key == nullptr) return false;
   const auto matches = [key](const char* candidate) { return std::strcmp(key, candidate) == 0; };
   if (std::any_of(kGeneralSystemKeys.begin(), kGeneralSystemKeys.end(), matches)) return true;
-  static const char* kAdvancedKeys[] = {"ankiConnectUrl",       "ankiConnectDeck", "usbMscPromptOnConnect",
-                                        "backgroundServerMode", "developerMode",   "deviceName"};
+  static const char* kAdvancedKeys[] = {"ankiConnectUrl", "ankiConnectDeck", "backgroundServerMode", "developerMode",
+                                        "deviceName"};
   return std::any_of(std::begin(kAdvancedKeys), std::end(kAdvancedKeys), matches);
 }
 
