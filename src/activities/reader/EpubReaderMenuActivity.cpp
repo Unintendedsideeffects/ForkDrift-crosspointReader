@@ -63,9 +63,13 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
   items.push_back({MenuAction::SYNC, StrId::STR_SYNC_PROGRESS});
   items.push_back(
       {MenuAction::TOGGLE_COMPLETED, isBookCompleted ? StrId::STR_MARK_UNFINISHED : StrId::STR_MARK_FINISHED});
+#if ENABLE_TEXT_SELECTION
+  // Anki capture routes through selection mode, so only offer it when text
+  // selection is compiled in.
   if (core::FeatureCatalog::isEnabled("anki_support")) {
     items.push_back({MenuAction::ADD_TO_ANKI, StrId::STR_ADD_TO_ANKI});
   }
+#endif
 #if ENABLE_DICTIONARY
   items.push_back({MenuAction::DICTIONARY, StrId::STR_DICTIONARY});
 #endif

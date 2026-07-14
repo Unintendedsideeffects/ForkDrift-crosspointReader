@@ -26,6 +26,12 @@ void move(Model& model, int delta);
 bool stepBack(Model& model);
 std::pair<int, int> span(const Model& model);
 std::string joinSpan(const std::vector<SelWord>& words, int lo, int hi);
+// Reconstructs the sentence surrounding the selected span [lo, hi] from the
+// page word list. Expands left/right to sentence boundaries (a word ending in
+// '.', '!' or '?'), then joins whole words up to the soft `maxChars` cap. The
+// selected span is always retained, even if it alone exceeds the cap, and no
+// UTF-8 codepoint is split.
+std::string sentenceSpan(const std::vector<SelWord>& words, int lo, int hi, size_t maxChars = 240);
 bool anchorByText(const std::vector<SelWord>& words, const std::string& text, int hintLo, int hintHi, int& outLo,
                   int& outHi);
 // Like anchorByText's slide search, but reports whether the text occurs more

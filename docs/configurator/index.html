@@ -2570,7 +2570,7 @@
                 <div class="card-body">
                   <div class="card-name">Anki Support</div>
                   <div class="card-size"></div>
-                  <div class="card-desc">Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. On-device flashcard hub with offline CSV deck support. Adds ~10 KB.</div>
+                  <div class="card-desc">Select a word or phrase while reading; it becomes the card front and its surrounding sentence becomes the back. Browse, edit, and export cards from the web UI.</div>
                 </div>
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
@@ -3421,8 +3421,8 @@
                   Card capture works but the review flow and export are still being built out.
                 </div>
                 <div class="companion-desc" style="margin-top: 8px;">
-                  Create flashcards while reading — the reader menu captures the first 10 words of the current page
-                  as the card front. Browse, edit card backs, and manage your deck from the device web UI at
+                  Create flashcards while reading — select a word or phrase for the card front and capture its
+                  surrounding sentence as the back. Browse, edit cards, and manage your deck from the device web UI at
                   <code>/plugins/anki</code>. Export as JSON for import into Anki Desktop.
                 </div>
               </div>
@@ -3842,6 +3842,7 @@
           sizeKb: 30,
           flag: "ENABLE_ANKI_SUPPORT",
           default: false,
+          requiresAll: ["text_selection"],
         },
         dark_mode: {
           sizeKb: 0,
@@ -3955,7 +3956,7 @@
         lua_plugins: "Dynamic Lua 5.4 scripting VM and plugin system loaded from the SD card.",
         todo_planner: "A minimal to-do list accessible from the nav bar. Items persist to the SD card. Useful for reading notes, wish lists, or errand reminders without leaving the device. When Notes is also enabled, Planner becomes the unified home-screen surface while Notes remains available through API and sleep-screen modes. Adds ~15 KB.",
         notes: "A lightweight line-based notes store backed by /notes.txt. Adds a standalone home-screen Notes app when Planner is disabled, exposes /api/notes endpoints and USB notes_add, and can render notes as a dedicated sleep screen.",
-        anki_support: "Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. On-device flashcard hub with offline CSV deck support (CPR-Vortex). JSON export for import into Anki Desktop. Adds ~10 KB.",
+        anki_support: "Select a word or phrase while reading; it becomes the card front and its surrounding sentence becomes the back. Browse, edit, and export cards from the web UI. Includes the offline CSV deck hub from CPR-Vortex.",
         dictionary_lookup: "In-reader SD dictionary lookup. Adds ~5 KB.",
         text_selection: "In-reader highlight cursor: select words or spans, then dictionary, Anki, or per-book Markdown notes. Adds ~3 KB.",
         annotations: "Persistent highlights that survive across sessions, per book. Relayout-tolerant. Inspired by Inx (MIT). Adds ~3 KB.",
@@ -4008,6 +4009,8 @@
         haiku_clock_sleep: ["wifi_clock"],
         minimal_theme: ["lyra_theme"],
         remote_keyboard_input: ["remote_control"],
+        text_selection: ["epub_support"],
+        anki_support: ["text_selection"],
       };
 
       // At least one listed parent must be enabled (OR semantics).
@@ -4084,6 +4087,7 @@
           todo_planner: true,
           notes: true,
           anki_support: true,
+          text_selection: true,
           dictionary_lookup: true,
           background_server: true,
           background_server_on_charge: true,

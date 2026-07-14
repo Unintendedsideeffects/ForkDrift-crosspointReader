@@ -12,9 +12,10 @@
 #include "util/AnkiStore.h"
 
 AnkiAddActivity::AnkiAddActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string frontText,
-                                 std::string contextText)
+                                 std::string backText, std::string contextText)
     : Activity("AnkiAdd", renderer, mappedInput),
       frontText(std::move(frontText)),
+      backText(std::move(backText)),
       contextText(std::move(contextText)) {}
 
 void AnkiAddActivity::onEnter() {
@@ -26,7 +27,7 @@ void AnkiAddActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     util::AnkiCard card;
     card.front = frontText;
-    card.back = "";  // Needs back-side input logic
+    card.back = backText;  // Surrounding sentence captured from the selection
     card.context = contextText;
 
     const std::time_t now = std::time(nullptr);
@@ -54,7 +55,7 @@ void AnkiAddActivity::render(RenderLock&&) {
 
   renderer.drawCenteredText(UI_12_FONT_ID, 40, tr(STR_ADD_TO_ANKI), true, EpdFontFamily::BOLD);
 
-  // Card Preview box
+  // Card Preview box: front (selected word/phrase) over back (its sentence).
   const int boxMargin = 30;
   const int boxWidth = pageWidth - (boxMargin * 2);
   const int boxHeight = 150;
@@ -62,11 +63,21 @@ void AnkiAddActivity::render(RenderLock&&) {
 
   renderer.drawRect(boxMargin, boxY, boxWidth, boxHeight);
 
-  // Truncated front text
-  std::string displayFront = renderer.truncatedText(UI_10_FONT_ID, frontText.c_str(), boxWidth - 20);
-  renderer.drawCenteredText(UI_10_FONT_ID, boxY + 40, displayFront.c_str());
+  // Front: the selected text, truncated to a single line.
+  std::string displayFront = renderer.truncatedText(UI_12_FONT_ID, frontText.c_str(), boxWidth - 20);
+  renderer.drawCenteredText(UI_12_FONT_ID, boxY + 35, displayFront.c_str(), true, EpdFontFamily::BOLD);
 
-  renderer.drawCenteredText(UI_10_FONT_ID, boxY + 80, "...", false, EpdFontFamily::ITALIC);
+  // Back: the surrounding sentence, wrapped to a couple of lines.
+  if (!backText.empty()) {
+    std::vector<std::string> lines = renderer.wrappedText(UI_10_FONT_ID, backText.c_str(), boxWidth - 20, 3);
+    int lineY = boxY + 75;
+    for (const auto& line : lines) {
+      renderer.drawCenteredText(UI_10_FONT_ID, lineY, line.c_str(), false, EpdFontFamily::ITALIC);
+      lineY += renderer.getLineHeight(UI_10_FONT_ID);
+    }
+  } else {
+    renderer.drawCenteredText(UI_10_FONT_ID, boxY + 80, tr(STR_NONE_OPT), false, EpdFontFamily::ITALIC);
+  }
 
   if (saved) {
     renderer.drawCenteredText(UI_12_FONT_ID, boxY + boxHeight + 40, tr(STR_ANKI_SAVED), true, EpdFontFamily::BOLD);

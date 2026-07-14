@@ -184,7 +184,7 @@ FEATURES = {
         name='Anki Support',
         flag='ENABLE_ANKI_SUPPORT',
         size_kb=30,
-        description='Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop.'
+        description='Flashcard creation from selected reader text, with the selected phrase on the front and its surrounding sentence on the back. Browse, edit, and export cards from the web UI.'
     ),
     'dictionary_lookup': Feature(
         name='Dictionary Lookup',
@@ -535,7 +535,7 @@ FEATURE_METADATA = {
     'anki_support': FeatureMetadata(
         implemented=True,
         stable=True,
-        requires=[],
+        requires=['text_selection'],
         conflicts=[],
         recommends=[]
     ),
@@ -543,6 +543,13 @@ FEATURE_METADATA = {
         implemented=True,
         stable=True,
         requires=[],
+        conflicts=[],
+        recommends=[]
+    ),
+    'text_selection': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=['epub_support'],
         conflicts=[],
         recommends=[]
     ),
@@ -838,6 +845,7 @@ PROFILES = {
             'todo_planner': True,
             'notes': True,
             'anki_support': True,
+            'text_selection': True,
             'background_server': True,
             'background_server_on_charge': True,
             'background_server_always': True,

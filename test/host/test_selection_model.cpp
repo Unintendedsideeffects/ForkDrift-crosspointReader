@@ -96,6 +96,56 @@ TEST_CASE("SelectionModel joinSpan preserves selection spacing") {
   CHECK(selection::joinSpan(words, 1, 5) == "two three");
 }
 
+TEST_CASE("SelectionModel sentenceSpan expands a single-word selection to its sentence") {
+  const auto words = makeWords({"The", "quick", "brown", "fox.", "It", "ran", "away."});
+
+  // Select "brown" (index 2) -> whole first sentence.
+  CHECK(selection::sentenceSpan(words, 2, 2) == "The quick brown fox.");
+  // Select "ran" (index 5) -> second sentence only.
+  CHECK(selection::sentenceSpan(words, 5, 5) == "It ran away.");
+}
+
+TEST_CASE("SelectionModel sentenceSpan handles page edges without a terminator") {
+  const auto words = makeWords({"a", "mid-page", "fragment", "with", "no", "period"});
+
+  CHECK(selection::sentenceSpan(words, 2, 2) == "a mid-page fragment with no period");
+}
+
+TEST_CASE("SelectionModel sentenceSpan ignores terminators hidden behind closing quotes") {
+  const auto words = makeWords({"He", "said", "\"stop!\"", "and", "left."});
+
+  // The '!' is a real terminator even with a trailing quote, so it ends here.
+  CHECK(selection::sentenceSpan(words, 0, 0) == "He said \"stop!\"");
+  CHECK(selection::sentenceSpan(words, 3, 3) == "and left.");
+}
+
+TEST_CASE("SelectionModel sentenceSpan trims to a word boundary under the cap") {
+  const auto words = makeWords({"alpha", "beta", "gamma", "delta"});
+
+  // Cap of 12 fits "alpha beta" (10) but not "... gamma" (16); trim on the space.
+  CHECK(selection::sentenceSpan(words, 0, 0, 12) == "alpha beta");
+}
+
+TEST_CASE("SelectionModel sentenceSpan retains a late selection under the cap") {
+  const auto words = makeWords({"alpha", "beta", "gamma", "delta"});
+
+  CHECK(selection::sentenceSpan(words, 3, 3, 12) == "gamma delta");
+}
+
+TEST_CASE("SelectionModel sentenceSpan does not split unspaced UTF-8 selections") {
+  const auto words = makeWords({"ééé"});
+
+  // Five bytes would split the third two-byte codepoint, so the soft cap yields
+  // to retaining the complete selected word.
+  CHECK(selection::sentenceSpan(words, 0, 0, 5) == "ééé");
+}
+
+TEST_CASE("SelectionModel sentenceSpan is safe on an empty page") {
+  const std::vector<selection::SelWord> words;
+
+  CHECK(selection::sentenceSpan(words, 0, 0) == "");
+}
+
 TEST_CASE("SelectionModel anchorByText uses hints then slides by first word") {
   const auto words = makeWords({"alpha", "beta", "gamma", "alpha", "beta"});
 

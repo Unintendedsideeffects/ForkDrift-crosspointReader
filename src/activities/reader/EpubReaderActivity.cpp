@@ -19,6 +19,7 @@
 #include <limits>
 
 #include "AnkiAddActivity.h"
+#include "SilentRestart.h"
 #include "core/features/FeatureCatalog.h"
 #if ENABLE_TEXT_SELECTION
 #include "util/AnnotationStore.h"
@@ -451,6 +452,48 @@ void EpubReaderActivity::loop() {
     // Should never happen
     finish();
     return;
+  }
+
+  // Heap-defrag refresh: a heavy foreground index (createSectionFile) fragmented
+  // the heap. We're now back in loop() with that render's transient allocations
+  // released, so reclaim the fragmentation the only way the ESP32 can — a silent
+  // reboot straight back into this book (mirrors recoverHeapAfterWifi; the heap
+  // cannot be compacted in place). The threshold is intentionally high so that
+  // essentially every long index is followed by a refresh, guaranteeing that
+  // memory-heavy screens (Controls, Reader Options) open cleanly afterward. The
+  // freshly written section cache makes the resume a cheap load, so no boot loop.
+  if (heapDirtyFromIndexing_) {
+    const unsigned long now = millis();
+    const bool retryDue = heapDefragRetryAfterMs_ == 0 || static_cast<long>(now - heapDefragRetryAfterMs_) >= 0;
+    if (retryDue) {
+      constexpr size_t kHeapDefragLargestBlockThreshold = 120 * 1024;
+      const size_t largestBlock = heapguard::largestBlock();
+      if (!section || largestBlock >= kHeapDefragLargestBlockThreshold) {
+        heapDirtyFromIndexing_ = false;
+        heapDefragRetryAfterMs_ = 0;
+      } else if (serialOtaInProgress()) {
+        // OTA_END reboots on success; OTA_ABORT leaves this flag set so the
+        // defrag restart is retried once the flash transaction is no longer active.
+        heapDefragRetryAfterMs_ = now + 1000;
+      } else if (!saveProgress(currentSpineIndex, section->currentPage, section->pageCount)) {
+        LOG_WRN("ERS", "Failed to persist progress before heap refresh; retrying");
+        heapDefragRetryAfterMs_ = now + 2000;
+      } else {
+        APP_STATE.openEpubPath = epub->getPath();
+        if (!APP_STATE.saveToFile()) {
+          LOG_WRN("ERS", "Failed to persist resume state before heap refresh; retrying");
+          heapDefragRetryAfterMs_ = now + 2000;
+        } else {
+          LOG_WRN("ERS", "Post-index heap fragmented (largest=%u < %u): silent refresh reboot",
+                  static_cast<unsigned>(largestBlock), static_cast<unsigned>(kHeapDefragLargestBlockThreshold));
+          if (silentRestartToReader()) {
+            heapDirtyFromIndexing_ = false;
+            return;
+          }
+          heapDefragRetryAfterMs_ = now + 1000;
+        }
+      }
+    }
   }
 
   if (mappedInput.wasAnyPressed() || mappedInput.wasAnyReleased()) {
@@ -1199,34 +1242,15 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
     }
 #endif
     case EpubReaderMenuActivity::MenuAction::ADD_TO_ANKI: {
-      if (section && section->currentPage >= 0 && section->currentPage < section->pageCount) {
-        auto p = section->loadPageFromSectionFile();
-        if (p) {
-          std::string firstWords;
-          int wordCount = 0;
-          for (const auto& el : p->elements) {
-            if (el->getTag() == TAG_PageLine) {
-              const auto& line = static_cast<const PageLine&>(*el);
-              if (line.getBlock()) {
-                for (const auto& w : line.getBlock()->getWords()) {
-                  if (!firstWords.empty()) firstWords += " ";
-                  firstWords += w;
-                  if (++wordCount >= 10) break;
-                }
-              }
-            }
-            if (wordCount >= 10) break;
-          }
-          if (!firstWords.empty()) {
-            startActivityForResult(
-                std::make_unique<AnkiAddActivity>(renderer, mappedInput, firstWords, epub->getTitle()),
-                [](const ActivityResult&) {});
-            break;
-          }
-          LOG_WRN("EPUB", "ADD_TO_ANKI: no text found on current page");
-        }
-      }
+#if ENABLE_TEXT_SELECTION
+      // Anki cards are built from a text selection: the chosen word/phrase
+      // becomes the front and its surrounding sentence the back. Drop into
+      // selection mode and let openSelectionActions() perform the capture.
+      enterSelectionMode();
+#else
+      LOG_WRN("EPUB", "ADD_TO_ANKI requires text selection");
       requestUpdate();
+#endif
       break;
     }
     case EpubReaderMenuActivity::MenuAction::GO_HOME: {
@@ -1641,6 +1665,15 @@ void EpubReaderActivity::render(RenderLock&& lock) {
         renderReaderError(StrId::STR_LOAD_EPUB_FAILED);
         return;
       }
+      // A full section (re)index just parsed + paginated this chapter and wrote it
+      // to SD. On the ESP32-C3 that heavy transient churn leaves the heap
+      // fragmented — total free can look healthy while the largest contiguous
+      // block is too small for later memory-heavy screens (Controls / Reader
+      // Options build a ~48-entry std::vector<SettingInfo>). Flag a heap-defrag
+      // refresh; loop() reclaims it via a silent reboot back into this book once
+      // this render completes. The cache we just wrote makes the post-reboot
+      // resume a cheap loadSectionFile, so this cannot boot-loop.
+      heapDirtyFromIndexing_ = true;
     } else {
       LOG_DBG("ERS", "Cache found, skipping build...");
     }
@@ -2319,8 +2352,18 @@ void EpubReaderActivity::openSelectionActions() {
       }
 #endif
       case 1: {
+        // Capture the surrounding sentence (back) and source (context) while the
+        // selection model is still populated — exitSelectionMode() clears it.
+        const auto [selLo, selHi] = selection::span(selModel);
+        const std::string sentence = selection::sentenceSpan(selModel.words, selLo, selHi);
+        std::string source = epub->getTitle();
+        const std::string loc = selectionLocation();
+        if (!loc.empty()) {
+          source += ", ";
+          source += loc;
+        }
         exitSelectionMode();
-        startActivityForResult(std::make_unique<AnkiAddActivity>(renderer, mappedInput, text, epub->getTitle()),
+        startActivityForResult(std::make_unique<AnkiAddActivity>(renderer, mappedInput, text, sentence, source),
                                [this](const ActivityResult&) { requestUpdate(); });
         return;
       }

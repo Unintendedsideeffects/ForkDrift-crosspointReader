@@ -31,6 +31,7 @@
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
 #include "SdCardFontSystem.h"
+#include "SilentRestart.h"
 #include "activities/ActivityManager.h"
 #include "activities/RenderLock.h"
 #include "activities/boot_sleep/SleepActivity.h"
@@ -124,26 +125,27 @@ static esp_ota_handle_t s_serialOtaHandle = 0;
 static const esp_partition_t* s_serialOtaPartition = nullptr;
 #endif
 
-void silentRestart(uint32_t target = SILENT_REBOOT_TARGET_HOME) {
-  if (deepSleepInProgress) return;  // sleeping supersedes the heap-defrag reboot
+bool silentRestart(uint32_t target) {
+  if (deepSleepInProgress) return false;  // sleeping supersedes the heap-defrag reboot
   if (serialOtaInProgress()) {
     // Never reboot mid-OTA: esp_ota_end has not run, so a restart here aborts the
     // flash write mid-stream and drops the host's upload. OTA_END issues its own
     // restart once the image is finalized.
     LOG_WRN("MAIN", "Silent restart suppressed: serial OTA in progress");
-    return;
+    return false;
   }
   silentRebootTarget = target;
   silentRebootMagic = SILENT_REBOOT_MAGIC;
   LOG_DBG("MAIN", "Silent restart (target=%d)", target);
   delay(50);
   ESP.restart();
+  return true;
 }
 
 // Resume straight back into the currently open book (APP_STATE.openEpubPath) with
 // a freshly defragmented heap. The boot dispatcher routes SILENT_REBOOT_TARGET_READER
 // in setup() (see the silentReboot branch there).
-void silentRestartToReader() { silentRestart(SILENT_REBOOT_TARGET_READER); }
+bool silentRestartToReader() { return silentRestart(SILENT_REBOOT_TARGET_READER); }
 
 static bool backgroundServerKeepsWifiWhileAwake() {
   if (SETTINGS.keepsBackgroundServerOnWifiWhileAwake()) {

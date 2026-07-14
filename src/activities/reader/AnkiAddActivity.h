@@ -7,7 +7,7 @@
 class AnkiAddActivity final : public Activity {
  public:
   explicit AnkiAddActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string frontText,
-                           std::string contextText);
+                           std::string backText, std::string contextText);
 
   void onEnter() override;
   void loop() override;
@@ -15,6 +15,7 @@ class AnkiAddActivity final : public Activity {
 
  private:
   std::string frontText;
+  std::string backText;
   std::string contextText;
   bool saved = false;
 };

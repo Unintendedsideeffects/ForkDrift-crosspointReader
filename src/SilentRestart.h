@@ -4,8 +4,9 @@
 // skips the boot splash and routes straight to a destination. Used to clear
 // heap fragmentation accumulated during a wifi session.
 
-void silentRestart(uint32_t target = 0);  // 0 = home screen, 1 = reader
-void silentRestartToReader();             // shorthand for silentRestart(1)
+bool serialOtaInProgress();
+bool silentRestart(uint32_t target = 0);  // 0 = home screen, 1 = reader
+bool silentRestartToReader();             // shorthand for silentRestart(1)
 
 // Fully de-inits WiFi (esp_wifi_stop + deinit, which returns the WiFi/LWIP heap)
 // and then reboots to home ONLY when the largest contiguous block is still too

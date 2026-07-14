@@ -12,6 +12,7 @@ namespace {
 
 constexpr const char* kRequiresBookImagesAny[] = {"epub_support", "markdown"};
 constexpr const char* kRequiresTextSelectionAll[] = {"epub_support"};
+constexpr const char* kRequiresAnkiAll[] = {"text_selection"};
 constexpr const char* kRequiresAnnotationsAll[] = {"text_selection"};
 constexpr const char* kRequiresKOReaderSyncAll[] = {"integrations"};
 constexpr const char* kRequiresCalibreSyncAll[] = {"integrations"};
@@ -62,7 +63,8 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"pokemon_party", "Pokemon Party", ENABLE_POKEMON_PARTY != 0, kRequiresPokemonPartyAll,
      sizeof(kRequiresPokemonPartyAll) / sizeof(kRequiresPokemonPartyAll[0]), nullptr, 0},
     {"web_wallpaper_plugin", "Web Wallpaper", ENABLE_WEB_WALLPAPER_PLUGIN != 0, nullptr, 0, nullptr, 0},
-    {"anki_support", "Anki Support", ENABLE_ANKI_SUPPORT != 0, nullptr, 0, nullptr, 0},
+    {"anki_support", "Anki Support", ENABLE_ANKI_SUPPORT != 0, kRequiresAnkiAll,
+     sizeof(kRequiresAnkiAll) / sizeof(kRequiresAnkiAll[0]), nullptr, 0},
     {"text_selection", "Text Selection", ENABLE_TEXT_SELECTION != 0, kRequiresTextSelectionAll,
      sizeof(kRequiresTextSelectionAll) / sizeof(kRequiresTextSelectionAll[0]), nullptr, 0},
     {"annotations", "Annotations", ENABLE_ANNOTATIONS != 0, kRequiresAnnotationsAll,

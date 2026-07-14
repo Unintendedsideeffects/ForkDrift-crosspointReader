@@ -579,9 +579,9 @@ The double-tap state machine is only active when the short-press action is set t
 **Flag:** `ENABLE_ANKI_SUPPORT`  
 **Size Impact:** ~30KB  
 **Default:** Disabled  
-**Depends on:** None  
+**Depends on:** Text Selection (and transitively EPUB Support)
 
-Flashcard creation from the reader menu — captures the first 10 words of the current page as the card front. Browse, edit, and export cards from the web UI. JSON export for import into Anki Desktop.
+Select a word or phrase while reading; it becomes the card front and its surrounding sentence becomes the back. Browse, edit, and export cards from the web UI.
 
 ---
 

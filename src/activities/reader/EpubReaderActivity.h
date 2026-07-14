@@ -49,6 +49,10 @@ class EpubReaderActivity final : public Activity {
   bool skipNextButtonCheck = false;  // Skip button processing for one frame after subactivity exit
   bool automaticPageTurnActive = false;
   bool previewRenderOnly = false;
+  // Set after a heavy foreground section index (createSectionFile). loop() acts on
+  // it with a heap-defrag silent reboot when the largest free block is too small.
+  bool heapDirtyFromIndexing_ = false;
+  unsigned long heapDefragRetryAfterMs_ = 0;
 #if ENABLE_READING_STATS
   BookReadingStats stats;
   GlobalReadingStats globalStats;
