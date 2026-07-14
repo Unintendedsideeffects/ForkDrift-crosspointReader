@@ -42,6 +42,7 @@ namespace settings_topics {
 
 inline const std::vector<SettingsTopicGroup> kDisplay{
     {StrId::STR_SEC_APPEARANCE, {"uiTheme", "recentBooksView", "darkMode", "fadingFix"}},
+    {StrId::STR_SEC_STATUS_BAR, {"globalStatusBarPosition"}},
     {StrId::STR_SEC_SLEEP,
      {"sleepScreenSplit", "sleepScreen", "sleepScreenReader", "sleepScreenHome", "sleepScreenSource",
       "sleepScreenCoverMode", "sleepScreenCoverFilter", "sleepCycleMode", "haikuClockLandscape",
@@ -56,7 +57,7 @@ inline const std::vector<SettingsTopicGroup> kReader{
     {StrId::STR_SEC_LAYOUT,
      {"orientation", "paragraphAlignment", "screenMargin", "extraParagraphSpacing", "forceParagraphIndents"}},
     {StrId::STR_SEC_READING_AIDS, {"focusReadingEnabled", "guideReadingEnabled", "imageRendering"}},
-    {StrId::STR_SEC_STATUS_BAR, {"globalStatusBarPosition", "hideBatteryPercentage"}},
+    {StrId::STR_SEC_STATUS_BAR, {"hideBatteryPercentage"}},
 };
 
 inline const std::vector<const char*> kGeneralSystemKeys = {

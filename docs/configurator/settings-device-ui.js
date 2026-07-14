@@ -1,7 +1,7 @@
 window.ConfiguratorSettingsDeviceUi = (function () {
   const SETTINGS_TABS = [
-    { label: 'Display', categories: ['Display'] },
-    { label: 'Reader', categories: ['Reader', 'Customise Status Bar'] },
+    { label: 'Looks', categories: ['Display'] },
+    { label: 'Reading', categories: ['Reader', 'Customise Status Bar'] },
     { label: 'Controls', categories: ['Controls'] },
     { label: 'System', categories: ['System', 'Time', 'Advanced'] },
   ];
@@ -19,6 +19,7 @@ window.ConfiguratorSettingsDeviceUi = (function () {
   const SETTINGS_TAB_TOPICS = [
     [
       { label: 'APPEARANCE', keys: ['uiTheme', 'recentBooksView', 'darkMode', 'fadingFix'] },
+      { label: 'STATUS BAR', keys: ['globalStatusBarPosition'] },
       { label: 'SLEEP SCREEN', keys: ['sleepScreen', 'smartSleepReaderMode', 'smartSleepHomeMode', 'sleepScreenSource', 'sleepScreenCoverMode', 'sleepScreenCoverFilter', 'sleepCycleMode', 'haikuClockLandscape', 'trmnlSleepEnabled', 'sleepPinnedPath'] },
       { label: 'DISPLAY', keys: ['refreshFrequency'] },
     ],
@@ -26,7 +27,7 @@ window.ConfiguratorSettingsDeviceUi = (function () {
       { label: 'TEXT', keys: ['fontFamily', 'userFontPath', 'fontSize', 'lineSpacing', 'textAntiAliasing', 'hyphenationEnabled', 'embeddedStyle'] },
       { label: 'LAYOUT', keys: ['orientation', 'paragraphAlignment', 'screenMargin', 'extraParagraphSpacing', 'forceParagraphIndents'] },
       { label: 'READING AIDS', keys: ['focusReadingEnabled', 'guideReadingEnabled', 'imageRendering'] },
-      { label: 'STATUS BAR', keys: ['globalStatusBarPosition', 'hideBatteryPercentage'] },
+      { label: 'STATUS BAR', keys: ['hideBatteryPercentage'] },
     ],
     [],
     [

@@ -28,6 +28,24 @@ size_t optionIndexForValue(const SettingInfo& setting, const uint8_t value) {
 
 }  // namespace
 
+TEST_CASE("settings metadata keeps Looks and sleep controls available") {
+  Storage.reset();
+  const auto settings = getSettingsList();
+
+  const SettingInfo* sleepFilter = findSettingByKey(settings, "sleepScreenCoverFilter");
+  REQUIRE(sleepFilter != nullptr);
+  CHECK(sleepFilter->category == StrId::STR_CAT_DISPLAY);
+  CHECK(sleepFilter->visiblePredicate == nullptr);
+
+  const SettingInfo* globalStatusBar = findSettingByKey(settings, "globalStatusBarPosition");
+#if ENABLE_GLOBAL_STATUS_BAR
+  REQUIRE(globalStatusBar != nullptr);
+  CHECK(globalStatusBar->category == StrId::STR_CAT_DISPLAY);
+#else
+  CHECK(globalStatusBar == nullptr);
+#endif
+}
+
 TEST_CASE("testSettingsRoundTrip") {
   // Reset in-memory filesystem between tests.
   Storage.reset();

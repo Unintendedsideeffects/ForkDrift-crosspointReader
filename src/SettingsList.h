@@ -631,8 +631,7 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
   emit(SettingInfo::Enum(StrId::STR_SLEEP_COVER_FILTER, &CrossPointSettings::sleepScreenCoverFilter,
                          {StrId::STR_NONE_OPT, StrId::STR_FILTER_CONTRAST, StrId::STR_INVERTED},
                          "sleepScreenCoverFilter", StrId::STR_CAT_DISPLAY)
-           .withConfiguratorExport()
-           .withVisiblePredicate(sleepCustomOrCoverActive));
+           .withConfiguratorExport());
   emit(SettingInfo::Enum(StrId::STR_SLEEP_CYCLE_MODE, &CrossPointSettings::sleepCycleMode,
                          {StrId::STR_RANDOM, StrId::STR_SEQUENTIAL}, "sleepCycleMode", StrId::STR_CAT_DISPLAY)
            .withConfiguratorExport()
@@ -943,7 +942,7 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
   if (core::FeatureModules::hasCapability(core::Capability::GlobalStatusBar)) {
     emit(SettingInfo::Enum(StrId::STR_STATUS_BAR_POSITION, &CrossPointSettings::globalStatusBarPosition,
                            {StrId::STR_STATUS_BAR_TOP, StrId::STR_STATUS_BAR_BOTTOM, StrId::STR_OFF},
-                           "globalStatusBarPosition", StrId::STR_CAT_READER)
+                           "globalStatusBarPosition", StrId::STR_CAT_DISPLAY)
              .withConfiguratorExport("global_status_bar"));
   }
 

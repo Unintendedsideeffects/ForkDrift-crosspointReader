@@ -289,6 +289,7 @@ void SettingsActivity::rebuildSettingsLists() {
   for (const char* key : settings_topics::kGeneralSystemKeys) {
     addSystemSettingByKey(key);
   }
+  addSystemActionDirect(StrId::STR_LANGUAGE, SettingAction::Language);
 
 #if ENABLE_WIFI_CLOCK
   systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_TIME));
@@ -296,17 +297,19 @@ void SettingsActivity::rebuildSettingsLists() {
   addSystemSettingByKey("timeZoneOffset");
 #endif
 
+  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_MAINTENANCE));
   addSystemActionDirect(StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates);
   addSystemActionDirect(StrId::STR_SD_FIRMWARE_UPDATE, SettingAction::SdFirmwareUpdate);
-  addSystemActionDirect(StrId::STR_LANGUAGE, SettingAction::Language);
-
-  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_MAINTENANCE));
   addSystemActionDirect(StrId::STR_SCREEN_CLEAN, SettingAction::ScreenClean);
   addSystemActionDirect(StrId::STR_VALIDATE_SLEEP_IMAGES, SettingAction::ValidateSleepImages);
   addSystemActionDirect(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache);
   addSystemActionDirect(StrId::STR_CLEAR_LOGS, SettingAction::ClearLogs);
   addSystemActionDirect(StrId::STR_BACKUP_SETTINGS, SettingAction::BackupSettings);
   addSystemActionDirect(StrId::STR_RESTORE_SETTINGS, SettingAction::RestoreSettings);
+  addSystemActionDirect(StrId::STR_RESET_SETTINGS, SettingAction::ResetSettings);
+  addSystemActionDirect(StrId::STR_CLEAR_WIFI_NETWORKS, SettingAction::ClearWifiNetworks);
+  addSystemActionDirect(StrId::STR_CLEAR_CRASHES, SettingAction::ClearCrashes);
+  addSystemActionDirect(StrId::STR_FACTORY_RESET, SettingAction::FactoryReset);
 
   // 6. Advanced (Index 5)
   auto& advancedSettings = settingsByCategory[5];
@@ -322,20 +325,9 @@ void SettingsActivity::rebuildSettingsLists() {
       advancedSettings.push_back(*it);
     }
   };
-  auto addAdvancedActionDirect = [&](StrId nameId, SettingAction action) {
-    if (!core::FeatureModules::supportsSettingAction(action)) return;
-    advancedSettings.push_back(SettingInfo::Action(nameId, action));
-  };
-
   advancedSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_ADVANCED));
   addAdvancedSettingByKey("developerMode");
   addAdvancedSettingByKey("deviceName");
-
-  advancedSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_MAINTENANCE));
-  addAdvancedActionDirect(StrId::STR_RESET_SETTINGS, SettingAction::ResetSettings);
-  addAdvancedActionDirect(StrId::STR_CLEAR_WIFI_NETWORKS, SettingAction::ClearWifiNetworks);
-  addAdvancedActionDirect(StrId::STR_CLEAR_CRASHES, SettingAction::ClearCrashes);
-  addAdvancedActionDirect(StrId::STR_FACTORY_RESET, SettingAction::FactoryReset);
 
   currentSettings = &settingsByCategory[selectedCategoryIndex];
   settingsCount = static_cast<int>(currentSettings->size());
