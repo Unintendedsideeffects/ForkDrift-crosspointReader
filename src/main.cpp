@@ -776,7 +776,7 @@ void loop() {
     return;
   }
 
-  gpio.update();
+  mappedInputManager.update();
   renderer.setFadingFix(SETTINGS.fadingFix);
 
   if (Serial && millis() - lastMemPrint >= 10000) {

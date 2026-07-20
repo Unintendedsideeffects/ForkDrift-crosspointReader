@@ -689,6 +689,15 @@ void EpubReaderActivity::loop() {
   }
 #endif
 
+  auto dualConfirm = mappedInput.peekReaderDualSideConfirmRelease();
+  auto action = static_cast<CrossPointSettings::LONG_PRESS_MENU_ACTION>(SETTINGS.longPressMenuAction);
+  auto classification = ReaderUtils::classifyDualSideConfirmAction(dualConfirm, action);
+  if (classification == ReaderUtils::DualSideConfirmClassification::DISPATCH_QUICK_ACTION) {
+    mappedInput.consumeReaderDualSideConfirmRelease();
+    executeLongPressMenuAction();
+    return;
+  }
+
   auto [prevTriggered, nextTriggered, fromSideBtn] = ReaderUtils::detectPageTurn(mappedInput);
   if (!prevTriggered && !nextTriggered) {
     return;
@@ -2279,6 +2288,7 @@ void EpubReaderActivity::enterSelectionMode() {
     LOG_INF("ERS", "Selection: no selectable words on page");
     return;
   }
+  mappedInput.setReaderMode(false);
   selectionMode = true;
   selModel.anchored = false;
   selModel.cursor = 0;
@@ -2290,6 +2300,7 @@ void EpubReaderActivity::enterSelectionMode() {
 
 void EpubReaderActivity::exitSelectionMode() {
   selectionMode = false;
+  mappedInput.setReaderMode(true);
   selModel.anchored = false;
   selectionBaseSnapshot.reset();
   selectionSnapshotFallback = false;

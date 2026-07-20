@@ -105,6 +105,21 @@ bool equalsLabel(const char* value, const char* expected) {
 }
 }  // namespace
 
+void MappedInputManager::update() {
+  gpio.update();
+
+  bool isNowPressed = gpio.isPressed(HalGPIO::BTN_CONFIRM);
+
+  physConfirmTracker.update(isNowPressed, millis());
+
+#ifdef SIMULATOR
+  if (simulatorPhysConfirmReleasePending) {
+    physConfirmTracker.simulatorInjectRelease(simulatorPhysConfirmReleaseDuration);
+    simulatorPhysConfirmReleasePending = false;
+  }
+#endif
+}
+
 bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint8_t) const) const {
   auto sideLayout = static_cast<CrossPointSettings::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
   // SIDE_BUTTONS_DISABLED: page-turn side buttons produce no action (upstream
@@ -280,7 +295,8 @@ bool MappedInputManager::wasReleased(const Button button) {
       return gpio.wasReleased(HalGPIO::BTN_BACK) || gpio.wasReleased(HalGPIO::BTN_LEFT);
     }
     if (button == Button::Right) {
-      return gpio.wasReleased(HalGPIO::BTN_CONFIRM) || gpio.wasReleased(HalGPIO::BTN_RIGHT);
+      return ReaderInputPolicy::resolveDualSideRightRelease(
+          gpio.wasReleased(HalGPIO::BTN_CONFIRM), gpio.wasReleased(HalGPIO::BTN_RIGHT), physConfirmTracker);
     }
     if (button == Button::Back || button == Button::Confirm) {
       return false;
@@ -303,10 +319,12 @@ void MappedInputManager::clearTransientState() {
   doubleTapReady = false;
   powerReleaseConsumed = false;
   suppressBackRelease = false;
+  physConfirmTracker.clear();
 #ifdef SIMULATOR
   simulatorPressed.fill(false);
   simulatorReleased.fill(false);
   simulatorHeld.fill(false);
+  simulatorPhysConfirmReleasePending = false;
 #endif
 }
 
@@ -363,6 +381,19 @@ bool MappedInputManager::isPressed(const Button button) const {
     }
   }
   return mapButton(button, &HalGPIO::isPressed);
+}
+
+MappedInputManager::PhysicalConfirmRelease MappedInputManager::peekReaderDualSideConfirmRelease() const {
+  if (readerMode && isDualSideLayout()) {
+    return physConfirmTracker.peekRelease();
+  }
+  return {false, 0};
+}
+
+void MappedInputManager::consumeReaderDualSideConfirmRelease() {
+  if (readerMode && isDualSideLayout()) {
+    physConfirmTracker.consumeRelease();
+  }
 }
 
 bool MappedInputManager::wasAnyPressed() const {
@@ -462,5 +493,10 @@ void MappedInputManager::simulatorInjectRelease(const Button button) {
 void MappedInputManager::simulatorClearInputFrame() {
   simulatorPressed.fill(false);
   simulatorReleased.fill(false);
+}
+
+void MappedInputManager::simulatorInjectPhysicalConfirmRelease(unsigned long durationMs) {
+  simulatorPhysConfirmReleasePending = true;
+  simulatorPhysConfirmReleaseDuration = durationMs;
 }
 #endif

@@ -2,6 +2,8 @@
 
 #include <HalGPIO.h>
 
+#include "activities/reader/ReaderInputPolicy.h"
+
 #ifdef SIMULATOR
 #include <array>
 #endif
@@ -9,6 +11,8 @@
 class MappedInputManager {
  public:
   enum class Button { Back, Confirm, Left, Right, Up, Down, Power, PageBack, PageForward };
+
+  using PhysicalConfirmRelease = ::PhysicalConfirmRelease;
 
   struct Labels {
     const char* btn1;
@@ -21,7 +25,7 @@ class MappedInputManager {
 
   explicit MappedInputManager(HalGPIO& gpio) : gpio(gpio) {}
 
-  void update() { gpio.update(); }
+  void update();
   void setReaderMode(bool enabled) { readerMode = enabled; }
   void suppressNextBackRelease() { suppressBackRelease = true; }
   bool wasPressed(Button button);
@@ -44,10 +48,14 @@ class MappedInputManager {
   // Call from the main loop BEFORE activityManager.loop() so activities never see it as Back.
   bool consumePowerDoubleTap();
 
+  PhysicalConfirmRelease peekReaderDualSideConfirmRelease() const;
+  void consumeReaderDualSideConfirmRelease();
+
 #ifdef SIMULATOR
   void simulatorInjectPress(Button button);
   void simulatorInjectRelease(Button button);
   void simulatorClearInputFrame();
+  void simulatorInjectPhysicalConfirmRelease(unsigned long durationMs);
 #endif
 
  private:
@@ -60,11 +68,16 @@ class MappedInputManager {
   bool doubleTapReady = false;
   bool powerReleaseConsumed = false;
 
+  PhysicalConfirmTracker physConfirmTracker;
+
 #ifdef SIMULATOR
   std::array<bool, BUTTON_COUNT> simulatorPressed{};
   std::array<bool, BUTTON_COUNT> simulatorReleased{};
   std::array<bool, BUTTON_COUNT> simulatorHeld{};
   std::array<unsigned long, BUTTON_COUNT> simulatorPressStart{};
+
+  bool simulatorPhysConfirmReleasePending = false;
+  unsigned long simulatorPhysConfirmReleaseDuration = 0;
 #endif
 
   bool mapButton(Button button, bool (HalGPIO::*fn)(uint8_t) const) const;

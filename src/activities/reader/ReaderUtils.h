@@ -5,6 +5,7 @@
 #include <Logging.h>
 
 #include "MappedInputManager.h"
+#include "ReaderInputPolicy.h"
 
 namespace ReaderUtils {
 
@@ -59,6 +60,21 @@ inline PageTurnResult detectPageTurn(MappedInputManager& input) {
 
   const bool fromSide = (sidePrev || sideNext) && !(frontPrev || frontNext);
   return {sidePrev || frontPrev, sideNext || frontNext, fromSide};
+}
+
+enum class DualSideConfirmClassification { IGNORE, DISPATCH_QUICK_ACTION, FALLTHROUGH_TO_PAGE_TURN };
+
+inline DualSideConfirmClassification classifyDualSideConfirmAction(
+    const PhysicalConfirmRelease& release, CrossPointSettings::LONG_PRESS_MENU_ACTION configuredAction) {
+  if (!release.active) {
+    return DualSideConfirmClassification::IGNORE;
+  }
+  constexpr unsigned long longPressMenuMs = 600;
+  if (configuredAction != CrossPointSettings::LONG_PRESS_MENU_ACTION::LONG_MENU_OFF &&
+      release.durationMs >= longPressMenuMs) {
+    return DualSideConfirmClassification::DISPATCH_QUICK_ACTION;
+  }
+  return DualSideConfirmClassification::FALLTHROUGH_TO_PAGE_TURN;
 }
 
 inline void displayWithRefreshCycle(const GfxRenderer& renderer, int& pagesUntilFullRefresh) {

@@ -72,8 +72,10 @@ class SimulatorSmokeTest {
     fail("Entered Safe Mode unexpectedly during smoke test");
   }
 
+  static bool dualSideConfirmRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_DUAL_SIDE_CONFIRM") != nullptr; }
+
  private:
-  enum class ScriptActionType : uint8_t { Press, Release, Render, HashFrame, CheckHashDiff, CheckHashSame };
+  enum class ScriptActionType : uint8_t { Press, Release, Render, HashFrame, CheckHashDiff, CheckHashSame, InjectPhysicalConfirmRelease, SetLongPressActionOff };
 
   struct ScriptAction {
     ScriptActionType type;
@@ -434,6 +436,36 @@ class SimulatorSmokeTest {
     for (int i = 0; i < turns; i++) {
       addTap(MappedInputManager::Button::PageForward);
       inputScript.push_back(render("Reader after page forward", 4));
+    }
+    if (dualSideConfirmRequested()) {
+#if ENABLE_TEXT_SELECTION
+      SETTINGS.frontButtonLayout = CrossPointSettings::FRONT_BUTTON_LAYOUT::LEFT_LEFT_RIGHT_RIGHT;
+      SETTINGS.longPressMenuAction = CrossPointSettings::LONG_PRESS_MENU_ACTION::LONG_MENU_TEXT_SELECT;
+
+      inputScript.push_back(hashFrame("Reader before dual-side confirm"));
+
+      inputScript.push_back({ScriptActionType::InjectPhysicalConfirmRelease, MappedInputManager::Button::Back, nullptr, 700});
+      inputScript.push_back(render("Reader selection mode from confirm", 6));
+      inputScript.push_back(checkHashDiff("Reader before dual-side confirm"));
+
+      addTap(MappedInputManager::Button::Back); // Exit selection mode
+      inputScript.push_back(render("Reader after exiting selection", 4));
+
+      inputScript.push_back(hashFrame("Reader before page turn from confirm"));
+
+      inputScript.push_back({ScriptActionType::SetLongPressActionOff, MappedInputManager::Button::Back, nullptr, 0});
+      inputScript.push_back({ScriptActionType::InjectPhysicalConfirmRelease, MappedInputManager::Button::Back, nullptr, 700});
+      inputScript.push_back(render("Reader page turn from confirm", 6));
+      inputScript.push_back(checkHashDiff("Reader before page turn from confirm"));
+
+      addTap(MappedInputManager::Button::Back); // Exit reader
+      inputScript.push_back(render("Home after dual-side confirm", 4));
+
+      LOG_INF("SMOKE", "Running dual-side confirm script with %d page turn(s)", turns);
+      return;
+#else
+      fail("FORKDRIFT_SIMULATOR_SMOKE_DUAL_SIDE_CONFIRM requested but ENABLE_TEXT_SELECTION is off");
+#endif
     }
     if (selectionMeasurementRequested()) {
 #if ENABLE_TEXT_SELECTION
@@ -854,6 +886,12 @@ class SimulatorSmokeTest {
         }
         break;
       }
+      case ScriptActionType::InjectPhysicalConfirmRelease:
+        mappedInputManager.simulatorInjectPhysicalConfirmRelease(action.settleFrames);
+        break;
+      case ScriptActionType::SetLongPressActionOff:
+        SETTINGS.longPressMenuAction = CrossPointSettings::LONG_PRESS_MENU_ACTION::LONG_MENU_OFF;
+        break;
     }
   }
 };
