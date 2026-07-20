@@ -68,6 +68,21 @@ def test_full_profile_keeps_anki_capture_dependencies_enabled(tmp_path):
     assert "-DENABLE_ANKI_SUPPORT=1" in generated
     assert "-DENABLE_TEXT_SELECTION=1" in generated
     assert "-DENABLE_EPUB_SUPPORT=1" in generated
+    assert "-DENABLE_ANNOTATIONS=1" in generated
+    assert "-DENABLE_NOTES=1" in generated
+
+
+def test_annotations_enables_dependencies(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    output = tmp_path / "platformio-custom.ini"
+
+    result = run_generate_build_config("--enable", "annotations", cwd=root, output_path=output)
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    generated = output.read_text()
+    assert "-DENABLE_ANNOTATIONS=1" in generated
+    assert "-DENABLE_TEXT_SELECTION=1" in generated
+    assert "-DENABLE_EPUB_SUPPORT=1" in generated
 
 
 def test_legacy_profile_alias_is_rejected(tmp_path):

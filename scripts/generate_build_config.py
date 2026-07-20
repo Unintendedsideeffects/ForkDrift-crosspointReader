@@ -546,6 +546,13 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=[]
     ),
+    'annotations': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=['text_selection'],
+        conflicts=[],
+        recommends=[]
+    ),
     'text_selection': FeatureMetadata(
         implemented=True,
         stable=True,
@@ -846,6 +853,7 @@ PROFILES = {
             'notes': True,
             'anki_support': True,
             'text_selection': True,
+            'annotations': True,
             'background_server': True,
             'background_server_on_charge': True,
             'background_server_always': True,
