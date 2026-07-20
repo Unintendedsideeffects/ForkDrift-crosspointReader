@@ -5,6 +5,7 @@
 #include <HeapGuard.h>
 #include <Logging.h>
 #include <Serialization.h>
+#include <freertos/task.h>
 
 #include <functional>
 
@@ -29,6 +30,14 @@ struct PageLutEntry {
   uint16_t paragraphIndex;
   uint16_t listItemIndex;
 };
+
+constexpr size_t kSectionBuildYieldInterval = 8;  // Prevents the reader from freezing during long cache builds.
+
+void yieldDuringSectionBuild(const size_t completedItems) {
+  if (completedItems % kSectionBuildYieldInterval == 0) {
+    vTaskDelay(1);
+  }
+}
 }  // namespace
 
 void Section::closeSectionFile() {
@@ -52,6 +61,7 @@ uint32_t Section::onPageComplete(std::unique_ptr<Page> page, serialization::Buff
   LOG_DBG("SCT", "Page %d processed", pageCount);
 
   pageCount++;
+  yieldDuringSectionBuild(pageCount);
   return position;
 }
 
@@ -296,6 +306,7 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
 
   const uint32_t lutOffset = writer.position();
   bool hasFailedLutRecords = false;
+  size_t lutRecordsWritten = 0;
   // Write LUT
   for (const auto& entry : lut) {
     if (entry.fileOffset == 0) {
@@ -303,6 +314,7 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
       break;
     }
     serialization::writePod(writer, entry.fileOffset);
+    yieldDuringSectionBuild(++lutRecordsWritten);
   }
 
   if (hasFailedLutRecords) {
@@ -325,6 +337,7 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
   for (size_t i = 0; i < anchorCount; i++) {
     serialization::writeString(writer, anchors[i].first);
     serialization::writePod(writer, anchors[i].second);
+    yieldDuringSectionBuild(i + 1);
   }
 
   // Same clamp rationale for the paragraph LUT count.
@@ -333,11 +346,14 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
   serialization::writePod(writer, static_cast<uint16_t>(lutCount));
   for (size_t i = 0; i < lutCount; i++) {
     serialization::writePod(writer, lut[i].paragraphIndex);
+    yieldDuringSectionBuild(i + 1);
   }
 
   const uint32_t liLutFileOffset = static_cast<uint32_t>(writer.position());
+  size_t liLutRecordsWritten = 0;
   for (const auto& entry : lut) {
     serialization::writePod(writer, entry.listItemIndex);
+    yieldDuringSectionBuild(++liLutRecordsWritten);
   }
 
   // Drain the write buffer before seeking back to patch the header; a failed

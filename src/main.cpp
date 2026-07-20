@@ -14,7 +14,6 @@
 #include <WiFi.h>
 #ifndef SIMULATOR
 #include <esp_ota_ops.h>
-#include <mbedtls/base64.h>
 #endif
 
 #include <algorithm>
@@ -52,6 +51,7 @@
 #include "network/background/BackgroundWebServer.h"
 #include "network/background/BackgroundWifiCoordinator.h"
 #include "network/background/BackgroundWifiService.h"
+#include "network/ota/SerialOtaSession.h"
 #include "network/server/SettingsApi.h"
 #include "network/wifi/WifiUtil.h"
 #include "util/ButtonNavigator.h"
@@ -118,12 +118,8 @@ static bool deepSleepInProgress = false;
 // partition and flip the boot pointer on OTA_END (see handleSerialOtaCommand).
 // True only between OTA_BEGIN and OTA_END; silentRestart() consults it so a
 // heap-defrag reboot never aborts an in-flight flash write.
-static bool s_serialOtaInProgress = false;
-bool serialOtaInProgress() { return s_serialOtaInProgress; }
-#ifndef SIMULATOR
-static esp_ota_handle_t s_serialOtaHandle = 0;
-static const esp_partition_t* s_serialOtaPartition = nullptr;
-#endif
+static SerialOtaSession s_serialOtaSession;
+bool serialOtaInProgress() { return s_serialOtaSession.inProgress(); }
 
 bool silentRestart(uint32_t target) {
   if (deepSleepInProgress) return false;  // sleeping supersedes the heap-defrag reboot
@@ -539,7 +535,6 @@ void setup() {
 #endif
   core::FeatureLifecycle::onSettingsLoaded(renderer);
   WIFI_STORE.loadFromFile();
-  KOREADER_STORE.loadFromFile();
   OPDS_STORE.loadFromFile();
   UITheme::getInstance().reload();
   ButtonNavigator::setMappedInputManager(mappedInputManager);
@@ -670,97 +665,90 @@ void setup() {
 }
 
 #ifndef SIMULATOR
-// Host-driven firmware OTA over the USB-CDC CMD: channel. Streams a firmware
-// image to the inactive OTA partition in base64 chunks and flips the boot
-// pointer on OTA_END. Returns true if `cmd` was an OTA command (handled),
-// false so the caller can try other CMD: verbs. All replies are single lines:
-// "OTA_OK" on success, "OTA_ERR:<reason>" on failure. A reboot mid-stream (before
-// OTA_END) leaves the running firmware bootable — the image lands in the inactive
-// partition and is only activated by esp_ota_set_boot_partition below.
+struct SerialOtaFlashCtx {
+  OtaFlashOpsState state;
+  esp_ota_handle_t handle = 0;
+  const esp_partition_t* partition = nullptr;
+};
+
+static SerialOtaFlashCtx s_serialOtaFlashCtx;
+
+static void serialOtaEmitReply(void* ctx, const char* line) {
+  (void)ctx;
+  logSerial.print(line);
+}
+
+static void serialOtaAbortFlash(void* ctx) {
+  auto* flash = static_cast<SerialOtaFlashCtx*>(ctx);
+  if (flash->handle != 0) {
+    esp_ota_abort(flash->handle);
+    flash->handle = 0;
+  }
+}
+
+static bool serialOtaBeginFlash(void* ctx) {
+  auto* flash = static_cast<SerialOtaFlashCtx*>(ctx);
+  flash->partition = esp_ota_get_next_update_partition(nullptr);
+  if (!flash->partition) {
+    strncpy(flash->state.lastError, "no partition", sizeof(flash->state.lastError));
+    flash->state.lastError[sizeof(flash->state.lastError) - 1] = '\0';
+    return false;
+  }
+  const esp_err_t err = esp_ota_begin(flash->partition, OTA_WITH_SEQUENTIAL_WRITES, &flash->handle);
+  if (err != ESP_OK) {
+    strncpy(flash->state.lastError, esp_err_to_name(err), sizeof(flash->state.lastError));
+    flash->state.lastError[sizeof(flash->state.lastError) - 1] = '\0';
+    return false;
+  }
+  return true;
+}
+
+static bool serialOtaWriteFlash(void* ctx, const uint8_t* data, const size_t len) {
+  auto* flash = static_cast<SerialOtaFlashCtx*>(ctx);
+  const esp_err_t err = esp_ota_write(flash->handle, data, len);
+  if (err != ESP_OK) {
+    strncpy(flash->state.lastError, esp_err_to_name(err), sizeof(flash->state.lastError));
+    flash->state.lastError[sizeof(flash->state.lastError) - 1] = '\0';
+    return false;
+  }
+  return true;
+}
+
+static bool serialOtaEndFlash(void* ctx) {
+  auto* flash = static_cast<SerialOtaFlashCtx*>(ctx);
+  const esp_err_t endErr = esp_ota_end(flash->handle);
+  flash->handle = 0;
+  if (endErr != ESP_OK) {
+    strncpy(flash->state.lastError, esp_err_to_name(endErr), sizeof(flash->state.lastError));
+    flash->state.lastError[sizeof(flash->state.lastError) - 1] = '\0';
+    return false;
+  }
+  const esp_err_t bootErr = esp_ota_set_boot_partition(flash->partition);
+  if (bootErr != ESP_OK) {
+    strncpy(flash->state.lastError, esp_err_to_name(bootErr), sizeof(flash->state.lastError));
+    flash->state.lastError[sizeof(flash->state.lastError) - 1] = '\0';
+    return false;
+  }
+  return true;
+}
+
+static const OtaFlashOps kSerialOtaFlashOps = {
+    .begin = serialOtaBeginFlash,
+    .write = serialOtaWriteFlash,
+    .end = serialOtaEndFlash,
+    .abort = serialOtaAbortFlash,
+    .ctx = &s_serialOtaFlashCtx,
+};
+
 bool handleSerialOtaCommand(const String& cmd) {
-  auto abortOta = [] {
-    if (s_serialOtaInProgress) {
-      esp_ota_abort(s_serialOtaHandle);
-      s_serialOtaHandle = 0;
-      s_serialOtaInProgress = false;
-    }
-  };
-
-  if (cmd == "OTA_BEGIN") {
-    abortOta();  // discard any half-finished prior attempt
-    s_serialOtaPartition = esp_ota_get_next_update_partition(nullptr);
-    if (!s_serialOtaPartition) {
-      logSerial.printf("OTA_ERR:no partition\n");
-      return true;
-    }
-    // OTA_WITH_SEQUENTIAL_WRITES erases sectors on demand — no upfront erase stall.
-    const esp_err_t err = esp_ota_begin(s_serialOtaPartition, OTA_WITH_SEQUENTIAL_WRITES, &s_serialOtaHandle);
-    if (err != ESP_OK) {
-      logSerial.printf("OTA_ERR:%s\n", esp_err_to_name(err));
-      return true;
-    }
-    s_serialOtaInProgress = true;
-    logSerial.printf("OTA_OK\n");
-    return true;
-  }
-
-  if (cmd.startsWith("OTA_DATA:")) {
-    if (!s_serialOtaInProgress) {
-      logSerial.printf("OTA_ERR:not started\n");
-      return true;
-    }
-    // Decode one base64 chunk into a static buffer (avoids per-chunk heap churn).
-    static uint8_t decoded[1536];
-    const char* b64 = cmd.c_str() + 9;  // skip "OTA_DATA:"
-    size_t outLen = 0;
-    const int rc =
-        mbedtls_base64_decode(decoded, sizeof(decoded), &outLen, reinterpret_cast<const uint8_t*>(b64), strlen(b64));
-    if (rc != 0) {
-      abortOta();
-      logSerial.printf("OTA_ERR:base64\n");
-      return true;
-    }
-    const esp_err_t err = esp_ota_write(s_serialOtaHandle, decoded, outLen);
-    if (err != ESP_OK) {
-      abortOta();
-      logSerial.printf("OTA_ERR:%s\n", esp_err_to_name(err));
-      return true;
-    }
-    logSerial.printf("OTA_OK\n");
-    return true;
-  }
-
-  if (cmd == "OTA_END") {
-    if (!s_serialOtaInProgress) {
-      logSerial.printf("OTA_ERR:not started\n");
-      return true;
-    }
-    esp_err_t err = esp_ota_end(s_serialOtaHandle);
-    s_serialOtaHandle = 0;
-    s_serialOtaInProgress = false;
-    if (err != ESP_OK) {
-      logSerial.printf("OTA_ERR:%s\n", esp_err_to_name(err));
-      return true;
-    }
-    err = esp_ota_set_boot_partition(s_serialOtaPartition);
-    if (err != ESP_OK) {
-      logSerial.printf("OTA_ERR:%s\n", esp_err_to_name(err));
-      return true;
-    }
-    logSerial.printf("OTA_OK\n");
+  const SerialOtaHandleResult result =
+      s_serialOtaSession.handleCommand(cmd, kSerialOtaFlashOps, millis(), serialOtaEmitReply, nullptr);
+  if (result.restartRequested) {
     logSerial.flush();
-    delay(200);  // let the host read the reply before the link drops
+    delay(200);
     ESP.restart();
-    return true;
   }
-
-  if (cmd == "OTA_ABORT") {
-    abortOta();
-    logSerial.printf("OTA_OK\n");
-    return true;
-  }
-
-  return false;  // not an OTA command
+  return result.handled;
 }
 #endif  // SIMULATOR
 
@@ -901,7 +889,7 @@ void loop() {
 
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || activityManager.preventAutoSleep() ||
       features::status_overlay::preventsAutoSleep() ||  // cppcheck-suppress knownConditionTrueFalse
-      backgroundServer.shouldPreventAutoSleep()) {
+      backgroundServer.shouldPreventAutoSleep() || serialOtaInProgress()) {
     lastActivityTime = millis();
     powerManager.setPowerSaving(false);
   }
@@ -930,6 +918,12 @@ void loop() {
     RenderLock lock;
     ScreenshotUtil::takeScreenshot(renderer);
   }
+
+#ifndef SIMULATOR
+  if (s_serialOtaSession.checkIdleTimeout(kSerialOtaFlashOps, millis())) {
+    LOG_WRN("MAIN", "Serial OTA idle >30s; aborting and unlatching");
+  }
+#endif
 
   const unsigned long sleepTimeoutMs = SETTINGS.getSleepTimeoutMs();
   if (millis() - lastActivityTime >= sleepTimeoutMs) {

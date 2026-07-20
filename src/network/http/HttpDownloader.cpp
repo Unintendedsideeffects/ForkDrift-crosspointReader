@@ -123,70 +123,130 @@ class BoundedStringSink final : public Stream {
   std::string data_;
   bool overflowed_ = false;
 };
-}  // namespace
 
-bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const std::string& username,
-                              const std::string& password) {
-  std::unique_ptr<WiFiClient> client;
+struct FetchContext {
+  HttpDownloader::DataCallback onData;
+  Stream* stream = nullptr;
+  bool writeOk = true;
+  bool aborted = false;
+};
+
+esp_err_t fetchEventHandler(esp_http_client_event_t* evt) {
+  auto* ctx = static_cast<FetchContext*>(evt->user_data);
+  if (!ctx) return ESP_OK;
+
+  switch (evt->event_id) {
+    case HTTP_EVENT_ON_DATA: {
+      const int status = esp_http_client_get_status_code(evt->client);
+      if (status < 200 || status >= 300) return ESP_OK;
+
+      const auto* data = static_cast<const uint8_t*>(evt->data);
+      const size_t len = static_cast<size_t>(evt->data_len);
+      if (len == 0) return ESP_OK;
+
+      if (ctx->onData) {
+        if (!ctx->onData(data, len)) {
+          ctx->aborted = true;
+          return ESP_FAIL;
+        }
+      } else if (ctx->stream) {
+        const size_t written = ctx->stream->write(data, len);
+        if (written != len) {
+          ctx->writeOk = false;
+          return ESP_FAIL;
+        }
+      }
+      return ESP_OK;
+    }
+
+    default:
+      return ESP_OK;
+  }
+}
+
+bool espFetch(const std::string& url, FetchContext& ctx, const std::string& username, const std::string& password,
+              int* outStatus) {
   if (UrlUtils::isHttpsUrl(url)) {
-    // Guard against TLS allocation failing silently when heap is too fragmented.
-    // The aggregate mbedTLS allocs (not just the largest block) matter here;
-    // the same threshold is used in downloadToFile for the same reason.
     const uint32_t freeHeap = ESP.getFreeHeap();
     if (freeHeap < kMinHeapForTls) {
       LOG_ERR("HTTP", "Heap too low for TLS fetch (%u < %u, largest: %u)", freeHeap, kMinHeapForTls,
               ESP.getMaxAllocHeap());
-      return false;
-    }
-    auto* secureClient = new (std::nothrow) WiFiClientSecure();
-    if (!secureClient) {
-      LOG_ERR("HTTP", "OOM: WiFiClientSecure");
-      return false;
-    }
-    secureClient->setInsecure();
-    client.reset(secureClient);
-  } else {
-    client.reset(new (std::nothrow) WiFiClient());
-    if (!client) {
-      LOG_ERR("HTTP", "OOM: WiFiClient");
+      if (outStatus) *outStatus = -1;
       return false;
     }
   }
-  HTTPClient http;
+
+  esp_http_client_config_t config = {};
+  config.url = url.c_str();
+  config.method = HTTP_METHOD_GET;
+  config.event_handler = fetchEventHandler;
+  config.user_data = &ctx;
+  config.timeout_ms = 15000;
+  config.buffer_size = kTlsBufferSize;
+  config.buffer_size_tx = kTlsBufferSize;
+  config.user_agent = "CrossPoint-ESP32-" CROSSPOINT_VERSION;
+
+  esp_http_client_handle_t client = esp_http_client_init(&config);
+  if (!client) {
+    LOG_ERR("HTTP", "esp_http_client_init failed (free heap: %u)", ESP.getFreeHeap());
+    if (outStatus) *outStatus = -1;
+    return false;
+  }
+
+  if (!username.empty()) {
+    const std::string credentials = username + ":" + password;
+    String encoded = base64::encode(credentials.c_str());
+    encoded.trim();
+    const std::string authHeader = std::string("Basic ") + encoded.c_str();
+    esp_http_client_set_header(client, "Authorization", authHeader.c_str());
+  }
 
   LOG_DBG("HTTP", "Fetching: %s", url.c_str());
 
-  http.begin(*client, url.c_str());
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
+  const esp_err_t err = esp_http_client_perform(client);
+  const int status = esp_http_client_get_status_code(client);
+  esp_http_client_cleanup(client);
 
-  // Basic authentication permits an empty password. Match probeUrl() so an
-  // OPDS validation/fetch never silently drops a supplied username.
-  if (!username.empty()) {
-    std::string credentials = username + ":" + password;
-    String encoded = base64::encode(credentials.c_str());
-    encoded.trim();
-    http.addHeader("Authorization", "Basic " + encoded);
-  }
+  if (outStatus) *outStatus = status;
 
-  const int httpCode = http.GET();
-  if (httpCode != HTTP_CODE_OK) {
-    LOG_ERR("HTTP", "Fetch failed: %d", httpCode);
-    http.end();
+  if (ctx.aborted) {
+    LOG_ERR("HTTP", "Fetch aborted by consumer");
     return false;
   }
 
-  const int contentLength = http.getSize();
-  const int written = http.writeToStream(&outContent);
-  http.end();
-
-  if (written < 0 || (contentLength >= 0 && written != contentLength)) {
-    LOG_ERR("HTTP", "Fetch body failed: wrote %d of %d bytes", written, contentLength);
+  if (err != ESP_OK) {
+    LOG_ERR("HTTP", "Fetch failed: %s (status %d, free heap: %u, largest block: %u)", esp_err_to_name(err), status,
+            ESP.getFreeHeap(), ESP.getMaxAllocHeap());
     return false;
   }
 
-  LOG_DBG("HTTP", "Fetch success (%d bytes)", written);
+  if (status != 200) {
+    LOG_ERR("HTTP", "Fetch failed: %d", status);
+    return false;
+  }
+
+  if (!ctx.writeOk) {
+    LOG_ERR("HTTP", "Fetch body failed while writing stream");
+    return false;
+  }
+
+  LOG_DBG("HTTP", "Fetch success");
   return true;
+}
+}  // namespace
+
+bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const std::string& username,
+                              const std::string& password) {
+  FetchContext ctx;
+  ctx.stream = &outContent;
+  return espFetch(url, ctx, username, password, nullptr);
+}
+
+bool HttpDownloader::fetchUrl(const std::string& url, const DataCallback& onData, const std::string& username,
+                              const std::string& password) {
+  FetchContext ctx;
+  ctx.onData = onData;
+  return espFetch(url, ctx, username, password, nullptr);
 }
 
 bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent, const std::string& username,
@@ -208,31 +268,44 @@ bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent, c
 }
 
 int HttpDownloader::probeUrl(const std::string& url, const std::string& username, const std::string& password) {
-  std::unique_ptr<WiFiClient> client;
   if (UrlUtils::isHttpsUrl(url)) {
-    auto* secureClient = new (std::nothrow) WiFiClientSecure();
-    if (!secureClient) return HTTPC_ERROR_NO_HTTP_SERVER;
-    secureClient->setInsecure();
-    client.reset(secureClient);
-  } else {
-    client.reset(new (std::nothrow) WiFiClient());
-    if (!client) return HTTPC_ERROR_NO_HTTP_SERVER;
+    const uint32_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap < kMinHeapForTls) {
+      LOG_ERR("HTTP", "Heap too low for TLS probe (%u < %u, largest: %u)", freeHeap, kMinHeapForTls,
+              ESP.getMaxAllocHeap());
+      return -1;
+    }
   }
-  HTTPClient http;
-  http.begin(*client, url.c_str());
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
-  http.setTimeout(8000);
+
+  FetchContext ctx;
+  esp_http_client_config_t config = {};
+  config.url = url.c_str();
+  config.method = HTTP_METHOD_GET;
+  config.event_handler = fetchEventHandler;
+  config.user_data = &ctx;
+  config.timeout_ms = 8000;
+  config.buffer_size = kTlsBufferSize;
+  config.buffer_size_tx = kTlsBufferSize;
+  config.user_agent = "CrossPoint-ESP32-" CROSSPOINT_VERSION;
+
+  esp_http_client_handle_t client = esp_http_client_init(&config);
+  if (!client) {
+    return -1;
+  }
+
   if (!username.empty()) {
     const std::string credentials = username + ":" + password;
     String encoded = base64::encode(credentials.c_str());
     encoded.trim();
-    http.addHeader("Authorization", "Basic " + encoded);
+    const std::string authHeader = std::string("Basic ") + encoded.c_str();
+    esp_http_client_set_header(client, "Authorization", authHeader.c_str());
   }
-  const int code = http.GET();
-  http.end();
-  LOG_DBG("HTTP", "Probe %s → %d", url.c_str(), code);
-  return code;
+
+  (void)esp_http_client_perform(client);
+  const int status = esp_http_client_get_status_code(client);
+  esp_http_client_cleanup(client);
+  LOG_DBG("HTTP", "Probe %s → %d", url.c_str(), status);
+  return status;
 }
 
 HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& url, const std::string& destPath,

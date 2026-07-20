@@ -21,8 +21,9 @@ void Lyra3CoversTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, con
                                            const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
                                            bool& bufferRestored, const std::function<bool()>& storeCoverBuffer,
                                            float /*progressPercent*/) const {
+  const int topOffset = UITheme::getInstance().getMetrics().homeContentTopOffset;
   const int tileWidth = (rect.width - 2 * Lyra3CoversMetrics::values.contentSidePadding) / 3;
-  const int tileY = rect.y;
+  const int tileY = rect.y + topOffset;
   const bool hasContinueReading = !recentBooks.empty();
 
   // Draw book card regardless, fill with message based on `hasContinueReading`

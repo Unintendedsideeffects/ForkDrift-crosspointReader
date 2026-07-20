@@ -17,6 +17,7 @@
 #include <cstring>
 
 #include "CrossPointSettings.h"
+#include "OpdsServerStore.h"
 #include "src/activities/reader/ReadingStatsStore.h"
 #include "util/RecentBooksStore.h"
 
@@ -24,6 +25,7 @@
 
 bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path) {
   JsonDocument doc;
+  doc["version"] = 1;
 
   doc["sleepScreen"] = s.sleepScreen;
   doc["sleepScreenSource"] = s.sleepScreenSource;
@@ -254,9 +256,57 @@ bool JsonSettingsIO::loadRecentBooks(RecentBooksStore& store, HalFile& file) {
   }
   return true;
 }
-bool JsonSettingsIO::saveOpds(const OpdsServerStore&, const char*) { return true; }
-bool JsonSettingsIO::loadOpds(OpdsServerStore&, const char*, bool*) { return false; }
-bool JsonSettingsIO::loadOpds(OpdsServerStore&, HalFile&, bool*) { return false; }
+bool JsonSettingsIO::saveOpds(const OpdsServerStore& store, const char* path) {
+  JsonDocument doc;
+  JsonArray arr = doc["servers"].to<JsonArray>();
+  for (const auto& srv : store.servers) {
+    JsonObject obj = arr.add<JsonObject>();
+    obj["name"] = srv.name;
+    obj["url"] = srv.url;
+    obj["username"] = srv.username;
+    obj["password"] = srv.password;
+  }
+
+  String json;
+  serializeJson(doc, json);
+  return Storage.writeFile(path, json);
+}
+
+bool JsonSettingsIO::loadOpds(OpdsServerStore& store, const char* json, bool* needsResave) {
+  JsonDocument doc;
+  if (deserializeJson(doc, json)) {
+    return false;
+  }
+  if (needsResave) {
+    *needsResave = false;
+  }
+
+  store.servers.clear();
+  const JsonArrayConst arr = doc["servers"].as<JsonArrayConst>();
+  for (JsonObjectConst obj : arr) {
+    if (store.servers.size() >= OpdsServerStore::MAX_SERVERS) {
+      break;
+    }
+    OpdsServer srv;
+    srv.name = obj["name"] | std::string("");
+    srv.url = obj["url"] | std::string("");
+    srv.username = obj["username"] | std::string("");
+    srv.password = obj["password"] | std::string("");
+    store.servers.push_back(std::move(srv));
+  }
+  return true;
+}
+
+bool JsonSettingsIO::loadOpds(OpdsServerStore& store, HalFile& file, bool* needsResave) {
+  FsFileJsonReader reader(file);
+  JsonDocument doc;
+  if (deserializeJson(doc, reader)) {
+    return false;
+  }
+  String json;
+  serializeJson(doc, json);
+  return loadOpds(store, json.c_str(), needsResave);
+}
 
 bool JsonSettingsIO::saveReadingStats(const ReadingStatsStore& store, const char* path) {
   JsonDocument doc;

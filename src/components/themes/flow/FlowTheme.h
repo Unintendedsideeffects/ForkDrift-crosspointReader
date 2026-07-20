@@ -11,6 +11,7 @@ class GfxRenderer;
 namespace FlowMetrics {
 constexpr ThemeMetrics makeValues() {
   ThemeMetrics v = LyraMetrics::values;
+  v.homeContentTopOffset = 0;
   v.topPadding = 5;
   v.listRowHeight = 45;
   v.listWithSubtitleRowHeight = 75;

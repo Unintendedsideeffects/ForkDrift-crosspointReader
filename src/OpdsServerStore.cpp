@@ -19,7 +19,6 @@ bool OpdsServerStore::loadFromFile() {
   if (Storage.exists(OPDS_FILE_JSON)) {
     HalFile file;
     if (Storage.openFileForRead("OPS", OPDS_FILE_JSON, file)) {
-      // resave flag is set when passwords were stored in plaintext and need re-obfuscation
       bool resave = false;
       const bool result = JsonSettingsIO::loadOpds(*this, file, &resave);
       file.close();
@@ -27,11 +26,25 @@ bool OpdsServerStore::loadFromFile() {
         LOG_DBG("OPS", "Resaving JSON with obfuscated passwords");
         saveToFile();
       }
+      if (result) {
+        loadedThisBoot_ = true;
+        dirty_ = false;
+      }
       return result;
     }
   }
 
+  loadedThisBoot_ = true;
+  dirty_ = false;
   return false;
+}
+
+void OpdsServerStore::markDirty() { dirty_ = true; }
+
+void OpdsServerStore::ensureLoaded() {
+  if (!loadedThisBoot_ || dirty_) {
+    loadFromFile();
+  }
 }
 
 bool OpdsServerStore::addServer(const OpdsServer& server) {
@@ -42,6 +55,7 @@ bool OpdsServerStore::addServer(const OpdsServer& server) {
 
   servers.push_back(server);
   LOG_DBG("OPS", "Added server: %s", server.name.c_str());
+  markDirty();
   return saveToFile();
 }
 
@@ -52,6 +66,7 @@ bool OpdsServerStore::updateServer(size_t index, const OpdsServer& server) {
 
   servers[index] = server;
   LOG_DBG("OPS", "Updated server: %s", server.name.c_str());
+  markDirty();
   return saveToFile();
 }
 
@@ -62,6 +77,7 @@ bool OpdsServerStore::removeServer(size_t index) {
 
   LOG_DBG("OPS", "Removed server: %s", servers[index].name.c_str());
   servers.erase(servers.begin() + static_cast<ptrdiff_t>(index));
+  markDirty();
   return saveToFile();
 }
 

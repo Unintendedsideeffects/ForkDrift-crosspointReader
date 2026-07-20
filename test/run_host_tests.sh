@@ -101,6 +101,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/Markdown/MarkdownPreprocessor.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownParser.cpp" \
   "$ROOT_DIR/src/core/features/FeatureCatalog.cpp" \
+  "$ROOT_DIR/src/core/features/KoreaderOpdsBridge.cpp" \
   "$ROOT_DIR/src/network/server/ReadingDataApi.cpp" \
   "$ROOT_DIR/src/network/server/RemoteControlApi.cpp" \
   "$ROOT_DIR/src/network/server/SleepCoverApi.cpp" \
@@ -134,6 +135,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/MiniBidi/BidiUtils.cpp" \
   "$ROOT_DIR/src/network/background/BackgroundServerPolicy.cpp" \
   "$ROOT_DIR/src/BookmarkStore.cpp" \
+  "$ROOT_DIR/src/OpdsServerStore.cpp" \
   "$ROOT_DIR/lib/Xtc/Xtc/XtcParser.cpp" \
   "$ROOT_DIR/test/mock/FeatureModuleHooks.cpp" \
   "$ROOT_DIR/test/mock/PokemonPartyStores.cpp" \
@@ -142,6 +144,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/GfxRenderer/Bitmap.cpp" \
   "$ROOT_DIR/lib/GfxRenderer/BitmapHelpers.cpp" \
   "$ROOT_DIR/src/util/FirmwareUpdateHelpers.cpp" \
+  "$ROOT_DIR/src/network/ota/SerialOtaSession.cpp" \
   "$ROOT_DIR/src/network/server/SettingsApply.cpp" \
   "$ROOT_DIR/src/activities/reader/ReadingStatsStore.cpp" \
   "$ROOT_DIR/src/activities/reader/ReadingStatsAnalytics.cpp" \

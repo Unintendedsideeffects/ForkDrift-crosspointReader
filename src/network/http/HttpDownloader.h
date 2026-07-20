@@ -5,9 +5,10 @@
 #include <string>
 
 /**
- * HTTP client utility for fetching content and downloading files. Built on
- * esp_http_client: https is verified against the CA bundle, plain http is
- * used for local servers (transport is chosen from the URL scheme).
+ * HTTP client utility for fetching content and downloading files. GET/fetch and
+ * file download use esp_http_client with 2KB TLS buffers. Server certificates are
+ * not verified (no crt bundle), matching the prior setInsecure() behaviour.
+ * postJson still uses the Arduino HTTPClient path.
  */
 class HttpDownloader {
  public:

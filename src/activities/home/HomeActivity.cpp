@@ -781,7 +781,7 @@ void HomeActivity::onEnter() {
     BG_WIFI.stop(true);
   }
 
-  OPDS_STORE.loadFromFile();
+  OPDS_STORE.ensureLoaded();
   hasOpdsServers = OPDS_STORE.hasServers();
   const bool mediaPickerEnabled = core::FeatureModules::hasCapability(core::Capability::HomeMediaPicker);
   const auto& metrics = UITheme::getInstance().getMetrics();

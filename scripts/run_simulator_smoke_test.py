@@ -4,7 +4,7 @@
 Usage:
   python scripts/run_simulator_smoke_test.py [--book PATH] [--theme NAME]
       [--timeout SECS] [--page-turns N] [--no-build] [--window]
-      [--fs-root DIR] [--recovery | --sd-fail]
+      [--fs-root DIR] [--recovery | --sd-fail | --percent-jump]
 
 The smoke test boots the firmware, navigates Home → FileBrowser → RecentBooks →
 Settings → Sleep → Reader (with page turns), then exits with code 0 on success.
@@ -164,6 +164,8 @@ def run_smoke(args: argparse.Namespace) -> int:
         env["FORKDRIFT_SIMULATOR_RECOVERY"] = "1"
     if args.sd_fail:
         env["FORKDRIFT_SIMULATOR_SD_FAIL"] = "1"
+    if args.percent_jump:
+        env["FORKDRIFT_SIMULATOR_SMOKE_PERCENT_JUMP"] = "1"
     needs_book = not (args.recovery or args.sd_fail)
 
     # Persistent, caller-supplied file tree: run the simulator against it in place
@@ -228,6 +230,8 @@ def parse_args() -> argparse.Namespace:
                         help="Boot straight into the recovery menu and drive it (no book opened)")
     parser.add_argument("--sd-fail", action="store_true",
                         help="Force SD init failure to exercise the Safe Mode path (no book opened)")
+    parser.add_argument("--percent-jump", action="store_true",
+                        help="Drive reader menu -> percent selection -> jump (~70%%) and require a settled frame")
     parser.set_defaults(build=True, headless=True)
     return parser.parse_args()
 

@@ -1513,6 +1513,7 @@ void GfxRenderer::displayBuffer(const HalDisplay::RefreshMode refreshMode) const
   if (darkMode) {
     invertScreen();
   }
+  start_ms = millis();
 }
 
 std::string GfxRenderer::truncatedText(const int fontId, const char* text, const int maxWidth,

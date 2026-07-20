@@ -28,6 +28,9 @@ class OpdsServerStore {
  private:
   static OpdsServerStore instance;
   std::vector<OpdsServer> servers;
+  // torn read impossible for bool on single-core; worst case stale for one frame
+  bool loadedThisBoot_ = false;
+  bool dirty_ = true;
 
   static constexpr size_t MAX_SERVERS = 8;
 
@@ -45,6 +48,8 @@ class OpdsServerStore {
 
   bool saveToFile() const;
   bool loadFromFile();
+  void markDirty();
+  void ensureLoaded();
 
   bool addServer(const OpdsServer& server);
   bool updateServer(size_t index, const OpdsServer& server);

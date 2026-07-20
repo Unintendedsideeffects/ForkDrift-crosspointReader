@@ -56,6 +56,7 @@ struct ThemeMetrics {
   int homeRecentBooksCount;
   bool homeContinueReadingInMenu;
   int homeMenuTopOffset;
+  int homeContentTopOffset;
   HomeNavigationMode homeNavigationMode;
   int homeCoverGridColumns;
   int homeCoverGridRows;
@@ -169,6 +170,7 @@ constexpr ThemeMetrics values = {.batteryWidth = 15,
                                  .homeRecentBooksCount = 1,
                                  .homeContinueReadingInMenu = false,
                                  .homeMenuTopOffset = 10,
+                                 .homeContentTopOffset = 0,
                                  .homeNavigationMode = HomeNavigationMode::CoverMenu,
                                  .homeCoverGridColumns = 1,
                                  .homeCoverGridRows = 1,

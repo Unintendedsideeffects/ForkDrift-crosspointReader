@@ -431,9 +431,10 @@ void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
                                     const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
                                     bool& bufferRestored, const std::function<bool()>& storeCoverBuffer,
                                     float progressPercent) const {
+  const int topOffset = UITheme::getInstance().getMetrics().homeContentTopOffset;
   const int tileWidth = rect.width - 2 * LyraMetrics::values.contentSidePadding;
-  const int tileHeight = rect.height;
-  const int tileY = rect.y;
+  const int tileHeight = rect.height - topOffset;
+  const int tileY = rect.y + topOffset;
   const bool hasContinueReading = !recentBooks.empty();
   if (coverWidth == 0) {
     coverWidth = LyraMetrics::values.homeCoverHeight * 0.6;
@@ -546,16 +547,21 @@ void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
 
 void LyraTheme::drawEmptyRecents(const GfxRenderer& renderer, const Rect rect) const {
   constexpr int padding = 48;
+  const int topOffset = UITheme::getInstance().getMetrics().homeContentTopOffset;
   renderer.drawText(UI_12_FONT_ID, rect.x + padding,
-                    rect.y + rect.height / 2 - renderer.getLineHeight(UI_12_FONT_ID) - 2, tr(STR_NO_OPEN_BOOK), true,
-                    EpdFontFamily::BOLD);
-  renderer.drawText(UI_10_FONT_ID, rect.x + padding, rect.y + rect.height / 2 + 2, tr(STR_START_READING), true);
+                    rect.y + topOffset + rect.height / 2 - renderer.getLineHeight(UI_12_FONT_ID) - 2,
+                    tr(STR_NO_OPEN_BOOK), true, EpdFontFamily::BOLD);
+  renderer.drawText(UI_10_FONT_ID, rect.x + padding, rect.y + topOffset + rect.height / 2 + 2, tr(STR_START_READING),
+                    true);
 }
 
 void LyraTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                                const std::function<std::string(int index)>& buttonLabel,
                                const std::function<UIIcon(int index)>& rowIcon) const {
   const auto& menuMetrics = UITheme::getInstance().getMetrics();
+  const int topOffset = menuMetrics.homeContentTopOffset;
+  rect.y += topOffset;
+  rect.height -= topOffset;
 
   constexpr int maxVisibleItems = 6;
   const int totalPages = (buttonCount + maxVisibleItems - 1) / maxVisibleItems;

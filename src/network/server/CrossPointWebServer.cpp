@@ -63,6 +63,8 @@ constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
 constexpr uint8_t CROSSPOINT_PROTOCOL_VERSION = 1;
 constexpr uint16_t LOCAL_UDP_PORT = 8134;
 constexpr uint32_t WEB_SERVER_MIN_SAFE_HEAP_BYTES = 12 * 1024;
+constexpr uint32_t kMinHeapForOpdsMutation = 16000;
+constexpr uint32_t kMinHeapForOpdsTest = HttpDownloader::MIN_HEAP_FOR_HTTPS + 8000;
 constexpr size_t WS_CONTROL_MESSAGE_MAX_BYTES = 1024;
 constexpr size_t WS_UPLOAD_MAX_BYTES = 512UL * 1024UL * 1024UL;
 
@@ -858,6 +860,14 @@ void CrossPointWebServer::handleGetOpdsServers() const {
 }
 
 void CrossPointWebServer::handlePostOpdsServer() {
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  if (freeHeap < kMinHeapForOpdsMutation) {
+    LOG_WRN("WEB", "OPDS POST rejected: %u bytes free < %u required (%u short)", freeHeap, kMinHeapForOpdsMutation,
+            kMinHeapForOpdsMutation - freeHeap);
+    server->send(503, "application/json", "{\"error\":\"low memory\"}");
+    return;
+  }
+
   if (!server->hasArg("plain")) {
     server->send(400, "text/plain", "Missing JSON body");
     return;
@@ -939,6 +949,14 @@ void CrossPointWebServer::handleDeleteOpdsServer() {
 }
 
 void CrossPointWebServer::handleTestOpdsServer() {
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  if (freeHeap < kMinHeapForOpdsTest) {
+    LOG_WRN("WEB", "OPDS test rejected: %u bytes free < %u required (%u short)", freeHeap, kMinHeapForOpdsTest,
+            kMinHeapForOpdsTest - freeHeap);
+    server->send(503, "application/json", "{\"error\":\"low memory\"}");
+    return;
+  }
+
   if (!server->hasArg("plain")) {
     server->send(400, "text/plain", "Missing JSON body");
     return;
@@ -1010,6 +1028,14 @@ void CrossPointWebServer::handleTestOpdsServer() {
 }
 
 void CrossPointWebServer::handleKoreaderUseOpds() {
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  if (freeHeap < kMinHeapForOpdsMutation) {
+    LOG_WRN("WEB", "KOReader-use-OPDS rejected: %u bytes free < %u required (%u short)", freeHeap,
+            kMinHeapForOpdsMutation, kMinHeapForOpdsMutation - freeHeap);
+    server->send(503, "application/json", "{\"error\":\"low memory\"}");
+    return;
+  }
+
   if (!core::FeatureModules::hasCapability(core::Capability::KoreaderSync)) {
     server->send(400, "text/plain", "KOReader sync not available in this build");
     return;

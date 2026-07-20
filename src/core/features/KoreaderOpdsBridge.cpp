@@ -27,4 +27,47 @@ std::string applyOpdsServerToKoreaderSync(const OpdsServer& server) {
   return syncUrl;
 }
 
+#if CROSSPOINT_HOST_BUILD
+namespace test_hooks {
+std::string (*getKoreaderUsername)() = nullptr;
+std::string (*getKoreaderPassword)() = nullptr;
+std::string (*getKoreaderServerUrl)() = nullptr;
+}  // namespace test_hooks
+#endif
+
+OpdsCredentials effectiveOpdsCredentials(const OpdsServer& server) {
+  if (!server.username.empty()) {
+    return {server.username, server.password};
+  }
+
+#if CROSSPOINT_HOST_BUILD
+  std::string koUsername =
+      test_hooks::getKoreaderUsername ? test_hooks::getKoreaderUsername() : FeatureModules::getKoreaderUsername();
+#else
+  std::string koUsername = FeatureModules::getKoreaderUsername();
+#endif
+
+  if (!koUsername.empty()) {
+    std::string serverHost = UrlUtils::extractHost(server.url);
+#if CROSSPOINT_HOST_BUILD
+    std::string koServerUrl =
+        test_hooks::getKoreaderServerUrl ? test_hooks::getKoreaderServerUrl() : FeatureModules::getKoreaderServerUrl();
+#else
+    std::string koServerUrl = FeatureModules::getKoreaderServerUrl();
+#endif
+    std::string koServerHost = UrlUtils::extractHost(koServerUrl);
+    if (!serverHost.empty() && serverHost == koServerHost) {
+#if CROSSPOINT_HOST_BUILD
+      std::string koPassword =
+          test_hooks::getKoreaderPassword ? test_hooks::getKoreaderPassword() : FeatureModules::getKoreaderPassword();
+#else
+      std::string koPassword = FeatureModules::getKoreaderPassword();
+#endif
+      return {koUsername, koPassword};
+    }
+  }
+
+  return {"", ""};
+}
+
 }  // namespace core

@@ -109,6 +109,8 @@ class SimulatorSmokeTest {
 
   static bool readerOptionsRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_READER_OPTIONS") != nullptr; }
 
+  static bool percentJumpRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_PERCENT_JUMP") != nullptr; }
+
   static int pageTurnCount() {
     const char* raw = std::getenv("FORKDRIFT_SIMULATOR_SMOKE_PAGE_TURNS");
     if (raw == nullptr || raw[0] == '\0') return 2;
@@ -502,6 +504,31 @@ class SimulatorSmokeTest {
       inputScript.push_back(render("Home after options stress", 4));
 
       LOG_INF("SMOKE", "Running reader options stress script with %d page turn(s)", turns);
+      return;
+    }
+    if (percentJumpRequested()) {
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Reader menu for percent jump", 4));
+#if ENABLE_TEXT_SELECTION
+      constexpr int kGoToPercentDownTaps = 6;
+#else
+      constexpr int kGoToPercentDownTaps = 5;
+#endif
+      for (int i = 0; i < kGoToPercentDownTaps; i++) {
+        addTap(MappedInputManager::Button::Down);
+        inputScript.push_back(render("Reader menu down to go-to-percent", 2));
+      }
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Percent selection entered", 4));
+      for (int i = 0; i < 7; i++) {
+        addTap(MappedInputManager::Button::Up);
+        inputScript.push_back(render("Percent slider toward 70", 2));
+      }
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Reader after percent jump", 16));
+      addTap(MappedInputManager::Button::Back);
+      inputScript.push_back(render("Home after percent jump", 4));
+      LOG_INF("SMOKE", "Running percent jump script with %d page turn(s)", turns);
       return;
     }
     addTap(MappedInputManager::Button::Confirm);

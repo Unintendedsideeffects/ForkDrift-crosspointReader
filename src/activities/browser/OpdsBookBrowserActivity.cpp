@@ -19,6 +19,7 @@
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
+#include "core/features/KoreaderOpdsBridge.h"
 #include "fontIds.h"
 #include "network/http/HttpDownloader.h"
 #include "util/LibraryShelfStore.h"
@@ -238,6 +239,7 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
     return;
   }
 
+  const auto creds = core::effectiveOpdsCredentials(server);
   std::string url = (path.find("http") == 0) ? path : UrlUtils::buildUrl(server.url, path);
 
   // If this is an HTTPS fetch and the heap is too fragmented to sustain a TLS
@@ -256,9 +258,15 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
   OpdsParser parser;
   {
     OpdsParserStream stream{parser};
-    if (!HttpDownloader::fetchUrl(url, stream, server.username, server.password)) {
+    if (!HttpDownloader::fetchUrl(url, stream, creds.username, creds.password)) {
       state = BrowserState::ERROR;
       errorMessage = tr(STR_FETCH_FEED_FAILED);
+      if (creds.username.empty()) {
+        int status = HttpDownloader::probeUrl(url, creds.username, creds.password);
+        if (status == 401 || status == 403) {
+          errorMessage = tr(STR_OPDS_AUTH_REQUIRED);
+        }
+      }
       requestUpdate();
       return;
     }
@@ -282,7 +290,7 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
     if (!descRef.empty()) {
       const std::string descUrl = (descRef.find("http") == 0) ? descRef : UrlUtils::buildUrl(url, descRef);
       std::string descDoc;
-      if (HttpDownloader::fetchUrl(descUrl, descDoc, server.username, server.password)) {
+      if (HttpDownloader::fetchUrl(descUrl, descDoc, creds.username, creds.password)) {
         searchTemplate = OpenSearchParser::extractSearchTemplate(descDoc);
         LOG_DBG("OPDS", "OpenSearch search template: %s", searchTemplate.c_str());
       }
@@ -371,6 +379,7 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   std::string filename = "/" + OpdsFilename::format(book.title, book.author, configuredOpdsFilenameFormat(), ".epub");
   LOG_DBG("OPDS", "Downloading: %s -> %s", downloadUrl.c_str(), filename.c_str());
 
+  const auto creds = core::effectiveOpdsCredentials(server);
   const auto result = HttpDownloader::downloadToFile(
       downloadUrl, filename,
       [this](const size_t downloaded, const size_t total) {
@@ -378,7 +387,7 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
         downloadTotal = total;
         requestUpdate(true);
       },
-      nullptr, server.username, server.password);
+      nullptr, creds.username, creds.password);
 
   if (result == HttpDownloader::OK) {
 #if ENABLE_EPUB_SUPPORT

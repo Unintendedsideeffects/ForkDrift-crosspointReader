@@ -20,6 +20,7 @@ constexpr ThemeMetrics makeValues() {
   v.homeRecentBooksCount = 1;
   v.homeContinueReadingInMenu = false;
   v.homeMenuTopOffset = 0;
+  v.homeContentTopOffset = 0;
   return v;
 }
 
