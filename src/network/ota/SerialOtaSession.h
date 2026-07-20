@@ -44,5 +44,5 @@ class SerialOtaSession {
 
   bool inProgress_ = false;
   unsigned long lastActivityMs_ = 0;
-  uint8_t decodeBuffer_[1536];
+  uint8_t decodeBuffer_[1536] = {};
 };
