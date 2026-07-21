@@ -10,6 +10,7 @@
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
+#include "ReaderOptionsMemoryPolicy.h"
 #include "SettingsList.h"
 #include "activities/settings/ButtonRemapActivity.h"
 #include "components/UITheme.h"
@@ -18,24 +19,34 @@
 void ControlsOptionsActivity::onEnter() {
   Activity::onEnter();
 
-  rebuildSettingsList();
+  if (!rebuildSettingsList()) {
+    setResult(ControlsOptionsResult{false, true});
+#ifdef SIMULATOR
+    LOG_INF("SMOKE", "SMOKE_CTRL_TYPED_RECOVERY");
+#endif
+    finish();
+    return;
+  }
+#ifdef SIMULATOR
+  const bool hasSelectableSetting = selectedIndex >= 0 && selectedIndex < settingsCount &&
+                                    settings[selectedIndex].type != SettingType::SECTION_HEADER;
+  LOG_INF("SMOKE", "SMOKE_CTRL_READY preview=%s selectable=%d selected=%d count=%d",
+          pageBuffer_ ? "retained" : "absent", hasSelectableSetting ? 1 : 0, selectedIndex, settingsCount);
+#endif
   requestUpdate();
 }
 
 void ControlsOptionsActivity::onExit() { Activity::onExit(); }
 
-void ControlsOptionsActivity::rebuildSettingsList() {
+bool ControlsOptionsActivity::rebuildSettingsList() {
   settings.clear();
 
-  constexpr uint32_t kMinHeapForSettingsRebuild = 96000;
-  constexpr uint32_t kMinLargestBlockForSettingsRebuild = 48000;
-  lowMemory_ =
-      ESP.getFreeHeap() < kMinHeapForSettingsRebuild || ESP.getMaxAllocHeap() < kMinLargestBlockForSettingsRebuild;
-  if (lowMemory_) {
-    LOG_WRN("CTRL", "Control options unavailable: free=%u largest=%u", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+  ReaderMemorySnapshot snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap()};
+  if (!ReaderOptionsMemoryPolicy::canBuildSettings(snapshot)) {
+    LOG_WRN("CTRL", "Control options unavailable: free=%u largest=%u", snapshot.freeHeap, snapshot.maxAllocHeap);
     settingsCount = 0;
     selectedIndex = 0;
-    return;
+    return false;
   }
 
   const auto allSettings = getSettingsList();
@@ -90,6 +101,7 @@ void ControlsOptionsActivity::rebuildSettingsList() {
   if (selectedIndex >= settingsCount) {
     selectedIndex = 0;
   }
+  return true;
 }
 
 void ControlsOptionsActivity::moveSelection(bool forward) {
@@ -186,18 +198,6 @@ void ControlsOptionsActivity::render(RenderLock&&) {
   const int hintGutterWidth = (isLandscapeCw || isLandscapeCcw) ? metrics.buttonHintsHeight : 0;
   const int contentX = isLandscapeCw ? hintGutterWidth : 0;
   const int contentWidth = pageWidth - hintGutterWidth;
-
-  if (lowMemory_) {
-    renderer.clearScreen();
-    GUI.drawHeader(renderer, Rect{contentX, metrics.topPadding, contentWidth, metrics.headerHeight},
-                   tr(STR_CAT_CONTROLS), nullptr);
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 8, "Not enough free memory", true);
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 12, "Return to the reader and try again", true);
-    const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
-    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
-    renderer.displayBuffer();
-    return;
-  }
 
   auto rowTitle = [this](int i) { return std::string(I18N.get(settings[i].nameId)); };
   auto isHeader = [this](int i) { return settings[i].type == SettingType::SECTION_HEADER; };

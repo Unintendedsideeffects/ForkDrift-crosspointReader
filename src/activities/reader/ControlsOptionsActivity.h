@@ -11,12 +11,11 @@ class ControlsOptionsActivity final : public Activity {
   ButtonNavigator buttonNavigator;
   int selectedIndex = 0;
   int settingsCount = 0;
-  bool lowMemory_ = false;
   std::vector<SettingInfo> settings;
   bool readerSettingsChanged_ = false;
   const uint8_t* pageBuffer_ = nullptr;
 
-  void rebuildSettingsList();
+  bool rebuildSettingsList();
   void moveSelection(bool forward);
   void toggleCurrentSetting();
 

@@ -42,7 +42,7 @@ struct ESPMock {
   uint32_t getFreeHeap();
   uint32_t getMinFreeHeap();
   uint32_t getHeapSize() { return 1024 * 1024; }
-  uint32_t getMaxAllocHeap() { return 1024 * 1024; }
+  uint32_t getMaxAllocHeap();
   void restart() {}
 };
 extern ESPMock ESP;

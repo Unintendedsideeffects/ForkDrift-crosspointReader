@@ -10,7 +10,14 @@
 #endif
 
 struct MockESP {
-  size_t getFreeHeap() { return 1024 * 1024; }
+  size_t overrideFreeHeap = 1024 * 1024;
+  size_t overrideMaxAllocHeap = 1024 * 1024;
+  size_t getFreeHeap() { return overrideFreeHeap; }
+  size_t getMaxAllocHeap() { return overrideMaxAllocHeap; }
+  void reset() {
+    overrideFreeHeap = 1024 * 1024;
+    overrideMaxAllocHeap = 1024 * 1024;
+  }
 };
 extern MockESP ESP;
 inline unsigned long mockMillisVal = 0;

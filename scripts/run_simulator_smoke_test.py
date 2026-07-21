@@ -45,6 +45,7 @@ CRASH_PATTERNS = (
     "Segmentation fault",
     "AddressSanitizer",
     "UndefinedBehaviorSanitizer",
+    "SIM OOM",
 )
 THEMES = {
     "classic": 0,
@@ -166,6 +167,8 @@ def run_smoke(args: argparse.Namespace) -> int:
         env["FORKDRIFT_SIMULATOR_SD_FAIL"] = "1"
     if args.percent_jump:
         env["FORKDRIFT_SIMULATOR_SMOKE_PERCENT_JUMP"] = "1"
+    if args.controls_options:
+        env["FORKDRIFT_SIMULATOR_SMOKE_CONTROLS_OPTIONS"] = "1"
     needs_book = not (args.recovery or args.sd_fail)
 
     # Persistent, caller-supplied file tree: run the simulator against it in place
@@ -232,6 +235,8 @@ def parse_args() -> argparse.Namespace:
                         help="Force SD init failure to exercise the Safe Mode path (no book opened)")
     parser.add_argument("--percent-jump", action="store_true",
                         help="Drive reader menu -> percent selection -> jump (~70%%) and require a settled frame")
+    parser.add_argument("--controls-options", action="store_true",
+                        help="Drive reader menu -> Controls options -> select row")
     parser.set_defaults(build=True, headless=True)
     return parser.parse_args()
 

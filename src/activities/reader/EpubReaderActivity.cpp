@@ -490,23 +490,12 @@ void EpubReaderActivity::loop() {
         // OTA_END reboots on success; OTA_ABORT leaves this flag set so the
         // defrag restart is retried once the flash transaction is no longer active.
         heapDefragRetryAfterMs_ = now + 1000;
-      } else if (!saveProgress(currentSpineIndex, section->currentPage, section->pageCount)) {
-        LOG_WRN("ERS", "Failed to persist progress before heap refresh; retrying");
-        heapDefragRetryAfterMs_ = now + 2000;
+      } else if (persistAndRestartForRecovery()) {
+        heapDirtyFromIndexing_ = false;
+        heapDefragRetryAfterMs_ = 0;
+        return;
       } else {
-        APP_STATE.openEpubPath = epub->getPath();
-        if (!APP_STATE.saveToFile()) {
-          LOG_WRN("ERS", "Failed to persist resume state before heap refresh; retrying");
-          heapDefragRetryAfterMs_ = now + 2000;
-        } else {
-          LOG_WRN("ERS", "Post-index heap fragmented (largest=%u < %u): silent refresh reboot",
-                  static_cast<unsigned>(largestBlock), static_cast<unsigned>(kHeapDefragLargestBlockThreshold));
-          if (silentRestartToReader()) {
-            heapDirtyFromIndexing_ = false;
-            return;
-          }
-          heapDefragRetryAfterMs_ = now + 1000;
-        }
+        heapDefragRetryAfterMs_ = now + 1000;
       }
     }
   }
@@ -618,8 +607,16 @@ void EpubReaderActivity::loop() {
 #endif
                 ),
         [this](const ActivityResult& result) {
-          // Always apply orientation change even if the menu was cancelled
           const auto& menu = std::get<MenuResult>(result.data);
+          if (!result.isCancelled && static_cast<EpubReaderMenuActivity::MenuAction>(menu.action) ==
+                                         EpubReaderMenuActivity::MenuAction::MEMORY_RECOVERY_REQUESTED) {
+#ifdef SIMULATOR
+            LOG_INF("SMOKE", "SMOKE_READER_MEMORY_RECOVERY_PROPAGATED orientation=%u", menu.orientation);
+#endif
+            persistAndRestartForRecovery(menu.orientation);
+            return;
+          }
+          // Always apply orientation change even if the menu was cancelled
           applyOrientation(menu.orientation);
           if (!result.isCancelled) {
             onReaderMenuConfirm(static_cast<EpubReaderMenuActivity::MenuAction>(menu.action));
@@ -793,6 +790,62 @@ void EpubReaderActivity::queueCoverThumbBakeIfIdle() {
     coverThumbBakeInProgress.store(false);
     LOG_WRN("THUMB", "Could not start cover thumbnail job");
   }
+}
+
+bool EpubReaderActivity::persistOrientationSelection(const uint8_t orientation) {
+  if (SETTINGS.orientation == orientation) {
+    return true;
+  }
+
+  const uint8_t previousOrientation = SETTINGS.orientation;
+  SETTINGS.orientation = orientation;
+  if (SETTINGS.saveToFile()) {
+    return true;
+  }
+
+  SETTINGS.orientation = previousOrientation;
+  LOG_WRN("EPUB", "Failed to persist orientation setting to SD card");
+  return false;
+}
+
+bool EpubReaderActivity::persistAndRestartForRecovery() {
+  return persistAndRestartForRecovery(SETTINGS.orientation);
+}
+
+bool EpubReaderActivity::persistAndRestartForRecovery(const uint8_t pendingOrientation) {
+  if (!epub) {
+    LOG_WRN("ERS", "No epub state for heap recovery");
+    return false;
+  }
+  if (section && !saveProgress(currentSpineIndex, section->currentPage, section->pageCount)) {
+    LOG_WRN("ERS", "Failed to persist progress before heap recovery");
+    return false;
+  }
+  const uint8_t previousOrientation = SETTINGS.orientation;
+  if (!persistOrientationSelection(pendingOrientation)) {
+    return false;
+  }
+  auto restorePreviousOrientation = [previousOrientation] {
+    if (SETTINGS.orientation == previousOrientation) {
+      return;
+    }
+    SETTINGS.orientation = previousOrientation;
+    if (!SETTINGS.saveToFile()) {
+      LOG_WRN("EPUB", "Failed to restore orientation after aborted heap recovery");
+    }
+  };
+  APP_STATE.openEpubPath = epub->getPath();
+  if (!APP_STATE.saveToFile()) {
+    LOG_WRN("ERS", "Failed to persist resume state before heap recovery");
+    restorePreviousOrientation();
+    return false;
+  }
+  if (!silentRestartToReader()) {
+    LOG_WRN("ERS", "Heap recovery restart refused");
+    restorePreviousOrientation();
+    return false;
+  }
+  return true;
 }
 
 // Translate an absolute percent into a spine index plus a normalized position
@@ -1456,9 +1509,8 @@ void EpubReaderActivity::applyOrientation(const uint8_t orientation) {
     }
 
     // Persist the selection so the reader keeps the new orientation on next launch.
-    SETTINGS.orientation = orientation;
-    if (!SETTINGS.saveToFile()) {
-      LOG_WRN("EPUB", "Failed to persist orientation setting to SD card");
+    if (!persistOrientationSelection(orientation)) {
+      return;
     }
 
     // Update renderer orientation to match the new logical coordinate system.

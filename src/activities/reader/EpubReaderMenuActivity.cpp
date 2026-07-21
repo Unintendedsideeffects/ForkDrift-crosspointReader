@@ -6,6 +6,7 @@
 #include <I18n.h>
 
 #include "MappedInputManager.h"
+#include "ReaderOptionsMemoryPolicy.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureCatalog.h"
 #include "fontIds.h"
@@ -97,19 +98,91 @@ void EpubReaderMenuActivity::onEnter() {
   // The saved page is a luxury (half-screen preview under the options panels);
   // don't take a 48KB bite out of an already-low heap for it. Downstream code
   // handles a null buffer by falling back to full-screen settings layouts.
-  if (heapguard::canAllocate(bufSize, heapguard::kLowFloorBytes)) {
+  ReaderMemorySnapshot snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap()};
+  LOG_INF("RDR", "Pre-menu heap: free=%u largest=%u", snapshot.freeHeap, snapshot.maxAllocHeap);
+  if (ReaderOptionsMemoryPolicy::canRetainPreview(snapshot, bufSize)) {
     savedPageBuffer = makeUniqueNoThrow<uint8_t[]>(bufSize);
   }
   if (savedPageBuffer) {
     memcpy(savedPageBuffer.get(), renderer.getFrameBuffer(), bufSize);
+    LOG_INF("RDR", "Preview retained");
   } else {
-    LOG_ERR("RDR", "Skipping savedPageBuffer (%d bytes): low heap (%u free)", static_cast<int>(bufSize),
-            static_cast<unsigned>(heapguard::freeBytes()));
+    LOG_WRN("RDR", "Preview dropped: free=%u largest=%u", snapshot.freeHeap, snapshot.maxAllocHeap);
   }
   requestUpdate();
 }
 
 void EpubReaderMenuActivity::onExit() { Activity::onExit(); }
+
+void EpubReaderMenuActivity::finishOptionsResult(const ControlsOptionsResult* optionsResult) {
+  const bool readerChanged = optionsResult && optionsResult->readerSettingsChanged;
+  ActivityResult result;
+  result.isCancelled = !readerChanged;
+  result.data =
+      MenuResult{readerChanged ? static_cast<int>(MenuAction::READER_SETTINGS_CHANGED) : -1, pendingOrientation};
+  setResult(std::move(result));
+  finish();
+}
+
+void EpubReaderMenuActivity::finishForMemoryRecovery() {
+  ActivityResult result;
+  result.isCancelled = false;
+  result.data = MenuResult{static_cast<int>(MenuAction::MEMORY_RECOVERY_REQUESTED), pendingOrientation};
+  setResult(std::move(result));
+  finish();
+}
+
+void EpubReaderMenuActivity::openReaderOptions() {
+  ReaderMemorySnapshot snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap()};
+  LOG_INF("RDR", "Pre-build ReaderOptions heap: free=%u largest=%u", snapshot.freeHeap, snapshot.maxAllocHeap);
+  if (savedPageBuffer && !ReaderOptionsMemoryPolicy::canBuildSettings(snapshot)) {
+    savedPageBuffer.reset();
+  }
+  auto refreshFn = savedPageBuffer ? previewRefresh_ : nullptr;
+  startActivityForResult(
+      std::make_unique<ReaderOptionsActivity>(renderer, mappedInput, savedPageBuffer.get(), refreshFn),
+      [this](const ActivityResult& readerResult) {
+        const auto* optionsResult = std::get_if<ControlsOptionsResult>(&readerResult.data);
+        if (optionsResult && optionsResult->memoryRecoveryRequested) {
+          if (savedPageBuffer) {
+            savedPageBuffer.reset();
+#ifdef SIMULATOR
+            LOG_INF("SMOKE", "SMOKE_READER_OPTIONS_RETRY_WITHOUT_PREVIEW");
+#endif
+            openReaderOptions();
+            return;
+          }
+          finishForMemoryRecovery();
+          return;
+        }
+        finishOptionsResult(optionsResult);
+      });
+}
+
+void EpubReaderMenuActivity::openControlsOptions() {
+  ReaderMemorySnapshot snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap()};
+  LOG_INF("RDR", "Pre-build ControlsOptions heap: free=%u largest=%u", snapshot.freeHeap, snapshot.maxAllocHeap);
+  if (savedPageBuffer && !ReaderOptionsMemoryPolicy::canBuildSettings(snapshot)) {
+    savedPageBuffer.reset();
+  }
+  startActivityForResult(std::make_unique<ControlsOptionsActivity>(renderer, mappedInput, savedPageBuffer.get()),
+                         [this](const ActivityResult& controlsResult) {
+                           const auto* optionsResult = std::get_if<ControlsOptionsResult>(&controlsResult.data);
+                           if (optionsResult && optionsResult->memoryRecoveryRequested) {
+                             if (savedPageBuffer) {
+                               savedPageBuffer.reset();
+#ifdef SIMULATOR
+                               LOG_INF("SMOKE", "SMOKE_CTRL_RETRY_WITHOUT_PREVIEW");
+#endif
+                               openControlsOptions();
+                               return;
+                             }
+                             finishForMemoryRecovery();
+                             return;
+                           }
+                           finishOptionsResult(optionsResult);
+                         });
+}
 
 void EpubReaderMenuActivity::loop() {
   if (optionPopup.handleInput(mappedInput, [this] { requestUpdate(); })) return;
@@ -138,34 +211,12 @@ void EpubReaderMenuActivity::loop() {
     }
 
     if (selectedAction == MenuAction::READER_OPTIONS) {
-      startActivityForResult(
-          std::make_unique<ReaderOptionsActivity>(renderer, mappedInput, savedPageBuffer.get(), previewRefresh_),
-          [this](const ActivityResult& readerResult) {
-            const bool readerChanged = std::holds_alternative<ControlsOptionsResult>(readerResult.data) &&
-                                       std::get<ControlsOptionsResult>(readerResult.data).readerSettingsChanged;
-            ActivityResult result;
-            result.isCancelled = !readerChanged;
-            result.data = MenuResult{readerChanged ? static_cast<int>(MenuAction::READER_SETTINGS_CHANGED) : -1,
-                                     pendingOrientation};
-            setResult(std::move(result));
-            finish();
-          });
+      openReaderOptions();
       return;
     }
 
     if (selectedAction == MenuAction::CONTROLS_OPTIONS) {
-      startActivityForResult(
-          std::make_unique<ControlsOptionsActivity>(renderer, mappedInput, savedPageBuffer.get()),
-          [this](const ActivityResult& ctrlResult) {
-            const bool readerChanged = std::holds_alternative<ControlsOptionsResult>(ctrlResult.data) &&
-                                       std::get<ControlsOptionsResult>(ctrlResult.data).readerSettingsChanged;
-            ActivityResult result;
-            result.isCancelled = !readerChanged;
-            result.data = MenuResult{readerChanged ? static_cast<int>(MenuAction::READER_SETTINGS_CHANGED) : -1,
-                                     pendingOrientation};
-            setResult(std::move(result));
-            finish();
-          });
+      openControlsOptions();
       return;
     }
 

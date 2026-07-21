@@ -21,7 +21,7 @@
 // 48KB request can fail with 100KB "free" once fragmented.
 //
 // Works on device (esp_get_free_heap_size / heap_caps) and in the simulator
-// (sim_heap budget via ESP.getFreeHeap()).
+// (sim_heap total and largest-block budgets via ESP.getFreeHeap()/getMaxAllocHeap()).
 namespace heapguard {
 
 // PascalCase enumerators: NORMAL/LOW/HIGH collide with Arduino GPIO macros.
@@ -40,8 +40,8 @@ constexpr size_t kCriticalFloorBytes = 32 * 1024;
 // Current free heap in bytes.
 size_t freeBytes();
 
-// Largest single allocatable block (fragmentation-aware on device; equals
-// freeBytes() in the simulator, which does not model fragmentation).
+// Largest single allocatable block (fragmentation-aware on device; independently
+// capped in the simulator through SIM_HEAP_LARGEST).
 size_t largestBlock();
 
 // Current pressure level from freeBytes() vs the floors above.

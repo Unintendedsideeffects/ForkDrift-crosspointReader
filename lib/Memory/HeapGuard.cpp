@@ -29,7 +29,7 @@ size_t freeBytes() {
 
 size_t largestBlock() {
 #ifdef SIMULATOR
-  return freeBytes();  // sim heap does not model fragmentation
+  return ESP.getMaxAllocHeap();
 #else
   return heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 #endif

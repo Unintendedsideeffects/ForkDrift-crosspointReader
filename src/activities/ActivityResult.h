@@ -69,6 +69,7 @@ struct BookmarkResult {
 
 struct ControlsOptionsResult {
   bool readerSettingsChanged = false;
+  bool memoryRecoveryRequested = false;
 };
 
 struct ListPickerResult {

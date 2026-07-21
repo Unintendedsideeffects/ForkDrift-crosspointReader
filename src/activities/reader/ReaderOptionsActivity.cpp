@@ -13,7 +13,7 @@
 #if ENABLE_PER_BOOK_SETTINGS
 #include "util/BookSettingsOverride.h"
 #endif
-#include "MappedInputManager.h"
+#include "ReaderOptionsMemoryPolicy.h"
 #include "ReaderUtils.h"
 #include "SdCardFontSystem.h"
 #include "SettingsList.h"
@@ -25,9 +25,6 @@
 #include "fontIds.h"
 
 namespace {
-
-constexpr uint32_t kMinHeapForSettingsRebuild = 96000;
-constexpr uint32_t kMinLargestBlockForSettingsRebuild = 48000;
 
 uint8_t readEnumValue(const SettingInfo& setting) {
   if (setting.valueGetter) {
@@ -93,23 +90,32 @@ void persistOverlayChange(const char* key) {
 
 void ReaderOptionsActivity::onEnter() {
   Activity::onEnter();
+  ReaderMemorySnapshot snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap()};
+  if (!ReaderOptionsMemoryPolicy::canBuildSettings(snapshot)) {
+    setResult(ControlsOptionsResult{false, true});
+    finish();
+    return;
+  }
   sdFontSystem.refreshIfDirty();
-  rebuildSettingsList();
+  if (!rebuildSettingsList()) {
+    setResult(ControlsOptionsResult{false, true});
+    finish();
+    return;
+  }
   requestUpdate();
 }
 
 void ReaderOptionsActivity::onExit() { Activity::onExit(); }
 
-void ReaderOptionsActivity::rebuildSettingsList() {
+bool ReaderOptionsActivity::rebuildSettingsList() {
   settings.clear();
 
-  lowMemory_ =
-      ESP.getFreeHeap() < kMinHeapForSettingsRebuild || ESP.getMaxAllocHeap() < kMinLargestBlockForSettingsRebuild;
-  if (lowMemory_) {
-    LOG_WRN("RDR", "Reader options unavailable: free=%u largest=%u", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+  ReaderMemorySnapshot snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap()};
+  if (!ReaderOptionsMemoryPolicy::canBuildSettings(snapshot)) {
+    LOG_WRN("RDR", "Reader options unavailable: free=%u largest=%u", snapshot.freeHeap, snapshot.maxAllocHeap);
     settingsCount = 0;
     selectedIndex = 0;
-    return;
+    return false;
   }
 
   const auto allSettings = getSettingsList(&sdFontSystem.registry());
@@ -142,6 +148,7 @@ void ReaderOptionsActivity::rebuildSettingsList() {
   if (selectedIndex >= settingsCount) {
     selectedIndex = 0;
   }
+  return true;
 }
 
 void ReaderOptionsActivity::moveSelection(bool forward) {
@@ -291,18 +298,6 @@ void ReaderOptionsActivity::render(RenderLock&&) {
   const int hintGutterWidth = (isLandscapeCw || isLandscapeCcw) ? metrics.buttonHintsHeight : 0;
   const int contentX = isLandscapeCw ? hintGutterWidth : 0;
   const int contentWidth = pageWidth - hintGutterWidth;
-
-  if (lowMemory_) {
-    renderer.clearScreen();
-    GUI.drawHeader(renderer, Rect{contentX, metrics.topPadding, contentWidth, metrics.headerHeight}, tr(STR_CAT_READER),
-                   nullptr);
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 8, "Not enough free memory", true);
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 12, "Return to the reader and try again", true);
-    const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
-    GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
-    renderer.displayBuffer();
-    return;
-  }
 
   auto rowTitle = [this](int i) { return std::string(I18N.get(settings[i].nameId)); };
   auto isHeader = [this](int i) { return settings[i].type == SettingType::SECTION_HEADER; };

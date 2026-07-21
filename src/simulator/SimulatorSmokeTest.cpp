@@ -110,7 +110,13 @@ class SimulatorSmokeTest {
   static bool selectionMeasurementRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_SELECTION") != nullptr; }
 
   static bool readerOptionsRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_READER_OPTIONS") != nullptr; }
+  static bool controlsOptionsRequested() {
+    return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_CONTROLS_OPTIONS") != nullptr;
+  }
 
+  static bool controlsRecoveryExpected() {
+    return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_CONTROLS_EXPECT_RECOVERY") != nullptr;
+  }
   static bool percentJumpRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_PERCENT_JUMP") != nullptr; }
 
   static int pageTurnCount() {
@@ -255,7 +261,11 @@ class SimulatorSmokeTest {
           break;
         }
         activityManager.goHome();
-        queueStep("Home", SmokeStep::Home);
+        if (controlsOptionsRequested()) {
+          queueStep("Sleep", SmokeStep::Sleep);
+        } else {
+          queueStep("Home", SmokeStep::Home);
+        }
         break;
 
       case SmokeStep::Home:
@@ -536,6 +546,36 @@ class SimulatorSmokeTest {
       inputScript.push_back(render("Home after options stress", 4));
 
       LOG_INF("SMOKE", "Running reader options stress script with %d page turn(s)", turns);
+      return;
+    }
+    if (controlsOptionsRequested()) {
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Reader menu for controls", 4));
+#if ENABLE_TEXT_SELECTION
+      constexpr int kControlsDownTaps = 3;
+#else
+      constexpr int kControlsDownTaps = 2;
+#endif
+      for (int i = 0; i < kControlsDownTaps; i++) {
+        addTap(MappedInputManager::Button::Down);
+        inputScript.push_back(render("Reader menu down to controls", 2));
+      }
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Controls result settled", 10));
+      if (controlsRecoveryExpected()) {
+        // Typed recovery has already returned through menu to Reader. The simulator's
+        // ESP.restart() is a no-op, so close Reader explicitly to finish the smoke.
+        addTap(MappedInputManager::Button::Back);
+        inputScript.push_back(render("Home after controls recovery", 4));
+      } else {
+        addTap(MappedInputManager::Button::Down);
+        inputScript.push_back(render("Controls options moved to next setting", 2));
+        addTap(MappedInputManager::Button::Back);
+        inputScript.push_back(render("Back to reader", 4));
+        addTap(MappedInputManager::Button::Back);
+        inputScript.push_back(render("Home after controls", 4));
+      }
+      LOG_INF("SMOKE", "Running controls options script with %d page turn(s)", turns);
       return;
     }
     if (percentJumpRequested()) {
