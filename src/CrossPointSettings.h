@@ -205,6 +205,7 @@ class CrossPointSettings {
     FLOW = 8
   };
   enum RECENT_BOOKS_VIEW { RECENT_BOOKS_LIST = 0, RECENT_BOOKS_GRID = 1, RECENT_BOOKS_VIEW_COUNT };
+  enum DARK_MODE_SCOPE { DARK_OFF = 0, DARK_READER_ONLY = 1, DARK_EVERYWHERE = 2, DARK_MODE_SCOPE_COUNT };
 
   // Page turn button long press behavior
   enum LONG_PRESS_BUTTON_BEHAVIOR {
@@ -377,6 +378,7 @@ class CrossPointSettings {
   // OTA release channel selection
   uint8_t releaseChannel = RELEASE_STABLE;
   uint8_t darkMode = 0;
+  uint8_t darkModeScope = DARK_OFF;
   char userFontPath[128] = "";
   char selectedOtaBundle[32] = "";
   char installedOtaBundle[32] = "";
@@ -481,6 +483,18 @@ class CrossPointSettings {
   }
 
   bool keepsBackgroundServerOnWifiWhileAwake() const { return getBackgroundServerMode() == BACKGROUND_SERVER_ALWAYS; }
+
+  void syncDarkModeLegacyField() { darkMode = darkModeScope == DARK_EVERYWHERE ? 1 : 0; }
+  bool isGlobalDarkMode() const { return darkModeScope == DARK_EVERYWHERE; }
+  bool effectiveDarkMode(const bool readerContext) const {
+    if (darkModeScope == DARK_EVERYWHERE) {
+      return true;
+    }
+    if (darkModeScope == DARK_READER_ONLY) {
+      return readerContext;
+    }
+    return false;
+  }
 
   // Callback to resolve SD card font IDs. Set by SdCardFontSystem::begin().
   // Returns font ID or 0 if not found.

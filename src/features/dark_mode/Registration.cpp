@@ -4,12 +4,15 @@
 #include <GfxRenderer.h>
 
 #include "CrossPointSettings.h"
+#include "activities/ActivityManager.h"
 #include "core/registries/LifecycleRegistry.h"
 
 namespace features::dark_mode {
 namespace {
 
-void onSettingsLoaded(GfxRenderer& renderer) { renderer.setDarkMode(SETTINGS.darkMode); }
+void onSettingsLoaded(GfxRenderer& renderer) {
+  renderer.setDarkMode(SETTINGS.effectiveDarkMode(activityManager.isReaderActivity()));
+}
 
 }  // namespace
 

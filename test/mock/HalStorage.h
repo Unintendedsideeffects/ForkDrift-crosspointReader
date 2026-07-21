@@ -15,6 +15,12 @@
 
 #include "String.h"
 
+using oflag_t = int;
+constexpr oflag_t O_RDONLY = 0;
+constexpr oflag_t O_WRONLY = 1;
+constexpr oflag_t O_CREAT = 2;
+constexpr oflag_t O_APPEND = 4;
+
 // ── In-memory HalFile ────────────────────────────────────────────────────
 class HalFile {
  public:
@@ -153,8 +159,28 @@ class HalStorage {
     return openFileForRead(tag, path.c_str(), file);
   }
 
-  HalFile open(const char* path) {
+  HalFile open(const char* path) { return open(path, O_RDONLY); }
+
+  HalFile open(const char* path, const oflag_t flags) {
     const std::string normalized = normalizePath(path ? path : "");
+    if ((flags & O_WRONLY) != 0) {
+      auto it = files_.find(normalized);
+      if (it == files_.end()) {
+        if ((flags & O_CREAT) == 0) {
+          return HalFile();
+        }
+        ensureParentDirs(normalized);
+        files_[normalized] = std::make_shared<std::vector<uint8_t>>();
+        it = files_.find(normalized);
+      }
+      HalFile file = HalFile::forFile(normalized, it->second);
+      if ((flags & O_APPEND) != 0) {
+        file.seek(it->second->size());
+      }
+      file.setOpener([this](const std::string& childPath) { return open(childPath.c_str()); });
+      return file;
+    }
+
     auto fileIt = files_.find(normalized);
     if (fileIt != files_.end()) {
       HalFile file = HalFile::forFile(normalized, fileIt->second);

@@ -161,6 +161,7 @@ void ActivityManager::loop() {
         if (pendingAction == PendingAction::None) {
           requestUpdate();
         }
+        applyEffectiveDarkMode();
 
         // Handler may request another pending action, we will handle it in the next loop iteration
         continue;
@@ -196,6 +197,7 @@ void ActivityManager::loop() {
               static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(ESP.getMinFreeHeap()),
               static_cast<unsigned int>(heapguard::largestBlock()));
       currentActivity->onEnter();
+      applyEffectiveDarkMode();
 
       // onEnter may request another pending action, we will handle it in the next loop iteration
       continue;
@@ -246,6 +248,7 @@ void ActivityManager::replaceActivity(std::unique_ptr<Activity>&& newActivity) {
             static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(ESP.getMinFreeHeap()),
             static_cast<unsigned int>(heapguard::largestBlock()));
     currentActivity->onEnter();
+    applyEffectiveDarkMode();
   }
 }
 
@@ -376,6 +379,8 @@ bool ActivityManager::isReaderActivity() const {
                      [](const auto& activity) { return activity->isReaderActivity(); }) ||
          (currentActivity && currentActivity->isReaderActivity());
 }
+
+void ActivityManager::applyEffectiveDarkMode() { renderer.setDarkMode(SETTINGS.effectiveDarkMode(isReaderActivity())); }
 
 bool ActivityManager::skipLoopDelay() const {
   if (backgroundServer && backgroundServer->isRunning()) return true;

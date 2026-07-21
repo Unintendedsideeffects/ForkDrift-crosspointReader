@@ -213,7 +213,7 @@ struct NegativeExistCache {
 static NegativeExistCache g_homeNegativeCache;
 
 void maskCorners(const GfxRenderer& renderer, int x, int y, int w, int h, int r) {
-  const bool maskColor = (SETTINGS.darkMode != 0);
+  const bool maskColor = SETTINGS.isGlobalDarkMode();
   for (int dy = 0; dy < r; dy++) {
     for (int dx = 0; dx < r; dx++) {
       if ((r - dx) * (r - dx) + (r - dy) * (r - dy) > r * r) {

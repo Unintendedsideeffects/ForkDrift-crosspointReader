@@ -12,7 +12,15 @@ struct SelWord {
   int16_t y;
   int16_t w;
   int16_t h;
+  uint16_t lineId = 0;
   std::string text;
+};
+
+struct HighlightRect {
+  int16_t x;
+  int16_t y;
+  int16_t w;
+  int16_t h;
 };
 
 struct Model {
@@ -39,5 +47,6 @@ bool anchorByText(const std::vector<SelWord>& words, const std::string& text, in
 // `unique` is set true only when exactly one occurrence exists.
 bool anchorByTextUnique(const std::vector<SelWord>& words, const std::string& text, int spanLen, int& outLo, int& outHi,
                         bool& unique);
+std::vector<HighlightRect> buildHighlightRuns(const std::vector<SelWord>& words, int lo, int hi);
 
 }  // namespace selection

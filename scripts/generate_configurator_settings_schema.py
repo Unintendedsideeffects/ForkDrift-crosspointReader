@@ -60,6 +60,7 @@ EXCLUDED_PERSISTED_KEYS = {
     "clockFormat",
     "clockHasBeenSynced",
     "clockUtcOffsetQ",
+    "darkMode",
     "frontButtonBack",
     "frontButtonConfirm",
     "frontButtonLayout",

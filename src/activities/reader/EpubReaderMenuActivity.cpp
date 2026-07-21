@@ -220,6 +220,15 @@ void EpubReaderMenuActivity::loop() {
       return;
     }
 
+    if (selectedAction == MenuAction::SELECT_TEXT || selectedAction == MenuAction::ADD_TO_ANKI) {
+      ActivityResult result;
+      result.data = MenuResult{static_cast<int>(selectedAction), pendingOrientation};
+      result.transferredPageSnapshot = std::move(savedPageBuffer);
+      setResult(std::move(result));
+      finish();
+      return;
+    }
+
     setResult(MenuResult{static_cast<int>(selectedAction), pendingOrientation});
     finish();
     return;

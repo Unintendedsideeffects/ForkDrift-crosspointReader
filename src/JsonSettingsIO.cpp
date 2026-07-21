@@ -184,7 +184,14 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
   s.recentBooksView =
       clamp(doc["recentBooksView"] | (uint8_t)S::RECENT_BOOKS_LIST, S::RECENT_BOOKS_VIEW_COUNT, S::RECENT_BOOKS_LIST);
   s.fadingFix = doc["fadingFix"] | (uint8_t)0;
-  s.darkMode = doc["darkMode"] | (uint8_t)0;
+  if (doc["darkModeScope"].is<uint8_t>() || doc["darkModeScope"].is<int>()) {
+    s.darkModeScope = clamp(doc["darkModeScope"] | (uint8_t)S::DARK_OFF, S::DARK_MODE_SCOPE_COUNT, S::DARK_OFF);
+  } else if (doc["darkMode"] | (uint8_t)0) {
+    s.darkModeScope = S::DARK_EVERYWHERE;
+  } else {
+    s.darkModeScope = S::DARK_OFF;
+  }
+  s.syncDarkModeLegacyField();
   s.embeddedStyle = doc["embeddedStyle"] | (uint8_t)1;
   s.wifiAutoConnect = doc["wifiAutoConnect"] | (uint8_t)0;
   s.showHiddenFiles = doc["showHiddenFiles"] | (uint8_t)0;
@@ -341,6 +348,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["uiTheme"] = s.uiTheme;
   doc["recentBooksView"] = s.recentBooksView;
   doc["fadingFix"] = s.fadingFix;
+  doc["darkModeScope"] = s.darkModeScope;
   doc["darkMode"] = s.darkMode;
   doc["embeddedStyle"] = s.embeddedStyle;
   doc["focusReadingEnabled"] = s.focusReadingEnabled;

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -84,6 +85,7 @@ using ResultVariant =
 struct ActivityResult {
   bool isCancelled = false;
   ResultVariant data;
+  std::unique_ptr<uint8_t[]> transferredPageSnapshot;
 
   explicit ActivityResult() = default;
 

@@ -48,6 +48,7 @@ String buildSettingsSnapshotJson(const CrossPointSettings& s) {
   doc["releaseChannel"] = s.releaseChannel;
   doc["uiTheme"] = s.uiTheme;
   doc["fadingFix"] = s.fadingFix;
+  doc["darkModeScope"] = s.darkModeScope;
   doc["darkMode"] = s.darkMode;
   doc["embeddedStyle"] = s.embeddedStyle;
   doc["userFontPath"] = s.userFontPath;

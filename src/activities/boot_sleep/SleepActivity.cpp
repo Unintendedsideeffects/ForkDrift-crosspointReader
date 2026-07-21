@@ -1037,7 +1037,7 @@ void SleepActivity::renderDefaultSleepScreen() const {
 
   // Make sleep screen dark unless light is selected in settings
   const bool lightScreen = (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::LIGHT) ||
-                           (SETTINGS.sleepScreen == CrossPointSettings::FOLLOW_THEME && !SETTINGS.darkMode);
+                           (SETTINGS.sleepScreen == CrossPointSettings::FOLLOW_THEME && !SETTINGS.isGlobalDarkMode());
 
   if (!lightScreen) {
     renderer.invertScreen();

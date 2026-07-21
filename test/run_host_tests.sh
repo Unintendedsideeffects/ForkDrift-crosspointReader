@@ -57,7 +57,8 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -DCROSSPOINT_HOST_BUILD=1 \
   -fsanitize=address,undefined \
   -fno-omit-frame-pointer \
-  -DENABLE_POKEMON_WALLPAPER_PLUGIN=1 \
+  -DENABLE_TEXT_SELECTION=1 \
+  -DENABLE_ANNOTATIONS=1 \
   -DENABLE_POKEMON_PARTY=1 \
   -DENABLE_IMAGE_SLEEP=1 \
   -DENABLE_BACKGROUND_SERVER=1 \
@@ -151,6 +152,8 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/activities/reader/BookReadingStats.cpp" \
   "$ROOT_DIR/src/activities/reader/GlobalReadingStats.cpp" \
   "$ROOT_DIR/src/activities/reader/SelectionModel.cpp" \
+  "$ROOT_DIR/src/activities/reader/SelectionCapturePolicy.cpp" \
+  "$ROOT_DIR/src/util/NotesStore.cpp" \
   "$ROOT_DIR/src/activities/home/HomeCarouselCache.cpp" \
   "$BUILD_DIR/md4c.o" \
   "$BUILD_DIR/entity.o" \

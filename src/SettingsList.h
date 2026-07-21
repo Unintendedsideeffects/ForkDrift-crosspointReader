@@ -935,7 +935,9 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
 #endif
 
   if (core::FeatureModules::hasCapability(core::Capability::DarkMode)) {
-    emit(SettingInfo::Toggle(StrId::STR_DARK_MODE, &CrossPointSettings::darkMode, "darkMode", StrId::STR_CAT_DISPLAY)
+    emit(SettingInfo::Enum(StrId::STR_DARK_MODE, &CrossPointSettings::darkModeScope,
+                           {StrId::STR_OFF, StrId::STR_DARK_MODE_READER_ONLY, StrId::STR_DARK_MODE_EVERYWHERE},
+                           "darkModeScope", StrId::STR_CAT_DISPLAY)
              .withConfiguratorExport("dark_mode"));
   }
 

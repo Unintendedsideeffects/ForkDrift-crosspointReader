@@ -9,7 +9,7 @@ std::vector<selection::SelWord> makeWords(const std::vector<const char*>& texts)
   std::vector<selection::SelWord> words;
   words.reserve(texts.size());
   for (const char* text : texts) {
-    words.push_back({0, 0, 0, 0, text});
+    words.push_back({0, 0, 0, 0, 0, text});
   }
   return words;
 }

@@ -72,10 +72,21 @@ class SimulatorSmokeTest {
     fail("Entered Safe Mode unexpectedly during smoke test");
   }
 
-  static bool dualSideConfirmRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_DUAL_SIDE_CONFIRM") != nullptr; }
+  static bool dualSideConfirmRequested() {
+    return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_DUAL_SIDE_CONFIRM") != nullptr;
+  }
 
  private:
-  enum class ScriptActionType : uint8_t { Press, Release, Render, HashFrame, CheckHashDiff, CheckHashSame, InjectPhysicalConfirmRelease, SetLongPressActionOff };
+  enum class ScriptActionType : uint8_t {
+    Press,
+    Release,
+    Render,
+    HashFrame,
+    CheckHashDiff,
+    CheckHashSame,
+    InjectPhysicalConfirmRelease,
+    SetLongPressActionOff
+  };
 
   struct ScriptAction {
     ScriptActionType type;
@@ -108,6 +119,10 @@ class SimulatorSmokeTest {
   static bool sdFailRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SD_FAIL") != nullptr; }
 
   static bool selectionMeasurementRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_SELECTION") != nullptr; }
+  static bool selectionColdEntryRequested() {
+    return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_SELECTION_COLD") != nullptr;
+  }
+  static bool darkModeScopeRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_DARK_MODE_SCOPE") != nullptr; }
 
   static bool readerOptionsRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_READER_OPTIONS") != nullptr; }
   static bool controlsOptionsRequested() {
@@ -454,27 +469,68 @@ class SimulatorSmokeTest {
 
       inputScript.push_back(hashFrame("Reader before dual-side confirm"));
 
-      inputScript.push_back({ScriptActionType::InjectPhysicalConfirmRelease, MappedInputManager::Button::Back, nullptr, 700});
+      inputScript.push_back(
+          {ScriptActionType::InjectPhysicalConfirmRelease, MappedInputManager::Button::Back, nullptr, 700});
       inputScript.push_back(render("Reader selection mode from confirm", 6));
       inputScript.push_back(checkHashDiff("Reader before dual-side confirm"));
 
-      addTap(MappedInputManager::Button::Back); // Exit selection mode
+      addTap(MappedInputManager::Button::Back);  // Exit selection mode
       inputScript.push_back(render("Reader after exiting selection", 4));
 
       inputScript.push_back(hashFrame("Reader before page turn from confirm"));
 
       inputScript.push_back({ScriptActionType::SetLongPressActionOff, MappedInputManager::Button::Back, nullptr, 0});
-      inputScript.push_back({ScriptActionType::InjectPhysicalConfirmRelease, MappedInputManager::Button::Back, nullptr, 700});
+      inputScript.push_back(
+          {ScriptActionType::InjectPhysicalConfirmRelease, MappedInputManager::Button::Back, nullptr, 700});
       inputScript.push_back(render("Reader page turn from confirm", 6));
       inputScript.push_back(checkHashDiff("Reader before page turn from confirm"));
 
-      addTap(MappedInputManager::Button::Back); // Exit reader
+      addTap(MappedInputManager::Button::Back);  // Exit reader
       inputScript.push_back(render("Home after dual-side confirm", 4));
 
       LOG_INF("SMOKE", "Running dual-side confirm script with %d page turn(s)", turns);
       return;
 #else
       fail("FORKDRIFT_SIMULATOR_SMOKE_DUAL_SIDE_CONFIRM requested but ENABLE_TEXT_SELECTION is off");
+#endif
+    }
+    if (darkModeScopeRequested()) {
+      SETTINGS.darkModeScope = CrossPointSettings::DARK_READER_ONLY;
+      SETTINGS.syncDarkModeLegacyField();
+      activityManager.applyEffectiveDarkMode();
+      inputScript.push_back(render("Home reader-only dark mode baseline", 4));
+      const char* bookPath = std::getenv("FORKDRIFT_SIMULATOR_SMOKE_BOOK");
+      if (bookPath != nullptr && bookPath[0] != '\0') {
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Reader menu dark mode scope", 4));
+        addTap(MappedInputManager::Button::Back);
+        inputScript.push_back(render("Home after reader dark mode scope", 4));
+      }
+      SETTINGS.darkModeScope = CrossPointSettings::DARK_OFF;
+      SETTINGS.syncDarkModeLegacyField();
+      activityManager.applyEffectiveDarkMode();
+      inputScript.push_back(render("Home after dark mode scope reset", 4));
+      LOG_INF("SMOKE", "Running dark mode scope script with %d page turn(s)", turns);
+      return;
+    }
+    if (selectionColdEntryRequested()) {
+#if ENABLE_TEXT_SELECTION
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Reader menu for selection cold entry", 4));
+      addTap(MappedInputManager::Button::Down);
+      inputScript.push_back(render("Reader menu on select-text cold entry", 2));
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Selection cold entry entered", 4));
+      addTap(MappedInputManager::Button::Right);
+      inputScript.push_back(render("Selection cold entry cursor move", 3));
+      addTap(MappedInputManager::Button::Back);
+      inputScript.push_back(render("Selection cold entry exited", 3));
+      addTap(MappedInputManager::Button::Back);
+      inputScript.push_back(render("Home after selection cold entry", 4));
+      LOG_INF("SMOKE", "Running reader selection cold-entry script with %d page turn(s)", turns);
+      return;
+#else
+      fail("FORKDRIFT_SIMULATOR_SMOKE_SELECTION_COLD requested but ENABLE_TEXT_SELECTION is off");
 #endif
     }
     if (selectionMeasurementRequested()) {

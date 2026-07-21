@@ -17,6 +17,7 @@
 #include "CrossPointSettings.h"
 #include "EpubReaderMenuActivity.h"
 #if ENABLE_TEXT_SELECTION
+#include "SelectionCapturePolicy.h"
 #include "SelectionModel.h"
 #endif
 #if ENABLE_READING_STATS
@@ -88,8 +89,12 @@ class EpubReaderActivity final : public Activity {
   OptionPopup selectionPopup;
   std::unique_ptr<uint8_t[]> selectionBaseSnapshot;
   bool selectionSnapshotFallback = false;
+  std::unique_ptr<uint8_t[]> pendingSelectionSnapshot;
+  uint8_t selectionContentLoads = 0;
+  selection_capture::Action selectionPreferredAction = selection_capture::Action::BookNotes;
 
-  void enterSelectionMode();
+  void enterSelectionMode(std::unique_ptr<uint8_t[]> transferredSnapshot = {});
+  bool tryCaptureSelectionSnapshotFromFramebuffer();
   void exitSelectionMode();
   bool handleSelectionInput();
   void drawSelectionOverlay() const;

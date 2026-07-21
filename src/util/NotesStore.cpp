@@ -29,17 +29,18 @@ std::string sanitizeTitle(const std::string& title) {
 
 namespace NotesStore {
 
-bool appendHighlight(const std::string& bookTitle, const std::string& location, const std::string& text) {
+std::string bookNotesPath(const std::string& bookTitle) { return "/Notes/" + sanitizeTitle(bookTitle) + ".md"; }
+
+bool appendHighlight(const std::string& bookTitle, const std::string& location, const std::string& text,
+                     std::string* outPath) {
   if (text.empty()) {
     return false;
   }
   if (!Storage.mkdir("/Notes")) {
-    // mkdir is a no-op when the directory exists; a false here still may mean
-    // "exists" on some FAT drivers, so only fail later on the actual open.
     LOG_DBG("NOTES", "mkdir /Notes returned false (may already exist)");
   }
 
-  const std::string path = "/Notes/" + sanitizeTitle(bookTitle) + ".md";
+  const std::string path = bookNotesPath(bookTitle);
   const bool isNew = !Storage.exists(path.c_str());
 
   HalFile file = Storage.open(path.c_str(), O_WRONLY | O_CREAT | O_APPEND);
@@ -68,6 +69,9 @@ bool appendHighlight(const std::string& bookTitle, const std::string& location, 
     return false;
   }
   LOG_INF("NOTES", "Highlight saved to %s", path.c_str());
+  if (outPath) {
+    *outPath = path;
+  }
   return true;
 }
 

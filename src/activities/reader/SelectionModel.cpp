@@ -175,4 +175,45 @@ bool anchorByTextUnique(const std::vector<SelWord>& words, const std::string& te
   return matchCount > 0;
 }
 
+std::vector<HighlightRect> buildHighlightRuns(const std::vector<SelWord>& words, const int lo, const int hi) {
+  std::vector<HighlightRect> runs;
+  if (words.empty() || lo > hi || lo < 0 || hi >= static_cast<int>(words.size())) {
+    return runs;
+  }
+
+  int runStart = lo;
+  while (runStart <= hi) {
+    const uint16_t lineId = words[static_cast<size_t>(runStart)].lineId;
+    int runEnd = runStart;
+    while (runEnd + 1 <= hi && words[static_cast<size_t>(runEnd + 1)].lineId == lineId) {
+      ++runEnd;
+    }
+
+    int16_t minX = words[static_cast<size_t>(runStart)].x;
+    int16_t minY = words[static_cast<size_t>(runStart)].y;
+    int16_t maxX = static_cast<int16_t>(minX + words[static_cast<size_t>(runStart)].w);
+    int16_t maxY = static_cast<int16_t>(minY + words[static_cast<size_t>(runStart)].h);
+
+    for (int i = runStart + 1; i <= runEnd; ++i) {
+      const SelWord& word = words[static_cast<size_t>(i)];
+      if (word.w <= 0 || word.h <= 0) {
+        continue;
+      }
+      minX = std::min(minX, word.x);
+      minY = std::min(minY, word.y);
+      maxX = std::max(maxX, static_cast<int16_t>(word.x + word.w));
+      maxY = std::max(maxY, static_cast<int16_t>(word.y + word.h));
+    }
+
+    if (maxX > minX && maxY > minY) {
+      runs.push_back(HighlightRect{static_cast<int16_t>(minX - 1), minY, static_cast<int16_t>(maxX - minX + 2),
+                                   static_cast<int16_t>(maxY - minY)});
+    }
+
+    runStart = runEnd + 1;
+  }
+
+  return runs;
+}
+
 }  // namespace selection

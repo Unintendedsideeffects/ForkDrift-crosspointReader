@@ -41,7 +41,7 @@ inline void groupSettingsByTopic(std::vector<SettingInfo>& settings, const std::
 namespace settings_topics {
 
 inline const std::vector<SettingsTopicGroup> kDisplay{
-    {StrId::STR_SEC_APPEARANCE, {"uiTheme", "recentBooksView", "darkMode", "fadingFix"}},
+    {StrId::STR_SEC_APPEARANCE, {"uiTheme", "recentBooksView", "darkModeScope", "fadingFix"}},
     {StrId::STR_SEC_STATUS_BAR, {"globalStatusBarPosition"}},
     {StrId::STR_SEC_SLEEP,
      {"sleepScreenSplit", "sleepScreen", "sleepScreenReader", "sleepScreenHome", "sleepScreenSource",

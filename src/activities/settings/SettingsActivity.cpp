@@ -462,7 +462,8 @@ void SettingsActivity::toggleCurrentSetting() {
   const auto& setting = (*currentSettings)[selectedSetting];
   const auto persistSettings = [this] {
     SETTINGS.enforceButtonLayoutConstraints();
-    renderer.setDarkMode(SETTINGS.darkMode);
+    SETTINGS.syncDarkModeLegacyField();
+    activityManager.applyEffectiveDarkMode();
     if (!SETTINGS.saveToFile()) {
       LOG_WRN("SETTINGS", "Failed to persist settings to SD card");
     }

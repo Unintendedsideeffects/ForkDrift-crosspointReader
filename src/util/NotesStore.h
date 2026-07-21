@@ -7,8 +7,8 @@
 // syncable; a KOReader-sidecar exporter can be layered on the same data.
 namespace NotesStore {
 
-// Append one highlight. `location` is a short human-readable position
-// ("Chapter 3, p12, 45%"). Returns false on any storage failure.
-bool appendHighlight(const std::string& bookTitle, const std::string& location, const std::string& text);
+std::string bookNotesPath(const std::string& bookTitle);
+bool appendHighlight(const std::string& bookTitle, const std::string& location, const std::string& text,
+                     std::string* outPath = nullptr);
 
 }  // namespace NotesStore
