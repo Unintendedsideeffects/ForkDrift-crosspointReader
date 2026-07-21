@@ -1,6 +1,6 @@
 # Troubleshooting
 
-This document show most common issues and possible solutions while using the device features.
+This document shows common issues and possible solutions while using the device features.
 
 - [Troubleshooting](#troubleshooting)
     - [Cannot See the Device on the Network](#cannot-see-the-device-on-the-network)
@@ -14,9 +14,10 @@ This document show most common issues and possible solutions while using the dev
 
 **Solutions:**
 
-1. Verify both devices are on the **same WiFi network**
-   - Check your computer/phone WiFi settings
-   - Confirm the CrossPoint Reader shows "Connected" status
+1. Verify both devices are on the correct network
+   - Check your computer/phone Wi-Fi settings
+   - In **Join Network** mode, your computer/phone and CrossPoint Reader must be on the same Wi-Fi network
+   - In **Create Hotspot** mode, your computer/phone must be connected to the `CrossPoint-Reader` hotspot
 2. Double-check the IP address
    - Make sure you typed it correctly
    - Include `http://` at the beginning
@@ -27,14 +28,14 @@ This document show most common issues and possible solutions while using the dev
 
 ### Connection Drops or Times Out
 
-**Problem:** WiFi connection is unstable
+**Problem:** Wi-Fi connection is unstable
 
 **Solutions:**
 
-1. Move closer to the WiFi router
+1. Move closer to the Wi-Fi router, or use Create Hotspot mode for a direct connection
 2. Check signal strength on the device (should be at least `||` or better)
 3. Avoid interference from other devices
-4. Try a different WiFi network if available
+4. Try a different Wi-Fi network if available
 
 ### Upload Fails
 
@@ -42,10 +43,11 @@ This document show most common issues and possible solutions while using the dev
 
 **Solutions:**
 
-1. Ensure the file is a valid `.epub` file
-2. Check that the SD card has enough free space
+1. Check that the SD card has enough free space
+2. Check that the filename is valid for the SD card filesystem
 3. Try uploading a smaller file first to test
 4. Refresh the browser page and try again
+5. If WebSocket upload fails repeatedly, refresh the page and retry with the HTTP fallback path
 
 ### Saved Password Not Working
 

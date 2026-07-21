@@ -30,9 +30,9 @@ class SettingsActivity final : public Activity {
  protected:
   void enterCategory(int categoryIndex);
   void toggleCurrentSetting();
+  void openSleepTimeoutPicker();
   void rebuildSettingsLists();
   void invalidateMasterSettingsCache();
-  void openSleepTimeoutPicker();
 
  public:
   explicit SettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)

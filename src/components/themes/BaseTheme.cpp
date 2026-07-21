@@ -2,6 +2,7 @@
 
 #include <FeatureFlags.h>
 #include <GfxRenderer.h>
+#include <HalClock.h>
 #include <HalPowerManager.h>
 #include <HalStorage.h>
 #include <Logging.h>
@@ -15,6 +16,7 @@
 #include "I18n.h"
 #include "SpiBusMutex.h"
 #include "components/UITheme.h"
+#include "components/icons/bookmark.h"
 #include "features/status_overlay/Layout.h"
 #include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
@@ -25,6 +27,27 @@ namespace {
 constexpr int homeMenuMargin = 20;
 constexpr int homeMarginTop = 30;
 constexpr int subtitleY = 738;
+constexpr int bookmarkStatusIconWidth = 16;
+constexpr int bookmarkStatusIconHeight = 14;
+constexpr int bookmarkStatusIconGap = 4;
+constexpr int bookmarkStatusIconTopCrop = 2;
+
+bool statusBarTextLaneVisible() {
+  return SETTINGS.statusBarChapterPageCount || SETTINGS.statusBarBookProgressPercentage ||
+         SETTINGS.statusBarTitle != CrossPointSettings::STATUS_BAR_TITLE::HIDE_TITLE || SETTINGS.statusBarBattery ||
+         (SETTINGS.statusBarClock && halClock.isAvailable());
+}
+
+void drawBookmarkStatusIcon(const GfxRenderer& renderer, const int x, const int y) {
+  constexpr int bytesPerRow = bookmarkStatusIconWidth / 8;
+  for (int row = 0; row < bookmarkStatusIconHeight; ++row) {
+    for (int col = 0; col < bookmarkStatusIconWidth; ++col) {
+      const uint8_t byte = BookmarkStatusIcon[(row + bookmarkStatusIconTopCrop) * bytesPerRow + col / 8];
+      const uint8_t mask = 1U << (7 - (col % 8));
+      renderer.drawPixel(x + col, y + row, (byte & mask) != 0);
+    }
+  }
+}
 
 }  // namespace
 
@@ -238,6 +261,11 @@ void BaseTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* top
   }
 }
 
+int BaseTheme::getListPageItems(int contentHeight, bool hasSubtitle) const {
+  int rowHeight = (hasSubtitle) ? BaseMetrics::values.listWithSubtitleRowHeight : BaseMetrics::values.listRowHeight;
+  return contentHeight / rowHeight;
+}
+
 void BaseTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, int selectedIndex,
                          const std::function<std::string(int index)>& rowTitle,
                          const std::function<std::string(int index)>& rowSubtitle,
@@ -287,7 +315,6 @@ void BaseTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, 
     }
     renderer.fillRect(0, selY - 2, rect.width, rowHeight);
   }
-  constexpr int maxValueWidth = 200;
   constexpr int minValueGap = 10;
 
   // Draw all items using a running Y to accommodate variable-height section headers
@@ -377,8 +404,6 @@ void BaseTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* t
 }
 
 void BaseTheme::drawSubHeader(const GfxRenderer& renderer, Rect rect, const char* label, const char* rightLabel) const {
-  constexpr int underlineHeight = 2;  // Height of selection underline
-  constexpr int underlineGap = 4;     // Gap between text and underline
   constexpr int maxListValueWidth = 200;
 
   int currentX = rect.x + BaseMetrics::values.contentSidePadding;

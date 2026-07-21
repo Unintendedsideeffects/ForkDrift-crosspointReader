@@ -68,8 +68,8 @@
 #endif
 #include "util/WifiCredentialStore.h"
 
-MappedInputManager mappedInputManager(gpio);
 GfxRenderer renderer(display);
+MappedInputManager mappedInputManager(gpio);
 ActivityManager activityManager(renderer, mappedInputManager);
 BackgroundWebServer& backgroundServer = BackgroundWebServer::getInstance();
 FontDecompressor fontDecompressor;
@@ -938,7 +938,7 @@ void loop() {
 #endif
 
   const unsigned long sleepTimeoutMs = SETTINGS.getSleepTimeoutMs();
-  if (millis() - lastActivityTime >= sleepTimeoutMs) {
+  if (sleepTimeoutMs > 0 && millis() - lastActivityTime >= sleepTimeoutMs) {
     LOG_DBG("SLP", "Auto-sleep triggered after %lu ms of inactivity", sleepTimeoutMs);
     enterDeepSleep();
     return;

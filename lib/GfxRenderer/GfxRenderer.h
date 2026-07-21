@@ -232,12 +232,15 @@ class GfxRenderer {
   void copyGrayscaleLsbBuffers() const;
   void copyGrayscaleMsbBuffers() const;
   void displayGrayBuffer() const;
+
+  // Tiled grayscale (X4): stream one band of a plane straight to controller RAM
+  // from `scratch` (panelWidthBytes * numRows, physical rows [yStart, yStart+
+  // numRows)), bypassing the framebuffer. supportsStripGrayscale() gates use.
+  bool supportsStripGrayscale() const;
   bool storeBwBuffer();    // Returns true if buffer was stored successfully
   void restoreBwBuffer();  // Restore and free the stored buffer
   void cleanupGrayscaleWithFrameBuffer() const;
 
-  // Tiled grayscale support (X4 only)
-  bool supportsStripGrayscale() const;
   void writeGrayscalePlaneStrip(bool lsbPlane, const uint8_t* rows, uint16_t yStart, uint16_t numRows) const;
 
   // Font helpers

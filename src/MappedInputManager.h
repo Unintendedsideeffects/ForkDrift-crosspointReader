@@ -10,7 +10,7 @@
 
 class MappedInputManager {
  public:
-  enum class Button { Back, Confirm, Left, Right, Up, Down, Power, PageBack, PageForward };
+  enum class Button { Back, Confirm, Left, Right, Up, Down, Power, PageBack, PageForward, NavNext, NavPrevious };
 
   using PhysicalConfirmRelease = ::PhysicalConfirmRelease;
 
@@ -57,6 +57,12 @@ class MappedInputManager {
   void simulatorClearInputFrame();
   void simulatorInjectPhysicalConfirmRelease(unsigned long durationMs);
 #endif
+
+  // True when the control axis is flipped relative to the physical buttons: the user opted into
+  // orientation-following front buttons AND the screen is *currently rendered* rotated (INVERTED /
+  // LANDSCAPE_CCW). Keyed on the live renderer orientation rather than the persisted reader setting,
+  // so portrait UI (home, settings) never swaps while the reader and its menus do.
+  [[nodiscard]] bool isNavDirectionSwapped() const;
 
  private:
   HalGPIO& gpio;

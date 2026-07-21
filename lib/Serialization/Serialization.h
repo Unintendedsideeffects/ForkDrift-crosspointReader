@@ -128,7 +128,7 @@ class BufferedWriter {
 };
 
 template <typename T>
-static void writePod(std::ostream& os, const T& value) {
+void writePod(std::ostream& os, const T& value) {
   os.write(reinterpret_cast<const char*>(&value), sizeof(T));
 }
 
@@ -158,7 +158,7 @@ static bool readPod(BufferedReader& reader, T& value) {
   return reader.read(reinterpret_cast<uint8_t*>(&value), sizeof(T)) == sizeof(T);
 }
 
-static void writeString(std::ostream& os, const std::string& s) {
+inline void writeString(std::ostream& os, const std::string& s) {
   const uint32_t len = s.size();
   writePod(os, len);
   os.write(s.data(), len);

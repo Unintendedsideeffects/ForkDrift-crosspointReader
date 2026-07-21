@@ -2,7 +2,6 @@
 
 #include "network/server/WebDAVHandler.h"
 
-#include <Epub.h>
 #include <FsHelpers.h>
 #include <HalStorage.h>
 #include <HeapGuard.h>
@@ -493,7 +492,7 @@ void WebDAVHandler::handlePut(WebServer& s) {
     return;
   }
 
-  clearEpubCacheIfNeeded(path);
+  clearBookCache(path.c_str());
   s.send(_putExisted ? 204 : 201);
   LOG_DBG("DAV", "PUT complete: %s", path.c_str());
 }

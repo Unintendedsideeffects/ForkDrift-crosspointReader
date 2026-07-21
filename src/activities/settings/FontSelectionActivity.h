@@ -2,10 +2,12 @@
 
 #include <SdCardFontRegistry.h>
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
 #include "activities/Activity.h"
+#include "components/themes/BaseTheme.h"
 #include "util/ButtonNavigator.h"
 
 class FontSelectionActivity final : public Activity {
@@ -20,16 +22,27 @@ class FontSelectionActivity final : public Activity {
 
  private:
   int findCurrentSelectionIndex(bool hasUserFonts) const;
+  int findSelectionIndexFor(const char* sdFontFamilyName, uint8_t fontFamily, bool hasUserFonts) const;
   void handleSelection();
+  void renderPreviewPane(int top, int height, int fontId, const char* fontName) const;
 
   struct FontEntry {
     std::string name;
     bool isBuiltin;
-    uint8_t settingIndex;  // index used by valueSetter
+    uint8_t settingIndex;
   };
 
   const SdCardFontRegistry* registry_;
   ButtonNavigator buttonNavigator_;
   std::vector<FontEntry> fonts_;
   int selectedIndex_ = 0;
+  int previewFontIndex_ = 0;
+  uint8_t originalFontFamily_ = 0;
+  char originalSdFontFamilyName_[32] = {};
+
+  ThemeMetrics metrics_ = {};
+  int afterHeader = 0;
+  int bottomReserved = 0;
+  int usableHeight = 0;
+  int previewHeight = 0;
 };

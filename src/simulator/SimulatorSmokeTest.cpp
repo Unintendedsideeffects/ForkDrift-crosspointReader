@@ -133,6 +133,7 @@ class SimulatorSmokeTest {
     return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_CONTROLS_EXPECT_RECOVERY") != nullptr;
   }
   static bool percentJumpRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_PERCENT_JUMP") != nullptr; }
+  static bool chareInkFontRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_CHAREINK_FONT") != nullptr; }
 
   static int pageTurnCount() {
     const char* raw = std::getenv("FORKDRIFT_SIMULATOR_SMOKE_PAGE_TURNS");
@@ -275,6 +276,14 @@ class SimulatorSmokeTest {
           step = SmokeStep::SettingsLoopRun;
           break;
         }
+        if (chareInkFontRequested()) {
+          activityManager.goToSettings();
+          buildChareInkFontScript();
+          scriptStep = SmokeStep::SettingsLoopRun;
+          scriptDoneStep = SmokeStep::Done;
+          step = SmokeStep::SettingsLoopRun;
+          break;
+        }
         activityManager.goHome();
         if (controlsOptionsRequested()) {
           queueStep("Sleep", SmokeStep::Sleep);
@@ -401,6 +410,13 @@ class SimulatorSmokeTest {
         break;
 
       case SmokeStep::Done:
+        if (chareInkFontRequested()) {
+          if (SETTINGS.fontFamily != CrossPointSettings::CHAREINK) {
+            fail("Chare Ink font selection failed: fontFamily=%u expected %u", SETTINGS.fontFamily,
+                 CrossPointSettings::CHAREINK);
+          }
+          LOG_INF("SMOKE", "Chare Ink font selected (fontFamily=%u)", SETTINGS.fontFamily);
+        }
         if (ESP.getFreeHeap() == 1024 * 1024) {
           fail("Smoke test failed: Heap tracking machinery is not active (ESP.getFreeHeap() == 1024*1024)");
         }
@@ -801,6 +817,27 @@ class SimulatorSmokeTest {
       inputScript.push_back(render("Settings category", 3));
     }
     LOG_INF("SMOKE", "Running settings navigation script");
+  }
+
+  void buildChareInkFontScript() {
+    inputScript.clear();
+    scriptIndex = 0;
+    inputScript.push_back(render("Settings for Chare Ink", 4));
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("Settings down to font family", 2));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Font family picker", 5));
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("Font family on Chare Ink", 2));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Font family Chare Ink preview", 3));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Font family after Chare Ink select", 4));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Font family picker reopen", 5));
+    addTap(MappedInputManager::Button::Back);
+    inputScript.push_back(render("Font family picker closed", 3));
+    LOG_INF("SMOKE", "Running Chare Ink font selection script");
   }
 
   // Drives the >4-option picker on refreshFrequency (Display tab). The category

@@ -78,6 +78,8 @@ class CrossPointSettings {
   };
   enum STATUS_BAR_TITLE { BOOK_TITLE = 0, CHAPTER_TITLE = 1, HIDE_TITLE = 2, STATUS_BAR_TITLE_COUNT };
 
+  enum STATUS_BAR_CLOCK_MODE { STATUS_BAR_CLOCK_HIDE = 0, STATUS_BAR_CLOCK_RIGHT = 1, STATUS_BAR_CLOCK_LEFT = 2 };
+
   enum ORIENTATION {
     PORTRAIT = 0,       // 480x800 logical coordinates (current default)
     LANDSCAPE_CW = 1,   // 800x480 logical coordinates, rotated 180° (swap top/bottom)
@@ -152,11 +154,6 @@ class CrossPointSettings {
     BOOK_STYLE = 4,
     PARAGRAPH_ALIGNMENT_COUNT
   };
-
-  static constexpr uint8_t MIN_SLEEP_TIMEOUT_MINUTES = 1;
-  static constexpr uint8_t MAX_SLEEP_TIMEOUT_MINUTES = 30;
-  static uint8_t normalizeSleepScreenMode(uint8_t rawValue);
-  static bool sleepModeActive(uint8_t mode);
 
   // E-ink refresh frequency (pages between full refreshes)
   enum REFRESH_FREQUENCY {
@@ -306,7 +303,7 @@ class CrossPointSettings {
   uint8_t statusBarTitle = CHAPTER_TITLE;
   uint8_t statusBarBattery = 1;
   // Clock display in status bar (X3 only, requires DS3231 RTC)
-  uint8_t statusBarClock = 0;
+  uint8_t statusBarClock = STATUS_BAR_CLOCK_HIDE;
   // Clock UTC offset in quarter-hour steps, biased by 48 so it fits in uint8_t.
   // Value 48 = UTC+0, 0 = UTC-12:00, 104 = UTC+14:00.
   uint8_t clockUtcOffsetQ = 48;
@@ -496,6 +493,13 @@ class CrossPointSettings {
     }
     return false;
   }
+
+  static constexpr uint8_t MIN_SLEEP_TIMEOUT_MINUTES = 1;
+  static constexpr uint8_t SLEEP_TIMEOUT_NEVER_MINUTES = 31;
+  static constexpr uint8_t MAX_SLEEP_TIMEOUT_MINUTES = SLEEP_TIMEOUT_NEVER_MINUTES;
+
+  static uint8_t normalizeSleepScreenMode(uint8_t rawValue);
+  static bool sleepModeActive(uint8_t mode);
 
   // Callback to resolve SD card font IDs. Set by SdCardFontSystem::begin().
   // Returns font ID or 0 if not found.

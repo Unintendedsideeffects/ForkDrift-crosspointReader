@@ -16,6 +16,7 @@
 #endif
 #include "CrossPointSettings.h"
 #include "EpubReaderMenuActivity.h"
+#include "ProgressMapper.h"
 #if ENABLE_TEXT_SELECTION
 #include "SelectionCapturePolicy.h"
 #include "SelectionModel.h"
@@ -159,6 +160,9 @@ class EpubReaderActivity final : public Activity {
   bool executeDoubleTapAction();
 #endif
   void openFileTransfer();
+  // Returns true if sync acted (launched, or surfaced a save error); false if it was a no-op
+  // because no KOReader credentials are stored.
+  bool launchKOReaderSync();
   void applyOrientation(uint8_t orientation);
   void setAutoPageTurnIntervalSeconds(uint16_t seconds);
   uint16_t getAutoPageTurnIntervalSeconds() const;

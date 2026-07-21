@@ -180,18 +180,18 @@ std::string UITheme::getCoverThumbPath(std::string coverBmpPath, int coverWidth,
 
 UIIcon UITheme::getFileIcon(const std::string& filename) {
   if (filename.back() == '/') {
-    return Folder;
+    return UIIcon::Folder;
   }
   if (FsHelpers::hasEpubExtension(filename) || FsHelpers::hasXtcExtension(filename)) {
-    return Book;
+    return UIIcon::Book;
   }
   if (FsHelpers::hasTxtExtension(filename) || FsHelpers::hasMarkdownExtension(filename)) {
-    return Text;
+    return UIIcon::Text;
   }
   if (FsHelpers::hasBmpExtension(filename)) {
-    return Image;
+    return UIIcon::Image;
   }
-  return File;
+  return UIIcon::File;
 }
 
 int UITheme::getStatusBarHeight() {
@@ -199,9 +199,12 @@ int UITheme::getStatusBarHeight() {
   return 0;
 #else
   const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();
-  const bool showStatusBar = SETTINGS.statusBarChapterPageCount || SETTINGS.statusBarBookProgressPercentage ||
-                             SETTINGS.statusBarTitle != CrossPointSettings::STATUS_BAR_TITLE::HIDE_TITLE ||
-                             SETTINGS.statusBarBattery;
+
+  // Add status bar margin
+  const bool showStatusBar =
+      SETTINGS.statusBarChapterPageCount || SETTINGS.statusBarBookProgressPercentage ||
+      SETTINGS.statusBarTitle != CrossPointSettings::STATUS_BAR_TITLE::HIDE_TITLE || SETTINGS.statusBarBattery ||
+      SETTINGS.statusBarClock != CrossPointSettings::STATUS_BAR_CLOCK_MODE::STATUS_BAR_CLOCK_HIDE;
   const bool showProgressBar =
       SETTINGS.statusBarProgressBar != CrossPointSettings::STATUS_BAR_PROGRESS_BAR::HIDE_PROGRESS;
   return (showStatusBar ? metrics.statusBarVerticalMargin : 0) +

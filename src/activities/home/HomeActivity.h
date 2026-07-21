@@ -13,7 +13,7 @@
 #include "util/RecentBooksStore.h"
 
 struct Rect;
-enum UIIcon : uint8_t;
+enum class UIIcon : uint8_t;
 
 // Identity for each Home menu entry. The ordered `menuModel` below is the ONE
 // source of truth for what the menu contains and in what order. Navigation

@@ -18,14 +18,14 @@ void HalDisplay::begin(bool seamless) {
 
   einkDisplay.begin();
 
+  if (seamless) {
+    return;
+  }
   // Request resync after specific wakeup events to ensure clean display state.
-  // Skip when seamless=true so the current screen content is preserved.
-  if (!seamless) {
-    const auto wakeupReason = gpio.getWakeupReason();
-    if (wakeupReason == HalGPIO::WakeupReason::PowerButton || wakeupReason == HalGPIO::WakeupReason::AfterFlash ||
-        wakeupReason == HalGPIO::WakeupReason::Other) {
-      einkDisplay.requestResync();
-    }
+  const auto wakeupReason = gpio.getWakeupReason();
+  if (wakeupReason == HalGPIO::WakeupReason::PowerButton || wakeupReason == HalGPIO::WakeupReason::AfterFlash ||
+      wakeupReason == HalGPIO::WakeupReason::Other) {
+    einkDisplay.requestResync();
   }
 }
 

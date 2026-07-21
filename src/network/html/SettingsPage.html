@@ -543,6 +543,58 @@
     }
   }
 
+  function findSetting(key) {
+    return allSettings.find(function(s) { return s.key === key; });
+  }
+
+  function getControl(key) {
+    return document.getElementById('setting-' + key);
+  }
+
+  function getControlValue(key) {
+    const setting = findSetting(key);
+    const el = getControl(key);
+    if (!setting || !el) return undefined;
+
+    if (setting.type === 'toggle') {
+      return el.checked ? 1 : 0;
+    }
+    if (setting.type === 'enum' || setting.type === 'value') {
+      return parseInt(el.value, 10);
+    }
+    return el.value;
+  }
+
+  function setControlValue(key, value) {
+    const setting = findSetting(key);
+    const el = getControl(key);
+    if (!setting || !el) return false;
+
+    if (setting.type === 'toggle') {
+      const checked = !!value;
+      if (el.checked === checked) return false;
+      el.checked = checked;
+      return true;
+    }
+
+    const nextValue = String(value);
+    if (el.value === nextValue) return false;
+    el.value = nextValue;
+    return true;
+  }
+
+  function updateSettingsVisibility() {
+    const shortPwrBtnVal = getControlValue('shortPwrBtn');
+    const pwrBtnFootnoteBackRow = document.getElementById('row-setting-pwrBtnFootnoteBack');
+    if (pwrBtnFootnoteBackRow) {
+      if (shortPwrBtnVal === 4) {
+        pwrBtnFootnoteBackRow.style.display = '';
+      } else {
+        pwrBtnFootnoteBackRow.style.display = 'none';
+      }
+    }
+  }
+
   async function loadSettings() {
     try {
       // Check features first to see if we should show WiFi setup
@@ -598,6 +650,7 @@
       }
 
       container.innerHTML = html;
+      updateSettingsVisibility();
       document.getElementById('save-container').style.display = '';
       document.getElementById('saveBtn').disabled = true;
 

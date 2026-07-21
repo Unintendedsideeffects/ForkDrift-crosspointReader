@@ -113,7 +113,7 @@ void EpubReaderHighlightListActivity::loop() {
     }
     if (!annotations.empty() && selectedIndex >= 0 && selectedIndex < static_cast<int>(annotations.size())) {
       const auto& annotation = annotations[selectedIndex];
-      setResult(SyncResult{annotation.spineIndex, annotation.page});
+      setResult(ProgressChangeResult{annotation.spineIndex, annotation.page});
       finish();
     }
     return;

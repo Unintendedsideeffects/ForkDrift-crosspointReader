@@ -40,7 +40,7 @@ struct PageResult {
   uint32_t page = 0;
 };
 
-struct SyncResult {
+struct ProgressChangeResult {
   int spineIndex = 0;
   int page = 0;
 };
@@ -79,8 +79,8 @@ struct ListPickerResult {
 
 using ResultVariant =
     std::variant<std::monostate, WifiResult, KeyboardResult, MenuResult, ChapterResult, PercentResult, IntervalResult,
-                 PageResult, SyncResult, NetworkModeResult, FootnoteResult, FileBrowserActionResult, FilePathResult,
-                 BookmarkResult, ControlsOptionsResult, ListPickerResult>;
+                 PageResult, ProgressChangeResult, NetworkModeResult, FootnoteResult, FileBrowserActionResult,
+                 FilePathResult, BookmarkResult, ControlsOptionsResult, ListPickerResult>;
 
 struct ActivityResult {
   bool isCancelled = false;

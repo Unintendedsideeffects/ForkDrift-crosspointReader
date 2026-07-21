@@ -2,7 +2,9 @@
 
 #include <HalStorage.h>
 
+#include <initializer_list>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -82,7 +84,7 @@ class CssParser {
    * @param styleValue The value of a style="" attribute
    * @return Parsed style properties
    */
-  [[nodiscard]] static CssStyle parseInlineStyle(const std::string& styleValue);
+  [[nodiscard]] static CssStyle parseInlineStyle(std::string_view styleValue);
 
   /**
    * Check if any rules have been loaded
@@ -135,27 +137,22 @@ class CssParser {
   std::string cacheDir_;
 
   // Internal parsing helpers
-  void processRuleBlock(const std::string& selectorGroup, const std::string& declarations);
-  void processRuleBlockWithStyle(const std::string& selectorGroup, const CssStyle& style);
+  void processRuleBlockWithStyle(std::string_view selectorGroup, const CssStyle& style);
   static bool selectorMatchesElement(const std::string& selector, const std::string& tag, const std::string& classAttr);
-  static CssStyle parseDeclarations(const std::string& declBlock);
-  static void parseDeclarationIntoStyle(const std::string& decl, CssStyle& style, std::string& propNameBuf,
-                                        std::string& propValueBuf);
+  static CssStyle parseDeclarations(std::string_view declBlock);
+  static void parseDeclarationIntoStyle(std::string_view decl, CssStyle& style);
 
   // Individual property value parsers
-  static CssTextAlign interpretAlignment(const std::string& val);
-  static CssFontStyle interpretFontStyle(const std::string& val);
-  static CssFontWeight interpretFontWeight(const std::string& val);
+  static CssTextAlign interpretAlignment(std::string_view val);
+  static CssFontStyle interpretFontStyle(std::string_view val);
+  static CssFontWeight interpretFontWeight(std::string_view val);
   static CssTextDecoration interpretDecoration(const std::string& val);
-  static CssLength interpretLength(const std::string& val);
-  static bool tryInterpretLength(const std::string& val, CssLength& out);
-  static int8_t interpretSpacing(const std::string& val);
+  static CssLength interpretLength(std::string_view val);
+  static bool tryInterpretLength(std::string_view val, CssLength& out);
 
   // String utilities
-  static std::string normalized(const std::string& s);
-  static void normalizedInto(const std::string& s, std::string& out);
-  static std::vector<std::string> splitOnChar(const std::string& s, char delimiter);
-  static std::vector<std::string> splitWhitespace(const std::string& s);
+  static std::string normalized(std::string_view s);
+  static std::vector<std::string> splitWhitespace(std::string_view s);
 
   void deleteCache() const;
 };

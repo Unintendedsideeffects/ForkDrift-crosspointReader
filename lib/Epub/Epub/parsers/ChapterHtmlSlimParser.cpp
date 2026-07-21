@@ -8,9 +8,11 @@
 #include <XmlParserUtils.h>
 #include <expat.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <iterator>
+#include <new>
 
 #include "Epub.h"
 #include "Epub/Page.h"
@@ -155,6 +157,38 @@ void ChapterHtmlSlimParser::updateEffectiveInlineStyle() {
       style.isRtl = false;
     }
   }
+
+  // Keep inherited direction in the active empty text block so upcoming block starts
+  // can inherit from non-block ancestors such as <html dir="rtl"> / <body dir="rtl">.
+  if (currentTextBlock && currentTextBlock->isEmpty()) {
+    auto& style = currentTextBlock->getBlockStyle();
+    if (effectiveDirectionDefined) {
+      style.directionDefined = true;
+      style.isRtl = (effectiveDirection == CssTextDirection::Rtl);
+    } else {
+      style.directionDefined = false;
+      style.isRtl = false;
+    }
+  }
+}
+
+void ChapterHtmlSlimParser::flushPendingAnchor() {
+  if (pendingAnchorId.empty()) return;
+
+  // If the pending anchor is a TOC chapter boundary, force a page break after the previous
+  // block is flushed so the chapter starts on a fresh page.
+  if (std::find(tocAnchors.begin(), tocAnchors.end(), pendingAnchorId) != tocAnchors.end()) {
+    if (currentPage && !currentPage->elements.empty()) {
+      completePageFn(std::move(currentPage), xpathParagraphIndex, xpathListItemIndex);
+      completedPageCount++;
+      currentPage.reset(new Page());
+      currentPageNextY = 0;
+    }
+  }
+
+  // Record deferred anchor after previous block is flushed (and any TOC page break)
+  anchorData.push_back({std::move(pendingAnchorId), static_cast<uint16_t>(completedPageCount)});
+  pendingAnchorId.clear();
 }
 
 // flush the contents of partWordBuffer to currentTextBlock
@@ -214,26 +248,18 @@ void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
       const auto style = currentTextBlock->getBlockStyle();
       currentTextBlock->setBlockStyle(style.getCombinedBlockStyle(blockStyle, BlockStyle::CombineAxis::Vertical));
 
-      if (!pendingAnchorId.empty()) {
-        anchorData.push_back({std::move(pendingAnchorId), static_cast<uint16_t>(completedPageCount)});
-        pendingAnchorId.clear();
-      }
+      flushPendingAnchor();
       return;
     }
 
     makePages();
   }
-  // Record deferred anchor after previous block is flushed
-  if (!pendingAnchorId.empty()) {
-    anchorData.push_back({std::move(pendingAnchorId), static_cast<uint16_t>(completedPageCount)});
-    pendingAnchorId.clear();
-  }
+  // If the pending anchor is a TOC chapter boundary, force a page break after the previous
+  // block is flushed so the chapter starts on a fresh page.
+  flushPendingAnchor();
   currentTextBlock.reset(new (std::nothrow) ParsedText(extraParagraphSpacing, forceParagraphIndents, hyphenationEnabled,
                                                        focusReadingEnabled, blockStyle, guideReadingEnabled));
   if (!currentTextBlock) {
-    // OOM. Leave currentTextBlock null; all downstream derefs are now guarded
-    // (flushPartWordBuffer, the <li> bullet path, makePages) so this degrades
-    // to dropped content rather than a null-deref crash.
     LOG_ERR("EHP", "OOM: ParsedText");
   }
   wordsExtractedInBlock = 0;
@@ -620,24 +646,26 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       } else if (strcmp(atts[i], "style") == 0) {
         styleAttr = atts[i + 1];
       } else if (strcmp(atts[i], "id") == 0) {
-        // Defer recording until startNewTextBlock, after previous block is flushed to pages.
+        // Defer both anchor recording and TOC page breaks until startNewTextBlock,
+        // after the previous block is flushed to pages via makePages().
         //
         // Skip IDs on non-navigable inline elements (e.g. <span>): these are never
         // link targets in epub content, but reading-system converters can inject tens
-        // of thousands of them per chapter, exhausting the heap. Also cap total
-        // anchors per chapter for the same reason.
-        if (!isNonNavigableInlineElement(name) && self->anchorData.size() < MAX_ANCHORS_PER_CHAPTER) {
+        // of thousands of them per chapter, exhausting the heap. TOC anchors are
+        // always recorded regardless of element type, since they drive page breaks.
+        const char* idValue = atts[i + 1];
+        const bool isTocAnchor =
+            std::find(self->tocAnchors.begin(), self->tocAnchors.end(), idValue) != self->tocAnchors.end();
+        if (isTocAnchor || (!isNonNavigableInlineElement(name) && self->anchorData.size() < MAX_ANCHORS_PER_CHAPTER)) {
           // Flush a displaced anchor before overwriting. Consecutive non-block elements
           // (e.g. <aside id="fn1">text</aside><aside id="fn2">) with no intervening block
           // never trigger startNewTextBlock, so fn1 gets silently overwritten. That leaves
           // fn1 missing from the anchor map -> getPageForAnchor returns nullopt -> reader
-          // lands at page 0 (section start) instead of the footnote (upstream #2336).
+          // lands at page 0 (section start) instead of the footnote.
           if (!self->pendingAnchorId.empty()) {
-            self->anchorData.push_back(
-                {std::move(self->pendingAnchorId), static_cast<uint16_t>(self->completedPageCount)});
-            self->pendingAnchorId.clear();
+            self->flushPendingAnchor();
           }
-          self->pendingAnchorId = atts[i + 1];
+          self->pendingAnchorId = idValue;
         }
       } else if (strcmp(atts[i], "dir") == 0) {
         dirAttr = atts[i + 1];
@@ -1256,6 +1284,25 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     }
     self->emitHorizontalRule(hrBlockStyle);
     self->ancestorStack_.push_back({self->depth, std::string(name), classAttr});
+    self->depth += 1;
+    return;
+  }
+
+  if (strcmp(name, "hr") == 0) {
+    auto hrBlockStyle = BlockStyle::fromCssStyle(cssStyle, emSize, CssTextAlign::Left, self->viewportWidth);
+    if (!self->embeddedStyle) {
+      hrBlockStyle.marginLeft = 0;
+      hrBlockStyle.marginRight = 0;
+      hrBlockStyle.marginTop = 0;
+      hrBlockStyle.marginBottom = 0;
+      hrBlockStyle.paddingLeft = 0;
+      hrBlockStyle.paddingRight = 0;
+      hrBlockStyle.paddingTop = 0;
+      hrBlockStyle.paddingBottom = 0;
+      hrBlockStyle.textIndentDefined = false;
+      hrBlockStyle.textIndent = 0;
+    }
+    self->emitHorizontalRule(hrBlockStyle);
     self->depth += 1;
     return;
   }
