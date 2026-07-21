@@ -2469,14 +2469,12 @@ void EpubReaderActivity::openSelectionActions() {
                                                                      static_cast<uint16_t>(selModel.cursor));
   if (!options.removeHighlight) {
     const uint16_t page = section ? static_cast<uint16_t>(section->currentPage) : 0;
-    bool alreadyHighlighted = false;
-    for (const Annotation* existing : ANNOTATIONS.forSpine(static_cast<uint16_t>(currentSpineIndex))) {
-      if (existing->page == page && existing->startWord == static_cast<uint16_t>(lo) &&
-          existing->endWord == static_cast<uint16_t>(hi)) {
-        alreadyHighlighted = true;
-        break;
-      }
-    }
+    const auto spineAnnotations = ANNOTATIONS.forSpine(static_cast<uint16_t>(currentSpineIndex));
+    const bool alreadyHighlighted =
+        std::any_of(spineAnnotations.begin(), spineAnnotations.end(), [&](const Annotation* existing) {
+          return existing->page == page && existing->startWord == static_cast<uint16_t>(lo) &&
+                 existing->endWord == static_cast<uint16_t>(hi);
+        });
     if (!alreadyHighlighted) {
       Annotation a;
       a.spineIndex = static_cast<uint16_t>(currentSpineIndex);
