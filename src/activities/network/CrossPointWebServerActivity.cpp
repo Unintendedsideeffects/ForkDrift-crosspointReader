@@ -604,6 +604,7 @@ void CrossPointWebServerActivity::renderCalibreUI() const {
 
 void CrossPointWebServerActivity::renderFileTransferUI() const {
   constexpr int LINE_SPACING = 28;
+  constexpr int QR_TEXT_GAP_ROWS = 2;
 
   renderer.drawCenteredText(UI_12_FONT_ID, 15, tr(STR_FILE_TRANSFER), true, EpdFontFamily::BOLD);
 
@@ -622,11 +623,11 @@ void CrossPointWebServerActivity::renderFileTransferUI() const {
     renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 2, tr(STR_CONNECT_WIFI_HINT));
 
     renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 3, tr(STR_SCAN_QR_WIFI_HINT));
-    // Show QR code for URL
     const std::string wifiConfig = std::string("WIFI:S:") + connectedSSID + ";;";
-    drawQRCode(renderer, (renderer.getScreenWidth() - 6 * 33) / 2, startY + LINE_SPACING * 4, wifiConfig);
+    drawQRCode(renderer, (renderer.getScreenWidth() - 6 * 33) / 2, startY + LINE_SPACING * (4 + QR_TEXT_GAP_ROWS),
+               wifiConfig);
 
-    startY += 6 * 29 + 3 * LINE_SPACING;
+    startY += 6 * 29 + (3 + QR_TEXT_GAP_ROWS) * LINE_SPACING;
     // Show primary URL (hostname)
     char _hn[40];
     NetworkNames::getDeviceHostname(_hn, sizeof(_hn));
@@ -638,9 +639,9 @@ void CrossPointWebServerActivity::renderFileTransferUI() const {
     renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 4, ipUrl.c_str());
     renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 5, tr(STR_OPEN_URL_HINT));
 
-    // Show QR code for URL
     renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 6, tr(STR_SCAN_QR_HINT));
-    drawQRCode(renderer, (renderer.getScreenWidth() - 6 * 33) / 2, startY + LINE_SPACING * 7, hostnameUrl);
+    drawQRCode(renderer, (renderer.getScreenWidth() - 6 * 33) / 2, startY + LINE_SPACING * (7 + QR_TEXT_GAP_ROWS),
+               hostnameUrl);
   } else {
     // STA mode display
     const int startY = 65;
@@ -665,10 +666,9 @@ void CrossPointWebServerActivity::renderFileTransferUI() const {
     renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 3, hostnameUrl.c_str());
 
     renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 4, tr(STR_OPEN_URL_HINT));
-
-    // Show QR code for URL
-    drawQRCode(renderer, (renderer.getScreenWidth() - 6 * 33) / 2, startY + LINE_SPACING * 6, webInfo);
     renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 5, tr(STR_SCAN_QR_HINT));
+    drawQRCode(renderer, (renderer.getScreenWidth() - 6 * 33) / 2, startY + LINE_SPACING * (6 + QR_TEXT_GAP_ROWS),
+               webInfo);
   }
 
   const auto labels = mappedInput.mapLabels(tr(STR_EXIT), "", "", "");

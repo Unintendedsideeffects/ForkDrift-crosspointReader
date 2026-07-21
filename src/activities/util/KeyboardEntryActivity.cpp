@@ -866,6 +866,7 @@ void KeyboardEntryActivity::renderRemoteMode(RenderLock&&) {
   const auto network = remoteNetworkSession ? remoteNetworkSession->snapshot() : RemoteKeyboardNetworkSession::State{};
   const int pageWidth = renderer.getScreenWidth();
   const int lineHeight = renderer.getLineHeight(UI_10_FONT_ID);
+  const int qrTextGap = lineHeight * 2;
 
   renderer.drawCenteredText(UI_12_FONT_ID, 16, title.c_str(), true, EpdFontFamily::BOLD);
 
@@ -898,19 +899,19 @@ void KeyboardEntryActivity::renderRemoteMode(RenderLock&&) {
     if (network.apMode) {
       renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_RKB_JOIN_HOTSPOT), true, EpdFontFamily::BOLD);
       renderer.drawCenteredText(UI_10_FONT_ID, y + lineHeight, network.ssid.c_str());
-      QrUtils::drawQrCode(renderer, Rect{(pageWidth - 240) / 2, y + lineHeight + 18, 240, 180},
+      QrUtils::drawQrCode(renderer, Rect{(pageWidth - 240) / 2, y + lineHeight + qrTextGap, 240, 180},
                           "WIFI:S:" + network.ssid + ";;");
 
-      y += 230;
+      y += 230 + qrTextGap;
       renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_RKB_OPEN_INPUT), true, EpdFontFamily::BOLD);
       renderer.drawCenteredText(SMALL_FONT_ID, y + lineHeight, network.url.c_str());
-      QrUtils::drawQrCode(renderer, Rect{(pageWidth - 280) / 2, y + lineHeight + 18, 280, 220}, network.url);
-      y += 280;
+      QrUtils::drawQrCode(renderer, Rect{(pageWidth - 280) / 2, y + lineHeight + qrTextGap, 280, 220}, network.url);
+      y += 280 + qrTextGap;
     } else {
       renderer.drawCenteredText(UI_10_FONT_ID, y, network.url.c_str(), true, EpdFontFamily::BOLD);
       renderer.drawCenteredText(SMALL_FONT_ID, y + lineHeight, tr(STR_RKB_SCAN_TO_OPEN));
-      QrUtils::drawQrCode(renderer, Rect{(pageWidth - 280) / 2, y + lineHeight + 24, 280, 280}, network.url);
-      y += 330;
+      QrUtils::drawQrCode(renderer, Rect{(pageWidth - 280) / 2, y + lineHeight + qrTextGap, 280, 280}, network.url);
+      y += 330 + qrTextGap;
     }
   } else {
     renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_RKB_NO_NETWORK));
