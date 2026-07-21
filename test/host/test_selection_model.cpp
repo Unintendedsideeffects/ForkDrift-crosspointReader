@@ -89,6 +89,16 @@ TEST_CASE("SelectionModel stepBack collapses anchored selections and signals exi
   CHECK_FALSE(selection::stepBack(model));
 }
 
+TEST_CASE("SelectionModel joinSpanFormatted preserves line breaks") {
+  std::vector<selection::SelWord> words;
+  words.push_back({0, 0, 0, 0, 0, "line"});
+  words.push_back({0, 0, 0, 0, 0, "one"});
+  words.push_back({0, 0, 0, 0, 1, "line"});
+  words.push_back({0, 0, 0, 0, 1, "two"});
+
+  CHECK(selection::joinSpanFormatted(words, 0, 3) == "line one\nline two");
+}
+
 TEST_CASE("SelectionModel joinSpan preserves selection spacing") {
   const auto words = makeWords({"one", "two", "three"});
 

@@ -45,6 +45,9 @@ class SleepActivity final : public Activity {
 #if ENABLE_NOTES
   void renderNotesSleepScreen() const;
 #endif
+#if ENABLE_ANKI_SUPPORT
+  void renderAnkiSleepScreen() const;
+#endif
 #if ENABLE_TODO_PLANNER
   void renderPlannerSleepScreen() const;
 #endif

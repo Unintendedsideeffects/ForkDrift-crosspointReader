@@ -12,12 +12,10 @@ std::vector<Action> buildActions(const ActionBuildOptions& options) {
     actions.push_back(Action::Anki);
   }
   actions.push_back(Action::BookNotes);
-  if (options.annotations) {
-    actions.push_back(Action::Highlight);
-    if (options.removeHighlight) {
-      actions.push_back(Action::RemoveHighlight);
-    }
+  if (options.annotations && options.removeHighlight) {
+    actions.push_back(Action::RemoveHighlight);
   }
+  actions.push_back(Action::Close);
   return actions;
 }
 
@@ -30,9 +28,7 @@ int findActionIndex(const std::vector<Action>& actions, const Action preferred) 
   return 0;
 }
 
-Action preferredAfterNotesSuccess(const bool annotationsEnabled) {
-  return annotationsEnabled ? Action::Highlight : Action::BookNotes;
-}
+Action preferredAfterNotesSuccess() { return Action::BookNotes; }
 
 Action preferredAfterNotesFailure() { return Action::BookNotes; }
 

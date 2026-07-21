@@ -488,6 +488,11 @@ inline void buildSleepModeOptions(std::vector<StrId>& ids, std::vector<uint8_t>&
   vals.push_back(M::NOTES_SLEEP);
   optionFeatureKeys.push_back("notes");
 #endif
+#if ENABLE_ANKI_SUPPORT
+  ids.push_back(StrId::STR_ANKI_SLEEP);
+  vals.push_back(M::ANKI_SLEEP);
+  optionFeatureKeys.push_back("anki_support");
+#endif
 #if ENABLE_TODO_PLANNER
   ids.push_back(StrId::STR_TODO_HOME_LABEL);
   vals.push_back(M::PLANNER_SLEEP);
@@ -505,6 +510,25 @@ inline bool sleepHaikuClockActive() {
   return CrossPointSettings::sleepModeActive(CrossPointSettings::HAIKU_CLOCK_SLEEP);
 }
 #endif
+
+inline bool sleepPoeticTextActive() {
+#if ENABLE_HAIKU_CLOCK
+  if (sleepHaikuClockActive()) {
+    return true;
+  }
+#endif
+#if ENABLE_NOTES
+  if (CrossPointSettings::sleepModeActive(CrossPointSettings::NOTES_SLEEP)) {
+    return true;
+  }
+#endif
+#if ENABLE_ANKI_SUPPORT
+  if (CrossPointSettings::sleepModeActive(CrossPointSettings::ANKI_SLEEP)) {
+    return true;
+  }
+#endif
+  return false;
+}
 
 // Shared settings list for the device settings UI and web /api/settings.
 // Each entry has a JSON key (SettingInfo::key) and StrId category; configuratorExport
@@ -643,7 +667,7 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
   emit(SettingInfo::Toggle(StrId::STR_HAIKU_CLOCK_LANDSCAPE, &CrossPointSettings::haikuClockLandscape,
                            "haikuClockLandscape", StrId::STR_CAT_DISPLAY)
            .withConfiguratorExport()
-           .withVisiblePredicate(sleepHaikuClockActive));
+           .withVisiblePredicate(sleepPoeticTextActive));
 #endif
   emit(SettingInfo::Toggle(StrId::STR_CHAPTER_PAGE_COUNT, &CrossPointSettings::statusBarChapterPageCount,
                            "statusBarChapterPageCount", StrId::STR_CUSTOMISE_STATUS_BAR)

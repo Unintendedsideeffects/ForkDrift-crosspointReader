@@ -33,7 +33,8 @@ struct Model {
 void move(Model& model, int delta);
 bool stepBack(Model& model);
 std::pair<int, int> span(const Model& model);
-std::string joinSpan(const std::vector<SelWord>& words, int lo, int hi);
+std::string joinSpan(const std::vector<SelWord>& words, const int lo, const int hi);
+std::string joinSpanFormatted(const std::vector<SelWord>& words, int lo, int hi);
 // Reconstructs the sentence surrounding the selected span [lo, hi] from the
 // page word list. Expands left/right to sentence boundaries (a word ending in
 // '.', '!' or '?'), then joins whole words up to the soft `maxChars` cap. The

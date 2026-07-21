@@ -91,9 +91,12 @@ class EpubReaderActivity final : public Activity {
   bool selectionSnapshotFallback = false;
   std::unique_ptr<uint8_t[]> pendingSelectionSnapshot;
   uint8_t selectionContentLoads = 0;
+  bool selectionNeedsWordReload = false;
   selection_capture::Action selectionPreferredAction = selection_capture::Action::BookNotes;
 
   void enterSelectionMode(std::unique_ptr<uint8_t[]> transferredSnapshot = {});
+  bool refreshSelectionWords();
+  void selectionTurnPage(bool forward);
   bool tryCaptureSelectionSnapshotFromFramebuffer();
   void exitSelectionMode();
   bool handleSelectionInput();

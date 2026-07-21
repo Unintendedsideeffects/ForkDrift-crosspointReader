@@ -35,6 +35,7 @@ class CrossPointSettings {
     HAIKU_CLOCK_SLEEP = 13,
     NOTES_SLEEP = 14,
     PLANNER_SLEEP = 15,
+    ANKI_SLEEP = 16,
     // Old TRANSPARENT was 6 — migrated to new TRANSPARENT=3 in validateAndClamp().
   };
   enum SLEEP_SCREEN_COVER_MODE { FIT = 0, CROP = 1, SLEEP_SCREEN_COVER_MODE_COUNT };

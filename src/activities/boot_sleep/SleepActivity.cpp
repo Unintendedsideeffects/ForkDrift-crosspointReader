@@ -24,6 +24,9 @@
 #include "activities/todo/TodoItem.h"
 #include "activities/todo/TodoPlannerStorage.h"
 #endif
+#if ENABLE_ANKI_SUPPORT
+#include "util/AnkiStore.h"
+#endif
 #include "BrandScreen.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
@@ -273,6 +276,103 @@ void drawTextListSleepScreen(GfxRenderer& renderer, const char* title, const std
     y += lineH;
   }
   displaySleepBuffer(renderer);
+}
+#endif
+
+#if ENABLE_HAIKU_CLOCK || ENABLE_NOTES || ENABLE_ANKI_SUPPORT
+size_t pickQuarterHourSlot(const size_t count) {
+  if (count == 0) {
+    return 0;
+  }
+  int hour = 0;
+  int minute = 0;
+  if (!DateUtils::getHourAndMinute(hour, minute)) {
+    return 0;
+  }
+  const size_t slot = static_cast<size_t>(hour * 4 + minute / 15);
+  return slot % count;
+}
+
+void splitIntoPoeticLines(const std::string& text, std::string& line1, std::string& line2, std::string& line3) {
+  line1.clear();
+  line2.clear();
+  line3.clear();
+  size_t pos = 0;
+  std::string* targets[3] = {&line1, &line2, &line3};
+  for (int i = 0; i < 3; ++i) {
+    const size_t next = text.find('\n', pos);
+    if (next == std::string::npos) {
+      *targets[i] = text.substr(pos);
+      return;
+    }
+    *targets[i] = text.substr(pos, next - pos);
+    pos = next + 1;
+  }
+  if (pos < text.size()) {
+    line3 = text.substr(pos);
+  }
+}
+
+void renderPoeticLinesSleepScreen(GfxRenderer& renderer, const std::string& line1, const std::string& line2,
+                                  const std::string& line3, const std::string& digitalTime = {}) {
+  if (SETTINGS.haikuClockLandscape) {
+    renderer.setOrientation(GfxRenderer::Orientation::LandscapeClockwise);
+  }
+
+  renderer.clearScreen();
+
+  const int W = renderer.getScreenWidth();
+  const int H = renderer.getScreenHeight();
+
+  int marginTop, marginRight, marginBottom, marginLeft;
+  renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
+  static constexpr int kInnerPad = 40;
+  const int boxLeft = marginLeft + kInnerPad;
+  const int boxTop = marginTop + kInnerPad;
+  const int boxW = W - boxLeft - marginRight - kInnerPad;
+  const int boxH = H - boxTop - marginBottom - kInnerPad;
+
+  static constexpr int candidateFonts[] = {NOTOSANS_18_FONT_ID,  LEXENDDECA_18_FONT_ID, NOTOSANS_16_FONT_ID,
+                                           NOTOSERIF_18_FONT_ID, NOTOSERIF_14_FONT_ID,  UI_12_FONT_ID};
+  int fontId = UI_12_FONT_ID;
+  for (const int candidate : candidateFonts) {
+    if (!renderer.getFontMap().count(candidate)) continue;
+    const int w1 = renderer.getTextWidth(candidate, line1.c_str(), EpdFontFamily::BOLD);
+    const int w2 = renderer.getTextWidth(candidate, line2.c_str(), EpdFontFamily::BOLD);
+    const int w3 = renderer.getTextWidth(candidate, line3.c_str(), EpdFontFamily::BOLD);
+    fontId = candidate;
+    if (std::max({w1, w2, w3}) <= boxW) break;
+  }
+
+  const int lineHeight = renderer.getLineHeight(fontId);
+  const int gap = lineHeight / 2;
+  const int totalBlockH = 3 * lineHeight + 2 * gap;
+  const int startX = boxLeft;
+  const int startY = boxTop + std::max(0, (boxH - totalBlockH) / 2);
+
+  if (!line1.empty()) {
+    renderer.drawText(fontId, startX, startY, line1.c_str(), true, EpdFontFamily::BOLD);
+  }
+  if (!line2.empty()) {
+    renderer.drawText(fontId, startX, startY + lineHeight + gap, line2.c_str(), true, EpdFontFamily::BOLD);
+  }
+  if (!line3.empty()) {
+    renderer.drawText(fontId, startX, startY + (lineHeight + gap) * 2, line3.c_str(), true, EpdFontFamily::BOLD);
+  }
+
+  if (!digitalTime.empty()) {
+    const int timeW = renderer.getTextWidth(SMALL_FONT_ID, digitalTime.c_str(), EpdFontFamily::BOLD);
+    const int timeH = renderer.getLineHeight(SMALL_FONT_ID);
+    const int timeX = SETTINGS.haikuClockLandscape ? boxLeft : boxLeft + std::max(0, boxW - timeW);
+    const int timeY = SETTINGS.haikuClockLandscape ? boxTop + std::max(0, boxH - timeH) : boxTop;
+    renderer.drawText(SMALL_FONT_ID, timeX, timeY, digitalTime.c_str(), true, EpdFontFamily::BOLD);
+  }
+
+  displaySleepBuffer(renderer);
+
+  if (SETTINGS.haikuClockLandscape) {
+    OrientationManager::applyUiOrientation(renderer);
+  }
 }
 #endif
 
@@ -655,6 +755,11 @@ void SleepActivity::onEnter() {
       renderPlannerSleepScreen();
       return;
 #endif
+#if ENABLE_ANKI_SUPPORT
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::ANKI_SLEEP):
+      renderAnkiSleepScreen();
+      return;
+#endif
 #if ENABLE_ROMAN_CLOCK_SLEEP
     case (CrossPointSettings::SLEEP_SCREEN_MODE::ROMAN_CLOCK_SLEEP):
       renderRomanClockSleepScreen();
@@ -894,7 +999,43 @@ void SleepActivity::renderReadingStatsSleepScreen() const {
 
 #if ENABLE_NOTES
 void SleepActivity::renderNotesSleepScreen() const {
-  drawTextListSleepScreen(renderer, tr(STR_NOTES), loadSleepNotesRows(), tr(STR_NOTES_EMPTY));
+  const std::vector<std::string> rows = loadSleepNotesRows();
+  if (rows.empty()) {
+    drawTextListSleepScreen(renderer, tr(STR_NOTES), rows, tr(STR_NOTES_EMPTY));
+    return;
+  }
+  const size_t idx = pickQuarterHourSlot(rows.size());
+  std::string line1;
+  std::string line2;
+  std::string line3;
+  splitIntoPoeticLines(rows[idx], line1, line2, line3);
+  renderPoeticLinesSleepScreen(renderer, line1, line2, line3, DateUtils::currentDigitalClockLabel());
+}
+#endif
+
+#if ENABLE_ANKI_SUPPORT
+void SleepActivity::renderAnkiSleepScreen() const {
+  const std::vector<util::AnkiCard> cards = util::AnkiStore::getInstance().copyCards();
+  if (cards.empty()) {
+    renderer.clearScreen();
+    renderer.drawCenteredText(UI_12_FONT_ID, renderer.getScreenHeight() / 2 - 20, tr(STR_ANKI_NO_CARDS), true,
+                              EpdFontFamily::BOLD);
+    displaySleepBuffer(renderer);
+    return;
+  }
+  const size_t idx = pickQuarterHourSlot(cards.size());
+  const util::AnkiCard& card = cards[idx];
+  std::string line1;
+  std::string line2;
+  std::string line3;
+  splitIntoPoeticLines(card.front, line1, line2, line3);
+  if (line2.empty() && !card.back.empty()) {
+    splitIntoPoeticLines(card.back, line1, line2, line3);
+    line3 = card.context;
+  } else if (line3.empty() && !card.back.empty()) {
+    line3 = card.back;
+  }
+  renderPoeticLinesSleepScreen(renderer, line1, line2, line3, DateUtils::currentDigitalClockLabel());
 }
 #endif
 

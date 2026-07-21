@@ -349,6 +349,16 @@ static bool timedRefreshHasRenderableMode() {
     return true;
   }
 #endif
+#if ENABLE_NOTES
+  if (sleepMode == CrossPointSettings::SLEEP_SCREEN_MODE::NOTES_SLEEP) {
+    return true;
+  }
+#endif
+#if ENABLE_ANKI_SUPPORT
+  if (sleepMode == CrossPointSettings::SLEEP_SCREEN_MODE::ANKI_SLEEP) {
+    return true;
+  }
+#endif
   return false;
 }
 
@@ -365,11 +375,13 @@ static bool timedRefreshHasRenderableMode() {
       false;
 #endif
   const bool needsNtpSync =
-#if ENABLE_ROMAN_CLOCK_SLEEP || ENABLE_HAIKU_CLOCK
+#if ENABLE_ROMAN_CLOCK_SLEEP || ENABLE_HAIKU_CLOCK || ENABLE_NOTES || ENABLE_ANKI_SUPPORT
       [] {
         const uint8_t sleepMode = effectiveTimedRefreshSleepMode();
         return sleepMode == CrossPointSettings::SLEEP_SCREEN_MODE::ROMAN_CLOCK_SLEEP ||
-               sleepMode == CrossPointSettings::SLEEP_SCREEN_MODE::HAIKU_CLOCK_SLEEP;
+               sleepMode == CrossPointSettings::SLEEP_SCREEN_MODE::HAIKU_CLOCK_SLEEP ||
+               sleepMode == CrossPointSettings::SLEEP_SCREEN_MODE::NOTES_SLEEP ||
+               sleepMode == CrossPointSettings::SLEEP_SCREEN_MODE::ANKI_SLEEP;
       }();
 #else
       false;

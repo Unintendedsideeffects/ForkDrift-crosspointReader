@@ -63,14 +63,18 @@ void AnkiAddActivity::render(RenderLock&&) {
 
   renderer.drawRect(boxMargin, boxY, boxWidth, boxHeight);
 
-  // Front: the selected text, truncated to a single line.
-  std::string displayFront = renderer.truncatedText(UI_12_FONT_ID, frontText.c_str(), boxWidth - 20);
-  renderer.drawCenteredText(UI_12_FONT_ID, boxY + 35, displayFront.c_str(), true, EpdFontFamily::BOLD);
+  // Front: selected text with line breaks preserved.
+  std::vector<std::string> frontLines = renderer.wrappedText(UI_12_FONT_ID, frontText.c_str(), boxWidth - 20, 2);
+  int frontY = boxY + 20;
+  for (const auto& line : frontLines) {
+    renderer.drawCenteredText(UI_12_FONT_ID, frontY, line.c_str(), true, EpdFontFamily::BOLD);
+    frontY += renderer.getLineHeight(UI_12_FONT_ID);
+  }
 
   // Back: the surrounding sentence, wrapped to a couple of lines.
   if (!backText.empty()) {
     std::vector<std::string> lines = renderer.wrappedText(UI_10_FONT_ID, backText.c_str(), boxWidth - 20, 3);
-    int lineY = boxY + 75;
+    int lineY = boxY + 85;
     for (const auto& line : lines) {
       renderer.drawCenteredText(UI_10_FONT_ID, lineY, line.c_str(), false, EpdFontFamily::ITALIC);
       lineY += renderer.getLineHeight(UI_10_FONT_ID);

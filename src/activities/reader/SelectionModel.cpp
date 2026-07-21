@@ -1,6 +1,7 @@
 #include "SelectionModel.h"
 
 #include <algorithm>
+#include <cstdint>
 
 namespace selection {
 namespace {
@@ -76,6 +77,20 @@ std::string joinSpan(const std::vector<SelWord>& words, const int lo, const int 
   return out;
 }
 
+std::string joinSpanFormatted(const std::vector<SelWord>& words, const int lo, const int hi) {
+  std::string out;
+  uint16_t lastLineId = UINT16_MAX;
+  for (int i = lo; i <= hi && i < static_cast<int>(words.size()); ++i) {
+    const SelWord& word = words[static_cast<size_t>(i)];
+    if (!out.empty()) {
+      out += (word.lineId != lastLineId) ? '\n' : ' ';
+    }
+    out += word.text;
+    lastLineId = word.lineId;
+  }
+  return out;
+}
+
 std::string sentenceSpan(const std::vector<SelWord>& words, const int lo, const int hi, const size_t maxChars) {
   const int count = static_cast<int>(words.size());
   if (count == 0) {
@@ -96,7 +111,7 @@ std::string sentenceSpan(const std::vector<SelWord>& words, const int lo, const 
   }
 
   if (joinedLength(words, start, end) <= maxChars) {
-    return joinSpan(words, start, end);
+    return joinSpanFormatted(words, start, end);
   }
 
   // Keep the entire selected span even when it appears after the initial cap.
@@ -108,7 +123,7 @@ std::string sentenceSpan(const std::vector<SelWord>& words, const int lo, const 
     ++start;
   }
   if (joinedLength(words, start, selectedEnd) > maxChars) {
-    return joinSpan(words, selectedStart, selectedEnd);
+    return joinSpanFormatted(words, selectedStart, selectedEnd);
   }
 
   end = selectedEnd;
@@ -116,7 +131,7 @@ std::string sentenceSpan(const std::vector<SelWord>& words, const int lo, const 
          joinedLength(words, start, end + 1) <= maxChars) {
     ++end;
   }
-  return joinSpan(words, start, end);
+  return joinSpanFormatted(words, start, end);
 }
 
 bool anchorByText(const std::vector<SelWord>& words, const std::string& text, const int hintLo, const int hintHi,

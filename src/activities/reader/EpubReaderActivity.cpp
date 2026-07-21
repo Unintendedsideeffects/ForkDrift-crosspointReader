@@ -1318,16 +1318,8 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       break;
     }
 #endif
-    case EpubReaderMenuActivity::MenuAction::ADD_TO_ANKI: {
-#if ENABLE_TEXT_SELECTION
-      enterSelectionMode(std::move(pendingSelectionSnapshot));
-      pendingSelectionSnapshot.reset();
-#else
-      LOG_WRN("EPUB", "ADD_TO_ANKI requires text selection");
-      requestUpdate();
-#endif
+    case EpubReaderMenuActivity::MenuAction::ADD_TO_ANKI:
       break;
-    }
     case EpubReaderMenuActivity::MenuAction::GO_HOME: {
       activityManager.goHome();
       return;
@@ -1599,18 +1591,24 @@ void EpubReaderActivity::render(RenderLock&& lock) {
 
 #if ENABLE_TEXT_SELECTION
   if (selectionMode) {
-    // Lightweight selection repaint: restore the clean base page snapshot when
-    // available, invert the selected span, fast refresh. The fallback path below
-    // preserves the original reload-per-move behavior if the snapshot cannot be
-    // allocated.
     if (selectionPopup.processRender(renderer, mappedInput)) {
       return;
+    }
+    if (selectionNeedsWordReload) {
+      if (!section || !refreshSelectionWords()) {
+        exitSelectionMode();
+        return;
+      }
+      selectionBaseSnapshot.reset();
     }
     if (selectionBaseSnapshot) {
       memcpy(renderer.getFrameBuffer(), selectionBaseSnapshot.get(), renderer.getBufferSize());
       drawSelectionOverlay();
       renderer.displayBuffer(HalDisplay::FAST_REFRESH);
     } else if (section) {
+      if (selModel.words.empty()) {
+        refreshSelectionWords();
+      }
       if (auto page = section->loadPageFromSectionFile()) {
         int mTop, mRight, mBottom, mLeft;
         renderer.getOrientedViewableTRBL(&mTop, &mRight, &mBottom, &mLeft);
@@ -2389,15 +2387,52 @@ void EpubReaderActivity::exitSelectionMode() {
   selectionBaseSnapshot.reset();
   selectionSnapshotFallback = false;
   selectionContentLoads = 0;
+  selectionNeedsWordReload = false;
   selectionPreferredAction = selection_capture::Action::BookNotes;
   selModel.words.clear();
   selModel.words.shrink_to_fit();
   requestUpdate();
 }
 
+bool EpubReaderActivity::refreshSelectionWords() {
+  if (!section) {
+    return false;
+  }
+  auto page = section->loadPageFromSectionFile();
+  if (!page) {
+    return false;
+  }
+  int marginTop, marginRight, marginBottom, marginLeft;
+  renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
+  marginTop += SETTINGS.screenMargin + features::status_overlay::topInset();
+  marginLeft += SETTINGS.screenMargin;
+  collectSelectableWords(*page, marginLeft, marginTop, selModel.words);
+  selectionNeedsWordReload = false;
+  return !selModel.words.empty();
+}
+
+void EpubReaderActivity::selectionTurnPage(const bool forward) {
+  if (!selectionMode || !section) {
+    return;
+  }
+  const int spineBefore = currentSpineIndex;
+  pageTurn(forward);
+  if (currentSpineIndex != spineBefore || !section) {
+    exitSelectionMode();
+    return;
+  }
+  selModel.words.clear();
+  selModel.cursor = 0;
+  selModel.anchor = 0;
+  selModel.anchored = false;
+  selectionBaseSnapshot.reset();
+  selectionNeedsWordReload = true;
+  requestUpdate();
+}
+
 std::string EpubReaderActivity::selectedText() const {
   const auto [lo, hi] = selection::span(selModel);
-  return selection::joinSpan(selModel.words, lo, hi);
+  return selection::joinSpanFormatted(selModel.words, lo, hi);
 }
 
 std::string EpubReaderActivity::selectionLocation() const {
@@ -2432,6 +2467,28 @@ void EpubReaderActivity::openSelectionActions() {
   options.removeHighlight = section && ANNOTATIONS.removeCandidateAt(static_cast<uint16_t>(currentSpineIndex),
                                                                      static_cast<uint16_t>(section->currentPage),
                                                                      static_cast<uint16_t>(selModel.cursor));
+  if (!options.removeHighlight) {
+    const uint16_t page = section ? static_cast<uint16_t>(section->currentPage) : 0;
+    bool alreadyHighlighted = false;
+    for (const Annotation* existing : ANNOTATIONS.forSpine(static_cast<uint16_t>(currentSpineIndex))) {
+      if (existing->page == page && existing->startWord == static_cast<uint16_t>(lo) &&
+          existing->endWord == static_cast<uint16_t>(hi)) {
+        alreadyHighlighted = true;
+        break;
+      }
+    }
+    if (!alreadyHighlighted) {
+      Annotation a;
+      a.spineIndex = static_cast<uint16_t>(currentSpineIndex);
+      a.page = page;
+      a.startWord = static_cast<uint16_t>(lo);
+      a.endWord = static_cast<uint16_t>(hi);
+      a.text = selection::joinSpan(selModel.words, lo, hi);
+      if (ANNOTATIONS.add(a)) {
+        selectionBaseSnapshot.reset();
+      }
+    }
+  }
 #endif
   const auto actions = selection_capture::buildActions(options);
   const int initialIndex = selection_capture::findActionIndex(actions, selectionPreferredAction);
@@ -2452,13 +2509,13 @@ void EpubReaderActivity::openSelectionActions() {
         items.push_back(I18N.get(StrId::STR_SAVE_TO_BOOK_NOTES));
         break;
 #if ENABLE_ANNOTATIONS
-      case selection_capture::Action::Highlight:
-        items.push_back(I18N.get(StrId::STR_HIGHLIGHT));
-        break;
       case selection_capture::Action::RemoveHighlight:
         items.push_back(I18N.get(StrId::STR_REMOVE_HIGHLIGHT));
         break;
 #endif
+      case selection_capture::Action::Close:
+        items.push_back(I18N.get(StrId::STR_SELECTION_CLOSE));
+        break;
       default:
         break;
     }
@@ -2480,8 +2537,6 @@ void EpubReaderActivity::openSelectionActions() {
       }
 #endif
       case selection_capture::Action::Anki: {
-        // Capture the surrounding sentence (back) and source (context) while the
-        // selection model is still populated — exitSelectionMode() clears it.
         const auto [selLo, selHi] = selection::span(selModel);
         const std::string sentence = selection::sentenceSpan(selModel.words, selLo, selHi);
         std::string source = epub->getTitle();
@@ -2490,34 +2545,21 @@ void EpubReaderActivity::openSelectionActions() {
           source += ", ";
           source += loc;
         }
-        exitSelectionMode();
+        selectionPreferredAction = selection_capture::Action::Anki;
         startActivityForResult(std::make_unique<AnkiAddActivity>(renderer, mappedInput, text, sentence, source),
                                [this](const ActivityResult&) { requestUpdate(); });
         return;
       }
-#if ENABLE_ANNOTATIONS
-      case selection_capture::Action::Highlight: {
-        Annotation a;
-        a.spineIndex = static_cast<uint16_t>(currentSpineIndex);
-        a.page = section ? static_cast<uint16_t>(section->currentPage) : 0;
-        const auto [startWord, endWord] = selection::span(selModel);
-        a.startWord = static_cast<uint16_t>(startWord);
-        a.endWord = static_cast<uint16_t>(endWord);
-        a.text = text;
-        const bool ok = ANNOTATIONS.add(a);
+      case selection_capture::Action::Close:
         exitSelectionMode();
-        if (!ok) {
-          LOG_ERR("ERS", "Failed to save annotation");
-        }
-        requestUpdate();
         return;
-      }
+#if ENABLE_ANNOTATIONS
       case selection_capture::Action::RemoveHighlight: {
         if (section) {
           ANNOTATIONS.removeAt(static_cast<uint16_t>(currentSpineIndex), static_cast<uint16_t>(section->currentPage),
                                static_cast<uint16_t>(selModel.cursor));
+          selectionBaseSnapshot.reset();
         }
-        exitSelectionMode();
         requestUpdate();
         return;
       }
@@ -2526,11 +2568,7 @@ void EpubReaderActivity::openSelectionActions() {
         std::string path;
         const bool ok = NotesStore::appendHighlight(epub ? epub->getTitle() : "", selectionLocation(), text, &path);
         if (ok) {
-#if ENABLE_ANNOTATIONS
-          selectionPreferredAction = selection_capture::preferredAfterNotesSuccess(true);
-#else
-          selectionPreferredAction = selection_capture::preferredAfterNotesSuccess(false);
-#endif
+          selectionPreferredAction = selection_capture::preferredAfterNotesSuccess();
         } else {
           selectionPreferredAction = selection_capture::preferredAfterNotesFailure();
         }
@@ -2588,11 +2626,11 @@ bool EpubReaderActivity::handleSelectionInput() {
     return true;
   }
   if (mappedInput.wasPressed(MappedInputManager::Button::PageBack)) {
-    move(-8);
+    selectionTurnPage(false);
     return true;
   }
   if (mappedInput.wasPressed(MappedInputManager::Button::PageForward)) {
-    move(8);
+    selectionTurnPage(true);
     return true;
   }
 

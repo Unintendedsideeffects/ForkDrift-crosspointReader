@@ -717,31 +717,24 @@ class SimulatorSmokeTest {
     addTap(MappedInputManager::Button::Back);  // un-anchor
     inputScript.push_back(render("Selection unanchored", 2));
 #if ENABLE_ANNOTATIONS
-    // Highlight persistence: anchor a 2-word span, save it as a highlight via
-    // the popup (first popup row is Dictionary for single words only, so with a
-    // span the rows are [Anki?] Notes, Highlight — navigate to Highlight by
-    // going down twice from the top; harmless if it overshoots to Highlight
-    // exactly because Anki is enabled in the sim build).
+    // Highlight is saved when the action menu opens; dismiss with Close and verify persistence.
     addTap(MappedInputManager::Button::Confirm);  // anchor
     inputScript.push_back(render("Annotation anchor", 2));
     addTap(MappedInputManager::Button::Down);
     inputScript.push_back(render("Annotation extend", 2));
-    addTap(MappedInputManager::Button::Confirm);  // open actions popup
+    addTap(MappedInputManager::Button::Confirm);  // open actions popup (auto-saves highlight)
     inputScript.push_back(render("Annotation popup", 3));
-    // Highlight is always the LAST popup row before a highlight exists (rows:
-    // [Anki?] Notes, Highlight); Up from row 0 wraps deterministically to it
-    // regardless of which optional actions are compiled in.
-    addTap(MappedInputManager::Button::Up);
-    inputScript.push_back(render("Annotation popup highlight row", 2));
-    addTap(MappedInputManager::Button::Confirm);  // save highlight
-    inputScript.push_back(render("Annotation saved", 4));
     inputScript.push_back(hashFrame("Reader with highlight"));
+    addTap(MappedInputManager::Button::Back);  // dismiss popup, keep selection
+    inputScript.push_back(render("Annotation popup dismissed", 2));
     // Round-trip: page away and back; the highlight must re-render.
     addTap(MappedInputManager::Button::PageForward);
     inputScript.push_back(render("Reader page after highlight", 4));
     addTap(MappedInputManager::Button::PageBack);
     inputScript.push_back(render("Reader back to highlight", 4));
     inputScript.push_back(checkHashSame("Reader back to highlight"));
+    addTap(MappedInputManager::Button::Back);  // exit selection mode
+    inputScript.push_back(render("Reader after selection", 4));
 #else
     addTap(MappedInputManager::Button::Back);  // exit selection mode
     inputScript.push_back(render("Reader after selection", 4));

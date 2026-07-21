@@ -64,13 +64,6 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
   items.push_back({MenuAction::SYNC, StrId::STR_SYNC_PROGRESS});
   items.push_back(
       {MenuAction::TOGGLE_COMPLETED, isBookCompleted ? StrId::STR_MARK_UNFINISHED : StrId::STR_MARK_FINISHED});
-#if ENABLE_TEXT_SELECTION
-  // Anki capture routes through selection mode, so only offer it when text
-  // selection is compiled in.
-  if (core::FeatureCatalog::isEnabled("anki_support")) {
-    items.push_back({MenuAction::ADD_TO_ANKI, StrId::STR_ADD_TO_ANKI});
-  }
-#endif
 #if ENABLE_DICTIONARY
   items.push_back({MenuAction::DICTIONARY, StrId::STR_DICTIONARY});
 #endif
@@ -91,6 +84,7 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
 
 void EpubReaderMenuActivity::onEnter() {
   Activity::onEnter();
+  mappedInput.setReaderMode(false);
   // Capture the framebuffer before we render the menu over it. The reader's last
   // page render is still in the buffer at this point; ControlsOptionsActivity will
   // use it to keep the book text visible in the top half while settings are open.
@@ -112,7 +106,10 @@ void EpubReaderMenuActivity::onEnter() {
   requestUpdate();
 }
 
-void EpubReaderMenuActivity::onExit() { Activity::onExit(); }
+void EpubReaderMenuActivity::onExit() {
+  mappedInput.setReaderMode(true);
+  Activity::onExit();
+}
 
 void EpubReaderMenuActivity::finishOptionsResult(const ControlsOptionsResult* optionsResult) {
   const bool readerChanged = optionsResult && optionsResult->readerSettingsChanged;
@@ -220,7 +217,7 @@ void EpubReaderMenuActivity::loop() {
       return;
     }
 
-    if (selectedAction == MenuAction::SELECT_TEXT || selectedAction == MenuAction::ADD_TO_ANKI) {
+    if (selectedAction == MenuAction::SELECT_TEXT) {
       ActivityResult result;
       result.data = MenuResult{static_cast<int>(selectedAction), pendingOrientation};
       result.transferredPageSnapshot = std::move(savedPageBuffer);

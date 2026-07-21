@@ -9,8 +9,8 @@ enum class Action : int8_t {
   Dictionary = 0,
   Anki = 1,
   BookNotes = 2,
-  Highlight = 3,
-  RemoveHighlight = 4,
+  RemoveHighlight = 3,
+  Close = 4,
 };
 
 struct ActionBuildOptions {
@@ -22,7 +22,7 @@ struct ActionBuildOptions {
 
 std::vector<Action> buildActions(const ActionBuildOptions& options);
 int findActionIndex(const std::vector<Action>& actions, Action preferred);
-Action preferredAfterNotesSuccess(bool annotationsEnabled);
+Action preferredAfterNotesSuccess();
 Action preferredAfterNotesFailure();
 
 }  // namespace selection_capture

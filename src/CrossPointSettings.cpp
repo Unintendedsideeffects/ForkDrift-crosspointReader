@@ -474,6 +474,15 @@ uint8_t CrossPointSettings::normalizeSleepScreenMode(const uint8_t rawValue) {
     return DARK;
   }
 #endif
+#if ENABLE_ANKI_SUPPORT
+  if (rawValue == ANKI_SLEEP) {
+    return ANKI_SLEEP;
+  }
+#else
+  if (rawValue == ANKI_SLEEP) {
+    return DARK;
+  }
+#endif
   return rawValue < SLEEP_SCREEN_MODE_COUNT ? rawValue : DARK;
 }
 
