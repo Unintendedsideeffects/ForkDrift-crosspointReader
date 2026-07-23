@@ -107,10 +107,6 @@ int FontSelectionActivity::findSelectionIndexFor(const char* sdFontFamilyName, u
   return 0;
 }
 
-int FontSelectionActivity::findCurrentSelectionIndex(bool hasUserFonts) const {
-  return findSelectionIndexFor(SETTINGS.sdFontFamilyName, SETTINGS.fontFamily, hasUserFonts);
-}
-
 void FontSelectionActivity::onExit() { Activity::onExit(); }
 
 void FontSelectionActivity::loop() {

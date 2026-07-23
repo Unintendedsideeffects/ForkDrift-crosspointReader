@@ -21,7 +21,6 @@ class FontSelectionActivity final : public Activity {
   void render(RenderLock&&) override;
 
  private:
-  int findCurrentSelectionIndex(bool hasUserFonts) const;
   int findSelectionIndexFor(const char* sdFontFamilyName, uint8_t fontFamily, bool hasUserFonts) const;
   void handleSelection();
   void renderPreviewPane(int top, int height, int fontId, const char* fontName) const;
