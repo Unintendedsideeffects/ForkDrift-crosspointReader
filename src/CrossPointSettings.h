@@ -400,6 +400,9 @@ class CrossPointSettings {
   uint8_t developerMode = 0;
   // Image rendering mode in EPUB reader
   uint8_t imageRendering = IMAGES_DISPLAY;
+  // Highlight/bookmark export format (highlight_export::Format: 0=Markdown,
+  // 1=My Clippings, 2=KOReader). Default Markdown.
+  uint8_t highlightExportFormat = 0;
   // Long-press power button action in reader (uses SHORT_PWRBTN enum; default = sleep)
   uint8_t longPwrBtn = SLEEP;
   // Long-press Confirm (menu button) quick action in reader (0 = off)

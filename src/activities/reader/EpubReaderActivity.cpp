@@ -25,6 +25,7 @@
 #if ENABLE_TEXT_SELECTION
 #include "ReaderOptionsMemoryPolicy.h"
 #include "util/AnnotationStore.h"
+#include "util/HighlightExporter.h"
 #include "util/NotesStore.h"
 #endif
 #if ENABLE_DICTIONARY
@@ -1189,6 +1190,37 @@ void EpubReaderActivity::openFileTransfer() {
   activityManager.goToFileTransfer(epub ? epub->getPath() : std::string{});
 }
 
+#if ENABLE_ANNOTATIONS || ENABLE_BOOKMARKS
+void EpubReaderActivity::exportCurrentBookHighlights() {
+  highlight_export::BookExport book;
+  book.title = epub->getTitle();
+  book.author = epub->getAuthor();
+  book.path = epub->getPath();
+#if ENABLE_ANNOTATIONS
+  book.highlights = ANNOTATIONS.all();
+#endif
+#if ENABLE_BOOKMARKS
+  book.bookmarks = BOOKMARKS.getBookmarks();
+#endif
+
+  if (!highlight_export::hasContent(book)) {
+    GUI.drawPopup(renderer, tr(STR_EXPORT_EMPTY));
+    renderer.displayBuffer();
+    delay(1200);
+    requestUpdate();
+    return;
+  }
+
+  const auto format = static_cast<highlight_export::Format>(SETTINGS.highlightExportFormat);
+  const std::string path = highlight_export::exportBook(format, book);
+  const StrId resultMsg = path.empty() ? StrId::STR_EXPORT_FAILED : StrId::STR_EXPORT_DONE;
+  GUI.drawPopup(renderer, I18N.get(resultMsg));
+  renderer.displayBuffer();
+  delay(1200);
+  requestUpdate();
+}
+#endif  // ENABLE_ANNOTATIONS || ENABLE_BOOKMARKS
+
 void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction action) {
   auto progressChangeResultHandler = [this](const ActivityResult& result) {
     if (!result.isCancelled) {
@@ -1431,6 +1463,11 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       break;
     }
 #endif  // ENABLE_ANNOTATIONS
+#if ENABLE_ANNOTATIONS || ENABLE_BOOKMARKS
+    case EpubReaderMenuActivity::MenuAction::EXPORT_HIGHLIGHTS:
+      exportCurrentBookHighlights();
+      break;
+#endif
     case EpubReaderMenuActivity::MenuAction::READER_SETTINGS_CHANGED:
       reindexCurrentSection();
       break;

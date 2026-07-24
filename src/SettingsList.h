@@ -825,6 +825,13 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
                          "imageRendering", StrId::STR_CAT_READER)
            .withConfiguratorExport("book_images"));
 
+#if ENABLE_ANNOTATIONS || ENABLE_BOOKMARKS
+  // Format for exporting highlights/bookmarks (reader menu + Settings bulk export).
+  emit(SettingInfo::Enum(StrId::STR_EXPORT_FORMAT, &CrossPointSettings::highlightExportFormat,
+                         {StrId::STR_FMT_MARKDOWN, StrId::STR_FMT_MY_CLIPPINGS, StrId::STR_FMT_KOREADER},
+                         "highlightExportFormat", StrId::STR_CAT_READER));
+#endif
+
   // --- Controls ---
   emit(SettingInfo::Enum(StrId::STR_SIDE_BTN_LAYOUT, &CrossPointSettings::sideButtonLayout,
                          {StrId::STR_PREV_NEXT, StrId::STR_NEXT_PREV, StrId::STR_DISABLED}, "sideButtonLayout",

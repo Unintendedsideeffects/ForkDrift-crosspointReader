@@ -59,6 +59,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -fno-omit-frame-pointer \
   -DENABLE_TEXT_SELECTION=1 \
   -DENABLE_ANNOTATIONS=1 \
+  -DENABLE_BOOKMARKS=1 \
   -DENABLE_POKEMON_PARTY=1 \
   -DENABLE_IMAGE_SLEEP=1 \
   -DENABLE_BACKGROUND_SERVER=1 \
@@ -133,6 +134,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/SettingsBackup.cpp" \
   "$ROOT_DIR/src/util/BookSettingsOverride.cpp" \
   "$ROOT_DIR/src/util/AnnotationStore.cpp" \
+  "$ROOT_DIR/src/util/HighlightExporter.cpp" \
   "$ROOT_DIR/lib/MiniBidi/BidiUtils.cpp" \
   "$ROOT_DIR/src/network/background/BackgroundServerPolicy.cpp" \
   "$ROOT_DIR/src/BookmarkStore.cpp" \

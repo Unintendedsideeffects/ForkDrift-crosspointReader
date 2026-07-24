@@ -46,6 +46,9 @@ class EpubReaderMenuActivity final : public Activity {
 #if ENABLE_ANNOTATIONS
     VIEW_HIGHLIGHTS,
 #endif
+#if ENABLE_ANNOTATIONS || ENABLE_BOOKMARKS
+    EXPORT_HIGHLIGHTS,
+#endif
     MEMORY_RECOVERY_REQUESTED,
   };
 

@@ -200,6 +200,9 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
   s.developerMode = doc["developerMode"] | (uint8_t)0;
   s.imageRendering =
       clamp(doc["imageRendering"] | (uint8_t)S::IMAGES_DISPLAY, S::IMAGE_RENDERING_COUNT, S::IMAGES_DISPLAY);
+  // highlight_export::FORMAT_COUNT == 3 (0=Markdown default); literal avoids the
+  // feature-gated HighlightExporter include here.
+  s.highlightExportFormat = clamp(doc["highlightExportFormat"] | (uint8_t)0, (uint8_t)3, (uint8_t)0);
   s.globalStatusBar = clamp(doc["globalStatusBar"] | (uint8_t)S::GLOBAL_STATUS_BAR_OFF, S::GLOBAL_STATUS_BAR_MODE_COUNT,
                             S::GLOBAL_STATUS_BAR_OFF);
   s.globalStatusBarPosition = clamp(doc["globalStatusBarPosition"] | (uint8_t)S::STATUS_BAR_TOP,
@@ -364,6 +367,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["moveFinishedToReadFolder"] = s.moveFinishedToReadFolder;
   doc["developerMode"] = s.developerMode;
   doc["imageRendering"] = s.imageRendering;
+  doc["highlightExportFormat"] = s.highlightExportFormat;
   doc["globalStatusBar"] = s.globalStatusBar;
   doc["globalStatusBarPosition"] = s.globalStatusBarPosition;
 
