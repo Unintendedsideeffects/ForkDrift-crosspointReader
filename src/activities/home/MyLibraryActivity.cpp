@@ -211,6 +211,12 @@ void MyLibraryActivity::onEnter() {
     BG_WIFI.stop(true);
   }
 
+  // Embedded (library strip Files tab): lock to Files; the strip owns the Recent
+  // tab in its own slot, so this instance never shows or loads Recent books.
+  if (embedded) {
+    currentTab = Tab::Files;
+  }
+
   std::string restoreRecentPath;
   std::string restoreFileName;
 
@@ -227,7 +233,9 @@ void MyLibraryActivity::onEnter() {
     }
   }
 
-  loadRecentBooks();
+  if (!embedded) {
+    loadRecentBooks();
+  }
   loadFiles();
 
   selectorIndex = 0;
@@ -362,8 +370,8 @@ void MyLibraryActivity::loop() {
       return;
     }
 
-    // Tab switching
-    if (mappedInput.wasReleased(MappedInputManager::Button::Left)) {
+    // Tab switching (standalone only; the library strip owns horizontal nav)
+    if (!embedded && mappedInput.wasReleased(MappedInputManager::Button::Left)) {
       currentTab = Tab::Recent;
       selectorIndex = 0;
       requestUpdate();
@@ -415,17 +423,34 @@ void MyLibraryActivity::render(RenderLock&&) {
   const auto pageWidth = renderer.getScreenWidth();
   const auto& metrics = UITheme::getInstance().getMetrics();
 
-  auto folderName = basepath == "/" ? tr(STR_SD_CARD) : basepath.substr(basepath.rfind('/') + 1).c_str();
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, folderName);
+  int contentTop;
+  if (embedded) {
+    // Hosted in the library strip: the host paints the top kStripInset (tab strip)
+    // over this render, so skip our own header/tab-bar and start content below it.
+    // In a subdirectory, show the folder name as a compact line so the browser
+    // still has directory context without the full header chrome.
+    contentTop = kStripInset + metrics.verticalSpacing;
+    if (basepath != "/") {
+      const auto folderName = basepath.substr(basepath.rfind('/') + 1);
+      renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, contentTop, folderName.c_str());
+      contentTop += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing;
+    }
+  } else {
+    // Own the string: `basepath.substr(...).c_str()` would dangle (points into a
+    // temporary destroyed at the end of the statement) before drawHeader reads it.
+    const std::string folderName =
+        basepath == "/" ? std::string(tr(STR_SD_CARD)) : basepath.substr(basepath.rfind('/') + 1);
+    GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, folderName.c_str());
 
-  std::vector<TabInfo> tabs = {
-      {"Recent", currentTab == Tab::Recent},
-      {"Files", currentTab == Tab::Files},
-  };
-  GUI.drawTabBar(renderer, Rect{0, metrics.topPadding + metrics.headerHeight, pageWidth, metrics.tabBarHeight}, tabs,
-                 false);
+    std::vector<TabInfo> tabs = {
+        {"Recent", currentTab == Tab::Recent},
+        {"Files", currentTab == Tab::Files},
+    };
+    GUI.drawTabBar(renderer, Rect{0, metrics.topPadding + metrics.headerHeight, pageWidth, metrics.tabBarHeight}, tabs,
+                   false);
 
-  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.tabBarHeight + metrics.verticalSpacing;
+    contentTop = metrics.topPadding + metrics.headerHeight + metrics.tabBarHeight + metrics.verticalSpacing;
+  }
   const int contentHeight =
       renderer.getScreenHeight() - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing;
 

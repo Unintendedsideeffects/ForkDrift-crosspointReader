@@ -9,9 +9,11 @@ namespace books_tab_model {
 
 using BooksTab = TabStripItem;
 
-inline std::vector<BooksTab> make(const char* recent, const char* files, const char* books, const char* opds,
-                                  const char* settings) {
-  return {{recent, false}, {files, false}, {books, true}, {opds, true}, {settings, false}};
+// The unified library strip: Recent | Files | OPDS | Settings, all selectable.
+// (The former inert "Books"/placeholder tabs were folded away — Recent is the
+// recent-books grid, Files/Settings are now wired to real views.)
+inline std::vector<BooksTab> make(const char* recent, const char* files, const char* opds, const char* settings) {
+  return {{recent, true}, {files, true}, {opds, true}, {settings, true}};
 }
 
 inline size_t selectableCount(const std::vector<BooksTab>& tabs) {

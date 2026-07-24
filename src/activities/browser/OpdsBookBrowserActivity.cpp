@@ -64,6 +64,16 @@ void OpdsBookBrowserActivity::onEnter() {
   // via SYNC, or implicitly when acting on an entry (connect-on-demand). With no
   // cache, fall back to the original online flow.
   if (loadCachedCatalog()) {
+    // Already online (e.g. WiFi still up from a prior action / background service):
+    // refresh the live catalog immediately instead of presenting a stale offline
+    // shelf that looks inert until the user discovers the Sync affordance. This is
+    // the common "opened Library, it never loaded" case. isOnline() only checks an
+    // existing connection — it never initiates one — so there is no surprise WiFi
+    // prompt on enter; when offline we still fall through to the cached shelf.
+    if (isOnline()) {
+      syncCatalog();
+      return;
+    }
     showingCachedCatalog = true;
     state = BrowserState::BROWSING;
     statusMessage.clear();

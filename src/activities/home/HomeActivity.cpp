@@ -267,16 +267,30 @@ bool HomeActivity::isPokemonPartyHomeMode() const {
 }
 
 void HomeActivity::buildMenuModel() {
+  populateMenuModel();
+  // Refresh the compact menu signature (one byte per entry id) that the carousel
+  // cache key folds in, so a changed menu invalidates the baked-in frame cache.
+  carouselMenuSignature.clear();
+  carouselMenuSignature.reserve(menuModel.size());
+  for (const HomeMenuId id : menuModel) {
+    carouselMenuSignature += static_cast<char>(static_cast<uint8_t>(id));
+  }
+}
+
+void HomeActivity::populateMenuModel() {
   menuModel.clear();
   menuModel.reserve(9);
 
 #if ENABLE_BOOKMARKS
   hasBookmarks = core::FeatureModules::hasCapability(core::Capability::Bookmarks) && BookmarkStore::hasAnyBookmarks();
 #endif
-  const bool opds = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers});
+  // [[maybe_unused]]: with ENABLE_BOOKS_TAB_UI the standalone OPDS/Library home
+  // entries are folded into the unified library's OPDS tab, so these are only
+  // read on the non-Books-tab (#else) path below.
+  [[maybe_unused]] const bool opds = core::HomeActionRegistry::shouldExpose("opds_browser", {hasOpdsServers});
   // Library = direct entry into the first configured OPDS catalog; same
   // feature exposure as the OPDS browser, gated on a server existing.
-  const bool library = opds && !OPDS_STORE.getServers().empty();
+  [[maybe_unused]] const bool library = opds && !OPDS_STORE.getServers().empty();
   const bool todo = core::HomeActionRegistry::shouldExpose("todo_planner", {false});
   const bool anki = core::HomeActionRegistry::shouldExpose("anki", {false});
   const bool notes = core::FeatureModules::hasCapability(core::Capability::Notes) && !todo;
@@ -284,11 +298,12 @@ void HomeActivity::buildMenuModel() {
   // Grid (ForkDrift / Pokémon party): cover grid handles books; the button row
   // holds the actions. Composition matches what the grid actually renders.
   if (homeIsGridNav()) {
-    menuModel.push_back(HomeMenuId::MyLibrary);
 #if ENABLE_BOOKS_TAB_UI
-    menuModel.push_back(HomeMenuId::BooksTab);
-#endif
+    menuModel.push_back(HomeMenuId::BooksTab);  // unified Library (Recent|Files|OPDS|Settings)
+#else
+    menuModel.push_back(HomeMenuId::MyLibrary);
     if (library) menuModel.push_back(HomeMenuId::Library);
+#endif
     if (todo) menuModel.push_back(HomeMenuId::Todo);
     if (anki) menuModel.push_back(HomeMenuId::Anki);
     if (notes) menuModel.push_back(HomeMenuId::Notes);
@@ -304,12 +319,13 @@ void HomeActivity::buildMenuModel() {
   // book; the rest are actions.
   if (homeIsCarouselNav()) {
     menuModel.push_back(HomeMenuId::OpenBook);
-    menuModel.push_back(HomeMenuId::MyLibrary);
 #if ENABLE_BOOKS_TAB_UI
-    menuModel.push_back(HomeMenuId::BooksTab);
-#endif
+    menuModel.push_back(HomeMenuId::BooksTab);  // unified Library (Recent|Files|OPDS|Settings)
+#else
+    menuModel.push_back(HomeMenuId::MyLibrary);
     if (library) menuModel.push_back(HomeMenuId::Library);
     if (opds) menuModel.push_back(HomeMenuId::Opds);
+#endif
     if (todo) menuModel.push_back(HomeMenuId::Todo);
     if (anki) menuModel.push_back(HomeMenuId::Anki);
     if (notes) menuModel.push_back(HomeMenuId::Notes);
@@ -327,12 +343,13 @@ void HomeActivity::buildMenuModel() {
   // Classic list theme. Slot 0 is the "book card" (Continue Reading) when a book
   // is open; the remaining entries render as tiles below it.
   if (hasContinueReading) menuModel.push_back(HomeMenuId::ContinueReading);
-  menuModel.push_back(HomeMenuId::MyLibrary);
 #if ENABLE_BOOKS_TAB_UI
-  menuModel.push_back(HomeMenuId::BooksTab);
-#endif
+  menuModel.push_back(HomeMenuId::BooksTab);  // unified Library (Recent|Files|OPDS|Settings)
+#else
+  menuModel.push_back(HomeMenuId::MyLibrary);
   if (library) menuModel.push_back(HomeMenuId::Library);
   if (opds) menuModel.push_back(HomeMenuId::Opds);
+#endif
   if (todo) menuModel.push_back(HomeMenuId::Todo);
   if (anki) menuModel.push_back(HomeMenuId::Anki);
   if (notes) menuModel.push_back(HomeMenuId::Notes);
@@ -429,7 +446,12 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
 
     if (!book.coverBmpPath.empty()) {
       coverthumbs::Size sizes[8] = {};
-      const int sizeCount = coverthumbs::all(sizes, 8);
+      int sizeCount = coverthumbs::all(sizes, 8);
+      // The static registry (coverthumbs::all) omits some themes' home cover
+      // heights — e.g. Lyra's 226. Always include the ACTIVE theme's cover height,
+      // or isMissingAnyRegisteredCoverThumb sees every registered size present and
+      // skips generation, leaving the active theme's cover permanently blank.
+      coverthumbs::appendUnique(sizes, 8, sizeCount, {0, UITheme::getInstance().getMetrics().homeCoverHeight});
       const bool staleCoverPath = !hasCoverThumbTemplate(book.coverBmpPath);
       if (isMissingAnyRegisteredCoverThumb(book.coverBmpPath, sizes, sizeCount)) {
         if (FsHelpers::hasEpubExtension(book.path)) {
@@ -586,7 +608,8 @@ std::string HomeActivity::menuIdLabel(const HomeMenuId id, const bool gridStyle)
       return gridStyle ? std::string(tr(STR_BOOKS)) : std::string("My Library");
 #if ENABLE_BOOKS_TAB_UI
     case HomeMenuId::BooksTab:
-      return std::string(tr(STR_BOOKS_TAB));
+      // Unified library home entry — the single "Library" the tab strip fronts.
+      return std::string(tr(STR_LIBRARY));
 #endif
     case HomeMenuId::Library:
       return std::string(tr(STR_LIBRARY));
@@ -809,12 +832,19 @@ void HomeActivity::onEnter() {
       }
     }
 
+    // Build the menu model before the carousel cache check: carousel frames bake
+    // in the menu icon row, so the cache key must fold in the menu layout or a
+    // changed menu would keep showing stale frames. hasContinueReading is finalized
+    // here for the media-picker path (repeated harmlessly below).
+    hasContinueReading = !recentBooks.empty();
+    buildMenuModel();
+
     if (usesCarouselCache && !recentBooks.empty()) {
       loadBookProgress();
       std::string cacheKey;
       uint64_t cacheKeyHash = 0;
       homecarousel::HomeCarouselCache::buildCacheKey(recentBooks, cacheKey, cacheKeyHash, &carouselCoverStateLookup,
-                                                     nullptr);
+                                                     nullptr, carouselMenuSignature);
       const auto geometry = carouselCacheGeometry(renderer);
       auto& cache = homecarousel::HomeCarouselCache::shared();
       if (cacheKey == cache.key && (cache.frameCount > 0 || cache.keyHash != 0)) {
@@ -898,9 +928,12 @@ void HomeActivity::onEnter() {
     selectorIndex = 0;
   }
 
-  // Build the single menu model now that hasContinueReading is known for both
-  // the media-picker (grid/carousel) and classic-list paths.
-  buildMenuModel();
+  // Build the single menu model now that hasContinueReading is known. The
+  // media-picker path already built it above (before its carousel cache check),
+  // so only the classic-list path needs it here.
+  if (!mediaPickerEnabled) {
+    buildMenuModel();
+  }
 
   // Trigger first update
   requestUpdate();
@@ -1117,7 +1150,8 @@ bool HomeActivity::preRenderCarouselFrames(bool showProgressPopup) {
 
   std::string newKey;
   uint64_t newKeyHash = 0;
-  homecarousel::HomeCarouselCache::buildCacheKey(recentBooks, newKey, newKeyHash, &carouselCoverStateLookup, nullptr);
+  homecarousel::HomeCarouselCache::buildCacheKey(recentBooks, newKey, newKeyHash, &carouselCoverStateLookup, nullptr,
+                                                 carouselMenuSignature);
 
   if (newKey == cache.key && (cache.frameCount > 0 || cache.keyHash != 0)) {
     carouselFramesReady = true;

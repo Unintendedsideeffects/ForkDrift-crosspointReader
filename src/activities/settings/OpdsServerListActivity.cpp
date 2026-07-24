@@ -33,7 +33,9 @@ void OpdsServerListActivity::onExit() { Activity::onExit(); }
 
 void OpdsServerListActivity::loop() {
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-    if (pickerMode) {
+    if (pickerMode || embedded) {
+      // Embedded (library Settings tab) / picker: Back leaves to home rather than
+      // finishing an activity that was never pushed on the stack by the host.
       activityManager.goHome();
     } else {
       finish();
@@ -95,9 +97,15 @@ void OpdsServerListActivity::render(RenderLock&&) {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_OPDS_SERVERS));
-
-  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  int contentTop;
+  if (embedded) {
+    // Hosted in the library strip: the host paints the top kStripInset over this
+    // render, so skip our own header and start the list below the strip.
+    contentTop = kStripInset + metrics.verticalSpacing;
+  } else {
+    GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_OPDS_SERVERS));
+    contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  }
   const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing * 2;
   const int itemCount = getItemCount();
 

@@ -6,16 +6,18 @@
 
 #include "OpdsServerStore.h"
 #include "activities/browser/OpdsBookBrowserActivity.h"
+#include "activities/home/MyLibraryActivity.h"
 #include "activities/home/RecentBooksGridActivity.h"
+#include "activities/settings/OpdsServerListActivity.h"
 #include "components/TabStrip.h"
 #include "components/themes/BaseTheme.h"
 
 void BooksTabActivity::onEnter() {
   Activity::onEnter();
   OPDS_STORE.loadFromFile();
-  tabs = books_tab_model::make(tr(STR_BOOKS_TAB_RECENT), tr(STR_BOOKS_TAB_FILES), tr(STR_BOOKS_TAB_BOOKS),
-                               tr(STR_BOOKS_TAB_OPDS), tr(STR_BOOKS_TAB_SETTINGS));
-  selectedTab = kBooksTab;
+  tabs = books_tab_model::make(tr(STR_BOOKS_TAB_RECENT), tr(STR_BOOKS_TAB_FILES), tr(STR_BOOKS_TAB_OPDS),
+                               tr(STR_BOOKS_TAB_SETTINGS));
+  selectedTab = kRecentTab;
   stripFocused = false;
   createChild();
   requestUpdate();
@@ -54,12 +56,17 @@ void BooksTabActivity::destroyChild() {
 void BooksTabActivity::createChild() {
   destroyChild();
 
-  if (selectedTab == kBooksTab) {
+  if (selectedTab == kRecentTab) {
     activeChild = std::make_unique<RecentBooksGridActivity>(renderer, mappedInput);
+  } else if (selectedTab == kFilesTab) {
+    activeChild = std::make_unique<MyLibraryActivity>(renderer, mappedInput, "/", /*embedded=*/true);
   } else if (selectedTab == kOpdsTab) {
     const auto& servers = OPDS_STORE.getServers();
     const OpdsServer server = servers.empty() ? OpdsServer{} : servers.front();
     activeChild = std::make_unique<OpdsBookBrowserActivity>(renderer, mappedInput, server);
+  } else if (selectedTab == kSettingsTab) {
+    activeChild =
+        std::make_unique<OpdsServerListActivity>(renderer, mappedInput, /*pickerMode=*/false, /*embedded=*/true);
   } else {
     return;
   }

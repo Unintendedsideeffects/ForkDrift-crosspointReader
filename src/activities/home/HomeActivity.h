@@ -56,6 +56,9 @@ class HomeActivity final : public Activity {
   // Single ordered source of truth for the Home menu (see HomeMenuId). Rebuilt
   // for the current nav mode in buildMenuModel(); every consumer indexes it.
   std::vector<HomeMenuId> menuModel;
+  // Compact signature of menuModel's composition, refreshed by buildMenuModel().
+  // Folded into the carousel cache key so a menu change invalidates baked frames.
+  std::string carouselMenuSignature;
 #if ENABLE_BOOKMARKS
   bool hasBookmarks = false;
   void onBookmarksOpen();
@@ -136,8 +139,9 @@ class HomeActivity final : public Activity {
   void loadRecentBooks();
   void loadRecentCovers(int coverHeight);
   void openSelectedBook();
-  void openCenteredBook();  // carousel: activate the centered book
-  void buildMenuModel();    // (re)build menuModel for the current nav mode
+  void openCenteredBook();   // carousel: activate the centered book
+  void buildMenuModel();     // (re)build menuModel + refresh carouselMenuSignature
+  void populateMenuModel();  // fills menuModel for the current nav mode (no signature)
   bool isPokemonPartyHomeMode() const;
   void activateMenuId(HomeMenuId id);
   std::string menuIdLabel(HomeMenuId id, bool gridStyle = false) const;

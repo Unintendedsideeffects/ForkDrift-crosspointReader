@@ -10,8 +10,28 @@
 
 #include "util/RecentBooksStore.h"
 
+#if defined(ESP_PLATFORM)
+#include <esp_ota_ops.h>
+#endif
+
 namespace homecarousel {
 namespace {
+
+// First 8 bytes of the running firmware's ELF SHA-256 as a uint64, or 0 on host
+// builds. Any firmware change yields a new value, invalidating cached frames.
+uint64_t currentAppFingerprint() {
+#if defined(ESP_PLATFORM)
+  const esp_app_desc_t* desc = esp_ota_get_app_description();
+  if (desc == nullptr) {
+    return 0;
+  }
+  uint64_t fingerprint = 0;
+  memcpy(&fingerprint, desc->app_elf_sha256, sizeof(fingerprint));
+  return fingerprint;
+#else
+  return 0;
+#endif
+}
 
 uint64_t fnvHash64(const std::string& value) {
   uint64_t hash = 14695981039346656037ull;
@@ -54,7 +74,8 @@ CacheHeader makeCacheHeader(uint64_t cacheKeyHash, int bookCount, const CacheGeo
           geometry.centerCoverW,
           geometry.centerCoverH,
           geometry.sideCoverW,
-          geometry.sideCoverH};
+          geometry.sideCoverH,
+          currentAppFingerprint()};
 }
 
 }  // namespace
@@ -71,12 +92,17 @@ bool HomeCarouselCache::canAllocateFrameBuffer(const size_t bufferSize, const si
 }
 
 void HomeCarouselCache::buildCacheKey(const std::vector<RecentBook>& recentBooks, std::string& outKey,
-                                      uint64_t& outKeyHash, const CoverStateLookup lookup, void* context) {
+                                      uint64_t& outKeyHash, const CoverStateLookup lookup, void* context,
+                                      const std::string& menuSignature) {
   outKey.clear();
   outKey.reserve(512);
   for (const auto& book : recentBooks) {
     appendCoverStateToKey(outKey, book, lookup, context);
   }
+  // Fold in the menu layout: frames bake in the icon row, so identical books with
+  // a different menu must produce a different key (and thus regenerated frames).
+  outKey += '\x1f';  // separator that cannot appear in a cover-state token
+  outKey += menuSignature;
   outKeyHash = fnvHash64(outKey);
 }
 
@@ -150,7 +176,8 @@ bool HomeCarouselCache::isCacheHeaderValid(const CacheHeader& header, const uint
          header.frameCount == bookCount && header.frameBufferSize == geometry.frameBufferSize &&
          header.screenWidth == geometry.screenWidth && header.screenHeight == geometry.screenHeight &&
          header.centerCoverW == geometry.centerCoverW && header.centerCoverH == geometry.centerCoverH &&
-         header.sideCoverW == geometry.sideCoverW && header.sideCoverH == geometry.sideCoverH;
+         header.sideCoverW == geometry.sideCoverW && header.sideCoverH == geometry.sideCoverH &&
+         header.appFingerprint == currentAppFingerprint();
 }
 
 bool HomeCarouselCache::hasValidDiskCache(const uint64_t cacheKeyHash, const int bookCount,

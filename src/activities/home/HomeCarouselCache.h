@@ -35,6 +35,11 @@ struct CacheHeader {
   uint16_t centerCoverH;
   uint16_t sideCoverW;
   uint16_t sideCoverH;
+  // First 8 bytes of the running firmware's ELF SHA-256. Frames bake in menu/
+  // layout that any firmware change can alter, so a new firmware invalidates the
+  // cache even when books, geometry, and menu signature are unchanged ("invalidate
+  // on flash"). 0 on host/simulator builds (no firmware image).
+  uint64_t appFingerprint;
 };
 
 using CoverStateLookup = void (*)(void* context, const RecentBook& book, bool& centerExists, bool& sideExists);
@@ -47,7 +52,7 @@ class HomeCarouselCache {
   static constexpr int kFrameCount = 1;
   static constexpr size_t kHeadroom = 4096;
   static constexpr uint32_t kMagic = 0x43434152;  // "CCAR"
-  static constexpr uint16_t kVersion = 2;
+  static constexpr uint16_t kVersion = 3;         // bumped: header gained appFingerprint
   static constexpr const char* kCachePath = "/.crosspoint/home_carousel_cache.bin";
   static constexpr const char* kCacheTmpPath = "/.crosspoint/home_carousel_cache.tmp";
 
@@ -62,8 +67,11 @@ class HomeCarouselCache {
 
   static HomeCarouselCache& shared();
   static bool canAllocateFrameBuffer(size_t bufferSize, size_t freeHeap);
+  // menuSignature encodes the current home menu layout. Carousel frames bake in
+  // the menu icon row, so a menu change (e.g. feature flags, library unification)
+  // must invalidate otherwise-identical (same books) cached frames.
   static void buildCacheKey(const std::vector<RecentBook>& recentBooks, std::string& key, uint64_t& keyHash,
-                            CoverStateLookup lookup, void* context);
+                            CoverStateLookup lookup, void* context, const std::string& menuSignature = std::string());
 
   int findFrameSlot(int bookIdx) const;
   void invalidate();
