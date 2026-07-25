@@ -7,6 +7,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 
 #include "util/DateUtils.h"
 
@@ -271,15 +272,9 @@ std::string formatFile(const std::vector<TodoItem>& items, const bool markdownFi
 
 bool parseRecurrenceToken(const std::string& token, TodoRecurrence& out, uint8_t& mask) {
   // Case-insensitive comparison for the token prefix.
-  auto toLower = [](const std::string& s) {
-    std::string lower;
-    lower.reserve(s.size());
-    for (const char c : s) {
-      lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
-    }
-    return lower;
-  };
-  const std::string lower = toLower(token);
+  std::string lower(token.size(), '\0');
+  std::transform(token.begin(), token.end(), lower.begin(),
+                 [](const char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); });
 
   if (lower == "!daily") {
     out = TodoRecurrence::Daily;
@@ -403,11 +398,8 @@ std::vector<TodoItem> selectDueOn(const std::vector<TodoItem>& definitions, cons
   }
   std::vector<TodoItem> result;
   result.reserve(definitions.size());
-  for (const TodoItem& item : definitions) {
-    if (recursOn(item, targetWeekday)) {
-      result.push_back(item);
-    }
-  }
+  std::copy_if(definitions.begin(), definitions.end(), std::back_inserter(result),
+               [targetWeekday](const TodoItem& item) { return recursOn(item, targetWeekday); });
   return result;
 }
 

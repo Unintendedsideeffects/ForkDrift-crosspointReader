@@ -79,7 +79,6 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
   const bool isFileServerRunning = BackgroundWebServer::getInstance().isRunning() || BG_WIFI.isServing();
   const auto& metrics = UITheme::getInstance().getMetrics();
   const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight();
   constexpr int kTextGap = 12;
   const int barH = barHeight();
   const int padTopPx = textTop(renderer);

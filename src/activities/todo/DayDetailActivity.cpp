@@ -475,13 +475,13 @@ void DayDetailActivity::loop() {
     clearPriorityLatch();
   }
 
-  if (upPressed && totalRows > 0 && selectedIndex > 0) {
+  if (upPressed && selectedIndex > 0) {
     selectedIndex--;
     if (selectedIndex < scrollOffset) {
       scrollOffset = selectedIndex;
     }
     requestUpdate();
-  } else if (downPressed && totalRows > 0 && selectedIndex < totalRows - 1) {
+  } else if (downPressed && selectedIndex < totalRows - 1) {
     selectedIndex++;
     if (selectedIndex >= scrollOffset + visibleRows) {
       scrollOffset = selectedIndex - visibleRows + 1;

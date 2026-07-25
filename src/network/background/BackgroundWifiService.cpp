@@ -325,8 +325,8 @@ void BackgroundWifiService::stop(const bool keepWifi) {
   // 30 s is enough for normal upload completion; force-delete below is a
   // last resort that orphans pendingStateMutex and bricks subsequent Gives.
   constexpr unsigned long STOP_TIMEOUT_MS = 30000;
-  const unsigned long start = millis();
-  const unsigned long deadline = start + STOP_TIMEOUT_MS;
+  const unsigned long stopBegunMs = millis();
+  const unsigned long deadline = stopBegunMs + STOP_TIMEOUT_MS;
   // The service loop notices stopRequested within a tick, so the overwhelming
   // majority of stops complete in a few ms. Poll at 1 ms for the first 100 ms
   // — a flat 10 ms poll turned a ~2 ms teardown into a 10 ms stall on every
