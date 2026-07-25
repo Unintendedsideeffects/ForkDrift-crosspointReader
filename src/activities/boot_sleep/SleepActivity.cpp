@@ -426,12 +426,8 @@ std::vector<std::string> loadPlannerSleepRows() {
   std::string content;
   {
     SpiBusMutex::Guard guard;
-    const std::string markdownPath = "/daily/" + today + ".md";
-    const std::string textPath = "/daily/" + today + ".txt";
-    const bool markdownExists = Storage.exists(markdownPath.c_str());
-    const bool textExists = Storage.exists(textPath.c_str());
-    const std::string targetPath = TodoPlannerStorage::dailyPath(
-        today, core::FeatureModules::hasCapability(core::Capability::MarkdownSupport), markdownExists, textExists);
+    const std::string targetPath = TodoPlannerStorage::resolveDailyPath(
+        today, core::FeatureModules::hasCapability(core::Capability::MarkdownSupport));
     if (Storage.exists(targetPath.c_str())) {
       content = Storage.readFile(targetPath.c_str()).c_str();
     }

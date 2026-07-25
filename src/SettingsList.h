@@ -974,7 +974,7 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
 
   if (core::FeatureModules::hasCapability(core::Capability::GlobalStatusBar)) {
     emit(SettingInfo::Enum(StrId::STR_STATUS_BAR_POSITION, &CrossPointSettings::globalStatusBarPosition,
-                           {StrId::STR_STATUS_BAR_TOP, StrId::STR_STATUS_BAR_BOTTOM, StrId::STR_OFF},
+                           {StrId::STR_ON, StrId::STR_STATUS_BAR_READER_ONLY, StrId::STR_OFF},
                            "globalStatusBarPosition", StrId::STR_CAT_DISPLAY)
              .withConfiguratorExport("global_status_bar"));
   }

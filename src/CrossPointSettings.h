@@ -266,8 +266,8 @@ class CrossPointSettings {
 
   // Global status bar overlay position
   enum GLOBAL_STATUS_BAR_POSITION {
-    STATUS_BAR_TOP = 0,
-    STATUS_BAR_BOTTOM = 1,
+    STATUS_BAR_ON = 0,           // Shown on every screen that allows it
+    STATUS_BAR_READER_ONLY = 1,  // Shown only while a book is open
     STATUS_BAR_OFF = 2,
     GLOBAL_STATUS_BAR_POSITION_COUNT
   };
@@ -409,7 +409,7 @@ class CrossPointSettings {
   uint8_t longPressMenuAction = LONG_MENU_OFF;
   // Global status bar overlay (battery + WiFi, always visible across all screens)
   uint8_t globalStatusBar = GLOBAL_STATUS_BAR_ON;
-  uint8_t globalStatusBarPosition = STATUS_BAR_TOP;  // 0 = top, 1 = bottom
+  uint8_t globalStatusBarPosition = STATUS_BAR_ON;  // 0 = on, 1 = reader only, 2 = off
   // Language setting (Language enum index, default 0 = EN)
   uint8_t language = 0;
   // AnkiConnect server URL (e.g. http://192.168.x.x:8765); empty = disabled.

@@ -26,6 +26,21 @@ namespace {
 
 constexpr int kStatusHorizontalPadBoost = 3;
 
+// The device bezel overlaps the top ~2 px of the panel, so a top-positioned status
+// bar loses its first two rows of content. Inset the content and grow the bar by the
+// same amount; the bottom position is unaffected (no bezel overlap there).
+constexpr int kStatusTopPadBoost = 2;
+
+// Defined here rather than beside the other geometry accessors below because
+// drawStatusOverlay() calls it and is defined earlier in this file.
+int topPadBoost() {
+#if ENABLE_GLOBAL_STATUS_BAR
+  return SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_OFF ? 0 : kStatusTopPadBoost;
+#else
+  return 0;
+#endif
+}
+
 }  // namespace
 
 #if ENABLE_GLOBAL_STATUS_BAR
@@ -69,10 +84,18 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
   const int barH = barHeight();
   const int padTopPx = textTop(renderer);
   const int padHPx = padH();
-  if (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_OFF) return;
-  const int barY = (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? screenH - barH : 0;
-  const int sepY = (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? barY : barY + barH - 1;
-  const int textY = barY + padTopPx;
+  const uint8_t barScope = SETTINGS.globalStatusBarPosition;
+  if (barScope == CrossPointSettings::STATUS_BAR_OFF) return;
+  // Gate on the ACTIVITY, not on ReaderContext::active. active is set by
+  // BaseTheme::drawStatusBar() on the render path, so it is still false while
+  // the reader computes its margins via topInset() — gating on it would
+  // paginate for a full-height viewport and then draw the bar over the first
+  // line, and would make the viewport oscillate (which invalidates the section
+  // cache). isReaderActivity() is stable for the whole activity lifetime.
+  if (barScope == CrossPointSettings::STATUS_BAR_READER_ONLY && !activityManager.isReaderActivity()) return;
+  const int barY = 0;
+  const int sepY = barY + barH - 1;
+  const int textY = barY + topPadBoost() + padTopPx;
 
   renderer.fillRect(0, barY, screenW, barH, false);
   renderer.drawLine(0, sepY, screenW - 1, sepY, true);
@@ -133,8 +156,7 @@ void drawStatusOverlay(const GfxRenderer& renderer) {
     if (rc.progressBarPercent >= 0) {
       const int thickness = std::max(1, rc.progressBarThicknessPx);
       // Draw along the content-facing edge of the band (adjacent to the separator).
-      const int progY =
-          (SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM) ? barY : barY + barH - thickness;
+      const int progY = barY + barH - thickness;
       const int fillW = screenW * std::min(100, rc.progressBarPercent) / 100;
       renderer.fillRect(0, progY, fillW, thickness, true);
     }
@@ -203,33 +225,44 @@ ReaderContext& ReaderContext::get() {
 // Geometry accessors — always defined (readers/Home/UITheme call topInset()/
 // bottomInset() unconditionally). The global bar follows the reader bar's
 // polished size + padding, so ThemeMetrics is the single source of truth.
-int barHeight() { return UITheme::getInstance().getBaseMetrics().statusBarVerticalMargin; }
+int barHeight() { return UITheme::getInstance().getBaseMetrics().statusBarVerticalMargin + topPadBoost(); }
 
 int padH() { return UITheme::getInstance().getBaseMetrics().statusBarHorizontalMargin + kStatusHorizontalPadBoost; }
 
+// Pure centring of one SMALL_FONT_ID line within a bar of the theme's nominal
+// height. Deliberately excludes topPadBoost(): SleepActivity centres text in a
+// band it lays out itself at the BOTTOM of the sleep screen (textBandH =
+// statusBarVerticalMargin), so folding the boost in here would shift that text
+// down inside a band that never grew — and tie it to an unrelated setting.
+// The bezel boost is applied by drawStatusOverlay(), the only caller that
+// actually draws the top-positioned bar.
 int textTop(const GfxRenderer& renderer) {
-  const int h = barHeight();
+  const int usableH = UITheme::getInstance().getBaseMetrics().statusBarVerticalMargin;
   const int lineH = renderer.getLineHeight(SMALL_FONT_ID);
-  return h > lineH ? (h - lineH) / 2 : 0;
+  return usableH > lineH ? (usableH - lineH) / 2 : 0;
 }
 
-int itemY(const int barY, const int barH, const int itemH) { return barY + (barH > itemH ? (barH - itemH) / 2 : 0); }
+int itemY(const int barY, const int barH, const int itemH) {
+  const int boost = topPadBoost();
+  const int usableH = barH - boost;
+  return barY + boost + (usableH > itemH ? (usableH - itemH) / 2 : 0);
+}
 
 int topInset() {
 #if ENABLE_GLOBAL_STATUS_BAR
-  return SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_TOP ? barHeight() : 0;
+  const uint8_t scope = SETTINGS.globalStatusBarPosition;
+  if (scope == CrossPointSettings::STATUS_BAR_OFF) return 0;
+  // Same reasoning as the draw gate: this feeds UITheme::getMetrics() and the
+  // readers' margin arithmetic, both of which run before anything sets
+  // ReaderContext::active. Must be stable per activity, not per frame.
+  if (scope == CrossPointSettings::STATUS_BAR_READER_ONLY && !activityManager.isReaderActivity()) return 0;
+  return barHeight();
 #else
   return 0;
 #endif
 }
 
-int bottomInset() {
-#if ENABLE_GLOBAL_STATUS_BAR
-  return SETTINGS.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_BOTTOM ? barHeight() : 0;
-#else
-  return 0;
-#endif
-}
+int bottomInset() { return 0; }  // The status bar is always top-aligned.
 
 void registerFeature() {
 #if ENABLE_GLOBAL_STATUS_BAR
