@@ -160,7 +160,7 @@ FEATURES = {
         name='Flow Theme',
         flag='ENABLE_FLOW_THEME',
         size_kb=4,
-        description='Flow UI theme with Casio-style today stats clock and 3D cover layout'
+        description='Flow UI theme (NON-FUNCTIONAL — disabled pending rework)'
     ),
     'ota_updates': Feature(
         name='OTA Updates',
@@ -810,7 +810,7 @@ PROFILES = {
             'hyphenation': True,
             'xtc_support': True,
             'lyra_theme': True,
-            'flow_theme': True,
+            'flow_theme': False,  # non-functional, pending rework
             'ota_updates': True,
             'background_server': True,
             'background_server_on_charge': True,
@@ -842,12 +842,12 @@ PROFILES = {
             'koreader_sync': True,
             'calibre_sync': True,
             'opds': True,
-            'books_tab_ui': False,
+            'books_tab_ui': True,
             'epub_support': True,
             'hyphenation': True,
             'xtc_support': True,
             'lyra_theme': True,
-            'flow_theme': True,
+            'flow_theme': False,  # non-functional, pending rework
             'ota_updates': True,
             'todo_planner': True,
             'notes': True,

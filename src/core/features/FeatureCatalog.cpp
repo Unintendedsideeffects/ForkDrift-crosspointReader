@@ -82,7 +82,7 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
      sizeof(kRequiresLyraThemeAll) / sizeof(kRequiresLyraThemeAll[0]), nullptr, 0},
     {"minimal_theme", "Minimal Theme", ENABLE_MINIMAL_THEME != 0, kRequiresLyraThemeAll,
      sizeof(kRequiresLyraThemeAll) / sizeof(kRequiresLyraThemeAll[0]), nullptr, 0},
-    {"flow_theme", "Flow Theme", ENABLE_FLOW_THEME != 0, kRequiresLyraThemeAll,
+    {"flow_theme", "Flow Theme (disabled pending rework)", ENABLE_FLOW_THEME != 0, kRequiresLyraThemeAll,
      sizeof(kRequiresLyraThemeAll) / sizeof(kRequiresLyraThemeAll[0]), nullptr, 0},
     {"focus_reading", "Focus Reading", ENABLE_FOCUS_READING != 0, nullptr, 0, kRequiresTextRendererAny,
      sizeof(kRequiresTextRendererAny) / sizeof(kRequiresTextRendererAny[0])},

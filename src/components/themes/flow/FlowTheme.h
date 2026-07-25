@@ -1,5 +1,11 @@
 #pragma once
 
+// STATUS: NON-FUNCTIONAL — pending rework.
+// The Flow theme is disabled in all build profiles (ENABLE_FLOW_THEME=0) and is not
+// offered in the settings picker or the web configurator. The code is retained
+// deliberately: this theme is to be reworked, not removed. UI_THEME::FLOW = 8 stays
+// reserved so stored settings from older firmware still round-trip.
+
 #include <FeatureFlags.h>
 #if ENABLE_FLOW_THEME
 
