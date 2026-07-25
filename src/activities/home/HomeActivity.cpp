@@ -414,6 +414,25 @@ void HomeActivity::loadRecentBooks() {
 
 void HomeActivity::loadRecentCovers(int coverHeight) {
   SpiBusMutex::Guard guard;
+
+  // Release the cached framebuffer (getBufferSize() == 48000 bytes, ~13% of
+  // total DRAM) BEFORE the generation loop below. Thumb generation constructs an
+  // Epub per book — metadata cache, XML parse, image decode buffers — and with a
+  // full grid of recents that runs six times against a heap this block is
+  // needlessly pinning. It is pure waste, not a trade: every successful
+  // generation sets coverRendered = false and requests an update, so the cached
+  // frame is discarded and re-rendered regardless. Holding it here is what put a
+  // cold cache + a full cover grid over the edge into OOM.
+  //
+  // coverRendered must be cleared too: freeCoverBuffer() only clears
+  // coverBufferStored, and drawRecentBookCover() skips its draw loop while
+  // coverRendered is true. Freeing without this would leave nothing to restore
+  // AND nothing to redraw — blank covers.
+  freeCoverBuffer();
+  coverRendered = false;
+  LOG_DBG("HOME", "loadRecentCovers: %d book(s), heap %u after releasing cover buffer",
+          static_cast<int>(recentBooks.size()), ESP.getFreeHeap());
+
   recentsLoading = true;
   bool showingLoading = false;
   Rect popupRect;
