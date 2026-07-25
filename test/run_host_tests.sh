@@ -111,6 +111,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/network/server/NotesApi.cpp" \
   "$ROOT_DIR/src/network/server/TodoPlannerApi.cpp" \
   "$ROOT_DIR/src/activities/todo/TodoPlannerStorage.cpp" \
+  "$ROOT_DIR/src/util/DateUtils.cpp" \
   "$ROOT_DIR/src/features/pokemon_party/Registration.cpp" \
   "$ROOT_DIR/src/features/remote_keyboard_input/Registration.cpp" \
   "$ROOT_DIR/src/network/server/RemoteKeyboardSession.cpp" \
@@ -137,6 +138,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/HighlightExporter.cpp" \
   "$ROOT_DIR/lib/MiniBidi/BidiUtils.cpp" \
   "$ROOT_DIR/src/network/background/BackgroundServerPolicy.cpp" \
+  "$ROOT_DIR/src/network/wifi/WifiEntryPolicy.cpp" \
   "$ROOT_DIR/src/BookmarkStore.cpp" \
   "$ROOT_DIR/src/OpdsServerStore.cpp" \
   "$ROOT_DIR/lib/Xtc/Xtc/XtcParser.cpp" \

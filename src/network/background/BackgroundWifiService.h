@@ -37,6 +37,10 @@ class BackgroundWifiService {
   // FreeRTOS task entry point
   static void taskEntry(void* arg);
   void run(const char* ssid, const char* password, bool useCurrentConnection);
+  // Shared by start() and startUsingCurrentConnection(): resets the volatile
+  // state, allocates the task params and spawns the task.
+  bool spawnTask(const char* ssid, const char* password, bool useCurrentConnection, const char* logContext);
+  void refreshLibraryShelf();
   bool canStartNow();
   bool startRetryActive() const;
   void deferStartRetry(const char* reason);
@@ -47,6 +51,12 @@ class BackgroundWifiService {
   static constexpr uint32_t START_RETRY_MS = 30000;
   static constexpr uint32_t MIN_START_HEAP_BYTES = 60000;
   static constexpr uint32_t LIBRARY_SHELF_HEAP_MARGIN_BYTES = 24000;
+  // The shelf refresh is an HTTP fetch plus an SD write. Without an interval
+  // gate it ran on every single background start — i.e. every wake from sleep.
+  // Measured in wall-clock seconds because millis() resets across deep sleep.
+  static constexpr uint32_t LIBRARY_SHELF_MIN_INTERVAL_S = 15UL * 60UL;
+  // Epoch below which the system clock is assumed unset (2020-09-13).
+  static constexpr long CLOCK_SET_EPOCH_THRESHOLD = 1600000000L;
 
  public:
   BackgroundWifiService() = default;

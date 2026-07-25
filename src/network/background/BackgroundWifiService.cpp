@@ -9,6 +9,7 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
+#include <ctime>
 #include <new>
 
 #include "CrossPointState.h"
@@ -17,6 +18,7 @@
 #include "SpiBusMutex.h"
 #include "network/http/OpdsShelfFetcher.h"
 #include "network/server/CrossPointWebServer.h"
+#include "network/wifi/WifiScanCache.h"
 #include "util/LibraryShelfStore.h"
 #include "util/NetworkNames.h"
 #include "util/WifiCredentialStore.h"
@@ -26,6 +28,15 @@
 extern TaskHandle_t debugPendingStateMutexHolder();
 
 BackgroundWifiService BackgroundWifiService::instance;
+
+#ifndef RTC_DATA_ATTR
+#define RTC_DATA_ATTR  // Host/simulator builds: ordinary static storage.
+#endif
+
+// Wall-clock stamp of the last successful library-shelf refresh. RTC memory so
+// the interval gate spans deep sleep; zeroed on cold boot, which correctly
+// forces a refresh after a reset or firmware update.
+RTC_DATA_ATTR static time_t shelfLastRefreshEpoch = 0;
 
 // Structure passed to the FreeRTOS task so it owns copies of the credentials
 // and we don't hold pointers into the caller's stack after start() returns.
@@ -143,22 +154,7 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
 
     if (mdnsStarted && !shelfRefreshAttempted) {
       shelfRefreshAttempted = true;
-      const auto& opdsServers = OPDS_STORE.getServers();
-      const uint32_t shelfHeapThreshold = MIN_START_HEAP_BYTES + LIBRARY_SHELF_HEAP_MARGIN_BYTES;
-      if (opdsServers.empty()) {
-        LOG_DBG("BGWIFI", "Library shelf refresh skipped: no OPDS server");
-      } else if (ESP.getFreeHeap() < shelfHeapThreshold) {
-        LOG_DBG("BGWIFI", "Library shelf refresh skipped: low heap (%u, need %u)",
-                static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(shelfHeapThreshold));
-      } else {
-        std::vector<LibraryShelfEntry> shelfEntries;
-        if (OpdsShelfFetcher::fetchRootBooks(opdsServers[0], shelfEntries)) {
-          SpiBusMutex::Guard guard;
-          LIBRARY_SHELF.replaceEntries(opdsServers[0].name, std::move(shelfEntries));
-        } else {
-          LOG_DBG("BGWIFI", "Library shelf refresh failed");
-        }
-      }
+      refreshLibraryShelf();
     }
 
     // ── Service loop ──────────────────────────────────────────────────────
@@ -198,6 +194,8 @@ cleanup:
     delay(30);
     WiFi.mode(WIFI_OFF);
     delay(30);
+    // The radio is down, so any scan result the picker cached is stale.
+    WifiScanCache::invalidate();
   }
 
   connected = false;
@@ -210,9 +208,56 @@ cleanup:
   vTaskDelete(nullptr);
 }
 
-bool BackgroundWifiService::start(const char* ssid, const char* password) {
+void BackgroundWifiService::refreshLibraryShelf() {
+  const auto& opdsServers = OPDS_STORE.getServers();
+  if (opdsServers.empty()) {
+    LOG_DBG("BGWIFI", "Library shelf refresh skipped: no OPDS server");
+    return;
+  }
+
+  // Interval gate. The service starts on every wake from sleep, and without
+  // this the device performed an OPDS root fetch + parse + SD write each time.
+  //
+  // millis() is useless here — it restarts at 0 after every deep sleep wake,
+  // which is precisely the interval we need to span. Wall-clock time does
+  // survive (the RTC keeps running through deep sleep), and the last refresh
+  // stamp lives in RTC memory so it survives with it. Before the clock is set
+  // we cannot measure an interval at all, so we refresh rather than guess.
+  const time_t nowEpoch = time(nullptr);
+  const bool clockUsable = nowEpoch > CLOCK_SET_EPOCH_THRESHOLD;
+  if (clockUsable && shelfLastRefreshEpoch > 0 && nowEpoch >= shelfLastRefreshEpoch &&
+      (nowEpoch - shelfLastRefreshEpoch) < static_cast<time_t>(LIBRARY_SHELF_MIN_INTERVAL_S)) {
+    LOG_DBG("BGWIFI", "Library shelf refresh skipped: refreshed %llds ago",
+            static_cast<long long>(nowEpoch - shelfLastRefreshEpoch));
+    return;
+  }
+
+  const uint32_t shelfHeapThreshold = MIN_START_HEAP_BYTES + LIBRARY_SHELF_HEAP_MARGIN_BYTES;
+  if (ESP.getFreeHeap() < shelfHeapThreshold) {
+    LOG_DBG("BGWIFI", "Library shelf refresh skipped: low heap (%u, need %u)",
+            static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(shelfHeapThreshold));
+    return;
+  }
+
+  std::vector<LibraryShelfEntry> shelfEntries;
+  if (!OpdsShelfFetcher::fetchRootBooks(opdsServers[0], shelfEntries)) {
+    LOG_DBG("BGWIFI", "Library shelf refresh failed");
+    return;
+  }
+
+  {
+    SpiBusMutex::Guard guard;
+    LIBRARY_SHELF.replaceEntries(opdsServers[0].name, std::move(shelfEntries));
+  }
+  if (clockUsable) {
+    shelfLastRefreshEpoch = nowEpoch;
+  }
+}
+
+bool BackgroundWifiService::spawnTask(const char* ssid, const char* password, const bool useCurrentConnection,
+                                      const char* logContext) {
   if (taskHandle != nullptr) {
-    LOG_DBG("BGWIFI", "Already running, ignoring start()");
+    LOG_DBG("BGWIFI", "Already running, ignoring %s", logContext);
     return false;
   }
   if (!canStartNow()) {
@@ -236,11 +281,11 @@ bool BackgroundWifiService::start(const char* ssid, const char* password) {
     return false;
   }
 
-  strncpy(params->ssid, ssid, sizeof(params->ssid) - 1);
+  strncpy(params->ssid, ssid ? ssid : "", sizeof(params->ssid) - 1);
   params->ssid[sizeof(params->ssid) - 1] = '\0';
   strncpy(params->password, password ? password : "", sizeof(params->password) - 1);
   params->password[sizeof(params->password) - 1] = '\0';
-  params->useCurrentConnection = false;
+  params->useCurrentConnection = useCurrentConnection;
 
   const BaseType_t result =
       xTaskCreate(&BackgroundWifiService::taskEntry, "bgwifi", TASK_STACK, params, 1, &taskHandle);
@@ -253,52 +298,16 @@ bool BackgroundWifiService::start(const char* ssid, const char* password) {
     return false;
   }
 
-  LOG_DBG("BGWIFI", "Background WiFi task started");
+  LOG_DBG("BGWIFI", "Background WiFi task started (%s)", logContext);
   return true;
 }
 
+bool BackgroundWifiService::start(const char* ssid, const char* password) {
+  return spawnTask(ssid, password, false, "start");
+}
+
 bool BackgroundWifiService::startUsingCurrentConnection() {
-  if (taskHandle != nullptr) {
-    LOG_DBG("BGWIFI", "Already running, ignoring startUsingCurrentConnection()");
-    return false;
-  }
-  if (!canStartNow()) {
-    return false;
-  }
-
-  stopRequested = false;
-  keepWifiOnStop = false;
-  connected = false;
-  serving = false;
-  wifiOwned = false;
-  requestCount = 0;
-  mdnsStarted = false;
-  shelfRefreshAttempted = false;
-
-  auto* params = new (std::nothrow) WifiTaskParams();
-  if (params == nullptr) {
-    LOG_ERR("BGWIFI", "Failed to allocate WiFi task params");
-    deferStartRetry("params alloc failed");
-    return false;
-  }
-
-  params->ssid[0] = '\0';
-  params->password[0] = '\0';
-  params->useCurrentConnection = true;
-
-  const BaseType_t result =
-      xTaskCreate(&BackgroundWifiService::taskEntry, "bgwifi", TASK_STACK, params, 1, &taskHandle);
-
-  if (result != pdPASS) {
-    LOG_ERR("BGWIFI", "Failed to create task (heap: %d bytes free)", ESP.getFreeHeap());
-    delete params;
-    taskHandle = nullptr;
-    deferStartRetry("task create failed");
-    return false;
-  }
-
-  LOG_DBG("BGWIFI", "Background WiFi task started on existing connection");
-  return true;
+  return spawnTask(nullptr, nullptr, true, "adopt current connection");
 }
 
 void BackgroundWifiService::stop(const bool keepWifi) {
@@ -316,9 +325,15 @@ void BackgroundWifiService::stop(const bool keepWifi) {
   // 30 s is enough for normal upload completion; force-delete below is a
   // last resort that orphans pendingStateMutex and bricks subsequent Gives.
   constexpr unsigned long STOP_TIMEOUT_MS = 30000;
-  const unsigned long deadline = millis() + STOP_TIMEOUT_MS;
+  const unsigned long start = millis();
+  const unsigned long deadline = start + STOP_TIMEOUT_MS;
+  // The service loop notices stopRequested within a tick, so the overwhelming
+  // majority of stops complete in a few ms. Poll at 1 ms for the first 100 ms
+  // — a flat 10 ms poll turned a ~2 ms teardown into a 10 ms stall on every
+  // activity entry that releases the radio — then back off while waiting out
+  // the rare in-flight upload.
   while (taskHandle != nullptr && millis() < deadline) {
-    delay(10);
+    delay((millis() - start) < 100 ? 1 : 10);
   }
 
   if (taskHandle != nullptr) {
