@@ -1,6 +1,8 @@
 #include "DateUtils.h"
 
+#ifndef CROSSPOINT_HOST_BUILD
 #include <HalClock.h>
+#endif
 #include <HalStorage.h>
 
 #include <algorithm>
@@ -94,6 +96,7 @@ std::string currentDigitalClockLabel() {
   // power loss, unlike the X4 which relies on volatile system time. The RTC stores
   // UTC, so apply the same timezone setting the Roman clock uses (whole-hour steps
   // → quarter-hour-biased units expected by HalClock::formatTime).
+#ifndef CROSSPOINT_HOST_BUILD
   if (halClock.isAvailable()) {
     char buf[12];
     const auto offsetBiasedQ = static_cast<uint8_t>(SETTINGS.timeZoneOffset * 4);
@@ -102,6 +105,7 @@ std::string currentDigitalClockLabel() {
     }
     return {};
   }
+#endif
 
   std::tm timeInfo{};
   if (!getAdjustedTime(timeInfo)) {
@@ -195,6 +199,38 @@ std::string formatDayIndexLabel(const std::string& isoDate) {
     return isoDate;
   }
   return std::string(buffer);
+}
+
+int weekdayIndex(const std::string& isoDate) {
+  std::tm timeInfo{};
+  if (!parseIsoDate(isoDate, timeInfo)) {
+    return -1;
+  }
+  // Howard Hinnant's days-from-civil algorithm (public domain).
+  // Computes a day count from a civil date, then mod-7 for weekday.
+  int y = timeInfo.tm_year + 1900;
+  int m = timeInfo.tm_mon + 1;
+  const int d = timeInfo.tm_mday;
+  if (m <= 2) {
+    y--;
+    m += 9;
+  } else {
+    m -= 3;
+  }
+  // era = y / 400
+  const int era = (y >= 0 ? y : y - 399) / 400;
+  const int yoe = y - era * 400;                          // [0, 399]
+  const int doy = (153 * m + 2) / 5 + d - 1;              // [0, 365]
+  const int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;  // [0, 146096]
+  const int days = era * 146097 + doe - 719468;           // days since 1970-01-01
+  // 1970-01-01 is a Thursday (ISO weekday 4, our 3).
+  // days % 7 for 1970-01-01 → 0; 0 maps to Thu(3).
+  // So weekday = (days % 7 + 3) % 7 for 0=Mon mapping.
+  int wd = ((days % 7) + 3) % 7;
+  if (wd < 0) {
+    wd += 7;
+  }
+  return wd;
 }
 
 bool dailyFileExists(const std::string& date, const bool markdownEnabled) {

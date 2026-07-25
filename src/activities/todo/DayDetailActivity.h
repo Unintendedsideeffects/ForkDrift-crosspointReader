@@ -24,6 +24,7 @@ class DayDetailActivity final : public ActivityWithSubactivity {
   void setSelectedDueMinutes(uint16_t dueMinutes);
   void editSelectedTaskText();
   void editSelectedDueTime();
+  void cycleSelectedRecurrence();
   void closeInspector();
   void addNewEntry(bool sectionEntry);
   void focusTaskIndex(int index);
@@ -56,10 +57,15 @@ class DayDetailActivity final : public ActivityWithSubactivity {
   bool hasNextDay() const;
   bool isTaskRow(int index) const;
   bool isEmptyDay() const;
+  // The list always ends with a synthetic "new task" row, so adding an entry
+  // never depends on the day being empty or on a header being selected.
+  int rowCount() const;
+  bool isAddRow(int index) const;
 
   void renderScreen();
   void renderHeader() const;
   void renderRow(int y, int itemIndex, bool selected) const;
+  void renderAddRow(int y, bool selected) const;
   void renderEmptyState() const;
   void renderFooterHints() const;
 };

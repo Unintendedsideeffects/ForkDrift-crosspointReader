@@ -10,6 +10,7 @@ class TodoInspectorSubactivity final : public Activity {
   enum class Action {
     EditText,
     CyclePriority,
+    CycleRecurrence,
     SetTime,
     ClearTime,
     MoveUp,

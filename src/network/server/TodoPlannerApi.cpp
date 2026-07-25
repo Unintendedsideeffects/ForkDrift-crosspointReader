@@ -13,34 +13,40 @@
 #include "activities/todo/TodoPlannerStorage.h"
 
 namespace network {
+
 namespace {
 
 constexpr size_t kMaxTodoItems = 256;
 
-// Reads a daily planner file but rejects anything implausibly large so a single
-// oversized /daily/<date>.md (organic growth or a file dropped on the SD card)
-// can't slurp megabytes into the 380KB heap. Caller already holds SpiBusMutex.
-std::string readDailyFileCapped(const std::string& path) {
-  constexpr size_t kMaxDailyBytes = 256u * 1024u;
+// Writes a daily planner file atomically via a temporary file and rename.
+// Caller already holds SpiBusMutex.
+bool writeDailyFileAtomic(const std::string& targetPath, const std::string& content) {
+  const std::string tempPath = targetPath + ".tmp";
+  if (Storage.exists(tempPath.c_str())) {
+    Storage.remove(tempPath.c_str());
+  }
+
   HalFile file;
-  if (!Storage.openFileForRead("WEB", path.c_str(), file)) {
-    return {};
+  if (!Storage.openFileForWrite("WEB", tempPath.c_str(), file)) {
+    return false;
   }
-  const size_t sz = static_cast<size_t>(file.fileSize64());
-  if (sz > kMaxDailyBytes) {
-    LOG_ERR("WEB", "Daily file too large (%zu bytes); ignoring", sz);
-    return {};
+  const size_t bytesToWrite = content.size();
+  if (bytesToWrite > 0 &&
+      static_cast<size_t>(file.write(reinterpret_cast<const uint8_t*>(content.data()), bytesToWrite)) != bytesToWrite) {
+    file.close();
+    Storage.remove(tempPath.c_str());
+    return false;
   }
-  std::string out;
-  if (sz > 0) {
-    out.resize(sz);
-    const int rd = file.read(&out[0], sz);
-    if (rd < 0 || static_cast<size_t>(rd) != sz) {
-      LOG_ERR("WEB", "Daily file read short");
-      return {};
-    }
+  file.close();
+
+  if (Storage.exists(targetPath.c_str())) {
+    Storage.remove(targetPath.c_str());
   }
-  return out;
+  if (!Storage.rename(tempPath.c_str(), targetPath.c_str())) {
+    Storage.remove(tempPath.c_str());
+    return false;
+  }
+  return true;
 }
 
 std::string normalizeTodoEntryText(const std::string& input) {
@@ -109,6 +115,22 @@ void appendTodoItemJson(JsonArray& array, const TodoItem& todoItem) {
   if (todoItem.dueMinutes != 0) {
     item["dueMinutes"] = todoItem.dueMinutes;
   }
+  if (todoItem.recurrence != TodoRecurrence::None) {
+    switch (todoItem.recurrence) {
+      case TodoRecurrence::Daily:
+        item["recurrence"] = "daily";
+        break;
+      case TodoRecurrence::Weekly:
+        item["recurrence"] = "weekly";
+        break;
+      case TodoRecurrence::Weekdays:
+        item["recurrence"] = "weekdays";
+        item["weekdayMask"] = todoItem.weekdayMask;
+        break;
+      case TodoRecurrence::None:
+        break;
+    }
+  }
 
   if (todoItem.isHeader) {
     if (todoItem.isSection) {
@@ -131,6 +153,16 @@ TodoItem todoItemFromJson(const JsonObjectConst item) {
   todoItem.isSection = item["isSection"] | false;
   todoItem.priority = priorityFromJson(item);
   todoItem.dueMinutes = item["dueMinutes"] | static_cast<uint16_t>(0);
+
+  const char* recStr = item["recurrence"] | "none";
+  if (std::strcmp(recStr, "daily") == 0) {
+    todoItem.recurrence = TodoRecurrence::Daily;
+  } else if (std::strcmp(recStr, "weekly") == 0) {
+    todoItem.recurrence = TodoRecurrence::Weekly;
+  } else if (std::strcmp(recStr, "weekdays") == 0) {
+    todoItem.recurrence = TodoRecurrence::Weekdays;
+    todoItem.weekdayMask = item["weekdayMask"] | static_cast<uint8_t>(0);
+  }
 
   const char* itemType = item["type"] | "";
   if (todoItem.isHeader) {
@@ -169,8 +201,6 @@ TodoPlannerHttpResult handleTodoEntryRequest(const bool plannerEnabled, const bo
   }
 
   const bool agendaEntry = typeArg.equalsIgnoreCase("agenda");
-  const std::string markdownPath = "/daily/" + today + ".md";
-  const std::string textPath = "/daily/" + today + ".txt";
   const std::string dirPath = "/daily";
 
   std::string content;
@@ -178,23 +208,21 @@ TodoPlannerHttpResult handleTodoEntryRequest(const bool plannerEnabled, const bo
   bool writeOk = false;
   {
     SpiBusMutex::Guard guard;
-    const bool markdownExists = Storage.exists(markdownPath.c_str());
-    const bool textExists = Storage.exists(textPath.c_str());
-    targetPath = TodoPlannerStorage::dailyPath(today, markdownEnabled, markdownExists, textExists);
+    targetPath = TodoPlannerStorage::resolveDailyPath(today, markdownEnabled);
     if (!Storage.exists(dirPath.c_str())) {
       if (!Storage.mkdir(dirPath.c_str())) {
         LOG_ERR("WEB", "Failed to create daily directory: %s", dirPath.c_str());
       }
     }
     if (Storage.exists(targetPath.c_str())) {
-      content = readDailyFileCapped(targetPath);
+      content = TodoPlannerStorage::readDailyFileCapped(targetPath);
       if (!content.empty() && content.back() != '\n') {
         content.push_back('\n');
       }
     }
     content += TodoPlannerStorage::formatEntry(text.c_str(), agendaEntry, markdownEnabled);
     content.push_back('\n');
-    writeOk = Storage.writeFile(targetPath.c_str(), content.c_str());
+    writeOk = writeDailyFileAtomic(targetPath, content);
   }
 
   if (!writeOk) {
@@ -214,17 +242,13 @@ TodoPlannerHttpResult handleTodoTodayGetRequest(const bool plannerEnabled, const
     return dateUnavailable();
   }
 
-  const std::string markdownPath = "/daily/" + today + ".md";
-  const std::string textPath = "/daily/" + today + ".txt";
   std::string targetPath;
   std::string content;
   {
     SpiBusMutex::Guard guard;
-    const bool markdownExists = Storage.exists(markdownPath.c_str());
-    const bool textExists = Storage.exists(textPath.c_str());
-    targetPath = TodoPlannerStorage::dailyPath(today, markdownEnabled, markdownExists, textExists);
+    targetPath = TodoPlannerStorage::resolveDailyPath(today, markdownEnabled);
     if (Storage.exists(targetPath.c_str())) {
-      content = readDailyFileCapped(targetPath);
+      content = TodoPlannerStorage::readDailyFileCapped(targetPath);
     }
   }
 
@@ -265,8 +289,6 @@ TodoPlannerHttpResult handleTodoTodaySaveRequest(const bool plannerEnabled, cons
     return {400, "text/plain", "Missing items array", {}};
   }
 
-  const std::string markdownPath = "/daily/" + today + ".md";
-  const std::string textPath = "/daily/" + today + ".txt";
   const std::string dirPath = "/daily";
   std::string targetPath;
 
@@ -296,15 +318,13 @@ TodoPlannerHttpResult handleTodoTodaySaveRequest(const bool plannerEnabled, cons
   bool writeOk = false;
   {
     SpiBusMutex::Guard guard;
-    const bool markdownExists = Storage.exists(markdownPath.c_str());
-    const bool textExists = Storage.exists(textPath.c_str());
-    targetPath = TodoPlannerStorage::dailyPath(today, markdownEnabled, markdownExists, textExists);
+    targetPath = TodoPlannerStorage::resolveDailyPath(today, markdownEnabled);
     if (!Storage.exists(dirPath.c_str())) {
       if (!Storage.mkdir(dirPath.c_str())) {
         LOG_ERR("WEB", "Failed to create daily directory: %s", dirPath.c_str());
       }
     }
-    writeOk = Storage.writeFile(targetPath.c_str(), content.c_str());
+    writeOk = writeDailyFileAtomic(targetPath, content);
   }
 
   if (!writeOk) {

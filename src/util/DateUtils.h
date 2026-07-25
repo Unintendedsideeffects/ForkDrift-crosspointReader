@@ -26,5 +26,8 @@ std::string formatDayTitle(const std::string& isoDate);
 
 std::string formatDayIndexLabel(const std::string& isoDate);
 
+// Returns 0=Mon .. 6=Sun for an ISO "YYYY-MM-DD" date, or -1 if unparseable.
+int weekdayIndex(const std::string& isoDate);
+
 bool dailyFileExists(const std::string& date, bool markdownEnabled);
 }  // namespace DateUtils

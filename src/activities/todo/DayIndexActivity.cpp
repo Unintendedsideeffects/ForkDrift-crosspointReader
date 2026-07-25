@@ -73,14 +73,6 @@ void countTodoLines(const std::string& content, int& openCount, int& doneCount) 
   }
 }
 
-std::string resolveDailyPath(const std::string& date, const bool markdownEnabled) {
-  const std::string markdownPath = "/daily/" + date + ".md";
-  const std::string textPath = "/daily/" + date + ".txt";
-  const bool markdownExists = Storage.exists(markdownPath.c_str());
-  const bool textExists = Storage.exists(textPath.c_str());
-  return TodoPlannerStorage::dailyPath(date, markdownEnabled, markdownExists, textExists);
-}
-
 void returnToDayIndex(void* ctx) {
   auto& manager = *static_cast<ActivityManager*>(ctx);
   manager.replaceActivity(
@@ -128,9 +120,9 @@ void DayIndexActivity::loadEntries() {
 
     DayIndexEntry dayEntry;
     dayEntry.isoDate = isoDate;
-    const std::string path = resolveDailyPath(isoDate, core::FeatureCatalog::isEnabled("markdown"));
+    const std::string path = TodoPlannerStorage::resolveDailyPath(isoDate, core::FeatureCatalog::isEnabled("markdown"));
     if (Storage.exists(path.c_str())) {
-      countTodoLines(Storage.readFile(path.c_str()).c_str(), dayEntry.openCount, dayEntry.doneCount);
+      countTodoLines(TodoPlannerStorage::readDailyFileCapped(path), dayEntry.openCount, dayEntry.doneCount);
     }
     entries.push_back(std::move(dayEntry));
   });
@@ -146,7 +138,7 @@ void DayIndexActivity::openSelectedDay() {
 
   const std::string& isoDate = entries[static_cast<size_t>(selectedIndex)].isoDate;
   const bool markdownEnabled = core::FeatureCatalog::isEnabled("markdown");
-  const std::string filePath = resolveDailyPath(isoDate, markdownEnabled);
+  const std::string filePath = TodoPlannerStorage::resolveDailyPath(isoDate, markdownEnabled);
   const std::string dateTitle = DateUtils::formatDayTitle(isoDate);
 
   activityManager.replaceActivity(std::make_unique<DayDetailActivity>(renderer, mappedInput, filePath, isoDate,

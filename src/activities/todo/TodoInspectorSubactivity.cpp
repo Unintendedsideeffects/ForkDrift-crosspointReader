@@ -19,6 +19,8 @@ const char* actionLabel(const TodoInspectorSubactivity::Action action) {
       return tr(STR_TODO_INSPECTOR_EDIT);
     case TodoInspectorSubactivity::Action::CyclePriority:
       return tr(STR_TODO_INSPECTOR_PRIORITY);
+    case TodoInspectorSubactivity::Action::CycleRecurrence:
+      return tr(STR_TODO_INSPECTOR_RECURRENCE);
     case TodoInspectorSubactivity::Action::SetTime:
       return tr(STR_TODO_INSPECTOR_SET_TIME);
     case TodoInspectorSubactivity::Action::ClearTime:
@@ -40,11 +42,12 @@ const char* actionLabel(const TodoInspectorSubactivity::Action action) {
 }
 
 constexpr TodoInspectorSubactivity::Action kActions[] = {
-    TodoInspectorSubactivity::Action::EditText, TodoInspectorSubactivity::Action::CyclePriority,
-    TodoInspectorSubactivity::Action::SetTime,  TodoInspectorSubactivity::Action::ClearTime,
-    TodoInspectorSubactivity::Action::MoveUp,   TodoInspectorSubactivity::Action::MoveDown,
-    TodoInspectorSubactivity::Action::NewTask,  TodoInspectorSubactivity::Action::NewSection,
-    TodoInspectorSubactivity::Action::Delete,   TodoInspectorSubactivity::Action::Cancel,
+    TodoInspectorSubactivity::Action::EditText,        TodoInspectorSubactivity::Action::CyclePriority,
+    TodoInspectorSubactivity::Action::CycleRecurrence, TodoInspectorSubactivity::Action::SetTime,
+    TodoInspectorSubactivity::Action::ClearTime,       TodoInspectorSubactivity::Action::MoveUp,
+    TodoInspectorSubactivity::Action::MoveDown,        TodoInspectorSubactivity::Action::NewTask,
+    TodoInspectorSubactivity::Action::NewSection,      TodoInspectorSubactivity::Action::Delete,
+    TodoInspectorSubactivity::Action::Cancel,
 };
 }  // namespace
 
@@ -68,6 +71,9 @@ void TodoInspectorSubactivity::applyAction(const Action action) {
       return;
     case Action::CyclePriority:
       parent.cycleSelectedPriority(1);
+      break;
+    case Action::CycleRecurrence:
+      parent.cycleSelectedRecurrence();
       break;
     case Action::SetTime:
       parent.closeInspector();

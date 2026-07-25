@@ -17,11 +17,7 @@ namespace {
 
 #if ENABLE_TODO_PLANNER
 std::string resolveDailyPath(const std::string& date, const bool markdownEnabled) {
-  const std::string markdownPath = "/daily/" + date + ".md";
-  const std::string textPath = "/daily/" + date + ".txt";
-  const bool markdownExists = Storage.exists(markdownPath.c_str());
-  const bool textExists = Storage.exists(textPath.c_str());
-  return TodoPlannerStorage::dailyPath(date, markdownEnabled, markdownExists, textExists);
+  return TodoPlannerStorage::resolveDailyPath(date, markdownEnabled);
 }
 
 void returnToDayIndex(void* ctx) {

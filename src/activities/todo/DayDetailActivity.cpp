@@ -68,11 +68,7 @@ std::string formatDueLabel(const uint16_t dueMinutes) {
 
 std::string resolveDailyPath(const std::string& date) {
   const bool markdownEnabled = core::FeatureCatalog::isEnabled("markdown");
-  const std::string markdownPath = "/daily/" + date + ".md";
-  const std::string textPath = "/daily/" + date + ".txt";
-  const bool markdownExists = Storage.exists(markdownPath.c_str());
-  const bool textExists = Storage.exists(textPath.c_str());
-  return TodoPlannerStorage::dailyPath(date, markdownEnabled, markdownExists, textExists);
+  return TodoPlannerStorage::resolveDailyPath(date, markdownEnabled);
 }
 }  // namespace
 
@@ -109,6 +105,11 @@ bool DayDetailActivity::isEmptyDay() const { return items.empty(); }
 bool DayDetailActivity::isTaskRow(const int index) const {
   return isValidItemIndex(index, items.size()) && !items[static_cast<size_t>(index)].isHeader;
 }
+
+// items.size() + 1: the trailing row is the synthetic "new task" affordance.
+int DayDetailActivity::rowCount() const { return static_cast<int>(items.size()) + 1; }
+
+bool DayDetailActivity::isAddRow(const int index) const { return index == static_cast<int>(items.size()); }
 
 int DayDetailActivity::countDoneTasks() const {
   return static_cast<int>(
@@ -168,9 +169,32 @@ void DayDetailActivity::loadTasks() {
   SpiBusMutex::Guard guard;
   items.clear();
   if (!Storage.exists(filePath.c_str())) {
+    // Rollover: materialise recurring tasks. Walk the WHOLE scan window rather
+    // than stopping at the most recent file — a definition like "!wk:mon" is
+    // absent from the days it is not due on, so stopping early would lose it as
+    // soon as any intermediate day gained a file of its own.
+    const bool markdownEnabled = core::FeatureCatalog::isEnabled("markdown");
+    std::vector<TodoItem> definitions;
+    for (int d = 1; d <= TodoPlannerStorage::kRolloverScanBackDays; ++d) {
+      const std::string sourceDate = DateUtils::offsetDate(isoDate, -d);
+      if (sourceDate.empty()) {
+        break;
+      }
+      if (!DateUtils::dailyFileExists(sourceDate, markdownEnabled)) {
+        continue;
+      }
+      const std::string sourcePath = TodoPlannerStorage::resolveDailyPath(sourceDate, markdownEnabled);
+      std::vector<TodoItem> sourceItems;
+      TodoPlannerStorage::parseFile(TodoPlannerStorage::readDailyFileCapped(sourcePath), sourceItems);
+      TodoPlannerStorage::collectRecurringDefinitions(sourceItems, sourceDate, definitions);
+    }
+    items = TodoPlannerStorage::selectDueOn(definitions, isoDate);
+    if (!items.empty()) {
+      saveTasks();
+    }
     return;
   }
-  TodoPlannerStorage::parseFile(Storage.readFile(filePath.c_str()).c_str(), items);
+  TodoPlannerStorage::parseFile(TodoPlannerStorage::readDailyFileCapped(filePath), items);
 }
 
 void DayDetailActivity::saveTasks() {
@@ -369,6 +393,43 @@ void DayDetailActivity::editSelectedDueTime() {
 
 void DayDetailActivity::closeInspector() { exitActivity(); }
 
+void DayDetailActivity::cycleSelectedRecurrence() {
+  if (!isTaskRow(selectedIndex)) {
+    return;
+  }
+  auto& item = items[static_cast<size_t>(selectedIndex)];
+  const int wd = DateUtils::weekdayIndex(isoDate);
+  switch (item.recurrence) {
+    case TodoRecurrence::None:
+      item.recurrence = TodoRecurrence::Daily;
+      item.weekdayMask = 0;
+      break;
+    case TodoRecurrence::Daily:
+      // Daily → Weekdays (Mon–Fri)
+      item.recurrence = TodoRecurrence::Weekdays;
+      item.weekdayMask = 0b0011111;  // Mon-Fri bits 0-4
+      break;
+    case TodoRecurrence::Weekdays:
+      if (item.weekdayMask == 0b0011111 && wd >= 0) {
+        // Mon–Fri → this weekday only
+        item.recurrence = TodoRecurrence::Weekdays;
+        item.weekdayMask = static_cast<uint8_t>(1u << wd);
+      } else {
+        // Any other weekday set → None
+        item.recurrence = TodoRecurrence::None;
+        item.weekdayMask = 0;
+      }
+      break;
+    case TodoRecurrence::Weekly:
+      // Normalise to None (shouldn't normally appear, but handle gracefully)
+      item.recurrence = TodoRecurrence::None;
+      item.weekdayMask = 0;
+      break;
+  }
+  saveTasks();
+  requestUpdate();
+}
+
 void DayDetailActivity::focusTaskIndex(const int index) {
   if (isValidItemIndex(index, items.size())) {
     selectedIndex = index;
@@ -408,7 +469,7 @@ void DayDetailActivity::loop() {
   const bool longConfirm = confirmReleased && mappedInput.getHeldTime() >= LONG_CONFIRM_MS;
   const bool longRight = rightReleased && mappedInput.getHeldTime() >= LONG_RIGHT_MS;
   const int visibleRows = (renderer.getScreenHeight() - HEADER_HEIGHT) / ROW_HEIGHT;
-  const int totalRows = isEmptyDay() ? 0 : static_cast<int>(items.size());
+  const int totalRows = rowCount();
 
   if (upPressed || downPressed || confirmReleased) {
     clearPriorityLatch();
@@ -428,8 +489,11 @@ void DayDetailActivity::loop() {
     requestUpdate();
   }
 
-  const bool sectionOrEmpty = isEmptyDay() || (isValidItemIndex(selectedIndex, items.size()) &&
-                                               items[static_cast<size_t>(selectedIndex)].isHeader);
+  // Left/Right navigate days from any non-task row — the add row included, so
+  // day navigation still works on a day whose only row is the add affordance.
+  const bool sectionOrEmpty =
+      isEmptyDay() || isAddRow(selectedIndex) ||
+      (isValidItemIndex(selectedIndex, items.size()) && items[static_cast<size_t>(selectedIndex)].isHeader);
   if (sectionOrEmpty) {
     if (leftPressed && hasPrevDay()) {
       navigateDay(-1);
@@ -456,8 +520,9 @@ void DayDetailActivity::loop() {
   }
 
   if (confirmReleased) {
-    if (isEmptyDay()) {
-      addNewEntry(false);
+    if (isAddRow(selectedIndex)) {
+      // Long-press on the add row creates a section header instead of a task.
+      addNewEntry(longConfirm);
     } else if (isValidItemIndex(selectedIndex, items.size())) {
       const TodoItem& item = items[static_cast<size_t>(selectedIndex)];
       if (item.isHeader) {
@@ -469,10 +534,6 @@ void DayDetailActivity::loop() {
       } else {
         toggleCurrentTask();
       }
-    }
-  } else if (longConfirm) {
-    if (isEmptyDay()) {
-      addNewEntry(true);
     }
   }
 }
@@ -497,6 +558,15 @@ void DayDetailActivity::renderHeader() const {
 void DayDetailActivity::renderEmptyState() const {
   renderer.drawCenteredText(UI_12_FONT_ID, HEADER_HEIGHT + 80, tr(STR_TODO_FRESH_PAGE), true, EpdFontFamily::BOLD);
   renderer.drawCenteredText(UI_10_FONT_ID, HEADER_HEIGHT + 120, tr(STR_TODO_FRESH_PAGE_HINT));
+}
+
+void DayDetailActivity::renderAddRow(const int y, const bool selected) const {
+  if (selected) {
+    renderer.fillRect(0, y, GUTTER_WIDTH, ROW_HEIGHT);
+  }
+  renderer.drawLine(0, y + ROW_HEIGHT - 1, renderer.getScreenWidth(), y + ROW_HEIGHT - 1);
+  const int textY = y + (ROW_HEIGHT - renderer.getLineHeight(UI_10_FONT_ID)) / 2;
+  renderer.drawText(UI_10_FONT_ID, MARGIN_X + GUTTER_WIDTH, textY, tr(STR_TODO_NEW_TASK), !selected);
 }
 
 void DayDetailActivity::renderRow(const int y, const int itemIndex, const bool selected) const {
@@ -561,7 +631,9 @@ void DayDetailActivity::renderFooterHints() const {
     rightLabel = tr(STR_TODO_FOOTER_NEXT_DAY);
   }
 
-  const char* confirmLabel = isEmptyDay() ? tr(STR_TODO_NEW_TASK) : (isTaskRow(selectedIndex) ? "Toggle" : "Edit");
+  const char* confirmLabel = isAddRow(selectedIndex)    ? tr(STR_TODO_NEW_TASK)
+                             : isTaskRow(selectedIndex) ? tr(STR_TODO_FOOTER_TOGGLE)
+                                                        : tr(STR_TODO_FOOTER_EDIT);
   const auto labels = mappedInput.mapLabels("Back", confirmLabel, leftLabel, rightLabel);
   renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
@@ -572,14 +644,21 @@ void DayDetailActivity::renderScreen() {
 
   if (isEmptyDay()) {
     renderEmptyState();
-  } else {
-    const int visibleRows = (renderer.getScreenHeight() - HEADER_HEIGHT) / ROW_HEIGHT;
-    for (int row = 0; row < visibleRows; ++row) {
-      const int itemIndex = scrollOffset + row;
-      if (itemIndex >= static_cast<int>(items.size())) {
-        break;
-      }
-      renderRow(HEADER_HEIGHT + row * ROW_HEIGHT, itemIndex, itemIndex == selectedIndex);
+  }
+
+  const int visibleRows = (renderer.getScreenHeight() - HEADER_HEIGHT) / ROW_HEIGHT;
+  for (int row = 0; row < visibleRows; ++row) {
+    const int itemIndex = scrollOffset + row;
+    if (itemIndex >= rowCount()) {
+      break;
+    }
+    const int y = HEADER_HEIGHT + row * ROW_HEIGHT;
+    if (isAddRow(itemIndex)) {
+      // Drawn below the empty-state art when the day has no items, so the
+      // affordance is visible in both the empty and populated cases.
+      renderAddRow(y, itemIndex == selectedIndex);
+    } else {
+      renderRow(y, itemIndex, itemIndex == selectedIndex);
     }
   }
 
