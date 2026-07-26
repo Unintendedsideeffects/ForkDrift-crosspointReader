@@ -68,8 +68,10 @@ twice.
 - **Why not fixed here**: out of scope for plan 086, whose scope was making the
   `ENABLE_BOOKMARKS=0` state compile with no ON-state behaviour change. Deleting a
   visible menu row is a behaviour change.
-- **Status**: open — needs on-device confirmation that the row appears and is inert
-  before deciding between deleting the row or wiring it up.
+- **Status**: open — re-confirmed present at `39072d6de` (`grep -rn
+  "MenuAction::TOGGLE_BOOKMARK" src/` still returns the push site and no handler).
+  Needs on-device confirmation that the row appears and is inert before deciding
+  between deleting the row or wiring it up.
 
 ## 2026-07-26T11:20Z — no build in CI or local rotation exercises `ENABLE_BOOKMARKS=0`
 
@@ -86,6 +88,9 @@ twice.
 - **Status**: open — **this is the class's 2nd occurrence, so per the ladder it earns
   documentation now** (this entry) **and a gate on the third.** The natural gate is a
   `feature-matrix-test.yml` leg building at least one bookmarks-off configuration.
+  Re-checked at `39072d6de`: `grep -n BOOKMARKS .github/workflows/feature-matrix-test.yml`
+  still returns nothing. The break of 2026-07-26 was fixed (plan 086, `1f90af803`); the
+  hole that let it exist is not.
 
 ## 2026-07-26T11:20Z — settings-persistence tests cannot fail for the production code they cover
 
@@ -111,7 +116,12 @@ twice.
 - **Also already diverged**, which shows the risk is not hypothetical: the mock never
   saves or loads `language` (production does, at `:380` and `:245`), and it writes a
   `doc["version"] = 1` key production does not write.
-- **Status**: planned as 087 (`plans/087-settings-serializer-single-source.md`).
+- **Status**: open — planned as 087 (`plans/087-settings-serializer-single-source.md`),
+  dispatched 2026-07-26, **did not land**. Verified at `39072d6de`: no
+  `src/SettingsSerializer.{h,cpp}`, no reference to one in `run_host_tests.sh`, mock and
+  production still diverged as described. It was dispatched against a tree that did not
+  compile (the `std::span` break below), which its STOP conditions did not anticipate.
+  Safe to re-dispatch now that the tree builds.
   Investigation confirmed the extraction is viable: the pure logic's only external
   dependency is `I18n::languageFromCode`, and `lib/I18n/I18n.cpp` is already linked
   into the host suite at `test/run_host_tests.sh:100`. The mock exists because of
@@ -148,9 +158,11 @@ twice.
   `std::span<const HighlightRect>` with `const std::vector<HighlightRect>&`, or a
   `const HighlightRect*` + `size_t` pair. All six uses are function parameters, so the
   change is mechanical and local to two files.
-- **Status**: resolved in the same uncommitted integration. The six span parameters
-  now use `const std::vector<HighlightRect>&`, and the default ESP32-C3 firmware build
-  passes with GCC 8.4.0. The compile-gate lesson below still applies.
+- **Status**: fixed in `1f90af803` (plan 088). The six span parameters now use
+  `const std::vector<HighlightRect>&`, `#include <span>` is gone, and the default
+  ESP32-C3 firmware build passes with GCC 8.4.0. Re-verified at `39072d6de`:
+  `grep -rn "std::span\|include <span>" src/ lib/` is empty. The compile-gate lesson
+  below still applies.
 
 ### Ladder note — this class has now hit rung 3
 
@@ -163,12 +175,38 @@ twice.
 3. This one — `std::span` compiles on the host toolchain and not on the device one.
 
 Per the ladder, **a gate is now obliged**, in addition to the tests and documentation
-already added. The minimum viable gate is a pre-commit or CI leg that runs one real
-firmware build (`./scripts/pio-locked.sh run -e default`) — items 1 and 3 would both
-have been caught by that alone. `.github/workflows/feature-matrix-test.yml` is the
-natural home for the compile-gate matrix that catches item 2. Note the **pre-push** hook
-already builds firmware, so this class is caught on push but never before commit — which
-is precisely why three of them accumulated in an unpushed tree.
+already added. But the useful finding is that **the gate already exists and was
+bypassed**, so "add a build gate" is the wrong prescription:
+
+- `scripts/hooks/pre-commit:236-297` runs a real firmware build — the `full` profile via
+  `uv run pio run -e custom` — before every commit, and flocks
+  `/tmp/crosspoint-pio-build.lock` so it serialises with manual builds.
+- It is **staleness-proof by construction**: results are cached under
+  `.cache/build-results/<profile>-<git write-tree>`, keyed by the *staged tree OID*. Any
+  change to staged content changes the key, so a green result can never be reused for a
+  tree it did not build. Failures are cached too, so a known-bad state fails fast.
+- That design would have caught items 1 and 3 on the commit that introduced them. It
+  would **not** catch item 2 — the `full` profile has `ENABLE_BOOKMARKS` on. The
+  `feature-matrix-test.yml` leg is still separately required.
+
+The hole is `git commit --no-verify`, which the project's own fast-path workflow
+recommends (hand-run the gates, then commit unverified, because a manual `pio run` does
+not prime the hook's cache and the hook would rebuild for ~3 minutes). That is exactly
+how the `std::span` break reached a commit: the gate battery was run at 11:36 and plan
+095's files landed at 11:44, so the hand-run "gates" described a tree that no longer
+existed. The hook's `write-tree` key exists precisely to make that mistake impossible,
+and bypassing it discards the protection.
+
+**So the rung-3 action is one of:**
+1. Stop using `--no-verify`, and instead make the hook's build cheap to pre-warm — e.g.
+   a `scripts/prime-precommit.sh` that stages, computes `git write-tree`, builds, and
+   writes the cache file the hook will look for. This keeps a single source of truth for
+   "was this exact tree built?".
+2. Or, if `--no-verify` stays, add a staleness check that refuses it when any staged file
+   is newer than the last gate log — the cheap version of the same idea.
+
+Option 1 is strictly better: it removes the reason to bypass rather than policing the
+bypass.
 
 ## 2026-07-26T09:41Z — `AnnotationStore::add()` reports success before persistence is known
 - **Found by**: codex — during plan 095
