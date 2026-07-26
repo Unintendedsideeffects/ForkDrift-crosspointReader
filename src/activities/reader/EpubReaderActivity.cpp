@@ -26,8 +26,10 @@
 #if ENABLE_TEXT_SELECTION
 #include "ReaderOptionsMemoryPolicy.h"
 #include "util/AnnotationStore.h"
-#include "util/HighlightExporter.h"
 #include "util/NotesStore.h"
+#endif
+#if ENABLE_ANNOTATIONS || ENABLE_BOOKMARKS
+#include "util/HighlightExporter.h"
 #endif
 #if ENABLE_DICTIONARY
 #include "DictionaryActivity.h"
