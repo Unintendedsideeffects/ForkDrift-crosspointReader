@@ -269,3 +269,64 @@ bypass.
 - **Why not fixed here**: out of scope for plan 094 (scope was documentation files under `docs/`).
 - **Status**: open
 
+
+## 2026-07-26T15:20Z — incremental selection overlay restores more than it repaints
+
+- **Found by**: claude — targeted review of plan 095 (damage-rect math)
+- **Where**: `src/activities/reader/SelectionModel.cpp:383-394`, with the coordinate
+  mapping at `:258-283`
+- **What**: `applyIncrementalSelectionOverlay` computes its restore region and its repaint
+  set in **different coordinate spaces**, and the restore region is the larger of the two.
+  - The restore loop copies whole bytes, `firstByte = x0 / 8` through `lastByte = x1 / 8`
+    (`:383-389`). That covers physical x from `firstByte * 8` to `lastByte * 8 + 7` — i.e.
+    the damage box **rounded outward to byte boundaries, up to 7 px wider on each side**.
+  - The repaint filter then tests `highlightRectsIntersect(rect, damage)` (`:391`) using
+    the **logical, un-expanded** damage rect.
+  - So a run inside that 7 px margin is restored to base (its highlight erased) and then
+    fails the intersection test, so it is never re-inverted.
+- **Why the axis matters**: `toPhysicalBounds` maps physical x from **logical y** in
+  `Portrait` (`:260-263`) and `PortraitInverted` (`:272-275`). That is the axis along which
+  text lines stack, so the 7 px slop runs between adjacent lines' runs. In the two
+  landscape orientations physical x comes from logical x (`:266-267`, `:278-279`), where
+  the slop runs along the text direction and there is only one run per line, so it is
+  far less likely to bite.
+- **Reachability**: `buildHighlightRuns` emits one rect per line, sized to glyph extent
+  (`maxY - minY`, `:227`), not to the line box — so the vertical gap between consecutive
+  runs is the leading, commonly under 8 px at normal line spacing. The orientation passed
+  is the live renderer orientation (`EpubReaderActivity.cpp:2890`), so all four cases
+  occur. The `runsOverlap` guard (`:358`) rejects *overlapping* runs but not *adjacent*
+  ones, which is precisely the case here.
+- **Symptom**: extending a selection across a line boundary in portrait leaves a 1–7 px
+  horizontal band of an adjacent highlighted line un-inverted. It persists until something
+  forces a full redraw. Cosmetic, not a crash or a correctness bug in the selection itself.
+- **Confidence**: the space mismatch is **certain** — it is visible in the two cited lines.
+  Whether it is observable on any given page depends on a run landing within the 7 px
+  margin. **Not reproduced on device or in a test**; found by reading.
+- **Fix shape**: make the repaint set match what was actually restored. Simplest correct
+  option is to drop the `highlightRectsIntersect` filter and re-invert **all** of
+  `currentRuns` — runs are few (one per selected line), `invertHighlightRect` already
+  clamps and no-ops on empty rects, and the filter is a micro-optimisation. The
+  alternative — expanding `damage` to the byte-aligned physical region before testing — is
+  more code for the same result and re-introduces the risk of the two spaces drifting apart
+  again.
+- **Regression test**: a host test can catch this without hardware. Build two adjacent
+  non-overlapping runs whose logical-y gap is < 8 px, call the overlay in `Portrait`, and
+  assert the unchanged run's pixels are still inverted afterwards. That test fails today.
+- **Why not fixed here**: this review was read-only, and the reviewer does not modify
+  source. Also note the gates cannot catch it — it compiles cleanly, the host suite is
+  333/333, and all six matrix configurations build. This is exactly the class of defect
+  that survives a green build.
+- **Status**: planned as 096 (`plans/096-fix-incremental-selection-damage.md`)
+
+## 2026-07-26T15:20Z — plan 095's allocation-free claim VERIFIED (no defect)
+
+- **Found by**: claude — targeted review of plan 095
+- **Where**: `src/activities/reader/SelectionModel.h:95-98`,
+  `src/activities/reader/EpubReaderActivity.cpp:2547-2548,2600-2601`
+- **What**: recorded as a **negative** result so nobody re-audits it. The header claims
+  "Once `runs` has been reserved for the current page, warm cursor moves do not allocate."
+  That claim holds: the reusing overload calls `runs.clear()` (`:196`), which preserves
+  capacity, then only `push_back`s (`:226`); and both caller-owned vectors are reserved to
+  `selModel.words.size()` at `EpubReaderActivity.cpp:2547-2548` and `:2600-2601`, which is
+  an upper bound on run count (runs ≤ words). So no reallocation occurs on a cursor move.
+- **Status**: wontfix (no defect) — verified correct 2026-07-26
