@@ -750,16 +750,20 @@ class SimulatorSmokeTest {
     addTap(MappedInputManager::Button::Back);  // un-anchor
     inputScript.push_back(render("Selection unanchored", 2));
 #if ENABLE_ANNOTATIONS
-    // Highlight is saved when the action menu opens; dismiss with Close and verify persistence.
+    // Highlight persistence is explicit: opening or cancelling the action menu
+    // must not write. Move from the preferred Book Notes action to Highlight,
+    // activate it, then compare equivalent reader frames across a page turn.
     addTap(MappedInputManager::Button::Confirm);  // anchor
     inputScript.push_back(render("Annotation anchor", 2));
     addTap(MappedInputManager::Button::Down);
     inputScript.push_back(render("Annotation extend", 2));
-    addTap(MappedInputManager::Button::Confirm);  // open actions popup (auto-saves highlight)
+    addTap(MappedInputManager::Button::Confirm);  // open actions popup on Book Notes
     inputScript.push_back(render("Annotation popup", 3));
+    addTap(MappedInputManager::Button::Down);  // Highlight follows Book Notes
+    inputScript.push_back(render("Annotation popup on highlight", 2));
+    addTap(MappedInputManager::Button::Confirm);  // persist highlight and exit selection
+    inputScript.push_back(render("Reader with highlight", 4));
     inputScript.push_back(hashFrame("Reader with highlight"));
-    addTap(MappedInputManager::Button::Back);  // dismiss popup, keep selection
-    inputScript.push_back(render("Annotation popup dismissed", 2));
     // Round-trip: page away and back; the highlight must re-render.
     addTap(MappedInputManager::Button::PageForward);
     inputScript.push_back(render("Reader page after highlight", 4));
