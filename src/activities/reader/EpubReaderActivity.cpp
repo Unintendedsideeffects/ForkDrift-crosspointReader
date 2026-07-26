@@ -2751,7 +2751,7 @@ void EpubReaderActivity::openSelectionActions() {
         annotation.text = selection::joinSpan(selModel.words, selLo, selHi);
         const bool saved = selection_capture::executeHighlight(
             selection_capture::Action::Highlight, &annotation,
-            [](void* context) { return ANNOTATIONS.add(*static_cast<const Annotation*>(context)); });
+            [](const void* context) { return ANNOTATIONS.add(*static_cast<const Annotation*>(context)); });
         if (saved) {
           exitSelectionMode();
           return;

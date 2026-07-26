@@ -34,11 +34,11 @@ TEST_CASE("selection capture policy multi-word omits dictionary") {
 
 TEST_CASE("selection capture policy never persists without explicit Highlight") {
   struct Spy {
-    int writes = 0;
+    mutable int writes = 0;
     bool result = true;
   } spy;
-  const auto persist = [](void* context) {
-    auto& state = *static_cast<Spy*>(context);
+  const auto persist = [](const void* context) {
+    const auto& state = *static_cast<const Spy*>(context);
     ++state.writes;
     return state.result;
   };

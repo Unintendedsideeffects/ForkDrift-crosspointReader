@@ -29,6 +29,6 @@ Action preferredAfterNotesFailure();
 // Deliberately invokes persistence only for the explicit Highlight action.
 // The function-pointer seam keeps policy tests independent of AnnotationStore
 // and avoids std::function allocation on the firmware path.
-bool executeHighlight(Action action, void* context, bool (*persist)(void*));
+bool executeHighlight(Action action, const void* context, bool (*persist)(const void*));
 
 }  // namespace selection_capture

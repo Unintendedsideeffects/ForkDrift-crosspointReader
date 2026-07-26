@@ -35,7 +35,7 @@ Action preferredAfterNotesSuccess() { return Action::BookNotes; }
 
 Action preferredAfterNotesFailure() { return Action::BookNotes; }
 
-bool executeHighlight(const Action action, void* const context, bool (*persist)(void*)) {
+bool executeHighlight(const Action action, const void* const context, bool (*persist)(const void*)) {
   return action == Action::Highlight && persist != nullptr && persist(context);
 }
 

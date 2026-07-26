@@ -8,6 +8,7 @@
 
 #include <cstring>
 #include <ctime>
+#include <numeric>
 
 #include "util/NotesStore.h"
 
@@ -166,17 +167,17 @@ std::string serializeMarkdown(const BookExport& book) {
 #if ENABLE_ANNOTATIONS
   if (book.highlights != nullptr && !book.highlights->empty()) {
     estimate += 32;
-    for (const auto& h : *book.highlights) {
-      estimate += h.text.size() + 16;
-    }
+    estimate = std::accumulate(
+        book.highlights->begin(), book.highlights->end(), estimate,
+        [](const size_t total, const Annotation& highlight) { return total + highlight.text.size() + 16; });
   }
 #endif
 #if ENABLE_BOOKMARKS
   if (book.bookmarks != nullptr && !book.bookmarks->empty()) {
     estimate += 32;
-    for (const auto& b : *book.bookmarks) {
-      estimate += sizeof(b.chapterTitle) + 32;
-    }
+    estimate = std::accumulate(
+        book.bookmarks->begin(), book.bookmarks->end(), estimate,
+        [](const size_t total, const Bookmark& bookmark) { return total + sizeof(bookmark.chapterTitle) + 32; });
   }
 #endif
   out.reserve(estimate);
@@ -236,16 +237,18 @@ std::string serializeMyClippings(const BookExport& book) {
   size_t estimate = 0;
 #if ENABLE_ANNOTATIONS
   if (book.highlights != nullptr) {
-    for (const auto& h : *book.highlights) {
-      estimate += header.size() + h.text.size() + 80;
-    }
+    estimate = std::accumulate(book.highlights->begin(), book.highlights->end(), estimate,
+                               [&header](const size_t total, const Annotation& highlight) {
+                                 return total + header.size() + highlight.text.size() + 80;
+                               });
   }
 #endif
 #if ENABLE_BOOKMARKS
   if (book.bookmarks != nullptr) {
-    for (const auto& b : *book.bookmarks) {
-      estimate += header.size() + sizeof(b.chapterTitle) + 120;
-    }
+    estimate = std::accumulate(book.bookmarks->begin(), book.bookmarks->end(), estimate,
+                               [&header](const size_t total, const Bookmark& bookmark) {
+                                 return total + header.size() + sizeof(bookmark.chapterTitle) + 120;
+                               });
   }
 #endif
   out.reserve(estimate);
@@ -299,16 +302,16 @@ std::string serializeKoreader(const BookExport& book) {
   size_t estimate = 128;
 #if ENABLE_ANNOTATIONS
   if (book.highlights != nullptr) {
-    for (const auto& h : *book.highlights) {
-      estimate += h.text.size() + 128;
-    }
+    estimate = std::accumulate(
+        book.highlights->begin(), book.highlights->end(), estimate,
+        [](const size_t total, const Annotation& highlight) { return total + highlight.text.size() + 128; });
   }
 #endif
 #if ENABLE_BOOKMARKS
   if (book.bookmarks != nullptr) {
-    for (const auto& b : *book.bookmarks) {
-      estimate += sizeof(b.chapterTitle) + 128;
-    }
+    estimate = std::accumulate(
+        book.bookmarks->begin(), book.bookmarks->end(), estimate,
+        [](const size_t total, const Bookmark& bookmark) { return total + sizeof(bookmark.chapterTitle) + 128; });
   }
 #endif
   out.reserve(estimate);
