@@ -1564,7 +1564,9 @@ void EpubReaderActivity::applyOrientation(const uint8_t orientation) {
     ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
 
     // Reset section to force re-layout in the new orientation.
+#if ENABLE_TEXT_SELECTION
     invalidateSelectionPageIndex();
+#endif
     section.reset();
   }
 }
