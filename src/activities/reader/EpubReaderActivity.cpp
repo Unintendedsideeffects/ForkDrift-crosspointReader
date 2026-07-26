@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <iterator>
 #include <limits>
 
@@ -435,6 +436,10 @@ void EpubReaderActivity::onExit() {
 #if ENABLE_TEXT_SELECTION
   selectionBaseSnapshot.reset();
   selectionSnapshotFallback = false;
+  invalidateSelectionPageIndex();
+  selModel.words.clear();
+  selectionPreviousRuns.clear();
+  selectionCurrentRuns.clear();
 #endif
 
 #if ENABLE_BOOKMARKS
@@ -1197,10 +1202,10 @@ void EpubReaderActivity::exportCurrentBookHighlights() {
   book.author = epub->getAuthor();
   book.path = epub->getPath();
 #if ENABLE_ANNOTATIONS
-  book.highlights = ANNOTATIONS.all();
+  book.highlights = &ANNOTATIONS.all();
 #endif
 #if ENABLE_BOOKMARKS
-  book.bookmarks = BOOKMARKS.getBookmarks();
+  book.bookmarks = &BOOKMARKS.getBookmarks();
 #endif
 
   if (!highlight_export::hasContent(book)) {
@@ -1212,8 +1217,14 @@ void EpubReaderActivity::exportCurrentBookHighlights() {
   }
 
   const auto format = static_cast<highlight_export::Format>(SETTINGS.highlightExportFormat);
-  const std::string path = highlight_export::exportBook(format, book);
-  const StrId resultMsg = path.empty() ? StrId::STR_EXPORT_FAILED : StrId::STR_EXPORT_DONE;
+  std::string path;
+  const auto status = highlight_export::exportBook(format, book, path);
+  StrId resultMsg = StrId::STR_EXPORT_FAILED;
+  if (status == highlight_export::ExportStatus::Ok) {
+    resultMsg = StrId::STR_EXPORT_DONE;
+  } else if (status == highlight_export::ExportStatus::SidecarNotOurs) {
+    resultMsg = StrId::STR_EXPORT_SIDECAR_EXISTS;
+  }
   GUI.drawPopup(renderer, I18N.get(resultMsg));
   renderer.displayBuffer();
   delay(1200);
@@ -1553,6 +1564,7 @@ void EpubReaderActivity::applyOrientation(const uint8_t orientation) {
     ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
 
     // Reset section to force re-layout in the new orientation.
+    invalidateSelectionPageIndex();
     section.reset();
   }
 }
@@ -1643,10 +1655,10 @@ void EpubReaderActivity::render(RenderLock&& lock) {
         return;
       }
       selectionBaseSnapshot.reset();
+      selectionForceFullRedraw = true;
     }
     if (selectionBaseSnapshot) {
-      memcpy(renderer.getFrameBuffer(), selectionBaseSnapshot.get(), renderer.getBufferSize());
-      drawSelectionOverlay();
+      drawSelectionOverlay(!selectionForceFullRedraw && selectionOverlayInitialized);
       renderer.displayBuffer(HalDisplay::FAST_REFRESH);
     } else if (section) {
       if (selModel.words.empty()) {
@@ -1673,7 +1685,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
             selectionSnapshotFallback = true;
           }
         }
-        drawSelectionOverlay();
+        drawSelectionOverlay(false);
         renderer.displayBuffer(HalDisplay::FAST_REFRESH);
       }
     }
@@ -1721,7 +1733,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
   orientedMarginTop += SETTINGS.screenMargin + features::status_overlay::topInset();
   orientedMarginLeft += SETTINGS.screenMargin;
   orientedMarginRight += SETTINGS.screenMargin;
-  orientedMarginBottom += SETTINGS.screenMargin + features::status_overlay::bottomInset();
+  orientedMarginBottom += SETTINGS.screenMargin;
 
   const uint16_t viewportWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
   const uint16_t viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
@@ -2043,6 +2055,11 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   const bool needsAnyGrayscale = needsTextGrayscale || needsImageGrayscale;
 
   page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+#if ENABLE_TEXT_SELECTION
+  if (!previewRenderOnly && section) {
+    buildSelectionPageIndex(*page, orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
+  }
+#endif
 #if ENABLE_ANNOTATIONS
   if (!previewRenderOnly && section) {
     renderAnnotations(*page, orientedMarginLeft, orientedMarginTop);
@@ -2327,12 +2344,48 @@ void EpubReaderActivity::restoreSavedPosition() {
 #if ENABLE_TEXT_SELECTION
 // ---------- Text selection mode ----------
 
-void EpubReaderActivity::collectSelectableWords(const Page& page, const int marginLeft, const int marginTop,
-                                                std::vector<selection::SelWord>& out) const {
+bool EpubReaderActivity::collectSelectableWords(const Page& page, const int marginLeft, const int marginTop,
+                                                std::vector<selection::SelWord>& out, const bool bounded) const {
   const int fontId = SETTINGS.getReaderFontId();
   const int lineHeight = renderer.getLineHeight(fontId);
 
   out.clear();
+  size_t wordCount = 0;
+  size_t textBytes = 0;
+  for (const auto& el : page.elements) {
+    if (el->getTag() != TAG_PageLine) {
+      continue;
+    }
+    const auto* line = static_cast<const PageLine*>(el.get());
+    const TextBlock* block = line->getBlock().get();
+    if (!block) {
+      continue;
+    }
+    for (const std::string& word : block->getWords()) {
+      if (!word.empty() && word != " ") {
+        ++wordCount;
+        textBytes += word.size();
+      }
+    }
+  }
+  if (bounded && (wordCount > kMaxSelectionWords || textBytes > kMaxSelectionTextBytes)) {
+    LOG_WRN("ERS", "SELECTION_INDEX_FALLBACK bounds words=%u text=%u", static_cast<unsigned>(wordCount),
+            static_cast<unsigned>(textBytes));
+    return false;
+  }
+  if (bounded) {
+    const size_t retainedBytes = wordCount * sizeof(selection::SelWord) + textBytes;
+    const ReaderMemorySnapshot snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap()};
+    if (!ReaderOptionsMemoryPolicy::canRetainPreview(snapshot, retainedBytes)) {
+      LOG_WRN("ERS", "SELECTION_INDEX_FALLBACK heap words=%u bytes=%u free=%u largest=%u",
+              static_cast<unsigned>(wordCount), static_cast<unsigned>(retainedBytes), snapshot.freeHeap,
+              snapshot.maxAllocHeap);
+      return false;
+    }
+  }
+  if (out.capacity() < wordCount) {
+    out.reserve(wordCount);
+  }
   uint16_t lineId = 0;
   for (const auto& el : page.elements) {
     if (el->getTag() != TAG_PageLine) {
@@ -2363,6 +2416,66 @@ void EpubReaderActivity::collectSelectableWords(const Page& page, const int marg
     }
     ++lineId;
   }
+  return !out.empty();
+}
+
+selection::PageGenerationKey EpubReaderActivity::currentSelectionGeneration() const {
+  int marginTop, marginRight, marginBottom, marginLeft;
+  renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
+  marginTop += SETTINGS.screenMargin + features::status_overlay::topInset();
+  marginLeft += SETTINGS.screenMargin;
+  marginRight += SETTINGS.screenMargin;
+  marginBottom += SETTINGS.screenMargin;
+  selection::PageGenerationKey key;
+  key.book = reinterpret_cast<uintptr_t>(epub.get());
+  key.spine = currentSpineIndex;
+  key.page = section ? section->currentPage : -1;
+  key.marginTop = static_cast<int16_t>(marginTop);
+  key.marginRight = static_cast<int16_t>(marginRight);
+  key.marginBottom = static_cast<int16_t>(marginBottom);
+  key.marginLeft = static_cast<int16_t>(marginLeft);
+  key.screenWidth = static_cast<int16_t>(renderer.getScreenWidth());
+  key.screenHeight = static_cast<int16_t>(renderer.getScreenHeight());
+  key.fontId = static_cast<int16_t>(SETTINGS.getReaderFontId());
+  key.orientation = static_cast<uint8_t>(renderer.getOrientation());
+  key.lineCompression = SETTINGS.getReaderLineCompression();
+  key.extraParagraphSpacing = SETTINGS.extraParagraphSpacing;
+  key.forceParagraphIndents = SETTINGS.forceParagraphIndents;
+  key.paragraphAlignment = SETTINGS.paragraphAlignment;
+  key.hyphenationEnabled = SETTINGS.hyphenationEnabled;
+  key.embeddedStyle = SETTINGS.embeddedStyle;
+  key.imageRendering = SETTINGS.imageRendering;
+  key.focusReadingEnabled = SETTINGS.focusReadingEnabled;
+  key.guideReadingEnabled = SETTINGS.guideReadingEnabled;
+  return key;
+}
+
+bool EpubReaderActivity::buildSelectionPageIndex(const Page& page, const int marginTop, const int marginRight,
+                                                 const int marginBottom, const int marginLeft) {
+  (void)marginRight;
+  (void)marginBottom;
+  invalidateSelectionPageIndex();
+#ifdef SIMULATOR
+  if (std::getenv("FORKDRIFT_SIMULATOR_SELECTION_INDEX_FALLBACK") != nullptr) {
+    LOG_INF("ERS", "SELECTION_INDEX_FALLBACK forced");
+    return false;
+  }
+#endif
+  if (!collectSelectableWords(page, marginLeft, marginTop, selectionPageIndex, true)) {
+    selectionPageIndex.clear();
+    return false;
+  }
+  selectionPageGeneration = currentSelectionGeneration();
+  LOG_DBG("ERS", "Selection index retained: words=%u", static_cast<unsigned>(selectionPageIndex.size()));
+#ifdef SIMULATOR
+  LOG_INF("SMOKE", "SMOKE_SELECTION_INDEX_RETAINED=%u", static_cast<unsigned>(selectionPageIndex.size()));
+#endif
+  return true;
+}
+
+void EpubReaderActivity::invalidateSelectionPageIndex() {
+  selectionPageGeneration.reset();
+  selectionPageIndex.clear();
 }
 
 bool EpubReaderActivity::tryCaptureSelectionSnapshotFromFramebuffer() {
@@ -2386,23 +2499,32 @@ void EpubReaderActivity::enterSelectionMode(std::unique_ptr<uint8_t[]> transferr
   if (!section || selectionMode) {
     return;
   }
-  auto page = section->loadPageFromSectionFile();
-  ++selectionContentLoads;
-  LOG_INF("ERS", "Selection content load #%u", static_cast<unsigned>(selectionContentLoads));
+  const selection::PageGenerationKey generation = currentSelectionGeneration();
+  if (selectionPageGeneration && *selectionPageGeneration == generation && !selectionPageIndex.empty()) {
+    selModel.words.swap(selectionPageIndex);
+    LOG_INF("ERS", "Selection index reused: words=%u", static_cast<unsigned>(selModel.words.size()));
 #ifdef SIMULATOR
-  LOG_INF("SMOKE", "SMOKE_SELECTION_CONTENT_LOADS=%u", static_cast<unsigned>(selectionContentLoads));
+    LOG_INF("SMOKE", "SMOKE_SELECTION_CONTENT_LOADS=0");
 #endif
-  if (!page) {
-    LOG_ERR("ERS", "Selection: failed to load page");
-    return;
+  } else {
+    LOG_WRN("ERS", "SELECTION_INDEX_FALLBACK stale-or-unavailable");
+    auto page = section->loadPageFromSectionFile();
+    ++selectionContentLoads;
+    LOG_INF("ERS", "Selection content load #%u", static_cast<unsigned>(selectionContentLoads));
+#ifdef SIMULATOR
+    LOG_INF("SMOKE", "SMOKE_SELECTION_CONTENT_LOADS=%u", static_cast<unsigned>(selectionContentLoads));
+#endif
+    if (!page) {
+      LOG_ERR("ERS", "Selection: failed to load page");
+      return;
+    }
+
+    int marginTop, marginRight, marginBottom, marginLeft;
+    renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
+    marginTop += SETTINGS.screenMargin + features::status_overlay::topInset();
+    marginLeft += SETTINGS.screenMargin;
+    collectSelectableWords(*page, marginLeft, marginTop, selModel.words, false);
   }
-
-  int marginTop, marginRight, marginBottom, marginLeft;
-  renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
-  marginTop += SETTINGS.screenMargin + features::status_overlay::topInset();
-  marginLeft += SETTINGS.screenMargin;
-
-  collectSelectableWords(*page, marginLeft, marginTop, selModel.words);
 
   if (selModel.words.empty()) {
     LOG_INF("ERS", "Selection: no selectable words on page");
@@ -2414,6 +2536,12 @@ void EpubReaderActivity::enterSelectionMode(std::unique_ptr<uint8_t[]> transferr
   selModel.cursor = 0;
   selModel.anchor = 0;
   selectionSnapshotFallback = false;
+  selectionOverlayInitialized = false;
+  selectionForceFullRedraw = true;
+  selectionPreviousRuns.clear();
+  selectionCurrentRuns.clear();
+  selectionPreviousRuns.reserve(selModel.words.size());
+  selectionCurrentRuns.reserve(selModel.words.size());
   selectionPreferredAction = selection_capture::Action::BookNotes;
   if (transferredSnapshot) {
     selectionBaseSnapshot = std::move(transferredSnapshot);
@@ -2431,9 +2559,17 @@ void EpubReaderActivity::exitSelectionMode() {
   selectionSnapshotFallback = false;
   selectionContentLoads = 0;
   selectionNeedsWordReload = false;
+  selectionOverlayInitialized = false;
+  selectionForceFullRedraw = true;
   selectionPreferredAction = selection_capture::Action::BookNotes;
-  selModel.words.clear();
-  selModel.words.shrink_to_fit();
+  selectionPreviousRuns.clear();
+  selectionCurrentRuns.clear();
+  if (selectionPageGeneration && *selectionPageGeneration == currentSelectionGeneration() &&
+      selectionPageIndex.empty()) {
+    selModel.words.swap(selectionPageIndex);
+  } else {
+    selModel.words.clear();
+  }
   requestUpdate();
 }
 
@@ -2442,6 +2578,11 @@ bool EpubReaderActivity::refreshSelectionWords() {
     return false;
   }
   auto page = section->loadPageFromSectionFile();
+  ++selectionContentLoads;
+  LOG_INF("ERS", "SELECTION_INDEX_FALLBACK content-load=%u", static_cast<unsigned>(selectionContentLoads));
+#ifdef SIMULATOR
+  LOG_INF("SMOKE", "SMOKE_SELECTION_CONTENT_LOADS=%u", static_cast<unsigned>(selectionContentLoads));
+#endif
   if (!page) {
     return false;
   }
@@ -2449,7 +2590,13 @@ bool EpubReaderActivity::refreshSelectionWords() {
   renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
   marginTop += SETTINGS.screenMargin + features::status_overlay::topInset();
   marginLeft += SETTINGS.screenMargin;
-  collectSelectableWords(*page, marginLeft, marginTop, selModel.words);
+  collectSelectableWords(*page, marginLeft, marginTop, selModel.words, false);
+  selectionPreviousRuns.clear();
+  selectionCurrentRuns.clear();
+  selectionPreviousRuns.reserve(selModel.words.size());
+  selectionCurrentRuns.reserve(selModel.words.size());
+  selectionOverlayInitialized = false;
+  selectionForceFullRedraw = true;
   selectionNeedsWordReload = false;
   return !selModel.words.empty();
 }
@@ -2468,8 +2615,11 @@ void EpubReaderActivity::selectionTurnPage(const bool forward) {
   selModel.cursor = 0;
   selModel.anchor = 0;
   selModel.anchored = false;
+  invalidateSelectionPageIndex();
   selectionBaseSnapshot.reset();
   selectionNeedsWordReload = true;
+  selectionOverlayInitialized = false;
+  selectionForceFullRedraw = true;
   requestUpdate();
 }
 
@@ -2510,26 +2660,14 @@ void EpubReaderActivity::openSelectionActions() {
   options.removeHighlight = section && ANNOTATIONS.removeCandidateAt(static_cast<uint16_t>(currentSpineIndex),
                                                                      static_cast<uint16_t>(section->currentPage),
                                                                      static_cast<uint16_t>(selModel.cursor));
-  if (!options.removeHighlight) {
-    const uint16_t page = section ? static_cast<uint16_t>(section->currentPage) : 0;
-    const auto spineAnnotations = ANNOTATIONS.forSpine(static_cast<uint16_t>(currentSpineIndex));
-    const bool alreadyHighlighted =
-        std::any_of(spineAnnotations.begin(), spineAnnotations.end(), [&](const Annotation* existing) {
-          return existing->page == page && existing->startWord == static_cast<uint16_t>(lo) &&
-                 existing->endWord == static_cast<uint16_t>(hi);
-        });
-    if (!alreadyHighlighted) {
-      Annotation a;
-      a.spineIndex = static_cast<uint16_t>(currentSpineIndex);
-      a.page = page;
-      a.startWord = static_cast<uint16_t>(lo);
-      a.endWord = static_cast<uint16_t>(hi);
-      a.text = selection::joinSpan(selModel.words, lo, hi);
-      if (ANNOTATIONS.add(a)) {
-        selectionBaseSnapshot.reset();
-      }
-    }
-  }
+  const uint16_t page = section ? static_cast<uint16_t>(section->currentPage) : 0;
+  const auto spineAnnotations = ANNOTATIONS.forSpine(static_cast<uint16_t>(currentSpineIndex));
+  const bool alreadyHighlighted =
+      std::any_of(spineAnnotations.begin(), spineAnnotations.end(), [&](const Annotation* existing) {
+        return existing->page == page && existing->startWord == static_cast<uint16_t>(lo) &&
+               existing->endWord == static_cast<uint16_t>(hi);
+      });
+  options.highlight = !alreadyHighlighted;
 #endif
   const auto actions = selection_capture::buildActions(options);
   const int initialIndex = selection_capture::findActionIndex(actions, selectionPreferredAction);
@@ -2550,6 +2688,9 @@ void EpubReaderActivity::openSelectionActions() {
         items.push_back(I18N.get(StrId::STR_SAVE_TO_BOOK_NOTES));
         break;
 #if ENABLE_ANNOTATIONS
+      case selection_capture::Action::Highlight:
+        items.push_back(I18N.get(StrId::STR_HIGHLIGHT));
+        break;
       case selection_capture::Action::RemoveHighlight:
         items.push_back(I18N.get(StrId::STR_REMOVE_HIGHLIGHT));
         break;
@@ -2562,6 +2703,7 @@ void EpubReaderActivity::openSelectionActions() {
     }
   }
 
+  selectionForceFullRedraw = true;
   selectionPopup.show(StrId::STR_SELECT_TEXT, items, initialIndex, [this, actions](int idx) {
     if (idx < 0 || idx >= static_cast<int>(actions.size())) {
       requestUpdate();
@@ -2595,12 +2737,46 @@ void EpubReaderActivity::openSelectionActions() {
         exitSelectionMode();
         return;
 #if ENABLE_ANNOTATIONS
+      case selection_capture::Action::Highlight: {
+        if (!section) {
+          requestUpdate();
+          return;
+        }
+        const auto [selLo, selHi] = selection::span(selModel);
+        Annotation annotation;
+        annotation.spineIndex = static_cast<uint16_t>(currentSpineIndex);
+        annotation.page = static_cast<uint16_t>(section->currentPage);
+        annotation.startWord = static_cast<uint16_t>(selLo);
+        annotation.endWord = static_cast<uint16_t>(selHi);
+        annotation.text = selection::joinSpan(selModel.words, selLo, selHi);
+        const bool saved = selection_capture::executeHighlight(
+            selection_capture::Action::Highlight, &annotation,
+            [](void* context) { return ANNOTATIONS.add(*static_cast<const Annotation*>(context)); });
+        if (saved) {
+          exitSelectionMode();
+          return;
+        }
+        {
+          RenderLock lock(*this);
+          GUI.drawPopup(renderer, tr(STR_FAILED_LOWER));
+          renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+        }
+        delay(700);
+        selectionForceFullRedraw = true;
+        requestUpdate();
+        return;
+      }
       case selection_capture::Action::RemoveHighlight: {
         if (section) {
-          ANNOTATIONS.removeAt(static_cast<uint16_t>(currentSpineIndex), static_cast<uint16_t>(section->currentPage),
-                               static_cast<uint16_t>(selModel.cursor));
-          selectionBaseSnapshot.reset();
+          const int removed =
+              ANNOTATIONS.removeAt(static_cast<uint16_t>(currentSpineIndex),
+                                   static_cast<uint16_t>(section->currentPage), static_cast<uint16_t>(selModel.cursor));
+          if (removed > 0) {
+            exitSelectionMode();
+            return;
+          }
         }
+        selectionForceFullRedraw = true;
         requestUpdate();
         return;
       }
@@ -2687,11 +2863,39 @@ bool EpubReaderActivity::handleSelectionInput() {
   return true;  // selection mode swallows all input
 }
 
-void EpubReaderActivity::drawSelectionOverlay() const {
-  const auto [lo, hi] = selection::span(selModel);
-  for (const selection::HighlightRect& rect : selection::buildHighlightRuns(selModel.words, lo, hi)) {
-    renderer.invertRect(rect.x, rect.y, rect.w, rect.h);
+void EpubReaderActivity::drawSelectionRuns(const std::vector<selection::HighlightRect>& runs) const {
+  auto* const frameBuffer = renderer.getFrameBuffer();
+  const auto orientation = static_cast<selection::FrameOrientation>(renderer.getOrientation());
+  for (const selection::HighlightRect& rect : runs) {
+    selection::invertHighlightRect(frameBuffer, renderer.getBufferSize(), renderer.getDisplayWidth(),
+                                   renderer.getDisplayHeight(), orientation, rect);
   }
+}
+
+void EpubReaderActivity::drawSelectionOverlay(const bool incremental) {
+  const auto [lo, hi] = selection::span(selModel);
+  if (!selection::buildHighlightRuns(selModel.words, lo, hi, selectionCurrentRuns)) {
+    selectionForceFullRedraw = true;
+    return;
+  }
+
+  bool drewIncrementally = false;
+  if (incremental && selectionBaseSnapshot) {
+    const auto status = selection::applyIncrementalSelectionOverlay(
+        renderer.getFrameBuffer(), selectionBaseSnapshot.get(), renderer.getBufferSize(), renderer.getDisplayWidth(),
+        renderer.getDisplayHeight(), static_cast<selection::FrameOrientation>(renderer.getOrientation()),
+        selectionPreviousRuns, selectionCurrentRuns);
+    drewIncrementally = status != selection::IncrementalDamageStatus::FullRedrawRequired;
+  }
+  if (!drewIncrementally) {
+    if (selectionBaseSnapshot) {
+      memcpy(renderer.getFrameBuffer(), selectionBaseSnapshot.get(), renderer.getBufferSize());
+    }
+    drawSelectionRuns(selectionCurrentRuns);
+  }
+  selectionPreviousRuns = selectionCurrentRuns;
+  selectionOverlayInitialized = true;
+  selectionForceFullRedraw = false;
 }
 
 #if ENABLE_ANNOTATIONS
@@ -2702,7 +2906,7 @@ void EpubReaderActivity::renderAnnotations(const Page& page, const int marginLef
   }
 
   std::vector<selection::SelWord> words;
-  collectSelectableWords(page, marginLeft, marginTop, words);
+  collectSelectableWords(page, marginLeft, marginTop, words, false);
   if (words.empty()) {
     return;
   }

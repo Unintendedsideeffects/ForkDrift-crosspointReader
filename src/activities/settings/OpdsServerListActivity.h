@@ -12,9 +12,6 @@
  */
 class OpdsServerListActivity final : public Activity, public TabView {
  public:
-  // Matches BooksTabActivity::kTabStripHeight; embedded content starts below it.
-  static constexpr int kStripInset = 48;
-
   explicit OpdsServerListActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, bool pickerMode = false,
                                   bool embedded = false)
       : Activity("OpdsServerList", renderer, mappedInput), pickerMode(pickerMode), embedded(embedded) {}

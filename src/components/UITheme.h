@@ -18,7 +18,7 @@ class UITheme {
 
   const ThemeMetrics& getMetrics() const;
   // Raw theme metrics WITHOUT the status-overlay inset adjustment. Use this from
-  // status_overlay geometry accessors: getMetrics() calls topInset()/bottomInset(),
+  // status_overlay geometry accessors: getMetrics() calls topInset(),
   // so routing barHeight()/padH() through getMetrics() would recurse infinitely.
   const ThemeMetrics& getBaseMetrics() const { return *currentMetrics; }
   const BaseTheme& getTheme() const { return *currentTheme; }

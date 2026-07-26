@@ -889,7 +889,15 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
           // Resolve the image path relative to the HTML file
           std::string resolvedPath = FsHelpers::normalisePath(FsHelpers::decodeUriEscapes(self->contentBase + src));
 
-          if (ImageDecoderFactory::isFormatSupported(resolvedPath)) {
+          // isFormatSupported is extension-based, but some EPUBs (O'Reilly et al.)
+          // reference images without a file extension (e.g. "media/file14"). Let
+          // those through too: they are extracted below and getDecoder then sniffs
+          // the extracted file's magic bytes to pick the JPEG/PNG decoder.
+          const size_t rpSlash = resolvedPath.rfind('/');
+          const size_t rpDot = resolvedPath.rfind('.');
+          const bool resolvedHasExtension =
+              rpDot != std::string::npos && (rpSlash == std::string::npos || rpDot > rpSlash);
+          if (ImageDecoderFactory::isFormatSupported(resolvedPath) || !resolvedHasExtension) {
             // Create a unique filename for the cached image
             std::string ext;
             size_t extPos = resolvedPath.rfind('.');
@@ -1070,11 +1078,16 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                   return;
                 }
                 int xPos = (self->viewportWidth - displayWidth) / 2;
-                auto pageImage = std::make_shared<PageImage>(imageBlock, xPos, self->currentPageNextY);
-                if (!pageImage) {
-                  LOG_ERR("EHP", "Failed to create PageImage");
+                // Technique #4: make_shared aborts on OOM under -fno-exceptions.
+                // Allocate the PageImage nothrow and skip the figure (leaving the
+                // laid-out gap) instead of crashing when the heap is exhausted; the
+                // ~16B control block right after is statistically safe.
+                auto* rawPageImage = new (std::nothrow) PageImage(imageBlock, xPos, self->currentPageNextY);
+                if (!rawPageImage) {
+                  LOG_ERR("EHP", "OOM: PageImage; skipping figure");
                   return;
                 }
+                std::shared_ptr<PageImage> pageImage(rawPageImage);
                 self->currentPage->elements.push_back(pageImage);
                 self->currentPageNextY += displayHeight + imageMarginBottom;
 

@@ -58,7 +58,13 @@ class HalFile {
     if (!buf_) return 0;
     const size_t avail = buf_->size() - pos_;
     const size_t n = std::min(len, avail);
-    std::memcpy(data, buf_->data() + pos_, n);
+    // An empty vector's data() may be nullptr, and memcpy's src is declared
+    // nonnull — so memcpy(dst, nullptr, 0) is UB and trips UBSan even though it
+    // copies nothing. Reading a zero-byte file is legitimate (see
+    // sidecarIsOursOrAbsent), so guard rather than forbid it.
+    if (n > 0) {
+      std::memcpy(data, buf_->data() + pos_, n);
+    }
     pos_ += n;
     return n;
   }

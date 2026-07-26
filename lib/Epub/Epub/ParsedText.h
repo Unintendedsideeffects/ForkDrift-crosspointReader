@@ -13,6 +13,12 @@
 class GfxRenderer;
 
 class ParsedText {
+  // Growth-sized heap check for addWord's OOM guard: if a block this large can't
+  // be allocated without crossing the critical floor, the block stops accepting
+  // words rather than letting a std::vector growth throw (= terminate).
+  static constexpr size_t kWordGrowthGuardBytes = 8 * 1024;
+  bool heapTruncated = false;  // this block hit the heap guard and was truncated
+
   std::vector<std::string> words;
   std::vector<EpdFontFamily::Style> wordStyles;
   std::vector<bool> wordContinues;      // true = word attaches to previous with no break

@@ -80,6 +80,7 @@ class InflateReader {
   uzlib_uncomp* raw() { return &decomp; }
 
  private:
-  uzlib_uncomp decomp = {};
+  uzlib_uncomp decomp = {};  // must stay first (uzlib callback casts uzlib_uncomp* -> ctx)
   uint8_t* ringBuffer = nullptr;
+  bool usesSharedWindow = false;  // ringBuffer points at the shared window (don't free it)
 };

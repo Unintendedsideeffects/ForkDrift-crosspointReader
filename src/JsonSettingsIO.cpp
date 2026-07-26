@@ -205,8 +205,17 @@ bool loadSettingsFromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* n
   s.highlightExportFormat = clamp(doc["highlightExportFormat"] | (uint8_t)0, (uint8_t)3, (uint8_t)0);
   s.globalStatusBar = clamp(doc["globalStatusBar"] | (uint8_t)S::GLOBAL_STATUS_BAR_OFF, S::GLOBAL_STATUS_BAR_MODE_COUNT,
                             S::GLOBAL_STATUS_BAR_OFF);
-  s.globalStatusBarPosition = clamp(doc["globalStatusBarPosition"] | (uint8_t)S::STATUS_BAR_ON,
-                                    S::GLOBAL_STATUS_BAR_POSITION_COUNT, S::STATUS_BAR_ON);
+  // settings.json gained a version key in schema 1. Absent → a pre-versioning
+  // file, where globalStatusBarPosition 0/1/2 meant TOP/BOTTOM/OFF. The bar is
+  // top-only now, so a stored BOTTOM (1) must become ON — leaving it would
+  // silently reinterpret it as READER_ONLY and hide the bar outside the reader.
+  const uint8_t schemaVersion = doc["settingsVersion"] | (uint8_t)0;
+  uint8_t rawStatusBarPosition = doc["globalStatusBarPosition"] | (uint8_t)S::STATUS_BAR_ON;
+  if (schemaVersion < 1 && rawStatusBarPosition == 1) {
+    rawStatusBarPosition = S::STATUS_BAR_ON;
+    if (needsResave) *needsResave = true;
+  }
+  s.globalStatusBarPosition = clamp(rawStatusBarPosition, S::GLOBAL_STATUS_BAR_POSITION_COUNT, S::STATUS_BAR_ON);
 
   const char* userFontPath = doc["userFontPath"] | "";
   strncpy(s.userFontPath, userFontPath, sizeof(s.userFontPath) - 1);
@@ -370,6 +379,7 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["highlightExportFormat"] = s.highlightExportFormat;
   doc["globalStatusBar"] = s.globalStatusBar;
   doc["globalStatusBarPosition"] = s.globalStatusBarPosition;
+  doc["settingsVersion"] = CrossPointSettings::SETTINGS_SCHEMA_VERSION;
 
   doc["language"] = (s.language < getLanguageCount()) ? LANGUAGE_CODES[s.language] : "EN";
 

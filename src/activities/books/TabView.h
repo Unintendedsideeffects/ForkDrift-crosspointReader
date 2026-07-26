@@ -19,4 +19,9 @@ class TabView {
   // Up enters the strip only at a child's top navigation boundary. This keeps
   // the approved gesture from stealing an ordinary Up action mid-list.
   virtual bool atNavigationTop() const = 0;
+
+  // Height of the library tab strip, in pixels. The host paints this band at the
+  // top of the screen; embedded children must start their content below it. Single
+  // source of truth — do not redeclare it in a child.
+  static constexpr int kTabStripHeight = 48;
 };

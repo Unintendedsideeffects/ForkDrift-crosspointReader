@@ -86,6 +86,11 @@ class WifiSelectionActivity final : public Activity {
   // stays interactive; results are merged in when they land.
   bool refreshingInBackground = false;
 
+  // A release was issued and the service was still running afterwards. The
+  // service declines to force-delete a task that holds a mutex, so a retry
+  // cannot succeed; proceed without the handoff instead of looping on stop().
+  bool backgroundReleaseFailed = false;
+
   int forgetPromptSelection = 0;
 
   // Connection timeout

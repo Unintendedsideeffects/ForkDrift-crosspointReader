@@ -118,3 +118,60 @@ TEST_CASE("settings persistence clamps hostile enum values and ignores wrong typ
   CHECK(settings.sleepScreen == CrossPointSettings::DARK);
   CHECK(settings.sleepTimeoutMinutes == defaultSleepTimeout);
 }
+
+TEST_CASE("settings migration: legacy bottom migrates to STATUS_BAR_ON and triggers resave") {
+  CrossPointSettings& settings = resetSettingsState();
+  const char* json = "{\"globalStatusBarPosition\":1}";
+  bool needsResave = false;
+
+  REQUIRE(JsonSettingsIO::loadSettings(settings, json, &needsResave));
+  CHECK(settings.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_ON);
+  CHECK(needsResave == true);
+}
+
+TEST_CASE("settings migration: legacy top is untouched") {
+  CrossPointSettings& settings = resetSettingsState();
+  const char* json = "{\"globalStatusBarPosition\":0}";
+  bool needsResave = false;
+
+  REQUIRE(JsonSettingsIO::loadSettings(settings, json, &needsResave));
+  CHECK(settings.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_ON);
+  CHECK(needsResave == false);
+}
+
+TEST_CASE("settings migration: legacy off is untouched") {
+  CrossPointSettings& settings = resetSettingsState();
+  const char* json = "{\"globalStatusBarPosition\":2}";
+  bool needsResave = false;
+
+  REQUIRE(JsonSettingsIO::loadSettings(settings, json, &needsResave));
+  CHECK(settings.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_OFF);
+  CHECK(needsResave == false);
+}
+
+TEST_CASE("settings migration: versioned reader-only survives") {
+  CrossPointSettings& settings = resetSettingsState();
+  const char* json = "{\"settingsVersion\":1,\"globalStatusBarPosition\":1}";
+  bool needsResave = false;
+
+  REQUIRE(JsonSettingsIO::loadSettings(settings, json, &needsResave));
+  CHECK(settings.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_READER_ONLY);
+  CHECK(needsResave == false);
+}
+
+TEST_CASE("settings migration: round trip preserves STATUS_BAR_READER_ONLY") {
+  CrossPointSettings& settings = resetSettingsState();
+  settings.globalStatusBarPosition = CrossPointSettings::STATUS_BAR_READER_ONLY;
+
+  REQUIRE(settings.saveToFile());
+  const std::string json = Storage.readFile(kSettingsPath).c_str();
+  REQUIRE(!json.empty());
+  CHECK(json.find("\"settingsVersion\":1") != std::string::npos);
+  CHECK(json.find("\"globalStatusBarPosition\":1") != std::string::npos);
+
+  CrossPointSettings& reloaded = resetSettingsState();
+  bool needsResave = false;
+  REQUIRE(JsonSettingsIO::loadSettings(reloaded, json.c_str(), &needsResave));
+  CHECK(reloaded.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_READER_ONLY);
+  CHECK(needsResave == false);
+}

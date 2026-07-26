@@ -28,7 +28,6 @@ class BooksTabActivity final : public Activity {
   static constexpr size_t kFilesTab = 1;
   static constexpr size_t kOpdsTab = 2;
   static constexpr size_t kSettingsTab = 3;
-  static constexpr int kTabStripHeight = 48;
 
   std::vector<books_tab_model::BooksTab> tabs;
   std::unique_ptr<TabView> activeChild;

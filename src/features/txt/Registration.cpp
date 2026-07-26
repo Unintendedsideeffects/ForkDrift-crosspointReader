@@ -1,14 +1,14 @@
 #include "features/txt/Registration.h"
 
-#include <HalStorage.h>
 #include <Logging.h>
 
 #include <memory>
+#include <new>
 #include <string>
 
-#include "SpiBusMutex.h"
 #include "Txt.h"
 #include "activities/reader/TxtReaderActivity.h"
+#include "core/registries/ReaderLoader.h"
 #include "core/registries/ReaderRegistry.h"
 
 namespace features::txt {
@@ -21,19 +21,18 @@ Activity* createActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
   (void)onBackToLibrary;
   (void)onBackHome;
 
-  SpiBusMutex::Guard guard;
-  if (!Storage.exists(path.c_str())) {
-    LOG_ERR("READER", "File does not exist: %s", path.c_str());
+  auto txt = core::loadDocumentNoThrow<Txt>(path, "TXT");
+  if (!txt) {
     return nullptr;
   }
 
-  auto txt = std::unique_ptr<Txt>(new Txt(path, "/.crosspoint"));
-  if (!txt->load()) {
-    LOG_ERR("READER", "Failed to load TXT");
+  auto* activity = new (std::nothrow) TxtReaderActivity(renderer, mappedInput, std::move(txt));
+  if (!activity) {
+    LOG_ERR("READER", "Failed to allocate TxtReaderActivity");
     return nullptr;
   }
 
-  return new TxtReaderActivity(renderer, mappedInput, std::move(txt));
+  return activity;
 }
 
 }  // namespace

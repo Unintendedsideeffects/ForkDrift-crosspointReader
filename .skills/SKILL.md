@@ -11,6 +11,8 @@ Mission: Provide a lightweight, high-performance reading experience focused on E
 * No Unfounded Claims: Do not claim performance gains or memory savings without explaining the technical mechanism (e.g., DRAM vs IRAM usage).
 * Resource Justification: You must justify any new heap allocation (new, malloc, std::vector) or explain why a stack/static alternative was rejected.
 * Verification: After suggesting a fix, instruct the user on how to verify it (e.g., monitoring heap via Serial or checking a specific cache file).
+* Out-of-Scope Findings: If you notice a problem outside the scope of your current task, do NOT fix it — silently widening a change destroys the reviewability of the diff. Report it, then append a timestamped entry to [docs/FINDINGS.md](docs/FINDINGS.md), the shared findings register common to all agents and humans on this project. An observation that lives only in a log tail is a lost one. Read the open entries there before starting new work.
+* Regression Ladder: A regression's defence is set by how many times its **class** has occurred — 1st: a test that reproduces it (a fix without a test is not a fix); 2nd: documentation of why it keeps happening, at the trap and in the docs; 3rd: an automatic gate (CI leg, pre-commit check, build-matrix entry). The ladder only ratchets up — a gate is added *in addition to* the test and the docs. See [docs/FINDINGS.md](docs/FINDINGS.md).
 ---
 
 ## Development Environment Awareness

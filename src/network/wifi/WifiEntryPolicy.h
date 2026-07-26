@@ -30,19 +30,31 @@ struct EntryInput {
   bool hasLastCredential = false;
   // WifiScanCache::isFresh()
   bool scanCacheFresh = false;
+  // backgroundReleaseFailed: Set once the caller has issued a release that did not take effect (the
+  // service is still running after stop() returned). The service declines to
+  // force-delete a task holding a mutex, so retrying can never succeed — the
+  // picker proceeds without the radio handoff rather than blocking forever.
+  bool backgroundReleaseFailed = false;
 };
 
 /**
  * Decides what the foreground WiFi picker should do when it opens.
  *
- * The ordering matters: adopting an existing link is checked before anything
- * else, because every network-backed activity re-enters this flow and a
- * re-association costs several seconds of user-visible latency for a link that
- * is already usable.
- *
- * Note that AdoptExistingLink is returned even when the background service is
- * running: the caller stops that service with keepWifi=true, which tears down
- * the HTTP server but leaves the association intact.
+ * 1. Release first. When the background service is running, it owns port 80
+ *    and a request-handling task, so it is released prior to other checks. The
+ *    caller stops it with keepWifi=true so the association survives and can
+ *    be adopted on the next evaluation. Once a release has been issued that
+ *    did not take effect, the policy stops asking and falls through, because
+ *    the service declines to force-delete a task holding a mutex and a retry
+ *    can never succeed.
+ * 2. Adopt a usable link — but only when allowAutoConnect. Every
+ *    network-backed activity re-enters this flow and a re-association costs
+ *    seconds of user-visible latency. Callers that pass autoConnect=false
+ *    (Settings -> WiFi setup, OPDS server setup) opened the screen to change
+ *    networks, so adopting silently would defeat the user's intent.
+ * 3. Auto-connect to the last network when there is no link, allowAutoConnect
+ *    is set, and a credential exists.
+ * 4. Show the cached scan when it is still fresh, else scan.
  */
 EntryAction evaluateEntry(const EntryInput& input);
 

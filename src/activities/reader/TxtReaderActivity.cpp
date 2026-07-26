@@ -139,7 +139,7 @@ void TxtReaderActivity::initializeReader() {
   cachedOrientedMarginTop += cachedScreenMargin + features::status_overlay::topInset();
   cachedOrientedMarginLeft += cachedScreenMargin;
   cachedOrientedMarginRight += cachedScreenMargin;
-  cachedOrientedMarginBottom += cachedScreenMargin + features::status_overlay::bottomInset();
+  cachedOrientedMarginBottom += cachedScreenMargin;
 
   viewportWidth = renderer.getScreenWidth() - cachedOrientedMarginLeft - cachedOrientedMarginRight;
   const int viewportHeight = renderer.getScreenHeight() - cachedOrientedMarginTop - cachedOrientedMarginBottom;

@@ -10,16 +10,24 @@ namespace TodoPlannerStorage {
 
 constexpr size_t kTodoEntryMaxTextLength = 300;
 constexpr int kRolloverScanBackDays = 14;
+constexpr size_t kMaxDailyFileBytes = 32u * 1024u;
 
 std::string dailyPath(const std::string& date, bool markdownEnabled, bool markdownExists, bool textExists);
 std::string resolveDailyPath(const std::string& date, bool markdownEnabled);
 
-// Reads a daily planner file, rejecting anything implausibly large so a single
-// oversized /daily/<date>.md (organic growth, or a file dropped on the SD card)
-// can't slurp megabytes into the 380KB heap. Returns {} on any failure.
+// Reads a daily planner file, rejecting anything larger than kMaxDailyFileBytes
+// (32 KB) so a single oversized /daily/<date>.md can't slurp megabytes into the
+// heap. Returns {} on any failure.
 // Lives here rather than in the web API because the planner activities need it
 // too, and `[env:simulator]` excludes `src/network/server/`.
 std::string readDailyFileCapped(const std::string& path);
+
+// Writes a daily planner file atomically: content goes to <path>.tmp, the
+// existing file is renamed to <path>.bak, the temp is renamed into place, and
+// the backup is dropped. A crash at any point leaves either the old file, or a
+// promotable <path>.tmp / <path>.bak — never nothing. Caller must already hold
+// SpiBusMutex. Returns false on any failure, leaving the original intact.
+bool writeDailyFileAtomic(const std::string& path, const std::string& content);
 
 std::string formatEntry(const std::string& text, bool agendaEntry, bool markdownEnabled = false);
 

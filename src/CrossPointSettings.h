@@ -13,6 +13,12 @@ class CrossPointSettings {
   static CrossPointSettings instance;
 
  public:
+  // Schema version for settings.json. Bump when the MEANING of a persisted value
+  // changes (not when a key is added — absent keys already fall back to their
+  // default). A file with no "settingsVersion" key predates versioning and is
+  // treated as version 0.
+  static constexpr uint8_t SETTINGS_SCHEMA_VERSION = 1;
+
   // Delete copy constructor and assignment
   CrossPointSettings(const CrossPointSettings&) = delete;
   CrossPointSettings& operator=(const CrossPointSettings&) = delete;

@@ -8,13 +8,14 @@ using wifi_entry::EntryInput;
 
 EntryInput makeInput(const bool linkUp = false, const bool backgroundServiceRunning = false,
                      const bool allowAutoConnect = true, const bool hasLastCredential = false,
-                     const bool scanCacheFresh = false) {
+                     const bool scanCacheFresh = false, const bool backgroundReleaseFailed = false) {
   return EntryInput{
       .linkUp = linkUp,
       .backgroundServiceRunning = backgroundServiceRunning,
       .allowAutoConnect = allowAutoConnect,
       .hasLastCredential = hasLastCredential,
       .scanCacheFresh = scanCacheFresh,
+      .backgroundReleaseFailed = backgroundReleaseFailed,
   };
 }
 
@@ -29,6 +30,23 @@ TEST_CASE("wifi entry: background service is released before anything else") {
   input = makeInput(/*linkUp=*/false, /*backgroundServiceRunning=*/true, /*allowAutoConnect=*/true,
                     /*hasLastCredential=*/true, /*scanCacheFresh=*/true);
   CHECK(wifi_entry::evaluateEntry(input) == EntryAction::ReleaseBackgroundService);
+}
+
+TEST_CASE("wifi entry: failed background release falls through to normal entry ladder") {
+  const auto adoptInput =
+      makeInput(/*linkUp=*/true, /*backgroundServiceRunning=*/true, /*allowAutoConnect=*/true,
+                /*hasLastCredential=*/false, /*scanCacheFresh=*/false, /*backgroundReleaseFailed=*/true);
+  CHECK(wifi_entry::evaluateEntry(adoptInput) == EntryAction::AdoptExistingLink);
+
+  const auto scanInput =
+      makeInput(/*linkUp=*/false, /*backgroundServiceRunning=*/true, /*allowAutoConnect=*/false,
+                /*hasLastCredential=*/false, /*scanCacheFresh=*/false, /*backgroundReleaseFailed=*/true);
+  CHECK(wifi_entry::evaluateEntry(scanInput) == EntryAction::Scan);
+
+  const auto inertInput =
+      makeInput(/*linkUp=*/false, /*backgroundServiceRunning=*/false, /*allowAutoConnect=*/false,
+                /*hasLastCredential=*/false, /*scanCacheFresh=*/false, /*backgroundReleaseFailed=*/true);
+  CHECK(wifi_entry::evaluateEntry(inertInput) == EntryAction::Scan);
 }
 
 TEST_CASE("wifi entry: an existing link is adopted instead of re-associating") {

@@ -10,6 +10,7 @@
 #include <atomic>
 #include <optional>
 #include <string>
+#include <vector>
 
 #if ENABLE_READING_STATS
 #include "BookReadingStats.h"
@@ -87,28 +88,41 @@ class EpubReaderActivity final : public Activity {
   // word (Up/Down), Confirm anchors then extends, second Confirm opens actions.
   bool selectionMode = false;
   selection::Model selModel;
+  std::vector<selection::SelWord> selectionPageIndex;
+  std::optional<selection::PageGenerationKey> selectionPageGeneration;
+  std::vector<selection::HighlightRect> selectionPreviousRuns;
+  std::vector<selection::HighlightRect> selectionCurrentRuns;
   OptionPopup selectionPopup;
   std::unique_ptr<uint8_t[]> selectionBaseSnapshot;
   bool selectionSnapshotFallback = false;
   std::unique_ptr<uint8_t[]> pendingSelectionSnapshot;
   uint8_t selectionContentLoads = 0;
   bool selectionNeedsWordReload = false;
+  bool selectionOverlayInitialized = false;
+  bool selectionForceFullRedraw = true;
   selection_capture::Action selectionPreferredAction = selection_capture::Action::BookNotes;
+
+  static constexpr size_t kMaxSelectionWords = 768;
+  static constexpr size_t kMaxSelectionTextBytes = 12 * 1024;
 
   void enterSelectionMode(std::unique_ptr<uint8_t[]> transferredSnapshot = {});
   bool refreshSelectionWords();
+  selection::PageGenerationKey currentSelectionGeneration() const;
+  bool buildSelectionPageIndex(const Page& page, int marginTop, int marginRight, int marginBottom, int marginLeft);
+  void invalidateSelectionPageIndex();
   void selectionTurnPage(bool forward);
   bool tryCaptureSelectionSnapshotFromFramebuffer();
   void exitSelectionMode();
   bool handleSelectionInput();
-  void drawSelectionOverlay() const;
+  void drawSelectionOverlay(bool incremental);
+  void drawSelectionRuns(const std::vector<selection::HighlightRect>& runs) const;
   std::string selectedText() const;
   std::string selectionLocation() const;
   void openSelectionActions();
   // Shared by selection mode and annotation rendering: flatten the page's
   // selectable words into screen rects.
-  void collectSelectableWords(const Page& page, int marginLeft, int marginTop,
-                              std::vector<selection::SelWord>& out) const;
+  bool collectSelectableWords(const Page& page, int marginLeft, int marginTop, std::vector<selection::SelWord>& out,
+                              bool bounded) const;
 #if ENABLE_ANNOTATIONS
   // Draw persistent highlights for the current page into the BW framebuffer.
   void renderAnnotations(const Page& page, int marginLeft, int marginTop) const;

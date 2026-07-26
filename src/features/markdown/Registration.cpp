@@ -1,15 +1,15 @@
 #include "features/markdown/Registration.h"
 
 #include <FeatureFlags.h>
-#include <HalStorage.h>
 #include <Logging.h>
 
 #include <memory>
+#include <new>
 #include <string>
 
 #include "Markdown.h"
-#include "SpiBusMutex.h"
 #include "activities/reader/MarkdownReaderActivity.h"
+#include "core/registries/ReaderLoader.h"
 #include "core/registries/ReaderRegistry.h"
 
 namespace features::markdown {
@@ -23,20 +23,19 @@ bool isSupported(const char* path) {
 Activity* createActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const std::string& path,
                          void* callbackCtx, void (*onBackToLibrary)(void* ctx, const std::string& path),
                          void (*onBackHome)(void* ctx)) {
-  SpiBusMutex::Guard guard;
-  if (!Storage.exists(path.c_str())) {
-    LOG_ERR("READER", "File does not exist: %s", path.c_str());
+  auto markdown = core::loadDocumentNoThrow<Markdown>(path, "Markdown");
+  if (!markdown) {
     return nullptr;
   }
 
-  auto markdown = std::unique_ptr<Markdown>(new Markdown(path, "/.crosspoint"));
-  if (!markdown->load()) {
-    LOG_ERR("READER", "Failed to load Markdown");
+  auto* activity = new (std::nothrow)
+      MarkdownReaderActivity(renderer, mappedInput, std::move(markdown), callbackCtx, onBackToLibrary, onBackHome);
+  if (!activity) {
+    LOG_ERR("READER", "Failed to allocate MarkdownReaderActivity");
     return nullptr;
   }
 
-  return new MarkdownReaderActivity(renderer, mappedInput, std::move(markdown), callbackCtx, onBackToLibrary,
-                                    onBackHome);
+  return activity;
 }
 
 }  // namespace

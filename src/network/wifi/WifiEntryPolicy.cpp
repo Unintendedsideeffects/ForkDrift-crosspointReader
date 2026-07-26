@@ -6,7 +6,7 @@ EntryAction evaluateEntry(const EntryInput& input) {
   // Release first, always. The background service owns port 80 and a
   // request-handling task; the caller stops it with keepWifi=true so the radio
   // association survives and can be adopted on the next evaluation.
-  if (input.backgroundServiceRunning) {
+  if (input.backgroundServiceRunning && !input.backgroundReleaseFailed) {
     return EntryAction::ReleaseBackgroundService;
   }
 

@@ -425,11 +425,11 @@ void MyLibraryActivity::render(RenderLock&&) {
 
   int contentTop;
   if (embedded) {
-    // Hosted in the library strip: the host paints the top kStripInset (tab strip)
+    // Hosted in the library strip: the host paints the top kTabStripHeight (tab strip)
     // over this render, so skip our own header/tab-bar and start content below it.
     // In a subdirectory, show the folder name as a compact line so the browser
     // still has directory context without the full header chrome.
-    contentTop = kStripInset + metrics.verticalSpacing;
+    contentTop = kTabStripHeight + metrics.verticalSpacing;
     if (basepath != "/") {
       const auto folderName = basepath.substr(basepath.rfind('/') + 1);
       renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, contentTop, folderName.c_str());

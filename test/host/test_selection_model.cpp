@@ -1,3 +1,5 @@
+#include <array>
+#include <cstring>
 #include <vector>
 
 #include "activities/reader/SelectionModel.h"
@@ -21,6 +23,119 @@ selection::Model makeModel(const std::vector<const char*>& texts) {
 }
 
 }  // namespace
+
+TEST_CASE("SelectionModel generation key invalidates every layout input") {
+  selection::PageGenerationKey base;
+  base.book = 0x1234;
+  base.spine = 2;
+  base.page = 7;
+  base.marginTop = 11;
+  base.marginRight = 12;
+  base.marginBottom = 13;
+  base.marginLeft = 14;
+  base.screenWidth = 480;
+  base.screenHeight = 800;
+  base.fontId = 3;
+  base.orientation = 1;
+  base.lineCompression = 2;
+  base.extraParagraphSpacing = 1;
+  base.forceParagraphIndents = 1;
+  base.paragraphAlignment = 2;
+  base.hyphenationEnabled = 1;
+  base.embeddedStyle = 1;
+  base.imageRendering = 1;
+  base.focusReadingEnabled = 1;
+  base.guideReadingEnabled = 1;
+
+#define CHECK_KEY_FIELD(field)    \
+  do {                            \
+    auto changed = base;          \
+    ++changed.field;              \
+    CHECK_FALSE(changed == base); \
+  } while (false)
+  CHECK_KEY_FIELD(book);
+  CHECK_KEY_FIELD(spine);
+  CHECK_KEY_FIELD(page);
+  CHECK_KEY_FIELD(marginTop);
+  CHECK_KEY_FIELD(marginRight);
+  CHECK_KEY_FIELD(marginBottom);
+  CHECK_KEY_FIELD(marginLeft);
+  CHECK_KEY_FIELD(screenWidth);
+  CHECK_KEY_FIELD(screenHeight);
+  CHECK_KEY_FIELD(fontId);
+  CHECK_KEY_FIELD(orientation);
+  CHECK_KEY_FIELD(lineCompression);
+  CHECK_KEY_FIELD(extraParagraphSpacing);
+  CHECK_KEY_FIELD(forceParagraphIndents);
+  CHECK_KEY_FIELD(paragraphAlignment);
+  CHECK_KEY_FIELD(hyphenationEnabled);
+  CHECK_KEY_FIELD(embeddedStyle);
+  CHECK_KEY_FIELD(imageRendering);
+  CHECK_KEY_FIELD(focusReadingEnabled);
+  CHECK_KEY_FIELD(guideReadingEnabled);
+#undef CHECK_KEY_FIELD
+}
+
+TEST_CASE("SelectionModel run generation reuses caller capacity") {
+  std::vector<selection::SelWord> words{
+      {10, 10, 10, 12, 0, "one"}, {22, 10, 10, 12, 0, "two"}, {10, 30, 12, 12, 1, "three"}};
+  std::vector<selection::HighlightRect> runs;
+  runs.reserve(words.size());
+  const auto* const storage = runs.data();
+  const size_t capacity = runs.capacity();
+
+  for (int i = 0; i < 100; ++i) {
+    REQUIRE(selection::buildHighlightRuns(words, 0, i % 3, runs));
+    CHECK(runs.data() == storage);
+    CHECK(runs.capacity() == capacity);
+  }
+}
+
+TEST_CASE("SelectionModel incremental overlay matches full redraw in every orientation") {
+  constexpr uint16_t panelWidth = 64;
+  constexpr uint16_t panelHeight = 48;
+  constexpr size_t frameSize = panelWidth / 8 * panelHeight;
+  std::array<uint8_t, frameSize> base{};
+  for (size_t i = 0; i < base.size(); ++i) {
+    base[i] = static_cast<uint8_t>((i * 37u + 11u) & 0xFFu);
+  }
+  const std::array<std::vector<selection::HighlightRect>, 5> sweep{{
+      {{3, 4, 9, 7}},
+      {{3, 4, 21, 7}},
+      {{3, 4, 21, 7}, {5, 16, 30, 6}},
+      {{5, 16, 30, 6}},
+      {{18, 16, 17, 6}},
+  }};
+
+  for (uint8_t rawOrientation = 0; rawOrientation < 4; ++rawOrientation) {
+    const auto orientation = static_cast<selection::FrameOrientation>(rawOrientation);
+    auto incremental = base;
+    std::vector<selection::HighlightRect> previous;
+    for (const auto& current : sweep) {
+      auto reference = base;
+      for (const auto& rect : current) {
+        selection::invertHighlightRect(reference.data(), reference.size(), panelWidth, panelHeight, orientation, rect);
+      }
+      const auto status = selection::applyIncrementalSelectionOverlay(
+          incremental.data(), base.data(), incremental.size(), panelWidth, panelHeight, orientation, previous, current);
+      CHECK(status == selection::IncrementalDamageStatus::Applied);
+      CHECK(std::memcmp(incremental.data(), reference.data(), frameSize) == 0);
+      previous = current;
+    }
+  }
+}
+
+TEST_CASE("SelectionModel overlapping runs request the conservative full redraw") {
+  constexpr uint16_t panelWidth = 64;
+  constexpr uint16_t panelHeight = 48;
+  std::array<uint8_t, panelWidth / 8 * panelHeight> frame{};
+  const auto base = frame;
+  const std::vector<selection::HighlightRect> overlapping{{2, 2, 10, 10}, {5, 5, 10, 10}};
+  CHECK(selection::applyIncrementalSelectionOverlay(frame.data(), base.data(), frame.size(), panelWidth, panelHeight,
+                                                    selection::FrameOrientation::LandscapeCounterClockwise, {},
+                                                    overlapping) ==
+        selection::IncrementalDamageStatus::FullRedrawRequired);
+}
 
 TEST_CASE("SelectionModel move clamps and drags anchor before anchoring") {
   auto model = makeModel({"one", "two", "three"});

@@ -2,14 +2,14 @@
 
 #include <Epub.h>
 #include <FeatureFlags.h>
-#include <HalStorage.h>
 #include <Logging.h>
 
 #include <memory>
+#include <new>
 #include <string>
 
-#include "SpiBusMutex.h"
 #include "activities/reader/EpubReaderActivity.h"
+#include "core/registries/ReaderLoader.h"
 #include "core/registries/ReaderRegistry.h"
 
 namespace features::epub {
@@ -27,19 +27,18 @@ Activity* createActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
   (void)onBackToLibrary;
   (void)onBackHome;
 
-  SpiBusMutex::Guard guard;
-  if (!Storage.exists(path.c_str())) {
-    LOG_ERR("READER", "File does not exist: %s", path.c_str());
+  auto epub = core::loadDocumentNoThrow<Epub>(path, "EPUB");
+  if (!epub) {
     return nullptr;
   }
 
-  auto epub = std::unique_ptr<Epub>(new Epub(path, "/.crosspoint"));
-  if (!epub->load()) {
-    LOG_ERR("READER", "Failed to load EPUB");
+  auto* activity = new (std::nothrow) EpubReaderActivity(renderer, mappedInput, std::move(epub));
+  if (!activity) {
+    LOG_ERR("READER", "Failed to allocate EpubReaderActivity");
     return nullptr;
   }
 
-  return new EpubReaderActivity(renderer, mappedInput, std::move(epub));
+  return activity;
 }
 
 }  // namespace

@@ -130,14 +130,27 @@ std::string dailyPath(const std::string& date, const bool markdownEnabled, const
 }
 
 std::string readDailyFileCapped(const std::string& path) {
-  constexpr size_t kMaxDailyBytes = 256u * 1024u;
+  if (!Storage.exists(path.c_str())) {
+    const std::string tmpPath = path + ".tmp";
+    const std::string bakPath = path + ".bak";
+    if (Storage.exists(tmpPath.c_str())) {
+      if (Storage.rename(tmpPath.c_str(), path.c_str())) {
+        LOG_INF("TODO", "Recovered daily file from interrupted save");
+      }
+    } else if (Storage.exists(bakPath.c_str())) {
+      if (Storage.rename(bakPath.c_str(), path.c_str())) {
+        LOG_INF("TODO", "Recovered daily file from interrupted save");
+      }
+    }
+  }
+
   HalFile file;
   if (!Storage.openFileForRead("TODO", path.c_str(), file)) {
     return {};
   }
   const size_t sz = static_cast<size_t>(file.fileSize64());
-  if (sz > kMaxDailyBytes) {
-    LOG_ERR("TODO", "Daily file too large (%zu bytes); ignoring", sz);
+  if (sz > kMaxDailyFileBytes) {
+    LOG_ERR("TODO", "Daily file too large (%zu bytes, max %zu); ignoring", sz, kMaxDailyFileBytes);
     return {};
   }
   std::string out;
@@ -150,6 +163,55 @@ std::string readDailyFileCapped(const std::string& path) {
     }
   }
   return out;
+}
+
+bool writeDailyFileAtomic(const std::string& path, const std::string& content) {
+  const std::string tempPath = path + ".tmp";
+  const std::string backupPath = path + ".bak";
+
+  if (Storage.exists(tempPath.c_str())) {
+    Storage.remove(tempPath.c_str());
+  }
+
+  HalFile file;
+  if (!Storage.openFileForWrite("TODO", tempPath.c_str(), file)) {
+    LOG_ERR("TODO", "Failed to open temp file for write: %s", tempPath.c_str());
+    return false;
+  }
+
+  const size_t bytesToWrite = content.size();
+  if (bytesToWrite > 0) {
+    const int written = file.write(reinterpret_cast<const uint8_t*>(content.data()), bytesToWrite);
+    if (written < 0 || static_cast<size_t>(written) != bytesToWrite) {
+      LOG_ERR("TODO", "Short write to temp file: %s", tempPath.c_str());
+      file.close();
+      Storage.remove(tempPath.c_str());
+      return false;
+    }
+  }
+  file.close();
+
+  const bool hasExisting = Storage.exists(path.c_str());
+  if (Storage.exists(backupPath.c_str())) {
+    Storage.remove(backupPath.c_str());
+  }
+  if (hasExisting && !Storage.rename(path.c_str(), backupPath.c_str())) {
+    LOG_ERR("TODO", "Failed to rename existing file to backup: %s", backupPath.c_str());
+    Storage.remove(tempPath.c_str());
+    return false;
+  }
+  if (!Storage.rename(tempPath.c_str(), path.c_str())) {
+    LOG_ERR("TODO", "Failed to rename temp file to target: %s", path.c_str());
+    if (hasExisting) {
+      Storage.rename(backupPath.c_str(), path.c_str());
+    }
+    Storage.remove(tempPath.c_str());
+    return false;
+  }
+  if (hasExisting) {
+    Storage.remove(backupPath.c_str());
+  }
+  return true;
 }
 
 std::string resolveDailyPath(const std::string& date, const bool markdownEnabled) {
@@ -370,7 +432,7 @@ void collectRecurringDefinitions(const std::vector<TodoItem>& sourceItems, const
   const int sourceWeekday = DateUtils::weekdayIndex(sourceIsoDate);
   accumulator.reserve(accumulator.size() + sourceItems.size());
   for (const TodoItem& item : sourceItems) {
-    if (item.isHeader || item.checked || item.recurrence == TodoRecurrence::None) {
+    if (item.isHeader || item.recurrence == TodoRecurrence::None) {
       continue;
     }
     // Dedupe by text: the accumulator is filled most-recent-day-first, so an
@@ -381,7 +443,10 @@ void collectRecurringDefinitions(const std::vector<TodoItem>& sourceItems, const
       continue;
     }
     TodoItem carried = item;
-    carried.checked = false;  // defensive
+    // A recurring line is a rule plus one day's instance. Harvest the rule even
+    // from a completed instance — otherwise checking a !daily task off is what
+    // stops it recurring — and always materialise the next day fresh.
+    carried.checked = false;
     // Normalise bare !weekly → !wk:<source weekday>
     if (carried.recurrence == TodoRecurrence::Weekly && carried.weekdayMask == 0 && sourceWeekday >= 0) {
       carried.recurrence = TodoRecurrence::Weekdays;

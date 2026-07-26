@@ -1,15 +1,15 @@
 #include "features/xtc/Registration.h"
 
 #include <FeatureFlags.h>
-#include <HalStorage.h>
 #include <Logging.h>
 #include <Xtc.h>
 
 #include <memory>
+#include <new>
 #include <string>
 
-#include "SpiBusMutex.h"
 #include "activities/reader/XtcReaderActivity.h"
+#include "core/registries/ReaderLoader.h"
 #include "core/registries/ReaderRegistry.h"
 
 namespace features::xtc {
@@ -27,19 +27,18 @@ Activity* createActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
   (void)onBackToLibrary;
   (void)onBackHome;
 
-  SpiBusMutex::Guard guard;
-  if (!Storage.exists(path.c_str())) {
-    LOG_ERR("READER", "File does not exist: %s", path.c_str());
+  auto xtc = core::loadDocumentNoThrow<Xtc>(path, "XTC");
+  if (!xtc) {
     return nullptr;
   }
 
-  auto xtc = std::unique_ptr<Xtc>(new Xtc(path, "/.crosspoint"));
-  if (!xtc->load()) {
-    LOG_ERR("READER", "Failed to load XTC");
+  auto* activity = new (std::nothrow) XtcReaderActivity(renderer, mappedInput, std::move(xtc));
+  if (!activity) {
+    LOG_ERR("READER", "Failed to allocate XtcReaderActivity");
     return nullptr;
   }
 
-  return new XtcReaderActivity(renderer, mappedInput, std::move(xtc));
+  return activity;
 }
 
 void addEntry(const char* extension) {

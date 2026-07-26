@@ -18,37 +18,6 @@ namespace {
 
 constexpr size_t kMaxTodoItems = 256;
 
-// Writes a daily planner file atomically via a temporary file and rename.
-// Caller already holds SpiBusMutex.
-bool writeDailyFileAtomic(const std::string& targetPath, const std::string& content) {
-  const std::string tempPath = targetPath + ".tmp";
-  if (Storage.exists(tempPath.c_str())) {
-    Storage.remove(tempPath.c_str());
-  }
-
-  HalFile file;
-  if (!Storage.openFileForWrite("WEB", tempPath.c_str(), file)) {
-    return false;
-  }
-  const size_t bytesToWrite = content.size();
-  if (bytesToWrite > 0 &&
-      static_cast<size_t>(file.write(reinterpret_cast<const uint8_t*>(content.data()), bytesToWrite)) != bytesToWrite) {
-    file.close();
-    Storage.remove(tempPath.c_str());
-    return false;
-  }
-  file.close();
-
-  if (Storage.exists(targetPath.c_str())) {
-    Storage.remove(targetPath.c_str());
-  }
-  if (!Storage.rename(tempPath.c_str(), targetPath.c_str())) {
-    Storage.remove(tempPath.c_str());
-    return false;
-  }
-  return true;
-}
-
 std::string normalizeTodoEntryText(const std::string& input) {
   std::string normalized;
   normalized.reserve(input.size());
@@ -222,7 +191,7 @@ TodoPlannerHttpResult handleTodoEntryRequest(const bool plannerEnabled, const bo
     }
     content += TodoPlannerStorage::formatEntry(text.c_str(), agendaEntry, markdownEnabled);
     content.push_back('\n');
-    writeOk = writeDailyFileAtomic(targetPath, content);
+    writeOk = TodoPlannerStorage::writeDailyFileAtomic(targetPath, content);
   }
 
   if (!writeOk) {
@@ -324,7 +293,7 @@ TodoPlannerHttpResult handleTodoTodaySaveRequest(const bool plannerEnabled, cons
         LOG_ERR("WEB", "Failed to create daily directory: %s", dirPath.c_str());
       }
     }
-    writeOk = writeDailyFileAtomic(targetPath, content);
+    writeOk = TodoPlannerStorage::writeDailyFileAtomic(targetPath, content);
   }
 
   if (!writeOk) {

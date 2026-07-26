@@ -99,9 +99,9 @@ void OpdsServerListActivity::render(RenderLock&&) {
 
   int contentTop;
   if (embedded) {
-    // Hosted in the library strip: the host paints the top kStripInset over this
+    // Hosted in the library strip: the host paints the top kTabStripHeight over this
     // render, so skip our own header and start the list below the strip.
-    contentTop = kStripInset + metrics.verticalSpacing;
+    contentTop = kTabStripHeight + metrics.verticalSpacing;
   } else {
     GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_OPDS_SERVERS));
     contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;

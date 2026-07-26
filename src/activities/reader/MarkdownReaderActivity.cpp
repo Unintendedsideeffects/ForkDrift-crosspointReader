@@ -302,7 +302,7 @@ void MarkdownReaderActivity::renderScreen() {
   orientedMarginTop += SETTINGS.screenMargin + features::status_overlay::topInset();
   orientedMarginLeft += SETTINGS.screenMargin;
   orientedMarginRight += SETTINGS.screenMargin;
-  orientedMarginBottom += SETTINGS.screenMargin + features::status_overlay::bottomInset();
+  orientedMarginBottom += SETTINGS.screenMargin;
 
   if (SETTINGS.statusBar != CrossPointSettings::STATUS_BAR_MODE::NONE) {
     const bool showProgressBar = SETTINGS.statusBar == CrossPointSettings::STATUS_BAR_MODE::BOOK_PROGRESS_BAR ||

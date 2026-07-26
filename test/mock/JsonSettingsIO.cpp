@@ -72,6 +72,9 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
   doc["darkMode"] = s.darkMode;
   doc["embeddedStyle"] = s.embeddedStyle;
   doc["wifiAutoConnect"] = s.wifiAutoConnect;
+  doc["globalStatusBar"] = s.globalStatusBar;
+  doc["globalStatusBarPosition"] = s.globalStatusBarPosition;
+  doc["settingsVersion"] = CrossPointSettings::SETTINGS_SCHEMA_VERSION;
   doc["userFontPath"] = s.userFontPath;
   doc["selectedOtaBundle"] = s.selectedOtaBundle;
   doc["installedOtaBundle"] = s.installedOtaBundle;
@@ -172,6 +175,15 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool*
   s.syncDarkModeLegacyField();
   s.embeddedStyle = doc["embeddedStyle"] | (uint8_t)1;
   s.wifiAutoConnect = doc["wifiAutoConnect"] | (uint8_t)0;
+  s.globalStatusBar = clamp(doc["globalStatusBar"] | (uint8_t)S::GLOBAL_STATUS_BAR_OFF, S::GLOBAL_STATUS_BAR_MODE_COUNT,
+                            S::GLOBAL_STATUS_BAR_OFF);
+  const uint8_t schemaVersion = doc["settingsVersion"] | (uint8_t)0;
+  uint8_t rawStatusBarPosition = doc["globalStatusBarPosition"] | (uint8_t)S::STATUS_BAR_ON;
+  if (schemaVersion < 1 && rawStatusBarPosition == 1) {
+    rawStatusBarPosition = S::STATUS_BAR_ON;
+    if (needsResave) *needsResave = true;
+  }
+  s.globalStatusBarPosition = clamp(rawStatusBarPosition, S::GLOBAL_STATUS_BAR_POSITION_COUNT, S::STATUS_BAR_ON);
 
   const char* userFontPath = doc["userFontPath"] | "";
   strncpy(s.userFontPath, userFontPath, sizeof(s.userFontPath) - 1);

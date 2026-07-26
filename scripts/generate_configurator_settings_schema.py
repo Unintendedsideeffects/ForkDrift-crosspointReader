@@ -75,6 +75,7 @@ EXCLUDED_PERSISTED_KEYS = {
     "releaseChannel",
     "sdFontFamilyName",
     "selectedOtaBundle",
+    "settingsVersion",
     "statusBarClock",
     "todoFallbackCover",
     "userFontPath",

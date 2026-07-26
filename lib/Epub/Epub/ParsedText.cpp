@@ -3,6 +3,7 @@
 #include <BidiUtils.h>
 #include <FeatureFlags.h>
 #include <GfxRenderer.h>
+#include <HeapGuard.h>
 #include <Logging.h>
 #include <Utf8.h>
 
@@ -258,6 +259,20 @@ bool isWordCharacter(uint32_t cp) {
 void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle, const bool underline,
                          const bool attachToPrevious) {
   if (word.empty()) return;
+
+  // Technique #4 — graceful degradation. The word vectors below grow via
+  // std::vector, whose bad_alloc becomes terminate() under -fno-exceptions
+  // (observed on image-heavy chapters that leave the heap too tight for text).
+  // When a growth-sized block can't be allocated without crossing the critical
+  // floor, stop accepting words: the block truncates but the reader never
+  // crashes. A fresh ParsedText per block re-enables words once heap recovers.
+  if (!heapguard::canAllocate(kWordGrowthGuardBytes)) {
+    if (!heapTruncated) {
+      heapTruncated = true;
+      LOG_ERR("PTX", "OOM guard: truncating block (low heap, largest=%zu)", heapguard::largestBlock());
+    }
+    return;
+  }
 
   // The device fonts carry no combining-mark positioning, so EPUB text stored in NFD
   // (a base letter followed by separate combining accents -- common for Vietnamese,

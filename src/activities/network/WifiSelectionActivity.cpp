@@ -65,6 +65,7 @@ void WifiSelectionActivity::onEnter() {
   usedSavedPassword = false;
   forgetPromptSelection = 0;
   refreshingInBackground = false;
+  backgroundReleaseFailed = false;
   radioStep = RadioStep::None;
 
   // Cache MAC address for the list footer
@@ -106,6 +107,7 @@ void WifiSelectionActivity::evaluateEntry() {
       .allowAutoConnect = allowAutoConnect,
       .hasLastCredential = hasLastCredential,
       .scanCacheFresh = WifiScanCache::isFresh(),
+      .backgroundReleaseFailed = backgroundReleaseFailed,
   });
 
   switch (action) {
@@ -590,6 +592,12 @@ void WifiSelectionActivity::loop() {
     case WifiSelectionState::RELEASING_BACKGROUND:
       if (BG_WIFI.isRunning()) {
         BG_WIFI.stop(true);  // keepWifi: hand the association to the foreground
+        if (BG_WIFI.isRunning()) {
+          // stop() declined to force-delete a task holding a mutex; a retry
+          // would block another STOP_TIMEOUT_MS and fail identically.
+          LOG_ERR("WIFISEL", "Background service did not release; continuing without handoff");
+          backgroundReleaseFailed = true;
+        }
       }
       evaluateEntry();
       return;

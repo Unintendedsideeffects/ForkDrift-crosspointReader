@@ -31,7 +31,6 @@ const ThemeMetrics& UITheme::getMetrics() const {
   adjustedMetrics = *currentMetrics;
   adjustedMetrics.topPadding += features::status_overlay::topInset();
   adjustedMetrics.homeTopPadding += features::status_overlay::topInset();
-  adjustedMetrics.buttonHintsHeight += features::status_overlay::bottomInset();
   return adjustedMetrics;
 }
 

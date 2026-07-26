@@ -29,6 +29,5 @@ inline bool isEnabled() { return ENABLE_GLOBAL_STATUS_BAR != 0; }
 inline bool preventsAutoSleep() { return SETTINGS.globalStatusBarPreventsAutoSleep(); }
 
 int topInset();
-int bottomInset();
 
 }  // namespace features::status_overlay

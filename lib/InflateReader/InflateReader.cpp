@@ -5,7 +5,18 @@
 
 namespace {
 constexpr size_t INFLATE_DICT_SIZE = 32768;
-}
+
+// Shared, persistent DEFLATE window. uzlib needs a 32KB dictionary for streaming
+// inflate. Allocating (and freeing) it per call fragments an already-tight heap
+// and then fails when no 32KB-contiguous block remains — the failure mode that
+// left image-heavy EPUBs unable to extract figures. Inflate is serial on this
+// single-core device, so one buffer, allocated once and reused, is both frugal
+// (no per-call churn) and reliable (no repeated fragmented allocation). Kept for
+// the process lifetime once claimed; a rare re-entrant inflate falls back to a
+// private malloc.
+uint8_t* g_sharedWindow = nullptr;
+bool g_sharedWindowInUse = false;
+}  // namespace
 
 // Guarantee the cast pattern in the header comment is valid.
 static_assert(std::is_standard_layout<InflateReader>::value,
@@ -17,8 +28,23 @@ bool InflateReader::init(const bool streaming) {
   deinit();  // free any previously allocated ring buffer and reset state
 
   if (streaming) {
-    ringBuffer = static_cast<uint8_t*>(malloc(INFLATE_DICT_SIZE));
-    if (!ringBuffer) return false;
+    // Prefer the shared window: allocate it once (lazily), then reuse it for
+    // every subsequent inflate instead of re-allocating a fresh 32KB block.
+    if (!g_sharedWindowInUse) {
+      if (g_sharedWindow == nullptr) {
+        g_sharedWindow = static_cast<uint8_t*>(malloc(INFLATE_DICT_SIZE));
+      }
+      if (g_sharedWindow != nullptr) {
+        ringBuffer = g_sharedWindow;
+        usesSharedWindow = true;
+        g_sharedWindowInUse = true;
+      }
+    }
+    // Re-entrant inflate (shared window busy) or first allocation failed: private buffer.
+    if (ringBuffer == nullptr) {
+      ringBuffer = static_cast<uint8_t*>(malloc(INFLATE_DICT_SIZE));
+      if (!ringBuffer) return false;
+    }
     memset(ringBuffer, 0, INFLATE_DICT_SIZE);
   }
 
@@ -28,9 +54,14 @@ bool InflateReader::init(const bool streaming) {
 
 void InflateReader::deinit() {
   if (ringBuffer) {
-    free(ringBuffer);
+    if (usesSharedWindow) {
+      g_sharedWindowInUse = false;  // release for reuse; keep g_sharedWindow allocated
+    } else {
+      free(ringBuffer);
+    }
     ringBuffer = nullptr;
   }
+  usesSharedWindow = false;
   memset(&decomp, 0, sizeof(decomp));
 }
 

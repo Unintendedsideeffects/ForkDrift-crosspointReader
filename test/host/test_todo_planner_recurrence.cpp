@@ -5,6 +5,7 @@
 #include "activities/todo/TodoItem.h"
 #include "activities/todo/TodoPlannerStorage.h"
 #include "doctest/doctest.h"
+#include "test/mock/HalStorage.h"
 #include "util/DateUtils.h"
 
 // ---------------------------------------------------------------------------
@@ -185,10 +186,6 @@ TEST_CASE("testRecursOn_OutOfRangeWeekday") {
   CHECK_FALSE(TodoPlannerStorage::recursOn(item, 100));
 }
 
-// ---------------------------------------------------------------------------
-// 8. Rollover selection
-// ---------------------------------------------------------------------------
-
 TEST_CASE("testRolloverSelection") {
   // Source: 2026-07-24 (Friday, weekday=4)
   // Target: 2026-07-25 (Saturday, weekday=5)
@@ -203,7 +200,7 @@ TEST_CASE("testRolloverSelection") {
   daily.recurrence = TodoRecurrence::Daily;
   sourceItems.push_back(daily);
 
-  // Item 1: checked, daily recurring → should NOT be carried (checked)
+  // Item 1: checked, daily recurring → should be carried (as fresh unchecked instance)
   TodoItem checkedDaily{};
   checkedDaily.text = "Done daily";
   checkedDaily.checked = true;
@@ -239,13 +236,66 @@ TEST_CASE("testRolloverSelection") {
   std::vector<TodoItem> definitions;
   TodoPlannerStorage::collectRecurringDefinitions(sourceItems, sourceDate, definitions);
   const auto result = TodoPlannerStorage::selectDueOn(definitions, targetDate);
-  REQUIRE(result.size() == 2);
+  REQUIRE(result.size() == 3);
   CHECK(result[0].text == "Daily task");
   CHECK(result[0].recurrence == TodoRecurrence::Daily);
   CHECK_FALSE(result[0].checked);
-  CHECK(result[1].text == "Weekend task");
-  CHECK(result[1].recurrence == TodoRecurrence::Weekdays);
+  CHECK(result[1].text == "Done daily");
+  CHECK(result[1].recurrence == TodoRecurrence::Daily);
   CHECK_FALSE(result[1].checked);
+  CHECK(result[2].text == "Weekend task");
+  CHECK(result[2].recurrence == TodoRecurrence::Weekdays);
+  CHECK_FALSE(result[2].checked);
+}
+
+TEST_CASE("testRecurrenceSurvivesDailyCompletion") {
+  // Day 1: 2026-07-20 (Monday)
+  const std::string day1Date = "2026-07-20";
+  const std::string day2Date = "2026-07-21";
+  const std::string day3Date = "2026-07-22";
+
+  std::vector<TodoItem> day1Items;
+  TodoItem meds{};
+  meds.text = "Take meds";
+  meds.recurrence = TodoRecurrence::Daily;
+  meds.checked = true;
+  day1Items.push_back(meds);
+
+  // Day 2 build
+  std::vector<TodoItem> defs1;
+  TodoPlannerStorage::collectRecurringDefinitions(day1Items, day1Date, defs1);
+  auto day2Items = TodoPlannerStorage::selectDueOn(defs1, day2Date);
+  REQUIRE(day2Items.size() == 1);
+  CHECK(day2Items[0].text == "Take meds");
+  CHECK_FALSE(day2Items[0].checked);
+
+  // User completes day 2 item
+  day2Items[0].checked = true;
+
+  // Day 3 build
+  std::vector<TodoItem> defs2;
+  TodoPlannerStorage::collectRecurringDefinitions(day2Items, day2Date, defs2);
+  const auto day3Items = TodoPlannerStorage::selectDueOn(defs2, day3Date);
+  REQUIRE(day3Items.size() == 1);
+  CHECK(day3Items[0].text == "Take meds");
+  CHECK_FALSE(day3Items[0].checked);
+}
+
+TEST_CASE("testCompletedNonRecurringIsNotCarried") {
+  const std::string sourceDate = "2026-07-20";
+  const std::string targetDate = "2026-07-21";
+
+  std::vector<TodoItem> sourceItems;
+  TodoItem plainDone{};
+  plainDone.text = "Finished once";
+  plainDone.checked = true;
+  plainDone.recurrence = TodoRecurrence::None;
+  sourceItems.push_back(plainDone);
+
+  std::vector<TodoItem> definitions;
+  TodoPlannerStorage::collectRecurringDefinitions(sourceItems, sourceDate, definitions);
+  const auto result = TodoPlannerStorage::selectDueOn(definitions, targetDate);
+  CHECK(result.empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -425,8 +475,8 @@ TEST_CASE("testRecurringDefinitionDedupeKeepsNewest") {
   CHECK(definitions[0].recurrence == TodoRecurrence::Daily);
 }
 
-// Checked recurring items are not carried; the day's completion does not repeat.
-TEST_CASE("testCheckedRecurringItemNotCarried") {
+// Checked recurring items ARE carried forward as fresh unchecked instances.
+TEST_CASE("testCheckedRecurringItemIsCarriedUnchecked") {
   std::vector<TodoItem> sourceItems;
   TodoItem done{};
   done.text = "Meditate";
@@ -436,5 +486,120 @@ TEST_CASE("testCheckedRecurringItemNotCarried") {
 
   std::vector<TodoItem> definitions;
   TodoPlannerStorage::collectRecurringDefinitions(sourceItems, "2026-07-24", definitions);
-  CHECK(definitions.empty());
+  REQUIRE(definitions.size() == 1);
+  CHECK(definitions[0].text == "Meditate");
+  CHECK_FALSE(definitions[0].checked);
+}
+
+// ---------------------------------------------------------------------------
+// Plan 070: Planner storage cap and atomic write tests
+// ---------------------------------------------------------------------------
+
+TEST_CASE("testDailyFileReadCapRejectsOversize") {
+  Storage.reset();
+  const std::string path = "/daily/2026-07-25.md";
+  const std::string oversizeContent(TodoPlannerStorage::kMaxDailyFileBytes + 1, 'x');
+
+  HalFile file;
+  REQUIRE(Storage.openFileForWrite("TEST", path.c_str(), file));
+  REQUIRE(file.write(reinterpret_cast<const uint8_t*>(oversizeContent.data()), oversizeContent.size()) ==
+          static_cast<int>(oversizeContent.size()));
+  file.close();
+
+  const std::string read = TodoPlannerStorage::readDailyFileCapped(path);
+  CHECK(read.empty());
+}
+
+TEST_CASE("testDailyFileReadCapAcceptsAtLimit") {
+  Storage.reset();
+  const std::string path = "/daily/2026-07-25.md";
+  const std::string exactContent(TodoPlannerStorage::kMaxDailyFileBytes, 'a');
+
+  HalFile file;
+  REQUIRE(Storage.openFileForWrite("TEST", path.c_str(), file));
+  REQUIRE(file.write(reinterpret_cast<const uint8_t*>(exactContent.data()), exactContent.size()) ==
+          static_cast<int>(exactContent.size()));
+  file.close();
+
+  const std::string read = TodoPlannerStorage::readDailyFileCapped(path);
+  CHECK(read == exactContent);
+}
+
+TEST_CASE("testWriteDailyFileAtomicRoundTrip") {
+  Storage.reset();
+  const std::string path = "/daily/2026-07-25.md";
+  const std::string content = "- [ ] Task 1\n- [x] Task 2\n";
+
+  CHECK(TodoPlannerStorage::writeDailyFileAtomic(path, content));
+  CHECK(TodoPlannerStorage::readDailyFileCapped(path) == content);
+  CHECK_FALSE(Storage.exists((path + ".tmp").c_str()));
+  CHECK_FALSE(Storage.exists((path + ".bak").c_str()));
+}
+
+TEST_CASE("testReadDailyFileCappedRecoversFromTmp") {
+  Storage.reset();
+  const std::string path = "/daily/2026-07-25.md";
+  const std::string tmpPath = path + ".tmp";
+  const std::string content = "- [ ] Recovered from tmp\n";
+
+  HalFile file;
+  REQUIRE(Storage.openFileForWrite("TEST", tmpPath.c_str(), file));
+  REQUIRE(file.write(reinterpret_cast<const uint8_t*>(content.data()), content.size()) ==
+          static_cast<int>(content.size()));
+  file.close();
+
+  CHECK_FALSE(Storage.exists(path.c_str()));
+  const std::string read = TodoPlannerStorage::readDailyFileCapped(path);
+  CHECK(read == content);
+  CHECK(Storage.exists(path.c_str()));
+  CHECK_FALSE(Storage.exists(tmpPath.c_str()));
+}
+
+TEST_CASE("testReadDailyFileCappedRecoversFromBak") {
+  Storage.reset();
+  const std::string path = "/daily/2026-07-25.md";
+  const std::string bakPath = path + ".bak";
+  const std::string content = "- [ ] Recovered from bak\n";
+
+  HalFile file;
+  REQUIRE(Storage.openFileForWrite("TEST", bakPath.c_str(), file));
+  REQUIRE(file.write(reinterpret_cast<const uint8_t*>(content.data()), content.size()) ==
+          static_cast<int>(content.size()));
+  file.close();
+
+  CHECK_FALSE(Storage.exists(path.c_str()));
+  const std::string read = TodoPlannerStorage::readDailyFileCapped(path);
+  CHECK(read == content);
+  CHECK(Storage.exists(path.c_str()));
+  CHECK_FALSE(Storage.exists(bakPath.c_str()));
+}
+
+TEST_CASE("testReadDailyFileCappedExistingFileWinsOverTmpAndBak") {
+  Storage.reset();
+  const std::string path = "/daily/2026-07-25.md";
+  const std::string tmpPath = path + ".tmp";
+  const std::string bakPath = path + ".bak";
+
+  const std::string mainContent = "- [ ] Main file\n";
+  const std::string tmpContent = "- [ ] Tmp file\n";
+  const std::string bakContent = "- [ ] Bak file\n";
+
+  HalFile f1;
+  REQUIRE(Storage.openFileForWrite("TEST", path.c_str(), f1));
+  f1.write(reinterpret_cast<const uint8_t*>(mainContent.data()), mainContent.size());
+  f1.close();
+
+  HalFile f2;
+  REQUIRE(Storage.openFileForWrite("TEST", tmpPath.c_str(), f2));
+  f2.write(reinterpret_cast<const uint8_t*>(tmpContent.data()), tmpContent.size());
+  f2.close();
+
+  HalFile f3;
+  REQUIRE(Storage.openFileForWrite("TEST", bakPath.c_str(), f3));
+  f3.write(reinterpret_cast<const uint8_t*>(bakContent.data()), bakContent.size());
+  f3.close();
+
+  const std::string read = TodoPlannerStorage::readDailyFileCapped(path);
+  CHECK(read == mainContent);
+  CHECK(Storage.exists(path.c_str()));
 }

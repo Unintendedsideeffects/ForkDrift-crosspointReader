@@ -121,7 +121,7 @@ void BooksTabActivity::render(RenderLock&& lock) {
     renderer.clearScreen();
   }
 
-  drawTabStrip(renderer, Rect{0, 0, renderer.getScreenWidth(), kTabStripHeight}, tabs, selectedTab);
+  drawTabStrip(renderer, Rect{0, 0, renderer.getScreenWidth(), TabView::kTabStripHeight}, tabs, selectedTab);
   renderer.displayBuffer();
 }
 

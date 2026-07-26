@@ -1,8 +1,6 @@
 #include "ReaderActivity.h"
 
 #include <FsHelpers.h>
-#include <HalStorage.h>
-#include <Memory.h>
 
 #include "CrossPointSettings.h"
 #include "Epub.h"
@@ -14,6 +12,7 @@
 #include "XtcReaderActivity.h"
 #include "activities/util/BmpViewerActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
+#include "core/registries/ReaderLoader.h"
 
 bool ReaderActivity::isXtcFile(const std::string& path) { return FsHelpers::hasXtcExtension(path); }
 
@@ -25,60 +24,15 @@ bool ReaderActivity::isTxtFile(const std::string& path) {
 bool ReaderActivity::isBmpFile(const std::string& path) { return FsHelpers::hasBmpExtension(path); }
 
 std::unique_ptr<Epub> ReaderActivity::loadEpub(const std::string& path) {
-  if (!Storage.exists(path.c_str())) {
-    LOG_ERR("READER", "File does not exist: %s", path.c_str());
-    return nullptr;
-  }
-
-  auto epub = makeUniqueNoThrow<Epub>(path, "/.crosspoint");
-  if (!epub) {
-    LOG_ERR("READER", "Failed to allocate EPUB object");
-    return nullptr;
-  }
-  if (epub->load(true, SETTINGS.embeddedStyle == 0)) {
-    return epub;
-  }
-
-  LOG_ERR("READER", "Failed to load epub");
-  return nullptr;
+  return core::loadDocumentNoThrow<Epub>(path, "EPUB", true, SETTINGS.embeddedStyle == 0);
 }
 
 std::unique_ptr<Xtc> ReaderActivity::loadXtc(const std::string& path) {
-  if (!Storage.exists(path.c_str())) {
-    LOG_ERR("READER", "File does not exist: %s", path.c_str());
-    return nullptr;
-  }
-
-  auto xtc = makeUniqueNoThrow<Xtc>(path, "/.crosspoint");
-  if (!xtc) {
-    LOG_ERR("READER", "Failed to allocate XTC object");
-    return nullptr;
-  }
-  if (xtc->load()) {
-    return xtc;
-  }
-
-  LOG_ERR("READER", "Failed to load XTC");
-  return nullptr;
+  return core::loadDocumentNoThrow<Xtc>(path, "XTC");
 }
 
 std::unique_ptr<Txt> ReaderActivity::loadTxt(const std::string& path) {
-  if (!Storage.exists(path.c_str())) {
-    LOG_ERR("READER", "File does not exist: %s", path.c_str());
-    return nullptr;
-  }
-
-  auto txt = makeUniqueNoThrow<Txt>(path, "/.crosspoint");
-  if (!txt) {
-    LOG_ERR("READER", "Failed to allocate TXT object");
-    return nullptr;
-  }
-  if (txt->load()) {
-    return txt;
-  }
-
-  LOG_ERR("READER", "Failed to load TXT");
-  return nullptr;
+  return core::loadDocumentNoThrow<Txt>(path, "TXT");
 }
 
 void ReaderActivity::goToLibrary(const std::string& fromBookPath) {

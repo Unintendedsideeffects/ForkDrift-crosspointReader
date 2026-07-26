@@ -221,8 +221,8 @@ ReaderContext& ReaderContext::get() {
   return ctx;
 }
 
-// Geometry accessors — always defined (readers/Home/UITheme call topInset()/
-// bottomInset() unconditionally). The global bar follows the reader bar's
+// Geometry accessors — always defined (readers/Home/UITheme call topInset()
+// unconditionally). The global bar follows the reader bar's
 // polished size + padding, so ThemeMetrics is the single source of truth.
 int barHeight() { return UITheme::getInstance().getBaseMetrics().statusBarVerticalMargin + topPadBoost(); }
 
@@ -260,8 +260,6 @@ int topInset() {
   return 0;
 #endif
 }
-
-int bottomInset() { return 0; }  // The status bar is always top-aligned.
 
 void registerFeature() {
 #if ENABLE_GLOBAL_STATUS_BAR

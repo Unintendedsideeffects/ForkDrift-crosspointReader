@@ -215,7 +215,7 @@ void StatusBarSettingsActivity::render(RenderLock&&) {
 
   GUI.drawStatusBar(renderer, 75, 8, 32, title, false);
 
-  const int previewBand = features::status_overlay::bottomInset() + features::status_overlay::topInset();
+  const int previewBand = features::status_overlay::topInset();
   renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding,
                     renderer.getScreenHeight() - previewBand - verticalPreviewTextPadding, tr(STR_PREVIEW));
 

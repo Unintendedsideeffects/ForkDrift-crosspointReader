@@ -205,43 +205,10 @@ void DayDetailActivity::saveTasks() {
     Storage.mkdir(filePath.substr(0, slashPos).c_str());
   }
 
-  const std::string tempPath = filePath + ".tmp";
-  const std::string backupPath = filePath + ".bak";
   const bool markdownFile = filePath.size() >= 3 && filePath.compare(filePath.size() - 3, 3, ".md") == 0;
   const std::string content = TodoPlannerStorage::formatFile(items, markdownFile);
-
-  if (Storage.exists(tempPath.c_str())) {
-    Storage.remove(tempPath.c_str());
-  }
-
-  HalFile file;
-  if (!Storage.openFileForWrite("TDO", tempPath.c_str(), file)) {
-    return;
-  }
-  if (file.print(content.c_str()) == 0) {
-    file.close();
-    Storage.remove(tempPath.c_str());
-    return;
-  }
-  file.close();
-
-  const bool hasExisting = Storage.exists(filePath.c_str());
-  if (Storage.exists(backupPath.c_str())) {
-    Storage.remove(backupPath.c_str());
-  }
-  if (hasExisting && !Storage.rename(filePath.c_str(), backupPath.c_str())) {
-    Storage.remove(tempPath.c_str());
-    return;
-  }
-  if (!Storage.rename(tempPath.c_str(), filePath.c_str())) {
-    if (hasExisting) {
-      Storage.rename(backupPath.c_str(), filePath.c_str());
-    }
-    Storage.remove(tempPath.c_str());
-    return;
-  }
-  if (hasExisting) {
-    Storage.remove(backupPath.c_str());
+  if (!TodoPlannerStorage::writeDailyFileAtomic(filePath, content)) {
+    LOG_ERR("TDO", "Failed to save %s", filePath.c_str());
   }
 }
 

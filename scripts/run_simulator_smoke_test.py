@@ -28,6 +28,7 @@ the first *.epub under DIR/books is used.
 from __future__ import annotations
 
 import argparse
+import configparser
 import os
 import shutil
 import subprocess
@@ -36,7 +37,6 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PROGRAM = ROOT / ".pio" / "build" / "simulator" / "program"
 DEFAULT_BOOK = ROOT / "test" / "epubs" / "test_tables.epub"
 CRASH_PATTERNS = (
     "std::bad_alloc",
@@ -61,6 +61,29 @@ THEMES = {
     "lyra_carousel": 6,
     "terminal": 7,
 }
+
+
+def resolve_program() -> Path:
+    """Resolve the simulator binary from the same build-dir policy as PlatformIO."""
+    candidates: list[Path] = []
+    if build_dir := os.environ.get("PLATFORMIO_BUILD_DIR"):
+        candidates.append(Path(build_dir).expanduser() / "simulator" / "program")
+
+    local_config = ROOT / "platformio.local.ini"
+    if local_config.is_file():
+        parser = configparser.ConfigParser(interpolation=None)
+        parser.read(local_config)
+        if parser.has_option("platformio", "build_dir"):
+            configured = parser.get("platformio", "build_dir")
+            configured = configured.replace("${sysenv.HOME}", str(Path.home()))
+            configured = configured.replace("${PROJECT_DIR}", str(ROOT))
+            candidates.append(Path(configured).expanduser() / "simulator" / "program")
+
+    candidates.append(ROOT / ".pio" / "build" / "simulator" / "program")
+    return next((candidate for candidate in candidates if candidate.is_file()), candidates[0])
+
+
+PROGRAM = resolve_program()
 
 
 def build_simulator() -> None:

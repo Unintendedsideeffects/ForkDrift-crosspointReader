@@ -333,7 +333,7 @@ void BackgroundWifiService::stop(const bool keepWifi) {
   // activity entry that releases the radio — then back off while waiting out
   // the rare in-flight upload.
   while (taskHandle != nullptr && millis() < deadline) {
-    delay((millis() - start) < 100 ? 1 : 10);
+    delay((millis() - stopBegunMs) < 100 ? 1 : 10);
   }
 
   if (taskHandle != nullptr) {

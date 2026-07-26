@@ -19,9 +19,6 @@ class MyLibraryActivity final : public Activity, public TabView {
   enum class Tab { Recent, Files };
   enum class ViewMode { List, Grid };
 
-  // Matches BooksTabActivity::kTabStripHeight; embedded content starts below it.
-  static constexpr int kStripInset = 48;
-
  private:
   // Deletion
   bool pendingSubActivityExit = false;

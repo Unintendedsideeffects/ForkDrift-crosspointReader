@@ -31,11 +31,19 @@ struct BookExport {
   std::string author;
   std::string path;  // full book path on SD (used to derive sidecar/output paths)
 #if ENABLE_ANNOTATIONS
-  std::vector<Annotation> highlights;
+  // Borrowed from AnnotationStore::all(); must outlive this struct. Null = none.
+  const std::vector<Annotation>* highlights = nullptr;
 #endif
 #if ENABLE_BOOKMARKS
-  std::vector<Bookmark> bookmarks;
+  // Borrowed from BookmarkStore::getBookmarks(); must outlive this struct.
+  const std::vector<Bookmark>* bookmarks = nullptr;
 #endif
+};
+
+enum class ExportStatus : uint8_t {
+  Ok,
+  Failed,          // I/O error
+  SidecarNotOurs,  // KOReader's own sidecar present; refused rather than destroy it
 };
 
 // Pure serializers (no I/O) — the file content for the given format. Host-testable.
@@ -44,11 +52,11 @@ std::string serializeMyClippings(const BookExport& book);
 std::string serializeKoreader(const BookExport& book);
 
 // Serialize `book` in `format` and write it to the format's conventional location
-// on the SD card. Returns the output path, or empty on failure.
+// on the SD card. `outPath` receives the written path on Ok and is left empty otherwise.
 //   Markdown     -> /Notes/<title>.md            (overwrite)
 //   My Clippings -> /My Clippings.txt            (append)
 //   KOReader     -> <book>.sdr/metadata.<ext>.lua (overwrite)
-std::string exportBook(Format format, const BookExport& book);
+ExportStatus exportBook(Format format, const BookExport& book, std::string& outPath);
 
 // True when there is anything to export.
 bool hasContent(const BookExport& book);
