@@ -1,11 +1,7 @@
 #include "NotesStore.h"
 
-#include <FeatureFlags.h>
-
-#if ENABLE_TEXT_SELECTION
 #include <HalStorage.h>
 #include <Logging.h>
-#endif
 
 namespace {
 
@@ -31,7 +27,6 @@ namespace NotesStore {
 
 std::string bookNotesPath(const std::string& bookTitle) { return "/Notes/" + sanitizeTitle(bookTitle) + ".md"; }
 
-#if ENABLE_TEXT_SELECTION
 bool appendHighlight(const std::string& bookTitle, const std::string& location, const std::string& text,
                      std::string* outPath) {
   if (text.empty()) {
@@ -75,7 +70,5 @@ bool appendHighlight(const std::string& bookTitle, const std::string& location, 
   }
   return true;
 }
-
-#endif  // ENABLE_TEXT_SELECTION
 
 }  // namespace NotesStore
