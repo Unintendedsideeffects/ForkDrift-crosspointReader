@@ -316,7 +316,19 @@ bypass.
   source. Also note the gates cannot catch it — it compiles cleanly, the host suite is
   333/333, and all six matrix configurations build. This is exactly the class of defect
   that survives a green build.
-- **Status**: planned as 096 (`plans/096-fix-incremental-selection-damage.md`)
+- **Status**: **fixed in `e5030d70f`** (plan 096). The repaint set is now derived from the
+  physical span actually restored (`[firstByte*8, lastByte*8+7]` x `[y0,y1]`), so there is a
+  single source of truth for "what was restored". Regression test covers all four
+  orientations and was written before the fix; operator independently reverted the fix while
+  keeping the test and confirmed `[doctest] Status: FAILURE!`, 1 failed.
+- **CORRECTION 2026-07-27 — this entry's orientation analysis was WRONG.** It predicted the
+  landscape orientations were "far less likely to bite" because their physical x derives from
+  logical x rather than logical y. In fact **all four orientations fail** without the fix
+  (4 `ERROR: CHECK` lines in the red-proof run). The byte-alignment slop is not specific to
+  the portrait axis mapping, so the defect was broader than described. The portrait reasoning
+  was a plausible-sounding narrowing that the test disproved — a reminder that a mechanism
+  story is not evidence, and that writing the failing test first is what actually settles
+  scope.
 
 ## 2026-07-26T15:20Z — plan 095's allocation-free claim VERIFIED (no defect)
 
