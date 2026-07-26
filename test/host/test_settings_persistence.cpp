@@ -34,7 +34,7 @@ TEST_CASE("settings persistence saves golden shape") {
   REQUIRE(settings.saveToFile());
   const std::string json = Storage.readFile(kSettingsPath).c_str();
   REQUIRE(!json.empty());
-  CHECK(json.find("\"version\"") != std::string::npos);
+  CHECK(json.find("\"settingsVersion\"") != std::string::npos);
   CHECK(json.find("\"sleepScreen\":1") != std::string::npos);
   CHECK(json.find("\"fontSize\":2") != std::string::npos);
   CHECK(json.find("\"refreshFrequency\":2") != std::string::npos);
@@ -174,4 +174,18 @@ TEST_CASE("settings migration: round trip preserves STATUS_BAR_READER_ONLY") {
   REQUIRE(JsonSettingsIO::loadSettings(reloaded, json.c_str(), &needsResave));
   CHECK(reloaded.globalStatusBarPosition == CrossPointSettings::STATUS_BAR_READER_ONLY);
   CHECK(needsResave == false);
+}
+
+TEST_CASE("settings round trip preserves language through the shared serializer") {
+  CrossPointSettings& settings = resetSettingsState();
+  settings.language = 1;  // any non-zero valid index
+
+  REQUIRE(settings.saveToFile());
+  const std::string json = Storage.readFile(kSettingsPath).c_str();
+  REQUIRE(json.find("\"language\"") != std::string::npos);
+
+  CrossPointSettings& reloaded = resetSettingsState();
+  bool needsResave = false;
+  REQUIRE(JsonSettingsIO::loadSettings(reloaded, json.c_str(), &needsResave));
+  CHECK(reloaded.language == 1);
 }

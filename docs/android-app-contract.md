@@ -485,12 +485,15 @@ returns camelCase fields.
 
 ---
 
-## 15. POST /api/user-fonts/upload + POST /api/user-fonts/rescan
+## 15. GET /api/fonts, POST /api/fonts/upload, POST /api/fonts/delete
 
-**Upload:** multipart form, field name `file`, `.cpfont` font file.
-**Rescan:** no body required.
+> **Note on `/api/user-fonts/*`**: Previously documented `/api/user-fonts/upload` and `/api/user-fonts/rescan` routes never existed in this firmware. The real font routes are `/api/fonts`, `/api/fonts/upload`, and `/api/fonts/delete`.
 
-**Current status:** ✅ Implemented (gated on `UserFontsApi` feature flag).
+**GET /api/fonts:** List installed user fonts.
+**POST /api/fonts/upload:** Multipart form upload, field name `file`, font file.
+**POST /api/fonts/delete:** Delete installed font.
+
+**Current status:** ✅ Implemented (unconditional / ungated; there is no `UserFontsApi` feature flag).
 
 ---
 

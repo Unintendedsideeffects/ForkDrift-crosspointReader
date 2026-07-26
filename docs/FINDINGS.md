@@ -91,6 +91,48 @@ twice.
   Re-checked at `39072d6de`: `grep -n BOOKMARKS .github/workflows/feature-matrix-test.yml`
   still returns nothing. The break of 2026-07-26 was fixed (plan 086, `1f90af803`); the
   hole that let it exist is not.
+- **CORRECTION 2026-07-26T13:47Z — the headline claim above is WRONG, and the real gap is
+  narrower.** An operator run of all six CI matrix configurations (from a clean worktree at
+  `e56d83715`) resolved each profile's derived flags and built it. The `lean` profile
+  produces exactly `EPUB=0 MD=0 XTC=0 BOOKMARKS=0 ANNOT=0` and **built successfully in
+  238 s**. So CI *does* exercise `ENABLE_BOOKMARKS=0`, and this entry's premise was false.
+  The mechanism I had missed: `ENABLE_BOOKMARKS` is **not** a configurator feature — it is
+  absent from `platformio.ini` and from `generate_build_config.py`'s 104-entry `FEATURES`
+  table. It lives only in `include/FeatureFlags.h`, defaulting to 1 (`:378-379`) and
+  **auto-disabling** (`:505-511`) when none of `ENABLE_EPUB_SUPPORT` / `ENABLE_MARKDOWN` /
+  `ENABLE_XTC_SUPPORT` is on. `lean` enables no book format, so bookmarks switch off
+  derivatively.
+  **The actual gap** is scheduling, not coverage: `.github/workflows/feature-matrix-test.yml:28`
+  gates the whole workflow behind `if: github.event_name != 'pull_request' ||
+  contains(labels, 'full-matrix')`, with a nightly `cron: 0 2 * * *`. It therefore never
+  runs on an ordinary push, and never locally — which is why the break survived a day in an
+  unpushed branch. Full matrix result: **6/6 SUCCESS**, sizes 2.90 MB (lean) → 6.03 MB (full).
+- **Status**: open, but re-scoped — the fix is to make the matrix reachable before push (or
+  add one gate-off leg to the always-on CI), not to add bookmarks coverage that already
+  exists.
+
+## 2026-07-26T14:10Z — plan scopes keep missing the *second consumer* of a changed file
+
+- **Found by**: claude — reviewing plan 087's diff
+- **Where**: planning practice; instances at `test/mock/JsonSettingsIO.cpp` (plan 069) and
+  `scripts/generate_configurator_settings_schema.py:123-130` (plan 087)
+- **What**: Twice in one wave, a plan declared a file scope that was too narrow, and the
+  executor had to edit an undeclared file to make the work compile or link. Both edits were
+  **necessary and correct**, so neither is a violation by the executor — the defect is in
+  how the scope was derived. Plan 069 missed that the host suite links a parallel mock of
+  the file being changed. Plan 087 missed that
+  `generate_configurator_settings_schema.py` compiles its own exporter binary that links
+  `test/mock/JsonSettingsIO.cpp`, so extracting logic into a new `.cpp` breaks that link
+  until the new file is added to its source list.
+- **Root cause**: the scope was derived by grepping for the *symbol* being moved, not for
+  every build script that *links the file*. Those are different searches and the second one
+  is the one that matters for extractions.
+- **Fix shape**: before writing a plan's scope section for any file move/extraction, run
+  `grep -rn "<basename>" scripts/ test/ .github/` and add every hit to the declared scope.
+  Both misses would have been caught by that one command.
+- **Status**: open — **2nd occurrence of this class, so per the ladder it earns
+  documentation now** (this entry). A third occurrence obliges a gate; the natural one is a
+  checklist item in the plan template.
 
 ## 2026-07-26T11:20Z — settings-persistence tests cannot fail for the production code they cover
 
@@ -218,3 +260,12 @@ bypass.
 - **Why not fixed here**: out of scope for the delegated plan 095 slice, whose owned
   files explicitly excluded `AnnotationStore` and annotation persistence/format work.
 - **Status**: open
+
+## 2026-07-26T14:00Z — `user_fonts` key in `FeatureCatalog.cpp` is orphaned with no route handler
+
+- **Found by**: agy — during plan 094
+- **Where**: `src/core/features/FeatureCatalog.cpp:101`
+- **What**: `FeatureCatalog.cpp` registers a `"user_fonts"` feature entry (hard-coded `enabled=false`, no callback), but no `WebRouteRegistry` or server handler references `"user_fonts"` or `UserFontsApi`. The real font routes `/api/fonts`, `/api/fonts/upload`, and `/api/fonts/delete` are registered unconditionally.
+- **Why not fixed here**: out of scope for plan 094 (scope was documentation files under `docs/`).
+- **Status**: open
+

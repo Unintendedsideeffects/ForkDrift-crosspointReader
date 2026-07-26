@@ -5,7 +5,9 @@ available while CrossPoint Reader is in File Transfer or Calibre Wireless mode.
 
 > [!NOTE]
 > **Maintenance Note:** To verify or regenerate the list of endpoints documented here, run this command from the repository root:
-> `grep -rhoE '"(/api/[a-z0-9_/-]+)"' src/network | sort -u`
+> `grep -rhoE '"(/api/[a-z0-9_/-]+|/plugins/[a-z0-9_/-]+|/health|/remote-input)"' src/network src/features | sort -u`
+>
+> Routes in CrossPoint are registered either directly on the web server instance in `src/network` or dynamically via feature modules in `src/features`. A search that checks only one directory will under-report registered endpoints.
 
 - [Webserver Endpoints](#webserver-endpoints)
   - [Overview](#overview)
@@ -84,6 +86,12 @@ the IP address shown on the device screen.
 | `GET` | `/files` | File manager page |
 | `GET` | `/settings` | Web settings page |
 | `GET` | `/fonts` | SD-card font manager page |
+| `GET` | `/health` | Web server health check endpoint |
+| `GET` | `/plugins/anki` | Anki flashcards web plugin page |
+| `GET` | `/plugins/terminus` | Terminus sleep screen web plugin page |
+| `GET` | `/plugins/pokemon-party` | Pokémon party web plugin page |
+| `GET` | `/plugins/pokemon-wallpaper` | Pokémon wallpaper web plugin page |
+| `GET` | `/plugins/wallpaper` | Web wallpaper plugin page |
 | `GET` | `/js/jszip.min.js` | JavaScript asset used by the file manager |
 
 ## Device Status
@@ -172,6 +180,24 @@ Response:
 | `rssi`            | number | WiFi signal strength in dBm (0 in AP mode)                |
 | `freeHeap`        | number | Free heap memory in bytes                                 |
 | `uptime`          | number | Seconds since device boot                                 |
+
+---
+
+### GET `/health` - Server Health Check
+
+Returns a simple JSON status object confirming the web server task is responsive.
+
+**Request:**
+```bash
+curl http://crosspoint.local/health
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok"
+}
+```
 
 ---
 
@@ -1032,6 +1058,71 @@ curl -X POST -H "Content-Type: application/json" -d '{"bookPath": "/books/mybook
 
 ---
 
+### GET `/plugins/terminus` - Terminus Plugin Page
+
+Serves the HTML web interface for configuring Terminus (TRMNL) sleep screen integration.
+
+---
+
+### GET `/api/terminus/status` - Terminus Status and Config
+
+Returns the configuration state of the Terminus sleep screen integration.
+
+**Request:**
+```bash
+curl http://crosspoint.local/api/terminus/status
+```
+
+**Response (200 OK):**
+```json
+{
+  "configured": true,
+  "device_id": "dev123",
+  "device_model": "crosspoint",
+  "base_url": "https://usetrmnl.com",
+  "has_api_key": true,
+  "sleep_enabled": true
+}
+```
+
+---
+
+### POST `/api/terminus/save` - Save Terminus Configuration
+
+Saves API credentials and base URL for Terminus sleep screen fetching.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json"   -d '{"api_key":"sec_123","device_id":"dev123"}'   http://crosspoint.local/api/terminus/save
+```
+
+---
+
+### POST `/api/terminus/test` - Test Terminus Fetch
+
+Triggers an immediate background fetch of the Terminus display image and pins it to the sleep screen.
+
+**Request:**
+```bash
+curl -X POST http://crosspoint.local/api/terminus/test
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "ok",
+  "message": "Image fetched and pinned"
+}
+```
+
+---
+
+### POST `/api/terminus/clear` - Clear Terminus Credentials
+
+Clears stored Terminus credentials and configuration.
+
+---
+
 ### POST `/mkdir` - Create Folder
 
 Creates a new folder on the SD card.
@@ -1158,6 +1249,95 @@ curl http://crosspoint.local/api/anki/cards
 
 **Notes:**
 - Only registered when `ENABLE_ANKI_SUPPORT` is enabled.
+
+---
+
+### GET `/plugins/anki` - Anki Plugin Page
+
+Serves the Web UI page for managing and studying Anki flashcards.
+
+---
+
+### GET `/api/anki/decks` - List Anki Decks
+
+Returns a JSON array listing all flashcard decks on the SD card (`/flashcards` and `/decks`) with card and queue counts.
+
+**Request:**
+```bash
+curl http://crosspoint.local/api/anki/decks
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "path": "/flashcards/basic.json",
+    "title": "Basic Vocabulary",
+    "cards": 50,
+    "new": 10,
+    "due": 5,
+    "failed": 0
+  }
+]
+```
+
+---
+
+### GET `/api/anki/deck` - Get Anki Deck Details
+
+Returns metadata and queue counts for a specific deck path.
+
+**Request:**
+```bash
+curl "http://crosspoint.local/api/anki/deck?path=/flashcards/basic.json"
+```
+
+---
+
+### POST `/api/anki/clear` - Clear Stored Cards
+
+Clears all in-memory and persisted cards in the Anki card store.
+
+---
+
+### POST `/api/anki/delete` - Delete Anki Card
+
+Deletes a card from the Anki store by index.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"index":0}' http://crosspoint.local/api/anki/delete
+```
+
+---
+
+### POST `/api/anki/update` - Update Anki Card
+
+Updates the back/definition string of a card by index.
+
+**Request:**
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"index":0,"back":"new definition"}' http://crosspoint.local/api/anki/update
+```
+
+---
+
+### POST `/api/anki/sync` - Sync Cards to AnkiConnect
+
+Pushes all cards in the AnkiStore to a configured remote AnkiConnect server URL.
+
+**Request:**
+```bash
+curl -X POST http://crosspoint.local/api/anki/sync
+```
+
+**Response (200 OK):**
+```json
+{
+  "synced": 5,
+  "skipped": 0
+}
+```
 
 ---
 
@@ -1684,6 +1864,81 @@ curl -X POST http://crosspoint.local/api/wifi/forget-all
   "ok": true
 }
 ```
+
+---
+
+### GET `/api/wifi/scan` - Scan WiFi Networks
+
+Triggers or retrieves results from a background WiFi network scan. Returns HTTP 202 while scanning and HTTP 200 with network array when complete.
+
+**Request:**
+```bash
+curl http://crosspoint.local/api/wifi/scan
+```
+
+---
+
+### POST `/api/wifi/connect` - Connect / Save WiFi Credential
+
+Saves WiFi credentials for a target network SSID.
+
+---
+
+### POST `/api/wifi/forget` - Forget WiFi Credential
+
+Removes stored credentials for a specific network SSID.
+
+---
+
+### GET `/api/wifi/status` - WiFi Setup Status
+
+Returns current connection status, IP, RSSI, and mode (STA or AP).
+
+**Request:**
+```bash
+curl http://crosspoint.local/api/wifi/status
+```
+
+**Response (200 OK):**
+```json
+{
+  "connected": true,
+  "mode": "STA",
+  "ssid": "MyWiFiNetwork",
+  "ip": "192.168.1.100",
+  "rssi": -55
+}
+```
+
+---
+
+### GET `/api/ota/check` - Check OTA Update Status
+
+Returns status of the background firmware update check.
+
+---
+
+### POST `/api/ota/check` - Trigger OTA Check
+
+Triggers an asynchronous search for available OTA firmware updates.
+
+---
+
+### GET `/plugins/pokemon-party` - Pokémon Party Plugin Page
+
+Serves the HTML interface for the Pokémon Party web plugin.
+
+---
+
+### GET `/plugins/pokemon-wallpaper` - Pokémon Wallpaper Plugin Page
+
+Serves the HTML interface for the Pokémon Wallpaper web plugin.
+
+---
+
+### GET `/plugins/wallpaper` - Wallpaper Plugin Page
+
+Serves the HTML interface for the Web Wallpaper plugin.
 
 ---
 

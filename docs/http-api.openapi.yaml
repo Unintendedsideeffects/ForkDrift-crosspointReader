@@ -94,6 +94,18 @@ paths:
                     otaInstalledFeatures: markdown,remote_open_book
         '404':
           $ref: '#/components/responses/NotFoundText'
+  /health:
+    get:
+      tags: [status]
+      operationId: getHealth
+      summary: Health check endpoint
+      responses:
+        '200':
+          description: Service health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkStatusResponse'
   /api/plugins:
     get:
       tags: [features]
@@ -833,6 +845,153 @@ paths:
           $ref: '#/components/responses/BadRequestText'
         '404':
           $ref: '#/components/responses/NotFoundText'
+  /plugins/anki:
+    get:
+      tags: [features]
+      operationId: getAnkiPluginPage
+      summary: Get the Anki plugin HTML page
+      x-crosspoint-feature-gates: [anki_support]
+      responses:
+        '200':
+          description: Anki plugin HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+  /api/anki/decks:
+    get:
+      tags: [anki]
+      operationId: getAnkiDecks
+      summary: List all Anki flashcard decks with queue counts
+      x-crosspoint-feature-gates: [anki_support]
+      responses:
+        '200':
+          description: Array of decks with card counts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+  /api/anki/deck:
+    get:
+      tags: [anki]
+      operationId: getAnkiDeck
+      summary: Get metadata and stats for a single deck by path
+      x-crosspoint-feature-gates: [anki_support]
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deck details
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+  /api/anki/clear:
+    post:
+      tags: [anki]
+      operationId: clearAnkiStore
+      summary: Clear all stored Anki card reviews
+      x-crosspoint-feature-gates: [anki_support]
+      responses:
+        '200':
+          description: Store cleared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkStatusResponse'
+  /api/anki/delete:
+    post:
+      tags: [anki]
+      operationId: deleteAnkiCard
+      summary: Delete an Anki card entry by index
+      x-crosspoint-feature-gates: [anki_support]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [index]
+              properties:
+                index:
+                  type: integer
+      responses:
+        '200':
+          description: Card deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+  /api/anki/update:
+    post:
+      tags: [anki]
+      operationId: updateAnkiCard
+      summary: Update the back text of an Anki card
+      x-crosspoint-feature-gates: [anki_support]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [index, back]
+              properties:
+                index:
+                  type: integer
+                back:
+                  type: string
+      responses:
+        '200':
+          description: Card updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+  /api/anki/sync:
+    post:
+      tags: [anki]
+      operationId: syncAnkiCards
+      summary: Push cards to remote AnkiConnect server
+      x-crosspoint-feature-gates: [anki_support]
+      responses:
+        '200':
+          description: Sync summary
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [synced, skipped]
+                properties:
+                  synced:
+                    type: integer
+                  skipped:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '502':
+          $ref: '#/components/responses/InternalServerErrorText'
   /api/cover:
     get:
       tags: [books]
@@ -928,6 +1087,122 @@ paths:
           $ref: '#/components/responses/NotFoundText'
         '500':
           $ref: '#/components/responses/InternalServerErrorText'
+  /plugins/terminus:
+    get:
+      tags: [features]
+      operationId: getTerminusPluginPage
+      summary: Get the Terminus plugin HTML page
+      x-crosspoint-feature-gates: [terminus_sleep]
+      responses:
+        '200':
+          description: Terminus plugin HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+  /api/terminus/status:
+    get:
+      tags: [sleep]
+      operationId: getTerminusStatus
+      summary: Get Terminus plugin status and configuration
+      x-crosspoint-feature-gates: [terminus_sleep]
+      responses:
+        '200':
+          description: Terminus status and configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [configured, device_id, device_model, base_url, has_api_key, sleep_enabled]
+                properties:
+                  configured:
+                    type: boolean
+                  device_id:
+                    type: string
+                  device_model:
+                    type: string
+                  base_url:
+                    type: string
+                  has_api_key:
+                    type: boolean
+                  sleep_enabled:
+                    type: boolean
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+  /api/terminus/save:
+    post:
+      tags: [sleep]
+      operationId: saveTerminusConfig
+      summary: Save Terminus credentials
+      x-crosspoint-feature-gates: [terminus_sleep]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [api_key, device_id]
+              properties:
+                api_key:
+                  type: string
+                device_id:
+                  type: string
+                device_model:
+                  type: string
+                base_url:
+                  type: string
+      responses:
+        '200':
+          description: Configuration saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorText'
+  /api/terminus/test:
+    post:
+      tags: [sleep]
+      operationId: testTerminusFetch
+      summary: Fetch and pin latest Terminus sleep image
+      x-crosspoint-feature-gates: [terminus_sleep]
+      responses:
+        '200':
+          description: Image fetched and pinned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '502':
+          $ref: '#/components/responses/InternalServerErrorText'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableText'
+        '504':
+          $ref: '#/components/responses/GatewayTimeoutText'
+  /api/terminus/clear:
+    post:
+      tags: [sleep]
+      operationId: clearTerminusConfig
+      summary: Clear Terminus credentials
+      x-crosspoint-feature-gates: [terminus_sleep]
+      responses:
+        '200':
+          description: Configuration cleared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkStatusResponse'
   /api/wifi:
     get:
       tags: [wifi]
@@ -1021,6 +1296,136 @@ paths:
                 $ref: '#/components/schemas/MaintenanceOkResponse'
         '500':
           $ref: '#/components/responses/InternalServerErrorText'
+  /api/wifi/scan:
+    get:
+      tags: [wifi]
+      operationId: scanWifiNetworks
+      summary: Trigger or fetch WiFi scan results
+      x-crosspoint-feature-gates: [web_wifi_setup]
+      responses:
+        '200':
+          description: List of scanned WiFi networks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WifiNetwork'
+        '202':
+          description: Scan in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckingStatusResponse'
+        '409':
+          $ref: '#/components/responses/ConflictText'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorText'
+  /api/wifi/connect:
+    post:
+      tags: [wifi]
+      operationId: connectWifiNetwork
+      summary: Save WiFi credentials
+      x-crosspoint-feature-gates: [web_wifi_setup]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WifiConnectRequest'
+      responses:
+        '200':
+          description: Credentials saved
+          content:
+            text/plain:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorText'
+  /api/wifi/forget:
+    post:
+      tags: [wifi]
+      operationId: forgetWifiNetwork
+      summary: Remove WiFi credentials
+      x-crosspoint-feature-gates: [web_wifi_setup]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WifiForgetRequest'
+      responses:
+        '200':
+          description: Credentials removed
+          content:
+            text/plain:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequestText'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorText'
+  /api/wifi/status:
+    get:
+      tags: [wifi]
+      operationId: getWifiSetupStatus
+      summary: Get WiFi connection status details
+      x-crosspoint-feature-gates: [web_wifi_setup]
+      responses:
+        '200':
+          description: WiFi status object
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/WifiStatusConnected'
+                  - $ref: '#/components/schemas/WifiStatusDisconnected'
+                  - $ref: '#/components/schemas/WifiStatusAccessPoint'
+  /api/ota/check:
+    get:
+      tags: [ota]
+      operationId: getOtaCheckStatus
+      summary: Get status of background OTA update check
+      x-crosspoint-feature-gates: [ota_updates]
+      responses:
+        '200':
+          description: OTA update check result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtaCheckResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+    post:
+      tags: [ota]
+      operationId: startOtaCheck
+      summary: Trigger OTA update check
+      x-crosspoint-feature-gates: [ota_updates]
+      responses:
+        '200':
+          description: Check already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckingStatusResponse'
+        '202':
+          description: Check started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckingStatusResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+        '500':
+          description: Failed to start task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtaErrorResponse'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableText'
   /api/maintenance/validate-sleep-images:
     post:
       tags: [maintenance]
@@ -1164,6 +1569,51 @@ paths:
       responses:
         '200':
           description: Remote keyboard HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+  /plugins/pokemon-party:
+    get:
+      tags: [features]
+      operationId: getPokemonPartyPluginPage
+      summary: Get the Pokémon party plugin HTML page
+      x-crosspoint-feature-gates: [pokemon_party]
+      responses:
+        '200':
+          description: Pokémon party plugin HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+  /plugins/pokemon-wallpaper:
+    get:
+      tags: [features]
+      operationId: getPokemonWallpaperPluginPage
+      summary: Get the Pokémon wallpaper plugin HTML page
+      x-crosspoint-feature-gates: [pokemon_wallpaper_plugin]
+      responses:
+        '200':
+          description: Pokémon wallpaper plugin HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/NotFoundText'
+  /plugins/wallpaper:
+    get:
+      tags: [features]
+      operationId: getWallpaperPluginPage
+      summary: Get the wallpaper plugin HTML page
+      x-crosspoint-feature-gates: [web_wallpaper_plugin]
+      responses:
+        '200':
+          description: Wallpaper plugin HTML page
           content:
             text/html:
               schema:
@@ -2076,27 +2526,6 @@ components:
           enum: [error]
         message:
           type: string
-    UserFontScanResponse:
-      type: object
-      required: [families, activeLoaded]
-      properties:
-        families:
-          type: integer
-          minimum: 0
-        activeLoaded:
-          type: boolean
-    UserFontUploadResponse:
-      type: object
-      required: [ok, families, activeLoaded]
-      properties:
-        ok:
-          type: boolean
-          enum: [true]
-        families:
-          type: integer
-          minimum: 0
-        activeLoaded:
-          type: boolean
     RemoteKeyboardSessionSnapshot:
       type: object
       required: [active]

@@ -123,6 +123,7 @@ def build_exporter() -> None:
         str(ROOT / "lib/I18n/I18nStrings.cpp"),
         str(ROOT / "lib/Logging/Logging.cpp"),
         str(ROOT / "test/mock/FeatureModuleHooks.cpp"),
+        str(ROOT / "src/SettingsSerializer.cpp"),
         str(ROOT / "test/mock/JsonSettingsIO.cpp"),
         str(ROOT / "test/mock/TerminusCredentialStoreMock.cpp"),
         "-o",
