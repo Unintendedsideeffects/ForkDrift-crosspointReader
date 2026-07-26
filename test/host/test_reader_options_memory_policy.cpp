@@ -1,10 +1,9 @@
-#include "doctest/doctest.h"
-
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 
 #include "activities/reader/ReaderOptionsMemoryPolicy.h"
+#include "doctest/doctest.h"
 
 namespace {
 
@@ -19,8 +18,7 @@ TEST_CASE("ReaderOptionsMemoryPolicy build boundaries") {
   CHECK(ReaderOptionsMemoryPolicy::canBuildSettings({kBuildTotal, kBuildLargest}));
   CHECK_FALSE(ReaderOptionsMemoryPolicy::canBuildSettings({kBuildTotal - 1, kBuildLargest}));
   CHECK_FALSE(ReaderOptionsMemoryPolicy::canBuildSettings({kBuildTotal, kBuildLargest - 1}));
-  CHECK_FALSE(ReaderOptionsMemoryPolicy::canBuildSettings({std::numeric_limits<uint32_t>::max(),
-                                                           kBuildLargest - 1}));
+  CHECK_FALSE(ReaderOptionsMemoryPolicy::canBuildSettings({std::numeric_limits<uint32_t>::max(), kBuildLargest - 1}));
 }
 
 TEST_CASE("ReaderOptionsMemoryPolicy X4 preview boundaries") {
@@ -28,10 +26,8 @@ TEST_CASE("ReaderOptionsMemoryPolicy X4 preview boundaries") {
   constexpr uint32_t kRetainLargest = 96000;
 
   CHECK(ReaderOptionsMemoryPolicy::canRetainPreview({kRetainTotal, kRetainLargest}, kX4FrameBufferBytes));
-  CHECK_FALSE(
-      ReaderOptionsMemoryPolicy::canRetainPreview({kRetainTotal - 1, kRetainLargest}, kX4FrameBufferBytes));
-  CHECK_FALSE(
-      ReaderOptionsMemoryPolicy::canRetainPreview({kRetainTotal, kRetainLargest - 1}, kX4FrameBufferBytes));
+  CHECK_FALSE(ReaderOptionsMemoryPolicy::canRetainPreview({kRetainTotal - 1, kRetainLargest}, kX4FrameBufferBytes));
+  CHECK_FALSE(ReaderOptionsMemoryPolicy::canRetainPreview({kRetainTotal, kRetainLargest - 1}, kX4FrameBufferBytes));
 }
 
 TEST_CASE("ReaderOptionsMemoryPolicy X3 preview boundaries") {
@@ -39,10 +35,8 @@ TEST_CASE("ReaderOptionsMemoryPolicy X3 preview boundaries") {
   constexpr uint32_t kRetainLargest = 100272;
 
   CHECK(ReaderOptionsMemoryPolicy::canRetainPreview({kRetainTotal, kRetainLargest}, kX3FrameBufferBytes));
-  CHECK_FALSE(
-      ReaderOptionsMemoryPolicy::canRetainPreview({kRetainTotal - 1, kRetainLargest}, kX3FrameBufferBytes));
-  CHECK_FALSE(
-      ReaderOptionsMemoryPolicy::canRetainPreview({kRetainTotal, kRetainLargest - 1}, kX3FrameBufferBytes));
+  CHECK_FALSE(ReaderOptionsMemoryPolicy::canRetainPreview({kRetainTotal - 1, kRetainLargest}, kX3FrameBufferBytes));
+  CHECK_FALSE(ReaderOptionsMemoryPolicy::canRetainPreview({kRetainTotal, kRetainLargest - 1}, kX3FrameBufferBytes));
 }
 
 TEST_CASE("ReaderOptionsMemoryPolicy rejects framebuffer arithmetic overflow") {

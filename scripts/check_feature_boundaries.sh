@@ -44,6 +44,17 @@
 #   UserFontManager.*       — peripheral driver; compile-time option.
 #   BleWifiProvisioner.*    — peripheral driver; compile-time option.
 #
+#   SettingsList.h          — feature-owned setting fields and translation keys are
+#                             compiled out with annotations/bookmarks.
+#
+#   EpubReaderActivity.* / EpubReaderMenuActivity.*
+#                           — feature-owned enum members, method declarations, model
+#                             fields, and persistence symbols do not exist in disabled
+#                             builds, so runtime registration cannot replace the guards.
+#
+#   HighlightExporter.*     — its public data model directly names Annotation and
+#                             Bookmark types that are absent when their features are off.
+#
 # ─────────────────────────────────────────────────────────────────────────────
 # CATEGORY 2 — RATCHETED cleanup debt
 #
@@ -60,7 +71,7 @@ cd "$ROOT_DIR"
 
 BASE_REF="${1:-HEAD}"
 PATTERN='^[[:space:]]*#[[:space:]]*if(def)?[[:space:]]+.*ENABLE_'
-PERMANENT_PATHS_REGEX='^src/(CrossPointSettings\.cpp|network/server/CrossPointWebServer\.cpp|network/ota/OtaWebCheck\.cpp|network/wifi/BleWifiProvisioner\.(cpp|h)|util/UserFontManager\.(cpp|h)|activities/browser/OpdsBookBrowserActivity\.cpp|activities/boot_sleep/SleepActivity\.cpp):'
+PERMANENT_PATHS_REGEX='^src/(SettingsList\.h|CrossPointSettings\.cpp|network/server/CrossPointWebServer\.cpp|network/ota/OtaWebCheck\.cpp|network/wifi/BleWifiProvisioner\.(cpp|h)|util/(UserFontManager|HighlightExporter)\.(cpp|h)|activities/browser/OpdsBookBrowserActivity\.cpp|activities/boot_sleep/SleepActivity\.cpp|activities/reader/(EpubReaderActivity|EpubReaderMenuActivity)\.(cpp|h)):'
 
 if ! git cat-file -e "${BASE_REF}^{commit}" 2>/dev/null; then
     echo "Feature boundary base is not a commit: $BASE_REF" >&2

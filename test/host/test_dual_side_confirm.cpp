@@ -103,14 +103,14 @@ TEST_CASE("ReaderInputPolicy: resolveDualSideRightRelease") {
   SUBCASE("Dual-side short Select becomes exactly one forward/page-turn signal") {
     // A short press/release is captured by tracker
     tracker.update(true, 100);
-    tracker.update(false, 300); // 200ms
+    tracker.update(false, 300);  // 200ms
     CHECK(ReaderInputPolicy::resolveDualSideRightRelease(true, false, tracker) == true);
   }
 
   SUBCASE("Dual-side long Select with a configured action is consumed and does not page-turn") {
     // A long press/release, consumed by quick action
     tracker.update(true, 100);
-    tracker.update(false, 800); // 700ms
+    tracker.update(false, 800);  // 700ms
     tracker.consumeRelease();
     CHECK(ReaderInputPolicy::resolveDualSideRightRelease(true, false, tracker) == false);
   }
@@ -118,7 +118,7 @@ TEST_CASE("ReaderInputPolicy: resolveDualSideRightRelease") {
   SUBCASE("Dual-side long Select with Action Off falls through to page turn") {
     // A long press/release, but Action Off so not consumed
     tracker.update(true, 100);
-    tracker.update(false, 800); // 700ms
+    tracker.update(false, 800);  // 700ms
     CHECK(ReaderInputPolicy::resolveDualSideRightRelease(true, false, tracker) == true);
   }
 

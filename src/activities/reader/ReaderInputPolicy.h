@@ -66,7 +66,8 @@ class PhysicalConfirmTracker {
 };
 
 struct ReaderInputPolicy {
-  static bool resolveDualSideRightRelease(bool rawConfirmReleased, bool rawRightReleased, const PhysicalConfirmTracker& tracker) {
+  static bool resolveDualSideRightRelease(bool rawConfirmReleased, bool rawRightReleased,
+                                          const PhysicalConfirmTracker& tracker) {
     if (tracker.peekRelease().active) {
       return true;
     }

@@ -295,8 +295,8 @@ bool MappedInputManager::wasReleased(const Button button) {
       return gpio.wasReleased(HalGPIO::BTN_BACK) || gpio.wasReleased(HalGPIO::BTN_LEFT);
     }
     if (button == Button::Right) {
-      return ReaderInputPolicy::resolveDualSideRightRelease(
-          gpio.wasReleased(HalGPIO::BTN_CONFIRM), gpio.wasReleased(HalGPIO::BTN_RIGHT), physConfirmTracker);
+      return ReaderInputPolicy::resolveDualSideRightRelease(gpio.wasReleased(HalGPIO::BTN_CONFIRM),
+                                                            gpio.wasReleased(HalGPIO::BTN_RIGHT), physConfirmTracker);
     }
     if (button == Button::Back || button == Button::Confirm) {
       return false;
