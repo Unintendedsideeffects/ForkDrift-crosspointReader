@@ -387,9 +387,14 @@ IncrementalDamageStatus applyIncrementalSelectionOverlay(uint8_t* const frameBuf
     const size_t offset = static_cast<size_t>(y) * stride + firstByte;
     memcpy(frameBuffer + offset, baseSnapshot + offset, byteCount);
   }
+  const int restoredPx0 = firstByte * 8;
+  const int restoredPx1 = lastByte * 8 + 7;
   for (const HighlightRect& rect : currentRuns) {
-    if (highlightRectsIntersect(rect, damage)) {
-      invertHighlightRect(frameBuffer, frameBufferSize, panelWidth, panelHeight, orientation, rect);
+    int rx0, ry0, rx1, ry1;
+    if (toPhysicalBounds(rect, orientation, panelWidth, panelHeight, rx0, ry0, rx1, ry1)) {
+      if (rx0 <= restoredPx1 && rx1 >= restoredPx0 && ry0 <= y1 && ry1 >= y0) {
+        invertHighlightRect(frameBuffer, frameBufferSize, panelWidth, panelHeight, orientation, rect);
+      }
     }
   }
   return IncrementalDamageStatus::Applied;

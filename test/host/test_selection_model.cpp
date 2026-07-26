@@ -125,6 +125,52 @@ TEST_CASE("SelectionModel incremental overlay matches full redraw in every orien
   }
 }
 
+TEST_CASE(
+    "SelectionModel incremental overlay repaints adjacent runs caught in byte-aligned restore margin in all "
+    "orientations") {
+  constexpr uint16_t panelWidth = 64;
+  constexpr uint16_t panelHeight = 64;
+  constexpr size_t frameSize = panelWidth / 8 * panelHeight;
+  std::array<uint8_t, frameSize> base{};
+  for (size_t i = 0; i < base.size(); ++i) {
+    base[i] = static_cast<uint8_t>((i * 37u + 11u) & 0xFFu);
+  }
+
+  struct TestCase {
+    selection::FrameOrientation orientation;
+    selection::HighlightRect run1;
+    selection::HighlightRect run2;
+  };
+
+  const std::array<TestCase, 4> cases{{
+      {selection::FrameOrientation::Portrait, {10, 16, 20, 6}, {10, 22, 20, 10}},
+      {selection::FrameOrientation::PortraitInverted, {10, 42, 20, 6}, {10, 32, 20, 9}},
+      {selection::FrameOrientation::LandscapeClockwise, {42, 10, 6, 20}, {32, 10, 9, 20}},
+      {selection::FrameOrientation::LandscapeCounterClockwise, {16, 10, 6, 20}, {22, 10, 10, 20}},
+  }};
+
+  for (const auto& tc : cases) {
+    const std::vector<selection::HighlightRect> previous{tc.run1};
+    const std::vector<selection::HighlightRect> current{tc.run1, tc.run2};
+
+    auto incremental = base;
+    selection::invertHighlightRect(incremental.data(), incremental.size(), panelWidth, panelHeight, tc.orientation,
+                                   tc.run1);
+
+    const auto status =
+        selection::applyIncrementalSelectionOverlay(incremental.data(), base.data(), incremental.size(), panelWidth,
+                                                    panelHeight, tc.orientation, previous, current);
+    CHECK(status == selection::IncrementalDamageStatus::Applied);
+
+    auto reference = base;
+    for (const auto& rect : current) {
+      selection::invertHighlightRect(reference.data(), reference.size(), panelWidth, panelHeight, tc.orientation, rect);
+    }
+
+    CHECK(std::memcmp(incremental.data(), reference.data(), frameSize) == 0);
+  }
+}
+
 TEST_CASE("SelectionModel overlapping runs request the conservative full redraw") {
   constexpr uint16_t panelWidth = 64;
   constexpr uint16_t panelHeight = 48;
