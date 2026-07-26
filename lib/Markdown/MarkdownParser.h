@@ -9,10 +9,11 @@ extern "C" {
 }
 
 #include "MarkdownAST.h"
+#include "MarkdownLimits.h"
 
 class MarkdownParser {
  public:
-  static constexpr size_t MAX_INPUT_SIZE = 512 * 1024;  // 512KB
+  static constexpr size_t MAX_INPUT_SIZE = markdown::limits::kMaxPreprocessedBytes;
   static constexpr size_t MAX_AST_NODES = 10000;
   static constexpr size_t MAX_NESTING_DEPTH = 50;
 

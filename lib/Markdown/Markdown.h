@@ -37,6 +37,12 @@ class Markdown {
   std::string getContent() const;
 
  private:
+  struct EmbedBudget {
+    size_t count = 0;
+    size_t aggregateBytes = 0;
+    bool rejected = false;
+  };
+
   std::string filepath;
   std::string cacheBasePath;
   std::string cachePath;
@@ -48,5 +54,6 @@ class Markdown {
   std::unique_ptr<MarkdownNavigation> navigation;
 
   bool renderToHtmlFile(const std::string& htmlPath) const;
-  std::string preprocessContent(std::string content, int depth, std::vector<std::string>& stack) const;
+  bool preprocessContent(std::string content, int depth, std::vector<std::string>& stack, std::string& out,
+                         EmbedBudget& budget) const;
 };

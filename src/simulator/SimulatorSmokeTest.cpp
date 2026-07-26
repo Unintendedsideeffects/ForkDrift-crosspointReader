@@ -125,6 +125,10 @@ class SimulatorSmokeTest {
   static bool darkModeScopeRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_DARK_MODE_SCOPE") != nullptr; }
 
   static bool readerOptionsRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_READER_OPTIONS") != nullptr; }
+  static bool readerOpenOnlyRequested() { return std::getenv("FORKDRIFT_SIMULATOR_READER_OPEN_ONLY") != nullptr; }
+  static bool readerLoadFailureExpected() {
+    return std::getenv("FORKDRIFT_SIMULATOR_EXPECT_READER_LOAD_FAILURE") != nullptr;
+  }
   static bool controlsOptionsRequested() {
     return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_CONTROLS_OPTIONS") != nullptr;
   }
@@ -373,6 +377,19 @@ class SimulatorSmokeTest {
       }
 
       case SmokeStep::Reader:
+        if (readerLoadFailureExpected()) {
+          if (activityManager.isReaderActivity()) fail("Reader unexpectedly opened under rejected allocation policy");
+          LOG_INF("SMOKE", "SMOKE_READER_LOAD_FAILED_RECOVERABLY");
+          step = SmokeStep::Done;
+          break;
+        }
+        if (readerOpenOnlyRequested()) {
+          if (!activityManager.isReaderActivity()) fail("Healthy reader-open smoke did not enter a reader activity");
+          LOG_INF("SMOKE", "SMOKE_READER_OPENED");
+          activityManager.goHome();
+          step = SmokeStep::Done;
+          break;
+        }
         buildReaderInputScript();
         scriptStep = SmokeStep::ReaderInput;
         // After the reader closes we are back Home with a recent book present.

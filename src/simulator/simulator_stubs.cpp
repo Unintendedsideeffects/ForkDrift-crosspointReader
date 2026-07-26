@@ -17,7 +17,7 @@ BackgroundWifiService BackgroundWifiService::instance;
 
 bool BackgroundWifiService::start(const char*, const char*) { return false; }
 bool BackgroundWifiService::startUsingCurrentConnection() { return false; }
-void BackgroundWifiService::stop(bool) {}
+bool BackgroundWifiService::stop(bool) { return true; }
 bool BackgroundWifiService::startRetryActive() const { return false; }
 
 // ForkDrift additions to CrossPointWebServer not in the simulator library.

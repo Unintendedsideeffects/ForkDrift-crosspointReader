@@ -26,7 +26,8 @@ Activity* createActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
     return nullptr;
   }
 
-  auto* activity = new (std::nothrow) TxtReaderActivity(renderer, mappedInput, std::move(txt));
+  auto* activity =
+      core::createActivityNoThrow<TxtReaderActivity>("TxtReaderActivity", renderer, mappedInput, std::move(txt));
   if (!activity) {
     LOG_ERR("READER", "Failed to allocate TxtReaderActivity");
     return nullptr;

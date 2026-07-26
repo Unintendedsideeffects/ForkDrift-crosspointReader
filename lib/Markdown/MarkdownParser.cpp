@@ -164,8 +164,12 @@ std::unique_ptr<MdNode> MarkdownParser::parseWithPreprocessing(const std::string
     LOG_ERR("MD", "Preprocess failed: input size %zu exceeds limit %zu", markdown.size(), MAX_INPUT_SIZE);
     return nullptr;
   }
-  std::string processed = ::preprocessMarkdown(markdown);
-  return parse(processed);
+  auto processed = markdown::preprocess::preprocessDocumentBounded(markdown);
+  if (!processed) {
+    LOG_ERR("MD", "Preprocess failed: policy status %u", static_cast<unsigned int>(processed.status));
+    return nullptr;
+  }
+  return parse(processed.output);
 }
 
 MdNode* MarkdownParser::currentNode() {

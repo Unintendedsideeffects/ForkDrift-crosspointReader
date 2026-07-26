@@ -44,6 +44,34 @@ TEST_CASE("testMarkdownLimits") {
   CHECK(resultMany == nullptr);
 }
 
+TEST_CASE("markdown source admission accounts for peak and fragmentation") {
+  using markdown::limits::AdmissionStatus;
+  constexpr size_t source = 12 * 1024;
+  const size_t required = source * 2 + markdown::limits::kParserHeadroomBytes;
+
+  CHECK(markdown::limits::admitSource(source, required, source + 1) == AdmissionStatus::Ok);
+  CHECK(markdown::limits::admitSource(source, required - 1, source + 1) == AdmissionStatus::InsufficientHeap);
+  CHECK(markdown::limits::admitSource(source, required, source) == AdmissionStatus::FragmentedHeap);
+  CHECK(markdown::limits::admitSource(markdown::limits::kMaxSourceBytes + 1, 1024 * 1024, 1024 * 1024) ==
+        AdmissionStatus::SourceTooLarge);
+}
+
+TEST_CASE("markdown bounded preprocessing rejects instead of truncating") {
+  const auto exact = markdown::preprocess::preprocessDocumentBounded("1234", {}, 4, 4);
+  REQUIRE(exact);
+  CHECK(exact.output == "1234");
+
+  const auto outputOverflow = markdown::preprocess::preprocessDocumentBounded("12345", {}, 4, 8);
+  CHECK_FALSE(outputOverflow);
+  CHECK(outputOverflow.status == markdown::preprocess::PreprocessStatus::OutputTooLarge);
+  CHECK(outputOverflow.output.empty());
+
+  const auto longLine = markdown::preprocess::preprocessDocumentBounded("12345", {}, 16, 4);
+  CHECK_FALSE(longLine);
+  CHECK(longLine.status == markdown::preprocess::PreprocessStatus::LineTooLong);
+  CHECK(longLine.output.empty());
+}
+
 TEST_CASE("obsidianPreprocessorKeepsFirmwareMdFeaturesAligned") {
   const std::string input =
       "---\n"

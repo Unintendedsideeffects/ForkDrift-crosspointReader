@@ -41,10 +41,32 @@ enum class FlashcardStudyMode : uint8_t {
   Failed,
 };
 
+enum class FlashcardLoadStatus : uint8_t {
+  Ok,
+  Empty,
+  Malformed,
+  TooLarge,
+  TooManyCards,
+  TooManyColumns,
+  RecordTooLarge,
+  FieldTooLarge,
+  IoError,
+};
+
 class FlashcardsStore {
  public:
+  static constexpr size_t MAX_DECK_BYTES = 256 * 1024;
+  static constexpr size_t MAX_CARDS = 512;
+  static constexpr size_t MAX_COLUMNS = 16;
+  static constexpr size_t MAX_RECORD_BYTES = 4096;
+  static constexpr size_t MAX_FIELD_BYTES = 2048;
+  static constexpr size_t MAX_PROGRESS_BYTES = 160 * 1024;
+  static constexpr size_t MAX_DISCOVERED_DECKS = 64;
+
   // Storage/model layer adapted from CPR-Vortex: https://github.com/franssjz/cpr-vcodex
   static std::vector<FlashcardCard> parseCsvDeck(const std::string& csvContent);
+  static FlashcardLoadStatus parseCsvDeckBounded(const std::string& csvContent, std::vector<FlashcardCard>& outCards);
+  static std::string titleFromPath(const std::string& path);
   static bool isValidDeckPath(const std::string& path);
   static std::vector<std::string> listDecks(const std::string& directoryPath);
   static bool loadDeck(const std::string& path, FlashcardDeck& outDeck, std::string* outError = nullptr);

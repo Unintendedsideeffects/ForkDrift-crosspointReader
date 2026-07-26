@@ -28,8 +28,8 @@ Activity* createActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
     return nullptr;
   }
 
-  auto* activity = new (std::nothrow)
-      MarkdownReaderActivity(renderer, mappedInput, std::move(markdown), callbackCtx, onBackToLibrary, onBackHome);
+  auto* activity = core::createActivityNoThrow<MarkdownReaderActivity>(
+      "MarkdownReaderActivity", renderer, mappedInput, std::move(markdown), callbackCtx, onBackToLibrary, onBackHome);
   if (!activity) {
     LOG_ERR("READER", "Failed to allocate MarkdownReaderActivity");
     return nullptr;

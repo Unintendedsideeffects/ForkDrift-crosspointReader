@@ -5,6 +5,18 @@
 
 namespace background_server {
 
+enum class ServiceState : uint8_t {
+  Stopped,
+  Running,
+  StopRequested,
+  Wedged,
+};
+
+bool canStart(ServiceState state);
+ServiceState requestStop(ServiceState state);
+ServiceState noteStopTimeout(ServiceState state);
+ServiceState noteCleanupComplete(ServiceState state);
+
 enum class AutoConnectAction {
   None,
   BlockedWaitingForCredential,

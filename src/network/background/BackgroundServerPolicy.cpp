@@ -2,6 +2,18 @@
 
 namespace background_server {
 
+bool canStart(const ServiceState state) { return state == ServiceState::Stopped; }
+
+ServiceState requestStop(const ServiceState state) {
+  return state == ServiceState::Running ? ServiceState::StopRequested : state;
+}
+
+ServiceState noteStopTimeout(const ServiceState state) {
+  return state == ServiceState::StopRequested ? ServiceState::Wedged : state;
+}
+
+ServiceState noteCleanupComplete(const ServiceState) { return ServiceState::Stopped; }
+
 AutoConnectDecision evaluateAutoConnect(const AutoConnectInput& input) {
   AutoConnectDecision decision;
 

@@ -35,6 +35,30 @@ background_server::ReconcileInput makeReconcileInput(const bool backgroundWifiEn
 
 }  // namespace
 
+TEST_CASE("background service lifecycle admits restart only after owner cleanup") {
+  using background_server::ServiceState;
+
+  CHECK(background_server::canStart(ServiceState::Stopped));
+  CHECK_FALSE(background_server::canStart(ServiceState::Running));
+  CHECK_FALSE(background_server::canStart(ServiceState::StopRequested));
+  CHECK_FALSE(background_server::canStart(ServiceState::Wedged));
+
+  CHECK(background_server::requestStop(ServiceState::Running) == ServiceState::StopRequested);
+  CHECK(background_server::noteStopTimeout(ServiceState::StopRequested) == ServiceState::Wedged);
+  CHECK_FALSE(background_server::canStart(ServiceState::Wedged));
+  CHECK(background_server::noteCleanupComplete(ServiceState::Wedged) == ServiceState::Stopped);
+  CHECK(background_server::canStart(background_server::noteCleanupComplete(ServiceState::StopRequested)));
+}
+
+TEST_CASE("background service lifecycle ignores invalid duplicate transitions") {
+  using background_server::ServiceState;
+
+  CHECK(background_server::requestStop(ServiceState::Stopped) == ServiceState::Stopped);
+  CHECK(background_server::requestStop(ServiceState::Wedged) == ServiceState::Wedged);
+  CHECK(background_server::noteStopTimeout(ServiceState::Running) == ServiceState::Running);
+  CHECK(background_server::noteStopTimeout(ServiceState::Wedged) == ServiceState::Wedged);
+}
+
 TEST_CASE("background server always mode requests WiFi auto-connect") {
   const auto decision = background_server::evaluateAutoConnect(makeAutoConnectInput(true));
   CHECK(decision.action == background_server::AutoConnectAction::StartWithLastCredential);

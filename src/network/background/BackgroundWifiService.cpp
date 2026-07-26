@@ -48,8 +48,10 @@ struct WifiTaskParams {
 
 void BackgroundWifiService::taskEntry(void* arg) {
   auto* params = static_cast<WifiTaskParams*>(arg);
-  instance.run(params->ssid, params->password, params->useCurrentConnection);
+  WifiTaskParams ownedParams = *params;
   delete params;
+  instance.run(ownedParams.ssid, ownedParams.password, ownedParams.useCurrentConnection);
+  vTaskDelete(nullptr);
 }
 
 bool BackgroundWifiService::startRetryActive() const {
@@ -203,9 +205,10 @@ cleanup:
   wifiOwned = false;
   keepWifiOnStop = false;
 
-  // Signal stop() that we've exited, then self-delete
+  // Publish completion only after the owner has torn down the server, mDNS,
+  // radio state, and all upload/file resources.
   taskHandle = nullptr;
-  vTaskDelete(nullptr);
+  serviceState = background_server::noteCleanupComplete(serviceState);
 }
 
 void BackgroundWifiService::refreshLibraryShelf() {
@@ -256,8 +259,9 @@ void BackgroundWifiService::refreshLibraryShelf() {
 
 bool BackgroundWifiService::spawnTask(const char* ssid, const char* password, const bool useCurrentConnection,
                                       const char* logContext) {
-  if (taskHandle != nullptr) {
-    LOG_DBG("BGWIFI", "Already running, ignoring %s", logContext);
+  if (taskHandle != nullptr || !background_server::canStart(serviceState)) {
+    LOG_ERR("BGWIFI", "Start rejected (%s): state=%u task=%p", logContext, static_cast<unsigned int>(serviceState),
+            taskHandle);
     return false;
   }
   if (!canStartNow()) {
@@ -272,11 +276,13 @@ bool BackgroundWifiService::spawnTask(const char* ssid, const char* password, co
   requestCount = 0;
   mdnsStarted = false;
   shelfRefreshAttempted = false;
+  serviceState = background_server::ServiceState::Running;
 
   // Heap-allocate params so the pointers remain valid after this function returns
   auto* params = new (std::nothrow) WifiTaskParams();
   if (params == nullptr) {
     LOG_ERR("BGWIFI", "Failed to allocate WiFi task params");
+    serviceState = background_server::ServiceState::Stopped;
     deferStartRetry("params alloc failed");
     return false;
   }
@@ -294,6 +300,7 @@ bool BackgroundWifiService::spawnTask(const char* ssid, const char* password, co
     LOG_ERR("BGWIFI", "Failed to create task (heap: %d bytes free)", ESP.getFreeHeap());
     delete params;
     taskHandle = nullptr;
+    serviceState = background_server::ServiceState::Stopped;
     deferStartRetry("task create failed");
     return false;
   }
@@ -310,14 +317,15 @@ bool BackgroundWifiService::startUsingCurrentConnection() {
   return spawnTask(nullptr, nullptr, true, "adopt current connection");
 }
 
-void BackgroundWifiService::stop(const bool keepWifi) {
+bool BackgroundWifiService::stop(const bool keepWifi) {
   if (taskHandle == nullptr) {
-    return;
+    return background_server::canStart(serviceState);
   }
 
   LOG_DBG("BGWIFI", "Requesting stop...");
   keepWifiOnStop = keepWifi;
   stopRequested = true;
+  serviceState = background_server::requestStop(serviceState);
 
   // Wait for the task to exit. The bg loop checks stopRequested between
   // handleClient() iterations, so the only way to exceed this is a single
@@ -339,30 +347,15 @@ void BackgroundWifiService::stop(const bool keepWifi) {
   if (taskHandle != nullptr) {
     const bool heldPendingMutex = (debugPendingStateMutexHolder() == taskHandle);
     const bool heldStorageMutex = (HalStorage::storageMutexHolder() == taskHandle);
-    if (heldPendingMutex || heldStorageMutex) {
-      LOG_ERR("BGWIFI",
-              "Task did not exit within %lu ms but holds mutex (pending=%d storage=%d); skipping force-delete",
-              STOP_TIMEOUT_MS, heldPendingMutex ? 1 : 0, heldStorageMutex ? 1 : 0);
-    } else {
-      LOG_ERR("BGWIFI", "Task did not exit within %lu ms, force-deleting", STOP_TIMEOUT_MS);
-      vTaskDelete(taskHandle);
-      taskHandle = nullptr;
-      connected = false;
-      serving = false;
-      if (mdnsStarted) {
-        MDNS.end();
-        mdnsStarted = false;
-      }
-      if (wifiOwned && !keepWifi) {
-        WiFi.disconnect(false);
-        delay(30);
-        WiFi.mode(WIFI_OFF);
-        delay(30);
-      }
-      wifiOwned = false;
-      keepWifiOnStop = false;
-    }
+    serviceState = background_server::noteStopTimeout(serviceState);
+    LOG_ERR("BGWIFI",
+            "Cooperative stop timed out after %lu ms: state=wedged requests=%lu serving=%d heap=%u "
+            "pending_mutex=%d storage_mutex=%d; restart disabled until owner cleanup or reboot",
+            STOP_TIMEOUT_MS, requestCount, serving ? 1 : 0, static_cast<unsigned int>(ESP.getFreeHeap()),
+            heldPendingMutex ? 1 : 0, heldStorageMutex ? 1 : 0);
+    return false;
   }
 
   LOG_DBG("BGWIFI", "Stopped. Total requests served: %lu", requestCount);
+  return true;
 }

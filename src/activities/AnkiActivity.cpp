@@ -31,11 +31,8 @@ void AnkiActivity::loadDecks() {
   deckTitles.reserve(paths.size());
   deckPaths.reserve(paths.size());
   for (const auto& path : paths) {
-    FlashcardDeck deck;
-    if (FlashcardsStore::loadDeck(path, deck)) {
-      deckTitles.push_back(deck.title);
-      deckPaths.push_back(path);
-    }
+    deckTitles.push_back(FlashcardsStore::titleFromPath(path));
+    deckPaths.push_back(path);
   }
 }
 

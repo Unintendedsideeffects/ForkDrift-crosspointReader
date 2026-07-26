@@ -1,6 +1,7 @@
 #pragma once
 
 #include <HalStorage.h>
+#include <HeapGuard.h>
 #include <Logging.h>
 #include <Memory.h>
 
@@ -20,6 +21,12 @@ std::unique_ptr<T> loadDocumentNoThrow(const std::string& path, const char* name
     return nullptr;
   }
 
+  if (!heapguard::canAllocate(sizeof(T), 0)) {
+    LOG_ERR("READER", "READER_ALLOC_REJECT kind=document type=%s bytes=%u free=%u largest=%u", name,
+            static_cast<unsigned int>(sizeof(T)), static_cast<unsigned int>(heapguard::freeBytes()),
+            static_cast<unsigned int>(heapguard::largestBlock()));
+    return nullptr;
+  }
   auto doc = makeUniqueNoThrow<T>(path, "/.crosspoint");
   if (!doc) {
     LOG_ERR("READER", "Failed to allocate %s object", name);
@@ -32,6 +39,19 @@ std::unique_ptr<T> loadDocumentNoThrow(const std::string& path, const char* name
   }
 
   return doc;
+}
+
+template <typename T, typename... Args>
+T* createActivityNoThrow(const char* name, Args&&... args) {
+  if (!heapguard::canAllocate(sizeof(T), 0)) {
+    LOG_ERR("READER", "READER_ALLOC_REJECT kind=activity type=%s bytes=%u free=%u largest=%u", name,
+            static_cast<unsigned int>(sizeof(T)), static_cast<unsigned int>(heapguard::freeBytes()),
+            static_cast<unsigned int>(heapguard::largestBlock()));
+    return nullptr;
+  }
+  auto* activity = new (std::nothrow) T(std::forward<Args>(args)...);
+  if (!activity) LOG_ERR("READER", "READER_ALLOC_REJECT kind=activity type=%s allocator=null", name);
+  return activity;
 }
 
 }  // namespace core

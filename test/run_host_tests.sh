@@ -100,6 +100,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/I18n/I18n.cpp" \
   "$ROOT_DIR/lib/I18n/I18nStrings.cpp" \
   "$ROOT_DIR/lib/Logging/Logging.cpp" \
+  "$ROOT_DIR/lib/Memory/HeapGuard.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownPreprocessor.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownParser.cpp" \
   "$ROOT_DIR/src/core/features/FeatureCatalog.cpp" \

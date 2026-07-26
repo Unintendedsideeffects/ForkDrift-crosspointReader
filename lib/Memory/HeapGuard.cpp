@@ -2,7 +2,7 @@
 
 #include <Logging.h>
 
-#ifdef SIMULATOR
+#if defined(SIMULATOR) || defined(CROSSPOINT_HOST_BUILD)
 #include <Arduino.h>  // ESPMock: sim_heap.cpp budget tracker
 #else
 #include <esp_heap_caps.h>
@@ -20,7 +20,7 @@
 namespace heapguard {
 
 size_t freeBytes() {
-#ifdef SIMULATOR
+#if defined(SIMULATOR) || defined(CROSSPOINT_HOST_BUILD)
   return ESP.getFreeHeap();
 #else
   return esp_get_free_heap_size();
@@ -28,7 +28,7 @@ size_t freeBytes() {
 }
 
 size_t largestBlock() {
-#ifdef SIMULATOR
+#if defined(SIMULATOR) || defined(CROSSPOINT_HOST_BUILD)
   return ESP.getMaxAllocHeap();
 #else
   return heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);

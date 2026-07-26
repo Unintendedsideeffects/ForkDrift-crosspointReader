@@ -11,6 +11,43 @@ TEST_CASE("flashcards parse basic and quoted CSV") {
   CHECK(cards[1].front == "Q2");
 }
 
+TEST_CASE("flashcards streaming parser preserves quoted newlines and CRLF") {
+  std::vector<FlashcardCard> cards;
+  const auto status =
+      FlashcardsStore::parseCsvDeckBounded("card_id,question,answer\r\n1,\"line one\nline two\",\"A, B\"\r\n", cards);
+  REQUIRE(status == FlashcardLoadStatus::Ok);
+  REQUIRE(cards.size() == 1);
+  CHECK(cards[0].key == "1");
+  CHECK(cards[0].front == "line one\nline two");
+  CHECK(cards[0].back == "A, B");
+}
+
+TEST_CASE("flashcards parser rejects malformed and bounded inputs without partial output") {
+  std::vector<FlashcardCard> cards = {{"keep", "old", "value"}};
+  CHECK(FlashcardsStore::parseCsvDeckBounded("front,back\n\"unterminated,value", cards) ==
+        FlashcardLoadStatus::Malformed);
+  REQUIRE(cards.size() == 1);
+  CHECK(cards[0].key == "keep");
+
+  const std::string longField(FlashcardsStore::MAX_FIELD_BYTES + 1, 'x');
+  CHECK(FlashcardsStore::parseCsvDeckBounded("front,back\n" + longField + ",answer\n", cards) ==
+        FlashcardLoadStatus::FieldTooLarge);
+  CHECK(cards[0].key == "keep");
+}
+
+TEST_CASE("flashcards oversized production deck leaves caller deck unchanged") {
+  Storage.reset();
+  Storage.mkdir("/decks");
+  const std::string oversized(FlashcardsStore::MAX_DECK_BYTES + 1, 'x');
+  REQUIRE(Storage.writeFile("/decks/huge.csv", oversized.c_str()));
+  FlashcardDeck deck;
+  deck.title = "keep";
+  std::string error;
+  CHECK_FALSE(FlashcardsStore::loadDeck("/decks/huge.csv", deck, &error));
+  CHECK(deck.title == "keep");
+  CHECK(error.find("256 KiB") != std::string::npos);
+}
+
 TEST_CASE("flashcards load decks and progress from storage") {
   Storage.reset();
   Storage.mkdir("/decks");

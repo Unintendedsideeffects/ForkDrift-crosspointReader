@@ -5,11 +5,27 @@
 #include <functional>
 #include <string>
 
+#include "MarkdownLimits.h"
+
 namespace markdown::preprocess {
 
 using ExpandLineCallback = std::function<bool(const std::string& line, std::string& expandedLine)>;
 
-constexpr size_t kMaxPreprocessedOutputBytes = 512 * 1024;
+constexpr size_t kMaxPreprocessedOutputBytes = limits::kMaxPreprocessedBytes;
+
+enum class PreprocessStatus : uint8_t {
+  Ok,
+  InputTooLarge,
+  LineTooLong,
+  OutputTooLarge,
+};
+
+struct PreprocessResult {
+  PreprocessStatus status = PreprocessStatus::Ok;
+  std::string output;
+
+  explicit operator bool() const { return status == PreprocessStatus::Ok; }
+};
 
 bool hasImageExtension(const std::string& target);
 std::string trimSpaces(const std::string& value);
@@ -27,5 +43,9 @@ bool isFenceStart(const std::string& line, std::string& fence);
 bool isFenceEnd(const std::string& line, const std::string& fence);
 std::string preprocessDocument(const std::string& content, const ExpandLineCallback& expandLine = ExpandLineCallback(),
                                size_t maxOutputBytes = kMaxPreprocessedOutputBytes);
+PreprocessResult preprocessDocumentBounded(std::string content,
+                                           const ExpandLineCallback& expandLine = ExpandLineCallback(),
+                                           size_t maxOutputBytes = kMaxPreprocessedOutputBytes,
+                                           size_t maxLineBytes = limits::kMaxLineBytes);
 
 }  // namespace markdown::preprocess

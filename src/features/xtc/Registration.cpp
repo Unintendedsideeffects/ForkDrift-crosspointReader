@@ -32,7 +32,8 @@ Activity* createActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
     return nullptr;
   }
 
-  auto* activity = new (std::nothrow) XtcReaderActivity(renderer, mappedInput, std::move(xtc));
+  auto* activity =
+      core::createActivityNoThrow<XtcReaderActivity>("XtcReaderActivity", renderer, mappedInput, std::move(xtc));
   if (!activity) {
     LOG_ERR("READER", "Failed to allocate XtcReaderActivity");
     return nullptr;

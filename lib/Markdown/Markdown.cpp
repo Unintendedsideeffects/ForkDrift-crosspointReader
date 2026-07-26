@@ -3,6 +3,7 @@
 #include <BookCachePath.h>
 #include <FsHelpers.h>
 #include <HalStorage.h>
+#include <HeapGuard.h>
 #include <Logging.h>
 #include <Serialization.h>
 
@@ -13,6 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "MarkdownLimits.h"
 #include "MarkdownParser.h"
 #include "MarkdownPreprocessor.h"
 
@@ -23,8 +25,6 @@ extern "C" {
 namespace {
 constexpr uint32_t META_MAGIC = 0x4D44544D;  // "MDTM"
 constexpr uint8_t META_VERSION = 2;
-constexpr int MAX_EMBED_DEPTH = 3;
-constexpr size_t MAX_EMBED_BYTES = 256 * 1024;
 
 struct SourceVersion {
   size_t fileSize = 0;
@@ -345,19 +345,28 @@ bool readFileToString(const std::string& path, std::string& out, size_t maxBytes
     file.close();
     return false;
   }
+  if (!heapguard::canAllocate(size + 1)) {
+    LOG_ERR("MD", "MARKDOWN_ADMISSION_REJECT path=%s bytes=%u free=%u largest=%u", path.c_str(),
+            static_cast<unsigned int>(size), static_cast<unsigned int>(heapguard::freeBytes()),
+            static_cast<unsigned int>(heapguard::largestBlock()));
+    file.close();
+    return false;
+  }
 
   out.clear();
   out.reserve(size + 1);
   uint8_t buffer[1024];
-  while (file.available()) {
+  size_t totalRead = 0;
+  while (file.available() && totalRead < size) {
     const size_t readSize = file.read(buffer, sizeof(buffer));
     if (readSize == 0) {
       break;
     }
     out.append(reinterpret_cast<const char*>(buffer), readSize);
+    totalRead += readSize;
   }
   file.close();
-  return true;
+  return totalRead == size;
 }
 
 std::string stripHeadingMarkup(const std::string& line, uint8_t level) {
@@ -504,6 +513,16 @@ bool Markdown::load() {
   fileSize = file.size();
   file.close();
 
+  const auto admission = markdown::limits::admitSource(fileSize, heapguard::freeBytes(), heapguard::largestBlock());
+  if (admission != markdown::limits::AdmissionStatus::Ok) {
+    LOG_ERR("MD", "MARKDOWN_ADMISSION_REJECT status=%u bytes=%u free=%u largest=%u path=%s",
+            static_cast<unsigned int>(admission), static_cast<unsigned int>(fileSize),
+            static_cast<unsigned int>(heapguard::freeBytes()), static_cast<unsigned int>(heapguard::largestBlock()),
+            filepath.c_str());
+    fileSize = 0;
+    return false;
+  }
+
   loaded = true;
   LOG_INF("MD", "Loaded markdown file: %s (%zu bytes)", filepath.c_str(), fileSize);
   return true;
@@ -641,6 +660,12 @@ bool Markdown::renderToHtmlFile(const std::string& htmlPath) const {
   }
 
   std::string content;
+  if (!heapguard::canAllocate(fileSize + 1)) {
+    LOG_ERR("MD", "MARKDOWN_ADMISSION_REJECT before HTML read: free=%u largest=%u",
+            static_cast<unsigned int>(heapguard::freeBytes()), static_cast<unsigned int>(heapguard::largestBlock()));
+    file.close();
+    return false;
+  }
   content.reserve(fileSize + 1);
   uint8_t buffer[1024];
   while (file.available()) {
@@ -652,9 +677,20 @@ bool Markdown::renderToHtmlFile(const std::string& htmlPath) const {
   }
   file.close();
 
+  if (content.size() != fileSize) {
+    LOG_ERR("MD", "Short read: expected %u bytes, got %u", static_cast<unsigned int>(fileSize),
+            static_cast<unsigned int>(content.size()));
+    return false;
+  }
+
   std::vector<std::string> stack;
   stack.push_back(filepath);
-  std::string output = preprocessContent(std::move(content), 0, stack);
+  EmbedBudget budget;
+  std::string output;
+  if (!preprocessContent(std::move(content), 0, stack, output, budget)) {
+    LOG_ERR("MD", "Markdown preprocessing rejected input");
+    return false;
+  }
 
   HalFile htmlFile;
   if (!Storage.openFileForWrite("MD ", htmlPath, htmlFile)) {
@@ -688,24 +724,40 @@ std::string Markdown::getContent() const {
   }
 
   std::string content;
+  if (!heapguard::canAllocate(fileSize + 1)) {
+    LOG_ERR("MD", "MARKDOWN_ADMISSION_REJECT before content read: free=%u largest=%u",
+            static_cast<unsigned int>(heapguard::freeBytes()), static_cast<unsigned int>(heapguard::largestBlock()));
+    file.close();
+    return "";
+  }
   content.reserve(fileSize + 1);
   uint8_t buffer[1024];
-  while (file.available()) {
+  size_t totalRead = 0;
+  while (file.available() && totalRead < fileSize) {
     const size_t readSize = file.read(buffer, sizeof(buffer));
     if (readSize == 0) {
       break;
     }
     content.append(reinterpret_cast<const char*>(buffer), readSize);
+    totalRead += readSize;
   }
   file.close();
-
+  if (totalRead != fileSize) {
+    LOG_ERR("MD", "Short read: expected %u bytes, got %u", static_cast<unsigned int>(fileSize),
+            static_cast<unsigned int>(totalRead));
+    return "";
+  }
   return content;
 }
 
-std::string Markdown::preprocessContent(std::string content, int depth, std::vector<std::string>& stack) const {
-  if (depth > MAX_EMBED_DEPTH) {
-    return "[Embedded note omitted]";
+bool Markdown::preprocessContent(std::string content, int depth, std::vector<std::string>& stack, std::string& out,
+                                 EmbedBudget& budget) const {
+  if (depth > markdown::limits::kMaxEmbedDepth) {
+    out = "[Embedded note omitted]";
+    return true;
   }
+
+  bool preprocessFailed = false;
 
   auto resolveEmbed = [&](const std::string& inner, std::string& expansion) -> bool {
     std::string target = inner;
@@ -783,10 +835,24 @@ std::string Markdown::preprocessContent(std::string content, int depth, std::vec
     }
 
     std::string embeddedContent;
-    if (!readFileToString(resolvedPath, embeddedContent, MAX_EMBED_BYTES)) {
+    if (budget.count >= markdown::limits::kMaxEmbedCount) {
+      budget.rejected = true;
+      preprocessFailed = true;
+      expansion.clear();
+      return true;
+    }
+    if (!readFileToString(resolvedPath, embeddedContent, markdown::limits::kMaxEmbedBytes)) {
       expansion = "[Embedded note not found]";
       return true;
     }
+    if (embeddedContent.size() > markdown::limits::kMaxEmbeddedAggregateBytes - budget.aggregateBytes) {
+      budget.rejected = true;
+      preprocessFailed = true;
+      expansion.clear();
+      return true;
+    }
+    budget.count++;
+    budget.aggregateBytes += embeddedContent.size();
 
     std::string selected = embeddedContent;
     if (!blockId.empty()) {
@@ -819,7 +885,9 @@ std::string Markdown::preprocessContent(std::string content, int depth, std::vec
     }
 
     stack.push_back(cycleKey);
-    expansion = preprocessContent(selected, depth + 1, stack);
+    if (!preprocessContent(std::move(selected), depth + 1, stack, expansion, budget)) {
+      preprocessFailed = true;
+    }
     stack.pop_back();
     return true;
   };
@@ -899,7 +967,26 @@ std::string Markdown::preprocessContent(std::string content, int depth, std::vec
 
     return found;
   };
-  return markdown::preprocess::preprocessDocument(content, expandEmbedsInLine, MarkdownParser::MAX_INPUT_SIZE);
+  const size_t expectedOutputAllocation =
+      std::min(markdown::limits::kMaxPreprocessedBytes, content.size() + content.size() / 4 + 256);
+  if (!heapguard::canAllocate(expectedOutputAllocation)) {
+    LOG_ERR("MD", "MARKDOWN_PREPROCESS_REJECT fragmented/low heap: need=%u free=%u largest=%u",
+            static_cast<unsigned int>(expectedOutputAllocation), static_cast<unsigned int>(heapguard::freeBytes()),
+            static_cast<unsigned int>(heapguard::largestBlock()));
+    out.clear();
+    return false;
+  }
+  auto result = markdown::preprocess::preprocessDocumentBounded(std::move(content), expandEmbedsInLine,
+                                                                markdown::limits::kMaxPreprocessedBytes);
+  if (!result || preprocessFailed || budget.rejected) {
+    LOG_ERR("MD", "MARKDOWN_PREPROCESS_REJECT status=%u embeds=%u embedded_bytes=%u",
+            static_cast<unsigned int>(result.status), static_cast<unsigned int>(budget.count),
+            static_cast<unsigned int>(budget.aggregateBytes));
+    out.clear();
+    return false;
+  }
+  out = std::move(result.output);
+  return true;
 }
 
 bool Markdown::parseToAst() {
@@ -920,7 +1007,11 @@ bool Markdown::parseToAst() {
   MarkdownParser parser;
   std::vector<std::string> stack;
   stack.push_back(filepath);
-  std::string processed = preprocessContent(std::move(content), 0, stack);
+  EmbedBudget budget;
+  std::string processed;
+  if (!preprocessContent(std::move(content), 0, stack, processed, budget)) {
+    return false;
+  }
 
   ast = parser.parse(processed);
 

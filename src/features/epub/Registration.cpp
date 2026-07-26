@@ -32,7 +32,8 @@ Activity* createActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
     return nullptr;
   }
 
-  auto* activity = new (std::nothrow) EpubReaderActivity(renderer, mappedInput, std::move(epub));
+  auto* activity =
+      core::createActivityNoThrow<EpubReaderActivity>("EpubReaderActivity", renderer, mappedInput, std::move(epub));
   if (!activity) {
     LOG_ERR("READER", "Failed to allocate EpubReaderActivity");
     return nullptr;

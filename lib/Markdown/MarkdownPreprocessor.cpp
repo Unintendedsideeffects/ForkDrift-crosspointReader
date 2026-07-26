@@ -661,124 +661,147 @@ bool isFenceEnd(const std::string& line, const std::string& fence) {
   return true;
 }
 
-std::string preprocessDocument(const std::string& content, const ExpandLineCallback& expandLine,
-                               const size_t maxOutputBytes) {
-  std::string processed = stripComments(stripFrontmatter(content));
+PreprocessResult preprocessDocumentBounded(std::string content, const ExpandLineCallback& expandLine,
+                                           const size_t maxOutputBytes, const size_t maxLineBytes) {
+  if (content.size() > limits::kMaxSourceBytes) {
+    return {PreprocessStatus::InputTooLarge, {}};
+  }
+
+  // Strip frontmatter and comments in place so preprocessing owns one source
+  // buffer instead of creating two additional document-sized strings.
+  const std::string withoutFrontmatter = stripFrontmatter(content);
+  content = withoutFrontmatter;
+  size_t read = 0;
+  size_t write = 0;
+  while (read < content.size()) {
+    if (read + 1 < content.size() && content[read] == '%' && content[read + 1] == '%') {
+      const size_t end = content.find("%%", read + 2);
+      if (end == std::string::npos) break;
+      read = end + 2;
+      continue;
+    }
+    content[write++] = content[read++];
+  }
+  content.resize(write);
+
+  PreprocessResult result;
+  const size_t reserveBytes =
+      std::min(maxOutputBytes, content.size() + std::min(content.size() / 4 + 256, maxOutputBytes));
+  result.output.reserve(reserveBytes);
+  bool firstOutputLine = true;
+
+  auto appendOutputLine = [&](const std::string& line) -> bool {
+    const size_t separator = firstOutputLine ? 0 : 1;
+    if (line.size() > maxOutputBytes || result.output.size() > maxOutputBytes - line.size() ||
+        result.output.size() + line.size() > maxOutputBytes - separator) {
+      result.status = PreprocessStatus::OutputTooLarge;
+      return false;
+    }
+    if (!firstOutputLine) result.output.push_back('\n');
+    result.output.append(line);
+    firstOutputLine = false;
+    return true;
+  };
+
+  auto appendProcessedLine = [&](const std::string& line) -> bool {
+    std::string expandedLine;
+    if (expandLine && expandLine(line, expandedLine)) {
+      size_t start = 0;
+      while (start <= expandedLine.size()) {
+        const size_t end = expandedLine.find('\n', start);
+        const bool hasNewline = end != std::string::npos;
+        const size_t length = hasNewline ? end - start : expandedLine.size() - start;
+        if (length > maxLineBytes || !appendOutputLine(expandedLine.substr(start, length))) {
+          if (length > maxLineBytes) result.status = PreprocessStatus::LineTooLong;
+          return false;
+        }
+        if (!hasNewline) break;
+        start = end + 1;
+      }
+      return true;
+    }
+    return appendOutputLine(processLine(line));
+  };
+
+  size_t cursor = 0;
+  auto readLine = [&](std::string& line) -> bool {
+    if (cursor >= content.size()) return false;
+    const size_t end = content.find('\n', cursor);
+    const size_t length = end == std::string::npos ? content.size() - cursor : end - cursor;
+    if (length > maxLineBytes) {
+      result.status = PreprocessStatus::LineTooLong;
+      return false;
+    }
+    line.assign(content, cursor, length);
+    cursor = end == std::string::npos ? content.size() : end + 1;
+    return true;
+  };
 
   bool inFence = false;
   std::string fence;
-  std::vector<std::string> lines;
-  lines.reserve(256);
-
-  size_t start = 0;
-  while (start <= processed.size()) {
-    const size_t end = processed.find('\n', start);
-    const bool hasNewline = end != std::string::npos;
-    const size_t lineLen = hasNewline ? (end - start) : (processed.size() - start);
-    lines.emplace_back(processed.substr(start, lineLen));
-    if (!hasNewline) {
-      break;
-    }
-    start = end + 1;
-  }
-
-  const bool endsWithNewline = !processed.empty() && processed.back() == '\n';
-  std::vector<std::string> outLines;
-  outLines.reserve(lines.size() + 16);
-
-  auto appendProcessedLine = [&](const std::string& line) {
-    std::string expandedLine;
-    if (expandLine && expandLine(line, expandedLine)) {
-      appendLinesFromString(expandedLine, outLines);
-    } else {
-      outLines.push_back(processLine(line));
-    }
-  };
-
-  for (size_t i = 0; i < lines.size();) {
-    const std::string& line = lines[i];
-
+  std::string current;
+  std::string next;
+  bool hasCurrent = readLine(current);
+  bool hasNext = hasCurrent && readLine(next);
+  while (hasCurrent && result.status == PreprocessStatus::Ok) {
     if (!inFence) {
       std::string newFence;
-      if (isFenceStart(line, newFence)) {
+      if (isFenceStart(current, newFence)) {
         inFence = true;
-        fence = newFence;
-        outLines.push_back(line);
-        i++;
-        continue;
-      }
-
-      std::string caption;
-      if (isTableCaptionLine(line, caption) && i + 1 < lines.size() && isTableLine(lines[i + 1])) {
-        appendProcessedLine("*" + caption + "*");
-        i++;
-        continue;
-      }
-
-      std::string defIndent;
-      std::string defText;
-      if (i + 1 < lines.size() && isDefinitionTermCandidate(line) &&
-          isDefinitionLine(lines[i + 1], defIndent, defText)) {
-        size_t termIndentEnd = line.find_first_not_of(" \t");
-        if (termIndentEnd == std::string::npos) {
-          termIndentEnd = line.size();
-        }
-        const std::string termIndent = line.substr(0, termIndentEnd);
-        const std::string termText = trimSpaces(line);
-        appendProcessedLine(termIndent + "**" + termText + "**");
-        i++;
-        while (i < lines.size()) {
-          std::string lineIndent;
-          std::string lineDef;
-          if (!isDefinitionLine(lines[i], lineIndent, lineDef)) {
+        fence = std::move(newFence);
+        if (!appendOutputLine(current)) break;
+      } else {
+        std::string caption;
+        if (hasNext && isTableCaptionLine(current, caption) && isTableLine(next)) {
+          if (!appendProcessedLine("*" + caption + "*")) break;
+        } else {
+          std::string defIndent;
+          std::string defText;
+          if (hasNext && isDefinitionTermCandidate(current) && isDefinitionLine(next, defIndent, defText)) {
+            size_t termIndentEnd = current.find_first_not_of(" \t");
+            if (termIndentEnd == std::string::npos) termIndentEnd = current.size();
+            const std::string termIndent = current.substr(0, termIndentEnd);
+            if (!appendProcessedLine(termIndent + "**" + trimSpaces(current) + "**")) break;
+            do {
+              std::string bulletIndent = defIndent.size() < termIndent.size() ? termIndent : defIndent;
+              if (!appendProcessedLine(bulletIndent + "- " + defText)) break;
+              current = std::move(next);
+              hasNext = readLine(next);
+            } while (hasNext && isDefinitionLine(next, defIndent, defText));
+            if (result.status != PreprocessStatus::Ok) break;
+          } else if (!appendProcessedLine(current)) {
             break;
           }
-          std::string bulletIndent = lineIndent;
-          if (bulletIndent.size() < termIndent.size()) {
-            bulletIndent = termIndent;
-          }
-          appendProcessedLine(bulletIndent + "- " + lineDef);
-          i++;
         }
-        continue;
       }
-
-      appendProcessedLine(line);
-      i++;
-      continue;
+    } else {
+      if (!appendOutputLine(current)) break;
+      if (isFenceEnd(current, fence)) {
+        inFence = false;
+        fence.clear();
+      }
     }
 
-    outLines.push_back(line);
-    if (isFenceEnd(line, fence)) {
-      inFence = false;
-      fence.clear();
-    }
-    i++;
+    current = std::move(next);
+    hasCurrent = hasNext;
+    hasNext = hasCurrent && readLine(next);
   }
 
-  std::string output;
-  size_t estimatedSize = 0;
-  for (const auto& line : outLines) {
-    estimatedSize += line.size() + 1;
-  }
-  output.reserve(estimatedSize);
-
-  for (size_t i = 0; i < outLines.size(); i++) {
-    output.append(outLines[i]);
-    if (output.size() >= maxOutputBytes) {
-      output.resize(maxOutputBytes);
-      break;
-    }
-    if (i + 1 < outLines.size() || endsWithNewline) {
-      output.push_back('\n');
-    }
-    if (output.size() >= maxOutputBytes) {
-      output.resize(maxOutputBytes);
-      break;
+  if (result.status == PreprocessStatus::Ok && !content.empty() && content.back() == '\n') {
+    if (result.output.size() >= maxOutputBytes) {
+      result.status = PreprocessStatus::OutputTooLarge;
+    } else {
+      result.output.push_back('\n');
     }
   }
+  if (result.status != PreprocessStatus::Ok) result.output.clear();
+  return result;
+}
 
-  return output;
+std::string preprocessDocument(const std::string& content, const ExpandLineCallback& expandLine,
+                               const size_t maxOutputBytes) {
+  auto result = preprocessDocumentBounded(content, expandLine, maxOutputBytes);
+  return result ? std::move(result.output) : std::string{};
 }
 
 }  // namespace markdown::preprocess
