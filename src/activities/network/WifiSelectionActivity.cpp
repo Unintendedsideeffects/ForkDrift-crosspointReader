@@ -197,11 +197,23 @@ void WifiSelectionActivity::processWifiScanResults() {
   }
 
   if (scanResult == WIFI_SCAN_FAILED) {
-    if (scanRetryCount < SCAN_RETRY_MAX) {
+    const wifi_entry::ScanRetryDecision decision = wifi_entry::evaluateScanRetry(wifi_entry::ScanRetryInput{
+        .failureCount = static_cast<uint8_t>(scanRetryCount + 1),
+        .maxRetries = SCAN_RETRY_MAX,
+        .baseDelayMs = SCAN_RETRY_BASE_DELAY_MS,
+    });
+    if (decision.retry) {
       scanRetryCount++;
-      LOG_DBG("WIFISEL", "Scan failed; retrying (%u/%u)", scanRetryCount, SCAN_RETRY_MAX);
+      LOG_DBG("WIFISEL", "Scan failed; retrying (%u/%u) in %lums", scanRetryCount, SCAN_RETRY_MAX, decision.delayMs);
       WiFi.scanDelete();
-      startWifiScanAsync();
+      // Re-arm the radio and wait, exactly as the first scan does. Calling
+      // startWifiScanAsync() straight from here (as this did previously) skips
+      // both, so all retries fire within the same handful of milliseconds while
+      // the SDK auto-connect that aborted the scan is still running — the
+      // budget is spent before the radio is ever free.
+      WiFi.disconnect(false, true);
+      radioStep = RadioStep::ScanReset;
+      radioStepReadyAt = millis() + decision.delayMs;
       return;
     }
     LOG_ERR("WIFISEL", "WiFi scan failed %u times; showing empty list", static_cast<unsigned>(SCAN_RETRY_MAX) + 1);

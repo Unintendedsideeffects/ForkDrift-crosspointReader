@@ -342,3 +342,35 @@ bypass.
   `selModel.words.size()` at `EpubReaderActivity.cpp:2547-2548` and `:2600-2601`, which is
   an upper bound on run count (runs ≤ words). So no reallocation occurs on a cursor move.
 - **Status**: wontfix (no defect) — verified correct 2026-07-26
+
+## 2026-07-29T14:40Z — WiFi picker's scan-retry budget was spent in the same loop() tick (2nd occurrence of this class)
+
+- **Found by**: claude — ad hoc, during on-device bring-up of `claude_bridge`
+- **Where**: `src/activities/network/WifiSelectionActivity.cpp` (`processWifiScanResults`,
+  `WIFI_SCAN_FAILED` branch) and `src/activities/network/WifiSelectionActivity.h`
+  (`SCAN_RETRY_MAX`)
+- **What**: on a real X4 the picker logged `WiFi scan failed 4 times; showing empty list`
+  **instantly** on entry, with three saved networks in range. The first scan correctly goes
+  through `startWifiScan()`, which does `WiFi.disconnect(false, true)` and then arms
+  `RadioStep::ScanReset` with a 100 ms settle. The retries did neither — they called
+  `startWifiScanAsync()` directly from the failure handler, so all three ran in consecutive
+  `loop()` ticks within single-digit milliseconds, every one of them while the SDK NVS
+  auto-connect that aborted the first scan was still in flight. The retry budget existed but
+  could not do anything; the comment at the trap already said "retry silently before showing
+  an empty list", which is why it read as already-handled.
+- **Why it matters beyond the picker**: an empty list makes a device with saved credentials
+  look unprovisionable, and the background web server never comes up, so every network
+  feature (file transfer, settings, OTA, OPDS) is dark until the user retries by hand.
+- **Class history**: this is the **2nd** occurrence of "SDK auto-connect poisons the first
+  scan after STA power-up". The 1st produced the suppression in `startWifiScan()` plus the
+  retry counter. Per the ladder, 2nd occurrence requires **documentation of why it keeps
+  recurring, at the trap and in the docs** — hence the expanded comment on `SCAN_RETRY_MAX`
+  and this entry. The recurring reason: the suppression and the retry live in *different*
+  code paths, so it is easy to add a retry that silently skips the suppression. A future
+  3rd occurrence escalates to an automatic gate.
+- **Status**: **fixed (uncommitted)** — retry decision extracted to
+  `wifi_entry::evaluateScanRetry` (`src/network/wifi/WifiEntryPolicy.{h,cpp}`) returning an
+  exponential backoff (150/300/600 ms), and the failure branch now re-arms the radio and
+  goes back through `RadioStep::ScanReset`. Covered by 4 host cases in
+  `test/host/test_wifi_entry_policy.cpp`, including one asserting every retry carries a
+  non-zero delay — the zero-delay retry *is* the bug.

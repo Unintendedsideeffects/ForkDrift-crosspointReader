@@ -104,7 +104,17 @@ class WifiSelectionActivity final : public Activity {
   // The first scan after STA power-up often fails (an in-flight SDK
   // auto-connect aborts it); retry silently before showing an empty list,
   // mirroring BackgroundWebServer's scanFailureBurst.
+  //
+  // The retries MUST go back through RadioStep::ScanReset with a growing
+  // delay (see wifi_entry::evaluateScanRetry). Rescanning immediately from
+  // the failure handler spends all three attempts inside a few milliseconds,
+  // every one of them while the auto-connect that aborted the first scan is
+  // still in flight — which is exactly how this screen regressed to showing an
+  // empty network list despite "having retries".
   static constexpr uint8_t SCAN_RETRY_MAX = 3;
+  // 150 / 300 / 600 ms — ~1.05 s of headroom worst case, invisible next to the
+  // several seconds a scan itself takes.
+  static constexpr unsigned long SCAN_RETRY_BASE_DELAY_MS = 150;
   uint8_t scanRetryCount = 0;
   BleWifiProvisioner bleProvisioner;
 

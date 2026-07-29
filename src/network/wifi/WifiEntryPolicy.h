@@ -58,4 +58,33 @@ struct EntryInput {
  */
 EntryAction evaluateEntry(const EntryInput& input);
 
+struct ScanRetryInput {
+  // Failures observed so far, including the one being handled (first = 1).
+  uint8_t failureCount = 0;
+  uint8_t maxRetries = 3;
+  // Delay before the first retry; each further retry doubles it.
+  unsigned long baseDelayMs = 0;
+};
+
+struct ScanRetryDecision {
+  // False once the budget is spent — the caller shows whatever it has.
+  bool retry = false;
+  // How long to let the radio settle before re-arming and rescanning.
+  unsigned long delayMs = 0;
+};
+
+/**
+ * Decides whether a failed WiFi scan is retried, and how long to wait first.
+ *
+ * The delay is the whole point. The first scan after STA power-up is aborted
+ * by the SDK's in-flight NVS auto-connect, which runs for hundreds of
+ * milliseconds. Retrying in the same loop() tick — as this code did until the
+ * backoff was added — burns the entire retry budget in single-digit
+ * milliseconds, always while the radio is still busy, so every attempt fails
+ * for the same reason and the user gets an empty network list. Each retry must
+ * re-arm the radio and then wait, and the wait must grow: a fixed short delay
+ * loses the same race on a slow association.
+ */
+ScanRetryDecision evaluateScanRetry(const ScanRetryInput& input);
+
 }  // namespace wifi_entry

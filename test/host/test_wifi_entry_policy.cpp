@@ -96,3 +96,64 @@ TEST_CASE("wifi entry: a fresh cache avoids a cold scan when there is no credent
 }
 
 TEST_CASE("wifi entry: cold start scans") { CHECK(wifi_entry::evaluateEntry(makeInput()) == EntryAction::Scan); }
+
+// ── Scan retry backoff ──────────────────────────────────────────────────────
+//
+// Regression: the picker showed an empty network list on the first visit after
+// STA power-up despite having a 3-retry budget. The retries were issued
+// straight from the failure handler, so all of them ran within a few
+// milliseconds while the SDK auto-connect that aborted the first scan was
+// still in flight. The budget only means something if each attempt waits.
+
+TEST_CASE("wifi scan retry: each retry waits, and the wait grows") {
+  const auto retryAfter = [](const uint8_t failureCount) {
+    return wifi_entry::evaluateScanRetry(wifi_entry::ScanRetryInput{
+        .failureCount = failureCount,
+        .maxRetries = 3,
+        .baseDelayMs = 150,
+    });
+  };
+
+  // Every retry must carry a non-zero delay — a zero-delay retry is the bug.
+  CHECK(retryAfter(1).retry);
+  CHECK(retryAfter(1).delayMs == 150);
+  CHECK(retryAfter(2).retry);
+  CHECK(retryAfter(2).delayMs == 300);
+  CHECK(retryAfter(3).retry);
+  CHECK(retryAfter(3).delayMs == 600);
+
+  // Strictly increasing, so a slow association still gets a longer window.
+  CHECK(retryAfter(1).delayMs < retryAfter(2).delayMs);
+  CHECK(retryAfter(2).delayMs < retryAfter(3).delayMs);
+}
+
+TEST_CASE("wifi scan retry: the budget is finite") {
+  const auto spent = wifi_entry::evaluateScanRetry(wifi_entry::ScanRetryInput{
+      .failureCount = 4,
+      .maxRetries = 3,
+      .baseDelayMs = 150,
+  });
+  CHECK_FALSE(spent.retry);
+  CHECK(spent.delayMs == 0);
+}
+
+TEST_CASE("wifi scan retry: a zero failure count is not a retry") {
+  // Guards against an off-by-one at the call site passing the pre-increment
+  // counter, which would grant a free no-wait attempt.
+  const auto none = wifi_entry::evaluateScanRetry(wifi_entry::ScanRetryInput{
+      .failureCount = 0,
+      .maxRetries = 3,
+      .baseDelayMs = 150,
+  });
+  CHECK_FALSE(none.retry);
+}
+
+TEST_CASE("wifi scan retry: a large budget cannot shift past the type width") {
+  const auto deep = wifi_entry::evaluateScanRetry(wifi_entry::ScanRetryInput{
+      .failureCount = 40,
+      .maxRetries = 40,
+      .baseDelayMs = 150,
+  });
+  CHECK(deep.retry);
+  CHECK(deep.delayMs > 0);
+}

@@ -29,4 +29,19 @@ EntryAction evaluateEntry(const EntryInput& input) {
   return EntryAction::Scan;
 }
 
+ScanRetryDecision evaluateScanRetry(const ScanRetryInput& input) {
+  if (input.failureCount == 0 || input.failureCount > input.maxRetries) {
+    return ScanRetryDecision{};
+  }
+
+  // Exponential: base, 2x, 4x... A scan aborted by an in-flight auto-connect
+  // needs the radio to go quiet, and how long that takes varies with the
+  // association. Shifting by (failureCount - 1) is safe for any plausible
+  // retry budget; clamp anyway so a mis-set maxRetries cannot shift past the
+  // width of the type.
+  constexpr uint8_t kMaxShift = 8;
+  const uint8_t shift = input.failureCount - 1 < kMaxShift ? input.failureCount - 1 : kMaxShift;
+  return ScanRetryDecision{true, input.baseDelayMs << shift};
+}
+
 }  // namespace wifi_entry
