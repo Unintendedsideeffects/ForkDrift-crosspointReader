@@ -10,6 +10,10 @@ void FeatureLifecycle::onSettingsLoaded(GfxRenderer& renderer) { LifecycleRegist
 
 void FeatureLifecycle::onFontSetup(GfxRenderer& renderer) { LifecycleRegistry::dispatchFontSetup(renderer); }
 
+void FeatureLifecycle::onBackgroundNetworkReady() { LifecycleRegistry::dispatchBackgroundNetworkReady(); }
+
 void FeatureLifecycle::onBackgroundServerStarted() { LifecycleRegistry::dispatchBackgroundServerStarted(); }
+
+void FeatureLifecycle::onBackgroundServerTick() { LifecycleRegistry::dispatchBackgroundServerTick(); }
 
 }  // namespace core

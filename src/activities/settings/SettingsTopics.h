@@ -45,8 +45,7 @@ inline const std::vector<SettingsTopicGroup> kDisplay{
     {StrId::STR_SEC_STATUS_BAR, {"globalStatusBarPosition"}},
     {StrId::STR_SEC_SLEEP,
      {"sleepScreenSplit", "sleepScreen", "sleepScreenReader", "sleepScreenHome", "sleepScreenSource",
-      "sleepScreenCoverMode", "sleepScreenCoverFilter", "sleepCycleMode", "haikuClockLandscape",
-      "terminusSleepEnabled"}},
+      "sleepScreenCoverMode", "sleepScreenCoverFilter", "sleepCycleMode", "haikuClockLandscape"}},
     {StrId::STR_SEC_DISPLAY_MISC, {"refreshFrequency"}},
 };
 

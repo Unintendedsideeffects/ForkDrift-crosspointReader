@@ -28,6 +28,19 @@ size_t optionIndexForValue(const SettingInfo& setting, const uint8_t value) {
 
 }  // namespace
 
+// Regression: getSettingsList() used a hardcoded reserve(48). Once the real
+// count passed it, the 2x regrowth needed the old and new arrays live at once
+// (9.6 KB + 19.2 KB for 200-byte entries) and bad_alloc'd on the device's
+// fragmented heap -> abort() on every entry to Settings. The reserve must
+// always match the count exactly, so no reallocation can happen.
+TEST_CASE("getSettingsList reserves exactly, never reallocates") {
+  Storage.reset();
+  const auto settings = getSettingsList();
+
+  REQUIRE(!settings.empty());
+  CHECK(settings.capacity() == settings.size());
+}
+
 TEST_CASE("settings metadata keeps Looks and sleep controls available") {
   Storage.reset();
   const auto settings = getSettingsList();
@@ -37,6 +50,11 @@ TEST_CASE("settings metadata keeps Looks and sleep controls available") {
   CHECK(sleepFilter->category == StrId::STR_CAT_DISPLAY);
   CHECK(sleepFilter->visiblePredicate == nullptr);
 
+  const SettingInfo* stayAwakeWhileCharging = findSettingByKey(settings, "stayAwakeWhileCharging");
+  REQUIRE(stayAwakeWhileCharging != nullptr);
+  CHECK(stayAwakeWhileCharging->type == SettingType::TOGGLE);
+  CHECK(stayAwakeWhileCharging->category == StrId::STR_CAT_SYSTEM);
+
   const SettingInfo* globalStatusBar = findSettingByKey(settings, "globalStatusBarPosition");
 #if ENABLE_GLOBAL_STATUS_BAR
   REQUIRE(globalStatusBar != nullptr);
@@ -45,6 +63,32 @@ TEST_CASE("settings metadata keeps Looks and sleep controls available") {
   CHECK(globalStatusBar == nullptr);
 #endif
 }
+
+#if ENABLE_TERMINUS_SLEEP
+TEST_CASE("Terminus is a sleep-screen option only after on-device setup") {
+  Storage.reset();
+  TERMINUS_STORE.clear();
+
+  std::vector<StrId> labels;
+  std::vector<uint8_t> values;
+  std::vector<const char*> featureKeys;
+  buildSleepModeOptions(labels, values, featureKeys, false, false);
+  CHECK(optionIndexForValue(SettingInfo::Enum(StrId::STR_SLEEP_SCREEN, nullptr, labels).withEnumPersistedValues(values),
+                            CrossPointSettings::TERMINUS_SLEEP) == values.size());
+
+  TERMINUS_STORE.setApiKey("device-token");
+  TERMINUS_STORE.setDeviceId("8C:BF:EA:38:92:28");
+  labels.clear();
+  values.clear();
+  featureKeys.clear();
+  buildSleepModeOptions(labels, values, featureKeys, false, false);
+  const auto terminus = std::find(values.begin(), values.end(), CrossPointSettings::TERMINUS_SLEEP);
+  REQUIRE(terminus != values.end());
+  CHECK(labels[static_cast<size_t>(std::distance(values.begin(), terminus))] == StrId::STR_TERMINUS);
+
+  TERMINUS_STORE.clear();
+}
+#endif
 
 TEST_CASE("testSettingsRoundTrip") {
   // Reset in-memory filesystem between tests.
@@ -84,6 +128,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.lineSpacing = CrossPointSettings::WIDE;
   s.paragraphAlignment = CrossPointSettings::CENTER_ALIGN;
   s.sleepTimeoutMinutes = 23;
+  s.stayAwakeWhileCharging = 1;
   s.refreshFrequency = CrossPointSettings::REFRESH_10;
   s.opdsFilenameFormat = CrossPointSettings::OPDS_FILENAME_TITLE_AUTHOR;
   s.hyphenationEnabled = 1;
@@ -97,6 +142,8 @@ TEST_CASE("testSettingsRoundTrip") {
   s.timeZoneOffset = 14;
   s.autoSyncDayOnBackgroundPing = 1;
   s.lastTimeSyncEpoch = 1700000000UL;
+  s.terminusSleepEnabled = 1;
+  s.timedSleepRefreshInterval = 4;
   s.releaseChannel = CrossPointSettings::RELEASE_NIGHTLY;
   s.wifiAutoConnect = CrossPointSettings::supportsBackgroundServerAlwaysMode() ? 1 : 0;
   strncpy(s.userFontPath, "/fonts/MyFont.ttf", sizeof(s.userFontPath) - 1);
@@ -134,6 +181,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.lineSpacing = CrossPointSettings::NORMAL;
   s.paragraphAlignment = CrossPointSettings::JUSTIFIED;
   s.sleepTimeoutMinutes = 10;
+  s.stayAwakeWhileCharging = 0;
   s.refreshFrequency = CrossPointSettings::REFRESH_15;
   s.opdsFilenameFormat = CrossPointSettings::OPDS_FILENAME_AUTHOR_TITLE;
   s.hyphenationEnabled = 0;
@@ -147,6 +195,8 @@ TEST_CASE("testSettingsRoundTrip") {
   s.timeZoneOffset = 12;
   s.autoSyncDayOnBackgroundPing = 0;
   s.lastTimeSyncEpoch = 0;
+  s.terminusSleepEnabled = 0;
+  s.timedSleepRefreshInterval = 0;
   s.releaseChannel = CrossPointSettings::RELEASE_STABLE;
   s.wifiAutoConnect = 0;
   s.userFontPath[0] = '\0';
@@ -177,6 +227,7 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(s.lineSpacing == CrossPointSettings::WIDE);
   CHECK(s.paragraphAlignment == CrossPointSettings::CENTER_ALIGN);
   CHECK(s.sleepTimeoutMinutes == 23);
+  CHECK(s.stayAwakeWhileCharging == 1);
   CHECK(s.refreshFrequency == CrossPointSettings::REFRESH_10);
   CHECK(s.opdsFilenameFormat == CrossPointSettings::OPDS_FILENAME_TITLE_AUTHOR);
   CHECK(s.hyphenationEnabled == 1);
@@ -189,6 +240,9 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(s.timeZoneOffset == 14);
   CHECK(s.autoSyncDayOnBackgroundPing == 1);
   CHECK(s.lastTimeSyncEpoch == 1700000000UL);
+  CHECK(s.terminusSleepEnabled == 1);
+  CHECK(s.timedSleepRefreshInterval == 4);
+  CHECK(s.getTimedRefreshIntervalMicros() == 8ULL * 3600ULL * 1000000ULL);
   CHECK(s.releaseChannel == CrossPointSettings::RELEASE_NIGHTLY);
   CHECK(s.wifiAutoConnect == (CrossPointSettings::supportsBackgroundServerAlwaysMode() ? 1 : 0));
   CHECK(std::string(s.userFontPath) == "/fonts/MyFont.ttf");
@@ -203,6 +257,39 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(s.frontButtonConfirm == CrossPointSettings::FRONT_HW_RIGHT);
   CHECK(s.frontButtonLeft == CrossPointSettings::FRONT_HW_BACK);
   CHECK(s.frontButtonRight == CrossPointSettings::FRONT_HW_CONFIRM);
+}
+
+TEST_CASE("timed sleep refresh maps every persisted interval and rejects invalid values") {
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+  static constexpr uint64_t kHourMicros = 3600ULL * 1000000ULL;
+  static constexpr uint8_t kHours[] = {0, 1, 2, 4, 8, 24};
+
+  for (uint8_t value = 0; value < sizeof(kHours) / sizeof(kHours[0]); ++value) {
+    s.timedSleepRefreshInterval = value;
+    CHECK(s.getTimedRefreshIntervalMicros() == static_cast<uint64_t>(kHours[value]) * kHourMicros);
+  }
+
+  s.terminusSleepEnabled = 7;
+  s.timedSleepRefreshInterval = 255;
+  s.validateAndClamp();
+  CHECK(s.terminusSleepEnabled == 1);
+  CHECK(s.timedSleepRefreshInterval == 0);
+  CHECK(s.getTimedRefreshIntervalMicros() == 0);
+}
+
+TEST_CASE("stay awake while charging only blocks inactivity sleep on USB power") {
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+  const uint8_t saved = s.stayAwakeWhileCharging;
+
+  s.stayAwakeWhileCharging = 0;
+  CHECK_FALSE(s.preventsAutoSleepWhileCharging(false));
+  CHECK_FALSE(s.preventsAutoSleepWhileCharging(true));
+
+  s.stayAwakeWhileCharging = 1;
+  CHECK_FALSE(s.preventsAutoSleepWhileCharging(false));
+  CHECK(s.preventsAutoSleepWhileCharging(true));
+
+  s.stayAwakeWhileCharging = saved;
 }
 
 TEST_CASE("testBackgroundServerModeClamping") {

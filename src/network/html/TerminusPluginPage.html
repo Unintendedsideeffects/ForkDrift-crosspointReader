@@ -45,8 +45,8 @@
     <label for="api_key">API Key</label>
     <input type="password" id="api_key" placeholder="Your Terminus API key" autocomplete="off" />
 
-    <label for="device_id">Device ID</label>
-    <input type="text" id="device_id" placeholder="Your device UUID from Terminus" />
+    <label for="device_id">Device ID / MAC Address</label>
+    <input type="text" id="device_id" placeholder="The device MAC address registered in Terminus" />
 
     <label for="device_model">Device Model</label>
     <select id="device_model">
@@ -56,8 +56,21 @@
     <p class="hint">Select the model registered in Terminus for this device.</p>
 
     <label for="base_url">Server URL</label>
-    <input type="text" id="base_url" placeholder="https://api.trmnl.com (leave blank for default)" />
+    <input type="text" id="base_url" placeholder="https://trmnl.com (leave blank for default)" />
     <p class="hint">Leave blank for Terminus cloud. Enter your BYOS server URL if self-hosting.</p>
+
+    <label><input type="checkbox" id="sleep_enabled" checked /> Enable Terminus sleep screen</label>
+
+    <label for="timed_refresh_interval">Refresh while asleep on USB power</label>
+    <select id="timed_refresh_interval">
+      <option value="0">Off</option>
+      <option value="1" selected>Every hour</option>
+      <option value="2">Every 2 hours</option>
+      <option value="3">Every 4 hours</option>
+      <option value="4">Every 8 hours</option>
+      <option value="5">Every 24 hours</option>
+    </select>
+    <p class="hint">When awake and connected, CrossPoint follows the refresh interval returned by Terminus. While sleeping on USB, this timer wakes, fetches, redraws, and sleeps again.</p>
 
     <button onclick="saveCredentials()" class="btn btn-success">Save Credentials</button>
     <button onclick="clearCredentials()" class="btn btn-danger">Clear</button>
@@ -66,14 +79,14 @@
     <div class="drop-hint">
       <strong>SD card setup:</strong> Drop a <code>terminus.json</code> file at the root of your SD card
       and reboot. The device will import it automatically. Format:<br>
-      <code>{"api_key":"...","device_id":"...","device_model":"xteink_x4","base_url":"https://api.trmnl.com"}</code>
+      <code>{"api_key":"...","device_id":"...","device_model":"xteink_x4","base_url":"https://trmnl.com"}</code>
     </div>
   </div>
 
   <div class="card">
     <h3 style="margin-top:0">Test &amp; Fetch</h3>
     <p>Fetch the current Terminus display image now and pin it as the next sleep screen.
-       The device also does this automatically each time it connects to WiFi on charge.</p>
+       The device also refreshes automatically while connected and on each configured USB timer wake.</p>
     <button onclick="testFetch()" class="btn" id="test-btn">Fetch &amp; Pin Image Now</button>
     <div class="result" id="test-result"></div>
   </div>
@@ -88,7 +101,8 @@
         if (d.configured) {
           badge.textContent = 'Configured';
           badge.className = 'status-badge ok';
-          detail.textContent = `Device ID: ${d.device_id} | Model: ${d.device_model} | Sleep: ${d.sleep_enabled ? 'On' : 'Off'}`;
+          const fetchState = d.fetch_running ? 'fetching' : (d.last_attempt_epoch ? (d.last_fetch_ok ? 'last fetch OK' : 'last fetch failed') : 'not fetched yet');
+          detail.textContent = `Device ID: ${d.device_id} | Model: ${d.device_model} | Sleep: ${d.sleep_enabled ? 'On' : 'Off'} | ${fetchState} | Server interval: ${d.server_refresh_seconds || 900}s`;
         } else {
           badge.textContent = 'Not configured';
           badge.className = 'status-badge warn';
@@ -96,9 +110,11 @@
         }
         if (d.device_id) document.getElementById('device_id').value = d.device_id;
         if (d.device_model) document.getElementById('device_model').value = d.device_model;
-        if (d.base_url && d.base_url !== 'https://api.trmnl.com') {
+        if (d.base_url && d.base_url !== 'https://trmnl.com') {
           document.getElementById('base_url').value = d.base_url;
         }
+        document.getElementById('sleep_enabled').checked = Boolean(d.sleep_enabled);
+        document.getElementById('timed_refresh_interval').value = String(d.timed_refresh_interval ?? 1);
       } catch (e) {
         document.getElementById('status-badge').textContent = 'Error loading status';
       }
@@ -116,7 +132,9 @@
         api_key: document.getElementById('api_key').value.trim(),
         device_id: document.getElementById('device_id').value.trim(),
         device_model: document.getElementById('device_model').value,
-        base_url: document.getElementById('base_url').value.trim() || 'https://api.trmnl.com',
+        base_url: document.getElementById('base_url').value.trim() || 'https://trmnl.com',
+        sleep_enabled: document.getElementById('sleep_enabled').checked,
+        timed_refresh_interval: Number(document.getElementById('timed_refresh_interval').value),
       };
       if (!body.api_key || !body.device_id) {
         showResult('save-result', false, 'API key and Device ID are required.');
@@ -128,7 +146,7 @@
         });
         const d = await r.json();
         if (r.ok) {
-          showResult('save-result', true, 'Credentials saved.');
+          showResult('save-result', true, d.message || 'Terminus setup saved.');
           document.getElementById('api_key').value = '';
           loadStatus();
         } else {

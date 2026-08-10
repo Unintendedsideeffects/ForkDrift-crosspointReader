@@ -32,12 +32,7 @@ bool TerminusCredentialStore::loadFromJson(const char* json) {
   apiKey_ = key;
   deviceId_ = id;
   deviceModel_ = (doc["device_model"] | "xteink_x4");
-  baseUrl_ = (doc["base_url"] | "https://api.trmnl.com");
-
-  // Trim trailing slash from base URL.
-  while (!baseUrl_.empty() && baseUrl_.back() == '/') {
-    baseUrl_.pop_back();
-  }
+  setBaseUrl(doc["base_url"] | terminus_api::kDefaultBaseUrl);
 
   LOG_INF("TERMINUS", "Credentials loaded: model=%s", deviceModel_.c_str());
   return true;
@@ -109,7 +104,7 @@ void TerminusCredentialStore::clear() {
   apiKey_.clear();
   deviceId_.clear();
   deviceModel_ = "xteink_x4";
-  baseUrl_ = "https://api.trmnl.com";
+  baseUrl_ = terminus_api::kDefaultBaseUrl;
 
   if (Storage.exists(kStoredPath)) {
     Storage.remove(kStoredPath);

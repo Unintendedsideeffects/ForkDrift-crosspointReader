@@ -2,6 +2,8 @@
 
 #include <string>
 
+#include "util/TerminusApi.h"
+
 /**
  * Singleton credential store for Terminus / TRMNL BYOS access.
  *
@@ -13,7 +15,7 @@
  * JSON schema:
  *   { "api_key": "...", "device_id": "...",
  *     "device_model": "xteink_x4",
- *     "base_url": "https://api.trmnl.com" }
+ *     "base_url": "https://trmnl.com" }
  */
 class TerminusCredentialStore {
  public:
@@ -37,7 +39,7 @@ class TerminusCredentialStore {
   void setApiKey(const std::string& v) { apiKey_ = v; }
   void setDeviceId(const std::string& v) { deviceId_ = v; }
   void setDeviceModel(const std::string& v) { deviceModel_ = v; }
-  void setBaseUrl(const std::string& v) { baseUrl_ = v; }
+  void setBaseUrl(const std::string& v) { baseUrl_ = terminus_api::normalizeBaseUrl(v); }
 
   static constexpr const char* kStoredPath = "/.crosspoint/terminus.json";
   static constexpr const char* kDropPath = "/terminus.json";
@@ -52,7 +54,7 @@ class TerminusCredentialStore {
   std::string apiKey_;
   std::string deviceId_;
   std::string deviceModel_ = "xteink_x4";
-  std::string baseUrl_ = "https://api.trmnl.com";
+  std::string baseUrl_ = terminus_api::kDefaultBaseUrl;
 };
 
 #define TERMINUS_STORE TerminusCredentialStore::getInstance()

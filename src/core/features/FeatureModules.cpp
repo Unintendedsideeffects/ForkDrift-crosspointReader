@@ -60,6 +60,7 @@ constexpr std::array<const char*, toIndex(Capability::Count)> kCapabilityFeature
     "ble_wifi_provisioning",
     "bookmarks",
     "calibre_sync",
+    "claude_bridge",
     "dark_mode",
     "epub_support",
     "focus_reading",

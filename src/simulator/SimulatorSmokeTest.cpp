@@ -11,13 +11,20 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <memory>
 #include <vector>
+
+#include <WebServer.h>
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
+#include "activities/Activity.h"
 #include "activities/ActivityManager.h"
 #include "activities/settings/SettingsActivity.h"
 #include "components/UITheme.h"
+#include "core/registries/HomeActionRegistry.h"
+#include "core/registries/WebRouteRegistry.h"
+#include "features/claude_bridge/Registration.h"
 
 extern ActivityManager activityManager;
 extern GfxRenderer renderer;
@@ -43,6 +50,11 @@ enum class SmokeStep : uint8_t {
   HomeNavRun,
   RecoveryRun,
   SettingsLoopRun,
+  ClaudeServerStart,
+  ClaudeWaitQuestion,
+  ClaudeQuestionReady,
+  ClaudeInputRun,
+  ClaudeWaitDelivery,
   Done,
 };
 
@@ -107,6 +119,9 @@ class SimulatorSmokeTest {
   SmokeStep scriptDoneStep = SmokeStep::Done;
   uint64_t lastFrameHash = 0;
   uint8_t pickerStartValue = 0;
+  std::unique_ptr<WebServer> claudeServer;
+  unsigned long claudeDeadline = 0;
+  unsigned long claudeDeliverySettleDeadline = 0;
 
   static bool enabled() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_TEST") != nullptr; }
 
@@ -135,6 +150,14 @@ class SimulatorSmokeTest {
 
   static bool controlsRecoveryExpected() {
     return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_CONTROLS_EXPECT_RECOVERY") != nullptr;
+  }
+  static bool claudeBridgeRequested() {
+    return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_CLAUDE_BRIDGE") != nullptr;
+  }
+
+  static int claudeBridgePort() {
+    const char* raw = std::getenv("FORKDRIFT_SIMULATOR_CLAUDE_PORT");
+    return raw == nullptr || raw[0] == '\0' ? 18080 : std::atoi(raw);
   }
   static bool percentJumpRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_PERCENT_JUMP") != nullptr; }
   static bool chareInkFontRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_CHAREINK_FONT") != nullptr; }
@@ -248,6 +271,16 @@ class SimulatorSmokeTest {
       case SmokeStep::Start:
         LOG_INF("SMOKE", "Starting ForkDrift simulator smoke test");
         applyRequestedTheme();
+        if (claudeBridgeRequested()) {
+          Activity* claude = core::HomeActionRegistry::create("claude_bridge", renderer, mappedInputManager, {false},
+                                                              nullptr, nullptr);
+          if (claude == nullptr) {
+            fail("Claude bridge activity is not registered in this simulator build");
+          }
+          activityManager.replaceActivity(std::unique_ptr<Activity>(claude));
+          queueStep("Claude waiting", SmokeStep::ClaudeServerStart, 6);
+          break;
+        }
         if (recoveryRequested()) {
           // main.cpp already made RecoveryMenuActivity the root; drive it rather
           // than navigating Home (goHome would replace the recovery menu).
@@ -424,6 +457,65 @@ class SimulatorSmokeTest {
 
       case SmokeStep::SettingsLoopRun:
         runInputScript();
+        break;
+
+      case SmokeStep::ClaudeServerStart: {
+        if (!features::claude_bridge::isConfigured()) {
+          fail("Claude bridge token was not loaded from the simulator SD card");
+        }
+        const int port = claudeBridgePort();
+        claudeServer = std::make_unique<WebServer>(port);
+        core::WebRouteRegistry::mountAll(claudeServer.get());
+        claudeServer->begin();
+        claudeDeadline = millis() + 20000;
+        LOG_INF("SMOKE", "CLAUDE_SMOKE_READY http://127.0.0.1:%d", port);
+        step = SmokeStep::ClaudeWaitQuestion;
+        break;
+      }
+
+      case SmokeStep::ClaudeWaitQuestion: {
+        features::claude_bridge::PendingRequest pending;
+        if (!features::claude_bridge::peekPending(pending)) {
+          if (millis() >= claudeDeadline) {
+            fail("Timed out waiting for the Claude hook to submit a question");
+          }
+          break;
+        }
+        if (pending.questions.size() != 1 || pending.questions[0].options.size() != 2) {
+          fail("Claude smoke payload shape changed (questions=%u, options=%u)",
+               static_cast<unsigned>(pending.questions.size()),
+               pending.questions.empty() ? 0U : static_cast<unsigned>(pending.questions[0].options.size()));
+        }
+        queueStep("Claude question", SmokeStep::ClaudeQuestionReady, 5);
+        break;
+      }
+
+      case SmokeStep::ClaudeQuestionReady:
+        inputScript.clear();
+        scriptIndex = 0;
+        addTap(MappedInputManager::Button::Down);
+        inputScript.push_back(render("Claude second option selected", 3));
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Claude answer submitted", 5));
+        scriptStep = SmokeStep::ClaudeInputRun;
+        scriptDoneStep = SmokeStep::ClaudeWaitDelivery;
+        step = SmokeStep::ClaudeInputRun;
+        break;
+
+      case SmokeStep::ClaudeInputRun:
+        runInputScript();
+        break;
+
+      case SmokeStep::ClaudeWaitDelivery:
+        if (claudeDeliverySettleDeadline == 0) {
+          claudeDeliverySettleDeadline = millis() + 1500;
+          break;
+        }
+        if (millis() < claudeDeliverySettleDeadline) {
+          break;
+        }
+        LOG_INF("SMOKE", "Claude bridge simulator smoke passed");
+        step = SmokeStep::Done;
         break;
 
       case SmokeStep::Done:

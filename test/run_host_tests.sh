@@ -65,6 +65,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -DENABLE_BACKGROUND_SERVER=1 \
   -DENABLE_BACKGROUND_SERVER_ON_CHARGE=1 \
   -DENABLE_BACKGROUND_SERVER_ALWAYS=1 \
+  -DENABLE_TERMINUS_SLEEP=1 \
   -I"$ROOT_DIR" \
   -I"$ROOT_DIR/test" \
   -I"$ROOT_DIR/test/mock" \
@@ -121,6 +122,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/BookProgressDataStore.cpp" \
   "$ROOT_DIR/src/util/InputValidation.cpp" \
   "$ROOT_DIR/src/util/PathUtils.cpp" \
+  "$ROOT_DIR/src/util/TerminusApi.cpp" \
   "$ROOT_DIR/src/util/UrlUtils.cpp" \
   "$ROOT_DIR/src/util/StringUtils.cpp" \
   "$ROOT_DIR/src/util/OpdsFilename.cpp" \

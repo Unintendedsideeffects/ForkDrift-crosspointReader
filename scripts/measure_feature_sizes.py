@@ -92,6 +92,8 @@ FEATURES = [
     'visual_cover_picker',      # requires: home_media_picker
     'web_wifi_setup',           # requires: background_server
     'ble_wifi_provisioning',    # requires: web_wifi_setup (→ background_server)
+    'terminus_sleep',           # requires: background_server + image_sleep
+    'claude_bridge',            # requires: background_server
     'ble_page_turner',          # standalone BLE HID page-turn peripheral
     'roman_clock_sleep',        # requires: wifi_clock
     'haiku_clock_sleep',        # requires: wifi_clock

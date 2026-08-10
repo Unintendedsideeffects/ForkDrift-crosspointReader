@@ -45,6 +45,7 @@
 #include "components/UITheme.h"
 #include "components/themes/lyra/LyraCarouselTheme.h"
 #include "core/features/FeatureModules.h"
+#include "core/registries/HeapReclaimRegistry.h"
 #include "core/registries/HomeActionRegistry.h"
 #include "features/status_overlay/Layout.h"
 #include "fontIds.h"
@@ -293,6 +294,7 @@ void HomeActivity::populateMenuModel() {
   [[maybe_unused]] const bool library = opds && !OPDS_STORE.getServers().empty();
   const bool todo = core::HomeActionRegistry::shouldExpose("todo_planner", {false});
   const bool anki = core::HomeActionRegistry::shouldExpose("anki", {false});
+  const bool claude = core::HomeActionRegistry::shouldExpose("claude_bridge", {false});
   const bool notes = core::FeatureModules::hasCapability(core::Capability::Notes) && !todo;
 
   // Grid (ForkDrift / Pokémon party): cover grid handles books; the button row
@@ -312,6 +314,7 @@ void HomeActivity::populateMenuModel() {
 #if ENABLE_LUA_PLUGINS
     menuModel.push_back(HomeMenuId::Plugins);
 #endif
+    if (claude) menuModel.push_back(HomeMenuId::ClaudeBridge);
     return;
   }
 
@@ -337,6 +340,7 @@ void HomeActivity::populateMenuModel() {
 #if ENABLE_LUA_PLUGINS
     menuModel.push_back(HomeMenuId::Plugins);
 #endif
+    if (claude) menuModel.push_back(HomeMenuId::ClaudeBridge);
     return;
   }
 
@@ -358,6 +362,7 @@ void HomeActivity::populateMenuModel() {
 #if ENABLE_LUA_PLUGINS
   menuModel.push_back(HomeMenuId::Plugins);
 #endif
+  if (claude) menuModel.push_back(HomeMenuId::ClaudeBridge);
 }
 
 void HomeActivity::loadRecentBooks() {
@@ -656,6 +661,8 @@ std::string HomeActivity::menuIdLabel(const HomeMenuId id, const bool gridStyle)
     case HomeMenuId::Plugins:
       return "Plugins";
 #endif
+    case HomeMenuId::ClaudeBridge:
+      return std::string(tr(STR_CLAUDE_TITLE));
     default:
       return "";
   }
@@ -695,6 +702,7 @@ UIIcon HomeActivity::menuIdIcon(const HomeMenuId id) const {
 #if ENABLE_LUA_PLUGINS
     case HomeMenuId::Plugins:
 #endif
+    case HomeMenuId::ClaudeBridge:
     default:
       return UIIcon::Settings;
   }
@@ -755,6 +763,14 @@ void HomeActivity::activateMenuId(const HomeMenuId id) {
       onPluginsOpen();
       break;
 #endif
+    case HomeMenuId::ClaudeBridge: {
+      Activity* claude = core::HomeActionRegistry::create("claude_bridge", renderer, mappedInput, {false}, nullptr,
+                                                          [](void*) { activityManager.popActivity(); });
+      if (claude != nullptr) {
+        startActivityForResult(std::unique_ptr<Activity>(claude), nullptr);
+      }
+      break;
+    }
   }
 }
 
@@ -808,6 +824,13 @@ bool HomeActivity::blocksBackgroundServer() {
 
 void HomeActivity::onEnter() {
   Activity::onEnter();
+
+  // Self-register rather than being wired from setup(): main.cpp does not know
+  // HomeActivity, and registering on first entry is not merely convenient but
+  // exactly right — neither cache can hold anything before Home has been
+  // entered once, and both releases act on static state so they stay valid
+  // after this instance is deleted.
+  registerHeapReclaim();
 
   const bool usesCarouselCache = homeUsesCarouselCache();
   firstRenderDone = false;
@@ -1128,6 +1151,50 @@ void HomeActivity::renderCarouselFrameCallback(void* context, const int bookIdx)
 }
 
 void HomeActivity::releaseCoverBufferCallback(void* context) { static_cast<HomeActivity*>(context)->freeCoverBuffer(); }
+
+void HomeActivity::releaseCoverCache() {
+  // MUST hold the render lock. Rendering runs on its own FreeRTOS task
+  // (ActivityManager.cpp: xTaskCreate "ActivityManagerRender"), and this is
+  // called from the MAIN loop via HeapReclaimRegistry. Without the lock,
+  // free(coverBuffer) here races restoreCoverBuffer()'s 48 KB memcpy on the
+  // render task — a use-after-free — and clearing coverRendered mid-render
+  // leaves the draw path deciding against state that changed underneath it.
+  RenderLock lock;
+
+  freeCoverBuffer();
+  // coverRendered must be cleared as well, not just the buffer.
+  // drawRecentBookCover() skips its draw loop while coverRendered is true, so
+  // freeing without this leaves nothing to restore AND nothing to redraw —
+  // blank covers. Same trap as documented in loadRecentCovers().
+  coverRendered = false;
+}
+
+void HomeActivity::registerHeapReclaim() {
+  // The registry has no dedupe and a hard cap of kMaxEntries; a second call
+  // would silently consume half of it. Guard rather than rely on the caller.
+  static bool registered = false;
+  if (registered) {
+    return;
+  }
+  registered = true;
+
+  core::HeapReclaimRegistry::add(core::HeapReclaimEntry{
+      .name = "home cover cache",
+      .release = &HomeActivity::releaseCoverCache,
+  });
+  core::HeapReclaimRegistry::add(core::HeapReclaimEntry{
+      .name = "home carousel frames",
+      // demoteToDiskOnly() drops only the heap-resident frames and keeps the
+      // on-SD cache file, so frames are re-read rather than re-rendered.
+      // Render-locked for the same reason as the cover cache: it frees buffers
+      // the render task reads.
+      .release =
+          [] {
+            RenderLock lock;
+            homecarousel::HomeCarouselCache::shared().demoteToDiskOnly();
+          },
+  });
+}
 
 void HomeActivity::renderCarouselFrame(int bookIdx, int slotIdx) {
   const auto start = millis();

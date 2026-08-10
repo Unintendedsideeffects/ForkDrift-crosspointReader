@@ -17,11 +17,15 @@
 #include "core/features/FeatureModules.h"
 #include "core/registries/LifecycleRegistry.h"
 #include "core/registries/WebRouteRegistry.h"
+#include "network/background/BackgroundWebServer.h"
+#include "network/background/BackgroundWifiService.h"
 #include "network/html/TerminusPluginPageHtml.generated.h"
 #include "network/server/WebUtils.h"
+#include "util/TerminusApi.h"
 #include "util/TerminusCredentialStore.h"
+#include "util/TerminusRefreshPolicy.h"
 #include "util/TimeSync.h"
-#include "util/UrlUtils.h"
+#include "util/WallClockInterval.h"
 
 namespace features::terminus_sleep {
 
@@ -36,9 +40,14 @@ static constexpr const char* TRMNL_TEMP_PATH = "/sleep/trmnl_latest.dl";
 static constexpr const char* TRMNL_DEST_BMP = "/sleep/trmnl_latest.bmp";
 static constexpr const char* TRMNL_DEST_PNG = "/sleep/trmnl_latest.png";
 static constexpr const char* TRMNL_DEST_JPG = "/sleep/trmnl_latest.jpg";
-static constexpr const char* TRMNL_DEFAULT_BASE = "https://api.trmnl.com";
 static constexpr size_t TRMNL_MAX_MANIFEST_BYTES = 16u * 1024u;
 static constexpr int TRMNL_HTTP_BUFFER_BYTES = 2048;
+static constexpr uint32_t TRMNL_FETCH_WAIT_CAP_MS = 120000;
+
+// Main-loop heartbeat state. Written by the dedicated fetch task and read by
+// the main task; aligned 32-bit loads/stores are atomic on ESP32-C3.
+static volatile uint32_t trmnlRefreshIntervalS = terminus_refresh::kDefaultIntervalS;
+static volatile uint32_t trmnlLastAttemptEpoch = 0;
 
 extern "C" esp_err_t arduino_esp_crt_bundle_attach(void* conf);
 
@@ -95,13 +104,6 @@ static const char* destPathForMagic(const uint8_t* magic, size_t len) {
   return nullptr;
 }
 
-// HTTPS anywhere; plain HTTP only toward numeric private-LAN hosts so a
-// self-hosted Terminus (BYOS) works without exposing API keys in cleartext
-// beyond the local network.
-static bool isAllowedRemoteUrl(const std::string& url) {
-  return UrlUtils::isHttpsUrl(url) || UrlUtils::isPrivateLanHttpUrl(url);
-}
-
 static esp_err_t manifestEventHandler(esp_http_client_event_t* evt) {
   auto* sink = static_cast<BoundedManifestSink*>(evt->user_data);
   if (evt->event_id == HTTP_EVENT_ON_DATA && sink) {
@@ -142,7 +144,7 @@ static esp_err_t imageEventHandler(esp_http_client_event_t* evt) {
 // to the matching trmnl_latest.<ext>. Returns the final path, or nullptr on
 // any failure (temp file is cleaned up).
 static const char* downloadVerifiedImage(const std::string& url) {
-  if (!isAllowedRemoteUrl(url)) {
+  if (!terminus_api::isAllowedRemoteUrl(url)) {
     return nullptr;
   }
 
@@ -226,20 +228,26 @@ static const char* downloadVerifiedImage(const std::string& url) {
 
 // Poll /api/display, get image_url, download, pin as next sleep screen.
 static bool fetchAndPinTrmnlImage() {
-  if (!TERMINUS_STORE.hasCredentials()) {
+  // Snapshot credentials before creating the HTTP client. The fetch runs on a
+  // separate FreeRTOS task, so retaining references to the store would make
+  // header pointers unsafe if a web request changed the setup mid-transfer.
+  const std::string apiKey = TERMINUS_STORE.apiKey();
+  const std::string deviceId = TERMINUS_STORE.deviceId();
+  const std::string deviceModel = TERMINUS_STORE.deviceModel();
+  const std::string configuredBase = TERMINUS_STORE.baseUrl();
+  if (apiKey.empty() || deviceId.empty()) {
     LOG_INF("TRMNL", "No Terminus credentials configured");
     return false;
   }
 
-  const std::string& rawBase = TERMINUS_STORE.baseUrl();
-  const std::string base = rawBase.empty() ? std::string(TRMNL_DEFAULT_BASE) : rawBase;
-  if (!isAllowedRemoteUrl(base)) {
+  const std::string base = terminus_api::normalizeBaseUrl(configuredBase);
+  if (!terminus_api::isAllowedRemoteUrl(base)) {
     LOG_ERR("TRMNL", "Refusing non-HTTPS base URL: %s", base.c_str());
     return false;
   }
   const std::string displayUrl = base + "/api/display";
 
-  LOG_INF("TRMNL", "Polling %s (model=%s)", displayUrl.c_str(), TERMINUS_STORE.deviceModel().c_str());
+  LOG_INF("TRMNL", "Polling %s (model=%s)", displayUrl.c_str(), deviceModel.c_str());
 
   TimeSync::ensureTrustedClock();
 
@@ -261,9 +269,9 @@ static bool fetchAndPinTrmnlImage() {
       return false;
     }
 
-    esp_http_client_set_header(client, "ID", TERMINUS_STORE.deviceId().c_str());
-    esp_http_client_set_header(client, "Access-Token", TERMINUS_STORE.apiKey().c_str());
-    esp_http_client_set_header(client, "Device-Model", TERMINUS_STORE.deviceModel().c_str());
+    esp_http_client_set_header(client, "ID", deviceId.c_str());
+    esp_http_client_set_header(client, "Access-Token", apiKey.c_str());
+    esp_http_client_set_header(client, "Device-Model", deviceModel.c_str());
     esp_http_client_set_header(client, "Firmware-Version", CROSSPOINT_VERSION);
     esp_http_client_set_header(client, "User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
 
@@ -283,29 +291,23 @@ static bool fetchAndPinTrmnlImage() {
     return false;
   }
 
-  JsonDocument doc;
-  if (deserializeJson(doc, manifest)) {
-    LOG_ERR("TRMNL", "Failed to parse display manifest");
+  terminus_api::DisplayManifest display;
+  if (!terminus_api::parseDisplayManifest(manifest, display)) {
+    LOG_ERR("TRMNL", "Invalid display manifest");
     return false;
   }
 
-  const char* imageUrl = doc["image_url"] | "";
-  if (imageUrl[0] == '\0' || !isAllowedRemoteUrl(imageUrl)) {
-    LOG_ERR("TRMNL", "No image_url in display manifest");
-    return false;
-  }
+  trmnlRefreshIntervalS = display.refreshIntervalS;
+  LOG_INF("TRMNL", "Server refresh interval: %u s", static_cast<unsigned>(trmnlRefreshIntervalS));
 
-  LOG_INF("TRMNL", "Downloading image: %s", imageUrl);
-  const char* pinnedPath = downloadVerifiedImage(std::string(imageUrl));
+  LOG_INF("TRMNL", "Downloading image: %s", display.imageUrl.c_str());
+  const char* pinnedPath = downloadVerifiedImage(display.imageUrl);
   if (!pinnedPath) {
     return false;
   }
 
   strncpy(SETTINGS.sleepPinnedPath, pinnedPath, sizeof(SETTINGS.sleepPinnedPath) - 1);
   SETTINGS.sleepPinnedPath[sizeof(SETTINGS.sleepPinnedPath) - 1] = '\0';
-  if (SETTINGS.sleepScreen != CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM) {
-    SETTINGS.sleepScreen = CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM;
-  }
   bool settingsSaved = false;
   {
     SpiBusMutex::Guard guard;
@@ -329,9 +331,24 @@ static constexpr uint32_t TRMNL_FETCH_TASK_STACK = 12288;
 
 static volatile bool fetchTaskRunning = false;
 static volatile bool fetchTaskResult = false;
+static volatile uint32_t fetchTaskRetryAfterMs = 0;
+static volatile bool forcedFetchRequested = false;
+
+static bool fetchTaskRetryActive() {
+  return fetchTaskRetryAfterMs != 0 && static_cast<int32_t>(millis() - fetchTaskRetryAfterMs) < 0;
+}
+
+static void recordFetchAttempt(const bool result) {
+  fetchTaskResult = result;
+  const auto nowEpoch = static_cast<uint32_t>(time(nullptr));
+  if (wallclock::clockUsable(nowEpoch)) {
+    trmnlLastAttemptEpoch = nowEpoch;
+  }
+}
 
 static void terminusFetchTask(void*) {
-  fetchTaskResult = fetchAndPinTrmnlImage();
+  const bool result = fetchAndPinTrmnlImage();
+  recordFetchAttempt(result);
   fetchTaskRunning = false;
   vTaskDelete(nullptr);
 }
@@ -341,23 +358,85 @@ static bool startFetchTask() {
     LOG_INF("TRMNL", "Fetch already in progress");
     return false;
   }
+  if (fetchTaskRetryActive()) {
+    LOG_INF("TRMNL", "Fetch start deferred by retry backoff");
+    return false;
+  }
   fetchTaskRunning = true;
   fetchTaskResult = false;
   if (xTaskCreate(&terminusFetchTask, "TerminusFetch", TRMNL_FETCH_TASK_STACK, nullptr, 1, nullptr) != pdPASS) {
     fetchTaskRunning = false;
+    recordFetchAttempt(false);
+    fetchTaskRetryAfterMs = millis() + terminus_refresh::kFailureRetryIntervalS * 1000UL;
     LOG_ERR("TRMNL", "Failed to create fetch task");
     return false;
   }
+  fetchTaskRetryAfterMs = 0;
   return true;
 }
 
 static void onStorageReady() { TERMINUS_STORE.load(); }
 
-static void onBackgroundServerStarted() {
-  if (!SETTINGS.terminusSleepEnabled) {
+// Credentials as well as the setting: without this a configured-but-unpaired
+// device spawned a 12 KB fetch task on every trigger only to fail inside
+// fetchAndPinTrmnlImage().
+static bool terminusFetchConfigured() {
+  return CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP) && TERMINUS_STORE.hasCredentials();
+}
+
+static bool hasPinnedTerminusImage() {
+  return strncmp(SETTINGS.sleepPinnedPath, "/sleep/trmnl_latest.", strlen("/sleep/trmnl_latest.")) == 0 &&
+         Storage.exists(SETTINGS.sleepPinnedPath);
+}
+
+static bool terminusFetchDue(const bool allowUnsetClock) {
+  const auto nowEpoch = static_cast<uint32_t>(time(nullptr));
+  if (!wallclock::clockUsable(nowEpoch)) {
+    return allowUnsetClock && trmnlLastAttemptEpoch == 0;
+  }
+  return terminus_refresh::refreshDue(nowEpoch, trmnlLastAttemptEpoch, fetchTaskResult, trmnlRefreshIntervalS);
+}
+
+static bool waitForFetchTask(const uint32_t capMs) {
+  const unsigned long deadline = millis() + capMs;
+  while (fetchTaskRunning && millis() < deadline) {
+    delay(50);
+  }
+  if (fetchTaskRunning) {
+    LOG_ERR("TRMNL", "Fetch timed out after %u ms", capMs);
+    return false;
+  }
+  return fetchTaskResult;
+}
+
+static void onBackgroundNetworkReady() {
+  if (!TERMINUS_STORE.hasCredentials() || fetchTaskRunning || fetchTaskRetryActive() ||
+      (!forcedFetchRequested && (!terminusFetchConfigured() || !terminusFetchDue(true)))) {
     return;
   }
-  startFetchTask();
+  LOG_INF("TRMNL", "Network ready; fetching before background server startup");
+  if (startFetchTask()) {
+    forcedFetchRequested = false;
+    waitForFetchTask(TRMNL_FETCH_WAIT_CAP_MS);
+  }
+}
+
+static void onBackgroundServerTick() {
+  if (!TERMINUS_STORE.hasCredentials() || fetchTaskRunning || fetchTaskRetryActive() ||
+      (!forcedFetchRequested && (!terminusFetchConfigured() || !terminusFetchDue(false)))) {
+    return;
+  }
+
+  // The running web server leaves too little contiguous heap for the 12 KB
+  // fetch stack. Recycle only the active server while preserving STA; its next
+  // pre-server hook performs the due fetch, then restores serving.
+  if (BG_WIFI.isServing()) {
+    LOG_INF("TRMNL", "Refresh due; recycling background WiFi server");
+    BG_WIFI.stop(/*keepWifi=*/true);
+  } else if (BackgroundWebServer::getInstance().isRunning()) {
+    LOG_INF("TRMNL", "Refresh due; recycling on-charge web server");
+    BackgroundWebServer::getInstance().stop(/*keepWifi=*/true);
+  }
 }
 
 static bool shouldRegisterTerminusRoutes() { return core::FeatureCatalog::isEnabled("terminus_sleep"); }
@@ -375,13 +454,23 @@ static void mountTerminusRoutes(WebServer* server) {
     doc["device_model"] = TERMINUS_STORE.deviceModel().c_str();
     doc["base_url"] = TERMINUS_STORE.baseUrl().c_str();
     doc["has_api_key"] = !TERMINUS_STORE.apiKey().empty();
-    doc["sleep_enabled"] = static_cast<bool>(SETTINGS.terminusSleepEnabled);
+    doc["sleep_enabled"] = CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP);
+    doc["timed_refresh_interval"] = SETTINGS.timedSleepRefreshInterval;
+    doc["fetch_pending"] = static_cast<bool>(forcedFetchRequested);
+    doc["fetch_running"] = static_cast<bool>(fetchTaskRunning);
+    doc["last_fetch_ok"] = static_cast<bool>(fetchTaskResult);
+    doc["last_attempt_epoch"] = static_cast<uint32_t>(trmnlLastAttemptEpoch);
+    doc["server_refresh_seconds"] = static_cast<uint32_t>(trmnlRefreshIntervalS);
     std::string out;
     serializeJson(doc, out);
     server->send(200, "application/json", out.c_str());
   });
 
   server->on("/api/terminus/save", HTTP_POST, [server] {
+    if (fetchTaskRunning) {
+      server->send(409, "application/json", "{\"error\":\"fetch in progress; retry after it completes\"}");
+      return;
+    }
     if (!server->hasArg("plain")) {
       server->send(400, "application/json", "{\"error\":\"missing body\"}");
       return;
@@ -397,26 +486,51 @@ static void mountTerminusRoutes(WebServer* server) {
       server->send(400, "application/json", "{\"error\":\"api_key and device_id required\"}");
       return;
     }
-    TERMINUS_STORE.setApiKey(apiKey);
-    TERMINUS_STORE.setDeviceId(deviceId);
-
     const char* model = doc["device_model"] | "";
-    if (model[0] != '\0') {
-      TERMINUS_STORE.setDeviceModel(model);
-    }
     const char* url = doc["base_url"] | "";
-    if (url[0] != '\0') {
-      if (!isAllowedRemoteUrl(url)) {
-        server->send(400, "application/json", "{\"error\":\"base_url must be https (or http to a private LAN IP)\"}");
-        return;
-      }
-      TERMINUS_STORE.setBaseUrl(url);
-    }
-    if (!TERMINUS_STORE.save()) {
-      server->send(500, "application/json", "{\"error\":\"save failed\"}");
+    const std::string baseUrl = terminus_api::normalizeBaseUrl(url);
+    if (!terminus_api::isAllowedRemoteUrl(baseUrl)) {
+      server->send(400, "application/json", "{\"error\":\"base_url must be https (or http to a private LAN IP)\"}");
       return;
     }
-    server->send(200, "application/json", "{\"status\":\"ok\"}");
+
+    const int timedRefreshInterval = doc["timed_refresh_interval"] | 1;
+    if (timedRefreshInterval < 0 || timedRefreshInterval > 5) {
+      server->send(400, "application/json", "{\"error\":\"timed_refresh_interval must be between 0 and 5\"}");
+      return;
+    }
+    const bool sleepEnabled = doc["sleep_enabled"] | true;
+
+    TERMINUS_STORE.setApiKey(apiKey);
+    TERMINUS_STORE.setDeviceId(deviceId);
+    TERMINUS_STORE.setDeviceModel(model[0] == '\0' ? "xteink_x4" : model);
+    TERMINUS_STORE.setBaseUrl(baseUrl);
+    SETTINGS.terminusSleepEnabled = sleepEnabled ? 1 : 0;  // Legacy serialized mirror.
+    if (sleepEnabled) {
+      SETTINGS.sleepScreenSplit = CrossPointSettings::SLEEP_SPLIT_UNIFIED;
+      SETTINGS.sleepScreen = CrossPointSettings::TERMINUS_SLEEP;
+    } else {
+      if (SETTINGS.sleepScreen == CrossPointSettings::TERMINUS_SLEEP) SETTINGS.sleepScreen = CrossPointSettings::DARK;
+      if (SETTINGS.sleepScreenReader == CrossPointSettings::TERMINUS_SLEEP)
+        SETTINGS.sleepScreenReader = CrossPointSettings::DARK;
+      if (SETTINGS.sleepScreenHome == CrossPointSettings::TERMINUS_SLEEP)
+        SETTINGS.sleepScreenHome = CrossPointSettings::DARK;
+    }
+    SETTINGS.timedSleepRefreshInterval = static_cast<uint8_t>(timedRefreshInterval);
+
+    bool saved = false;
+    {
+      SpiBusMutex::Guard guard;
+      saved = TERMINUS_STORE.save() && SETTINGS.saveToFile();
+    }
+    if (!saved) {
+      server->send(500, "application/json", "{\"error\":\"failed to persist Terminus setup\"}");
+      return;
+    }
+    forcedFetchRequested = sleepEnabled;
+    server->send(200, "application/json",
+                 sleepEnabled ? "{\"status\":\"ok\",\"message\":\"Terminus setup saved; fetch scheduled\"}"
+                              : "{\"status\":\"ok\",\"message\":\"Terminus setup saved\"}");
   });
 
   server->on("/api/terminus/test", HTTP_POST, [server] {
@@ -424,31 +538,40 @@ static void mountTerminusRoutes(WebServer* server) {
       server->send(400, "application/json", "{\"error\":\"not configured\"}");
       return;
     }
-    if (!startFetchTask()) {
-      server->send(503, "application/json", "{\"error\":\"fetch busy or task create failed\"}");
-      return;
-    }
-    // The fetch is internally bounded (10 s manifest + 30 s image HTTP
-    // timeouts); the cap below only guards a hung task so this handler
-    // can't wedge the web server loop forever.
-    constexpr unsigned long FETCH_WAIT_CAP_MS = 120000;
-    const unsigned long deadline = millis() + FETCH_WAIT_CAP_MS;
-    while (fetchTaskRunning && millis() < deadline) {
-      delay(50);
-    }
     if (fetchTaskRunning) {
-      server->send(504, "application/json", "{\"error\":\"Fetch timed out\"}");
+      server->send(409, "application/json", "{\"error\":\"fetch already in progress\"}");
       return;
     }
-    if (fetchTaskResult) {
-      server->send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Image fetched and pinned\"}");
-    } else {
-      server->send(502, "application/json", "{\"error\":\"Fetch failed\"}");
-    }
+    // A route-heavy running server leaves too little contiguous heap for the
+    // proven-safe 12 KB fetch task. Acknowledge first, then let the main-loop
+    // heartbeat recycle this server and fetch in the pre-server window.
+    forcedFetchRequested = true;
+    server->send(202, "application/json",
+                 "{\"status\":\"accepted\",\"message\":\"Fetch scheduled; the web server will restart briefly\"}");
   });
 
   server->on("/api/terminus/clear", HTTP_POST, [server] {
-    TERMINUS_STORE.clear();
+    if (fetchTaskRunning) {
+      server->send(409, "application/json", "{\"error\":\"fetch in progress; retry after it completes\"}");
+      return;
+    }
+    bool saved = false;
+    {
+      SpiBusMutex::Guard guard;
+      TERMINUS_STORE.clear();
+      SETTINGS.terminusSleepEnabled = 0;
+      if (SETTINGS.sleepScreen == CrossPointSettings::TERMINUS_SLEEP) SETTINGS.sleepScreen = CrossPointSettings::DARK;
+      if (SETTINGS.sleepScreenReader == CrossPointSettings::TERMINUS_SLEEP)
+        SETTINGS.sleepScreenReader = CrossPointSettings::DARK;
+      if (SETTINGS.sleepScreenHome == CrossPointSettings::TERMINUS_SLEEP)
+        SETTINGS.sleepScreenHome = CrossPointSettings::DARK;
+      forcedFetchRequested = false;
+      saved = SETTINGS.saveToFile();
+    }
+    if (!saved) {
+      server->send(500, "application/json", "{\"error\":\"failed to persist cleared setup\"}");
+      return;
+    }
     server->send(200, "application/json", "{\"status\":\"ok\"}");
   });
 }
@@ -464,7 +587,8 @@ void registerFeature() {
 
   core::LifecycleEntry entry{};
   entry.onStorageReady = onStorageReady;
-  entry.onBackgroundServerStarted = onBackgroundServerStarted;
+  entry.onBackgroundNetworkReady = onBackgroundNetworkReady;
+  entry.onBackgroundServerTick = onBackgroundServerTick;
   core::LifecycleRegistry::add(entry);
 
   core::WebRouteEntry webRouteEntry{};
@@ -480,18 +604,15 @@ bool startTrmnlFetchAndWait(uint32_t capMs) {
   if (!startFetchTask()) {
     return false;
   }
-  const unsigned long deadline = millis() + capMs;
-  while (fetchTaskRunning && millis() < deadline) {
-    delay(50);
-  }
-  if (fetchTaskRunning) {
-    LOG_ERR("TRMNL", "Fetch timed out after %u ms", capMs);
-    return false;
-  }
-  return fetchTaskResult;
+  return waitForFetchTask(capMs);
+}
+
+bool shouldRefreshBeforeSleep() {
+  return terminusFetchConfigured() && (!hasPinnedTerminusImage() || terminusFetchDue(true));
 }
 #else
 bool startTrmnlFetchAndWait(uint32_t) { return false; }
+bool shouldRefreshBeforeSleep() { return false; }
 #endif
 
 }  // namespace features::terminus_sleep

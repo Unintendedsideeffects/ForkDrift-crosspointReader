@@ -21,6 +21,7 @@ def test_standard_profile_generates_representative_flags(tmp_path):
     assert "# Selected profile: standard" in generated
     assert "-DENABLE_EPUB_SUPPORT=1" in generated
     assert "-DENABLE_BACKGROUND_SERVER=1" in generated
+    assert "-DENABLE_TERMINUS_SLEEP=1" in generated
     assert "-DENABLE_KOREADER_SYNC=0" in generated
     assert "Using profile: standard" in result.stdout
 
@@ -55,6 +56,19 @@ def test_anki_enables_text_selection_dependency(tmp_path):
     assert "-DENABLE_ANKI_SUPPORT=1" in generated
     assert "-DENABLE_TEXT_SELECTION=1" in generated
     assert "-DENABLE_EPUB_SUPPORT=1" in generated
+
+
+def test_terminus_enables_rendering_and_server_dependencies(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    output = tmp_path / "platformio-custom.ini"
+
+    result = run_generate_build_config("--enable", "terminus_sleep", cwd=root, output_path=output)
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    generated = output.read_text()
+    assert "-DENABLE_TERMINUS_SLEEP=1" in generated
+    assert "-DENABLE_BACKGROUND_SERVER=1" in generated
+    assert "-DENABLE_IMAGE_SLEEP=1" in generated
 
 
 def test_full_profile_keeps_anki_capture_dependencies_enabled(tmp_path):

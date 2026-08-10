@@ -736,6 +736,11 @@ void SleepActivity::onEnter() {
     case (CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM):
       renderCustomSleepScreen();
       return;
+#if ENABLE_TERMINUS_SLEEP
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::TERMINUS_SLEEP):
+      renderCustomSleepScreen();
+      return;
+#endif
 #if ENABLE_READING_STATS
     case (CrossPointSettings::SLEEP_SCREEN_MODE::READING_STATS_SLEEP):
       renderReadingStatsSleepScreen();

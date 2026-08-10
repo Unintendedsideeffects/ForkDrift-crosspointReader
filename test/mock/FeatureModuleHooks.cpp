@@ -91,6 +91,12 @@ bool FeatureModules::hasCapability(const Capability capability) {
 #else
       return false;
 #endif
+    case Capability::TerminusSleep:
+#if ENABLE_TERMINUS_SLEEP
+      return true;
+#else
+      return false;
+#endif
     case Capability::TrmnlSwitch:
 #if ENABLE_TRMNL_SWITCH
       return true;

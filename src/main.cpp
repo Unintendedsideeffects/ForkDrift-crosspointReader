@@ -335,7 +335,7 @@ static uint8_t effectiveTimedRefreshSleepMode() {
 static bool timedRefreshHasRenderableMode() {
   const uint8_t sleepMode = effectiveTimedRefreshSleepMode();
 #if ENABLE_TERMINUS_SLEEP
-  if (SETTINGS.terminusSleepEnabled && TERMINUS_STORE.hasCredentials()) {
+  if (sleepMode == CrossPointSettings::TERMINUS_SLEEP && TERMINUS_STORE.hasCredentials()) {
     return true;
   }
 #endif
@@ -370,7 +370,7 @@ static bool timedRefreshHasRenderableMode() {
   // Determine what WiFi work is needed before we can render.
   const bool needsTerminusFetch =
 #if ENABLE_TERMINUS_SLEEP
-      SETTINGS.terminusSleepEnabled && TERMINUS_STORE.hasCredentials();
+      effectiveTimedRefreshSleepMode() == CrossPointSettings::TERMINUS_SLEEP && TERMINUS_STORE.hasCredentials();
 #else
       false;
 #endif
@@ -432,6 +432,42 @@ void enterDeepSleep() {
   HalPowerManager::Lock powerLock;
   APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
 
+#if ENABLE_TERMINUS_SLEEP
+  // A selected Terminus sleep screen is a foreground user choice, so it must
+  // work even when the awake background server is disabled. Refresh only when
+  // missing/due; otherwise sleep immediately with the cached verified image.
+  if (features::terminus_sleep::shouldRefreshBeforeSleep()) {
+    if (BG_WIFI.isRunning()) BG_WIFI.stop(/*keepWifi=*/true);
+    if (backgroundServer.isRunning()) backgroundServer.stop(/*keepWifi=*/true);
+
+    auto& wifiCoord = BackgroundWifiCoordinator::getInstance();
+    const bool alreadyConnected = hasStaWifiConnection();
+    const bool connectStarted = alreadyConnected || wifiCoord.beginTimedSleepAutoConnect("TRMNL");
+    if (connectStarted && (alreadyConnected || wifiCoord.waitForStaConnection(20000))) {
+      constexpr uint32_t kFetchCapMs = 60000;
+      if (!features::terminus_sleep::startTrmnlFetchAndWait(kFetchCapMs)) {
+        LOG_WRN("TRMNL", "Sleep refresh failed; rendering the last cached image");
+      }
+    } else {
+      LOG_WRN("TRMNL", "No WiFi for sleep refresh; rendering the last cached image");
+    }
+    if (!alreadyConnected) wifiCoord.endTimedSleepWifi();
+  }
+#endif
+
+  // Snapshot the wake plan when sleep is committed. Rendering the e-ink sleep
+  // screen takes several seconds, and USB CDC may disappear as the display and
+  // CPU power down; deciding and logging the timer here makes the plan stable
+  // and gives the serial transport time to drain before that teardown.
+  uint64_t timerMicros = 0;
+#if ENABLE_TIMED_SLEEP_REFRESH
+  if (gpio.isUsbConnected() && timedRefreshHasRenderableMode() && SETTINGS.getTimedRefreshIntervalMicros() > 0) {
+    timerMicros = SETTINGS.getTimedRefreshIntervalMicros();
+    LOG_DBG("MAIN", "Arming timer wakeup: %" PRIu64 " µs", timerMicros);
+    logSerial.flush();
+  }
+#endif
+
   BackgroundWifiCoordinator::getInstance().onPrepareDeepSleep();
 
   if (!APP_STATE.saveToFile()) {
@@ -446,14 +482,6 @@ void enterDeepSleep() {
 
   display.deepSleep();
   LOG_DBG("MAIN", "Entering deep sleep");
-
-  uint64_t timerMicros = 0;
-#if ENABLE_TIMED_SLEEP_REFRESH
-  if (gpio.isUsbConnected() && timedRefreshHasRenderableMode() && SETTINGS.getTimedRefreshIntervalMicros() > 0) {
-    timerMicros = SETTINGS.getTimedRefreshIntervalMicros();
-    LOG_DBG("MAIN", "Arming timer wakeup: %" PRIu64 " µs", timerMicros);
-  }
-#endif
   logSerial.flush();  // drain USB CDC TX before CPU halts
   powerManager.startDeepSleep(gpio, timerMicros);
 }
@@ -810,6 +838,13 @@ void loop() {
         logSerial.printf("SCREENSHOT_END\n");
       } else if (cmd == "PING") {
         logSerial.printf("PONG\n");
+      } else if (cmd == "SLEEP") {
+        // Test harness: enter the same production sleep path used by the
+        // physical power button and inactivity timeout.  A logical BTN event
+        // cannot represent BTN_POWER on every configured input layout.
+        logSerial.printf("SLEEP_OK\n");
+        enterDeepSleep();
+        return;
       } else if (cmd.startsWith("BTN:")) {
         // Test harness: inject a logical button press; consumed by the current
         // activity exactly like a physical press (orientation/remap aware).
@@ -844,6 +879,11 @@ void loop() {
         } else {
           const std::string ssid(payload.substring(0, sep).c_str());
           const std::string password(payload.substring(sep + 1).c_str());
+          // Match WifiSelectionActivity::onConnected(): a stored credential is
+          // not an auto-connect target until lastConnectedSsid names it.  The
+          // device-walk hook is used to prepare timer-wake tests, where no UI is
+          // awake to perform that second state transition later.
+          WIFI_STORE.setLastConnectedSsid(ssid);
           const bool ok = WIFI_STORE.addCredential(ssid, password);
           logSerial.printf(ok ? "WIFICRED_OK:%s\n" : "WIFICRED_ERR:%s\n", ssid.c_str());
         }
@@ -878,11 +918,27 @@ void loop() {
         .blockedByActivity = activityManager.blocksBackgroundServer(),
         .bgWifiRunning = suppressUsbBackgroundServer,
     });
-    static bool bgServerWasRunning = false;
     backgroundServer.loop(usbConn, allowRun);
-    const bool bgServerIsRunning = backgroundServer.isRunning();
+  }
+
+  // Background-server lifecycle hooks, driven by EITHER server.
+  //
+  // This used to observe only `backgroundServer` (the on-charge/USB one), so any
+  // feature hooking onBackgroundServerStarted never ran in Background Server =
+  // Always — BG_WIFI does not dispatch the hook itself. Terminus's image fetch
+  // was wired here and therefore silently never fired in the mode the device
+  // actually runs in. Both servers now drive the same hooks.
+  {
+    static bool bgServerWasRunning = false;
+    const bool bgServerIsRunning = backgroundServer.isRunning() || BG_WIFI.isServing();
     if (bgServerIsRunning && !bgServerWasRunning) {
       core::FeatureLifecycle::onBackgroundServerStarted();
+    }
+    if (bgServerIsRunning) {
+      // Fires on the main-loop cadence; every handler self-gates on its own
+      // wall-clock interval. Dispatching from the main loop rather than the
+      // background task keeps feature callbacks off that task's 8 KB stack.
+      core::FeatureLifecycle::onBackgroundServerTick();
     }
     bgServerWasRunning = bgServerIsRunning;
   }
@@ -901,7 +957,8 @@ void loop() {
 
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || activityManager.preventAutoSleep() ||
       features::status_overlay::preventsAutoSleep() ||  // cppcheck-suppress knownConditionTrueFalse
-      backgroundServer.shouldPreventAutoSleep() || serialOtaInProgress()) {
+      backgroundServer.shouldPreventAutoSleep() || SETTINGS.preventsAutoSleepWhileCharging(gpio.isUsbConnected()) ||
+      serialOtaInProgress()) {
     lastActivityTime = millis();
     powerManager.setPowerSaving(false);
   }

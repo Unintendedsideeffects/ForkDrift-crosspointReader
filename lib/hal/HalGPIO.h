@@ -76,13 +76,14 @@ class HalGPIO {
   unsigned long getPowerButtonHeldTime() const;
 
   // Inject a one-frame virtual button activation by physical index.
-  // wasPressed() and wasReleased() will return true for it on the next poll.
-  // Safe to call from any task; consuming the bit happens only in the main-loop task.
+  // wasPressed(), wasReleased() and peekReleased() all report it for the rest of
+  // the frame, as many times as they are asked. Safe to call from any task.
   void injectVirtualButton(uint8_t buttonIndex);
 
-  // Clear all pending virtual button bits. Call at the end of each main loop
-  // iteration so unconsumed bits from activities that don't handle them cannot
-  // accumulate and falsely prevent auto-sleep on subsequent frames.
+  // Clear all pending virtual button bits. MUST be called once at the end of
+  // each main loop iteration: it is the ONLY thing that ends a virtual
+  // activation, so skipping it leaks the press into the following frame.
+  // Also keeps unhandled bits from accumulating and falsely blocking auto-sleep.
   void drainVirtualMask();
 
   // Setup wake up GPIO and enter deep sleep
@@ -104,11 +105,23 @@ class HalGPIO {
   WakeupReason getWakeupReason() const;
 
  private:
-  // One bit per physical button index. Set by injectVirtualButton(), consumed
-  // (cleared) by wasPressed() / wasReleased(). mutable because consumption
-  // is internal edge-state, not part of the observable logical const-ness.
+  // One bit per physical button index. Set by injectVirtualButton(), cleared
+  // ONLY by drainVirtualMask() at the end of the main loop frame.
+  //
+  // The getters deliberately do NOT clear the bit. They used to, and that made
+  // virtual input behave unlike physical input: the SDK's InputManager latches
+  // pressedEvents/releasedEvents for the whole frame and its getters are pure
+  // reads (InputManager.cpp), so an activity may poll the same button any number
+  // of times per frame. Consume-on-read broke that in two ways — the first
+  // reader stole the event from every later one, and because press and release
+  // share this single bit, wasPressed() also ate the matching wasReleased().
+  // EpubReaderActivity's long-press-Confirm check (which reads Confirm, then
+  // reads it again to open the menu) swallowed injected Confirms outright.
+  //
+  // mutable because the mask is edge-state read through const accessors.
   mutable uint8_t virtualButtonMask = 0;
   mutable portMUX_TYPE virtualButtonMux = portMUX_INITIALIZER_UNLOCKED;
+  bool virtualBitSet(uint8_t buttonIndex) const;
 
  public:
   // Button indices

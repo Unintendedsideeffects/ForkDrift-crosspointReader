@@ -42,6 +42,7 @@ enum class HomeMenuId : uint8_t {
 #if ENABLE_LUA_PLUGINS
   Plugins,
 #endif
+  ClaudeBridge,
 };
 
 class HomeActivity final : public Activity {
@@ -123,7 +124,10 @@ class HomeActivity final : public Activity {
   void onPluginsOpen();
 #endif
 
-  void freeCoverBuffer();  // Free the stored cover buffer
+  // Static because every member it touches is static; instance-style calls at
+  // the existing call sites still compile. Being static is what lets
+  // releaseCoverCache() reuse it with no Home instance alive.
+  static void freeCoverBuffer();  // Free the stored cover buffer
   bool isCoverCacheValid(int coverHeight, bool usesDualSizeCoverThumbs) const;
   void renderCarouselFrameToCurrentBuffer(int bookIdx, float* outProgressPercent);
   void renderCarouselFrame(int bookIdx, int slotIdx);
@@ -159,4 +163,15 @@ class HomeActivity final : public Activity {
   void loop() override;
   void render(RenderLock&&) override;
   bool blocksBackgroundServer() override;
+
+  // Publishes Home's two SD-rebuildable caches to the HeapReclaimRegistry so the
+  // background server can reclaim them instead of failing to start. Idempotent;
+  // called from onEnter() on first entry. Both releases act on static/singleton
+  // state, so they remain valid after this instance is deleted.
+  static void registerHeapReclaim();
+
+  // Drops the cached composed framebuffer AND clears coverRendered, so the next
+  // render redraws rather than restoring nothing. Static because every member it
+  // touches is static — correct with no Home instance alive.
+  static void releaseCoverCache();
 };

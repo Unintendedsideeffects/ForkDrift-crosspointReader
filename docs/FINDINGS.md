@@ -374,3 +374,116 @@ bypass.
   goes back through `RadioStep::ScanReset`. Covered by 4 host cases in
   `test/host/test_wifi_entry_policy.cpp`, including one asserting every retry carries a
   non-zero delay — the zero-delay retry *is* the bug.
+
+## 2026-07-29T15:20Z — device does not rejoin WiFi at boot with Background Server = Always
+
+- **Found by**: claude — ad hoc, during on-device bring-up of `claude_bridge`
+- **Where**: boot-time auto-connect path — `BackgroundWifiCoordinator::reconcile` /
+  `background_server::evaluateAutoConnect` (`src/network/background/`), not the foreground
+  picker.
+- **What**: on an X4 with **Settings > Net > Background Server = Always** and a saved,
+  in-range credential (`Arrakis`, connected manually moments earlier so
+  `lastConnectedSsid` is set), a reboot leaves the device off the network
+  indefinitely. Observed: no UDP discovery reply on 8134, no HTTP on the previous lease,
+  and a full `192.168.86.0/24` port-80 sweep finds no new host, polled to 90 s and
+  re-checked minutes later. The device was sitting on a settled Home screen (cover
+  rendered, so `HomeActivity::blocksBackgroundServer()` is false) and answered serial
+  `CMD:PING` throughout, so the firmware was healthy — it simply never associated.
+  Connecting by hand through Settings > Wi-Fi Networks works immediately and the
+  background server then starts.
+- **Not diagnosed**: the mechanism was not established. Candidates worth checking are
+  the `skipCount` backoff and `waitingForNewCredential` inputs to `evaluateAutoConnect`,
+  and whether anything ever calls it in this state. Do not assume this is the same root
+  cause as the picker's scan-retry bug (fixed in `44a360c8a`) — that fix is in the
+  foreground picker and is confirmed working; this path is separate and still broken.
+- **Why it matters**: any feature that depends on the background web server (file
+  transfer, settings, OTA, OPDS, `claude_bridge`) is dark after every reboot until the
+  user manually visits the WiFi screen. "Always" reads as a promise the device does not keep.
+- **Why not fixed here**: out of scope — that session's scope was the `claude_bridge`
+  feature and the foreground scan-retry fix.
+- **Status**: **root-caused 2026-07-29 — it is heap, not auto-connect logic.**
+- **CORRECTION 2026-07-29T18:05Z — the "not diagnosed" candidates above were both wrong.**
+  Neither the `skipCount` backoff nor the `waitingForNewCredential` latch is responsible.
+  With developer-mode logging on, the boot log says plainly:
+  `[WRN] [BGWIFI] bg server deferred: low heap (40556)` / `bg server backoff: waiting 30s`,
+  repeating every 30 s forever. `BackgroundWifiService::canStartNow()` requires
+  `MIN_START_HEAP_BYTES = 60000` (`src/network/background/BackgroundWifiService.h:55`), and
+  measured free heap with **any** activity resident is 35–52 KB — so the gate is
+  unreachable by construction and the retry can never succeed. Two hypotheses were
+  advanced and disproved before this: Home's 48 KB cover snapshot (disproved — Settings
+  holds no snapshot and settles just as low, 37.3 KB vs 40.7 KB) and the credential latch
+  (a real one-way-door bug, but not this symptom). The lesson is the same one this file
+  keeps recording: a mechanism story is not evidence. One `LOG_WRN` promoted out of
+  developer-mode-only visibility would have answered it in a minute — the silent skip is
+  itself the defect that made this expensive.
+- **Related, still open**: the true requirement is ≈41.5 KB, not 60 KB — route setup
+  consumes 29,260 B measured (`40,556 → 11,296`) against a
+  `WEB_SERVER_MIN_SAFE_HEAP_BYTES = 12288` floor
+  (`src/network/server/CrossPointWebServer.cpp:65`). Free heap between activities is
+  ~88 KB with a 64 KB contiguous block, and nothing currently attempts a start in that
+  window.
+
+## 2026-07-29T18:50Z — linker-map section listings over-count static RAM; the "duplicate upload session" cost 0 bytes
+
+- **Found by**: claude — ad hoc, during a heap-reduction pass on the background server
+- **Where**: `src/network/server/UploadApi.cpp`, `src/network/server/FileRoutes.cpp`,
+  `src/network/server/CoreWebRoutes.cpp`; method issue applies to any map-file audit
+- **What**: a linker-map scan reported the two largest static allocations in the firmware
+  as two ~6,344 B HTTP upload sessions — `network::sharedBufferedHttpUploadSession`
+  (`BufferedHttpUpload.cpp`) and `uploadSession` (`UploadApi.cpp`) — and concluded ~6.3 KB
+  was recoverable by deduplicating them. **A controlled build pair disproves this.** With
+  the duplicate present and with it removed, `.dram0.data` + `.dram0.bss` are byte-identical
+  at 19,356 + 108,096 = 127,452 B (`riscv32-esp-elf-size -A` on the same ELF whose map was
+  counted). The saving is **0**.
+- **Why**: `CoreWebRoutes` / `FileRoutes` / `UploadApi` are referenced **only** by the host
+  test harness (`test/host_server/main.cpp:120`, `test/host_server/routes/files.cpp:4`) and
+  by nothing in the firmware. On device the whole path is unreachable, so `--gc-sections`
+  discards `uploadSession`'s `.bss` and it never occupied DRAM.
+- **The generalisable trap**: a symbol appearing in the map's *input section* listing does
+  not mean it occupies RAM in the linked image. Only allocated output sections count.
+  Any per-object static-RAM attribution derived from map input sections will over-count
+  every garbage-collected section, and can reconcile to the correct grand total while
+  individual line items are wrong. Verify a claimed saving with a **build pair measured by
+  `size -A` on the ELF**, never by symbol presence in the map.
+- **Secondary finding (open)**: `CoreWebRoutes` / `FileRoutes` / `UploadApi` are firmware
+  dead code kept alive only by the host harness, i.e. the host tests exercise an upload
+  implementation the device never runs. That divergence is a silent-drift risk regardless
+  of RAM.
+- **Status**: measurement corrected; the dedupe was kept anyway (removes ~376 lines of
+  duplicate logic and makes the harness share the firmware implementation), but it is a
+  maintainability change, **not** a RAM change. Dead-code question open.
+
+## 2026-08-10T15:45Z — PNG sleep images fail on a fragmented heap: the guard checks free heap, the allocation needs one contiguous block
+- **Found by**: claude — ad hoc (device verification of the device-first Terminus sleep flow)
+- **Where**: `lib/Epub/Epub/converters/PngToFramebufferConverter.cpp:278-289` (and the same pattern at :316)
+- **What**: `sizeof(PNG)` is 59,456 bytes, allocated as a single `new (std::nothrow) PNG()`. The
+  guard above it (`MIN_FREE_HEAP_FOR_PNG`) tests `ESP.getFreeHeap()` — *total* free heap — so it
+  passes whenever ~75 KB is free in aggregate, even when no 58 KB contiguous block exists. Observed
+  on device entering sleep with `free=91972 largest=36852`: the guard passed, the allocation
+  returned nullptr, and `SleepActivity::renderImageSleepScreen` fell back to
+  `renderDefaultSleepScreen()`. User-visible effect: the Terminus dashboard (and any PNG sleep
+  image) silently degrades to the default sleep screen after the web server has run and fragmented
+  the heap. The guard should test `ESP.getMaxAllocHeap()`; separately, a 58 KB contiguous
+  requirement at sleep time is probably the wrong design — pre-converting the fetched Terminus PNG
+  to a 1bpp framebuffer at fetch time would remove the sleep-path allocation entirely.
+- **Why not fixed here**: out of scope for the Terminus setup/sleep-option work (scope was
+  `src/features/terminus_sleep/`, `src/SettingsList.h`, settings/sleep wiring). Changing the PNG
+  decoder's admission control affects every image path (covers, Pokedex, custom sleep art) and
+  needs its own measured verification.
+- **Correction (2026-08-10)**: the "renders weird" symptom is NOT this bug. The pinned
+  `/sleep/trmnl_latest.png` was pulled off the device and inspected: it is an 862-byte 480x800
+  1-bit PNG containing the TRMNL "zzz" sleep placeholder, i.e. exactly what the BYOS returned. The
+  firmware fetched, pinned and drew it correctly. The heap-guard defect below is still real — it
+  was observed failing once at sleep entry — but it is intermittent (it needs a fragmented heap)
+  and it is not what the user sees day to day. Scope this finding to the guard only.
+- **Status**: open
+
+## 2026-08-10T15:45Z — Connect settings screen logs missing definitions for ankiConnectUrl / ankiConnectDeck
+- **Found by**: claude — ad hoc (device verification of the device-first Terminus sleep flow)
+- **Where**: serial: `[ERR] [SET] Missing connect setting definition for key=ankiConnectUrl`
+- **What**: Entering Settings emits two `[ERR] [SET] Missing connect setting definition` lines, for
+  `ankiConnectUrl` and `ankiConnectDeck`. The Connect screen references keys that
+  `getSettingsList()` does not emit under the current feature flags, so either the topic list or the
+  settings definitions are stale. Logged as ERR on every Settings entry.
+- **Why not fixed here**: out of scope for the Terminus work; belongs to the Anki/Connect feature.
+- **Status**: open

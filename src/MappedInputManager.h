@@ -33,8 +33,10 @@ class MappedInputManager {
   bool isPressed(Button button) const;
   void clearTransientState();
   // Inject a one-frame virtual activation for the given button.
-  // Both wasPressed() and wasReleased() will fire for it on the next check.
-  // Call from the main-loop task only (virtualActivatedMask is not thread-safe).
+  // wasPressed() and wasReleased() both report it, repeatably, until the main
+  // loop calls HalGPIO::drainVirtualMask() at end of frame — matching how the
+  // SDK latches physical button edges, so an activity that polls the same
+  // button twice in a frame sees it both times.
   void injectVirtualActivation(Button button);
   bool wasAnyPressed() const;
   bool wasAnyReleased() const;

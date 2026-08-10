@@ -108,6 +108,12 @@ FEATURES = {
         size_kb=0,
         description='Auto-connect to WiFi on wake even when not charging'
     ),
+    'terminus_sleep': Feature(
+        name='Terminus Sleep Screen',
+        flag='ENABLE_TERMINUS_SLEEP',
+        size_kb=1,
+        description='Fetch and display TRMNL/Terminus dashboard images as the timed sleep screen'
+    ),
     'home_media_picker': Feature(
         name='Home Media Picker',
         flag='ENABLE_HOME_MEDIA_PICKER',
@@ -257,6 +263,13 @@ FEATURES = {
         flag='ENABLE_LUA_PLUGINS',
         size_kb=153,
         description='Dynamic Lua 5.4 scripting VM and plugin system loaded from SD card'
+    ),
+    'claude_bridge': Feature(
+        name='Claude Code Questions',
+        flag='ENABLE_CLAUDE_BRIDGE',
+        # Measured against a standard-profile build pair: 5,847,840 - 5,836,654 B.
+        size_kb=11,
+        description='Answer Claude Code multiple-choice questions from the device'
     ),
     'remote_keyboard_input': Feature(
         name='Remote Keyboard Input',
@@ -448,6 +461,13 @@ FEATURE_METADATA = {
         conflicts=[],
         recommends=[]
     ),
+    'terminus_sleep': FeatureMetadata(
+        implemented=True,
+        stable=True,
+        requires=['background_server', 'image_sleep'],
+        conflicts=[],
+        recommends=['background_server_always']
+    ),
     'home_media_picker': FeatureMetadata(
         implemented=True,
         stable=True,
@@ -613,6 +633,13 @@ FEATURE_METADATA = {
         implemented=True,
         stable=True,
         requires=[],
+        conflicts=[],
+        recommends=[]
+    ),
+    'claude_bridge': FeatureMetadata(
+        implemented=True,
+        stable=False,
+        requires=['background_server'],
         conflicts=[],
         recommends=[]
     ),
@@ -814,6 +841,7 @@ PROFILES = {
             'ota_updates': True,
             'background_server': True,
             'background_server_on_charge': True,
+            'terminus_sleep': True,
             'web_wifi_setup': True,
             'remote_control': True,
             'remote_keyboard_input': True,
@@ -857,6 +885,7 @@ PROFILES = {
             'background_server': True,
             'background_server_on_charge': True,
             'background_server_always': True,
+            'terminus_sleep': True,
             'home_media_picker': True,
             'web_wallpaper_plugin': True,
             'pokemon_wallpaper_plugin': True,

@@ -16,6 +16,8 @@
 #include "HalStorage.h"
 #include "OpdsServerStore.h"
 #include "SpiBusMutex.h"
+#include "core/features/FeatureLifecycle.h"
+#include "core/registries/HeapReclaimRegistry.h"
 #include "network/http/OpdsShelfFetcher.h"
 #include "network/server/CrossPointWebServer.h"
 #include "network/wifi/WifiScanCache.h"
@@ -70,12 +72,57 @@ bool BackgroundWifiService::canStartNow() {
   if (startRetryActive()) {
     return false;
   }
-  if (ESP.getFreeHeap() < MIN_START_HEAP_BYTES) {
-    LOG_WRN("BGWIFI", "bg server deferred: low heap (%u)", static_cast<unsigned int>(ESP.getFreeHeap()));
-    deferStartRetry("low heap");
-    return false;
+  const auto measure = [] {
+    return background_server::StartResourceInput{
+        .freeBytes = ESP.getFreeHeap(),
+        .largestContiguousBytes = ESP.getMaxAllocHeap(),
+        .taskStackBytes = TASK_STACK,
+    };
+  };
+
+  background_server::StartResourceInput resources = measure();
+  background_server::StartResourceVerdict verdict = background_server::evaluateStartResources(resources);
+
+  // Home holds two caches — the composed cover framebuffer and the carousel
+  // frame slot — that exist purely for redraw speed and rebuild from the SD
+  // card. Together they are ~96 KB against a start requirement of ~41 KB, so
+  // failing to start while holding them is a false shortage. Reclaim once and
+  // re-measure rather than deferring for 30 s with the heap sitting in a cache.
+  //
+  // Deliberately after startRetryActive(): during backoff we return above and
+  // never reach here, so an eviction can happen at most once per retry window
+  // instead of on every reconcile tick.
+  if (verdict != background_server::StartResourceVerdict::Ok && !core::HeapReclaimRegistry::empty()) {
+    LOG_DBG("BGWIFI", "bg server start blocked (%u free, largest %u); reclaiming caches",
+            static_cast<unsigned int>(resources.freeBytes),
+            static_cast<unsigned int>(resources.largestContiguousBytes));
+    core::HeapReclaimRegistry::releaseAll();
+    resources = measure();
+    verdict = background_server::evaluateStartResources(resources);
+    LOG_DBG("BGWIFI", "bg server after reclaim: %u free, largest %u", static_cast<unsigned int>(resources.freeBytes),
+            static_cast<unsigned int>(resources.largestContiguousBytes));
   }
-  return true;
+
+  switch (verdict) {
+    case background_server::StartResourceVerdict::Ok:
+      return true;
+    case background_server::StartResourceVerdict::InsufficientFree:
+      LOG_WRN("BGWIFI", "bg server deferred: low heap (%u free, need %u)",
+              static_cast<unsigned int>(resources.freeBytes),
+              static_cast<unsigned int>(background_server::startMinFreeBytes(TASK_STACK)));
+      deferStartRetry("low heap");
+      return false;
+    case background_server::StartResourceVerdict::InsufficientContiguous:
+      // Distinct from low heap on purpose: total free can look ample while the
+      // largest run is too small for the task stack. Logging them identically is
+      // what made this failure mode invisible.
+      LOG_WRN("BGWIFI", "bg server deferred: heap too fragmented (%u free, largest %u, need %u contiguous)",
+              static_cast<unsigned int>(resources.freeBytes),
+              static_cast<unsigned int>(resources.largestContiguousBytes), static_cast<unsigned int>(TASK_STACK));
+      deferStartRetry("fragmented heap");
+      return false;
+  }
+  return false;
 }
 
 void BackgroundWifiService::run(const char* ssid, const char* password, const bool useCurrentConnection) {
@@ -122,6 +169,11 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
     const IPAddress ip = WiFi.localIP();
     LOG_DBG("BGWIFI", "Connected! IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
     connected = true;
+
+    // Give network integrations a bounded pre-server window. CrossPointWebServer
+    // route allocation fragments the remaining heap enough that Terminus cannot
+    // subsequently allocate its proven-safe 12 KB download task stack.
+    core::FeatureLifecycle::onBackgroundNetworkReady();
 
     // ── Start web server ──────────────────────────────────────────────────
     server = new (std::nothrow) CrossPointWebServer();
@@ -235,7 +287,7 @@ void BackgroundWifiService::refreshLibraryShelf() {
     return;
   }
 
-  const uint32_t shelfHeapThreshold = MIN_START_HEAP_BYTES + LIBRARY_SHELF_HEAP_MARGIN_BYTES;
+  const uint32_t shelfHeapThreshold = LIBRARY_SHELF_MIN_HEAP_BYTES;
   if (ESP.getFreeHeap() < shelfHeapThreshold) {
     LOG_DBG("BGWIFI", "Library shelf refresh skipped: low heap (%u, need %u)",
             static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(shelfHeapThreshold));

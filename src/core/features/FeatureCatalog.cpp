@@ -19,6 +19,7 @@ constexpr const char* kRequiresCalibreSyncAll[] = {"integrations"};
 constexpr const char* kRequiresOpdsAll[] = {"calibre_sync"};
 constexpr const char* kRequiresBooksTabUiAll[] = {"opds"};
 constexpr const char* kRequiresTerminusSleepAll[] = {"background_server"};
+constexpr const char* kRequiresClaudeBridgeAll[] = {"background_server"};
 constexpr const char* kRequiresPokemonWallpaperPluginAll[] = {"image_sleep"};
 constexpr const char* kRequiresPokemonPartyAll[] = {};
 constexpr const char* kRequiresHyphenationAll[] = {"epub_support"};
@@ -47,6 +48,8 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
      sizeof(kRequiresKOReaderSyncAll) / sizeof(kRequiresKOReaderSyncAll[0]), nullptr, 0},
     {"calibre_sync", "OPDS Support", ENABLE_CALIBRE_SYNC != 0, kRequiresCalibreSyncAll,
      sizeof(kRequiresCalibreSyncAll) / sizeof(kRequiresCalibreSyncAll[0]), nullptr, 0},
+    {"claude_bridge", "Claude Code Questions", ENABLE_CLAUDE_BRIDGE != 0, kRequiresClaudeBridgeAll,
+     sizeof(kRequiresClaudeBridgeAll) / sizeof(kRequiresClaudeBridgeAll[0]), nullptr, 0},
     {"background_server", "Background Server", ENABLE_BACKGROUND_SERVER != 0, nullptr, 0, nullptr, 0},
     {"background_server_on_charge", "Background Server On Charge", ENABLE_BACKGROUND_SERVER_ON_CHARGE != 0, nullptr, 0,
      nullptr, 0},

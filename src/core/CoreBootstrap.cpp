@@ -6,6 +6,7 @@
 #include "features/anki/Registration.h"
 #include "features/ble_wifi_provisioning/Registration.h"
 #include "features/calibre_sync/Registration.h"
+#include "features/claude_bridge/Registration.h"
 #include "features/dark_mode/Registration.h"
 #include "features/epub/Registration.h"
 #include "features/focus_reading/Registration.h"
@@ -47,6 +48,7 @@ void registerFeatureModules() {
   features::txt::registerFeature();
 
   features::calibre_sync::registerFeature();
+  features::claude_bridge::registerFeature();
   features::ota_updates::registerFeature();
   features::todo_planner::registerFeature();
   features::pokemon_party::registerFeature();

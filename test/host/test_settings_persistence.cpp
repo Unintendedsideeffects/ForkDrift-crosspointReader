@@ -24,10 +24,13 @@ TEST_CASE("settings persistence saves golden shape") {
   settings.fontSize = CrossPointSettings::LARGE;
   settings.refreshFrequency = CrossPointSettings::REFRESH_10;
   settings.sleepTimeoutMinutes = 23;
+  settings.stayAwakeWhileCharging = 1;
   settings.opdsFilenameFormat = CrossPointSettings::OPDS_FILENAME_TITLE_AUTHOR;
   settings.hideBatteryPercentage = CrossPointSettings::HIDE_READER;
   settings.timeMode = CrossPointSettings::TIME_MODE_LOCAL;
   settings.timeZoneOffset = 14;
+  settings.terminusSleepEnabled = 1;
+  settings.timedSleepRefreshInterval = 3;
   std::strncpy(settings.userFontPath, "/fonts/Golden.ttf", sizeof(settings.userFontPath) - 1);
   settings.userFontPath[sizeof(settings.userFontPath) - 1] = '\0';
 
@@ -39,7 +42,10 @@ TEST_CASE("settings persistence saves golden shape") {
   CHECK(json.find("\"fontSize\":2") != std::string::npos);
   CHECK(json.find("\"refreshFrequency\":2") != std::string::npos);
   CHECK(json.find("\"sleepTimeoutMinutes\":23") != std::string::npos);
+  CHECK(json.find("\"stayAwakeWhileCharging\":1") != std::string::npos);
   CHECK(json.find("\"opdsFilenameFormat\":1") != std::string::npos);
+  CHECK(json.find("\"terminusSleepEnabled\":1") != std::string::npos);
+  CHECK(json.find("\"timedSleepRefreshInterval\":3") != std::string::npos);
   CHECK(json.find("\"userFontPath\":\"/fonts/Golden.ttf\"") != std::string::npos);
 }
 
@@ -47,18 +53,24 @@ TEST_CASE("settings persistence loads current shape literal") {
   CrossPointSettings& settings = resetSettingsState();
   const char* json =
       "{\"version\":1,\"sleepScreen\":1,\"fontSize\":2,\"refreshFrequency\":2,"
-      "\"sleepTimeoutMinutes\":23,\"opdsFilenameFormat\":1,\"hideBatteryPercentage\":1,"
-      "\"timeMode\":1,\"timeZoneOffset\":14,\"userFontPath\":\"/fonts/Golden.ttf\"}";
+      "\"sleepTimeoutMinutes\":23,\"stayAwakeWhileCharging\":1,\"opdsFilenameFormat\":1,"
+      "\"hideBatteryPercentage\":1,"
+      "\"timeMode\":1,\"timeZoneOffset\":14,\"terminusSleepEnabled\":1,"
+      "\"timedSleepRefreshInterval\":5,\"userFontPath\":\"/fonts/Golden.ttf\"}";
 
   REQUIRE(JsonSettingsIO::loadSettings(settings, json, nullptr));
   CHECK(settings.sleepScreen == CrossPointSettings::LIGHT);
   CHECK(settings.fontSize == CrossPointSettings::LARGE);
   CHECK(settings.refreshFrequency == CrossPointSettings::REFRESH_10);
   CHECK(settings.sleepTimeoutMinutes == 23);
+  CHECK(settings.stayAwakeWhileCharging == 1);
   CHECK(settings.opdsFilenameFormat == CrossPointSettings::OPDS_FILENAME_TITLE_AUTHOR);
   CHECK(settings.hideBatteryPercentage == CrossPointSettings::HIDE_READER);
   CHECK(settings.timeMode == CrossPointSettings::TIME_MODE_LOCAL);
   CHECK(settings.timeZoneOffset == 14);
+  CHECK(settings.terminusSleepEnabled == 1);
+  CHECK(settings.timedSleepRefreshInterval == 5);
+  CHECK(settings.getTimedRefreshIntervalMicros() == 24ULL * 3600ULL * 1000000ULL);
   CHECK(std::string(settings.userFontPath) == "/fonts/Golden.ttf");
 }
 
@@ -110,13 +122,18 @@ TEST_CASE("settings persistence ignores removed key while loading siblings") {
 TEST_CASE("settings persistence clamps hostile enum values and ignores wrong types") {
   CrossPointSettings& settings = resetSettingsState();
   const uint8_t defaultSleepTimeout = settings.sleepTimeoutMinutes;
-  const char* json = "{\"version\":1,\"fontSize\":255,\"sleepScreen\":99,\"sleepTimeoutMinutes\":\"fast\"}";
+  const char* json =
+      "{\"version\":1,\"fontSize\":255,\"sleepScreen\":99,\"sleepTimeoutMinutes\":\"fast\","
+      "\"stayAwakeWhileCharging\":7,\"terminusSleepEnabled\":7,\"timedSleepRefreshInterval\":255}";
 
   REQUIRE(JsonSettingsIO::loadSettings(settings, json, nullptr));
   settings.validateAndClamp();
   CHECK(settings.fontSize == CrossPointSettings::MEDIUM);
   CHECK(settings.sleepScreen == CrossPointSettings::DARK);
   CHECK(settings.sleepTimeoutMinutes == defaultSleepTimeout);
+  CHECK(settings.stayAwakeWhileCharging == 1);
+  CHECK(settings.terminusSleepEnabled == 1);
+  CHECK(settings.timedSleepRefreshInterval == 0);
 }
 
 TEST_CASE("settings migration: legacy bottom migrates to STATUS_BAR_ON and triggers resave") {

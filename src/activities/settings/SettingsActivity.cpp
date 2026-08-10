@@ -27,6 +27,7 @@
 #include "SdFirmwareUpdateActivity.h"
 #include "SettingsList.h"
 #include "StatusBarSettingsActivity.h"
+#include "TerminusSettingsActivity.h"
 #include "ValidateSleepImagesActivity.h"
 #if ENABLE_BLE_PAGE_TURNER
 #include "activities/ble_page_turner/BlePageTurnerActivity.h"
@@ -35,7 +36,6 @@
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/settings/SettingsTopics.h"
 #include "activities/util/ConfirmationActivity.h"
-#include "activities/util/FullScreenMessageActivity.h"
 #include "activities/util/IntervalSelectionActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "activities/util/ListPickerActivity.h"
@@ -43,7 +43,6 @@
 #include "core/features/FeatureModules.h"
 #include "network/background/BackgroundWifiService.h"
 #include "util/MaintenanceUtils.h"
-#include "util/NetworkNames.h"
 #include "util/SettingsBackup.h"
 
 namespace {
@@ -261,10 +260,15 @@ void SettingsActivity::rebuildSettingsLists() {
   }
 
   appendConnectTopic(StrId::STR_SEC_FILE_SERVER, [&] { addConnectSettingByKey("backgroundServerMode"); });
+#if ENABLE_ANKI_SUPPORT
+  // Gate must match the one guarding the emits in SettingsList.h: without it,
+  // an anki-disabled build asks for keys that were never emitted and logs two
+  // ERR lines on every entry to Settings.
   appendConnectTopic(StrId::STR_SEC_ANKI_CONNECT, [&] {
     addConnectSettingByKey("ankiConnectUrl");
     addConnectSettingByKey("ankiConnectDeck");
   });
+#endif
 
   // 5. System (Index 4)
   auto& systemSettings = settingsByCategory[4];
@@ -779,12 +783,12 @@ void SettingsActivity::toggleCurrentSetting() {
         }
       } break;
       case SettingAction::TerminusSetup: {
-        char hostname[40];
-        NetworkNames::getDeviceHostname(hostname, sizeof(hostname));
-        char msg[120];
-        snprintf(msg, sizeof(msg), "Configure Terminus at:\nhttp://%s.local/plugins/terminus", hostname);
-        startActivityForResult(std::make_unique<FullScreenMessageActivity>(renderer, mappedInput, std::string(msg)),
-                               resultHandler);
+        startActivityForResult(std::make_unique<TerminusSettingsActivity>(renderer, mappedInput),
+                               [this](const ActivityResult&) {
+                                 invalidateMasterSettingsCache();
+                                 rebuildSettingsLists();
+                                 requestUpdate();
+                               });
       } break;
       case SettingAction::ValidateSleepImages:
         startActivityForResult(

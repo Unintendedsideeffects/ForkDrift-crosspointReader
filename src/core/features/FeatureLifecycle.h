@@ -47,12 +47,21 @@ class FeatureLifecycle {
   static void onFontSetup(GfxRenderer& renderer);
 
   /**
+   * Called after WiFi association succeeds and before a background web server
+   * allocates its routes. Network integrations with large temporary heap needs
+   * can do bounded work here without competing with the server.
+   */
+  static void onBackgroundNetworkReady();
+
+  /**
    * Called each time the background web server first transitions to the RUNNING
-   * state (WiFi connected, server up). Features may use this to perform
-   * one-shot background fetch tasks (e.g. pulling a TRMNL sleep image).
+   * state (WiFi connected, server up). Features may use this for work that
+   * specifically depends on registered web routes being available.
    * May be called more than once per session if the server restarts.
    */
   static void onBackgroundServerStarted();
+  // Periodic while a background server runs; handlers self-gate on interval.
+  static void onBackgroundServerTick();
 };
 
 }  // namespace core

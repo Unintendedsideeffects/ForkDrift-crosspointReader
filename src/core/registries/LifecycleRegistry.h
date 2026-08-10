@@ -15,9 +15,22 @@ struct LifecycleEntry {
   void (*onFontFamilyChanged)(uint8_t newFontFamilyValue);
   void (*onWebSettingsApplied)();
   void (*onUploadCompleted)(const char* uploadPath, const char* uploadFileName);
-  // Fired once each time the background web server transitions to RUNNING state
-  // (i.e. WiFi is connected and on charge). Suitable for background fetch tasks.
+  // Fired after STA association succeeds but before the route-heavy background
+  // web server is allocated. Handlers may perform short, bounded network work
+  // that needs more contiguous heap than remains once the server is running.
+  void (*onBackgroundNetworkReady)();
+  // Fired once each time a background web server transitions to RUNNING state —
+  // either the on-charge/USB server or the WiFi one (BG_WIFI). It used to be
+  // dispatched for the on-charge server ONLY, which meant a feature hooking it
+  // never ran in Background Server = Always: the Terminus fetch was wired here
+  // and silently never fired in the mode most users run.
   void (*onBackgroundServerStarted)();
+  // Fired periodically while a background server is running. Edge hooks cannot
+  // express a heartbeat: onBackgroundServerStarted fires once, so a server that
+  // stays up at Home refreshes nothing afterwards. Handlers MUST gate themselves
+  // on their own wall-clock interval (see util/WallClockInterval.h) — this fires
+  // on a main-loop cadence, not at the handler's desired period.
+  void (*onBackgroundServerTick)();
 };
 
 class LifecycleRegistry {
@@ -86,6 +99,22 @@ class LifecycleRegistry {
     for (int i = 0; i < count; ++i) {
       if (entries[i].onBackgroundServerStarted != nullptr) {
         entries[i].onBackgroundServerStarted();
+      }
+    }
+  }
+
+  static void dispatchBackgroundNetworkReady() {
+    for (int i = 0; i < count; ++i) {
+      if (entries[i].onBackgroundNetworkReady != nullptr) {
+        entries[i].onBackgroundNetworkReady();
+      }
+    }
+  }
+
+  static void dispatchBackgroundServerTick() {
+    for (int i = 0; i < count; ++i) {
+      if (entries[i].onBackgroundServerTick != nullptr) {
+        entries[i].onBackgroundServerTick();
       }
     }
   }

@@ -268,6 +268,13 @@
 #define ENABLE_LUA_PLUGINS 0
 #endif
 
+// Claude Code question terminal: a short-lived AskUserQuestion hook pushes
+// multiple-choice prompts to the X4 and returns the selected answers. No host
+// daemon, prompt entry, or transcript.
+#ifndef ENABLE_CLAUDE_BRIDGE
+#define ENABLE_CLAUDE_BRIDGE 0
+#endif
+
 #ifndef ENABLE_FLOW_THEME
 #define ENABLE_FLOW_THEME 0
 #endif

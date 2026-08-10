@@ -12,6 +12,7 @@
 #include "CrossPointSettings.h"
 #include "FeatureFlags.h"
 #include "Logging.h"
+#include "core/features/FeatureLifecycle.h"
 #include "core/features/FeatureModules.h"
 #include "network/server/CrossPointWebServer.h"
 #include "util/NetworkNames.h"
@@ -119,6 +120,7 @@ void BackgroundWebServer::startServer() {
     scheduleRetry("low heap");
     return;
   }
+  core::FeatureLifecycle::onBackgroundNetworkReady();
   if (!server) {
     server.reset(new (std::nothrow) CrossPointWebServer());
     if (!server) {

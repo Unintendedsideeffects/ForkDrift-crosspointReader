@@ -11,4 +11,8 @@ void registerFeature();
 // Safe to call outside the web handler context (e.g. from timed sleep refresh).
 bool startTrmnlFetchAndWait(uint32_t capMs);
 
+// True when the selected Terminus sleep screen has no usable cached image or
+// its server-provided refresh interval has elapsed.
+bool shouldRefreshBeforeSleep();
+
 }  // namespace features::terminus_sleep

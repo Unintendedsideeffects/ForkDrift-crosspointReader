@@ -33,6 +33,8 @@ except NameError:
         def subst(self, s):
             if s == "$PROJECT_LIBDEPS_DIR":
                 return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".pio", "libdeps"))
+            if s == "$PIOENV":
+                return "simulator"
             return s
     env = DummyEnv()
 
@@ -42,8 +44,12 @@ _missing_patches = []
 def _sim_src_dir(env):
     libdeps = env.subst("$PROJECT_LIBDEPS_DIR") or os.path.join(env["PROJECT_DIR"], ".pio", "libdeps")
     # The dep is named "simulator" and unpacks to <libdeps>/<env>/simulator/src.
-    cand = os.path.join(libdeps, "simulator", "simulator", "src")
-    return cand if os.path.isdir(cand) else None
+    pioenv = env.subst("$PIOENV")
+    candidates = (
+        os.path.join(libdeps, pioenv, "simulator", "src"),
+        os.path.join(libdeps, "simulator", "src"),
+    )
+    return next((candidate for candidate in candidates if os.path.isdir(candidate)), None)
 
 
 def _replace_once(path, old, new, marker):

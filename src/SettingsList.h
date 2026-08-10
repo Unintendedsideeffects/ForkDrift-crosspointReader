@@ -498,6 +498,13 @@ inline void buildSleepModeOptions(std::vector<StrId>& ids, std::vector<uint8_t>&
   vals.push_back(M::PLANNER_SLEEP);
   optionFeatureKeys.push_back("todo_planner");
 #endif
+#if ENABLE_TERMINUS_SLEEP
+  if (core::FeatureModules::hasCapability(core::Capability::TerminusSleep) && TERMINUS_STORE.hasCredentials()) {
+    ids.push_back(StrId::STR_TERMINUS);
+    vals.push_back(M::TERMINUS_SLEEP);
+    optionFeatureKeys.push_back("terminus_sleep");
+  }
+#endif
 }
 
 inline bool sleepCustomOrCoverActive() {
@@ -543,7 +550,7 @@ using SettingSink = void (*)(void* ctx, SettingInfo&& info);
 // its own: the caller pre-scans the sleep-image folders and supplies the
 // already-built font family setting (both touch the SD card / font registry).
 // This lets the concurrent web /api/settings handler stream the list without
-// ever materializing a ~10 KB std::vector<SettingInfo>, and without holding the
+// ever materializing a ~15 KB std::vector<SettingInfo>, and without holding the
 // SPI bus across network writes (see streamSettingsListJson). getSettingsList()
 // below is the buffered wrapper used on-device, where random access is needed.
 inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, bool hasPokedexImages,
@@ -577,7 +584,11 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
                  return uint8_t{0};
                },
                [vals](uint8_t idx) {
-                 if (idx < vals.size()) SETTINGS.sleepScreen = vals[idx];
+                 if (idx < vals.size()) {
+                   SETTINGS.sleepScreen = vals[idx];
+                   SETTINGS.terminusSleepEnabled =
+                       CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP) ? 1 : 0;
+                 }
                },
                "sleepScreen", StrId::STR_CAT_DISPLAY)
         .withVisibleWhen("sleepScreenSplit", CrossPointSettings::SLEEP_SPLIT_UNIFIED)
@@ -601,7 +612,11 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
                  return uint8_t{0};
                },
                [vals](uint8_t idx) {
-                 if (idx < vals.size()) SETTINGS.sleepScreenReader = vals[idx];
+                 if (idx < vals.size()) {
+                   SETTINGS.sleepScreenReader = vals[idx];
+                   SETTINGS.terminusSleepEnabled =
+                       CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP) ? 1 : 0;
+                 }
                },
                "sleepScreenReader", StrId::STR_CAT_DISPLAY)
         .withVisibleWhen("sleepScreenSplit", CrossPointSettings::SLEEP_SPLIT_SMART)
@@ -625,7 +640,11 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
                  return uint8_t{0};
                },
                [vals](uint8_t idx) {
-                 if (idx < vals.size()) SETTINGS.sleepScreenHome = vals[idx];
+                 if (idx < vals.size()) {
+                   SETTINGS.sleepScreenHome = vals[idx];
+                   SETTINGS.terminusSleepEnabled =
+                       CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP) ? 1 : 0;
+                 }
                },
                "sleepScreenHome", StrId::STR_CAT_DISPLAY)
         .withVisibleWhen("sleepScreenSplit", CrossPointSettings::SLEEP_SPLIT_SMART)
@@ -918,6 +937,9 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
            {CrossPointSettings::MIN_SLEEP_TIMEOUT_MINUTES, CrossPointSettings::MAX_SLEEP_TIMEOUT_MINUTES, 1},
            "sleepTimeoutMinutes", StrId::STR_CAT_SYSTEM)
            .withConfiguratorExport());
+  emit(SettingInfo::Toggle(StrId::STR_STAY_AWAKE_WHILE_CHARGING, &CrossPointSettings::stayAwakeWhileCharging,
+                           "stayAwakeWhileCharging", StrId::STR_CAT_SYSTEM)
+           .withConfiguratorExport());
   emit(SettingInfo::Toggle(StrId::STR_SHOW_HIDDEN_FILES, &CrossPointSettings::showHiddenFiles, "showHiddenFiles",
                            StrId::STR_CAT_SYSTEM)
            .withConfiguratorExport());
@@ -935,13 +957,9 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
 #endif
 
   if (core::FeatureModules::hasCapability(core::Capability::TerminusSleep)) {
-    if (TERMINUS_STORE.hasCredentials()) {
-      emit(SettingInfo::Toggle(StrId::STR_TERMINUS_SLEEP_ENABLED, &CrossPointSettings::terminusSleepEnabled,
-                               "terminusSleepEnabled", StrId::STR_CAT_DISPLAY)
-               .withConfiguratorExport("terminus_sleep"));
-    }
-    // Terminus credentials are managed via /.crosspoint/terminus.json or /plugins/terminus web UI.
-    // A settings action entry allows navigating to the setup page from the on-device settings menu.
+    // Setup stays available after pairing so the server or token can be edited
+    // without a browser. Once paired, Terminus appears in the normal Sleep
+    // Screen selector above.
     emit(SettingInfo::Action(StrId::STR_TERMINUS_SETUP, SettingAction::TerminusSetup));
   }
 #if ENABLE_TIMED_SLEEP_REFRESH
@@ -1051,15 +1069,25 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
 // option screens) that need random access / category filtering. Materializes
 // the full vector, which is acceptable on the main loop task — it gates on free
 // heap before calling. The concurrent web path uses forEachSetting +
-// streamSettingsListJson instead, to avoid this ~10 KB allocation under low heap.
+// streamSettingsListJson instead, to avoid this ~15 KB allocation under low heap.
 inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* registry = nullptr) {
   // Sleep-image folders are scanned once per list build; both the Custom option
   // and the Pokédex source options are hidden when there is nothing to show.
   const bool hasSleepImages = dirHasAnyImage("/sleep");
   const bool hasPokedexImages = dirHasAnyImage("/sleep/pokedex");
 
+  // Count first, then reserve exactly. A hardcoded estimate silently rots as
+  // settings are added: once the real count passes it, the 2× regrowth needs the
+  // old and new arrays live at once (48 -> 96 entries is 9.6 KB + 19.2 KB), which
+  // bad_alloc's on a fragmented heap even with ~40 KB free. The counting pass
+  // costs nothing — it takes a placeholder font setting, since the font entry is
+  // emitted unconditionally and so cannot change the count.
+  size_t count = 0;
+  forEachSetting([](void* ctx, SettingInfo&&) { ++*static_cast<size_t*>(ctx); }, &count, hasSleepImages,
+                 hasPokedexImages, SettingInfo{});
+
   std::vector<SettingInfo> list;
-  list.reserve(48);  // Upper-bound estimate; avoids repeated 2× heap reallocation.
+  list.reserve(count);
   forEachSetting(
       [](void* ctx, SettingInfo&& info) { static_cast<std::vector<SettingInfo>*>(ctx)->push_back(std::move(info)); },
       &list, hasSleepImages, hasPokedexImages, buildFontFamilySetting(registry));

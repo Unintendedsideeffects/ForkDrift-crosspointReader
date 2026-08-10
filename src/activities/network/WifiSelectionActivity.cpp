@@ -310,11 +310,20 @@ void WifiSelectionActivity::serviceRadioStep() {
     case RadioStep::None:
       return;
 
-    case RadioStep::ScanReset:
+    case RadioStep::ScanReset: {
       WiFi.scanDelete();
-      startWifiScanAsync();
+      const int16_t started = startWifiScanAsync();
+      // NOTE: WIFI_SCAN_RUNNING (-1) is ambiguous by design of the framework —
+      // scanNetworks() returns it both when a scan was ALREADY running
+      // (WiFiScan.cpp:59, we started nothing) and when OUR async scan started
+      // fine (WiFiScan.cpp:93). Do not report it as either one.
+      LOG_DBG("WIFISEL", "scanNetworks() -> %d (%s)", static_cast<int>(started),
+              started == WIFI_SCAN_FAILED    ? "could not start"
+              : started == WIFI_SCAN_RUNNING ? "async in flight (started by us, or already running)"
+                                             : "completed synchronously");
       radioStep = RadioStep::None;
       return;
+    }
 
     case RadioStep::ConnectReset:
       WiFi.persistent(false);  // Suppress SDK NVS auto-connect
@@ -626,7 +635,15 @@ void WifiSelectionActivity::loop() {
         onComplete(false);
         return;
       }
-      processWifiScanResults();
+      // Only poll once our own scan is actually in flight. A pending radioStep
+      // means startWifiScanAsync() has not run yet, and WiFi.scanComplete()
+      // reports WIFI_SCAN_FAILED (-2) when no scan has ever been started — so
+      // polling early reads "failed" against a scan that does not exist, burns
+      // a retry, re-arms the deadline, and repeats. That is why the three
+      // backoff retries were still being spent inside ~160 ms on device.
+      if (radioStep == RadioStep::None) {
+        processWifiScanResults();
+      }
       return;
 
     case WifiSelectionState::AUTO_CONNECTING:

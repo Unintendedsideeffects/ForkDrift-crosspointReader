@@ -483,6 +483,15 @@ uint8_t CrossPointSettings::normalizeSleepScreenMode(const uint8_t rawValue) {
     return DARK;
   }
 #endif
+#if ENABLE_TERMINUS_SLEEP
+  if (rawValue == TERMINUS_SLEEP) {
+    return TERMINUS_SLEEP;
+  }
+#else
+  if (rawValue == TERMINUS_SLEEP) {
+    return DARK;
+  }
+#endif
   return rawValue < SLEEP_SCREEN_MODE_COUNT ? rawValue : DARK;
 }
 
@@ -575,6 +584,9 @@ void CrossPointSettings::validateAndClamp() {
   backgroundServerOnCharge = backgroundServerOnCharge ? 1 : 0;
   wifiAutoConnect = wifiAutoConnect ? 1 : 0;
   autoSyncDayOnBackgroundPing = autoSyncDayOnBackgroundPing ? 1 : 0;
+  terminusSleepEnabled = terminusSleepEnabled ? 1 : 0;
+  stayAwakeWhileCharging = stayAwakeWhileCharging ? 1 : 0;
+  if (timedSleepRefreshInterval > 5) timedSleepRefreshInterval = 0;
   if (!supportsBackgroundServerOnChargeMode()) {
     backgroundServerOnCharge = 0;
   }

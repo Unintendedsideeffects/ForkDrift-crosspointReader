@@ -23,6 +23,8 @@ void toDoc(const CrossPointSettings& s, JsonDocument& doc) {
   doc["sleepScreenSplit"] = s.sleepScreenSplit;
   doc["sleepScreenReader"] = s.sleepScreenReader;
   doc["sleepScreenHome"] = s.sleepScreenHome;
+  doc["terminusSleepEnabled"] = s.terminusSleepEnabled;
+  doc["timedSleepRefreshInterval"] = s.timedSleepRefreshInterval;
 #if ENABLE_HAIKU_CLOCK
   doc["haikuClockLandscape"] = s.haikuClockLandscape;
 #endif
@@ -63,6 +65,7 @@ void toDoc(const CrossPointSettings& s, JsonDocument& doc) {
   doc["lineSpacing"] = s.lineSpacing;
   doc["paragraphAlignment"] = s.paragraphAlignment;
   doc["sleepTimeoutMinutes"] = s.sleepTimeoutMinutes;
+  doc["stayAwakeWhileCharging"] = s.stayAwakeWhileCharging;
   doc["refreshFrequency"] = s.refreshFrequency;
   doc["opdsFilenameFormat"] = s.opdsFilenameFormat;
   doc["screenMargin"] = s.screenMargin;
@@ -150,6 +153,9 @@ bool fromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* needsResave) 
   s.sleepCycleMode =
       clamp(doc["sleepCycleMode"] | (uint8_t)S::SLEEP_CYCLE_RANDOM, S::SLEEP_CYCLE_MODE_COUNT, S::SLEEP_CYCLE_RANDOM);
   s.cleanSleepRefresh = doc["cleanSleepRefresh"] | (uint8_t)0;
+  s.terminusSleepEnabled = doc["terminusSleepEnabled"] | (uint8_t)0;
+  s.timedSleepRefreshInterval =
+      clamp(doc["timedSleepRefreshInterval"] | (uint8_t)0, static_cast<uint8_t>(6), static_cast<uint8_t>(0));
 
 #if ENABLE_HAIKU_CLOCK
   s.haikuClockLandscape = doc["haikuClockLandscape"] | (uint8_t)0;
@@ -209,6 +215,7 @@ bool fromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* needsResave) 
       clamp(doc["paragraphAlignment"] | (uint8_t)S::JUSTIFIED, S::PARAGRAPH_ALIGNMENT_COUNT, S::JUSTIFIED);
   s.sleepTimeoutMinutes =
       std::clamp(doc["sleepTimeoutMinutes"] | (uint8_t)10, S::MIN_SLEEP_TIMEOUT_MINUTES, S::MAX_SLEEP_TIMEOUT_MINUTES);
+  s.stayAwakeWhileCharging = doc["stayAwakeWhileCharging"] | (uint8_t)0;
   s.refreshFrequency =
       clamp(doc["refreshFrequency"] | (uint8_t)S::REFRESH_15, S::REFRESH_FREQUENCY_COUNT, S::REFRESH_15);
   s.opdsFilenameFormat = clamp(doc["opdsFilenameFormat"] | (uint8_t)S::OPDS_FILENAME_AUTHOR_TITLE,

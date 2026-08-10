@@ -25,6 +25,7 @@ enum class Capability {
   BleWifiProvisioning,
   Bookmarks,
   CalibreSync,
+  ClaudeBridge,
   DarkMode,
   EpubSupport,
   FocusReading,

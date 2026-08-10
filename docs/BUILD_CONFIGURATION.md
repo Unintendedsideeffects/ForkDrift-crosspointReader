@@ -819,11 +819,13 @@ Tracks reading time, pages turned, and completion status. Enables "Mark Finished
 ### Terminus Sleep Screen
 
 **Flag:** `ENABLE_TERMINUS_SLEEP`  
-**Size Impact:** <1KB  
-**Default:** Disabled  
-**Depends on:** `ENABLE_BACKGROUND_SERVER`  
+**Size Impact:** ~1KB
+**Default:** Enabled in `standard` and `full` profiles
+**Depends on:** `ENABLE_BACKGROUND_SERVER`, `ENABLE_IMAGE_SLEEP`
 
-Gates Terminus (TRMNL BYOS) integration: credential store web setup page and sleep-screen image polling.
+Gates Terminus (TRMNL BYOS) integration: credential storage, on-device web setup, PNG dashboard downloads,
+and sleep-screen pinning. While connected, polling follows the server-provided refresh interval. On USB power,
+Timed Sleep Refresh can wake the sleeping device, fetch and redraw the dashboard, then return to deep sleep.
 
 ---
 

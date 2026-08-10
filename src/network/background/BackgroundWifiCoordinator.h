@@ -23,9 +23,14 @@ class BackgroundWifiCoordinator {
   };
 
   AlwaysBgServerState lastAlwaysModeState_ = AlwaysBgServerState::Unknown;
+  // reconcile() runs every main-loop tick, so the auto-connect skip reasons are
+  // logged only when the reason CHANGES. Logging them unconditionally floods the
+  // serial log — and with developer mode on it appends to the SD debug file on
+  // every tick, which is an SD-wear and latency problem, not just noise.
+  int lastAutoConnectLoggedAction_ = -1;
 
-  background_server::AutoConnectInput buildAutoConnectInput() const;
-  bool attemptAutoConnect(const char* logTag);
+  background_server::AutoConnectInput buildAutoConnectInput(bool explicitRequest, bool ignoreBootBackoff) const;
+  bool attemptAutoConnect(const char* logTag, bool explicitRequest = false, bool ignoreBootBackoff = false);
   void applyReconcileDecision(const background_server::ReconcileDecision& decision);
   void logAlwaysModeStateTransition();
 

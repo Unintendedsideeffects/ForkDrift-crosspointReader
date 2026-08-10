@@ -214,15 +214,7 @@ bool HalGPIO::wasUsbStateChanged() const { return usbStateChanged; }
 bool HalGPIO::isPressed(uint8_t buttonIndex) const { return inputMgr.isPressed(buttonIndex); }
 
 bool HalGPIO::wasPressed(uint8_t buttonIndex) const {
-  const uint8_t bit = static_cast<uint8_t>(1u << buttonIndex);
-  portENTER_CRITICAL(&virtualButtonMux);
-  const bool virtualPressed = (virtualButtonMask & bit) != 0;
-  if (virtualPressed) {
-    virtualButtonMask &= static_cast<uint8_t>(~bit);
-  }
-  portEXIT_CRITICAL(&virtualButtonMux);
-  if (virtualPressed) return true;
-  return inputMgr.wasPressed(buttonIndex);
+  return virtualBitSet(buttonIndex) || inputMgr.wasPressed(buttonIndex);
 }
 
 bool HalGPIO::wasAnyPressed() const {
@@ -233,23 +225,11 @@ bool HalGPIO::wasAnyPressed() const {
 }
 
 bool HalGPIO::wasReleased(uint8_t buttonIndex) const {
-  const uint8_t bit = static_cast<uint8_t>(1u << buttonIndex);
-  portENTER_CRITICAL(&virtualButtonMux);
-  const bool virtualReleased = (virtualButtonMask & bit) != 0;
-  if (virtualReleased) {
-    virtualButtonMask &= static_cast<uint8_t>(~bit);
-  }
-  portEXIT_CRITICAL(&virtualButtonMux);
-  if (virtualReleased) return true;
-  return inputMgr.wasReleased(buttonIndex);
+  return virtualBitSet(buttonIndex) || inputMgr.wasReleased(buttonIndex);
 }
 
 bool HalGPIO::peekReleased(uint8_t buttonIndex) const {
-  const uint8_t bit = static_cast<uint8_t>(1u << buttonIndex);
-  portENTER_CRITICAL(&virtualButtonMux);
-  const bool hasVirtual = (virtualButtonMask & bit) != 0;
-  portEXIT_CRITICAL(&virtualButtonMux);
-  return hasVirtual || inputMgr.peekReleased(buttonIndex);
+  return virtualBitSet(buttonIndex) || inputMgr.peekReleased(buttonIndex);
 }
 
 bool HalGPIO::wasAnyReleased() const {
@@ -257,6 +237,14 @@ bool HalGPIO::wasAnyReleased() const {
   const bool hasVirtual = virtualButtonMask != 0;
   portEXIT_CRITICAL(&virtualButtonMux);
   return hasVirtual || inputMgr.wasAnyReleased();
+}
+
+bool HalGPIO::virtualBitSet(uint8_t buttonIndex) const {
+  const uint8_t bit = static_cast<uint8_t>(1u << buttonIndex);
+  portENTER_CRITICAL(&virtualButtonMux);
+  const bool set = (virtualButtonMask & bit) != 0;
+  portEXIT_CRITICAL(&virtualButtonMux);
+  return set;
 }
 
 void HalGPIO::injectVirtualButton(uint8_t buttonIndex) {

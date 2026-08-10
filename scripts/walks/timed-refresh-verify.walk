@@ -1,15 +1,16 @@
 # Timed sleep refresh verification walk.
-# 1. Enables timed refresh at 1-hour interval via CMD:SETTINGS
+# 1. Enables timed refresh at a 1-hour interval via CMD:SETTINGS
+#    and selects the credential-free Roman clock as a renderable sleep mode
 # 2. Screenshots home to confirm normal boot
-# 3. Presses POWER (LEFT physical btn) to enter sleep
-# 4. Expects the timer arm log line confirming the wakeup timer was set
+# 3. Enters the production deep-sleep path via CMD:SLEEP
+# 4. Expects the timer-arm log line confirming the wakeup timer was set
 #
 # Device must be on USB. The walk does NOT wait for the actual timer wake
 # (that would take 1 hour); the log line is the verifiable contract.
 #
 #   uv run python scripts/device_walk.py run scripts/walks/timed-refresh-verify.walk --outdir runs/timed-refresh
 
+settings {"sleepScreenSplit":0,"sleepScreen":8,"timedSleepRefreshInterval":1}
 shot 01-home-normal-boot
-press LEFT 3.0
-shot 02-sleep-screen
+deep-sleep
 expect 30 Arming timer wakeup

@@ -42,6 +42,7 @@ class CrossPointSettings {
     NOTES_SLEEP = 14,
     PLANNER_SLEEP = 15,
     ANKI_SLEEP = 16,
+    TERMINUS_SLEEP = 17,
     // Old TRANSPARENT was 6 — migrated to new TRANSPARENT=3 in validateAndClamp().
   };
   enum SLEEP_SCREEN_COVER_MODE { FIT = 0, CROP = 1, SLEEP_SCREEN_COVER_MODE_COUNT };
@@ -349,6 +350,9 @@ class CrossPointSettings {
   uint8_t paragraphAlignment = JUSTIFIED;
   // Auto-sleep timeout setting (default 10 minutes)
   uint8_t sleepTimeoutMinutes = 10;
+  // Keep the device awake when USB power is present (0=off, 1=on).
+  // This only prevents inactivity-based auto-sleep; explicit sleep actions remain available.
+  uint8_t stayAwakeWhileCharging = 0;
   // E-ink refresh frequency (default 15 pages)
   uint8_t refreshFrequency = REFRESH_15;
   // OPDS download filename format (default: Author - Title)
@@ -422,8 +426,8 @@ class CrossPointSettings {
   char ankiConnectUrl[128] = "";
   // Anki deck name to add cards into via AnkiConnect.
   char ankiConnectDeck[64] = "CrossPoint";
-  // Fetch Terminus/TRMNL sleep image when background server starts on charge (0=off, 1=on).
-  // Credentials are stored in /.crosspoint/terminus.json via TerminusCredentialStore.
+  // Legacy persisted mirror retained for settings-file/web compatibility.
+  // Runtime behavior is driven by TERMINUS_SLEEP in the normal sleep-mode fields.
   uint8_t terminusSleepEnabled = 0;
   // Timed sleep refresh interval while on USB charge (0=off, 1=1h, 2=2h, 3=4h, 4=8h, 5=24h).
   // Wakes from deep sleep, re-renders the active sleep screen (Terminus/TRMNL, Roman Clock, Haiku
@@ -454,6 +458,8 @@ class CrossPointSettings {
   // be reintroduced properly. NO_SLEEP should mean the global status bar stays
   // drawn even while sleeping, not that it prevents the device from sleeping.
   bool globalStatusBarPreventsAutoSleep() const { return false; }
+
+  bool preventsAutoSleepWhileCharging(bool usbConnected) const { return stayAwakeWhileCharging != 0 && usbConnected; }
 
   uint8_t getBackgroundServerMode() const {
     if (supportsBackgroundServerAlwaysMode() && wifiAutoConnect) {

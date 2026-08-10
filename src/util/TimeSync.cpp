@@ -11,13 +11,14 @@
 #include <ctime>
 
 #include "CrossPointSettings.h"
+#include "util/TimeSyncPolicy.h"
 
 namespace {
 constexpr std::time_t kMinValidTime = 1577836800;  // 2020-01-01 00:00:00 UTC
 
 // Persisted time loaded at boot is only a stale snapshot of "last successful
 // sync". Until NTP corrects it this session we treat it as untrusted so
-// shouldSync() forces an attempt regardless of the 23-hour throttle.
+// shouldSync() forces an attempt regardless of the resync interval.
 // volatile: written by the background NTP task, read by the main task in
 // shouldSync(); without it the compiler may cache the read and never observe
 // the clear, forcing endless re-sync attempts.
@@ -78,12 +79,7 @@ bool shouldSync(bool force = false) {
     return true;
   }
   const std::time_t now = std::time(nullptr);
-  const uint32_t lastSync = SETTINGS.lastTimeSyncEpoch;
-  constexpr std::time_t minInterval = 23 * 60 * 60;
-  if (now >= static_cast<std::time_t>(lastSync) && now - lastSync < minInterval) {
-    return false;
-  }
-  return true;
+  return timesync::resyncDue(static_cast<uint32_t>(now), SETTINGS.lastTimeSyncEpoch);
 }
 
 #if ENABLE_WIFI_CLOCK

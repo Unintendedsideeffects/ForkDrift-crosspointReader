@@ -15,31 +15,71 @@
 
 BackgroundWifiCoordinator BackgroundWifiCoordinator::instance;
 
-background_server::AutoConnectInput BackgroundWifiCoordinator::buildAutoConnectInput() const {
+background_server::AutoConnectInput BackgroundWifiCoordinator::buildAutoConnectInput(const bool explicitRequest,
+                                                                                       const bool ignoreBootBackoff) const {
   const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
   const WifiCredential* cred = lastSsid.empty() ? nullptr : WIFI_STORE.findCredential(lastSsid);
 
   return background_server::AutoConnectInput{
-      .alwaysModeEnabled = SETTINGS.keepsBackgroundServerOnWifiWhileAwake(),
+      // An explicit timer refresh is itself permission to connect even when the
+      // awake background server is Never or On Charge.
+      .alwaysModeEnabled = explicitRequest || SETTINGS.keepsBackgroundServerOnWifiWhileAwake(),
       .waitingForNewCredential = APP_STATE.wifiAutoConnectWaitingForNewCredential,
-      .skipCount = APP_STATE.wifiAutoConnectSkipCount,
+      // Boot backoff protects ordinary wakes from repeated idle connections;
+      // it must not consume an explicitly scheduled refresh opportunity.
+      .skipCount = ignoreBootBackoff ? uint8_t{0} : APP_STATE.wifiAutoConnectSkipCount,
       .lastConnectedSsid = lastSsid,
       .hasCredentialForLastSsid = cred != nullptr,
   };
 }
 
-bool BackgroundWifiCoordinator::attemptAutoConnect(const char* logTag) {
+bool BackgroundWifiCoordinator::attemptAutoConnect(const char* logTag, const bool explicitRequest,
+                                                    const bool ignoreBootBackoff) {
   const background_server::AutoConnectDecision decision =
-      background_server::evaluateAutoConnect(buildAutoConnectInput());
+      background_server::evaluateAutoConnect(buildAutoConnectInput(explicitRequest, ignoreBootBackoff));
+
+  // reconcile() runs every tick; only log a skip reason when it changes.
+  const int actionCode = static_cast<int>(decision.action);
+  const bool reasonChanged = actionCode != lastAutoConnectLoggedAction_;
+  lastAutoConnectLoggedAction_ = actionCode;
 
   switch (decision.action) {
     case background_server::AutoConnectAction::None:
+      return false;
     case background_server::AutoConnectAction::SkipDueToBackoff:
+      if (reasonChanged) {
+        LOG_DBG(logTag, "WiFi auto-connect skipped by backoff (%u remaining)",
+                static_cast<unsigned>(APP_STATE.wifiAutoConnectSkipCount));
+      }
+      return false;
     case background_server::AutoConnectAction::NoLastSsid:
+      if (reasonChanged) {
+        LOG_DBG(logTag, "WiFi auto-connect has no last-connected SSID to target");
+      }
       return false;
     case background_server::AutoConnectAction::BlockedWaitingForCredential:
-      LOG_DBG(logTag, "WiFi auto-connect disabled until a new credential is added");
+      // WRN, not DBG: from the user's side the device simply never joins WiFi,
+      // and every network feature is dark until they notice. A silent skip here
+      // is what made this cost a full on-device debugging session. Still gated
+      // on a change of reason — this runs every tick, and a per-tick WRN is its
+      // own kind of invisible.
+      if (reasonChanged) {
+        LOG_WRN(logTag, "WiFi auto-connect disabled until a new credential is added");
+      }
       return false;
+    case background_server::AutoConnectAction::ClearStaleCredentialLatchAndStart: {
+      const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
+      const WifiCredential* cred = WIFI_STORE.findCredential(lastSsid);
+      if (cred == nullptr) {  // Raced with a forget between decision and use.
+        return false;
+      }
+      APP_STATE.wifiAutoConnectWaitingForNewCredential = false;
+      if (!APP_STATE.saveToFile()) {
+        LOG_WRN(logTag, "Failed to persist cleared WiFi credential recovery state");
+      }
+      LOG_INF(logTag, "Credential for %s is present again; clearing stale auto-connect block", lastSsid.c_str());
+      return BG_WIFI.start(cred->ssid.c_str(), cred->password.c_str());
+    }
     case background_server::AutoConnectAction::MissingCredentialForLastSsid: {
       APP_STATE.wifiAutoConnectWaitingForNewCredential = true;
       APP_STATE.wifiAutoConnectSkipCount = 0;
@@ -148,7 +188,9 @@ void BackgroundWifiCoordinator::attemptBootAutoConnect() {
   }
 }
 
-bool BackgroundWifiCoordinator::beginTimedSleepAutoConnect(const char* logTag) { return attemptAutoConnect(logTag); }
+bool BackgroundWifiCoordinator::beginTimedSleepAutoConnect(const char* logTag) {
+  return attemptAutoConnect(logTag, /*explicitRequest=*/true, /*ignoreBootBackoff=*/true);
+}
 
 bool BackgroundWifiCoordinator::waitForStaConnection(const uint32_t timeoutMs) {
   const unsigned long deadline = millis() + timeoutMs;

@@ -2974,6 +2974,17 @@
                 <div class="card-toggle"><span class="toggle-box"></span></div>
               </label>
 
+              <label class="skill-card" data-feature="terminus_sleep" data-node-id="terminus_sleep">
+                <input type="checkbox" id="terminus_sleep" data-feature="terminus_sleep" />
+                <div class="card-icon"><span>&#x25A3;</span></div>
+                <div class="card-body">
+                  <div class="card-name">Terminus Sleep Screen</div>
+                  <div class="card-size"></div>
+                  <div class="card-desc">Fetch TRMNL/Terminus dashboards on a timer and show them while the device sleeps</div>
+                </div>
+                <div class="card-toggle"><span class="toggle-box"></span></div>
+              </label>
+
               <div class="dep-group" data-dep-parent="remote_control">
                 <label class="skill-card dep-parent" data-feature="remote_control" data-node-id="remote_control">
                   <input type="checkbox" id="remote_control" data-feature="remote_control" />
@@ -3828,6 +3839,11 @@
           flag: "ENABLE_LUA_PLUGINS",
           default: false,
         },
+        claude_bridge: {
+          sizeKb: 11,
+          flag: "ENABLE_CLAUDE_BRIDGE",
+          default: false,
+        },
         todo_planner: {
           sizeKb: 16,
           flag: "ENABLE_TODO_PLANNER",
@@ -3887,6 +3903,11 @@
         haiku_clock_sleep: {
           sizeKb: 110,
           flag: "ENABLE_HAIKU_CLOCK",
+          default: false,
+        },
+        terminus_sleep: {
+          sizeKb: 1,
+          flag: "ENABLE_TERMINUS_SLEEP",
           default: false,
         },
         lexenddeca_fonts: {
@@ -3970,6 +3991,7 @@
         wifi_clock: "Shows a 24-hour Roman-numeral quarter-hour clock label in the ForkDrift home header and global status bar when system time is available. The minute marker is blank for :00, I for :15, II for :30, and III for :45. While connected to WiFi, it syncs time by NTP and refreshes the display every 15 minutes.",
         roman_clock_sleep: "Adds a dedicated sleep-screen mode that renders the WiFi Clock time as large block Roman numerals. It reuses the same NTP-backed quarter-hour Roman label as the header/status clock and only appears when both this feature and WiFi Clock are enabled.",
         haiku_clock_sleep: "Adds a dedicated sleep-screen mode that displays quarter-hourly, syllable-accurate, time-mentioning haikus. The haiku changes every 15 minutes, with three days worth of unique variations in total. Requires WiFi Clock.",
+        terminus_sleep: "Connects CrossPoint to TRMNL or a self-hosted Terminus server, periodically downloads the device dashboard, and pins it as the next sleep screen. Includes an on-device setup link and web configuration page. Requires Background Server and PNG/JPEG Sleep Images.",
         lexenddeca_fonts: "Lexend Deca — a variable-width sans-serif from the Lexend project, engineered to reduce visual stress and improve reading fluency. Wider letter spacing and open apertures compared to Noto Sans. 12–18pt, four styles.",
         bitter_fonts: "Bitter — a serif specifically designed for digital reading. Sturdy slab-like details keep letterforms crisp at small sizes on low-DPI e-ink panels. Pairs well with Noto Sans for mixed serif/sans layouts. 12–18pt, four styles.",
         chareink_fonts: "Chare Ink — a monospaced reading font optimised for e-ink displays. Distinctly spaced glyphs reduce letter confusion and improve scanning speed. A good fit for code-heavy or technical reading material. 12–18pt, four styles.",
@@ -4007,6 +4029,8 @@
         pokemon_wallpaper_plugin: ["image_sleep"],
         roman_clock_sleep: ["wifi_clock"],
         haiku_clock_sleep: ["wifi_clock"],
+        terminus_sleep: ["background_server", "image_sleep"],
+        claude_bridge: ["background_server"],
         minimal_theme: ["lyra_theme"],
         remote_keyboard_input: ["remote_control"],
         text_selection: ["epub_support"],
@@ -4022,7 +4046,7 @@
       const HUB_FEATURES = {
         reader_hub: ["markdown", "xtc_support", "epub_support", "book_images", "hyphenation", "todo_planner", "notes", "anki_support", "dictionary_lookup", "text_selection", "annotations", "per_book_settings", "reading_stats", "focus_reading", "guide_dots"],
         interface_hub: ["opendyslexic_fonts", "notosans_fonts", "bookerly_fonts", "lexenddeca_fonts", "bitter_fonts", "chareink_fonts", "home_media_picker", "lyra_theme", "visual_cover_picker", "image_sleep", "web_wallpaper_plugin", "pokemon_wallpaper_plugin", "pokemon_party", "dark_mode", "user_fonts", "minimal_theme"],
-        network_hub: ["background_server", "background_server_on_charge", "background_server_always", "opds", "books_tab_ui", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "haiku_clock_sleep", "remote_control", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
+        network_hub: ["background_server", "background_server_on_charge", "background_server_always", "terminus_sleep", "opds", "books_tab_ui", "web_wifi_setup", "ble_wifi_provisioning", "ota_updates", "wifi_clock", "roman_clock_sleep", "haiku_clock_sleep", "remote_control", "remote_keyboard_input", "integrations", "koreader_sync", "calibre_sync"],
       };
 
       const NOTE_FEATURES = {};
@@ -4052,6 +4076,7 @@
           haiku_clock_sleep: true,
           background_server: true,
           background_server_on_charge: true,
+          terminus_sleep: true,
           web_wifi_setup: true,
           home_media_picker: true,
           dark_mode: true,
@@ -4094,6 +4119,7 @@
           background_server: true,
           background_server_on_charge: true,
           background_server_always: true,
+          terminus_sleep: true,
           home_media_picker: true,
           web_wallpaper_plugin: true,
           pokemon_wallpaper_plugin: true,
@@ -5526,6 +5552,7 @@
           wifi_clock:                      'clock',
           roman_clock_sleep:               'moon',
           haiku_clock_sleep:               'feather',
+          terminus_sleep:                  'panel-top',
           remote_control:                  'smartphone',
           remote_open_book:                'book-marked',
           remote_page_turn:                'arrow-right',

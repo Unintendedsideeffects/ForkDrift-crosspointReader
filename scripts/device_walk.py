@@ -4,6 +4,7 @@
 Host-side counterpart to the firmware serial command handler in src/main.cpp:
 
   CMD:PING           -> PONG
+  CMD:SLEEP          -> SLEEP_OK                    (enters production deep sleep)
   CMD:BTN:<NAME>     -> BTN_OK:<NAME> | BTN_ERR:<NAME>   (injects logical button)
   CMD:SCREENSHOT     -> SCREENSHOT_START:<n> + raw 1bpp framebuffer + SCREENSHOT_END
 
@@ -20,6 +21,8 @@ Usage:
 
 Walk file DSL (one command per line, '#' starts a comment):
   press <BTN> [settle_sec]     inject button, wait settle seconds (default 2.0)
+  settings <json>              apply the same settings payload as POST /api/settings
+  deep-sleep                   enter the production deep-sleep path
   shot <name>                  capture screenshot to NNN-<name>.png in outdir
   sleep <seconds>
   expect <timeout_sec> <regex> wait until a serial log line matches regex
@@ -114,6 +117,14 @@ class DeviceLink:
     def ping(self):
         self.command("PING", re.compile(r"^PONG$"))
 
+    def apply_settings(self, payload: str):
+        line = self.command("SETTINGS:" + payload, re.compile(r"^SETTINGS_(OK|ERR):"), timeout_s=10.0)
+        if line.startswith("SETTINGS_ERR"):
+            raise RuntimeError(f"Firmware rejected settings update: {line}")
+
+    def deep_sleep(self):
+        self.command("SLEEP", re.compile(r"^SLEEP_OK$"))
+
     def press(self, button: str, settle_s: float = DEFAULT_SETTLE_S):
         button = button.upper()
         if button not in BUTTONS:
@@ -185,6 +196,10 @@ def run_walk(link: DeviceLink, walk_path: Path, outdir: Path) -> int:
         if verb == "press":
             settle = float(args[1]) if len(args) > 1 else DEFAULT_SETTLE_S
             link.press(args[0], settle)
+        elif verb == "settings":
+            link.apply_settings(" ".join(args))
+        elif verb == "deep-sleep":
+            link.deep_sleep()
         elif verb == "shot":
             shot_index += 1
             link.screenshot(outdir / f"{shot_index:03d}-{args[0]}.png")
@@ -223,6 +238,11 @@ def main() -> int:
     p_cred.add_argument("ssid")
     p_cred.add_argument("password")
 
+    p_settings = sub.add_parser("settings", help="apply a JSON settings payload")
+    p_settings.add_argument("json")
+
+    sub.add_parser("deep-sleep", help="enter the production deep-sleep path")
+
     p_run = sub.add_parser("run", help="execute a walk file")
     p_run.add_argument("walk", type=Path)
     p_run.add_argument("--outdir", type=Path, default=Path("runs/walk"))
@@ -253,6 +273,14 @@ def main() -> int:
         if args.action == "wificred":
             link.set_wifi_credential(args.ssid, args.password)
             print(f"Credential for {args.ssid!r} saved on device")
+            return 0
+        if args.action == "settings":
+            link.apply_settings(args.json)
+            print("Settings applied")
+            return 0
+        if args.action == "deep-sleep":
+            link.deep_sleep()
+            print("Deep sleep requested")
             return 0
         if args.action == "run":
             link.ping()
