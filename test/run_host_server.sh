@@ -58,6 +58,7 @@ g++ -std=c++20 -O2 -Wno-narrowing \
   "$ROOT_DIR/src/network/server/FileRoutes.cpp" \
   "$ROOT_DIR/src/network/server/FileReadApi.cpp" \
   "$ROOT_DIR/src/network/server/UploadApi.cpp" \
+  "$ROOT_DIR/src/network/http/BufferedHttpUpload.cpp" \
   "$ROOT_DIR/src/network/server/SettingsSnapshotApi.cpp" \
   "$ROOT_DIR/src/util/InputValidation.cpp" \
   "$ROOT_DIR/src/util/PathUtils.cpp" \
