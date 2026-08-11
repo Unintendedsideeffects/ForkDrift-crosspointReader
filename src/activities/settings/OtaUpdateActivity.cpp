@@ -102,7 +102,13 @@ void OtaUpdateActivity::otaWorkerLoop() {
         RenderLock lock(*this);
         if (res != OtaUpdater::OK) {
           LOG_ERR("OTA", "Update install failed: %d", res);
-          failedDetail = res == OtaUpdater::WRONG_DEVICE_ERROR ? tr(STR_FIRMWARE_WRONG_DEVICE) : nullptr;
+          if (res == OtaUpdater::WRONG_DEVICE_ERROR) {
+            failedDetail = tr(STR_FIRMWARE_WRONG_DEVICE);
+          } else if (res == OtaUpdater::UNVERIFIED_ERROR) {
+            failedDetail = tr(STR_FIRMWARE_UNVERIFIED);
+          } else {
+            failedDetail = nullptr;
+          }
           state = FAILED;
         } else {
           state = FINISHED;

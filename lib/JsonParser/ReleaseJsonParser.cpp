@@ -64,11 +64,13 @@ void ReleaseJsonParser::reset() {
   tagName[0] = '\0';
   releaseName[0] = '\0';
   firmwareUrl[0] = '\0';
+  firmwareDigest[0] = '\0';
   firmwareSize = 0;
   tagFound = false;
   firmwareFound = false;
   currentAssetName[0] = '\0';
   currentAssetUrl[0] = '\0';
+  currentAssetDigest[0] = '\0';
   currentAssetSize = 0;
 }
 
@@ -80,15 +82,18 @@ const char* ReleaseJsonParser::getTagName() const { return tagName; }
 const char* ReleaseJsonParser::getReleaseName() const { return releaseName; }
 const char* ReleaseJsonParser::getFirmwareUrl() const { return firmwareUrl; }
 size_t ReleaseJsonParser::getFirmwareSize() const { return firmwareSize; }
+const char* ReleaseJsonParser::getFirmwareDigest() const { return firmwareDigest; }
 
 void ReleaseJsonParser::commitAsset() {
   if (isFirmwareAssetName(currentAssetName)) {
     memcpy(firmwareUrl, currentAssetUrl, sizeof(firmwareUrl));
+    memcpy(firmwareDigest, currentAssetDigest, sizeof(firmwareDigest));
     firmwareSize = currentAssetSize;
     firmwareFound = true;
   }
   currentAssetName[0] = '\0';
   currentAssetUrl[0] = '\0';
+  currentAssetDigest[0] = '\0';
   currentAssetSize = 0;
 }
 
@@ -118,6 +123,8 @@ void ReleaseJsonParser::sOnKey(void* ctx, const char* key, size_t len) {
           self->lastKey = LastKey::ASSET_URL;
         else if (len == 4 && memcmp(key, "size", 4) == 0)
           self->lastKey = LastKey::ASSET_SIZE;
+        else if (len == 6 && memcmp(key, "digest", 6) == 0)
+          self->lastKey = LastKey::ASSET_DIGEST;
         else
           self->lastKey = LastKey::NONE;
       }
@@ -149,6 +156,10 @@ void ReleaseJsonParser::sOnString(void* ctx, const char* value, size_t len) {
     case LastKey::ASSET_URL:
       if (self->position == Position::IN_ASSET_OBJECT && self->assetDepth == 1)
         safeCopy(self->currentAssetUrl, sizeof(self->currentAssetUrl), value, len);
+      break;
+    case LastKey::ASSET_DIGEST:
+      if (self->position == Position::IN_ASSET_OBJECT && self->assetDepth == 1)
+        safeCopy(self->currentAssetDigest, sizeof(self->currentAssetDigest), value, len);
       break;
     default:
       break;
@@ -184,6 +195,7 @@ void ReleaseJsonParser::sOnObjectStart(void* ctx) {
       self->assetDepth = 1;
       self->currentAssetName[0] = '\0';
       self->currentAssetUrl[0] = '\0';
+      self->currentAssetDigest[0] = '\0';
       self->currentAssetSize = 0;
       self->lastKey = LastKey::NONE;
       break;

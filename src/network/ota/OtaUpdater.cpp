@@ -1,6 +1,7 @@
 #include "network/ota/OtaUpdater.h"
 
 #include <ArduinoJson.h>
+#include <HalGPIO.h>
 #include <HalStorage.h>
 #include <Logging.h>
 #include <WiFi.h>
@@ -578,6 +579,9 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
       parsedReleaseName = streamedParser.getReleaseName();
       parsedFirmwareUrl = streamedParser.getFirmwareUrl();
       parsedFirmwareSize = streamedParser.getFirmwareSize();
+      // GitHub computes this per asset; it reaches verifyPartitionChecksum via
+      // the same selectedChecksum the feature-store bundle path uses.
+      selectedChecksum = streamedParser.getFirmwareDigest();
       LOG_DBG("OTA", "Resolved %s OTA metadata from %s", channel.channelName, candidate.url);
       break;
     }
@@ -789,6 +793,23 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
   if (!isUpdateNewer()) {
     lastError = "No newer update available";
     return UPDATE_OLDER_ERROR;
+  }
+
+  // Fail closed: without a checksum we cannot tell a good image from a
+  // corrupted or substituted one, and the post-write verify below has nothing
+  // to compare against. Refuse here rather than after writing a partition we
+  // intend to reject. GitHub supplies a digest for every release asset, so an
+  // empty value means the metadata is wrong, not that verification is optional.
+  //
+  // Gated to X4 for now, and recoverable regardless: the SD firmware path and
+  // boot recovery mode do not go through here.
+  if (selectedChecksum.isEmpty() && gpio.deviceIsX4()) {
+    LOG_ERR("OTA", "Refusing unverified update: release metadata carries no checksum");
+    lastError = "Update has no checksum";
+    return UNVERIFIED_ERROR;
+  }
+  if (selectedChecksum.isEmpty()) {
+    LOG_WRN("OTA", "Installing without a checksum (allowed: not X4)");
   }
 
   esp_err_t esp_err;

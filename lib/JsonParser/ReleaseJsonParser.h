@@ -21,6 +21,10 @@ class ReleaseJsonParser {
   const char* getReleaseName() const;
   const char* getFirmwareUrl() const;
   size_t getFirmwareSize() const;
+  // GitHub's asset digest, in its native "sha256:<hex>" form. Empty if the
+  // release predates the field or the asset has none. parseSha256Hex() in
+  // OtaUpdater already strips the prefix, so this is passed through verbatim.
+  const char* getFirmwareDigest() const;
 
  private:
   enum class Position : uint8_t {
@@ -37,6 +41,7 @@ class ReleaseJsonParser {
     ASSET_NAME,
     ASSET_URL,
     ASSET_SIZE,
+    ASSET_DIGEST,
   };
 
   static void sOnKey(void* ctx, const char* key, size_t len);
@@ -61,11 +66,15 @@ class ReleaseJsonParser {
   char tagName[32];
   char releaseName[64];
   char firmwareUrl[512];
+  // "sha256:" + 64 hex + NUL = 72; rounded up. GitHub computes this server-side
+  // for every release asset, so it is present without us publishing anything.
+  char firmwareDigest[80];
   size_t firmwareSize;
   bool tagFound;
   bool firmwareFound;
 
   char currentAssetName[32];
   char currentAssetUrl[512];
+  char currentAssetDigest[80];
   size_t currentAssetSize;
 };

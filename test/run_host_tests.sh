@@ -79,6 +79,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -I"$ROOT_DIR/lib/Serialization" \
   -I"$ROOT_DIR/lib/GfxRenderer" \
   -I"$ROOT_DIR/lib/OpdsParser" \
+  -I"$ROOT_DIR/lib/JsonParser" \
   -I"$ROOT_DIR/lib/XmlParserUtils" \
   -I"$ROOT_DIR/include" \
   -I"$ROOT_DIR/src" \
@@ -90,6 +91,8 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/test/host/"*.cpp \
   "$ROOT_DIR/lib/OpdsParser/OpenSearchParser.cpp" \
   "$ROOT_DIR/lib/OpdsParser/OpdsParser.cpp" \
+  "$ROOT_DIR/lib/JsonParser/StreamingJsonParser.cpp" \
+  "$ROOT_DIR/lib/JsonParser/ReleaseJsonParser.cpp" \
   "$ROOT_DIR/src/network/wifi/BleCredentialParser.cpp" \
   "$ROOT_DIR/src/network/server/AssetReadApi.cpp" \
   "$ROOT_DIR/src/network/server/FileListApi.cpp" \
