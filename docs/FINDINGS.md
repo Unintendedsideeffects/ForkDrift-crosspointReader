@@ -487,3 +487,54 @@ bypass.
   settings definitions are stale. Logged as ERR on every Settings entry.
 - **Why not fixed here**: out of scope for the Terminus work; belongs to the Anki/Connect feature.
 - **Status**: open
+
+## 2026-08-11T00:00Z — Upstream absorption triage: defects found but not fixed in the absorption batches
+- **Found by**: claude — full triage of 1267 crosspoint + crossink commits since merge-base `2754a5ff0`
+  (see `plans/UPSTREAM_ABSORPTION_2026-08.md` for the ranked plan; per-bucket reports in the session
+  scratchpad under `absorb/reports/*.md`)
+- **Where / What**: each of these was verified live in our tree while triaging, but sits outside the
+  three batches that landed (`8963002fd`, `36a789ed7`, `5997ff697`):
+  - `src/network/ota/OtaUpdater.cpp` + `lib/JsonParser/ReleaseJsonParser` — **OTA from our own GitHub
+    releases installs unverified.** We stream and verify sha256 (`parseSha256Hex`,
+    `calculatePartitionSha256`) but only on the feature-store bundle path, from `bundles[].checksum`.
+    `ReleaseJsonParser` has no `sha256`/`digest` member at all, so the GitHub-release path has no hash to
+    check against. Upstream `0dd6d0ee5` parses GitHub's `digest: "sha256:<hex>"` asset field.
+  - `src/network/ota/FirmwareFlasher.cpp:116` — **no chip-family validation.** Only the header magic byte is
+    checked, so flashing an X3 image onto an X4 bricks to a boot loop. Both upstream (`e00f5958`) and
+    crossink (`6de9409d2`) fixed this independently; chip_id sits at `esp_image_header_t` offset 12 and can
+    be compared against the running partition's own, no chip enumeration needed.
+  - `lib/OpdsParser/OpdsParser.cpp` — no cap on entry count or on title/href/id string length. A large
+    Booklore/Grimoire feed can exhaust the heap. (Our Grimoire server is exactly this shape.)
+  - `src/activities/browser/OpdsBookBrowserActivity.cpp:394` — `requestUpdate(true)` per HTTP chunk, and
+    `ActivityManager::requestUpdate` does `xTaskNotify(..., eIncrement)`, so a download queues one e-ink
+    repaint per chunk. Our download path also never drops `WIFI_PS_MIN_MODEM` the way `OtaUpdater.cpp:816`
+    does.
+  - `src/MappedInputManager.cpp:152-157` — reader *menus* ignore orientation while page turns honour it.
+    Carries the verbatim pre-fix comment. `ENABLE_GLOBAL_LANDSCAPE` makes this worse for us than upstream.
+  - `src/main.cpp` — no `powerButtonReleasedSinceWake` guard, so the wake-hold release edge feeds straight
+    into the FORCE_REFRESH / double-tap paths.
+  - `sanitizeFilename` — front-truncates, so a long-titled upload loses its `.epub` extension.
+  - `src/network/HttpDownloader.cpp:455` — `addHeader("User-Agent", …)` is a silent no-op (Arduino
+    `HTTPClient` drops that header); we ship as `ESP32HTTPClient`.
+  - `src/util/BookCacheUtils.cpp` — no `clearBookCachePreservingUserState`, so clearing an XTC or TXT book's
+    cache still destroys its reading data. Batch 3 fixed the EPUB path only (`Epub::clearRenderCache`); the
+    Xtc/Txt equivalents remain.
+  - `drawOptionPopup` — no windowing, so a long popup overflows the screen.
+  - `CrossPointSettings` has no mutex (upstream `fd43ca2fe`, mislabelled `chore`). We run concurrent
+    FreeRTOS tasks that touch settings (web server, background WiFi, Terminus fetch, OTA worker); a save
+    racing a load corrupts settings.json.
+  - `SettingsActivity.cpp:369` activates on `wasReleased(Confirm)` while `FontSelectionActivity.cpp:122`
+    finishes on `wasPressed(Confirm)`, so the release leaks to the parent and the font picker reopens
+    immediately after every font choice.
+  - `EpubReaderActivity.cpp:1841-1846` divides the already-clamped `currentPage` by the old page count on
+    the reflow-restore path, and the buggy snippet is duplicated at `:935`, `:952`, `:1555`, `:1597` —
+    `:1555` being `applyOrientation()`, so **global-landscape rotation loses the reading position the same
+    way a font-size change does**.
+  - `EpubReaderActivity.cpp:1455` clears every bookmark in the book with no confirmation, from a menu row
+    adjacent to "View bookmarks".
+  - `performDeferredSilentIndexing()` (`:1984-2023`) runs a full chapter layout with no heap gate.
+- **Why not fixed here**: the absorption batches were scoped to fixes that were isolated, verifiable
+  in-place, and cheap to gate. These each need their own scoped change — several need a new i18n string, a
+  settings-schema regeneration, or a `SECTION_FILE_VERSION` bump, and the OTA ones need on-device
+  verification before they can be trusted.
+- **Status**: open
