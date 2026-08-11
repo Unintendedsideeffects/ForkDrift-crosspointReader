@@ -53,6 +53,11 @@ struct XtcHeader {
 #pragma pack(pop)
 static_assert(sizeof(XtcHeader) == 56, "XTC header must remain the modern 56-byte layout");
 
+// Files written before chapterOffset/padding were appended end the header at
+// 0x30 and put the page table there. They are still valid; only the chapter
+// table is absent.
+constexpr uint64_t XTC_LEGACY_HEADER_SIZE = 0x30;
+
 // Page table entry (16 bytes per page)
 #pragma pack(push, 1)
 struct PageTableEntry {

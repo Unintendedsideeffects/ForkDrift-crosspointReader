@@ -117,11 +117,27 @@ HalFile::HalFile() = default;
 
 HalFile::HalFile(std::unique_ptr<Impl> impl) : impl(std::move(impl)) {}
 
-HalFile::~HalFile() = default;
+// Destroying Impl destroys its FsFile, and with DESTRUCTOR_CLOSES_FILE=1 that
+// closes the file — an SdFat call, so it must happen under StorageLock like
+// every other one. Defaulting these released the file outside the lock and
+// raced whichever task held the SPI bus.
+HalFile::~HalFile() {
+  if (!impl) return;
+  HalStorage::StorageLock lock;
+  impl.reset();
+}
 
 HalFile::HalFile(HalFile&&) = default;
 
-HalFile& HalFile::operator=(HalFile&&) = default;
+HalFile& HalFile::operator=(HalFile&& other) {
+  if (this == &other) return *this;
+  // Releasing the file we currently hold is an SdFat close(); take the lock for
+  // it. storageMutex is non-recursive, so no caller may hold it here — see the
+  // scoping in openFileForRead/openFileForWrite.
+  HalStorage::StorageLock lock;
+  impl = std::move(other.impl);
+  return *this;
+}
 
 HalFile HalStorage::open(const char* path, const oflag_t oflag) {
   StorageLock lock;  // ensure thread safety for the duration of this function
@@ -145,10 +161,17 @@ bool HalStorage::rename(const char* oldPath, const char* newPath) {
 bool HalStorage::rmdir(const char* path) { HAL_STORAGE_WRAPPED_CALL(rmdir, path); }
 
 bool HalStorage::openFileForRead(const char* moduleName, const char* path, HalFile& file) {
-  StorageLock lock;  // ensure thread safety for the duration of this function
-  FsFile fsFile;
-  bool ok = SDCard.openFileForRead(moduleName, path, fsFile);
-  auto impl = makeUniqueNoThrow<HalFile::Impl>(std::move(fsFile));
+  std::unique_ptr<HalFile::Impl> impl;
+  bool ok;
+  {
+    // Scope the lock to the SdFat access only: assigning to `file` below closes
+    // whatever it held, and HalFile's move-assign takes this same non-recursive
+    // lock itself.
+    StorageLock lock;
+    FsFile fsFile;
+    ok = SDCard.openFileForRead(moduleName, path, fsFile);
+    impl = makeUniqueNoThrow<HalFile::Impl>(std::move(fsFile));
+  }
   if (!impl) {
     LOG_ERR("HAL", "OOM: openFileForRead %s", path ? path : "");
     return false;
@@ -166,10 +189,15 @@ bool HalStorage::openFileForRead(const char* moduleName, const String& path, Hal
 }
 
 bool HalStorage::openFileForWrite(const char* moduleName, const char* path, HalFile& file) {
-  StorageLock lock;  // ensure thread safety for the duration of this function
-  FsFile fsFile;
-  bool ok = SDCard.openFileForWrite(moduleName, path, fsFile);
-  auto impl = makeUniqueNoThrow<HalFile::Impl>(std::move(fsFile));
+  std::unique_ptr<HalFile::Impl> impl;
+  bool ok;
+  {
+    // See openFileForRead: the lock must be released before `file` is assigned.
+    StorageLock lock;
+    FsFile fsFile;
+    ok = SDCard.openFileForWrite(moduleName, path, fsFile);
+    impl = makeUniqueNoThrow<HalFile::Impl>(std::move(fsFile));
+  }
   if (!impl) {
     LOG_ERR("HAL", "OOM: openFileForWrite %s", path ? path : "");
     return false;

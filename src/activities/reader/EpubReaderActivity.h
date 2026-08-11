@@ -216,5 +216,8 @@ class EpubReaderActivity final : public Activity {
   void render(RenderLock&& lock) override;
   bool isReaderActivity() const override { return true; }
   bool blocksBackgroundServer() override { return true; }
+  // Auto page turn is a hands-off reading mode, so it registers no input and
+  // the idle sleep timer used to kill the session mid-book.
+  bool preventAutoSleep() override { return automaticPageTurnActive; }
   ScreenshotInfo getScreenshotInfo() const override;
 };

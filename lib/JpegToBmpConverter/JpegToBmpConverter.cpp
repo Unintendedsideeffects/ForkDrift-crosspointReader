@@ -8,6 +8,7 @@
 #include <Logging.h>
 #include <Memory.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -433,8 +434,10 @@ int bmpDrawCallback(JPEGDRAW* pDraw) {
   // Wait for the last MCU column before processing any rows
   if (blockX + validW < ctx->srcWidth) return 1;
 
-  // Process each complete source row in this MCU row
-  const int endRow = blockY + blockH;
+  // Process each complete source row in this MCU row. mcuBuf only holds
+  // MAX_MCU_HEIGHT rows and the copy loop above clamps to that, so the read
+  // must clamp to the same bound — srcHeight bounds the image, not the buffer.
+  const int endRow = blockY + std::min(blockH, MAX_MCU_HEIGHT);
 
   for (int y = blockY; y < endRow && y < ctx->srcHeight; y++) {
     const uint8_t* srcRow = ctx->mcuBuf.get() + (y - blockY) * ctx->srcWidth;

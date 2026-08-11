@@ -117,9 +117,9 @@ void TxtReaderActivity::loop() {
       }
 #endif
       requestUpdate();
-    } else {
-      onGoHome();
     }
+    // Paging forward off the last page used to eject to Home. Stay put: the
+    // file boundary is not a request to leave the book.
   }
 }
 

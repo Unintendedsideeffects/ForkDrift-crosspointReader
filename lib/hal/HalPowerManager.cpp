@@ -108,6 +108,17 @@ void HalPowerManager::startDeepSleep(HalGPIO& gpio, uint64_t timerWakeupMicros) 
     gpio.update();
   }
 
+  // Bring the radio down before sleeping. Entering deep sleep with the station
+  // still associated leaves the AP holding the session and costs current right
+  // up to the cut; it also skips the clean disassociation the router expects.
+  if (WiFi.getMode() != WIFI_OFF) {
+    LOG_DBG("PWR", "Shutting down WiFi before deep sleep");
+    WiFi.disconnect(false);
+    delay(100);
+    WiFi.mode(WIFI_OFF);
+    delay(100);
+  }
+
 #ifdef ENABLE_SERIAL_LOG
   // Tear down HWCDC so the host sees a clean disconnect and the peripheral
   // doesn't hold power domains that interfere with USB-powered GPIO wake.

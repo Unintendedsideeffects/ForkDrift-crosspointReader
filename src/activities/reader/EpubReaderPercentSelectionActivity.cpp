@@ -20,12 +20,13 @@ void EpubReaderPercentSelectionActivity::onEnter() {
 void EpubReaderPercentSelectionActivity::onExit() { Activity::onExit(); }
 
 void EpubReaderPercentSelectionActivity::adjustPercent(const int delta) {
-  // Apply delta and clamp within 0-100.
+  // Apply delta and wrap within 0-100. Clamping made the ends sticky: holding
+  // Up at 100 did nothing, when the useful move is round to 0.
   percent += delta;
   if (percent < 0) {
-    percent = 0;
-  } else if (percent > 100) {
     percent = 100;
+  } else if (percent > 100) {
+    percent = 0;
   }
   requestUpdate();
 }

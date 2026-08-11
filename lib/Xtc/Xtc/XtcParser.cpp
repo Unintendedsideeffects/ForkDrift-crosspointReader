@@ -86,7 +86,10 @@ XtcError XtcParser::open(const char* filepath) {
   // Defer chapter parsing until actually needed (lazy load).
   // Chapter strings can use significant heap; keeping them out of memory
   // during rendering leaves more room for the page bitmap buffer.
-  m_hasChapters = (m_header.hasChapters == 1);
+  // chapterOffset only exists in the modern 56-byte header. A legacy file puts
+  // its page table at 0x30, so anything at or past that offset has no chapter
+  // field to read and the flag byte there is not ours to trust.
+  m_hasChapters = (m_header.hasChapters == 1) && m_header.pageTableOffset >= sizeof(XtcHeader);
   m_chaptersLoaded = false;
 
   // Close the source file to free its internal SdFat buffers.
@@ -194,7 +197,7 @@ XtcError XtcParser::readFirstPageInfo() {
   // Verify the file is large enough to contain the full page table
   const uint64_t fileSize = m_file.fileSize64();
   const uint64_t pageTableSize = static_cast<uint64_t>(m_header.pageCount) * sizeof(PageTableEntry);
-  if (m_header.pageTableOffset < sizeof(XtcHeader) || m_header.pageTableOffset > fileSize ||
+  if (m_header.pageTableOffset < XTC_LEGACY_HEADER_SIZE || m_header.pageTableOffset > fileSize ||
       pageTableSize > fileSize - m_header.pageTableOffset) {
     LOG_DBG("XTC",
             "Page table exceeds file bounds: file=%llu tableOffset=%llu tableSize=%llu pages=%u entrySize=%u "
@@ -202,7 +205,7 @@ XtcError XtcParser::readFirstPageInfo() {
             static_cast<unsigned long long>(fileSize), static_cast<unsigned long long>(m_header.pageTableOffset),
             static_cast<unsigned long long>(pageTableSize), m_header.pageCount,
             static_cast<unsigned int>(sizeof(PageTableEntry)), static_cast<unsigned long long>(m_header.dataOffset),
-            static_cast<unsigned long long>(sizeof(XtcHeader)));
+            static_cast<unsigned long long>(XTC_LEGACY_HEADER_SIZE));
     return XtcError::CORRUPTED_HEADER;
   }
 
