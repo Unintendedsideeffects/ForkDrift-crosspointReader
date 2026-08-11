@@ -402,7 +402,8 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   if (result == HttpDownloader::OK) {
 #if ENABLE_EPUB_SUPPORT
     Epub epub(filename, "/.crosspoint");
-    epub.clearCache();
+    // Re-downloading a book the user already has must not reset their place.
+    epub.clearRenderCache();
 #endif
     state = BrowserState::BROWSING;
   } else {

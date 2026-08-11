@@ -440,8 +440,8 @@ void FeatureModules::onUploadCompleted(const String& uploadPath, const String& u
 void FeatureModules::onWebFileChanged(const String& filePath) {
 #if ENABLE_EPUB_SUPPORT
   if (FsHelpers::checkFileExtension(filePath, ".epub")) {
-    Epub(filePath.c_str(), "/.crosspoint").clearCache();
-    LOG_DBG("FEATURES", "Cleared epub cache for: %s", filePath.c_str());
+    Epub(filePath.c_str(), "/.crosspoint").clearRenderCache();
+    LOG_DBG("FEATURES", "Cleared epub render cache for: %s", filePath.c_str());
   }
 #else
   (void)filePath;

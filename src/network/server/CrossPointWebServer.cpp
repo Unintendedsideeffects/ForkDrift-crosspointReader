@@ -89,8 +89,10 @@ unsigned long wsLastCompleteAt = 0;
 void clearEpubCacheIfNeeded(const String& filePath) {
   // Only clear cache for .epub files
   if (FsHelpers::hasEpubExtension(filePath)) {
-    Epub(filePath.c_str(), "/.crosspoint").clearCache();
-    LOG_DBG("WEB", "Cleared epub cache for: %s", filePath.c_str());
+    // Re-uploading a book must not cost the reader their place in it, so drop
+    // only the derived layout and keep progress/annotations.
+    Epub(filePath.c_str(), "/.crosspoint").clearRenderCache();
+    LOG_DBG("WEB", "Cleared epub render cache for: %s", filePath.c_str());
   }
 }
 

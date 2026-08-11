@@ -1524,6 +1524,13 @@ bool EpubReaderActivity::launchKOReaderSync() {
     return true;  // acted: surfaced a save error to the user
   }
 
+#if ENABLE_READING_STATS
+  // Close the reading session here: onExit() gates endSession() on `epub`, and
+  // we are about to release it, so leaving this to onExit() silently discarded
+  // the session's reading time on every sync.
+  ReadingStatsStore::getInstance().endSession();
+#endif
+
   // Release Epub and Section to free ~65KB RAM for the TLS handshake.
   LOG_DBG("KOSync", "Releasing epub for sync (heap before: %u)", (unsigned)ESP.getFreeHeap());
   {

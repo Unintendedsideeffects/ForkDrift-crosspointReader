@@ -9,6 +9,7 @@
 #include <Utf8.h>
 #include <ZipFile.h>
 
+#include "Epub/BookCacheEntries.h"
 #include "Epub/parsers/ContainerParser.h"
 #include "Epub/parsers/ContentOpfParser.h"
 #include "Epub/parsers/TocNavParser.h"
@@ -565,6 +566,48 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
 
   LOG_DBG("EBP", "Loaded ePub: %s", filepath.c_str());
   return true;
+}
+
+bool Epub::clearRenderCache() const {
+  if (!Storage.exists(cachePath.c_str())) {
+    return true;
+  }
+
+  // Collect first, delete after closing the directory: removing entries while
+  // an SdFat directory iteration is open invalidates the iteration.
+  std::vector<std::string> derived;
+  {
+    HalFile dir = Storage.open(cachePath.c_str());
+    if (!dir || !dir.isDirectory()) {
+      LOG_ERR("EPB", "Cache path is not a directory: %s", cachePath.c_str());
+      return false;
+    }
+    dir.rewindDirectory();
+    for (HalFile entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
+      char name[64] = {};
+      if (entry.getName(name, sizeof(name)) == 0) {
+        continue;
+      }
+      if (book_cache::isUserStateEntry(name)) {
+        continue;
+      }
+      derived.push_back(name);
+    }
+  }
+
+  bool ok = true;
+  for (const auto& name : derived) {
+    const std::string full = cachePath + "/" + name;
+    // removeDir() fails on a plain file and remove() fails on a directory, so
+    // try the file case first and fall back rather than re-opening to stat it.
+    if (!Storage.remove(full.c_str()) && !Storage.removeDir(full.c_str())) {
+      LOG_ERR("EPB", "Failed to clear cache entry: %s", full.c_str());
+      ok = false;
+    }
+  }
+
+  LOG_DBG("EPB", "Cleared %u derived cache entries, kept user state", static_cast<unsigned>(derived.size()));
+  return ok;
 }
 
 bool Epub::clearCache() const {

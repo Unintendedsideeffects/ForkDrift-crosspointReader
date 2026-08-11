@@ -1017,8 +1017,10 @@ bool WebDAVHandler::finalizePutTarget() {
 
 void WebDAVHandler::clearEpubCacheIfNeeded(const String& path) const {
   if (FsHelpers::hasEpubExtension(path)) {
-    Epub(path.c_str(), "/.crosspoint").clearCache();
-    LOG_DBG("DAV", "Cleared epub cache for: %s", path.c_str());
+    // The file changed, so the derived layout is stale — but the reader's
+    // progress and annotations are not, and a full clearCache() dropped them.
+    Epub(path.c_str(), "/.crosspoint").clearRenderCache();
+    LOG_DBG("DAV", "Cleared epub render cache for: %s", path.c_str());
   }
 }
 

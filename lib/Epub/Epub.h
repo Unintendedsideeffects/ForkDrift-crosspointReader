@@ -53,6 +53,11 @@ class Epub {
   std::string& getBasePath() { return contentBasePath; }
   bool load(bool buildIfMissing = true, bool skipLoadingCss = false);
   bool clearCache() const;
+  // Invalidate everything derived from the book file (layout sections, TOC,
+  // covers, CSS cache) while keeping the reader's own data — progress,
+  // annotations, per-book settings. Use this when the book file *changed*;
+  // clearCache() is the full wipe for when the user asks for one.
+  bool clearRenderCache() const;
   void setupCacheDir() const;
   const std::string& getCachePath() const;
   const std::string& getPath() const;
