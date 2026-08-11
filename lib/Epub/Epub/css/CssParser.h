@@ -47,7 +47,9 @@ class CssParser {
  public:
   // Bump when CSS cache format or rules change; section caches are invalidated when this changes
   // v7: textDecoration became combinable bit flags (v6); direction (RTL) added.
-  static constexpr uint8_t CSS_CACHE_VERSION = 7;
+  // 8: rules defining no supported property are no longer stored, so a v7 cache
+  // would carry entries this build would never have written.
+  static constexpr uint8_t CSS_CACHE_VERSION = 8;
 
   static constexpr size_t MAX_DESCENDANT_RULES = 100;
 
@@ -138,6 +140,9 @@ class CssParser {
 
   // Internal parsing helpers
   void processRuleBlockWithStyle(std::string_view selectorGroup, const CssStyle& style);
+  // Pre-flight heap check before the rule containers grow. Must be checked
+  // *before* inserting: with -fno-exceptions a failed container growth aborts.
+  [[nodiscard]] bool canGrowRuleContainers() const;
   static bool selectorMatchesElement(const std::string& selector, const std::string& tag, const std::string& classAttr);
   static CssStyle parseDeclarations(std::string_view declBlock);
   static void parseDeclarationIntoStyle(std::string_view decl, CssStyle& style);

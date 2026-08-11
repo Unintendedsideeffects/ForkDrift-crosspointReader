@@ -1,6 +1,7 @@
 #include "CssParser.h"
 
 #include <Arduino.h>
+#include <HeapGuard.h>
 #include <Logging.h>
 
 #include <cctype>
@@ -427,10 +428,41 @@ bool CssParser::selectorMatchesElement(const std::string& selector, const std::s
 
 // Rule processing
 
+// Rough cost of one stored rule: the map key string, the value, and node
+// overhead. Only used to size a pre-flight heap check, not to reserve.
+constexpr size_t kRuleNodeEstimate = sizeof(std::string) + sizeof(CssStyle) + 32;
+
+bool CssParser::canGrowRuleContainers() const {
+  // A rehash allocates a new bucket array while the old one is still live, so
+  // that is the moment worth sizing for. This has to be a *pre*-flight check:
+  // with -fno-exceptions a failing container growth calls abort() rather than
+  // returning, so there is nothing to recover from afterwards.
+  const size_t buckets = rulesBySelector_.bucket_count();
+  const bool rehashImminent =
+      rulesBySelector_.size() + 1 > static_cast<size_t>(rulesBySelector_.max_load_factor() * buckets);
+  const size_t estimate = rehashImminent ? (buckets * 2 + 1) * sizeof(void*) + kRuleNodeEstimate : kRuleNodeEstimate;
+  return heapguard::canAllocate(estimate);
+}
+
 void CssParser::processRuleBlockWithStyle(std::string_view selectorGroup, const CssStyle& style) {
+  // A rule that sets no property we understand can never affect layout, so
+  // storing it costs a map node and a key string for nothing. Rejecting it here
+  // rather than at the insert also skips parsing the whole selector group.
+  if (!style.defined.anySet()) {
+    return;
+  }
+
   // Check if we've reached the rule limit before processing
   if (rulesBySelector_.size() >= MAX_RULES) {
     LOG_DBG("CSS", "Reached max rules limit (%zu), stopping CSS parsing", MAX_RULES);
+    return;
+  }
+
+  // Checked once per rule block rather than per selector: a block contributes a
+  // handful of entries at most, so the overshoot stays inside the critical floor
+  // and we avoid a heap query for every comma-separated selector.
+  if (!canGrowRuleContainers()) {
+    LOG_ERR("CSS", "Low heap, stopping CSS rule storage at %zu rules", rulesBySelector_.size());
     return;
   }
 
@@ -882,6 +914,11 @@ bool CssParser::loadFromCache(HalFile& file) {
     rulesBySelector_.clear();
     return false;
   }
+
+  // The count is known up front, so size the table once instead of letting it
+  // rehash its way up. Each rehash allocates a new bucket array beside the old
+  // one, which fragments the heap as much as it costs time.
+  rulesBySelector_.reserve(ruleCount);
 
   auto readLength = [&file](CssLength& len) -> bool {
     if (file.read(&len.value, sizeof(len.value)) != sizeof(len.value)) {
