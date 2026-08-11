@@ -114,9 +114,16 @@ void checkPanic() {
       if (file.fileSize() > 0) {
         file.write(kSeparator, sizeof(kSeparator) - 1);
       }
-      file.write(panicInfo.c_str(), panicInfo.size());
+      const size_t written = file.write(panicInfo.c_str(), panicInfo.size());
       file.close();
-      LOG_INF("SYS", "Appended crash info to crash_report.txt");
+      // A full SD card makes write() come up short. Say so rather than logging
+      // success over a truncated report — the report is the only diagnostic
+      // that survives the reboot.
+      if (written == panicInfo.size()) {
+        LOG_INF("SYS", "Appended crash info to crash_report.txt");
+      } else {
+        LOG_ERR("SYS", "Truncated crash report (%zu of %zu bytes written)", written, panicInfo.size());
+      }
     } else {
       LOG_ERR("SYS", "Failed to open crash_report.txt for writing");
     }

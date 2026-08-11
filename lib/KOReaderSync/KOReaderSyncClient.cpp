@@ -131,7 +131,10 @@ KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
 
   if (err != ESP_OK) return NETWORK_ERROR;
   if (buf.overflowed) return SERVER_ERROR;
-  if (httpCode == 200) return OK;
+  // Any 2xx is success. The reference kosync server answers 200, but
+  // KOSync-compatible implementations differ — BookLore is a Spring service
+  // and uses the idiomatic codes.
+  if (httpCode >= 200 && httpCode < 300) return OK;
   if (httpCode == 401) return AUTH_FAILED;
   return SERVER_ERROR;
 }
@@ -166,7 +169,13 @@ KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& doc
   if (err != ESP_OK) return NETWORK_ERROR;
   if (buf.overflowed) return SERVER_ERROR;
 
-  if (httpCode == 200 && buf.data) {
+  // 204 = success with no stored progress for this document (Spring-style
+  // KOSync implementations; the reference server answers 200 with an empty
+  // object instead). Map it to the same graceful no-remote-progress path as
+  // 404 rather than letting it fall through to SERVER_ERROR.
+  if (httpCode == 204) return NOT_FOUND;
+
+  if (httpCode >= 200 && httpCode < 300 && buf.data) {
     JsonDocument doc;
     const DeserializationError error = deserializeJson(doc, buf.data);
 
@@ -253,7 +262,10 @@ KOReaderSyncClient::Error KOReaderSyncClient::updateProgress(const KOReaderProgr
 
   if (err != ESP_OK) return NETWORK_ERROR;
   if (buf.overflowed) return SERVER_ERROR;
-  if (httpCode == 200 || httpCode == 202) return OK;
+  // Any 2xx accepts the progress. Spring-based KOSync implementations answer a
+  // PUT with the idiomatic 201/204, which used to land in SERVER_ERROR and made
+  // every push fail after a successful pull.
+  if (httpCode >= 200 && httpCode < 300) return OK;
   if (httpCode == 401) return AUTH_FAILED;
   return SERVER_ERROR;
 }

@@ -5,6 +5,7 @@
 #include <I18n.h>
 #include <Logging.h>
 #include <WiFi.h>
+#include <esp_mac.h>
 
 #include <algorithm>
 
@@ -68,12 +69,19 @@ void WifiSelectionActivity::onEnter() {
   backgroundReleaseFailed = false;
   radioStep = RadioStep::None;
 
-  // Cache MAC address for the list footer
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
+  // Cache MAC address for the list footer. Read the hardware-derived station
+  // MAC directly: WiFi.macAddress() needs the STA netif to already exist, but
+  // this screen is routinely entered with the radio still off.
+  uint8_t mac[6] = {};
   char macStr[64];
-  snprintf(macStr, sizeof(macStr), "%s %02x-%02x-%02x-%02x-%02x-%02x", tr(STR_MAC_ADDRESS), mac[0], mac[1], mac[2],
-           mac[3], mac[4], mac[5]);
+  const esp_err_t macResult = esp_read_mac(mac, ESP_MAC_WIFI_STA);
+  if (macResult == ESP_OK) {
+    snprintf(macStr, sizeof(macStr), "%s %02x-%02x-%02x-%02x-%02x-%02x", tr(STR_MAC_ADDRESS), mac[0], mac[1], mac[2],
+             mac[3], mac[4], mac[5]);
+  } else {
+    LOG_ERR("WIFISEL", "Failed to read station MAC (err=%d)", static_cast<int>(macResult));
+    snprintf(macStr, sizeof(macStr), "%s --", tr(STR_MAC_ADDRESS));
+  }
   cachedMacAddress = macStr;
 
   // Paint the "preparing" screen before doing anything that can block: stop()

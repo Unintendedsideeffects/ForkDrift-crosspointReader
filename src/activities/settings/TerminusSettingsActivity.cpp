@@ -4,6 +4,7 @@
 #include <I18n.h>
 #include <Logging.h>
 #include <WiFi.h>
+#include <esp_mac.h>
 
 #include <cstdio>
 
@@ -82,8 +83,17 @@ void TerminusSettingsActivity::saveSetup() {
     return;
   }
 
+  // Read the hardware station MAC rather than WiFi.macAddress(): setup can be
+  // saved with the radio off, and that path yields all zeroes — which would
+  // register this device with the server under a bogus, colliding device id.
   uint8_t mac[6] = {};
-  WiFi.macAddress(mac);
+  const esp_err_t macResult = esp_read_mac(mac, ESP_MAC_WIFI_STA);
+  if (macResult != ESP_OK) {
+    LOG_ERR("TERMINUS", "Failed to read station MAC (err=%d)", static_cast<int>(macResult));
+    errorMessage = tr(STR_TERMINUS_SETUP_INVALID);
+    requestUpdate();
+    return;
+  }
   char deviceId[18] = {};
   snprintf(deviceId, sizeof(deviceId), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
