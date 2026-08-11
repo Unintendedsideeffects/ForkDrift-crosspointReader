@@ -538,3 +538,22 @@ bypass.
   settings-schema regeneration, or a `SECTION_FILE_VERSION` bump, and the OTA ones need on-device
   verification before they can be trusted.
 - **Status**: open
+
+## 2026-08-12T00:00Z — /releases/latest 404s: every published release is a prerelease
+- **Found by**: claude — pre-flight for the OTA digest work (`d731c8fd5`), querying the live GitHub API
+- **Where**: `src/network/ota/OtaUpdater.cpp:24` `stableReleaseUrl` →
+  `https://api.github.com/repos/Unintendedsideeffects/ForkDrift-crosspointReader/releases/latest`
+- **What**: that endpoint returns `{"message":"Not Found","status":"404"}`. GitHub's `/releases/latest`
+  excludes prereleases and drafts, and both published releases (`nightly`, `latest`) have
+  `prerelease=true`. So the stable channel's first candidate URL always fails; it only works at all
+  because `checkForUpdate()` walks a candidate list and falls through to the tag-based URLs.
+- **Also noted**: the `latest` release carries both `crosspoint-standard.bin` and
+  `firmware-20260726-39072d6.bin` with an identical sha256 — the same file published under two names.
+  Only the `firmware-*.bin` form satisfies `isFirmwareAssetName()`, so the duplicate is inert, but it
+  doubles the release payload.
+- **Why not fixed here**: out of scope for the digest work, and the fix is a release-publishing decision
+  (mark a release non-prerelease, or drop the `/releases/latest` candidate) rather than a firmware change.
+  `scripts/release.sh` publishes locally, so this is a one-line change wherever the prerelease flag is set.
+- **Good news from the same check**: GitHub returns `digest: "sha256:<hex>"` on *every* asset of both
+  releases, computed server-side. That is what made fail-closed verification safe to adopt.
+- **Status**: open
