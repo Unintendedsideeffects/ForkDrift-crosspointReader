@@ -49,6 +49,7 @@ class OtaUpdater {
     UPDATE_OLDER_ERROR,
     INTERNAL_UPDATE_ERROR,
     OOM_ERROR,
+    WRONG_DEVICE_ERROR,
   };
 
   static constexpr const char* CATALOG_UNAVAILABLE_ERROR = "Feature store catalog unavailable";

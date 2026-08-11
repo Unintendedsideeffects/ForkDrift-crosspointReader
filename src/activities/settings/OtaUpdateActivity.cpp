@@ -102,6 +102,7 @@ void OtaUpdateActivity::otaWorkerLoop() {
         RenderLock lock(*this);
         if (res != OtaUpdater::OK) {
           LOG_ERR("OTA", "Update install failed: %d", res);
+          failedDetail = res == OtaUpdater::WRONG_DEVICE_ERROR ? tr(STR_FIRMWARE_WRONG_DEVICE) : nullptr;
           state = FAILED;
         } else {
           state = FINISHED;
@@ -360,9 +361,13 @@ void OtaUpdateActivity::render(RenderLock&&) {
 
   if (state == FAILED) {
     renderer.drawCenteredText(UI_10_FONT_ID, 300, "Update failed", true, EpdFontFamily::BOLD);
-    const String& error = updater.getLastError();
-    if (error.length() > 0) {
-      renderer.drawCenteredText(UI_10_FONT_ID, 330, error.c_str());
+    if (failedDetail != nullptr) {
+      renderer.drawCenteredText(UI_10_FONT_ID, 330, failedDetail);
+    } else {
+      const String& error = updater.getLastError();
+      if (error.length() > 0) {
+        renderer.drawCenteredText(UI_10_FONT_ID, 330, error.c_str());
+      }
     }
     renderer.displayBuffer();
     return;

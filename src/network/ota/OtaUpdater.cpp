@@ -16,6 +16,7 @@
 #include "esp_https_ota.h"
 #include "esp_ota_ops.h"
 #include "esp_wifi.h"
+#include "network/ota/FirmwareFlasher.h"
 #include "util/TimeSync.h"
 
 namespace {
@@ -951,6 +952,35 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
       }
     }
 
+    // esp_https_ota_finish may already have pointed the bootloader at the new
+    // slot, so any rejection from here on has to put it back.
+    auto revertBootPartition = [](const char* why) {
+      const esp_partition_t* runningPartition = esp_ota_get_running_partition();
+      if (runningPartition == nullptr) {
+        return;
+      }
+      const esp_err_t revertErr = esp_ota_set_boot_partition(runningPartition);
+      if (revertErr != ESP_OK) {
+        LOG_ERR("OTA", "Failed to restore running boot partition after %s: %s", why, esp_err_to_name(revertErr));
+      }
+    };
+
+    // Reject a wrong-MCU image before it can become the boot target. We use
+    // esp_https_ota, which writes the stream itself, so the header is read back
+    // out of the partition rather than sniffed in flight.
+    if (!attemptFailed && updatePartition != nullptr) {
+      uint8_t header[14] = {};
+      if (esp_partition_read(updatePartition, 0, header, sizeof(header)) != ESP_OK) {
+        LOG_WRN("OTA", "Could not read back image header for chip check");
+      } else if (firmware_flash::checkImageChipId(header) != firmware_flash::Result::OK) {
+        attemptFailed = true;
+        attemptError = WRONG_DEVICE_ERROR;
+        attemptMessage = "Firmware is for a different device";
+        attemptRetryable = false;  // retrying downloads the same wrong image
+        revertBootPartition("chip mismatch");
+      }
+    }
+
     if (!attemptFailed && !selectedChecksum.isEmpty()) {
       size_t imageSize = processedSize;
       if (imageSize == 0) {
@@ -966,15 +996,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate() {
         attemptError = INTERNAL_UPDATE_ERROR;
         attemptMessage = checksumError.length() > 0 ? checksumError : "Checksum verification failed";
         attemptRetryable = false;
-        // esp_https_ota_finish may have set the boot partition; revert to running image.
-        const esp_partition_t* runningPartition = esp_ota_get_running_partition();
-        if (runningPartition != nullptr) {
-          const esp_err_t revertErr = esp_ota_set_boot_partition(runningPartition);
-          if (revertErr != ESP_OK) {
-            LOG_ERR("OTA", "Failed to restore running boot partition after checksum failure: %s",
-                    esp_err_to_name(revertErr));
-          }
-        }
+        revertBootPartition("checksum failure");
       }
     }
 

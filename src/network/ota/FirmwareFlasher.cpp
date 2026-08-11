@@ -1,6 +1,7 @@
 #include "network/ota/FirmwareFlasher.h"
 
 #include <Arduino.h>
+#include <HalGPIO.h>
 #include <HalStorage.h>
 #include <Logging.h>
 #include <esp_ota_ops.h>
@@ -46,6 +47,8 @@ const char* resultName(Result r) {
       return "BAD_CHECKSUM";
     case Result::BAD_SHA:
       return "BAD_SHA";
+    case Result::BAD_CHIP:
+      return "BAD_CHIP";
     case Result::BAD_SIZE:
       return "BAD_SIZE";
     case Result::NO_PARTITION:
@@ -62,6 +65,57 @@ const char* resultName(Result r) {
       return "OTADATA_FAIL";
   }
   return "?";
+}
+
+// chip_id lives at offset 12 of esp_image_header_t.
+static constexpr size_t CHIP_ID_OFFSET = 12;
+static constexpr uint16_t CHIP_ID_UNKNOWN = 0xFFFF;
+
+uint16_t runningPartitionChipId() {
+  // esp_partition_read hits SPI flash, so pay it once. The running image is
+  // immutable at runtime, which makes a function-local static safe here.
+  static const uint16_t cached = [] {
+    const esp_partition_t* running = esp_ota_get_running_partition();
+    if (running == nullptr) {
+      LOG_ERR("FLASH", "chip_id: no running partition");
+      return CHIP_ID_UNKNOWN;
+    }
+    uint16_t id = CHIP_ID_UNKNOWN;
+    if (esp_partition_read(running, CHIP_ID_OFFSET, &id, sizeof(id)) != ESP_OK) {
+      LOG_ERR("FLASH", "chip_id: read failed");
+      return CHIP_ID_UNKNOWN;
+    }
+    return id;
+  }();
+  return cached;
+}
+
+Result checkImageChipId(const uint8_t* header) {
+  if (header == nullptr) {
+    return Result::OK;
+  }
+  const uint16_t deviceChip = runningPartitionChipId();
+  if (deviceChip == CHIP_ID_UNKNOWN) {
+    // Could not establish a reference. Fail open: a flash-read hiccup must not
+    // permanently block updates on a device whose only other route is an SD card.
+    return Result::OK;
+  }
+
+  // memcpy, never a pointer cast — `header` has no alignment guarantee and the
+  // C3 faults on unaligned multi-byte loads.
+  uint16_t imageChip = CHIP_ID_UNKNOWN;
+  std::memcpy(&imageChip, header + CHIP_ID_OFFSET, sizeof(imageChip));
+  if (imageChip == deviceChip) {
+    return Result::OK;
+  }
+
+  if (!gpio.deviceIsX4()) {
+    // Enforced on X4 only for now — see the header. X3 keeps today's behaviour.
+    LOG_ERR("FLASH", "chip mismatch image=0x%04X device=0x%04X (allowed: not X4)", imageChip, deviceChip);
+    return Result::OK;
+  }
+  LOG_ERR("FLASH", "wrong chip: image=0x%04X device=0x%04X", imageChip, deviceChip);
+  return Result::BAD_CHIP;
 }
 
 namespace {
@@ -116,6 +170,10 @@ Result validateImageFile(const char* sdPath, size_t partitionSize) {
     LOG_ERR("FLASH", "validate: bad magic 0x%02X", header[0]);
     file.close();
     return Result::BAD_MAGIC;
+  }
+  if (const Result chipRes = checkImageChipId(header); chipRes != Result::OK) {
+    file.close();
+    return chipRes;
   }
   const uint8_t segCount = header[1];
   const bool hashAppended = header[23] != 0;

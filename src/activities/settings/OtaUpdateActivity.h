@@ -33,6 +33,10 @@ class OtaUpdateActivity : public Activity {
   size_t selectedBundleIndex = 0;
   bool usingFeatureStore = false;
   unsigned long restartAtMs = 0;
+  // Translated detail for the FAILED screen. getLastError() carries an
+  // untranslated diagnostic string; where we can name the cause precisely we
+  // show a localized line instead. nullptr means fall back to getLastError().
+  const char* failedDetail = nullptr;
 
   // Worker task for background OTA operations
   TaskHandle_t otaWorkerTaskHandle = nullptr;

@@ -23,6 +23,7 @@ enum class Result {
   BAD_SEGMENTS,  // segment table malformed or runs past EOF
   BAD_CHECKSUM,  // ESP image XOR checksum mismatch
   BAD_SHA,       // SHA256 trailer mismatch (hash_appended images)
+  BAD_CHIP,      // image chip_id doesn't match the running MCU family
   BAD_SIZE,      // body+pad+sha length doesn't match file size
   NO_PARTITION,
   OOM,
@@ -59,5 +60,25 @@ Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx, boo
 Result validateImageFile(const char* sdPath, size_t partitionSize);
 
 const char* resultName(Result r);
+
+// chip_id (esp_image_header_t offset 12) of the currently-running image, or
+// 0xFFFF if it cannot be read. The running slot booted, so its chip_id is
+// authoritative for this CPU — a candidate image must match it to be safe to
+// flash. Reading it back beats a hardcoded table, which would go stale.
+//
+// Note this compares MCU *families*. X3 and X4 are both ESP32-C3 and run the
+// same binary (device type is detected at runtime by HalGPIO), so this cannot
+// and does not distinguish an X3 image from an X4 one — no such distinction
+// exists. What it catches is a wrong-family or structurally foreign image.
+uint16_t runningPartitionChipId();
+
+// Compare a candidate image's chip_id against the running one. `header` must
+// point to at least 14 bytes of the image. Returns BAD_CHIP on a mismatch,
+// otherwise OK.
+//
+// Enforced only on X4 hardware for now: one binary serves both devices, and a
+// false positive here would strand an X3 we cannot test on. On X3 the mismatch
+// is logged and allowed.
+Result checkImageChipId(const uint8_t* header);
 
 }  // namespace firmware_flash
