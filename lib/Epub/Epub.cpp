@@ -416,7 +416,11 @@ void Epub::parseCssFiles() const {
   }
 
   LOG_DBG("EBP", "Loaded %zu CSS style rules from %zu files", cssParser->ruleCount(), cssFiles.size());
-  cssParser->clear();
+  // Rules are only consumed while a section is being laid out, and
+  // Section::createSectionFile reloads them from the cache written above.
+  // releaseMemory() rather than clear(): clear() leaves the bucket array
+  // allocated, so it would not actually give the heap anything back.
+  cssParser->releaseMemory();
 }
 
 // load in the meta data for the epub file
@@ -435,18 +439,28 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
 
   // Try to load existing cache first
   if (bookMetadataCache->load()) {
-    if (!skipLoadingCss && !loadCssRulesFromCache()) {
-      LOG_DBG("EBP", "Warning: CSS rules cache not found, attempting to parse CSS files");
-      // to get CSS file list
-      if (!parseContentOpf(bookMetadataCache->coreMetadata)) {
-        LOG_ERR("EBP", "Could not parse content.opf from cached bookMetadata for CSS files");
-        // continue anyway - book will work without CSS and we'll still load any inline style CSS
+    if (!skipLoadingCss) {
+      if (loadCssRulesFromCache()) {
+        // The load doubles as a validity probe for the cache; the rules
+        // themselves are not needed until a section is laid out, and
+        // Section::createSectionFile reloads them from this same file. Holding
+        // them here pinned the whole rule map — a std::unordered_map keyed by
+        // selector string — for the entire reading session. This was the only
+        // path that did so; parseCssFiles() already releases at its end.
+        cssParser->releaseMemory();
       } else {
-        // Handle case where CSS files are not listed in the OPF manifest but are
-        // still referenced by HTML files - discover them via ZIP enumeration too
-        discoverCssFilesFromZip();
+        LOG_DBG("EBP", "Warning: CSS rules cache not found, attempting to parse CSS files");
+        // to get CSS file list
+        if (!parseContentOpf(bookMetadataCache->coreMetadata)) {
+          LOG_ERR("EBP", "Could not parse content.opf from cached bookMetadata for CSS files");
+          // continue anyway - book will work without CSS and we'll still load any inline style CSS
+        } else {
+          // Handle case where CSS files are not listed in the OPF manifest but are
+          // still referenced by HTML files - discover them via ZIP enumeration too
+          discoverCssFilesFromZip();
+        }
+        parseCssFiles();
       }
-      parseCssFiles();
     }
     LOG_DBG("EBP", "Loaded ePub: %s", filepath.c_str());
     return true;

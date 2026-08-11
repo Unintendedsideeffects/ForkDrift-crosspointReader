@@ -107,6 +107,19 @@ class CssParser {
   }
 
   /**
+   * Hand the rule storage back to the heap.
+   *
+   * clear() destroys the elements but leaves the bucket array and the vector's
+   * capacity allocated, so it does not actually reduce residency. Swapping
+   * against empty containers is what frees them. Use this when the rules are
+   * not needed again until the next section build, which reloads from cache.
+   */
+  void releaseMemory() {
+    std::unordered_map<std::string, CssStyle>().swap(rulesBySelector_);
+    std::vector<DescendantRule>().swap(descendantRules_);
+  }
+
+  /**
    * Save parsed CSS rules to a cache file.
    * @param file Open file handle to write to
    * @return true if cache was written successfully
