@@ -747,9 +747,23 @@ bypass.
   `terminus_refresh::classifyStart` and host-tested.
 - **Status**: fixed in `5bde680d7`, verified on device (defers at boot, succeeds later).
 
-## Still open from that session
-The `MIN_FREE_HEAP_TO_START = 76000` threshold in `BackgroundWebServer.h:74` may be
-unreachable in current steady state: with Background Server = "Only on Charge" the server
-did not start for minutes against a steady ~43 KB free. While in that state `CMD:SETTINGS`
-is also refused (its own 48 KB floor), so the device cannot be reconfigured over serial
-without a reboot first. Not investigated; belongs with the wider heap-headroom work.
+## Resolved from that session
+The `MIN_FREE_HEAP_TO_START = 76000` threshold was not a heap ceiling but a stale gate: the
+two background-server modes were running different admission rules. `BackgroundWifiService`
+("Always") had already been migrated to `BackgroundServerPolicy`'s derived,
+fragmentation-aware gate; `BackgroundWebServer` ("Only on Charge") still had two hardcoded
+numbers — 76000 to start against a measured 16,336-byte startup cost, and 48000 to keep
+running against an observed steady state of 43-55 KB. Both deleted and replaced with the
+shared policy in `64029f976`; the on-charge server now starts and stays up (8/8 status polls
+at 200 over two minutes, where it previously served nothing for minutes).
+
+Still open, and separate: **baseline heap is the real constraint.** ~43 KB free with a 17 KB
+largest block at Home is the same story as the reader's 18 silent restarts. Note also that
+below ~48 KB free, `CMD:SETTINGS` is refused (its own floor), so a device in that state
+cannot be reconfigured over serial without a reboot first — worth knowing before debugging
+one remotely.
+
+**Log nit introduced by the deferral fix**: while a background handler defers server start,
+`BackgroundWebServer::loop()` re-logs "WiFi already connected, starting server" every tick
+(~21 ms). The deferral message itself is throttled to 5 s; that call-site log is not. Only
+visible with developer-mode logging on. Not fixed.
