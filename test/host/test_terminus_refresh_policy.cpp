@@ -61,3 +61,34 @@ TEST_CASE("terminus monotonic: survives the millis() wrap at 2^32") {
   // And immediately across the wrap it is still correctly not due.
   CHECK_FALSE(refreshDueMonotonic(last + 1000u, last, true, false, 900));
 }
+
+// Guard ordering for starting a fetch. The three "no" answers are not interchangeable:
+// DeferNoHeap must not be recorded as a failed attempt, or status reports last_fetch_ok
+// false and have_attempted true for a server that was never contacted, and the failure
+// backoff is armed against a device that merely had not finished booting.
+// See docs/FINDINGS.md 2026-08-12T21:10Z.
+
+using terminus_refresh::classifyStart;
+using terminus_refresh::StartDecision;
+
+TEST_CASE("terminus start: everything clear means start") {
+  CHECK(classifyStart(false, false, true) == StartDecision::Start);
+}
+
+TEST_CASE("terminus start: a shortage of task stack defers without being a failure") {
+  CHECK(classifyStart(false, false, /*taskStackAvailable=*/false) == StartDecision::DeferNoHeap);
+}
+
+TEST_CASE("terminus start: an in-flight fetch outranks every other reason") {
+  // Reporting DeferNoHeap here would overwrite the running fetch's stage.
+  CHECK(classifyStart(true, false, false) == StartDecision::AlreadyRunning);
+  CHECK(classifyStart(true, true, false) == StartDecision::AlreadyRunning);
+  CHECK(classifyStart(true, true, true) == StartDecision::AlreadyRunning);
+}
+
+TEST_CASE("terminus start: an active backoff outranks the heap check") {
+  // Both are "defer", but only the backoff case means a real failure happened. Letting the
+  // heap check answer first would relabel a genuine server failure as a resource shortage.
+  CHECK(classifyStart(false, true, false) == StartDecision::DeferBackoff);
+  CHECK(classifyStart(false, true, true) == StartDecision::DeferBackoff);
+}

@@ -24,6 +24,34 @@ inline uint32_t normalizeServerInterval(const uint32_t intervalS) {
   return intervalS;
 }
 
+// Why a fetch did or did not start. Separated from the firmware so the guard *ordering*
+// is testable: the three reasons are not interchangeable, and the difference between
+// DeferNoHeap and a failed attempt is the whole point.
+//
+// A fetch needs a ~12 KB contiguous task stack. Right after boot the device does not have
+// it, and that is normal — it has not finished settling. Treating that as a failed fetch
+// would report last_fetch_ok = false and have_attempted = true (status lying about having
+// contacted the server) and would arm the failure backoff for a server that was never asked.
+enum class StartDecision : uint8_t {
+  Start,
+  AlreadyRunning,
+  DeferBackoff,  // a real earlier failure is still being backed off
+  DeferNoHeap,   // resource shortage, not a failure: record no attempt
+};
+
+inline StartDecision classifyStart(const bool fetchRunning, const bool backoffActive, const bool taskStackAvailable) {
+  if (fetchRunning) {
+    return StartDecision::AlreadyRunning;
+  }
+  if (backoffActive) {
+    return StartDecision::DeferBackoff;
+  }
+  if (!taskStackAvailable) {
+    return StartDecision::DeferNoHeap;
+  }
+  return StartDecision::Start;
+}
+
 inline uint32_t effectiveIntervalS(const bool lastAttemptSucceeded, const uint32_t serverIntervalS) {
   return lastAttemptSucceeded ? normalizeServerInterval(serverIntervalS) : kFailureRetryIntervalS;
 }

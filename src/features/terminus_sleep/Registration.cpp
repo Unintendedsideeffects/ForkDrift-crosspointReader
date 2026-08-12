@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <FeatureFlags.h>
 #include <HalStorage.h>
+#include <HeapGuard.h>
 #include <Logging.h>
 #include <Stream.h>
 #include <WebServer.h>
@@ -53,7 +54,7 @@ static volatile uint32_t trmnlLastAttemptEpoch = 0;
 // "due" test answers true on every background-server start, forever.
 static volatile uint32_t trmnlLastAttemptMs = 0;
 static volatile bool trmnlHaveAttempted = false;
-// Where the last attempt got to. Assigned static string literals only, so the volatile
+// Where the last attempt got to, or why no attempt was made. Assigned static string literals only, so the volatile
 // pointer swap is atomic and there is nothing to free. Reported by /api/terminus/status,
 // which is the only way a client can learn the outcome: the fetch runs while the web
 // server is deliberately stopped, so a client polling this endpoint during a fetch gets a
@@ -345,6 +346,9 @@ static bool fetchAndPinTrmnlImage() {
 // heap-held only for the fetch's lifetime (a static stack would pin that DRAM
 // permanently for a rare operation).
 static constexpr uint32_t TRMNL_FETCH_TASK_STACK = 12288;
+// FreeRTOS also allocates a TCB alongside the stack; leave room so the preflight below
+// does not pass only for xTaskCreate to fail on the overhead.
+static constexpr uint32_t TRMNL_FETCH_TASK_OVERHEAD = 1024;
 
 static volatile bool fetchTaskRunning = false;
 static volatile bool fetchTaskResult = false;
@@ -380,14 +384,33 @@ static void terminusFetchTask(void*) {
 }
 
 static bool startFetchTask() {
-  if (fetchTaskRunning) {
-    LOG_INF("TRMNL", "Fetch already in progress");
-    return false;
+  const auto decision =
+      terminus_refresh::classifyStart(fetchTaskRunning, fetchTaskRetryActive(),
+                                      heapguard::canAllocate(TRMNL_FETCH_TASK_STACK + TRMNL_FETCH_TASK_OVERHEAD));
+
+  switch (decision) {
+    case terminus_refresh::StartDecision::AlreadyRunning:
+      LOG_INF("TRMNL", "Fetch already in progress");
+      return false;
+    case terminus_refresh::StartDecision::DeferBackoff:
+      LOG_INF("TRMNL", "Fetch start deferred by retry backoff");
+      return false;
+    case terminus_refresh::StartDecision::DeferNoHeap:
+      // Deliberately NOT recordFetchAttempt(false): a FreeRTOS task stack is a heap
+      // allocation, and right after boot the device simply does not have ~12 KB contiguous
+      // (measured: 6800 bytes free in the pre-server window). Waiting for the device to
+      // settle is normal, not a failed fetch. Arm only the retry timer, which is also what
+      // keeps onBackgroundServerTick from recycling the web server every second.
+      fetchTaskRetryAfterMs = millis() + terminus_refresh::kFailureRetryIntervalS * 1000UL;
+      fetchStage = "deferred-low-heap";
+      LOG_INF("TRMNL", "Deferring fetch: no room for the %u B task stack (free=%zu, largest=%zu)",
+              static_cast<unsigned>(TRMNL_FETCH_TASK_STACK + TRMNL_FETCH_TASK_OVERHEAD), heapguard::freeBytes(),
+              heapguard::largestBlock());
+      return false;
+    case terminus_refresh::StartDecision::Start:
+      break;
   }
-  if (fetchTaskRetryActive()) {
-    LOG_INF("TRMNL", "Fetch start deferred by retry backoff");
-    return false;
-  }
+
   fetchTaskRunning = true;
   fetchTaskResult = false;
   fetchStage = "starting";
