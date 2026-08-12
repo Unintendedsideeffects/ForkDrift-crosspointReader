@@ -6,7 +6,7 @@ This document describes the binary serialization formats of the book metadata (`
 
 ## 1. Metadata Cache (`book.bin`)
 
-### Version 6
+### Version 9
 
 The `book.bin` file contains parsed EPUB metadata, including the Table of Contents (TOC) and Spine entry mappings, to avoid parsing the zip package and XML at every startup.
 
@@ -15,7 +15,7 @@ The `book.bin` file contains parsed EPUB metadata, including the Table of Conten
 ```text
 ┌─────────────────────────────────────────────────────────┐
 │ HEADER                                                  │
-│ - version (u8) [value = 6]                              │
+│ - version (u8) [value = 9]                              │
 │ - lutOffset (u32)                                       │
 │ - spineCount (u16)                                      │
 │ - tocCount (u16)                                        │

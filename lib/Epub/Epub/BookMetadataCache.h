@@ -14,7 +14,10 @@ class BookMetadataCache {
   // lightweight parser) validate against this same constant so the two can't
   // drift apart again (Pokemon levels froze at Lv1 when this hit v6+ while the
   // parser still expected v5).
-  static constexpr uint8_t kFormatVersion = 8;
+  // v9: ambiguous guide type="text" references are no longer stored as the
+  // reading start location, so a v8 cache carries a textReferenceHref this
+  // build would never have written.
+  static constexpr uint8_t kFormatVersion = 9;
 
   struct BookMetadata {
     std::string title;

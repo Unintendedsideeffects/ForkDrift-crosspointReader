@@ -8,6 +8,7 @@
 #include <cctype>
 
 #include "Epub/BookMetadataCache.h"
+#include "GuideReference.h"
 
 namespace {
 constexpr char MEDIA_TYPE_NCX[] = "application/x-dtbncx+xml";
@@ -329,12 +330,17 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       }
     }
     if (!guideHref.empty()) {
-      if (type == "text" || (type == "start" && !self->textReferenceHref.empty())) {
-        LOG_DBG("COF", "Found %s reference in guide: %s", type.c_str(), guideHref.c_str());
-        self->textReferenceHref = guideHref;
-      } else if ((type == "cover" || type == "cover-page") && self->guideCoverPageHref.empty()) {
-        LOG_DBG("COF", "Found cover reference in guide: %s", guideHref.c_str());
-        self->guideCoverPageHref = guideHref;
+      switch (guide_reference::classify(type, !self->textReferenceHref.empty(), !self->guideCoverPageHref.empty())) {
+        case guide_reference::Slot::StartLocation:
+          LOG_DBG("COF", "Found %s reference in guide: %s", type.c_str(), guideHref.c_str());
+          self->textReferenceHref = guideHref;
+          break;
+        case guide_reference::Slot::CoverPage:
+          LOG_DBG("COF", "Found cover reference in guide: %s", guideHref.c_str());
+          self->guideCoverPageHref = guideHref;
+          break;
+        case guide_reference::Slot::Ignore:
+          break;
       }
     }
     return;

@@ -10,7 +10,7 @@
 #include "FsHelpers.h"
 
 namespace {
-constexpr uint8_t BOOK_CACHE_VERSION = BookMetadataCache::kFormatVersion;  // v8: TOC/book titles NFC-composed
+constexpr uint8_t BOOK_CACHE_VERSION = BookMetadataCache::kFormatVersion;  // see kFormatVersion for the changelog
 constexpr char bookBinFile[] = "/book.bin";
 constexpr char tmpSpineBinFile[] = "/spine.bin.tmp";
 constexpr char tmpTocBinFile[] = "/toc.bin.tmp";
