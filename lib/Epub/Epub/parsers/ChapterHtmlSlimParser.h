@@ -130,6 +130,7 @@ class ChapterHtmlSlimParser {
   FootnoteEntry currentFootnote = {};
   int currentFootnoteLinkTextLen = 0;
   std::vector<std::pair<int, FootnoteEntry>> pendingFootnotes;  // <wordIndex, entry>
+  bool footnotesTruncated = false;                              // this chapter hit the footnote cap or the heap guard
   int wordsExtractedInBlock = 0;
   std::vector<CssAncestorEntry> ancestorStack_;
 

@@ -3,6 +3,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
+#include <HeapGuard.h>
 #include <Logging.h>
 #include <Utf8.h>
 #include <XmlParserUtils.h>
@@ -19,6 +20,7 @@
 #include "Epub/converters/ImageDecoderFactory.h"
 #include "Epub/converters/ImageToFramebufferDecoder.h"
 #include "Epub/htmlEntities.h"
+#include "FootnoteGuard.h"
 
 // Minimum file size (in bytes) to show indexing popup - smaller chapters don't benefit from it
 constexpr size_t MIN_SIZE_FOR_POPUP = 10 * 1024;  // 10KB
@@ -30,6 +32,18 @@ constexpr size_t PARSE_BUFFER_SIZE = 1024;
 // every text fragment (e.g. Kobo KePub spans). The cap prevents unbounded heap growth
 // on resource-constrained devices (~380KB heap). TOC anchors bypass this cap.
 constexpr size_t MAX_ANCHORS_PER_CHAPTER = 1024;
+
+// Same reasoning as MAX_ANCHORS_PER_CHAPTER, for the footnote link list. Each entry is
+// sizeof(std::pair<int, FootnoteEntry>) == 132 bytes, and vector doubling needs the new
+// block (2N * 132) contiguous *while* the old one is still live -- so the peak demand is
+// roughly 3x the live size in a single allocation. On a fragmented heap that is the first
+// thing to fail, and under -fno-exceptions a failed growth is terminate(), not an error
+// code. Observed on device: abort() inside endElement()'s push_back at largest block
+// 15348 bytes, on a footnote-dense technical book.
+constexpr size_t MAX_FOOTNOTES_PER_CHAPTER = 512;
+// Growth-sized headroom demanded before accepting another footnote, matching
+// ParsedText::kWordGrowthGuardBytes.
+constexpr size_t kFootnoteGrowthGuardBytes = 8 * 1024;
 
 constexpr const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
 constexpr const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "pre"};
@@ -1772,7 +1786,17 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
       entry.href[sizeof(entry.href) - 1] = '\0';
       int wordIndex =
           self->wordsExtractedInBlock + (self->currentTextBlock ? static_cast<int>(self->currentTextBlock->size()) : 0);
-      self->pendingFootnotes.push_back({wordIndex, entry});
+      // Only consult the heap when the vector actually has to reallocate; below capacity
+      // push_back cannot allocate, so it cannot throw.
+      const size_t size = self->pendingFootnotes.size();
+      const size_t capacity = self->pendingFootnotes.capacity();
+      const bool heapHeadroomOk = size < capacity || heapguard::canAllocate(kFootnoteGrowthGuardBytes);
+      if (footnote_guard::canAccept(size, capacity, MAX_FOOTNOTES_PER_CHAPTER, heapHeadroomOk)) {
+        self->pendingFootnotes.push_back({wordIndex, entry});
+      } else if (!self->footnotesTruncated) {
+        self->footnotesTruncated = true;
+        LOG_ERR("CHP", "Footnote guard: dropping links (count=%zu, largest=%zu)", size, heapguard::largestBlock());
+      }
     }
     self->insideFootnoteLink = false;
   }
