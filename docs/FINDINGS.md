@@ -767,3 +767,23 @@ one remotely.
 `BackgroundWebServer::loop()` re-logs "WiFi already connected, starting server" every tick
 (~21 ms). The deferral message itself is throttled to 5 s; that call-site log is not. Only
 visible with developer-mode logging on. Not fixed.
+
+## 2026-08-12T22:40Z — The desktop simulator does not build, so the heap gate is not a gate
+- **Found by**: claude — while seeding device-measured heap budgets into the simulator (ad hoc)
+- **Where**: `src/activities/network/WifiSelectionActivity.cpp:77`, simulator mocks
+- **What**: `pio run -e simulator` fails: `'ESP_MAC_WIFI_STA' was not declared in this scope`
+  and `'esp_read_mac' was not declared in this scope`. The file is unmodified on this branch
+  (last touched by `8963002fd`), so this is pre-existing drift between the firmware sources
+  and the simulator's mock layer — the same class as the earlier "test/mock + screen-harness
+  break separately from the firmware build" trap.
+- **Why it matters more than usual right now**: `f15b9f7de` seeded the simulator's heap model
+  with real device numbers (180000 total / 20000 largest, replacing 330000/330000) precisely
+  so the simulator can catch fragmentation OOMs before they reach hardware. Those values are
+  inert until the simulator compiles. We believe we have a heap gate; we do not.
+- **Regression ladder**: this is at least the third occurrence of "a build that is not on the
+  routine path silently rots". Rung 3 is a gate — a CI leg or pre-push step that builds
+  `-e simulator`, in addition to the existing test and docs.
+- **Why not fixed here**: scope was the heap seeding; adding two mock declarations is small,
+  but confirming the simulator then actually runs (SDL2, screen harness, SD root) is not, and
+  should be verified rather than assumed.
+- **Status**: open
