@@ -607,4 +607,56 @@ bypass.
 - **Harness note**: screenshots and `CMD:PING` both time out while the reader is busy in a long
   build, so "no response" does NOT imply a crash. Confirm state by resetting and reading the screen.
   Note a manual esptool reset clears the crash screen, so capture it *before* resetting.
+- **RESOLVED 2026-08-12T19:40Z — root cause found, and it was neither of the two fixes above.**
+  The bisect was never needed. Enabling `developerMode` turns on `LOG_INF`/`LOG_DBG` at runtime
+  even in a `LOG_LEVEL=0` build (`Logging.h:68-84`), so the crashing binary could be instrumented
+  **without rebuilding it**. Streaming serial through the repro then captured the full stack dump,
+  and decoding every code-looking word in it reconstructed the call path the wrapped
+  `panic_print_backtrace` had suppressed:
+  `Section::createSectionFile` → `ChapterHtmlSlimParser::parseAndBuildPages` → expat `doContent`
+  → `ChapterHtmlSlimParser::endElement` → `vector<pair<int,FootnoteEntry>>::push_back`
+  → `_M_realloc_insert` → `operator new` → throw → `__terminate`.
+  The thrower was an **unguarded footnote-vector growth**. Each element is 132 bytes and doubling
+  needs `2N × 132` contiguous while the old block is still live (~3× peak), which at the observed
+  `largest=15348` tops out near 58 footnotes — and the reproduction book is footnote-dense.
+  Fixed by a cap plus a heap guard, mirroring the `[PTX]` idiom. Verified by re-running the
+  identical repro on the same hardware: **0 aborts**, and the guard logs
+  `[CHP] Footnote guard: dropping links` at the exact moment that previously aborted.
+- **Lesson (method, not code)**: the two earlier fixes were inferred from plausibility and both
+  were wrong about *this* crash. The PC was decodable the whole time. Decode first, infer never.
+- **Status**: fixed in `548b26251`
+
+## 2026-08-12T19:45Z — An empty CSS parse is written to cache and is then sticky forever
+- **Found by**: claude — while device-debugging the abort() above (ad hoc)
+- **Where**: `lib/Epub/Epub/css/CssParser.cpp:871` (`saveToCache()`), storage bail-out at `:464`
+- **What**: `processRuleBlockWithStyle()` stops storing rules when `canGrowRuleContainers()` is
+  false, so a parse that runs under heap pressure can legitimately produce **zero** rules.
+  `saveToCache()` then persists that empty result, and it is indistinguishable from "this book has
+  no usable rules". Every later open loads `css_rules.cache` and gets 0 rules, so the book renders
+  unstyled **permanently**, even once heap is healthy again. Observed live on the reproduction
+  book: `[CSS] Loaded 0 rules + 0 descendant rules from cache` on every single open, for a Packt
+  technical EPUB that certainly ships real CSS.
+- **Not yet proven**: that this particular cache was written by a degraded parse rather than a
+  genuinely empty stylesheet. The decisive test is cheap — delete `css_rules.cache` for the book,
+  reopen with healthy heap, and see whether rules appear.
+- **Why not fixed here**: scope was the footnote-vector abort in `ChapterHtmlSlimParser`. The fix
+  is also a design choice, not a one-liner: either refuse to cache a degraded parse, or record a
+  "degraded" flag in the cache so it can be retried later.
+- **Status**: open
+
+## 2026-08-12T19:45Z — Reading this book costs 18 silent heap-defrag restarts in 7 minutes
+- **Found by**: claude — during the abort() verification run (ad hoc)
+- **Where**: `src/activities/reader/EpubReaderActivity.cpp` (`heapDirtyFromIndexing_`), `src/main.cpp`
+- **What**: with the abort fixed, a 45-page-turn run completes without crashing but logs
+  `[MAIN] Silent restart (target=1)` **18 times**. The safety net works — position is preserved and
+  the user may not notice — but it is firing constantly because the heap is genuinely exhausted:
+  free heap sits near 40KB with the largest block down to 13-27KB, and `[PTX] OOM guard`,
+  `[JPG] Not enough heap for JPEG decoder`, `[ERS] OOM: grayscale strip scratch` and
+  `SELECTION_INDEX_FALLBACK` all fire repeatedly. Anti-aliasing and images are being silently
+  dropped from pages.
+- **Bearing on the CSS work**: this is the measurement the approved plan required and never got.
+  It does not by itself convict `1b1788ada` (release/reload) — that still needs a before/after
+  free-heap + `getMaxAllocHeap()` comparison on a warm open — but it does establish that on a
+  CSS-heavy technical EPUB the reader has essentially no headroom.
+- **Why not fixed here**: scope was the footnote-vector abort.
 - **Status**: open
