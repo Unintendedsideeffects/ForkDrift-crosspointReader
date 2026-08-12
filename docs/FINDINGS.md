@@ -557,3 +557,24 @@ bypass.
 - **Good news from the same check**: GitHub returns `digest: "sha256:<hex>"` on *every* asset of both
   releases, computed server-side. That is what made fail-closed verification safe to adopt.
 - **Status**: open
+
+## 2026-08-12T12:00Z — state.json has no write lock (the deferred half of fd43ca2fe)
+- **Found by**: claude — while porting the `CrossPointSettings` mutex (`c80117561`)
+- **Where**: `src/CrossPointState.cpp:81` `CrossPointState::saveToFile()` / `:86` `loadFromFile()`
+- **What**: same defect class as the settings one just fixed. `saveToFile()` calls
+  `JsonSettingsIO::saveState()` with no serialisation, so two tasks saving state concurrently can
+  interleave and leave a truncated or spliced `state.json`. Upstream fixed both files in the same
+  commit; only the settings half was ported.
+- **Why not fixed here**: `CrossPointState` already carries a `PendingStateLock` (`:21`, a FreeRTOS
+  semaphore RAII guard) protecting `pendingOpenPath` and friends. That is a *different* concern from
+  the file, and adding a second lock beside it needs its own reasoning about whether any path holds
+  `PendingStateLock` across a save — otherwise the fix introduces a deadlock instead of preventing a
+  corruption. Folding that into a commit about settings would also have made the settings regression
+  non-bisectable.
+- **Shape of the fix**: same as `c80117561` — a file-static `std::mutex` taken in `saveToFile()` and,
+  scoped, around the `loadState()` parse. `CrossPointState::saveToFile()` has no router indirection,
+  so it is simpler than the settings case; the only real work is auditing the four `PendingStateLock`
+  call sites (`:100`, `:105`, `:115`, `:120`) for a save underneath.
+- **Blast radius if it bites**: a corrupt `state.json` loses recent-books and sleep-image state, not
+  reading progress. Lower severity than the settings case, which is why it was safe to defer.
+- **Status**: open
