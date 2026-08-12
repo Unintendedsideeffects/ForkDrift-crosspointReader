@@ -18,6 +18,8 @@ uint32_t startMinFreeBytes(const uint32_t taskStackBytes) {
   return taskStackBytes + SERVER_STARTUP_BYTES + SERVER_SAFETY_FLOOR_BYTES + START_HEADROOM_BYTES;
 }
 
+uint32_t runningMinFreeBytes() { return SERVER_SAFETY_FLOOR_BYTES + RUNNING_HEADROOM_BYTES; }
+
 StartResourceVerdict evaluateStartResources(const StartResourceInput& input) {
   if (input.freeBytes < startMinFreeBytes(input.taskStackBytes)) {
     return StartResourceVerdict::InsufficientFree;

@@ -112,6 +112,17 @@ struct StartResourceInput {
 uint32_t startMinFreeBytes(uint32_t taskStackBytes);
 StartResourceVerdict evaluateStartResources(const StartResourceInput& input);
 
+// Floor for a server that is ALREADY running, which is a different question from whether
+// one can be started: the 16 KB of startup cost is already spent, so re-charging for it
+// here just means stopping a healthy server.
+//
+// This covers only what the server itself needs to keep operating. Per-request spikes are
+// each handler's own responsibility and are already gated that way — applySettingsJson
+// demands 48 KB, the library shelf refresh 84 KB. Folding the worst handler's appetite in
+// here would tear the whole server down because one expensive route might be called.
+constexpr uint32_t RUNNING_HEADROOM_BYTES = 4096;
+uint32_t runningMinFreeBytes();
+
 struct OnChargeServerInput {
   bool hasBackgroundServerCapability = false;
   bool backgroundServerOnCharge = false;

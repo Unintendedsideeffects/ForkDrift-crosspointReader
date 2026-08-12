@@ -277,3 +277,40 @@ TEST_CASE("heap reclaim registry skips a null release without skipping the rest"
   // not abort the sweep.
   CHECK(gReclaimCalls >= 1);
 }
+
+// The on-charge server (BackgroundWebServer) was migrated onto this same policy; it had
+// its own hardcoded gates, 76000 to start and 48000 to keep running, against a measured
+// startup cost of 16,336 bytes and an observed steady-state free heap of 43-55 KB. It
+// therefore often could not start on charge at all, and tore itself down on ordinary dips.
+// See docs/FINDINGS.md 2026-08-12T21:10Z.
+
+TEST_CASE("background server: the on-charge server needs no task stack of its own") {
+  // It runs on the main loop, so the derived gate is startup + safety floor + headroom.
+  const uint32_t gate = background_server::startMinFreeBytes(0);
+  CHECK(gate == background_server::SERVER_STARTUP_BYTES + background_server::SERVER_SAFETY_FLOOR_BYTES +
+                    background_server::START_HEADROOM_BYTES);
+  // Must be far below the 76000 it replaced, or the migration changed nothing.
+  CHECK(gate < 76000);
+  // ...and still comfortably above what the server actually spends.
+  CHECK(gate > background_server::SERVER_STARTUP_BYTES);
+}
+
+TEST_CASE("background server: a running server is not re-charged for its startup cost") {
+  // Charging startup again is what stopped healthy servers on an ordinary heap dip.
+  CHECK(background_server::runningMinFreeBytes() < background_server::startMinFreeBytes(0));
+  CHECK(background_server::runningMinFreeBytes() >= background_server::SERVER_SAFETY_FLOOR_BYTES);
+}
+
+TEST_CASE("background server: observed steady-state heap can now start the on-charge server") {
+  // 43,036 free / 17,396 largest was measured at Home with the old gate refusing to start.
+  const auto verdict = background_server::evaluateStartResources(
+      {.freeBytes = 43036, .largestContiguousBytes = 17396, .taskStackBytes = 0});
+  CHECK(verdict == background_server::StartResourceVerdict::Ok);
+}
+
+TEST_CASE("background server: fragmentation still blocks a task-spawning start") {
+  // Free heap alone is not enough for the Always path, which needs a contiguous 8 KB stack.
+  const auto verdict = background_server::evaluateStartResources(
+      {.freeBytes = 43036, .largestContiguousBytes = 4096, .taskStackBytes = 8192});
+  CHECK(verdict == background_server::StartResourceVerdict::InsufficientContiguous);
+}

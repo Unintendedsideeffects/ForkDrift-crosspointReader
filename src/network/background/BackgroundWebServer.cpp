@@ -14,6 +14,7 @@
 #include "Logging.h"
 #include "core/features/FeatureLifecycle.h"
 #include "core/features/FeatureModules.h"
+#include "network/background/BackgroundServerPolicy.h"
 #include "network/server/CrossPointWebServer.h"
 #include "util/NetworkNames.h"
 #include "util/WifiScanPolicy.h"
@@ -126,8 +127,19 @@ void BackgroundWebServer::startServer() {
   if (deferStartupForBackgroundWork()) {
     return;
   }
-  if (ESP.getFreeHeap() < MIN_FREE_HEAP_TO_START) {
-    scheduleRetry("low heap");
+  // Same derived policy the Always-mode path uses (BackgroundWifiService), rather than a
+  // hardcoded number. This server runs on the main loop and spawns no task of its own, so
+  // taskStackBytes is 0 -- but the contiguous check still matters, because free heap is a
+  // sum that says nothing about the largest run.
+  //
+  // The number this replaced was 76000, against a measured startup cost of 16,336 bytes: a
+  // gate demanding 4.6x what it spends, and above the device's observed steady-state free
+  // heap (43-55 KB at Home). On charge, the server frequently could not start at all.
+  const background_server::StartResourceVerdict verdict = background_server::evaluateStartResources(
+      {.freeBytes = ESP.getFreeHeap(), .largestContiguousBytes = ESP.getMaxAllocHeap(), .taskStackBytes = 0});
+  if (verdict != background_server::StartResourceVerdict::Ok) {
+    scheduleRetry(verdict == background_server::StartResourceVerdict::InsufficientFree ? "low heap"
+                                                                                       : "heap too fragmented");
     return;
   }
   core::FeatureLifecycle::onBackgroundNetworkReady();
@@ -370,7 +382,11 @@ void BackgroundWebServer::loop(const bool usbConnected, const bool allowRun) {
   }
 
   if (state == State::RUNNING) {
-    if (ESP.getFreeHeap() < MIN_FREE_HEAP_RUNNING) {
+    // The startup cost is already spent; charging for it again here only stops a healthy
+    // server. Per-request spikes are gated by the handlers themselves (settings apply 48 KB,
+    // shelf refresh 84 KB). This was 48000, above the observed steady-state free heap, so
+    // the server tore itself down -- and scheduleRetry() disconnects WiFi -- on ordinary dips.
+    if (ESP.getFreeHeap() < background_server::runningMinFreeBytes()) {
       scheduleRetry("low heap");
       return;
     }
