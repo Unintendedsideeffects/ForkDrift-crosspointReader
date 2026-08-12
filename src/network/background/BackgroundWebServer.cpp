@@ -147,6 +147,7 @@ void BackgroundWebServer::startServer() {
   if (deferStartupForBackgroundWork()) {
     return;
   }
+  LOG_INF("BWS", "Starting web server (free=%u, largest=%u)", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
   if (!server) {
     server.reset(new (std::nothrow) CrossPointWebServer());
     if (!server) {
@@ -314,7 +315,9 @@ void BackgroundWebServer::loop(const bool usbConnected, const bool allowRun) {
     if (WiFi.status() == WL_CONNECTED) {
       // Use existing connection but don't claim ownership - another activity
       // may have established it. Only claim ownership when we connect ourselves.
-      LOG_INF("BWS", "WiFi already connected, starting server");
+      // No log here: startServer() may defer (a background handler holding the heap) and
+      // return on every tick, and this site fired ~50x/second while that lasted. It logs
+      // once it actually commits to starting instead.
       startServer();
     } else {
       LOG_INF("BWS", "WiFi not connected (status=%d), starting scan", WiFi.status());
