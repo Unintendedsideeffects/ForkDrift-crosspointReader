@@ -41,6 +41,15 @@ class HalDisplay {
   void displayBuffer(RefreshMode mode = RefreshMode::FAST_REFRESH, bool turnOffScreen = false);
   void refreshDisplay(RefreshMode mode = RefreshMode::FAST_REFRESH, bool turnOffScreen = false);
 
+  // Start a refresh and return while the panel runs the waveform. The framebuffer is
+  // free to redraw immediately; the panel is not touchable until waitRefreshComplete().
+  // Every call MUST be paired with one waitRefreshComplete() before any other display
+  // operation. Falls back to a synchronous refresh where supportsAsyncRefresh() is false,
+  // so the pairing contract holds on every device.
+  void refreshDisplayAsync(RefreshMode mode = RefreshMode::FAST_REFRESH, bool turnOffScreen = false);
+  void waitRefreshComplete();
+  [[nodiscard]] bool supportsAsyncRefresh() const;
+
   // Power management
   void deepSleep();
 
