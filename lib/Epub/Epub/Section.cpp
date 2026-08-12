@@ -17,9 +17,11 @@
 #include "parsers/ChapterHtmlSlimParser.h"
 
 namespace {
-// v32: RTL/bidi line layout (v31: SVG images + NFC composition); bump
-// invalidates caches laid out without bidi reordering.
-constexpr uint8_t SECTION_FILE_VERSION = 32;
+// v33: the user's paragraph alignment again overrides embedded text-align
+// (v32: RTL/bidi line layout; v31: SVG images + NFC composition); alignment is
+// baked into the laid-out lines, so cached sections keep the old alignment
+// until this invalidates them.
+constexpr uint8_t SECTION_FILE_VERSION = 33;
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) +
                                  sizeof(bool) + sizeof(bool) + sizeof(uint8_t) + sizeof(bool) + sizeof(bool) +

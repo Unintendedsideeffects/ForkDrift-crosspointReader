@@ -1247,13 +1247,22 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 
   const float emSize = static_cast<float>(self->renderer.getFontAscenderSize(self->fontId));
 
-  CssTextAlign resolvedAlign = static_cast<CssTextAlign>(self->paragraphAlignment);
-  if (self->embeddedStyle && cssStyle.hasTextAlign()) {
-    resolvedAlign = cssStyle.textAlign;
+  // Pass the user's *request* through untouched: fromCssStyle already resolves
+  // the precedence (BlockStyle.h:123) -- an explicit setting wins over embedded
+  // text-align, and CssTextAlign::None means "Book's Style", deferring to CSS.
+  // Pre-resolving to the CSS value here handed the helper that value as if the
+  // user had chosen it, so embedded styles silently beat the user's setting.
+  const CssTextAlign requestedAlign = static_cast<CssTextAlign>(self->paragraphAlignment);
+  auto userAlignmentBlockStyle = BlockStyle::fromCssStyle(cssStyle, emSize, requestedAlign, self->viewportWidth);
+
+  // Only override the helper where this caller genuinely knows better: embedded
+  // styles turned off entirely, or an explicit user preference that must be
+  // marked defined so an ancestor block cannot inherit over it. With embedded
+  // styles on and no preference, leave the resolved CSS alignment alone.
+  if (!self->embeddedStyle || requestedAlign != CssTextAlign::None) {
+    userAlignmentBlockStyle.textAlignDefined = true;
+    userAlignmentBlockStyle.alignment = requestedAlign == CssTextAlign::None ? CssTextAlign::Justify : requestedAlign;
   }
-  auto userAlignmentBlockStyle = BlockStyle::fromCssStyle(cssStyle, emSize, resolvedAlign, self->viewportWidth);
-  userAlignmentBlockStyle.textAlignDefined = true;
-  userAlignmentBlockStyle.alignment = resolvedAlign;
 
   if (!self->embeddedStyle) {
     userAlignmentBlockStyle.marginLeft = 0;
