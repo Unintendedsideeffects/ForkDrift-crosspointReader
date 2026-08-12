@@ -154,8 +154,11 @@ class EpubReaderActivity final : public Activity {
   void setBookCompleted(bool isCompleted);
 #endif
 
-  void renderContents(std::unique_ptr<Page> page, int orientedMarginTop, int orientedMarginRight,
-                      int orientedMarginBottom, int orientedMarginLeft);
+  // Returns true when it left the panel refreshing (only possible if mayDeferRefresh and
+  // the page took the plain-text path). The caller then owns finishDisplayBuffer(), and
+  // must not touch the framebuffer until it has called it.
+  [[nodiscard]] bool renderContents(std::unique_ptr<Page> page, int orientedMarginTop, int orientedMarginRight,
+                                    int orientedMarginBottom, int orientedMarginLeft, bool mayDeferRefresh);
   void renderStatusBar() const;
   void silentIndexNextChapterIfNeeded(uint16_t viewportWidth, uint16_t viewportHeight);
   bool saveProgress(int spineIndex, int currentPage, int pageCount);
@@ -201,6 +204,9 @@ class EpubReaderActivity final : public Activity {
   uint16_t cachedViewportWidth = 0;
   uint16_t cachedViewportHeight = 0;
   void performDeferredSilentIndexing();
+  // True while a button is held or an edge is queued. Used to back off from starting a
+  // multi-second chapter build when the reader is actively turning pages.
+  [[nodiscard]] bool inputIsPending() const;
 
   bool pendingCoverThumbBake_ = false;
   unsigned long lastReaderInputMs_ = 0;

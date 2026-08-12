@@ -521,19 +521,9 @@ void EpubReaderActivity::loop() {
   queueCoverThumbBakeIfIdle();
 
   if (pendingSilentIndexing) {
-    bool isAnyButtonPressed = false;
-    for (int i = 0; i < static_cast<int>(MappedInputManager::Button::PageForward) + 1; ++i) {
-      if (mappedInput.isPressed(static_cast<MappedInputManager::Button>(i))) {
-        isAnyButtonPressed = true;
-        break;
-      }
-    }
-
     const bool isRenderQueued = activityManager.isUpdateRequested() || RenderLock::peek();
 
-    const bool isInputPending = mappedInput.wasAnyPressed() || mappedInput.wasAnyReleased() || isAnyButtonPressed;
-
-    if (!isRenderQueued && !isInputPending) {
+    if (!isRenderQueued && !inputIsPending()) {
       pendingSilentIndexing = false;
       performDeferredSilentIndexing();
       return;
@@ -1890,6 +1880,10 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     return;
   }
 
+  // Set when the page render leaves the panel refreshing; this function then owns the
+  // matching finishDisplayBuffer() and must not draw before calling it.
+  bool refreshInFlight = false;
+
   if (section->currentPage < 0 || section->currentPage >= section->pageCount) {
     LOG_DBG("ERS", "Page out of bounds: %d (max %d)", section->currentPage, section->pageCount);
     renderer.drawCenteredText(UI_12_FONT_ID, 300, tr(STR_OUT_OF_BOUNDS), true, EpdFontFamily::BOLD);
@@ -1938,11 +1932,28 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     currentPageFootnotes = std::move(p->footnotes);
 
     const auto start = millis();
-    renderContents(std::move(p), orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
+    refreshInFlight = renderContents(std::move(p), orientedMarginTop, orientedMarginRight, orientedMarginBottom,
+                                     orientedMarginLeft, !previewRenderOnly);
     LOG_DBG("ERS", "Rendered page in %dms", millis() - start);
   }
   if (!previewRenderOnly) {
     silentIndexNextChapterIfNeeded(viewportWidth, viewportHeight);
+  }
+
+  // The payoff for the async refresh: build the next chapter's cache while the panel is
+  // still drawing this page, instead of after it. Layout only reads font metrics and the
+  // SD card, never the framebuffer, which is what the async window requires.
+  //
+  // Same input guard as the deferred path in loop(): a chapter build takes seconds, so
+  // don't start one under someone turning pages. If it doesn't run here, the flag stays
+  // set and loop() picks it up once idle, exactly as before.
+  if (refreshInFlight && pendingSilentIndexing && !inputIsPending()) {
+    pendingSilentIndexing = false;
+    performDeferredSilentIndexing();
+  }
+  if (refreshInFlight) {
+    renderer.finishDisplayBuffer();
+    refreshInFlight = false;
   }
 
   if (!previewRenderOnly) {
@@ -1986,6 +1997,15 @@ void EpubReaderActivity::silentIndexNextChapterIfNeeded(const uint16_t viewportW
   pendingSilentIndexing = true;
   cachedViewportWidth = viewportWidth;
   cachedViewportHeight = viewportHeight;
+}
+
+bool EpubReaderActivity::inputIsPending() const {
+  for (int i = 0; i <= static_cast<int>(MappedInputManager::Button::PageForward); ++i) {
+    if (mappedInput.isPressed(static_cast<MappedInputManager::Button>(i))) {
+      return true;
+    }
+  }
+  return mappedInput.wasAnyPressed() || mappedInput.wasAnyReleased();
 }
 
 void EpubReaderActivity::performDeferredSilentIndexing() {
@@ -2033,9 +2053,10 @@ bool EpubReaderActivity::saveProgress(int spineIndex, int currentPage, int pageC
   return EpubReaderUtils::saveProgress(*epub, spineIndex, currentPage, pageCount);
 }
 
-void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int orientedMarginTop,
+bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int orientedMarginTop,
                                         const int orientedMarginRight, const int orientedMarginBottom,
-                                        const int orientedMarginLeft) {
+                                        const int orientedMarginLeft, const bool mayDeferRefresh) {
+  bool refreshLeftInFlight = false;
   const auto t0 = millis();
   const int fontId = SETTINGS.getReaderFontId();
 
@@ -2116,7 +2137,15 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
       pagesUntilFullRefresh = 1;
     }
   } else if (!previewRenderOnly) {
-    ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
+    // Only the plain-text path may defer: the image branch above and the grayscale
+    // pass below both keep drawing after the display call, and the async window
+    // forbids touching the framebuffer until finishDisplayBuffer().
+    if (mayDeferRefresh && !needsAnyGrayscale) {
+      ReaderUtils::displayWithRefreshCycleAsync(renderer, pagesUntilFullRefresh);
+      refreshLeftInFlight = true;
+    } else {
+      ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
+    }
   }
   const auto tDisplay = millis();
 
@@ -2202,7 +2231,8 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
         LOG_WRN("ERS", "Skipping grayscale render: BW buffer allocation failed");
         LOG_DBG("ERS", "Page render: prewarm=%lums bw_render=%lums display=%lums bw_store=%lums total=%lums",
                 tPrewarm - t0, tBwRender - tPrewarm, tDisplay - tBwRender, tBwStore - tDisplay, tEnd - t0);
-        return;
+        // Grayscale path never defers, so this is always false.
+        return refreshLeftInFlight;
       }
 
       renderer.clearScreen(0x00);
@@ -2251,6 +2281,7 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
     LOG_DBG("ERS", "Page render: prewarm=%lums bw_render=%lums display=%lums total=%lums", tPrewarm - t0,
             tBwRender - tPrewarm, tDisplay - tBwRender, tEnd - t0);
   }
+  return refreshLeftInFlight;
 }
 
 void EpubReaderActivity::renderStatusBar() const {

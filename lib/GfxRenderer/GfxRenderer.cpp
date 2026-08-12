@@ -1585,6 +1585,11 @@ void GfxRenderer::invertScreen() const {
 }
 
 void GfxRenderer::displayBuffer(const HalDisplay::RefreshMode refreshMode) const {
+  displayBufferAsync(refreshMode);
+  finishDisplayBuffer();
+}
+
+void GfxRenderer::displayBufferAsync(const HalDisplay::RefreshMode refreshMode) const {
   auto elapsed = millis() - start_ms;
   LOG_DBG("GFX", "Time = %lu ms from clearScreen to displayBuffer", elapsed);
   if (postRenderHook != nullptr) {
@@ -1593,7 +1598,14 @@ void GfxRenderer::displayBuffer(const HalDisplay::RefreshMode refreshMode) const
   if (darkMode) {
     invertScreen();
   }
-  display.displayBuffer(refreshMode, fadingFix);
+  display.displayBufferAsync(refreshMode, fadingFix);
+  // The dark-mode un-invert deliberately does NOT happen here: it mutates the
+  // framebuffer, and the differential baseline is re-synced from that buffer inside
+  // finishDisplayBuffer(). Un-inverting early would seed it with an inverted frame.
+}
+
+void GfxRenderer::finishDisplayBuffer() const {
+  display.finishDisplayBuffer();
   if (darkMode) {
     invertScreen();
   }

@@ -39,6 +39,12 @@ class HalDisplay {
                             bool fromProgmem = false) const;
 
   void displayBuffer(RefreshMode mode = RefreshMode::FAST_REFRESH, bool turnOffScreen = false);
+
+  // Async displayBuffer. MUST be paired with finishDisplayBuffer(), and the framebuffer
+  // MUST NOT be touched in between -- the differential-refresh baseline is re-synced from
+  // it at finish time. Overlap only heap/SD work (next-chapter layout).
+  void displayBufferAsync(RefreshMode mode = RefreshMode::FAST_REFRESH, bool turnOffScreen = false);
+  void finishDisplayBuffer();
   void refreshDisplay(RefreshMode mode = RefreshMode::FAST_REFRESH, bool turnOffScreen = false);
 
   // Start a refresh and return while the panel runs the waveform. The framebuffer is

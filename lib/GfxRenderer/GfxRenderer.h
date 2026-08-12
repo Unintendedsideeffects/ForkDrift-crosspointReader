@@ -143,6 +143,13 @@ class GfxRenderer {
   int getScreenWidth() const;
   int getScreenHeight() const;
   void displayBuffer(HalDisplay::RefreshMode refreshMode = HalDisplay::FAST_REFRESH) const;
+
+  // Start the panel refresh and return, so the caller can do heap/SD work while the
+  // waveform runs. MUST be paired with finishDisplayBuffer() before anything touches the
+  // framebuffer or the panel again -- the differential-refresh baseline and the dark-mode
+  // un-invert both happen at finish time. Overlap layout, never drawing.
+  void displayBufferAsync(HalDisplay::RefreshMode refreshMode = HalDisplay::FAST_REFRESH) const;
+  void finishDisplayBuffer() const;
   // EXPERIMENTAL: Windowed update - display only a rectangular region
   // void displayWindow(int x, int y, int width, int height) const;
   void invertScreen() const;

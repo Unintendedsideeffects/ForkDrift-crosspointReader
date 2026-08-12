@@ -89,6 +89,20 @@ inline void displayWithRefreshCycle(const GfxRenderer& renderer, int& pagesUntil
   }
 }
 
+// As displayWithRefreshCycle(), but leaves the panel refreshing and returns. The caller
+// MUST call renderer.finishDisplayBuffer() before touching the framebuffer or the panel
+// again. Only valid for plain-text pages: the image and grayscale passes both keep
+// drawing after the display call, which the async window forbids.
+inline void displayWithRefreshCycleAsync(const GfxRenderer& renderer, int& pagesUntilFullRefresh) {
+  if (pagesUntilFullRefresh <= 1) {
+    renderer.displayBufferAsync(HalDisplay::HALF_REFRESH);
+    pagesUntilFullRefresh = SETTINGS.getRefreshFrequency();
+  } else {
+    renderer.displayBufferAsync();
+    pagesUntilFullRefresh--;
+  }
+}
+
 // Grayscale anti-aliasing pass. Renders content twice (LSB + MSB) to build
 // the grayscale buffer. Only the content callback is re-rendered — status bars
 // and other overlays should be drawn before calling this.
