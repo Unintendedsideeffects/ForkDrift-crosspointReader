@@ -9,12 +9,29 @@
 
 #include <algorithm>
 #include <cstring>
+#include <mutex>
 
 #include "FeatureFlags.h"
 #include "I18nKeys.h"
 #include "fontIds.h"
 
 CrossPointSettings CrossPointSettings::instance;
+
+namespace {
+// Serialises whole-struct reads and writes of settings.json. The web server,
+// background WiFi, Terminus fetch and OTA worker tasks all reach saveToFile(),
+// so without this two concurrent saves interleave inside JsonSettingsIO and
+// leave a truncated or spliced file behind.
+//
+// Deliberately a file-static, not a member: resetToDefaults() destroys and
+// placement-news the singleton, which would destroy a member mutex out from
+// under any task blocked on it.
+//
+// Scope: this protects the *file*, not the fields. Individual settings reads
+// and writes stay unlocked -- they are single POD members, and locking every
+// access would mean auditing several hundred call sites for re-entrancy.
+std::mutex settingsIoMutex;
+}  // namespace
 
 // Compile-time first-available font family — used as the fallback when a
 // stored font family value is disabled in the current build.
@@ -257,6 +274,11 @@ bool CrossPointSettings::resetToDefaults() {
 }
 
 bool CrossPointSettings::saveToFileRaw() const {
+  // The one place settings.json is written, so the one place worth locking.
+  // Note saveToFile() must NOT lock: with per-book settings active it routes
+  // through BookSettingsScope, which calls back in here and would self-deadlock
+  // on this non-recursive mutex.
+  const std::lock_guard<std::mutex> lock(settingsIoMutex);
   Storage.mkdir("/.crosspoint");
   setDeveloperModeLoggingEnabled(developerMode != 0);
   return JsonSettingsIO::saveSettings(*this, SETTINGS_FILE_JSON);
@@ -280,7 +302,13 @@ bool CrossPointSettings::loadFromFile() {
     HalFile file;
     if (Storage.openFileForRead("CPS", SETTINGS_FILE_JSON, file)) {
       bool resave = false;
-      const bool result = JsonSettingsIO::loadSettings(*this, file, &resave);
+      bool result;
+      {
+        // Scoped: the resave path below re-enters saveToFile() -> saveToFileRaw(),
+        // which takes this same non-recursive mutex.
+        const std::lock_guard<std::mutex> lock(settingsIoMutex);
+        result = JsonSettingsIO::loadSettings(*this, file, &resave);
+      }
       file.close();
       if (result) {
         validateAndClamp();
