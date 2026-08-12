@@ -48,6 +48,17 @@ static constexpr uint32_t TRMNL_FETCH_WAIT_CAP_MS = 120000;
 // the main task; aligned 32-bit loads/stores are atomic on ESP32-C3.
 static volatile uint32_t trmnlRefreshIntervalS = terminus_refresh::kDefaultIntervalS;
 static volatile uint32_t trmnlLastAttemptEpoch = 0;
+// Monotonic mirror of the above, recorded unconditionally. trmnlLastAttemptEpoch can only
+// be written when the wall clock is usable, so without NTP it stays 0 and an epoch-based
+// "due" test answers true on every background-server start, forever.
+static volatile uint32_t trmnlLastAttemptMs = 0;
+static volatile bool trmnlHaveAttempted = false;
+// Where the last attempt got to. Assigned static string literals only, so the volatile
+// pointer swap is atomic and there is nothing to free. Reported by /api/terminus/status,
+// which is the only way a client can learn the outcome: the fetch runs while the web
+// server is deliberately stopped, so a client polling this endpoint during a fetch gets a
+// connection failure, never fetch_running == true.
+static const char* volatile fetchStage = "idle";
 
 extern "C" esp_err_t arduino_esp_crt_bundle_attach(void* conf);
 
@@ -196,6 +207,7 @@ static const char* downloadVerifiedImage(const std::string& url) {
   sink.file.close();
   if (err != ESP_OK || code != 200 || sink.writeFailed || sink.bytes == 0) {
     Storage.remove(path);
+    fetchStage = "image-failed";
     LOG_ERR("TRMNL", "Image download failed: HTTP %d err=%d written=%zu failed=%d", code, err, sink.bytes,
             sink.writeFailed ? 1 : 0);
     return nullptr;
@@ -204,6 +216,7 @@ static const char* downloadVerifiedImage(const std::string& url) {
   const char* destPath = destPathForMagic(sink.magic, sink.magicLen);
   if (!destPath) {
     Storage.remove(path);
+    fetchStage = "bad-image-type";
     LOG_ERR("TRMNL", "Image content not BMP/PNG/JPEG (magic %02x %02x %02x %02x)", sink.magic[0], sink.magic[1],
             sink.magic[2], sink.magic[3]);
     return nullptr;
@@ -281,8 +294,10 @@ static bool fetchAndPinTrmnlImage() {
 
     if (err == ESP_OK && code == 200 && !sink.overflowed()) {
       manifest = std::move(sink.body());
+      fetchStage = "manifest";
       LOG_INF("TRMNL", "Display manifest received (%zu bytes)", manifest.size());
     } else {
+      fetchStage = "poll-failed";
       LOG_ERR("TRMNL", "Display poll failed: HTTP %d err=%d overflow=%d", code, err, sink.overflowed() ? 1 : 0);
     }
   }
@@ -293,6 +308,7 @@ static bool fetchAndPinTrmnlImage() {
 
   terminus_api::DisplayManifest display;
   if (!terminus_api::parseDisplayManifest(manifest, display)) {
+    fetchStage = "bad-manifest";
     LOG_ERR("TRMNL", "Invalid display manifest");
     return false;
   }
@@ -317,6 +333,7 @@ static bool fetchAndPinTrmnlImage() {
     LOG_ERR("TRMNL", "Failed to persist Terminus sleep image settings");
     return false;
   }
+  fetchStage = "ok";
   LOG_INF("TRMNL", "Terminus image pinned as next sleep screen");
   return true;
 }
@@ -333,6 +350,7 @@ static volatile bool fetchTaskRunning = false;
 static volatile bool fetchTaskResult = false;
 static volatile uint32_t fetchTaskRetryAfterMs = 0;
 static volatile bool forcedFetchRequested = false;
+static volatile uint32_t fetchDeferDeadlineMs = 0;
 
 static bool fetchTaskRetryActive() {
   return fetchTaskRetryAfterMs != 0 && static_cast<int32_t>(millis() - fetchTaskRetryAfterMs) < 0;
@@ -340,9 +358,17 @@ static bool fetchTaskRetryActive() {
 
 static void recordFetchAttempt(const bool result) {
   fetchTaskResult = result;
+  trmnlLastAttemptMs = millis();
+  trmnlHaveAttempted = true;
   const auto nowEpoch = static_cast<uint32_t>(time(nullptr));
   if (wallclock::clockUsable(nowEpoch)) {
     trmnlLastAttemptEpoch = nowEpoch;
+  }
+  if (!result) {
+    // Hard backoff, independent of the wall clock. Without this the only pacing after a
+    // failure was refreshDue()'s failure interval, which needs a usable clock -- so an
+    // unsynced device retried as fast as the server could be restarted.
+    fetchTaskRetryAfterMs = millis() + terminus_refresh::kFailureRetryIntervalS * 1000UL;
   }
 }
 
@@ -364,10 +390,10 @@ static bool startFetchTask() {
   }
   fetchTaskRunning = true;
   fetchTaskResult = false;
+  fetchStage = "starting";
   if (xTaskCreate(&terminusFetchTask, "TerminusFetch", TRMNL_FETCH_TASK_STACK, nullptr, 1, nullptr) != pdPASS) {
     fetchTaskRunning = false;
-    recordFetchAttempt(false);
-    fetchTaskRetryAfterMs = millis() + terminus_refresh::kFailureRetryIntervalS * 1000UL;
+    recordFetchAttempt(false);  // also arms the failure backoff
     LOG_ERR("TRMNL", "Failed to create fetch task");
     return false;
   }
@@ -392,7 +418,9 @@ static bool hasPinnedTerminusImage() {
 static bool terminusFetchDue(const bool allowUnsetClock) {
   const auto nowEpoch = static_cast<uint32_t>(time(nullptr));
   if (!wallclock::clockUsable(nowEpoch)) {
-    return allowUnsetClock && trmnlLastAttemptEpoch == 0;
+    // Pace off millis() rather than answering "due" forever because no timestamp exists.
+    return allowUnsetClock && terminus_refresh::refreshDueMonotonic(millis(), trmnlLastAttemptMs, trmnlHaveAttempted,
+                                                                    fetchTaskResult, trmnlRefreshIntervalS);
   }
   return terminus_refresh::refreshDue(nowEpoch, trmnlLastAttemptEpoch, fetchTaskResult, trmnlRefreshIntervalS);
 }
@@ -417,8 +445,26 @@ static void onBackgroundNetworkReady() {
   LOG_INF("TRMNL", "Network ready; fetching before background server startup");
   if (startFetchTask()) {
     forcedFetchRequested = false;
-    waitForFetchTask(TRMNL_FETCH_WAIT_CAP_MS);
+    fetchDeferDeadlineMs = millis() + TRMNL_FETCH_WAIT_CAP_MS;
   }
+}
+
+// Reported to whichever dispatcher started us. This function must never block: on the
+// on-charge path onBackgroundNetworkReady is reached from BackgroundWebServer::startServer()
+// via the main loop, so blocking here froze input and rendering for as long as the fetch
+// took -- up to TRMNL_FETCH_WAIT_CAP_MS. The dispatcher decides how to wait instead.
+static bool backgroundStartupDeferred() {
+  if (!fetchTaskRunning) {
+    return false;
+  }
+  if (static_cast<int32_t>(millis() - fetchDeferDeadlineMs) >= 0) {
+    // Past the cap: let the server come up regardless. The fetch task is still alive and
+    // will finish or fail on its own; holding the server down indefinitely is worse.
+    LOG_ERR("TRMNL", "Fetch still running past %u ms cap; starting server anyway",
+            static_cast<unsigned>(TRMNL_FETCH_WAIT_CAP_MS));
+    return false;
+  }
+  return true;
 }
 
 static void onBackgroundServerTick() {
@@ -460,6 +506,15 @@ static void mountTerminusRoutes(WebServer* server) {
     doc["fetch_running"] = static_cast<bool>(fetchTaskRunning);
     doc["last_fetch_ok"] = static_cast<bool>(fetchTaskResult);
     doc["last_attempt_epoch"] = static_cast<uint32_t>(trmnlLastAttemptEpoch);
+    // Outcome reporting, because progress reporting is impossible: the fetch runs while
+    // the web server is deliberately stopped, so a client polling this endpoint during a
+    // fetch gets a connection failure, never fetch_running == true. These two fields are
+    // what it can actually use once the server is back, and last_attempt_age_s works even
+    // with no wall clock (where last_attempt_epoch stays 0).
+    doc["last_stage"] = fetchStage ? fetchStage : "idle";
+    doc["last_attempt_age_s"] =
+        trmnlHaveAttempted ? static_cast<uint32_t>((millis() - trmnlLastAttemptMs) / 1000UL) : 0;
+    doc["have_attempted"] = static_cast<bool>(trmnlHaveAttempted);
     doc["server_refresh_seconds"] = static_cast<uint32_t>(trmnlRefreshIntervalS);
     std::string out;
     serializeJson(doc, out);
@@ -588,6 +643,7 @@ void registerFeature() {
   core::LifecycleEntry entry{};
   entry.onStorageReady = onStorageReady;
   entry.onBackgroundNetworkReady = onBackgroundNetworkReady;
+  entry.backgroundStartupDeferred = backgroundStartupDeferred;
   entry.onBackgroundServerTick = onBackgroundServerTick;
   core::LifecycleRegistry::add(entry);
 

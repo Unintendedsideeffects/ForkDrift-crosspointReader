@@ -54,6 +54,14 @@ class FeatureLifecycle {
   static void onBackgroundNetworkReady();
 
   /**
+   * True while some feature still needs the background web server to stay down —
+   * e.g. an async download started in onBackgroundNetworkReady that needs the
+   * contiguous heap the server's routes would consume. Callers decide how to wait:
+   * a dedicated task may block, the main loop must defer and retry.
+   */
+  static bool backgroundStartupDeferred();
+
+  /**
    * Called each time the background web server first transitions to the RUNNING
    * state (WiFi connected, server up). Features may use this for work that
    * specifically depends on registered web routes being available.

@@ -35,6 +35,7 @@ class BackgroundWebServer {
   void startConnect(const std::string& ssid, const std::string& password);
   void startServer();
   void scheduleRetry(const char* reason);
+  bool deferStartupForBackgroundWork();
   void stopAll(bool keepWifi = false);
   unsigned long computeBackoffMs() const;
   bool hasSessionExpired() const;
@@ -45,6 +46,7 @@ class BackgroundWebServer {
   unsigned long nextRetryMs = 0;
   unsigned int retryAttempts = 0;
   unsigned long sessionStartMs = 0;
+  unsigned long lastStartupDeferLogMs = 0;
   bool sessionBlocked = false;
   bool mdnsStarted = false;
   bool allowRunCached = false;

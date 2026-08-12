@@ -115,12 +115,26 @@ void BackgroundWebServer::startConnect(const std::string& ssid, const std::strin
   LOG_INF("BWS", "Connecting to %s", targetSsid.c_str());
 }
 
+// Called from the MAIN LOOP (loop() -> BackgroundWebServer::loop() -> startServer()), so it
+// must never wait for anything: input and rendering are stalled for as long as we sit here.
+// Work that cannot proceed yet is deferred to the next tick instead.
 void BackgroundWebServer::startServer() {
+  // BEFORE the heap check, deliberately. A network handler's in-flight work (Terminus's
+  // 12 KB download task) is itself holding the heap this check measures, so testing heap
+  // first would see "low heap" and call scheduleRetry() -- which disconnects WiFi out from
+  // under that very download and then backs off 30-60s.
+  if (deferStartupForBackgroundWork()) {
+    return;
+  }
   if (ESP.getFreeHeap() < MIN_FREE_HEAP_TO_START) {
     scheduleRetry("low heap");
     return;
   }
   core::FeatureLifecycle::onBackgroundNetworkReady();
+  // The hook may have just started async work; give it the pre-server window it asked for.
+  if (deferStartupForBackgroundWork()) {
+    return;
+  }
   if (!server) {
     server.reset(new (std::nothrow) CrossPointWebServer());
     if (!server) {
@@ -156,6 +170,20 @@ unsigned long BackgroundWebServer::computeBackoffMs() const {
   const unsigned long factor = 1UL << (retryAttempts > 10 ? 10 : retryAttempts);
   const unsigned long backoff = RETRY_BASE_MS * factor;
   return backoff > RETRY_MAX_MS ? RETRY_MAX_MS : backoff;
+}
+
+// Plain return, NOT scheduleRetry(): that tears down WiFi and applies exponential backoff,
+// which would kill the download we are waiting for. Leaving the state untouched means the
+// next loop() tick calls startServer() again, which is cheap.
+bool BackgroundWebServer::deferStartupForBackgroundWork() {
+  if (!core::FeatureLifecycle::backgroundStartupDeferred()) {
+    return false;
+  }
+  if (millis() - lastStartupDeferLogMs >= 5000) {
+    lastStartupDeferLogMs = millis();
+    LOG_INF("BWS", "Server start deferred: background network work in flight");
+  }
+  return true;
 }
 
 void BackgroundWebServer::scheduleRetry(const char* reason) {

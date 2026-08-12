@@ -19,6 +19,15 @@ struct LifecycleEntry {
   // web server is allocated. Handlers may perform short, bounded network work
   // that needs more contiguous heap than remains once the server is running.
   void (*onBackgroundNetworkReady)();
+  // Asked right after onBackgroundNetworkReady, and again on later attempts: does this
+  // handler still need the server to stay down? Handlers that start asynchronous work in
+  // onBackgroundNetworkReady report true until it finishes.
+  //
+  // This exists so the *dispatcher* chooses the waiting policy rather than the handler.
+  // BackgroundWifiService runs on its own task and can afford to block; BackgroundWebServer
+  // is driven from the main loop, where blocking freezes input and rendering. A handler
+  // cannot tell which one is calling it, so it must not block either.
+  bool (*backgroundStartupDeferred)();
   // Fired once each time a background web server transitions to RUNNING state —
   // either the on-charge/USB server or the WiFi one (BG_WIFI). It used to be
   // dispatched for the on-charge server ONLY, which meant a feature hooking it
@@ -109,6 +118,15 @@ class LifecycleRegistry {
         entries[i].onBackgroundNetworkReady();
       }
     }
+  }
+
+  static bool anyBackgroundStartupDeferred() {
+    for (int i = 0; i < count; ++i) {
+      if (entries[i].backgroundStartupDeferred != nullptr && entries[i].backgroundStartupDeferred()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static void dispatchBackgroundServerTick() {

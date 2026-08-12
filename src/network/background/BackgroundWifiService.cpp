@@ -174,6 +174,12 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
     // route allocation fragments the remaining heap enough that Terminus cannot
     // subsequently allocate its proven-safe 12 KB download task stack.
     core::FeatureLifecycle::onBackgroundNetworkReady();
+    // Unlike BackgroundWebServer (main loop), this runs on our own task, so blocking here
+    // costs nothing but a delayed server start. Wait for any async work the hook started
+    // so it gets the contiguous heap before the route-heavy server allocates.
+    while (core::FeatureLifecycle::backgroundStartupDeferred()) {
+      delay(50);
+    }
 
     // ── Start web server ──────────────────────────────────────────────────
     server = new (std::nothrow) CrossPointWebServer();

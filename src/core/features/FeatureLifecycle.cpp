@@ -12,6 +12,8 @@ void FeatureLifecycle::onFontSetup(GfxRenderer& renderer) { LifecycleRegistry::d
 
 void FeatureLifecycle::onBackgroundNetworkReady() { LifecycleRegistry::dispatchBackgroundNetworkReady(); }
 
+bool FeatureLifecycle::backgroundStartupDeferred() { return LifecycleRegistry::anyBackgroundStartupDeferred(); }
+
 void FeatureLifecycle::onBackgroundServerStarted() { LifecycleRegistry::dispatchBackgroundServerStarted(); }
 
 void FeatureLifecycle::onBackgroundServerTick() { LifecycleRegistry::dispatchBackgroundServerTick(); }
