@@ -660,3 +660,56 @@ bypass.
   CSS-heavy technical EPUB the reader has essentially no headroom.
 - **Why not fixed here**: scope was the footnote-vector abort.
 - **Status**: open
+
+## 2026-08-12T20:30Z — Terminus awake-refresh path: four defects found by exercising it on hardware
+- **Found by**: claude — ad hoc, driving a live X4 (192.168.86.51) against the BYOS Terminus
+  server at 192.168.86.25:2300 over USB serial + HTTP
+- **Where**: `src/features/terminus_sleep/Registration.cpp`,
+  `src/network/background/BackgroundWebServer.cpp:123`,
+  `src/network/background/BackgroundWifiService.cpp:176`
+- **The path**: while awake with a background server up, `onBackgroundServerTick` sees a due
+  refresh and **stops the running web server** (keeping STA) so the 12 KB fetch task has
+  contiguous heap; the next `onBackgroundNetworkReady` performs the fetch, then the server
+  restarts. Verified working end to end: manifest → image → pin, ~900 ms total.
+
+**1. `waitForFetchTask` blocks the main loop for up to 120 s, but only in one of the two
+   background-server modes.** `TRMNL_FETCH_WAIT_CAP_MS = 120000` (`:45`) and `waitForFetchTask`
+   spins `delay(50)` (`:400-410`). `onBackgroundNetworkReady` has **two** dispatch sites:
+   `BackgroundWifiService.cpp:176` runs on the BGWIFI task (harmless), but
+   `BackgroundWebServer::startServer()` is reached from `backgroundServer.loop()` in the
+   **main loop** (`main.cpp`). So with Background Server = "Only on Charge", a slow or hung
+   Terminus server freezes input and rendering for up to two minutes. Measured on the
+   on-charge path against a healthy sub-second LAN server: main-loop stall of **1956 ms vs a
+   67 ms baseline** (probed with `CMD:PING`, which is serviced from the main loop). The 120 s
+   figure is the bound from the constant, not an observed value — but nothing caps it lower,
+   and a hung TCP connect is exactly what that cap is for.
+
+**2. `fetch_running` is unobservable and the three 409 "fetch in progress" guards are
+   effectively dead.** The fetch only ever runs while the web server is stopped — that is the
+   entire point of the recycle. So an HTTP client polling `/api/terminus/status` during a fetch
+   gets a **connection failure**, never `fetch_running: true`; confirmed by polling every 5 s
+   across a full forced fetch (never once observed true). The 409 branches at `:470`, `:541`
+   and `:554` can therefore only fire after `waitForFetchTask` has *timed out*, i.e. only in the
+   pathological case. Consequence: `/api/terminus/test` returns 202 and then the device drops
+   off the network, so the web UI can never show progress or a result.
+
+**3. A failed fetch sets no backoff.** `fetchTaskRetryAfterMs` is assigned only when
+   `xTaskCreate` fails (`:370`). When the fetch itself fails, `terminusFetchTask` calls
+   `recordFetchAttempt(false)` and sets nothing, so retry pacing falls entirely to
+   `refreshDue()`'s `kFailureRetryIntervalS` — which requires a usable wall clock.
+
+**4. With an unusable clock, a failing fetch re-arms on every server start.**
+   `recordFetchAttempt` updates `trmnlLastAttemptEpoch` only when `wallclock::clockUsable()`
+   (`:344`). With no NTP, a failed attempt leaves it at 0, and `terminusFetchDue(true)` returns
+   `allowUnsetClock && trmnlLastAttemptEpoch == 0` → true forever. `onBackgroundNetworkReady`
+   passes `allowUnsetClock=true`, so every server start refetches. What stops this becoming a
+   hot loop is only that the *tick* passes `false` and so never recycles — the two call sites
+   disagreeing is load-bearing, undocumented, and one edit away from a request storm.
+
+**Also worth noting (by design, but user-visible)**: every due refresh tears down and rebuilds
+   the web server, WebSocket and mDNS. Any open browser session or WebSocket drops. At the
+   observed 300-900 s server interval that is dozens of drops per day.
+
+- **Why not fixed here**: the ask was to exercise the path and report. Fixes involve real design
+  choices (where the blocking wait belongs, whether status should survive the recycle).
+- **Status**: open
