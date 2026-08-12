@@ -783,7 +783,18 @@ visible with developer-mode logging on. Not fixed.
 - **Regression ladder**: this is at least the third occurrence of "a build that is not on the
   routine path silently rots". Rung 3 is a gate — a CI leg or pre-push step that builds
   `-e simulator`, in addition to the existing test and docs.
-- **Why not fixed here**: scope was the heap seeding; adding two mock declarations is small,
-  but confirming the simulator then actually runs (SDL2, screen harness, SD root) is not, and
-  should be verified rather than assumed.
-- **Status**: open
+- **Fixed in `1dc47c824`** via `patch_simulator_hal.py` (esp_mac.h + HalDisplay.h async seam).
+  `pio run -e simulator` succeeds and the program runs with the seeded budgets live
+  (`MaxAlloc: 20000`, free tracking the 180000 total).
+- **The gate is still not a gate**, for two reasons found immediately after:
+  1. **Stale SD fixtures.** The simulator's seeded books fail to open:
+     `[BMC] Cache version mismatch: expected 9, got 6`. It idles at Home and never enters the
+     reader, so it exercises none of the allocation sites that matter (section build, CSS,
+     image decode). Regenerate the fixtures, or the heap model measures an empty room.
+  2. **Two different notions of "total heap".** The MEM line reports
+     `Total: 1048576` (an Arduino-mock constant) while free is computed against sim_heap's
+     180000 budget. Cosmetic today, actively misleading the moment someone reads that line
+     as the budget.
+- **Ladder**: third occurrence of "a build off the routine path silently rots" — rung 3 is a
+  gate. The natural one is a CI leg building `-e simulator`.
+- **Status**: open (build fixed; coverage and the total-heap inconsistency are not)
