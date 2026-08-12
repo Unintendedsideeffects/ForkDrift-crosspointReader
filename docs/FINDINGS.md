@@ -712,4 +712,32 @@ bypass.
 
 - **Why not fixed here**: the ask was to exercise the path and report. Fixes involve real design
   choices (where the blocking wait belongs, whether status should survive the recycle).
+- **Status**: all four fixed in `a73e57f58`, verified on device.
+
+## 2026-08-12T21:10Z — The Terminus boot fetch always fails: no heap for the task at that point
+- **Found by**: claude — surfaced by the `last_stage` instrumentation added in `a73e57f58`
+- **Where**: `src/features/terminus_sleep/Registration.cpp` (`startFetchTask`),
+  `src/network/background/BackgroundWebServer.h:74` (`MIN_FREE_HEAP_TO_START = 76000`)
+- **What**: on every boot the first Terminus fetch fails immediately with
+  `[TRMNL] Failed to create fetch task` — `xTaskCreate` cannot get the 12 KB stack, because
+  free heap at that instant is **6800 bytes** (the same log line shows
+  `Library shelf refresh skipped: low heap (6800, need 84000)`). Status then reports
+  `last_stage: "starting"`, `last_fetch_ok: false`.
+- **Why this matters beyond one wasted attempt**: the design's premise is that the pre-server
+  window has *more* contiguous heap than after the route-heavy server allocates. At boot that
+  is false — heap there (6800) is far worse than once the server is up (41652 observed
+  moments later). So the one window the feature deliberately chose is the worst one available
+  on the first pass.
+- **User-visible consequence**: the failed attempt now arms the 60 s backoff added in
+  `a73e57f58` (correctly), and `onBackgroundServerTick` refuses to recycle while
+  `fetchTaskRetryActive()`. So pressing "Test" in the plugin UI within a minute of boot is
+  accepted with 202 and then does nothing for up to 60 s. Reproduced.
+- **Also observed alongside**: with Background Server = "Only on Charge", the server could not
+  start at all for minutes — steady free heap ~43 KB against `MIN_FREE_HEAP_TO_START = 76000`.
+  That threshold may simply be unreachable in current steady state; worth measuring separately.
+  While in that state `CMD:SETTINGS` is also refused (its own 48 KB floor), so the device
+  cannot be reconfigured over serial without a reboot first.
+- **Why not fixed here**: out of scope for the four-defect fix, and the right answer is a
+  design decision — retry the fetch after the server is up, lower the task stack, or preflight
+  `heapguard::canAllocate` and skip the attempt without burning the backoff.
 - **Status**: open
