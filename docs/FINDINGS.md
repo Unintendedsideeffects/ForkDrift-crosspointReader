@@ -578,3 +578,33 @@ bypass.
 - **Blast radius if it bites**: a corrupt `state.json` loses recent-books and sleep-image state, not
   reading progress. Lower severity than the settings case, which is why it was safe to defer.
 - **Status**: open
+
+## 2026-08-12T15:00Z — OPEN: abort() under heap starvation while reading (device-reproduced)
+- **Found by**: claude — first on-device run of this session's work (X4 over USB/IP)
+- **Symptom**: SYSTEM CRASH screen, `abort() was called at PC 0x421d0f89`. Reproduced twice:
+  once during initial indexing, once after ~45 page turns.
+- **Decoded, not guessed**: `riscv32-esp-elf-addr2line` against the matching ELF resolves the PC to
+  `__cxxabiv1::__terminate` (libsupc++ `eh_terminate.cc:44`). With `-fno-exceptions` that means an
+  **uncaught C++ throw** — `bad_alloc`/`length_error` from a container — not an assert or a WDT.
+- **Corroborating log**: `[ERR] [PTX] OOM guard: truncating block (low heap, largest=20468)` fires
+  shortly before. The heap's largest contiguous block is down to ~20KB.
+- **Fixed so far (both real, neither proven to be THIS crash)** — see `7c666fe59`:
+  - unguarded `rulesBySelector_.reserve(ruleCount)` in `CssParser::loadFromCache` (~6KB contiguous at
+    MAX_RULES=1500), made per-section-build by the CSS release change `1b1788ada`;
+  - `performDeferredSilentIndexing()` re-entering the **non-recursive** `renderingMutex` when called
+    from `render()` (introduced by `81dd1f35d`).
+- **Still unknown — the next experiment**: is this a regression from this session or pre-existing
+  starvation on this book? Flash the pre-session baseline (`924a9c195`) and run the identical
+  script: open the book, wait out indexing, then 45 × `CMD:BTN:PAGEFWD` at 4s spacing while
+  streaming serial. If baseline also aborts, this is pre-existing and the CSS/async work is
+  exonerated. If it does not, bisect `3f2ba5419` (rule storage) vs `1b1788ada` (release/reload) vs
+  `81dd1f35d` (async overlap).
+- **Specific suspicion worth testing directly**: `1b1788ada` traded steady CSS residency for
+  repeated alloc/free of a bucket array plus N nodes on **every section build**. On a no-MMU heap
+  that churn can fragment worse than the residency it saved — i.e. the optimization may be net
+  negative. It was never measured on device; the plan called for that measurement and it has not
+  been done.
+- **Harness note**: screenshots and `CMD:PING` both time out while the reader is busy in a long
+  build, so "no response" does NOT imply a crash. Confirm state by resetting and reading the screen.
+  Note a manual esptool reset clears the crash screen, so capture it *before* resetting.
+- **Status**: open
