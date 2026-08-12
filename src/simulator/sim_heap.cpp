@@ -23,8 +23,29 @@ static std::mutex heap_mutex;
 static uint32_t live_bytes = 0;
 static uint32_t max_live_bytes = 0;
 static uint32_t biggest_alloc = 0;
-static uint32_t heap_budget = 330000;
-static uint32_t max_alloc_budget = 330000;
+// Device-measured defaults, not round numbers. Seeded from a serial census of a real X4
+// (2026-08-12, firmware 2b4ce85, Background Server = Always, USB attached):
+//
+//   ESP.getHeapSize()    177,256 - 181,880   -> total budget below
+//   free at Home              43,036 - 54,908
+//   free in the reader        ~40,000
+//   ESP.getMaxAllocHeap()     17,396 - 40,948  -> largest-block budget below
+//   lowest free ever seen          4,236
+//
+// The previous defaults were 330000 for BOTH, which modelled a heap 1.8x too large and a
+// largest contiguous run 8-19x too generous. That is not a conservative error: it made the
+// simulator structurally incapable of reproducing fragmentation failures, which are the
+// dominant real-world class. The abort() root-caused on 2026-08-12 happened with 40 KB
+// free and a largest block of 15,348 -- a state the old simulator could never enter, since
+// it modelled free and largest as the same number.
+//
+// Largest-block is set to the low end of the observed range on purpose: the interesting
+// bugs live where the device is busy, not idle.
+static uint32_t heap_budget = 180000;
+static uint32_t max_alloc_budget = 20000;
+// Set when SIM_HEAP_BUDGET is given without SIM_HEAP_LARGEST: an explicit total with an
+// implicit largest used to silently mean "no fragmentation at all".
+static constexpr uint32_t kDefaultLargestBlockBytes = 20000;
 static bool budget_initialized = false;
 
 static void init_budget() {
@@ -38,7 +59,9 @@ static void init_budget() {
   if (max_env) {
     max_alloc_budget = static_cast<uint32_t>(std::atoi(max_env));
   } else {
-    max_alloc_budget = heap_budget;
+    // NOT heap_budget. Defaulting largest == total models a perfectly unfragmented heap,
+    // which no ESP32-C3 ever has; on device the two differ by 2-10x under load.
+    max_alloc_budget = kDefaultLargestBlockBytes;
   }
 }
 
