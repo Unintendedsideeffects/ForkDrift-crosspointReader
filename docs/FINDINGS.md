@@ -737,7 +737,19 @@ bypass.
   That threshold may simply be unreachable in current steady state; worth measuring separately.
   While in that state `CMD:SETTINGS` is also refused (its own 48 KB floor), so the device
   cannot be reconfigured over serial without a reboot first.
-- **Why not fixed here**: out of scope for the four-defect fix, and the right answer is a
-  design decision — retry the fetch after the server is up, lower the task stack, or preflight
-  `heapguard::canAllocate` and skip the attempt without burning the backoff.
-- **Status**: open
+- **Resolution**: preflight `heapguard::canAllocate` and defer, per the maintainer's call that
+  waiting for full boot is normal device behaviour. The defect was never that the fetch cannot
+  run at boot — it is that a *predictable* shortage was recorded as a failed attempt
+  (`last_fetch_ok = false`, `have_attempted = true` for a server never contacted) and punished
+  with the failure backoff. Now: no attempt recorded, `last_stage = "deferred-low-heap"`, only
+  the retry timer armed (still required, or the tick recycles the server every second on a
+  device that never has the heap). Guard ordering extracted as
+  `terminus_refresh::classifyStart` and host-tested.
+- **Status**: fixed in `5bde680d7`, verified on device (defers at boot, succeeds later).
+
+## Still open from that session
+The `MIN_FREE_HEAP_TO_START = 76000` threshold in `BackgroundWebServer.h:74` may be
+unreachable in current steady state: with Background Server = "Only on Charge" the server
+did not start for minutes against a steady ~43 KB free. While in that state `CMD:SETTINGS`
+is also refused (its own 48 KB floor), so the device cannot be reconfigured over serial
+without a reboot first. Not investigated; belongs with the wider heap-headroom work.
