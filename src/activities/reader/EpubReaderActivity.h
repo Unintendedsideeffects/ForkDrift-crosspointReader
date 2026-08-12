@@ -203,7 +203,11 @@ class EpubReaderActivity final : public Activity {
   bool pendingSilentIndexing = false;
   uint16_t cachedViewportWidth = 0;
   uint16_t cachedViewportHeight = 0;
+  // Acquires the rendering mutex, then runs the build. Call from loop() only.
   void performDeferredSilentIndexing();
+  // The build itself. Caller MUST already hold a RenderLock -- renderingMutex is not
+  // recursive, so taking it twice on one task aborts. render() uses this one.
+  void performDeferredSilentIndexingLocked();
   // True while a button is held or an edge is queued. Used to back off from starting a
   // multi-second chapter build when the reader is actively turning pages.
   [[nodiscard]] bool inputIsPending() const;

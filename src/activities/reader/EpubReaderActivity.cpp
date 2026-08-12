@@ -1949,7 +1949,8 @@ void EpubReaderActivity::render(RenderLock&& lock) {
   // set and loop() picks it up once idle, exactly as before.
   if (refreshInFlight && pendingSilentIndexing && !inputIsPending()) {
     pendingSilentIndexing = false;
-    performDeferredSilentIndexing();
+    // ...Locked: render() already holds the (non-recursive) rendering mutex.
+    performDeferredSilentIndexingLocked();
   }
   if (refreshInFlight) {
     renderer.finishDisplayBuffer();
@@ -2009,6 +2010,17 @@ bool EpubReaderActivity::inputIsPending() const {
 }
 
 void EpubReaderActivity::performDeferredSilentIndexing() {
+  // The loop's peek is only a cheap idle fast-path. Hold the real lock for the
+  // entire cache load/build so render-task reads cannot race the shared book file.
+  //
+  // renderingMutex is NOT recursive (ActivityManager.cpp:38), so the lock lives here,
+  // in the entry point loop() uses, and never inside the body. render() already holds
+  // it and calls performDeferredSilentIndexingLocked() directly.
+  RenderLock lock(*this);
+  performDeferredSilentIndexingLocked();
+}
+
+void EpubReaderActivity::performDeferredSilentIndexingLocked() {
   if (previewRenderOnly) {
     return;
   }
@@ -2025,10 +2037,6 @@ void EpubReaderActivity::performDeferredSilentIndexing() {
   if (nextSpineIndex < 0 || nextSpineIndex >= epub->getSpineItemsCount()) {
     return;
   }
-
-  // The loop's peek is only a cheap idle fast-path. Hold the real lock for the
-  // entire cache load/build so render-task reads cannot race the shared book file.
-  RenderLock lock(*this);
 
   Section nextSection(epub, nextSpineIndex, renderer);
   if (nextSection.loadSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),

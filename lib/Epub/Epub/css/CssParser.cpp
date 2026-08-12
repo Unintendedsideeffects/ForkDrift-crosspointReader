@@ -918,7 +918,20 @@ bool CssParser::loadFromCache(HalFile& file) {
   // The count is known up front, so size the table once instead of letting it
   // rehash its way up. Each rehash allocates a new bucket array beside the old
   // one, which fragments the heap as much as it costs time.
-  rulesBySelector_.reserve(ruleCount);
+  //
+  // Guarded, because this is one CONTIGUOUS allocation of roughly ruleCount
+  // pointers -- ~6KB at MAX_RULES -- and it runs on every section build now that
+  // the rules are released after a warm open. With -fno-exceptions a throwing
+  // reserve() goes straight to std::terminate/abort(), so a fragmented heap would
+  // take the device down. Skipping it only costs incremental rehashing, which is
+  // exactly what the code did before, so the fallback is always safe.
+  const size_t bucketBytes = static_cast<size_t>(ruleCount) * sizeof(void*);
+  if (heapguard::canAllocate(bucketBytes)) {
+    rulesBySelector_.reserve(ruleCount);
+  } else {
+    LOG_WRN("CSS", "Skipping reserve(%u) (~%zu B): low heap (largest=%zu)", ruleCount, bucketBytes,
+            heapguard::largestBlock());
+  }
 
   auto readLength = [&file](CssLength& len) -> bool {
     if (file.read(&len.value, sizeof(len.value)) != sizeof(len.value)) {
