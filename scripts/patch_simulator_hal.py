@@ -222,6 +222,47 @@ def patch_simulator_hal(env):
         marker="ESP_ERR_HTTP_EAGAIN",
     )
 
+    # 5e2) esp_mac.h: the fork reads the station MAC directly, because
+    #      WiFi.macAddress() needs the STA netif to exist and WifiSelectionActivity
+    #      is routinely entered with the radio off. The sim stub only offers
+    #      esp_efuse_mac_get_default(), so add the two symbols the fork uses and
+    #      keep the same fake MAC so screenshots stay stable.
+    _replace_once(
+        os.path.join(src, "esp_mac.h"),
+        "// Simulator stub: return a fixed fake MAC address",
+        "typedef enum { ESP_MAC_WIFI_STA = 0, ESP_MAC_WIFI_SOFTAP = 1, ESP_MAC_BT = 2, ESP_MAC_ETH = 3 } esp_mac_type_t;\n"
+        "\n"
+        "// Simulator stub: return a fixed fake MAC address",
+        marker="ESP_MAC_WIFI_STA",
+    )
+    _replace_once(
+        os.path.join(src, "esp_mac.h"),
+        "  memcpy(mac, fakeMac, 6);\n  return 0;\n}",
+        "  memcpy(mac, fakeMac, 6);\n  return 0;\n}\n"
+        "\n"
+        "static inline int esp_read_mac(uint8_t *mac, esp_mac_type_t) { return esp_efuse_mac_get_default(mac); }",
+        marker="esp_read_mac",
+    )
+
+    # 5e3) Async refresh seam (fork commit f518ba446). The device splits
+    #      displayBuffer() into "start the panel refresh" and "wait, then re-sync
+    #      the RED baseline", so the reader can build the next chapter during the
+    #      ~1.5 s a half refresh takes. The simulator paints instantly and has no
+    #      BUSY line, so the honest mock is: async == synchronous, finish == no-op.
+    #      That keeps every caller's pairing exercised without pretending to model
+    #      a window that does not exist here.
+    _replace_once(
+        os.path.join(src, "HalDisplay.h"),
+        "  void displayWindow(int x, int y, int w, int h);",
+        "  void displayBufferAsync(RefreshMode mode = RefreshMode::FAST_REFRESH, bool turnOffScreen = false) {\n"
+        "    displayBuffer(mode, turnOffScreen);\n"
+        "  }\n"
+        "  void finishDisplayBuffer() {}\n"
+        "  bool supportsAsyncRefresh() const { return false; }\n"
+        "  void displayWindow(int x, int y, int w, int h);",
+        marker="displayBufferAsync",
+    )
+
     # 5f) taskENTER/EXIT_CRITICAL(nullptr): valid on the single-core device
     #     port (global interrupt disable); the sim mock derefs the mux. Route
     #     nullptr to a shared global mutex.
