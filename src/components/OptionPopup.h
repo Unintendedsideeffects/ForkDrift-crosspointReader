@@ -1,6 +1,7 @@
 #pragma once
 #include <I18n.h>
 
+#include <atomic>
 #include <functional>
 #include <string>
 #include <vector>
@@ -20,6 +21,8 @@ class OptionPopup {
     }
     selectedIndex = currentIndex;
     onSelectCallback = std::move(onSelect);
+    inputReady.store(false, std::memory_order_release);
+    ignoreConfirmRelease = true;
     active = true;
   }
 
@@ -32,6 +35,8 @@ class OptionPopup {
     }
     selectedIndex = currentIndex;
     onSelectCallback = std::move(onSelect);
+    inputReady.store(false, std::memory_order_release);
+    ignoreConfirmRelease = true;
     active = true;
   }
 
@@ -41,11 +46,27 @@ class OptionPopup {
     ownedStrings = options;
     selectedIndex = currentIndex;
     onSelectCallback = std::move(onSelect);
+    inputReady.store(false, std::memory_order_release);
+    ignoreConfirmRelease = true;
     active = true;
   }
 
   bool handleInput(MappedInputManager& input, const std::function<void()>& requestUpdate) {
     if (!active) return false;
+    if (!inputReady.load(std::memory_order_acquire)) return true;
+
+    // A popup may be opened by the same Confirm release that is still latched
+    // for this frame. Keep consuming that opening edge without selecting the
+    // default item; otherwise the popup closes before its first frame is
+    // rendered.
+    if (ignoreConfirmRelease) {
+      if (input.wasReleased(MappedInputManager::Button::Confirm)) {
+        return true;
+      }
+      if (!input.isPressed(MappedInputManager::Button::Confirm)) {
+        ignoreConfirmRelease = false;
+      }
+    }
 
     const int count = static_cast<int>(ownedStrings.size());
     if (input.wasPressed(MappedInputManager::Button::Up) || input.wasPressed(MappedInputManager::Button::Left)) {
@@ -79,6 +100,10 @@ class OptionPopup {
     GUI.drawButtonHints(renderer, popupLabels.btn1, popupLabels.btn2, popupLabels.btn3, popupLabels.btn4);
     render(renderer);
     renderer.displayBuffer();
+    // Publish completion only after the panel update has finished. The main
+    // loop may run on another task/core, so this is a real synchronization
+    // boundary rather than a cosmetic flag.
+    inputReady.store(true, std::memory_order_release);
     return true;
   }
 
@@ -91,6 +116,8 @@ class OptionPopup {
 
  private:
   bool active = false;
+  mutable std::atomic<bool> inputReady{false};
+  bool ignoreConfirmRelease = false;
   std::string title;
   std::vector<std::string> ownedStrings;
   int selectedIndex = 0;

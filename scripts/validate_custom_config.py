@@ -18,11 +18,17 @@ Called automatically by PlatformIO when building custom environment.
 from __future__ import annotations
 
 import argparse
-import sys
-import re
 import os
+import re
+import sys
 from pathlib import Path
-from generate_build_config import FEATURES as BUILD_FEATURES
+
+import feature_manifest
+
+MANIFEST_PATH = Path(__file__).parent.parent / "config" / "features.yaml"
+manifest = feature_manifest.load_manifest(MANIFEST_PATH)
+BUILD_FEATURES = dict(manifest.features)
+
 
 # Available only when invoked by PlatformIO as an extra script.
 try:
@@ -37,7 +43,7 @@ YELLOW = '\033[1;33m'
 GREEN = '\033[0;32m'
 NC = '\033[0m'  # No Color
 
-REQUIRED_FLAGS = [feature.flag for feature in BUILD_FEATURES.values()]
+REQUIRED_FLAGS = [feature.macro for feature in BUILD_FEATURES.values()]
 
 
 def _extract_flags(config: str) -> dict[str, bool]:

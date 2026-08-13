@@ -74,6 +74,15 @@ TEST_CASE("settings persistence loads current shape literal") {
   CHECK(std::string(settings.userFontPath) == "/fonts/Golden.ttf");
 }
 
+TEST_CASE("settings persistence accepts charging screensaver refresh mode") {
+  CrossPointSettings& settings = resetSettingsState();
+  const char* json = "{\"version\":1,\"timedSleepRefreshInterval\":6}";
+
+  REQUIRE(JsonSettingsIO::loadSettings(settings, json, nullptr));
+  CHECK(settings.timedSleepRefreshInterval == CrossPointSettings::TIMED_REFRESH_SCREENSAVER);
+  CHECK(settings.getTimedRefreshIntervalMicros() == 15ULL * 60ULL * 1000000ULL);
+}
+
 TEST_CASE("settings persistence ignores unknown future keys") {
   CrossPointSettings& settings = resetSettingsState();
   const char* json =

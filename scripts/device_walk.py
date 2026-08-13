@@ -7,6 +7,9 @@ Host-side counterpart to the firmware serial command handler in src/main.cpp:
   CMD:SLEEP          -> SLEEP_OK                    (enters production deep sleep)
   CMD:BTN:<NAME>     -> BTN_OK:<NAME> | BTN_ERR:<NAME>   (injects logical button)
   CMD:SCREENSHOT     -> SCREENSHOT_START:<n> + raw 1bpp framebuffer + SCREENSHOT_END
+  CMD:TRMNL_STATUS   -> TRMNL_STATUS:<json>        (non-secret status + durable evidence)
+  CMD:TRMNL_RENDER_TEST -> TRMNL_RENDER_TEST:<json> (production pinned-image render diagnostic)
+  CMD:TRMNL_VERIFY:n -> TRMNL_VERIFY_OK:<target>    (arm bounded evidence rendezvous)
 
 Together these allow simulator-style interaction runs on real hardware:
 press a button, wait for the e-ink refresh, pull the framebuffer as a PNG,
@@ -32,6 +35,7 @@ Buttons: BACK CONFIRM LEFT RIGHT UP DOWN PAGEBACK PAGEFWD
 
 import argparse
 import glob
+import json
 import re
 import sys
 import time
@@ -116,6 +120,22 @@ class DeviceLink:
 
     def ping(self):
         self.command("PING", re.compile(r"^PONG$"))
+
+    def terminus_status(self) -> dict:
+        line = self.command("TRMNL_STATUS", re.compile(r"^TRMNL_STATUS:"), timeout_s=10.0)
+        return json.loads(line.split(":", 1)[1])
+
+    def terminus_render_test(self) -> dict:
+        line = self.command("TRMNL_RENDER_TEST", re.compile(r"^TRMNL_RENDER_TEST:"), timeout_s=90.0)
+        return json.loads(line.split(":", 1)[1])
+
+    def arm_terminus_verification(self, cycles: int) -> int:
+        line = self.command(
+            f"TRMNL_VERIFY:{cycles}", re.compile(r"^TRMNL_VERIFY_(OK|ERR):"), timeout_s=10.0
+        )
+        if line.startswith("TRMNL_VERIFY_ERR"):
+            raise RuntimeError(f"Firmware rejected Terminus verification rendezvous: {line}")
+        return int(line.rsplit(":", 1)[1])
 
     def apply_settings(self, payload: str):
         line = self.command("SETTINGS:" + payload, re.compile(r"^SETTINGS_(OK|ERR):"), timeout_s=10.0)
@@ -242,6 +262,8 @@ def main() -> int:
     p_settings.add_argument("json")
 
     sub.add_parser("deep-sleep", help="enter the production deep-sleep path")
+    sub.add_parser("trmnl-status", help="read non-secret Terminus status and durable refresh evidence")
+    sub.add_parser("trmnl-render-test", help="run the production pinned-image render diagnostic")
 
     p_run = sub.add_parser("run", help="execute a walk file")
     p_run.add_argument("walk", type=Path)
@@ -281,6 +303,12 @@ def main() -> int:
         if args.action == "deep-sleep":
             link.deep_sleep()
             print("Deep sleep requested")
+            return 0
+        if args.action == "trmnl-status":
+            print(json.dumps(link.terminus_status(), indent=2, sort_keys=True))
+            return 0
+        if args.action == "trmnl-render-test":
+            print(json.dumps(link.terminus_render_test(), indent=2, sort_keys=True))
             return 0
         if args.action == "run":
             link.ping()

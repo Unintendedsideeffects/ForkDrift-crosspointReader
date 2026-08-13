@@ -1,7 +1,9 @@
 #include "network/background/BackgroundWifiCoordinator.h"
 
 #include <Arduino.h>
+#include <HeapGuard.h>
 #include <Logging.h>
+#include <WiFi.h>
 
 #include <string>
 
@@ -10,13 +12,14 @@
 #include "core/features/FeatureModules.h"
 #include "network/background/BackgroundServerPolicy.h"
 #include "network/background/BackgroundWifiService.h"
+#include "network/wifi/WifiScanCache.h"
 #include "network/wifi/WifiUtil.h"
 #include "util/WifiCredentialStore.h"
 
 BackgroundWifiCoordinator BackgroundWifiCoordinator::instance;
 
-background_server::AutoConnectInput BackgroundWifiCoordinator::buildAutoConnectInput(const bool explicitRequest,
-                                                                                       const bool ignoreBootBackoff) const {
+background_server::AutoConnectInput BackgroundWifiCoordinator::buildAutoConnectInput(
+    const bool explicitRequest, const bool ignoreBootBackoff) const {
   const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
   const WifiCredential* cred = lastSsid.empty() ? nullptr : WIFI_STORE.findCredential(lastSsid);
 
@@ -34,7 +37,7 @@ background_server::AutoConnectInput BackgroundWifiCoordinator::buildAutoConnectI
 }
 
 bool BackgroundWifiCoordinator::attemptAutoConnect(const char* logTag, const bool explicitRequest,
-                                                    const bool ignoreBootBackoff) {
+                                                   const bool ignoreBootBackoff) {
   const background_server::AutoConnectDecision decision =
       background_server::evaluateAutoConnect(buildAutoConnectInput(explicitRequest, ignoreBootBackoff));
 
@@ -189,7 +192,29 @@ void BackgroundWifiCoordinator::attemptBootAutoConnect() {
 }
 
 bool BackgroundWifiCoordinator::beginTimedSleepAutoConnect(const char* logTag) {
-  return attemptAutoConnect(logTag, /*explicitRequest=*/true, /*ignoreBootBackoff=*/true);
+  // A timer refresh only needs STA long enough to fetch its payload. Starting
+  // BG_WIFI here also builds the full web server and mDNS route graph; tearing
+  // those allocations down restores total heap but leaves the ESP32-C3 heap too
+  // fragmented for PNGdec's single ~44 KB allocation.
+  const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
+  const WifiCredential* cred = lastSsid.empty() ? nullptr : WIFI_STORE.findCredential(lastSsid);
+  if (cred == nullptr) {
+    LOG_WRN(logTag, "Timed WiFi connect has no saved last-connected credential");
+    return false;
+  }
+
+  if (APP_STATE.wifiAutoConnectWaitingForNewCredential) {
+    APP_STATE.wifiAutoConnectWaitingForNewCredential = false;
+    if (!APP_STATE.saveToFile()) {
+      LOG_WRN(logTag, "Failed to persist cleared WiFi credential recovery state");
+    }
+  }
+
+  LOG_DBG(logTag, "Starting lightweight timed WiFi connection to: %s", lastSsid.c_str());
+  WiFi.mode(WIFI_STA);
+  const wl_status_t status =
+      cred->password.empty() ? WiFi.begin(cred->ssid.c_str()) : WiFi.begin(cred->ssid.c_str(), cred->password.c_str());
+  return status != WL_CONNECT_FAILED;
 }
 
 bool BackgroundWifiCoordinator::waitForStaConnection(const uint32_t timeoutMs) {
@@ -202,7 +227,36 @@ bool BackgroundWifiCoordinator::waitForStaConnection(const uint32_t timeoutMs) {
 
 void BackgroundWifiCoordinator::endTimedSleepWifi() {
   if (BG_WIFI.isRunning()) {
-    BG_WIFI.stop(true);
+    // A timed refresh is about to render and return to deep sleep, so retaining
+    // the STA radio only keeps WiFi allocations alive during the heaviest image
+    // allocation. Fully stop it and then give the FreeRTOS idle task a bounded
+    // window to reclaim the just-deleted WiFi and Terminus task stacks.
+    BG_WIFI.stop();
+  } else {
+    // Lightweight timed connects have no BG_WIFI owner task. Tear the STA
+    // driver down directly so its buffers are released before PNG rendering.
+    WiFi.disconnect(false);
+    delay(30);
+    WiFi.mode(WIFI_OFF);
+    delay(30);
+    WifiScanCache::invalidate();
+  }
+
+  constexpr size_t kRenderAllocationBytes = 44 * 1024;
+  constexpr size_t kRenderHeadroomBytes = 16 * 1024;
+  constexpr unsigned long kCleanupWaitMs = 1000;
+  const unsigned long cleanupStarted = millis();
+  while (!heapguard::canAllocate(kRenderAllocationBytes, kRenderHeadroomBytes) &&
+         millis() - cleanupStarted < kCleanupWaitMs) {
+    delay(10);
+  }
+
+  if (!heapguard::canAllocate(kRenderAllocationBytes, kRenderHeadroomBytes)) {
+    LOG_WRN("TREFRESH", "Timed WiFi cleanup left fragmented heap: free=%u largest=%u",
+            static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(heapguard::largestBlock()));
+  } else {
+    LOG_DBG("TREFRESH", "Timed WiFi cleanup ready for render: free=%u largest=%u",
+            static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(heapguard::largestBlock()));
   }
 }
 

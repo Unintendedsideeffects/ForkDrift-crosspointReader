@@ -963,11 +963,17 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
     emit(SettingInfo::Action(StrId::STR_TERMINUS_SETUP, SettingAction::TerminusSetup));
   }
 #if ENABLE_TIMED_SLEEP_REFRESH
-  emit(SettingInfo::Enum(StrId::STR_TIMED_REFRESH_INTERVAL, &CrossPointSettings::timedSleepRefreshInterval,
-                         {StrId::STR_OFF, StrId::STR_TIMED_REFRESH_1H, StrId::STR_TIMED_REFRESH_2H,
-                          StrId::STR_TIMED_REFRESH_4H, StrId::STR_TIMED_REFRESH_8H, StrId::STR_TIMED_REFRESH_24H},
-                         "timedSleepRefreshInterval", StrId::STR_CAT_DISPLAY)
-           .withConfiguratorExport("timed_sleep_refresh"));
+  emit(
+      SettingInfo::Enum(StrId::STR_TIMED_REFRESH_INTERVAL, &CrossPointSettings::timedSleepRefreshInterval,
+                        {StrId::STR_OFF, StrId::STR_TIMED_REFRESH_SCREENSAVER, StrId::STR_TIMED_REFRESH_1H,
+                         StrId::STR_TIMED_REFRESH_2H, StrId::STR_TIMED_REFRESH_4H, StrId::STR_TIMED_REFRESH_8H,
+                         StrId::STR_TIMED_REFRESH_24H},
+                        "timedSleepRefreshInterval", StrId::STR_CAT_DISPLAY)
+          .withEnumPersistedValues({CrossPointSettings::TIMED_REFRESH_OFF,
+                                    CrossPointSettings::TIMED_REFRESH_SCREENSAVER, CrossPointSettings::TIMED_REFRESH_1H,
+                                    CrossPointSettings::TIMED_REFRESH_2H, CrossPointSettings::TIMED_REFRESH_4H,
+                                    CrossPointSettings::TIMED_REFRESH_8H, CrossPointSettings::TIMED_REFRESH_24H})
+          .withConfiguratorExport("timed_sleep_refresh"));
 #endif
   // Boot-partition switch into a co-installed TRMNL firmware; only meaningful
   // once Terminus credentials prove the user is on the TRMNL ecosystem.

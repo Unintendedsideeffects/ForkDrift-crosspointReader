@@ -4,7 +4,8 @@
 Usage:
   python scripts/run_simulator_smoke_test.py [--book PATH] [--theme NAME]
       [--timeout SECS] [--page-turns N] [--no-build] [--window]
-      [--fs-root DIR] [--recovery | --sd-fail | --percent-jump]
+      [--fs-root DIR] [--reset-book-state]
+      [--recovery | --sd-fail | --percent-jump]
 
 The smoke test boots the firmware, navigates Home → FileBrowser → RecentBooks →
 Settings → Sleep → Reader (with page turns), then exits with code 0 on success.
@@ -22,7 +23,9 @@ folder becomes the simulator's SD root (CROSSPOINT_SIM_SD): the runner neither
 seeds nor wipes it, and the firmware reads and writes it exactly like a real SD
 card (so caches and reading progress will appear there afterwards). The book to
 open is taken from --book if it names an existing path under the tree, otherwise
-the first *.epub under DIR/books is used.
+the first *.epub under DIR/books is used. Pass --reset-book-state only when you
+explicitly want the selected book's progress, annotations, and per-book settings
+removed before the walk.
 """
 
 from __future__ import annotations
@@ -88,7 +91,7 @@ PROGRAM = resolve_program()
 
 def build_simulator() -> None:
     print("Building simulator...", flush=True)
-    proc = subprocess.run(["uv", "run", "pio", "run", "-e", "simulator"], cwd=ROOT)
+    proc = subprocess.run(["bash", "scripts/pio-locked.sh", "run", "-e", "simulator"], cwd=ROOT)
     if proc.returncode != 0:
         raise SystemExit(proc.returncode)
 
@@ -138,6 +141,8 @@ def base_env(args: argparse.Namespace) -> dict[str, str]:
         env["FORKDRIFT_SIMULATOR_SMOKE_THEME"] = str(THEMES[args.theme])
     if args.headless:
         env.setdefault("SDL_VIDEODRIVER", "dummy")
+    if args.reset_book_state:
+        env["FORKDRIFT_SIMULATOR_RESET_BOOK_STATE"] = "1"
     return env
 
 
@@ -192,7 +197,9 @@ def run_smoke(args: argparse.Namespace) -> int:
         env["FORKDRIFT_SIMULATOR_SMOKE_PERCENT_JUMP"] = "1"
     if args.controls_options:
         env["FORKDRIFT_SIMULATOR_SMOKE_CONTROLS_OPTIONS"] = "1"
-    needs_book = not (args.recovery or args.sd_fail)
+    if args.terminus_setup:
+        env["FORKDRIFT_SIMULATOR_TERMINUS_SETUP"] = "1"
+    needs_book = not (args.recovery or args.sd_fail or args.terminus_setup)
 
     # Persistent, caller-supplied file tree: run the simulator against it in place
     # (CROSSPOINT_SIM_SD), leaving the tree untouched. Useful for exercising real
@@ -231,6 +238,9 @@ def run_smoke(args: argparse.Namespace) -> int:
     with tempfile.TemporaryDirectory(prefix="forkdrift-sim-smoke-") as temp_dir_name:
         temp_root = Path(temp_dir_name)
         env["FORKDRIFT_SIMULATOR_SMOKE_BOOK"] = prepare_fs(temp_root, book)
+        # The runner owns this throwaway tree, so clearing state is safe and
+        # keeps direct-binary and future seeded-temp runs deterministic.
+        env["FORKDRIFT_SIMULATOR_RESET_BOOK_STATE"] = "1"
         print(f"Running simulator smoke test with isolated fs_: {temp_root / 'fs_'}", flush=True)
         return run_program(env, cwd=temp_root, timeout=args.timeout)
 
@@ -252,6 +262,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fs-root", default=None,
                         help="Run against this folder as the simulator SD root (CROSSPOINT_SIM_SD) "
                              "instead of a throwaway fs_; the runner does not seed or wipe it")
+    parser.add_argument("--reset-book-state", action="store_true",
+                        help="Explicitly delete progress, annotations, and per-book settings for the selected book")
     parser.add_argument("--recovery", action="store_true",
                         help="Boot straight into the recovery menu and drive it (no book opened)")
     parser.add_argument("--sd-fail", action="store_true",
@@ -260,6 +272,8 @@ def parse_args() -> argparse.Namespace:
                         help="Drive reader menu -> percent selection -> jump (~70%%) and require a settled frame")
     parser.add_argument("--controls-options", action="store_true",
                         help="Drive reader menu -> Controls options -> select row")
+    parser.add_argument("--terminus-setup", action="store_true",
+                        help="Drive on-device Terminus URL/token setup and verify persisted identity (no book)")
     parser.set_defaults(build=True, headless=True)
     return parser.parse_args()
 

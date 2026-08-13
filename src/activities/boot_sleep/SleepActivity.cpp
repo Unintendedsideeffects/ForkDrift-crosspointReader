@@ -1,5 +1,6 @@
 #include "SleepActivity.h"
 
+#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <Epub/converters/ImageDecoderFactory.h>
 #include <Epub/converters/ImageToFramebufferDecoder.h>
@@ -630,6 +631,36 @@ void validateSleepImagesOnce() {
 
 }  // namespace
 
+const char* pinnedImageRenderStageName(const PinnedImageRenderStage stage) {
+  switch (stage) {
+    case PinnedImageRenderStage::NotAttempted:
+      return "not-attempted";
+    case PinnedImageRenderStage::BitmapOpen:
+      return "bitmap-open";
+    case PinnedImageRenderStage::BitmapHeaders:
+      return "bitmap-headers";
+    case PinnedImageRenderStage::DecoderLookup:
+      return "decoder-lookup";
+    case PinnedImageRenderStage::Dimensions:
+      return "dimensions";
+    case PinnedImageRenderStage::BwDecode:
+      return "bw-decode";
+    case PinnedImageRenderStage::GrayscaleLsb:
+      return "grayscale-lsb";
+    case PinnedImageRenderStage::GrayscaleMsb:
+      return "grayscale-msb";
+    case PinnedImageRenderStage::Complete:
+      return "complete";
+  }
+  return "unknown";
+}
+
+void SleepActivity::recordPinnedImageRenderStage(const PinnedImageRenderStage stage) const {
+  selectedPinnedImageRenderStage_ = stage;
+  selectedPinnedImageRenderFreeHeap_ = static_cast<uint32_t>(ESP.getFreeHeap());
+  selectedPinnedImageRenderMaxAllocHeap_ = static_cast<uint32_t>(ESP.getMaxAllocHeap());
+}
+
 void invalidateSleepImageCache() {
   SleepCacheMutex::Guard guard;
   sleepImageCache.scanned = false;
@@ -709,6 +740,10 @@ uint8_t SleepActivity::effectiveSleepMode() const {
 
 void SleepActivity::onEnter() {
   Activity::onEnter();
+  selectedPinnedImageRendered_ = false;
+  selectedPinnedImageRenderStage_ = PinnedImageRenderStage::NotAttempted;
+  selectedPinnedImageRenderFreeHeap_ = 0;
+  selectedPinnedImageRenderMaxAllocHeap_ = 0;
 
   if (BG_WIFI.isRunning()) {
     BG_WIFI.stop(true);
@@ -786,11 +821,15 @@ void SleepActivity::renderCustomSleepScreen() const {
     const std::string pinnedPath(SETTINGS.sleepPinnedPath);
     LOG_INF("SLP", "Using pinned sleep cover: %s", pinnedPath.c_str());
     if (isBmpFile(pinnedPath)) {
+      recordPinnedImageRenderStage(PinnedImageRenderStage::BitmapOpen);
       HalFile file;
       if (Storage.openFileForRead("SLP", pinnedPath, file)) {
+        recordPinnedImageRenderStage(PinnedImageRenderStage::BitmapHeaders);
         Bitmap bitmap(file, true);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
           renderBitmapSleepScreen(bitmap);
+          selectedPinnedImageRendered_ = true;
+          recordPinnedImageRenderStage(PinnedImageRenderStage::Complete);
           file.close();
           return;
         }
@@ -800,7 +839,7 @@ void SleepActivity::renderCustomSleepScreen() const {
         Storage.remove(SLEEP_CACHE_FILE);
       }
     } else {
-      renderImageSleepScreen(pinnedPath);
+      selectedPinnedImageRendered_ = renderImageSleepScreen(pinnedPath);
       return;
     }
     LOG_WRN("SLP", "Pinned sleep cover failed, falling back to random");
@@ -1415,20 +1454,25 @@ bool SleepActivity::drawPokemonCoverOverlay(const std::string& bookPath) const {
 }
 #endif  // ENABLE_POKEMON_PARTY
 
-void SleepActivity::renderImageSleepScreen(const std::string& imagePath, CoverDrawRect* drawnRect) const {
+bool SleepActivity::renderImageSleepScreen(const std::string& imagePath, CoverDrawRect* drawnRect) const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
+  const bool isPinnedImage = SETTINGS.sleepPinnedPath[0] != '\0' && imagePath == SETTINGS.sleepPinnedPath;
 
+  if (isPinnedImage) recordPinnedImageRenderStage(PinnedImageRenderStage::DecoderLookup);
   ImageToFramebufferDecoder* decoder = ImageDecoderFactory::getDecoder(imagePath);
   if (!decoder) {
     LOG_ERR("SLP", "No decoder for: %s", imagePath.c_str());
-    return renderDefaultSleepScreen();
+    renderDefaultSleepScreen();
+    return false;
   }
 
   ImageDimensions dims = {0, 0};
+  if (isPinnedImage) recordPinnedImageRenderStage(PinnedImageRenderStage::Dimensions);
   if (!decoder->getDimensions(imagePath, dims) || dims.width <= 0 || dims.height <= 0) {
     LOG_ERR("SLP", "Could not get dimensions for: %s", imagePath.c_str());
-    return renderDefaultSleepScreen();
+    renderDefaultSleepScreen();
+    return false;
   }
 
   LOG_INF("SLP", "Image %dx%d, screen %dx%d", dims.width, dims.height, pageWidth, pageHeight);
@@ -1476,9 +1520,11 @@ void SleepActivity::renderImageSleepScreen(const std::string& imagePath, CoverDr
 
   // Render the image to framebuffer (BW pass)
   renderer.setRenderMode(GfxRenderer::BW);
+  if (isPinnedImage) recordPinnedImageRenderStage(PinnedImageRenderStage::BwDecode);
   if (!decoder->decodeToFramebuffer(imagePath, renderer, config)) {
     LOG_ERR("SLP", "Failed to decode: %s", imagePath.c_str());
-    return renderDefaultSleepScreen();
+    renderDefaultSleepScreen();
+    return false;
   }
 
   if (SETTINGS.sleepScreenCoverFilter == CrossPointSettings::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
@@ -1492,18 +1538,32 @@ void SleepActivity::renderImageSleepScreen(const std::string& imagePath, CoverDr
     // LSB pass
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    decoder->decodeToFramebuffer(imagePath, renderer, config);
+    if (isPinnedImage) recordPinnedImageRenderStage(PinnedImageRenderStage::GrayscaleLsb);
+    if (!decoder->decodeToFramebuffer(imagePath, renderer, config)) {
+      LOG_ERR("SLP", "Failed grayscale LSB decode: %s", imagePath.c_str());
+      renderer.setRenderMode(GfxRenderer::BW);
+      renderDefaultSleepScreen();
+      return false;
+    }
     renderer.copyGrayscaleLsbBuffers();
 
     // MSB pass
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    decoder->decodeToFramebuffer(imagePath, renderer, config);
+    if (isPinnedImage) recordPinnedImageRenderStage(PinnedImageRenderStage::GrayscaleMsb);
+    if (!decoder->decodeToFramebuffer(imagePath, renderer, config)) {
+      LOG_ERR("SLP", "Failed grayscale MSB decode: %s", imagePath.c_str());
+      renderer.setRenderMode(GfxRenderer::BW);
+      renderDefaultSleepScreen();
+      return false;
+    }
     renderer.copyGrayscaleMsbBuffers();
 
     renderer.displayGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);
   }
+
+  if (isPinnedImage) recordPinnedImageRenderStage(PinnedImageRenderStage::Complete);
 
   if (drawnRect) {
     if (SETTINGS.sleepScreenCoverMode == CrossPointSettings::SLEEP_SCREEN_COVER_MODE::CROP) {
@@ -1519,6 +1579,7 @@ void SleepActivity::renderImageSleepScreen(const std::string& imagePath, CoverDr
     }
     drawnRect->valid = true;
   }
+  return true;
 }
 
 #if ENABLE_HAIKU_CLOCK

@@ -614,7 +614,7 @@ void CrossPointSettings::validateAndClamp() {
   autoSyncDayOnBackgroundPing = autoSyncDayOnBackgroundPing ? 1 : 0;
   terminusSleepEnabled = terminusSleepEnabled ? 1 : 0;
   stayAwakeWhileCharging = stayAwakeWhileCharging ? 1 : 0;
-  if (timedSleepRefreshInterval > 5) timedSleepRefreshInterval = 0;
+  if (timedSleepRefreshInterval >= TIMED_SLEEP_REFRESH_MODE_COUNT) timedSleepRefreshInterval = TIMED_REFRESH_OFF;
   if (!supportsBackgroundServerOnChargeMode()) {
     backgroundServerOnCharge = 0;
   }
@@ -683,8 +683,12 @@ unsigned long CrossPointSettings::getSleepTimeoutMs() const {
   return static_cast<unsigned long>(minutes) * 60UL * 1000UL;
 }
 
-uint64_t CrossPointSettings::getTimedRefreshIntervalMicros() const {
-  // Interval values: 0=off, 1=1h, 2=2h, 3=4h, 4=8h, 5=24h
+uint64_t CrossPointSettings::getTimedRefreshIntervalMicros(uint32_t screensaverIntervalSeconds) const {
+  if (timedSleepRefreshInterval == TIMED_REFRESH_SCREENSAVER) {
+    return static_cast<uint64_t>(screensaverIntervalSeconds) * 1000000ULL;
+  }
+
+  // Legacy interval values: 0=off, 1=1h, 2=2h, 3=4h, 4=8h, 5=24h.
   static constexpr uint64_t kHour = 3600ULL * 1000000ULL;
   static constexpr uint64_t kHours[] = {0, 1, 2, 4, 8, 24};
   if (timedSleepRefreshInterval >= sizeof(kHours) / sizeof(kHours[0])) return 0;

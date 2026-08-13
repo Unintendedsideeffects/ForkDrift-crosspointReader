@@ -2,6 +2,8 @@
 
 #include "SimulatorSmokeTest.h"
 
+#include <ArduinoJson.h>
+#include <BookCachePath.h>
 #include <FeatureFlags.h>
 #include <HalStorage.h>
 #include <Logging.h>
@@ -13,6 +15,7 @@
 #include <cstdlib>
 #include <exception>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "CrossPointSettings.h"
@@ -20,6 +23,10 @@
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
 #include "activities/settings/SettingsActivity.h"
+#if ENABLE_TERMINUS_SLEEP
+#include "activities/settings/TerminusSettingsActivity.h"
+#include "util/TerminusCredentialStore.h"
+#endif
 #include "components/UITheme.h"
 #include "core/registries/HomeActionRegistry.h"
 #include "core/registries/WebRouteRegistry.h"
@@ -95,6 +102,7 @@ class SimulatorSmokeTest {
     HashFrame,
     CheckHashDiff,
     CheckHashSame,
+    CheckAnnotationsPersisted,
     InjectPhysicalConfirmRelease,
     SetLongPressActionOff
   };
@@ -127,6 +135,8 @@ class SimulatorSmokeTest {
   static bool recoveryRequested() { return std::getenv("FORKDRIFT_SIMULATOR_RECOVERY") != nullptr; }
 
   static bool settingsLoopRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SETTINGS_LOOP") != nullptr; }
+
+  static bool terminusSetupRequested() { return std::getenv("FORKDRIFT_SIMULATOR_TERMINUS_SETUP") != nullptr; }
 
   static bool homeSelectRequested() { return std::getenv("FORKDRIFT_SIMULATOR_HOME_SELECT") != nullptr; }
 
@@ -163,6 +173,31 @@ class SimulatorSmokeTest {
     const char* raw = std::getenv("FORKDRIFT_SIMULATOR_SMOKE_PAGE_TURNS");
     if (raw == nullptr || raw[0] == '\0') return 2;
     return std::max(0, std::atoi(raw));
+  }
+
+  static void resetSmokeBookState() {
+    if (std::getenv("FORKDRIFT_SIMULATOR_RESET_BOOK_STATE") == nullptr) return;
+
+    const char* bookPath = std::getenv("FORKDRIFT_SIMULATOR_SMOKE_BOOK");
+    if (bookPath == nullptr || bookPath[0] == '\0') return;
+
+    std::string cachePath;
+    if (!BookCachePath::resolve("/.crosspoint", bookPath, cachePath)) {
+      fail("Cannot derive smoke cache path for %s", bookPath);
+    }
+
+    static constexpr const char* kRunStateFiles[] = {
+        "/progress.bin",
+        "/annotations.bin",
+        "/book_settings.json",
+    };
+    for (const char* fileName : kRunStateFiles) {
+      const std::string path = cachePath + fileName;
+      if (Storage.exists(path.c_str()) && !Storage.remove(path.c_str())) {
+        fail("Cannot reset smoke state file: %s", path.c_str());
+      }
+    }
+    LOG_INF("SMOKE", "Reset smoke book state: %s", cachePath.c_str());
   }
 
   static void applyRequestedTheme() {
@@ -268,6 +303,7 @@ class SimulatorSmokeTest {
       case SmokeStep::Start:
         LOG_INF("SMOKE", "Starting ForkDrift simulator smoke test");
         applyRequestedTheme();
+        resetSmokeBookState();
         if (claudeBridgeRequested()) {
           Activity* claude = core::HomeActionRegistry::create("claude_bridge", renderer, mappedInputManager, {false},
                                                               nullptr, nullptr);
@@ -310,6 +346,22 @@ class SimulatorSmokeTest {
           step = SmokeStep::SettingsLoopRun;
           break;
         }
+#if ENABLE_TERMINUS_SLEEP
+        if (terminusSetupRequested()) {
+          TERMINUS_STORE.setBaseUrl("http://192.168.1.20:2300");
+          TERMINUS_STORE.setApiKey("simulator-test-token");
+          activityManager.replaceActivity(std::make_unique<TerminusSettingsActivity>(renderer, mappedInputManager));
+          buildTerminusSetupScript();
+          scriptStep = SmokeStep::SettingsLoopRun;
+          scriptDoneStep = SmokeStep::Done;
+          step = SmokeStep::SettingsLoopRun;
+          break;
+        }
+#else
+        if (terminusSetupRequested()) {
+          fail("Terminus setup smoke requested, but ENABLE_TERMINUS_SLEEP=0");
+        }
+#endif
         if (chareInkFontRequested()) {
           activityManager.goToSettings();
           buildChareInkFontScript();
@@ -355,23 +407,11 @@ class SimulatorSmokeTest {
         break;
 
       case SmokeStep::SettingsDone:
-        // TODO(sim): the settings-picker leg has a pre-existing frame-hash
-        // failure (present at least since 6a33c420, before the 2026-07-02
-        // absorption work) — its Confirm/Up taps render frames identical to
-        // the start frame. Skip it for now so the reader leg still runs;
-        // re-enable via FORKDRIFT_SIMULATOR_SMOKE_PICKER=1 when debugging.
-        if (std::getenv("FORKDRIFT_SIMULATOR_SMOKE_PICKER") != nullptr) {
-          pickerStartValue = SETTINGS.refreshFrequency;
-          buildSettingsPickerScript();
-          scriptStep = SmokeStep::SettingsPickerRun;
-          scriptDoneStep = SmokeStep::SettingsPickerDone;
-          step = SmokeStep::SettingsPickerRun;
-        } else {
-          LOG_INF("SMOKE",
-                  "Skipping settings picker leg (pre-existing failure; set FORKDRIFT_SIMULATOR_SMOKE_PICKER=1)");
-          activityManager.goToSleep();
-          queueStep("Sleep", SmokeStep::Sleep);
-        }
+        pickerStartValue = SETTINGS.refreshFrequency;
+        buildSettingsPickerScript();
+        scriptStep = SmokeStep::SettingsPickerRun;
+        scriptDoneStep = SmokeStep::SettingsPickerDone;
+        step = SmokeStep::SettingsPickerRun;
         break;
 
       case SmokeStep::SettingsPickerRun:
@@ -516,6 +556,22 @@ class SimulatorSmokeTest {
         break;
 
       case SmokeStep::Done:
+#if ENABLE_TERMINUS_SLEEP
+        if (terminusSetupRequested()) {
+          if (!Storage.exists(TerminusCredentialStore::kStoredPath)) {
+            fail("Terminus setup did not persist credentials");
+          }
+          JsonDocument setupDoc;
+          if (deserializeJson(setupDoc, Storage.readFile(TerminusCredentialStore::kStoredPath)) ||
+              std::string(setupDoc["base_url"] | "") != "http://192.168.1.20:2300" ||
+              std::string(setupDoc["api_key"] | "") != "simulator-test-token" ||
+              std::string(setupDoc["device_model"] | "") != "xteink_x4" ||
+              std::string(setupDoc["device_id"] | "") != "DE:AD:BE:EF:00:01") {
+            fail("Persisted Terminus setup payload is incomplete");
+          }
+          LOG_INF("SMOKE", "On-device Terminus setup persisted with derived device identity");
+        }
+#endif
         if (chareInkFontRequested()) {
           if (SETTINGS.fontFamily != CrossPointSettings::CHAREINK) {
             fail("Chare Ink font selection failed: fontFamily=%u expected %u", SETTINGS.fontFamily,
@@ -564,6 +620,9 @@ class SimulatorSmokeTest {
 
   static ScriptAction checkHashSame(const char* label) {
     return {ScriptActionType::CheckHashSame, MappedInputManager::Button::Back, label, 0};
+  }
+  static ScriptAction checkAnnotationsPersisted(const char* label) {
+    return {ScriptActionType::CheckAnnotationsPersisted, MappedInputManager::Button::Back, label, 0};
   }
 
   // FNV-1a hash of the current firmware framebuffer. Lets the headless runner
@@ -834,6 +893,11 @@ class SimulatorSmokeTest {
 #if ENABLE_TEXT_SELECTION
     // Text-selection leg: menu -> Select Text -> move cursor, anchor, extend.
     // The inverted-word highlight must change the frame at each step.
+    // The reader-options leg may enable automatic page turn. The first Confirm
+    // after returning stops that mode; give it its own step before opening the
+    // reader menu so the selection script cannot drift one screen behind.
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Reader after stopping auto page", 4));
     addTap(MappedInputManager::Button::Confirm);
     inputScript.push_back(render("Reader menu for selection", 4));
     addTap(MappedInputManager::Button::Down);
@@ -867,6 +931,7 @@ class SimulatorSmokeTest {
     inputScript.push_back(render("Annotation popup on highlight", 2));
     addTap(MappedInputManager::Button::Confirm);  // persist highlight and exit selection
     inputScript.push_back(render("Reader with highlight", 4));
+    inputScript.push_back(checkAnnotationsPersisted("Highlight persisted"));
     inputScript.push_back(hashFrame("Reader with highlight"));
     // Round-trip: page away and back; the highlight must re-render.
     addTap(MappedInputManager::Button::PageForward);
@@ -917,30 +982,24 @@ class SimulatorSmokeTest {
     LOG_INF("SMOKE", "Running home menu navigation script");
   }
 
-  // Cycles all four Settings category tabs and scrolls each list. Settings nav
-  // skips SECTION_HEADER rows, so this exercises the topic-grouped layout
-  // (Appearance/Sleep/Text/Layout/General/Connectivity/... headers). A Down tap
-  // scrolls items; Confirm at the tab row (index 0) advances the category, and
-  // Back from a scrolled position only returns to the tab row (never exits), so
-  // the sequence can't fall out of Settings mid-script.
+  // Cycle every Settings category from the tab row. This deliberately avoids
+  // feature-count assumptions: some profiles have fewer than four selectable
+  // rows in Connect/System, which made the old fixed Down/Back sequence wrap to
+  // the tab row and then exit Settings. Each intermediate tab must differ from
+  // Reading, and the complete wrap must return to the exact Reading frame.
   void buildSettingsInputScript() {
     inputScript.clear();
     scriptIndex = 0;
     inputScript.push_back(render("Settings", 4));
-    for (int cat = 0; cat < SettingsActivity::categoryCount; cat++) {
-      // 4 Downs, not more: selection wraps through the tab row, and a wrapped
-      // position turns the Back below into "exit Settings" (goHome). Every
-      // category has at least 5 navigation stops, so 4 Downs can never wrap.
-      // Category stop counts (excluding tab row): Reading: 19, Looks: 11, Controls: 9, Connect: 5, System: 12,
-      // Advanced: 5.
-      for (int i = 0; i < 4; i++) {
-        addTap(MappedInputManager::Button::Down);
-        inputScript.push_back(render("Settings scroll", 1));
-      }
-      addTap(MappedInputManager::Button::Back);     // scrolled position -> tab row
-      addTap(MappedInputManager::Button::Confirm);  // tab row -> next category
+    inputScript.push_back(hashFrame("Settings Reading tab"));
+    for (int cat = 1; cat < SettingsActivity::categoryCount; cat++) {
+      addTap(MappedInputManager::Button::Confirm);
       inputScript.push_back(render("Settings category", 3));
+      inputScript.push_back(checkHashDiff("Settings category differs from Reading"));
     }
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Settings wrapped to Reading", 3));
+    inputScript.push_back(checkHashSame("Settings wrapped to Reading"));
     LOG_INF("SMOKE", "Running settings navigation script");
   }
 
@@ -965,13 +1024,14 @@ class SimulatorSmokeTest {
     LOG_INF("SMOKE", "Running Chare Ink font selection script");
   }
 
-  // Drives the >4-option picker on refreshFrequency (Display tab). The category
+  // Drives the >4-option picker on refreshFrequency (Looks tab). The category
   // walk in buildSettingsInputScript ends with Confirm on the tab row, wrapping
   // to Reading (index 0). Confirm advances to the Looks tab row (index 1).
-  // From there Up wraps to the last list row (the un-topic'd showButtonHints)
-  // and a second Up reaches refreshFrequency, without counting the feature-gated
-  // sleep rows in between. The value assertion in SettingsPickerDone fails
-  // loudly if either assumption drifts.
+  // From there Up wraps to the last list row (timedSleepRefreshInterval), a
+  // second Up reaches the un-topic'd showButtonHints row, a third reaches the
+  // un-topic'd cleanSleepRefresh row, and a fourth reaches refreshFrequency.
+  // The value assertion in SettingsPickerDone fails loudly if this
+  // simulator-profile route drifts.
   void buildSettingsPickerScript() {
     inputScript.clear();
     scriptIndex = 0;
@@ -981,6 +1041,10 @@ class SimulatorSmokeTest {
     addTap(MappedInputManager::Button::Up);
     inputScript.push_back(render("Settings picker: last row", 2));
     inputScript.push_back(checkHashDiff("Settings picker: after first Up"));
+    addTap(MappedInputManager::Button::Up);
+    inputScript.push_back(render("Settings picker: button hints row", 2));
+    addTap(MappedInputManager::Button::Up);
+    inputScript.push_back(render("Settings picker: clean refresh row", 2));
     addTap(MappedInputManager::Button::Up);
     inputScript.push_back(render("Settings picker: refresh frequency row", 2));
     inputScript.push_back(hashFrame("Settings refresh row before picker"));
@@ -1101,6 +1165,36 @@ class SimulatorSmokeTest {
     LOG_INF("SMOKE", "Running home-select diagnostic script");
   }
 
+#if ENABLE_TERMINUS_SLEEP
+  void buildTerminusSetupScript() {
+    inputScript.clear();
+    scriptIndex = 0;
+    inputScript.push_back(render("Terminus setup", 6));
+    inputScript.push_back(hashFrame("Terminus setup"));
+
+    addTap(MappedInputManager::Button::Confirm);  // Server URL keyboard.
+    inputScript.push_back(render("Terminus server URL keyboard", 5));
+    inputScript.push_back(checkHashDiff("Terminus server URL keyboard"));
+    addTap(MappedInputManager::Button::Back);  // Keep the seeded URL.
+    inputScript.push_back(render("Terminus setup after URL", 4));
+
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("Terminus API token selected", 3));
+    inputScript.push_back(hashFrame("Terminus token row"));
+    addTap(MappedInputManager::Button::Confirm);  // Masked token keyboard.
+    inputScript.push_back(render("Terminus API token keyboard", 5));
+    inputScript.push_back(checkHashDiff("Terminus API token keyboard"));
+    addTap(MappedInputManager::Button::Back);  // Keep the seeded token.
+    inputScript.push_back(render("Terminus setup after token", 4));
+
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(render("Save Terminus setup selected", 3));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Home after Terminus setup", 6));
+    LOG_INF("SMOKE", "Running on-device Terminus setup script");
+  }
+#endif
+
   void runInputScript() {
     if (scriptIndex >= inputScript.size()) {
       step = scriptDoneStep;
@@ -1135,6 +1229,28 @@ class SimulatorSmokeTest {
         if (newHash != lastFrameHash) {
           fail("FRAMEHASH changed but was expected identical (%s)!", action.label);
         }
+        break;
+      }
+      case ScriptActionType::CheckAnnotationsPersisted: {
+        const char* bookPath = std::getenv("FORKDRIFT_SIMULATOR_SMOKE_BOOK");
+        if (bookPath == nullptr || bookPath[0] == '\0') {
+          fail("Cannot verify annotations without FORKDRIFT_SIMULATOR_SMOKE_BOOK");
+        }
+
+        std::string cachePath;
+        if (!BookCachePath::resolve("/.crosspoint", bookPath, cachePath)) {
+          fail("Cannot derive smoke cache path for %s", bookPath);
+        }
+        const std::string annotationsPath = cachePath + "/annotations.bin";
+
+        HalFile file;
+        uint8_t header[3] = {};
+        if (!Storage.openFileForRead("SMOKE", annotationsPath, file) ||
+            file.read(header, sizeof(header)) != sizeof(header) || header[0] != 1 ||
+            (header[1] == 0 && header[2] == 0)) {
+          fail("Highlight was not persisted in %s", annotationsPath.c_str());
+        }
+        LOG_INF("SMOKE", "%s: %s", action.label, annotationsPath.c_str());
         break;
       }
       case ScriptActionType::InjectPhysicalConfirmRelease:

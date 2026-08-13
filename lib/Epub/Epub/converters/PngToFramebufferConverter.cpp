@@ -3,6 +3,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
+#include <HeapGuard.h>
 #include <Logging.h>
 #include <Memory.h>
 #include <PNGdec.h>
@@ -75,12 +76,23 @@ int32_t pngSeekWithHandle(PNGFILE* pFile, int32_t pos) {
   return f->seek(pos);
 }
 
-// The PNG decoder (PNGdec) is ~42 KB due to internal zlib decompression buffers.
-// We heap-allocate it on demand rather than using a static instance, so this memory
-// is only consumed while actually decoding/querying PNG images. This is critical on
-// the ESP32-C3 where total RAM is ~320 KB.
-constexpr size_t PNG_DECODER_APPROX_SIZE = 44 * 1024;                          // ~42 KB + overhead
-constexpr size_t MIN_FREE_HEAP_FOR_PNG = PNG_DECODER_APPROX_SIZE + 16 * 1024;  // decoder + 16 KB headroom
+// PNGdec embeds its zlib dictionary, inflate state, scanline buffers, palette,
+// and file buffer directly in PNG. Use the compiled type size rather than a
+// hand-maintained estimate: PNG_MAX_BUFFERED_PIXELS changes this value, and a
+// stale estimate previously let preflight pass immediately before new PNG()
+// failed on a fragmented ESP32-C3 heap.
+constexpr size_t PNG_DECODER_ALLOCATION_SIZE = sizeof(PNG);
+constexpr size_t PNG_DECODER_HEADROOM = 16 * 1024;
+
+bool hasPngDecoderHeap(const char* operation) {
+  if (heapguard::canAllocate(PNG_DECODER_ALLOCATION_SIZE, PNG_DECODER_HEADROOM)) {
+    return true;
+  }
+  LOG_ERR("PNG", "Not enough contiguous heap for PNG %s (free=%u largest=%u need=%u + %u headroom)", operation,
+          static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(heapguard::largestBlock()),
+          static_cast<unsigned>(PNG_DECODER_ALLOCATION_SIZE), static_cast<unsigned>(PNG_DECODER_HEADROOM));
+  return false;
+}
 
 // PNGdec keeps TWO scanlines in its internal ucPixels buffer (current + previous)
 // and each scanline includes a leading filter byte.
@@ -276,9 +288,7 @@ int pngDrawCallback(PNGDRAW* pDraw) {
 }  // namespace
 
 bool PngToFramebufferConverter::getDimensionsStatic(const std::string& imagePath, ImageDimensions& out) {
-  size_t freeHeap = ESP.getFreeHeap();
-  if (freeHeap < MIN_FREE_HEAP_FOR_PNG) {
-    LOG_ERR("PNG", "Not enough heap for PNG decoder (%u free, need %u)", freeHeap, MIN_FREE_HEAP_FOR_PNG);
+  if (!hasPngDecoderHeap("dimensions")) {
     return false;
   }
 
@@ -312,9 +322,7 @@ bool PngToFramebufferConverter::decodeToFramebuffer(const std::string& imagePath
                                                     const RenderConfig& config) {
   LOG_DBG("PNG", "Decoding PNG: %s", imagePath.c_str());
 
-  size_t freeHeap = ESP.getFreeHeap();
-  if (freeHeap < MIN_FREE_HEAP_FOR_PNG) {
-    LOG_ERR("PNG", "Not enough heap for PNG decoder (%u free, need %u)", freeHeap, MIN_FREE_HEAP_FOR_PNG);
+  if (!hasPngDecoderHeap("decode")) {
     return false;
   }
 

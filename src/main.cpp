@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <FontCacheManager.h>
 #include <FontDecompressor.h>
 #include <GfxRenderer.h>
@@ -31,11 +32,13 @@
 #include "OpdsServerStore.h"
 #include "SdCardFontSystem.h"
 #include "SilentRestart.h"
+#include "SpiBusMutex.h"
 #include "activities/ActivityManager.h"
 #include "activities/RenderLock.h"
 #include "activities/boot_sleep/SleepActivity.h"
 #include "core/OrientationManager.h"
 #if ENABLE_TERMINUS_SLEEP
+#include "features/terminus_sleep/RefreshEvidence.h"
 #include "features/terminus_sleep/Registration.h"
 #include "util/TerminusCredentialStore.h"
 #endif
@@ -362,6 +365,17 @@ static bool timedRefreshHasRenderableMode() {
   return false;
 }
 
+static uint64_t activeTimedRefreshIntervalMicros() {
+  uint32_t screensaverIntervalSeconds = CrossPointSettings::TIMED_REFRESH_SCREENSAVER_DEFAULT_SECONDS;
+#if ENABLE_TERMINUS_SLEEP
+  if (SETTINGS.timedSleepRefreshInterval == CrossPointSettings::TIMED_REFRESH_SCREENSAVER &&
+      effectiveTimedRefreshSleepMode() == CrossPointSettings::TERMINUS_SLEEP && TERMINUS_STORE.hasCredentials()) {
+    screensaverIntervalSeconds = features::terminus_sleep::currentRefreshIntervalSeconds();
+  }
+#endif
+  return SETTINGS.getTimedRefreshIntervalMicros(screensaverIntervalSeconds);
+}
+
 // Called from setup() on ESP_SLEEP_WAKEUP_TIMER: silently re-render the sleep screen
 // and go back to deep sleep. Never returns.
 [[noreturn]] static void runTimedSleepRefresh() {
@@ -387,10 +401,33 @@ static bool timedRefreshHasRenderableMode() {
       false;
 #endif
 
+#if ENABLE_TERMINUS_SLEEP
+  features::terminus_sleep::RefreshEvidence terminusEvidence;
+  if (needsTerminusFetch) {
+    features::terminus_sleep::loadRefreshEvidence(terminusEvidence);
+    features::terminus_sleep::beginRefreshCycle(terminusEvidence, static_cast<uint32_t>(time(nullptr)));
+    if (!features::terminus_sleep::saveRefreshEvidence(terminusEvidence)) {
+      LOG_ERR("TREFRESH", "Could not persist Terminus timer-wake evidence");
+    }
+  }
+  bool wifiStarted = false;
+  bool wifiConnected = false;
+  bool fetchAttempted = false;
+  bool fetchOk = false;
+#endif
+
   if (needsTerminusFetch || needsNtpSync) {
     BackgroundWifiCoordinator& wifiCoord = BackgroundWifiCoordinator::getInstance();
-    if (wifiCoord.beginTimedSleepAutoConnect("TREFRESH")) {
-      if (wifiCoord.waitForStaConnection(20000)) {
+    const bool connectStarted = wifiCoord.beginTimedSleepAutoConnect("TREFRESH");
+#if ENABLE_TERMINUS_SLEEP
+    wifiStarted = connectStarted;
+#endif
+    if (connectStarted) {
+      const bool connected = wifiCoord.waitForStaConnection(20000);
+#if ENABLE_TERMINUS_SLEEP
+      wifiConnected = connected;
+#endif
+      if (connected) {
         if (needsNtpSync) {
           if (!TimeSync::syncTimeWithNtpLowMemory()) {
             LOG_WRN("TREFRESH", "NTP sync failed — rendering with potentially stale time");
@@ -399,7 +436,9 @@ static bool timedRefreshHasRenderableMode() {
 #if ENABLE_TERMINUS_SLEEP
         if (needsTerminusFetch) {
           constexpr uint32_t kFetchCapMs = 60000;
-          if (!features::terminus_sleep::startTrmnlFetchAndWait(kFetchCapMs)) {
+          fetchAttempted = true;
+          fetchOk = features::terminus_sleep::startTrmnlFetchAndWait(kFetchCapMs);
+          if (!fetchOk) {
             LOG_WRN("TREFRESH", "Terminus fetch failed or timed out — rendering stale image");
           }
         }
@@ -413,16 +452,57 @@ static bool timedRefreshHasRenderableMode() {
 
   // Re-render the sleep screen via SleepActivity::onEnter() — single render path
   // covers CUSTOM (Terminus), ROMAN_CLOCK_SLEEP, HAIKU_CLOCK_SLEEP, and fallbacks.
+  bool terminusImageRendered = false;
+  const char* terminusRenderStage = "not-attempted";
+  uint32_t terminusRenderFreeHeap = 0;
+  uint32_t terminusRenderMaxAllocHeap = 0;
   {
     SleepActivity sleepActivity(renderer, mappedInputManager);
     sleepActivity.onEnter();
+#if ENABLE_TERMINUS_SLEEP
+    terminusImageRendered = !needsTerminusFetch || sleepActivity.selectedPinnedImageRendered();
+    terminusRenderStage = pinnedImageRenderStageName(sleepActivity.selectedPinnedImageRenderStage());
+    terminusRenderFreeHeap = sleepActivity.selectedPinnedImageRenderFreeHeap();
+    terminusRenderMaxAllocHeap = sleepActivity.selectedPinnedImageRenderMaxAllocHeap();
+#endif
   }
 
   display.deepSleep();
+  const uint64_t activeIntervalMicros = activeTimedRefreshIntervalMicros();
   const uint64_t timerMicros =
-      (gpio.isUsbConnected() && timedRefreshHasRenderableMode() && SETTINGS.getTimedRefreshIntervalMicros() > 0)
-          ? SETTINGS.getTimedRefreshIntervalMicros()
-          : 0;
+      (gpio.isUsbConnected() && timedRefreshHasRenderableMode() && activeIntervalMicros > 0) ? activeIntervalMicros : 0;
+#if ENABLE_TERMINUS_SLEEP
+  if (needsTerminusFetch) {
+    features::terminus_sleep::completeRefreshCycle(
+        terminusEvidence, features::terminus_sleep::RefreshCycleOutcome{
+                              .wifiStarted = wifiStarted,
+                              .wifiConnected = wifiConnected,
+                              .fetchAttempted = fetchAttempted,
+                              .fetchOk = fetchOk,
+                              .usedStaleImage = !fetchOk,
+                              .renderCompleted = terminusImageRendered,
+                              .rearmArmed = timerMicros > 0,
+                              .renderStage = terminusRenderStage,
+                              .renderFreeHeap = terminusRenderFreeHeap,
+                              .renderMaxAllocHeap = terminusRenderMaxAllocHeap,
+                              .completedEpoch = static_cast<uint32_t>(time(nullptr)),
+                              .rearmIntervalSeconds = static_cast<uint32_t>(timerMicros / 1000000ULL),
+                              .serverRefreshSeconds = features::terminus_sleep::currentRefreshIntervalSeconds(),
+                          });
+    bool verificationRendezvous = features::terminus_sleep::consumeVerificationRendezvous(terminusEvidence);
+    if (!features::terminus_sleep::saveRefreshEvidence(terminusEvidence)) {
+      LOG_ERR("TREFRESH", "Could not persist completed Terminus refresh evidence");
+      verificationRendezvous = false;
+    }
+    if (verificationRendezvous) {
+      LOG_INF("TREFRESH", "Verification target reached; restarting awake for evidence collection");
+      logSerial.flush();
+      delay(100);
+      ESP.restart();
+      __builtin_unreachable();
+    }
+  }
+#endif
   powerManager.startDeepSleep(gpio, timerMicros);
   __builtin_unreachable();
 }
@@ -461,8 +541,9 @@ void enterDeepSleep() {
   // and gives the serial transport time to drain before that teardown.
   uint64_t timerMicros = 0;
 #if ENABLE_TIMED_SLEEP_REFRESH
-  if (gpio.isUsbConnected() && timedRefreshHasRenderableMode() && SETTINGS.getTimedRefreshIntervalMicros() > 0) {
-    timerMicros = SETTINGS.getTimedRefreshIntervalMicros();
+  const uint64_t activeIntervalMicros = activeTimedRefreshIntervalMicros();
+  if (gpio.isUsbConnected() && timedRefreshHasRenderableMode() && activeIntervalMicros > 0) {
+    timerMicros = activeIntervalMicros;
     LOG_DBG("MAIN", "Arming timer wakeup: %" PRIu64 " µs", timerMicros);
     logSerial.flush();
   }
@@ -838,6 +919,38 @@ void loop() {
         logSerial.printf("SCREENSHOT_END\n");
       } else if (cmd == "PING") {
         logSerial.printf("PONG\n");
+#if ENABLE_TERMINUS_SLEEP
+      } else if (cmd == "TRMNL_STATUS") {
+        const std::string status = features::terminus_sleep::machineStatusJson();
+        logSerial.printf("TRMNL_STATUS:%s\n", status.c_str());
+      } else if (cmd == "TRMNL_RENDER_TEST") {
+        SleepActivity sleepActivity(renderer, mappedInputManager);
+        sleepActivity.onEnter();
+        JsonDocument result;
+        result["rendered"] = sleepActivity.selectedPinnedImageRendered();
+        result["stage"] = pinnedImageRenderStageName(sleepActivity.selectedPinnedImageRenderStage());
+        result["free_heap"] = sleepActivity.selectedPinnedImageRenderFreeHeap();
+        result["max_alloc_heap"] = sleepActivity.selectedPinnedImageRenderMaxAllocHeap();
+        String json;
+        serializeJson(result, json);
+        logSerial.printf("TRMNL_RENDER_TEST:%s\n", json.c_str());
+      } else if (cmd.startsWith("TRMNL_VERIFY:")) {
+        const long cycles = cmd.substring(13).toInt();
+        if (cycles < 1 || cycles > 10) {
+          logSerial.printf("TRMNL_VERIFY_ERR:cycles must be 1..10\n");
+        } else {
+          features::terminus_sleep::RefreshEvidence evidence;
+          uint32_t target = 0;
+          bool saved = false;
+          {
+            SpiBusMutex::Guard guard;
+            features::terminus_sleep::loadRefreshEvidence(evidence);
+            target = features::terminus_sleep::armRefreshVerification(evidence, static_cast<uint32_t>(cycles));
+            saved = target > 0 && features::terminus_sleep::saveRefreshEvidence(evidence);
+          }
+          logSerial.printf(saved ? "TRMNL_VERIFY_OK:%" PRIu32 "\n" : "TRMNL_VERIFY_ERR:persist\n", target);
+        }
+#endif
       } else if (cmd == "SLEEP") {
         // Test harness: enter the same production sleep path used by the
         // physical power button and inactivity timeout.  A logical BTN event

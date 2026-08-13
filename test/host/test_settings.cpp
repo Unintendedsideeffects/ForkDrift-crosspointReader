@@ -269,6 +269,10 @@ TEST_CASE("timed sleep refresh maps every persisted interval and rejects invalid
     CHECK(s.getTimedRefreshIntervalMicros() == static_cast<uint64_t>(kHours[value]) * kHourMicros);
   }
 
+  s.timedSleepRefreshInterval = CrossPointSettings::TIMED_REFRESH_SCREENSAVER;
+  CHECK(s.getTimedRefreshIntervalMicros() == 15ULL * 60ULL * 1000000ULL);
+  CHECK(s.getTimedRefreshIntervalMicros(60) == 60ULL * 1000000ULL);
+
   s.terminusSleepEnabled = 7;
   s.timedSleepRefreshInterval = 255;
   s.validateAndClamp();

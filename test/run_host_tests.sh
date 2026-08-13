@@ -126,6 +126,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/InputValidation.cpp" \
   "$ROOT_DIR/src/util/PathUtils.cpp" \
   "$ROOT_DIR/src/util/TerminusApi.cpp" \
+  "$ROOT_DIR/src/features/terminus_sleep/RefreshEvidence.cpp" \
   "$ROOT_DIR/src/util/UrlUtils.cpp" \
   "$ROOT_DIR/src/util/StringUtils.cpp" \
   "$ROOT_DIR/src/util/OpdsFilename.cpp" \

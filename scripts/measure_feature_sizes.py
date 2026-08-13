@@ -36,8 +36,11 @@ import argparse
 import json
 import shutil
 
-sys.path.insert(0, str(Path(__file__).parent))
-from generate_build_config import FEATURE_METADATA, FeatureMetadata  # noqa: E402
+import feature_manifest
+
+MANIFEST_PATH = Path(__file__).parent.parent / "config" / "features.yaml"
+manifest = feature_manifest.load_manifest(MANIFEST_PATH)
+FEATURE_METADATA = manifest.features
 
 # Feature list ordered topologically (dependencies before dependents) to maximise
 # build-cache hits: a dependency's full build == its dependent's base build.
@@ -176,8 +179,8 @@ def build_configuration(features: Dict[str, bool], quiet=True) -> int:
 def get_transitive_requires(feature: str) -> FrozenSet[str]:
     """Return the full set of features that must be enabled before measuring feature."""
     required: set[str] = set()
-    meta = FEATURE_METADATA.get(feature, FeatureMetadata(implemented=True, stable=True))
-    queue = list(meta.requires) + list(MEASUREMENT_BASE_OVERRIDES.get(feature, []))
+    meta = FEATURE_METADATA.get(feature)
+    queue = (list(meta.requires_all) if meta else []) + list(MEASUREMENT_BASE_OVERRIDES.get(feature, []))
     while queue:
         dep = queue.pop()
         if dep in required:
@@ -185,7 +188,7 @@ def get_transitive_requires(feature: str) -> FrozenSet[str]:
         required.add(dep)
         meta = FEATURE_METADATA.get(dep)
         if meta:
-            queue.extend(meta.requires)
+            queue.extend(meta.requires_all)
     return frozenset(required)
 
 

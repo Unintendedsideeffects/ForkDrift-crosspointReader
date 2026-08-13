@@ -18,6 +18,7 @@
 #include "core/features/FeatureModules.h"
 #include "core/registries/LifecycleRegistry.h"
 #include "core/registries/WebRouteRegistry.h"
+#include "features/terminus_sleep/RefreshEvidence.h"
 #include "network/background/BackgroundWebServer.h"
 #include "network/background/BackgroundWifiService.h"
 #include "network/html/TerminusPluginPageHtml.generated.h"
@@ -510,6 +511,36 @@ static void onBackgroundServerTick() {
 
 static bool shouldRegisterTerminusRoutes() { return core::FeatureCatalog::isEnabled("terminus_sleep"); }
 
+static void appendMachineStatus(JsonDocument& doc) {
+  doc["configured"] = TERMINUS_STORE.hasCredentials();
+  doc["device_id"] = TERMINUS_STORE.deviceId().c_str();
+  doc["device_model"] = TERMINUS_STORE.deviceModel().c_str();
+  doc["base_url"] = TERMINUS_STORE.baseUrl().c_str();
+  doc["has_api_key"] = !TERMINUS_STORE.apiKey().empty();
+  doc["sleep_enabled"] = CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP);
+  doc["timed_refresh_interval"] = SETTINGS.timedSleepRefreshInterval;
+  doc["fetch_pending"] = static_cast<bool>(forcedFetchRequested);
+  doc["fetch_running"] = static_cast<bool>(fetchTaskRunning);
+  doc["last_fetch_ok"] = static_cast<bool>(fetchTaskResult);
+  doc["last_attempt_epoch"] = static_cast<uint32_t>(trmnlLastAttemptEpoch);
+  // Outcome reporting, because progress reporting is impossible: the fetch runs while
+  // the web server is deliberately stopped, so a client polling this endpoint during a
+  // fetch gets a connection failure, never fetch_running == true.
+  doc["last_stage"] = fetchStage ? fetchStage : "idle";
+  doc["last_attempt_age_s"] = trmnlHaveAttempted ? static_cast<uint32_t>((millis() - trmnlLastAttemptMs) / 1000UL) : 0;
+  doc["have_attempted"] = static_cast<bool>(trmnlHaveAttempted);
+  doc["server_refresh_seconds"] = static_cast<uint32_t>(trmnlRefreshIntervalS);
+
+  RefreshEvidence evidence;
+  {
+    SpiBusMutex::Guard guard;
+    loadRefreshEvidence(evidence);
+  }
+  JsonDocument evidenceDoc;
+  deserializeJson(evidenceDoc, refreshEvidenceJson(evidence));
+  doc["timed_refresh_evidence"].set(evidenceDoc.as<JsonObjectConst>());
+}
+
 static void mountTerminusRoutes(WebServer* server) {
   server->on("/plugins/terminus", HTTP_GET, [server] {
     sendPrecompressedHtml(server, TerminusPluginPageHtml, TerminusPluginPageHtmlCompressedSize);
@@ -518,27 +549,7 @@ static void mountTerminusRoutes(WebServer* server) {
 
   server->on("/api/terminus/status", HTTP_GET, [server] {
     JsonDocument doc;
-    doc["configured"] = TERMINUS_STORE.hasCredentials();
-    doc["device_id"] = TERMINUS_STORE.deviceId().c_str();
-    doc["device_model"] = TERMINUS_STORE.deviceModel().c_str();
-    doc["base_url"] = TERMINUS_STORE.baseUrl().c_str();
-    doc["has_api_key"] = !TERMINUS_STORE.apiKey().empty();
-    doc["sleep_enabled"] = CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP);
-    doc["timed_refresh_interval"] = SETTINGS.timedSleepRefreshInterval;
-    doc["fetch_pending"] = static_cast<bool>(forcedFetchRequested);
-    doc["fetch_running"] = static_cast<bool>(fetchTaskRunning);
-    doc["last_fetch_ok"] = static_cast<bool>(fetchTaskResult);
-    doc["last_attempt_epoch"] = static_cast<uint32_t>(trmnlLastAttemptEpoch);
-    // Outcome reporting, because progress reporting is impossible: the fetch runs while
-    // the web server is deliberately stopped, so a client polling this endpoint during a
-    // fetch gets a connection failure, never fetch_running == true. These two fields are
-    // what it can actually use once the server is back, and last_attempt_age_s works even
-    // with no wall clock (where last_attempt_epoch stays 0).
-    doc["last_stage"] = fetchStage ? fetchStage : "idle";
-    doc["last_attempt_age_s"] =
-        trmnlHaveAttempted ? static_cast<uint32_t>((millis() - trmnlLastAttemptMs) / 1000UL) : 0;
-    doc["have_attempted"] = static_cast<bool>(trmnlHaveAttempted);
-    doc["server_refresh_seconds"] = static_cast<uint32_t>(trmnlRefreshIntervalS);
+    appendMachineStatus(doc);
     std::string out;
     serializeJson(doc, out);
     server->send(200, "application/json", out.c_str());
@@ -572,9 +583,10 @@ static void mountTerminusRoutes(WebServer* server) {
       return;
     }
 
-    const int timedRefreshInterval = doc["timed_refresh_interval"] | 1;
-    if (timedRefreshInterval < 0 || timedRefreshInterval > 5) {
-      server->send(400, "application/json", "{\"error\":\"timed_refresh_interval must be between 0 and 5\"}");
+    const int timedRefreshInterval = doc["timed_refresh_interval"] | CrossPointSettings::TIMED_REFRESH_SCREENSAVER;
+    if (timedRefreshInterval < CrossPointSettings::TIMED_REFRESH_OFF ||
+        timedRefreshInterval >= CrossPointSettings::TIMED_SLEEP_REFRESH_MODE_COUNT) {
+      server->send(400, "application/json", "{\"error\":\"invalid timed_refresh_interval\"}");
       return;
     }
     const bool sleepEnabled = doc["sleep_enabled"] | true;
@@ -689,9 +701,21 @@ bool startTrmnlFetchAndWait(uint32_t capMs) {
 bool shouldRefreshBeforeSleep() {
   return terminusFetchConfigured() && (!hasPinnedTerminusImage() || terminusFetchDue(true));
 }
+
+uint32_t currentRefreshIntervalSeconds() { return trmnlRefreshIntervalS; }
+
+std::string machineStatusJson() {
+  JsonDocument doc;
+  appendMachineStatus(doc);
+  std::string json;
+  serializeJson(doc, json);
+  return json;
+}
 #else
 bool startTrmnlFetchAndWait(uint32_t) { return false; }
 bool shouldRefreshBeforeSleep() { return false; }
+uint32_t currentRefreshIntervalSeconds() { return terminus_refresh::kDefaultIntervalS; }
+std::string machineStatusJson() { return R"({"configured":false,"timed_refresh_evidence":{"schema_version":1}})"; }
 #endif
 
 }  // namespace features::terminus_sleep

@@ -12,8 +12,14 @@ import argparse
 import re
 import subprocess
 import sys
+from pathlib import Path
 
-from generate_build_config import FEATURES, PROFILES
+import feature_manifest
+
+MANIFEST_PATH = Path(__file__).parent.parent / "config" / "features.yaml"
+manifest = feature_manifest.load_manifest(MANIFEST_PATH)
+FEATURES = {k: v for k, v in manifest.features.items()}
+PROFILES = {k: v for k, v in manifest.profiles.items()}
 
 
 def parse_feature_list(raw: str) -> list[str]:
@@ -56,7 +62,7 @@ def main() -> int:
     if unknown:
         print(
             "Unknown feature key(s): " + ", ".join(unknown) + ". "
-            "Use feature keys from scripts/generate_build_config.py.",
+            "Use feature keys from config/features.yaml.",
             file=sys.stderr,
         )
         return 1

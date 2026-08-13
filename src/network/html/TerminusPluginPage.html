@@ -64,13 +64,14 @@
     <label for="timed_refresh_interval">Refresh while asleep on USB power</label>
     <select id="timed_refresh_interval">
       <option value="0">Off</option>
-      <option value="1" selected>Every hour</option>
+      <option value="6" selected>Screensaver (follow Terminus)</option>
+      <option value="1">Every hour</option>
       <option value="2">Every 2 hours</option>
       <option value="3">Every 4 hours</option>
       <option value="4">Every 8 hours</option>
       <option value="5">Every 24 hours</option>
     </select>
-    <p class="hint">When awake and connected, CrossPoint follows the refresh interval returned by Terminus. While sleeping on USB, this timer wakes, fetches, redraws, and sleeps again.</p>
+    <p class="hint">Screensaver follows the refresh rate returned by Terminus (15 minutes by default). On USB power, CrossPoint wakes, fetches, redraws, and sleeps again.</p>
 
     <button onclick="saveCredentials()" class="btn btn-success">Save Credentials</button>
     <button onclick="clearCredentials()" class="btn btn-danger">Clear</button>
@@ -114,7 +115,7 @@
           document.getElementById('base_url').value = d.base_url;
         }
         document.getElementById('sleep_enabled').checked = Boolean(d.sleep_enabled);
-        document.getElementById('timed_refresh_interval').value = String(d.timed_refresh_interval ?? 1);
+        document.getElementById('timed_refresh_interval').value = String(d.timed_refresh_interval ?? 6);
       } catch (e) {
         document.getElementById('status-badge').textContent = 'Error loading status';
       }

@@ -60,6 +60,18 @@ class CrossPointSettings {
   };
   enum SLEEP_CYCLE_MODE { SLEEP_CYCLE_RANDOM = 0, SLEEP_CYCLE_SEQUENTIAL = 1, SLEEP_CYCLE_MODE_COUNT };
   enum SLEEP_SCREEN_SPLIT { SLEEP_SPLIT_UNIFIED = 0, SLEEP_SPLIT_SMART = 1, SLEEP_SCREEN_SPLIT_COUNT };
+  enum TIMED_SLEEP_REFRESH_MODE {
+    TIMED_REFRESH_OFF = 0,
+    TIMED_REFRESH_1H = 1,
+    TIMED_REFRESH_2H = 2,
+    TIMED_REFRESH_4H = 3,
+    TIMED_REFRESH_8H = 4,
+    TIMED_REFRESH_24H = 5,
+    // Appended to preserve the meanings of every existing persisted value.
+    TIMED_REFRESH_SCREENSAVER = 6,
+    TIMED_SLEEP_REFRESH_MODE_COUNT
+  };
+  static constexpr uint32_t TIMED_REFRESH_SCREENSAVER_DEFAULT_SECONDS = 15UL * 60UL;
 
   // Status bar display type enum
   enum STATUS_BAR_MODE {
@@ -429,7 +441,8 @@ class CrossPointSettings {
   // Legacy persisted mirror retained for settings-file/web compatibility.
   // Runtime behavior is driven by TERMINUS_SLEEP in the normal sleep-mode fields.
   uint8_t terminusSleepEnabled = 0;
-  // Timed sleep refresh interval while on USB charge (0=off, 1=1h, 2=2h, 3=4h, 4=8h, 5=24h).
+  // Timed sleep refresh interval while on USB charge. Values 0..5 retain their
+  // legacy meanings; 6 is a server-aware, faster screensaver cadence.
   // Wakes from deep sleep, re-renders the active sleep screen (Terminus/TRMNL, Roman Clock, Haiku
   // Clock), then goes back to sleep. USB-only: battery latch MOSFET cuts RTC power on battery.
   uint8_t timedSleepRefreshInterval = 0;
@@ -554,7 +567,8 @@ class CrossPointSettings {
 
   float getReaderLineCompression() const;
   unsigned long getSleepTimeoutMs() const;
-  uint64_t getTimedRefreshIntervalMicros() const;
+  uint64_t getTimedRefreshIntervalMicros(
+      uint32_t screensaverIntervalSeconds = TIMED_REFRESH_SCREENSAVER_DEFAULT_SECONDS) const;
   int getRefreshFrequency() const;
   int getTimeZoneOffsetSeconds() const;
   std::string getCondensedSettings() const;
