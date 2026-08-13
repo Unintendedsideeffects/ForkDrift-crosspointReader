@@ -2077,15 +2077,18 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
     page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);  // scan pass
     prewarmScope->endScanAndPrewarm();
   } else {
-    LOG_WRN("ERS", "Skipping font prewarm: heap=%lu", heapBefore);
+    LOG_WRN("ERS", "Skipping font prewarm: heap=%u", static_cast<unsigned>(heapBefore));
   }
   fcm->logStats("prewarm");
   const auto tPrewarm = millis();
 
 #if LOG_LEVEL >= 2
   const uint32_t heapAfter = esp_get_free_heap_size();
-  LOG_DBG("ERS", "Heap: before=%lu after=%lu delta=%ld", heapBefore, heapAfter,
-          (int32_t)heapAfter - (int32_t)heapBefore);
+  // %u/%d against explicit casts, not %lu/%ld: these are uint32_t, and `long` is 32-bit on the
+  // device but 64-bit on the host, so the wide specifiers read garbage in simulator and host
+  // builds. A -2056 delta printed as 4294965240 there.
+  LOG_DBG("ERS", "Heap: before=%u after=%u delta=%d", static_cast<unsigned>(heapBefore),
+          static_cast<unsigned>(heapAfter), static_cast<int>(heapAfter) - static_cast<int>(heapBefore));
 #endif
 
   const bool pageHasImages = page->hasImages();
@@ -2423,13 +2426,24 @@ bool EpubReaderActivity::collectSelectableWords(const Page& page, const int marg
             static_cast<unsigned>(textBytes));
     return false;
   }
-  if (bounded) {
+  if (bounded && wordCount > 0) {
+    // Gate on what this actually allocates, not on ReaderOptionsMemoryPolicy. That policy
+    // reserves kReserveLargestBlock (48000 = one framebuffer) on top of the request, which is
+    // right for tryCaptureSelectionSnapshotFromFramebuffer -- it really does snapshot a
+    // framebuffer -- and wrong here, where we retain a word index. Retaining 2,306 bytes was
+    // being refused for want of 50,306 contiguous, against an X4 whose largest block measures
+    // 17-41 KB. The gate could therefore never pass on device, so the index was always dropped;
+    // selection mode then reported "stale-or-unavailable" and reloaded the page from the
+    // section file on every entry, and the rebuilt word indices no longer matched a persisted
+    // highlight, which re-rendered on word 0. One mis-scoped constant, three symptoms.
+    //
+    // The vector is the single contiguous allocation; the word strings are separate. Charging
+    // the whole retained size to the contiguous check is deliberately conservative.
     const size_t retainedBytes = wordCount * sizeof(selection::SelWord) + textBytes;
-    const ReaderMemorySnapshot snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap()};
-    if (!ReaderOptionsMemoryPolicy::canRetainPreview(snapshot, retainedBytes)) {
+    if (!heapguard::canAllocate(retainedBytes)) {
       LOG_WRN("ERS", "SELECTION_INDEX_FALLBACK heap words=%u bytes=%u free=%u largest=%u",
-              static_cast<unsigned>(wordCount), static_cast<unsigned>(retainedBytes), snapshot.freeHeap,
-              snapshot.maxAllocHeap);
+              static_cast<unsigned>(wordCount), static_cast<unsigned>(retainedBytes),
+              static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(heapguard::largestBlock()));
       return false;
     }
   }

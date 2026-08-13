@@ -72,8 +72,25 @@ void AnnotationStore::unload() {
 }
 
 bool AnnotationStore::add(const Annotation& annotation) {
-  if (!loaded || annotations.size() >= kMaxAnnotationsPerBook || annotation.text.empty() ||
-      annotation.text.size() > kMaxTextBytes) {
+  // Four distinct refusals that used to share one silent `return false`. The caller shows a
+  // generic "failed" popup and stays in selection mode, so an unlogged refusal here is
+  // indistinguishable from a rendering bug -- which is exactly how it presented.
+  if (!loaded) {
+    LOG_ERR("ANN", "Refusing add: store not loaded for this book");
+    return false;
+  }
+  if (annotations.size() >= kMaxAnnotationsPerBook) {
+    LOG_ERR("ANN", "Refusing add: at cap (%u)", static_cast<unsigned>(kMaxAnnotationsPerBook));
+    return false;
+  }
+  if (annotation.text.empty()) {
+    LOG_ERR("ANN", "Refusing add: empty text (spine=%u page=%u words=%u..%u)", annotation.spineIndex, annotation.page,
+            annotation.startWord, annotation.endWord);
+    return false;
+  }
+  if (annotation.text.size() > kMaxTextBytes) {
+    LOG_ERR("ANN", "Refusing add: text %u bytes exceeds %u", static_cast<unsigned>(annotation.text.size()),
+            static_cast<unsigned>(kMaxTextBytes));
     return false;
   }
   annotations.push_back(annotation);

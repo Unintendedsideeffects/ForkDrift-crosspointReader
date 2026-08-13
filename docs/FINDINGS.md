@@ -884,3 +884,52 @@ visible with developer-mode logging on. Not fixed.
   demo.epub peak-allocation figure is unavailable until it is fixed. The min-free figure
   (36,704) is still valid, being logged periodically rather than at exit.
 - **Status**: open (reported, deliberately unfixed — out of scope)
+
+## 2026-08-13T01:40Z — "Pre-existing" retracted: the FRAMEHASH failure was three real bugs
+- **Found by**: claude — after being correctly pulled up for filing this under "pre-existing"
+- **Where**: `src/activities/reader/EpubReaderActivity.cpp:2429`, `src/util/AnnotationStore.cpp:74`,
+  `src/simulator/SimulatorSmokeTest.cpp` highlight leg
+- I had reported the demo.epub `FRAMEHASH changed but was expected identical` failure as
+  pre-existing and out of scope. That was wrong twice over: pre-existing says nothing about
+  whether a bug is real, and the failure was not one bug but three.
+
+### 1. The selection word index could never be retained on device (FIXED)
+`collectSelectableWords` gated retention on `ReaderOptionsMemoryPolicy::canRetainPreview`,
+which adds `kReserveLargestBlock` (48000 = one framebuffer) to the request and compares
+against `maxAllocHeap`. Retaining a **2,306-byte** word index therefore demanded **50,306
+bytes contiguous**. The X4's measured largest block is 17,396-40,948, so the gate could never
+pass on real hardware. That policy is correct for its other caller
+(`tryCaptureSelectionSnapshotFromFramebuffer`, which really does snapshot a framebuffer) and
+wrong here. Consequences, all three from the one constant:
+  - the index was always dropped;
+  - entering selection then reported `stale-or-unavailable` and **reloaded the page from the
+    section file every time** (3 content loads in a 12-second run, each an SD read);
+  - the rebuilt word indices no longer matched a persisted highlight, so it re-rendered on
+    word 0 — marking text the reader never selected.
+**Fixed** by gating on what the code actually allocates via `heapguard::canAllocate`.
+**Verified**: `Selection index retained: words=61`, and `SMOKE_SELECTION_CONTENT_LOADS` drops
+from 1 to 0 on the normal path.
+
+### 2. `AnnotationStore::add` failed silently four ways (FIXED)
+`!loaded`, at-cap, empty text, and oversized text all shared one unlogged `return false`. The
+caller shows a generic "failed" popup and stays in selection mode, so an unlogged refusal is
+indistinguishable from a rendering bug — which is precisely how this presented, and why the
+first diagnosis went to the wrong subsystem. Violates the project's own "ALWAYS log before
+error return" rule. **Fixed**: each refusal now logs its reason.
+
+### 3. The smoke test's highlight leg does not do what it says (OPEN)
+With logging added, `ANNOTATIONS.add` is never called at all — zero `[ANN]` lines, no
+`annotations.bin` written. Frame `067-Annotation-popup-on-highlight.pbm` shows **no popup**:
+just the reader with a selection cursor. The Confirm meant to open the actions menu does not
+open it, so every later tap in the leg lands somewhere else and `Action::Highlight` is never
+reached. The action ordering itself is fine (`buildActions` does put Highlight after
+BookNotes), so the fault is in the leg's input/settle assumptions, not the menu.
+**The test has therefore never tested highlight persistence**, and its FRAMEHASH assertion was
+failing for an unrelated reason. Not fixed — it needs the leg re-derived against the real
+popup, which is a separate piece of work from the two firmware bugs above.
+
+### 4. The smoke test is not hermetic (OPEN)
+Consecutive runs start at different book positions (`26/31 6%` then `3/44 7%`) because
+`progress.bin` persists between runs. Any cross-run frame comparison is meaningless and the
+highlight leg exercises a different page each time. Reset reader state at smoke-test start.
+- **Status**: 1 and 2 fixed and gated; 3 and 4 open with a concrete next step
