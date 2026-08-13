@@ -5,6 +5,7 @@
 #include <FeatureFlags.h>
 #include <HalStorage.h>
 #include <Logging.h>
+#include <WebServer.h>
 
 #include <algorithm>
 #include <cctype>
@@ -13,8 +14,6 @@
 #include <exception>
 #include <memory>
 #include <vector>
-
-#include <WebServer.h>
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
@@ -151,9 +150,7 @@ class SimulatorSmokeTest {
   static bool controlsRecoveryExpected() {
     return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_CONTROLS_EXPECT_RECOVERY") != nullptr;
   }
-  static bool claudeBridgeRequested() {
-    return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_CLAUDE_BRIDGE") != nullptr;
-  }
+  static bool claudeBridgeRequested() { return std::getenv("FORKDRIFT_SIMULATOR_SMOKE_CLAUDE_BRIDGE") != nullptr; }
 
   static int claudeBridgePort() {
     const char* raw = std::getenv("FORKDRIFT_SIMULATOR_CLAUDE_PORT");
@@ -529,8 +526,23 @@ class SimulatorSmokeTest {
         if (ESP.getFreeHeap() == 1024 * 1024) {
           fail("Smoke test failed: Heap tracking machinery is not active (ESP.getFreeHeap() == 1024*1024)");
         }
+        // Every accessor, not just ESP.getFreeHeap(). Checking one of them left
+        // esp_get_free_heap_size() stubbed at a flat 1,000,000 for however long, which silently
+        // disabled the reader's page-render and font-prewarm gates (EpubReaderActivity.cpp:1742,
+        // :2073) -- they saw 1 MB free and passed unconditionally. A heap model is only a gate if
+        // all of it is wired; assert that rather than trusting it.
+        if (esp_get_free_heap_size() != ESP.getFreeHeap()) {
+          fail("Smoke test failed: esp_get_free_heap_size()=%u disagrees with ESP.getFreeHeap()=%u",
+               esp_get_free_heap_size(), ESP.getFreeHeap());
+        }
+        if (ESP.getHeapSize() <= ESP.getFreeHeap() || ESP.getHeapSize() == 1024 * 1024) {
+          fail("Smoke test failed: ESP.getHeapSize()=%u is not a plausible budget (free=%u)", ESP.getHeapSize(),
+               ESP.getFreeHeap());
+        }
         // std::_Exit skips the static-destructor SIM HEAP SUMMARY, so report here.
-        LOG_INF("SMOKE", "Sim heap: free=%u min_free=%u", ESP.getFreeHeap(), ESP.getMinFreeHeap());
+        // biggest_alloc is the number that decides what is worth pooling.
+        LOG_INF("SMOKE", "Sim heap: free=%u min_free=%u total=%u peak_single_alloc=%u", ESP.getFreeHeap(),
+                ESP.getMinFreeHeap(), ESP.getHeapSize(), sim_heap_biggest_alloc());
         LOG_INF("SMOKE", "Simulator smoke test passed");
         std::_Exit(0);
     }

@@ -843,3 +843,44 @@ visible with developer-mode logging on. Not fixed.
   therefore not available as written — the parameter has a live caller with a real reason.
   Re-derive that item before acting on it.
 - **Status**: open (reported, deliberately unfixed)
+
+## 2026-08-13T00:55Z — Evidence-ranked allocation census (input to the pooling work)
+- **Found by**: claude — running the harness under the now-coherent heap model
+- **How to reproduce**:
+  `FORKDRIFT_SIMULATOR_SMOKE_TEST=1 FORKDRIFT_SIMULATOR_SMOKE_PAGE_TURNS=12 <build>/program`
+- **Numbers**:
+  | measure | value | note |
+  |---|---|---|
+  | peak single allocation | **23,312 B** | exceeds the 20,000 B largest-block budget |
+  | largest block (device, low end) | 17,396 B | measured 2026-08-12 on the X4 |
+  | peak usage, test_tables walk | 91,784 B | min free 88,216 of 180,000 |
+  | peak usage, demo.epub walk | 143,296 B | min free 36,704 of 180,000 |
+- **The headline**: a single 23,312-byte allocation is larger than the largest contiguous run
+  the model allows, and larger still than the 17,396 B low end seen on real hardware. Total
+  free heap is irrelevant to it — this allocation cannot succeed under fragmentation however
+  much is free in aggregate. This is the top pooling target, and it is now a measured fact
+  rather than a guess. `sim_heap_biggest_alloc()` reports it; it previously existed only in a
+  static destructor that `_exit(0)` guarantees never runs.
+- **Guards observed firing** (both real, both on the section-build path):
+  - `[PTX] OOM guard: truncating block (low heap, largest=20000)` — three times within a
+    single section build. Section build is the dominant consumer.
+  - `[CHP] Footnote guard: dropping links (count=0, ...)` — fires at **count=0**, i.e. the
+    guard added earlier today rejects the *first* footnote when free heap is within
+    `kCriticalFloorBytes` of the requested growth. Correct as written, but it means a book
+    silently loses every footnote rather than some. Worth revisiting the floor before this
+    ships; it is a behaviour change introduced today.
+- **Also visible now**: `css_rules.cache` is opened and missed repeatedly within one reading
+  session — the unmeasured release/reload trade from `1b1788ada`, previously invisible.
+- **Status**: open — the census is done; the pooling work it ranks has not started
+
+## 2026-08-13T00:58Z — Pre-existing smoke failure on the demo.epub highlight leg (NOT fixed)
+- **Where**: `FORKDRIFT_SIMULATOR_SMOKE_BOOK=/books/demo.epub` leg, "Reader back to highlight"
+- **What**: `FRAMEHASH changed but was expected identical` — a render of the same state does
+  not reproduce its own frame hash. Exit code 2.
+- **Not caused by the heap-model change**: verified by re-running with
+  `SIM_HEAP_BUDGET=2000000 SIM_HEAP_LARGEST=2000000`, where no heap gate can trip. It fails
+  identically. The cause is in the selection/highlight round trip, not the heap.
+- **Consequence for the census above**: this leg aborts before the `Sim heap:` line, so the
+  demo.epub peak-allocation figure is unavailable until it is fixed. The min-free figure
+  (36,704) is still valid, being logged periodically rather than at exit.
+- **Status**: open (reported, deliberately unfixed — out of scope)

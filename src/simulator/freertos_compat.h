@@ -47,6 +47,10 @@ struct ESPMock {
 };
 extern ESPMock ESP;
 
+// Peak single allocation this run (src/simulator/sim_heap.cpp). Reported by the smoke test
+// because the static-destructor summary never runs under _exit(0).
+uint32_t sim_heap_biggest_alloc();
+
 typedef enum {
   ESP_RST_UNKNOWN,
   ESP_RST_POWERON,

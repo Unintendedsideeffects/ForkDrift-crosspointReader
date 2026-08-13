@@ -173,6 +173,15 @@ extern "C" uint32_t esp_get_minimum_free_heap_size() {
   return heap_budget > max_live_bytes ? heap_budget - max_live_bytes : 0;
 }
 
+// The largest single allocation seen this run -- the number that decides which sites are
+// worth pooling. It lived only in the SimHeapSummary destructor below, which never runs:
+// simulator_main ends with _exit(0) to skip global destructors (a deliberate fix for a
+// shutdown race with the render task). So this was unreachable in practice; expose it.
+uint32_t sim_heap_biggest_alloc() {
+  std::lock_guard<std::mutex> lock(heap_mutex);
+  return biggest_alloc;
+}
+
 struct SimHeapSummary {
   ~SimHeapSummary() {
     fprintf(stderr, "SIM HEAP SUMMARY: live=%u, low_water=%u, biggest_single=%u\n", live_bytes,
