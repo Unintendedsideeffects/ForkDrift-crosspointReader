@@ -41,7 +41,7 @@ inline void vSemaphoreDelete(SemaphoreHandle_t sem) { delete sem; }
 struct ESPMock {
   uint32_t getFreeHeap();
   uint32_t getMinFreeHeap();
-  uint32_t getHeapSize() { return 1024 * 1024; }
+  uint32_t getHeapSize();
   uint32_t getMaxAllocHeap();
   void restart() {}
 };

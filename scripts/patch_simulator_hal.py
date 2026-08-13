@@ -263,6 +263,23 @@ def patch_simulator_hal(env):
         marker="displayBufferAsync",
     )
 
+    # 5e4) esp_get_free_heap_size(): the stub returns a flat 1,000,000, which is
+    #      not a mis-tuned number -- it silently disables every gate built on it.
+    #      The reader guards page render (EpubReaderActivity.cpp:1742) and font
+    #      prewarm (:2073) on this call, so under the stub both gates pass
+    #      unconditionally and the simulator can never reproduce the low-heap
+    #      paths they exist to protect. heapguard already routes through
+    #      ESP.getFreeHeap() and so was always budget-backed; this makes the
+    #      direct callers agree with it instead of seeing a heap 5.5x larger.
+    #      Declaration only -- sim_heap.cpp owns the definition, so there is one
+    #      budget and one accounting mutex rather than two disagreeing sources.
+    _replace_once(
+        os.path.join(src, "esp_system.h"),
+        "inline uint32_t esp_get_free_heap_size() { return 1000000; }",
+        "uint32_t esp_get_free_heap_size();  // defined in src/simulator/sim_heap.cpp",
+        marker="defined in src/simulator/sim_heap.cpp",
+    )
+
     # 5f) taskENTER/EXIT_CRITICAL(nullptr): valid on the single-core device
     #     port (global interrupt disable); the sim mock derefs the mux. Route
     #     nullptr to a shared global mutex.

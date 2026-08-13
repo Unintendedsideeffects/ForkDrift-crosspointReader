@@ -798,3 +798,48 @@ visible with developer-mode logging on. Not fixed.
 - **Ladder**: third occurrence of "a build off the routine path silently rots" — rung 3 is a
   gate. The natural one is a CI leg building `-e simulator`.
 - **Status**: open (build fixed; coverage and the total-heap inconsistency are not)
+
+## 2026-08-13T00:20Z — The simulator's heap model had three sources of truth; the reader's own gates saw none of them
+- **Found by**: claude — closing out the previous entry's two open items
+- **Where**: `.pio/libdeps/simulator/simulator/src/esp_system.h:4`, `src/simulator/freertos_compat.h:44`,
+  callers at `src/activities/reader/EpubReaderActivity.cpp:1742`, `:1755`, `:2073`
+- **What**: three independent "how much heap is there" answers coexisted in the simulator:
+  1. `sim_heap.cpp` — the seeded 180000/20000 budget. Correct.
+  2. `ESPMock::getHeapSize()` — inline `1024 * 1024`. Produced the self-contradictory
+     `Free: 169008, Total: 1048576` line noted in the previous entry.
+  3. `esp_get_free_heap_size()` — inline `return 1000000`. **This was the damaging one.**
+- **Why (3) mattered**: the reader gates page render (`:1742`) and font prewarm (`:2073`) on
+  `esp_get_free_heap_size()` directly, not through `heapguard`. Under the stub both gates saw
+  1,000,000 bytes free and passed unconditionally, so the simulator could never enter the
+  low-heap paths those gates exist to protect. `[ERS] Heap: before=1000000 after=1000000
+  delta=0` was visible in every run and read as instrumentation noise; it was the gate
+  announcing it was switched off.
+- **Not affected**: `heapguard::freeBytes()`/`largestBlock()` already route through
+  `ESP.getFreeHeap()`/`getMaxAllocHeap()` under `SIMULATOR` (`lib/Memory/HeapGuard.cpp:22-36`),
+  so every `canAllocate()` guard — including the footnote guard and the background-server
+  admission check added earlier today — was budget-backed all along.
+- **Fix**: `esp_get_free_heap_size()` and `ESPMock::getHeapSize()` are now declarations, both
+  defined in `sim_heap.cpp` against the one budget under the one accounting mutex. Verified:
+  `[ERS] Heap: before=162384 after=160328` where it previously read a flat 1000000.
+- **Fixture item from the previous entry is resolved**, and was not a firmware bug: the stale
+  `epub_*` cache dirs were orphaned by the v6→v9 `book.bin` bump. Home's thumbnail pass calls
+  `epub.load(false, true)` — `buildIfMissing=false` — so it deliberately refuses to rebuild a
+  full metadata cache for every book on the shelf. Deleting the orphaned dirs lets a real open
+  rebuild them; the simulator now reaches the reader and renders pages.
+- **Measured once coherent**: peak usage across a Home→Library→Settings→Reader walk is
+  ~91.7 KB (min free 88,272 of the 180,000 budget).
+- **Status**: fixed
+
+## 2026-08-13T00:25Z — Out-of-scope observations (NOT fixed; do not silently fix)
+- **`EpubReaderActivity.cpp:2087` prints a bogus heap delta on the host.**
+  `LOG_DBG("ERS", "... delta=%ld", ..., (int32_t)heapAfter - (int32_t)heapBefore)` — `%ld` with
+  a 64-bit host `long` prints -2056 as `4294965240`. Correct on device (32-bit `long`),
+  wrong in the simulator and in any host build. `%d` would be right on both. One character,
+  but it is in the reader and outside the simulator-model change that surfaced it.
+- **The absorption plan's premise about `skipLoadingCss` is stale.**
+  `plans/` Part C item 1 states `Epub::load(buildIfMissing, skipLoadingCss)` has a parameter
+  that "no caller ever passes as true". `src/activities/home/HomeActivity.cpp:487` passes
+  exactly that. The plan's "either route it through the new path or delete it" option is
+  therefore not available as written — the parameter has a live caller with a real reason.
+  Re-derive that item before acting on it.
+- **Status**: open (reported, deliberately unfixed)

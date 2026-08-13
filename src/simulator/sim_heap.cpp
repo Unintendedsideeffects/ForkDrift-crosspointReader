@@ -147,6 +147,26 @@ uint32_t ESPMock::getMaxAllocHeap() {
   return max_alloc_budget > remaining ? remaining : max_alloc_budget;
 }
 
+// Total, not free: the number ESP.getHeapSize() reports on device. Left inline at
+// 1024*1024 in the mock it made the simulator self-contradictory -- "169,008 free of
+// 1,048,576" reads as 84% headroom when the real state is a 180 KB budget nearly
+// half spent. Absolute checks were unaffected, but anything reasoning about a
+// ratio was silently wrong.
+uint32_t ESPMock::getHeapSize() {
+  std::lock_guard<std::mutex> lock(heap_mutex);
+  init_budget();
+  return heap_budget;
+}
+
+// Same budget as ESP.getFreeHeap(), deliberately: on device these two are the same
+// quantity reached by different APIs, so any disagreement here is pure simulator
+// artefact. See patch_simulator_hal.py 5e4 for why the stub could not stay inline.
+uint32_t esp_get_free_heap_size() {
+  std::lock_guard<std::mutex> lock(heap_mutex);
+  init_budget();
+  return heap_budget > live_bytes ? heap_budget - live_bytes : 0;
+}
+
 extern "C" uint32_t esp_get_minimum_free_heap_size() {
   std::lock_guard<std::mutex> lock(heap_mutex);
   init_budget();
