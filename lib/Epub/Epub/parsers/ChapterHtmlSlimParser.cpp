@@ -41,8 +41,16 @@ constexpr size_t MAX_ANCHORS_PER_CHAPTER = 1024;
 // code. Observed on device: abort() inside endElement()'s push_back at largest block
 // 15348 bytes, on a footnote-dense technical book.
 constexpr size_t MAX_FOOTNOTES_PER_CHAPTER = 512;
-// Growth-sized headroom demanded before accepting another footnote, matching
-// ParsedText::kWordGrowthGuardBytes.
+// Growth-sized headroom demanded before accepting another footnote.
+//
+// NOTE: this is the same flat-8KB shape ParsedText::addWord used to have, and it
+// has the same defect — on top of heapguard's 32KB floor it refuses a footnote
+// while ~41KB is still free, regardless of how few bytes the next vector growth
+// would actually need. Observed firing on device alongside the text guard
+// ("Footnote guard: dropping links (count=0, largest=14836)"). ParsedText now
+// sizes its check from wordgrowth:: (Epub/WordVectorGrowth.h); this one has not
+// been converted yet because a footnote entry is a different, larger record and
+// wants its own measurement. See docs/FINDINGS.md.
 constexpr size_t kFootnoteGrowthGuardBytes = 8 * 1024;
 
 constexpr const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};

@@ -13,10 +13,10 @@
 class GfxRenderer;
 
 class ParsedText {
-  // Growth-sized heap check for addWord's OOM guard: if a block this large can't
-  // be allocated without crossing the critical floor, the block stops accepting
-  // words rather than letting a std::vector growth throw (= terminate).
-  static constexpr size_t kWordGrowthGuardBytes = 8 * 1024;
+  // addWord's OOM guard sizes its heap check from wordgrowth:: (see
+  // Epub/WordVectorGrowth.h) rather than a flat constant. The old flat 8KB is
+  // gone: on top of heapguard's 32KB floor it refused to append a word while
+  // ~41KB was still free, which blanked whole chapters on device.
   bool heapTruncated = false;  // this block hit the heap guard and was truncated
 
   std::vector<std::string> words;

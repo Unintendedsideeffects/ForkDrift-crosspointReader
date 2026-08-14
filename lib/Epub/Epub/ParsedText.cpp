@@ -18,6 +18,8 @@
 #include "hyphenation/Hyphenator.h"
 #endif
 
+#include "WordVectorGrowth.h"
+
 constexpr int MAX_COST = std::numeric_limits<int>::max();
 
 namespace {
@@ -271,19 +273,26 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
   // Technique #4 — graceful degradation. The word vectors below grow via
   // std::vector, whose bad_alloc becomes terminate() under -fno-exceptions
   // (observed on image-heavy chapters that leave the heap too tight for text).
-  // When a growth-sized block can't be allocated without crossing the critical
+  // When the impending allocation can't be made without crossing the critical
   // floor, stop accepting words: the block truncates but the reader never
   // crashes. A fresh ParsedText per block re-enables words once heap recovers.
-  if (!heapguard::canAllocate(kWordGrowthGuardBytes)) {
+  //
+  // The request is sized to what this call can actually allocate. It used to be
+  // a flat 8KB, which on top of the 32KB floor refused to append a single word
+  // while ~41KB was still free -- and that is what made whole image-heavy
+  // chapters lay out to zero elements on device (docs/FINDINGS.md
+  // 2026-08-14T02:25Z). Worst case here is the focus-reading path below, which
+  // can split a word into one token per byte, so charge word.size() slots plus
+  // one for a possible guide dot; that keeps this check at or above the reserve
+  // it is protecting.
+  const size_t worstCaseSlots = words.size() + word.size() + 1;
+  const size_t requestBytes = wordgrowth::requestBytes(words.capacity(), worstCaseSlots, word.size());
+  if (!heapguard::canAllocate(requestBytes)) {
     if (!heapTruncated) {
       heapTruncated = true;
       heapTruncationTallyCount++;
-      // Note this fails on canAllocate's *total free* clause -- free - 8192 <
-      // 32768, i.e. any free heap under ~41KB -- before the largest-block test is
-      // ever reached. The largest= below is diagnostic only; do not read it as
-      // the cause.
-      LOG_ERR("PTX", "OOM guard: truncating block (low heap, free=%zu largest=%zu)", heapguard::freeBytes(),
-              heapguard::largestBlock());
+      LOG_ERR("PTX", "OOM guard: truncating block (need=%zu free=%zu largest=%zu)", requestBytes,
+              heapguard::freeBytes(), heapguard::largestBlock());
     }
     return;
   }
@@ -366,22 +375,15 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
 
   // --- FOCUS READING LOGIC BELOW ---
 
-  // Pre-reserve capacity to prevent mid-word heap reallocations.
-  size_t maxPossibleNewTokens = word.length();
-  size_t requiredSize = words.size() + maxPossibleNewTokens;
+  // Pre-reserve capacity to prevent mid-word heap reallocations. The capacity
+  // is computed by the same helper the heap check above used, so the bytes that
+  // were checked are exactly the bytes about to be requested — previously these
+  // were two independent calculations and only the flat 8KB constant tied them
+  // together.
+  const size_t requiredSize = words.size() + word.length();
 
   if (words.capacity() < requiredSize) {
-    // Emulate standard geometric growth (doubling) to ensure we don't reallocate on every word.
-    size_t newCapacity = words.capacity() * 2;
-
-    // Ensure the doubled capacity is actually enough for this specific word
-    if (newCapacity < requiredSize) {
-      newCapacity = requiredSize;
-    }
-    // Set a sensible minimum starting size so the first few words don't trigger tiny reallocations
-    if (newCapacity < 16) {
-      newCapacity = 16;
-    }
+    const size_t newCapacity = wordgrowth::nextCapacity(words.capacity(), requiredSize);
 
     words.reserve(newCapacity);
     wordStyles.reserve(newCapacity);
