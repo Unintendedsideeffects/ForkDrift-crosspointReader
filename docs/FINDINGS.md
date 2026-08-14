@@ -1343,3 +1343,51 @@ cursor-agent session belonging to the human was already running on this machine.
 silently works in its own scratch copy, which here was pinned at `ef7d698a0` (yesterday's HEAD);
 `--add-dir=<repo>` is required or it reviews the wrong code and sounds confident doing it.
 Its flags are Go-style and need `--flag=value`, and the prompt must be passed as `--print="..."`.
+
+## 2026-08-14T17:30Z — Guard-band fix device-verified: blank chapters now index, and `Selection index retained` finally observed
+- **Found by**: claude — X4, after flashing the `wordgrowth::` guard-band change
+- **The guard now asks for what it actually needs.** Live on device:
+```
+[PTX] OOM guard: truncating block (need=416 free=32696 largest=14324)
+```
+  **416 bytes**, not the old flat 8,192. It still tripped here, correctly: 416 + 32,768 = 33,184
+  against free=32,696, i.e. genuinely at the critical floor rather than 8 KB above it.
+
+### Previously-blank chapters now render
+`ch025` and `ch027` of the open book both laid out to zero elements before (see the
+2026-08-14T02:25Z entry). After the fix, forcing a re-index (a `fontSize` change invalidates the
+cached section on parameter mismatch; restored afterwards, all four render settings verified back
+to `fontFamily=0 fontSize=1 lineSpacing=1 screenMargin=5`):
+```
+ch025: Selection index retained: words=8    -> "Chapter 19 - Load Balancing at the Frontend"
+ch027: Selection index retained: words=14   -> renders, 1904ms
+```
+Screenshot confirms real text where there was a blank page.
+
+### Item 3 of the overnight brief is now fully closed
+`Selection index retained: words=N` has **never been observed on hardware** until now — that was
+the open question `ef7d698a0` was blocked on, through two sessions. It logs because there is
+finally something to select. `ef7d698a0` can be described as device-verified.
+
+### Two limits, both real and both still open
+1. **Existing damage is not repaired.** The Section fix prevents *writing* a blank section; it
+   does not invalidate ones already on SD. `ch026` still deserialized its old blank cache and
+   rendered `counted=0` until forced to rebuild. Clearing it for real needs either a cache wipe
+   (recovery menu / delete `.crosspoint/`) or a `SECTION_FILE_VERSION` bump, which would
+   re-index every book on every device — a user-visible cost and a deliberate decision, so it is
+   not taken here.
+2. **Partially truncated sections are still cached.** The run above truncated one block
+   (`need=416`) and the resulting section was still written, because the refusal requires *zero*
+   elements. That is the documented trade: refusing partial sections would make a chapter this
+   device cannot fully index unreadable rather than partly readable.
+
+### Also still open
+- The sibling footnote guard (`ChapterHtmlSlimParser.cpp` `kFootnoteGrowthGuardBytes`) keeps the
+  flat 8 KB shape and was seen firing in the same trace (`Footnote guard: dropping links
+  (count=0, largest=14324)`). A footnote record is larger than a word slot and wants its own
+  measurement.
+- Image decode is still the thing driving the heap down in the first place:
+  `[PNG] Not enough contiguous heap for PNG dimensions (free=29856 largest=14324 need=58912 +
+  16384 headroom)` and `[JPG] Not enough heap for JPEG decoder (28788 free, need 36864)`. The
+  text now survives that pressure; the images do not.
+- **Status**: guard band fixed and device-verified; the four items above remain open
