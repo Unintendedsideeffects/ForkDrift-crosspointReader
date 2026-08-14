@@ -9,6 +9,7 @@
 
 #include <functional>
 
+#include "Epub/ParsedText.h"
 #include "Epub/css/CssParser.h"
 #include "Page.h"
 #if ENABLE_HYPHENATION
@@ -265,6 +266,10 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
                          paragraphAlignment, viewportWidth, viewportHeight, hyphenationEnabled, embeddedStyle,
                          imageRendering, focusReadingEnabled, guideReadingEnabled);
   std::vector<PageLutEntry> lut = {};
+  // Counted so a chapter that laid out to nothing can be told apart from one
+  // that laid out normally; see the refusal below parseAndBuildPages().
+  size_t totalPageElements = 0;
+  ParsedText::resetHeapTruncationTally();
 
   // Derive the content base directory and image cache path prefix for the parser
   size_t lastSlash = localPath.find_last_of('/');
@@ -297,7 +302,9 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
   ChapterHtmlSlimParser visitor(
       epub, tmpHtmlPath, renderer, fontId, lineCompression, extraParagraphSpacing, forceParagraphIndents,
       paragraphAlignment, viewportWidth, viewportHeight, hyphenationEnabled, focusReadingEnabled, guideReadingEnabled,
-      [this, &lut, &writer](std::unique_ptr<Page> page, const uint16_t paragraphIndex, const uint16_t listItemIndex) {
+      [this, &lut, &writer, &totalPageElements](std::unique_ptr<Page> page, const uint16_t paragraphIndex,
+                                                const uint16_t listItemIndex) {
+        totalPageElements += page ? page->elements.size() : 0;
         lut.push_back({this->onPageComplete(std::move(page), writer), paragraphIndex, listItemIndex});
       },
       embeddedStyle, contentBase, imageBasePath, imageRendering, std::move(tocAnchors),
@@ -310,6 +317,37 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
   Storage.remove(tmpHtmlPath.c_str());
   if (!success) {
     LOG_ERR("SCT", "Failed to parse XML and build pages");
+    // Explicitly close() file before calling Storage.remove()
+    file.close();
+    Storage.remove(filePath.c_str());
+    if (cssParser) {
+      cssParser->clear();
+    }
+    return false;
+  }
+
+  // Refuse to cache a chapter that laid out to nothing *because the heap was
+  // low*. ParsedText::addWord discards every word while free heap is under
+  // ~41KB (canAllocate's total-free clause, not fragmentation), so an
+  // image-heavy chapter can produce pages with no elements at all. Writing that
+  // is far worse than failing: the blank section is cached on SD and every
+  // subsequent open reads the blank cache instead of re-indexing, so a
+  // transient dip in free heap blanks the chapter permanently. Same sticky
+  // shape as the empty-CSS-parse defect (docs/FINDINGS.md 2026-08-12T19:45Z).
+  //
+  // Both conditions are required. Zero elements alone is a legitimate result —
+  // EPUBs do contain genuinely empty spine items, and refusing those would make
+  // them re-index (and error) on every single open. The truncation tally is what
+  // says the emptiness was caused by heap pressure rather than by the content.
+  //
+  // Deliberately NOT extended to partially truncated sections: those are lossy
+  // and are still cached. Refusing them would turn a partly readable chapter
+  // into an unreadable one on a device that cannot currently index it at all,
+  // which is a worse trade than it looks. Recorded as a known gap.
+  if (totalPageElements == 0 && ParsedText::heapTruncationTally() > 0) {
+    LOG_ERR("SCT", "Refusing to cache empty section: %u block(s) dropped by the heap guard (free=%u largest=%u)",
+            static_cast<unsigned>(ParsedText::heapTruncationTally()), static_cast<unsigned>(heapguard::freeBytes()),
+            static_cast<unsigned>(heapguard::largestBlock()));
     // Explicitly close() file before calling Storage.remove()
     file.close();
     Storage.remove(filePath.c_str());

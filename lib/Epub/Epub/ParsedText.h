@@ -71,6 +71,21 @@ class ParsedText {
   ~ParsedText() = default;
 
   void addWord(std::string word, EpdFontFamily::Style fontStyle, bool underline = false, bool attachToPrevious = false);
+
+  // Build-scoped tally of how many blocks addWord's OOM guard truncated.
+  //
+  // Section::createSectionFile uses it to tell a chapter that laid out to nothing
+  // because the heap was low (transient -- must not be cached, or the chapter is
+  // blank forever) from one that is genuinely empty (fine to cache).
+  //
+  // A file-scope tally rather than a sink threaded through the constructor:
+  // blocks are created, moved into table cells and moved back out again, so
+  // there is no single finalization point to query, and a missed site would
+  // silently under-report. Section building is strictly serialized -- one
+  // section at a time, on the render task, under the storage mutex -- so there
+  // is no concurrent builder to interleave with.
+  static void resetHeapTruncationTally();
+  static uint32_t heapTruncationTally();
   void setBlockStyle(const BlockStyle& blockStyle) { this->blockStyle = blockStyle; }
   BlockStyle& getBlockStyle() { return blockStyle; }
   size_t size() const { return words.size(); }

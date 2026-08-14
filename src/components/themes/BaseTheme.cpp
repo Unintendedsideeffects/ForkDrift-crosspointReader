@@ -526,6 +526,12 @@ void BaseTheme::drawBookCard(const GfxRenderer& renderer, Rect area, Rect bookRe
                              const std::function<bool()>& storeCoverBuffer) const {
   const bool hasContinueReading = !recentBooks.empty();
 
+  // Whether the cover bitmap actually reached the framebuffer on THIS pass.
+  // Distinct from coverRendered, which additionally requires the 48KB cover
+  // buffer to have been cached: a cover can be drawn and then not cached, and
+  // the placeholder below must not repaint over it in that case.
+  bool coverDrawnThisPass = false;
+
   // Render cover image from SD on first draw, then rely on stored buffer
   if (hasContinueReading && hasCoverImage && !coverRendered) {
     const std::string coverBmpPath =
@@ -538,8 +544,12 @@ void BaseTheme::drawBookCard(const GfxRenderer& renderer, Rect area, Rect bookRe
         LOG_DBG("THEME", "Rendering bmp");
         renderer.drawBitmap(bitmap, bookRect.x, bookRect.y, bookRect.width, bookRect.height);
         renderer.drawRect(bookRect.x, bookRect.y, bookRect.width, bookRect.height);
+        coverDrawnThisPass = true;
 
         coverBufferStored = storeCoverBuffer();
+        // Deliberately still tied to the cache: with no cached frame the cover
+        // must be re-read from SD on the next pass, so it must not be recorded
+        // as already rendered.
         coverRendered = coverBufferStored;
 
         if (bookSelected) {
@@ -553,7 +563,7 @@ void BaseTheme::drawBookCard(const GfxRenderer& renderer, Rect area, Rect bookRe
   }
 
   // No cover image and buffer not restored: draw empty card with optional bookmark
-  if (!bufferRestored && !coverRendered) {
+  if (!bufferRestored && !coverRendered && !coverDrawnThisPass) {
     if (bookSelected) {
       renderer.fillRect(bookRect.x, bookRect.y, bookRect.width, bookRect.height);
     } else {

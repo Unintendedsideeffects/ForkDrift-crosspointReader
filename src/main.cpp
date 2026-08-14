@@ -9,6 +9,7 @@
 #include <HalPowerManager.h>
 #include <HalStorage.h>
 #include <HalSystem.h>
+#include <HeapTrace.h>
 #include <I18n.h>
 #include <Logging.h>
 #include <SPI.h>
@@ -602,6 +603,10 @@ void setup() {
   lastActivityTime = millis();
   t1 = millis();
 
+  // Boot heap milestones. Nothing logged this early ever reaches the host (see
+  // HeapTrace.h), so record instead and read back with CMD:HEAPTRACE.
+  heaptrace::mark("boot:entry");
+
   HalSystem::begin();
 #ifndef SIMULATOR
   HalSystem::setSettingsProvider([]() { return SETTINGS.getCondensedSettings(); });
@@ -623,10 +628,12 @@ void setup() {
   }
 #endif
   core::CoreBootstrap::initializeFeatureSystem(usbConnectedAtBoot);
+  heaptrace::mark("boot:features");
 
   LOG_INF("MAIN", "Hardware detect: %s", gpio.deviceIsX3() ? "X3" : "X4");
 
   bool sdReady = Storage.begin();
+  heaptrace::mark("boot:sd");
 #ifdef SIMULATOR
   // Let the smoke harness exercise the SD-missing Safe Mode path, which is
   // otherwise hardware-only (the simulator's HalStorage::begin() always succeeds).
@@ -659,6 +666,7 @@ void setup() {
   OPDS_STORE.loadFromFile();
   UITheme::getInstance().reload();
   ButtonNavigator::setMappedInputManager(mappedInputManager);
+  heaptrace::mark("boot:settings");
 
   const auto wakeupReason = gpio.getWakeupReason();
   const bool wokeFromSleep = (wakeupReason == HalGPIO::WakeupReason::PowerButton);
@@ -717,6 +725,7 @@ void setup() {
   if (!setupDisplayAndFonts()) {
     return;
   }
+  heaptrace::mark("boot:display");
 
 #if ENABLE_TIMED_SLEEP_REFRESH
   if (wakeupReason == HalGPIO::WakeupReason::TimerRefresh) {
@@ -737,10 +746,12 @@ void setup() {
   if (!silentReboot) {
     activityManager.goToBoot();
   }
+  heaptrace::mark("boot:splash");
 
   APP_STATE.loadFromFile();
   RECENT_BOOKS.loadFromFile();
   LIBRARY_SHELF.loadFromFile();
+  heaptrace::mark("boot:appstate");
 
   if (recoveryFirmwareMode) {
     // Skip normal home/reader routing: open the recovery menu (firmware flash,
@@ -780,9 +791,13 @@ void setup() {
     activityManager.goToReader(path);
   }
 
+  heaptrace::mark("boot:activity");
+
   BackgroundWifiCoordinator::getInstance().attemptBootAutoConnect();
+  heaptrace::mark("boot:autoconnect");
 
   waitForPowerRelease();
+  heaptrace::mark("boot:done");
 }
 
 #ifndef SIMULATOR
@@ -903,6 +918,10 @@ void loop() {
   if (Serial && millis() - lastMemPrint >= 10000) {
     LOG_INF("MEM", "Free: %d bytes, Total: %d bytes, Min Free: %d bytes, MaxAlloc: %d bytes", ESP.getFreeHeap(),
             ESP.getHeapSize(), ESP.getMinFreeHeap(), ESP.getMaxAllocHeap());
+    // Also record the sample, so the first ~2 minutes after boot survive into
+    // CMD:HEAPTRACE. Everything logged before the host can attach is otherwise
+    // lost, and that is exactly the window where the low-water mark is set.
+    heaptrace::mark("loop:tick");
     lastMemPrint = millis();
   }
 
@@ -919,6 +938,10 @@ void loop() {
         logSerial.printf("SCREENSHOT_END\n");
       } else if (cmd == "PING") {
         logSerial.printf("PONG\n");
+      } else if (cmd == "HEAPTRACE") {
+        // Boot-time heap milestones, unreachable over serial while they happen.
+        heaptrace::dump("MEM");
+        logSerial.printf("HEAPTRACE_END\n");
 #if ENABLE_TERMINUS_SLEEP
       } else if (cmd == "TRMNL_STATUS") {
         const std::string status = features::terminus_sleep::machineStatusJson();

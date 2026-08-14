@@ -72,6 +72,7 @@
 #include "features/status_overlay/Layout.h"
 #include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
+#include "network/background/BackgroundWebServer.h"
 #include "network/background/BackgroundWifiService.h"
 #include "util/CoverThumbSizes.h"
 #include "util/RecentBooksStore.h"
@@ -300,11 +301,34 @@ void EpubReaderActivity::onEnter() {
   Activity::onEnter();
   mappedInput.setReaderMode(true);
 
+  // Both background servers must be down BEFORE the book load allocates, not after.
+  //
+  // blocksBackgroundServer() returns true for this activity, but it is only consulted from
+  // main.cpp's loop — which runs after onEnter() has already loaded and laid out the book. So
+  // the on-charge BackgroundWebServer was being torn down a tick too late: the load had
+  // already failed. There is no heap compaction on this platform, so freeing after the fact
+  // buys nothing; the ordering is the whole fix.
+  //
+  // Measured cost of leaving it up (X4, serial trace 2026-08-13): the server holds ~16 KB
+  // (free 59,480 -> 75,660 across stop/delete), against a device that was observed reaching
+  // min free 4,676 B at Home. That is the difference between a book opening and
+  // "Failed to load EPUB".
+  //
+  // keepWifi=true on both: the radio is not the expensive part, the server objects and their
+  // route tables are, and dropping the association would cost a reconnect on reader exit.
   if (BG_WIFI.isPendingOrRunning()) {
     BG_WIFI.stop(true);
   }
+  // Unconditional and idempotent — it logs "already stopped" and returns when there is
+  // nothing to do. Restart is not handled here: once this activity exits,
+  // blocksBackgroundServer() goes false and main.cpp's reconcile brings it back up.
+  BackgroundWebServer::getInstance().stop(true);
 
   if (!epub) {
+    // Should be unreachable -- the factory returns nullptr rather than an
+    // activity with no book -- but a silent return here renders an empty reader
+    // with nothing on serial to say why.
+    LOG_ERR("ERS", "onEnter with no Epub; nothing to read");
     return;
   }
 
@@ -2480,7 +2504,24 @@ bool EpubReaderActivity::collectSelectableWords(const Page& page, const int marg
     }
     ++lineId;
   }
-  return !out.empty();
+  if (out.empty()) {
+    // This was the function's only unlogged exit, and it is why
+    // "Selection index retained" was never observed on hardware:
+    // buildSelectionPageIndex turns a false from here into its own silent
+    // `return false`, so the whole chain produced no line at all. The premise
+    // that "every exit path logs, including wordCount == 0" was exactly wrong
+    // about this one.
+    //
+    // Both causes are worth telling apart. counted == 0 is a genuinely empty
+    // page. counted > 0 with nothing emitted is a defect rather than a quiet
+    // no-op: the counting loop above reads block->getWords(), but the emit loop
+    // is additionally bounded by getWordXpos(), so a block whose word
+    // x-positions are missing counts words it can never emit.
+    LOG_WRN("ERS", "SELECTION_INDEX_FALLBACK empty counted=%u emitted=0 lines=%u", static_cast<unsigned>(wordCount),
+            static_cast<unsigned>(lineId));
+    return false;
+  }
+  return true;
 }
 
 selection::PageGenerationKey EpubReaderActivity::currentSelectionGeneration() const {

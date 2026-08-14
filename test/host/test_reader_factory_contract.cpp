@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "core/registries/ReaderRegistry.h"
 #include "doctest/doctest.h"
 
 namespace {
@@ -51,4 +52,35 @@ TEST_CASE("Reader factory registration files do not use bare new") {
   for (const auto& file : registrationFiles) {
     verifyRegistrationNoBareNew(file);
   }
+}
+
+// Regression: ReaderRegistry::open had three distinct refusals that all did a
+// bare `return {}`. That default-constructs logMessage = nullptr, and
+// ActivityManager::goToReader logged only `if (result.logMessage)` -- so a book
+// that would not open bounced back to Home with nothing at all on serial.
+//
+// These two checks together pin that down: the first proves a bare `return {}`
+// really is silent, the second proves open() no longer contains one.
+// open() itself is not directly callable here -- it takes live GfxRenderer and
+// MappedInputManager references, neither of which the host suite links.
+
+TEST_CASE("A default-constructed ReaderOpenResult carries no reason") {
+  const core::ReaderOpenResult defaulted;
+  CHECK(defaulted.status == core::ReaderOpenResult::Status::LoadFailed);
+  CHECK(defaulted.activity == nullptr);
+  // This is exactly why `return {}` must never be used for a real refusal.
+  CHECK(defaulted.logMessage == nullptr);
+}
+
+TEST_CASE("ReaderRegistry::open has no reasonless failure return") {
+  const std::string content = readFile("src/core/registries/ReaderRegistry.h");
+
+  const size_t openPos = content.find("static ReaderOpenResult open(");
+  REQUIRE(openPos != std::string::npos);
+  const std::string openBody = content.substr(openPos);
+
+  std::regex bareReturnRegex(R"(return\s*\{\s*\}\s*;)");
+  std::smatch match;
+  CHECK_MESSAGE(!std::regex_search(openBody, match, bareReturnRegex),
+                "ReaderRegistry::open contains a bare 'return {};' -- every failure needs a logMessage");
 }

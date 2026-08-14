@@ -6,6 +6,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
+#include <HeapGuard.h>
 #include <I18n.h>
 #include <Utf8.h>
 #include <WiFi.h>
@@ -21,6 +22,7 @@
 #if ENABLE_BOOKMARKS
 #include "BookmarkStore.h"
 #include "activities/home/BookmarksHomeActivity.h"
+#include "activities/home/HomeCoverCachePolicy.h"
 #endif
 #if ENABLE_POKEMON_PARTY
 #include "activities/home/PokemonAssignActivity.h"
@@ -998,12 +1000,28 @@ bool HomeActivity::storeCoverBuffer() {
     return false;
   }
 
-  // Free any existing buffer first
+  // Free any existing buffer first. This happens before the admission check on
+  // purpose: the caller is replacing the cached frame, so the honest question is
+  // "can this device afford one cover buffer", not "can it afford two".
   freeCoverBuffer();
 
   const size_t bufferSize = renderer.getBufferSize();
+
+  // This buffer is a luxury (see HomeCoverCachePolicy.h). Without this check it
+  // was a bare malloc that succeeded down to 15KB free / 9KB largest, and was
+  // the single largest driver of the device's since-boot low-water mark.
+  if (!HomeCoverCachePolicy::canStore(
+          {static_cast<uint32_t>(heapguard::freeBytes()), static_cast<uint32_t>(heapguard::largestBlock())},
+          bufferSize)) {
+    LOG_DBG("HOME", "cover cache skipped: need %u, free=%u largest=%u floorAfter=%u", static_cast<unsigned>(bufferSize),
+            static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(heapguard::largestBlock()),
+            static_cast<unsigned>(HomeCoverCachePolicy::kFloorAfterBytes));
+    return false;
+  }
+
   coverBuffer = static_cast<uint8_t*>(malloc(bufferSize));
   if (!coverBuffer) {
+    LOG_ERR("HOME", "cover cache malloc failed: %u bytes", static_cast<unsigned>(bufferSize));
     return false;
   }
 
@@ -1717,7 +1735,14 @@ void HomeActivity::render(RenderLock&&) {
 
             // Store the buffer with cover image for fast navigation
             coverBufferStored = storeCoverBuffer();
-            coverRendered = true;
+            // Must track the cache, not the draw: the re-read branch above is
+            // gated on !coverRendered, so claiming "rendered" without a cached
+            // frame means the next pass clears the screen and then draws
+            // neither the cover (branch skipped) nor the placeholder (its
+            // else-if is skipped too), leaving the card blank. Harmless while
+            // storeCoverBuffer() always succeeded; reachable now that it can
+            // decline on low heap.
+            coverRendered = coverBufferStored;
 
             // First render: if selected, draw selection indicators now
             if (bookSelected) {

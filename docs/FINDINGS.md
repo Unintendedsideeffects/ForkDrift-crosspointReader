@@ -933,3 +933,413 @@ Consecutive runs start at different book positions (`26/31 6%` then `3/44 7%`) b
 `progress.bin` persists between runs. Any cross-run frame comparison is meaningless and the
 highlight leg exercises a different page each time. Reset reader state at smoke-test start.
 - **Status**: 1 and 2 fixed and gated; 3 and 4 open with a concrete next step
+
+## 2026-08-13T20:45Z — On-device flash of today's work: root cause confirmed, fix not yet observed firing
+- **Found by**: claude — flashing HEAD (944cc90e1) to the X4 and driving it with device_walk
+- **Flash**: both OTA slots (0x10000, 0x650000) + otadata erased. Device boots, navigates, and
+  renders pages (`[ERS] Rendered page in 1792ms`, `Progress saved: spine=19 page=0`).
+- **The flashed binary genuinely carries today's work** — `strings` finds "Refusing add",
+  "Selection index retained", and "SELECTION_INDEX_FALLBACK" in `firmware.bin`. Worth checking
+  this way rather than trusting the flash log.
+
+### Root cause confirmed on real hardware
+Live readings with developerMode logging on:
+```
+Free: 80,616   Total: 180,616   Min Free: 29,524   MaxAlloc: 38,900-40,948
+```
+`MaxAlloc` never exceeds ~41 KB. The old gate
+(`ReaderOptionsMemoryPolicy::canRetainPreview`) required `48,000 + retainedBytes` contiguous.
+**With 80 KB free it still could not pass**, exactly as diagnosed from the simulator. Total
+180,616 also confirms the 180,000 budget seeded into `sim_heap.cpp` was accurate, not a guess.
+
+### What is NOT yet verified
+No `Selection index retained: words=N` line was observed on device. The string is in the
+binary and `LOG_DBG` is demonstrably working (`[ERS] Page render (tiled)` is also `LOG_DBG` and
+appears), so this is not a logging-level problem. `buildSelectionPageIndex` is called from
+`renderContents` (`EpubReaderActivity.cpp:2102`) behind `!previewRenderOnly && section`.
+Either that call is not reached on the render path taken, or the index build happens on a path
+the capture window missed. **The fix is therefore simulator-verified but not yet device-verified
+— do not describe it as confirmed on hardware until that line is seen.**
+
+### Separate defect found while driving
+One book in My Library shows **"Failed to load EPUB"** and renders blank before settling. This
+cannot be caused by the selection-index change, which runs only after a page has loaded. Most
+likely the same class as the simulator's stale fixtures (a `.crosspoint` cache built by older
+firmware against the current `book.bin` version), but that is a hypothesis, not a diagnosis —
+the load failure emitted no `ERR` line at the current log level, which is itself worth fixing.
+
+### Harness note
+`device_walk.py`'s `expect` only sees lines arriving *after* the preceding `press` returns, so
+`press <BTN> <settle>` followed by `expect` silently misses anything logged during the settle.
+Use `press <BTN> 0` and let `expect` do the waiting. This cost a full debugging cycle.
+- **Status**: open — device-verification of the selection-index fix, and the EPUB load failure
+
+## 2026-08-13T21:10Z — "Failed to load EPUB" is an intermittent low-heap failure, not a bad book
+- **Found by**: claude — driving the X4 over device_walk after flashing HEAD
+- **Symptom**: opening a book shows a blank screen that settles to "Failed to load EPUB".
+- **It is not the book.** Both books in Recent (`Managing Kubernetes Resources Using Helm`,
+  `epub_3657489293`; `Site Reliability Engineering`, `epub_690289643`) open and render
+  correctly on demand — `Rendered page in ~1790ms`, `Progress saved`. The failure did not
+  reproduce on a clean boot either.
+- **It is heap.** The load that failed happened shortly after a flash, while the background
+  WiFi server was still up. Measured on the next boot:
+  ```
+  exit Home: free=52812  min=4676  largest=38900
+  ```
+  **Min free reached 4,676 bytes** — the lowest ever recorded on this device. Entering the
+  reader then tears the background server down in stages, and the serial trace shows exactly
+  what it was holding:
+  ```
+  [WEB] Free heap before stop:        59,480
+  [WEB] after server->stop():         63,304
+  [WEB] after delete server:          75,660
+  ```
+  So the background server holds ~16 KB, and a book load attempted while it is resident and
+  the heap is already low fails. Once the reader has torn it down, loads succeed. That fully
+  explains "fails right after flash/boot, works every time afterwards".
+- **Why this matters beyond the symptom**: `min=4676` means the device routinely comes within
+  ~4.7 KB of exhaustion during ordinary Home use with the background server on. The
+  `kCriticalFloorBytes` of 32 KB that `heapguard` defends is being blown straight through by
+  something that is not going through `heapguard`.
+- **Silent failure**: the load emitted **no `ERR` line** at all — the user sees "Failed to load
+  EPUB" and the serial log says nothing. Same class as the `AnnotationStore::add` defect fixed
+  in `ef7d698a0`. The load path needs a logged reason before it returns false.
+- **Not fixed here** — this is a real defect with a measured cause, but fixing it means either
+  gating book open on available heap or making the reader tear the background server down
+  *before* attempting the load rather than after. That is a design decision, not a patch.
+- **Status**: open — root-caused and measured, fix deliberately not attempted
+
+## 2026-08-13T21:15Z — Selection index build produces no log on device (still unexplained)
+`buildSelectionPageIndex` is called at `EpubReaderActivity.cpp:2102` and the tiled-render log
+is at `:2227` — both inside `renderContents` (2064-2297), so the call is on the executed path.
+`ENABLE_TEXT_SELECTION` is compiled in (all three strings are present in `firmware.bin` per
+`strings`), and `LOG_DBG` works (the tiled-render line is `LOG_DBG` and appears). Yet neither
+`Selection index retained` nor `SELECTION_INDEX_FALLBACK` ever appears across many page renders.
+Every exit path of `collectSelectableWords` logs, including the `wordCount == 0` case, so
+"called and silent" should be impossible. Narrowed but unresolved — the `ef7d698a0` fix stays
+**simulator-verified only** until this line is observed on hardware.
+- **Status**: open
+
+## 2026-08-13T21:45Z — Background servers now torn down BEFORE the book load (FIXED, device-verified)
+- **Where**: `src/activities/reader/EpubReaderActivity.cpp:302` (`onEnter`)
+- **The ordering bug**: `EpubReaderActivity::blocksBackgroundServer()` returns true, but it is
+  only consulted from `main.cpp`'s loop — which runs *after* `onEnter()` has already loaded and
+  laid out the book. `BG_WIFI.stop()` was called synchronously up front, but the on-charge
+  `BackgroundWebServer` was left to the reactive path and so came down a tick too late. With no
+  heap compaction on this platform, freeing after the allocation has already failed buys
+  nothing.
+- **Fix**: `BackgroundWebServer::getInstance().stop(true)` alongside the existing
+  `BG_WIFI.stop(true)`, before any load. Idempotent (logs "already stopped" and returns).
+  Restart is unchanged: once the activity exits, `blocksBackgroundServer()` goes false and the
+  existing reconcile in `main.cpp` brings it back. `keepWifi=true` on both — the radio is not
+  the expensive part, the server objects and route tables are, and dropping the association
+  would cost a reconnect on reader exit.
+- **Device-verified** (X4, first open after a clean boot, on-charge server confirmed running):
+  ```
+  before:  Free: 55,424   [WEB] handleClient active, server running on port 80
+  after:   Free: 78,852   ch028.xhtml loaded, Rendered page in 1797ms
+  ```
+  ~23 KB more headroom at the moment of allocation. This is the condition that previously
+  produced "Failed to load EPUB".
+- **Not claimed**: the original intermittent failure was never reproduced on demand, so this is
+  verified as "the ordering is now correct and the load has ~23 KB more room", not as "the
+  intermittent failure is proven gone". `Min Free` still reaches ~4.4 KB during boot/Home,
+  which remains open — see the 21:10Z entry.
+- **Status**: fixed and device-verified; the underlying Home-time low-water is still open
+
+## 2026-08-13T22:00Z — Clarification: two managers, one server (never both at once)
+Language correction for anyone reading the 21:45Z entry. `BackgroundWifiService` (Always mode)
+and `BackgroundWebServer` (on-charge/USB mode) each own a `CrossPointWebServer`, and the code
+comments in `main.cpp` call them "both servers" — but they are **mutually exclusive at
+runtime**, guarded in both directions:
+  - `shouldRunOnChargeBackgroundServer()` ends in `&& !input.bgWifiRunning`
+  - `evaluateReconcile()` returns `None` when `input.usbBackgroundServerRunning`
+So exactly one can be serving. "Two background servers" invites the wrong reading that both
+hold heap simultaneously; it is one server with two lifecycle owners, and the ~23 KB measured
+in the 21:45Z entry is one server's footprint, not two summed.
+
+This does not change the fix, it sharpens it: exactly one of the two `stop()` calls in
+`onEnter` does real work on any given entry. The gap was not "we forgot to free the second
+server" but "the mode that was actually running (on-charge) had no synchronous teardown at
+all" — `BG_WIFI.stop()` covered Always mode only.
+
+## 2026-08-14T00:30Z — The ~4.4 KB Min Free is HomeActivity's unguarded 48 KB cover buffer (FIXED, device-verified)
+- **Found by**: claude — `CMD:HEAPTRACE` on the X4, boot to Home
+- **Why it took a day to find**: `ESP.getMinFreeHeap()` is a monotonic since-boot record, so it
+  cannot be bisected by watching a running device — you must be present when it drops. And you
+  cannot be: the X4's serial is native USB-CDC over USB/IP, every reset drops the host attach,
+  and re-attaching takes ~15 s. Measured: after a reset the first line the host ever sees is at
+  t=20 s, by which point `Min Free` is already at its floor. The whole causal window is
+  unobservable by streaming. `heaptrace` (a3f0fb3c9) exists because of this: it records
+  milestones into RAM and dumps them after the host has re-attached.
+
+### What the trace showed
+```
+boot:autoconnect  free=85960  min=85784  (-47800)   <- WiFi: expensive but SAFE
+boot:done         free=83624  min=83560
+home:covbuf-pre   free=81884  min=78940
+home:covbuf-post  free=33868  min=33868  (-45072)   <- one 48,000-byte malloc
+home:covbuf-pre   free=63256  min=12092
+home:covbuf-post  free=15240  min=12092             largest=9204
+```
+- **WiFi is exonerated.** It costs ~48 KB but leaves `min` at 85,784 — well clear of the floor.
+- The entire collapse is `HomeActivity::storeCoverBuffer()`, a bare `malloc(48000)` with **no
+  heap check of any kind**. It succeeded down to free=15,240 / largest=9,204, i.e. it walked
+  straight through `heapguard::kCriticalFloorBytes` (32 KB) — exactly the "path that never
+  consults heapguard" that was predicted from the symptom.
+- The cover buffer is a pure optimisation: a framebuffer copy so Home navigation can restore the
+  rendered cover instead of re-reading cover BMPs from SD. `HeapReclaimRegistry` was already
+  allowed to drop it under pressure, so declining it was always a supported outcome.
+
+### Fix
+`HomeCoverCachePolicy` (a pure snapshot predicate, same shape as `ReaderOptionsMemoryPolicy`, so
+the boundaries are host-testable) with `floorAfter = heapguard::kLowFloorBytes` rather than
+`kCriticalFloorBytes`. That is not arbitrary: `HeapGuard.h` defines LOW as the level at which to
+"defer optional luxuries (previews, covers, prefetch)", and this buffer is precisely that. The
+critical floor would not have been enough — the first of the two allocations above passes a
+32 KB-floor check (81,884 - 48,000 = 33,884) and still leaves the following render work to drive
+`min` to 12 KB.
+
+### Device-verified result
+```
+before:  Min Free: 4,424    (worst observed 4,112)
+after:   Min Free: 50,524   (49,324 after exercising Home navigation)
+```
+An ~11x improvement in the margin to exhaustion, and the device now stays above the 32 KB
+critical floor for the whole boot-to-Home sequence. With WiFi down there is room and the cache is
+still taken, so it is not dead code — it is now conditioned on being affordable.
+- **Status**: fixed and device-verified
+
+## 2026-08-14T00:35Z — BaseTheme painted a black placeholder over the cover it had just drawn (FIXED)
+- **Found by**: claude — screenshotting the X4 after the cover-cache guard above, which turned a
+  latent bug into a visible one
+- **Where**: `src/components/themes/BaseTheme.cpp` (`drawBookCard`)
+- `coverRendered = coverBufferStored;` conflates two different facts: "the cover bitmap is in the
+  framebuffer" and "the 48 KB frame was cached". A later, separate block reads
+  `if (!bufferRestored && !coverRendered)` and fills the card — so a cover that was drawn and
+  then *not* cached got a solid black `fillRect` painted straight over it, plus the bookmark
+  ribbon. That is exactly what the screenshot showed.
+- Latent before, because the bare `malloc` essentially always succeeded; the guard made it fire
+  on every Home render.
+- **Fix**: a local `coverDrawnThisPass` flag, so the placeholder is suppressed when the cover
+  actually reached the framebuffer. `coverRendered` keeps its cache-tied meaning deliberately —
+  with no cached frame the cover *must* be re-read from SD next pass.
+- **Only BaseTheme has this shape.** The other seven themes gate their placeholder on a local
+  `hasCover` (did the BMP parse) *inside* the same `if (!coverRendered)` block, so a failed cache
+  costs them a redraw, not a black box. `PokemonPartyTheme` documents that fallback explicitly.
+  Checked all of them rather than assuming.
+- **Not covered by a test**: `drawBookCard` needs a live `GfxRenderer` and is not reachable from
+  the host suite. Caught by screenshot, and that is currently the only way to catch it.
+- **Status**: fixed; device-verified by screenshot
+
+## 2026-08-14T02:10Z — Reader-open failures were silent in three more places (FIXED)
+- **Found by**: claude — auditing the load chain for item 2 of the overnight brief
+- `ReaderRegistry::open` had **three** bare `return {}` statements (empty path, entry with no
+  factory, factory returned null). `{}` default-constructs `ReaderOpenResult`, whose
+  `logMessage` is `nullptr`, and `ActivityManager::goToReader` logged only
+  `if (result.logMessage)`. A book that would not open bounced the user back to Home with
+  nothing whatsoever on serial. Third occurrence of this exact class today.
+- Also silent: `EpubReaderActivity::onEnter`'s `if (!epub) return;`, and `Epub::load`'s
+  `!buildIfMissing` branch (expected for cover-thumb generation, but the caller still reports
+  "failed to load" and this branch gave no reason).
+- `goToReader` now logs **unconditionally**, with path and status, so a future result that
+  forgets to set a reason still cannot vanish.
+- **Audited, not assumed**: `Section::createSectionFile` already logs every `return false`, and
+  SD open failures are logged inside `SDCardManager` with raw `Serial.printf` (so they print at
+  any log level, developerMode or not). Neither needed touching. The earlier assumption that the
+  whole load path was unlogged was too broad.
+- **Test**: `ReaderRegistry::open` takes live `GfxRenderer`/`MappedInputManager` references,
+  neither of which the host suite links, so it is not directly callable. Pinned instead by a
+  pair in `test_reader_factory_contract.cpp`: a behavioural check that a default-constructed
+  `ReaderOpenResult` really does carry a null reason, and a structural check that `open()`
+  contains no bare `return {};`. Confirmed the pair discriminates (3 hits pre-fix, 0 post-fix).
+- **Status**: fixed; not exercised against a reproduced failure on hardware, because the
+  original intermittent failure has never been reproducible on demand
+
+## 2026-08-14T02:20Z — RESOLVED: why "Selection index retained" never logs on device
+- **Found by**: claude — device probe on the X4 (temporary log at the call site, since removed)
+- The 2026-08-13T21:15Z entry concluded "called and silent should be impossible". The premise
+  was wrong in one specific place, and that place is the whole answer.
+
+### Cause 1 — there *was* an unlogged exit (FIXED in 77c4b0354)
+`collectSelectableWords` ends in `return !out.empty();`. That is a failure return with no log,
+and `buildSelectionPageIndex` turns it into its own silent `return false`. The two compose into
+total silence. The claim "every exit path logs, including the `wordCount == 0` case" was exactly
+wrong about this one — `wordCount == 0` skips both bounded checks and falls straight through to
+the unlogged return.
+
+### Cause 2 — there is genuinely nothing to select
+With the exit logged, the device says the same thing on every page of the open book:
+```
+[PROBE] selguard preview=0 section=1 elements=0
+[WRN] [ERS] SELECTION_INDEX_FALLBACK empty counted=0 emitted=0 lines=0
+```
+The guard passes, the call is made, and **the page has zero elements**. Verified across
+ch025–ch030. Screenshot of the reader confirms it: the page renders completely blank.
+
+So the selection index was never "silently failing" — it was correctly reporting that there are
+no selectable words, on a book whose pages are empty.
+
+- **Consequence for `ef7d698a0`**: still **not device-verified**. Not because the fix is wrong,
+  but because this device's open book has no selectable words at all, so the retained path
+  cannot be exercised on it. It needs a book that indexes successfully. Do not upgrade that
+  claim until `Selection index retained: words=N` with N>0 is seen.
+- **Status**: mystery resolved; `ef7d698a0` verification still blocked on a healthy book
+
+## 2026-08-14T02:25Z — OPEN: sections index to zero elements below a 41 KB free-heap cliff, and the empty result is cached
+- **Found by**: claude — while resolving the selection-index mystery above
+- **The device is rendering blank pages, and this is the serious finding of the night.**
+
+### The mechanism, exactly
+`ParsedText::addWord` ([ParsedText.cpp:269](../lib/Epub/Epub/ParsedText.cpp)) heap-checks before
+appending **each word** and discards the word if the check fails:
+```cpp
+if (!heapguard::canAllocate(kWordGrowthGuardBytes)) {   // 8 KB
+  if (!heapTruncated) { heapTruncated = true; LOG_ERR("PTX", "OOM guard: truncating block..."); }
+  return;                                                // word dropped
+}
+```
+`heapTruncated` is per-`ParsedText`, so the line logs **once per block**. Hundreds of log lines
+means hundreds of *distinct blocks*, not one block logging repeatedly.
+
+The reason it never recovers mid-chapter is arithmetic in `canAllocate`:
+```cpp
+if (free < bytes || free - bytes < floorAfter) return false;   // floorAfter = 32,768
+return bytes <= largestBlock();
+```
+With `bytes = 8,192` this is false **whenever free heap is under 40,960**, and it returns on that
+clause *before* the largest-block test. Measured free during these chapters: **26,048–34,272**.
+So every word of every block was discarded for the whole parse.
+
+Zero words per block → no `PageLine` elements emitted → a page with `elements=0`, which is
+exactly what the device probe printed (`counted=0 emitted=0 lines=0`).
+
+### Correction to an earlier draft of this entry
+An earlier version of this entry blamed **fragmentation** and cited `largest=11252`. That is
+wrong. The `largest=` value is only diagnostic text inside the log message; it is not the
+predicate that failed. The trigger is **total free heap below ~41 KB**, driven by the JPEG decode
+attempts on the same chapters (`[JPG] Not enough heap for JPEG decoder (26048 free, need 36864)`,
+repeated for media/file26 through file52, plus `[ERS] OOM: grayscale strip scratch (8000
+bytes)`). The device also silently restarted (heap-defrag reboot) at least twice in a few minutes
+of paging.
+
+**This matters for the fix**: pooling (item 4 of the overnight brief) addresses large single
+allocations against a small largest-block, and would **not** have prevented this. Do not reach
+for it here.
+
+### Why it is permanent
+**The empty result is sticky**, exactly like the empty-CSS-parse defect of 2026-08-12T19:45Z:
+`[SCT] Deserialization succeeded: 1 pages` — the section file was *written* with an empty page.
+Re-opening the chapter reads that blank cache and never re-indexes, so the chapter stays blank
+even after the heap fully recovers. Transient pressure, permanent damage.
+
+### What a fix needs
+- (a) **Refuse to persist a section whose page has zero elements** — treat it as an index failure
+  to be retried, not a result to cache. This alone stops the permanent damage and is the cheap
+  half.
+- (b) Stop holding image-decode memory across the text parse, so the 41 KB cliff is not crossed
+  in the first place. That is the real cure and the larger job.
+- Also worth reconsidering: an 8 KB speculative reserve on top of a 32 KB floor means text layout
+  refuses to add a single word while 40 KB is still free. That is a very expensive guard band for
+  a `std::vector` growth step.
+- **Status**: open — root-caused and measured, fix deliberately not attempted
+
+## 2026-08-14T14:05Z — The empty-section refusal is device-verified, and it misses the cliff by ~3 KB
+- **Found by**: claude — X4, forcing a re-index by changing `fontSize` (which invalidates the
+  cached section on a parameter mismatch), then restoring it
+- Fix `89c78e78b` verified on hardware end to end:
+```
+[SCT] Deserialization failed: Parameters do not match
+[ERS] Cache not found, building...
+[PTX] OOM guard: truncating block (low heap, free=38156 largest=14836)
+[SCT] Refusing to cache empty section: 1 block(s) dropped by the heap guard (free=45736 ...)
+[ERS] Failed to persist page data to SD
+```
+  and on the next open it logs `Cache not found, building...` again rather than reading a blank
+  cache. **The stickiness is gone** — that was the point of the fix.
+
+### The corrected root cause is now proven, not argued
+`free=38156` at the moment the guard tripped, with `largest=14836`. The request is 8,192 bytes,
+which fits the largest block four times over. It failed on `free - 8192 < 32768`. This is the
+total-free cliff, not fragmentation, and settles the correction made in `814e2d69f`.
+
+### The trade-off is real and now observed
+The user sees "Failed to load EPUB" rather than a blank page (screenshot confirms). That is the
+honest outcome and it retries, but on *this* device with *this* chapter the heap never clears the
+cliff, so the chapter is currently unreadable rather than blank-but-openable. Recorded as the
+known cost of the fix, exactly as flagged when it was written.
+
+### The interesting number
+`free=37620`–`38156` against a 40,960 threshold — **it misses by roughly 3 KB**. The threshold is
+`kWordGrowthGuardBytes` (8 KB) on top of `kCriticalFloorBytes` (32 KB). Reserving 8 KB ahead of a
+`std::vector` growth step, on top of a 32 KB floor, is what makes this chapter unindexable; a
+smaller guard band, or a lower floor scoped to indexing, would very likely let it through.
+**Not changed** — that is a deliberate crash-safety margin (the comment says the guard exists
+because `bad_alloc` becomes `terminate()` under `-fno-exceptions`), and re-tuning it is a
+judgement call for a human, not a 3am unilateral edit. Flagged for Malcolm.
+
+### Also observed, unexplained
+After a failed load the device settled at `Free: 16,772  Min Free: 11,556  MaxAlloc: 9,204` with
+the background web server running, and `/api/settings` returned `{"error":"low memory"}`. That is
+far worse than the 49–54 KB seen at Home after the cover-cache fix, and the background server
+appears to be up while the reader is the current activity — which `blocksBackgroundServer()`
+should prevent. Not investigated; may be a separate defect in the reconcile path after a load
+failure.
+- **Status**: fix verified; guard-band tuning and the post-failure low-heap state both open
+
+## 2026-08-14T16:10Z — Multi-agent sweep: one defect in my own work, one confirmed race, and a pile of unverified leads
+- **Found by**: claude, orchestrating cursor-agent (grok-4.6) and agy (Antigravity) as read-only
+  reviewers over this repo. Raw reports are in the session scratchpad; **this entry records only
+  what I re-verified by reading the code myself.** Agent output is a lead, not a finding.
+
+### VERIFIED and FIXED — `HomeActivity.cpp:1738` claimed "rendered" with no cached frame
+An adversarial review of my own `683b62f47` found a second instance of the `c4612a39a` bug in
+the classic (non-mediaPicker) Home path: `coverRendered = true` regardless of whether
+`storeCoverBuffer()` succeeded, while the SD re-read branch is gated on `!coverRendered` and the
+placeholder is that branch's `else if`. Once the cover cache declines, every later pass draws
+neither. Fixed in `1ac6ffd18`.
+**Worth recording why I missed it**: I read that exact line while writing `c4612a39a` and took it
+as evidence of intended semantics, then audited by grepping `coverRendered = coverBufferStored` —
+a pattern that can only match the sites that were already correct. Checked `FlowTheme.cpp:197`
+and `:248` too; those are safe because FlowTheme keys its re-render on `bufferRestored`.
+
+### VERIFIED, NOT FIXED — `BackgroundWifiService::run()` builds a server it was told to stop
+`stopRequested` is checked at `src/network/background/BackgroundWifiService.cpp:152` (inside the
+WiFi connect wait) and then **not again until :221** (the service loop). Between those lines the
+task runs `onBackgroundNetworkReady()`, a deferral wait loop (:180-182), `new
+CrossPointWebServer()` (:185), `server->begin()` (:192), mDNS, and a library shelf refresh.
+So a `stop(true)` issued from `EpubReaderActivity::onEnter()` during an in-flight auto-connect
+still constructs and starts a full web server — the ~16-23 KB measured in the 2026-08-13T21:45Z
+entry — and only tears it down when the loop finally notices. Precisely the wrong moment: the
+book load is allocating right then.
+This explains the log that looked impossible (background server running while the reader, whose
+`blocksBackgroundServer()` returns true, was current). The reconcile path is correct; it simply
+cannot reach into a task already past :152.
+**Fix is small** — re-check `stopRequested` before `new CrossPointWebServer()` and after the
+deferral wait — but it is outside what was approved tonight, so it is filed rather than done.
+- **Status**: open, root-caused, fix not attempted
+
+### UNVERIFIED LEADS — plausible, cited, but I have not confirmed them
+Do not treat these as findings until someone reads the code. Recording so they are not lost:
+- **The `if (!doc) return;` silent trap I fixed for EPUB in `0563fc6d4` still exists in the other
+  three readers**: `TxtReaderActivity.cpp:41/:340`, `XtcReaderActivity.cpp:41/:179`,
+  `MarkdownReaderActivity.cpp:69/:275`. Also claimed: `TxtReaderActivity.cpp:364` swallows a
+  render failure *before* `displayBuffer()`, leaving the previous e-ink page on screen.
+- `HomeActivity.cpp:502-504` — a failed `generateThumbBmps` clears `coverBmpPath` with no log;
+  user sees a blank cover with nothing on serial.
+- `Epub.cpp:215` and `:271` — the result of `readItemContentsToStream` is **ignored**, so a
+  missing zip TOC entry yields an empty chapter list while `load()` returns true.
+- `CssParser::clear()` (`CssParser.h:104`) only clears elements; bucket arrays and vector
+  capacity stay allocated. Only `releaseMemory()` returns them. `Section.cpp:375`
+  (`hasFailedLutRecords`) bypasses even the `clear()`.
+- Allocation census figures were produced but **look wrong in places** (a claimed 192 KB
+  selection snapshot against a ~180 KB heap cannot be a live path as stated). Re-derive before
+  using any of it for the pooling work.
+
+### Method note, for whoever runs a sweep next
+cursor-agent at 8-wide returned usable output for **1 of 8** workers (the rest exited with empty
+files); agy at 2-3 wide returned **8 of 8**. Concurrency, not capability — and a second
+cursor-agent session belonging to the human was already running on this machine. Also: agy
+silently works in its own scratch copy, which here was pinned at `ef7d698a0` (yesterday's HEAD);
+`--add-dir=<repo>` is required or it reviews the wrong code and sounds confident doing it.
+Its flags are Go-style and need `--flag=value`, and the prompt must be passed as `--print="..."`.

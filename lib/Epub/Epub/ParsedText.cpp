@@ -22,6 +22,10 @@ constexpr int MAX_COST = std::numeric_limits<int>::max();
 
 namespace {
 
+// Build-scoped; see ParsedText::heapTruncationTally in the header for why this is
+// file scope rather than threaded through construction.
+uint32_t heapTruncationTallyCount = 0;
+
 // Soft hyphen byte pattern used throughout EPUBs (UTF-8 for U+00AD).
 constexpr char SOFT_HYPHEN_UTF8[] = "\xC2\xAD";
 constexpr size_t SOFT_HYPHEN_BYTES = 2;
@@ -256,6 +260,10 @@ bool isWordCharacter(uint32_t cp) {
 
 }  // namespace
 
+void ParsedText::resetHeapTruncationTally() { heapTruncationTallyCount = 0; }
+
+uint32_t ParsedText::heapTruncationTally() { return heapTruncationTallyCount; }
+
 void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle, const bool underline,
                          const bool attachToPrevious) {
   if (word.empty()) return;
@@ -269,7 +277,13 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
   if (!heapguard::canAllocate(kWordGrowthGuardBytes)) {
     if (!heapTruncated) {
       heapTruncated = true;
-      LOG_ERR("PTX", "OOM guard: truncating block (low heap, largest=%zu)", heapguard::largestBlock());
+      heapTruncationTallyCount++;
+      // Note this fails on canAllocate's *total free* clause -- free - 8192 <
+      // 32768, i.e. any free heap under ~41KB -- before the largest-block test is
+      // ever reached. The largest= below is diagnostic only; do not read it as
+      // the cause.
+      LOG_ERR("PTX", "OOM guard: truncating block (low heap, free=%zu largest=%zu)", heapguard::freeBytes(),
+              heapguard::largestBlock());
     }
     return;
   }

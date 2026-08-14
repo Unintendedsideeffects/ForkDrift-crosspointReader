@@ -66,8 +66,13 @@ class ReaderRegistry {
   static ReaderOpenResult open(const std::string& path, GfxRenderer& renderer, MappedInputManager& mappedInput,
                                void* callbackCtx, void (*onBackToLibrary)(void* ctx, const std::string& bookPath),
                                void (*onBackHome)(void* ctx)) {
+    // Every failure below carries a logMessage. A bare `return {}`
+    // default-constructs logMessage = nullptr, and the caller (ActivityManager::
+    // goToReader) logs only `if (result.logMessage)` -- so three distinct
+    // refusals used to share one completely silent path, and a book that would
+    // not open bounced back to Home with nothing on serial to say why.
     if (path.empty()) {
-      return {};
+      return {ReaderOpenResult::Status::LoadFailed, nullptr, "empty path", nullptr};
     }
     const ReaderEntry* entry = find(path);
     if (entry == nullptr) {
@@ -78,11 +83,14 @@ class ReaderRegistry {
               entry->unsupportedUiMessage};
     }
     if (entry->create == nullptr) {
-      return {};
+      return {ReaderOpenResult::Status::LoadFailed, nullptr, "registry entry has no factory", nullptr};
     }
     Activity* activity = entry->create(renderer, mappedInput, path, callbackCtx, onBackToLibrary, onBackHome);
     if (activity == nullptr) {
-      return {};
+      // The factory itself logs the specific cause (see core/registries/
+      // ReaderLoader.h). This line exists so the chain is traceable even when
+      // that log is filtered or a future factory forgets to log.
+      return {ReaderOpenResult::Status::LoadFailed, nullptr, "reader factory returned null", nullptr};
     }
     return {ReaderOpenResult::Status::Opened, activity, nullptr, nullptr};
   }

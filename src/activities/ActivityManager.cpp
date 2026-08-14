@@ -322,9 +322,11 @@ void ActivityManager::goToReader(std::string path, const bool suppressBackReleas
   if (result.status == core::ReaderOpenResult::Status::Opened && result.activity) {
     replaceActivity(std::unique_ptr<Activity>(result.activity));
   } else {
-    if (result.logMessage) {
-      LOG_ERR("ACT", "Cannot open reader: %s", result.logMessage);
-    }
+    // Unconditional: a failed open must never bounce the user back to Home with
+    // nothing on serial. The `if (result.logMessage)` this replaces meant any
+    // result that forgot to set a reason failed completely silently.
+    LOG_ERR("ACT", "Cannot open reader '%s' (status=%d): %s", path.c_str(), static_cast<int>(result.status),
+            result.logMessage ? result.logMessage : "no reason given");
     goHome();
   }
 }

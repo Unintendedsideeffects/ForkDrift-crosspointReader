@@ -466,8 +466,12 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
     return true;
   }
 
-  // If we didn't load from cache above and we aren't allowed to build, fail now
+  // If we didn't load from cache above and we aren't allowed to build, fail now.
+  // Expected for callers that only want an already-cached book (cover thumb
+  // generation), but it is still a load failure and must say so -- the caller
+  // reports "failed to load" and this was the one branch that gave no reason.
   if (!buildIfMissing) {
+    LOG_DBG("EBP", "No metadata cache and buildIfMissing=false: %s", filepath.c_str());
     return false;
   }
 
