@@ -212,7 +212,12 @@ bool Epub::parseTocNcxFile() const {
   if (!Storage.openFileForWrite("EBP", tmpNcxPath, tempNcxFile)) {
     return false;
   }
-  readItemContentsToStream(tocNcxItem, tempNcxFile, 1024);
+  // The result was ignored: a missing or unreadable zip entry left an empty temp
+  // file that then "parsed" into an empty TOC, indistinguishable from a book
+  // that genuinely has none.
+  if (!readItemContentsToStream(tocNcxItem, tempNcxFile, 1024)) {
+    LOG_ERR("EBP", "Could not extract NCX TOC entry: %s", tocNcxItem.c_str());
+  }
   // Explicitly close() file before reopening for reading
   tempNcxFile.close();
   if (!Storage.openFileForRead("EBP", tmpNcxPath, tempNcxFile)) {
@@ -268,7 +273,10 @@ bool Epub::parseTocNavFile() const {
   if (!Storage.openFileForWrite("EBP", tmpNavPath, tempNavFile)) {
     return false;
   }
-  readItemContentsToStream(tocNavItem, tempNavFile, 1024);
+  // Same ignored result as the NCX path above.
+  if (!readItemContentsToStream(tocNavItem, tempNavFile, 1024)) {
+    LOG_ERR("EBP", "Could not extract nav TOC entry: %s", tocNavItem.c_str());
+  }
   // Explicitly close() file before reopening for reading
   tempNavFile.close();
   if (!Storage.openFileForRead("EBP", tmpNavPath, tempNavFile)) {

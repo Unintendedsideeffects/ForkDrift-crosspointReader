@@ -39,6 +39,7 @@ void TxtReaderActivity::onEnter() {
   Activity::onEnter();
 
   if (!txt) {
+    LOG_ERR("TXT", "onEnter with no document; nothing to read");
     return;
   }
 
@@ -333,11 +334,16 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<StyledLine>&
     nextOffset = fileSize;
   }
 
-  return !outLines.empty();
+  if (outLines.empty()) {
+    LOG_ERR("TXT", "page produced no lines at offset %u", static_cast<unsigned>(offset));
+    return false;
+  }
+  return true;
 }
 
 void TxtReaderActivity::render(RenderLock&&) {
   if (!txt) {
+    LOG_ERR("TXT", "render with no document");
     return;
   }
 
@@ -362,6 +368,13 @@ void TxtReaderActivity::render(RenderLock&&) {
   size_t nextOffset;
   currentPageLines.clear();
   if (!loadPageAtOffset(offset, currentPageLines, nextOffset)) {
+    // Returning here leaves the PREVIOUS page on the e-ink panel: nothing is
+    // drawn and displayBuffer() is never reached, so the reader silently shows
+    // stale content. EpubReaderActivity calls renderReaderError() in the same
+    // situation. Logged here; the missing error screen is filed separately
+    // rather than changed blind for a format with no device coverage.
+    LOG_ERR("TXT", "page load failed at offset %u; screen left showing the previous page",
+            static_cast<unsigned>(offset));
     return;
   }
 

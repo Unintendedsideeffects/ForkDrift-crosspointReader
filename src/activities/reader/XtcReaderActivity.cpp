@@ -39,6 +39,7 @@ void XtcReaderActivity::onEnter() {
   renderer.setOrientation(GfxRenderer::Orientation::Portrait);
 
   if (!xtc) {
+    LOG_ERR("XTC", "onEnter with no document; nothing to read");
     return;
   }
 
@@ -177,6 +178,7 @@ void XtcReaderActivity::loop() {
 
 void XtcReaderActivity::render(RenderLock&&) {
   if (!xtc) {
+    LOG_ERR("XTC", "render with no document");
     return;
   }
 

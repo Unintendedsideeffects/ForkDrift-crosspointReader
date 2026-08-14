@@ -67,6 +67,7 @@ void MarkdownReaderActivity::onEnter() {
   ActivityWithSubactivity::onEnter();
 
   if (!markdown) {
+    LOG_ERR("MD", "onEnter with no document; nothing to read");
     return;
   }
 
@@ -273,6 +274,7 @@ void MarkdownReaderActivity::render(Activity::RenderLock&& lock) { renderScreen(
 
 void MarkdownReaderActivity::renderScreen() {
   if (!markdown) {
+    LOG_ERR("MD", "renderScreen with no document");
     return;
   }
 
