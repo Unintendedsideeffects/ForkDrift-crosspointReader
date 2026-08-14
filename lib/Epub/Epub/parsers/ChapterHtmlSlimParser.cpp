@@ -18,6 +18,7 @@
 #include "Epub.h"
 #include "Epub/Page.h"
 #include "Epub/converters/ImageDecoderFactory.h"
+#include "Epub/converters/ImageDimsProbe.h"
 #include "Epub/converters/ImageToFramebufferDecoder.h"
 #include "Epub/htmlEntities.h"
 #include "FootnoteGuard.h"
@@ -52,6 +53,42 @@ constexpr size_t MAX_FOOTNOTES_PER_CHAPTER = 512;
 // been converted yet because a footnote entry is a different, larger record and
 // wants its own measurement. See docs/FINDINGS.md.
 constexpr size_t kFootnoteGrowthGuardBytes = 8 * 1024;
+
+// Read a JPEG/PNG's dimensions by streaming its header, allocating nothing.
+//
+// The alternative -- ImageToFramebufferDecoder::getDimensions() -- instantiates
+// a full JPEGDEC (~20KB, guard demands 36,864 free) or PNG object (58,912
+// bytes, guard demands 75,296 CONTIGUOUS) purely to read two integers. Doing
+// that here, on the text layout path, is what pushed image-heavy chapters under
+// the heap floor and laid them out to zero elements.
+//
+// The buffer is deliberately stack-sized and small: the point is to add no heap
+// pressure at all. Headers sit in the first KB or two of any sane file; the cap
+// stops a pathological or truncated file from spinning over the whole thing.
+constexpr size_t kDimsProbeMaxBytes = 32 * 1024;
+
+bool probeImageDimensions(const std::string& path, ImageDimensions& out) {
+  HalFile file;
+  if (!Storage.openFileForRead("EHP", path, file)) {
+    return false;
+  }
+  ImageDimsProbe probe;
+  uint8_t buffer[128];
+  size_t consumed = 0;
+  while (consumed < kDimsProbeMaxBytes) {
+    const int read = file.read(buffer, sizeof(buffer));
+    if (read <= 0) {
+      break;
+    }
+    consumed += static_cast<size_t>(read);
+    // A short write means the probe is finished -- dimensions found, or the
+    // stream is known to be unusable. Either way there is nothing left to feed.
+    if (probe.write(buffer, static_cast<size_t>(read)) != static_cast<size_t>(read)) {
+      break;
+    }
+  }
+  return probe.getDimensions(out);
+}
 
 constexpr const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
 constexpr const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "pre"};
@@ -941,8 +978,18 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
             if (extractSuccess) {
               // Get image dimensions
               ImageDimensions dims = {0, 0};
-              ImageToFramebufferDecoder* decoder = ImageDecoderFactory::getDecoder(cachedImagePath);
-              if (decoder && decoder->getDimensions(cachedImagePath, dims)) {
+              bool gotDimensions = probeImageDimensions(cachedImagePath, dims);
+              if (!gotDimensions) {
+                // Fallback for a header the probe could not find (rare). This is
+                // the path that instantiates a decoder, so it is also the path
+                // that can fail on a low heap -- now the exception rather than
+                // the rule for every image in the chapter.
+                LOG_DBG("EHP", "Header probe found no dimensions, falling back to the decoder: %s",
+                        cachedImagePath.c_str());
+                ImageToFramebufferDecoder* decoder = ImageDecoderFactory::getDecoder(cachedImagePath);
+                gotDimensions = decoder && decoder->getDimensions(cachedImagePath, dims);
+              }
+              if (gotDimensions) {
                 LOG_DBG("EHP", "Image dimensions: %dx%d", dims.width, dims.height);
 
                 int displayWidth = 0;
