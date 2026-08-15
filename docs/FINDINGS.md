@@ -1557,3 +1557,44 @@ the decoder's block at boot while the heap is still whole, or not using PNGdec.
 - **Why not fixed here**: brief scoped this to "the minimum call sites needed to make the
   loan real"; this one is a loader restructure with a concurrency hazard attached.
 - **Status**: open — deliberate gap, worth a follow-up once a `buildscratch` consumer exists
+
+## 2026-08-15T16:05Z — Loan mechanism absorbed and merged; the Terminus path is not yet wired to it
+- **Found by**: claude, integrating `swarm/fbloan` + `swarm/miniz` (cursor swarm, 2 workers)
+- **Merged at**: `00477d111`. Gates: host **436 cases / 10829 assertions**, `-e default`
+  SUCCESS (Flash 91.6%, +6,184 bytes), `-e simulator` SUCCESS. Flashed to the X4.
+
+**No regression**: baseline heap after the merge is `Free 53,864 / MaxAlloc 38,900`,
+identical to the pre-swarm measurement.
+
+**What now exists**: `lib/Memory/BuildScratch` (registry), `GfxRenderer::FrameBufferLoan`
+(lender), `lib/miniz` `InflateStream` (consumer), and `PngToBmpConverter` rewired onto it
+with the ring allocated *before* the scanline buffers.
+
+**What still does not work**: the Terminus repack is unchanged on device --
+```
+[TRMNL] Repack skipped: no 32768-byte block (free=65364 largest=26612)
+```
+The loan is taken around a **chapter build** in `EpubReaderActivity`, which is not a
+moment the Terminus fetch ever passes through. The mechanism is present but nothing on
+this path claims from it.
+
+**Why the fetch is the wrong place to claim, even now.** The lent bytes ARE the displayed
+image (`EINK_DISPLAY_SINGLE_BUFFER_MODE=1`). A Terminus refresh runs in the background
+while the user may be looking at Home, so claiming there would white out a live screen.
+The loan is only legal where the screen is about to be fully redrawn anyway.
+
+**The remaining step**, therefore: move the repack to the **sleep-render** path, which is
+both the moment the framebuffer is legitimately expendable and the moment the image is
+actually needed. Two routes worth measuring against each other:
+1. Take a loan around the repack there and let `InflateStream` claim its ~43 KB.
+2. `InflateStream::init(false)` one-shot, where the destination holds the whole output and
+   no window is allocated at all -- for an 800x480 1-bit image that destination is 48,000
+   bytes, i.e. the framebuffer again.
+Route 2 is cheaper if the decode can be driven in one forward pass; route 1 is more
+general. Neither is measured yet.
+
+- **Also note**: the `heapguard::canAllocate(32768)` precheck in
+  `src/features/terminus_sleep/Registration.cpp` is now sized against uzlib's window and
+  will need re-deriving once the path moves to `InflateStream`.
+- **Status**: mechanism landed and device-verified as non-regressive; TRMNL still renders
+  only on the timed-wake path, by the same 468-byte margin as before
