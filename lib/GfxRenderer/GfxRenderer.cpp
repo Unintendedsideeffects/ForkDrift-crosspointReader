@@ -1,6 +1,7 @@
 #include "GfxRenderer.h"
 
 #include <BidiUtils.h>
+#include <BuildScratch.h>
 #include <FontDecompressor.h>
 #include <HalGPIO.h>
 #include <HeapGuard.h>
@@ -92,6 +93,61 @@ void GfxRenderer::begin() {
   panelWidthBytes = display.getDisplayWidthBytes();
   frameBufferSize = display.getBufferSize();
   bwBufferChunks.assign((frameBufferSize + BW_BUFFER_CHUNK_SIZE - 1) / BW_BUFFER_CHUNK_SIZE, nullptr);
+}
+
+void GfxRenderer::releaseFrameBufferForBuild() {
+  if (!frameBuffer) {
+    LOG_ERR("GFX", "Framebuffer already lent or never acquired; not lending again");
+    return;
+  }
+  // Lend the bytes IN PLACE. Upstream routes this through
+  // EInkDisplay::lendBuildStorage(), which our SDK fork does not have; it does
+  // not need one, because the buffer is a .bss member array rather than a heap
+  // block, so there is no allocation to hand over -- only the pointer that
+  // gates drawing. Nulling frameBuffer is what makes every GfxRenderer draw
+  // path inert for the duration.
+  uint8_t* const scratch = frameBuffer;
+  frameBuffer = nullptr;
+  buildscratch::lend(scratch, frameBufferSize);
+}
+
+bool GfxRenderer::restoreFrameBufferAfterBuild() {
+  if (frameBuffer) {
+    // Unpaired restore. Falling through would blank a live frame, so say so
+    // and do nothing rather than wipe the screen for a caller-side bug.
+    LOG_ERR("GFX", "Framebuffer restore with no loan outstanding; ignored");
+    return true;
+  }
+
+  buildscratch::reclaim();
+  frameBuffer = display.getFrameBuffer();
+  if (!frameBuffer) {
+    LOG_ERR("GFX", "Framebuffer unavailable after build loan");
+    return false;
+  }
+  // The borrower left its own data here. Hand back white so a caller that
+  // redraws only part of the screen shows blank rather than decoder garbage.
+  memset(frameBuffer, 0xFF, frameBufferSize);
+  return true;
+}
+
+GfxRenderer::FrameBufferLoan::FrameBufferLoan(GfxRenderer& renderer) : renderer_(renderer) {
+  // Nesting guard: if the framebuffer is already lent out (an outer loan),
+  // stay inert so this end() cannot return storage the outer loan still owns.
+  if (!renderer_.hasFrameBuffer()) return;
+  renderer_.releaseFrameBufferForBuild();
+  active_ = true;
+}
+
+void GfxRenderer::FrameBufferLoan::end() {
+  if (!active_) return;
+  active_ = false;
+  if (!renderer_.restoreFrameBufferAfterBuild()) {
+    // Only reachable if the framebuffer never existed, which begin() already
+    // asserts against; kept as a backstop since running blind helps nobody.
+    LOG_ERR("GFX", "Framebuffer restore failed - restarting");
+    ESP.restart();
+  }
 }
 
 bool GfxRenderer::isFontCacheScanning() const { return fontCacheManager_ && fontCacheManager_->isScanning(); }
@@ -1555,6 +1611,13 @@ void GfxRenderer::clearScreen(const uint8_t color) const {
     memset(_stripBuf, color, static_cast<size_t>(panelWidthBytes) * _stripRows);
     return;
   }
+  // display.clearScreen() memsets the SDK's buffer directly and does not
+  // null-check (EInkDisplay.cpp:522), so while the bytes are lent out this
+  // would silently wipe the borrower's data rather than crash.
+  if (!frameBuffer) {
+    LOG_ERR("GFX", "clearScreen while framebuffer is lent out; ignored");
+    return;
+  }
   display.clearScreen(color);
 }
 
@@ -1590,6 +1653,10 @@ void GfxRenderer::displayBuffer(const HalDisplay::RefreshMode refreshMode) const
 }
 
 void GfxRenderer::displayBufferAsync(const HalDisplay::RefreshMode refreshMode) const {
+  if (!frameBuffer) {
+    LOG_ERR("GFX", "displayBuffer while framebuffer is lent out; ignored");
+    return;
+  }
   auto elapsed = millis() - start_ms;
   LOG_DBG("GFX", "Time = %lu ms from clearScreen to displayBuffer", elapsed);
   if (postRenderHook != nullptr) {
@@ -1605,6 +1672,12 @@ void GfxRenderer::displayBufferAsync(const HalDisplay::RefreshMode refreshMode) 
 }
 
 void GfxRenderer::finishDisplayBuffer() const {
+  // Mirrors the guard in displayBufferAsync(): the pair must be skipped or
+  // taken together, or the panel is left waiting on a refresh nobody started.
+  if (!frameBuffer) {
+    LOG_ERR("GFX", "finishDisplayBuffer while framebuffer is lent out; ignored");
+    return;
+  }
   display.finishDisplayBuffer();
   if (darkMode) {
     invertScreen();
@@ -2121,6 +2194,15 @@ void GfxRenderer::freeBwBufferChunks() {
  * Returns true if buffer was stored successfully, false if allocation failed.
  */
 bool GfxRenderer::storeBwBuffer() {
+  // A loan and a grayscale store both want the same 48 KB. The store reads
+  // through frameBuffer, so refusing here (both call sites treat false as
+  // "skip grayscale") keeps a stray grayscale render from dereferencing null
+  // and from copying the borrower's scratch out as if it were a BW page.
+  if (!frameBuffer) {
+    LOG_ERR("GFX", "storeBwBuffer while framebuffer is lent out; skipping grayscale");
+    return false;
+  }
+
   // Pre-flight: grayscale rendering is a luxury feature; refuse on low heap
   if (!heapguard::canAllocate(frameBufferSize, heapguard::kLowFloorBytes)) {
     LOG_ERR("GFX", "Skipping grayscale buffer: low heap");
@@ -2160,6 +2242,12 @@ bool GfxRenderer::storeBwBuffer() {
  * Uses chunked restoration to match chunked storage.
  */
 void GfxRenderer::restoreBwBuffer() {
+  if (!frameBuffer) {
+    LOG_ERR("GFX", "restoreBwBuffer while framebuffer is lent out; dropping stored chunks");
+    freeBwBufferChunks();
+    return;
+  }
+
   // Check if all chunks are allocated
   bool missingChunks = false;
   for (const auto& bwBufferChunk : bwBufferChunks) {

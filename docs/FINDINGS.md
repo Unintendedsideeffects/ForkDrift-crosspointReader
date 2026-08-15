@@ -1479,3 +1479,81 @@ So plan 099 as written cannot fix the awake path. Fixing it needs streaming infl
 the decoder's block at boot while the heap is still whole, or not using PNGdec.
 - **Status**: negative result, reverted, root cause understood; the 468-byte margin on the
   working path is now the headline risk to TRMNL stability
+
+## 2026-08-15T14:10Z — `test/run_host_tests.sh` bootstrap destructively rewrites `platformio.ini`
+
+- **Found by**: claude — during the `GfxRenderer::FrameBufferLoan` port (`swarm/fbloan`)
+- **Where**: `test/run_host_tests.sh:27` (`uv run pio pkg install -e default --library
+  "bblanchon/ArduinoJson@7.4.2"`), effect lands on `platformio.ini`
+- **What**: `pio pkg install --library` persists the dependency by rewriting
+  `platformio.ini` through ConfigParser. The rewrite is not a diff — it re-emits the
+  whole file. Three things are lost: (a) **every `symlink://open-x4-sdk/...` entry in
+  `[base] lib_deps` is dropped**, leaving `lib_deps = bblanchon/ArduinoJson@7.4.2`, so
+  the next firmware build fails with `fatal error: EInkDisplay.h: No such file or
+  directory`; (b) all comments; (c) values from `platformio.local.ini` are *inlined into
+  the committed file*, which puts a developer's personal `build_dir`/`build_cache_dir`
+  one `git add` away from history. The bootstrap only runs when `.pio/libdeps` is absent,
+  so it hits fresh clones and fresh worktrees — exactly the people least likely to spot
+  it in `git status`.
+- **Reproduced**: yes, on this worktree. Recovered with `git checkout -- platformio.ini`
+  followed by a rebuild, which reinstalled the symlink deps.
+- **Why not fixed here**: out of scope (scope was `lib/GfxRenderer/*` plus the loan call
+  sites). The fix is small — `pio pkg install` already installs declared dependencies
+  from the env, so the `--library` argument is redundant; dropping it, or adding
+  `--no-save`, should be enough. Needs verifying against a genuinely empty `.pio`.
+- **Status**: open
+
+## 2026-08-15T14:10Z — `open-x4-sdk` submodule pin `8fa0c15d` is not fetchable from its declared remote
+
+- **Found by**: claude — during the `GfxRenderer::FrameBufferLoan` port (`swarm/fbloan`)
+- **Where**: `.gitmodules` (url `https://github.com/Unintendedsideeffects/community-sdk.git`),
+  gitlink at `open-x4-sdk`
+- **What**: `git submodule update --init --recursive` in a fresh worktree fails with
+  `remote error: upload-pack: not our ref 8fa0c15d4991e3598a0d6532f249ab42f6191e40`. The
+  pinned commit exists only in local checkouts (the sibling `crosspoint-reader/open-x4-sdk`
+  has it); it was never pushed to `community-sdk`. Any new clone, any CI runner, and any
+  new worktree therefore cannot build at all — the failure surfaces late and confusingly,
+  as missing `EInkDisplay.h` / `common/FsApiConstants.h` headers.
+- **Workaround used**: `git -C open-x4-sdk fetch <sibling-checkout> 8fa0c15d… && git -C
+  open-x4-sdk checkout 8fa0c15d…`.
+- **Why not fixed here**: the fix is a push to another repository, which is not mine to
+  make, and is outside the scope of this change.
+- **Status**: open — needs the maintainer to push `8fa0c15d` to `community-sdk`
+
+## 2026-08-15T14:10Z — a wake-with-restored-frame that hits a chapter build leaves the INDEXING popup on the panel
+
+- **Found by**: claude — during the `GfxRenderer::FrameBufferLoan` port (`swarm/fbloan`)
+- **Where**: `src/activities/reader/EpubReaderActivity.cpp:1882`
+  (`APP_STATE.consumeTransparentSleepWakePaint()`), popup drawn at
+  `src/activities/reader/EpubReaderActivity.cpp:1804`
+- **What**: `render()` draws the INDEXING popup and runs `createSectionFile()` when the
+  section cache misses, then — further down, before any page paint — returns early if
+  `consumeTransparentSleepWakePaint()` is true. That early return exists because the wake
+  path restored the previous frame and the panel already shows it, but by then the popup
+  has overwritten that frame and been pushed to the panel by `drawPopup()`'s own
+  `displayBuffer()` (`src/components/themes/BaseTheme.cpp:710`). The reader is left
+  showing "INDEXING" until the next input. Predates this change: the popup already
+  destroyed the restored frame before the loan existed. The loan changes only what is left
+  in the framebuffer (white rather than the popup), and nothing reads it before the next
+  `clearScreen()`.
+- **Why not fixed here**: out of scope (scope was `lib/GfxRenderer/*` plus the loan call
+  sites), and the fix is a behavioural decision about wake repaint policy, not a
+  mechanical one.
+- **Status**: open
+
+## 2026-08-15T14:10Z — `ReaderActivity::loadEpub` has no framebuffer loan, unlike upstream
+
+- **Found by**: claude — during the `GfxRenderer::FrameBufferLoan` port (`swarm/fbloan`)
+- **Where**: `src/activities/reader/ReaderActivity.cpp:26`, `src/core/registries/ReaderLoader.h:17`
+- **What**: Upstream wraps the uncached container/OPF/spine/TOC parse in a
+  `FrameBufferLoan` (`upstream/master:src/activities/reader/ReaderActivity.cpp:63`). Our
+  `loadEpub` delegates to the shared `core::loadDocumentNoThrow<T>` template, which has no
+  `GfxRenderer`, draws no popup, and cannot see whether `book.bin` already exists — and
+  `ReaderActivity::onEnter()` runs *without* the `RenderLock`
+  (`src/activities/ActivityManager.cpp:194` unlocks before calling it), so a loan there
+  could race `renderTaskLoop()`. Porting it means plumbing a renderer through a loader
+  shared with Xtc/Txt, adding a popup, and taking a lock in a lifecycle hook. The chapter
+  build (the larger of the two peaks) does get the loan.
+- **Why not fixed here**: brief scoped this to "the minimum call sites needed to make the
+  loan real"; this one is a loader restructure with a concurrency hazard attached.
+- **Status**: open — deliberate gap, worth a follow-up once a `buildscratch` consumer exists

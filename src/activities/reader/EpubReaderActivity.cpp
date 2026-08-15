@@ -1803,12 +1803,27 @@ void EpubReaderActivity::render(RenderLock&& lock) {
       }
       GUI.drawPopup(renderer, tr(STR_INDEXING));
 
-      if (!section->createSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
-                                      SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
-                                      SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
-                                      SETTINGS.hyphenationEnabled, SETTINGS.embeddedStyle, SETTINGS.imageRendering,
-                                      SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled,
-                                      {this, &EpubReaderActivity::showLoadingPopupTrampoline})) {
+      // Lend the framebuffer's 48 KB to the blocking chapter build. The popup
+      // above is already on the panel and e-ink holds it without our help, and
+      // every path out of this branch redraws the whole screen (clearScreen()
+      // below, or renderReaderError()), which is what the loan requires.
+      //
+      // The loan is confined to this scope because render() runs holding the
+      // RenderLock: no other task can draw while it is open. The background
+      // build in performDeferredSilentIndexingLocked() deliberately gets no
+      // loan -- it runs inside the displayBufferAsync window with a real page
+      // on screen.
+      bool sectionBuilt;
+      {
+        GfxRenderer::FrameBufferLoan loan(renderer);
+        sectionBuilt = section->createSectionFile(
+            SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(), SETTINGS.extraParagraphSpacing,
+            SETTINGS.forceParagraphIndents, SETTINGS.paragraphAlignment, viewportWidth, viewportHeight,
+            SETTINGS.hyphenationEnabled, SETTINGS.embeddedStyle, SETTINGS.imageRendering, SETTINGS.focusReadingEnabled,
+            SETTINGS.guideReadingEnabled, {this, &EpubReaderActivity::showLoadingPopupTrampoline});
+      }
+
+      if (!sectionBuilt) {
         LOG_ERR("ERS", "Failed to persist page data to SD");
 
         section.reset();
@@ -3085,6 +3100,12 @@ void EpubReaderActivity::renderAnnotations(const Page& page, const int marginLef
 
 void EpubReaderActivity::showLoadingPopupTrampoline(void* ctx) {
   const auto* const self = static_cast<EpubReaderActivity*>(ctx);
+  // The build that fires this callback may be holding a FrameBufferLoan, in
+  // which case there is nothing to draw into and the panel is already showing
+  // the popup this would have re-drawn.
+  if (!self->renderer.hasFrameBuffer()) {
+    return;
+  }
   GUI.drawPopup(self->renderer, tr(STR_INDEXING));
 }
 

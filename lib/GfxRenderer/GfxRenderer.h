@@ -253,6 +253,46 @@ class GfxRenderer {
   // Font helpers
   const uint8_t* getGlyphBitmap(const EpdFontData* fontData, const EpdGlyph* glyph) const;
 
+  // Lend the framebuffer's bytes to a memory-hungry phase (chapter builds)
+  // WITHOUT freeing the storage. On this fork the buffer is a member array of
+  // EInkDisplay (open-x4-sdk/libs/display/EInkDisplay/include/EInkDisplay.h:158),
+  // so it lives in .bss at a fixed address: lending it is heap-neutral and
+  // repeated loans cannot fragment anything. The bytes are published through
+  // buildscratch::lend() so a consumer needing one large contiguous block can
+  // claim() them instead of hunting a heap that has no block that big.
+  //
+  // Between release and restore NOTHING may draw or display. We build with
+  // EINK_DISPLAY_SINGLE_BUFFER_MODE=1, so the lent bytes ARE the currently
+  // displayed image and the borrower will destroy them; the panel keeps showing
+  // its last refreshed frame because e-ink is persistent. Restore hands back a
+  // white buffer, so the caller MUST redraw the full screen afterwards.
+  // Restore cannot fail short of the framebuffer never having existed.
+  void releaseFrameBufferForBuild();
+  bool restoreFrameBufferAfterBuild();
+  bool hasFrameBuffer() const { return frameBuffer != nullptr; }
+
+  // RAII form of the loan above, for blocking build regions with early-return
+  // error paths: restores on scope exit (or explicitly via end()). Display the
+  // popup/screen the panel should hold BEFORE constructing one. Constructing
+  // while the framebuffer is already lent yields an inert loan (nesting-safe).
+  //
+  // The caller MUST hold the RenderLock for the whole lifetime of the loan:
+  // ActivityManager::renderTaskLoop() (src/activities/ActivityManager.cpp:83)
+  // draws from a separate task, and a render concurrent with a loan is a null
+  // framebuffer plus a clobbered borrower.
+  class FrameBufferLoan {
+   public:
+    explicit FrameBufferLoan(GfxRenderer& renderer);
+    ~FrameBufferLoan() { end(); }
+    void end();
+    FrameBufferLoan(const FrameBufferLoan&) = delete;
+    FrameBufferLoan& operator=(const FrameBufferLoan&) = delete;
+
+   private:
+    GfxRenderer& renderer_;
+    bool active_ = false;
+  };
+
   // Low level functions
   uint8_t* getFrameBuffer() const;
   size_t getBufferSize() const;
