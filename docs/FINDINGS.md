@@ -1415,10 +1415,12 @@ restoring `ImageDimsProbe`; SleepActivity was the **second consumer** and was mi
 trap the 2026-07-26T14:10Z entry registers. Now shared as `imagedims::probeFromFile()`.
 
 **Wall 2 (OPEN, = plan 099)**: after the fix the same test advances to `stage: "bw-decode"` and
-fails there: `need=58912 + 16384 headroom` against `largest=45044`. **Not tunable by relaxing
-the guard** — 58,912 alone still exceeds 45,044, so dropping the headroom converts a clean
-refusal into an `abort()`. The lever is the decoder's own footprint (heap-allocating ucZLIB,
-or streaming inflate), per plan 099's own note.
+fails there. **CORRECTION to the first draft of this entry**: the ask is NOT 75,296 contiguous.
+`heapguard::canAllocate(bytes, floorAfter)` (`lib/Memory/HeapGuard.h:52`) tests two different
+heaps -- (a) `bytes` fits the largest free block, and (b) `floorAfter` bytes of free heap REMAIN
+afterwards. The contiguous requirement is therefore 58,912 == `sizeof(PNG)`; the 16,384 is a
+total-free floor that already passes. Relaxing the headroom is still useless, but for the
+opposite reason to the one first given: it is not the failing condition. (a) is.
 
 **Cheapest available mitigation is server-side, not firmware**: `destPathForMagic`
 (`Registration.cpp:107`) already accepts BMP, and BMP needs no decoder object. If Terminus can
@@ -1434,3 +1436,46 @@ either explanation until it is measured.
   `decoder->getDimensions()` pattern and the same exposure. Third consumer of this class.
 - **Status**: wall 1 fixed and device-verified; wall 2 open (plan 099); server-side BMP option
   untested and needs the maintainer
+
+## 2026-08-15T12:05Z — NEGATIVE RESULT: reclaiming heap before the sleep render moves the largest block by zero
+- **Found by**: claude — X4, prompted by the maintainer asking the obvious question ("how are we
+  not just clearing heap before decoding?"). Implemented, measured, reverted.
+- **What was tried**: `core::HeapReclaimRegistry::releaseAll()` on the main task at the top of
+  `ActivityManager::goToSleep()`, before `replaceActivity()`. The registry already existed with
+  two HomeActivity entries and exactly one caller (`BackgroundWifiService::canStartNow()`); the
+  image path had never been wired to it.
+- **Measured on device, same boot**:
+```
+idle:                    [MEM] Free: 54264  MaxAlloc: 38900
+[REG] heap reclaim: released home cover cache
+[REG] heap reclaim: released home carousel frames
+[WEB] Free heap before stop: 59868 -> after delete server: 76052
+at the decode:           free=89200  largest=38900   need=58912
+```
+  **~35 KB released — cover cache, carousel frames and the whole web server — and the largest
+  contiguous block did not move: 38,900 before, 38,900 after.** Free heap rose to 89,200, so the
+  released memory is real; none of it was adjacent to the largest run. The heap is partitioned by
+  allocations made early and never released (the 48,000-byte framebuffer and the WiFi/LWIP pools
+  are the obvious candidates, not yet confirmed individually).
+- **Why this is worth recording rather than retrying**: "free more memory first" is the intuitive
+  fix and it is *structurally* unavailable here. Without compaction, freeing helps only when the
+  freed block borders the one you need. Reverted rather than shipped: a change with a measured
+  zero effect is not worth the diff or the cache-eviction cost.
+
+### RESOLVES the open question from the 2026-08-15T11:20Z entry
+Why did 8 timed-wake renders succeed? Because `sizeof(PNG)` is 58,912 and that path's
+`max_alloc` was **59,380**. It fits by **468 bytes**. The awake path's 38,900 does not fit at all.
+Not a sampling artefact and not BMP — the earlier entry's two guesses were both wrong.
+
+### And it rules out the obvious form of plan 099
+`PNGdec.h:159`: `uint8_t ucZLIB[32768 + sizeof(struct inflate_state)];`, commented *"put this
+here to avoid needing malloc/free"*. With `ucPixels[15872]` (our `PNG_MAX_BUFFERED_PIXELS`
+override) and `ucFileBuf[2048]`, that accounts for the 58,912.
+- Heap-allocating `ucZLIB` separately — plan 099's own suggestion — still leaves a **~39,800-byte**
+  block, above the 38,900 awake ceiling. It does not clear the wall.
+- The 32,768 window is mandated by the PNG format, not a tunable.
+- Shrinking `PNG_MAX_BUFFERED_PIXELS` does not touch `ucZLIB`.
+So plan 099 as written cannot fix the awake path. Fixing it needs streaming inflate, or reserving
+the decoder's block at boot while the heap is still whole, or not using PNGdec.
+- **Status**: negative result, reverted, root cause understood; the 468-byte margin on the
+  working path is now the headline risk to TRMNL stability
