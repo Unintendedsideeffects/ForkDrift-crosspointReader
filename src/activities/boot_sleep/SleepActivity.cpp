@@ -189,6 +189,43 @@ static constexpr uint8_t SLEEP_CACHE_VERSION = 1;
 // rewritten before it is read, so it cannot be stale.
 constexpr char SLEEP_REPACK_BMP[] = "/sleep/.repack.bmp";
 
+// Render a wide sleep image in the panel's native landscape for the duration of
+// one draw, then put the orientation back.
+//
+// The panel is natively 800x480; the UI runs portrait, so getScreenWidth() is
+// 480. An 800x480 image (a Terminus dashboard is exactly that) therefore scaled
+// to 0.6 and sat in a band across the middle of the screen. Rendered in
+// LandscapeCounterClockwise -- "native panel orientation" per the enum at
+// GfxRenderer.h:38 -- the same image fills the panel 1:1.
+//
+// Applied only when the image is wider than it is tall AND the UI is portrait,
+// so it is strictly an improvement: portrait images (book covers) are untouched,
+// and nothing is cropped that was not cropped before. RAII because the sleep
+// render has several exit paths and a leaked orientation would rotate the UI.
+class SleepLandscapeScope {
+ public:
+  SleepLandscapeScope(GfxRenderer& renderer, const int imageWidth, const int imageHeight) : renderer_(renderer) {
+    const GfxRenderer::Orientation current = renderer.getOrientation();
+    const bool uiIsPortrait = current == GfxRenderer::Portrait || current == GfxRenderer::PortraitInverted;
+    if (imageWidth > imageHeight && uiIsPortrait) {
+      previous_ = current;
+      renderer_.setOrientation(GfxRenderer::LandscapeCounterClockwise);
+      active_ = true;
+      LOG_INF("SLP", "Wide image (%dx%d) on a portrait UI: rendering in native landscape", imageWidth, imageHeight);
+    }
+  }
+  ~SleepLandscapeScope() {
+    if (active_) renderer_.setOrientation(previous_);
+  }
+  SleepLandscapeScope(const SleepLandscapeScope&) = delete;
+  SleepLandscapeScope& operator=(const SleepLandscapeScope&) = delete;
+
+ private:
+  GfxRenderer& renderer_;
+  GfxRenderer::Orientation previous_ = GfxRenderer::Portrait;
+  bool active_ = false;
+};
+
 bool isPngFile(const std::string& path) {
   if (path.size() < 4) return false;
   const std::string ext = path.substr(path.size() - 4);
@@ -1306,6 +1343,10 @@ void SleepActivity::renderDefaultSleepScreen() const {
 }
 
 void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, CoverDrawRect* drawnRect) const {
+  // Must precede the getScreenWidth/Height reads below: the whole point is that
+  // they answer 800x480 instead of 480x800 for a wide image.
+  const SleepLandscapeScope landscape(renderer, bitmap.getWidth(), bitmap.getHeight());
+
   int x, y;
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
