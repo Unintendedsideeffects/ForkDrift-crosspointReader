@@ -24,13 +24,26 @@ if [ ! -d "$ARDUINOJSON_DIR" ]; then
   echo "Bootstrapping ArduinoJson for host tests..."
   (
     cd "$ROOT_DIR"
-    uv run pio pkg install -e default --library "bblanchon/ArduinoJson@7.4.2"
+    # No --library here, deliberately. ArduinoJson is already declared in
+    # platformio.ini (`bblanchon/ArduinoJson @ 7.4.2`, [base] and the simulator
+    # env), so a bare install of the env's declared dependencies gets it.
+    #
+    # Passing --library made pio PERSIST the dependency, which rewrites
+    # platformio.ini wholesale through ConfigParser rather than as a diff. That
+    # dropped every symlink://open-x4-sdk/... entry from [base] lib_deps (next
+    # firmware build then fails with "EInkDisplay.h: No such file or
+    # directory"), stripped all comments, and inlined values from the gitignored
+    # platformio.local.ini into the committed file -- putting a developer's
+    # personal build_dir one `git add` away from history. It only fires when
+    # .pio/libdeps is absent, i.e. on fresh clones and fresh worktrees.
+    # See docs/FINDINGS.md 2026-08-15T14:10Z.
+    uv run pio pkg install -e default
   )
 fi
 
 if [ ! -d "$ARDUINOJSON_DIR" ]; then
   echo "ArduinoJson headers not found: $ARDUINOJSON_DIR" >&2
-  echo "Install them with: uv run pio pkg install -e default --library \"bblanchon/ArduinoJson@7.4.2\"" >&2
+  echo "Install them with: uv run pio pkg install -e default" >&2
   exit 1
 fi
 

@@ -2,12 +2,9 @@
 
 #include <ArduinoJson.h>
 #include <FeatureFlags.h>
-#include <HalDisplay.h>
 #include <HalStorage.h>
 #include <HeapGuard.h>
-#include <InflateReader.h>
 #include <Logging.h>
-#include <PngToBmpConverter.h>
 #include <Stream.h>
 #include <WebServer.h>
 #include <esp_crt_bundle.h>
@@ -48,9 +45,6 @@ static constexpr const char* TRMNL_DEST_JPG = "/sleep/trmnl_latest.jpg";
 static constexpr size_t TRMNL_MAX_MANIFEST_BYTES = 16u * 1024u;
 static constexpr int TRMNL_HTTP_BUFFER_BYTES = 2048;
 static constexpr uint32_t TRMNL_FETCH_WAIT_CAP_MS = 120000;
-// uzlib's streaming back-reference window, allocated as one block by
-// InflateReader::init(true). Mirrors INFLATE_DICT_SIZE in that translation unit.
-static constexpr size_t kInflateWindowBytes = 32768;
 
 // Main-loop heartbeat state. Written by the dedicated fetch task and read by
 // the main task; aligned 32-bit loads/stores are atomic on ESP32-C3.
@@ -159,80 +153,6 @@ static esp_err_t imageEventHandler(esp_http_client_event_t* evt) {
   return ESP_OK;
 }
 
-// Repack a downloaded PNG into a 1-bit BMP so the sleep screen never has to
-// instantiate PNGdec.
-//
-// PNGdec is one 58,912-byte struct (a 32 KB inflate window, a 15,872-byte pixel
-// buffer and an RGBA pipeline we do not use, all embedded to avoid malloc). The
-// X4's largest free block is ~38,900 while awake and ~59,380 on the timed-wake
-// path, so the pinned dashboard rendered only on the wake path and only by a
-// 468-byte margin. Measured; see docs/FINDINGS.md 2026-08-15.
-//
-// PngToBmpConverter streams the same image through InflateReader -- the uzlib
-// inflate the EPUB zip engine already uses -- whose 32 KB window is a separate,
-// globally shared allocation. Peak contiguous demand drops from 58,912 to
-// 32,768, which fits the awake heap with room to spare. Terminus already sends
-// 1-bit greyscale (IHDR bit depth 1, colour type 0), so this is a repack rather
-// than a conversion.
-//
-// Deliberately PNG-only: JPEG's decoder is ~20 KB and already fits, so routing
-// it through here would add a transcode without buying any contiguity.
-static bool repackPngAsBmp(const char* pngPath) {
-  // uzlib needs a 32 KB back-reference window in ONE block. At fetch time WiFi
-  // and the HTTP client are resident and the largest run measures ~26,612 on an
-  // X4, so the allocation cannot succeed and the repack would fail after doing
-  // real work and logging an error every refresh. Check first and stay quiet.
-  //
-  // This is a placement problem, not a design one: the same repack has ~38,900
-  // to work with once the radio is down. Upstream solves it structurally by
-  // lending the framebuffer as scratch (lib/Memory/BuildScratch + InflateStream,
-  // neither of which ForkDrift has absorbed yet) -- once that lands, the window
-  // comes from the loan and this precheck stops being the limiting factor.
-  if (!heapguard::canAllocate(kInflateWindowBytes)) {
-    LOG_DBG("TRMNL", "Repack skipped: no %u-byte block (free=%u largest=%u)",
-            static_cast<unsigned>(kInflateWindowBytes), static_cast<unsigned>(heapguard::freeBytes()),
-            static_cast<unsigned>(heapguard::largestBlock()));
-    return false;
-  }
-
-  HalFile pngFile;
-  if (!Storage.openFileForRead("TRMNL", pngPath, pngFile)) {
-    LOG_ERR("TRMNL", "Repack: cannot reopen %s", pngPath);
-    return false;
-  }
-  HalFile bmpFile;
-  if (!Storage.openFileForWrite("TRMNL", TRMNL_DEST_BMP, bmpFile)) {
-    LOG_ERR("TRMNL", "Repack: cannot open %s for write", TRMNL_DEST_BMP);
-    return false;
-  }
-  LOG_INF("TRMNL", "Repack: PNG -> 1-bit BMP (free=%u largest=%u)", static_cast<unsigned>(heapguard::freeBytes()),
-          static_cast<unsigned>(heapguard::largestBlock()));
-  // Panel-native size, not the oriented viewport: the sleep renderer scales and
-  // centres from whatever it is given, so keeping the source unrotated leaves
-  // that decision where it already lives.
-  const bool ok = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(pngFile, bmpFile, HalDisplay::DISPLAY_WIDTH,
-                                                                    HalDisplay::DISPLAY_HEIGHT, false);
-  // Explicit close before the caller removes the temp file.
-  pngFile.close();
-  bmpFile.close();
-
-  // Hand the 32 KB inflate window back. InflateReader keeps it allocated after
-  // deinit() so repeated inflates can reuse it, which is right for reading a
-  // book and wrong here: this path inflates once per refresh and the device
-  // then sleeps. Leaving it held cost 32,868 bytes of free heap and dropped the
-  // largest block from 40,948 to 9,204 on device -- worse, on the very metric
-  // this repack exists to improve.
-  InflateReader::releaseSharedWindow();
-
-  if (!ok) {
-    if (Storage.exists(TRMNL_DEST_BMP)) {
-      Storage.remove(TRMNL_DEST_BMP);
-    }
-    return false;
-  }
-  return true;
-}
-
 // Download url to TRMNL_TEMP_PATH, sniff the content type, and move the file
 // to the matching trmnl_latest.<ext>. Returns the final path, or nullptr on
 // any failure (temp file is cleaned up).
@@ -311,22 +231,6 @@ static const char* downloadVerifiedImage(const std::string& url) {
       Storage.remove(stale);
     }
   }
-  if (strcmp(destPath, TRMNL_DEST_PNG) == 0) {
-    if (repackPngAsBmp(path)) {
-      Storage.remove(path);
-      LOG_INF("TRMNL", "Image downloaded (%zu bytes) -> %s (repacked from PNG)", sink.bytes, TRMNL_DEST_BMP);
-      return TRMNL_DEST_BMP;
-    }
-    // Fall through and pin the PNG. The renderer may still manage it on the
-    // timed-wake path, and a pinned PNG that sometimes renders beats no image.
-    //
-    // LOG_ERR, not LOG_WRN: a silent fallback here looks exactly like the
-    // repack never running, which cost a full debugging cycle to tell apart on
-    // a LOG_LEVEL=0 build where WRN is compiled out.
-    LOG_ERR("TRMNL", "PNG->BMP repack failed; pinning the PNG instead (free=%u largest=%u)",
-            static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(heapguard::largestBlock()));
-  }
-
   if (!Storage.rename(path, destPath)) {
     Storage.remove(path);
     LOG_ERR("TRMNL", "Failed to move image into place: %s", destPath);

@@ -1598,3 +1598,35 @@ general. Neither is measured yet.
   will need re-deriving once the path moves to `InflateStream`.
 - **Status**: mechanism landed and device-verified as non-regressive; TRMNL still renders
   only on the timed-wake path, by the same 468-byte margin as before
+
+## 2026-08-15T17:30Z — The sleep-path framebuffer loan is safe only because SleepActivity never renders asynchronously
+- **Found by**: claude — checking the loan added in `63505837f` before running it on device
+- **Where**: `src/activities/boot_sleep/SleepActivity.cpp` (`repackPngForSleep`),
+  `src/activities/ActivityManager.cpp:194`
+
+A `FrameBufferLoan` nulls `GfxRenderer::frameBuffer`. Anything that draws while one is
+held dereferences null. The two loans in this tree are protected differently, and only one
+of them is protected structurally:
+
+- **`EpubReaderActivity`** (from `swarm/fbloan`): the loan sits inside `render()`, which
+  `renderTaskLoop()` (`ActivityManager.cpp:83`) calls **while holding `RenderLock`**. The
+  render task therefore cannot re-enter and draw. Safe by construction.
+- **`SleepActivity`** (this one): `ActivityManager` does `lock.unlock()` at `:194`
+  *before* calling `onEnter()`, so this loan is held with **no `RenderLock`**. It is safe
+  only because `SleepActivity` overrides no `render()` and never calls `requestUpdate()` —
+  it draws entirely within `onEnter()`, so it never notifies the render task at all.
+
+**That is a load-bearing invariant that the code does not state anywhere.** Giving
+`SleepActivity` a `render()` override, or any `requestUpdate()` call, would introduce a
+null-framebuffer race that is timing-dependent and would not reproduce reliably.
+
+- **Device evidence**: the production `goToSleep()` path was exercised on an X4 with the
+  loan active (`exit Home` -> `enter Sleep` -> repack -> `Inflate scratch claim ok: 41136
+  bytes` -> landscape render). No fault. The race is real but did not fire, which is
+  exactly why it deserves a written invariant rather than reliance on testing.
+- **Options if this is ever tightened**: take a `RenderLock` inside `repackPngForSleep`
+  (safe today — no sleep path holds it — but it would deadlock the moment one did), or
+  have `buildscratch` refuse to lend while the render task has work queued.
+- **Status**: open (documentation-only; no defect observed). Second occurrence of the
+  "large-block borrow vs. concurrent drawing" class, so per the regression ladder this
+  entry is the rung-2 documentation. A third occurrence should get an automatic gate.
