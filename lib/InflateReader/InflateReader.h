@@ -50,7 +50,23 @@ class InflateReader {
   bool init(bool streaming = false);
 
   // Release the ring buffer and reset internal state.
+  //
+  // NOTE: when this reader borrowed the shared window, deinit() marks it free
+  // for reuse but does NOT return it to the heap. That is deliberate for callers
+  // who inflate repeatedly (reading a book), and a permanent 32 KB cost for
+  // callers who inflate once. One-shot callers should follow with
+  // releaseSharedWindow().
   void deinit();
+
+  // Return the process-wide 32 KB inflate window to the heap, if no reader is
+  // currently using it. No-op when it was never allocated or is still in use.
+  //
+  // For one-shot inflates on a device this size the retention is not a saving:
+  // measured on an X4, leaving it allocated after a single Terminus image
+  // repack cost 32,868 bytes of free heap AND dropped the largest contiguous
+  // block from 40,948 to 9,204, because the window is carved out of the largest
+  // run. See docs/FINDINGS.md 2026-08-15.
+  static void releaseSharedWindow();
 
   // Set the entire compressed input as a contiguous memory buffer.
   // Used in one-shot mode; not needed when a read callback is set.

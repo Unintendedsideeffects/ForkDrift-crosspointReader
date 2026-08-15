@@ -52,6 +52,14 @@ bool InflateReader::init(const bool streaming) {
   return true;
 }
 
+void InflateReader::releaseSharedWindow() {
+  if (g_sharedWindow == nullptr || g_sharedWindowInUse) {
+    return;
+  }
+  free(g_sharedWindow);
+  g_sharedWindow = nullptr;
+}
+
 void InflateReader::deinit() {
   if (ringBuffer) {
     if (usesSharedWindow) {
