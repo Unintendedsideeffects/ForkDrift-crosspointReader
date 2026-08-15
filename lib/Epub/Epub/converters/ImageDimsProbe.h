@@ -1,6 +1,8 @@
 #pragma once
 #include <Print.h>
 
+#include <string>
+
 #include "ImageToFramebufferDecoder.h"
 
 // Restored from upstream/master (crosspoint-reader), unchanged.
@@ -60,3 +62,19 @@ class ImageDimsProbe : public Print {
   uint32_t width = 0;
   uint32_t height = 0;
 };
+
+namespace imagedims {
+
+// Read a JPEG/PNG's dimensions from a file on storage by streaming its header,
+// allocating nothing on the heap.
+//
+// Prefer this to ImageToFramebufferDecoder::getDimensions() anywhere the answer
+// is only needed for layout arithmetic. That path instantiates a full decoder
+// (PNG: 58,912 bytes, guard demands 75,296 CONTIGUOUS) to read two integers,
+// which on an X4 fails outright whenever anything else is resident.
+//
+// Returns false for formats this probe does not understand (notably BMP), so
+// callers that must support those should fall back to the decoder.
+bool probeFromFile(const std::string& path, ImageDimensions& out);
+
+}  // namespace imagedims

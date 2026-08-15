@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <Epub/converters/ImageDecoderFactory.h>
+#include <Epub/converters/ImageDimsProbe.h>
 #include <Epub/converters/ImageToFramebufferDecoder.h>
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
@@ -170,6 +171,22 @@ SleepImageCache sleepImageCache;
 
 static constexpr char SLEEP_CACHE_FILE[] = "/.crosspoint/sleep_cache.bin";
 static constexpr uint8_t SLEEP_CACHE_VERSION = 1;
+
+// Dimensions for layout arithmetic, without paying for a decoder.
+//
+// decoder->getDimensions() instantiates the real thing purely to read a width
+// and a height: PNG costs 58,912 bytes and its guard demands 75,296 CONTIGUOUS.
+// Measured on an X4 going to sleep from an awake UI, free heap is ~44 KB with a
+// ~22 KB largest block, so the pinned Terminus image failed at the dimensions
+// stage and the sleep screen fell back to the default -- the whole TRMNL
+// dashboard, lost to reading two integers. The streaming probe allocates
+// nothing. It does not understand BMP, so fall back for the formats it declines.
+bool readImageDimensions(const ImageToFramebufferDecoder* decoder, const std::string& path, ImageDimensions& out) {
+  if (imagedims::probeFromFile(path, out)) {
+    return true;
+  }
+  return decoder && decoder->getDimensions(path, out);
+}
 
 static bool loadSleepImageCacheFromFile(SleepImageCache& cache) {
   SpiBusMutex::Guard guard;
@@ -550,7 +567,7 @@ void scanSleepImagesInDirectory(const std::string& directoryPath, const bool rec
     const ImageToFramebufferDecoder* decoder = ImageDecoderFactory::getDecoder(fullPath);
     if (decoder) {
       ImageDimensions dims = {0, 0};
-      if (decoder->getDimensions(fullPath, dims) && dims.width > 0 && dims.height > 0) {
+      if (readImageDimensions(decoder, fullPath, dims) && dims.width > 0 && dims.height > 0) {
         onValid(ctx, fullPath);
         LOG_DBG("SLP", "Valid %s: %s (%dx%d)", decoder->getFormatName(), fullPath.c_str(), dims.width, dims.height);
       } else {
@@ -949,7 +966,7 @@ bool SleepActivity::tryRenderImagePath(const std::string& path, CoverDrawRect* d
     const ImageToFramebufferDecoder* decoder = ImageDecoderFactory::getDecoder(path);
     if (decoder) {
       ImageDimensions dims = {0, 0};
-      if (decoder->getDimensions(path, dims) && dims.width > 0 && dims.height > 0) {
+      if (readImageDimensions(decoder, path, dims) && dims.width > 0 && dims.height > 0) {
         renderImageSleepScreen(path, drawnRect);
         return true;
       }
@@ -1469,7 +1486,7 @@ bool SleepActivity::renderImageSleepScreen(const std::string& imagePath, CoverDr
 
   ImageDimensions dims = {0, 0};
   if (isPinnedImage) recordPinnedImageRenderStage(PinnedImageRenderStage::Dimensions);
-  if (!decoder->getDimensions(imagePath, dims) || dims.width <= 0 || dims.height <= 0) {
+  if (!readImageDimensions(decoder, imagePath, dims) || dims.width <= 0 || dims.height <= 0) {
     LOG_ERR("SLP", "Could not get dimensions for: %s", imagePath.c_str());
     renderDefaultSleepScreen();
     return false;

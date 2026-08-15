@@ -62,33 +62,8 @@ constexpr size_t kFootnoteGrowthGuardBytes = 8 * 1024;
 // that here, on the text layout path, is what pushed image-heavy chapters under
 // the heap floor and laid them out to zero elements.
 //
-// The buffer is deliberately stack-sized and small: the point is to add no heap
-// pressure at all. Headers sit in the first KB or two of any sane file; the cap
-// stops a pathological or truncated file from spinning over the whole thing.
-constexpr size_t kDimsProbeMaxBytes = 32 * 1024;
-
-bool probeImageDimensions(const std::string& path, ImageDimensions& out) {
-  HalFile file;
-  if (!Storage.openFileForRead("EHP", path, file)) {
-    return false;
-  }
-  ImageDimsProbe probe;
-  uint8_t buffer[128];
-  size_t consumed = 0;
-  while (consumed < kDimsProbeMaxBytes) {
-    const int read = file.read(buffer, sizeof(buffer));
-    if (read <= 0) {
-      break;
-    }
-    consumed += static_cast<size_t>(read);
-    // A short write means the probe is finished -- dimensions found, or the
-    // stream is known to be unusable. Either way there is nothing left to feed.
-    if (probe.write(buffer, static_cast<size_t>(read)) != static_cast<size_t>(read)) {
-      break;
-    }
-  }
-  return probe.getDimensions(out);
-}
+// Shared with SleepActivity's pinned-image path, which failed the same way.
+bool probeImageDimensions(const std::string& path, ImageDimensions& out) { return imagedims::probeFromFile(path, out); }
 
 constexpr const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
 constexpr const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "pre"};

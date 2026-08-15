@@ -1,5 +1,7 @@
 #include "ImageDimsProbe.h"
 
+#include <HalStorage.h>
+
 #include <cstdint>
 
 namespace {
@@ -142,3 +144,36 @@ bool ImageDimsProbe::getDimensions(ImageDimensions& out) const {
   out.height = static_cast<int16_t>(height);
   return true;
 }
+
+namespace imagedims {
+namespace {
+// The buffer is deliberately stack-sized and small: the point is to add no heap
+// pressure at all. Headers sit in the first KB or two of any sane file; the cap
+// stops a pathological or truncated file from spinning over the whole thing.
+constexpr size_t kProbeMaxBytes = 32 * 1024;
+}  // namespace
+
+bool probeFromFile(const std::string& path, ImageDimensions& out) {
+  HalFile file;
+  if (!Storage.openFileForRead("IDP", path, file)) {
+    return false;
+  }
+  ImageDimsProbe probe;
+  uint8_t buffer[128];
+  size_t consumed = 0;
+  while (consumed < kProbeMaxBytes) {
+    const int read = file.read(buffer, sizeof(buffer));
+    if (read <= 0) {
+      break;
+    }
+    consumed += static_cast<size_t>(read);
+    // A short write means the probe is finished -- dimensions found, or the
+    // stream is known to be unusable. Either way there is nothing left to feed.
+    if (probe.write(buffer, static_cast<size_t>(read)) != static_cast<size_t>(read)) {
+      break;
+    }
+  }
+  return probe.getDimensions(out);
+}
+
+}  // namespace imagedims
