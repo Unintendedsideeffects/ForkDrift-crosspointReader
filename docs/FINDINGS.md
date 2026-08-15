@@ -1391,3 +1391,46 @@ finally something to select. `ef7d698a0` can be described as device-verified.
   16384 headroom)` and `[JPG] Not enough heap for JPEG decoder (28788 free, need 36864)`. The
   text now survives that pressure; the images do not.
 - **Status**: guard band fixed and device-verified; the four items above remain open
+
+## 2026-08-15T11:20Z — TRMNL renders only on the timed-wake path; the awake path hits two PNG heap walls
+- **Found by**: claude — X4 over USB serial, `device_walk.py trmnl-status` and `trmnl-render-test`
+- **Where**: `src/activities/boot_sleep/SleepActivity.cpp` (dimensions + decode),
+  `lib/Epub/Epub/converters/PngToFramebufferConverter.cpp`
+
+**The fetch side is healthy.** Stored evidence: `fetch_success_count: 13` of 13
+`timer_wake_count`, `wifi_success_count: 13`, `last_fetch_ok: true`. The Terminus server
+(192.168.86.25:2300) answers correctly and currently serves `refresh_rate: 94` with a PNG
+`image_url`. Nothing in the network path is failing.
+
+**The render side is not.** `render_success_count: 8` against 13 completed cycles. The gap is
+which path the render ran on:
+- *timed-wake* (deep sleep -> minimal boot -> render, nothing else resident):
+  `last_render_free_heap: 121404`, `max_alloc: 59380`, completes.
+- *awake* (going to sleep from a live UI): measured `free=44028 largest=22516`, fails.
+
+**Wall 1 (FIXED, device-verified, `e2012d0d2`)**: `getDimensions()` instantiated a whole PNG
+object (58,912 bytes; guard demands 75,296 CONTIGUOUS) to read the IHDR width/height, which sit
+in the first ~33 bytes of the file. `e5d3ad1a9` had already fixed this class for text layout by
+restoring `ImageDimsProbe`; SleepActivity was the **second consumer** and was missed — the exact
+trap the 2026-07-26T14:10Z entry registers. Now shared as `imagedims::probeFromFile()`.
+
+**Wall 2 (OPEN, = plan 099)**: after the fix the same test advances to `stage: "bw-decode"` and
+fails there: `need=58912 + 16384 headroom` against `largest=45044`. **Not tunable by relaxing
+the guard** — 58,912 alone still exceeds 45,044, so dropping the headroom converts a clean
+refusal into an `abort()`. The lever is the decoder's own footprint (heap-allocating ucZLIB,
+or streaming inflate), per plan 099's own note.
+
+**Cheapest available mitigation is server-side, not firmware**: `destPathForMagic`
+(`Registration.cpp:107`) already accepts BMP, and BMP needs no decoder object. If Terminus can
+be told to serve BMP for this device, wall 2 is bypassed entirely with no firmware change.
+Terminus exposes this only through its authenticated web UI — not testable from here.
+
+**Unresolved**: how the 8 timed-wake renders succeeded at all. `max_alloc: 59380` recorded at
+those renders is still below the 75,296 the guard demands, so either the recorded figure is
+sampled at a different instant than the guard check, or those cycles served BMP. Do not build on
+either explanation until it is measured.
+
+- **Also noted, NOT fixed (out of scope)**: `lib/Markdown/MarkdownRenderer.cpp:954` has the same
+  `decoder->getDimensions()` pattern and the same exposure. Third consumer of this class.
+- **Status**: wall 1 fixed and device-verified; wall 2 open (plan 099); server-side BMP option
+  untested and needs the maintainer
