@@ -51,6 +51,11 @@ fi
 gcc -c "$ROOT_DIR/lib/third_party/md4c/md4c.c" -I"$ROOT_DIR/lib/third_party/md4c" -o "$BUILD_DIR/md4c.o"
 gcc -c "$ROOT_DIR/lib/third_party/md4c/entity.c" -I"$ROOT_DIR/lib/third_party/md4c" -o "$BUILD_DIR/entity.o"
 gcc -c "$ROOT_DIR/lib/MiniBidi/minibidi.c" -I"$ROOT_DIR/lib/MiniBidi" -o "$BUILD_DIR/minibidi.o"
+gcc -c "$ROOT_DIR/lib/third_party/uzlib/src/tinflate.c" -I"$ROOT_DIR/lib/third_party/uzlib/src" \
+  -o "$BUILD_DIR/tinflate.o"
+gcc -c "$ROOT_DIR/test/mock/uzlib_checksums.c" -I"$ROOT_DIR/lib/third_party/uzlib/src" -o "$BUILD_DIR/uzlib_checksums.o"
+gcc -c "$ROOT_DIR/lib/miniz/src/miniz_impl.c" -I"$ROOT_DIR/lib/miniz/src" -I"$ROOT_DIR/lib/miniz/third_party" \
+  -o "$BUILD_DIR/miniz_impl.o"
 
 # Enable the web pokedex/pokemon party routes so host tests compile and exercise them.
 g++ -std=c++20 -O0 -g -Wno-narrowing \
@@ -75,6 +80,10 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -I"$ROOT_DIR/lib/EpdFont" \
   -I"$ROOT_DIR/lib/Markdown" \
   -I"$ROOT_DIR/lib/Memory" \
+  -I"$ROOT_DIR/lib/InflateReader" \
+  -I"$ROOT_DIR/lib/miniz/src" \
+  -I"$ROOT_DIR/lib/PngToBmpConverter" \
+  -I"$ROOT_DIR/lib/third_party/uzlib/src" \
   -I"$ROOT_DIR/lib/third_party/md4c" \
   -I"$ROOT_DIR/lib/Serialization" \
   -I"$ROOT_DIR/lib/GfxRenderer" \
@@ -105,6 +114,10 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/I18n/I18nStrings.cpp" \
   "$ROOT_DIR/lib/Logging/Logging.cpp" \
   "$ROOT_DIR/lib/Memory/HeapGuard.cpp" \
+  "$ROOT_DIR/lib/Memory/BuildScratch.cpp" \
+  "$ROOT_DIR/lib/InflateReader/InflateReader.cpp" \
+  "$ROOT_DIR/lib/miniz/src/InflateStream.cpp" \
+  "$ROOT_DIR/lib/PngToBmpConverter/PngToBmpConverter.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownPreprocessor.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownParser.cpp" \
   "$ROOT_DIR/src/core/features/FeatureCatalog.cpp" \
@@ -170,6 +183,9 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$BUILD_DIR/md4c.o" \
   "$BUILD_DIR/entity.o" \
   "$BUILD_DIR/minibidi.o" \
+  "$BUILD_DIR/tinflate.o" \
+  "$BUILD_DIR/uzlib_checksums.o" \
+  "$BUILD_DIR/miniz_impl.o" \
   -lexpat \
   -o "$BUILD_DIR/HostTests"
 
