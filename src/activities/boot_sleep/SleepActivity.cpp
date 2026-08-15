@@ -8,8 +8,10 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
+#include <HeapGuard.h>
 #include <I18n.h>
 #include <Logging.h>
+#include <PngToBmpConverter.h>
 #include <freertos/task.h>
 
 #include <algorithm>
@@ -181,6 +183,65 @@ static constexpr uint8_t SLEEP_CACHE_VERSION = 1;
 // stage and the sleep screen fell back to the default -- the whole TRMNL
 // dashboard, lost to reading two integers. The streaming probe allocates
 // nothing. It does not understand BMP, so fall back for the formats it declines.
+// Scratch file for the PNG rescue below. Deliberately its own name rather than
+// a sibling `<image>.bmp`: a sibling could collide with a user's real file, and
+// could go stale against a PNG that changed under it. This one is always
+// rewritten before it is read, so it cannot be stale.
+constexpr char SLEEP_REPACK_BMP[] = "/sleep/.repack.bmp";
+
+bool isPngFile(const std::string& path) {
+  if (path.size() < 4) return false;
+  const std::string ext = path.substr(path.size() - 4);
+  return ext == ".png" || ext == ".PNG";
+}
+
+// Last-resort rescue when PNGdec cannot be instantiated.
+//
+// PNGdec is one 58,912-byte struct. The X4's largest free block is ~38,900 while
+// awake, so a pinned PNG dashboard decodes only on the timed-wake path (~59,380)
+// and only by a 468-byte margin -- measured, docs/FINDINGS.md 2026-08-15.
+//
+// PngToBmpConverter streams the same image through miniz InflateStream, whose
+// ~43 KB of state+window is claimed from the lent framebuffer rather than the
+// heap, so it does not depend on the heap having a large run at all. Writing the
+// result to SD and rendering it through the streaming Bitmap reader costs a few
+// hundred bytes.
+//
+// The loan is scoped to the repack ALONE. It nulls the framebuffer, so nothing
+// may draw while it is held; renderBitmapSleepScreen() runs after it ends and
+// redraws the whole screen. Legal here because this path has already failed and
+// is about to repaint unconditionally.
+bool repackPngForSleep(GfxRenderer& renderer, const std::string& pngPath) {
+  bool ok = false;
+  {
+    GfxRenderer::FrameBufferLoan loan(renderer);
+    HalFile pngFile;
+    if (!Storage.openFileForRead("SLP", pngPath, pngFile)) {
+      LOG_ERR("SLP", "Repack rescue: cannot open %s", pngPath.c_str());
+      return false;
+    }
+    HalFile bmpFile;
+    if (!Storage.openFileForWrite("SLP", SLEEP_REPACK_BMP, bmpFile)) {
+      LOG_ERR("SLP", "Repack rescue: cannot write %s", SLEEP_REPACK_BMP);
+      return false;
+    }
+    ok = PngToBmpConverter::pngFileTo1BitBmpStreamWithSize(pngFile, bmpFile, HalDisplay::DISPLAY_WIDTH,
+                                                           HalDisplay::DISPLAY_HEIGHT, false);
+    pngFile.close();
+    bmpFile.close();
+  }
+  if (!ok) {
+    LOG_ERR("SLP", "Repack rescue failed for %s (free=%u largest=%u)", pngPath.c_str(),
+            static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(heapguard::largestBlock()));
+    if (Storage.exists(SLEEP_REPACK_BMP)) {
+      Storage.remove(SLEEP_REPACK_BMP);
+    }
+    return false;
+  }
+  LOG_INF("SLP", "Repack rescue: %s -> %s", pngPath.c_str(), SLEEP_REPACK_BMP);
+  return true;
+}
+
 bool readImageDimensions(const ImageToFramebufferDecoder* decoder, const std::string& path, ImageDimensions& out) {
   if (imagedims::probeFromFile(path, out)) {
     return true;
@@ -1540,6 +1601,24 @@ bool SleepActivity::renderImageSleepScreen(const std::string& imagePath, CoverDr
   if (isPinnedImage) recordPinnedImageRenderStage(PinnedImageRenderStage::BwDecode);
   if (!decoder->decodeToFramebuffer(imagePath, renderer, config)) {
     LOG_ERR("SLP", "Failed to decode: %s", imagePath.c_str());
+    // The usual cause on this device is that PNGdec's 58,912-byte struct does
+    // not fit the largest free block. Repack via the streaming decoder and
+    // render the BMP instead of giving up on the image entirely.
+    if (isPngFile(imagePath) && repackPngForSleep(renderer, imagePath)) {
+      HalFile bmpFile;
+      if (Storage.openFileForRead("SLP", SLEEP_REPACK_BMP, bmpFile)) {
+        Bitmap bitmap(bmpFile, true);
+        const BmpReaderError err = bitmap.parseHeaders();
+        if (err == BmpReaderError::Ok) {
+          renderBitmapSleepScreen(bitmap, drawnRect);
+          if (isPinnedImage) recordPinnedImageRenderStage(PinnedImageRenderStage::Complete);
+          return true;
+        }
+        LOG_ERR("SLP", "Repacked BMP unreadable: %s", Bitmap::errorToString(err));
+      } else {
+        LOG_ERR("SLP", "Cannot reopen repacked BMP: %s", SLEEP_REPACK_BMP);
+      }
+    }
     renderDefaultSleepScreen();
     return false;
   }
