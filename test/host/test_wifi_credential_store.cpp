@@ -116,7 +116,10 @@ TEST_CASE("a checksum mismatch discards the entry instead of trying the wrong pa
 
   REQUIRE(snapshot.credentials.size() == 1);
   CHECK(snapshot.credentials[0].ssid == "Backup");
-  CHECK(needsResave);
+  // A corrupt entry is dropped from memory but the file is deliberately NOT
+  // rewritten: persisting it minus the damaged network would turn one flipped
+  // bit into permanent credential loss. Migration resaves; corruption does not.
+  CHECK_FALSE(needsResave);
 }
 
 TEST_CASE("a length mismatch discards the entry") {
@@ -128,7 +131,10 @@ TEST_CASE("a length mismatch discards the entry") {
   const WifiCredentialSnapshot snapshot = parseOrFail(truncated, &needsResave);
 
   CHECK(snapshot.credentials.empty());
-  CHECK(needsResave);
+  // A corrupt entry is dropped from memory but the file is deliberately NOT
+  // rewritten: persisting it minus the damaged network would turn one flipped
+  // bit into permanent credential loss. Migration resaves; corruption does not.
+  CHECK_FALSE(needsResave);
 }
 
 TEST_CASE("a non-numeric length or checksum discards the entry") {
@@ -136,13 +142,19 @@ TEST_CASE("a non-numeric length or checksum discards the entry") {
   const WifiCredentialSnapshot badLength =
       parseOrFail(document(R"({"ssid":"HomeNet","password_obf":"pw","password_len":"eight"})"), &needsResave);
   CHECK(badLength.credentials.empty());
-  CHECK(needsResave);
+  // A corrupt entry is dropped from memory but the file is deliberately NOT
+  // rewritten: persisting it minus the damaged network would turn one flipped
+  // bit into permanent credential loss. Migration resaves; corruption does not.
+  CHECK_FALSE(needsResave);
 
   needsResave = false;
   const WifiCredentialSnapshot badCrc = parseOrFail(
       document(R"({"ssid":"HomeNet","password_obf":"pw","password_len":2,"password_crc32":"nope"})"), &needsResave);
   CHECK(badCrc.credentials.empty());
-  CHECK(needsResave);
+  // A corrupt entry is dropped from memory but the file is deliberately NOT
+  // rewritten: persisting it minus the damaged network would turn one flipped
+  // bit into permanent credential loss. Migration resaves; corruption does not.
+  CHECK_FALSE(needsResave);
 }
 
 TEST_CASE("passwords longer than the 64 byte bound are rejected on load") {
@@ -154,7 +166,9 @@ TEST_CASE("passwords longer than the 64 byte bound are rejected on load") {
         document(currentFormatEntry("HomeNet", tooLong, tooLong.size(), credential_integrity::crc32(tooLong))),
         &needsResave);
     CHECK(snapshot.credentials.empty());
-    CHECK(needsResave);
+    // Oversized is corruption, not a format to migrate: the file is left
+    // untouched so the entry stays recoverable.
+    CHECK_FALSE(needsResave);
   }
 
   SUBCASE("an undeclared oversized legacy value is rejected too") {
@@ -162,7 +176,9 @@ TEST_CASE("passwords longer than the 64 byte bound are rejected on load") {
     const WifiCredentialSnapshot snapshot =
         parseOrFail(document(R"({"ssid":"HomeNet","password":")" + tooLong + R"("})"), &needsResave);
     CHECK(snapshot.credentials.empty());
-    CHECK(needsResave);
+    // Oversized is corruption, not a format to migrate: the file is left
+    // untouched so the entry stays recoverable.
+    CHECK_FALSE(needsResave);
   }
 
   SUBCASE("a password of exactly 64 bytes is accepted") {

@@ -26,9 +26,16 @@ std::string wifi_credentials::serialize(const WifiCredentialSnapshot& snapshot, 
   for (const auto& cred : snapshot.credentials) {
     JsonObject obj = arr.add<JsonObject>();
     obj["ssid"] = cred.ssid;
-    obj["password_obf"] = codec.encode(cred.password);
-    obj["password_len"] = static_cast<uint32_t>(cred.password.size());
-    obj["password_crc32"] = credential_integrity::crc32(cred.password);
+    // Integrity fields cover the ENCODED bytes, never the plaintext. password_obf
+    // exists so that lifting the SD card does not yield passwords; writing the
+    // plaintext length and a CRC-32 of the plaintext alongside it would undo that
+    // -- CRC-32 is 32 bits and free to compute, so length + checksum together act
+    // as an offline verifier for a wordlist guess. Checksumming the ciphertext
+    // detects corruption just as well and leaks nothing.
+    const std::string encoded = codec.encode(cred.password);
+    obj["password_obf"] = encoded;
+    obj["password_len"] = static_cast<uint32_t>(encoded.size());
+    obj["password_crc32"] = credential_integrity::crc32(encoded);
   }
 
   std::string json;
@@ -45,7 +52,13 @@ bool wifi_credentials::parse(const char* json, const WifiPasswordCodec& codec, W
     return false;
   }
 
-  bool resave = false;
+  // Two distinct reasons to rewrite, deliberately NOT merged: a legacy-format
+  // entry should be migrated, but a corrupt one must never trigger a rewrite --
+  // that would persist the file minus the damaged network, turning one flipped
+  // bit into permanent credential loss. If anything was corrupt we leave the
+  // file exactly as-is so the entry stays recoverable.
+  bool resaveForMigration = false;
+  bool sawCorruption = false;
   out.lastConnectedSsid = doc["lastConnectedSsid"] | std::string("");
   out.credentials.clear();
   out.credentials.reserve(WifiCredentialStore::MAX_NETWORKS);
@@ -61,73 +74,77 @@ bool wifi_credentials::parse(const char* json, const WifiPasswordCodec& codec, W
     cred.ssid = obj["ssid"] | std::string("");
     if (cred.ssid.empty()) {
       LOG_ERR("WCS", "Discarding credential with no SSID");
-      resave = true;
+      sawCorruption = true;
       continue;
     }
 
+    // The obfuscated field is validated BEFORE it is decoded: length and checksum
+    // now describe the ciphertext, so a damaged entry is rejected without doing
+    // decode work on bytes we already know are wrong.
+    const std::string obfuscated = obj["password_obf"] | std::string("");
+
     const JsonVariantConst lengthField = obj["password_len"];
     const bool hasLength = !lengthField.isNull();
-    size_t expectedLength = 0;
     if (hasLength) {
       if (!lengthField.is<uint32_t>()) {
         LOG_ERR("WCS", "Discarding corrupted password for %s (invalid length)", cred.ssid.c_str());
-        resave = true;
+        sawCorruption = true;
         continue;
       }
-      expectedLength = lengthField.as<uint32_t>();
-      if (expectedLength > WifiCredentialStore::MAX_PASSWORD_LENGTH) {
-        LOG_ERR("WCS", "Discarding oversized password for %s (%zu bytes)", cred.ssid.c_str(), expectedLength);
-        resave = true;
+      if (obfuscated.size() != static_cast<size_t>(lengthField.as<uint32_t>())) {
+        LOG_ERR("WCS", "Discarding corrupted password for %s (stored %u encoded bytes, found %zu)", cred.ssid.c_str(),
+                lengthField.as<uint32_t>(), obfuscated.size());
+        sawCorruption = true;
         continue;
       }
     }
 
+    const JsonVariantConst checksumField = obj["password_crc32"];
+    if (checksumField.is<uint32_t>()) {
+      if (credential_integrity::crc32(obfuscated) != checksumField.as<uint32_t>()) {
+        LOG_ERR("WCS", "Discarding corrupted password for %s (checksum mismatch)", cred.ssid.c_str());
+        sawCorruption = true;
+        continue;
+      }
+    } else if (!checksumField.isNull()) {
+      LOG_ERR("WCS", "Discarding corrupted password for %s (invalid checksum)", cred.ssid.c_str());
+      sawCorruption = true;
+      continue;
+    }
+
     bool decoded = false;
-    cred.password = codec.decode(obj["password_obf"] | "", &decoded);
+    cred.password = codec.decode(obfuscated.c_str(), &decoded);
     if (!decoded || cred.password.empty()) {
+      // Pre-obfuscation file: a plaintext "password" field. Reading it is the
+      // migration; the rewrite below is what actually upgrades the file.
       cred.password = obj["password"] | std::string("");
       if (!cred.password.empty()) {
-        resave = true;
+        resaveForMigration = true;
       }
     }
 
     if (cred.password.size() > WifiCredentialStore::MAX_PASSWORD_LENGTH) {
       LOG_ERR("WCS", "Discarding oversized password for %s (%zu bytes)", cred.ssid.c_str(), cred.password.size());
-      resave = true;
+      sawCorruption = true;
       continue;
     }
 
-    if (hasLength) {
-      if (cred.password.size() != expectedLength) {
-        LOG_ERR("WCS", "Discarding corrupted password for %s (expected %zu bytes, decoded %zu)", cred.ssid.c_str(),
-                expectedLength, cred.password.size());
-        resave = true;
-        continue;
-      }
-    } else {
-      resave = true;
-    }
-
-    const JsonVariantConst checksumField = obj["password_crc32"];
-    if (checksumField.is<uint32_t>()) {
-      if (credential_integrity::crc32(cred.password) != checksumField.as<uint32_t>()) {
-        LOG_ERR("WCS", "Discarding corrupted password for %s (checksum mismatch)", cred.ssid.c_str());
-        resave = true;
-        continue;
-      }
-    } else if (checksumField.isNull()) {
-      resave = true;
-    } else {
-      LOG_ERR("WCS", "Discarding corrupted password for %s (invalid checksum)", cred.ssid.c_str());
-      resave = true;
-      continue;
+    // An entry that predates the integrity fields is legacy, not corrupt: it
+    // should be migrated, and its absence of a checksum is expected.
+    if (!hasLength || obj["password_crc32"].isNull()) {
+      resaveForMigration = true;
     }
 
     out.credentials.push_back(std::move(cred));
   }
 
   if (needsResave) {
-    *needsResave = resave;
+    // Migrate only when the whole file parsed cleanly. Rewriting a file that
+    // contained a corrupt entry would persist it minus that network.
+    *needsResave = resaveForMigration && !sawCorruption;
+  }
+  if (sawCorruption) {
+    LOG_WRN("WCS", "Credential file left unmodified: at least one entry was unreadable");
   }
   return true;
 }
