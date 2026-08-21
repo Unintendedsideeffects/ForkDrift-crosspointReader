@@ -143,6 +143,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/Markdown/MarkdownPreprocessor.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownParser.cpp" \
   "$ROOT_DIR/src/core/features/FeatureCatalog.cpp" \
+  "$ROOT_DIR/src/components/themes/ThemeIcons.cpp" \
   "$ROOT_DIR/src/core/features/KoreaderOpdsBridge.cpp" \
   "$ROOT_DIR/src/network/server/ReadingDataApi.cpp" \
   "$ROOT_DIR/src/network/server/RemoteControlApi.cpp" \
@@ -223,5 +224,22 @@ export ASAN_OPTIONS="detect_leaks=1:halt_on_error=1"
 export UBSAN_OPTIONS="halt_on_error=1:print_stacktrace=1"
 
 "$BUILD_DIR/HostTests"
+
+# Order-independence gate (plans/111c). Tests that share static state pass in
+# declaration order and fail when shuffled; this has bitten the suite twice.
+# Seeds are FIXED and echoed on purpose: doctest does not report the seed it
+# used, so a random one would produce an unreproducible failure.
+# Override for a wider sweep: HOST_TEST_SEEDS="1 2 3 ..." test/run_host_tests.sh
+HOST_TEST_SEEDS="${HOST_TEST_SEEDS:-1 1337 31337}"
+for seed in $HOST_TEST_SEEDS; do
+  echo "Running host tests in shuffled order (seed $seed)..."
+  if ! "$BUILD_DIR/HostTests" --order-by=rand --rand-seed="$seed"; then
+    echo "ERROR: host tests failed in shuffled order with seed $seed." >&2
+    echo "Reproduce: $BUILD_DIR/HostTests --order-by=rand --rand-seed=$seed" >&2
+    exit 1
+  fi
+done
+
 "$BUILD_DIR/HostTests" --reporters=junit --out="$BUILD_DIR/results.xml"
 python3 "$ROOT_DIR/scripts/generate_configurator_settings_schema.py" --check
+

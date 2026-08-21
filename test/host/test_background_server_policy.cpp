@@ -247,22 +247,26 @@ void countingRelease() { ++gReclaimCalls; }
 
 }  // namespace
 
-TEST_CASE("heap reclaim registry starts empty and invokes registered releases") {
-  CHECK(core::HeapReclaimRegistry::empty());
+// Deltas, not absolutes: HeapReclaimRegistry's entries[] and count are static
+// with no clear(), so whatever other cases in this binary have registered is
+// still there. Asserting empty() or an absolute call count silently depends on
+// this case running first, which doctest only guarantees in declaration order
+// (see plans/111c).
+TEST_CASE("heap reclaim registry invokes each registered release once per releaseAll") {
+  gReclaimCalls = 0;
+  core::HeapReclaimRegistry::releaseAll();
+  const int baseline = gReclaimCalls;  // counting entries registered by other cases
 
-  core::HeapReclaimRegistry::add(core::HeapReclaimEntry{
-      .name = "test cache",
-      .release = &countingRelease,
-  });
+  core::HeapReclaimRegistry::add(core::HeapReclaimEntry{.name = "test cache", .release = &countingRelease});
   CHECK_FALSE(core::HeapReclaimRegistry::empty());
 
   gReclaimCalls = 0;
   core::HeapReclaimRegistry::releaseAll();
-  CHECK(gReclaimCalls == 1);
+  CHECK(gReclaimCalls == baseline + 1);
 
-  // Releases must be idempotent, so calling again is legal and simply re-runs.
+  gReclaimCalls = 0;
   core::HeapReclaimRegistry::releaseAll();
-  CHECK(gReclaimCalls == 2);
+  CHECK(gReclaimCalls == baseline + 1);  // repeatable, not cumulative
 }
 
 TEST_CASE("heap reclaim registry skips a null release without skipping the rest") {
