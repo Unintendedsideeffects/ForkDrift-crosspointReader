@@ -43,6 +43,11 @@ class OpdsBookBrowserActivity final : public Activity, public TabView {
   int selectorIndex = 0;
   std::string errorMessage;
   std::string statusMessage;
+  // Set from OpdsParser::truncated() after a successful fetchFeed(): the feed
+  // hit the entry-count or body-size cap, so the catalog shown is a partial
+  // view. Surfaced as a status line so a 70-entry catalog showing 62 items
+  // isn't silently indistinguishable from a complete one.
+  bool catalogTruncated = false;
   size_t downloadProgress = 0;
   size_t downloadTotal = 0;
   ButtonNavigator buttonNavigator;

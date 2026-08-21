@@ -62,6 +62,7 @@ class OpdsParser final : public Print {
   void flush() override;
 
   bool error() const;
+  bool truncated() const { return feedTruncated; }
 
   operator bool() { return !error(); }
 
@@ -89,6 +90,15 @@ class OpdsParser final : public Print {
   std::string prevPageUrl;
   // Helper to find attribute value
   static const char* findAttribute(const XML_Char** atts, const char* name);
+  static void assignBounded(std::string& target, const char* value, size_t maxLen);
+  static void appendBounded(std::string& target, const char* value, size_t len, size_t maxLen);
+  // Like assignBounded, but for URL fields: a URL truncated mid-string is a
+  // different (often still "valid-looking") URL, not a shortened version of
+  // the same one. Silently accepting that corrupted value would ship a
+  // broken link (e.g. to the download path) instead of surfacing the
+  // problem. Rejects the whole field (clears target, logs) when the source
+  // value is over maxLen instead of truncating it.
+  static void assignBoundedOrReject(std::string& target, const char* value, size_t maxLen, const char* fieldName);
 
   XML_Parser parser = nullptr;
   std::vector<OpdsEntry> entries;
@@ -101,6 +111,20 @@ class OpdsParser final : public Print {
   bool inAuthor = false;
   bool inAuthorName = false;
   bool inId = false;
+  bool collectCurrentEntry = false;
+
+  // Total <entry> elements seen, counted at the open tag regardless of
+  // whether title/href ever get populated. entries.size() alone can't gate
+  // collectCurrentEntry: a feed of <entry> elements that never close out a
+  // title+href pair never grows entries.size(), so that check would never
+  // trip and every such entry would still be tag-parsed.
+  size_t entriesSeen = 0;
+
+  // Total bytes handed to expat across all write() calls. See MAX_FEED_BODY_BYTES
+  // in OpdsParser.cpp for why this must be enforced here rather than relying on
+  // the per-field bounds below.
+  size_t bytesFed = 0;
 
   bool errorOccured = false;
+  bool feedTruncated = false;
 };
