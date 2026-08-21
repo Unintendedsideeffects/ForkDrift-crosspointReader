@@ -309,9 +309,8 @@ void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
       // collapsing to nothing. See BlockStyle::mergeEmptyBlockOnBrGap() for why this
       // reads blockStyle.fromBrElement (this call's incoming style) rather than the
       // block's own already-stored, already-cleared flag.
-      const int16_t lineHeight = blockStyle.fromBrElement
-                                      ? static_cast<int16_t>(lround(renderer.getLineHeight(fontId) * lineCompression))
-                                      : 0;
+      const int16_t lineHeight =
+          blockStyle.fromBrElement ? static_cast<int16_t>(lround(renderer.getLineHeight(fontId) * lineCompression)) : 0;
       currentTextBlock->setBlockStyle(style.mergeEmptyBlockOnBrGap(blockStyle, lineHeight));
 
       flushPendingAnchor();

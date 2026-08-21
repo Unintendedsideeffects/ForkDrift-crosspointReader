@@ -77,8 +77,7 @@ TEST_CASE("UrlUtils: encodeUnsafeUrlChars") {
           "http://example.com/path%20with%2Fexisting%3Fencodings");
     CHECK(encodeUnsafeUrlChars("http://example.com/%E2%80%99%20mixed with raw spaces") ==
           "http://example.com/%E2%80%99%20mixed%20with%20raw%20spaces");
-    CHECK(encodeUnsafeUrlChars("http://example.com/lower%2a%3b%4f") ==
-          "http://example.com/lower%2a%3b%4f");
+    CHECK(encodeUnsafeUrlChars("http://example.com/lower%2a%3b%4f") == "http://example.com/lower%2a%3b%4f");
   }
 
   SUBCASE("lone or invalid % is safely percent-encoded") {
@@ -97,4 +96,3 @@ TEST_CASE("UrlUtils: encodeUnsafeUrlChars") {
           "http://example.com/download?file=my%20book.epub&other=a%20b");
   }
 }
-

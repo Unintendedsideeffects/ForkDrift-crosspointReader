@@ -11,11 +11,11 @@
 
 TEST_CASE("packedRowBytes matches PNG spec ceil(width * bits / 8)") {
   CHECK(pngrow::packedRowBytes(8, 1) == 1);
-  CHECK(pngrow::packedRowBytes(9, 1) == 2);   // one bit spills into a second byte
-  CHECK(pngrow::packedRowBytes(4, 2) == 1);   // 4 samples * 2 bits = 8 bits exactly
-  CHECK(pngrow::packedRowBytes(5, 2) == 2);   // 10 bits -> 2 bytes, 6 padding bits
-  CHECK(pngrow::packedRowBytes(2, 4) == 1);   // 2 samples * 4 bits = 8 bits exactly
-  CHECK(pngrow::packedRowBytes(3, 4) == 2);   // 12 bits -> 2 bytes
+  CHECK(pngrow::packedRowBytes(9, 1) == 2);    // one bit spills into a second byte
+  CHECK(pngrow::packedRowBytes(4, 2) == 1);    // 4 samples * 2 bits = 8 bits exactly
+  CHECK(pngrow::packedRowBytes(5, 2) == 2);    // 10 bits -> 2 bytes, 6 padding bits
+  CHECK(pngrow::packedRowBytes(2, 4) == 1);    // 2 samples * 4 bits = 8 bits exactly
+  CHECK(pngrow::packedRowBytes(3, 4) == 2);    // 12 bits -> 2 bytes
   CHECK(pngrow::packedRowBytes(10, 8) == 10);  // 8-bit samples: one byte each
 }
 

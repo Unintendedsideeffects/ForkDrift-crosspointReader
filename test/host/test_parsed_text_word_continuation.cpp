@@ -67,7 +67,7 @@ std::vector<std::shared_ptr<TextBlock>> layoutFragments(bool secondFragmentConti
   GfxRenderer renderer(display);
   std::vector<std::shared_ptr<TextBlock>> lines;
   text.layoutAndExtractLines(renderer, kFontId, kPageWidthFitsOnlyWithContinuation,
-                              [&](std::shared_ptr<TextBlock> line) { lines.push_back(std::move(line)); });
+                             [&](std::shared_ptr<TextBlock> line) { lines.push_back(std::move(line)); });
   return lines;
 }
 
@@ -167,7 +167,7 @@ TEST_CASE("ParsedText: a 3-fragment chain that overflows packs as many fragments
   GfxRenderer renderer(display);
   std::vector<std::shared_ptr<TextBlock>> lines;
   text.layoutAndExtractLines(renderer, kFontId, kPageWidthFitsTwoNotThree,
-                              [&](std::shared_ptr<TextBlock> line) { lines.push_back(std::move(line)); });
+                             [&](std::shared_ptr<TextBlock> line) { lines.push_back(std::move(line)); });
 
   REQUIRE(lines.size() == 2);
   REQUIRE(lines[0]->getWords().size() == 2);

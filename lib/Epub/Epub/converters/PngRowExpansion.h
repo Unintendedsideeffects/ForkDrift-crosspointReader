@@ -65,7 +65,7 @@ inline uint8_t expandGraySampleToByte(uint8_t sample, int bitsPerSample) {
 // (-1 before the first call) clips a downscaled row that maps to an
 // already-painted output row down to an empty range, rather than repainting it.
 inline void computeDstRowRange(int srcY, int srcHeight, int dstHeight, int lastPaintedDstY, int* firstDstY,
-                                int* endDstY) {
+                               int* endDstY) {
   if (srcHeight <= 0) {
     *firstDstY = 0;
     *endDstY = 0;

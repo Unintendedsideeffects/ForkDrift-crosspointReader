@@ -648,8 +648,7 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
       if (j + 1 < totalWordCount && continuesVec[j + 1]) {
         int nextGap = 0;
         if (!noSpaceBeforeVec[j + 1]) {
-          nextGap =
-              renderer.getKerning(fontId, lastCodepoint(words[j]), firstCodepoint(words[j + 1]), wordStyles[j]);
+          nextGap = renderer.getKerning(fontId, lastCodepoint(words[j]), firstCodepoint(words[j + 1]), wordStyles[j]);
         }
         if (currlen + nextGap + wordWidths[j + 1] <= effectivePageWidth) {
           continue;

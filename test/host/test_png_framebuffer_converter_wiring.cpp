@@ -115,8 +115,8 @@ TEST_CASE("convertLineToGray: indexed with an 8-bit palette resolves through RGB
   // rather than through the RGB triple would still get the right answer
   // here for pure black/white, so pixel-type 2 (below) uses non-gray colour.
   std::array<uint8_t, 1024> palette{};
-  palette[0] = palette[1] = palette[2] = 0;      // index 0 -> black
-  palette[3] = palette[4] = palette[5] = 255;    // index 1 -> white
+  palette[0] = palette[1] = palette[2] = 0;    // index 0 -> black
+  palette[3] = palette[4] = palette[5] = 255;  // index 1 -> white
   const uint8_t src[] = {0, 1};
   uint8_t out[2] = {0};
   pngrow::convertLineToGray(src, out, 2, pngrow::kColorIndexed, 8, palette.data(), 0);

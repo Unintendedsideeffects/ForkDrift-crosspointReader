@@ -73,8 +73,8 @@ inline size_t requiredPngInternalBufferBytes(int srcWidth, int pixelType, int bi
 // (spec-violating: indexed colour type without a PLTE chunk) falls back to
 // treating the raw index as a gray level -- a pre-existing extension of the
 // 8-bit behaviour, not new risk (see docs/FINDINGS.md).
-inline void convertLineToGray(const uint8_t* pPixels, uint8_t* grayLine, int width, int pixelType,
-                               int bitsPerSample, const uint8_t* palette, int hasAlpha) {
+inline void convertLineToGray(const uint8_t* pPixels, uint8_t* grayLine, int width, int pixelType, int bitsPerSample,
+                              const uint8_t* palette, int hasAlpha) {
   switch (pixelType) {
     case kColorGrayscale:
       if (bitsPerSample == 8) {
@@ -155,8 +155,8 @@ struct LineWriteRange {
 };
 
 inline LineWriteRange prepareGrayLine(int srcY, int srcWidth, int srcHeight, int dstHeight, int lastPaintedDstY,
-                                       const uint8_t* pPixels, int pixelType, int bitsPerSample,
-                                       const uint8_t* palette, int hasAlpha, uint8_t* outGrayLine) {
+                                      const uint8_t* pPixels, int pixelType, int bitsPerSample, const uint8_t* palette,
+                                      int hasAlpha, uint8_t* outGrayLine) {
   int firstDstY, endDstY;
   computeDstRowRange(srcY, srcHeight, dstHeight, lastPaintedDstY, &firstDstY, &endDstY);
   if (firstDstY < endDstY) {

@@ -108,7 +108,9 @@ TEST_CASE("OpenSearchParser - Template exceeding MAX_SEARCH_TEMPLATE_CHARS is tr
   std::string xml =
       "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
       "<OpenSearchDescription xmlns=\"http://a9.com/-/spec/opensearch/1.1/\">\n"
-      "  <Url type=\"application/atom+xml\" template=\"" + longTemplate + "\"/>\n"
+      "  <Url type=\"application/atom+xml\" template=\"" +
+      longTemplate +
+      "\"/>\n"
       "</OpenSearchDescription>";
 
   std::string result = OpenSearchParser::extractSearchTemplate(xml);
@@ -215,8 +217,8 @@ TEST_CASE("OpdsParser - Feed entry bounds and truncation reporting") {
     xml += "  <entry>\n";
     xml += "    <title>Book " + std::to_string(i) + "</title>\n";
     xml += "    <id>urn:book:" + std::to_string(i) + "</id>\n";
-    xml += "    <link rel=\"http://opds-spec.org/acquisition\" href=\"http://example.com/books/" +
-           std::to_string(i) + ".epub\" type=\"application/epub+zip\"/>\n";
+    xml += "    <link rel=\"http://opds-spec.org/acquisition\" href=\"http://example.com/books/" + std::to_string(i) +
+           ".epub\" type=\"application/epub+zip\"/>\n";
     xml += "  </entry>\n";
   }
   xml += "</feed>\n";
@@ -269,10 +271,17 @@ TEST_CASE("OpdsParser - Field length bounds truncation") {
       "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
       "<feed xmlns=\"http://www.w3.org/2005/Atom\">\n"
       "  <entry>\n"
-      "    <title>" + longTitle + "</title>\n"
-      "    <author><name>" + longAuthor + "</name></author>\n"
-      "    <id>" + longId + "</id>\n"
-      "    <link rel=\"http://opds-spec.org/acquisition\" href=\"" + validHref +
+      "    <title>" +
+      longTitle +
+      "</title>\n"
+      "    <author><name>" +
+      longAuthor +
+      "</name></author>\n"
+      "    <id>" +
+      longId +
+      "</id>\n"
+      "    <link rel=\"http://opds-spec.org/acquisition\" href=\"" +
+      validHref +
       "\" type=\"application/epub+zip\"/>\n"
       "  </entry>\n"
       "</feed>";
@@ -307,7 +316,8 @@ TEST_CASE("OpdsParser - Oversized href is rejected rather than truncated") {
       "<feed xmlns=\"http://www.w3.org/2005/Atom\">\n"
       "  <entry>\n"
       "    <title>Valid Title</title>\n"
-      "    <link rel=\"http://opds-spec.org/acquisition\" href=\"" + longHref +
+      "    <link rel=\"http://opds-spec.org/acquisition\" href=\"" +
+      longHref +
       "\" type=\"application/epub+zip\"/>\n"
       "  </entry>\n"
       "</feed>";
@@ -331,9 +341,15 @@ TEST_CASE("OpdsParser - Oversized pagination and search URLs rejected") {
   std::string xml =
       "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
       "<feed xmlns=\"http://www.w3.org/2005/Atom\">\n"
-      "  <link rel=\"next\" href=\"" + longNext + "\" type=\"application/atom+xml\"/>\n"
-      "  <link rel=\"previous\" href=\"" + longPrev + "\" type=\"application/atom+xml\"/>\n"
-      "  <link rel=\"search\" href=\"" + longSearch + "\" type=\"application/atom+xml\"/>\n"
+      "  <link rel=\"next\" href=\"" +
+      longNext +
+      "\" type=\"application/atom+xml\"/>\n"
+      "  <link rel=\"previous\" href=\"" +
+      longPrev +
+      "\" type=\"application/atom+xml\"/>\n"
+      "  <link rel=\"search\" href=\"" +
+      longSearch +
+      "\" type=\"application/atom+xml\"/>\n"
       "</feed>";
 
   OpdsParser parser;
@@ -381,7 +397,8 @@ TEST_CASE("OpdsParser - Feed body exceeding total size cap aborts parsing") {
       "<feed xmlns=\"http://www.w3.org/2005/Atom\">\n"
       "  <entry>\n"
       "    <title>Huge Href Entry</title>\n"
-      "    <link rel=\"http://opds-spec.org/acquisition\" href=\"" + hugeHref +
+      "    <link rel=\"http://opds-spec.org/acquisition\" href=\"" +
+      hugeHref +
       "\" type=\"application/epub+zip\"/>\n"
       "  </entry>\n"
       "</feed>";
@@ -395,4 +412,3 @@ TEST_CASE("OpdsParser - Feed body exceeding total size cap aborts parsing") {
   CHECK(parser.truncated());
   CHECK(parser.getEntries().empty());
 }
-
