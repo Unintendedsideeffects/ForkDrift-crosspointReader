@@ -96,6 +96,21 @@ bool hasPngDecoderHeap(const char* operation) {
   return false;
 }
 
+namespace {
+// The desktop simulator links a reduced PNGdec shim
+// (.pio/libdeps/simulator/simulator/src/PNGdec.h) whose PNGDRAW carries no
+// iBpp field -- it only ever emits PNG_PIXEL_TRUECOLOR_ALPHA, i.e. 8 bits per
+// sample. The device library has the real field. Reading it through this
+// helper keeps that libdep drift contained to one place instead of an #ifdef
+// wrapped around the call site. See scripts/patch_simulator_hal.py for the
+// other half of this drift problem.
+#ifdef SIMULATOR
+constexpr int pngDrawBitsPerSample(const PNGDRAW*) { return 8; }
+#else
+inline int pngDrawBitsPerSample(const PNGDRAW* pDraw) { return pDraw->iBpp; }
+#endif
+}  // namespace
+
 int pngDrawCallback(PNGDRAW* pDraw) {
   PngContext* ctx = reinterpret_cast<PngContext*>(pDraw->pUser);
   if (!ctx || !ctx->config || !ctx->renderer || !ctx->grayLineBuffer) return 0;
@@ -128,9 +143,9 @@ int pngDrawCallback(PNGDRAW* pDraw) {
   // host PNG-wiring test. The unwrapping below is a direct 1:1 field
   // passthrough with no arithmetic of its own, so the residual risk is small
   // relative to what prepareGrayLine's test coverage now closes.
-  const pngrow::LineWriteRange range =
-      pngrow::prepareGrayLine(pDraw->y, srcWidth, ctx->srcHeight, ctx->dstHeight, ctx->lastDstY, pDraw->pPixels,
-                              pDraw->iPixelType, pDraw->iBpp, pDraw->pPalette, pDraw->iHasAlpha, ctx->grayLineBuffer);
+  const pngrow::LineWriteRange range = pngrow::prepareGrayLine(
+      pDraw->y, srcWidth, ctx->srcHeight, ctx->dstHeight, ctx->lastDstY, pDraw->pPixels, pDraw->iPixelType,
+      pngDrawBitsPerSample(pDraw), pDraw->pPalette, pDraw->iHasAlpha, ctx->grayLineBuffer);
   const int firstDstY = range.firstDstY;
   const int endDstY = range.endDstY;
   if (firstDstY >= endDstY) return 1;
@@ -328,8 +343,7 @@ bool PngToFramebufferConverter::decodeToFramebuffer(const std::string& imagePath
   // grayscale conversion does not know how to interpret at this bit depth.
   if (!pngrow::isSupportedBitDepth(pixelType, bitsPerSample)) {
     warnUnsupportedFeature(
-        "bit depth (" + std::to_string(bitsPerSample) + "bpp) for pixel type " + std::to_string(pixelType),
-        imagePath);
+        "bit depth (" + std::to_string(bitsPerSample) + "bpp) for pixel type " + std::to_string(pixelType), imagePath);
     return false;
   }
 
@@ -343,8 +357,8 @@ bool PngToFramebufferConverter::decodeToFramebuffer(const std::string& imagePath
   constexpr size_t MAX_GRAY_LINE_BUFFER_BYTES = PNG_MAX_BUFFERED_PIXELS / 2;
   const size_t grayBufSize = static_cast<size_t>(ctx.srcWidth);
   if (grayBufSize > MAX_GRAY_LINE_BUFFER_BYTES) {
-    LOG_ERR("PNG", "Expanded gray row too wide: need %u bytes for width=%d, max=%u",
-            static_cast<unsigned>(grayBufSize), ctx.srcWidth, static_cast<unsigned>(MAX_GRAY_LINE_BUFFER_BYTES));
+    LOG_ERR("PNG", "Expanded gray row too wide: need %u bytes for width=%d, max=%u", static_cast<unsigned>(grayBufSize),
+            ctx.srcWidth, static_cast<unsigned>(MAX_GRAY_LINE_BUFFER_BYTES));
     return false;
   }
   if (!heapguard::canAllocate(grayBufSize, heapguard::kCriticalFloorBytes)) {

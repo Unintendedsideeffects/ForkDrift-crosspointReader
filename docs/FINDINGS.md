@@ -1693,3 +1693,82 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
   described defect mechanism doesn't reproduce"; the continuation-flag fix stands on its
   own merits and is in scope regardless. Worth confirming with whoever wrote the brief
   whether they were describing a different (upstream or WIP) tree.
+
+---
+
+## 2026-08-21T15:40Z — Callers of `WifiCredentialStore::addCredential()` ignore its return, so the new 64-byte bound becomes silent data loss
+
+- **Found by**: cursor (adversarial review of `absorb/creds-claude`), harvested by claude at integration
+- **Where**: `src/features/web_wifi_setup/Registration.cpp:87`; `src/main.cpp:1022-1023`;
+  `src/activities/network/WifiSelectionActivity.cpp:582-591`
+- **What**: `addCredential()` gained a 64-byte password bound and can now fail where it
+  previously could only fail on the `MAX_NETWORKS` cap. These three call sites discard
+  the return value. `Registration.cpp:87` then saves and replies `200 WiFi credentials
+  saved` with an empty store. Two of them set `lastConnectedSsid` *before* calling it, so
+  a rejected password leaves `lastConnectedSsid` naming a network that has no credential.
+  Generalisable: adding a bound to a function whose callers ignore its return converts
+  input validation into data loss.
+- **Why not fixed here**: outside the credential-store slice's owned scope; each call site
+  needs its own error path and user-facing message, and two are in activities.
+- **Status**: open
+
+## 2026-08-21T15:41Z — `removeCredential() && addCredential()` short-circuits after a destructive first step
+
+- **Found by**: cursor (adversarial review of `absorb/creds-claude`), harvested by claude
+- **Where**: `src/network/server/CrossPointWebServer.cpp:1153-1154`
+- **What**: renaming a network runs `WIFI_STORE.removeCredential(oldSsid) &&
+  WIFI_STORE.addCredential(ssid, password)`. With the new 64-byte bound this has a live
+  trigger it did not have before: a pre-upgrade entry whose stored password exceeds 64
+  bytes gets removed and persisted, then the add is rejected, then a `400` is returned.
+  The network is gone from RAM and from disk.
+- **Why not fixed here**: the fix is to validate before destroying (or restore on
+  failure), in the web server rather than the store.
+- **Status**: open
+
+## 2026-08-21T15:42Z — `ObfuscationUtils` decodes before bounding, so a corrupt `wifi.json` allocates first
+
+- **Found by**: cursor (adversarial review of `absorb/creds-claude`), harvested by claude
+- **Where**: `ObfuscationUtils` base64 decode, reached from `wifi_credentials::parse`
+- **What**: a corrupt `wifi.json` carrying a multi-kilobyte `password_obf` and no
+  `password_len` is decoded in full before any bound applies -- on a 380KB no-PSRAM
+  device. Upstream `c507e5447` added a bounded overload (`maxDecodedLength` + `tooLong`).
+  Entries that *do* carry `password_len` are now rejected before decoding, so only
+  integrity-field-less legacy entries are exposed.
+- **Why not fixed here**: `ObfuscationUtils` is outside the slice's scope and shared with
+  other callers.
+- **Status**: open
+
+## 2026-08-21T15:43Z — `removeCredential()` leaves `lastConnectedSsid` dangling
+
+- **Found by**: cursor (adversarial review of `absorb/creds-claude`), harvested by claude
+- **Where**: `src/util/WifiCredentialStore.cpp` (`removeCredential`)
+- **What**: removing the network that is currently `lastConnectedSsid` does not clear it,
+  so every caller must null-check a name that resolves to nothing. Upstream fixes this.
+- **Why not fixed here**: a behaviour change beyond the five ported invariants; needs its
+  own test plus a look at the auto-connect state machine.
+- **Status**: open
+
+## 2026-08-21T15:44Z — A Lua script reading the network list can trigger an SD write
+
+- **Found by**: cursor (adversarial review of `absorb/creds-claude`), harvested by claude
+- **Where**: `src/util/LuaManager.cpp:496`
+- **What**: calls `WIFI_STORE.loadFromFile()`, which can now perform a migration rewrite
+  as a side effect. A script that only reads the network list can therefore cause an SD
+  write. Related: `CrossPointWebServer.cpp:1082-1100` and `LuaManager.cpp:497,532` still
+  hand-build the password-free view instead of using `getCredentialSummaries()`, which
+  now returns exactly that under the lock -- migrating them would stop plaintext
+  passwords being copied into the web and Lua paths at all.
+- **Status**: open
+
+## 2026-08-21T15:45Z — OPDS feed body has no total-size cap; expat allocates before any field bound applies
+
+- **Found by**: cursor (adversarial review of `absorb/opds-claude`), harvested by claude
+- **Where**: `lib/OpdsParser/OpdsParser.cpp` (the per-field `assignBounded`/`appendBounded`)
+- **What**: the bounds were applied at the wrong layer. expat grows its own internal
+  attribute-value buffer *before* any callback fires, so on a 380KB no-PSRAM device a
+  hostile feed exhausts the heap inside the parser while every bound we added sits
+  downstream of the allocation it was meant to prevent. Needs a cap where the body is
+  read and fed to the parser, with a clean abort once hit.
+- **Why not fixed here**: the remediation agent hit its usage limit after fixing the other
+  three findings in that review.
+- **Status**: open -- highest-severity item remaining from the 2026-08-21 absorption wave
