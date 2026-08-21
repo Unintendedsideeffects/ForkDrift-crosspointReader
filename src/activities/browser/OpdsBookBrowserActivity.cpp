@@ -57,6 +57,7 @@ void OpdsBookBrowserActivity::onEnter() {
   errorMessage.clear();
   pendingAction = PendingAction::None;
   showingCachedCatalog = false;
+  catalogTruncated = false;
   confirmPressStartMs = 0;
 
   // Cache-first (plan 023 Phase 1): if the root shelf for this server is persisted,
@@ -226,6 +227,9 @@ void OpdsBookBrowserActivity::render(RenderLock&&) {
   if (entries.empty()) {
     renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, tr(STR_NO_ENTRIES));
   } else {
+    if (catalogTruncated) {
+      renderer.drawCenteredText(UI_10_FONT_ID, 38, tr(STR_CATALOG_TRUNCATED));
+    }
     const auto pageStartIndex = selectorIndex / PAGE_ITEMS * PAGE_ITEMS;
     renderer.fillRect(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 - 2, pageWidth - 1, 30);
 
@@ -265,6 +269,7 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
 
   LOG_DBG("OPDS", "Fetching: %s", url.c_str());
 
+  catalogTruncated = false;
   OpdsParser parser;
   {
     OpdsParserStream stream{parser};
@@ -287,6 +292,14 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
     errorMessage = tr(STR_PARSE_FEED_FAILED);
     requestUpdate();
     return;
+  }
+
+  catalogTruncated = parser.truncated();
+  if (catalogTruncated) {
+    // LOG_ERR (not LOG_DBG): this must be visible in default/release builds,
+    // not just LOG_LEVEL>=2 debug builds -- otherwise it's exactly the "silent"
+    // truncation the caps below are meant to stop being silent about.
+    LOG_ERR("OPDS", "Feed truncated (entry-count or body-size cap); showing partial catalog");
   }
 
   searchTemplate = parser.getSearchTemplate();

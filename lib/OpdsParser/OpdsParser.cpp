@@ -17,6 +17,20 @@ constexpr size_t MAX_ID_CHARS = 128;
 constexpr size_t MAX_HREF_CHARS = 768;
 constexpr size_t MAX_SEARCH_TEMPLATE_CHARS = 768;
 constexpr size_t MAX_PAGE_URL_CHARS = 768;
+
+// Total bytes accepted into expat across the whole feed. This is the one bound
+// that actually protects the heap: expat's XML_GetBuffer must hold a complete,
+// contiguous attribute value before startElement ever fires, so a hostile feed
+// with e.g. <link href="AAAA...(many MB, unterminated)..." keeps growing
+// expat's *own* internal buffer on every write() call, regardless of
+// MAX_HREF_CHARS below -- that cap only ever sees the value after expat has
+// already assembled the whole (potentially huge) thing. Bounding the feed body
+// itself is the only way to bound that upstream allocation on a 380KB,
+// no-PSRAM device. Reuses the 64KB "cap an HTTP body pulled fully into memory"
+// convention already established for the sibling OpenSearch description-doc
+// fetch (HttpDownloader.cpp's BoundedStringSink / kMaxBodyBytes) rather than
+// inventing a new number.
+constexpr size_t MAX_FEED_BODY_BYTES = 64u * 1024u;
 }  // namespace
 
 OpdsParser::OpdsParser() {
@@ -44,6 +58,16 @@ size_t OpdsParser::write(const uint8_t* xmlData, const size_t length) {
   constexpr size_t chunkSize = 1024;
 
   while (remaining > 0) {
+    // Checked before every chunk (not just once) so a feed that crosses the
+    // cap mid-attribute-value is stopped as soon as possible, rather than
+    // after this whole write() call's data has already been handed to expat.
+    if (bytesFed >= MAX_FEED_BODY_BYTES) {
+      LOG_DBG("OPDS", "Feed body exceeded %zu-byte cap; aborting parse", MAX_FEED_BODY_BYTES);
+      feedTruncated = true;
+      destroyXmlParser(parser);
+      return length;
+    }
+
     const size_t toRead = remaining < chunkSize ? remaining : chunkSize;
     void* const buf = XML_GetBuffer(parser, toRead);
     if (!buf) {
@@ -62,6 +86,7 @@ size_t OpdsParser::write(const uint8_t* xmlData, const size_t length) {
       destroyXmlParser(parser);
       return length;
     }
+    bytesFed += toRead;
     currentPos += toRead;
     remaining -= toRead;
   }
@@ -88,6 +113,8 @@ void OpdsParser::clear() {
   currentText.clear();
   inEntry = inTitle = inAuthor = inAuthorName = inId = false;
   collectCurrentEntry = false;
+  entriesSeen = 0;
+  bytesFed = 0;
   feedTruncated = false;
 }
 
@@ -112,12 +139,38 @@ void OpdsParser::appendBounded(std::string& target, const char* value, const siz
   target.append(value, len < remaining ? len : remaining);
 }
 
+void OpdsParser::assignBoundedOrReject(std::string& target, const char* value, const size_t maxLen,
+                                       const char* fieldName) {
+  if (!value) {
+    target.clear();
+    return;
+  }
+  // strnlen(value, maxLen + 1), not strlen: bounds the scan itself so a
+  // pathological value can't cost more than maxLen+1 bytes of work here --
+  // MAX_FEED_BODY_BYTES already bounds how large value can ever be, but this
+  // keeps the guarantee local rather than relying on that invariant holding.
+  const size_t probeLen = strnlen(value, maxLen + 1);
+  if (probeLen > maxLen) {
+    LOG_DBG("OPDS", "Rejecting %s: exceeds %zu-char cap", fieldName, maxLen);
+    target.clear();
+    return;
+  }
+  target.assign(value, probeLen);
+}
+
 void XMLCALL OpdsParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<OpdsParser*>(userData);
 
   if (xmlNameMatches(name, "entry")) {
     self->inEntry = true;
-    self->collectCurrentEntry = self->entries.size() < MAX_ENTRIES;
+    // Counted structurally at the open tag, not derived from entries.size():
+    // an <entry> that never ends up with both a title and an href (e.g. a
+    // feed of <entry><title>x</title></entry> with no link) never gets
+    // pushed to `entries`, so gating on entries.size() alone would let
+    // collectCurrentEntry stay true forever and tag-parse an unbounded
+    // number of entries.
+    ++self->entriesSeen;
+    self->collectCurrentEntry = self->entriesSeen <= MAX_ENTRIES;
     if (!self->collectCurrentEntry && !self->feedTruncated) {
       LOG_DBG("OPDS", "Feed entries truncated at capacity %zu", MAX_ENTRIES);
     }
@@ -137,17 +190,17 @@ void XMLCALL OpdsParser::startElement(void* userData, const XML_Char* name, cons
       if (rel && strcmp(rel, "search") == 0) {
         if (strstr(href, "{searchTerms}") != nullptr) {
           // OPDS 1.1: search link carries the templated URL inline.
-          assignBounded(self->searchTemplate, href, MAX_SEARCH_TEMPLATE_CHARS);
+          assignBoundedOrReject(self->searchTemplate, href, MAX_SEARCH_TEMPLATE_CHARS, "search template");
         } else if (type && strstr(type, "opensearchdescription") != nullptr) {
           // OPDS 1.2 / OpenSearch 1.1: link points at a separate description
           // document that holds the real template. Fetched & parsed by the
           // caller only if no inline template was found.
-          assignBounded(self->searchDescriptionUrl, href, MAX_SEARCH_TEMPLATE_CHARS);
+          assignBoundedOrReject(self->searchDescriptionUrl, href, MAX_SEARCH_TEMPLATE_CHARS, "search description url");
         }
       } else if (rel && strcmp(rel, "next") == 0 && !self->inEntry) {
-        assignBounded(self->nextPageUrl, href, MAX_PAGE_URL_CHARS);
+        assignBoundedOrReject(self->nextPageUrl, href, MAX_PAGE_URL_CHARS, "next page url");
       } else if (rel && strcmp(rel, "previous") == 0 && !self->inEntry) {
-        assignBounded(self->prevPageUrl, href, MAX_PAGE_URL_CHARS);
+        assignBoundedOrReject(self->prevPageUrl, href, MAX_PAGE_URL_CHARS, "previous page url");
       }
 
       if (self->inEntry && self->collectCurrentEntry) {
@@ -161,12 +214,20 @@ void XMLCALL OpdsParser::startElement(void* userData, const XML_Char* name, cons
                                             self->currentEntry.href.find("/epub/") != std::string::npos);
           if (self->currentEntry.type != OpdsEntryType::BOOK || (isPlainEpub && !alreadyHasPlainEpub)) {
             self->currentEntry.type = OpdsEntryType::BOOK;
-            assignBounded(self->currentEntry.href, href, MAX_HREF_CHARS);
+            // Reject rather than truncate: a book href feeds straight into
+            // buildUrl() for the download request. A truncated href is a
+            // different, broken URL, not a shortened valid one -- shipping it
+            // just turns into a generic download failure with no way for the
+            // user to learn why. Legitimate presigned/SAS download URLs
+            // routinely exceed MAX_HREF_CHARS, so dropping the entry (title
+            // stays set, but push requires href too) with a log is preferable
+            // to downloading garbage.
+            assignBoundedOrReject(self->currentEntry.href, href, MAX_HREF_CHARS, "entry href");
           }
         } else if (type && strstr(type, "application/atom+xml") != nullptr) {
           if (self->currentEntry.type != OpdsEntryType::BOOK) {
             self->currentEntry.type = OpdsEntryType::NAVIGATION;
-            assignBounded(self->currentEntry.href, href, MAX_HREF_CHARS);
+            assignBoundedOrReject(self->currentEntry.href, href, MAX_HREF_CHARS, "entry href");
           }
         }
       }
