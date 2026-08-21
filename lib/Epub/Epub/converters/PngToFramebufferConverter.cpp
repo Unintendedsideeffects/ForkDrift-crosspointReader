@@ -15,6 +15,7 @@
 #include "DirectPixelWriter.h"
 #include "DitherUtils.h"
 #include "PixelCache.h"
+#include "PngLineConversion.h"
 #include "PngRowExpansion.h"
 
 namespace {
@@ -95,145 +96,44 @@ bool hasPngDecoderHeap(const char* operation) {
   return false;
 }
 
-// PNGdec keeps TWO scanlines in its internal ucPixels buffer (current + previous)
-// and each scanline includes a leading filter byte.
-// Required storage is therefore approximately: 2 * (pitch + 1) + alignment slack.
-// If PNG_MAX_BUFFERED_PIXELS is smaller than this requirement for a given image,
-// PNGdec can overrun its internal buffer before our draw callback executes.
-int bytesPerPixelFromType(int pixelType) {
-  switch (pixelType) {
-    case PNG_PIXEL_TRUECOLOR:
-      return 3;
-    case PNG_PIXEL_GRAY_ALPHA:
-      return 2;
-    case PNG_PIXEL_TRUECOLOR_ALPHA:
-      return 4;
-    case PNG_PIXEL_GRAYSCALE:
-    case PNG_PIXEL_INDEXED:
-    default:
-      return 1;
-  }
-}
-
-size_t requiredPngInternalBufferBytes(int srcWidth, int pixelType, int bitsPerSample) {
-  if (srcWidth <= 0) {
-    return SIZE_MAX;
-  }
-  // +1 filter byte per scanline, *2 for current+previous lines, +32 for alignment margin.
-  // A packed 1/2/4-bit grayscale/indexed row is narrower than one-byte-per-pixel, so use
-  // the actual packed width -- matches PNGdec's own iPitch calculation (png.inl).
-  int64_t pitch;
-  if ((pixelType == pngrow::kColorGrayscale || pixelType == pngrow::kColorIndexed) && bitsPerSample < 8) {
-    pitch = pngrow::packedRowBytes(srcWidth, bitsPerSample);
-  } else {
-    pitch = static_cast<int64_t>(srcWidth) * bytesPerPixelFromType(pixelType);
-  }
-  const int64_t MAX_PITCH = 1000000;  // Cap to prevent overflow
-  if (pitch > MAX_PITCH) {
-    return SIZE_MAX;
-  }
-  int64_t total = ((pitch + 1) * 2) + 32;
-  return static_cast<size_t>(total);
-}
-
-// Convert entire source line to grayscale with alpha blending to white background.
-// Low-bit-depth grayscale/indexed scanlines are packed MSB-first (PNG spec 7.2); expand
-// them with pngrow:: rather than treating each byte as one sample.
-// For indexed PNGs with tRNS chunk, alpha values are stored at palette[768] onwards.
-// Processing the whole line at once improves cache locality and reduces per-pixel overhead.
-void convertLineToGray(uint8_t* pPixels, uint8_t* grayLine, int width, int pixelType, int bitsPerSample,
-                       uint8_t* palette, int hasAlpha) {
-  switch (pixelType) {
-    case PNG_PIXEL_GRAYSCALE:
-      if (bitsPerSample == 8) {
-        memcpy(grayLine, pPixels, width);
-      } else {
-        for (int x = 0; x < width; x++) {
-          grayLine[x] = pngrow::expandGraySampleToByte(pngrow::readPackedSample(pPixels, x, bitsPerSample), bitsPerSample);
-        }
-      }
-      break;
-
-    case PNG_PIXEL_TRUECOLOR:
-      for (int x = 0; x < width; x++) {
-        uint8_t* p = &pPixels[x * 3];
-        grayLine[x] = (uint8_t)((p[0] * 77 + p[1] * 150 + p[2] * 29) >> 8);
-      }
-      break;
-
-    case PNG_PIXEL_INDEXED:
-      if (palette) {
-        if (hasAlpha) {
-          for (int x = 0; x < width; x++) {
-            uint8_t idx = pngrow::readPackedSample(pPixels, x, bitsPerSample);
-            uint8_t* p = &palette[idx * 3];
-            uint8_t gray = (uint8_t)((p[0] * 77 + p[1] * 150 + p[2] * 29) >> 8);
-            uint8_t alpha = palette[768 + idx];
-            grayLine[x] = (uint8_t)((gray * alpha + 255 * (255 - alpha)) / 255);
-          }
-        } else {
-          for (int x = 0; x < width; x++) {
-            uint8_t idx = pngrow::readPackedSample(pPixels, x, bitsPerSample);
-            uint8_t* p = &palette[idx * 3];
-            grayLine[x] = (uint8_t)((p[0] * 77 + p[1] * 150 + p[2] * 29) >> 8);
-          }
-        }
-      } else if (bitsPerSample == 8) {
-        memcpy(grayLine, pPixels, width);
-      } else {
-        for (int x = 0; x < width; x++) {
-          grayLine[x] = pngrow::expandGraySampleToByte(pngrow::readPackedSample(pPixels, x, bitsPerSample), bitsPerSample);
-        }
-      }
-      break;
-
-    case PNG_PIXEL_GRAY_ALPHA:
-      for (int x = 0; x < width; x++) {
-        uint8_t gray = pPixels[x * 2];
-        uint8_t alpha = pPixels[x * 2 + 1];
-        grayLine[x] = (uint8_t)((gray * alpha + 255 * (255 - alpha)) / 255);
-      }
-      break;
-
-    case PNG_PIXEL_TRUECOLOR_ALPHA:
-      for (int x = 0; x < width; x++) {
-        uint8_t* p = &pPixels[x * 4];
-        uint8_t gray = (uint8_t)((p[0] * 77 + p[1] * 150 + p[2] * 29) >> 8);
-        uint8_t alpha = p[3];
-        grayLine[x] = (uint8_t)((gray * alpha + 255 * (255 - alpha)) / 255);
-      }
-      break;
-
-    default:
-      memset(grayLine, 128, width);
-      break;
-  }
-}
-
 int pngDrawCallback(PNGDRAW* pDraw) {
   PngContext* ctx = reinterpret_cast<PngContext*>(pDraw->pUser);
   if (!ctx || !ctx->config || !ctx->renderer || !ctx->grayLineBuffer) return 0;
 
-  int srcY = pDraw->y;
   int srcWidth = ctx->srcWidth;
 
-  // Map this source scanline onto every output row it must paint. A plain
-  // dstY = srcY * scale, paint-once-per-unique-value scheme (the previous
-  // logic here) is correct for downscaling but silently drops rows when
-  // upscaling: consecutive srcY values can jump over destination rows that no
-  // other srcY will ever visit, leaving them unpainted (black gaps in the
-  // pixel cache, since it starts zeroed). computeDstRowRange derives the
-  // exact [firstDstY, endDstY) span from the srcHeight:dstHeight ratio so
-  // upscaled rows repeat instead of leaving gaps, while downscaled rows still
-  // dedupe against ctx->lastDstY exactly as before.
-  int firstDstY, endDstY;
-  pngrow::computeDstRowRange(srcY, ctx->srcHeight, ctx->dstHeight, ctx->lastDstY, &firstDstY, &endDstY);
+  // computeDstRowRange (called inside prepareGrayLine) maps this source
+  // scanline onto every output row it must paint. A plain dstY = srcY *
+  // scale, paint-once-per-unique-value scheme (the previous logic here) is
+  // correct for downscaling but silently drops rows when upscaling:
+  // consecutive srcY values can jump over destination rows that no other
+  // srcY will ever visit, leaving them unpainted (black gaps in the pixel
+  // cache, since it starts zeroed). computeDstRowRange derives the exact
+  // [firstDstY, endDstY) span from the srcHeight:dstHeight ratio so upscaled
+  // rows repeat instead of leaving gaps, while downscaled rows still dedupe
+  // against ctx->lastDstY exactly as before.
+  //
+  // prepareGrayLine (PngLineConversion.h) is where the row-range math and the
+  // pixel-type/bit-depth grayscale conversion actually happen; it takes plain
+  // values instead of a PNGDRAW*/PngContext* specifically so a host test can
+  // drive it with hand-built stand-ins for pDraw and ctx. What that host test
+  // does NOT cover is this function itself: the field-unwrapping immediately
+  // below (pDraw->y/pPixels/iPixelType/iBpp/pPalette/iHasAlpha ->
+  // prepareGrayLine's parameters) and everything past it (DirectPixelWriter's
+  // framebuffer write). Both need PNGdec's real PNGDRAW type -- an ESP32-only
+  // Arduino library not on the host toolchain (see run_host_tests.sh's
+  // `lib_ignore = ... PNGdec` for the simulator env) -- and a live
+  // GfxRenderer, whose non-inline methods live in GfxRenderer.cpp and pull in
+  // HalGPIO/SdCardFont/FontDecompressor: disproportionate to vendor into a
+  // host PNG-wiring test. The unwrapping below is a direct 1:1 field
+  // passthrough with no arithmetic of its own, so the residual risk is small
+  // relative to what prepareGrayLine's test coverage now closes.
+  const pngrow::LineWriteRange range =
+      pngrow::prepareGrayLine(pDraw->y, srcWidth, ctx->srcHeight, ctx->dstHeight, ctx->lastDstY, pDraw->pPixels,
+                              pDraw->iPixelType, pDraw->iBpp, pDraw->pPalette, pDraw->iHasAlpha, ctx->grayLineBuffer);
+  const int firstDstY = range.firstDstY;
+  const int endDstY = range.endDstY;
   if (firstDstY >= endDstY) return 1;
-
-  // Convert entire source line to grayscale once; every repeated output row
-  // below reuses it instead of re-decoding (improves cache locality).
-  convertLineToGray(pDraw->pPixels, ctx->grayLineBuffer, srcWidth, pDraw->iPixelType, pDraw->iBpp, pDraw->pPalette,
-                    pDraw->iHasAlpha);
 
   // Render scaled row(s) using Bresenham-style integer stepping (no floating-point division)
   int dstWidth = ctx->dstWidth;
@@ -410,7 +310,7 @@ bool PngToFramebufferConverter::decodeToFramebuffer(const std::string& imagePath
 
   const int pixelType = png->getPixelType();
   const int bitsPerSample = png->getBpp();
-  const size_t requiredInternal = requiredPngInternalBufferBytes(ctx.srcWidth, pixelType, bitsPerSample);
+  const size_t requiredInternal = pngrow::requiredPngInternalBufferBytes(ctx.srcWidth, pixelType, bitsPerSample);
   if (requiredInternal > PNG_MAX_BUFFERED_PIXELS) {
     LOG_ERR("PNG",
             "PNG row buffer too small: need %d bytes for width=%d type=%d bpp=%d, configured "

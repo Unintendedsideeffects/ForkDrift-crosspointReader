@@ -15,7 +15,10 @@ namespace pngrow {
 // including PNGdec.h so this header stays host-testable; PNGdec's own
 // PNG_PIXEL_* enum is defined to the same numbers.
 constexpr int kColorGrayscale = 0;
+constexpr int kColorTruecolor = 2;
 constexpr int kColorIndexed = 3;
+constexpr int kColorGrayAlpha = 4;
+constexpr int kColorTruecolorAlpha = 6;
 
 // PNGdec's own PNGParseInfo rejects bpp > 8 before the draw callback ever
 // runs (png.inl: "16-bit pixels are not supported (yet)"), so the only

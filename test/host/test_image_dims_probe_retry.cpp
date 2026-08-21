@@ -69,9 +69,12 @@ TEST_CASE("probeFromFile gives up after bounded retries on a persistently missin
 
   ImageDimensions dims{0, 0};
   CHECK_FALSE(imagedims::probeFromFile("/cache/missing.png", dims));
-  // Bounded: must eventually give up rather than retrying forever.
-  CHECK(Storage.openFileForReadCount() > 1);
-  CHECK(Storage.openFileForReadCount() <= 5);
+  // Every one of the 3 attempts (kMaxProbeAttempts in ImageDimsProbe.cpp)
+  // calls openFileForRead once and gets a failure back, so the count must be
+  // exactly 3, not just "more than one, but not unbounded" -- a loose bound
+  // here would silently keep passing if kMaxProbeAttempts were changed to 4
+  // or 5, or if a bug turned the bounded loop into an unconditional retry.
+  CHECK(Storage.openFileForReadCount() == 3);
 }
 
 TEST_CASE("probeFromFile rejects an unsupported header without hanging") {
@@ -83,4 +86,13 @@ TEST_CASE("probeFromFile rejects an unsupported header without hanging") {
 
   ImageDimensions dims{0, 0};
   CHECK_FALSE(imagedims::probeFromFile("/cache/notimage.bmp", dims));
+  // openFileForRead itself succeeds every time here (the file exists); it is
+  // ImageDimsProbe::getDimensions() that fails because the content isn't
+  // PNG/JPEG. probeFromFile retries that failure identically to a missing
+  // file (see ImageDimsProbe.cpp's probeFromFile), so this must also hit
+  // openFileForRead exactly kMaxProbeAttempts (3) times. Pinning this value
+  // is what catches the retry-on-permanent-failure regression: a version
+  // that only retried a missing *file* (rather than any probe failure) would
+  // make this count 1, not 3, and no unpinned assertion here would notice.
+  CHECK(Storage.openFileForReadCount() == 3);
 }
