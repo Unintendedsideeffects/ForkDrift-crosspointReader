@@ -1,5 +1,6 @@
 #include "ImageDimsProbe.h"
 
+#include <Arduino.h>  // delay()
 #include <HalStorage.h>
 
 #include <cstdint>
@@ -151,9 +152,17 @@ namespace {
 // pressure at all. Headers sit in the first KB or two of any sane file; the cap
 // stops a pathological or truncated file from spinning over the whole thing.
 constexpr size_t kProbeMaxBytes = 32 * 1024;
-}  // namespace
 
-bool probeFromFile(const std::string& path, ImageDimensions& out) {
+// Bounded retry, not a blanket one: callers probe immediately after writing a
+// freshly extracted cache file (open-for-write, flush, close), and on a slow SD
+// card the metadata/data may not be visible to a subsequent open-for-read yet.
+// Retrying only fires once the first attempt has already failed, so a probe on
+// an already-synced or genuinely unsupported file (BMP, corrupt header) never
+// pays the extra latency.
+constexpr int kMaxProbeAttempts = 3;
+constexpr unsigned long kRetryDelayMs = 50;
+
+bool probeFromFileOnce(const std::string& path, ImageDimensions& out) {
   HalFile file;
   if (!Storage.openFileForRead("IDP", path, file)) {
     return false;
@@ -174,6 +183,19 @@ bool probeFromFile(const std::string& path, ImageDimensions& out) {
     }
   }
   return probe.getDimensions(out);
+}
+}  // namespace
+
+bool probeFromFile(const std::string& path, ImageDimensions& out) {
+  for (int attempt = 0; attempt < kMaxProbeAttempts; attempt++) {
+    if (attempt > 0) {
+      delay(kRetryDelayMs);  // Only reached after a failed probe -- let a slow SD card finish syncing.
+    }
+    if (probeFromFileOnce(path, out)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace imagedims
