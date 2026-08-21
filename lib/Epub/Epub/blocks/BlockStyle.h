@@ -32,6 +32,12 @@ struct BlockStyle {
   bool isRtl = false;              // true if resolved direction is RTL
   bool directionDefined = false;   // true if direction was explicitly set in CSS/HTML
 
+  // Set on the block startNewTextBlock() creates for a <br>. If that block is still
+  // empty when the next block opens, startNewTextBlock() injects a full line-height gap
+  // (the <br> was a standalone separator between paragraphs). Cleared by
+  // getCombinedBlockStyle() so it can never leak onto a sibling block's style.
+  bool fromBrElement = false;
+
   // Combined insets (margin + padding)
   [[nodiscard]] int16_t leftInset() const { return marginLeft + paddingLeft; }
   [[nodiscard]] int16_t rightInset() const { return marginRight + paddingRight; }
@@ -44,6 +50,14 @@ struct BlockStyle {
     BlockStyle result = *this;
     result.marginBottom = 0;
     result.paddingBottom = 0;
+    return result;
+  }
+
+  // Return a copy with top margins/padding zeroed out.
+  [[nodiscard]] BlockStyle withoutTop() const {
+    BlockStyle result = *this;
+    result.marginTop = 0;
+    result.paddingTop = 0;
     return result;
   }
 
@@ -63,6 +77,37 @@ struct BlockStyle {
 
   // Combine this style's properties with a child style along the specified axis.
   // Properties on the other axis are kept from the child unchanged.
+  // Merge an arriving <br>'s style into a text block that is still empty.
+  //
+  // A <br> that lands on an empty block is a standalone separator -- a scene or
+  // section break -- rather than a line terminator, so it must keep a visible
+  // gap instead of collapsing to nothing. That covers the block's own first
+  // child (<p><br>Text</p>) and the 2nd..Nth of a consecutive run alike.
+  //
+  // The line-height floor is gated on `incoming.fromBrElement`, NOT on this
+  // block's own flag. The stored block was tagged by whatever opened it -- <p>
+  // for a first-child <br>, and getCombinedBlockStyle() clears the flag anyway
+  // so it cannot leak to a sibling -- so reading the stored flag would never
+  // fire on exactly the cases this exists for. The arriving event's flag is the
+  // one that knows a <br> is what caused this merge.
+  //
+  // Callers pass the already-scaled line height; passing 0 adds nothing.
+  [[nodiscard]] BlockStyle mergeEmptyBlockOnBrGap(const BlockStyle& incoming, int16_t lineHeightPx) const {
+    BlockStyle merged = *this;
+    merged.marginTop = std::max(marginTop, incoming.marginTop);
+    if (incoming.fromBrElement) {
+      // ADD, do not saturate. Each <br> landing on a still-empty block is its
+      // own separator, so a run of N gives N blank lines; taking a max here
+      // would flatten <br><br><br> to a single gap, which is the collapse this
+      // whole path exists to prevent.
+      merged.marginTop = static_cast<int16_t>(merged.marginTop + lineHeightPx);
+    }
+    // Same rule as getCombinedBlockStyle(): the tag describes one event, never a
+    // resulting style, so it must not survive the merge.
+    merged.fromBrElement = false;
+    return merged;
+  }
+
   [[nodiscard]] BlockStyle getCombinedBlockStyle(const BlockStyle& child, CombineAxis axis) const {
     BlockStyle result = child;
 
@@ -92,6 +137,9 @@ struct BlockStyle {
       result.directionDefined = true;
     }
 
+    // fromBrElement only means something for the exact block startNewTextBlock() tagged;
+    // a combined style is never that block, so never carry the flag forward.
+    result.fromBrElement = false;
     return result;
   }
 

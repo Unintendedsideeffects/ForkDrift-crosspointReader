@@ -112,6 +112,11 @@ class ChapterHtmlSlimParser {
   int tableDepth = 0;
   int tableRowIndex = 0;
   int tableColIndex = 0;
+  // True from a <li>'s bullet word until either real content attaches to it (cleared in
+  // flushPartWordBuffer) or a nested block-level child (<p>, <div>, ...) reuses this block
+  // instead of starting its own (see startNewTextBlock), keeping the bullet on the same
+  // line as that child's first text.
+  bool listItemBulletOnly = false;
   bool currentTableCellIsHeader = false;
   uint8_t currentTableCellColSpan = 1;
   std::unique_ptr<BufferedTable> currentTableBuffer = nullptr;

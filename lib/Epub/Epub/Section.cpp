@@ -22,7 +22,15 @@ namespace {
 // (v32: RTL/bidi line layout; v31: SVG images + NFC composition); alignment is
 // baked into the laid-out lines, so cached sections keep the old alignment
 // until this invalidates them.
-constexpr uint8_t SECTION_FILE_VERSION = 33;
+// v34: parser correctness slice — long/CJK words now carry a continuation flag
+// across a MAX_WORD_SIZE split instead of laying out as separate spaced tokens;
+// <br> gets browser-style margin handling (a line break inside flowing text
+// strips container spacing, an empty <br> block gets a full line-height scene-
+// break gap); nested <li><p> keeps the bullet inline with the child's text; and
+// a closed block no longer leaks its style onto immediately-following bare
+// text. All four change what layoutAndExtractLines() emits, so cached pages
+// built by v33 no longer match.
+constexpr uint8_t SECTION_FILE_VERSION = 34;
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) +
                                  sizeof(bool) + sizeof(bool) + sizeof(uint8_t) + sizeof(bool) + sizeof(bool) +
