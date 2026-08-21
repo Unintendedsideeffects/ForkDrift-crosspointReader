@@ -8,6 +8,8 @@
 
 namespace {
 
+constexpr size_t MAX_SEARCH_TEMPLATE_CHARS = 768;
+
 struct OpenSearchState {
   std::string best;        // chosen templated URL
   bool foundAtom = false;  // best came from an atom+xml <Url>
@@ -35,10 +37,10 @@ void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char**
 
   // Atom always wins; otherwise keep the first templated URL as a fallback.
   if (isAtom) {
-    state->best = tmpl;
+    state->best.assign(tmpl, strnlen(tmpl, MAX_SEARCH_TEMPLATE_CHARS));
     state->foundAtom = true;
   } else if (state->best.empty()) {
-    state->best = tmpl;
+    state->best.assign(tmpl, strnlen(tmpl, MAX_SEARCH_TEMPLATE_CHARS));
   }
 }
 

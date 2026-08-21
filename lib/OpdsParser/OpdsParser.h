@@ -62,6 +62,7 @@ class OpdsParser final : public Print {
   void flush() override;
 
   bool error() const;
+  bool truncated() const { return feedTruncated; }
 
   operator bool() { return !error(); }
 
@@ -89,6 +90,8 @@ class OpdsParser final : public Print {
   std::string prevPageUrl;
   // Helper to find attribute value
   static const char* findAttribute(const XML_Char** atts, const char* name);
+  static void assignBounded(std::string& target, const char* value, size_t maxLen);
+  static void appendBounded(std::string& target, const char* value, size_t len, size_t maxLen);
 
   XML_Parser parser = nullptr;
   std::vector<OpdsEntry> entries;
@@ -101,6 +104,8 @@ class OpdsParser final : public Print {
   bool inAuthor = false;
   bool inAuthorName = false;
   bool inId = false;
+  bool collectCurrentEntry = false;
 
   bool errorOccured = false;
+  bool feedTruncated = false;
 };
