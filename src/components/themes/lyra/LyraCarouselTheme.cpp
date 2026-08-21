@@ -21,6 +21,7 @@
 #include "components/icons/settings2.h"
 #include "components/icons/transfer.h"
 #include "components/icons/wifi.h"
+#include "components/themes/ThemeIcons.h"
 #include "fontIds.h"
 #include "util/RecentBooksStore.h"
 
@@ -494,9 +495,11 @@ void LyraCarouselTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int but
     }
 
     if (rowIcon != nullptr) {
-      const uint8_t* bmp = iconForName(rowIcon(i), kMenuIconSize);
-      if (bmp != nullptr) {
-        renderer.drawIcon(bmp, iconX, iconY, kMenuIconSize, kMenuIconSize);
+      const theme_icons::ResolvedIcon resolved =
+          theme_icons::resolve(iconForName, rowIcon(i), kMenuIconSize, kMenuIconSize);
+      if (resolved.bmp != nullptr) {
+        const int inset = (kMenuIconSize - resolved.size) / 2;
+        renderer.drawIcon(resolved.bmp, iconX + inset, iconY + inset, resolved.size, resolved.size);
       }
     }
   }
@@ -530,9 +533,11 @@ void LyraCarouselTheme::drawCarouselMenuSelectionOverlay(const GfxRenderer& rend
                            Color::LightGray);
 
   if (rowIcon != nullptr) {
-    const uint8_t* bmp = iconForName(rowIcon(selectedIndex), kMenuIconSize);
-    if (bmp != nullptr) {
-      renderer.drawIcon(bmp, iconX, iconY, kMenuIconSize, kMenuIconSize);
+    const theme_icons::ResolvedIcon resolved =
+        theme_icons::resolve(iconForName, rowIcon(selectedIndex), kMenuIconSize, kMenuIconSize);
+    if (resolved.bmp != nullptr) {
+      const int inset = (kMenuIconSize - resolved.size) / 2;
+      renderer.drawIcon(resolved.bmp, iconX + inset, iconY + inset, resolved.size, resolved.size);
     }
   }
 

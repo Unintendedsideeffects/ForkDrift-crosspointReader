@@ -19,6 +19,7 @@
 #include "components/icons/folder24.h"
 #include "components/icons/image24.h"
 #include "components/icons/text24.h"
+#include "components/themes/ThemeIcons.h"
 #include "fontIds.h"
 #include "util/RecentBooksStore.h"
 
@@ -73,6 +74,7 @@ const uint8_t* minimalIconForName(UIIcon icon) {
     case UIIcon::File:
       return File24Icon;
     default:
+      theme_icons::warnMissingIcon(icon, 24);
       return nullptr;
   }
 }

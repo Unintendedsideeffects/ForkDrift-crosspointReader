@@ -30,6 +30,7 @@
 #include "components/icons/text24.h"
 #include "components/icons/transfer.h"
 #include "components/icons/wifi.h"
+#include "components/themes/ThemeIcons.h"
 #include "fontIds.h"
 #include "util/RecentBooksStore.h"
 
@@ -309,11 +310,18 @@ void LyraTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, 
     }
 
     if (rowIcon != nullptr) {
-      UIIcon icon = rowIcon(i);
-      const uint8_t* iconBitmap = iconForName(icon, iconSize);
-      if (iconBitmap != nullptr) {
-        renderer.drawIcon(iconBitmap, rect.x + LyraMetrics::values.contentSidePadding + hPaddingInSelection,
-                          itemY + iconY, iconSize, iconSize);
+      const theme_icons::ResolvedIcon resolved =
+          theme_icons::resolve(iconForName, rowIcon(i), iconSize, mainMenuIconSize);
+      if (resolved.bmp != nullptr) {
+        // iconY/iconSize are a matched pair (:262, :268) chosen for the row
+        // height, but a fallback may be LARGER than iconSize — a 32px icon at
+        // the 24px row's iconY=10 would run to y+42 in a 40px row and paint
+        // over the divider at y+39. Centring in the reserved slot lets an
+        // oversize fallback grow into the existing margins instead: inset is
+        // negative, giving y+6..y+38.
+        const int inset = (iconSize - resolved.size) / 2;
+        renderer.drawIcon(resolved.bmp, rect.x + LyraMetrics::values.contentSidePadding + hPaddingInSelection + inset,
+                          itemY + iconY + inset, resolved.size, resolved.size);
       }
     }
 
@@ -609,11 +617,11 @@ void LyraTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount
     const int textY = tileRect.y + (LyraMetrics::values.menuRowHeight - lineHeight) / 2;
 
     if (rowIcon != nullptr) {
-      UIIcon icon = rowIcon(i);
-      const uint8_t* iconBitmap = iconForName(icon, mainMenuIconSize);
-      if (iconBitmap != nullptr) {
-        renderer.drawIcon(iconBitmap, textX, textY + 3, mainMenuIconSize, mainMenuIconSize);
-        textX += mainMenuIconSize + hPaddingInSelection + 2;
+      const theme_icons::ResolvedIcon resolved =
+          theme_icons::resolve(iconForName, rowIcon(i), mainMenuIconSize, listIconSize);
+      if (resolved.bmp != nullptr) {
+        renderer.drawIcon(resolved.bmp, textX, textY + 3, resolved.size, resolved.size);
+        textX += resolved.size + hPaddingInSelection + 2;
       }
     }
 

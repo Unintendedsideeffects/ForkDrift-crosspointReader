@@ -23,6 +23,7 @@
 #include "components/icons/settings2.h"
 #include "components/icons/text24.h"
 #include "components/icons/transfer.h"
+#include "components/themes/ThemeIcons.h"
 #include "fontIds.h"
 #include "util/BookProgressDataStore.h"
 #include "util/PokemonProgress.h"
@@ -83,6 +84,7 @@ MenuIcon menuIconFor(UIIcon icon) {
     case UIIcon::Book:
       return {Book24Icon, 24};
     default:
+      theme_icons::warnMissingIcon(icon, 32);
       return {};
   }
 }

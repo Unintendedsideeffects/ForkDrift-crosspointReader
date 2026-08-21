@@ -25,6 +25,7 @@
 #include "components/icons/settings2.h"
 #include "components/icons/transfer.h"
 #include "components/icons/wifi.h"
+#include "components/themes/ThemeIcons.h"
 #include "fontIds.h"
 #include "util/DateUtils.h"
 #include "util/RecentBooksStore.h"
@@ -370,10 +371,10 @@ void FlowTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount
 
     // Left-align icon with 12px padding from menuLeft (aligns with covers)
     if (rowIcon != nullptr && !selected) {
-      UIIcon icon = rowIcon(i);
-      const uint8_t* iconBitmap = iconForName(icon, 32);
-      if (iconBitmap != nullptr) {
-        renderer.drawIcon(iconBitmap, menuLeft + 12, y + (rowHeight - 32) / 2, 32, 32);
+      const theme_icons::ResolvedIcon resolved = theme_icons::resolve(iconForName, rowIcon(i), 32, 24);
+      if (resolved.bmp != nullptr) {
+        renderer.drawIcon(resolved.bmp, menuLeft + 12, y + (rowHeight - resolved.size) / 2, resolved.size,
+                          resolved.size);
       }
     }
 
