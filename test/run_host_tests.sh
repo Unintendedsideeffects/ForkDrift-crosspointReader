@@ -72,6 +72,7 @@ gcc -c "$ROOT_DIR/lib/miniz/src/miniz_impl.c" -I"$ROOT_DIR/lib/miniz/src" -I"$RO
 
 # Enable the web pokedex/pokemon party routes so host tests compile and exercise them.
 g++ -std=c++20 -O0 -g -Wno-narrowing \
+  -ffunction-sections -fdata-sections \
   -DCROSSPOINT_HOST_BUILD=1 \
   -fsanitize=address,undefined \
   -fno-omit-frame-pointer \
@@ -170,6 +171,9 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/AnnotationStore.cpp" \
   "$ROOT_DIR/src/util/HighlightExporter.cpp" \
   "$ROOT_DIR/lib/MiniBidi/BidiUtils.cpp" \
+  "$ROOT_DIR/lib/Epub/Epub/Page.cpp" \
+  "$ROOT_DIR/lib/Epub/Epub/blocks/TextBlock.cpp" \
+  "$ROOT_DIR/lib/Epub/Epub/blocks/ImageBlockSerialization.cpp" \
   "$ROOT_DIR/src/network/background/BackgroundServerPolicy.cpp" \
   "$ROOT_DIR/src/network/wifi/WifiEntryPolicy.cpp" \
   "$ROOT_DIR/src/BookmarkStore.cpp" \
@@ -199,6 +203,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$BUILD_DIR/tinflate.o" \
   "$BUILD_DIR/uzlib_checksums.o" \
   "$BUILD_DIR/miniz_impl.o" \
+  -Wl,--gc-sections \
   -lexpat \
   -o "$BUILD_DIR/HostTests"
 

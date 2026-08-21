@@ -41,6 +41,61 @@ void yieldDuringSectionBuild(const size_t completedItems) {
     vTaskDelay(1);
   }
 }
+
+bool rangeWithinFile(const uint32_t offset, const uint64_t bytes, const uint32_t fileSize) {
+  return offset <= fileSize && bytes <= static_cast<uint64_t>(fileSize - offset);
+}
+
+bool validateSectionFileStructure(HalFile& file, const uint32_t fileSize, const uint16_t pageCount,
+                                  const uint32_t lutOffset, const uint32_t anchorMapOffset,
+                                  const uint32_t paragraphLutOffset, const uint32_t liLutOffset) {
+  const uint64_t pageLutBytes = static_cast<uint64_t>(pageCount) * sizeof(uint32_t);
+  if (lutOffset < HEADER_SIZE || !rangeWithinFile(lutOffset, pageLutBytes, fileSize) ||
+      static_cast<uint64_t>(lutOffset) + pageLutBytes != anchorMapOffset || anchorMapOffset > paragraphLutOffset ||
+      paragraphLutOffset > liLutOffset || liLutOffset > fileSize) {
+    return false;
+  }
+
+  if (!file.seek(lutOffset)) return false;
+  uint32_t previousPageOffset = 0;
+  for (uint16_t i = 0; i < pageCount; i++) {
+    uint32_t pageOffset = 0;
+    if (!serialization::readPod(file, pageOffset) || pageOffset < HEADER_SIZE || pageOffset >= lutOffset ||
+        (i > 0 && pageOffset <= previousPageOffset)) {
+      return false;
+    }
+    previousPageOffset = pageOffset;
+  }
+
+  if (!rangeWithinFile(anchorMapOffset, sizeof(uint16_t), fileSize) || !file.seek(anchorMapOffset)) return false;
+  uint16_t anchorCount = 0;
+  if (!serialization::readPod(file, anchorCount)) return false;
+  for (uint16_t i = 0; i < anchorCount; i++) {
+    uint32_t length = 0;
+    if (!serialization::readPod(file, length) || length > 65536 ||
+        !rangeWithinFile(static_cast<uint32_t>(file.position()), static_cast<uint64_t>(length) + sizeof(uint16_t),
+                         paragraphLutOffset) ||
+        !file.seek(file.position() + length)) {
+      return false;
+    }
+    uint16_t anchorPage = 0;
+    if (!serialization::readPod(file, anchorPage) || anchorPage >= pageCount) return false;
+  }
+  if (file.position() != paragraphLutOffset || !rangeWithinFile(paragraphLutOffset, sizeof(uint16_t), fileSize) ||
+      !file.seek(paragraphLutOffset)) {
+    return false;
+  }
+
+  uint16_t paragraphCount = 0;
+  if (!serialization::readPod(file, paragraphCount) || paragraphCount != pageCount ||
+      static_cast<uint64_t>(paragraphLutOffset) + sizeof(uint16_t) +
+              static_cast<uint64_t>(paragraphCount) * sizeof(uint16_t) !=
+          liLutOffset ||
+      !rangeWithinFile(liLutOffset, static_cast<uint64_t>(paragraphCount) * sizeof(uint16_t), fileSize)) {
+    return false;
+  }
+  return true;
+}
 }  // namespace
 
 void Section::closeSectionFile() {
@@ -111,20 +166,35 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
                               const uint16_t viewportWidth, const uint16_t viewportHeight,
                               const bool hyphenationEnabled, const bool embeddedStyle, const uint8_t imageRendering,
                               const bool focusReadingEnabled, const bool guideReadingEnabled) {
+  closeSectionFile();
+  pageCount = 0;
   if (!Storage.openFileForRead("SCT", filePath, file)) {
     return false;
   }
 
+  const auto rejectCache = [this](const char* reason) {
+    file.close();
+    fileOpenForReading = false;
+    pageCount = 0;
+    LOG_ERR("SCT", "Deserialization failed: %s", reason);
+    clearCache();
+    return false;
+  };
+
+  const uint32_t fileSize = file.size();
+  if (fileSize < HEADER_SIZE) {
+    return rejectCache("truncated section header");
+  }
+
   // Match parameters
   {
-    uint8_t version;
-    serialization::readPod(file, version);
+    uint8_t version = 0;
+    if (!serialization::readPod(file, version)) {
+      return rejectCache("could not read version");
+    }
     if (version != SECTION_FILE_VERSION) {
-      // Validation failed: close file before returning
-      file.close();
-      LOG_ERR("SCT", "Deserialization failed: Unknown version %u", version);
-      clearCache();
-      return false;
+      LOG_ERR("SCT", "Unknown section cache version %u", version);
+      return rejectCache("unknown version");
     }
 
     int fileFontId;
@@ -138,18 +208,16 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
     uint8_t fileImageRendering;
     bool fileFocusReadingEnabled;
     bool fileGuideReadingEnabled;
-    serialization::readPod(file, fileFontId);
-    serialization::readPod(file, fileLineCompression);
-    serialization::readPod(file, fileExtraParagraphSpacing);
-    serialization::readPod(file, fileForceParagraphIndents);
-    serialization::readPod(file, fileParagraphAlignment);
-    serialization::readPod(file, fileViewportWidth);
-    serialization::readPod(file, fileViewportHeight);
-    serialization::readPod(file, fileHyphenationEnabled);
-    serialization::readPod(file, fileEmbeddedStyle);
-    serialization::readPod(file, fileImageRendering);
-    serialization::readPod(file, fileFocusReadingEnabled);
-    serialization::readPod(file, fileGuideReadingEnabled);
+    if (!serialization::readPod(file, fileFontId) || !serialization::readPod(file, fileLineCompression) ||
+        !serialization::readPod(file, fileExtraParagraphSpacing) ||
+        !serialization::readPod(file, fileForceParagraphIndents) ||
+        !serialization::readPod(file, fileParagraphAlignment) || !serialization::readPod(file, fileViewportWidth) ||
+        !serialization::readPod(file, fileViewportHeight) || !serialization::readPod(file, fileHyphenationEnabled) ||
+        !serialization::readPod(file, fileEmbeddedStyle) || !serialization::readPod(file, fileImageRendering) ||
+        !serialization::readPod(file, fileFocusReadingEnabled) ||
+        !serialization::readPod(file, fileGuideReadingEnabled)) {
+      return rejectCache("truncated section parameters");
+    }
 
     if (fontId != fileFontId || lineCompression != fileLineCompression ||
         extraParagraphSpacing != fileExtraParagraphSpacing || forceParagraphIndents != fileForceParagraphIndents ||
@@ -157,15 +225,23 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
         viewportHeight != fileViewportHeight || hyphenationEnabled != fileHyphenationEnabled ||
         embeddedStyle != fileEmbeddedStyle || imageRendering != fileImageRendering ||
         focusReadingEnabled != fileFocusReadingEnabled || guideReadingEnabled != fileGuideReadingEnabled) {
-      // Validation failed: close file before returning
-      file.close();
-      LOG_ERR("SCT", "Deserialization failed: Parameters do not match");
-      clearCache();
-      return false;
+      return rejectCache("parameters do not match");
     }
   }
 
-  serialization::readPod(file, pageCount);
+  uint32_t lutOffset = 0;
+  uint32_t anchorMapOffset = 0;
+  uint32_t paragraphLutOffset = 0;
+  uint32_t liLutOffset = 0;
+  if (!serialization::readPod(file, pageCount) || !serialization::readPod(file, lutOffset) ||
+      !serialization::readPod(file, anchorMapOffset) || !serialization::readPod(file, paragraphLutOffset) ||
+      !serialization::readPod(file, liLutOffset)) {
+    return rejectCache("truncated section offsets");
+  }
+  if (!validateSectionFileStructure(file, fileSize, pageCount, lutOffset, anchorMapOffset, paragraphLutOffset,
+                                    liLutOffset)) {
+    return rejectCache("invalid section cache structure");
+  }
   // File validation succeeded: keep it open for subsequent page loads
   fileOpenForReading = true;
   LOG_DBG("SCT", "Deserialization succeeded: %d pages", pageCount);
@@ -456,9 +532,16 @@ std::unique_ptr<Page> Section::loadPageFromSectionFile() {
     weOpenedFile = true;
   }
 
-  file.seek(HEADER_SIZE - sizeof(uint32_t) * 4);
-  uint32_t lutOffset;
-  serialization::readPod(file, lutOffset);
+  if (currentPage >= pageCount || !file.seek(HEADER_SIZE - sizeof(uint32_t) * 4)) {
+    LOG_ERR("SECTION", "page %d is outside cached range %u", currentPage, pageCount);
+    if (weOpenedFile) file.close();
+    return nullptr;
+  }
+  uint32_t lutOffset = 0;
+  if (!serialization::readPod(file, lutOffset)) {
+    if (weOpenedFile) file.close();
+    return nullptr;
+  }
   if (lutOffset == 0 || lutOffset >= file.size()) {
     LOG_ERR("SECTION", "invalid lutOffset=%u in section file", (unsigned)lutOffset);
     if (weOpenedFile) {
@@ -474,16 +557,22 @@ std::unique_ptr<Page> Section::loadPageFromSectionFile() {
     }
     return nullptr;
   }
-  file.seek(lutEntryOffset);
-  uint32_t pagePos;
-  if (!serialization::readPod(file, pagePos) || pagePos == 0 || pagePos >= file.size()) {
+  if (!file.seek(lutEntryOffset)) {
+    if (weOpenedFile) file.close();
+    return nullptr;
+  }
+  uint32_t pagePos = 0;
+  if (!serialization::readPod(file, pagePos) || pagePos < HEADER_SIZE || pagePos >= lutOffset) {
     LOG_ERR("SECTION", "invalid pagePos=%u for page %d", (unsigned)pagePos, currentPage);
     if (weOpenedFile) {
       file.close();
     }
     return nullptr;
   }
-  file.seek(pagePos);
+  if (!file.seek(pagePos)) {
+    if (weOpenedFile) file.close();
+    return nullptr;
+  }
 
   // Page data is read strictly sequentially from pagePos: batch the ~1000 tiny
   // field reads through a sector-sized buffer (one mutex/SdFat call per 512B).
@@ -492,6 +581,11 @@ std::unique_ptr<Page> Section::loadPageFromSectionFile() {
   // Only close if we opened it in this call; keep persistent handle if opened from loadSectionFile()
   if (weOpenedFile) {
     file.close();
+  }
+  if (!page) {
+    LOG_ERR("SECTION", "page %d cache payload is corrupt; clearing cache", currentPage);
+    pageCount = 0;
+    clearCache();
   }
   return page;
 }
@@ -527,9 +621,9 @@ std::optional<uint16_t> Section::getCachedPageCount() const {
     return std::nullopt;
   }
 
-  f.seek(HEADER_SIZE - sizeof(uint32_t) * 4 - sizeof(uint16_t));
-  uint16_t count;
-  serialization::readPod(f, count);
+  if (!f.seek(HEADER_SIZE - sizeof(uint32_t) * 4 - sizeof(uint16_t))) return std::nullopt;
+  uint16_t count = 0;
+  if (!serialization::readPod(f, count)) return std::nullopt;
   return count;
 }
 
@@ -540,23 +634,22 @@ std::optional<uint16_t> Section::getPageForAnchor(const std::string& anchor) con
   }
 
   const uint32_t fileSize = f.size();
-  f.seek(HEADER_SIZE - sizeof(uint32_t) * 3);
-  uint32_t anchorMapOffset;
-  serialization::readPod(f, anchorMapOffset);
+  if (!f.seek(HEADER_SIZE - sizeof(uint32_t) * 3)) return std::nullopt;
+  uint32_t anchorMapOffset = 0;
+  if (!serialization::readPod(f, anchorMapOffset)) return std::nullopt;
   if (anchorMapOffset == 0 || anchorMapOffset >= fileSize) {
     f.close();
     return std::nullopt;
   }
 
-  f.seek(anchorMapOffset);
+  if (!f.seek(anchorMapOffset)) return std::nullopt;
   serialization::BufferedReader reader(f);
-  uint16_t count;
-  serialization::readPod(reader, count);
+  uint16_t count = 0;
+  if (!serialization::readPod(reader, count)) return std::nullopt;
   for (uint16_t i = 0; i < count; i++) {
     std::string key;
-    uint16_t page;
-    serialization::readString(reader, key);
-    serialization::readPod(reader, page);
+    uint16_t page = 0;
+    if (!serialization::readString(reader, key) || !serialization::readPod(reader, page)) return std::nullopt;
     if (key == anchor) {
       f.close();
       return page;
@@ -574,17 +667,17 @@ std::optional<uint16_t> Section::getPageForParagraphIndex(const uint16_t pIndex)
   }
 
   const uint32_t fileSize = f.size();
-  f.seek(HEADER_SIZE - sizeof(uint32_t) * 2);
-  uint32_t paragraphLutOffset;
-  serialization::readPod(f, paragraphLutOffset);
+  if (!f.seek(HEADER_SIZE - sizeof(uint32_t) * 2)) return std::nullopt;
+  uint32_t paragraphLutOffset = 0;
+  if (!serialization::readPod(f, paragraphLutOffset)) return std::nullopt;
   if (paragraphLutOffset == 0 || paragraphLutOffset >= fileSize) {
     f.close();
     return std::nullopt;
   }
 
-  f.seek(paragraphLutOffset);
-  uint16_t count;
-  serialization::readPod(f, count);
+  if (!f.seek(paragraphLutOffset)) return std::nullopt;
+  uint16_t count = 0;
+  if (!serialization::readPod(f, count)) return std::nullopt;
   if (count == 0) {
     f.close();
     return std::nullopt;
@@ -600,8 +693,8 @@ std::optional<uint16_t> Section::getPageForParagraphIndex(const uint16_t pIndex)
   serialization::BufferedReader reader(f);
   uint16_t resultPage = count - 1;
   for (uint16_t i = 0; i < count; i++) {
-    uint16_t pagePIdx;
-    serialization::readPod(reader, pagePIdx);
+    uint16_t pagePIdx = 0;
+    if (!serialization::readPod(reader, pagePIdx)) return std::nullopt;
     if (pagePIdx >= pIndex) {
       resultPage = i;
       break;
@@ -619,17 +712,17 @@ std::optional<uint16_t> Section::getParagraphIndexForPage(const uint16_t page) c
   }
 
   const uint32_t fileSize = f.size();
-  f.seek(HEADER_SIZE - sizeof(uint32_t) * 2);
-  uint32_t paragraphLutOffset;
-  serialization::readPod(f, paragraphLutOffset);
+  if (!f.seek(HEADER_SIZE - sizeof(uint32_t) * 2)) return std::nullopt;
+  uint32_t paragraphLutOffset = 0;
+  if (!serialization::readPod(f, paragraphLutOffset)) return std::nullopt;
   if (paragraphLutOffset == 0 || paragraphLutOffset >= fileSize) {
     f.close();
     return std::nullopt;
   }
 
-  f.seek(paragraphLutOffset);
-  uint16_t count;
-  serialization::readPod(f, count);
+  if (!f.seek(paragraphLutOffset)) return std::nullopt;
+  uint16_t count = 0;
+  if (!serialization::readPod(f, count)) return std::nullopt;
   if (count == 0 || page >= count) {
     f.close();
     return std::nullopt;
@@ -642,9 +735,9 @@ std::optional<uint16_t> Section::getParagraphIndexForPage(const uint16_t page) c
     return std::nullopt;
   }
 
-  f.seek(paragraphLutOffset + sizeof(uint16_t) + page * sizeof(uint16_t));
-  uint16_t pIdx;
-  serialization::readPod(f, pIdx);
+  if (!f.seek(paragraphLutOffset + sizeof(uint16_t) + page * sizeof(uint16_t))) return std::nullopt;
+  uint16_t pIdx = 0;
+  if (!serialization::readPod(f, pIdx)) return std::nullopt;
   f.close();
   return pIdx;
 }
@@ -656,24 +749,24 @@ std::optional<uint16_t> Section::getPageForListItemIndex(const uint16_t liIndex)
   }
 
   const uint32_t fileSize = f.size();
-  f.seek(HEADER_SIZE - sizeof(uint32_t));
-  uint32_t liLutOffset;
-  serialization::readPod(f, liLutOffset);
+  if (!f.seek(HEADER_SIZE - sizeof(uint32_t))) return std::nullopt;
+  uint32_t liLutOffset = 0;
+  if (!serialization::readPod(f, liLutOffset)) return std::nullopt;
   if (liLutOffset == 0 || liLutOffset >= fileSize) {
     return std::nullopt;
   }
 
   // The li LUT shares count with the paragraph LUT; read count from paragraphLutOffset
-  f.seek(HEADER_SIZE - sizeof(uint32_t) * 2);
-  uint32_t paragraphLutOffset;
-  serialization::readPod(f, paragraphLutOffset);
+  if (!f.seek(HEADER_SIZE - sizeof(uint32_t) * 2)) return std::nullopt;
+  uint32_t paragraphLutOffset = 0;
+  if (!serialization::readPod(f, paragraphLutOffset)) return std::nullopt;
   if (paragraphLutOffset == 0 || paragraphLutOffset >= fileSize) {
     return std::nullopt;
   }
 
-  f.seek(paragraphLutOffset);
-  uint16_t count;
-  serialization::readPod(f, count);
+  if (!f.seek(paragraphLutOffset)) return std::nullopt;
+  uint16_t count = 0;
+  if (!serialization::readPod(f, count)) return std::nullopt;
   if (count == 0) {
     return std::nullopt;
   }
@@ -683,12 +776,12 @@ std::optional<uint16_t> Section::getPageForListItemIndex(const uint16_t liIndex)
     return std::nullopt;
   }
 
-  f.seek(liLutOffset);
+  if (!f.seek(liLutOffset)) return std::nullopt;
   serialization::BufferedReader reader(f);
   uint16_t resultPage = count - 1;
   for (uint16_t i = 0; i < count; i++) {
-    uint16_t pageLiIdx;
-    serialization::readPod(reader, pageLiIdx);
+    uint16_t pageLiIdx = 0;
+    if (!serialization::readPod(reader, pageLiIdx)) return std::nullopt;
     if (pageLiIdx >= liIndex) {
       resultPage = i;
       break;

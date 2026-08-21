@@ -1,6 +1,7 @@
 #include "Page.h"
 
 #include <GfxRenderer.h>
+#include <HeapGuard.h>
 #include <Logging.h>
 #include <Serialization.h>
 
@@ -10,6 +11,10 @@ constexpr uint16_t MAX_PAGE_ELEMENTS = 1024;
 constexpr uint8_t MAX_TABLE_ROWS_PER_FRAGMENT = 64;
 constexpr uint8_t MAX_TABLE_CELLS_PER_ROW = 8;
 constexpr uint8_t MAX_TABLE_LINES_PER_CELL = 64;
+
+bool canAllocateElements(const size_t count, const size_t elementSize) {
+  return count == 0 || (count <= SIZE_MAX / elementSize && heapguard::canAllocate(count * elementSize, 0));
+}
 
 template <typename Predicate>
 void renderFilteredPageElements(const std::vector<std::shared_ptr<PageElement>>& elements, GfxRenderer& renderer,
@@ -38,8 +43,10 @@ bool PageLine::serialize(serialization::BufferedWriter& file) {
 std::unique_ptr<PageLine> PageLine::deserialize(serialization::BufferedReader& file) {
   int16_t xPos = 0;
   int16_t yPos = 0;
-  serialization::readPod(file, xPos);
-  serialization::readPod(file, yPos);
+  if (!serialization::readPod(file, xPos) || !serialization::readPod(file, yPos)) {
+    LOG_ERR("PGE", "Deserialization failed: truncated PageLine coordinates");
+    return nullptr;
+  }
 
   auto tb = TextBlock::deserialize(file);
   if (!tb) {
@@ -73,10 +80,12 @@ bool PageImage::serialize(serialization::BufferedWriter& file) {
 }
 
 std::unique_ptr<PageImage> PageImage::deserialize(serialization::BufferedReader& file) {
-  int16_t xPos;
-  int16_t yPos;
-  serialization::readPod(file, xPos);
-  serialization::readPod(file, yPos);
+  int16_t xPos = 0;
+  int16_t yPos = 0;
+  if (!serialization::readPod(file, xPos) || !serialization::readPod(file, yPos)) {
+    LOG_ERR("PGE", "Deserialization failed: truncated PageImage coordinates");
+    return nullptr;
+  }
 
   auto imageBlockUnique = ImageBlock::deserialize(file);
   if (!imageBlockUnique) {
@@ -111,13 +120,19 @@ bool TableFragmentCell::serialize(serialization::BufferedWriter& file) const {
 
 bool TableFragmentCell::deserialize(serialization::BufferedReader& file, TableFragmentCell& outCell) {
   uint8_t lineCount = 0;
-  serialization::readPod(file, outCell.isHeader);
-  serialization::readPod(file, lineCount);
+  if (!serialization::readPod(file, outCell.isHeader) || !serialization::readPod(file, lineCount)) {
+    LOG_ERR("PTB", "Deserialization failed: truncated table cell metadata");
+    return false;
+  }
   if (lineCount > MAX_SERIALIZED_LINES) {
     LOG_ERR("PTB", "Deserialization failed: cell line count %u exceeds maximum", lineCount);
     return false;
   }
 
+  if (!canAllocateElements(lineCount, sizeof(std::shared_ptr<TextBlock>))) {
+    LOG_ERR("PTB", "Deserialization failed: insufficient heap for table cell lines");
+    return false;
+  }
   outCell.lines.clear();
   outCell.lines.reserve(lineCount);
   for (uint8_t i = 0; i < lineCount; i++) {
@@ -150,14 +165,20 @@ bool TableFragmentRow::serialize(serialization::BufferedWriter& file) const {
 
 bool TableFragmentRow::deserialize(serialization::BufferedReader& file, TableFragmentRow& outRow) {
   uint8_t cellCount = 0;
-  serialization::readPod(file, outRow.height);
-  serialization::readPod(file, outRow.headerSeparator);
-  serialization::readPod(file, cellCount);
+  if (!serialization::readPod(file, outRow.height) || !serialization::readPod(file, outRow.headerSeparator) ||
+      !serialization::readPod(file, cellCount)) {
+    LOG_ERR("PTB", "Deserialization failed: truncated table row metadata");
+    return false;
+  }
   if (cellCount > MAX_SERIALIZED_CELLS) {
     LOG_ERR("PTB", "Deserialization failed: row cell count %u exceeds maximum", cellCount);
     return false;
   }
 
+  if (!canAllocateElements(cellCount, sizeof(TableFragmentCell))) {
+    LOG_ERR("PTB", "Deserialization failed: insufficient heap for table cells");
+    return false;
+  }
   outRow.cells.clear();
   outRow.cells.reserve(cellCount);
   for (uint8_t i = 0; i < cellCount; i++) {
@@ -251,13 +272,13 @@ std::unique_ptr<PageTableFragment> PageTableFragment::deserialize(serialization:
   uint8_t cellPadding = 0;
   uint16_t lineHeight = 0;
   uint8_t rowCount = 0;
-  serialization::readPod(file, xPos);
-  serialization::readPod(file, yPos);
-  serialization::readPod(file, width);
-  serialization::readPod(file, columnCount);
-  serialization::readPod(file, cellPadding);
-  serialization::readPod(file, lineHeight);
-  serialization::readPod(file, rowCount);
+  if (!serialization::readPod(file, xPos) || !serialization::readPod(file, yPos) ||
+      !serialization::readPod(file, width) || !serialization::readPod(file, columnCount) ||
+      !serialization::readPod(file, cellPadding) || !serialization::readPod(file, lineHeight) ||
+      !serialization::readPod(file, rowCount)) {
+    LOG_ERR("PTB", "Deserialization failed: truncated fragment metadata");
+    return nullptr;
+  }
 
   if (rowCount == 0 || rowCount > MAX_SERIALIZED_ROWS || columnCount == 0 ||
       columnCount > TableFragmentRow::MAX_SERIALIZED_CELLS || width < 2 || lineHeight == 0) {
@@ -266,6 +287,10 @@ std::unique_ptr<PageTableFragment> PageTableFragment::deserialize(serialization:
     return nullptr;
   }
 
+  if (!canAllocateElements(rowCount, sizeof(TableFragmentRow))) {
+    LOG_ERR("PTB", "Deserialization failed: insufficient heap for table rows");
+    return nullptr;
+  }
   std::vector<TableFragmentRow> rows;
   rows.reserve(rowCount);
   for (uint8_t i = 0; i < rowCount; i++) {
@@ -347,10 +372,11 @@ std::unique_ptr<PageHorizontalRule> PageHorizontalRule::deserialize(serializatio
   int16_t yPos = 0;
   uint16_t width = 0;
   uint8_t thickness = 0;
-  serialization::readPod(file, xPos);
-  serialization::readPod(file, yPos);
-  serialization::readPod(file, width);
-  serialization::readPod(file, thickness);
+  if (!serialization::readPod(file, xPos) || !serialization::readPod(file, yPos) ||
+      !serialization::readPod(file, width) || !serialization::readPod(file, thickness)) {
+    LOG_ERR("PGE", "Deserialization failed: truncated PageHorizontalRule metadata");
+    return nullptr;
+  }
 
   if (width == 0 || thickness == 0) {
     LOG_ERR("PGE", "Deserialization failed: invalid horizontal rule metadata (width=%u thickness=%u)", width,
@@ -379,9 +405,18 @@ std::unique_ptr<Page> Page::deserialize(serialization::BufferedReader& file) {
     return nullptr;
   }
 
+  if (!canAllocateElements(count, sizeof(std::shared_ptr<PageElement>))) {
+    LOG_ERR("PGE", "Deserialization failed: insufficient heap for page elements");
+    return nullptr;
+  }
+  page->elements.reserve(count);
+
   for (uint16_t i = 0; i < count; i++) {
-    uint8_t tag;
-    serialization::readPod(file, tag);
+    uint8_t tag = 0;
+    if (!serialization::readPod(file, tag)) {
+      LOG_ERR("PGE", "Deserialization failed: truncated element tag");
+      return nullptr;
+    }
 
     if (tag == TAG_PageLine) {
       auto pl = PageLine::deserialize(file);
@@ -415,10 +450,17 @@ std::unique_ptr<Page> Page::deserialize(serialization::BufferedReader& file) {
   }
 
   // Deserialize footnotes
-  uint16_t fnCount;
-  serialization::readPod(file, fnCount);
+  uint16_t fnCount = 0;
+  if (!serialization::readPod(file, fnCount)) {
+    LOG_ERR("PGE", "Failed to read footnote count");
+    return nullptr;
+  }
   if (fnCount > MAX_FOOTNOTES_PER_PAGE) {
     LOG_ERR("PGE", "Invalid footnote count %u", fnCount);
+    return nullptr;
+  }
+  if (!canAllocateElements(fnCount, sizeof(FootnoteEntry))) {
+    LOG_ERR("PGE", "Deserialization failed: insufficient heap for footnotes");
     return nullptr;
   }
   page->footnotes.resize(fnCount);

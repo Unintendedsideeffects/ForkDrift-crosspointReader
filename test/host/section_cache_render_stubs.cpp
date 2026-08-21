@@ -1,0 +1,16 @@
+#include <GfxRenderer.h>
+
+#include "Epub/blocks/ImageBlock.h"
+
+// The section-cache host tests exercise persistence only. These narrow stubs
+// satisfy the render-side vtables without pulling the display and decoder stack
+// into the ASan/UBSan host binary.
+bool GfxRenderer::isFontCacheScanning() const { return false; }
+void GfxRenderer::drawLine(int, int, int, int, bool) const {}
+void GfxRenderer::drawLine(int, int, int, int, int, bool) const {}
+void GfxRenderer::drawRect(int, int, int, int, bool) const {}
+int GfxRenderer::getTextWidth(int, const char*, EpdFontFamily::Style, BidiUtils::BidiBaseDir) const { return 0; }
+void GfxRenderer::drawText(int, int, int, const char*, bool, EpdFontFamily::Style, BidiUtils::BidiBaseDir) const {}
+int GfxRenderer::getTextAdvanceX(int, const char*, EpdFontFamily::Style) const { return 0; }
+int GfxRenderer::getFontAscenderSize(int) const { return 0; }
+void ImageBlock::render(GfxRenderer&, int, int) {}

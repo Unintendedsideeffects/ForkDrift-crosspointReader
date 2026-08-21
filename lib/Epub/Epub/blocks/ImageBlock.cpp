@@ -16,11 +16,6 @@
 // - uint16_t height
 // - uint8_t pixels[...] - 2 bits per pixel, packed (4 pixels per byte), row-major order
 
-ImageBlock::ImageBlock(const std::string& imagePath, int16_t width, int16_t height)
-    : imagePath(imagePath), width(width), height(height) {}
-
-bool ImageBlock::imageExists() const { return Storage.exists(imagePath.c_str()); }
-
 namespace {
 
 std::string getCachePath(const std::string& imagePath) {
@@ -211,25 +206,4 @@ void ImageBlock::render(GfxRenderer& renderer, const int x, const int y) {
   }
 
   LOG_DBG("IMG", "Decode successful");
-}
-
-bool ImageBlock::serialize(serialization::BufferedWriter& file) {
-  serialization::writeString(file, imagePath);
-  serialization::writePod(file, width);
-  serialization::writePod(file, height);
-  return true;
-}
-
-std::unique_ptr<ImageBlock> ImageBlock::deserialize(serialization::BufferedReader& file) {
-  std::string path;
-  serialization::readString(file, path);
-  int16_t w, h;
-  serialization::readPod(file, w);
-  serialization::readPod(file, h);
-  auto* ib = new (std::nothrow) ImageBlock(path, w, h);
-  if (!ib) {
-    LOG_ERR("IMG", "OOM: ImageBlock");
-    return nullptr;
-  }
-  return std::unique_ptr<ImageBlock>(ib);
 }

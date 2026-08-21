@@ -2,10 +2,39 @@
 
 #include <BidiUtils.h>
 #include <GfxRenderer.h>
+#include <HeapGuard.h>
 #include <Logging.h>
 #include <Serialization.h>
 
 #include <cstring>
+
+namespace {
+constexpr uint16_t MAX_WORDS_PER_TEXT_BLOCK = 512;
+// 1024, not CrossInk's 200. The bound exists to stop corrupt data driving a
+// large allocation, and 1024 B is still trivial against the C3's ~380 KB heap
+// (heapguard::canAllocate preflights it anyway). CrossInk can afford 200
+// because it splits long words at layout time; ForkDrift has not ported
+// long-word continuation (3319aa172), so a long URL in body text stays a single
+// word. At 200 the writer would emit what the reader rejects, and the section
+// cache would rebuild forever. See plans/111d.
+constexpr uint32_t MAX_SERIALIZED_WORD_BYTES = 1024;
+
+bool readBoundedWord(serialization::BufferedReader& reader, std::string& word) {
+  uint32_t len = 0;
+  if (!serialization::readPod(reader, len) || len > MAX_SERIALIZED_WORD_BYTES) {
+    return false;
+  }
+  if (len == 0) {
+    word.clear();
+    return true;
+  }
+  if (!heapguard::canAllocate(static_cast<size_t>(len) + 1, 0)) {
+    return false;
+  }
+  word.resize(len);
+  return reader.read(word.data(), len) == static_cast<int>(len);
+}
+}  // namespace
 
 void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int x, const int y) const {
   // Focus annotations are optional: empty vectors mean no word in this block has a split.
@@ -116,6 +145,19 @@ bool TextBlock::serialize(serialization::BufferedWriter& file) const {
     return false;
   }
 
+  // Diagnostic only — deliberately does NOT return false. PageLine::serialize
+  // has already written xPos/yPos by the time we run, and Section.cpp:115 does
+  // not remove a partially-written file, so a mid-stream refusal would leave a
+  // truncated cache that the fail-closed reader rejects — the same rebuild loop
+  // this bound is meant to prevent. Log loudly and write anyway.
+  for (const auto& w : words) {
+    if (w.size() > MAX_SERIALIZED_WORD_BYTES) {
+      LOG_ERR("TXB", "Word of %u bytes exceeds the %u-byte cache bound; this section will fail to reload",
+              static_cast<uint32_t>(w.size()), MAX_SERIALIZED_WORD_BYTES);
+      break;
+    }
+  }
+
   // Word data
   serialization::writePod(file, static_cast<uint16_t>(words.size()));
   for (const auto& w : words) serialization::writeString(file, w);
@@ -149,7 +191,7 @@ bool TextBlock::serialize(serialization::BufferedWriter& file) const {
 }
 
 std::unique_ptr<TextBlock> TextBlock::deserialize(serialization::BufferedReader& file) {
-  uint16_t wc;
+  uint16_t wc = 0;
   std::vector<std::string> words;
   std::vector<int16_t> wordXpos;
   std::vector<EpdFontFamily::Style> wordStyles;
@@ -158,11 +200,23 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(serialization::BufferedReader&
   BlockStyle blockStyle;
 
   // Word count
-  serialization::readPod(file, wc);
+  if (!serialization::readPod(file, wc)) {
+    LOG_ERR("TXB", "Deserialization failed: could not read word count");
+    return nullptr;
+  }
 
-  // Sanity check: prevent allocation of unreasonably large vectors (max 10000 words per block)
-  if (wc > 10000) {
+  // A TextBlock is one rendered line. CrossInk uses the same 512-word cap;
+  // values above it are corrupt and would otherwise drive large STL allocations.
+  if (wc > MAX_WORDS_PER_TEXT_BLOCK) {
     LOG_ERR("TXB", "Deserialization failed: word count %u exceeds maximum", wc);
+    return nullptr;
+  }
+
+  const size_t vectorBytes =
+      static_cast<size_t>(wc) *
+      (sizeof(std::string) + sizeof(int16_t) + sizeof(EpdFontFamily::Style) + sizeof(uint8_t) + sizeof(uint16_t));
+  if (!heapguard::canAllocate(vectorBytes, 0)) {
+    LOG_ERR("TXB", "Deserialization failed: insufficient heap for %u words", wc);
     return nullptr;
   }
 
@@ -170,35 +224,61 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(serialization::BufferedReader&
   words.resize(wc);
   wordXpos.resize(wc);
   wordStyles.resize(wc);
-  for (auto& w : words) serialization::readString(file, w);
-  for (auto& x : wordXpos) serialization::readPod(file, x);
-  for (auto& s : wordStyles) serialization::readPod(file, s);
+  for (auto& w : words) {
+    if (!readBoundedWord(file, w)) {
+      LOG_ERR("TXB", "Deserialization failed: invalid word payload");
+      return nullptr;
+    }
+  }
+  for (auto& x : wordXpos) {
+    if (!serialization::readPod(file, x)) {
+      LOG_ERR("TXB", "Deserialization failed: truncated word positions");
+      return nullptr;
+    }
+  }
+  for (auto& s : wordStyles) {
+    if (!serialization::readPod(file, s)) {
+      LOG_ERR("TXB", "Deserialization failed: truncated word styles");
+      return nullptr;
+    }
+  }
   // Focus block: presence flag, then vectors only if present. Empty vectors when absent
   // signal "no splits in this block" to render() (zero per-word RAM cost).
-  uint8_t hasFocus;
-  serialization::readPod(file, hasFocus);
+  uint8_t hasFocus = 0;
+  if (!serialization::readPod(file, hasFocus) || hasFocus > 1) {
+    LOG_ERR("TXB", "Deserialization failed: invalid focus metadata");
+    return nullptr;
+  }
   if (hasFocus) {
     wordFocusBoundary.resize(wc);
     wordFocusSuffixX.resize(wc);
-    for (auto& b : wordFocusBoundary) serialization::readPod(file, b);
-    for (auto& sx : wordFocusSuffixX) serialization::readPod(file, sx);
+    for (auto& b : wordFocusBoundary) {
+      if (!serialization::readPod(file, b)) {
+        LOG_ERR("TXB", "Deserialization failed: truncated focus boundaries");
+        return nullptr;
+      }
+    }
+    for (auto& sx : wordFocusSuffixX) {
+      if (!serialization::readPod(file, sx)) {
+        LOG_ERR("TXB", "Deserialization failed: truncated focus positions");
+        return nullptr;
+      }
+    }
   }
 
   // Style (alignment + margins/padding/indent)
-  serialization::readPod(file, blockStyle.alignment);
-  serialization::readPod(file, blockStyle.textAlignDefined);
-  serialization::readPod(file, blockStyle.marginTop);
-  serialization::readPod(file, blockStyle.marginBottom);
-  serialization::readPod(file, blockStyle.marginLeft);
-  serialization::readPod(file, blockStyle.marginRight);
-  serialization::readPod(file, blockStyle.paddingTop);
-  serialization::readPod(file, blockStyle.paddingBottom);
-  serialization::readPod(file, blockStyle.paddingLeft);
-  serialization::readPod(file, blockStyle.paddingRight);
-  serialization::readPod(file, blockStyle.textIndent);
-  serialization::readPod(file, blockStyle.textIndentDefined);
-  serialization::readPod(file, blockStyle.isRtl);
-  serialization::readPod(file, blockStyle.directionDefined);
+  if (!serialization::readPod(file, blockStyle.alignment) ||
+      !serialization::readPod(file, blockStyle.textAlignDefined) ||
+      !serialization::readPod(file, blockStyle.marginTop) || !serialization::readPod(file, blockStyle.marginBottom) ||
+      !serialization::readPod(file, blockStyle.marginLeft) || !serialization::readPod(file, blockStyle.marginRight) ||
+      !serialization::readPod(file, blockStyle.paddingTop) || !serialization::readPod(file, blockStyle.paddingBottom) ||
+      !serialization::readPod(file, blockStyle.paddingLeft) || !serialization::readPod(file, blockStyle.paddingRight) ||
+      !serialization::readPod(file, blockStyle.textIndent) ||
+      !serialization::readPod(file, blockStyle.textIndentDefined) || !serialization::readPod(file, blockStyle.isRtl) ||
+      !serialization::readPod(file, blockStyle.directionDefined)) {
+    LOG_ERR("TXB", "Deserialization failed: truncated block style metadata");
+    return nullptr;
+  }
 
   auto* tb = new (std::nothrow) TextBlock(std::move(words), std::move(wordXpos), std::move(wordStyles),
                                           std::move(wordFocusBoundary), std::move(wordFocusSuffixX), blockStyle);
