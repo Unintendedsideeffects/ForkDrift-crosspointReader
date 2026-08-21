@@ -74,7 +74,7 @@ TEST_CASE("section cache TextBlock round-trips and rejects every truncated prefi
 
 TEST_CASE("section cache TextBlock rejects hostile counts, strings, flags, and low heap") {
   CHECK_FALSE(deserializeText({0x01, 0x02}));                          // 513 words, over the 512-word invariant.
-  CHECK_FALSE(deserializeText({0x01, 0x00, 0x01, 0x04, 0x00, 0x00}));  // 1025-byte word.
+  CHECK_FALSE(deserializeText({0x01, 0x00, 0xC9, 0x00, 0x00, 0x00}));  // 201-byte word.
 
   auto bytes =
       serializePayload([&](serialization::BufferedWriter& writer) { return sampleTextBlock()->serialize(writer); });
@@ -86,26 +86,6 @@ TEST_CASE("section cache TextBlock rejects hostile counts, strings, flags, and l
   CHECK_FALSE(deserializeText(bytes));
   ESP.overrideFreeHeap = savedFree;
   ESP.overrideMaxAllocHeap = savedLargest;
-}
-
-TEST_CASE("section cache TextBlock round-trips a word longer than CrossInk's 200-byte bound") {
-  // At the original 200-byte bound this round-trip failed, causing a permanent rebuild loop
-  // when layout produced legal long words (e.g. URLs).
-  const std::string longWord(300, 'x');
-  BlockStyle style;
-  auto original = std::make_shared<TextBlock>(std::vector<std::string>{longWord}, std::vector<int16_t>{0},
-                                              std::vector<EpdFontFamily::Style>{EpdFontFamily::REGULAR},
-                                              std::vector<uint8_t>{0}, std::vector<uint16_t>{0}, style);
-
-  const auto bytes =
-      serializePayload([&](serialization::BufferedWriter& writer) { return original->serialize(writer); });
-  REQUIRE_FALSE(bytes.empty());
-
-  auto decoded = deserializeText(bytes);
-  REQUIRE(decoded);
-  REQUIRE(decoded->getWords().size() == 1);
-  CHECK(decoded->getWords()[0] == original->getWords()[0]);
-  CHECK(decoded->getWords() == original->getWords());
 }
 
 TEST_CASE("section cache ImageBlock round-trips and rejects every truncated prefix") {

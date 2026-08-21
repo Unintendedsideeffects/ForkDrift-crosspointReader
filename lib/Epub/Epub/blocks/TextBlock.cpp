@@ -10,14 +10,11 @@
 
 namespace {
 constexpr uint16_t MAX_WORDS_PER_TEXT_BLOCK = 512;
-// 1024, not CrossInk's 200. The bound exists to stop corrupt data driving a
-// large allocation, and 1024 B is still trivial against the C3's ~380 KB heap
-// (heapguard::canAllocate preflights it anyway). CrossInk can afford 200
-// because it splits long words at layout time; ForkDrift has not ported
-// long-word continuation (3319aa172), so a long URL in body text stays a single
-// word. At 200 the writer would emit what the reader rejects, and the section
-// cache would rebuild forever. See plans/111d.
-constexpr uint32_t MAX_SERIALIZED_WORD_BYTES = 1024;
+// Mirrors MAX_WORD_SIZE in lib/Epub/Epub/parsers/ChapterHtmlSlimParser.h, which
+// is where the parser splits a token, so a word longer than this cannot reach
+// serialization. The bound exists to stop corrupt cache data from driving large
+// allocations. These two constants must move together.
+constexpr uint32_t MAX_SERIALIZED_WORD_BYTES = 200;
 
 bool readBoundedWord(serialization::BufferedReader& reader, std::string& word) {
   uint32_t len = 0;
@@ -145,11 +142,12 @@ bool TextBlock::serialize(serialization::BufferedWriter& file) const {
     return false;
   }
 
-  // Diagnostic only — deliberately does NOT return false. PageLine::serialize
-  // has already written xPos/yPos by the time we run, and Section.cpp:115 does
-  // not remove a partially-written file, so a mid-stream refusal would leave a
-  // truncated cache that the fail-closed reader rejects — the same rebuild loop
-  // this bound is meant to prevent. Log loudly and write anyway.
+  // Diagnostic only — unreachable today because ChapterHtmlSlimParser splits
+  // tokens at MAX_WORD_SIZE, but cheap insurance if the parser's cap ever changes.
+  // Deliberately does NOT return false: PageLine::serialize has already written
+  // xPos/yPos by the time we run, and Section.cpp:115-117 does not remove a
+  // partially-written file, so a mid-stream refusal would leave a truncated
+  // cache that the fail-closed reader rejects. Log loudly and write anyway.
   for (const auto& w : words) {
     if (w.size() > MAX_SERIALIZED_WORD_BYTES) {
       LOG_ERR("TXB", "Word of %u bytes exceeds the %u-byte cache bound; this section will fail to reload",
