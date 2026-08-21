@@ -135,3 +135,44 @@ TEST_CASE("ParsedText: isEmpty() is false immediately after the li bullet glyph 
   text.addWord("\xe2\x80\xa2", EpdFontFamily::REGULAR);  // the bullet glyph <li> deposits
   CHECK_FALSE(text.isEmpty());
 }
+
+// Adversarial-review category (1): a 3+-fragment continuation chain (a token so long
+// ChapterHtmlSlimParser's 200-byte partWordBuffer had to split it three separate times)
+// that doesn't fit on one line as a whole, but whose first two fragments would.
+//
+// computeLineBreaks()'s DP (ParsedText.cpp:648-651) refuses to record a candidate line
+// end before a chain's true final fragment, so before the fix, starting at fragment 0 it
+// can only ever ask "does fragment0+1+2 fit as a whole?" -- never "does fragment0+1 fit?"
+// -- even though nothing downstream cares where inside the chain the wrap happens (a
+// continuation-flagged word never receives special spacing as a line's first word; see
+// the "rejoins as one unbroken run" test above for the kerning-vs-space contract that
+// property depends on). That leaves fragment 0 stranded alone on a near-empty line while
+// fragments 1+2 are packed together on the next -- wasted space for exactly the long-URL
+// case the continuation fix targets.
+TEST_CASE("ParsedText: a 3-fragment chain that overflows packs as many fragments per line as fit") {
+  // 7 chars * 10px/char = 70px per fragment (kerning between continuation fragments is
+  // stubbed to 0, so two fragments join at exactly 140px). pageWidth=150 sits strictly
+  // between "2 fragments fit" (140) and "3 fragments fit" (210).
+  const std::string fragA(7, 'A');
+  const std::string fragB(7, 'B');
+  const std::string fragC(7, 'C');
+  constexpr uint16_t kPageWidthFitsTwoNotThree = 150;
+
+  ParsedText text(/*extraParagraphSpacing=*/true, /*forceParagraphIndents=*/false,
+                  /*hyphenationEnabled=*/false, /*focusReadingEnabled=*/false, nonJustifiedLeftAlignedStyle());
+  text.addWord(fragA, EpdFontFamily::REGULAR, false, /*attachToPrevious=*/false);
+  text.addWord(fragB, EpdFontFamily::REGULAR, false, /*attachToPrevious=*/true);
+  text.addWord(fragC, EpdFontFamily::REGULAR, false, /*attachToPrevious=*/true);
+
+  GfxRenderer renderer(display);
+  std::vector<std::shared_ptr<TextBlock>> lines;
+  text.layoutAndExtractLines(renderer, kFontId, kPageWidthFitsTwoNotThree,
+                              [&](std::shared_ptr<TextBlock> line) { lines.push_back(std::move(line)); });
+
+  REQUIRE(lines.size() == 2);
+  REQUIRE(lines[0]->getWords().size() == 2);
+  CHECK(lines[0]->getWords()[0] == fragA);
+  CHECK(lines[0]->getWords()[1] == fragB);
+  REQUIRE(lines[1]->getWords().size() == 1);
+  CHECK(lines[1]->getWords()[0] == fragC);
+}

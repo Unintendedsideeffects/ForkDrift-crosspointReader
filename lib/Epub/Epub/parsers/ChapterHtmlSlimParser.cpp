@@ -279,10 +279,18 @@ void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
     // Checked before isEmpty(): the bullet word already made currentTextBlock non-empty,
     // so gating this on isEmpty() (as opposed to the listItemBulletOnly flag) would make
     // the reuse path unreachable.
+    //
+    // Deliberately does NOT clear listItemBulletOnly here: doing so would only ever let
+    // the *first* nested block-level child reuse the bullet's block, orphaning the bullet
+    // whenever that first child is itself a non-text wrapper -- <li><div><p>text</p></li>
+    // (div, a plain CSS wrapper, is BLOCK_TAGS) -- since the <p> arriving one level deeper
+    // would then see the flag already false. The flag instead stays true across any number
+    // of nested block-opens with no text of their own, and is only cleared once real text
+    // actually attaches (flushPartWordBuffer(), ChapterHtmlSlimParser.cpp:269) or the <li>
+    // closes without ever finding any (endElement's explicit reset for "li").
     if (listItemBulletOnly) {
       const auto style = currentTextBlock->getBlockStyle();
       currentTextBlock->setBlockStyle(style.getCombinedBlockStyle(blockStyle, BlockStyle::CombineAxis::Vertical));
-      listItemBulletOnly = false;
       flushPendingAnchor();
       return;
     }
@@ -295,15 +303,16 @@ void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
       // open. Merge those into the new style so the first child in a container inherits
       // the container's vertical spacing.
       const auto style = currentTextBlock->getBlockStyle();
-      // A <br> block left empty is a standalone separator (consecutive <br>s, or one
-      // between two paragraphs): give it a full line's worth of blank space so the
-      // scene/section break stays visible instead of collapsing to nothing.
-      BlockStyle incoming = blockStyle;
-      if (style.fromBrElement) {
-        const auto lineHeight = static_cast<int16_t>(lround(renderer.getLineHeight(fontId) * lineCompression));
-        incoming.marginTop = static_cast<int16_t>(incoming.marginTop + lineHeight);
-      }
-      currentTextBlock->setBlockStyle(style.getCombinedBlockStyle(incoming, BlockStyle::CombineAxis::Vertical));
+      // A <br> landing on this still-empty block (whether it's the block's first child,
+      // or the 2nd/3rd/Nth consecutive <br>) is a standalone separator: give it a full
+      // line's worth of blank space so the scene/section break stays visible instead of
+      // collapsing to nothing. See BlockStyle::mergeEmptyBlockOnBrGap() for why this
+      // reads blockStyle.fromBrElement (this call's incoming style) rather than the
+      // block's own already-stored, already-cleared flag.
+      const int16_t lineHeight = blockStyle.fromBrElement
+                                      ? static_cast<int16_t>(lround(renderer.getLineHeight(fontId) * lineCompression))
+                                      : 0;
+      currentTextBlock->setBlockStyle(style.mergeEmptyBlockOnBrGap(blockStyle, lineHeight));
 
       flushPendingAnchor();
       return;
