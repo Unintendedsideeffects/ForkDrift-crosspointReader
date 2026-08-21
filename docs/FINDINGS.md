@@ -1630,3 +1630,44 @@ null-framebuffer race that is timing-dependent and would not reproduce reliably.
 - **Status**: open (documentation-only; no defect observed). Second occurrence of the
   "large-block borrow vs. concurrent drawing" class, so per the regression ladder this
   entry is the rung-2 documentation. A third occurrence should get an automatic gate.
+
+## 2026-08-21T12:14Z — Brief's "1024-byte serialized word cap" claim does not match this worktree's `TextBlock.cpp`
+- **Found by**: claude, `absorb/epubparse-claude` — porting `3319aa172` (long-word/CJK
+  continuation) per `plans/BRIEF-epubparse.md`
+- **Where**: `lib/Epub/Epub/blocks/TextBlock.cpp`, `lib/Serialization/Serialization.h:179-215`
+
+`plans/BRIEF-epubparse.md` states the priority defect as: "`lib/Epub/Epub/blocks/
+TextBlock.cpp` caps a serialized word at 1024 bytes on read, and layout can emit longer
+... The result is a section that serializes but will not deserialize." Neither half of
+that claim holds against this worktree's actual files:
+
+- `TextBlock::deserialize()` (`TextBlock.cpp:151-210`) has no per-word byte cap at all. It
+  reads each word via `serialization::readString()`, whose only limit is the *generic*
+  65536-byte sanity check shared by every string field in the codebase
+  (`Serialization.h:182,195,207`), not a TextBlock- or word-specific one.
+- `plans/2026-08-21-crosspoint-crossink-absorption-handoff.md:317-320` separately
+  describes a *different* number — `MAX_SERIALIZED_WORD_BYTES = 200` — attributed to
+  `TextBlock.cpp:12-13`. That constant, and the `readBoundedWord` it names, do not exist
+  in this worktree's `TextBlock.cpp` either. That finding is describing another agent's
+  patch state, not what is on disk here.
+- Separately, `ChapterHtmlSlimParser::characterData()`'s `partWordBuffer[MAX_WORD_SIZE +
+  1]` (`ChapterHtmlSlimParser.h:22,43`, `MAX_WORD_SIZE = 200`) already forced every
+  `ParsedText::addWord()` call to carry ≤200 UTF-8 bytes, on both sides of my change — the
+  buffer physically cannot hold more before its overflow branch fires
+  (`ChapterHtmlSlimParser.cpp:1740`). So a >1024-byte (or >200-byte) single serialized
+  word was not reproducible through this parser before my change either.
+
+**What the real, present-tense defect was** (and what my change fixes): the overflow
+branch flushed the 200-byte chunk as a normal, independent word — `continues=false` — so
+a long URL or unbroken CJK run longer than 200 bytes became N separately-breakable,
+space-joined tokens instead of one continuous run (`ChapterHtmlSlimParser.cpp:1740-1763`,
+now sets `nextWordContinues = true` on the carried-over remainder). That is a real
+rendering/line-breaking defect — matches the upstream commit's stated intent — just not
+the cache-corruption mechanism the brief describes. See the accompanying SUMMARY for the
+regression test (`test/host/test_parsed_text_word_continuation.cpp`) and the resulting
+max single-fragment word length (unchanged: 200 bytes, both before and after).
+
+- **Status**: reported, not fixed further — brief's STOP list does not cover "the
+  described defect mechanism doesn't reproduce"; the continuation-flag fix stands on its
+  own merits and is in scope regardless. Worth confirming with whoever wrote the brief
+  whether they were describing a different (upstream or WIP) tree.

@@ -266,12 +266,27 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
   currentTextBlock->addWord(partWordBuffer, fontStyle, false, nextWordContinues);
   partWordBufferIndex = 0;
   nextWordContinues = false;
+  listItemBulletOnly = false;
 }
 
 // start a new text block if needed
 void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
   nextWordContinues = false;  // New block = new paragraph, no continuation
   if (currentTextBlock) {
+    // <li> deposited a bullet as the first (and so far only) word, then a nested
+    // block-level child (<p>, <div>, ...) is opening. Reuse this block instead of
+    // flushing the bullet onto its own line, so it stays inline with the child's text.
+    // Checked before isEmpty(): the bullet word already made currentTextBlock non-empty,
+    // so gating this on isEmpty() (as opposed to the listItemBulletOnly flag) would make
+    // the reuse path unreachable.
+    if (listItemBulletOnly) {
+      const auto style = currentTextBlock->getBlockStyle();
+      currentTextBlock->setBlockStyle(style.getCombinedBlockStyle(blockStyle, BlockStyle::CombineAxis::Vertical));
+      listItemBulletOnly = false;
+      flushPendingAnchor();
+      return;
+    }
+
     // already have a text block running and it is empty - just reuse it
     if (currentTextBlock->isEmpty()) {
       // The stack accumulates horizontal margins and text properties from ancestors.
@@ -280,7 +295,15 @@ void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
       // open. Merge those into the new style so the first child in a container inherits
       // the container's vertical spacing.
       const auto style = currentTextBlock->getBlockStyle();
-      currentTextBlock->setBlockStyle(style.getCombinedBlockStyle(blockStyle, BlockStyle::CombineAxis::Vertical));
+      // A <br> block left empty is a standalone separator (consecutive <br>s, or one
+      // between two paragraphs): give it a full line's worth of blank space so the
+      // scene/section break stays visible instead of collapsing to nothing.
+      BlockStyle incoming = blockStyle;
+      if (style.fromBrElement) {
+        const auto lineHeight = static_cast<int16_t>(lround(renderer.getLineHeight(fontId) * lineCompression));
+        incoming.marginTop = static_cast<int16_t>(incoming.marginTop + lineHeight);
+      }
+      currentTextBlock->setBlockStyle(style.getCombinedBlockStyle(incoming, BlockStyle::CombineAxis::Vertical));
 
       flushPendingAnchor();
       return;
@@ -297,6 +320,7 @@ void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
     LOG_ERR("EHP", "OOM: ParsedText");
   }
   wordsExtractedInBlock = 0;
+  listItemBulletOnly = false;
 }
 
 void ChapterHtmlSlimParser::emitHorizontalRule(const BlockStyle& blockStyle) {
@@ -1404,7 +1428,22 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
         // flush word preceding <br/> to currentTextBlock before calling startNewTextBlock
         self->flushPartWordBuffer();
       }
-      self->startNewTextBlock(self->blockStyleStack.back().withoutBottom());
+      // Style comes from the block style stack, not the current block, so a closed
+      // element's style can't leak through.
+      BlockStyle brStyle = self->blockStyleStack.back();
+      if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
+        // <br> after text is a browser-style line break: strip the container's vertical
+        // margins so it doesn't re-add paragraph spacing. This is what keeps <br>-per-line
+        // formatting (common in CJK web-novel EPUBs) from collapsing page capacity by
+        // adding a paragraph gap at every line.
+        brStyle = brStyle.withoutTop().withoutBottom();
+      }
+      // A <br> on an already-empty block (consecutive <br>s, or a standalone <br> between
+      // paragraphs) is a scene-break separator: keep the container's margins so they still
+      // contribute, and tag the block so startNewTextBlock injects a full line-height gap
+      // if it is still empty when the next block opens.
+      brStyle.fromBrElement = true;
+      self->startNewTextBlock(brStyle);
     } else {
       self->currentCssStyle = cssStyle;
       const auto accumulated = self->blockStyleStack.back().getCombinedBlockStyle(userAlignmentBlockStyle,
@@ -1415,6 +1454,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 
       if (strcmp(name, "li") == 0 && self->currentTextBlock) {
         self->currentTextBlock->addWord("\xe2\x80\xa2", EpdFontFamily::REGULAR);
+        self->listItemBulletOnly = true;
       }
     }
   } else if (strcmp(name, "sup") == 0 || strcmp(name, "sub") == 0) {
@@ -1709,12 +1749,17 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
         }
         self->partWordBufferIndex = safeLen;
         self->flushPartWordBuffer();
+        // The overflow piece is the same word continuing past MAX_WORD_SIZE, not a new
+        // word: without this, a long URL or run of CJK text becomes several independently
+        // breakable/spaced tokens instead of one continuous line.
+        self->nextWordContinues = true;
         for (int j = 0; j < overflow; j++) {
           self->partWordBuffer[j] = saved[j];
         }
         self->partWordBufferIndex = overflow;
       } else {
         self->flushPartWordBuffer();
+        self->nextWordContinues = true;
       }
     }
 
@@ -1891,6 +1936,17 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
     self->currentCssStyle.reset();
     self->updateEffectiveInlineStyle();
 
+    // </li> closes: if the bullet never attached to inline text (an empty <li>, or one
+    // whose only children were block-level and already flushed), clear the flag so a later
+    // sibling block doesn't wrongly merge into this one. Cleared *before* the
+    // startNewTextBlock() call below: that call is cleanup after this li already closed,
+    // not a nested child opening within it, so it must never take the bullet-reuse branch
+    // (which would keep this li's now-finished block alive instead of starting the fresh
+    // one the comment below describes).
+    if (strcmp(name, "li") == 0) {
+      self->listItemBulletOnly = false;
+    }
+
     // br is self-closing and not a container — it doesn't push/pop the stack.
     if (strcmp(name, "br") != 0 && self->blockStyleStack.size() > 1) {
       // Apply closing element's bottom margin to the current text block so
@@ -1901,6 +1957,11 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
         self->currentTextBlock->setBlockStyle(style.addBottom(self->blockStyleStack.back()));
       }
       self->blockStyleStack.pop_back();
+      // Start a new block with the parent's style so bare text immediately following the
+      // closing tag (no intervening element) can't inherit the closed element's alignment
+      // or margins. A no-op when the next XML event is itself a block-opening tag, since
+      // that reuses this fresh empty block via the isEmpty() branch in startNewTextBlock.
+      self->startNewTextBlock(self->blockStyleStack.back());
     }
   }
 }

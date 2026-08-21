@@ -94,7 +94,7 @@ Defined as:
 
 ## 2. Section Layout Cache (`section.bin`)
 
-### Version 29
+### Version 34
 
 The `section.bin` caches pre-computed typesetting details (word positions, styles, line breaks, page sizes) for a single spine section under a specific set of layout parameters. It is recalculated automatically if any cache-busting setting is altered.
 
@@ -103,7 +103,7 @@ The `section.bin` caches pre-computed typesetting details (word positions, style
 ```text
 ┌─────────────────────────────────────────────────────────┐
 │ HEADER (38 bytes)                                       │
-│ - version (u8) [value = 29]                             │
+│ - version (u8) [value = 34]                             │
 │ - fontId (s32)                                          │
 │ - lineCompression (float)                               │
 │ - ... (other layout/typesetting flags)                  │

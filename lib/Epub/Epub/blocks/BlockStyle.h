@@ -32,6 +32,12 @@ struct BlockStyle {
   bool isRtl = false;              // true if resolved direction is RTL
   bool directionDefined = false;   // true if direction was explicitly set in CSS/HTML
 
+  // Set on the block startNewTextBlock() creates for a <br>. If that block is still
+  // empty when the next block opens, startNewTextBlock() injects a full line-height gap
+  // (the <br> was a standalone separator between paragraphs). Cleared by
+  // getCombinedBlockStyle() so it can never leak onto a sibling block's style.
+  bool fromBrElement = false;
+
   // Combined insets (margin + padding)
   [[nodiscard]] int16_t leftInset() const { return marginLeft + paddingLeft; }
   [[nodiscard]] int16_t rightInset() const { return marginRight + paddingRight; }
@@ -44,6 +50,14 @@ struct BlockStyle {
     BlockStyle result = *this;
     result.marginBottom = 0;
     result.paddingBottom = 0;
+    return result;
+  }
+
+  // Return a copy with top margins/padding zeroed out.
+  [[nodiscard]] BlockStyle withoutTop() const {
+    BlockStyle result = *this;
+    result.marginTop = 0;
+    result.paddingTop = 0;
     return result;
   }
 
@@ -92,6 +106,9 @@ struct BlockStyle {
       result.directionDefined = true;
     }
 
+    // fromBrElement only means something for the exact block startNewTextBlock() tagged;
+    // a combined style is never that block, so never carry the flag forward.
+    result.fromBrElement = false;
     return result;
   }
 
