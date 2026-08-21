@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
@@ -117,47 +118,34 @@ bool JsonSettingsIO::loadSettings(CrossPointSettings& s, HalFile& file, bool* ne
 
 // ---- WifiCredentialStore ----
 
+namespace {
+
+std::string obfuscateForDisk(const std::string& plaintext) {
+  return std::string(obfuscation::obfuscateToBase64(plaintext).c_str());
+}
+
+std::string deobfuscateFromDisk(const char* encoded, bool* ok) {
+  return obfuscation::deobfuscateFromBase64(encoded, ok);
+}
+
+// The JSON shape, the integrity checks and the legacy fallback all live in
+// wifi_credentials so the host tests can drive them with a plaintext codec;
+// only the hardware-key obfuscation is injected from here.
+constexpr WifiPasswordCodec HARDWARE_CODEC{&obfuscateForDisk, &deobfuscateFromDisk};
+
+}  // namespace
+
 bool JsonSettingsIO::saveWifi(const WifiCredentialStore& store, const char* path) {
-  JsonDocument doc;
-  doc["lastConnectedSsid"] = store.getLastConnectedSsid();
-
-  JsonArray arr = doc["credentials"].to<JsonArray>();
-  for (const auto& cred : store.getCredentials()) {
-    JsonObject obj = arr.add<JsonObject>();
-    obj["ssid"] = cred.ssid;
-    obj["password_obf"] = obfuscation::obfuscateToBase64(cred.password);
-  }
-
-  String json;
-  serializeJson(doc, json);
-  return Storage.writeFile(path, json);
+  const std::string json = wifi_credentials::serialize(store.snapshot(), HARDWARE_CODEC);
+  return Storage.writeFile(path, String(json.c_str()));
 }
 
 bool JsonSettingsIO::loadWifi(WifiCredentialStore& store, const char* json, bool* needsResave) {
-  JsonDocument doc;
-  if (!deserializeJsonLogged(doc, json, "WCS")) {
+  WifiCredentialSnapshot snapshot;
+  if (!wifi_credentials::parse(json, HARDWARE_CODEC, snapshot, needsResave)) {
     return false;
   }
-  if (needsResave) *needsResave = false;
-
-  store.lastConnectedSsid = doc["lastConnectedSsid"] | std::string("");
-
-  store.credentials.clear();
-  const JsonArrayConst arr = doc["credentials"].as<JsonArrayConst>();
-  for (JsonObjectConst obj : arr) {
-    if (store.credentials.size() >= store.MAX_NETWORKS) break;
-    WifiCredential cred;
-    cred.ssid = obj["ssid"] | std::string("");
-    bool ok = false;
-    cred.password = obfuscation::deobfuscateFromBase64(obj["password_obf"] | "", &ok);
-    if (!ok || cred.password.empty()) {
-      cred.password = obj["password"] | std::string("");
-      if (!cred.password.empty() && needsResave) *needsResave = true;
-    }
-    store.credentials.push_back(cred);
-  }
-
-  LOG_DBG("WCS", "Loaded %zu WiFi credentials from file", store.credentials.size());
+  store.adoptSnapshot(std::move(snapshot));
   return true;
 }
 

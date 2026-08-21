@@ -21,7 +21,7 @@ BackgroundWifiCoordinator BackgroundWifiCoordinator::instance;
 background_server::AutoConnectInput BackgroundWifiCoordinator::buildAutoConnectInput(
     const bool explicitRequest, const bool ignoreBootBackoff) const {
   const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
-  const WifiCredential* cred = lastSsid.empty() ? nullptr : WIFI_STORE.findCredential(lastSsid);
+  const std::optional<WifiCredential> cred = WIFI_STORE.findCredential(lastSsid);
 
   return background_server::AutoConnectInput{
       // An explicit timer refresh is itself permission to connect even when the
@@ -32,7 +32,7 @@ background_server::AutoConnectInput BackgroundWifiCoordinator::buildAutoConnectI
       // it must not consume an explicitly scheduled refresh opportunity.
       .skipCount = ignoreBootBackoff ? uint8_t{0} : APP_STATE.wifiAutoConnectSkipCount,
       .lastConnectedSsid = lastSsid,
-      .hasCredentialForLastSsid = cred != nullptr,
+      .hasCredentialForLastSsid = cred.has_value(),
   };
 }
 
@@ -72,8 +72,8 @@ bool BackgroundWifiCoordinator::attemptAutoConnect(const char* logTag, const boo
       return false;
     case background_server::AutoConnectAction::ClearStaleCredentialLatchAndStart: {
       const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
-      const WifiCredential* cred = WIFI_STORE.findCredential(lastSsid);
-      if (cred == nullptr) {  // Raced with a forget between decision and use.
+      const std::optional<WifiCredential> cred = WIFI_STORE.findCredential(lastSsid);
+      if (!cred) {  // Raced with a forget between decision and use.
         return false;
       }
       APP_STATE.wifiAutoConnectWaitingForNewCredential = false;
@@ -96,8 +96,8 @@ bool BackgroundWifiCoordinator::attemptAutoConnect(const char* logTag, const boo
     }
     case background_server::AutoConnectAction::StartWithLastCredential: {
       const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
-      const WifiCredential* cred = WIFI_STORE.findCredential(lastSsid);
-      if (cred == nullptr) {
+      const std::optional<WifiCredential> cred = WIFI_STORE.findCredential(lastSsid);
+      if (!cred) {
         return false;
       }
       LOG_DBG(logTag, "Starting background WiFi auto-connect to: %s", lastSsid.c_str());
@@ -139,8 +139,8 @@ void BackgroundWifiCoordinator::logAlwaysModeStateTransition() {
       currentState = AlwaysBgServerState::Backoff;
     } else {
       const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
-      const WifiCredential* cred = lastSsid.empty() ? nullptr : WIFI_STORE.findCredential(lastSsid);
-      if (cred == nullptr) {
+      const std::optional<WifiCredential> cred = WIFI_STORE.findCredential(lastSsid);
+      if (!cred) {
         currentState = AlwaysBgServerState::IdleNoCredential;
       }
     }
@@ -197,8 +197,8 @@ bool BackgroundWifiCoordinator::beginTimedSleepAutoConnect(const char* logTag) {
   // those allocations down restores total heap but leaves the ESP32-C3 heap too
   // fragmented for PNGdec's single ~44 KB allocation.
   const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
-  const WifiCredential* cred = lastSsid.empty() ? nullptr : WIFI_STORE.findCredential(lastSsid);
-  if (cred == nullptr) {
+  const std::optional<WifiCredential> cred = WIFI_STORE.findCredential(lastSsid);
+  if (!cred) {
     LOG_WRN(logTag, "Timed WiFi connect has no saved last-connected credential");
     return false;
   }

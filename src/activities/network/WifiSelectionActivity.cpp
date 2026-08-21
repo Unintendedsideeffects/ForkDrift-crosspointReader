@@ -107,7 +107,7 @@ void WifiSelectionActivity::onExit() {
 
 void WifiSelectionActivity::evaluateEntry() {
   const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
-  const bool hasLastCredential = !lastSsid.empty() && WIFI_STORE.findCredential(lastSsid) != nullptr;
+  const bool hasLastCredential = !lastSsid.empty() && WIFI_STORE.findCredential(lastSsid).has_value();
 
   const wifi_entry::EntryAction action = wifi_entry::evaluateEntry(wifi_entry::EntryInput{
       .linkUp = hasStaWifiConnection(),
@@ -129,8 +129,8 @@ void WifiSelectionActivity::evaluateEntry() {
       return;
 
     case wifi_entry::EntryAction::AutoConnectLast: {
-      const WifiCredential* cred = WIFI_STORE.findCredential(WIFI_STORE.getLastConnectedSsid());
-      if (cred == nullptr) {  // Raced with a forget; fall back to a scan.
+      const std::optional<WifiCredential> cred = WIFI_STORE.findCredential(WIFI_STORE.getLastConnectedSsid());
+      if (!cred) {  // Raced with a forget; fall back to a scan.
         startWifiScan(false);
         return;
       }
@@ -386,7 +386,7 @@ void WifiSelectionActivity::selectRow(const int index) {
   usedSavedPassword = false;
   enteredPassword.clear();
 
-  const auto* savedCred = WIFI_STORE.findCredential(selectedSSID);
+  const auto savedCred = WIFI_STORE.findCredential(selectedSSID);
   if (savedCred && !savedCred->password.empty()) {
     enteredPassword = savedCred->password;
     usedSavedPassword = true;
@@ -440,7 +440,7 @@ void WifiSelectionActivity::beginManualSsidEntry() {
                            usedSavedPassword = false;
                            enteredPassword.clear();
 
-                           const auto* savedCred = WIFI_STORE.findCredential(selectedSSID);
+                           const auto savedCred = WIFI_STORE.findCredential(selectedSSID);
                            if (savedCred && !savedCred->password.empty()) {
                              enteredPassword = savedCred->password;
                              selectedRequiresPassword = true;
