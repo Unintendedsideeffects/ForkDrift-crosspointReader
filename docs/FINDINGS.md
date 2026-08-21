@@ -1630,3 +1630,26 @@ null-framebuffer race that is timing-dependent and would not reproduce reliably.
 - **Status**: open (documentation-only; no defect observed). Second occurrence of the
   "large-block borrow vs. concurrent drawing" class, so per the regression ladder this
   entry is the rung-2 documentation. A third occurrence should get an automatic gate.
+
+## 2026-08-21T12:15Z — Blanket `delay(50)` before every image extraction is now redundant with `imagedims::probeFromFile`'s own bounded retry
+
+- **Found by**: claude — during the PNG-correctness brief (worktree `cpr-png-claude`),
+  scope was `lib/PngToBmpConverter/` + the image-decode path in `lib/Epub/converters/`
+- **Where**: `lib/Epub/Epub/parsers/ChapterHtmlSlimParser.cpp:950` (the `delay(50); //
+  Give SD card time to sync` right after `cachedImageFile.close()`), which precedes a
+  call to `probeImageDimensions()` at line 956, which calls
+  `imagedims::probeFromFile()` (`lib/Epub/Epub/converters/ImageDimsProbe.cpp`)
+- **What**: This brief added bounded retry-after-failure to
+  `imagedims::probeFromFile()` (3 attempts, 50ms apart, only on a failed open/read) to
+  absorb transient SD-sync latency right after a cache-file write. That retry now
+  covers exactly the case this `delay(50)` was defending against, but the blanket delay
+  was left in place. The result: every single image in every chapter pays a flat 50ms
+  penalty on the common (already-synced) path, in addition to the new bounded retry on
+  the rare (not-yet-synced) path — the two mechanisms are solving the same problem
+  twice, and the cheaper one (retry-only-on-failure) makes the more expensive one
+  (blanket delay) dead weight.
+- **Why not fixed here**: `ChapterHtmlSlimParser.cpp` is in `lib/Epub/Epub/parsers/`,
+  outside this task's scope (`lib/PngToBmpConverter/` and the image-decode path in
+  `lib/Epub/Epub/converters/`). Removing it also risks interacting with other
+  in-flight parallel work on the same file in sibling worktrees.
+- **Status**: open

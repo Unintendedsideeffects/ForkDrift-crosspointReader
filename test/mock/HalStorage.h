@@ -156,6 +156,10 @@ class HalStorage {
 
   bool openFileForRead(const char* /*tag*/, const char* path, HalFile& file) {
     ++openFileForReadCount_;
+    if (failNextReads_ > 0) {
+      --failNextReads_;
+      return false;
+    }
     auto it = files_.find(path);
     if (it == files_.end()) return false;
     file = HalFile::forRead(it->second);
@@ -265,11 +269,18 @@ class HalStorage {
 
   int openFileForReadCount() const { return openFileForReadCount_; }
 
+  // Makes the next `n` calls to openFileForRead() fail regardless of whether
+  // the file exists, simulating a slow SD card where a file written just
+  // before is not yet visible to a fresh open. Used by tests that verify
+  // bounded-retry-after-failure behavior (e.g. imagedims::probeFromFile).
+  void failNextReads(int n) { failNextReads_ = n; }
+
   void reset() {
     files_.clear();
     directories_.clear();
     directories_.insert("/");
     openFileForReadCount_ = 0;
+    failNextReads_ = 0;
   }
 
  private:
@@ -329,6 +340,7 @@ class HalStorage {
   std::map<std::string, std::shared_ptr<std::vector<uint8_t>>> files_;
   std::set<std::string> directories_;
   int openFileForReadCount_ = 0;
+  int failNextReads_ = 0;
 };
 
 #define Storage HalStorage::getInstance()

@@ -22,3 +22,7 @@ struct MockESP {
 extern MockESP ESP;
 inline unsigned long mockMillisVal = 0;
 inline unsigned long millis() { return mockMillisVal; }
+// Host tests must run instantly; production delay() is intentionally not
+// simulated with a real sleep. Retry-after-failure logic (e.g.
+// imagedims::probeFromFile) is verified via attempt counts, not wall-clock time.
+inline void delay(unsigned long /*ms*/) {}
