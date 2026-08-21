@@ -172,6 +172,8 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/MiniBidi/BidiUtils.cpp" \
   "$ROOT_DIR/src/network/background/BackgroundServerPolicy.cpp" \
   "$ROOT_DIR/src/network/wifi/WifiEntryPolicy.cpp" \
+  "$ROOT_DIR/src/util/WifiCredentialStore.cpp" \
+  "$ROOT_DIR/test/mock/WifiCredentialStoreDeps.cpp" \
   "$ROOT_DIR/src/BookmarkStore.cpp" \
   "$ROOT_DIR/src/OpdsServerStore.cpp" \
   "$ROOT_DIR/lib/Xtc/Xtc/XtcParser.cpp" \
