@@ -211,6 +211,7 @@ class CrossPointSettings {
     // Not meaningful for shortPwrBtn / longPwrBtn; only used by doubleTapPwrBtn.
     DOUBLE_TAP_BACK = 15,
     FOOTNOTES = 16,
+    TOGGLE_DARK_MODE = 17,
     SHORT_PWRBTN_COUNT
   };
 
@@ -286,6 +287,7 @@ class CrossPointSettings {
     LONG_MENU_CYCLE_PAGE_TURN = 11,
     LONG_MENU_FILE_TRANSFER = 12,
     LONG_MENU_TEXT_SELECT = 13,
+    LONG_MENU_TOGGLE_DARK_MODE = 14,
     LONG_PRESS_MENU_ACTION_COUNT
   };
 
@@ -527,6 +529,10 @@ class CrossPointSettings {
       return readerContext;
     }
     return false;
+  }
+  void toggleReaderDarkMode() {
+    darkModeScope = effectiveDarkMode(true) ? DARK_OFF : DARK_READER_ONLY;
+    syncDarkModeLegacyField();
   }
 
   static constexpr uint8_t MIN_SLEEP_TIMEOUT_MINUTES = 1;

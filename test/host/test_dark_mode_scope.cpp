@@ -54,3 +54,21 @@ TEST_CASE("dark mode scope clamps invalid values") {
   REQUIRE(JsonSettingsIO::loadSettings(settings, json, nullptr));
   CHECK(settings.darkModeScope == CrossPointSettings::DARK_OFF);
 }
+
+TEST_CASE("toggleReaderDarkMode switches reader dark on and off") {
+  CrossPointSettings& settings = resetSettingsState();
+  CHECK(settings.darkModeScope == CrossPointSettings::DARK_OFF);
+  settings.toggleReaderDarkMode();
+  CHECK(settings.darkModeScope == CrossPointSettings::DARK_READER_ONLY);
+  CHECK_FALSE(settings.isGlobalDarkMode());
+  CHECK(settings.effectiveDarkMode(true));
+  CHECK_FALSE(settings.effectiveDarkMode(false));
+  settings.toggleReaderDarkMode();
+  CHECK(settings.darkModeScope == CrossPointSettings::DARK_OFF);
+  CHECK_FALSE(settings.effectiveDarkMode(true));
+  settings.darkModeScope = CrossPointSettings::DARK_EVERYWHERE;
+  settings.syncDarkModeLegacyField();
+  settings.toggleReaderDarkMode();
+  CHECK(settings.darkModeScope == CrossPointSettings::DARK_OFF);
+  CHECK(settings.darkMode == 0);
+}

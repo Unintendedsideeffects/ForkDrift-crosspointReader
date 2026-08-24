@@ -741,3 +741,48 @@ TEST_CASE("sideButtonLayout enum values stay stable when Next/Next is appended")
   s.validateAndClamp();
   CHECK(s.sideButtonLayout == CrossPointSettings::PREV_NEXT);
 }
+
+TEST_CASE("dark mode shortcut enum values are appended without shifting") {
+  CHECK(static_cast<int>(CrossPointSettings::FOOTNOTES) == 16);
+  CHECK(static_cast<int>(CrossPointSettings::TOGGLE_DARK_MODE) == 17);
+  CHECK(static_cast<int>(CrossPointSettings::SHORT_PWRBTN_COUNT) == 18);
+  CHECK(static_cast<int>(CrossPointSettings::LONG_MENU_TEXT_SELECT) == 13);
+  CHECK(static_cast<int>(CrossPointSettings::LONG_MENU_TOGGLE_DARK_MODE) == 14);
+  CHECK(static_cast<int>(CrossPointSettings::LONG_PRESS_MENU_ACTION_COUNT) == 15);
+
+  Storage.reset();
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+  s.shortPwrBtn = CrossPointSettings::TOGGLE_DARK_MODE;
+  s.longPwrBtn = CrossPointSettings::TOGGLE_DARK_MODE;
+  s.longPressMenuAction = CrossPointSettings::LONG_MENU_TOGGLE_DARK_MODE;
+  s.validateAndClamp();
+#if ENABLE_DARK_MODE
+  CHECK(s.shortPwrBtn == CrossPointSettings::TOGGLE_DARK_MODE);
+  CHECK(s.longPwrBtn == CrossPointSettings::TOGGLE_DARK_MODE);
+  CHECK(s.longPressMenuAction == CrossPointSettings::LONG_MENU_TOGGLE_DARK_MODE);
+
+  const auto settings = getSettingsList();
+  const SettingInfo* shortSetting = findSettingByKey(settings, "shortPwrBtn");
+  const SettingInfo* longSetting = findSettingByKey(settings, "longPwrBtn");
+  const SettingInfo* menuSetting = findSettingByKey(settings, "longPressMenuAction");
+  REQUIRE(shortSetting != nullptr);
+  REQUIRE(longSetting != nullptr);
+  REQUIRE(menuSetting != nullptr);
+  CHECK(optionIndexForValue(*shortSetting, CrossPointSettings::TOGGLE_DARK_MODE) !=
+        shortSetting->enumPersistedValues.size());
+  CHECK(optionIndexForValue(*longSetting, CrossPointSettings::TOGGLE_DARK_MODE) !=
+        longSetting->enumPersistedValues.size());
+  CHECK(optionIndexForValue(*menuSetting, CrossPointSettings::LONG_MENU_TOGGLE_DARK_MODE) !=
+        menuSetting->enumPersistedValues.size());
+#if ENABLE_DOUBLE_TAP_ACTION
+  const SettingInfo* doubleTapSetting = findSettingByKey(settings, "doubleTapPwrBtn");
+  REQUIRE(doubleTapSetting != nullptr);
+  CHECK(optionIndexForValue(*doubleTapSetting, CrossPointSettings::TOGGLE_DARK_MODE) !=
+        doubleTapSetting->enumPersistedValues.size());
+#endif
+#else
+  CHECK(s.shortPwrBtn == CrossPointSettings::IGNORE);
+  CHECK(s.longPwrBtn == CrossPointSettings::IGNORE);
+  CHECK(s.longPressMenuAction == CrossPointSettings::LONG_MENU_OFF);
+#endif
+}

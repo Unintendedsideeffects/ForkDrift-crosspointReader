@@ -1068,6 +1068,14 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
       onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::BOOKMARK_TOGGLE);
 #endif
       break;
+    case S::LONG_MENU_TOGGLE_DARK_MODE:
+      SETTINGS.toggleReaderDarkMode();
+      if (!SETTINGS.saveToFile()) {
+        LOG_ERR("ERS", "Failed to save settings");
+      }
+      activityManager.applyEffectiveDarkMode();
+      requestUpdate();
+      break;
     case S::LONG_MENU_OFF:
     default:
       break;
@@ -1123,6 +1131,9 @@ bool EpubReaderActivity::executeShortPowerButtonAction() {
     case S::FILE_TRANSFER:
       executeReaderQuickAction(S::LONG_MENU_FILE_TRANSFER);
       return true;
+    case S::TOGGLE_DARK_MODE:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_DARK_MODE);
+      return true;
     default:
       return false;
   }
@@ -1170,6 +1181,9 @@ bool EpubReaderActivity::executeLongPowerButtonAction() {
     case S::FILE_TRANSFER:
       executeReaderQuickAction(S::LONG_MENU_FILE_TRANSFER);
       return true;
+    case S::TOGGLE_DARK_MODE:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_DARK_MODE);
+      return true;
     default:
       return false;
   }
@@ -1214,6 +1228,9 @@ bool EpubReaderActivity::executeDoubleTapAction() {
       return true;
     case S::FILE_TRANSFER:
       executeReaderQuickAction(S::LONG_MENU_FILE_TRANSFER);
+      return true;
+    case S::TOGGLE_DARK_MODE:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_DARK_MODE);
       return true;
     default:
       return false;

@@ -173,6 +173,9 @@ void MarkdownReaderActivity::loop() {
       case S::TOGGLE_BIONIC_READING:
         executeReaderQuickAction(S::LONG_MENU_TOGGLE_BIONIC);
         return;
+      case S::TOGGLE_DARK_MODE:
+        executeReaderQuickAction(S::LONG_MENU_TOGGLE_DARK_MODE);
+        return;
       default:
         break;
     }
@@ -189,6 +192,9 @@ void MarkdownReaderActivity::loop() {
       case S::TOGGLE_BIONIC_READING:
         executeReaderQuickAction(S::LONG_MENU_TOGGLE_BIONIC);
         return;
+      case S::TOGGLE_DARK_MODE:
+        executeReaderQuickAction(S::LONG_MENU_TOGGLE_DARK_MODE);
+        return;
       default:
         break;
     }
@@ -204,6 +210,9 @@ void MarkdownReaderActivity::loop() {
         return;
       case S::TOGGLE_BIONIC_READING:
         executeReaderQuickAction(S::LONG_MENU_TOGGLE_BIONIC);
+        return;
+      case S::TOGGLE_DARK_MODE:
+        executeReaderQuickAction(S::LONG_MENU_TOGGLE_DARK_MODE);
         return;
       default:
         break;
@@ -813,6 +822,14 @@ void MarkdownReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_P
       SETTINGS.focusReadingEnabled ^= 1;
       reindexSection();
 #endif
+      break;
+    case S::LONG_MENU_TOGGLE_DARK_MODE:
+      SETTINGS.toggleReaderDarkMode();
+      if (!SETTINGS.saveToFile()) {
+        LOG_ERR("MRS", "Failed to save settings");
+      }
+      activityManager.applyEffectiveDarkMode();
+      requestUpdate();
       break;
     default:
       break;
