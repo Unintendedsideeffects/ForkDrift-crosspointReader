@@ -1483,8 +1483,14 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       break;
     }
     case EpubReaderMenuActivity::MenuAction::DELETE_BOOKMARKS: {
-      BOOKMARKS.clearAll();
-      requestUpdate();
+      startActivityForResult(std::make_unique<ConfirmationActivity>(renderer, mappedInput, tr(STR_DELETE_BOOKMARKS),
+                                                                    epub ? epub->getTitle() : std::string{}),
+                             [this](const ActivityResult& result) {
+                               if (!result.isCancelled) {
+                                 BOOKMARKS.clearAll();
+                               }
+                               requestUpdate();
+                             });
       break;
     }
 #endif  // ENABLE_BOOKMARKS
