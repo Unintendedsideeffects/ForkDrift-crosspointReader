@@ -549,6 +549,7 @@ class CrossPointSettings {
   void* sdFontResolverCtx = nullptr;
 
   static constexpr uint16_t POWER_BUTTON_WAKE_SHORT_MS = 10;
+  static constexpr uint16_t UI_LONG_PRESS_MS = 200;
   static constexpr uint16_t POWER_BUTTON_LONG_PRESS_MS = 400;
 
   // Wake detection threshold: how long power must be held to trigger sleep/wake.

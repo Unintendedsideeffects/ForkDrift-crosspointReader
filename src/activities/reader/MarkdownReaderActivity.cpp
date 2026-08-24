@@ -143,9 +143,9 @@ void MarkdownReaderActivity::loop() {
   }
 
   // Long-press Confirm: execute quick action instead of opening table of contents.
-  constexpr unsigned long longPressMenuMs = 600;
   if (SETTINGS.longPressMenuAction != CrossPointSettings::LONG_PRESS_MENU_ACTION::LONG_MENU_OFF &&
-      mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() >= longPressMenuMs) {
+      mappedInput.wasReleased(MappedInputManager::Button::Confirm) &&
+      mappedInput.getHeldTime() >= CrossPointSettings::UI_LONG_PRESS_MS) {
     executeReaderQuickAction(static_cast<CrossPointSettings::LONG_PRESS_MENU_ACTION>(SETTINGS.longPressMenuAction));
     return;
   }
