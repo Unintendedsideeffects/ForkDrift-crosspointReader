@@ -115,6 +115,7 @@ void FontSelectionActivity::loop() {
     strncpy(SETTINGS.sdFontFamilyName, originalSdFontFamilyName_, sizeof(SETTINGS.sdFontFamilyName) - 1);
     SETTINGS.sdFontFamilyName[sizeof(SETTINGS.sdFontFamilyName) - 1] = '\0';
     sdFontSystem.ensureLoaded(renderer);
+    mappedInput.suppressNextConfirmRelease();
     finish();
     return;
   }
@@ -194,6 +195,7 @@ void FontSelectionActivity::handleSelection() {
     }
   }
   core::FeatureModules::onFontFamilySettingChanged(SETTINGS.fontFamily);
+  mappedInput.suppressNextConfirmRelease();
   finish();
 }
 

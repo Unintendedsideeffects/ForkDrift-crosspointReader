@@ -284,6 +284,12 @@ bool MappedInputManager::wasReleased(const Button button) {
       return false;
     }
   }
+  if (button == Button::Confirm && suppressConfirmRelease) {
+    if (mapButton(button, &HalGPIO::wasReleased)) {
+      suppressConfirmRelease = false;
+      return false;
+    }
+  }
   if (button == Button::Confirm && consumePowerConfirm()) {
     return true;
   }
@@ -319,6 +325,7 @@ void MappedInputManager::clearTransientState() {
   doubleTapReady = false;
   powerReleaseConsumed = false;
   suppressBackRelease = false;
+  suppressConfirmRelease = false;
   physConfirmTracker.clear();
 #ifdef SIMULATOR
   simulatorPressed.fill(false);
