@@ -1631,6 +1631,28 @@ null-framebuffer race that is timing-dependent and would not reproduce reliably.
   "large-block borrow vs. concurrent drawing" class, so per the regression ladder this
   entry is the rung-2 documentation. A third occurrence should get an automatic gate.
 
+---
+
+## 2026-08-16 — `Calendar24Icon` is illegible at its own size
+
+- **Found by**: claude — device frames while adding the Extras submenu
+- **Where**: `src/components/icons/calendar24.h`, rendered via any 24px list row
+
+`CalendarIcon` (32x32) reads fine; `Calendar24Icon` (24x24) packs "5 rows of 3 date
+columns separated by grid lines" into 24px and renders as an indistinct striped block.
+Visible on the Extras submenu's "Planner" row (and anywhere else a Calendar icon lands in
+a 24px list). Not a regression — the asset has always been this dense; the Extras menu is
+simply the first place it appears at 24px next to legible neighbours (Text24, Image24).
+
+- **Not fixed**: redrawing an icon asset is outside the scope of the menu change that
+  surfaced it. The fix is a simplified 24px calendar glyph (fewer, thicker grid rows).
+- **Related, already known**: each theme has its own size-keyed icon table covering a
+  different subset, and an unmapped `UIIcon` renders as a silent blank rather than falling
+  back. `ForkDriftTheme` maps only Folder/Settings/Transfer/Calendar at 32px and Text at
+  24px. Choosing a `UIIcon` without checking the target theme's table at the size in use
+  produces an invisible gap; verify with a frame dump.
+- **Status**: open (cosmetic).
+
 ## 2026-08-21T12:15Z — Blanket `delay(50)` before every image extraction is now redundant with `imagedims::probeFromFile`'s own bounded retry
 
 - **Found by**: claude — during the PNG-correctness brief (worktree `cpr-png-claude`),

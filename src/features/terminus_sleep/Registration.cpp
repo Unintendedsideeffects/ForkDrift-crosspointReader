@@ -16,9 +16,11 @@
 #include "SpiBusMutex.h"
 #include "core/features/FeatureCatalog.h"
 #include "core/features/FeatureModules.h"
+#include "core/registries/HomeActionRegistry.h"
 #include "core/registries/LifecycleRegistry.h"
 #include "core/registries/WebRouteRegistry.h"
 #include "features/terminus_sleep/RefreshEvidence.h"
+#include "features/terminus_sleep/TrmnlViewActivity.h"
 #include "network/background/BackgroundWebServer.h"
 #include "network/background/BackgroundWifiService.h"
 #include "network/html/TerminusPluginPageHtml.generated.h"
@@ -511,6 +513,21 @@ static void onBackgroundServerTick() {
 
 static bool shouldRegisterTerminusRoutes() { return core::FeatureCatalog::isEnabled("terminus_sleep"); }
 
+// Home/Extras entry for the foreground dashboard view. Gated on credentials as
+// well as the feature: unpaired, the viewer can neither show a cached dashboard
+// nor fetch one, so the row would be dead.
+static bool shouldExposeTrmnlHomeAction(core::HomeActionEntry::HomeActionContext ctx) {
+  (void)ctx;
+  return core::FeatureCatalog::isEnabled("terminus_sleep") && TERMINUS_STORE.hasCredentials();
+}
+
+static Activity* createTrmnlHomeActionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
+                                               void* callbackCtx, void (*onBack)(void* ctx)) {
+  (void)callbackCtx;
+  (void)onBack;
+  return new (std::nothrow) TrmnlViewActivity(renderer, mappedInput);
+}
+
 static void appendMachineStatus(JsonDocument& doc) {
   doc["configured"] = TERMINUS_STORE.hasCredentials();
   doc["device_id"] = TERMINUS_STORE.deviceId().c_str();
@@ -687,6 +704,12 @@ void registerFeature() {
   webRouteEntry.shouldRegister = shouldRegisterTerminusRoutes;
   webRouteEntry.mountRoutes = mountTerminusRoutes;
   core::WebRouteRegistry::add(webRouteEntry);
+
+  core::HomeActionEntry homeEntry{};
+  homeEntry.actionId = "trmnl";
+  homeEntry.shouldExpose = shouldExposeTrmnlHomeAction;
+  homeEntry.create = createTrmnlHomeActionActivity;
+  core::HomeActionRegistry::add(homeEntry);
 #endif
 }
 

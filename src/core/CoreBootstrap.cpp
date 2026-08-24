@@ -11,6 +11,7 @@
 #include "features/epub/Registration.h"
 #include "features/focus_reading/Registration.h"
 #include "features/koreader_sync/Registration.h"
+#include "features/lua_plugins/Registration.h"
 #include "features/lyra_theme/Registration.h"
 #include "features/markdown/Registration.h"
 #include "features/minimal_theme/Registration.h"
@@ -51,6 +52,7 @@ void registerFeatureModules() {
   features::claude_bridge::registerFeature();
   features::ota_updates::registerFeature();
   features::todo_planner::registerFeature();
+  features::lua_plugins::registerFeature();
   features::pokemon_party::registerFeature();
   features::remote_keyboard_input::registerFeature();
   features::web_pokemon_party::registerFeature();

@@ -21,6 +21,12 @@ enum class UIIcon : uint8_t;
 // can never drift apart — which is what previously caused selection misfires
 // (carousel last-item unreachable, classic list "Settings" opening File
 // Transfer, etc.). Themes only render what they are handed.
+//
+// The enum is also the vocabulary for the Extras submenu (see HomeExtras.h):
+// Todo/Anki/Notes/Trmnl/Plugins/ClaudeBridge are reachable via
+// `HomeMenuId::Extras` rather than appearing in `menuModel` themselves, but
+// they keep the same ids so labels, icons, and activateMenuId() stay single-
+// sourced across both levels.
 enum class HomeMenuId : uint8_t {
   ContinueReading,  // classic list "book card" (slot 0 when a book is open)
   OpenBook,         // carousel: open the centered book
@@ -30,18 +36,18 @@ enum class HomeMenuId : uint8_t {
 #endif
   Library,
   Opds,
+  Extras,  // submenu tile; the six ids below live inside it, not in menuModel
   Todo,
   Anki,
   Notes,
+  Trmnl,  // foreground view of the last-fetched Terminus/TRMNL dashboard
   Bookmarks,
   FileTransfer,
 #if ENABLE_POKEMON_PARTY
   AssignPokemon,  // Pokémon-party theme only: offline assign of a team member to a book
 #endif
   Settings,
-#if ENABLE_LUA_PLUGINS
   Plugins,
-#endif
   ClaudeBridge,
 };
 
@@ -118,11 +124,15 @@ class HomeActivity final : public Activity {
   void runPartySpritesSync();
 #endif
   void onOpdsBrowserOpen();
+  // Opens the Extras submenu. Selection comes back as a ListPickerResult and is
+  // activated from the result handler, i.e. once Home is the current activity
+  // again — activating from inside the submenu would push the launched activity
+  // onto the wrong parent.
+  void onExtrasOpen();
   void onTodoOpen();
   void onAnkiOpen();
-#if ENABLE_LUA_PLUGINS
+  void onTrmnlOpen();
   void onPluginsOpen();
-#endif
 
   // Static because every member it touches is static; instance-style calls at
   // the existing call sites still compile. Being static is what lets

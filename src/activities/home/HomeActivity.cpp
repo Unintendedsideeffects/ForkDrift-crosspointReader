@@ -22,8 +22,11 @@
 #if ENABLE_BOOKMARKS
 #include "BookmarkStore.h"
 #include "activities/home/BookmarksHomeActivity.h"
-#include "activities/home/HomeCoverCachePolicy.h"
 #endif
+// Not feature-gated: HomeCoverCachePolicy::canStore() guards every profile's
+// cover-buffer malloc (storeCoverBuffer() below), including lean builds where
+// ENABLE_BOOKMARKS is off.
+#include "activities/home/HomeCoverCachePolicy.h"
 #if ENABLE_POKEMON_PARTY
 #include "activities/home/PokemonAssignActivity.h"
 #include "components/themes/pokemon/PokemonPartyTheme.h"
@@ -38,12 +41,10 @@
 #if ENABLE_BOOKS_TAB_UI
 #include "activities/books/BooksTabActivity.h"
 #endif
-#include "components/ScreenComponents.h"
-#if ENABLE_LUA_PLUGINS
-#include "activities/util/LuaActivity.h"
-#include "activities/util/PluginListActivity.h"
-#endif
 #include "activities/home/HomeCarouselCache.h"
+#include "activities/home/HomeExtras.h"
+#include "activities/util/ExtrasActivity.h"
+#include "components/ScreenComponents.h"
 #include "components/UITheme.h"
 #include "components/themes/lyra/LyraCarouselTheme.h"
 #include "core/features/FeatureModules.h"
@@ -283,6 +284,9 @@ void HomeActivity::buildMenuModel() {
 void HomeActivity::populateMenuModel() {
   menuModel.clear();
   menuModel.reserve(9);
+  // App-like entries (Planner, Anki, Notes, TRMNL, Plugins, Claude) are reached
+  // through a single Extras tile; the bucket owns its own composition.
+  const bool extras = !home_extras::exposed().empty();
 
 #if ENABLE_BOOKMARKS
   hasBookmarks = core::FeatureModules::hasCapability(core::Capability::Bookmarks) && BookmarkStore::hasAnyBookmarks();
@@ -294,10 +298,6 @@ void HomeActivity::populateMenuModel() {
   // Library = direct entry into the first configured OPDS catalog; same
   // feature exposure as the OPDS browser, gated on a server existing.
   [[maybe_unused]] const bool library = opds && !OPDS_STORE.getServers().empty();
-  const bool todo = core::HomeActionRegistry::shouldExpose("todo_planner", {false});
-  const bool anki = core::HomeActionRegistry::shouldExpose("anki", {false});
-  const bool claude = core::HomeActionRegistry::shouldExpose("claude_bridge", {false});
-  const bool notes = core::FeatureModules::hasCapability(core::Capability::Notes) && !todo;
 
   // Grid (ForkDrift / Pokémon party): cover grid handles books; the button row
   // holds the actions. Composition matches what the grid actually renders.
@@ -308,15 +308,9 @@ void HomeActivity::populateMenuModel() {
     menuModel.push_back(HomeMenuId::MyLibrary);
     if (library) menuModel.push_back(HomeMenuId::Library);
 #endif
-    if (todo) menuModel.push_back(HomeMenuId::Todo);
-    if (anki) menuModel.push_back(HomeMenuId::Anki);
-    if (notes) menuModel.push_back(HomeMenuId::Notes);
+    if (extras) menuModel.push_back(HomeMenuId::Extras);
     menuModel.push_back(HomeMenuId::FileTransfer);
     menuModel.push_back(HomeMenuId::Settings);
-#if ENABLE_LUA_PLUGINS
-    menuModel.push_back(HomeMenuId::Plugins);
-#endif
-    if (claude) menuModel.push_back(HomeMenuId::ClaudeBridge);
     return;
   }
 
@@ -331,18 +325,12 @@ void HomeActivity::populateMenuModel() {
     if (library) menuModel.push_back(HomeMenuId::Library);
     if (opds) menuModel.push_back(HomeMenuId::Opds);
 #endif
-    if (todo) menuModel.push_back(HomeMenuId::Todo);
-    if (anki) menuModel.push_back(HomeMenuId::Anki);
-    if (notes) menuModel.push_back(HomeMenuId::Notes);
+    if (extras) menuModel.push_back(HomeMenuId::Extras);
 #if ENABLE_BOOKMARKS
     if (hasBookmarks) menuModel.push_back(HomeMenuId::Bookmarks);
 #endif
     menuModel.push_back(HomeMenuId::FileTransfer);
     menuModel.push_back(HomeMenuId::Settings);
-#if ENABLE_LUA_PLUGINS
-    menuModel.push_back(HomeMenuId::Plugins);
-#endif
-    if (claude) menuModel.push_back(HomeMenuId::ClaudeBridge);
     return;
   }
 
@@ -356,15 +344,9 @@ void HomeActivity::populateMenuModel() {
   if (library) menuModel.push_back(HomeMenuId::Library);
   if (opds) menuModel.push_back(HomeMenuId::Opds);
 #endif
-  if (todo) menuModel.push_back(HomeMenuId::Todo);
-  if (anki) menuModel.push_back(HomeMenuId::Anki);
-  if (notes) menuModel.push_back(HomeMenuId::Notes);
+  if (extras) menuModel.push_back(HomeMenuId::Extras);
   menuModel.push_back(HomeMenuId::FileTransfer);
   menuModel.push_back(HomeMenuId::Settings);
-#if ENABLE_LUA_PLUGINS
-  menuModel.push_back(HomeMenuId::Plugins);
-#endif
-  if (claude) menuModel.push_back(HomeMenuId::ClaudeBridge);
 }
 
 void HomeActivity::loadRecentBooks() {
@@ -625,6 +607,11 @@ void HomeActivity::openCenteredBook() {
 }
 
 std::string HomeActivity::menuIdLabel(const HomeMenuId id, const bool gridStyle) const {
+  // Extras and its members are labelled by the shared bucket model, so the Home
+  // tile and the rows inside the submenu can never disagree.
+  if (id == HomeMenuId::Extras || home_extras::isExtra(id)) {
+    return home_extras::label(id, gridStyle);
+  }
   switch (id) {
     case HomeMenuId::ContinueReading:
       return "Continue Reading";
@@ -641,12 +628,6 @@ std::string HomeActivity::menuIdLabel(const HomeMenuId id, const bool gridStyle)
       return std::string(tr(STR_LIBRARY));
     case HomeMenuId::Opds:
       return "OPDS Browser";
-    case HomeMenuId::Todo:
-      return gridStyle ? std::string("Agenda") : std::string(tr(STR_TODO_HOME_LABEL));
-    case HomeMenuId::Anki:
-      return "Anki";
-    case HomeMenuId::Notes:
-      return std::string(tr(STR_NOTES));
 #if ENABLE_BOOKMARKS
     case HomeMenuId::Bookmarks:
       return tr(STR_BOOKMARKS);
@@ -659,18 +640,15 @@ std::string HomeActivity::menuIdLabel(const HomeMenuId id, const bool gridStyle)
 #endif
     case HomeMenuId::Settings:
       return std::string(tr(STR_SETTINGS_TITLE));
-#if ENABLE_LUA_PLUGINS
-    case HomeMenuId::Plugins:
-      return "Plugins";
-#endif
-    case HomeMenuId::ClaudeBridge:
-      return std::string(tr(STR_CLAUDE_TITLE));
     default:
       return "";
   }
 }
 
 UIIcon HomeActivity::menuIdIcon(const HomeMenuId id) const {
+  if (id == HomeMenuId::Extras || home_extras::isExtra(id)) {
+    return home_extras::icon(id);
+  }
   switch (id) {
     case HomeMenuId::ContinueReading:
     case HomeMenuId::OpenBook:
@@ -685,11 +663,6 @@ UIIcon HomeActivity::menuIdIcon(const HomeMenuId id) const {
       return UIIcon::Book;
     case HomeMenuId::Opds:
       return UIIcon::Library;
-    case HomeMenuId::Todo:
-      return UIIcon::Calendar;
-    case HomeMenuId::Anki:
-    case HomeMenuId::Notes:
-      return UIIcon::Text;
 #if ENABLE_BOOKMARKS
     case HomeMenuId::Bookmarks:
       return UIIcon::Book;
@@ -701,10 +674,6 @@ UIIcon HomeActivity::menuIdIcon(const HomeMenuId id) const {
       return UIIcon::Book;
 #endif
     case HomeMenuId::Settings:
-#if ENABLE_LUA_PLUGINS
-    case HomeMenuId::Plugins:
-#endif
-    case HomeMenuId::ClaudeBridge:
     default:
       return UIIcon::Settings;
   }
@@ -729,6 +698,9 @@ void HomeActivity::activateMenuId(const HomeMenuId id) {
       onBooksTabOpen();
       break;
 #endif
+    case HomeMenuId::Extras:
+      onExtrasOpen();
+      break;
     case HomeMenuId::Library:
       onLibraryOpen();
       break;
@@ -743,6 +715,9 @@ void HomeActivity::activateMenuId(const HomeMenuId id) {
       break;
     case HomeMenuId::Notes:
       onNotesOpen();
+      break;
+    case HomeMenuId::Trmnl:
+      onTrmnlOpen();
       break;
 #if ENABLE_BOOKMARKS
     case HomeMenuId::Bookmarks:
@@ -760,11 +735,9 @@ void HomeActivity::activateMenuId(const HomeMenuId id) {
     case HomeMenuId::Settings:
       onSettingsOpen();
       break;
-#if ENABLE_LUA_PLUGINS
     case HomeMenuId::Plugins:
       onPluginsOpen();
       break;
-#endif
     case HomeMenuId::ClaudeBridge: {
       Activity* claude = core::HomeActionRegistry::create("claude_bridge", renderer, mappedInput, {false}, nullptr,
                                                           [](void*) { activityManager.popActivity(); });
@@ -2060,7 +2033,36 @@ void HomeActivity::runPartySpritesSync() {
 
 void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
 
+void HomeActivity::onExtrasOpen() {
+  // Snapshot the bucket so the index the submenu returns resolves against the
+  // exact list it displayed, even if a capability flips while it is open.
+  auto items = home_extras::exposed();
+  if (items.empty()) {
+    return;
+  }
+  startActivityForResult(std::make_unique<ExtrasActivity>(renderer, mappedInput, items),
+                         [this, items](const ActivityResult& result) {
+                           const auto* picked = std::get_if<ListPickerResult>(&result.data);
+                           if (result.isCancelled || picked == nullptr || picked->selectedIndex < 0 ||
+                               static_cast<size_t>(picked->selectedIndex) >= items.size()) {
+                             requestUpdate();
+                             return;
+                           }
+                           activateMenuId(items[picked->selectedIndex]);
+                         });
+}
+
 void HomeActivity::onTodoOpen() { activityManager.goToTodo(); }
+
+// Reached through the registry rather than a direct include so the app shell
+// carries no Terminus compile guard; create() yields nullptr when the feature is
+// absent or the device is unpaired.
+void HomeActivity::onTrmnlOpen() {
+  Activity* trmnl = core::HomeActionRegistry::create("trmnl", renderer, mappedInput, {false}, nullptr, nullptr);
+  if (trmnl != nullptr) {
+    startActivityForResult(std::unique_ptr<Activity>(trmnl), [this](const ActivityResult&) { requestUpdate(); });
+  }
+}
 
 void HomeActivity::onAnkiOpen() { activityManager.goToAnki(); }
 
@@ -2073,14 +2075,11 @@ void HomeActivity::onBookmarksOpen() {
 
 void HomeActivity::onNotesOpen() { activityManager.goToNotes(); }
 
-#if ENABLE_LUA_PLUGINS
+// Registry-mediated like Claude and TRMNL, so the app shell holds no Lua compile
+// guard; the feature owns both the guard and the plugin-launch wiring.
 void HomeActivity::onPluginsOpen() {
-  auto onLaunchPlugin = [this](const std::string& name) {
-    startActivityForResult(
-        std::make_unique<LuaActivity>(renderer, mappedInput, name, [this] { activityManager.popActivity(); }), nullptr);
-  };
-  startActivityForResult(std::make_unique<PluginListActivity>(renderer, mappedInput, onLaunchPlugin,
-                                                              [this] { activityManager.popActivity(); }),
-                         nullptr);
+  Activity* plugins = core::HomeActionRegistry::create("lua_plugins", renderer, mappedInput, {false}, nullptr, nullptr);
+  if (plugins != nullptr) {
+    startActivityForResult(std::unique_ptr<Activity>(plugins), [this](const ActivityResult&) { requestUpdate(); });
+  }
 }
-#endif
