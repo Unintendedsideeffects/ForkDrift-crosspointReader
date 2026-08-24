@@ -963,6 +963,9 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
     emit(SettingInfo::Toggle(StrId::STR_SHOW_HIDDEN_FILES, &CrossPointSettings::showHiddenFiles, "showHiddenFiles",
                              StrId::STR_CAT_SYSTEM)
              .withConfiguratorExport());
+    emit(SettingInfo::Toggle(StrId::STR_HIDE_FILE_EXTENSION, &CrossPointSettings::hideFileExtension,
+                             "hideFileExtension", StrId::STR_CAT_SYSTEM)
+             .withConfiguratorExport());
 #if ENABLE_TODO_PLANNER
     if (core::FeatureModules::hasCapability(core::Capability::TodoPlanner)) {
       emit(SettingInfo::Toggle(StrId::STR_TODO_OPEN_DIRECT_TO_TODAY, &CrossPointSettings::todoOpenDirectToToday,

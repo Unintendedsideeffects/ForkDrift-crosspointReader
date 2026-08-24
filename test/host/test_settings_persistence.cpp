@@ -202,6 +202,26 @@ TEST_CASE("settings migration: round trip preserves STATUS_BAR_READER_ONLY") {
   CHECK(needsResave == false);
 }
 
+TEST_CASE("hideFileExtension round trip default set and absent") {
+  CrossPointSettings& settings = resetSettingsState();
+  CHECK(settings.hideFileExtension == 0);
+
+  settings.hideFileExtension = 1;
+  REQUIRE(settings.saveToFile());
+  const std::string json = Storage.readFile(kSettingsPath).c_str();
+  CHECK(json.find("\"hideFileExtension\":1") != std::string::npos);
+
+  CrossPointSettings& reloaded = resetSettingsState();
+  bool needsResave = false;
+  REQUIRE(JsonSettingsIO::loadSettings(reloaded, json.c_str(), &needsResave));
+  CHECK(reloaded.hideFileExtension == 1);
+
+  CrossPointSettings& absent = resetSettingsState();
+  absent.hideFileExtension = 1;
+  REQUIRE(JsonSettingsIO::loadSettings(absent, "{}", &needsResave));
+  CHECK(absent.hideFileExtension == 0);
+}
+
 TEST_CASE("settings round trip preserves language through the shared serializer") {
   CrossPointSettings& settings = resetSettingsState();
   settings.language = 1;  // any non-zero valid index

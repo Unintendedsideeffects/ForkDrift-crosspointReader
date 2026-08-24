@@ -55,6 +55,11 @@ TEST_CASE("settings metadata keeps Looks and sleep controls available") {
   CHECK(stayAwakeWhileCharging->type == SettingType::TOGGLE);
   CHECK(stayAwakeWhileCharging->category == StrId::STR_CAT_SYSTEM);
 
+  const SettingInfo* hideFileExtension = findSettingByKey(settings, "hideFileExtension");
+  REQUIRE(hideFileExtension != nullptr);
+  CHECK(hideFileExtension->type == SettingType::TOGGLE);
+  CHECK(hideFileExtension->category == StrId::STR_CAT_SYSTEM);
+
   const SettingInfo* globalStatusBar = findSettingByKey(settings, "globalStatusBarPosition");
 #if ENABLE_GLOBAL_STATUS_BAR
   REQUIRE(globalStatusBar != nullptr);
