@@ -952,6 +952,14 @@ void EpubReaderActivity::jumpToPercent(int percent) {
   requestUpdate();  // Paint the existing cache-building placeholder before rebuilding the section.
 }
 
+void EpubReaderActivity::cacheCurrentSectionPosition() {
+  if (section) {
+    cachedSpineIndex = currentSpineIndex;
+    cachedChapterTotalPageCount = section->pageCount;
+    nextPageNumber = section->currentPage;
+  }
+}
+
 void EpubReaderActivity::reindexCurrentSection() {
   if (!SETTINGS.saveToFile()) {
     LOG_ERR("ERS", "Failed to save settings");
@@ -959,11 +967,7 @@ void EpubReaderActivity::reindexCurrentSection() {
   {
     RenderLock lock(*this);
     GUI.drawPopup(renderer, tr(STR_INDEXING));
-    if (section) {
-      cachedSpineIndex = currentSpineIndex;
-      cachedChapterTotalPageCount = section->pageCount;
-      nextPageNumber = section->currentPage;
-    }
+    cacheCurrentSectionPosition();
     section.reset();
   }
   requestUpdate();
@@ -976,11 +980,7 @@ void EpubReaderActivity::refreshReaderPreviewBuffer(uint8_t* dest, const size_t 
 
   {
     RenderLock lock(*this);
-    if (section) {
-      cachedSpineIndex = currentSpineIndex;
-      cachedChapterTotalPageCount = section->pageCount;
-      nextPageNumber = section->currentPage;
-    }
+    cacheCurrentSectionPosition();
     section.reset();
   }
 
@@ -1586,11 +1586,7 @@ void EpubReaderActivity::applyOrientation(const uint8_t orientation) {
   // Preserve current reading position so we can restore after reflow.
   {
     RenderLock lock(*this);
-    if (section) {
-      cachedSpineIndex = currentSpineIndex;
-      cachedChapterTotalPageCount = section->pageCount;
-      nextPageNumber = section->currentPage;
-    }
+    cacheCurrentSectionPosition();
 
     // Persist the selection so the reader keeps the new orientation on next launch.
     if (!persistOrientationSelection(orientation)) {
@@ -1628,11 +1624,7 @@ void EpubReaderActivity::setAutoPageTurnIntervalSeconds(uint16_t seconds) {
   automaticPageTurnActive = true;
 
   RenderLock lock(*this);
-  if (section) {
-    cachedSpineIndex = currentSpineIndex;
-    cachedChapterTotalPageCount = section->pageCount;
-    nextPageNumber = section->currentPage;
-  }
+  cacheCurrentSectionPosition();
   section.reset();
 }
 

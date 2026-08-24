@@ -170,6 +170,7 @@ class EpubReaderActivity final : public Activity {
   void exportCurrentBookHighlights();
 #endif
   void reindexCurrentSection();
+  void cacheCurrentSectionPosition();
   void executeReaderQuickAction(CrossPointSettings::LONG_PRESS_MENU_ACTION action);
   void executeLongPressMenuAction();
   bool executeShortPowerButtonAction();
