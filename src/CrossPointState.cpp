@@ -7,10 +7,12 @@
 #include <freertos/semphr.h>
 
 #include <algorithm>
+#include <mutex>
 #include <utility>
 
 namespace {
 constexpr char STATE_FILE_JSON[] = "/.crosspoint/state.json";
+std::mutex stateFileMutex;
 
 SemaphoreHandle_t pendingStateMutex() {
   static StaticSemaphore_t mutexStorage;
@@ -64,6 +66,7 @@ TaskHandle_t debugPendingStateMutexHolder() {
 }
 
 bool CrossPointState::isRecentSleep(uint16_t idx, uint8_t checkCount) const {
+  PendingStateLock lock;
   const uint8_t effectiveCount = std::min(checkCount, recentSleepFill);
   for (uint8_t i = 0; i < effectiveCount; i++) {
     const uint8_t slot = (recentSleepPos + SLEEP_RECENT_COUNT - 1 - i) % SLEEP_RECENT_COUNT;
@@ -73,17 +76,20 @@ bool CrossPointState::isRecentSleep(uint16_t idx, uint8_t checkCount) const {
 }
 
 void CrossPointState::pushRecentSleep(uint16_t idx) {
+  PendingStateLock lock;
   recentSleepImages[recentSleepPos] = idx;
   recentSleepPos = (recentSleepPos + 1) % SLEEP_RECENT_COUNT;
   if (recentSleepFill < SLEEP_RECENT_COUNT) recentSleepFill++;
 }
 
 bool CrossPointState::saveToFile() const {
+  const std::lock_guard<std::mutex> lock(stateFileMutex);
   Storage.mkdir("/.crosspoint");
   return JsonSettingsIO::saveState(*this, STATE_FILE_JSON);
 }
 
 bool CrossPointState::loadFromFile() {
+  const std::lock_guard<std::mutex> lock(stateFileMutex);
   if (Storage.exists(STATE_FILE_JSON)) {
     HalFile file;
     if (Storage.openFileForRead("CPS", STATE_FILE_JSON, file)) {
