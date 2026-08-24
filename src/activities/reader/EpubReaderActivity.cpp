@@ -405,6 +405,7 @@ void EpubReaderActivity::onEnter() {
     }
     if (dataSize == 6) {
       cachedChapterTotalPageCount = data[4] + (data[5] << 8);
+      cachedChapterPageNumber = nextPageNumber;
     }
   }
   // We may want a better condition to detect if we are opening for the first time.
@@ -956,6 +957,7 @@ void EpubReaderActivity::cacheCurrentSectionPosition() {
   if (section) {
     cachedSpineIndex = currentSpineIndex;
     cachedChapterTotalPageCount = section->pageCount;
+    cachedChapterPageNumber = section->currentPage;
     nextPageNumber = section->currentPage;
   }
 }
@@ -1886,11 +1888,17 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     if (cachedChapterTotalPageCount > 0) {
       // only goes to relative position if spine index matches cached value
       if (currentSpineIndex == cachedSpineIndex && section->pageCount != cachedChapterTotalPageCount) {
-        float progress = static_cast<float>(section->currentPage) / static_cast<float>(cachedChapterTotalPageCount);
-        int newPage = static_cast<int>(progress * section->pageCount);
+        float progress = static_cast<float>(cachedChapterPageNumber) / static_cast<float>(cachedChapterTotalPageCount);
+        int newPage = static_cast<int>(progress * static_cast<float>(section->pageCount));
+        if (newPage < 0) {
+          newPage = 0;
+        } else if (section->pageCount > 0 && newPage >= section->pageCount) {
+          newPage = section->pageCount - 1;
+        }
         section->currentPage = newPage;
       }
       cachedChapterTotalPageCount = 0;  // resets to 0 to prevent reading cached progress again
+      cachedChapterPageNumber = 0;
     }
 
     if (pendingPercentJump && section->pageCount > 0) {
