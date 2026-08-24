@@ -2095,6 +2095,12 @@ void EpubReaderActivity::performDeferredSilentIndexingLocked() {
     return;
   }
 
+  if (heapguard::pressure() != heapguard::Pressure::Normal) {
+    LOG_INF("ERS", "Silent next-chapter indexing skipped: low heap (%u, need %u)",
+            static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(heapguard::kLowFloorBytes));
+    return;
+  }
+
   Section nextSection(epub, nextSpineIndex, renderer);
   if (nextSection.loadSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                   SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
