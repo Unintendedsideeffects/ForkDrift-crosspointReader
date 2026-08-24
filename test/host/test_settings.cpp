@@ -712,3 +712,32 @@ TEST_CASE("forEachSetting category filter never constructs other categories") {
   CHECK(findSettingByKey(display, "sleepScreenSplit") != nullptr);
   CHECK(findSettingByKey(display, "fontSize") == nullptr);
 }
+
+TEST_CASE("sideButtonLayout enum values stay stable when Next/Next is appended") {
+  CHECK(static_cast<int>(CrossPointSettings::PREV_NEXT) == 0);
+  CHECK(static_cast<int>(CrossPointSettings::NEXT_PREV) == 1);
+  CHECK(static_cast<int>(CrossPointSettings::SIDE_BUTTONS_DISABLED) == 2);
+  CHECK(static_cast<int>(CrossPointSettings::NEXT_NEXT) == 3);
+  CHECK(static_cast<int>(CrossPointSettings::SIDE_BUTTON_LAYOUT_COUNT) == 4);
+
+  Storage.reset();
+  const auto settings = getSettingsList();
+  const SettingInfo* layout = findSettingByKey(settings, "sideButtonLayout");
+  REQUIRE(layout != nullptr);
+  REQUIRE(layout->enumValues.size() == 4);
+  CHECK(layout->enumValues[0] == StrId::STR_PREV_NEXT);
+  CHECK(layout->enumValues[1] == StrId::STR_NEXT_PREV);
+  CHECK(layout->enumValues[2] == StrId::STR_DISABLED);
+  CHECK(layout->enumValues[3] == StrId::STR_NEXT_NEXT);
+
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+  s.sideButtonLayout = CrossPointSettings::NEXT_NEXT;
+  s.validateAndClamp();
+  CHECK(s.sideButtonLayout == CrossPointSettings::NEXT_NEXT);
+  s.sideButtonLayout = CrossPointSettings::SIDE_BUTTONS_DISABLED;
+  s.validateAndClamp();
+  CHECK(s.sideButtonLayout == CrossPointSettings::SIDE_BUTTONS_DISABLED);
+  s.sideButtonLayout = CrossPointSettings::SIDE_BUTTON_LAYOUT_COUNT;
+  s.validateAndClamp();
+  CHECK(s.sideButtonLayout == CrossPointSettings::PREV_NEXT);
+}

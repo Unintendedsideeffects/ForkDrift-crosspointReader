@@ -3,6 +3,7 @@
 #include <FeatureFlags.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <utility>
 
@@ -21,17 +22,23 @@ size_t buttonIndex(MappedInputManager::Button button) { return static_cast<size_
 constexpr unsigned long POWER_DOUBLE_TAP_MS = 250;
 
 using ButtonIndex = uint8_t;
+constexpr ButtonIndex kNoButton = UINT8_MAX;
 
 struct SideLayoutMap {
-  ButtonIndex pageBack;
-  ButtonIndex pageForward;
+  ButtonIndex pageBackPrimary;
+  ButtonIndex pageBackSecondary;
+  ButtonIndex pageForwardPrimary;
+  ButtonIndex pageForwardSecondary;
 };
 
 // Order matches CrossPointSettings::SIDE_BUTTON_LAYOUT.
 constexpr SideLayoutMap kSideLayouts[] = {
-    {HalGPIO::BTN_UP, HalGPIO::BTN_DOWN},
-    {HalGPIO::BTN_DOWN, HalGPIO::BTN_UP},
+    {HalGPIO::BTN_UP, kNoButton, HalGPIO::BTN_DOWN, kNoButton},
+    {HalGPIO::BTN_DOWN, kNoButton, HalGPIO::BTN_UP, kNoButton},
+    {kNoButton, kNoButton, kNoButton, kNoButton},
+    {kNoButton, kNoButton, HalGPIO::BTN_UP, HalGPIO::BTN_DOWN},
 };
+static_assert(sizeof(kSideLayouts) / sizeof(kSideLayouts[0]) == CrossPointSettings::SIDE_BUTTON_LAYOUT_COUNT);
 
 bool isLandscapeOrientation(const uint8_t orientation) {
   return orientation == CrossPointSettings::LANDSCAPE_CW || orientation == CrossPointSettings::LANDSCAPE_CCW;
@@ -86,9 +93,19 @@ ButtonIndex mapFrontButtonForOrientation(const ButtonIndex button, const ButtonI
 
 SideLayoutMap mapSideLayoutForOrientation(SideLayoutMap side, const uint8_t orientation) {
   if (SETTINGS.sideButtonOrientationAware && isLandscapeOrientation(orientation)) {
-    std::swap(side.pageBack, side.pageForward);
+    const bool hasPageBack = side.pageBackPrimary != kNoButton || side.pageBackSecondary != kNoButton;
+    const bool hasPageForward = side.pageForwardPrimary != kNoButton || side.pageForwardSecondary != kNoButton;
+    if (hasPageBack && hasPageForward) {
+      std::swap(side.pageBackPrimary, side.pageForwardPrimary);
+      std::swap(side.pageBackSecondary, side.pageForwardSecondary);
+    }
   }
   return side;
+}
+
+bool readMappedSideButtons(const HalGPIO& gpio, bool (HalGPIO::*fn)(uint8_t) const, const ButtonIndex primary,
+                           const ButtonIndex secondary) {
+  return (primary != kNoButton && (gpio.*fn)(primary)) || (secondary != kNoButton && (gpio.*fn)(secondary));
 }
 
 bool isDualSideLayout() {
@@ -159,9 +176,9 @@ bool MappedInputManager::mapButton(const Button button, bool (HalGPIO::*fn)(uint
       // Power button bypasses remapping.
       return (gpio.*fn)(HalGPIO::BTN_POWER);
     case Button::PageBack:
-      return !sideDisabled && (gpio.*fn)(side.pageBack);
+      return !sideDisabled && readMappedSideButtons(gpio, fn, side.pageBackPrimary, side.pageBackSecondary);
     case Button::PageForward:
-      return !sideDisabled && (gpio.*fn)(side.pageForward);
+      return !sideDisabled && readMappedSideButtons(gpio, fn, side.pageForwardPrimary, side.pageForwardSecondary);
   }
 
   return false;
@@ -338,16 +355,20 @@ void MappedInputManager::clearTransientState() {
 void MappedInputManager::injectVirtualActivation(const Button button) {
 #ifndef SIMULATOR
   auto sideLayout = static_cast<CrossPointSettings::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
-  if (sideLayout >= CrossPointSettings::SIDE_BUTTONS_DISABLED) {
-    sideLayout = CrossPointSettings::PREV_NEXT;  // remote turns keep default mapping
+  if (sideLayout == CrossPointSettings::SIDE_BUTTONS_DISABLED) {
+    sideLayout = CrossPointSettings::PREV_NEXT;
   }
   const auto& side = kSideLayouts[sideLayout];
   switch (button) {
     case Button::PageForward:
-      gpio.injectVirtualButton(side.pageForward);
+      if (side.pageForwardPrimary != kNoButton) {
+        gpio.injectVirtualButton(side.pageForwardPrimary);
+      }
       break;
     case Button::PageBack:
-      gpio.injectVirtualButton(side.pageBack);
+      if (side.pageBackPrimary != kNoButton) {
+        gpio.injectVirtualButton(side.pageBackPrimary);
+      }
       break;
     case Button::Confirm:
       gpio.injectVirtualButton(SETTINGS.frontButtonConfirm);
