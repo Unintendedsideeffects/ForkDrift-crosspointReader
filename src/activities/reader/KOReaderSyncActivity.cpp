@@ -67,6 +67,18 @@ void KOReaderSyncActivity::saveProgressAndReturn(int spineIndex, int page) {
 
 void KOReaderSyncActivity::returnToReader() { activityManager.goToReader(epubPath); }
 
+bool KOReaderSyncActivity::consumeInitialConfirmRelease() {
+  if (!lockInitialConfirmRelease) {
+    return false;
+  }
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) ||
+      !mappedInput.isPressed(MappedInputManager::Button::Confirm)) {
+    lockInitialConfirmRelease = false;
+  }
+  return true;
+}
+
 void KOReaderSyncActivity::onWifiSelectionComplete(const bool success) {
   if (!success) {
     LOG_DBG("KOSync", "WiFi connection failed, exiting");
@@ -212,6 +224,7 @@ void KOReaderSyncActivity::performUpload() {
 void KOReaderSyncActivity::onEnter() {
   Activity::onEnter();
   ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+  lockInitialConfirmRelease = mappedInput.isPressed(MappedInputManager::Button::Confirm);
 
   // Check for credentials first
   if (!KOREADER_STORE.hasCredentials()) {
@@ -390,7 +403,14 @@ void KOReaderSyncActivity::render(RenderLock&&) {
 
   if (state == SYNC_FAILED) {
     renderer.drawCenteredText(UI_10_FONT_ID, 280, tr(STR_SYNC_FAILED_MSG), true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(UI_10_FONT_ID, 320, statusMessage.c_str());
+    const int height = renderer.getLineHeight(UI_10_FONT_ID);
+    const int messageWidth = renderer.getScreenWidth() - 40;
+    const auto messageLines = renderer.wrappedText(UI_10_FONT_ID, statusMessage.c_str(), messageWidth, 3);
+    int messageY = 320;
+    for (const auto& line : messageLines) {
+      renderer.drawCenteredText(UI_10_FONT_ID, messageY, line.c_str());
+      messageY += height + 4;
+    }
 
     const auto labels = mappedInput.mapLabels("Back", "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
@@ -400,6 +420,10 @@ void KOReaderSyncActivity::render(RenderLock&&) {
 }
 
 void KOReaderSyncActivity::loop() {
+  if (consumeInitialConfirmRelease()) {
+    return;
+  }
+
   if (state == NO_CREDENTIALS || state == SYNC_FAILED || state == UPLOAD_COMPLETE) {
     if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       returnToReader();

@@ -93,9 +93,12 @@ class KOReaderSyncActivity final : public Activity {
   // which makes WiFi.getMode() return WIFI_MODE_NULL.
   bool wifiActivated = false;
 
+  bool lockInitialConfirmRelease = false;
+
   void onWifiSelectionComplete(bool success);
   void performSync();
   void performUpload();
+  bool consumeInitialConfirmRelease();
   void ensureEpubLoaded();
   void saveProgressAndReturn(int spineIndex, int page);
   void returnToReader();

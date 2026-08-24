@@ -137,7 +137,14 @@ void KOReaderAuthActivity::render(RenderLock&&) {
 
   if (state == FAILED) {
     renderer.drawCenteredText(UI_10_FONT_ID, 280, "Authentication Failed", true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(UI_10_FONT_ID, 320, errorMessage.c_str());
+    const int height = renderer.getLineHeight(UI_10_FONT_ID);
+    const int messageWidth = renderer.getScreenWidth() - 40;
+    const auto errorLines = renderer.wrappedText(UI_10_FONT_ID, errorMessage.c_str(), messageWidth, 3);
+    int messageY = 320;
+    for (const auto& line : errorLines) {
+      renderer.drawCenteredText(UI_10_FONT_ID, messageY, line.c_str());
+      messageY += height + 4;
+    }
 
     const auto labels = mappedInput.mapLabels("Back", "", "", "");
     renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
