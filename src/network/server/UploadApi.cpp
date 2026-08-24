@@ -97,7 +97,7 @@ void invalidateUploadCachesIfNeeded(const String& filePath) {
 
 network::UploadPostResult buildUploadPostResultImpl() {
   network::UploadPostResult result;
-  network::BufferedHttpUploadSession& session = network::sharedBufferedHttpUploadSession();
+  const network::BufferedHttpUploadSession& session = network::sharedBufferedHttpUploadSession();
   if (session.succeeded()) {
     invalidateUploadCachesIfNeeded(session.filePath());
     core::FeatureModules::onUploadCompleted(session.uploadPath(), session.fileName());

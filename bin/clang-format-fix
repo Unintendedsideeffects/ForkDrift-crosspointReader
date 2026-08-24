@@ -49,6 +49,7 @@ git ls-files  --exclude-standard ${GIT_LS_FILES_FLAGS} \
     | grep -v -E '^lib/EpdFont/builtinFonts/' \
     | grep -v -E '^lib/Epub/Epub/hyphenation/generated/' \
     | grep -v -E '^lib/third_party/uzlib/' \
+    | grep -v -E '^lib/miniz/third_party/' \
     | grep -v -E '^lib/Lua/' \
     | grep -v -E '^test/doctest/' \
     | grep -v -E '^src/images/Logo[0-9]+\.h$' \

@@ -63,7 +63,13 @@ class HeapReclaimRegistry {
     }
   }
 
-  static bool empty() { return count == 0; }
+  // The suppression is for cppcheck's cross-TU blind spot: registrations happen
+  // in feature/activity TUs (e.g. HomeActivity), so from this TU count looks
+  // always-zero. BackgroundWifiService's !empty() check carries the twin.
+  static bool empty() {
+    // cppcheck-suppress knownConditionTrueFalse
+    return count == 0;
+  }
 
  private:
   inline static HeapReclaimEntry entries[kMaxEntries] = {};

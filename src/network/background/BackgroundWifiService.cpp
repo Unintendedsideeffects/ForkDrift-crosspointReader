@@ -92,6 +92,9 @@ bool BackgroundWifiService::canStartNow() {
   // Deliberately after startRetryActive(): during backoff we return above and
   // never reach here, so an eviction can happen at most once per retry window
   // instead of on every reconcile tick.
+  // Suppressed: cppcheck can't see HeapReclaimRegistry::add() callers (they are
+  // in HomeActivity's TU), so it believes the registry is always empty here.
+  // cppcheck-suppress knownConditionTrueFalse
   if (verdict != background_server::StartResourceVerdict::Ok && !core::HeapReclaimRegistry::empty()) {
     LOG_DBG("BGWIFI", "bg server start blocked (%u free, largest %u); reclaiming caches",
             static_cast<unsigned int>(resources.freeBytes),

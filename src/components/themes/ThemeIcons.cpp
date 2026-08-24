@@ -20,8 +20,8 @@ void logOnce(UIIcon icon, int preferredSize, int fallbackSize) {
   const int bucket = (preferredSize == 32) ? 1 : 0;
   if (warned[idx][bucket]) return;
   warned[idx][bucket] = true;
-  LOG_WRN("ICON", "No bitmap for UIIcon %u at %dpx (or %dpx fallback); nothing drawn",
-          static_cast<unsigned>(icon), preferredSize, fallbackSize);
+  LOG_WRN("ICON", "No bitmap for UIIcon %u at %dpx (or %dpx fallback); nothing drawn", static_cast<unsigned>(icon),
+          preferredSize, fallbackSize);
 }
 }  // namespace
 
