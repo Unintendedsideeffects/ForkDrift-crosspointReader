@@ -2164,6 +2164,7 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
       SETTINGS.textAntiAliasing && !renderer.isDarkMode() && renderer.fontSupportsGrayscale(fontId);
   const bool needsImageGrayscale = pageHasImages;
   const bool needsAnyGrayscale = needsTextGrayscale || needsImageGrayscale;
+  const bool cleanImageBasePending = pagesUntilFullRefresh <= 1;
 
   const auto paintReaderChrome = [&] {
 #if ENABLE_ANNOTATIONS
@@ -2205,6 +2206,9 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
       int16_t imgX, imgY, imgW, imgH;
       if (page->getImageBoundingBox(imgX, imgY, imgW, imgH)) {
         renderer.fillRect(imgX + orientedMarginLeft, imgY + orientedMarginTop, imgW, imgH, false);
+        if (cleanImageBasePending) {
+          renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+        }
         renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
         page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
