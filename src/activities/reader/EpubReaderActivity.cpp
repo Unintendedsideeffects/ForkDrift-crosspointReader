@@ -1006,6 +1006,7 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
       break;
     case S::LONG_MENU_CHANGE_FONT:
       SETTINGS.fontFamily = (SETTINGS.fontFamily + 1) % S::FONT_FAMILY_COUNT;
+      SETTINGS.sdFontFamilyName[0] = '\0';
       reindexCurrentSection();
       break;
     case S::LONG_MENU_REFRESH_SCREEN:
