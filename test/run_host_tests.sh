@@ -115,6 +115,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -I"$ARDUINOJSON_DIR" \
   -I"$SIMULATOR_MBEDTLS_DIR" \
   -I"$ROOT_DIR/lib/Epub" \
+  -I"$ROOT_DIR/lib/Epub/Epub/css" \
   -I"$ROOT_DIR/lib/Epub/Epub/converters" \
   -I"$ROOT_DIR/lib/Utf8" \
   -I"$ROOT_DIR/lib/MiniBidi" \
@@ -140,6 +141,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/miniz/src/InflateStream.cpp" \
   "$ROOT_DIR/lib/PngToBmpConverter/PngToBmpConverter.cpp" \
   "$ROOT_DIR/lib/Epub/Epub/converters/ImageDimsProbe.cpp" \
+  "$ROOT_DIR/lib/Epub/Epub/css/CssParser.cpp" \
   "$ROOT_DIR/lib/Epub/Epub/converters/ImageToFramebufferDecoder.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownPreprocessor.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownParser.cpp" \
