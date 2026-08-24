@@ -525,6 +525,67 @@ TEST_CASE("testDailyFileReadCapAcceptsAtLimit") {
   CHECK(read == exactContent);
 }
 
+// Plan 113: caller-chain proof for the sleep screen. loadPlannerSleepRows()
+// feeds readDailyFileCapped() output straight into parseFile(), so an oversized
+// daily file must yield zero rows while normal content still parses.
+
+TEST_CASE("testSleepCallerChainOversizedYieldsNoItems") {
+  Storage.reset();
+  const std::string path = "/daily/2026-07-25.md";
+  // Valid todo lines repeated past the cap: if the cap were missing, this
+  // would parse into thousands of items instead of zero.
+  const std::string line = "- [ ] Sleep screen task\n";
+  std::string oversizeContent;
+  oversizeContent.reserve(TodoPlannerStorage::kMaxDailyFileBytes + line.size());
+  while (oversizeContent.size() <= TodoPlannerStorage::kMaxDailyFileBytes) {
+    oversizeContent += line;
+  }
+  REQUIRE(oversizeContent.size() > TodoPlannerStorage::kMaxDailyFileBytes);
+
+  HalFile file;
+  REQUIRE(Storage.openFileForWrite("TEST", path.c_str(), file));
+  REQUIRE(file.write(reinterpret_cast<const uint8_t*>(oversizeContent.data()), oversizeContent.size()) ==
+          static_cast<int>(oversizeContent.size()));
+  file.close();
+
+  const std::string read = TodoPlannerStorage::readDailyFileCapped(path);
+  CHECK(read.empty());
+
+  std::vector<TodoItem> items;
+  TodoPlannerStorage::parseFile(read, items);
+  CHECK(items.empty());
+}
+
+TEST_CASE("testSleepCallerChainNormalContentParsesUnchanged") {
+  Storage.reset();
+  const std::string path = "/daily/2026-07-25.md";
+  const std::string content = "- [ ] Task 1\n- [x] Task 2\n# Header\n- [ ] !daily Task 3\n";
+
+  HalFile file;
+  REQUIRE(Storage.openFileForWrite("TEST", path.c_str(), file));
+  REQUIRE(file.write(reinterpret_cast<const uint8_t*>(content.data()), content.size()) ==
+          static_cast<int>(content.size()));
+  file.close();
+
+  const std::string read = TodoPlannerStorage::readDailyFileCapped(path);
+  CHECK(read == content);
+
+  std::vector<TodoItem> viaCappedReader;
+  TodoPlannerStorage::parseFile(read, viaCappedReader);
+
+  std::vector<TodoItem> direct;
+  TodoPlannerStorage::parseFile(content, direct);
+
+  REQUIRE(viaCappedReader.size() == direct.size());
+  for (size_t i = 0; i < direct.size(); ++i) {
+    CHECK(viaCappedReader[i].text == direct[i].text);
+    CHECK(viaCappedReader[i].checked == direct[i].checked);
+    CHECK(viaCappedReader[i].isHeader == direct[i].isHeader);
+    CHECK(viaCappedReader[i].recurrence == direct[i].recurrence);
+  }
+  REQUIRE(direct.size() == 4);
+}
+
 TEST_CASE("testWriteDailyFileAtomicRoundTrip") {
   Storage.reset();
   const std::string path = "/daily/2026-07-25.md";

@@ -544,9 +544,7 @@ std::vector<std::string> loadPlannerSleepRows() {
     SpiBusMutex::Guard guard;
     const std::string targetPath = TodoPlannerStorage::resolveDailyPath(
         today, core::FeatureModules::hasCapability(core::Capability::MarkdownSupport));
-    if (Storage.exists(targetPath.c_str())) {
-      content = Storage.readFile(targetPath.c_str()).c_str();
-    }
+    content = TodoPlannerStorage::readDailyFileCapped(targetPath);
   }
 
   std::vector<TodoItem> items;
