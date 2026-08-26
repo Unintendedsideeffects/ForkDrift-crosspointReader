@@ -104,6 +104,19 @@ EOF
   echo "        build_cache_dir = $CACHE_DIR  (shared)"
 fi
 
+# platformio-custom.ini is the generated feature profile and is also gitignored, so a
+# fresh tree has no `custom` env at all and `pio run -e custom` fails with
+# "Unknown environment names 'custom'". Copy the one this checkout is using so the
+# agent tree builds the same profile the device is running.
+if [ -f "$MAIN_CHECKOUT/platformio-custom.ini" ]; then
+  if [ -e "$TARGET/platformio-custom.ini" ]; then
+    echo "note: platformio-custom.ini already present, leaving it alone"
+  else
+    cp "$MAIN_CHECKOUT/platformio-custom.ini" "$TARGET/platformio-custom.ini"
+    echo "copied: platformio-custom.ini (feature profile)"
+  fi
+fi
+
 if [ "$LINK_LIBDEPS" -eq 1 ]; then
   if [ -e "$TARGET/.pio" ]; then
     echo "note: $TARGET/.pio already exists, not replacing it"
