@@ -17,7 +17,9 @@ class BookMetadataCache {
   // v9: ambiguous guide type="text" references are no longer stored as the
   // reading start location, so a v8 cache carries a textReferenceHref this
   // build would never have written.
-  static constexpr uint8_t kFormatVersion = 9;
+  // v10: added hasDeflatedEntries flag — whether any ZIP entry uses DEFLATE
+  // compression, used to conditionally reserve the 32 KB inflate window.
+  static constexpr uint8_t kFormatVersion = 10;
 
   struct BookMetadata {
     std::string title;
@@ -71,6 +73,7 @@ class BookMetadataCache {
   uint16_t tocCount;
   bool loaded;
   bool buildMode;
+  bool hasDeflatedEntries = false;
 
   // One-entry memo cache for spine and toc entries (avoid repeated SD seeks)
   int cachedSpineIndex = -1;
@@ -145,4 +148,6 @@ class BookMetadataCache {
   int getSpineCount() const { return spineCount; }
   int getTocCount() const { return tocCount; }
   bool isLoaded() const { return loaded; }
+  bool getHasDeflatedEntries() const { return hasDeflatedEntries; }
+  void setHasDeflatedEntries(bool v) { hasDeflatedEntries = v; }
 };

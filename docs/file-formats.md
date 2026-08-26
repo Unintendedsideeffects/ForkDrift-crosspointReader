@@ -6,7 +6,7 @@ This document describes the binary serialization formats of the book metadata (`
 
 ## 1. Metadata Cache (`book.bin`)
 
-### Version 9
+### Version 10
 
 The `book.bin` file contains parsed EPUB metadata, including the Table of Contents (TOC) and Spine entry mappings, to avoid parsing the zip package and XML at every startup.
 
@@ -15,7 +15,7 @@ The `book.bin` file contains parsed EPUB metadata, including the Table of Conten
 ```text
 ┌─────────────────────────────────────────────────────────┐
 │ HEADER                                                  │
-│ - version (u8) [value = 9]                              │
+│ - version (u8) [value = 10]                             │
 │ - lutOffset (u32)                                       │
 │ - spineCount (u16)                                      │
 │ - tocCount (u16)                                        │
@@ -26,6 +26,7 @@ The `book.bin` file contains parsed EPUB metadata, including the Table of Conten
 │ - language (String)                                     │
 │ - coverItemHref (String)                                │
 │ - textReferenceHref (String)                            │
+│ - hasDeflatedEntries (u8)                               │
 ├─────────────────────────────────────────────────────────┤
 │ LOOKUP TABLES (LUTs)                                    │
 │ - spineLut (u32[spineCount])                            │
@@ -52,7 +53,7 @@ The `book.bin` file contains parsed EPUB metadata, including the Table of Conten
 #### Header
 | Field Name | Type | Description |
 |---|---|---|
-| `version` | `u8` | Format version. Must be **`6`**. |
+| `version` | `u8` | Format version. Must be **`10`**. |
 | `lutOffset` | `u32` | File offset of the start of the Lookup Tables (LUTs) from the beginning of the file. |
 | `spineCount` | `u16` | Total number of spine entries. |
 | `tocCount` | `u16` | Total number of Table of Contents entries. |
@@ -64,6 +65,7 @@ All strings are written sequentially using the `String` length-prefixed represen
 - `language` (String): The book's language code (e.g., `"en"`).
 - `coverItemHref` (String): Internal EPUB path/href to the cover image.
 - `textReferenceHref` (String): Reference to the first readable text section.
+- `hasDeflatedEntries` (u8): 1 if any ZIP entry uses DEFLATE compression (needs the 32 KB inflate window), 0 otherwise. Added in v10.
 
 #### Lookup Tables (LUTs)
 Located at `lutOffset`. Contains the absolute file offsets of each data entry block for fast random access.

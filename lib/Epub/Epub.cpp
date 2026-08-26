@@ -3,6 +3,7 @@
 #include <FsHelpers.h>
 #include <HalStorage.h>
 #include <ImageConverter.h>
+#include <InflateReader.h>
 #include <JpegToBmpConverter.h>
 #include <Logging.h>
 #include <PngToBmpConverter.h>
@@ -447,6 +448,18 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
 
   // Try to load existing cache first
   if (bookMetadataCache->load()) {
+    // Reserve the 32 KB inflate window only when the book actually contains
+    // deflated ZIP entries. Stored-only books never need it, so skipping
+    // preserves ~32 KB of contiguous heap for layout. The flag is computed
+    // once during buildBookBin and persisted in book.bin.
+    const bool needsWindow = bookMetadataCache->getHasDeflatedEntries();
+    LOG_INF("EBP", "Inflate window: %s (cached hasDeflatedEntries=%d)",
+            needsWindow ? "reserving" : "not needed for this book", needsWindow ? 1 : 0);
+    if (needsWindow) {
+      if (!InflateReader::ensureSharedWindow()) {
+        LOG_ERR("EBP", "Failed to reserve inflate window for deflated book");
+      }
+    }
     if (!skipLoadingCss) {
       if (loadCssRulesFromCache()) {
         // The load doubles as a validity probe for the cache; the rules
@@ -486,6 +499,16 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
   // Cache doesn't exist or is invalid, build it
   LOG_DBG("EBP", "Cache not found, building spine/TOC cache");
   setupCacheDir();
+
+  // Cache miss: reserve the inflate window defensively. Acquiring it now,
+  // while the heap is still whole, is the only reliable way — the window
+  // allocation fails after fragmentation sets in mid-session. Wrongly
+  // reserving costs ~32 KB of heap; wrongly skipping strands the reader on
+  // chapters that need decompression.
+  LOG_INF("EBP", "Inflate window: reserving defensively (no cached flag yet)");
+  if (!InflateReader::ensureSharedWindow()) {
+    LOG_ERR("EBP", "Failed to pre-allocate inflate window (cache miss)");
+  }
 
   const uint32_t indexingStart = millis();
 

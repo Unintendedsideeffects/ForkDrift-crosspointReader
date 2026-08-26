@@ -1,5 +1,7 @@
 #include "InflateReader.h"
 
+#include <Logging.h>
+
 #include <cstring>
 #include <type_traits>
 
@@ -58,6 +60,18 @@ void InflateReader::releaseSharedWindow() {
   }
   free(g_sharedWindow);
   g_sharedWindow = nullptr;
+}
+
+bool InflateReader::ensureSharedWindow() {
+  if (g_sharedWindow != nullptr) {
+    return true;  // already allocated
+  }
+  g_sharedWindow = static_cast<uint8_t*>(malloc(INFLATE_DICT_SIZE));
+  if (g_sharedWindow == nullptr) {
+    LOG_ERR("INF", "Failed to pre-allocate inflate window (%u bytes)", (unsigned)INFLATE_DICT_SIZE);
+    return false;
+  }
+  return true;
 }
 
 void InflateReader::deinit() {

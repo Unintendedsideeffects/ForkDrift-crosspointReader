@@ -68,6 +68,12 @@ class InflateReader {
   // run. See docs/FINDINGS.md 2026-08-15.
   static void releaseSharedWindow();
 
+  // Pre-allocate the process-wide 32 KB inflate window if not already claimed.
+  // Safe and idempotent — call early (e.g. at book-open) while the heap is
+  // still unfragmented, before any inflate operation needs it.  Returns true
+  // when the window is ready (either pre-existing or freshly allocated).
+  static bool ensureSharedWindow();
+
   // Set the entire compressed input as a contiguous memory buffer.
   // Used in one-shot mode; not needed when a read callback is set.
   void setSource(const uint8_t* src, size_t len);

@@ -121,9 +121,22 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
 
   constexpr uint32_t headerASize =
       sizeof(BOOK_CACHE_VERSION) + /* LUT Offset */ sizeof(uint32_t) + sizeof(spineCount) + sizeof(tocCount);
+  // Decide whether this book needs the 32 KB inflate window, BEFORE the value is
+  // written out below. hasAnyDeflated() opens the zip itself (ScopedOpenClose), so
+  // this does not depend on the zip.open() further down.
+  //
+  // Ordering matters and the failure is silent: computing it after the write
+  // persists the default (false), so every book caches as "no deflate". The first
+  // open still works -- the cache-miss path reserves defensively -- but every
+  // reopen reads false, skips the reservation, and strands the reader again.
+  {
+    ZipFile methodProbe(epubPath);
+    hasDeflatedEntries = methodProbe.hasAnyDeflated();
+  }
+
   const uint32_t metadataSize = metadata.title.size() + metadata.author.size() + metadata.language.size() +
                                 metadata.coverItemHref.size() + metadata.textReferenceHref.size() +
-                                sizeof(uint32_t) * 5;
+                                sizeof(uint32_t) * 5 + sizeof(uint8_t);  // +1 for hasDeflatedEntries
   const uint32_t lutSize = sizeof(uint32_t) * spineCount + sizeof(uint32_t) * tocCount;
   const uint32_t lutOffset = headerASize + metadataSize;
 
@@ -138,6 +151,7 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
   serialization::writeString(bookFile, metadata.language);
   serialization::writeString(bookFile, metadata.coverItemHref);
   serialization::writeString(bookFile, metadata.textReferenceHref);
+  serialization::writePod(bookFile, static_cast<uint8_t>(hasDeflatedEntries ? 1 : 0));
 
   // Loop through spine entries, writing LUT positions
   spineFile.seek(0);
@@ -402,6 +416,16 @@ bool BookMetadataCache::load() {
     // Explicit close() required: member variable persists beyond function scope
     bookFile.close();
     return false;
+  }
+
+  {
+    uint8_t deflatedFlag = 0;
+    if (!serialization::readPod(bookFile, deflatedFlag)) {
+      LOG_ERR("BMC", "Truncated or corrupt book.bin (hasDeflatedEntries); rejecting cache");
+      bookFile.close();
+      return false;
+    }
+    hasDeflatedEntries = deflatedFlag != 0;
   }
 
   loaded = true;

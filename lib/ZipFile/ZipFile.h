@@ -71,6 +71,11 @@ class ZipFile {
   uint8_t* readFileToMemory(const char* filename, size_t* size = nullptr, bool trailingNullByte = false);
   bool readFileToStream(const char* filename, Print& out, size_t chunkSize);
 
+  // Returns true if any entry in the ZIP central directory uses DEFLATED compression.
+  // Walks the central directory once; O(entries). Used to decide whether the 32 KB
+  // inflate window is needed for this book.
+  bool hasAnyDeflated();
+
   // Enumerate entry paths. Uses the stat-slim cache when already loaded;
   // otherwise streams the central directory without building the in-memory
   // map (a zip-wide stat scan on a ~3k-entry EPUB is a large allocation).

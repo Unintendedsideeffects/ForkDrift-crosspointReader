@@ -5,6 +5,7 @@
 #include <Logging.h>
 
 #include <algorithm>
+#include <cstring>
 
 struct ZipInflateCtx {
   InflateReader reader;  // Must be first — callback casts uzlib_uncomp* to ZipInflateCtx*
@@ -17,6 +18,7 @@ struct ZipInflateCtx {
 namespace {
 constexpr uint16_t ZIP_METHOD_STORED = 0;
 constexpr uint16_t ZIP_METHOD_DEFLATED = 8;
+constexpr uint32_t ZIP_CENTRAL_DIR_SIG = 0x02014b50;
 
 // RAII zip: opens the zip if not already open, closes on destruction only if
 // it performed the open.  Removes the wasOpen/close boilerplate from every method.
@@ -375,6 +377,56 @@ int ZipFile::fillUncompressedSizes(std::deque<SizeTarget>& targets, std::deque<u
   }
 
   return matched;
+}
+
+bool ZipFile::hasAnyDeflated() {
+  const ScopedOpenClose zip{*this};
+  if (!zip) return false;
+  if (!loadZipDetails()) return false;
+
+  file.seek(zipDetails.centralDirOffset);
+
+  // Central directory file header, relative to the 4-byte signature:
+  //   +4  version made by (2)      +6  version needed (2)   +8  flags (2)
+  //   +10 COMPRESSION METHOD (2)   +12 mod time (2)         +14 mod date (2)
+  //   +16 crc32 (4)                +20 compressed size (4)  +24 uncompressed size (4)
+  //   +28 name length (2)          +30 extra length (2)     +32 comment length (2)
+  //   +34 disk start (2)           +36 internal attrs (2)   +38 external attrs (4)
+  //   +42 local header offset (4)  +46 name / extra / comment
+  //
+  // Walking this by hand is easy to get subtly wrong, and a desync here is silent:
+  // it reads filename bytes as field lengths, seeks by a garbage amount, hits EOF and
+  // reports "nothing deflated" for a book that is entirely deflated. EPUB requires the
+  // "mimetype" entry to be first and STORED, so a broken walk desyncs on entry one for
+  // essentially every book. Read the fixed header as one block and index it explicitly.
+  constexpr size_t kFixedHeaderAfterSig = 42;  // +4 .. +46
+  uint8_t hdr[kFixedHeaderAfterSig];
+
+  while (true) {
+    uint32_t sig = 0;
+    // HalFile::read returns int on device and size_t in the host mock; normalise
+    // through a signed local so a short read compares correctly in both builds.
+    const int sigRead = static_cast<int>(file.read(&sig, sizeof(sig)));
+    if (sigRead != static_cast<int>(sizeof(sig))) break;
+    if (sig != ZIP_CENTRAL_DIR_SIG) break;  // reached the end-of-central-dir record
+
+    const int hdrRead = static_cast<int>(file.read(hdr, sizeof(hdr)));
+    if (hdrRead != static_cast<int>(sizeof(hdr))) break;
+
+    // memcpy rather than a pointer cast: the ESP32-C3 faults on unaligned multi-byte
+    // loads, and these fields are at arbitrary offsets within the buffer.
+    uint16_t method = 0, nameLen = 0, extraLen = 0, commentLen = 0;
+    memcpy(&method, hdr + 6, sizeof(method));  // +10 absolute
+    if (method == ZIP_METHOD_DEFLATED) return true;
+
+    memcpy(&nameLen, hdr + 24, sizeof(nameLen));        // +28 absolute
+    memcpy(&extraLen, hdr + 26, sizeof(extraLen));      // +30 absolute
+    memcpy(&commentLen, hdr + 28, sizeof(commentLen));  // +32 absolute
+
+    if (!file.seekCur(static_cast<int32_t>(nameLen) + extraLen + commentLen)) break;
+  }
+
+  return false;
 }
 
 uint8_t* ZipFile::readFileToMemory(const char* filename, size_t* size, const bool trailingNullByte) {
