@@ -19,9 +19,18 @@
 namespace {
 
 std::string getCachePath(const std::string& imagePath) {
-  // Replace extension with .pxc (pixel cache)
-  size_t dotPos = imagePath.rfind('.');
-  if (dotPos != std::string::npos) {
+  // Replace the extension with .pxc (pixel cache).
+  //
+  // The dot must come after the last '/' to count as an extension separator.
+  // Extracted images live at "/.crosspoint/epub_<hash>/img_<spine>_<n>" and
+  // O'Reilly EPUBs name their sources without an extension, so a bare rfind('.')
+  // matched the dot in "/.crosspoint" and truncated the whole path: EVERY such
+  // image cached to a single "/.pxc" at the SD root. Figures then overwrote one
+  // another and a page could render a bitmap belonging to a different image.
+  const size_t dotPos = imagePath.rfind('.');
+  const size_t slashPos = imagePath.rfind('/');
+  const bool hasExtension = dotPos != std::string::npos && (slashPos == std::string::npos || dotPos > slashPos);
+  if (hasExtension) {
     return imagePath.substr(0, dotPos) + ".pxc";
   }
   return imagePath + ".pxc";
