@@ -30,7 +30,13 @@ namespace {
 // a closed block no longer leaks its style onto immediately-following bare
 // text. All four change what layoutAndExtractLines() emits, so cached pages
 // built by v33 no longer match.
-constexpr uint8_t SECTION_FILE_VERSION = 34;
+// v35: progressive-JPEG figures are now laid out at 2x their DC-only decoded
+// size rather than the full container width. JPEGDEC returns a 1/8-size image
+// for a progressive file (first scan only), so the old box stretched that data
+// ~3.6x and the dither turned the block edges into noise. The image element's
+// width/height change, so v34 pages -- and the .pxc pixel caches keyed to their
+// dimensions -- no longer match.
+constexpr uint8_t SECTION_FILE_VERSION = 35;
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) +
                                  sizeof(bool) + sizeof(bool) + sizeof(uint8_t) + sizeof(bool) + sizeof(bool) +

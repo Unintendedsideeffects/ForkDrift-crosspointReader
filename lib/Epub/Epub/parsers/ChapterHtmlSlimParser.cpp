@@ -63,7 +63,9 @@ constexpr size_t kFootnoteGrowthGuardBytes = 8 * 1024;
 // the heap floor and laid them out to zero elements.
 //
 // Shared with SleepActivity's pinned-image path, which failed the same way.
-bool probeImageDimensions(const std::string& path, ImageDimensions& out) { return imagedims::probeFromFile(path, out); }
+bool probeImageDimensions(const std::string& path, ImageDimensions& out, bool* outProgressive = nullptr) {
+  return imagedims::probeFromFile(path, out, outProgressive);
+}
 
 constexpr const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
 constexpr const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "pre"};
@@ -985,7 +987,8 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
             if (extractSuccess) {
               // Get image dimensions
               ImageDimensions dims = {0, 0};
-              bool gotDimensions = probeImageDimensions(cachedImagePath, dims);
+              bool isProgressiveJpeg = false;
+              bool gotDimensions = probeImageDimensions(cachedImagePath, dims, &isProgressiveJpeg);
               if (!gotDimensions) {
                 // Fallback for a header the probe could not find (rare). This is
                 // the path that instantiates a decoder, so it is also the path
@@ -1097,6 +1100,46 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                   displayWidth = (int)(dims.width * scale);
                   displayHeight = (int)(dims.height * scale);
                   LOG_DBG("EHP", "Display size: %dx%d (scale %.2f)", displayWidth, displayHeight, scale);
+                }
+
+                // Progressive JPEGs carry far less information than their header
+                // dimensions advertise. JPEGDEC decodes only the first (DC) scan --
+                // one flat average per 8x8 block -- and returns a 1/8-size image, so
+                // a nominal 900x584 O'Reilly figure is really 112x73. Painting that
+                // at the full container width stretches the DC grid ~3.6x; each flat
+                // block lands as a ~3.6px square and the 1-bit dither renders those
+                // block edges as structured noise. That is the "garbled figures"
+                // defect on O'Reilly EPUBs, whose images are ~98% progressive.
+                //
+                // Clamp to 2x the decoded size. 2x rather than 1x deliberately: the
+                // dither needs several pixels per block to express a grey level
+                // through spatial density, and at 1x every DC block collapses to a
+                // single bit. Past 2x we only magnify block artifacts -- there is no
+                // further detail to recover.
+                //
+                // This belongs here rather than in the decoder because ImageBlock
+                // renders through a .pxc pixel cache that is rejected when its stored
+                // dimensions differ from the laid-out box by more than a pixel. Capping
+                // at decode time would invalidate that cache on every read and force a
+                // fresh decode for each grayscale strip pass (~14x per page). Sizing
+                // the box here keeps layout, cache, and decode agreeing on one number.
+                //
+                // Applied after every CSS branch above on purpose: these EPUBs style
+                // their figures `width: 100%`, so clamping the intrinsic dims before
+                // CSS resolution would be silently overridden.
+                if (isProgressiveJpeg && dims.width > 0 && displayWidth > 0) {
+                  const int dcWidth = dims.width / 8;  // JPEGDEC's forced JPEG_SCALE_EIGHTH
+                  const int capWidth = dcWidth * 2;
+                  if (capWidth > 0 && displayWidth > capWidth) {
+                    const int cappedHeight =
+                        static_cast<int>((static_cast<int64_t>(displayHeight) * capWidth) / displayWidth);
+                    if (cappedHeight > 0) {
+                      LOG_INF("EHP", "Progressive JPEG: capping %dx%d -> %dx%d (2x DC-only %dx%d)", displayWidth,
+                              displayHeight, capWidth, cappedHeight, dcWidth, dims.height / 8);
+                      displayWidth = capWidth;
+                      displayHeight = cappedHeight;
+                    }
+                  }
                 }
 
                 // Flush any pending text block so it appears before the image

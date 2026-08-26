@@ -2,6 +2,7 @@
 
 #include <BookCachePath.h>
 #include <Epub/Page.h>
+#include <Epub/blocks/ImageBlock.h>
 #include <Epub/blocks/TextBlock.h>
 #include <FontCacheManager.h>
 #include <FsHelpers.h>
@@ -300,6 +301,11 @@ void EpubReaderActivity::renderReaderError(StrId messageId) {
 void EpubReaderActivity::onEnter() {
   Activity::onEnter();
   mappedInput.setReaderMode(true);
+
+  // Start each reading session with a clean slate: an image that failed to
+  // decode last session may simply have hit a transient low-heap moment, and
+  // should get another chance rather than showing a placeholder forever.
+  ImageBlock::clearSessionRenderFailures();
 
   // Both background servers must be down BEFORE the book load allocates, not after.
   //

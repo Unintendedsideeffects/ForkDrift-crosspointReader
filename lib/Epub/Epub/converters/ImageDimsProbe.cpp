@@ -82,6 +82,7 @@ bool ImageDimsProbe::feed(const uint8_t b) {
         return false;
       }
       sofPending = isJpegSof(b);
+      if (sofPending) sofMarker = b;
       state = State::JpegLenHi;
       return true;
 
@@ -162,7 +163,7 @@ constexpr size_t kProbeMaxBytes = 32 * 1024;
 constexpr int kMaxProbeAttempts = 3;
 constexpr unsigned long kRetryDelayMs = 50;
 
-bool probeFromFileOnce(const std::string& path, ImageDimensions& out) {
+bool probeFromFileOnce(const std::string& path, ImageDimensions& out, bool* outProgressive) {
   HalFile file;
   if (!Storage.openFileForRead("IDP", path, file)) {
     return false;
@@ -182,16 +183,21 @@ bool probeFromFileOnce(const std::string& path, ImageDimensions& out) {
       break;
     }
   }
-  return probe.getDimensions(out);
+  if (!probe.getDimensions(out)) {
+    return false;
+  }
+  if (outProgressive) *outProgressive = probe.isProgressiveJpeg();
+  return true;
 }
 }  // namespace
 
-bool probeFromFile(const std::string& path, ImageDimensions& out) {
+bool probeFromFile(const std::string& path, ImageDimensions& out, bool* outProgressive) {
+  if (outProgressive) *outProgressive = false;
   for (int attempt = 0; attempt < kMaxProbeAttempts; attempt++) {
     if (attempt > 0) {
       delay(kRetryDelayMs);  // Only reached after a failed probe -- let a slow SD card finish syncing.
     }
-    if (probeFromFileOnce(path, out)) {
+    if (probeFromFileOnce(path, out, outProgressive)) {
       return true;
     }
   }

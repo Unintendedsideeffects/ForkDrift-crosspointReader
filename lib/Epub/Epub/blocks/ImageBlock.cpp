@@ -18,6 +18,39 @@
 
 namespace {
 
+// Pages are deserialized afresh on each visit, and the tiled grayscale flow
+// re-renders an image page once for the BW pass and again for every band of both
+// gray planes (~14 passes). Without a memo, an image that cannot decode is
+// re-attempted on every one of those passes. Keep a bounded, allocation-free
+// record so it renders its placeholder directly for the rest of the session.
+// EpubReaderActivity clears this on entry so transient memory/storage failures
+// are retried. Ported from upstream/develop, which already carried this.
+constexpr size_t MAX_SESSION_IMAGE_FAILURES = 16;
+uint64_t failedImageHashes[MAX_SESSION_IMAGE_FAILURES];
+size_t failedImageCount = 0;
+
+uint64_t imagePathHash(const std::string& path) {
+  uint64_t hash = 14695981039346656037ull;  // FNV-1a
+  for (const char c : path) {
+    hash ^= static_cast<uint8_t>(c);
+    hash *= 1099511628211ull;
+  }
+  return hash;
+}
+
+bool imageFailedThisSession(const std::string& path) {
+  const uint64_t hash = imagePathHash(path);
+  for (size_t i = 0; i < failedImageCount; i++) {
+    if (failedImageHashes[i] == hash) return true;
+  }
+  return false;
+}
+
+void rememberImageFailure(const std::string& path) {
+  if (failedImageCount == MAX_SESSION_IMAGE_FAILURES || imageFailedThisSession(path)) return;
+  failedImageHashes[failedImageCount++] = imagePathHash(path);
+}
+
 std::string getCachePath(const std::string& imagePath) {
   // Replace the extension with .pxc (pixel cache).
   //
@@ -166,6 +199,13 @@ void ImageBlock::render(GfxRenderer& renderer, const int x, const int y) {
     return;
   }
 
+  // An image that already failed this session renders its placeholder straight
+  // away: no re-open, no re-probe, no re-decode on the next grayscale band.
+  if (imageFailedThisSession(imagePath)) {
+    renderPlaceholder(renderer, x, y);
+    return;
+  }
+
   // Try to render from cache first
   std::string cachePath = getCachePath(imagePath);
   if (renderFromCache(renderer, cachePath, x, y, width, height)) {
@@ -211,8 +251,28 @@ void ImageBlock::render(GfxRenderer& renderer, const int x, const int y) {
   bool success = decoder->decodeToFramebuffer(imagePath, renderer, config);
   if (!success) {
     LOG_ERR("IMG", "Failed to decode image: %s", imagePath.c_str());
+    // A decoder writes straight to the framebuffer as it walks the image, so a
+    // mid-decode failure leaves the rows it already painted on screen and the
+    // rest of the box untouched -- bands of stripes rather than a missing
+    // figure. O'Reilly's progressive JPEGs hit this on almost every image,
+    // because JPEGDEC aborts partway through the DC scan of a non-interleaved
+    // first scan. Draw an explicit placeholder over the box, and remember the
+    // failure so the remaining ~14 render passes for this page skip it.
+    rememberImageFailure(imagePath);
+    renderPlaceholder(renderer, x, y);
     return;
   }
 
   LOG_DBG("IMG", "Decode successful");
 }
+
+// A hairline border with a white interior: reads as a deliberately empty figure
+// slot rather than as a rendering glitch or an unexplained gap in the text.
+void ImageBlock::renderPlaceholder(GfxRenderer& renderer, const int x, const int y) const {
+  renderer.fillRect(x, y, width, height, true);
+  if (width > 2 && height > 2) {
+    renderer.fillRect(x + 1, y + 1, width - 2, height - 2, false);
+  }
+}
+
+void ImageBlock::clearSessionRenderFailures() { failedImageCount = 0; }

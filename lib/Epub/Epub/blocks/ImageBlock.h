@@ -21,10 +21,16 @@ class ImageBlock final : public Block {
   bool isEmpty() override { return false; }
 
   void render(GfxRenderer& renderer, const int x, const int y);
+
+  // Forget this session's decode failures so a transient memory/storage problem
+  // is retried. The reader calls this on entry. Ported from upstream/develop.
+  static void clearSessionRenderFailures();
   bool serialize(serialization::BufferedWriter& file);
   static std::unique_ptr<ImageBlock> deserialize(serialization::BufferedReader& file);
 
  private:
+  void renderPlaceholder(GfxRenderer& renderer, int x, int y) const;
+
   std::string imagePath;
   int16_t width;
   int16_t height;

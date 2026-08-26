@@ -33,6 +33,14 @@ class ImageDimsProbe : public Print {
   // True only when a valid header was found; fills `out`.
   bool getDimensions(ImageDimensions& out) const;
 
+  // True when the frame header was a progressive-DCT SOF2. JPEGDEC decodes only
+  // the first (DC) scan of such a file and returns a 1/8-size image, so layout
+  // must not size the figure as though full resolution were available. Matches
+  // JPEGDEC's own `ucMode == 0xc2` test exactly -- the other progressive-family
+  // markers (C6 differential, CA arithmetic) are not handled by that decoder at
+  // all and fail earlier, so widening this test would not buy anything.
+  bool isProgressiveJpeg() const { return sofMarker == 0xC2; }
+
  private:
   bool feed(uint8_t b);  // returns false once parsing is finished (found or failed)
 
@@ -54,6 +62,7 @@ class ImageDimsProbe : public Print {
   uint32_t skipLeft = 0;  // remaining segment bytes to skip
   uint16_t segLen = 0;
   bool sofPending = false;  // current segment is a SOF frame header
+  uint8_t sofMarker = 0;    // the SOFn marker byte that produced the dimensions
   uint8_t sofBuf[5] = {0};
   uint8_t sofFill = 0;
   // 32-bit: PNG IHDR width/height are 4-byte fields. Accumulating them in a
@@ -75,6 +84,7 @@ namespace imagedims {
 //
 // Returns false for formats this probe does not understand (notably BMP), so
 // callers that must support those should fall back to the decoder.
-bool probeFromFile(const std::string& path, ImageDimensions& out);
+// `outProgressive`, when non-null, receives true for a progressive-DCT JPEG.
+bool probeFromFile(const std::string& path, ImageDimensions& out, bool* outProgressive = nullptr);
 
 }  // namespace imagedims
