@@ -2,6 +2,7 @@
 // Host test stub — replaces the real HalStorage/HalFile with an
 // in-memory implementation suitable for unit testing.
 
+#include "Print.h"
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -69,6 +70,7 @@ class HalFile {
     return n;
   }
   size_t read(char* data, size_t len) { return read(reinterpret_cast<uint8_t*>(data), len); }
+  size_t read(void* data, size_t len) { return read(reinterpret_cast<uint8_t*>(data), len); }
   int read() {
     if (!buf_ || pos_ >= buf_->size()) return -1;
     return static_cast<int>((*buf_)[pos_++]);

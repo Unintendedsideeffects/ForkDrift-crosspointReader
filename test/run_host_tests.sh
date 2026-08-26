@@ -100,6 +100,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -I"$ROOT_DIR/lib/Markdown" \
   -I"$ROOT_DIR/lib/Memory" \
   -I"$ROOT_DIR/lib/InflateReader" \
+  -I"$ROOT_DIR/lib/ZipFile" \
   -I"$ROOT_DIR/lib/miniz/src" \
   -I"$ROOT_DIR/lib/PngToBmpConverter" \
   -I"$ROOT_DIR/lib/third_party/uzlib/src" \
@@ -209,6 +210,8 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/NotesStore.cpp" \
   "$ROOT_DIR/src/activities/home/HomeCarouselCache.cpp" \
   "$ROOT_DIR/lib/Epub/Epub/ParsedText.cpp" \
+  "$ROOT_DIR/lib/Epub/Epub/BookMetadataCache.cpp" \
+  "$ROOT_DIR/lib/ZipFile/ZipFile.cpp" \
   "$ROOT_DIR/test/mock/GfxRendererTestStub.cpp" \
   "$BUILD_DIR/md4c.o" \
   "$BUILD_DIR/entity.o" \
