@@ -7,6 +7,7 @@ Profiles: lean, standard, full (see --list-features).
 """
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, List
@@ -16,6 +17,24 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import feature_manifest
+
+
+def git_commit_count() -> str:
+    """Return HEAD's commit count (capped at 5 digits), or 0 if unavailable."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD"],
+            cwd=Path(__file__).resolve().parent.parent,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return "0"
+        count = int(result.stdout.strip())
+        return str(min(count, 99999))
+    except Exception:
+        return "0"
 
 
 class Feature:
@@ -199,6 +218,13 @@ def generate_platformio_ini(enabled_features: Dict[str, bool], output_path: Path
     build_flags = generate_build_flags(enabled_features)
     estimated_size = calculate_size(enabled_features)
 
+    # Profile token embedded in the version string must be a plain lowercase
+    # [a-z0-9_]+ token for the on-device parser (e.g. "full+overrides" -> "full_overrides").
+    version_profile = "".join(c if (c.isalnum()) else "_" for c in profile_name).lower()
+    if not version_profile:
+        version_profile = "custom"
+    version_profile = version_profile[:32]
+
     # Generate feature list for comment
     enabled_list = []
     disabled_list = []
@@ -229,7 +255,7 @@ def generate_platformio_ini(enabled_features: Dict[str, bool], output_path: Path
 extends = base
 build_flags =
   ${{base.build_flags}}
-  -DCROSSPOINT_VERSION=\\"${{crosspoint.version}}-{profile_name}\\"
+  -DCROSSPOINT_VERSION=\\"${{crosspoint.version}}-dev+{git_commit_count()}-{version_profile}\\"
   -DENABLE_SERIAL_LOG
   -DLOG_LEVEL=0
 {chr(10).join(f'  {flag}' for flag in build_flags)}
@@ -237,8 +263,6 @@ build_flags =
 
     output_path.write_text(content)
     print(f"Generated {output_path}")
-    print(f"Estimated firmware size: ~{estimated_size:.1f}MB")
-    print(f"\nEnabled features:")
     for name in enabled_list:
         print(f"  ✓ {name}")
     if disabled_list:

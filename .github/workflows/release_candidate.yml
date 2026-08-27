@@ -31,6 +31,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
+          fetch-depth: 0  # full history needed for accurate commit count
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
@@ -62,12 +63,18 @@ jobs:
       - name: Extract env
         id: extract_env
         run: |
-          echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
           echo "branch_suffix=${GITHUB_REF_NAME#release/}" >> $GITHUB_OUTPUT
+
+      - name: Compute build count
+        id: build_count
+        run: |
+          COUNT=$(git rev-list --count HEAD)
+          COUNT=$((COUNT > 99999 ? 99999 : COUNT))
+          echo "count=${COUNT}" >> $GITHUB_OUTPUT
 
       - name: Build CrossPoint Release Candidate
         env:
-          CROSSPOINT_RC_HASH: ${{ steps.extract_env.outputs.short_sha }}
+          CROSSPOINT_RC_COUNT: ${{ steps.build_count.outputs.count }}
         run: uv run pio run -e gh_release_rc
 
       - name: Upload Artifacts

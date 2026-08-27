@@ -18,6 +18,7 @@
 #include "esp_ota_ops.h"
 #include "esp_wifi.h"
 #include "network/ota/FirmwareFlasher.h"
+#include "util/FirmwareVersion.h"
 #include "util/TimeSync.h"
 
 namespace {
@@ -196,36 +197,6 @@ bool markFactoryResetPending() {
 
   LOG_INF("OTA", "Factory reset marker created: %s", factoryResetMarkerFile);
   return true;
-}
-
-bool parseSemver(const std::string& version, int& major, int& minor, int& patch) {
-  const char* versionStr = version.c_str();
-  if (versionStr[0] == 'v' || versionStr[0] == 'V') {
-    versionStr += 1;
-  }
-  return sscanf(versionStr, "%d.%d.%d", &major, &minor, &patch) == 3;
-}
-
-// "12345-dev" → commit count format. Returns true and sets count on match.
-bool parseCommitDev(const std::string& v, unsigned long& count) {
-  if (v.size() < 5 || v.compare(v.size() - 4, 4, "-dev") != 0) return false;
-  const auto numStr = v.substr(0, v.size() - 4);
-  if (numStr.empty()) return false;
-  for (const char c : numStr) {
-    if (c < '0' || c > '9') return false;
-  }
-  return sscanf(numStr.c_str(), "%lu", &count) == 1;
-}
-
-// "20240218" → YYYYMMDD date format. Returns true and sets date on match.
-bool parseBuildDate(const std::string& v, unsigned long& date) {
-  if (v.size() != 8) return false;
-  for (const char c : v) {
-    if (c < '0' || c > '9') return false;
-  }
-  if (sscanf(v.c_str(), "%lu", &date) != 1) return false;
-  // Sanity check: must look like a real date after year 2020
-  return date >= 20200101UL && date <= 29991231UL;
 }
 
 /*
@@ -606,7 +577,8 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   }
 
   // Use the release title (name) as the build version identifier — it carries
-  // meaningful version strings like "12345-dev", "20240218", or "1.0.0".
+  // the unified canonical version string (e.g. "1.4.1", "1.4.1-rc+4231",
+  // "1.4.1-dev+8542", or "1.4.1-nightly+20260227").
   // Fall back to tag_name for older releases that predate this convention.
   latestVersion = parsedReleaseName.isEmpty() ? parsedTag.c_str() : parsedReleaseName.c_str();
 
@@ -735,46 +707,26 @@ bool OtaUpdater::isUpdateNewer() const {
     return false;
   }
 
-  const std::string currentV(CROSSPOINT_VERSION);
-  const std::string& latestV = latestVersion;
-
-  // --- Commit-dev format: "12345-dev" ---
-  unsigned long latestCommit = 0, currentCommit = 0;
-  const bool latestIsCommitDev = parseCommitDev(latestV, latestCommit);
-  const bool currentIsCommitDev = parseCommitDev(currentV, currentCommit);
-  if (latestIsCommitDev && currentIsCommitDev) {
-    return latestCommit > currentCommit;
+  // A feature-store bundle is an explicit user selection, not an automatic
+  // channel check. Its version field is a channel keyword ("latest"/"nightly"/
+  // "dev") rather than a comparable canonical string, so never block install on
+  // version comparison — the user has already chosen this exact bundle.
+  if (!selectedBundleId.isEmpty()) {
+    return true;
   }
 
-  // --- Date format: "YYYYMMDD" ---
-  unsigned long latestDate = 0, currentDate = 0;
-  const bool latestIsDate = parseBuildDate(latestV, latestDate);
-  const bool currentIsDate = parseBuildDate(currentV, currentDate);
-  if (latestIsDate && currentIsDate) {
-    return latestDate > currentDate;
+  // All environments emit the unified canonical format, so a single comparison
+  // covers every channel (stable / rc / dev / nightly) and profile. See
+  // util/FirmwareVersion.h. Unknown or malformed latest versions are never
+  // treated as newer (conservative — we never want to offer a downgrade or an
+  // unverifiable install).
+  const firmware_version::Version current = firmware_version::parse(CROSSPOINT_VERSION);
+  const firmware_version::Version latest = firmware_version::parse(latestVersion);
+  if (!current.valid || !latest.valid) {
+    return false;
   }
 
-  // --- Semver: "1.2.3" or "v1.2.3" ---
-  int latestMaj = 0, latestMin = 0, latestPat = 0;
-  int currentMaj = 0, currentMin = 0, currentPat = 0;
-  const bool latestIsSemver = parseSemver(latestV, latestMaj, latestMin, latestPat);
-  const bool currentIsSemver = parseSemver(currentV, currentMaj, currentMin, currentPat);
-  if (latestIsSemver && currentIsSemver) {
-    if (latestMaj != currentMaj) return latestMaj > currentMaj;
-    if (latestMin != currentMin) return latestMin > currentMin;
-    if (latestPat != currentPat) return latestPat > currentPat;
-    // Equal semver segments: still offer the update if currently on a pre-release
-    // (e.g. RC build getting the final stable, or dev/custom suffix builds).
-    return strstr(currentV.c_str(), "-") != nullptr;
-  }
-
-  // --- Cross-format or unrecognised tokens (e.g. feature-store "latest"/"nightly") ---
-  // Formats differ → device is on one version scheme, server returned another.
-  // This is a deliberate channel switch (e.g. semver stable → date-format nightly).
-  // Version strings are not comparable as scalars, so we allow the install.
-  // If gating is required, the calling UI layer should confirm with the user before
-  // invoking installUpdate() when isUpdateNewer() returns true across channel types.
-  return true;
+  return firmware_version::compare(latest, current) > 0;
 }
 
 const std::string& OtaUpdater::getLatestVersion() const { return latestVersion; }

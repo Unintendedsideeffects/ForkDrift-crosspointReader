@@ -1,13 +1,20 @@
 """
 PlatformIO pre-build script: inject CROSSPOINT_VERSION for dynamic build environments.
 
-Environments handled:
-  default    → "<base_version>-dev+<branch>.<short_sha>"  (e.g. "1.1.1-dev+fork-drift.a1b2c3d")
-  gh_latest  → "<commit_count>-dev"  (git commit count, capped at 5 digits)
-  gh_nightly → "<YYYYMMDD>"         (UTC build date, used for the 'nightly' OTA channel)
+Every environment emits the single unified canonical format:
 
-All other environments (gh_release, gh_release_rc, slim, custom, …) define
-CROSSPOINT_VERSION statically in platformio.ini and are left untouched.
+    MAJOR.MINOR.PATCH[-CHANNEL][+BUILD][-PROFILE]
+
+Environments handled here:
+  default    → "<base>-dev+<commit_count>"   (local dev)
+  gh_latest  → "<base>-dev+<commit_count>"   (rolling 'latest' OTA channel)
+  gh_nightly → "<base>-nightly+<YYYYMMDD>"   (nightly OTA channel)
+  slim       → "<base>-dev+<commit_count>-slim"
+  simulator / simulator-claude → "<base>-dev+<commit_count>-sim"
+
+All other environments (gh_release, gh_release_rc, custom, …) define
+CROSSPOINT_VERSION statically in platformio.ini or platformio-custom.ini and
+are left untouched here (they already follow the same canonical grammar).
 
 CI can override the computed values via environment variables:
   GIT_COMMIT_COUNT  - integer commit count (overrides git rev-list output)
@@ -22,12 +29,14 @@ import configparser
 import datetime
 import os
 import subprocess
-import sys
 
 DYNAMIC_ENVS = {
     "default": "local_dev",
     "gh_latest": "commit_dev",
     "gh_nightly": "date",
+    "slim": "slim",
+    "simulator": "simulator",
+    "simulator-claude": "simulator",
 }
 
 env_name = env["PIOENV"]  # noqa: F821
@@ -73,37 +82,6 @@ def inject_build_timestamp() -> None:
     print(f">> gen_version [{env_name}]: CROSSPOINT_BUILD_TIMESTAMP={timestamp}")
 
 
-def get_git_branch() -> str:
-    try:
-        branch = subprocess.check_output(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            text=True,
-            stderr=subprocess.PIPE,
-        ).strip()
-        if branch == "HEAD":
-            branch = subprocess.check_output(
-                ["git", "rev-parse", "--short", "HEAD"],
-                text=True,
-                stderr=subprocess.PIPE,
-            ).strip()
-        # Strip characters that would break a C string literal
-        return "".join(c for c in branch if c not in '"\\')
-    except Exception as e:
-        print(f"WARNING [gen_version.py]: git branch failed: {e}", file=sys.stderr)
-        return "unknown"
-
-
-def get_git_short_sha() -> str:
-    try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "--short=7", "HEAD"],
-            text=True,
-            stderr=subprocess.PIPE,
-        ).strip()
-    except Exception:
-        return ""
-
-
 def get_base_version() -> str:
     project_dir = env.get("PROJECT_DIR")  # noqa: F821
     if not project_dir:
@@ -128,16 +106,18 @@ if env_name not in DYNAMIC_ENVS:
     Return()  # noqa: F821
 
 kind = DYNAMIC_ENVS[env_name]
-if kind == "local_dev":
-    base = get_base_version()
-    branch = get_git_branch()
-    sha = get_git_short_sha()
-    suffix = f"{branch}.{sha}" if sha else branch
-    version = f"{base}-dev+{suffix}"
-elif kind == "commit_dev":
-    version = f"{get_commit_count()}-dev"
+if kind == "nightly":
+    # Nightly channel: MAJOR.MINOR.PATCH-nightly+<YYYYMMDD>.
+    version = f"{get_base_version()}-nightly+{get_build_date()}"
+elif kind == "slim":
+    # Slim is a reduced-footprint profile of the rolling dev build.
+    version = f"{get_base_version()}-dev+{get_commit_count()}-slim"
+elif kind == "simulator":
+    # Host simulator — canonical dev-style version tagged with a "sim" profile.
+    version = f"{get_base_version()}-dev+{get_commit_count()}-sim"
 else:
-    version = get_build_date()
+    # Rolling dev channel (local builds and the GitHub "latest" channel).
+    version = f"{get_base_version()}-dev+{get_commit_count()}"
 
 defines = env.get("CPPDEFINES", [])  # noqa: F821
 defines = [d for d in defines if "CROSSPOINT_VERSION" not in str(d)]

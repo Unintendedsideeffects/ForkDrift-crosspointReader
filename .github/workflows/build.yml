@@ -35,16 +35,14 @@ jobs:
       matrix:
         include:
           - profile: lean
-            version_suffix: "-lean"
           - profile: standard
-            version_suffix: ""
           - profile: full
-            version_suffix: "-full"
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           submodules: recursive
+          fetch-depth: 0  # full history needed for accurate git_commit_count()
 
       - name: Check for reusable build artifact
         id: reuse
@@ -106,12 +104,6 @@ jobs:
         run: |
           uv run python scripts/generate_build_config.py --profile "${{ matrix.profile }}"
           cat platformio-custom.ini
-
-      - name: Patch version string
-        if: steps.reuse.outputs.found != 'true'
-        run: |
-          sed -i 's/-custom\\"/${{ matrix.version_suffix }}\\"/g' platformio-custom.ini
-          grep CROSSPOINT_VERSION platformio-custom.ini
 
       - name: Build firmware
         if: steps.reuse.outputs.found != 'true'
@@ -201,7 +193,8 @@ jobs:
         run: |
           COUNT=$(git rev-list --count HEAD)
           COUNT=$((COUNT > 99999 ? 99999 : COUNT))
-          echo "version=${COUNT}-dev" >> $GITHUB_OUTPUT
+          BASE=$(grep -E '^version\s*=' platformio.ini | head -n1 | cut -d= -f2 | tr -d '[:space:]')
+          echo "version=${BASE}-dev+${COUNT}" >> $GITHUB_OUTPUT
           echo "GIT_COMMIT_COUNT=${COUNT}" >> $GITHUB_ENV
 
       - name: Check for reusable build artifact

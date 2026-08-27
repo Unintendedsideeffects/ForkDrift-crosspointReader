@@ -199,6 +199,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/GfxRenderer/Bitmap.cpp" \
   "$ROOT_DIR/lib/GfxRenderer/BitmapHelpers.cpp" \
   "$ROOT_DIR/src/util/FirmwareUpdateHelpers.cpp" \
+  "$ROOT_DIR/src/util/FirmwareVersion.cpp" \
   "$ROOT_DIR/src/network/ota/SerialOtaSession.cpp" \
   "$ROOT_DIR/src/network/server/SettingsApply.cpp" \
   "$ROOT_DIR/src/activities/reader/ReadingStatsStore.cpp" \
