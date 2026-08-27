@@ -2,7 +2,6 @@
 // Host test stub — replaces the real HalStorage/HalFile with an
 // in-memory implementation suitable for unit testing.
 
-#include "Print.h"
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -14,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "Print.h"
 #include "String.h"
 
 using oflag_t = int;

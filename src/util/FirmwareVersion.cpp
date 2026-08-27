@@ -38,11 +38,16 @@ bool parseBuildId(const char*& s, uint64_t& out) {
 
 int channelRank(int channel) {
   switch (channel) {
-    case 0: return 3;  // stable
-    case 1: return 2;  // rc
-    case 2: return 1;  // dev
-    case 3: return 1;  // nightly
-    default: return 0;
+    case 0:
+      return 3;  // stable
+    case 1:
+      return 2;  // rc
+    case 2:
+      return 1;  // dev
+    case 3:
+      return 1;  // nightly
+    default:
+      return 0;
   }
 }
 

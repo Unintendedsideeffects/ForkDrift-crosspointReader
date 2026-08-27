@@ -1,8 +1,8 @@
 #include "doctest/doctest.h"
 #include "src/util/FirmwareVersion.h"
 
-using firmware_version::parse;
 using firmware_version::compare;
+using firmware_version::parse;
 
 TEST_CASE("parse: canonical forms are recognised") {
   auto stable = parse("1.4.1");
