@@ -111,6 +111,24 @@ int copyCoverThumbSizesForEpub(const coverthumbs::Size* source, const int source
 }
 
 bool startCoverThumbBakeTask(const std::shared_ptr<Epub>& epub) {
+  // Decide before allocating, not after. The affordability check used to live inside
+  // the task, so the 6,144-byte stack plus its TCB were taken, the task woke, found
+  // it could not proceed, logged "deferred" and exited -- freeing the stack again.
+  //
+  // On this device that is pure loss. The gate wants 96,000 free and a 64,000 largest
+  // block; the most free heap ever measured here is ~78,000 and the working range is
+  // 45,000-52,000, so it essentially never passes. Every attempt therefore spent a
+  // 6 KB allocation to reach a foregone conclusion, and because a task takes two heap
+  // blocks (stack + TCB) the freed stack is left as an isolated run -- exactly the
+  // mechanism behind the 12,288-byte contiguity losses recorded in docs/FINDINGS.md.
+  // There is no compaction on this platform, so that hole outlives the task.
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  const uint32_t largestBlock = ESP.getMaxAllocHeap();
+  if (freeHeap < kMinFreeHeapForCoverThumbBake || largestBlock < kMinLargestBlockForCoverThumbBake) {
+    LOG_DBG("THUMB", "Cover thumbnail bake deferred before spawn: free=%u largest=%u", freeHeap, largestBlock);
+    return false;
+  }
+
   // cppcheck-suppress unreadVariable
   auto* params = new (std::nothrow) CoverThumbBakeParams{epub};
   if (!params) {
