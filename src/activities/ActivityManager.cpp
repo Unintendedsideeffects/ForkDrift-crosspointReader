@@ -29,6 +29,8 @@
 #include "home/RecentBooksActivity.h"
 #include "home/RecentBooksGridActivity.h"
 #include "network/CrossPointWebServerActivity.h"
+#include "network/background/BackgroundWebServer.h"
+#include "network/background/BackgroundWifiService.h"
 #include "network/server/CrossPointWebServer.h"
 #include "settings/OpdsServerListActivity.h"
 #include "settings/SettingsActivity.h"
@@ -317,6 +319,21 @@ void ActivityManager::goToReader(std::string path, const bool suppressBackReleas
     activityManager.goToMyLibrary(folder);
   };
   static const auto onBackHome = +[](void*) { activityManager.goHome(); };
+
+  // The factory below loads the whole document -- for EPUB the parse, the CSS and a
+  // 32 KB inflate window -- and only then returns an Activity. An activity's own
+  // onEnter() teardown therefore runs too late to help its own load, and there is no
+  // heap compaction on this platform, so freeing after the fact buys nothing.
+  //
+  // Measured 2026-08-28: loading with the servers up runs at ~11,148 bytes free with
+  // a 5,620-byte largest block and drives min-free to 3,848. The servers hold ~22 KB.
+  // This is the one call site every reader format shares, so freeing here covers all
+  // of them. Restart is automatic: once the activity exits, blocksBackgroundServer()
+  // goes false and main.cpp's reconcile brings them back.
+  if (BG_WIFI.isPendingOrRunning()) {
+    BG_WIFI.stop(/*keepWifi=*/true);
+  }
+  BackgroundWebServer::getInstance().stop(/*keepWifi=*/true);
 
   const auto result = core::ReaderRegistry::open(path, renderer, mappedInput, nullptr, onBackToLibrary, onBackHome);
   if (result.status == core::ReaderOpenResult::Status::Opened && result.activity) {
