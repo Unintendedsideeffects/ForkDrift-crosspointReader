@@ -1052,6 +1052,15 @@ void loop() {
         // require the same heap floor as the web handlers before attempting.
         constexpr uint32_t kMinHeapForSettingsApply = 48000;
         if (ESP.getFreeHeap() < kMinHeapForSettingsApply) {
+          // The background web server holds ~22KB of memory. If heap is short,
+          // reclaim background service memory first (especially important if the
+          // user is trying to switch off the web server that holds the memory).
+          if (BG_WIFI.isPendingOrRunning()) {
+            BG_WIFI.stop(/*keepWifi=*/true);
+          }
+          BackgroundWebServer::getInstance().stop(/*keepWifi=*/true);
+        }
+        if (ESP.getFreeHeap() < kMinHeapForSettingsApply) {
           logSerial.printf("SETTINGS_ERR:low heap (%u free)\n", ESP.getFreeHeap());
         } else {
           const auto result = network::applySettingsJson(cmd.substring(9));
