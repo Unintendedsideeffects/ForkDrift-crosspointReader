@@ -9,6 +9,7 @@
 
 #include <functional>
 
+#include "CacheLoadStatus.h"
 #include "Epub/ParsedText.h"
 #include "Epub/css/CssParser.h"
 #include "Page.h"
@@ -591,15 +592,24 @@ std::unique_ptr<Page> Section::loadPageFromSectionFile() {
   // Page data is read strictly sequentially from pagePos: batch the ~1000 tiny
   // field reads through a sector-sized buffer (one mutex/SdFat call per 512B).
   serialization::BufferedReader reader(file);
+  cacheload::beginLoad();
   auto page = Page::deserialize(reader);
   // Only close if we opened it in this call; keep persistent handle if opened from loadSectionFile()
   if (weOpenedFile) {
     file.close();
   }
   if (!page) {
-    LOG_ERR("SECTION", "page %d cache payload is corrupt; clearing cache", currentPage);
-    pageCount = 0;
-    clearCache();
+    if (cacheload::wasOutOfMemory()) {
+      // The cache is not proven bad, only unreadable right now, so it stays on disk.
+      // Deleting it here would force a full re-index -- the most allocation-hungry
+      // thing the reader does -- at the exact moment memory is scarce.
+      LOG_ERR("SECTION", "page %d cache load hit low memory (free=%u largest=%u); keeping cache intact", currentPage,
+              static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(heapguard::largestBlock()));
+    } else {
+      LOG_ERR("SECTION", "page %d cache payload is corrupt; clearing cache", currentPage);
+      pageCount = 0;
+      clearCache();
+    }
   }
   return page;
 }

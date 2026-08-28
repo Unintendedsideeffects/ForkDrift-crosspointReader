@@ -5,7 +5,11 @@
 #include <Logging.h>
 #include <Serialization.h>
 
+#include "CacheLoadStatus.h"
+
 namespace {
+
+bool g_outOfMemoryFlag = false;
 
 constexpr uint16_t MAX_PAGE_ELEMENTS = 1024;
 constexpr uint8_t MAX_TABLE_ROWS_PER_FRAGMENT = 64;
@@ -27,6 +31,12 @@ void renderFilteredPageElements(const std::vector<std::shared_ptr<PageElement>>&
 }
 
 }  // namespace
+
+namespace cacheload {
+void beginLoad() { g_outOfMemoryFlag = false; }
+void markOutOfMemory() { g_outOfMemoryFlag = true; }
+bool wasOutOfMemory() { return g_outOfMemoryFlag; }
+}  // namespace cacheload
 
 void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
@@ -58,6 +68,7 @@ std::unique_ptr<PageLine> PageLine::deserialize(serialization::BufferedReader& f
   auto pl = std::unique_ptr<PageLine>(new (std::nothrow) PageLine(std::move(tb), xPos, yPos));
   if (!pl) {
     LOG_ERR("PGE", "OOM: PageLine");
+    cacheload::markOutOfMemory();
   }
   return pl;
 }
@@ -96,6 +107,7 @@ std::unique_ptr<PageImage> PageImage::deserialize(serialization::BufferedReader&
   auto* pi = new (std::nothrow) PageImage(std::move(imageBlock), xPos, yPos);
   if (!pi) {
     LOG_ERR("PGE", "OOM: PageImage");
+    cacheload::markOutOfMemory();
     return nullptr;
   }
   return std::unique_ptr<PageImage>(pi);
@@ -131,6 +143,7 @@ bool TableFragmentCell::deserialize(serialization::BufferedReader& file, TableFr
 
   if (!canAllocateElements(lineCount, sizeof(std::shared_ptr<TextBlock>))) {
     LOG_ERR("PTB", "Deserialization failed: insufficient heap for table cell lines");
+    cacheload::markOutOfMemory();
     return false;
   }
   outCell.lines.clear();
@@ -177,6 +190,7 @@ bool TableFragmentRow::deserialize(serialization::BufferedReader& file, TableFra
 
   if (!canAllocateElements(cellCount, sizeof(TableFragmentCell))) {
     LOG_ERR("PTB", "Deserialization failed: insufficient heap for table cells");
+    cacheload::markOutOfMemory();
     return false;
   }
   outRow.cells.clear();
@@ -289,6 +303,7 @@ std::unique_ptr<PageTableFragment> PageTableFragment::deserialize(serialization:
 
   if (!canAllocateElements(rowCount, sizeof(TableFragmentRow))) {
     LOG_ERR("PTB", "Deserialization failed: insufficient heap for table rows");
+    cacheload::markOutOfMemory();
     return nullptr;
   }
   std::vector<TableFragmentRow> rows;
@@ -305,6 +320,7 @@ std::unique_ptr<PageTableFragment> PageTableFragment::deserialize(serialization:
       new (std::nothrow) PageTableFragment(width, columnCount, cellPadding, lineHeight, std::move(rows), xPos, yPos);
   if (!fragment) {
     LOG_ERR("PTB", "Deserialization failed: could not allocate PageTableFragment");
+    cacheload::markOutOfMemory();
     return nullptr;
   }
   return std::unique_ptr<PageTableFragment>(fragment);
@@ -387,6 +403,7 @@ std::unique_ptr<PageHorizontalRule> PageHorizontalRule::deserialize(serializatio
   auto* rule = new (std::nothrow) PageHorizontalRule(width, thickness, xPos, yPos);
   if (!rule) {
     LOG_ERR("PGE", "Deserialization failed: could not allocate PageHorizontalRule");
+    cacheload::markOutOfMemory();
     return nullptr;
   }
   return std::unique_ptr<PageHorizontalRule>(rule);
@@ -396,6 +413,7 @@ std::unique_ptr<Page> Page::deserialize(serialization::BufferedReader& file) {
   auto page = std::unique_ptr<Page>(new (std::nothrow) Page());
   if (!page) {
     LOG_ERR("PGE", "OOM: Page");
+    cacheload::markOutOfMemory();
     return nullptr;
   }
 
@@ -407,6 +425,7 @@ std::unique_ptr<Page> Page::deserialize(serialization::BufferedReader& file) {
 
   if (!canAllocateElements(count, sizeof(std::shared_ptr<PageElement>))) {
     LOG_ERR("PGE", "Deserialization failed: insufficient heap for page elements");
+    cacheload::markOutOfMemory();
     return nullptr;
   }
   page->elements.reserve(count);
@@ -461,6 +480,7 @@ std::unique_ptr<Page> Page::deserialize(serialization::BufferedReader& file) {
   }
   if (!canAllocateElements(fnCount, sizeof(FootnoteEntry))) {
     LOG_ERR("PGE", "Deserialization failed: insufficient heap for footnotes");
+    cacheload::markOutOfMemory();
     return nullptr;
   }
   page->footnotes.resize(fnCount);

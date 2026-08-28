@@ -8,6 +8,8 @@
 
 #include <cstring>
 
+#include "Epub/CacheLoadStatus.h"
+
 namespace {
 constexpr uint16_t MAX_WORDS_PER_TEXT_BLOCK = 512;
 // Mirrors MAX_WORD_SIZE in lib/Epub/Epub/parsers/ChapterHtmlSlimParser.h, which
@@ -215,6 +217,7 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(serialization::BufferedReader&
       (sizeof(std::string) + sizeof(int16_t) + sizeof(EpdFontFamily::Style) + sizeof(uint8_t) + sizeof(uint16_t));
   if (!heapguard::canAllocate(vectorBytes, 0)) {
     LOG_ERR("TXB", "Deserialization failed: insufficient heap for %u words", wc);
+    cacheload::markOutOfMemory();
     return nullptr;
   }
 
@@ -282,6 +285,7 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(serialization::BufferedReader&
                                           std::move(wordFocusBoundary), std::move(wordFocusSuffixX), blockStyle);
   if (!tb) {
     LOG_ERR("TXB", "OOM: TextBlock");
+    cacheload::markOutOfMemory();
     return nullptr;
   }
   return std::unique_ptr<TextBlock>(tb);
