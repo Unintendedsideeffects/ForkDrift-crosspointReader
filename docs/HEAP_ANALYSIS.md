@@ -268,6 +268,12 @@ from exhaustion. `heapguard::freeBlockCount()`/`allocatedBlockCount()` expose th
 same to firmware code. The pre-existing `CMD:HEAPTRACE` still covers the boot
 window, which serial cannot observe live because USB/IP re-attach outlasts boot.
 
+## Supporting analyses
+
+The long-form working documents behind this summary — the architecture verdict, the
+linker/section analysis, the four candidate angles and the four diagnostic lenses —
+are in [heap/](heap/), indexed by [heap/README.md](heap/README.md).
+
 ## Provenance and confidence
 
 Four independent read-only analyses (agy, codex, opencode, cursor) over separate
