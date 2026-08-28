@@ -33,10 +33,18 @@ Every number below labelled *measured* came off the device. Numbers labelled
 | — of which one framebuffer | 52,272 | `EInkDisplay.h:38,158` (`MAX_BUFFER_SIZE`) |
 | Runtime heap pool | **175,272 - 179,464** | measured, `CMD:HEAPPROF` |
 
-`327,680 - 128,244 = 199,436` on paper, but the heap API reports 175-180 KB. The
-~20 KB difference is not accounted for here — no linker `.map` was generated, so
-attributing it would be a guess. Treat the heap pool as **~179 KB** and stated as
-measured; treat the 20 KB as unknown rather than assuming it is reclaimable.
+`327,680 - 128,244 = 199,436` on paper, but the heap API reports 175-180 KB.
+**That gap is now resolved** (linker-map analysis, 2026-08-28, see
+`plans/heap-2026-08-28/linker-analysis.md`): raw internal heap-capable memory is
+**191,280 bytes**, and `ESP.getHeapSize()` reports less because TLSF allocator
+bookkeeping and light heap poisoning are excluded — and **grow with the number of
+live blocks**.
+
+That is independently corroborated by the measurements in this document: 380
+allocated blocks reports a 179,464-byte total, 642 blocks reports 175,272. 262
+extra blocks cost 4,192 bytes, i.e. ~16 bytes of allocator header per block.
+So the "total heap" figure is not a constant, and **none of that ~12-16 KB is
+reclaimable** — it is the price of having allocations at all.
 
 Note the framebuffer is **static, not heap**, and there is only one:
 `EINK_DISPLAY_SINGLE_BUFFER_MODE=1` (`platformio.ini:33,227`). Any proposal to
@@ -235,5 +243,7 @@ survive. Recorded so the same ground is not re-tilled:
   followed by a refresh". Fair criticism: on a 179 KB heap a 120 KB
   largest-block test is unsatisfiable by construction, so it is written as a
   comparison that can never pass rather than as the unconditional it actually is.
-- The ~20 KB gap between linker DRAM and heap pool is **unresolved**, not
-  quietly rounded away.
+- The ~20 KB gap between linker DRAM and heap pool was initially recorded as
+  **unresolved**. It has since been resolved by linker-map analysis: it is TLSF
+  allocator bookkeeping plus light poisoning, scaling at ~16 bytes per live
+  block, and it is not reclaimable. See the budget section above.
