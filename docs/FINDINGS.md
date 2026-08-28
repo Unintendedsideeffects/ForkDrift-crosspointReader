@@ -1836,3 +1836,10 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **What**: `kLowFloorBytes = 61440`, but measured free heap never exceeds 51,464 (brief post-boot) and sits at 36-40 KB while reading. Every feature gated on "Low pressure" is therefore permanently off rather than conditionally deferred, which is not the documented intent. The header's own tuning note ("~60-130KB free") is the stale assumption behind this and a family of derived constants.
 - **Why not fixed here**: out of scope (scope was measurement + documentation); re-tuning needs per-call-site review, not a blind constant swap.
 - **Status**: open — ranked #2 in `docs/HEAP_ANALYSIS.md`
+
+## 2026-08-28T10:45Z — The outgoing activity is still resident while the incoming document loads
+- **Found by**: claude — ad hoc (heap work, follow-up to 70fcdfce2)
+- **Where**: `src/activities/ActivityManager.cpp` (`goToReader`: `ReaderRegistry::open(...)` then `replaceActivity(...)`), `src/core/registries/ReaderLoader.h:16-54`
+- **What**: `goToReader` loads the whole document via `ReaderRegistry::open()` and only afterwards calls `replaceActivity()`, which destroys the previous activity. So HomeActivity — including its cover/carousel buffers — is still holding memory while the new book parses. Commit 70fcdfce2 fixed the same ordering problem for the background servers by freeing them before the factory; the outgoing *activity* is the remaining half. Measured consequence: after 03bdbc3f3 releases the inflate window on book close, re-acquiring 32,768 contiguous bytes at the next open failed in 1 of 3 cycles, because the heap is transiently fragmented by the still-resident Home activity. Non-fatal (`InflateReader::init()` allocates lazily at first use), but it defeats the point of pre-reserving the window while the heap is clean.
+- **Why not fixed here**: out of scope, and not a safe drive-by — the outgoing activity owns the callbacks passed into the factory, so destroying it earlier needs its lifetime untangled from `onBackToLibrary`/`onBackHome` first.
+- **Status**: open
