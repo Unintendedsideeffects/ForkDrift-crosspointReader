@@ -10,6 +10,7 @@
 #include <HalStorage.h>
 #include <HeapGuard.h>
 #include <I18n.h>
+#include <InflateReader.h>
 #include <JsonSettingsIO.h>
 #include <Logging.h>
 #include <Memory.h>
@@ -490,6 +491,18 @@ void EpubReaderActivity::onExit() {
 #endif  // ENABLE_READING_STATS
 
   section.reset();
+
+  // Epub::load() claims the process-wide 32 KB inflate window for deflated books
+  // (Epub.cpp:459), and nothing ever gave it back -- an acquire with no matching
+  // release. Closing the book is the moment it stops being useful: no extraction
+  // is in flight here, and the next open re-claims it.
+  //
+  // The 32 KB is the smaller half of the win. InflateReader.h records that the
+  // window is carved out of the largest free run, so holding it also pins the
+  // largest contiguous block at ~9,204 bytes -- exactly the plateau measured in
+  // docs/HEAP_ANALYSIS.md, which fragmentation-sensitive allocations then fail
+  // against. releaseSharedWindow() is a no-op while any reader still holds it.
+  InflateReader::releaseSharedWindow();
 
 #if ENABLE_TEXT_SELECTION
   selectionBaseSnapshot.reset();
