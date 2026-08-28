@@ -76,6 +76,49 @@ Read this table twice. The two things it says are not the obvious ones:
   falls by 25 KB when you return to Home, because the background web server
   starts. The device spends its idle life in its worst memory state.
 
+### Post-fix baseline (re-measured 2026-08-28, after the session's commits)
+
+The table above is the *pre-fix* device and is kept as the record of the original
+diagnosis. Re-measured on the same hardware after `70fcdfce2`, `6cd1329a4`,
+`116bb9ad3`, `c7a49de23` and `fbc42a088`:
+
+| State | free | largest | frag | before |
+|---|---:|---:|---:|---|
+| Home + background server | 11,500 | **8,180** | 29% | 11,268 / 5,620 |
+| Book open (warm cache) | 36,476 | 15,860 | 57% | 44,840 / 17,396 |
+| Reading, steady | 36,460 | **15,860** | 57% | 36,320 / 9,204 |
+
+**Free heap is essentially unchanged; contiguity is not.** The largest allocatable
+block is up 46% at Home and 72% while reading. That is the number that was
+failing allocations, so it is the one worth tracking.
+
+### The cold-cache path, measured for the first time
+
+Everything above — and every fix verified during that work — used a book whose
+sections were already indexed on SD. The expensive path is a *cold* open: full
+metadata build, chapter index, CSS parse and image extraction at once. Measured
+by deleting the book cache and reopening:
+
+- **min free fell to 4,164 bytes** during cache deletion and the cold reopen, the
+  lowest figure seen since the original 3,848. The cold path, not the reading
+  path, is where this device comes closest to the floor.
+- The long index ends in the **silent defrag restart** (`heapDirtyFromIndexing_`,
+  `EpubReaderActivity.cpp:547-568`). That is by design, and it is why uptime resets
+  mid-open; a frame captured during the transition is blank.
+- `ParsedText`'s OOM guard fired twice mid-index (`need=416 free=33,148` and
+  `free=32,448`), dropping words. Those blocks are lossy but non-empty, so they are
+  cached — the deliberate trade at `Section.cpp:434-437`.
+- The CSS cache guard from `fbc42a088` was confirmed working end-to-end:
+  `Not caching CSS rules: 0 rule(s) parsed but at least one stylesheet was skipped
+  (free=46,664); will retry on next open`. This was previously verified only by
+  build and host tests.
+
+**The measurement the CSS retune needed.** At the moment CSS parsing is attempted
+on a cold open, free heap is **46,664** and **45,264** bytes, against a threshold
+of 65,536. So the gap is ~19 KB, and a threshold near 40,000 would let stylesheets
+parse on this hardware. That number was previously unknown, which is why the
+retune was deferred rather than guessed.
+
 ### Fragmentation is an event, not a trend
 
 Largest block: 36,852 at boot -> 17,396 on book open -> 9,204 after the first
