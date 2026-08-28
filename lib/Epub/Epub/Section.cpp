@@ -1,6 +1,8 @@
 #include "Section.h"
 
 #include <FeatureFlags.h>
+#include <FontCacheManager.h>
+#include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <HeapGuard.h>
 #include <Logging.h>
@@ -340,7 +342,25 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
     return false;
   }
 
-  // Check heap before parsing: section indexing requires substantial memory
+  // Check heap before parsing: section indexing requires substantial memory.
+  //
+  // Reclaim before refusing. This gate used to give up outright, and because
+  // nothing on the failure path freed anything, the next attempt saw the identical
+  // heap and failed identically -- a chapter the reader could never get past, shown
+  // as "Failed to load EPUB". Observed on device at 39,752 bytes free against this
+  // 40,960 floor: short by 1,208 bytes, permanently.
+  //
+  // The glyph cache is the right thing to drop: it is a pure cache, rebuilt on
+  // demand from the fonts, and EpubReaderActivity::onExit already clears it at the
+  // end of a reading session. Indexing is far more valuable than warm glyphs.
+  if (!heapguard::canAllocate(0, 40 * 1024)) {
+    if (auto* fontCache = renderer.getFontCacheManager()) {
+      const size_t before = heapguard::freeBytes();
+      fontCache->clearCache();
+      LOG_INF("SCT", "Section indexing short on heap (%u free); dropped the glyph cache, now %u",
+              static_cast<unsigned>(before), static_cast<unsigned>(heapguard::freeBytes()));
+    }
+  }
   if (!heapguard::canAllocate(0, 40 * 1024)) {
     LOG_ERR("SCT", "Insufficient heap for section indexing: %u bytes free",
             static_cast<unsigned>(heapguard::freeBytes()));
