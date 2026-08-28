@@ -44,6 +44,18 @@ size_t freeBytes();
 // capped in the simulator through SIM_HEAP_LARGEST).
 size_t largestBlock();
 
+// Heap block counts, for telling fragmentation apart from genuine exhaustion.
+// freeBytes() alone cannot: 44KB free with a 12KB largest block and 44KB free
+// with a 44KB largest block are the same number and completely different
+// situations. A free-block count that climbs while freeBytes() stays flat is
+// fragmentation happening in front of you.
+//
+// These walk the heap under its lock, so they cost more than freeBytes(). Call
+// them at state transitions and on request, not in a render loop.
+// Return 0 in the simulator/host build, which has no block model.
+size_t freeBlockCount();
+size_t allocatedBlockCount();
+
 // Current pressure level from freeBytes() vs the floors above.
 Pressure pressure();
 

@@ -35,6 +35,25 @@ size_t largestBlock() {
 #endif
 }
 
+#if defined(SIMULATOR) || defined(CROSSPOINT_HOST_BUILD)
+// The ESPMock budget tracker models totals, not a block layout, so there is no
+// honest number to return here. 0 reads as "unknown" at every call site rather
+// than inventing a fragmentation figure the simulator cannot know.
+size_t freeBlockCount() { return 0; }
+size_t allocatedBlockCount() { return 0; }
+#else
+namespace {
+multi_heap_info_t heapInfo() {
+  multi_heap_info_t info{};
+  heap_caps_get_info(&info, MALLOC_CAP_8BIT);
+  return info;
+}
+}  // namespace
+
+size_t freeBlockCount() { return heapInfo().free_blocks; }
+size_t allocatedBlockCount() { return heapInfo().allocated_blocks; }
+#endif
+
 Pressure pressure() {
   const size_t free = freeBytes();
   if (free < kCriticalFloorBytes) {

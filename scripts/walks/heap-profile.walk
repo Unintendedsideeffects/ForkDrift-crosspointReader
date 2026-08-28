@@ -1,0 +1,28 @@
+# State-by-state heap profile with fragmentation. Samples free/largest/blocks
+# at every transition so deltas can be attributed to a specific action.
+heap 00-boot-home
+shot 00-home
+press CONFIRM 12
+heap 01-book-open
+shot 01-book
+press PAGEFWD 7
+heap 02-page-turn-1
+press PAGEFWD 7
+heap 03-page-turn-2
+press PAGEFWD 7
+heap 04-page-turn-3
+shot 04-page
+press CONFIRM 8
+heap 05-reader-menu
+shot 05-menu
+press BACK 8
+heap 06-menu-closed
+press PAGEFWD 7
+heap 07-more-turns
+press PAGEFWD 7
+heap 08-more-turns
+press BACK 10
+heap 09-left-reader
+shot 09-after-back
+sleep 8
+heap 10-settled

@@ -9,6 +9,7 @@
 #include <HalPowerManager.h>
 #include <HalStorage.h>
 #include <HalSystem.h>
+#include <HeapGuard.h>
 #include <HeapTrace.h>
 #include <I18n.h>
 #include <Logging.h>
@@ -942,6 +943,27 @@ void loop() {
         // Boot-time heap milestones, unreachable over serial while they happen.
         heaptrace::dump("MEM");
         logSerial.printf("HEAPTRACE_END\n");
+      } else if (cmd == "HEAPPROF") {
+        // On-demand heap snapshot, so the host can sample at a moment it chooses
+        // rather than waiting for the 10s MEM tick. The tick is too coarse to
+        // attribute a state transition, and heaptrace's boot array is long full
+        // by the time a walk is running (10 boot marks + a tick every 10s fills
+        // its 20 slots in under two minutes).
+        //
+        // Block counts are the point: free bytes alone cannot distinguish
+        // fragmentation from exhaustion, and on this device fragmentation is
+        // usually what actually fails the allocation.
+        JsonDocument snap;
+        snap["t"] = millis();
+        snap["free"] = static_cast<uint32_t>(heapguard::freeBytes());
+        snap["largest"] = static_cast<uint32_t>(heapguard::largestBlock());
+        snap["min_free"] = ESP.getMinFreeHeap();
+        snap["total"] = ESP.getHeapSize();
+        snap["free_blocks"] = static_cast<uint32_t>(heapguard::freeBlockCount());
+        snap["alloc_blocks"] = static_cast<uint32_t>(heapguard::allocatedBlockCount());
+        String json;
+        serializeJson(snap, json);
+        logSerial.printf("HEAPPROF:%s\n", json.c_str());
 #if ENABLE_TERMINUS_SLEEP
       } else if (cmd == "TRMNL_STATUS") {
         const std::string status = features::terminus_sleep::machineStatusJson();

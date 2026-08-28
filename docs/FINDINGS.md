@@ -1794,3 +1794,45 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Why not fixed here**: the remediation agent hit its usage limit after fixing the other
   three findings in that review.
 - **Status**: open -- highest-severity item remaining from the 2026-08-21 absorption wave
+
+## 2026-08-28T07:20Z — Document load happens before the background server teardown it is supposed to follow
+- **Found by**: claude — ad hoc (heap analysis pass)
+- **Where**: `src/features/epub/Registration.cpp:30`, `src/core/registries/ReaderLoader.h:16-54`, `src/activities/reader/EpubReaderActivity.cpp:309-323`, `src/activities/ActivityManager.cpp:194-199`
+- **What**: `createActivity()` runs `loadDocumentNoThrow<Epub>()` — the full EPUB parse, CSS parsing and the 32 KB inflate window — before the activity object exists, so `onEnter()`'s background-server teardown runs afterwards. `EpubReaderActivity.cpp:309-323` states the opposite as its invariant ("servers must be down BEFORE the book load allocates… the ordering is the whole fix"); that holds for layout but not for `Epub::load()`. Measured: the load runs at ~11,148 free / 5,620 largest and drives min-free to 3,848.
+- **Why not fixed here**: out of scope for the analysis pass (scope was measurement + documentation); the fix touches activity lifecycle ordering across all reader formats.
+- **Status**: open — ranked #1 in `docs/HEAP_ANALYSIS.md`
+
+## 2026-08-28T07:20Z — Out-of-memory during page deserialization is misreported as cache corruption and deletes the cache
+- **Found by**: codex — ad hoc (heap analysis pass, lens 2)
+- **Where**: `lib/Epub/Epub/Page.cpp:408-411`, `lib/Epub/Epub/blocks/TextBlock.cpp:206-228`, `lib/Epub/Epub/Section.cpp:599-603`, `lib/Epub/Epub/Section.cpp:266-282`
+- **What**: `Page::deserialize` returns `nullptr` for both corrupt data and insufficient heap. `Section::loadPageFromSectionFile` cannot distinguish them, logs "cache payload is corrupt" and calls `clearCache()`, which deletes the on-disk section file and forces a full re-index — the most allocation-hungry operation available, attempted while out of memory. A transient low-heap moment therefore destroys a valid cache. Same misattribution class as `0f851eff4`, but destructive.
+- **Why not fixed here**: out of scope (scope was measurement + documentation); needs a typed failure result threaded through `Page`/`TextBlock`/`Section`.
+- **Status**: open — ranked #3 in `docs/HEAP_ANALYSIS.md`
+
+## 2026-08-28T07:20Z — CSS is never parsed on real hardware; books lay out without their stylesheets and the empty result is cached
+- **Found by**: codex — ad hoc (heap analysis pass, lens 2)
+- **Where**: `lib/Epub/Epub.cpp:22` (`MIN_HEAP_FOR_CSS_PARSING = 65536`), `lib/Epub/Epub/css/CssParser.cpp:55` (`MIN_FREE_HEAP_FOR_CSS = 49152`), `lib/Epub/Epub.cpp:363-425`
+- **What**: both thresholds sit above every measured heap state (reading steady state is 36-40 KB free; the load itself runs at ~11 KB). Stylesheets are skipped and style lookups return empty, so this is a silent rendering-fidelity regression, not only a memory statistic — a captured trace loaded `0 rules + 0 descendant rules`. The empty rule set is then written to the section cache as though complete, so it persists after memory recovers.
+- **Why not fixed here**: out of scope (scope was measurement + documentation).
+- **Status**: open — see `docs/HEAP_ANALYSIS.md` §3 and recommendation #6
+
+## 2026-08-28T07:20Z — TXT, XTC and Markdown readers do not block the background server
+- **Found by**: codex — ad hoc (heap analysis pass, lens 2)
+- **Where**: `src/activities/reader/TxtReaderActivity.h`, `src/activities/reader/XtcReaderActivity.h`, `src/activities/reader/MarkdownReaderActivity.h`, default at `src/activities/Activity.h:67`
+- **What**: only `EpubReaderActivity` among the readers overrides `blocksBackgroundServer()`, so the other three run at the ~11 KB Home-with-server state. `XtcReaderActivity` needs a 48,000-byte contiguous page buffer to render at all, against a measured largest block of 5,620 — its "Page load error"/"Memory error" screens are the expected outcome there, not an anomaly.
+- **Why not fixed here**: out of scope (scope was measurement + documentation), though the fix is a one-line override per class.
+- **Status**: open — ranked #4 in `docs/HEAP_ANALYSIS.md`
+
+## 2026-08-28T07:20Z — Settings cannot be changed in the state that most needs changing (48,000-byte floor)
+- **Found by**: claude — ad hoc (heap analysis pass)
+- **Where**: `src/main.cpp:1053` (`kMinHeapForSettingsApply = 48000`), `src/network/server/SettingsHandlers.cpp:40-50`
+- **What**: the settings apply path requires 48,000 bytes free. Measured device states are 51,464 (brief post-boot Home window only), 44,840, 36,320, 11,268 — so the API refuses in every normal state. Concretely, the setting that would free the background server's ~22 KB cannot be applied because the server is holding that memory: observed `SETTINGS_ERR:low heap (12404 free)`. The on-device Settings activity is the only working route, because it blocks the background server first.
+- **Why not fixed here**: out of scope (scope was measurement + documentation); part of the wider threshold re-tune.
+- **Status**: open — see `docs/HEAP_ANALYSIS.md` §3
+
+## 2026-08-28T07:20Z — `kLowFloorBytes` is above every state the device ever reaches
+- **Found by**: cursor — ad hoc (heap analysis pass, lens 4)
+- **Where**: `lib/Memory/HeapGuard.h:36-37`
+- **What**: `kLowFloorBytes = 61440`, but measured free heap never exceeds 51,464 (brief post-boot) and sits at 36-40 KB while reading. Every feature gated on "Low pressure" is therefore permanently off rather than conditionally deferred, which is not the documented intent. The header's own tuning note ("~60-130KB free") is the stale assumption behind this and a family of derived constants.
+- **Why not fixed here**: out of scope (scope was measurement + documentation); re-tuning needs per-call-site review, not a blind constant swap.
+- **Status**: open — ranked #2 in `docs/HEAP_ANALYSIS.md`

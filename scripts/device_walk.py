@@ -7,6 +7,7 @@ Host-side counterpart to the firmware serial command handler in src/main.cpp:
   CMD:SLEEP          -> SLEEP_OK                    (enters production deep sleep)
   CMD:BTN:<NAME>     -> BTN_OK:<NAME> | BTN_ERR:<NAME>   (injects logical button)
   CMD:SCREENSHOT     -> SCREENSHOT_START:<n> + raw 1bpp framebuffer + SCREENSHOT_END
+  CMD:HEAPPROF       -> HEAPPROF:<json>            (free/largest/min/total + block counts)
   CMD:TRMNL_STATUS   -> TRMNL_STATUS:<json>        (non-secret status + durable evidence)
   CMD:TRMNL_RENDER_TEST -> TRMNL_RENDER_TEST:<json> (production pinned-image render diagnostic)
   CMD:TRMNL_VERIFY:n -> TRMNL_VERIFY_OK:<target>    (arm bounded evidence rendezvous)
@@ -20,6 +21,7 @@ Usage:
   uv run python scripts/device_walk.py shot home.png
   uv run python scripts/device_walk.py press CONFIRM DOWN CONFIRM
   uv run python scripts/device_walk.py wificred "MySSID" "MyPassword"
+  uv run python scripts/device_walk.py heapprof
   uv run python scripts/device_walk.py run scripts/walks/example.walk --outdir runs/smoke
 
 Walk file DSL (one command per line, '#' starts a comment):
@@ -27,6 +29,7 @@ Walk file DSL (one command per line, '#' starts a comment):
   settings <json>              apply the same settings payload as POST /api/settings
   deep-sleep                   enter the production deep-sleep path
   shot <name>                  capture screenshot to NNN-<name>.png in outdir
+  heap <label>                 sample heap state into heap.csv (free/largest/blocks)
   sleep <seconds>
   expect <timeout_sec> <regex> wait until a serial log line matches regex
 
@@ -137,6 +140,10 @@ class DeviceLink:
             raise RuntimeError(f"Firmware rejected Terminus verification rendezvous: {line}")
         return int(line.rsplit(":", 1)[1])
 
+    def heap_profile(self) -> dict:
+        line = self.command("HEAPPROF", re.compile(r"^HEAPPROF:"), timeout_s=10.0)
+        return json.loads(line.split(":", 1)[1])
+
     def apply_settings(self, payload: str):
         line = self.command("SETTINGS:" + payload, re.compile(r"^SETTINGS_(OK|ERR):"), timeout_s=10.0)
         if line.startswith("SETTINGS_ERR"):
@@ -210,10 +217,33 @@ def run_walk(link: DeviceLink, walk_path: Path, outdir: Path) -> int:
             steps.append((lineno, text.split()))
 
     shot_index = 0
+    # Heap samples are appended as they are taken rather than written at the end, so
+    # a walk that crashes the device still leaves the samples that led up to it.
+    heap_csv = outdir / "heap.csv"
+    heap_rows = 0
     for lineno, parts in steps:
         verb, args = parts[0].lower(), parts[1:]
         print(f"[{walk_path.name}:{lineno}] {verb} {' '.join(args)}")
-        if verb == "press":
+        if verb == "heap":
+            label = args[0] if args else f"sample{heap_rows}"
+            snap = link.heap_profile()
+            if heap_rows == 0:
+                outdir.mkdir(parents=True, exist_ok=True)
+                heap_csv.write_text("label,t_ms,free,largest,min_free,total,free_blocks,alloc_blocks\n")
+            with heap_csv.open("a", encoding="utf-8") as fh:
+                fh.write(
+                    f"{label},{snap['t']},{snap['free']},{snap['largest']},{snap['min_free']},"
+                    f"{snap['total']},{snap['free_blocks']},{snap['alloc_blocks']}\n"
+                )
+            heap_rows += 1
+            # frag% is the headline number: how much of free heap is unreachable to a
+            # single allocation. 100% would mean the largest block is zero.
+            frag = 100.0 * (1.0 - snap["largest"] / snap["free"]) if snap["free"] else 0.0
+            print(
+                f"  heap[{label}] free={snap['free']} largest={snap['largest']} "
+                f"frag={frag:.0f}% blocks={snap['free_blocks']}free/{snap['alloc_blocks']}alloc"
+            )
+        elif verb == "press":
             settle = float(args[1]) if len(args) > 1 else DEFAULT_SETTLE_S
             link.press(args[0], settle)
         elif verb == "settings":
@@ -262,6 +292,7 @@ def main() -> int:
     p_settings.add_argument("json")
 
     sub.add_parser("deep-sleep", help="enter the production deep-sleep path")
+    sub.add_parser("heapprof", help="print one on-demand heap snapshot as JSON")
     sub.add_parser("trmnl-status", help="read non-secret Terminus status and durable refresh evidence")
     sub.add_parser("trmnl-render-test", help="run the production pinned-image render diagnostic")
 
@@ -303,6 +334,9 @@ def main() -> int:
         if args.action == "deep-sleep":
             link.deep_sleep()
             print("Deep sleep requested")
+            return 0
+        if args.action == "heapprof":
+            print(json.dumps(link.heap_profile(), indent=2, sort_keys=True))
             return 0
         if args.action == "trmnl-status":
             print(json.dumps(link.terminus_status(), indent=2, sort_keys=True))
