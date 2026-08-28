@@ -518,13 +518,21 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
   LOG_DBG("EBP", "Cache not found, building spine/TOC cache");
   setupCacheDir();
 
-  // Cache miss: reserve the inflate window defensively. Acquiring it now,
-  // while the heap is still whole, is the only reliable way — the window
-  // allocation fails after fragmentation sets in mid-session. Wrongly
-  // reserving costs ~32 KB of heap; wrongly skipping strands the reader on
-  // chapters that need decompression.
-  LOG_INF("EBP", "Inflate window: reserving defensively (no cached flag yet)");
-  if (!InflateReader::ensureSharedWindow()) {
+  // Cache miss: there is no persisted hasDeflatedEntries flag yet, so this used to
+  // reserve the window unconditionally. Reserving *early* is right and stays --
+  // measured 2026-08-28, claiming it later from a working heap leaves the largest
+  // block at ~11.7 KB against ~20.5 KB when it is claimed at open. Wrongly skipping
+  // strands the reader on chapters that need decompression.
+  //
+  // But "we do not know" is not the same as "we cannot find out".
+  // ZipFile::hasAnyDeflated() walks the central directory once and needs no
+  // dictionary of its own, so ask the archive instead of guessing. A stored-only
+  // book then never pins 32 KB it will never use, and a deflated one reserves just
+  // as early as before.
+  const bool needsWindowUncached = ZipFile(filepath).hasAnyDeflated();
+  LOG_INF("EBP", "Inflate window: %s (probed central directory, no cached flag yet)",
+          needsWindowUncached ? "reserving" : "not needed for this book");
+  if (needsWindowUncached && !InflateReader::ensureSharedWindow()) {
     LOG_ERR("EBP", "Failed to pre-allocate inflate window (cache miss)");
   }
 
