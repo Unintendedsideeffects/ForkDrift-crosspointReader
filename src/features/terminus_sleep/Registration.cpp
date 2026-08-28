@@ -5,6 +5,7 @@
 #include <HalStorage.h>
 #include <HeapGuard.h>
 #include <Logging.h>
+#include <Memory.h>
 #include <Stream.h>
 #include <WebServer.h>
 #include <esp_crt_bundle.h>
@@ -130,31 +131,6 @@ static esp_err_t manifestEventHandler(esp_http_client_event_t* evt) {
   return ESP_OK;
 }
 
-static esp_err_t imageEventHandler(esp_http_client_event_t* evt) {
-  auto* sink = static_cast<VerifiedFileSink*>(evt->user_data);
-  if (evt->event_id != HTTP_EVENT_ON_DATA || !sink || !sink->opened) {
-    return ESP_OK;
-  }
-
-  if (sink->magicLen < sizeof(sink->magic)) {
-    const size_t take = static_cast<size_t>(evt->data_len) < sizeof(sink->magic) - sink->magicLen
-                            ? static_cast<size_t>(evt->data_len)
-                            : sizeof(sink->magic) - sink->magicLen;
-    memcpy(sink->magic + sink->magicLen, evt->data, take);
-    sink->magicLen += take;
-  }
-
-  SpiBusMutex::Guard guard;
-  const size_t written =
-      sink->file.write(reinterpret_cast<const uint8_t*>(evt->data), static_cast<size_t>(evt->data_len));
-  sink->bytes += written;
-  if (written != static_cast<size_t>(evt->data_len)) {
-    sink->writeFailed = true;
-    return ESP_FAIL;
-  }
-  return ESP_OK;
-}
-
 // Download url to TRMNL_TEMP_PATH, sniff the content type, and move the file
 // to the matching trmnl_latest.<ext>. Returns the final path, or nullptr on
 // any failure (temp file is cleaned up).
@@ -187,7 +163,8 @@ static const char* downloadVerifiedImage(const std::string& url) {
 
   esp_http_client_config_t config = {};
   config.url = url.c_str();
-  config.event_handler = imageEventHandler;
+  // No event handler: the body is read explicitly below so the SD write happens
+  // outside the HTTP client's call stack.
   config.user_data = &sink;
   config.timeout_ms = 30000;
   config.buffer_size = TRMNL_HTTP_BUFFER_BYTES;
@@ -203,8 +180,76 @@ static const char* downloadVerifiedImage(const std::string& url) {
   }
 
   esp_http_client_set_header(client, "User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
-  const esp_err_t err = esp_http_client_perform(client);
-  const int code = esp_http_client_get_status_code(client);
+
+  // Read the body ourselves instead of letting esp_http_client_perform() drive an
+  // event handler that writes to SD from inside its data callback.
+  //
+  // The nesting was the whole reason this download needed its own 12 KB task: an SD
+  // write through SpiBusMutex and SdFat, stacked on top of the HTTP client and lwIP
+  // frames, overflowed the 8 KB bgwifi task. Reading into a heap buffer and writing
+  // after the read returns makes those two peaks sequential rather than additive, so
+  // the deep frame no longer exists. See docs/heap/hunt-5-terminus-stack.md.
+  //
+  // That matters for fragmentation, not just stack: the task's stack is heap
+  // allocated and freed when it exits, and this heap has no compaction, so the freed
+  // run leaves a hole of exactly its size -- the leading explanation for the
+  // intermittent 12,288-byte contiguity loss in docs/FINDINGS.md. The buffer below is
+  // heap rather than stack for the same reason the stack was the problem.
+  auto buffer = makeUniqueNoThrow<uint8_t[]>(TRMNL_HTTP_BUFFER_BYTES);
+  if (!buffer) {
+    esp_http_client_cleanup(client);
+    SpiBusMutex::Guard guard;
+    sink.file.close();
+    Storage.remove(path);
+    fetchStage = "image-failed";
+    LOG_ERR("TRMNL", "OOM: image read buffer (%d bytes)", TRMNL_HTTP_BUFFER_BYTES);
+    return nullptr;
+  }
+
+  esp_err_t err = esp_http_client_open(client, 0);
+  int code = 0;
+  if (err == ESP_OK) {
+    // Must run before get_status_code(): it is fetch_headers() that populates it.
+    esp_http_client_fetch_headers(client);
+    code = esp_http_client_get_status_code(client);
+
+    while (true) {
+      const int read = esp_http_client_read(client, reinterpret_cast<char*>(buffer.get()), TRMNL_HTTP_BUFFER_BYTES);
+      if (read < 0) {
+        err = ESP_FAIL;
+        break;
+      }
+      if (read == 0) {
+        break;  // complete: is_complete_data_received() is checked via bytes below
+      }
+
+      // Sniff the leading bytes for the content type, exactly as the old data
+      // callback did, before any of it reaches the card.
+      if (sink.magicLen < sizeof(sink.magic)) {
+        const size_t take = static_cast<size_t>(read) < sizeof(sink.magic) - sink.magicLen
+                                ? static_cast<size_t>(read)
+                                : sizeof(sink.magic) - sink.magicLen;
+        memcpy(sink.magic + sink.magicLen, buffer.get(), take);
+        sink.magicLen += take;
+      }
+
+      // SD and the e-ink panel share the SPI bus, so every touch holds SpiBusMutex.
+      // The guard is scoped to the write so it is not held across the next network
+      // read, which can block for the full 30 s timeout.
+      size_t written = 0;
+      {
+        SpiBusMutex::Guard guard;
+        written = sink.file.write(buffer.get(), static_cast<size_t>(read));
+      }
+      sink.bytes += written;
+      if (written != static_cast<size_t>(read)) {
+        sink.writeFailed = true;
+        err = ESP_FAIL;
+        break;
+      }
+    }
+    esp_http_client_close(client);
+  }
   esp_http_client_cleanup(client);
 
   SpiBusMutex::Guard guard;
