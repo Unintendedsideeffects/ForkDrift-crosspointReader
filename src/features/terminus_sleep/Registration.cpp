@@ -382,6 +382,23 @@ static void recordFetchAttempt(const bool result) {
 static void terminusFetchTask(void*) {
   const bool result = fetchAndPinTrmnlImage();
   recordFetchAttempt(result);
+
+  // Report what the fetch actually used before the task dies. This stack is sized
+  // empirically -- 8 KB overflowed, so 12 KB was chosen -- and nothing has ever
+  // measured the real figure, so there is no way to know how much of it is margin.
+  // That matters beyond tidiness: the stack is heap-allocated and freed here, and on
+  // a heap with no compaction the freed run leaves a hole of exactly this size. A
+  // 12,288-byte hole is the leading explanation for the intermittent contiguity loss
+  // in docs/FINDINGS.md, so every kilobyte of unused margin is costing us twice.
+  //
+  // High-water mark is in words on ESP-IDF; it is the SMALLEST free space ever seen,
+  // so `used = size - free` is the peak. Read it before vTaskDelete.
+  const uint32_t freeWords = uxTaskGetStackHighWaterMark(nullptr);
+  const uint32_t freeBytes = freeWords * sizeof(StackType_t);
+  LOG_INF("TRMNL", "Fetch task stack: %u of %u bytes used, %u free (%.0f%% margin)",
+          static_cast<unsigned>(TRMNL_FETCH_TASK_STACK - freeBytes), static_cast<unsigned>(TRMNL_FETCH_TASK_STACK),
+          static_cast<unsigned>(freeBytes), 100.0 * freeBytes / TRMNL_FETCH_TASK_STACK);
+
   fetchTaskRunning = false;
   vTaskDelete(nullptr);
 }
