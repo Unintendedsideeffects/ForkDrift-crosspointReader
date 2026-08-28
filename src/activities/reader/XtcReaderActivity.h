@@ -39,5 +39,10 @@ class XtcReaderActivity final : public Activity {
   void loop() override;
   void render(RenderLock&&) override;
   bool isReaderActivity() const override { return true; }
+  // XtcReader needs a 48,000-byte contiguous page buffer to render (96,000 at 2-bit
+  // depth). Stopping the background server is necessary but, on a heap whose best
+  // measured largest block is ~37 KB, not on its own sufficient -- see
+  // docs/HEAP_ANALYSIS.md.
+  bool blocksBackgroundServer() override { return true; }
   ScreenshotInfo getScreenshotInfo() const override;
 };

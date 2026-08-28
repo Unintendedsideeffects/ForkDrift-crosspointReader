@@ -71,5 +71,7 @@ class TxtReaderActivity final : public Activity {
   void loop() override;
   void render(RenderLock&&) override;
   bool isReaderActivity() const override { return true; }
+  // TxtReader allocates page-sized buffers and cannot do so reliably while the background server holds memory.
+  bool blocksBackgroundServer() override { return true; }
   ScreenshotInfo getScreenshotInfo() const override;
 };

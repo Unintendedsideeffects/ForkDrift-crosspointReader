@@ -61,4 +61,6 @@ class MarkdownReaderActivity final : public ActivityWithSubactivity {
   void onExit() override;
   void loop() override;
   bool isReaderActivity() const override { return true; }
+  // MarkdownReader allocates page-sized buffers and cannot do so reliably while the background server holds memory.
+  bool blocksBackgroundServer() override { return true; }
 };
