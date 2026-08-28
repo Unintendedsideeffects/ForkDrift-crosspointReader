@@ -49,7 +49,14 @@ class CssParser {
   // v7: textDecoration became combinable bit flags (v6); direction (RTL) added.
   // 8: rules defining no supported property are no longer stored, so a v7 cache
   // would carry entries this build would never have written.
-  static constexpr uint8_t CSS_CACHE_VERSION = 8;
+  // 8 -> 9: existing caches on real devices are poisoned. Until the guard in
+  // Epub::parseCssFiles(), a low-heap open skipped every stylesheet and still wrote
+  // the empty result as though it were a complete parse; the cache is then preferred
+  // over re-parsing, so those books laid out without their stylesheets permanently.
+  // Refusing the bad write only protects new caches, and on the cached-metadata path
+  // the empty cache is never re-examined. Bumping the version invalidates all of them
+  // exactly once, which is what the mismatch path at CssParser.cpp:895 is for.
+  static constexpr uint8_t CSS_CACHE_VERSION = 9;
 
   static constexpr size_t MAX_DESCENDANT_RULES = 100;
 

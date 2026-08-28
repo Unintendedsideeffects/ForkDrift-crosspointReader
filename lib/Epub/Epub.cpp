@@ -368,6 +368,8 @@ void Epub::parseCssFiles() const {
   // Try to load from CSS cache first
   if (!loadCssRulesFromCache()) {
     // Cache miss - parse CSS files
+    // An incomplete parse must not be cached because the cache is preferred over re-parsing on subsequent opens.
+    bool skippedRecoverableCssFile = false;
     for (const auto& cssPath : cssFiles) {
       LOG_DBG("EBP", "Parsing CSS file: %s", cssPath.c_str());
 
@@ -375,6 +377,7 @@ void Epub::parseCssFiles() const {
       if (freeHeap < MIN_HEAP_FOR_CSS_PARSING) {
         LOG_ERR("EBP", "Insufficient heap for CSS parsing (%u bytes free, need %zu), skipping: %s", freeHeap,
                 MIN_HEAP_FOR_CSS_PARSING, cssPath.c_str());
+        skippedRecoverableCssFile = true;
         continue;
       }
 
@@ -390,6 +393,7 @@ void Epub::parseCssFiles() const {
       HalFile tempCssFile;
       if (!Storage.openFileForWrite("EBP", tmpCssPath, tempCssFile)) {
         LOG_ERR("EBP", "Could not create temp CSS file");
+        skippedRecoverableCssFile = true;
         continue;
       }
       if (!readItemContentsToStream(cssPath, tempCssFile, 1024)) {
@@ -397,6 +401,7 @@ void Epub::parseCssFiles() const {
         // Explicitly close() file before calling Storage.remove()
         tempCssFile.close();
         Storage.remove(tmpCssPath.c_str());
+        skippedRecoverableCssFile = true;
         continue;
       }
       // Explicitly close() file before reopening for reading
@@ -406,6 +411,7 @@ void Epub::parseCssFiles() const {
       if (!Storage.openFileForRead("EBP", tmpCssPath, cssReadFile)) {
         LOG_ERR("EBP", "Could not reopen temp CSS file: %s", cssPath.c_str());
         Storage.remove(tmpCssPath.c_str());
+        skippedRecoverableCssFile = true;
         continue;
       }
       cssParser->loadFromStream(cssReadFile);
@@ -415,10 +421,17 @@ void Epub::parseCssFiles() const {
     }
 
     // Save parsed CSS rules to cache for next time
-    HalFile cssCacheFile;
-    if (Storage.openFileForWrite("EBP", getCssRulesCache(), cssCacheFile)) {
-      cssParser->saveToCache(cssCacheFile);
-      cssCacheFile.close();
+    if (skippedRecoverableCssFile) {
+      LOG_ERR("EBP",
+              "Not caching CSS rules: %zu rule(s) parsed but at least one stylesheet was skipped (free=%u); will retry "
+              "on next open",
+              cssParser->ruleCount(), static_cast<unsigned>(ESP.getFreeHeap()));
+    } else {
+      HalFile cssCacheFile;
+      if (Storage.openFileForWrite("EBP", getCssRulesCache(), cssCacheFile)) {
+        cssParser->saveToCache(cssCacheFile);
+        cssCacheFile.close();
+      }
     }
 
     LOG_DBG("EBP", "Loaded %zu CSS style rules from %zu files", cssParser->ruleCount(), cssFiles.size());
