@@ -1242,7 +1242,7 @@ even after the heap fully recovers. Transient pressure, permanent damage.
 - Also worth reconsidering: an 8 KB speculative reserve on top of a 32 KB floor means text layout
   refuses to add a single word while 40 KB is still free. That is a very expensive guard band for
   a `std::vector` growth step.
-- **Status**: open — root-caused and measured, fix deliberately not attempted
+- **Status**: largely fixed since this was written (verified 2026-08-28). `ParsedText::addWord` now sizes its request to the actual allocation instead of a flat 8 KB, and `Section.cpp:438` refuses to cache a section that indexed to zero elements while the heap-truncation tally was non-zero. Partially truncated (lossy but non-empty) sections are still cached — a deliberate, documented trade at `Section.cpp:434-437`, not an oversight.
 
 ## 2026-08-14T14:05Z — The empty-section refusal is device-verified, and it misses the cliff by ~3 KB
 - **Found by**: claude — X4, forcing a re-index by changing `fontSize` (which invalidates the
@@ -1800,14 +1800,14 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Where**: `src/features/epub/Registration.cpp:30`, `src/core/registries/ReaderLoader.h:16-54`, `src/activities/reader/EpubReaderActivity.cpp:309-323`, `src/activities/ActivityManager.cpp:194-199`
 - **What**: `createActivity()` runs `loadDocumentNoThrow<Epub>()` — the full EPUB parse, CSS parsing and the 32 KB inflate window — before the activity object exists, so `onEnter()`'s background-server teardown runs afterwards. `EpubReaderActivity.cpp:309-323` states the opposite as its invariant ("servers must be down BEFORE the book load allocates… the ordering is the whole fix"); that holds for layout but not for `Epub::load()`. Measured: the load runs at ~11,148 free / 5,620 largest and drives min-free to 3,848.
 - **Why not fixed here**: out of scope for the analysis pass (scope was measurement + documentation); the fix touches activity lifecycle ordering across all reader formats.
-- **Status**: open — ranked #1 in `docs/HEAP_ANALYSIS.md`
+- **Status**: fixed in `70fcdfce2` — teardown moved to `ActivityManager::goToReader`, immediately before `ReaderRegistry::open`, covering every reader format. Device-verified: min-free over the same flow 15,560 -> 27,352. The *outgoing activity* half of the same ordering problem remains open (see 2026-08-28T10:45Z).
 
 ## 2026-08-28T07:20Z — Out-of-memory during page deserialization is misreported as cache corruption and deletes the cache
 - **Found by**: codex — ad hoc (heap analysis pass, lens 2)
 - **Where**: `lib/Epub/Epub/Page.cpp:408-411`, `lib/Epub/Epub/blocks/TextBlock.cpp:206-228`, `lib/Epub/Epub/Section.cpp:599-603`, `lib/Epub/Epub/Section.cpp:266-282`
 - **What**: `Page::deserialize` returns `nullptr` for both corrupt data and insufficient heap. `Section::loadPageFromSectionFile` cannot distinguish them, logs "cache payload is corrupt" and calls `clearCache()`, which deletes the on-disk section file and forces a full re-index — the most allocation-hungry operation available, attempted while out of memory. A transient low-heap moment therefore destroys a valid cache. Same misattribution class as `0f851eff4`, but destructive.
 - **Why not fixed here**: out of scope (scope was measurement + documentation); needs a typed failure result threaded through `Page`/`TextBlock`/`Section`.
-- **Status**: open — ranked #3 in `docs/HEAP_ANALYSIS.md`
+- **Status**: fixed in `116bb9ad3` — `cacheload::` records whether a deserialize failure was an allocation refusal; on OOM the cache is kept and logged with heap figures, while corrupt data still clears it. Build- and host-test-verified only: not exercised against a real OOM on hardware, which could not be induced on demand.
 
 ## 2026-08-28T07:20Z — CSS is never parsed on real hardware; books lay out without their stylesheets and the empty result is cached
 - **Found by**: codex — ad hoc (heap analysis pass, lens 2)
@@ -1821,7 +1821,7 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Where**: `src/activities/reader/TxtReaderActivity.h`, `src/activities/reader/XtcReaderActivity.h`, `src/activities/reader/MarkdownReaderActivity.h`, default at `src/activities/Activity.h:67`
 - **What**: only `EpubReaderActivity` among the readers overrides `blocksBackgroundServer()`, so the other three run at the ~11 KB Home-with-server state. `XtcReaderActivity` needs a 48,000-byte contiguous page buffer to render at all, against a measured largest block of 5,620 — its "Page load error"/"Memory error" screens are the expected outcome there, not an anomaly.
 - **Why not fixed here**: out of scope (scope was measurement + documentation), though the fix is a one-line override per class.
-- **Status**: open — ranked #4 in `docs/HEAP_ANALYSIS.md`
+- **Status**: partially fixed in `c7a49de23` — all three now override `blocksBackgroundServer()`. This does NOT make XTC work: it needs a 48,000-byte contiguous buffer and the best largest free block measured anywhere on this device is ~37 KB. XTC rendering remains open on that ground.
 
 ## 2026-08-28T07:20Z — Settings cannot be changed in the state that most needs changing (48,000-byte floor)
 - **Found by**: claude — ad hoc (heap analysis pass)
@@ -1835,11 +1835,25 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Where**: `lib/Memory/HeapGuard.h:36-37`
 - **What**: `kLowFloorBytes = 61440`, but measured free heap never exceeds 51,464 (brief post-boot) and sits at 36-40 KB while reading. Every feature gated on "Low pressure" is therefore permanently off rather than conditionally deferred, which is not the documented intent. The header's own tuning note ("~60-130KB free") is the stale assumption behind this and a family of derived constants.
 - **Why not fixed here**: out of scope (scope was measurement + documentation); re-tuning needs per-call-site review, not a blind constant swap.
-- **Status**: open — ranked #2 in `docs/HEAP_ANALYSIS.md`
+- **Status**: re-scoped and largely closed by `6cd1329a4`. Verification showed the framing here was too broad: `kLowFloorBytes` has only four callsites, and three request 48,000 bytes, which fails `bytes <= largestBlock()` (~9 KB) regardless of the floor — those refuse correctly and the floor is not what stops them. Only the 8,000-byte AA scratch was genuinely mis-gated; it moved to `kCriticalFloorBytes` and the stale tuning note was replaced with measured figures. No constant value changed.
 
 ## 2026-08-28T10:45Z — The outgoing activity is still resident while the incoming document loads
 - **Found by**: claude — ad hoc (heap work, follow-up to 70fcdfce2)
 - **Where**: `src/activities/ActivityManager.cpp` (`goToReader`: `ReaderRegistry::open(...)` then `replaceActivity(...)`), `src/core/registries/ReaderLoader.h:16-54`
 - **What**: `goToReader` loads the whole document via `ReaderRegistry::open()` and only afterwards calls `replaceActivity()`, which destroys the previous activity. So HomeActivity — including its cover/carousel buffers — is still holding memory while the new book parses. Commit 70fcdfce2 fixed the same ordering problem for the background servers by freeing them before the factory; the outgoing *activity* is the remaining half. Measured consequence: after 03bdbc3f3 releases the inflate window on book close, re-acquiring 32,768 contiguous bytes at the next open failed in 1 of 3 cycles, because the heap is transiently fragmented by the still-resident Home activity. Non-fatal (`InflateReader::init()` allocates lazily at first use), but it defeats the point of pre-reserving the window while the heap is clean.
 - **Why not fixed here**: out of scope, and not a safe drive-by — the outgoing activity owns the callbacks passed into the factory, so destroying it earlier needs its lifetime untangled from `onBackToLibrary`/`onBackHome` first.
+- **Status**: open
+
+## 2026-08-28T12:10Z — Freeing the shared inflate window leaves a hole 12 bytes too small to ever hold it again
+- **Found by**: claude — device verification of `03bdbc3f3` (since reverted)
+- **Where**: `lib/InflateReader/InflateReader.cpp:9` (`INFLATE_DICT_SIZE = 32768`), `InflateReader::releaseSharedWindow()`, `Epub.cpp:486` (`ensureSharedWindow`)
+- **What**: releasing the process-wide 32,768-byte inflate window on book close looked like a clean win — measured largest free block recovered 10,228 -> 32,756 at Home. It is a trap. The freed run is 32,756 usable bytes: the window's own size **minus its allocator header**. That is 12 bytes short of `INFLATE_DICT_SIZE`, so the hole the window leaves behind can never be reused *for the window*. Re-acquisition then has to find some other 32 KB run, and on this device there usually isn't one. Measured consequence with free heap at 77,056: `ensureSharedWindow()` failed, and because reading a deflated ZIP needs it, the book could not read its own `META-INF/container.xml` or find `content.opf` — cascading into an empty CSS parse. This is the concrete reason the window is documented as "kept for the process lifetime once claimed" (`InflateReader.cpp:11-18`); the retention is not laziness.
+- **Why not fixed here**: reverted rather than fixed. A real fix has to make re-acquisition robust (e.g. reserve before the outgoing activity is destroyed, or pool the block at a size that tolerates the header) and that needs its own design and measurement.
+- **Status**: reverted in `HEAD` (revert of `03bdbc3f3`); the underlying fragmentation cost of holding the window is real and remains open — it is what pins the largest block at ~9 KB while reading.
+
+## 2026-08-28T12:15Z — An unreadable ZIP still writes an "empty but complete" CSS cache
+- **Found by**: claude — while verifying the CSS cache guard
+- **Where**: `lib/Epub/Epub.cpp` (`parseCssFiles`, and the `parseContentOpf` failure path in `Epub::load`)
+- **What**: the new guard suppresses the CSS cache write when a stylesheet was *skipped* for a recoverable reason. It does not cover the case where the OPF could not be parsed at all, because then `cssFiles` is empty, the loop never runs, nothing is recorded as skipped, and a zero-rule cache is written as though the book genuinely has no stylesheets. Reached in practice only when the ZIP itself is unreadable, so in normal operation it implies a broken book — but it is the same sticky shape and would need `Epub::load` to tell `parseCssFiles` that the file list is untrustworthy.
+- **Why not fixed here**: out of scope for the shipped fix; needs a signal plumbed from `Epub::load` into `parseCssFiles`.
 - **Status**: open
