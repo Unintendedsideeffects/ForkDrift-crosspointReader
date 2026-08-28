@@ -50,10 +50,6 @@ constexpr size_t MAX_RULES = 1500;
 // Maximum number of two-part descendant rules (ancestor subject) to store
 constexpr size_t MAX_DESCENDANT_RULES = CssParser::MAX_DESCENDANT_RULES;
 
-// Minimum free heap required to apply CSS during rendering
-// If below this threshold, we skip CSS to avoid display artifacts.
-constexpr size_t MIN_FREE_HEAP_FOR_CSS = 48 * 1024;
-
 // Maximum length for a single selector string
 // Prevents parsing of extremely long or malformed selectors
 constexpr size_t MAX_SELECTOR_LENGTH = 256;
@@ -701,16 +697,13 @@ bool CssParser::loadFromStream(HalFile& source) {
 
 CssStyle CssParser::resolveStyle(const std::string& tagName, const std::string& classAttr,
                                  const std::vector<CssAncestorEntry>& ancestors) const {
-  static bool lowHeapWarningLogged = false;
-  if (ESP.getFreeHeap() < MIN_FREE_HEAP_FOR_CSS) {
-    if (!lowHeapWarningLogged) {
-      lowHeapWarningLogged = true;
-      LOG_DBG("CSS", "Warning: low heap (%u bytes) below MIN_FREE_HEAP_FOR_CSS (%u), returning empty style",
-              ESP.getFreeHeap(), static_cast<unsigned>(MIN_FREE_HEAP_FOR_CSS));
-    }
-    return CssStyle{};
-  }
-
+  // No heap guard here, deliberately. This function allocates nothing: CssStyle is
+  // pure POD (enums, floats, CssLength, a flags word -- CssStyle.h:140-161), the
+  // lookups are finds into an already-built map, and applyOver copies fields. The
+  // previous MIN_FREE_HEAP_FOR_CSS check refused at 49,152 bytes free, which is
+  // above every state this device reaches -- layout runs at ~32-33 KB -- so it
+  // silently stripped styling from every book while protecting no allocation at
+  // all. Downstream layout does allocate, and is separately guarded where it does.
   CssStyle result;
 
   // 1. Apply element-level style (lowest priority). The map's hash/equal are

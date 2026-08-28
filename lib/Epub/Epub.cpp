@@ -19,7 +19,12 @@
 
 namespace {
 constexpr size_t MAX_CSS_FILE_SIZE = 128 * 1024;
-constexpr size_t MIN_HEAP_FOR_CSS_PARSING = 64 * 1024;
+// Measured on device (2026-08-28): a cold open attempts CSS parsing with 45,264-46,664
+// bytes free, so the previous 64 KB floor could never be cleared and every stylesheet
+// was skipped on every book. 40 KB clears the measured case with ~5 KB of margin, and
+// the parse degrades safely below it -- CssParser guards its own map growth through
+// heapguard::canAllocate, and a parse that skips a file no longer poisons the cache.
+constexpr size_t MIN_HEAP_FOR_CSS_PARSING = 40 * 1024;
 
 bool extractItemToTempFile(const Epub* epub, const std::string& itemHref, const std::string& tempPath) {
   HalFile tempFile;
