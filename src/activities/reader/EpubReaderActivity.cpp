@@ -2266,9 +2266,14 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
     const int gh = renderer.getDisplayHeight();
     const int gwBytes = renderer.getDisplayWidthBytes();
 
+    // 8,000-byte (gwBytes * STRIP_ROWS = 100 * 80) transient buffer freed at end of page.
+    // Use kCriticalFloorBytes (requires free >= 40,768) rather than kLowFloorBytes (requires free >= 69,440).
+    // Reading steady state is 36-40 KB free with ~9.2 KB largest block, so kLowFloorBytes made AA dead code.
+    // 8,000 fits the ~9.2 KB largest block, and if memory is genuinely tight or allocation fails,
+    // the working fallback immediately below (!scratch) safely skips AA.
     const size_t scratchSize = static_cast<size_t>(gwBytes) * STRIP_ROWS;
     std::unique_ptr<uint8_t[]> scratch;
-    if (heapguard::canAllocate(scratchSize, heapguard::kLowFloorBytes)) {
+    if (heapguard::canAllocate(scratchSize, heapguard::kCriticalFloorBytes)) {
       scratch = makeUniqueNoThrow<uint8_t[]>(scratchSize);
     }
     if (!scratch) {

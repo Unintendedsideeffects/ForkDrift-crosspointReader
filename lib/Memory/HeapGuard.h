@@ -31,9 +31,18 @@ enum class Pressure : uint8_t {
   Critical = 2  // only essential allocations; heavy features must refuse
 };
 
-// Floors tuned against observed steady-state reading heap (~60-130KB free;
-// see "MEM enter/exit" logs). LOW leaves room for a 48KB framebuffer-sized
-// buffer plus slack; CRITICAL is the do-not-cross line for system stability.
+// Floors tuned against measured hardware heap state (2026-08-28; see docs/HEAP_ANALYSIS.md):
+// - Steady-state reading free heap is 36-40 KB with a ~9 KB largest block.
+// - Idle Home in default configuration is 11 KB free / 5.6 KB largest block.
+//
+// Note: floorAfter is a reserve left behind after allocation, so a lower floor is
+// MORE permissive (allows allocations to proceed down to a lower remaining reserve).
+//
+// Guidance for floor selection:
+// - kCriticalFloorBytes: for small, transient allocations that have a graceful fallback.
+// - kLowFloorBytes: for large or long-lived allocations.
+// Note that a 48 KB heap allocation cannot succeed in any measured hardware state, so anything
+// framebuffer-sized must borrow the framebuffer or stream from SD.
 constexpr size_t kLowFloorBytes = 60 * 1024;
 constexpr size_t kCriticalFloorBytes = 32 * 1024;
 
