@@ -194,6 +194,8 @@ class EpubReaderActivity final : public Activity {
   void queueCompletionPromptIfNeeded();
 #endif
   void resetPageLoadRetryState();
+  // Free what is reclaimable before refusing to render. Caller must hold the RenderLock.
+  void reclaimHeapForRender();
   void renderReaderError(StrId messageId);
   void refreshReaderPreviewBuffer(uint8_t* dest, size_t size);
   void navigateToHref(const std::string& href, bool savePosition = false);

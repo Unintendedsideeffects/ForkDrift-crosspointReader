@@ -86,7 +86,6 @@ namespace {
 // pagesPerRefresh now comes from SETTINGS.getRefreshFrequency()
 constexpr uint8_t maxPageLoadRetryCount = 1;
 constexpr uint32_t minHeapForFontPrewarm = 40000;
-constexpr uint32_t minHeapForPageRender = 45000;
 
 constexpr unsigned long kCoverThumbBakeIdleMs = 5000;
 constexpr uint32_t kMinFreeHeapForCoverThumbBake = 96000;
@@ -289,6 +288,33 @@ void EpubReaderActivity::queueCompletionPromptIfNeeded() {
 void EpubReaderActivity::resetPageLoadRetryState() {
   pageLoadRetrySpineIndex = -1;
   pageLoadRetryCount = 0;
+}
+
+void EpubReaderActivity::reclaimHeapForRender() {
+  // Callers must already hold the RenderLock: this drops the section, and pageTurn()
+  // takes the same lock before doing that for the same reason.
+  //
+  // The background servers are the big, safe win -- measured at ~22KB across
+  // stop/delete on an X4 -- and both stops are idempotent. keepWifi=true matches
+  // onEnter(): the association is cheap to hold and expensive to re-establish.
+  if (BG_WIFI.isPendingOrRunning()) {
+    BG_WIFI.stop(/*keepWifi=*/true);
+  }
+  BackgroundWebServer::getInstance().stop(/*keepWifi=*/true);
+
+  // Dropping the resident section frees its CSS parser, LUTs and open file handle.
+  // Deliberately NOT clearCache(): that deletes the on-disk section file and forces a
+  // full re-index, which is the most allocation-hungry thing the reader can do and the
+  // last thing to attempt while out of memory. Leaving the file intact makes the reload
+  // below a cheap deserialize ("Cache found, skipping build").
+  //
+  // pageTurn() advances section->currentPage in place without touching nextPageNumber,
+  // so the position has to be handed over explicitly or the reload lands on a stale
+  // page -- the reload path assigns section->currentPage = nextPageNumber.
+  if (section) {
+    nextPageNumber = section->currentPage;
+    section.reset();
+  }
 }
 
 void EpubReaderActivity::renderReaderError(StrId messageId) {
@@ -1769,12 +1795,35 @@ void EpubReaderActivity::render(RenderLock&& lock) {
   const uint16_t viewportWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
   const uint16_t viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
 
-  if (esp_get_free_heap_size() < minHeapForPageRender) {
-    LOG_ERR("ERS", "Insufficient heap for page render: %u bytes free", static_cast<unsigned>(esp_get_free_heap_size()));
-    renderReaderError(StrId::STR_PAGE_LOAD_ERROR);
-    automaticPageTurnActive = false;
-    showPendingSyncSaveError();
-    return;
+  // Drawing the page is the reader's one essential operation, so it is gated on
+  // HeapGuard's CRITICAL floor rather than a bespoke number. The previous 45000-byte
+  // check sat between kCriticalFloorBytes (32KB) and kLowFloorBytes (60KB), so it
+  // refused the render at a pressure level HeapGuard classifies as merely Low -- the
+  // level at which features are meant to drop luxuries, not core function.
+  //
+  // Measured on an X4 (serial trace 2026-08-28, backgroundServerMode=Always): the
+  // teardown in onEnter frees just enough to clear 45000 exactly once, so page one
+  // rendered -- degrading correctly on the way down, skipping the font prewarm at
+  // heap=33136 and drawing without AA after the 8000-byte strip scratch OOM'd. Free
+  // heap then settled at 36348 and every page turn after it was refused, forever,
+  // because nothing on this path reclaimed anything. That 36-45KB dead band, where a
+  // book opens but can never be turned, is the "Page load error" this fixes.
+  if (heapguard::freeBytes() < heapguard::kCriticalFloorBytes) {
+    LOG_ERR("ERS", "Heap below critical floor for page render: %u free, %u largest; reclaiming",
+            static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(heapguard::largestBlock()));
+    reclaimHeapForRender();
+    if (heapguard::freeBytes() < heapguard::kCriticalFloorBytes) {
+      LOG_ERR("ERS", "Still below critical floor after reclaim: %u free",
+              static_cast<unsigned>(heapguard::freeBytes()));
+      // Not STR_PAGE_LOAD_ERROR: this is an out-of-memory refusal and the SD cache is
+      // fine. Reporting it as a page load error sends the next reader of this code
+      // hunting a corrupt section file that was never corrupt.
+      renderReaderError(StrId::STR_MEMORY_ERROR);
+      automaticPageTurnActive = false;
+      showPendingSyncSaveError();
+      return;
+    }
+    LOG_INF("ERS", "Reclaim cleared the floor: %u free; rendering", static_cast<unsigned>(heapguard::freeBytes()));
   }
 
   if (!section) {
