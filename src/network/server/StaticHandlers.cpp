@@ -21,16 +21,19 @@ namespace {
 
 bool shouldRegisterHealthRoute() { return true; }
 
-void mountHealthRoute(WebServer* server) {
-  server->on("/health", HTTP_GET, [server] { server->send(200, "application/json", "{\"status\":\"ok\"}"); });
-}
+void handleHealth(WebServer* server) { server->send(200, "application/json", "{\"status\":\"ok\"}"); }
+
+const core::WebRouteSpec kHealthRoutes[] = {
+    {"/health", HTTP_GET, handleHealth, nullptr},
+};
 
 struct HealthRouteRegistration {
   HealthRouteRegistration() {
     core::WebRouteEntry entry{};
     entry.routeId = "health";
     entry.shouldRegister = shouldRegisterHealthRoute;
-    entry.mountRoutes = mountHealthRoute;
+    entry.routes = kHealthRoutes;
+    entry.routeCount = sizeof(kHealthRoutes) / sizeof(kHealthRoutes[0]);
     core::WebRouteRegistry::add(entry);
   }
 };
@@ -53,12 +56,6 @@ void CrossPointWebServer::handleJszip() const {
 
 void CrossPointWebServer::handleNotFound() const {
   if (apMode) {
-    // In AP mode, redirect any unrecognised URL to the home page.
-    // OS captive-portal probes (Apple /hotspot-detect.html, Android /generate_204,
-    // Windows /ncsi.txt, etc.) all land here because none match a registered route.
-    // A 302 to the raw AP IP triggers the "Sign in to network" notification on every
-    // major OS; we use the IP rather than the .local hostname because mDNS is blocked
-    // on clients until after they dismiss the captive portal.
     const String redirectUrl = "http://" + WiFi.softAPIP().toString() + apRedirectPath.c_str();
     server->sendHeader("Location", redirectUrl);
     server->send(302, "text/plain", "");

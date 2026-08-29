@@ -18,8 +18,7 @@ namespace {
 #if ENABLE_OTA_UPDATES
 bool shouldRegisterOtaApiRoute() { return core::FeatureCatalog::isEnabled("ota_updates"); }
 
-void mountOtaRoutes(WebServer* server) {
-  server->on("/api/ota/check", HTTP_POST, [server] {
+void handleOtaCheckPost(WebServer* server) {
     if (WiFi.status() != WL_CONNECTED) {
       server->send(503, "application/json", "{\"status\":\"error\",\"message\":\"Not connected to WiFi\"}");
       return;
@@ -38,9 +37,9 @@ void mountOtaRoutes(WebServer* server) {
         server->send(404, "application/json", "{\"status\":\"error\",\"message\":\"OTA API disabled\"}");
         return;
     }
-  });
+}
 
-  server->on("/api/ota/check", HTTP_GET, [server] {
+void handleOtaCheckGet(WebServer* server) {
     const auto status = network::OtaWebCheck::getSnapshot();
     if (status.status == network::OtaWebCheckStatus::Disabled) {
       server->send(404, "application/json", "{\"status\":\"error\",\"message\":\"OTA API disabled\"}");
@@ -66,8 +65,12 @@ void mountOtaRoutes(WebServer* server) {
     String json;
     serializeJson(doc, json);
     server->send(200, "application/json", json);
-  });
 }
+
+const core::WebRouteSpec kOtaRoutes[] = {
+    {"/api/ota/check", HTTP_POST, handleOtaCheckPost, nullptr},
+    {"/api/ota/check", HTTP_GET, handleOtaCheckGet, nullptr},
+};
 #endif
 
 bool isSettingsActionSupported() { return core::FeatureCatalog::isEnabled("ota_updates"); }
@@ -93,7 +96,8 @@ void registerFeature() {
   core::WebRouteEntry webRouteEntry{};
   webRouteEntry.routeId = "ota_api";
   webRouteEntry.shouldRegister = shouldRegisterOtaApiRoute;
-  webRouteEntry.mountRoutes = mountOtaRoutes;
+  webRouteEntry.routes = kOtaRoutes;
+  webRouteEntry.routeCount = sizeof(kOtaRoutes) / sizeof(kOtaRoutes[0]);
   core::WebRouteRegistry::add(webRouteEntry);
 #endif
 }

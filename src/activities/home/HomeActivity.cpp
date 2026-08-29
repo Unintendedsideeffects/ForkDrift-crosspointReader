@@ -8,6 +8,7 @@
 #include <HalStorage.h>
 #include <HeapGuard.h>
 #include <I18n.h>
+#include <InflateReader.h>
 #include <Utf8.h>
 #include <WiFi.h>
 #include <Xtc.h>
@@ -54,6 +55,7 @@
 #include "fontIds.h"
 #include "network/background/BackgroundWifiService.h"
 #include "util/BookProgressDataStore.h"
+#include "util/CoverThumbHeapPolicy.h"
 #include "util/CoverThumbSizes.h"
 #include "util/ForkDriftNavigation.h"
 #include "util/LibraryShelfStore.h"
@@ -463,6 +465,17 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
       const bool staleCoverPath = !hasCoverThumbTemplate(book.coverBmpPath);
       if (isMissingAnyRegisteredCoverThumb(book.coverBmpPath, sizes, sizeCount)) {
         if (FsHelpers::hasEpubExtension(book.path)) {
+          const CoverThumbMemory thumbHeap{
+              ESP.getFreeHeap(),
+              ESP.getMaxAllocHeap(),
+              InflateReader::hasSharedWindow(),
+          };
+          if (!CoverThumbHeapPolicy::canAttempt(thumbHeap)) {
+            LOG_DBG("HOME", "cover thumbs skipped: free=%u largest=%u window=%d", thumbHeap.freeHeap,
+                    thumbHeap.largestBlock, thumbHeap.inflateWindowReserved ? 1 : 0);
+            progress++;
+            continue;
+          }
           Epub epub(book.path, "/.crosspoint");
           if (!showingLoading) {
             showingLoading = true;

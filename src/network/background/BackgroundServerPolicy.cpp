@@ -20,6 +20,15 @@ uint32_t startMinFreeBytes(const uint32_t taskStackBytes) {
 
 uint32_t runningMinFreeBytes() { return SERVER_SAFETY_FLOOR_BYTES + RUNNING_HEADROOM_BYTES; }
 
+uint32_t runningAbortFreeBytes() { return OBSERVED_RUNNING_MIN_FREE_BYTES; }
+
+RunningHeapAction evaluateRunningHeap(const uint32_t freeBytes) {
+  if (freeBytes < runningAbortFreeBytes()) {
+    return RunningHeapAction::StopKeepWifi;
+  }
+  return RunningHeapAction::KeepServing;
+}
+
 StartResourceVerdict evaluateStartResources(const StartResourceInput& input) {
   if (input.freeBytes < startMinFreeBytes(input.taskStackBytes)) {
     return StartResourceVerdict::InsufficientFree;

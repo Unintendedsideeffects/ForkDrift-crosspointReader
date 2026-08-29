@@ -49,7 +49,6 @@ class EpubReaderMenuActivity final : public Activity {
 #if ENABLE_ANNOTATIONS || ENABLE_BOOKMARKS
     EXPORT_HIGHLIGHTS,
 #endif
-    MEMORY_RECOVERY_REQUESTED,
   };
 
   explicit EpubReaderMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const std::string& title,
@@ -82,7 +81,6 @@ class EpubReaderMenuActivity final : public Activity {
   void openReaderOptions();
   void openControlsOptions();
   void finishOptionsResult(const ControlsOptionsResult* optionsResult);
-  void finishForMemoryRecovery();
 
   const std::vector<MenuItem> menuItems;
 

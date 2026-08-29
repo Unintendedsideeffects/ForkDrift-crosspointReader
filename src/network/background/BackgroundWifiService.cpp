@@ -1,7 +1,6 @@
 #include "network/background/BackgroundWifiService.h"
 
 #include <Arduino.h>
-#include <ESPmDNS.h>
 #include <Logging.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
@@ -18,12 +17,16 @@
 #include "SpiBusMutex.h"
 #include "core/features/FeatureLifecycle.h"
 #include "core/registries/HeapReclaimRegistry.h"
+#include "network/background/BackgroundWebServer.h"
+#include "network/background/LibraryShelfRefreshPolicy.h"
+#include "network/http/HttpDownloader.h"
 #include "network/http/OpdsShelfFetcher.h"
 #include "network/server/CrossPointWebServer.h"
 #include "network/wifi/WifiScanCache.h"
 #include "util/LibraryShelfStore.h"
-#include "util/NetworkNames.h"
 #include "util/WifiCredentialStore.h"
+
+static_assert(library_shelf::kMinFreeBytes == HttpDownloader::MIN_HEAP_FOR_HTTPS);
 
 // Defined in CrossPointState.cpp — returns the FreeRTOS task that currently
 // holds the pending-state mutex, or nullptr if unowned.
@@ -184,7 +187,10 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
       delay(50);
     }
 
-    // ── Start web server ──────────────────────────────────────────────────
+    if (!shelfRefreshAttempted) {
+      shelfRefreshAttempted = refreshLibraryShelf();
+    }
+
     server = new (std::nothrow) CrossPointWebServer();
     if (server == nullptr) {
       LOG_ERR("BGWIFI", "Failed to allocate CrossPointWebServer");
@@ -192,7 +198,7 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
       goto cleanup;
     }
 
-    server->begin();
+    server->begin(CrossPointWebServer::ServerRole::Background);
 
     if (!server->isRunning()) {
       LOG_ERR("BGWIFI", "Web server failed to start");
@@ -206,20 +212,6 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
     serving = true;
     LOG_DBG("BGWIFI", "Background web server running on port %d", server->getPort());
 
-    char hostname[40];
-    NetworkNames::getDeviceHostname(hostname, sizeof(hostname));
-    if (MDNS.begin(hostname)) {
-      mdnsStarted = true;
-      LOG_DBG("BGWIFI", "mDNS started: http://%s.local/", hostname);
-    } else {
-      LOG_ERR("BGWIFI", "mDNS failed to start");
-    }
-
-    if (mdnsStarted && !shelfRefreshAttempted) {
-      shelfRefreshAttempted = true;
-      refreshLibraryShelf();
-    }
-
     // ── Service loop ──────────────────────────────────────────────────────
     while (!stopRequested) {
       esp_task_wdt_reset();
@@ -231,15 +223,13 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
 
       server->handleClient();
       requestCount = server->getRequestCount();  // Propagate to volatile field
+      if (!stopRequested && !shelfRefreshAttempted && ESP.getFreeHeap() >= library_shelf::kMinFreeBytes) {
+        shelfRefreshAttempted = refreshLibraryShelf();
+      }
       vTaskDelay(pdMS_TO_TICKS(1));              // Yield to scheduler
     }
 
     LOG_DBG("BGWIFI", "Background task stopping. Requests served: %lu", requestCount);
-
-    if (mdnsStarted) {
-      MDNS.end();
-      mdnsStarted = false;
-    }
 
     serving = false;
     server->stop();
@@ -272,42 +262,46 @@ cleanup:
   serviceState = background_server::noteCleanupComplete(serviceState);
 }
 
-void BackgroundWifiService::refreshLibraryShelf() {
+bool BackgroundWifiService::refreshLibraryShelf() {
   const auto& opdsServers = OPDS_STORE.getServers();
   if (opdsServers.empty()) {
     LOG_DBG("BGWIFI", "Library shelf refresh skipped: no OPDS server");
-    return;
+    return true;
   }
 
-  // Interval gate. The service starts on every wake from sleep, and without
-  // this the device performed an OPDS root fetch + parse + SD write each time.
-  //
-  // millis() is useless here — it restarts at 0 after every deep sleep wake,
-  // which is precisely the interval we need to span. Wall-clock time does
-  // survive (the RTC keeps running through deep sleep), and the last refresh
-  // stamp lives in RTC memory so it survives with it. Before the clock is set
-  // we cannot measure an interval at all, so we refresh rather than guess.
   const time_t nowEpoch = time(nullptr);
   const bool clockUsable = nowEpoch > CLOCK_SET_EPOCH_THRESHOLD;
   if (clockUsable && shelfLastRefreshEpoch > 0 && nowEpoch >= shelfLastRefreshEpoch &&
       (nowEpoch - shelfLastRefreshEpoch) < static_cast<time_t>(LIBRARY_SHELF_MIN_INTERVAL_S)) {
     LOG_DBG("BGWIFI", "Library shelf refresh skipped: refreshed %llds ago",
             static_cast<long long>(nowEpoch - shelfLastRefreshEpoch));
-    return;
+    return true;
   }
 
-  const uint32_t shelfHeapThreshold = LIBRARY_SHELF_MIN_HEAP_BYTES;
-  if (ESP.getFreeHeap() < shelfHeapThreshold) {
-    LOG_DBG("BGWIFI", "Library shelf refresh skipped: low heap (%u, need %u)",
-            static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(shelfHeapThreshold));
-    return;
+  library_shelf::RefreshAction action = library_shelf::evaluate(library_shelf::RefreshInput{
+      .freeBytes = ESP.getFreeHeap(),
+      .httpServerResident = BackgroundWebServer::getInstance().isRunning(),
+  });
+  if (action == library_shelf::RefreshAction::PauseHttpThenRetry) {
+    BackgroundWebServer::getInstance().stop(true);
+    action = library_shelf::evaluate(library_shelf::RefreshInput{
+        .freeBytes = ESP.getFreeHeap(),
+        .httpServerResident = false,
+    });
+  }
+  if (action != library_shelf::RefreshAction::Refresh) {
+    LOG_DBG("BGWIFI", "Library shelf refresh skipped: luxury (heap %u, need %u)",
+            static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(library_shelf::kMinFreeBytes));
+    return false;
   }
 
   std::vector<LibraryShelfEntry> shelfEntries;
   if (!OpdsShelfFetcher::fetchRootBooks(opdsServers[0], shelfEntries)) {
     LOG_DBG("BGWIFI", "Library shelf refresh failed");
-    return;
+    return true;
   }
+
+  LOG_DBG("BGWIFI", "Library shelf refreshed: %u entries", static_cast<unsigned int>(shelfEntries.size()));
 
   {
     SpiBusMutex::Guard guard;
@@ -316,6 +310,7 @@ void BackgroundWifiService::refreshLibraryShelf() {
   if (clockUsable) {
     shelfLastRefreshEpoch = nowEpoch;
   }
+  return true;
 }
 
 bool BackgroundWifiService::spawnTask(const char* ssid, const char* password, const bool useCurrentConnection,
@@ -335,7 +330,6 @@ bool BackgroundWifiService::spawnTask(const char* ssid, const char* password, co
   serving = false;
   wifiOwned = false;
   requestCount = 0;
-  mdnsStarted = false;
   shelfRefreshAttempted = false;
   serviceState = background_server::ServiceState::Running;
 

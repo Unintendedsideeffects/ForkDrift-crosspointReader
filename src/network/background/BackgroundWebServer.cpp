@@ -1,7 +1,6 @@
 #include "network/background/BackgroundWebServer.h"
 
 #include <Arduino.h>
-#include <ESPmDNS.h>
 #include <HardwareSerial.h>
 #include <Logging.h>
 #include <WiFi.h>
@@ -16,7 +15,6 @@
 #include "core/features/FeatureModules.h"
 #include "network/background/BackgroundServerPolicy.h"
 #include "network/server/CrossPointWebServer.h"
-#include "util/NetworkNames.h"
 #include "util/WifiScanPolicy.h"
 
 namespace {
@@ -121,9 +119,8 @@ void BackgroundWebServer::startConnect(const std::string& ssid, const std::strin
 // Work that cannot proceed yet is deferred to the next tick instead.
 void BackgroundWebServer::startServer() {
   // BEFORE the heap check, deliberately. A network handler's in-flight work (Terminus's
-  // 12 KB download task) is itself holding the heap this check measures, so testing heap
-  // first would see "low heap" and call scheduleRetry() -- which disconnects WiFi out from
-  // under that very download and then backs off 30-60s.
+  // 12 KB download task) is itself holding the heap this check measures. Low heap while
+  // already associated is a wait, not scheduleRetry(): that disconnects WiFi.
   if (deferStartupForBackgroundWork()) {
     return;
   }
@@ -138,8 +135,13 @@ void BackgroundWebServer::startServer() {
   const background_server::StartResourceVerdict verdict = background_server::evaluateStartResources(
       {.freeBytes = ESP.getFreeHeap(), .largestContiguousBytes = ESP.getMaxAllocHeap(), .taskStackBytes = 0});
   if (verdict != background_server::StartResourceVerdict::Ok) {
-    scheduleRetry(verdict == background_server::StartResourceVerdict::InsufficientFree ? "low heap"
-                                                                                       : "heap too fragmented");
+    const char* reason =
+        verdict == background_server::StartResourceVerdict::InsufficientFree ? "low heap" : "heap too fragmented";
+    if (millis() - lastStartupDeferLogMs >= 5000) {
+      lastStartupDeferLogMs = millis();
+      LOG_ERR("BWS", "Server start deferred (%s, free=%u); keeping WiFi", reason,
+              static_cast<unsigned int>(ESP.getFreeHeap()));
+    }
     return;
   }
   core::FeatureLifecycle::onBackgroundNetworkReady();
@@ -155,20 +157,10 @@ void BackgroundWebServer::startServer() {
       return;
     }
   }
-  server->begin();
+  server->begin(CrossPointWebServer::ServerRole::Background);
   if (!server->isRunning()) {
     scheduleRetry("server start failed");
     return;
-  }
-
-  char hostname[40];
-  NetworkNames::getDeviceHostname(hostname, sizeof(hostname));
-
-  if (MDNS.begin(hostname)) {
-    mdnsStarted = true;
-    LOG_INF("BWS", "mDNS started: http://%s.local/", hostname);
-  } else {
-    LOG_ERR("BWS", "mDNS failed to start");
   }
 
   state = State::RUNNING;
@@ -205,11 +197,6 @@ void BackgroundWebServer::scheduleRetry(const char* reason) {
   }
   server.reset();
 
-  if (mdnsStarted) {
-    MDNS.end();
-    mdnsStarted = false;
-  }
-
   WiFi.scanDelete();
 
   if (wifiOwned) {
@@ -220,7 +207,7 @@ void BackgroundWebServer::scheduleRetry(const char* reason) {
   state = State::WAIT_RETRY;
   retryAttempts++;
   nextRetryMs = millis() + computeBackoffMs();
-  LOG_INF("BWS", "Retry scheduled (%s) in %lu ms", reason, nextRetryMs - millis());
+  LOG_ERR("BWS", "Retry scheduled (%s) in %lu ms", reason, nextRetryMs - millis());
 }
 
 void BackgroundWebServer::stop(const bool keepWifi) { stopAll(keepWifi); }
@@ -230,11 +217,6 @@ void BackgroundWebServer::stopAll(const bool keepWifi) {
     server->stop();
   }
   server.reset();
-
-  if (mdnsStarted) {
-    MDNS.end();
-    mdnsStarted = false;
-  }
 
   WiFi.scanDelete();
 
@@ -385,12 +367,13 @@ void BackgroundWebServer::loop(const bool usbConnected, const bool allowRun) {
   }
 
   if (state == State::RUNNING) {
-    // The startup cost is already spent; charging for it again here only stops a healthy
-    // server. Per-request spikes are gated by the handlers themselves (settings apply 48 KB,
-    // shelf refresh 84 KB). This was 48000, above the observed steady-state free heap, so
-    // the server tore itself down -- and scheduleRetry() disconnects WiFi -- on ordinary dips.
-    if (ESP.getFreeHeap() < background_server::runningMinFreeBytes()) {
-      scheduleRetry("low heap");
+    // stop(keepWifi), NOT scheduleRetry(): that disconnects WiFi on a condition the
+    // measured running state already sits in. See evaluateRunningHeap.
+    if (background_server::evaluateRunningHeap(ESP.getFreeHeap()) ==
+        background_server::RunningHeapAction::StopKeepWifi) {
+      LOG_ERR("BWS", "Stopping server to reclaim heap (free=%u); keeping WiFi",
+              static_cast<unsigned int>(ESP.getFreeHeap()));
+      stop(/*keepWifi=*/true);
       return;
     }
 

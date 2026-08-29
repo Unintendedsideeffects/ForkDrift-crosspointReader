@@ -676,3 +676,34 @@ TEST_CASE("testSettingsVisibilityEvaluator") {
   CHECK(frontOrientSetting->visibleWhen.eq == CrossPointSettings::PORTRAIT);
   CHECK(frontOrientSetting->visibleWhen.notEqual == true);
 }
+
+TEST_CASE("forEachSetting category filter never constructs other categories") {
+  Storage.reset();
+  std::vector<SettingInfo> reader;
+  const StrId readerCategory = StrId::STR_CAT_READER;
+  forEachSetting(
+      [](void* ctx, SettingInfo&& info) { static_cast<std::vector<SettingInfo>*>(ctx)->push_back(std::move(info)); },
+      &reader, false, false, buildFontFamilySetting(nullptr), &readerCategory);
+
+  REQUIRE_FALSE(reader.empty());
+  for (const auto& setting : reader) {
+    CHECK(setting.category == StrId::STR_CAT_READER);
+  }
+  CHECK(findSettingByKey(reader, "fontSize") != nullptr);
+  CHECK(findSettingByKey(reader, "fontFamily") != nullptr);
+  CHECK(findSettingByKey(reader, "sleepScreenSplit") == nullptr);
+  CHECK(findSettingByKey(reader, "sideButtonLayout") == nullptr);
+  CHECK(findSettingByKey(reader, "sleepTimeoutMinutes") == nullptr);
+
+  std::vector<SettingInfo> display;
+  const StrId displayCategory = StrId::STR_CAT_DISPLAY;
+  forEachSetting(
+      [](void* ctx, SettingInfo&& info) { static_cast<std::vector<SettingInfo>*>(ctx)->push_back(std::move(info)); },
+      &display, false, false, SettingInfo{}, &displayCategory);
+  REQUIRE_FALSE(display.empty());
+  for (const auto& setting : display) {
+    CHECK(setting.category == StrId::STR_CAT_DISPLAY);
+  }
+  CHECK(findSettingByKey(display, "sleepScreenSplit") != nullptr);
+  CHECK(findSettingByKey(display, "fontSize") == nullptr);
+}

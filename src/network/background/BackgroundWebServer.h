@@ -48,7 +48,6 @@ class BackgroundWebServer {
   unsigned long sessionStartMs = 0;
   unsigned long lastStartupDeferLogMs = 0;
   bool sessionBlocked = false;
-  bool mdnsStarted = false;
   bool allowRunCached = false;
   bool usbConnectedCached = false;
   bool lastAllowRunState = false;
@@ -70,9 +69,6 @@ class BackgroundWebServer {
   static constexpr unsigned long SERVER_WINDOW_MS =
       2UL * 60 * 1000;  // Deprecated: on-charge server now runs continuously
   static constexpr unsigned long SESSION_MAX_MS = 20UL * 60 * 1000;  // Deprecated: session is no longer timed out
-  // Pre-start floor: need enough headroom for server alloc + route setup (~16-18 KB).
-  // Post-start steady state is much lower (~55-60 KB on device). Reusing the
-  // pre-start floor in RUNNING causes immediate stop/retry thrash after begin().
   static constexpr unsigned long ALLOW_RUN_GRACE_MS = 500;
   static constexpr uint8_t SCAN_FAILURE_BURST_MAX = 4;
 };

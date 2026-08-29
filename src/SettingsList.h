@@ -554,22 +554,25 @@ using SettingSink = void (*)(void* ctx, SettingInfo&& info);
 // SPI bus across network writes (see streamSettingsListJson). getSettingsList()
 // below is the buffered wrapper used on-device, where random access is needed.
 inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, bool hasPokedexImages,
-                           SettingInfo&& fontFamilySetting) {
-  // Emit one entry at a time. Taking `info` by value preserves the old
-  // push_back(temporary) behavior: each entry is constructed on the stack, then
-  // moved into the sink — never N entries live simultaneously. (A braced
-  // std::initializer_list would back all N at once, spiking the ~8 KB loopTask
-  // stack by ~6 KB; SettingInfo is ~200 bytes — five std::function members.)
-  auto emit = [&](SettingInfo info) { sink(ctx, std::move(info)); };
+                           SettingInfo&& fontFamilySetting, const StrId* categoryFilter = nullptr) {
+  auto want = [&](StrId cat) { return categoryFilter == nullptr || *categoryFilter == cat; };
+  auto emit = [&](SettingInfo info) {
+    if (!want(info.category)) {
+      return;
+    }
+    sink(ctx, std::move(info));
+  };
 
   // --- Display ---
   // Sleep screen uses DynamicEnum with explicit value mapping so display order
   // stays independent of the persisted enum values.
-  emit(SettingInfo::Enum(StrId::STR_SLEEP_STYLE, &CrossPointSettings::sleepScreenSplit,
-                         {StrId::STR_SLEEP_UNIFIED, StrId::STR_SLEEP_SMART}, "sleepScreenSplit", StrId::STR_CAT_DISPLAY)
-           .withConfiguratorExport());
+  if (want(StrId::STR_CAT_DISPLAY)) {
+    emit(SettingInfo::Enum(StrId::STR_SLEEP_STYLE, &CrossPointSettings::sleepScreenSplit,
+                           {StrId::STR_SLEEP_UNIFIED, StrId::STR_SLEEP_SMART}, "sleepScreenSplit", StrId::STR_CAT_DISPLAY)
+             .withConfiguratorExport());
+  }
 
-  emit([&] {
+  if (want(StrId::STR_CAT_DISPLAY)) emit([&] {
     std::vector<StrId> ids;
     std::vector<uint8_t> vals;
     std::vector<const char*> optionFeatureKeys;
@@ -597,7 +600,7 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
         .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
   }());
 
-  emit([&] {
+  if (want(StrId::STR_CAT_DISPLAY)) emit([&] {
     std::vector<StrId> ids;
     std::vector<uint8_t> vals;
     std::vector<const char*> optionFeatureKeys;
@@ -625,7 +628,7 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
         .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
   }());
 
-  emit([&] {
+  if (want(StrId::STR_CAT_DISPLAY)) emit([&] {
     std::vector<StrId> ids;
     std::vector<uint8_t> vals;
     std::vector<const char*> optionFeatureKeys;
@@ -652,7 +655,7 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
         .withEnumPersistedValues(vals)
         .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
   }());
-  {
+  if (want(StrId::STR_CAT_DISPLAY)) {
     std::vector<StrId> sleepSourceLabels = {StrId::STR_SLEEP};
     std::vector<const char*> sleepSourceFeatureKeys = {nullptr};
     if (hasPokedexImages) {
@@ -667,59 +670,67 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
              .withEnumOptionFeatureKeys(sleepSourceFeatureKeys)
              .withVisiblePredicate(sleepCustomOrCoverActive));
   }
-  emit(SettingInfo::Enum(StrId::STR_SLEEP_COVER_MODE, &CrossPointSettings::sleepScreenCoverMode,
-                         {StrId::STR_FIT, StrId::STR_CROP}, "sleepScreenCoverMode", StrId::STR_CAT_DISPLAY)
-           .withConfiguratorExport()
-           .withVisiblePredicate(sleepCustomOrCoverActive));
-  emit(SettingInfo::Enum(StrId::STR_SLEEP_COVER_FILTER, &CrossPointSettings::sleepScreenCoverFilter,
-                         {StrId::STR_NONE_OPT, StrId::STR_FILTER_CONTRAST, StrId::STR_INVERTED},
-                         "sleepScreenCoverFilter", StrId::STR_CAT_DISPLAY)
-           .withConfiguratorExport());
-  emit(SettingInfo::Enum(StrId::STR_SLEEP_CYCLE_MODE, &CrossPointSettings::sleepCycleMode,
-                         {StrId::STR_RANDOM, StrId::STR_SEQUENTIAL}, "sleepCycleMode", StrId::STR_CAT_DISPLAY)
-           .withConfiguratorExport()
-           .withVisiblePredicate(sleepCustomOrCoverActive));
-  emit(SettingInfo::Toggle(StrId::STR_CLEAN_SLEEP_REFRESH, &CrossPointSettings::cleanSleepRefresh, "cleanSleepRefresh",
-                           StrId::STR_CAT_DISPLAY)
-           .withConfiguratorExport("clean_sleep_refresh"));
+  if (want(StrId::STR_CAT_DISPLAY)) {
+    emit(SettingInfo::Enum(StrId::STR_SLEEP_COVER_MODE, &CrossPointSettings::sleepScreenCoverMode,
+                           {StrId::STR_FIT, StrId::STR_CROP}, "sleepScreenCoverMode", StrId::STR_CAT_DISPLAY)
+             .withConfiguratorExport()
+             .withVisiblePredicate(sleepCustomOrCoverActive));
+    emit(SettingInfo::Enum(StrId::STR_SLEEP_COVER_FILTER, &CrossPointSettings::sleepScreenCoverFilter,
+                           {StrId::STR_NONE_OPT, StrId::STR_FILTER_CONTRAST, StrId::STR_INVERTED},
+                           "sleepScreenCoverFilter", StrId::STR_CAT_DISPLAY)
+             .withConfiguratorExport());
+    emit(SettingInfo::Enum(StrId::STR_SLEEP_CYCLE_MODE, &CrossPointSettings::sleepCycleMode,
+                           {StrId::STR_RANDOM, StrId::STR_SEQUENTIAL}, "sleepCycleMode", StrId::STR_CAT_DISPLAY)
+             .withConfiguratorExport()
+             .withVisiblePredicate(sleepCustomOrCoverActive));
+    emit(SettingInfo::Toggle(StrId::STR_CLEAN_SLEEP_REFRESH, &CrossPointSettings::cleanSleepRefresh, "cleanSleepRefresh",
+                             StrId::STR_CAT_DISPLAY)
+             .withConfiguratorExport("clean_sleep_refresh"));
 #if ENABLE_HAIKU_CLOCK
-  emit(SettingInfo::Toggle(StrId::STR_HAIKU_CLOCK_LANDSCAPE, &CrossPointSettings::haikuClockLandscape,
-                           "haikuClockLandscape", StrId::STR_CAT_DISPLAY)
-           .withConfiguratorExport()
-           .withVisiblePredicate(sleepPoeticTextActive));
+    emit(SettingInfo::Toggle(StrId::STR_HAIKU_CLOCK_LANDSCAPE, &CrossPointSettings::haikuClockLandscape,
+                             "haikuClockLandscape", StrId::STR_CAT_DISPLAY)
+             .withConfiguratorExport()
+             .withVisiblePredicate(sleepPoeticTextActive));
 #endif
-  emit(SettingInfo::Toggle(StrId::STR_CHAPTER_PAGE_COUNT, &CrossPointSettings::statusBarChapterPageCount,
-                           "statusBarChapterPageCount", StrId::STR_CUSTOMISE_STATUS_BAR)
-           .withConfiguratorExport());
-  emit(SettingInfo::Toggle(StrId::STR_BOOK_PROGRESS_PERCENTAGE, &CrossPointSettings::statusBarBookProgressPercentage,
-                           "statusBarBookProgressPercentage", StrId::STR_CUSTOMISE_STATUS_BAR)
-           .withConfiguratorExport());
-  emit(SettingInfo::Enum(StrId::STR_PROGRESS_BAR, &CrossPointSettings::statusBarProgressBar,
-                         {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE}, "statusBarProgressBar",
-                         StrId::STR_CUSTOMISE_STATUS_BAR)
-           .withConfiguratorExport());
-  emit(SettingInfo::Enum(StrId::STR_PROGRESS_BAR_THICKNESS, &CrossPointSettings::statusBarProgressBarThickness,
-                         {StrId::STR_PROGRESS_BAR_THIN, StrId::STR_PROGRESS_BAR_MEDIUM, StrId::STR_PROGRESS_BAR_THICK},
-                         "statusBarProgressBarThickness", StrId::STR_CUSTOMISE_STATUS_BAR)
-           .withConfiguratorExport()
-           .withVisibleWhenNot("statusBarProgressBar", CrossPointSettings::HIDE_PROGRESS));
-  emit(SettingInfo::Enum(StrId::STR_TITLE, &CrossPointSettings::statusBarTitle,
-                         {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE}, "statusBarTitle",
-                         StrId::STR_CUSTOMISE_STATUS_BAR)
-           .withConfiguratorExport());
-  emit(SettingInfo::Toggle(StrId::STR_BATTERY, &CrossPointSettings::statusBarBattery, "statusBarBattery",
+  }
+  if (want(StrId::STR_CUSTOMISE_STATUS_BAR)) {
+    emit(SettingInfo::Toggle(StrId::STR_CHAPTER_PAGE_COUNT, &CrossPointSettings::statusBarChapterPageCount,
+                             "statusBarChapterPageCount", StrId::STR_CUSTOMISE_STATUS_BAR)
+             .withConfiguratorExport());
+    emit(SettingInfo::Toggle(StrId::STR_BOOK_PROGRESS_PERCENTAGE, &CrossPointSettings::statusBarBookProgressPercentage,
+                             "statusBarBookProgressPercentage", StrId::STR_CUSTOMISE_STATUS_BAR)
+             .withConfiguratorExport());
+    emit(SettingInfo::Enum(StrId::STR_PROGRESS_BAR, &CrossPointSettings::statusBarProgressBar,
+                           {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE}, "statusBarProgressBar",
                            StrId::STR_CUSTOMISE_STATUS_BAR)
-           .withConfiguratorExport());
-  emit(SettingInfo::Enum(StrId::STR_HIDE_BATTERY, &CrossPointSettings::hideBatteryPercentage,
-                         {StrId::STR_NEVER, StrId::STR_IN_READER, StrId::STR_ALWAYS}, "hideBatteryPercentage",
-                         StrId::STR_CAT_READER)
-           .withConfiguratorExport());
-  emit(SettingInfo::Enum(
-           StrId::STR_REFRESH_FREQ, &CrossPointSettings::refreshFrequency,
-           {StrId::STR_PAGES_1, StrId::STR_PAGES_5, StrId::STR_PAGES_10, StrId::STR_PAGES_15, StrId::STR_PAGES_30},
-           "refreshFrequency", StrId::STR_CAT_DISPLAY)
-           .withConfiguratorExport());
-  if (core::FeatureModules::hasCapability(core::Capability::CalibreSync)) {
+             .withConfiguratorExport());
+    emit(SettingInfo::Enum(StrId::STR_PROGRESS_BAR_THICKNESS, &CrossPointSettings::statusBarProgressBarThickness,
+                           {StrId::STR_PROGRESS_BAR_THIN, StrId::STR_PROGRESS_BAR_MEDIUM, StrId::STR_PROGRESS_BAR_THICK},
+                           "statusBarProgressBarThickness", StrId::STR_CUSTOMISE_STATUS_BAR)
+             .withConfiguratorExport()
+             .withVisibleWhenNot("statusBarProgressBar", CrossPointSettings::HIDE_PROGRESS));
+    emit(SettingInfo::Enum(StrId::STR_TITLE, &CrossPointSettings::statusBarTitle,
+                           {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE}, "statusBarTitle",
+                           StrId::STR_CUSTOMISE_STATUS_BAR)
+             .withConfiguratorExport());
+    emit(SettingInfo::Toggle(StrId::STR_BATTERY, &CrossPointSettings::statusBarBattery, "statusBarBattery",
+                             StrId::STR_CUSTOMISE_STATUS_BAR)
+             .withConfiguratorExport());
+  }
+  if (want(StrId::STR_CAT_READER)) {
+    emit(SettingInfo::Enum(StrId::STR_HIDE_BATTERY, &CrossPointSettings::hideBatteryPercentage,
+                           {StrId::STR_NEVER, StrId::STR_IN_READER, StrId::STR_ALWAYS}, "hideBatteryPercentage",
+                           StrId::STR_CAT_READER)
+             .withConfiguratorExport());
+  }
+  if (want(StrId::STR_CAT_DISPLAY)) {
+    emit(SettingInfo::Enum(StrId::STR_REFRESH_FREQ, &CrossPointSettings::refreshFrequency,
+                           {StrId::STR_PAGES_1, StrId::STR_PAGES_5, StrId::STR_PAGES_10, StrId::STR_PAGES_15,
+                            StrId::STR_PAGES_30},
+                           "refreshFrequency", StrId::STR_CAT_DISPLAY)
+             .withConfiguratorExport());
+  }
+  if (want(StrId::STR_CAT_SYSTEM) && core::FeatureModules::hasCapability(core::Capability::CalibreSync)) {
     emit(SettingInfo::DynamicEnum(
              StrId::STR_FILENAME, {}, [] { return SETTINGS.opdsFilenameFormat; },
              [](uint8_t value) {
@@ -732,7 +743,7 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
   }
   // Build options with explicit enum-value mapping so position != value assumptions
   // don't break when individual themes are optionally included or excluded.
-  emit([] {
+  if (want(StrId::STR_CAT_DISPLAY)) emit([] {
     std::vector<StrId> ids = {StrId::STR_THEME_CLASSIC};
     std::vector<uint8_t> vals = {CrossPointSettings::UI_THEME::CLASSIC};
     std::vector<const char*> optionFeatureKeys = {nullptr};
@@ -777,270 +788,271 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
         .withEnumPersistedValues(vals)
         .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
   }());
-  emit(SettingInfo::Enum(StrId::STR_RECENT_BOOKS_VIEW, &CrossPointSettings::recentBooksView,
-                         {StrId::STR_LIST_VIEW, StrId::STR_GRID_VIEW}, "recentBooksView", StrId::STR_CAT_DISPLAY)
-           .withConfiguratorExport());
-  emit(SettingInfo::Toggle(StrId::STR_SUNLIGHT_FADING_FIX, &CrossPointSettings::fadingFix, "fadingFix",
-                           StrId::STR_CAT_DISPLAY)
-           .withConfiguratorExport());
-  emit(SettingInfo::Toggle(StrId::STR_SHOW_BUTTON_HINTS, &CrossPointSettings::showButtonHints, "showButtonHints",
-                           StrId::STR_CAT_DISPLAY)
-           .withConfiguratorExport());
+  if (want(StrId::STR_CAT_DISPLAY)) {
+    emit(SettingInfo::Enum(StrId::STR_RECENT_BOOKS_VIEW, &CrossPointSettings::recentBooksView,
+                           {StrId::STR_LIST_VIEW, StrId::STR_GRID_VIEW}, "recentBooksView", StrId::STR_CAT_DISPLAY)
+             .withConfiguratorExport());
+    emit(SettingInfo::Toggle(StrId::STR_SUNLIGHT_FADING_FIX, &CrossPointSettings::fadingFix, "fadingFix",
+                             StrId::STR_CAT_DISPLAY)
+             .withConfiguratorExport());
+    emit(SettingInfo::Toggle(StrId::STR_SHOW_BUTTON_HINTS, &CrossPointSettings::showButtonHints, "showButtonHints",
+                             StrId::STR_CAT_DISPLAY)
+             .withConfiguratorExport());
+  }
 
   // --- Reader ---
-  emit(std::move(fontFamilySetting));
-  emit(SettingInfo::Enum(StrId::STR_FONT_SIZE, &CrossPointSettings::fontSize,
-                         {StrId::STR_SMALL, StrId::STR_MEDIUM, StrId::STR_LARGE, StrId::STR_X_LARGE}, "fontSize",
-                         StrId::STR_CAT_READER)
-           .withConfiguratorExport());
-  emit(SettingInfo::Enum(StrId::STR_LINE_SPACING, &CrossPointSettings::lineSpacing,
-                         {StrId::STR_TIGHT, StrId::STR_NORMAL, StrId::STR_WIDE}, "lineSpacing", StrId::STR_CAT_READER)
-           .withConfiguratorExport());
-  emit(SettingInfo::Value(StrId::STR_SCREEN_MARGIN, &CrossPointSettings::screenMargin, {5, 40, 5}, "screenMargin",
-                          StrId::STR_CAT_READER)
-           .withConfiguratorExport());
-  emit(SettingInfo::Enum(StrId::STR_PARA_ALIGNMENT, &CrossPointSettings::paragraphAlignment,
-                         {StrId::STR_JUSTIFY, StrId::STR_ALIGN_LEFT, StrId::STR_CENTER, StrId::STR_ALIGN_RIGHT,
-                          StrId::STR_BOOK_S_STYLE},
-                         "paragraphAlignment", StrId::STR_CAT_READER)
-           .withConfiguratorExport());
-  emit(SettingInfo::Toggle(StrId::STR_EMBEDDED_STYLE, &CrossPointSettings::embeddedStyle, "embeddedStyle",
+  if (want(StrId::STR_CAT_READER)) {
+    emit(std::move(fontFamilySetting));
+    emit(SettingInfo::Enum(StrId::STR_FONT_SIZE, &CrossPointSettings::fontSize,
+                           {StrId::STR_SMALL, StrId::STR_MEDIUM, StrId::STR_LARGE, StrId::STR_X_LARGE}, "fontSize",
                            StrId::STR_CAT_READER)
-           .withConfiguratorExport());
-  if (core::FeatureModules::hasCapability(core::Capability::FocusReading)) {
-    emit(SettingInfo::Toggle(StrId::STR_FOCUS_READING, &CrossPointSettings::focusReadingEnabled, "focusReadingEnabled",
+             .withConfiguratorExport());
+    emit(SettingInfo::Enum(StrId::STR_LINE_SPACING, &CrossPointSettings::lineSpacing,
+                           {StrId::STR_TIGHT, StrId::STR_NORMAL, StrId::STR_WIDE}, "lineSpacing", StrId::STR_CAT_READER)
+             .withConfiguratorExport());
+    emit(SettingInfo::Value(StrId::STR_SCREEN_MARGIN, &CrossPointSettings::screenMargin, {5, 40, 5}, "screenMargin",
+                            StrId::STR_CAT_READER)
+             .withConfiguratorExport());
+    emit(SettingInfo::Enum(StrId::STR_PARA_ALIGNMENT, &CrossPointSettings::paragraphAlignment,
+                           {StrId::STR_JUSTIFY, StrId::STR_ALIGN_LEFT, StrId::STR_CENTER, StrId::STR_ALIGN_RIGHT,
+                            StrId::STR_BOOK_S_STYLE},
+                           "paragraphAlignment", StrId::STR_CAT_READER)
+             .withConfiguratorExport());
+    emit(SettingInfo::Toggle(StrId::STR_EMBEDDED_STYLE, &CrossPointSettings::embeddedStyle, "embeddedStyle",
                              StrId::STR_CAT_READER)
-             .withConfiguratorExport("focus_reading"));
-  }
-  if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
-    emit(SettingInfo::Toggle(StrId::STR_GUIDE_READING, &CrossPointSettings::guideReadingEnabled, "guideReadingEnabled",
+             .withConfiguratorExport());
+    if (core::FeatureModules::hasCapability(core::Capability::FocusReading)) {
+      emit(SettingInfo::Toggle(StrId::STR_FOCUS_READING, &CrossPointSettings::focusReadingEnabled, "focusReadingEnabled",
+                               StrId::STR_CAT_READER)
+               .withConfiguratorExport("focus_reading"));
+    }
+    if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
+      emit(SettingInfo::Toggle(StrId::STR_GUIDE_READING, &CrossPointSettings::guideReadingEnabled, "guideReadingEnabled",
+                               StrId::STR_CAT_READER)
+               .withConfiguratorExport("guide_dots"));
+    }
+    emit(SettingInfo::Toggle(StrId::STR_HYPHENATION, &CrossPointSettings::hyphenationEnabled, "hyphenationEnabled",
                              StrId::STR_CAT_READER)
-             .withConfiguratorExport("guide_dots"));
+             .withConfiguratorExport("hyphenation"));
+    emit(SettingInfo::Enum(StrId::STR_ORIENTATION, &CrossPointSettings::orientation,
+                           {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_INVERTED, StrId::STR_LANDSCAPE_CCW},
+                           "orientation", StrId::STR_CAT_READER)
+             .withConfiguratorExport());
   }
-  emit(SettingInfo::Toggle(StrId::STR_HYPHENATION, &CrossPointSettings::hyphenationEnabled, "hyphenationEnabled",
-                           StrId::STR_CAT_READER)
-           .withConfiguratorExport("hyphenation"));
-  emit(SettingInfo::Enum(StrId::STR_ORIENTATION, &CrossPointSettings::orientation,
-                         {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_INVERTED, StrId::STR_LANDSCAPE_CCW},
-                         "orientation", StrId::STR_CAT_READER)
-           .withConfiguratorExport());
 #if ENABLE_GLOBAL_LANDSCAPE
-  emit(SettingInfo::Enum(StrId::STR_UI_ORIENTATION, &CrossPointSettings::uiOrientation,
-                         {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_INVERTED, StrId::STR_LANDSCAPE_CCW},
-                         "uiOrientation", StrId::STR_CAT_DISPLAY)
-           .withConfiguratorExport());
+  if (want(StrId::STR_CAT_DISPLAY)) {
+    emit(SettingInfo::Enum(StrId::STR_UI_ORIENTATION, &CrossPointSettings::uiOrientation,
+                           {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_INVERTED, StrId::STR_LANDSCAPE_CCW},
+                           "uiOrientation", StrId::STR_CAT_DISPLAY)
+             .withConfiguratorExport());
+  }
 #endif
-  emit(SettingInfo::Toggle(StrId::STR_EXTRA_SPACING, &CrossPointSettings::extraParagraphSpacing,
-                           "extraParagraphSpacing", StrId::STR_CAT_READER)
-           .withConfiguratorExport());
-  emit(SettingInfo::Toggle(StrId::STR_FORCE_PARAGRAPH_INDENTS, &CrossPointSettings::forceParagraphIndents,
-                           "forceParagraphIndents", StrId::STR_CAT_READER)
-           .withConfiguratorExport());
-  emit(SettingInfo::Toggle(StrId::STR_TEXT_AA, &CrossPointSettings::textAntiAliasing, "textAntiAliasing",
-                           StrId::STR_CAT_READER)
-           .withConfiguratorExport());
-  emit(SettingInfo::Enum(StrId::STR_IMAGES, &CrossPointSettings::imageRendering,
-                         {StrId::STR_IMAGES_DISPLAY, StrId::STR_IMAGES_PLACEHOLDER, StrId::STR_IMAGES_SUPPRESS},
-                         "imageRendering", StrId::STR_CAT_READER)
-           .withConfiguratorExport("book_images"));
-
+  if (want(StrId::STR_CAT_READER)) {
+    emit(SettingInfo::Toggle(StrId::STR_EXTRA_SPACING, &CrossPointSettings::extraParagraphSpacing,
+                             "extraParagraphSpacing", StrId::STR_CAT_READER)
+             .withConfiguratorExport());
+    emit(SettingInfo::Toggle(StrId::STR_FORCE_PARAGRAPH_INDENTS, &CrossPointSettings::forceParagraphIndents,
+                             "forceParagraphIndents", StrId::STR_CAT_READER)
+             .withConfiguratorExport());
+    emit(SettingInfo::Toggle(StrId::STR_TEXT_AA, &CrossPointSettings::textAntiAliasing, "textAntiAliasing",
+                             StrId::STR_CAT_READER)
+             .withConfiguratorExport());
+    emit(SettingInfo::Enum(StrId::STR_IMAGES, &CrossPointSettings::imageRendering,
+                           {StrId::STR_IMAGES_DISPLAY, StrId::STR_IMAGES_PLACEHOLDER, StrId::STR_IMAGES_SUPPRESS},
+                           "imageRendering", StrId::STR_CAT_READER)
+             .withConfiguratorExport("book_images"));
 #if ENABLE_ANNOTATIONS || ENABLE_BOOKMARKS
-  // Format for exporting highlights/bookmarks (reader menu + Settings bulk export).
-  emit(SettingInfo::Enum(StrId::STR_EXPORT_FORMAT, &CrossPointSettings::highlightExportFormat,
-                         {StrId::STR_FMT_MARKDOWN, StrId::STR_FMT_MY_CLIPPINGS, StrId::STR_FMT_KOREADER},
-                         "highlightExportFormat", StrId::STR_CAT_READER));
+    emit(SettingInfo::Enum(StrId::STR_EXPORT_FORMAT, &CrossPointSettings::highlightExportFormat,
+                           {StrId::STR_FMT_MARKDOWN, StrId::STR_FMT_MY_CLIPPINGS, StrId::STR_FMT_KOREADER},
+                           "highlightExportFormat", StrId::STR_CAT_READER));
 #endif
+  }
 
   // --- Controls ---
-  emit(SettingInfo::Enum(StrId::STR_SIDE_BTN_LAYOUT, &CrossPointSettings::sideButtonLayout,
-                         {StrId::STR_PREV_NEXT, StrId::STR_NEXT_PREV, StrId::STR_DISABLED}, "sideButtonLayout",
-                         StrId::STR_CAT_CONTROLS)
-           .withConfiguratorExport());
-  emit(SettingInfo::Enum(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::sideButtonOrientationAware,
-                         {StrId::STR_NO, StrId::STR_YES}, "sideButtonOrientationAware", StrId::STR_CAT_CONTROLS)
-           .withConfiguratorExport()
-           .withVisibleWhenNot("orientation", CrossPointSettings::PORTRAIT));
-  emit(SettingInfo::Enum(StrId::STR_SIDE_BTN_LONG_PRESS, &CrossPointSettings::sideButtonLongPress,
-                         {StrId::STR_CHAPTER_SKIP_OPT, StrId::STR_CHANGE_FONT_SIZE, StrId::STR_OFF},
-                         "sideButtonLongPress", StrId::STR_CAT_CONTROLS)
-           .withConfiguratorExport());
-  emit(SettingInfo::Enum(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::frontButtonOrientationAware,
-                         {StrId::STR_NO, StrId::STR_NAV_BUTTONS, StrId::STR_ALL_BUTTONS}, "frontButtonOrientationAware",
-                         StrId::STR_CAT_CONTROLS)
-           .withConfiguratorExport()
-           .withVisibleWhenNot("orientation", CrossPointSettings::PORTRAIT));
-  emit(SettingInfo::Enum(StrId::STR_LONG_PRESS_BEHAVIOR, &CrossPointSettings::longPressButtonBehavior,
-                         {StrId::STR_LONG_PRESS_BEHAVIOR_OFF, StrId::STR_LONG_PRESS_BEHAVIOR_SKIP,
-                          StrId::STR_LONG_PRESS_BEHAVIOR_ORIENTATION},
-                         "longPressButtonBehavior", StrId::STR_CAT_CONTROLS)
-           .withConfiguratorExport());
-  emit([] {
-    const auto options = shortPowerButtonOptions();
-    SettingInfo setting = SettingInfo::DynamicEnum(
-        StrId::STR_SHORT_PWR_BTN, {}, [options] { return quickActionOptionIndex(options, SETTINGS.shortPwrBtn); },
-        [options](uint8_t index) {
-          SETTINGS.shortPwrBtn = quickActionValueForIndex(options, index, CrossPointSettings::IGNORE);
-        },
-        "shortPwrBtn", StrId::STR_CAT_CONTROLS, [options] { return quickActionOptionLabels(options); });
-    setting.withConfiguratorExport()
-        .withEnumPersistedValues(quickActionPersistedValues(options))
-        .withEnumOptionFeatureKeys(quickActionFeatureKeys(options));
-    return setting;
-  }());
-  emit([] {
-    const auto options = longPowerButtonOptions();
-    SettingInfo setting = SettingInfo::DynamicEnum(
-        StrId::STR_LONG_PRESS_ACTION, {}, [options] { return quickActionOptionIndex(options, SETTINGS.longPwrBtn); },
-        [options](uint8_t index) {
-          SETTINGS.longPwrBtn = quickActionValueForIndex(options, index, CrossPointSettings::IGNORE);
-        },
-        "longPwrBtn", StrId::STR_CAT_CONTROLS, [options] { return quickActionOptionLabels(options); });
-    setting.withConfiguratorExport()
-        .withEnumPersistedValues(quickActionPersistedValues(options))
-        .withEnumOptionFeatureKeys(quickActionFeatureKeys(options));
-    return setting;
-  }());
+  if (want(StrId::STR_CAT_CONTROLS)) {
+    emit(SettingInfo::Enum(StrId::STR_SIDE_BTN_LAYOUT, &CrossPointSettings::sideButtonLayout,
+                           {StrId::STR_PREV_NEXT, StrId::STR_NEXT_PREV, StrId::STR_DISABLED}, "sideButtonLayout",
+                           StrId::STR_CAT_CONTROLS)
+             .withConfiguratorExport());
+    emit(SettingInfo::Enum(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::sideButtonOrientationAware,
+                           {StrId::STR_NO, StrId::STR_YES}, "sideButtonOrientationAware", StrId::STR_CAT_CONTROLS)
+             .withConfiguratorExport()
+             .withVisibleWhenNot("orientation", CrossPointSettings::PORTRAIT));
+    emit(SettingInfo::Enum(StrId::STR_SIDE_BTN_LONG_PRESS, &CrossPointSettings::sideButtonLongPress,
+                           {StrId::STR_CHAPTER_SKIP_OPT, StrId::STR_CHANGE_FONT_SIZE, StrId::STR_OFF},
+                           "sideButtonLongPress", StrId::STR_CAT_CONTROLS)
+             .withConfiguratorExport());
+    emit(SettingInfo::Enum(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::frontButtonOrientationAware,
+                           {StrId::STR_NO, StrId::STR_NAV_BUTTONS, StrId::STR_ALL_BUTTONS}, "frontButtonOrientationAware",
+                           StrId::STR_CAT_CONTROLS)
+             .withConfiguratorExport()
+             .withVisibleWhenNot("orientation", CrossPointSettings::PORTRAIT));
+    emit(SettingInfo::Enum(StrId::STR_LONG_PRESS_BEHAVIOR, &CrossPointSettings::longPressButtonBehavior,
+                           {StrId::STR_LONG_PRESS_BEHAVIOR_OFF, StrId::STR_LONG_PRESS_BEHAVIOR_SKIP,
+                            StrId::STR_LONG_PRESS_BEHAVIOR_ORIENTATION},
+                           "longPressButtonBehavior", StrId::STR_CAT_CONTROLS)
+             .withConfiguratorExport());
+    emit([] {
+      const auto options = shortPowerButtonOptions();
+      SettingInfo setting = SettingInfo::DynamicEnum(
+          StrId::STR_SHORT_PWR_BTN, {}, [options] { return quickActionOptionIndex(options, SETTINGS.shortPwrBtn); },
+          [options](uint8_t index) {
+            SETTINGS.shortPwrBtn = quickActionValueForIndex(options, index, CrossPointSettings::IGNORE);
+          },
+          "shortPwrBtn", StrId::STR_CAT_CONTROLS, [options] { return quickActionOptionLabels(options); });
+      setting.withConfiguratorExport()
+          .withEnumPersistedValues(quickActionPersistedValues(options))
+          .withEnumOptionFeatureKeys(quickActionFeatureKeys(options));
+      return setting;
+    }());
+    emit([] {
+      const auto options = longPowerButtonOptions();
+      SettingInfo setting = SettingInfo::DynamicEnum(
+          StrId::STR_LONG_PRESS_ACTION, {}, [options] { return quickActionOptionIndex(options, SETTINGS.longPwrBtn); },
+          [options](uint8_t index) {
+            SETTINGS.longPwrBtn = quickActionValueForIndex(options, index, CrossPointSettings::IGNORE);
+          },
+          "longPwrBtn", StrId::STR_CAT_CONTROLS, [options] { return quickActionOptionLabels(options); });
+      setting.withConfiguratorExport()
+          .withEnumPersistedValues(quickActionPersistedValues(options))
+          .withEnumOptionFeatureKeys(quickActionFeatureKeys(options));
+      return setting;
+    }());
 #if ENABLE_DOUBLE_TAP_ACTION
-  emit([] {
-    const auto options = doubleTapPowerButtonOptions();
-    SettingInfo setting = SettingInfo::DynamicEnum(
-        StrId::STR_DOUBLE_TAP_PWR_BTN, {},
-        [options] { return quickActionOptionIndex(options, SETTINGS.doubleTapPwrBtn); },
-        [options](uint8_t index) {
-          SETTINGS.doubleTapPwrBtn = quickActionValueForIndex(options, index, CrossPointSettings::FORCE_REFRESH);
-        },
-        "doubleTapPwrBtn", StrId::STR_CAT_CONTROLS, [options] { return quickActionOptionLabels(options); });
-    setting.withConfiguratorExport()
-        .withEnumPersistedValues(quickActionPersistedValues(options))
-        .withEnumOptionFeatureKeys(quickActionFeatureKeys(options));
-    return setting;
-  }());
+    emit([] {
+      const auto options = doubleTapPowerButtonOptions();
+      SettingInfo setting = SettingInfo::DynamicEnum(
+          StrId::STR_DOUBLE_TAP_PWR_BTN, {},
+          [options] { return quickActionOptionIndex(options, SETTINGS.doubleTapPwrBtn); },
+          [options](uint8_t index) {
+            SETTINGS.doubleTapPwrBtn = quickActionValueForIndex(options, index, CrossPointSettings::FORCE_REFRESH);
+          },
+          "doubleTapPwrBtn", StrId::STR_CAT_CONTROLS, [options] { return quickActionOptionLabels(options); });
+      setting.withConfiguratorExport()
+          .withEnumPersistedValues(quickActionPersistedValues(options))
+          .withEnumOptionFeatureKeys(quickActionFeatureKeys(options));
+      return setting;
+    }());
 #endif
-  emit([] {
-    const auto options = longPressMenuActionOptions();
-    SettingInfo setting = SettingInfo::DynamicEnum(
-        StrId::STR_LONG_PRESS_MENU_ACTION, {},
-        [options] { return quickActionOptionIndex(options, SETTINGS.longPressMenuAction); },
-        [options](uint8_t index) {
-          SETTINGS.longPressMenuAction = quickActionValueForIndex(options, index, CrossPointSettings::LONG_MENU_OFF);
-        },
-        "longPressMenuAction", StrId::STR_CAT_CONTROLS, [options] { return quickActionOptionLabels(options); });
-    setting.withConfiguratorExport()
-        .withEnumPersistedValues(quickActionPersistedValues(options))
-        .withEnumOptionFeatureKeys(quickActionFeatureKeys(options));
-    return setting;
-  }());
+    emit([] {
+      const auto options = longPressMenuActionOptions();
+      SettingInfo setting = SettingInfo::DynamicEnum(
+          StrId::STR_LONG_PRESS_MENU_ACTION, {},
+          [options] { return quickActionOptionIndex(options, SETTINGS.longPressMenuAction); },
+          [options](uint8_t index) {
+            SETTINGS.longPressMenuAction = quickActionValueForIndex(options, index, CrossPointSettings::LONG_MENU_OFF);
+          },
+          "longPressMenuAction", StrId::STR_CAT_CONTROLS, [options] { return quickActionOptionLabels(options); });
+      setting.withConfiguratorExport()
+          .withEnumPersistedValues(quickActionPersistedValues(options))
+          .withEnumOptionFeatureKeys(quickActionFeatureKeys(options));
+      return setting;
+    }());
+  }
 
   // --- System ---
-  emit(SettingInfo::Value(
-           StrId::STR_TIME_TO_SLEEP, &CrossPointSettings::sleepTimeoutMinutes,
-           {CrossPointSettings::MIN_SLEEP_TIMEOUT_MINUTES, CrossPointSettings::MAX_SLEEP_TIMEOUT_MINUTES, 1},
-           "sleepTimeoutMinutes", StrId::STR_CAT_SYSTEM)
-           .withConfiguratorExport());
-  emit(SettingInfo::Toggle(StrId::STR_STAY_AWAKE_WHILE_CHARGING, &CrossPointSettings::stayAwakeWhileCharging,
-                           "stayAwakeWhileCharging", StrId::STR_CAT_SYSTEM)
-           .withConfiguratorExport());
-  emit(SettingInfo::Toggle(StrId::STR_SHOW_HIDDEN_FILES, &CrossPointSettings::showHiddenFiles, "showHiddenFiles",
-                           StrId::STR_CAT_SYSTEM)
-           .withConfiguratorExport());
+  if (want(StrId::STR_CAT_SYSTEM)) {
+    emit(SettingInfo::Value(
+             StrId::STR_TIME_TO_SLEEP, &CrossPointSettings::sleepTimeoutMinutes,
+             {CrossPointSettings::MIN_SLEEP_TIMEOUT_MINUTES, CrossPointSettings::MAX_SLEEP_TIMEOUT_MINUTES, 1},
+             "sleepTimeoutMinutes", StrId::STR_CAT_SYSTEM)
+             .withConfiguratorExport());
+    emit(SettingInfo::Toggle(StrId::STR_STAY_AWAKE_WHILE_CHARGING, &CrossPointSettings::stayAwakeWhileCharging,
+                             "stayAwakeWhileCharging", StrId::STR_CAT_SYSTEM)
+             .withConfiguratorExport());
+    emit(SettingInfo::Toggle(StrId::STR_SHOW_HIDDEN_FILES, &CrossPointSettings::showHiddenFiles, "showHiddenFiles",
+                             StrId::STR_CAT_SYSTEM)
+             .withConfiguratorExport());
 #if ENABLE_TODO_PLANNER
-  if (core::FeatureModules::hasCapability(core::Capability::TodoPlanner)) {
-    emit(SettingInfo::Toggle(StrId::STR_TODO_OPEN_DIRECT_TO_TODAY, &CrossPointSettings::todoOpenDirectToToday,
-                             "todoOpenDirectToToday", StrId::STR_CAT_SYSTEM)
-             .withConfiguratorExport("todo_planner"));
-  }
+    if (core::FeatureModules::hasCapability(core::Capability::TodoPlanner)) {
+      emit(SettingInfo::Toggle(StrId::STR_TODO_OPEN_DIRECT_TO_TODAY, &CrossPointSettings::todoOpenDirectToToday,
+                               "todoOpenDirectToToday", StrId::STR_CAT_SYSTEM)
+               .withConfiguratorExport("todo_planner"));
+    }
 #endif
 #if ENABLE_READING_STATS
-  emit(SettingInfo::Toggle(StrId::STR_MOVE_FINISHED_TO_READ, &CrossPointSettings::moveFinishedToReadFolder,
-                           "moveFinishedToReadFolder", StrId::STR_CAT_SYSTEM)
-           .withConfiguratorExport("reading_stats"));
+    emit(SettingInfo::Toggle(StrId::STR_MOVE_FINISHED_TO_READ, &CrossPointSettings::moveFinishedToReadFolder,
+                             "moveFinishedToReadFolder", StrId::STR_CAT_SYSTEM)
+             .withConfiguratorExport("reading_stats"));
 #endif
-
-  if (core::FeatureModules::hasCapability(core::Capability::TerminusSleep)) {
-    // Setup stays available after pairing so the server or token can be edited
-    // without a browser. Once paired, Terminus appears in the normal Sleep
-    // Screen selector above.
-    emit(SettingInfo::Action(StrId::STR_TERMINUS_SETUP, SettingAction::TerminusSetup));
+    if (core::FeatureModules::hasCapability(core::Capability::TerminusSleep)) {
+      emit(SettingInfo::Action(StrId::STR_TERMINUS_SETUP, SettingAction::TerminusSetup));
+    }
+    if (core::FeatureModules::hasCapability(core::Capability::TrmnlSwitch) && TERMINUS_STORE.hasCredentials()) {
+      emit(SettingInfo::Action(StrId::STR_SWITCH_TO_TRMNL, SettingAction::SwitchToTrmnl));
+    }
+#if ENABLE_ANKI_SUPPORT
+    emit(SettingInfo::String(StrId::STR_ANKI_CONNECT_URL, SETTINGS.ankiConnectUrl, sizeof(SETTINGS.ankiConnectUrl),
+                             "ankiConnectUrl", StrId::STR_CAT_SYSTEM)
+             .withConfiguratorExport("anki_support"));
+    emit(SettingInfo::String(StrId::STR_ANKI_CONNECT_DECK, SETTINGS.ankiConnectDeck, sizeof(SETTINGS.ankiConnectDeck),
+                             "ankiConnectDeck", StrId::STR_CAT_SYSTEM)
+             .withConfiguratorExport("anki_support"));
+#endif
+    if (supportsBackgroundServerModeSetting()) {
+      emit(SettingInfo::DynamicEnum(
+               StrId::STR_BACKGROUND_SERVER, {}, [] { return getBackgroundServerModeSettingIndex(); },
+               [](uint8_t value) { setBackgroundServerModeSettingIndex(value); }, "backgroundServerMode",
+               StrId::STR_CAT_SYSTEM, [] { return backgroundServerModeOptions(); })
+               .withConfiguratorExport("background_server_on_charge")
+               .withEnumOptionFeatureKeys({nullptr, nullptr, "background_server_always"}));
+#if ENABLE_WIFI_CLOCK
+      emit(SettingInfo::Toggle(StrId::STR_CLOCK_SYNC, &CrossPointSettings::autoSyncDayOnBackgroundPing,
+                               "autoSyncDayOnBackgroundPing", StrId::STR_CAT_SYSTEM)
+               .withConfiguratorExport("wifi_clock"));
+#endif
+    }
   }
 #if ENABLE_TIMED_SLEEP_REFRESH
-  emit(
-      SettingInfo::Enum(StrId::STR_TIMED_REFRESH_INTERVAL, &CrossPointSettings::timedSleepRefreshInterval,
-                        {StrId::STR_OFF, StrId::STR_TIMED_REFRESH_SCREENSAVER, StrId::STR_TIMED_REFRESH_1H,
-                         StrId::STR_TIMED_REFRESH_2H, StrId::STR_TIMED_REFRESH_4H, StrId::STR_TIMED_REFRESH_8H,
-                         StrId::STR_TIMED_REFRESH_24H},
-                        "timedSleepRefreshInterval", StrId::STR_CAT_DISPLAY)
-          .withEnumPersistedValues({CrossPointSettings::TIMED_REFRESH_OFF,
-                                    CrossPointSettings::TIMED_REFRESH_SCREENSAVER, CrossPointSettings::TIMED_REFRESH_1H,
-                                    CrossPointSettings::TIMED_REFRESH_2H, CrossPointSettings::TIMED_REFRESH_4H,
-                                    CrossPointSettings::TIMED_REFRESH_8H, CrossPointSettings::TIMED_REFRESH_24H})
-          .withConfiguratorExport("timed_sleep_refresh"));
-#endif
-  // Boot-partition switch into a co-installed TRMNL firmware; only meaningful
-  // once Terminus credentials prove the user is on the TRMNL ecosystem.
-  if (core::FeatureModules::hasCapability(core::Capability::TrmnlSwitch) && TERMINUS_STORE.hasCredentials()) {
-    emit(SettingInfo::Action(StrId::STR_SWITCH_TO_TRMNL, SettingAction::SwitchToTrmnl));
+  if (want(StrId::STR_CAT_DISPLAY)) {
+    emit(SettingInfo::Enum(StrId::STR_TIMED_REFRESH_INTERVAL, &CrossPointSettings::timedSleepRefreshInterval,
+                           {StrId::STR_OFF, StrId::STR_TIMED_REFRESH_SCREENSAVER, StrId::STR_TIMED_REFRESH_1H,
+                            StrId::STR_TIMED_REFRESH_2H, StrId::STR_TIMED_REFRESH_4H, StrId::STR_TIMED_REFRESH_8H,
+                            StrId::STR_TIMED_REFRESH_24H},
+                           "timedSleepRefreshInterval", StrId::STR_CAT_DISPLAY)
+             .withEnumPersistedValues({CrossPointSettings::TIMED_REFRESH_OFF,
+                                       CrossPointSettings::TIMED_REFRESH_SCREENSAVER,
+                                       CrossPointSettings::TIMED_REFRESH_1H, CrossPointSettings::TIMED_REFRESH_2H,
+                                       CrossPointSettings::TIMED_REFRESH_4H, CrossPointSettings::TIMED_REFRESH_8H,
+                                       CrossPointSettings::TIMED_REFRESH_24H})
+             .withConfiguratorExport("timed_sleep_refresh"));
   }
-#if ENABLE_ANKI_SUPPORT
-  emit(SettingInfo::String(StrId::STR_ANKI_CONNECT_URL, SETTINGS.ankiConnectUrl, sizeof(SETTINGS.ankiConnectUrl),
-                           "ankiConnectUrl", StrId::STR_CAT_SYSTEM)
-           .withConfiguratorExport("anki_support"));
-  emit(SettingInfo::String(StrId::STR_ANKI_CONNECT_DECK, SETTINGS.ankiConnectDeck, sizeof(SETTINGS.ankiConnectDeck),
-                           "ankiConnectDeck", StrId::STR_CAT_SYSTEM)
-           .withConfiguratorExport("anki_support"));
 #endif
-
-  if (core::FeatureModules::hasCapability(core::Capability::DarkMode)) {
+  if (want(StrId::STR_CAT_DISPLAY) && core::FeatureModules::hasCapability(core::Capability::DarkMode)) {
     emit(SettingInfo::Enum(StrId::STR_DARK_MODE, &CrossPointSettings::darkModeScope,
                            {StrId::STR_OFF, StrId::STR_DARK_MODE_READER_ONLY, StrId::STR_DARK_MODE_EVERYWHERE},
                            "darkModeScope", StrId::STR_CAT_DISPLAY)
              .withConfiguratorExport("dark_mode"));
   }
-
-  if (core::FeatureModules::hasCapability(core::Capability::GlobalStatusBar)) {
+  if (want(StrId::STR_CAT_DISPLAY) && core::FeatureModules::hasCapability(core::Capability::GlobalStatusBar)) {
     emit(SettingInfo::Enum(StrId::STR_STATUS_BAR_POSITION, &CrossPointSettings::globalStatusBarPosition,
                            {StrId::STR_ON, StrId::STR_STATUS_BAR_READER_ONLY, StrId::STR_OFF},
                            "globalStatusBarPosition", StrId::STR_CAT_DISPLAY)
              .withConfiguratorExport("global_status_bar"));
   }
-
-  if (supportsBackgroundServerModeSetting()) {
-    emit(SettingInfo::DynamicEnum(
-             StrId::STR_BACKGROUND_SERVER, {}, [] { return getBackgroundServerModeSettingIndex(); },
-             [](uint8_t value) { setBackgroundServerModeSettingIndex(value); }, "backgroundServerMode",
-             StrId::STR_CAT_SYSTEM, [] { return backgroundServerModeOptions(); })
-             .withConfiguratorExport("background_server_on_charge")
-             .withEnumOptionFeatureKeys({nullptr, nullptr, "background_server_always"}));
-#if ENABLE_WIFI_CLOCK
-    emit(SettingInfo::Toggle(StrId::STR_CLOCK_SYNC, &CrossPointSettings::autoSyncDayOnBackgroundPing,
-                             "autoSyncDayOnBackgroundPing", StrId::STR_CAT_SYSTEM)
-             .withConfiguratorExport("wifi_clock"));
-#endif
+  if (want(StrId::STR_CAT_ADVANCED)) {
+    emit(SettingInfo::Toggle(StrId::STR_DEVELOPER_MODE, &CrossPointSettings::developerMode, "developerMode",
+                             StrId::STR_CAT_ADVANCED)
+             .withConfiguratorExport());
+    emit(SettingInfo::String(StrId::STR_DEVICE_NAME, SETTINGS.deviceName, sizeof(SETTINGS.deviceName), "deviceName",
+                             StrId::STR_CAT_ADVANCED)
+             .withConfiguratorExport()
+             .withVisibleWhen("developerMode", 1));
   }
-
-  // Device name for mDNS/DHCP/AP SSID. Editable on-device via keyboard (STRING handler).
-  // Input is sanitized to [a-z0-9-], max 24 chars, via validateAndClamp() on save.
-  emit(SettingInfo::Toggle(StrId::STR_DEVELOPER_MODE, &CrossPointSettings::developerMode, "developerMode",
-                           StrId::STR_CAT_ADVANCED)
-           .withConfiguratorExport());
-  emit(SettingInfo::String(StrId::STR_DEVICE_NAME, SETTINGS.deviceName, sizeof(SETTINGS.deviceName), "deviceName",
-                           StrId::STR_CAT_ADVANCED)
-           .withConfiguratorExport()
-           .withVisibleWhen("developerMode", 1));
-
 #if ENABLE_WIFI_CLOCK
-  emit(SettingInfo::Enum(StrId::STR_TIME_MODE, &CrossPointSettings::timeMode,
-                         {StrId::STR_TIME_UTC, StrId::STR_TIME_LOCAL, StrId::STR_TIME_MANUAL}, "timeMode",
-                         StrId::STR_CAT_TIME)
-           .withConfiguratorExport("wifi_clock"));
-  emit(SettingInfo::DynamicEnum(
-           StrId::STR_TIMEZONE_OFFSET, {}, [] { return SETTINGS.timeZoneOffset; },
-           [](uint8_t v) { SETTINGS.timeZoneOffset = std::min(v, uint8_t{26}); }, "timeZoneOffset", StrId::STR_CAT_TIME,
-           timezoneOffsetOptions)
-           .withConfiguratorExport("wifi_clock"));
+  if (want(StrId::STR_CAT_TIME)) {
+    emit(SettingInfo::Enum(StrId::STR_TIME_MODE, &CrossPointSettings::timeMode,
+                           {StrId::STR_TIME_UTC, StrId::STR_TIME_LOCAL, StrId::STR_TIME_MANUAL}, "timeMode",
+                           StrId::STR_CAT_TIME)
+             .withConfiguratorExport("wifi_clock"));
+    emit(SettingInfo::DynamicEnum(
+             StrId::STR_TIMEZONE_OFFSET, {}, [] { return SETTINGS.timeZoneOffset; },
+             [](uint8_t v) { SETTINGS.timeZoneOffset = std::min(v, uint8_t{26}); }, "timeZoneOffset", StrId::STR_CAT_TIME,
+             timezoneOffsetOptions)
+             .withConfiguratorExport("wifi_clock"));
+  }
 #endif
-
-  if (core::FeatureModules::hasCapability(core::Capability::KoreaderSync)) {
-    // --- KOReader Sync (web-only, persisted via FeatureModules) ---
+  if (want(StrId::STR_KOREADER_SYNC) && core::FeatureModules::hasCapability(core::Capability::KoreaderSync)) {
     emit(SettingInfo::DynamicString(
         StrId::STR_KOREADER_USERNAME, [] { return core::FeatureModules::getKoreaderUsername(); },
         [](const std::string& value) { core::FeatureModules::setKoreaderUsername(value, false); }, "koUsername",
@@ -1059,23 +1071,22 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
         [](uint8_t value) { core::FeatureModules::setKoreaderMatchMethod(value, false); }, "koMatchMethod",
         StrId::STR_KOREADER_SYNC));
   }
-
-  if (core::FeatureModules::hasCapability(core::Capability::UserFonts)) {
+  if (want(StrId::STR_CAT_READER) && core::FeatureModules::hasCapability(core::Capability::UserFonts)) {
     emit(SettingInfo::DynamicEnum(
         StrId::STR_EXTERNAL_FONT, {}, [] { return core::FeatureModules::getSelectedUserFontFamilyIndex(); },
         [](uint8_t value) { core::FeatureModules::setSelectedUserFontFamilyIndex(value); }, "userFontPath",
         StrId::STR_CAT_READER, [] { return core::FeatureModules::getUserFontFamilies(); }));
   }
-
-  emit(SettingInfo::Action(StrId::STR_BACKUP_SETTINGS, SettingAction::BackupSettings));
-  emit(SettingInfo::Action(StrId::STR_RESTORE_SETTINGS, SettingAction::RestoreSettings));
+  if (categoryFilter == nullptr) {
+    emit(SettingInfo::Action(StrId::STR_BACKUP_SETTINGS, SettingAction::BackupSettings));
+    emit(SettingInfo::Action(StrId::STR_RESTORE_SETTINGS, SettingAction::RestoreSettings));
+  }
 }
 
-// Buffered settings list for on-device callers (SettingsActivity and the reader
-// option screens) that need random access / category filtering. Materializes
-// the full vector, which is acceptable on the main loop task — it gates on free
-// heap before calling. The concurrent web path uses forEachSetting +
-// streamSettingsListJson instead, to avoid this ~15 KB allocation under low heap.
+// Buffered settings list for callers that need random access (reader option
+// screens, host tests). The on-device Settings UI streams one tab via
+// forEachSetting instead. The concurrent web path uses forEachSetting +
+// streamSettingsListJson so it never materializes this vector.
 inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* registry = nullptr) {
   // Sleep-image folders are scanned once per list build; both the Custom option
   // and the Pokédex source options are hidden when there is nothing to show.

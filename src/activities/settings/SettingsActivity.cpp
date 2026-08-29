@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iterator>
+#include <utility>
 
 #include "ButtonRemapActivity.h"
 #include "ClearCacheActivity.h"
@@ -41,13 +42,18 @@
 #include "activities/util/ListPickerActivity.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
+#include "network/background/BackgroundWebServer.h"
 #include "network/background/BackgroundWifiService.h"
 #include "util/MaintenanceUtils.h"
 #include "util/SettingsBackup.h"
 
 namespace {
 constexpr char kBackgroundServerModeKey[] = "backgroundServerMode";
-constexpr uint32_t kMinHeapForSettingsRebuild = 48000;
+
+struct SettingValueSnap {
+  const char* key;
+  uint8_t value;
+};
 
 size_t enumOptionCount(const SettingInfo& setting) {
   if (!setting.enumStringValues.empty()) {
@@ -86,32 +92,54 @@ std::string enumOptionLabel(const SettingInfo& setting, const uint8_t index) {
   return std::string();
 }
 
-bool isSettingKeyReferencedInDependencies(const char* key, const std::vector<SettingInfo>& allSettings) {
-  if (key == nullptr) return false;
-  return std::any_of(allSettings.begin(), allSettings.end(), [key](const SettingInfo& s) {
-    return s.visibleWhen.key != nullptr && std::strcmp(s.visibleWhen.key, key) == 0;
-  });
+uint8_t snappedValue(const std::vector<SettingValueSnap>& snaps, const char* key) {
+  if (key == nullptr) {
+    return 0;
+  }
+  for (const auto& snap : snaps) {
+    if (snap.key != nullptr && std::strcmp(snap.key, key) == 0) {
+      return snap.value;
+    }
+  }
+  return 0;
 }
 
-bool controlSettingVisible(const SettingInfo& setting, const std::vector<SettingInfo>& allSettings) {
+uint8_t visibilityValue(const char* key, const std::vector<SettingValueSnap>& snaps) {
+  if (key == nullptr) {
+    return 0;
+  }
+  if (std::strcmp(key, "orientation") == 0) {
+    return SETTINGS.orientation;
+  }
+  if (std::strcmp(key, "sleepScreenSplit") == 0) {
+    return SETTINGS.sleepScreenSplit;
+  }
+  if (std::strcmp(key, "developerMode") == 0) {
+    return SETTINGS.developerMode;
+  }
+  if (std::strcmp(key, "timeMode") == 0) {
+    return SETTINGS.timeMode;
+  }
+  if (std::strcmp(key, "statusBarProgressBar") == 0) {
+    return SETTINGS.statusBarProgressBar;
+  }
+  return snappedValue(snaps, key);
+}
+
+bool controlSettingVisible(const SettingInfo& setting, const std::vector<SettingValueSnap>& snaps) {
   if (setting.key != nullptr && std::strcmp(setting.key, "timeZoneOffset") == 0) {
     return SETTINGS.timeMode != CrossPointSettings::TIME_MODE_MANUAL;
   }
   bool isVisible = true;
   if (setting.visibleWhen.key != nullptr) {
-    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [&](const SettingInfo& s) {
-      return s.key && std::strcmp(s.key, setting.visibleWhen.key) == 0;
-    });
-    if (it != allSettings.end()) {
-      const uint8_t value = it->persistedValue();
-      if (!setting.visibleWhen.eqAnyOf.empty()) {
-        isVisible = std::find(setting.visibleWhen.eqAnyOf.begin(), setting.visibleWhen.eqAnyOf.end(), value) !=
-                    setting.visibleWhen.eqAnyOf.end();
-      } else if (setting.visibleWhen.notEqual) {
-        isVisible = value != setting.visibleWhen.eq;
-      } else {
-        isVisible = value == setting.visibleWhen.eq;
-      }
+    const uint8_t value = visibilityValue(setting.visibleWhen.key, snaps);
+    if (!setting.visibleWhen.eqAnyOf.empty()) {
+      isVisible = std::find(setting.visibleWhen.eqAnyOf.begin(), setting.visibleWhen.eqAnyOf.end(), value) !=
+                  setting.visibleWhen.eqAnyOf.end();
+    } else if (setting.visibleWhen.notEqual) {
+      isVisible = value != setting.visibleWhen.eq;
+    } else {
+      isVisible = value == setting.visibleWhen.eq;
     }
   }
 
@@ -122,242 +150,333 @@ bool controlSettingVisible(const SettingInfo& setting, const std::vector<Setting
   return isVisible;
 }
 
+bool keepSettingForCategory(const int categoryIndex, const SettingInfo& setting) {
+  switch (categoryIndex) {
+    case 0:
+      return setting.category == StrId::STR_CAT_READER;
+    case 1:
+      return setting.category == StrId::STR_CAT_DISPLAY;
+    case 2:
+      return setting.category == StrId::STR_CAT_CONTROLS;
+    case 3:
+      if (setting.type == SettingType::ACTION) {
+        return setting.action == SettingAction::TerminusSetup || setting.action == SettingAction::SwitchToTrmnl;
+      }
+      if (setting.key == nullptr) {
+        return false;
+      }
+      if (std::strcmp(setting.key, "backgroundServerMode") == 0) {
+        return true;
+      }
+#if ENABLE_ANKI_SUPPORT
+      return std::strcmp(setting.key, "ankiConnectUrl") == 0 || std::strcmp(setting.key, "ankiConnectDeck") == 0;
+#else
+      return false;
+#endif
+    case 4:
+      if (setting.key == nullptr) {
+        return false;
+      }
+      if (std::strcmp(setting.key, "timeMode") == 0 || std::strcmp(setting.key, "timeZoneOffset") == 0) {
+        return true;
+      }
+      return std::any_of(settings_topics::kGeneralSystemKeys.begin(), settings_topics::kGeneralSystemKeys.end(),
+                         [&](const char* key) { return std::strcmp(setting.key, key) == 0; });
+    case 5:
+      return setting.key != nullptr &&
+             (std::strcmp(setting.key, "developerMode") == 0 || std::strcmp(setting.key, "deviceName") == 0);
+    default:
+      return false;
+  }
+}
+
+struct SettingsStreamState {
+  int categoryIndex = 0;
+  std::vector<SettingValueSnap> snaps;
+  std::vector<const char*> dependencyKeys;
+  std::vector<SettingInfo> sourced;
+};
+
+void collectSourcedSetting(void* ctx, SettingInfo&& setting) {
+  auto* state = static_cast<SettingsStreamState*>(ctx);
+  if (setting.key != nullptr) {
+    state->snaps.push_back({setting.key, setting.persistedValue()});
+  }
+  if (setting.visibleWhen.key != nullptr) {
+    state->dependencyKeys.push_back(setting.visibleWhen.key);
+  }
+  if (!keepSettingForCategory(state->categoryIndex, setting)) {
+    return;
+  }
+  if (state->categoryIndex == 1 && !controlSettingVisible(setting, state->snaps)) {
+    return;
+  }
+  state->sourced.push_back(std::move(setting));
+}
+
 }  // namespace
 
 const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_TAB_READING,  StrId::STR_TAB_LOOKS,
                                                               StrId::STR_TAB_CONTROLS, StrId::STR_TAB_CONNECT,
                                                               StrId::STR_TAB_SYSTEM,   StrId::STR_TAB_ADVANCED};
 
-void SettingsActivity::invalidateMasterSettingsCache() { cachedMasterSettings.clear(); }
+bool SettingsActivity::keyAffectsVisibility(const char* key) const {
+  if (key == nullptr) {
+    return false;
+  }
+  return std::any_of(dependencyKeys.begin(), dependencyKeys.end(),
+                     [key](const char* dep) { return dep != nullptr && std::strcmp(dep, key) == 0; });
+}
 
 void SettingsActivity::rebuildSettingsLists() {
-  for (auto& list : settingsByCategory) {
-    list.clear();
+  if (BG_WIFI.isPendingOrRunning()) {
+    BG_WIFI.stop(true);
   }
+  BackgroundWebServer::getInstance().stop(true);
 
-  if (ESP.getFreeHeap() >= kMinHeapForSettingsRebuild) {
-    const size_t priorFamilyCount = cachedMasterSettings.empty() ? 0 : sdFontSystem.registry().getFamilies().size();
-    sdFontSystem.refreshIfDirty();
-    if (!cachedMasterSettings.empty() && sdFontSystem.registry().getFamilies().size() != priorFamilyCount) {
-      cachedMasterSettings.clear();
-    }
+  visibleSettings.clear();
+  visibleSettings.reserve(24);
+  sdFontSystem.refreshIfDirty();
+
+  const bool hasSleepImages = dirHasAnyImage("/sleep");
+  const bool hasPokedexImages = dirHasAnyImage("/sleep/pokedex");
+
+  static const StrId kReader = StrId::STR_CAT_READER;
+  static const StrId kDisplay = StrId::STR_CAT_DISPLAY;
+  static const StrId kControls = StrId::STR_CAT_CONTROLS;
+  static const StrId kSystem = StrId::STR_CAT_SYSTEM;
+  static const StrId kTime = StrId::STR_CAT_TIME;
+  static const StrId kAdvanced = StrId::STR_CAT_ADVANCED;
+
+  SettingsStreamState state;
+  state.categoryIndex = selectedCategoryIndex;
+  state.sourced.reserve(24);
+  state.snaps.reserve(24);
+  state.dependencyKeys.reserve(8);
+  auto collect = [&](const StrId* filter) {
+    SettingInfo fontFamily = (filter == &kReader) ? buildFontFamilySetting(&sdFontSystem.registry()) : SettingInfo{};
+    forEachSetting(&collectSourcedSetting, &state, hasSleepImages, hasPokedexImages, std::move(fontFamily), filter);
+  };
+  switch (selectedCategoryIndex) {
+    case 0:
+      collect(&kReader);
+      break;
+    case 1:
+      collect(&kDisplay);
+      break;
+    case 2:
+      collect(&kControls);
+      break;
+    case 3:
+      collect(&kSystem);
+      break;
+    case 4:
+      collect(&kSystem);
+      collect(&kTime);
+      break;
+    case 5:
+      collect(&kAdvanced);
+      break;
+    default:
+      break;
   }
+  dependencyKeys = std::move(state.dependencyKeys);
 
-  if (cachedMasterSettings.empty()) {
-    cachedMasterSettings = getSettingsList(&sdFontSystem.registry());
-  }
+  const auto& allSettings = state.sourced;
+  const auto& snaps = state.snaps;
 
-  const auto& allSettings = cachedMasterSettings;
-
-  // 1. Reading (Index 0)
-  auto& readingSettings = settingsByCategory[0];
-  std::copy_if(allSettings.begin(), allSettings.end(), std::back_inserter(readingSettings),
-               [](const SettingInfo& s) { return s.category == StrId::STR_CAT_READER; });
-  groupSettingsByTopic(readingSettings, settings_topics::kReader);
-  if (!readingSettings.empty()) {
-    const auto layoutHeaderIt = std::find_if(readingSettings.begin(), readingSettings.end(), [](const SettingInfo& s) {
-      return s.type == SettingType::SECTION_HEADER && s.nameId == StrId::STR_SEC_LAYOUT;
-    });
-    const auto insertPos = layoutHeaderIt != readingSettings.end() ? layoutHeaderIt : readingSettings.end();
-    readingSettings.insert(insertPos, SettingInfo::Action(StrId::STR_MANAGE_FONTS, SettingAction::DownloadFonts));
-  }
-  readingSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
-
-  // 2. Looks (Index 1)
-  auto& looksSettings = settingsByCategory[1];
-  for (auto& setting : allSettings) {
-    if (setting.category == StrId::STR_CAT_DISPLAY) {
-      if (controlSettingVisible(setting, allSettings)) {
-        looksSettings.push_back(setting);
+  switch (selectedCategoryIndex) {
+    case 0: {
+      visibleSettings = std::move(state.sourced);
+      groupSettingsByTopic(visibleSettings, settings_topics::kReader);
+      if (!visibleSettings.empty()) {
+        const auto layoutHeaderIt =
+            std::find_if(visibleSettings.begin(), visibleSettings.end(), [](const SettingInfo& s) {
+              return s.type == SettingType::SECTION_HEADER && s.nameId == StrId::STR_SEC_LAYOUT;
+            });
+        const auto insertPos = layoutHeaderIt != visibleSettings.end() ? layoutHeaderIt : visibleSettings.end();
+        visibleSettings.insert(insertPos, SettingInfo::Action(StrId::STR_MANAGE_FONTS, SettingAction::DownloadFonts));
       }
+      visibleSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
+      break;
     }
-  }
-  groupSettingsByTopic(looksSettings, settings_topics::kDisplay);
+    case 1: {
+      visibleSettings = std::move(state.sourced);
+      groupSettingsByTopic(visibleSettings, settings_topics::kDisplay);
+      break;
+    }
+    case 2: {
+      auto addControlSetting = [&](StrId nameId) {
+        const auto it = std::find_if(allSettings.begin(), allSettings.end(),
+                                     [nameId](const auto& s) { return s.nameId == nameId; });
+        if (it != allSettings.end() && controlSettingVisible(*it, snaps)) {
+          visibleSettings.push_back(*it);
+        }
+      };
+      auto addControlSettingByKey = [&](const char* key) {
+        const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
+          return setting.key && std::strcmp(setting.key, key) == 0;
+        });
+        if (it != allSettings.end()) {
+          if (controlSettingVisible(*it, snaps)) {
+            visibleSettings.push_back(*it);
+          }
+          return;
+        }
+        LOG_ERR("SET", "Missing control setting definition for key=%s", key);
+      };
+      visibleSettings.reserve(15);
+      visibleSettings.push_back(SettingInfo::SectionHeader(StrId::STR_POWER_BUTTON));
+      addControlSetting(StrId::STR_SHORT_PWR_BTN);
+      addControlSetting(StrId::STR_LONG_PRESS_ACTION);
+      visibleSettings.push_back(SettingInfo::SectionHeader(StrId::STR_FRONT_BUTTONS));
+      visibleSettings.push_back(SettingInfo::Action(StrId::STR_REMAP_FRONT_BUTTONS, SettingAction::RemapFrontButtons));
+      addControlSettingByKey("frontButtonOrientationAware");
+      addControlSetting(StrId::STR_LONG_PRESS_BEHAVIOR);
+      addControlSetting(StrId::STR_LONG_PRESS_MENU_ACTION);
+      visibleSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SIDE_BUTTONS));
+      addControlSetting(StrId::STR_SIDE_BTN_LAYOUT);
+      addControlSettingByKey("sideButtonOrientationAware");
+      addControlSetting(StrId::STR_SIDE_BTN_LONG_PRESS);
+      break;
+    }
+    case 3: {
+      auto addConnectSettingByKey = [&](const char* key) {
+        const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
+          return setting.key && std::strcmp(setting.key, key) == 0;
+        });
+        if (it == allSettings.end()) {
+          LOG_ERR("SET", "Missing connect setting definition for key=%s", key);
+          return;
+        }
+        if (controlSettingVisible(*it, snaps)) {
+          visibleSettings.push_back(*it);
+        }
+      };
+      auto addConnectActionDirect = [&](StrId nameId, SettingAction action) {
+        if (!core::FeatureModules::supportsSettingAction(action)) return;
+        visibleSettings.push_back(SettingInfo::Action(nameId, action));
+      };
+      auto appendConnectTopic = [&](StrId header, const auto& addItems) {
+        const size_t before = visibleSettings.size();
+        visibleSettings.push_back(SettingInfo::SectionHeader(header));
+        addItems();
+        if (visibleSettings.size() == before + 1) {
+          visibleSettings.pop_back();
+        }
+      };
 
-  // 3. Controls (Index 2)
-  auto& controlsSettings = settingsByCategory[2];
-  auto addControlSetting = [&](StrId nameId) {
-    const auto it =
-        std::find_if(allSettings.begin(), allSettings.end(), [nameId](const auto& s) { return s.nameId == nameId; });
-    if (it != allSettings.end() && controlSettingVisible(*it, allSettings)) {
-      controlsSettings.push_back(*it);
-    }
-  };
-  auto addControlSettingByKey = [&](const char* key) {
-    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
-      return setting.key && std::strcmp(setting.key, key) == 0;
-    });
-    if (it != allSettings.end()) {
-      if (controlSettingVisible(*it, allSettings)) {
-        controlsSettings.push_back(*it);
-      }
-      return;
-    }
-    LOG_ERR("SET", "Missing control setting definition for key=%s", key);
-  };
-  controlsSettings.reserve(15);
-  controlsSettings.push_back(SettingInfo::SectionHeader(StrId::STR_POWER_BUTTON));
-  addControlSetting(StrId::STR_SHORT_PWR_BTN);
-  addControlSetting(StrId::STR_LONG_PRESS_ACTION);
-  controlsSettings.push_back(SettingInfo::SectionHeader(StrId::STR_FRONT_BUTTONS));
-  controlsSettings.push_back(SettingInfo::Action(StrId::STR_REMAP_FRONT_BUTTONS, SettingAction::RemapFrontButtons));
-  addControlSettingByKey("frontButtonOrientationAware");
-  addControlSetting(StrId::STR_LONG_PRESS_BEHAVIOR);
-  addControlSetting(StrId::STR_LONG_PRESS_MENU_ACTION);
-  controlsSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SIDE_BUTTONS));
-  addControlSetting(StrId::STR_SIDE_BTN_LAYOUT);
-  addControlSettingByKey("sideButtonOrientationAware");
-  addControlSetting(StrId::STR_SIDE_BTN_LONG_PRESS);
-
-  // 4. Connect (Index 3)
-  auto& connectSettings = settingsByCategory[3];
-  auto addConnectSettingByKey = [&](const char* key) {
-    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
-      return setting.key && std::strcmp(setting.key, key) == 0;
-    });
-    if (it == allSettings.end()) {
-      LOG_ERR("SET", "Missing connect setting definition for key=%s", key);
-      return;
-    }
-    if (controlSettingVisible(*it, allSettings)) {
-      connectSettings.push_back(*it);
-    }
-  };
-  auto addConnectAction = [&](SettingAction action) {
-    if (!core::FeatureModules::supportsSettingAction(action)) return;
-    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [&](const SettingInfo& setting) {
-      return setting.type == SettingType::ACTION && setting.action == action;
-    });
-    if (it != allSettings.end()) {
-      connectSettings.push_back(*it);
-    }
-  };
-  auto addConnectActionDirect = [&](StrId nameId, SettingAction action) {
-    if (!core::FeatureModules::supportsSettingAction(action)) return;
-    connectSettings.push_back(SettingInfo::Action(nameId, action));
-  };
-  auto appendConnectTopic = [&](StrId header, const auto& addItems) {
-    const size_t before = connectSettings.size();
-    connectSettings.push_back(SettingInfo::SectionHeader(header));
-    addItems();
-    if (connectSettings.size() == before + 1) {
-      connectSettings.pop_back();
-    }
-  };
-
-  const size_t beforeConnect = connectSettings.size();
-  connectSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_CONNECTIVITY));
-  addConnectActionDirect(StrId::STR_WIFI_NETWORKS, SettingAction::Network);
-  addConnectActionDirect(StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync);
-  addConnectActionDirect(StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser);
+      const size_t beforeConnect = visibleSettings.size();
+      visibleSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_CONNECTIVITY));
+      addConnectActionDirect(StrId::STR_WIFI_NETWORKS, SettingAction::Network);
+      addConnectActionDirect(StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync);
+      addConnectActionDirect(StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser);
 #if ENABLE_BLE_PAGE_TURNER
-  addConnectActionDirect(StrId::STR_BLE_PAGE_TURNER, SettingAction::BlePageTurner);
+      addConnectActionDirect(StrId::STR_BLE_PAGE_TURNER, SettingAction::BlePageTurner);
 #endif
-  addConnectAction(SettingAction::TerminusSetup);
-  addConnectAction(SettingAction::SwitchToTrmnl);
-  if (connectSettings.size() == beforeConnect + 1) {
-    connectSettings.pop_back();
-  }
+      addConnectActionDirect(StrId::STR_TERMINUS_SETUP, SettingAction::TerminusSetup);
+      addConnectActionDirect(StrId::STR_SWITCH_TO_TRMNL, SettingAction::SwitchToTrmnl);
+      if (visibleSettings.size() == beforeConnect + 1) {
+        visibleSettings.pop_back();
+      }
 
-  appendConnectTopic(StrId::STR_SEC_FILE_SERVER, [&] { addConnectSettingByKey("backgroundServerMode"); });
+      appendConnectTopic(StrId::STR_SEC_FILE_SERVER, [&] { addConnectSettingByKey("backgroundServerMode"); });
 #if ENABLE_ANKI_SUPPORT
-  // Gate must match the one guarding the emits in SettingsList.h: without it,
-  // an anki-disabled build asks for keys that were never emitted and logs two
-  // ERR lines on every entry to Settings.
-  appendConnectTopic(StrId::STR_SEC_ANKI_CONNECT, [&] {
-    addConnectSettingByKey("ankiConnectUrl");
-    addConnectSettingByKey("ankiConnectDeck");
-  });
+      appendConnectTopic(StrId::STR_SEC_ANKI_CONNECT, [&] {
+        addConnectSettingByKey("ankiConnectUrl");
+        addConnectSettingByKey("ankiConnectDeck");
+      });
 #endif
-
-  // 5. System (Index 4)
-  auto& systemSettings = settingsByCategory[4];
-  auto addSystemSettingByKey = [&](const char* key) {
-    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
-      return setting.key && std::strcmp(setting.key, key) == 0;
-    });
-    if (it == allSettings.end()) {
-      LOG_ERR("SET", "Missing system setting definition for key=%s", key);
-      return;
+      break;
     }
-    if (controlSettingVisible(*it, allSettings)) {
-      systemSettings.push_back(*it);
-    }
-  };
-  auto addSystemActionDirect = [&](StrId nameId, SettingAction action) {
-    if (!core::FeatureModules::supportsSettingAction(action)) return;
-    systemSettings.push_back(SettingInfo::Action(nameId, action));
-  };
+    case 4: {
+      auto addSystemSettingByKey = [&](const char* key) {
+        const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
+          return setting.key && std::strcmp(setting.key, key) == 0;
+        });
+        if (it == allSettings.end()) {
+          LOG_ERR("SET", "Missing system setting definition for key=%s", key);
+          return;
+        }
+        if (controlSettingVisible(*it, snaps)) {
+          visibleSettings.push_back(*it);
+        }
+      };
+      auto addSystemActionDirect = [&](StrId nameId, SettingAction action) {
+        if (!core::FeatureModules::supportsSettingAction(action)) return;
+        visibleSettings.push_back(SettingInfo::Action(nameId, action));
+      };
 
-  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_GENERAL));
-  for (const char* key : settings_topics::kGeneralSystemKeys) {
-    addSystemSettingByKey(key);
-  }
-  addSystemActionDirect(StrId::STR_LANGUAGE, SettingAction::Language);
+      visibleSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_GENERAL));
+      for (const char* key : settings_topics::kGeneralSystemKeys) {
+        addSystemSettingByKey(key);
+      }
+      addSystemActionDirect(StrId::STR_LANGUAGE, SettingAction::Language);
 
 #if ENABLE_WIFI_CLOCK
-  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_TIME));
-  addSystemSettingByKey("timeMode");
-  addSystemSettingByKey("timeZoneOffset");
+      visibleSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_TIME));
+      addSystemSettingByKey("timeMode");
+      addSystemSettingByKey("timeZoneOffset");
 #endif
 
-  systemSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_MAINTENANCE));
-  addSystemActionDirect(StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates);
-  addSystemActionDirect(StrId::STR_SD_FIRMWARE_UPDATE, SettingAction::SdFirmwareUpdate);
-  addSystemActionDirect(StrId::STR_SCREEN_CLEAN, SettingAction::ScreenClean);
-  addSystemActionDirect(StrId::STR_VALIDATE_SLEEP_IMAGES, SettingAction::ValidateSleepImages);
-  addSystemActionDirect(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache);
-  addSystemActionDirect(StrId::STR_CLEAR_LOGS, SettingAction::ClearLogs);
-  addSystemActionDirect(StrId::STR_BACKUP_SETTINGS, SettingAction::BackupSettings);
-  addSystemActionDirect(StrId::STR_RESTORE_SETTINGS, SettingAction::RestoreSettings);
-  addSystemActionDirect(StrId::STR_RESET_SETTINGS, SettingAction::ResetSettings);
-  addSystemActionDirect(StrId::STR_CLEAR_WIFI_NETWORKS, SettingAction::ClearWifiNetworks);
-  addSystemActionDirect(StrId::STR_CLEAR_CRASHES, SettingAction::ClearCrashes);
-  addSystemActionDirect(StrId::STR_FACTORY_RESET, SettingAction::FactoryReset);
-
-  // 6. Advanced (Index 5)
-  auto& advancedSettings = settingsByCategory[5];
-  auto addAdvancedSettingByKey = [&](const char* key) {
-    const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
-      return setting.key && std::strcmp(setting.key, key) == 0;
-    });
-    if (it == allSettings.end()) {
-      LOG_ERR("SET", "Missing advanced setting definition for key=%s", key);
-      return;
+      visibleSettings.push_back(SettingInfo::SectionHeader(StrId::STR_SEC_MAINTENANCE));
+      addSystemActionDirect(StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates);
+      addSystemActionDirect(StrId::STR_SD_FIRMWARE_UPDATE, SettingAction::SdFirmwareUpdate);
+      addSystemActionDirect(StrId::STR_SCREEN_CLEAN, SettingAction::ScreenClean);
+      addSystemActionDirect(StrId::STR_VALIDATE_SLEEP_IMAGES, SettingAction::ValidateSleepImages);
+      addSystemActionDirect(StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache);
+      addSystemActionDirect(StrId::STR_CLEAR_LOGS, SettingAction::ClearLogs);
+      addSystemActionDirect(StrId::STR_BACKUP_SETTINGS, SettingAction::BackupSettings);
+      addSystemActionDirect(StrId::STR_RESTORE_SETTINGS, SettingAction::RestoreSettings);
+      addSystemActionDirect(StrId::STR_RESET_SETTINGS, SettingAction::ResetSettings);
+      addSystemActionDirect(StrId::STR_CLEAR_WIFI_NETWORKS, SettingAction::ClearWifiNetworks);
+      addSystemActionDirect(StrId::STR_CLEAR_CRASHES, SettingAction::ClearCrashes);
+      addSystemActionDirect(StrId::STR_FACTORY_RESET, SettingAction::FactoryReset);
+      break;
     }
-    if (controlSettingVisible(*it, allSettings)) {
-      advancedSettings.push_back(*it);
+    case 5: {
+      auto addAdvancedSettingByKey = [&](const char* key) {
+        const auto it = std::find_if(allSettings.begin(), allSettings.end(), [key](const auto& setting) {
+          return setting.key && std::strcmp(setting.key, key) == 0;
+        });
+        if (it == allSettings.end()) {
+          LOG_ERR("SET", "Missing advanced setting definition for key=%s", key);
+          return;
+        }
+        if (controlSettingVisible(*it, snaps)) {
+          visibleSettings.push_back(*it);
+        }
+      };
+      visibleSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_ADVANCED));
+      addAdvancedSettingByKey("developerMode");
+      addAdvancedSettingByKey("deviceName");
+      break;
     }
-  };
-  advancedSettings.push_back(SettingInfo::SectionHeader(StrId::STR_CAT_ADVANCED));
-  addAdvancedSettingByKey("developerMode");
-  addAdvancedSettingByKey("deviceName");
+    default:
+      break;
+  }
 
-  currentSettings = &settingsByCategory[selectedCategoryIndex];
-  settingsCount = static_cast<int>(currentSettings->size());
+  currentSettings = &visibleSettings;
+  settingsCount = static_cast<int>(visibleSettings.size());
 }
 
 void SettingsActivity::onEnter() {
   Activity::onEnter();
 
-  if (BG_WIFI.isPendingOrRunning()) {
-    BG_WIFI.stop(true);
-  }
-
   selectedCategoryIndex = 0;
   selectedSettingIndex = 0;
 
-  invalidateMasterSettingsCache();
   rebuildSettingsLists();
-
-  // Trigger first update
   requestUpdate();
 }
 
 void SettingsActivity::onExit() {
   Activity::onExit();
-
-  UITheme::getInstance().reload();  // Re-apply theme in case it was changed
+  visibleSettings.clear();
+  dependencyKeys.clear();
+  currentSettings = nullptr;
+  settingsCount = 0;
+  UITheme::getInstance().reload();
 }
 
 void SettingsActivity::loop() {
@@ -424,8 +543,7 @@ void SettingsActivity::loop() {
 
   if (hasChangedCategory) {
     selectedSettingIndex = (selectedSettingIndex == 0) ? 0 : 1;
-    currentSettings = &settingsByCategory[selectedCategoryIndex];
-    settingsCount = static_cast<int>(currentSettings->size());
+    rebuildSettingsLists();
     // Advance past any leading section headers
     while (selectedSettingIndex > 0 && selectedSettingIndex <= settingsCount &&
            (*currentSettings)[selectedSettingIndex - 1].type == SettingType::SECTION_HEADER) {
@@ -448,8 +566,7 @@ void SettingsActivity::enterCategory(int categoryIndex) {
   selectedCategoryIndex = categoryIndex;
   selectedSettingIndex = 1;
 
-  currentSettings = &settingsByCategory[selectedCategoryIndex];
-  settingsCount = static_cast<int>(currentSettings->size());
+  rebuildSettingsLists();
 
   requestUpdate();
 }
@@ -506,7 +623,7 @@ void SettingsActivity::toggleCurrentSetting() {
 
   if (setting.type == SettingType::TOGGLE) {
     setting.setPersistedValue(!setting.persistedValue());
-    if (setting.key != nullptr && isSettingKeyReferencedInDependencies(setting.key, cachedMasterSettings)) {
+    if (setting.key != nullptr && keyAffectsVisibility(setting.key)) {
       const int previousSelection = selectedSettingIndex;
       rebuildSettingsLists();
       selectedSettingIndex = std::min(previousSelection, settingsCount);
@@ -519,7 +636,6 @@ void SettingsActivity::toggleCurrentSetting() {
                                if (!SETTINGS.saveToFile()) {
                                  LOG_ERR("SET", "Failed to save settings");
                                }
-                               invalidateMasterSettingsCache();
                                rebuildSettingsLists();
                                requestUpdate();
                              });
@@ -578,7 +694,7 @@ void SettingsActivity::toggleCurrentSetting() {
                           applyEnumValue(setting, newValue);
                           persistSettings();
                           if (setting.key != nullptr &&
-                              isSettingKeyReferencedInDependencies(setting.key, cachedMasterSettings)) {
+                              keyAffectsVisibility(setting.key)) {
                             const int previousSelection = selectedSettingIndex;
                             rebuildSettingsLists();
                             selectedSettingIndex = std::min(previousSelection, settingsCount);
@@ -590,7 +706,7 @@ void SettingsActivity::toggleCurrentSetting() {
                   applyEnumValue(setting, newValue);
                   persistSettings();
                   if (setting.key != nullptr &&
-                      isSettingKeyReferencedInDependencies(setting.key, cachedMasterSettings)) {
+                      keyAffectsVisibility(setting.key)) {
                     const int previousSelection = selectedSettingIndex;
                     rebuildSettingsLists();
                     selectedSettingIndex = std::min(previousSelection, settingsCount);
@@ -643,7 +759,7 @@ void SettingsActivity::toggleCurrentSetting() {
             }
             applyEnumValue(setting, newValue);
             persistSettings();
-            if (setting.key != nullptr && isSettingKeyReferencedInDependencies(setting.key, cachedMasterSettings)) {
+            if (setting.key != nullptr && keyAffectsVisibility(setting.key)) {
               const int previousSelection = selectedSettingIndex;
               rebuildSettingsLists();
               selectedSettingIndex = std::min(previousSelection, settingsCount);
@@ -676,7 +792,7 @@ void SettingsActivity::toggleCurrentSetting() {
     }
 
     applyEnumValue(setting, newValue);
-    if (setting.key != nullptr && isSettingKeyReferencedInDependencies(setting.key, cachedMasterSettings)) {
+    if (setting.key != nullptr && keyAffectsVisibility(setting.key)) {
       const int previousSelection = selectedSettingIndex;
       rebuildSettingsLists();
       selectedSettingIndex = std::min(previousSelection, settingsCount);
@@ -762,7 +878,6 @@ void SettingsActivity::toggleCurrentSetting() {
                                  if (!SETTINGS.saveToFile()) {
                                    LOG_ERR("SET", "Failed to save settings");
                                  }
-                                 invalidateMasterSettingsCache();
                                  rebuildSettingsLists();
                                });
         break;
@@ -785,7 +900,6 @@ void SettingsActivity::toggleCurrentSetting() {
       case SettingAction::TerminusSetup: {
         startActivityForResult(std::make_unique<TerminusSettingsActivity>(renderer, mappedInput),
                                [this](const ActivityResult&) {
-                                 invalidateMasterSettingsCache();
                                  rebuildSettingsLists();
                                  requestUpdate();
                                });
@@ -798,7 +912,6 @@ void SettingsActivity::toggleCurrentSetting() {
       case SettingAction::ResetSettings:
         startActivityForResult(std::make_unique<ResetSettingsActivity>(renderer, mappedInput),
                                [this](const ActivityResult&) {
-                                 invalidateMasterSettingsCache();
                                  rebuildSettingsLists();
                                  requestUpdate();
                                });

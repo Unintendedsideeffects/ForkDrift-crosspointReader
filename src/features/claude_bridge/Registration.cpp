@@ -278,12 +278,12 @@ Activity* createHomeActivity(GfxRenderer& renderer, MappedInputManager& mappedIn
   });
 }
 
-void mountRoutes(WebServer* server) {
-  server->on("/api/claude/ask", HTTP_POST, [server] { handleAsk(server); });
-  server->on("/api/claude/answer", HTTP_GET, [server] { handleAnswer(server); });
-  server->on("/api/claude/cancel", HTTP_POST, [server] { handleCancel(server); });
-  server->on("/api/claude/status", HTTP_GET, [server] { handleStatus(server); });
-}
+const core::WebRouteSpec kClaudeRoutes[] = {
+    {"/api/claude/ask", HTTP_POST, handleAsk, nullptr},
+    {"/api/claude/answer", HTTP_GET, handleAnswer, nullptr},
+    {"/api/claude/cancel", HTTP_POST, handleCancel, nullptr},
+    {"/api/claude/status", HTTP_GET, handleStatus, nullptr},
+};
 
 void onStorageReady() {
   ensureMutex();
@@ -306,7 +306,8 @@ void registerFeature() {
   core::WebRouteEntry webRouteEntry{};
   webRouteEntry.routeId = "claude_bridge";
   webRouteEntry.shouldRegister = shouldRegisterRoutes;
-  webRouteEntry.mountRoutes = mountRoutes;
+  webRouteEntry.routes = kClaudeRoutes;
+  webRouteEntry.routeCount = sizeof(kClaudeRoutes) / sizeof(kClaudeRoutes[0]);
   core::WebRouteRegistry::add(webRouteEntry);
 
   core::HomeActionEntry homeEntry{};

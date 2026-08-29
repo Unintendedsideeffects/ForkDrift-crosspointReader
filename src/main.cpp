@@ -50,6 +50,7 @@
 #include "core/CoreBootstrap.h"
 #include "core/features/FeatureLifecycle.h"
 #include "core/features/FeatureModules.h"
+#include "core/registries/HeapReclaimRegistry.h"
 #include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "network/background/BackgroundServerPolicy.h"
@@ -1046,19 +1047,15 @@ void loop() {
           logSerial.printf(ok ? "WIFICRED_OK:%s\n" : "WIFICRED_ERR:%s\n", ssid.c_str());
         }
       } else if (cmd.startsWith("SETTINGS:")) {
-        // Test harness: apply settings by key, same payload as POST
-        // /api/settings. Format: CMD:SETTINGS:{"key":value,...}
-        // applySettingsJson rebuilds the settings list (~tens of KB burst), so
-        // require the same heap floor as the web handlers before attempting.
-        constexpr uint32_t kMinHeapForSettingsApply = 48000;
+        constexpr uint32_t kMinHeapForSettingsApply = 16000;
         if (ESP.getFreeHeap() < kMinHeapForSettingsApply) {
-          // The background web server holds ~22KB of memory. If heap is short,
-          // reclaim background service memory first (especially important if the
-          // user is trying to switch off the web server that holds the memory).
           if (BG_WIFI.isPendingOrRunning()) {
             BG_WIFI.stop(/*keepWifi=*/true);
           }
           BackgroundWebServer::getInstance().stop(/*keepWifi=*/true);
+          if (!core::HeapReclaimRegistry::empty()) {
+            core::HeapReclaimRegistry::releaseAll();
+          }
         }
         if (ESP.getFreeHeap() < kMinHeapForSettingsApply) {
           logSerial.printf("SETTINGS_ERR:low heap (%u free)\n", ESP.getFreeHeap());

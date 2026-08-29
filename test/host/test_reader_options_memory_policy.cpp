@@ -14,13 +14,6 @@ constexpr uint32_t kX3FrameBufferBytes = 52272;
 
 }  // namespace
 
-TEST_CASE("ReaderOptionsMemoryPolicy build boundaries") {
-  CHECK(ReaderOptionsMemoryPolicy::canBuildSettings({kBuildTotal, kBuildLargest}));
-  CHECK_FALSE(ReaderOptionsMemoryPolicy::canBuildSettings({kBuildTotal - 1, kBuildLargest}));
-  CHECK_FALSE(ReaderOptionsMemoryPolicy::canBuildSettings({kBuildTotal, kBuildLargest - 1}));
-  CHECK_FALSE(ReaderOptionsMemoryPolicy::canBuildSettings({std::numeric_limits<uint32_t>::max(), kBuildLargest - 1}));
-}
-
 TEST_CASE("ReaderOptionsMemoryPolicy X4 preview boundaries") {
   constexpr uint32_t kRetainTotal = 144000;
   constexpr uint32_t kRetainLargest = 96000;
@@ -47,4 +40,8 @@ TEST_CASE("ReaderOptionsMemoryPolicy rejects framebuffer arithmetic overflow") {
 
   CHECK_FALSE(ReaderOptionsMemoryPolicy::canRetainPreview(maximumHeap, exceedsTotal));
   CHECK_FALSE(ReaderOptionsMemoryPolicy::canRetainPreview(maximumHeap, exceedsLargest));
+}
+
+TEST_CASE("measured reader heap cannot retain a 48 KB preview clone") {
+  CHECK_FALSE(ReaderOptionsMemoryPolicy::canRetainPreview({42000, 15000}, kX4FrameBufferBytes));
 }

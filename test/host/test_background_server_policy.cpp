@@ -203,17 +203,15 @@ background_server::StartResourceVerdict verdictFor(const uint32_t freeBytes, con
 }  // namespace
 
 TEST_CASE("background start minimum is the sum of the measured parts") {
-  // 8,192 stack + 16,336 startup + 12,288 floor + 4,096 headroom.
-  CHECK(background_server::startMinFreeBytes(kBgTaskStack) == 40912);
-  // Guards against reinstating the old unmeasured 60,000 gate, which rejected
-  // heap states the server demonstrably starts in.
+  CHECK(background_server::startMinFreeBytes(kBgTaskStack) ==
+        kBgTaskStack + background_server::SERVER_STARTUP_BYTES + background_server::SERVER_SAFETY_FLOOR_BYTES +
+            background_server::START_HEADROOM_BYTES);
   CHECK(background_server::startMinFreeBytes(kBgTaskStack) < 60000);
 }
 
-TEST_CASE("background start is refused at the measured Home-resident heap") {
-  // Device trace, "exit Home": free=33668 largest=9204. Home's 48 KB cover
-  // buffer is still resident at this point, and the server cannot start.
-  CHECK(verdictFor(33668, 9204) == background_server::StartResourceVerdict::InsufficientFree);
+TEST_CASE("background start is allowed at the measured Home-resident heap after the route diet") {
+  CHECK(verdictFor(33668, 9204) == background_server::StartResourceVerdict::Ok);
+  CHECK(verdictFor(37348, 15860) == background_server::StartResourceVerdict::Ok);
 }
 
 TEST_CASE("background start is allowed once Home has released its caches") {
@@ -305,11 +303,40 @@ TEST_CASE("background server: a running server is not re-charged for its startup
   CHECK(background_server::runningMinFreeBytes() >= background_server::SERVER_SAFETY_FLOOR_BYTES);
 }
 
+TEST_CASE("background server: a measured running heap dip is not a fault") {
+  using background_server::RunningHeapAction;
+  CHECK(background_server::evaluateRunningHeap(10200) == RunningHeapAction::KeepServing);
+  CHECK(background_server::evaluateRunningHeap(background_server::runningMinFreeBytes() - 1) ==
+        RunningHeapAction::KeepServing);
+  CHECK(background_server::evaluateRunningHeap(background_server::OBSERVED_RUNNING_MIN_FREE_BYTES) ==
+        RunningHeapAction::KeepServing);
+  CHECK(background_server::evaluateRunningHeap(background_server::OBSERVED_RUNNING_MIN_FREE_BYTES - 1) ==
+        RunningHeapAction::StopKeepWifi);
+  CHECK(background_server::runningAbortFreeBytes() == background_server::OBSERVED_RUNNING_MIN_FREE_BYTES);
+  CHECK(background_server::runningAbortFreeBytes() < background_server::runningMinFreeBytes());
+}
+
 TEST_CASE("background server: observed steady-state heap can now start the on-charge server") {
-  // 43,036 free / 17,396 largest was measured at Home with the old gate refusing to start.
   const auto verdict = background_server::evaluateStartResources(
       {.freeBytes = 43036, .largestContiguousBytes = 17396, .taskStackBytes = 0});
   CHECK(verdict == background_server::StartResourceVerdict::Ok);
+}
+
+TEST_CASE("background server start budget no longer charges deleted route handlers") {
+  CHECK(background_server::SERVER_STARTUP_BYTES == 4504);
+  constexpr uint32_t kBgWifiTaskStack = 8192;
+  CHECK(background_server::startMinFreeBytes(kBgWifiTaskStack) ==
+        kBgWifiTaskStack + 4504 + background_server::SERVER_SAFETY_FLOOR_BYTES +
+            background_server::START_HEADROOM_BYTES);
+  CHECK(background_server::startMinFreeBytes(kBgWifiTaskStack) < 40912);
+}
+
+TEST_CASE("background server: observed Home idle can start Always after the route diet") {
+  constexpr uint32_t kBgWifiTaskStack = 8192;
+  const auto verdict = background_server::evaluateStartResources(
+      {.freeBytes = 37348, .largestContiguousBytes = 15860, .taskStackBytes = kBgWifiTaskStack});
+  CHECK(verdict == background_server::StartResourceVerdict::Ok);
+  CHECK(background_server::startMinFreeBytes(kBgWifiTaskStack) < 37348);
 }
 
 TEST_CASE("background server: fragmentation still blocks a task-spawning start") {

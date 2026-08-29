@@ -44,8 +44,11 @@ class ActivityManager {
 
   // Pending activity to be launched on next loop iteration
   std::unique_ptr<Activity> pendingActivity;
-  enum class PendingAction { None, Push, Pop, Replace };
+  enum class PendingAction { None, Push, Pop, Replace, OpenReader };
   PendingAction pendingAction = PendingAction::None;
+  std::string pendingReaderPath;
+
+  void completeOpenReader();
 
   // Task to render and display the activity
   TaskHandle_t renderTaskHandle = nullptr;

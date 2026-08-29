@@ -22,6 +22,7 @@ struct SettingsApplyTally {
 // caller supplies the list (e.g. from getSettingsList()) and handles persistence.
 // Splitting it out this way is what lets the apply/validation logic be host-tested
 // without dragging in the SD font registry that getSettingsList() depends on.
+void applySettingFromDoc(const SettingInfo& setting, JsonDocument& doc, SettingsApplyTally& tally);
 SettingsApplyTally applySettingsToList(JsonDocument& doc, const std::vector<SettingInfo>& settings);
 
 }  // namespace network

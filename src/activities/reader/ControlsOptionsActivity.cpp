@@ -10,23 +10,21 @@
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
-#include "ReaderOptionsMemoryPolicy.h"
 #include "SettingsList.h"
 #include "activities/settings/ButtonRemapActivity.h"
 #include "components/UITheme.h"
+#include "core/features/FeatureModules.h"
 #include "fontIds.h"
+#include "network/background/BackgroundWebServer.h"
+#include "network/background/BackgroundWifiService.h"
 
 void ControlsOptionsActivity::onEnter() {
   Activity::onEnter();
-
-  if (!rebuildSettingsList()) {
-    setResult(ControlsOptionsResult{false, true});
-#ifdef SIMULATOR
-    LOG_INF("SMOKE", "SMOKE_CTRL_TYPED_RECOVERY");
-#endif
-    finish();
-    return;
+  if (BG_WIFI.isPendingOrRunning()) {
+    BG_WIFI.stop(true);
   }
+  BackgroundWebServer::getInstance().stop(true);
+  rebuildSettingsList();
 #ifdef SIMULATOR
   const bool hasSelectableSetting = selectedIndex >= 0 && selectedIndex < settingsCount &&
                                     settings[selectedIndex].type != SettingType::SECTION_HEADER;
@@ -41,15 +39,25 @@ void ControlsOptionsActivity::onExit() { Activity::onExit(); }
 bool ControlsOptionsActivity::rebuildSettingsList() {
   settings.clear();
 
-  ReaderMemorySnapshot snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap()};
-  if (!ReaderOptionsMemoryPolicy::canBuildSettings(snapshot)) {
-    LOG_WRN("CTRL", "Control options unavailable: free=%u largest=%u", snapshot.freeHeap, snapshot.maxAllocHeap);
-    settingsCount = 0;
-    selectedIndex = 0;
-    return false;
-  }
+  const bool hasSleepImages = dirHasAnyImage("/sleep");
+  const bool hasPokedexImages = dirHasAnyImage("/sleep/pokedex");
+  std::vector<SettingInfo> sourced;
+  sourced.reserve(24);
+  const StrId controlsCategory = StrId::STR_CAT_CONTROLS;
+  forEachSetting(
+      [](void* ctx, SettingInfo&& info) { static_cast<std::vector<SettingInfo>*>(ctx)->push_back(std::move(info)); },
+      &sourced, hasSleepImages, hasPokedexImages, SettingInfo{}, &controlsCategory);
+  const StrId readerCategory = StrId::STR_CAT_READER;
+  forEachSetting(
+      [](void* ctx, SettingInfo&& info) {
+        if (info.key != nullptr && (std::strcmp(info.key, "focusReadingEnabled") == 0 ||
+                                    std::strcmp(info.key, "guideReadingEnabled") == 0)) {
+          static_cast<std::vector<SettingInfo>*>(ctx)->push_back(std::move(info));
+        }
+      },
+      &sourced, hasSleepImages, hasPokedexImages, SettingInfo{}, &readerCategory);
 
-  const auto allSettings = getSettingsList();
+  const auto& allSettings = sourced;
   auto addControlSetting = [&](StrId nameId) {
     const auto it = std::find_if(allSettings.begin(), allSettings.end(),
                                  [nameId](const auto& setting) { return setting.nameId == nameId; });

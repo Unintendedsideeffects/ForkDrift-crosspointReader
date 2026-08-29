@@ -66,6 +66,7 @@ class InflateReader {
   // repack cost 32,868 bytes of free heap AND dropped the largest contiguous
   // block from 40,948 to 9,204, because the window is carved out of the largest
   // run. See docs/FINDINGS.md 2026-08-15.
+  static bool hasSharedWindow();
   static void releaseSharedWindow();
 
   // Pre-allocate the process-wide 32 KB inflate window if not already claimed.

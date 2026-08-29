@@ -49,11 +49,16 @@ as the display name, and uses the sender IP as the connection host.
 (2 s timeout). If it responds 200 the device appears as `"crosspoint.local"` in the
 discovered device list.
 
-**Firmware must:** call `MDNS.begin(<hostname>)` after WiFi connects so the device
-responds to `crosspoint.local` on the LAN.
+**Firmware must:** start mDNS so `crosspoint.local` resolves on the LAN. File Transfer
+and Calibre still call `MDNS.begin(<hostname>)` when those activities open. Always-mode
+and on-charge background servers start mDNS on the first UDP `"hello"` (the same
+packet Android already sends in §1). A typed `http://<hostname>.local/` URL therefore
+works after a scan and may miss before one.
 
-**Current status:** ✅ Implemented. `MDNS.begin(hostname)` is called after WiFi connects in all
-three network entry points (BackgroundWebServer, CrossPointWebServerActivity, CalibreConnectActivity).
+**Current status:** ✅ File Transfer / Calibre start mDNS at activity entry. Background
+servers defer mDNS until UDP discovery so Home idle does not pay the ~5.7 KB mDNS
+task. Android must keep preferring the UDP hostname (§1) over a hardcoded
+`crosspoint.local`.
 
 **Note:** The advertised hostname is dynamic — `crosspoint-{deviceName}` when a device name is
 configured, or `crosspoint-{last4mac}` otherwise. Android discovery should use the hostname

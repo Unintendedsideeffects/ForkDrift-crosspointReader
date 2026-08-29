@@ -1,5 +1,11 @@
 # L2 — heap policy and degradation-path audit
 
+**2026-08-29 occupancy:** Home+Always serving is 29–36 KB, not ~11 KB.
+Settings POST/serial is 16 KB + reclaim; on-device Settings streams one tab.
+CSS whole-file skip is `kCriticalFloorBytes` (32 KB). BWS RUNNING no longer
+`scheduleRetry("low heap")`. AA no longer allocates strip scratch. This audit
+is the 2026-08-28 snapshot.
+
 ## Findings, ordered by impact
 
 | Rank | Label | Finding | Impact and evidence |

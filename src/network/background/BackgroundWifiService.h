@@ -33,7 +33,6 @@ class BackgroundWifiService {
   volatile bool wifiOwned = false;
   volatile uint32_t requestCount = 0;
   volatile unsigned long nextStartAllowedMs = 0;
-  volatile bool mdnsStarted = false;
   volatile bool shelfRefreshAttempted = false;
   volatile background_server::ServiceState serviceState = background_server::ServiceState::Stopped;
 
@@ -43,28 +42,14 @@ class BackgroundWifiService {
   // Shared by start() and startUsingCurrentConnection(): resets the volatile
   // state, allocates the task params and spawns the task.
   bool spawnTask(const char* ssid, const char* password, bool useCurrentConnection, const char* logContext);
-  void refreshLibraryShelf();
+  bool refreshLibraryShelf();
   bool canStartNow();
   bool startRetryActive() const;
   void deferStartRetry(const char* reason);
 
-  // Route-heavy CrossPointWebServer handlers run on this task in Always mode.
   static constexpr uint32_t TASK_STACK = 8192;
   static constexpr uint32_t CONNECT_TIMEOUT_MS = 15000;
   static constexpr uint32_t START_RETRY_MS = 30000;
-  // The start gate now lives in BackgroundServerPolicy, derived from a measured
-  // breakdown and checking largest-contiguous as well as free heap. It is NOT a
-  // single tunable number any more — see startMinFreeBytes().
-  //
-  // The library shelf keeps its own absolute floor. It used to be
-  // MIN_START_HEAP_BYTES + 24000 == 84000; the derived start gate is far lower,
-  // so deriving the shelf from it would have quietly let the shelf refresh (an
-  // HTTP fetch plus an SD write) run in heap conditions it was never measured
-  // against. Same number as before, stated outright.
-  static constexpr uint32_t LIBRARY_SHELF_MIN_HEAP_BYTES = 84000;
-  // The shelf refresh is an HTTP fetch plus an SD write. Without an interval
-  // gate it ran on every single background start — i.e. every wake from sleep.
-  // Measured in wall-clock seconds because millis() resets across deep sleep.
   static constexpr uint32_t LIBRARY_SHELF_MIN_INTERVAL_S = 15UL * 60UL;
   // Epoch below which the system clock is assumed unset (2020-09-13).
   static constexpr long CLOCK_SET_EPOCH_THRESHOLD = 1600000000L;

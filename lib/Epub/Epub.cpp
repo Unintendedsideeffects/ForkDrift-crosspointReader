@@ -2,6 +2,7 @@
 
 #include <FsHelpers.h>
 #include <HalStorage.h>
+#include <HeapGuard.h>
 #include <ImageConverter.h>
 #include <InflateReader.h>
 #include <JpegToBmpConverter.h>
@@ -19,12 +20,6 @@
 
 namespace {
 constexpr size_t MAX_CSS_FILE_SIZE = 128 * 1024;
-// Measured on device (2026-08-28): a cold open attempts CSS parsing with 45,264-46,664
-// bytes free, so the previous 64 KB floor could never be cleared and every stylesheet
-// was skipped on every book. 40 KB clears the measured case with ~5 KB of margin, and
-// the parse degrades safely below it -- CssParser guards its own map growth through
-// heapguard::canAllocate, and a parse that skips a file no longer poisons the cache.
-constexpr size_t MIN_HEAP_FOR_CSS_PARSING = 40 * 1024;
 
 bool extractItemToTempFile(const Epub* epub, const std::string& itemHref, const std::string& tempPath) {
   HalFile tempFile;
@@ -378,10 +373,9 @@ void Epub::parseCssFiles() const {
     for (const auto& cssPath : cssFiles) {
       LOG_DBG("EBP", "Parsing CSS file: %s", cssPath.c_str());
 
-      const uint32_t freeHeap = ESP.getFreeHeap();
-      if (freeHeap < MIN_HEAP_FOR_CSS_PARSING) {
-        LOG_ERR("EBP", "Insufficient heap for CSS parsing (%u bytes free, need %zu), skipping: %s", freeHeap,
-                MIN_HEAP_FOR_CSS_PARSING, cssPath.c_str());
+      if (heapguard::freeBytes() < heapguard::kCriticalFloorBytes) {
+        LOG_ERR("EBP", "Insufficient heap for CSS parsing (%u bytes free, need %zu), skipping: %s",
+                static_cast<unsigned>(heapguard::freeBytes()), heapguard::kCriticalFloorBytes, cssPath.c_str());
         skippedRecoverableCssFile = true;
         continue;
       }
@@ -476,6 +470,7 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
     if (needsWindow) {
       if (!InflateReader::ensureSharedWindow()) {
         LOG_ERR("EBP", "Failed to reserve inflate window for deflated book");
+        return false;
       }
     }
     if (!skipLoadingCss) {
@@ -534,6 +529,7 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
           needsWindowUncached ? "reserving" : "not needed for this book");
   if (needsWindowUncached && !InflateReader::ensureSharedWindow()) {
     LOG_ERR("EBP", "Failed to pre-allocate inflate window (cache miss)");
+    return false;
   }
 
   const uint32_t indexingStart = millis();

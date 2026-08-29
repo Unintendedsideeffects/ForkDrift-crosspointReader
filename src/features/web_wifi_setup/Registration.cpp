@@ -18,21 +18,15 @@ namespace {
 #if ENABLE_WEB_WIFI_SETUP
 bool shouldRegisterWebWifiSetupApiRoute() { return core::FeatureCatalog::isEnabled("web_wifi_setup"); }
 
-void mountWifiRoutes(WebServer* server) {
-  server->on("/api/wifi/scan", HTTP_GET, [server] {
+void handleWifiScan(WebServer* server) {
     if (WiFi.getMode() & WIFI_MODE_AP) {
       server->send(409, "application/json", "{\"error\":\"scan unavailable in access-point mode\"}");
       return;
     }
 
-    // Non-blocking scan: start async scan on first call and return HTTP 202
-    // immediately. The browser re-polls until it receives HTTP 200 with results.
-    // This prevents blocking the main task (and thus the display) for the
-    // several seconds a WiFi scan takes.
     static bool scanActive = false;
     const int16_t n = WiFi.scanComplete();
     if (n >= 0) {
-      // Scan complete — build and return results.
       scanActive = false;
       const bool staConnected = (WiFi.getMode() & WIFI_MODE_STA) && (WiFi.status() == WL_CONNECTED);
       const String activeSsid = staConnected ? WiFi.SSID() : String();
@@ -58,20 +52,17 @@ void mountWifiRoutes(WebServer* server) {
       server->send(202, "application/json", "{\"scanning\":true}");
       return;
     }
-    // n == WIFI_SCAN_FAILED: either not yet started or a previous scan failed.
     if (scanActive) {
-      // We started a scan but it failed.
       scanActive = false;
       server->send(500, "text/plain", "WiFi scan failed");
       return;
     }
-    // Start a fresh async scan.
     startWifiScanAsync();
     scanActive = true;
     server->send(202, "application/json", "{\"scanning\":true}");
-  });
+}
 
-  server->on("/api/wifi/connect", HTTP_POST, [server] {
+void handleWifiConnect(WebServer* server) {
     if (!server->hasArg("plain")) {
       server->send(400, "text/plain", "Missing body");
       return;
@@ -95,9 +86,9 @@ void mountWifiRoutes(WebServer* server) {
       return;
     }
     server->send(200, "text/plain", "WiFi credentials saved");
-  });
+}
 
-  server->on("/api/wifi/forget", HTTP_POST, [server] {
+void handleWifiForget(WebServer* server) {
     if (!server->hasArg("plain")) {
       server->send(400, "text/plain", "Missing body");
       return;
@@ -120,9 +111,9 @@ void mountWifiRoutes(WebServer* server) {
     } else {
       server->send(400, "text/plain", "SSID required");
     }
-  });
+}
 
-  server->on("/api/wifi/status", HTTP_GET, [server] {
+void handleWifiStatus(WebServer* server) {
     JsonDocument doc;
     const wl_status_t wifiSt = WiFi.status();
     const bool connected = wifiSt == WL_CONNECTED;
@@ -146,8 +137,14 @@ void mountWifiRoutes(WebServer* server) {
     String json;
     serializeJson(doc, json);
     server->send(200, "application/json", json);
-  });
 }
+
+const core::WebRouteSpec kWifiRoutes[] = {
+    {"/api/wifi/scan", HTTP_GET, handleWifiScan, nullptr},
+    {"/api/wifi/connect", HTTP_POST, handleWifiConnect, nullptr},
+    {"/api/wifi/forget", HTTP_POST, handleWifiForget, nullptr},
+    {"/api/wifi/status", HTTP_GET, handleWifiStatus, nullptr},
+};
 #endif
 
 }  // namespace
@@ -157,7 +154,8 @@ void registerFeature() {
   core::WebRouteEntry webRouteEntry{};
   webRouteEntry.routeId = "web_wifi_setup_api";
   webRouteEntry.shouldRegister = shouldRegisterWebWifiSetupApiRoute;
-  webRouteEntry.mountRoutes = mountWifiRoutes;
+  webRouteEntry.routes = kWifiRoutes;
+  webRouteEntry.routeCount = sizeof(kWifiRoutes) / sizeof(kWifiRoutes[0]);
   core::WebRouteRegistry::add(webRouteEntry);
 #endif
 }

@@ -1,6 +1,24 @@
-# R3 — Background-server diet (design only)
+# R3 — Background-server diet
 
-Home idle is the worst state on the device (~11,500 free, ~8,180 largest) because Always-mode keeps a full `CrossPointWebServer` resident. Teardown recovers a measured **22,324 B**. Nobody has attacked that block. This note is the attack plan, in priority order, against the WebServer library that is actually linked.
+Home idle **was** the worst state on the device (~11,500 free, ~8,180 largest)
+because Always-mode kept a full `CrossPointWebServer` resident — ~84
+`server->on()` heap handlers, mDNS, and WebSockets. Teardown recovered a
+measured **22,324 B**. This note is the attack plan against the WebServer
+library that is actually linked.
+
+**Landed 2026-08-29** (P0, P1, P1b, P2c, step-7 start budget). Device walk on
+`192.168.86.51`: after UDP `"hello"`, Home+Always sat at **29,392–36,640 free /
+17,396 largest**; 35/35 `/api/status` HTTP 200; wifi stayed `Connected`; no
+`Retry scheduled (low heap)` flap. First flash after P0 still refused port 80 at
+37,348 free because `SERVER_STARTUP_BYTES` still charged 11,832 for the deleted
+routes; retune 16,336 → 4,504 is what let Always start. Follow-on: AA no longer
+allocates an 8 KB scratch (framebuffer loan + BW re-paint). Host tests compile
+`mountAll()` only under `CROSSPOINT_HOST_BUILD` / `SIMULATOR`; firmware has one
+live registration path. Background `begin()` defers mDNS/WS until the first UDP
+hello; File Transfer / Calibre still start those at activity entry.
+
+The sections below are the original design. Do not re-derive the 11,500 / 8,180
+starting point as current firmware truth.
 
 Not in scope: cutting `BackgroundWifiService::TASK_STACK` (8192). Route handlers run on that task (`BackgroundWifiService.h:51-52`).
 
@@ -428,6 +446,8 @@ Only if product still wants it: tcpdump/Wireshark on first GET after boot with a
 
 P0 + P1 + P1b + P2c is the diet: **~26 KB** at idle Home with no LAN client, **~16 KB** still resident while the app is connected (P0 + P2c). Home would move from 11,500 / 8,180 toward the mid-20s / ~20 KB largest if the freed runs coalesce. That is the region where CSS parse, AA scratch (8,000), and the Terminus 13,312 stack stop being structurally impossible.
 
+**Measured 2026-08-29, after the bytes moved:** Home+Always after UDP hello is 29–36 KB free / 17.4 KB largest (not mid-20s — better than the coalesce guess). CSS whole-file skip is 32 KB critical; AA scratch still fails. `SERVER_STARTUP_BYTES` retuned 16,336 → 4,504. Always’s start gate is ~29 KB, not 40,912. First flash after P0 at 37 KB free still `ECONNREFUSED` until that retune.
+
 After the bytes move, retune `BackgroundServerPolicy::SERVER_STARTUP_BYTES` (today 16,336, measured 2026-07-30). The start gate is `taskStack + 16336 + 12288 + 4096 = 40,912` (`lens-4-budget.md` §3.6). A cheaper start is how Always-mode *restarts* after a book (currently the restart at free ≈ 33,216 is below that gate and "unresolved"). Do not lower the gate until the new startup is measured with the split logs.
 
 ### Explicit non-goals
@@ -448,7 +468,7 @@ After the bytes move, retune `BackgroundServerPolicy::SERVER_STARTUP_BYTES` (tod
 4. P2c font buffer.
 5. P1 mDNS on UDP hello; File Transfer unchanged.
 6. P1b WS on UDP hello, background instance only.
-7. Re-measure `SERVER_STARTUP_BYTES`, retune the start gate, update `BackgroundServerPolicy.h` comment block.
+7. Re-measure `SERVER_STARTUP_BYTES`, retune the start gate, update `BackgroundServerPolicy.h` comment block. **Done 2026-08-29:** 16,336 → 4,504; Always starts at measured Home idle.
 
 Each step is independently revertible and independently measurable against the `[MEM]` lines. That is the reviewability constraint.
 

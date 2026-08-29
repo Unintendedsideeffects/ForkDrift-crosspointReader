@@ -1,4 +1,4 @@
-# Heap analysis — measured, 2026-08-28
+# Heap analysis — measured, 2026-08-28; occupancy diet 2026-08-29
 
 Authoritative accounting of memory on the X4 (ESP32-C3, no PSRAM), produced by a
 four-lens static audit plus on-device profiling over USB serial. It replaces the
@@ -9,20 +9,30 @@ roughly a factor of two**, and a large family of thresholds derives from it.
 Every number below labelled *measured* came off the device. Numbers labelled
 *inferred* were read out of the source and are marked as such.
 
+The 2026-08-28 tables are the diagnosis. The 2026-08-29 occupancy diet changed
+who holds memory at Home+Always; that addendum is current firmware truth.
+
 ## TL;DR
 
 1. **Real reading heap is 36-40 KB free, not 60-130 KB.** Every threshold tuned
    against the old figure now fires always or never, rather than when intended.
-2. **The whole book load happens before the background server is torn down**, at
-   ~11 KB free. This is the root cause behind most of the rest.
-3. **Home with the always-on server is the worst state on the device (11 KB
-   free), and it is the default idle state.** Reading is nearly 4x roomier.
+2. **The whole book load happens before the background server is torn down.**
+   That overlap is still true. It used to run at ~11 KB free; after the occupancy
+   diet the server is cheaper, so the overlap is no longer structurally 11 KB.
+3. **Home with Always-server was 11 KB free (2026-08-28) because the HTTP stack
+   held ~84 `server->on()` objects, mDNS, and WebSockets.** After the 2026-08-29
+   diet it is **29–36 KB free / 17 KB largest** once UDP `"hello"` has started
+   WS+mDNS. That 11 KB figure is occupancy, not the floor of a healthy server.
 4. **Fragmentation is a step change at book open, not a slow drift.** Largest
-   block collapses 36,852 -> 9,204 and then never moves again for the session.
+   block collapses at open, then plateaus. Page turns do not leak.
 5. **Page turns are heap-neutral.** There is no per-page leak. Measured flat
    across five consecutive turns.
 6. **Two destructive misattributions of OOM survive**, one of which deletes a
    valid on-disk cache.
+7. **AA no longer needs an 8 KB heap scratch.** Page-turn grayscale loans the
+   framebuffer and restores BW by repainting. Font prewarm gate is 24 KB. On-device
+   Settings streams one tab. Inflate’s 32 KB window and Home’s 48 KB cover clone
+   remain the large process-lifetime / luxury tells.
 
 ## The budget
 
@@ -76,6 +86,10 @@ Read this table twice. The two things it says are not the obvious ones:
   falls by 25 KB when you return to Home, because the background web server
   starts. The device spends its idle life in its worst memory state.
 
+That last sentence is the 2026-08-28 occupancy picture. After the 2026-08-29
+diet, returning to Home still starts the server, but serving idle is 29–36 KB
+rather than 11 KB. See the occupancy addendum below.
+
 ### Post-fix baseline (re-measured 2026-08-28, after the session's commits)
 
 The table above is the *pre-fix* device and is kept as the record of the original
@@ -91,6 +105,53 @@ diagnosis. Re-measured on the same hardware after `70fcdfce2`, `6cd1329a4`,
 **Free heap is essentially unchanged; contiguity is not.** The largest allocatable
 block is up 46% at Home and 72% while reading. That is the number that was
 failing allocations, so it is the one worth tracking.
+
+### Occupancy diet (measured 2026-08-29)
+
+Hunt-3 P0–P2c plus the start-budget retune. Device `192.168.86.51`, Always-server,
+UDP discovery `"hello"` on 8134. Detail: `docs/FINDINGS.md` 2026-08-29T10:16Z.
+
+What moved:
+
+- ~84 `server->on()` heap handlers → one `WebRouteTableHandler` + flash `const`
+  table of function pointers. Plugins register `WebRouteSpec[]`. Host tests still
+  use `mountAll()` → mock `on()`.
+- Background `begin(Background)` does not start mDNS or WebSockets. UDP 8134
+  still binds. First `"hello"` starts WS, then mDNS, then replies. File Transfer
+  / Calibre still start those themselves.
+- Font-upload 4 KB buffer allocated on first WRITE, freed on END/ABORT.
+- `SERVER_STARTUP_BYTES` 16,336 → 4,504 (dropped the measured 11,832 route line;
+  kept WebServer + WS/UDP remainder). Always’s start gate is ~29 KB, not 40,912.
+- RUNNING low-heap no longer calls `scheduleRetry()` (that disconnects WiFi).
+  `evaluateRunningHeap` only aborts below `OBSERVED_RUNNING_MIN_FREE_BYTES`
+  (4860) with `StopKeepWifi`.
+- Settings POST/serial floor is 16 KB with reclaim-then-apply. On-device
+  Settings UI streams the current tab via `forEachSetting` (no 48 KB rebuild gate).
+- CSS whole-file skip is only below `kCriticalFloorBytes` (32 KB). Per-rule
+  `canAllocate` still applies. Incomplete parse is still not cached.
+- Page-turn AA paints grayscale into the live framebuffer and restores BW by
+  re-rendering (`ReaderUtils::renderAntiAliased`). No 8 KB strip scratch, no
+  `storeBwBuffer`. Font prewarm runs at ≥ 24 KB free.
+- Host tests: `WebRouteRegistry::mountAll()` is compiled only for
+  `CROSSPOINT_HOST_BUILD` / `SIMULATOR` and still binds mock `on()`. Firmware
+  has a single live path (`WebRouteTableHandler`).
+- Follow-on (2026-08-29/30): destroy Home before `Epub::load`; Reader Options
+  overlay streams without the 96/48 KB reboot gate; post-index Continue at
+  ≥ 14 KB largest (no `persistAndRestart`); cover thumbs and library shelf are
+  luxury (shelf floor 38 KB HTTPS); STORED-shadow writes a method-0 ZIP beside
+  cache and is not on the load path.
+
+| State | Before (2026-08-28) | After occupancy flash |
+|---|---|---|
+| Home, Always not yet up | ~33–37 KB | 37,348 free / 15,860 largest (first flash, port 80 refused: gate still 40,912) |
+| Home + Always serving | 11.5 KB / 8.2 KB largest | **29,392–36,640 free / 17,396 largest** after UDP hello |
+| `/api/status` 1 Hz, 35 s | flap / WiFi disconnect | 35/35 HTTP 200, wifi `Connected` |
+| `/api/settings` GET | 503 at 11 KB | 200, 67 entries, ~36 KB free |
+| Reader after open + page turn | CSS often skipped | 42,080 free / 14,836 largest; min-free during open 9,436; **AA no longer allocates an 8 KB scratch** (re-paint restore; device confirm after this flash) |
+
+First flash after P0 but **before** the start-budget update left Home at 37 KB
+free with TCP `ECONNREFUSED` on port 80. Dropping the deleted 12 KB route line
+from the start gate is what let Always come up.
 
 ### The cold-cache path, measured for the first time
 
@@ -213,8 +274,11 @@ against a measured largest block of 5,620.
 
 ## Ranked recommendations
 
-Ordered by measured value per unit of risk. None of these are applied; this
-document is the analysis, not the change.
+Ordered by measured value per unit of risk. Items 1–7 are the 2026-08-28
+analysis, not the occupancy diet. Hunt-3 P0–P2c plus the start-budget retune
+landed 2026-08-29 and is the current Always-server occupancy story; see the
+addendum above. That diet does not tear the server down before `Epub::load()`,
+does not change the `Always` default, and does not fix AA scratch.
 
 | # | Change | Est. recovery | Risk | Why |
 |---|---|---:|---|---|
@@ -233,8 +297,10 @@ decision. 7 is a hypothesis worth testing, not a conclusion.
 
 This is the practical replacement for the stale comment in `HeapGuard.h`.
 
-- Budget against **36-40 KB free / ~9 KB largest block** while reading, and
-  **11 KB free / 5.6 KB largest** at idle Home in the default configuration.
+- Budget against **36-40 KB free / ~9–16 KB largest block** while reading, and
+  **29–36 KB free / ~17 KB largest** at idle Home + Always after UDP hello
+  (2026-08-29 occupancy). The 11 KB / 5.6 KB Home figure is the pre-diet
+  occupancy state, not the current default.
 - A persistent heap allocation must fit in **~8 KB contiguous**. There is no
   state in which a 48 KB heap buffer is available. If you need framebuffer-sized
   memory, borrow the framebuffer or stream via SD.

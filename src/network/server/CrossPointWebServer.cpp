@@ -6,10 +6,15 @@
 #include <FsHelpers.h>
 #include <HTTPClient.h>
 #include <HalStorage.h>
+#include <HeapGuard.h>
 #include <Logging.h>
+#include <Memory.h>
 #include <OpdsParser.h>
 #include <OpdsStream.h>
 #include <WiFi.h>
+#ifndef SIMULATOR
+#include <ESPmDNS.h>
+#endif
 #include <esp_task_wdt.h>
 
 #include <algorithm>
@@ -30,7 +35,6 @@
 #include "core/features/FeatureCatalog.h"
 #include "core/features/FeatureModules.h"
 #include "core/features/KoreaderOpdsBridge.h"
-#include "core/registries/WebRouteRegistry.h"
 #include "network/html/FilesPageHtml.generated.h"
 #include "network/html/FontsPageHtml.generated.h"
 #include "network/html/HomePageHtml.generated.h"
@@ -43,6 +47,7 @@
 #include "network/server/SleepCoverApi.h"
 #include "network/server/TodoPlannerApi.h"
 #include "network/server/WebDAVHandler.h"
+#include "network/server/WebRouteTableHandler.h"
 #if ENABLE_REMOTE_CONTROL
 #include "network/server/RemoteControlApi.h"
 #endif
@@ -51,6 +56,7 @@
 #include "util/DateUtils.h"
 #include "util/InputValidation.h"
 #include "util/MaintenanceUtils.h"
+#include "util/NetworkNames.h"
 #include "util/PathUtils.h"
 #include "util/RecentBooksStore.h"
 #include "util/WifiCredentialStore.h"
@@ -63,6 +69,12 @@ constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
 constexpr uint8_t CROSSPOINT_PROTOCOL_VERSION = 1;
 constexpr uint16_t LOCAL_UDP_PORT = 8134;
 constexpr uint32_t WEB_SERVER_MIN_SAFE_HEAP_BYTES = 12 * 1024;
+constexpr uint32_t WS_STARTUP_BYTES = 4096;
+// MDNS.begin() spins up the mDNS service task (4 KB stack) plus the server struct
+// and its packet buffers. The task stack is the single largest contiguous request,
+// so it gets the same 4 KB contiguous floor as the WebSocket server. Confirm the
+// total against the "[MEM] Free heap before/after mDNS" pair in ensureMdns().
+constexpr uint32_t MDNS_STARTUP_BYTES = 6144;
 constexpr uint32_t kMinHeapForOpdsMutation = 16000;
 constexpr uint32_t kMinHeapForOpdsTest = HttpDownloader::MIN_HEAP_FOR_HTTPS + 8000;
 constexpr size_t WS_CONTROL_MESSAGE_MAX_BYTES = 1024;
@@ -208,53 +220,47 @@ void CrossPointWebServer::noteWebUiAccess() const {
 #endif
 }
 
-void CrossPointWebServer::begin() {
+void CrossPointWebServer::begin(const ServerRole role) {
   if (running) {
     LOG_DBG("WEB", "Web server already running");
     return;
   }
 
-  // Check if we have a valid network connection (either STA connected or AP mode)
+  serverRole = role;
+
   const wifi_mode_t wifiMode = WiFi.getMode();
   const bool isStaConnected = (wifiMode & WIFI_MODE_STA) && (WiFi.status() == WL_CONNECTED);
-  const bool isInApMode = (wifiMode & WIFI_MODE_AP) && (WiFi.softAPgetStationNum() >= 0);  // AP is running
+  const bool isInApMode = (wifiMode & WIFI_MODE_AP) && (WiFi.softAPgetStationNum() >= 0);
 
   if (!isStaConnected && !isInApMode) {
     LOG_DBG("WEB", "Cannot start webserver - no valid network (mode=%d, status=%d)", wifiMode, WiFi.status());
     return;
   }
 
-  // Store AP mode flag for later use (e.g., in handleStatus)
   apMode = isInApMode;
 
-  LOG_DBG("WEB", "[MEM] Free heap before begin: %d bytes", ESP.getFreeHeap());
+  LOG_DBG("WEB", "[MEM] Free heap before begin: %d bytes (largest=%d)", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
   LOG_DBG("WEB", "Network mode: %s", apMode ? "AP" : "STA");
 
   LOG_DBG("WEB", "Creating web server on port %d...", port);
   server.reset(new (std::nothrow) WebServer(port));
 
-  // Disable WiFi sleep to improve responsiveness and prevent 'unreachable' errors.
-  // This is critical for reliable web server operation on ESP32.
   WiFi.setSleep(false);
-  // Default varies by ESP32 core version. The activity's loss-recovery loop
-  // relies on driver retries during transient disconnects.
   WiFi.setAutoReconnect(true);
 
-  // Note: WebServer class doesn't have setNoDelay() in the standard ESP32 library.
-  // We rely on disabling WiFi sleep for responsiveness.
-
-  LOG_DBG("WEB", "[MEM] Free heap after WebServer allocation: %d bytes", ESP.getFreeHeap());
+  LOG_DBG("WEB", "[MEM] Free heap after WebServer allocation: %d bytes (largest=%d)", ESP.getFreeHeap(),
+          ESP.getMaxAllocHeap());
 
   if (!server) {
     LOG_ERR("WEB", "Failed to create WebServer!");
     return;
   }
 
-  // Setup routes
   LOG_DBG("WEB", "Setting up routes...");
   mountRoutes();
   const uint32_t freeHeapAfterRouteSetup = ESP.getFreeHeap();
-  LOG_DBG("WEB", "[MEM] Free heap after route setup: %d bytes", freeHeapAfterRouteSetup);
+  LOG_DBG("WEB", "[MEM] Free heap after route setup: %d bytes (largest=%d)", freeHeapAfterRouteSetup,
+          ESP.getMaxAllocHeap());
 
   if (freeHeapAfterRouteSetup < WEB_SERVER_MIN_SAFE_HEAP_BYTES) {
     LOG_ERR("WEB", "Aborting server startup: only %u bytes free after route setup", freeHeapAfterRouteSetup);
@@ -263,10 +269,8 @@ void CrossPointWebServer::begin() {
   }
 
 #if CROSSPOINT_HAS_NETWORKUDP
-  // Collect WebDAV headers and register handler
   const char* davHeaders[] = {"Depth", "Destination", "Overwrite", "If", "Lock-Token", "Timeout"};
   server->collectHeaders(davHeaders, 6);
-  // Note: WebDAVHandler will be deleted by WebServer when server is stopped
   auto* davHandler = new (std::nothrow) WebDAVHandler();
   if (davHandler) {
     server->addHandler(davHandler);
@@ -274,27 +278,23 @@ void CrossPointWebServer::begin() {
   } else {
     LOG_ERR("WEB", "OOM: WebDAVHandler; WebDAV disabled");
   }
+  LOG_DBG("WEB", "[MEM] Free heap after WebDAV: %d bytes (largest=%d)", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 #endif
 
   server->begin();
+  LOG_DBG("WEB", "[MEM] Free heap after listen: %d bytes (largest=%d)", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 
-  // Start WebSocket server for fast binary uploads
-  LOG_DBG("WEB", "Starting WebSocket server on port %d...", wsPort);
-  wsServer.reset(new (std::nothrow) WebSocketsServer(wsPort));
-  if (!wsServer) {
-    LOG_ERR("WEB", "Failed to create WebSocket server");
-    server->stop();
-    server.reset();
-    return;
+  if (serverRole == ServerRole::Foreground) {
+    if (!ensureWs()) {
+      server->stop();
+      server.reset();
+      return;
+    }
   }
-
-  wsInstance = this;
-  wsServer->begin();
-  wsServer->onEvent(wsEventCallback);
-  LOG_DBG("WEB", "WebSocket server started");
 
   udpActive = udp.begin(LOCAL_UDP_PORT);
   LOG_DBG("WEB", "Discovery UDP %s on port %d", udpActive ? "enabled" : "failed", LOCAL_UDP_PORT);
+  LOG_DBG("WEB", "[MEM] Free heap after UDP: %d bytes (largest=%d)", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 
   const uint32_t freeHeapAfterStartup = ESP.getFreeHeap();
   if (freeHeapAfterStartup < WEB_SERVER_MIN_SAFE_HEAP_BYTES) {
@@ -316,11 +316,62 @@ void CrossPointWebServer::begin() {
   running = true;
 
   LOG_DBG("WEB", "Web server started on port %d", port);
-  // Show the correct IP based on network mode
   const String ipAddr = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
   LOG_DBG("WEB", "Access at http://%s/", ipAddr.c_str());
-  LOG_DBG("WEB", "WebSocket at ws://%s:%d/", ipAddr.c_str(), wsPort);
-  LOG_DBG("WEB", "[MEM] Free heap after server.begin(): %d bytes", freeHeapAfterStartup);
+  if (wsServer) {
+    LOG_DBG("WEB", "WebSocket at ws://%s:%d/", ipAddr.c_str(), wsPort);
+  }
+  LOG_DBG("WEB", "[MEM] Free heap after server.begin(): %d bytes (largest=%d)", freeHeapAfterStartup,
+          ESP.getMaxAllocHeap());
+}
+
+bool CrossPointWebServer::ensureWs() {
+  if (wsServer) {
+    return true;
+  }
+  if (!heapguard::canAllocate(WS_STARTUP_BYTES, 4096)) {
+    LOG_ERR("WEB", "WS skipped: heap free=%u largest=%u need=%u", static_cast<unsigned>(ESP.getFreeHeap()),
+            static_cast<unsigned>(ESP.getMaxAllocHeap()), static_cast<unsigned>(WS_STARTUP_BYTES));
+    return false;
+  }
+  LOG_DBG("WEB", "[MEM] Free heap before WebSocket: %d bytes (largest=%d)", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+  wsServer.reset(new (std::nothrow) WebSocketsServer(wsPort));
+  if (!wsServer) {
+    LOG_ERR("WEB", "Failed to create WebSocket server");
+    return false;
+  }
+  wsInstance = this;
+  wsServer->begin();
+  wsServer->onEvent(wsEventCallback);
+  LOG_DBG("WEB", "WebSocket server started");
+  LOG_DBG("WEB", "[MEM] Free heap after WebSocket: %d bytes (largest=%d)", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+  return true;
+}
+
+void CrossPointWebServer::ensureMdns() {
+  if (mdnsStarted) {
+    return;
+  }
+#ifndef SIMULATOR
+  // Same admission rule as ensureWs(). Discovery is a convenience; a UDP "hello"
+  // arriving while the heap is tight must not turn advertisement into the
+  // fragmentation event it was meant to avoid.
+  if (!heapguard::canAllocate(MDNS_STARTUP_BYTES, 4096)) {
+    LOG_ERR("WEB", "mDNS skipped: heap free=%u largest=%u need=%u", static_cast<unsigned>(ESP.getFreeHeap()),
+            static_cast<unsigned>(ESP.getMaxAllocHeap()), static_cast<unsigned>(MDNS_STARTUP_BYTES));
+    return;
+  }
+  LOG_DBG("WEB", "[MEM] Free heap before mDNS: %d bytes (largest=%d)", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+  char hostname[40];
+  NetworkNames::getDeviceHostname(hostname, sizeof(hostname));
+  if (MDNS.begin(hostname)) {
+    mdnsStarted = true;
+    LOG_INF("WEB", "mDNS started: http://%s.local/", hostname);
+  } else {
+    LOG_ERR("WEB", "mDNS failed to start");
+  }
+  LOG_DBG("WEB", "[MEM] Free heap after mDNS: %d bytes (largest=%d)", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+#endif
 }
 
 void CrossPointWebServer::mountRoutes() {
@@ -328,86 +379,12 @@ void CrossPointWebServer::mountRoutes() {
     return;
   }
 
-  server->on("/", HTTP_GET, [this] { handleRoot(); });
-  server->on("/files", HTTP_GET, [this] { handleFileList(); });
-  server->on("/js/jszip.min.js", HTTP_GET, [this] { handleJszip(); });
-
-  server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
-  server->on("/api/plugins", HTTP_GET, [this] { handlePlugins(); });
-  server->on("/api/todo/entry", HTTP_POST, [this] { handleTodoEntry(); });
-  server->on("/api/todo/today", HTTP_GET, [this] { handleTodoTodayGet(); });
-  server->on("/api/todo/today", HTTP_POST, [this] { handleTodoTodaySave(); });
-  server->on("/api/notes/entry", HTTP_POST, [this] { handleNotesEntry(); });
-  server->on("/api/notes", HTTP_GET, [this] { handleNotesGet(); });
-  server->on("/api/notes", HTTP_POST, [this] { handleNotesSave(); });
-  server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
-  server->on("/download", HTTP_GET, [this] { handleDownload(); });
-
-  // Upload endpoint with special handling for multipart form data
-  server->on("/upload", HTTP_POST, [this] { handleUploadPost(); }, [this] { handleUpload(); });
-
-  // Create folder endpoint
-  server->on("/mkdir", HTTP_POST, [this] { handleCreateFolder(); });
-
-  // Rename file endpoint
-  server->on("/rename", HTTP_POST, [this] { handleRename(); });
-
-  // Move file endpoint
-  server->on("/move", HTTP_POST, [this] { handleMove(); });
-
-  // Delete file/folder endpoint
-  server->on("/delete", HTTP_POST, [this] { handleDelete(); });
-
-  // Settings endpoints
-  server->on("/settings", HTTP_GET, [this] { handleSettingsPage(); });
-  // Plugin pages and their API routes are mounted by feature Registration.cpp via WebRouteRegistry.
-  core::WebRouteRegistry::mountAll(server.get());
-  server->on("/api/settings", HTTP_GET, [this] { handleGetSettings(); });
-  server->on("/api/settings", HTTP_POST, [this] { handlePostSettings(); });
-
-  // Font management endpoints
-  server->on("/fonts", HTTP_GET, [this] { handleFontsPage(); });
-  server->on("/api/fonts", HTTP_GET, [this] { handleFontList(); });
-  server->on("/api/fonts/upload", HTTP_POST, [this] { handleFontUpload(); }, [this] { handleFontUploadData(); });
-  server->on("/api/fonts/delete", HTTP_POST, [this] { handleFontDelete(); });
-
-  // OPDS server endpoints
-  server->on("/opds", HTTP_GET, [this] { handleOpdsPage(); });
-  server->on("/api/opds", HTTP_GET, [this] { handleGetOpdsServers(); });
-  server->on("/api/opds", HTTP_POST, [this] { handlePostOpdsServer(); });
-  server->on("/api/opds/delete", HTTP_POST, [this] { handleDeleteOpdsServer(); });
-  server->on("/api/opds/test", HTTP_POST, [this] { handleTestOpdsServer(); });
-  server->on("/api/koreader/use-opds", HTTP_POST, [this] { handleKoreaderUseOpds(); });
-
-  // Fork-drift HTTP endpoints — restored after upstream merge bd4f8033 dropped them.
-  server->on("/api/book-progress", HTTP_GET, [this] { handleGetBookProgress(); });
-  server->on("/api/recent", HTTP_GET, [this] { handleRecentBooks(); });
-  server->on("/api/cover", HTTP_GET, [this] { handleCover(); });
-  server->on("/api/sleep-images", HTTP_GET, [this] { handleSleepImages(); });
-  server->on("/api/sleep-cover", HTTP_GET, [this] { handleSleepCoverGet(); });
-  server->on("/api/sleep-cover/pin", HTTP_POST, [this] { handleSleepCoverPin(); });
-#if ENABLE_REMOTE_CONTROL
-  server->on("/api/open-book", HTTP_POST, [this] { handleOpenBook(); });
-#endif
-  server->on("/api/settings/raw", HTTP_GET, [this] { handleGetSettingsRaw(); });
-#if ENABLE_REMOTE_CONTROL
-  server->on("/api/remote/button", HTTP_POST, [this] { handleRemoteButton(); });
-#endif
-  server->on("/api/screenshot", HTTP_POST, [this] { handleScreenshot(); });
-#if ENABLE_WIFI_CLOCK
-  server->on("/api/time", HTTP_POST, [this] { handleSetTime(); });
-#endif
-  // Wi-Fi credential endpoints
-  server->on("/api/wifi", HTTP_GET, [this] { handleGetWifiNetworks(); });
-  server->on("/api/wifi", HTTP_POST, [this] { handlePostWifiNetwork(); });
-  server->on("/api/wifi/delete", HTTP_POST, [this] { handleDeleteWifiNetwork(); });
-  server->on("/api/wifi/forget-all", HTTP_POST, [this] { handleForgetAllWifiNetworks(); });
-  server->on("/api/maintenance/validate-sleep-images", HTTP_POST, [this] { handleMaintenanceValidateSleepImages(); });
-  server->on("/api/maintenance/clear-cache", HTTP_POST, [this] { handleMaintenanceClearCache(); });
-  server->on("/api/maintenance/reset-settings", HTTP_POST, [this] { handleMaintenanceResetSettings(); });
-  server->on("/api/maintenance/clear-logs", HTTP_POST, [this] { handleMaintenanceClearLogs(); });
-  server->on("/api/maintenance/clear-crashes", HTTP_POST, [this] { handleMaintenanceClearCrashes(); });
-
+  auto* table = new (std::nothrow) WebRouteTableHandler(this);
+  if (!table) {
+    LOG_ERR("WEB", "OOM: WebRouteTableHandler");
+    return;
+  }
+  server->addHandler(table);
   server->onNotFound([this] { handleNotFound(); });
 }
 
@@ -421,6 +398,13 @@ void CrossPointWebServer::stop() {
   running = false;  // Set this FIRST to prevent handleClient from using server
 
   LOG_DBG("WEB", "[MEM] Free heap before stop: %d bytes", ESP.getFreeHeap());
+
+  if (mdnsStarted) {
+#ifndef SIMULATOR
+    MDNS.end();
+#endif
+    mdnsStarted = false;
+  }
 
   // Close any in-progress WebSocket upload and remove partial file
   if (wsUploadInProgress && wsUploadFile) {
@@ -497,11 +481,19 @@ void CrossPointWebServer::handleClient() {
       if (len > 0) {
         buffer[len] = '\0';
         if (strcmp(buffer, "hello") == 0) {
+          bool wsReady = true;
+          if (serverRole == ServerRole::Background) {
+            wsReady = ensureWs();
+            ensureMdns();
+          }
           String hostname = WiFi.getHostname();
           if (hostname.isEmpty()) {
             hostname = "crosspoint";
           }
-          String message = "crosspoint (on " + hostname + ");" + String(wsPort);
+          String message = "crosspoint (on " + hostname + ")";
+          if (wsReady && wsServer) {
+            message += ";" + String(wsPort);
+          }
           udp.beginPacket(udp.remoteIP(), udp.remotePort());
           udp.write(reinterpret_cast<const uint8_t*>(message.c_str()), message.length());
           udp.endPacket();
@@ -1350,6 +1342,7 @@ void CrossPointWebServer::handleFontUploadData() {
       fontUpload.magicHeaderPos = 0;
       fontUpload.bytesWritten = 0;
       fontUpload.bufferPos = 0;
+      fontUpload.buffer.reset();
 
       if (!FontInstaller::isValidFamilyName(family.c_str())) {
         LOG_ERR("WEB", "Invalid font family name: %s", family.c_str());
@@ -1397,6 +1390,15 @@ void CrossPointWebServer::handleFontUploadData() {
       if (!fontUpload.valid) break;
       esp_task_wdt_reset();
 
+      if (!fontUpload.buffer) {
+        fontUpload.buffer = makeUniqueNoThrow<uint8_t[]>(FontUploadState::BUFFER_SIZE);
+        if (!fontUpload.buffer) {
+          LOG_ERR("WEB", "OOM: font upload buffer");
+          fontUpload.valid = false;
+          break;
+        }
+      }
+
       // Validate magic bytes once the first 8 file bytes have accumulated.
       // Accumulating (rather than checking only when the first chunk is >= 8
       // bytes) closes a bypass: a 1-7 byte first chunk would otherwise skip the
@@ -1424,7 +1426,7 @@ void CrossPointWebServer::handleFontUploadData() {
       while (remaining > 0) {
         size_t space = FontUploadState::BUFFER_SIZE - fontUpload.bufferPos;
         size_t chunk = (remaining < space) ? remaining : space;
-        memcpy(fontUpload.buffer.data() + fontUpload.bufferPos, src, chunk);
+        memcpy(fontUpload.buffer.get() + fontUpload.bufferPos, src, chunk);
         fontUpload.bufferPos += chunk;
         src += chunk;
         remaining -= chunk;
@@ -1433,7 +1435,7 @@ void CrossPointWebServer::handleFontUploadData() {
           size_t written = 0;
           {
             SpiBusMutex::Guard guard;
-            written = fontUpload.file.write(fontUpload.buffer.data(), fontUpload.bufferPos);
+            written = fontUpload.file.write(fontUpload.buffer.get(), fontUpload.bufferPos);
           }
           if (written != fontUpload.bufferPos) {
             LOG_ERR("WEB", "Font write failed (SD full?)");
@@ -1451,11 +1453,11 @@ void CrossPointWebServer::handleFontUploadData() {
 
     case UPLOAD_FILE_END: {
       // Flush remaining buffer
-      if (fontUpload.valid && fontUpload.bufferPos > 0) {
+      if (fontUpload.valid && fontUpload.bufferPos > 0 && fontUpload.buffer) {
         size_t written = 0;
         {
           SpiBusMutex::Guard guard;
-          written = fontUpload.file.write(fontUpload.buffer.data(), fontUpload.bufferPos);
+          written = fontUpload.file.write(fontUpload.buffer.get(), fontUpload.bufferPos);
         }
         if (written != fontUpload.bufferPos) {
           LOG_ERR("WEB", "Font write failed on final flush (SD full?)");
@@ -1483,6 +1485,7 @@ void CrossPointWebServer::handleFontUploadData() {
       }
 
       LOG_DBG("WEB", "Font upload end: valid=%d, %zu bytes", fontUpload.valid, fontUpload.bytesWritten);
+      fontUpload.buffer.reset();
       break;
     }
 
@@ -1496,6 +1499,7 @@ void CrossPointWebServer::handleFontUploadData() {
         Storage.remove(fontUpload.filePath.c_str());
       }
       fontUpload.valid = false;
+      fontUpload.buffer.reset();
       LOG_DBG("WEB", "Font upload aborted");
       break;
     }

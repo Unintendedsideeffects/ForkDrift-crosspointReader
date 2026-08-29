@@ -44,8 +44,7 @@ std::vector<uint8_t> decodeBase64(const char* b64, size_t b64Len) {
   return out;
 }
 
-void mountPokemonRoutes(WebServer* server) {
-  server->on("/api/book-pokemon", HTTP_GET, [server] {
+void handleBookPokemonGet(WebServer* server) {
     if (!server->hasArg("path")) {
       server->send(400, "text/plain", "Missing path");
       return;
@@ -80,9 +79,9 @@ void mountPokemonRoutes(WebServer* server) {
     String json;
     serializeJson(response, json);
     server->send(200, "application/json", json);
-  });
+}
 
-  server->on("/api/book-pokemon", HTTP_PUT, [server] {
+void handleBookPokemonPut(WebServer* server) {
     if (!server->hasArg("plain")) {
       server->send(400, "text/plain", "Missing body");
       return;
@@ -144,9 +143,9 @@ void mountPokemonRoutes(WebServer* server) {
     String json;
     serializeJson(response, json);
     server->send(200, "application/json", json);
-  });
+}
 
-  server->on("/api/book-pokemon", HTTP_DELETE, [server] {
+void handleBookPokemonDelete(WebServer* server) {
     if (!server->hasArg("path")) {
       server->send(400, "text/plain", "Missing path");
       return;
@@ -179,12 +178,9 @@ void mountPokemonRoutes(WebServer* server) {
     String json;
     serializeJson(response, json);
     server->send(200, "application/json", json);
-  });
+}
 
-  // --- Prebaked team roster (offline-first): the browser builds a team of up to
-  // six Pokémon, prebakes each member's data + sprites, and stores the roster
-  // here so assignment later (browser or on-device) needs no network. ---
-  server->on("/api/pokemon-team", HTTP_GET, [server] {
+void handlePokemonTeamGet(WebServer* server) {
     JsonDocument doc;
     String json;
     if (PokemonTeamStore::loadTeamDocument(doc) && doc["team"].is<JsonArray>()) {
@@ -193,9 +189,9 @@ void mountPokemonRoutes(WebServer* server) {
       json = "[]";
     }
     server->send(200, "application/json", json);
-  });
+}
 
-  server->on("/api/pokemon-team", HTTP_PUT, [server] {
+void handlePokemonTeamPut(WebServer* server) {
     if (!server->hasArg("plain")) {
       server->send(400, "text/plain", "Missing body");
       return;
@@ -225,11 +221,9 @@ void mountPokemonRoutes(WebServer* server) {
       return;
     }
     server->send(200, "application/json", "{\"ok\":true}");
-  });
+}
 
-  // Receive one browser-converted 1-bit sprite BMP and cache it by species id, so
-  // the device can render real Pokémon (and their evolutions) entirely offline.
-  server->on("/api/pokemon-sprite", HTTP_POST, [server] {
+void handlePokemonSpritePost(WebServer* server) {
     if (!server->hasArg("plain")) {
       server->send(400, "text/plain", "Missing body");
       return;
@@ -255,8 +249,16 @@ void mountPokemonRoutes(WebServer* server) {
       return;
     }
     server->send(200, "application/json", "{\"ok\":true}");
-  });
 }
+
+const core::WebRouteSpec kPokemonRoutes[] = {
+    {"/api/book-pokemon", HTTP_GET, handleBookPokemonGet, nullptr},
+    {"/api/book-pokemon", HTTP_PUT, handleBookPokemonPut, nullptr},
+    {"/api/book-pokemon", HTTP_DELETE, handleBookPokemonDelete, nullptr},
+    {"/api/pokemon-team", HTTP_GET, handlePokemonTeamGet, nullptr},
+    {"/api/pokemon-team", HTTP_PUT, handlePokemonTeamPut, nullptr},
+    {"/api/pokemon-sprite", HTTP_POST, handlePokemonSpritePost, nullptr},
+};
 #endif
 
 }  // namespace
@@ -266,7 +268,8 @@ void registerFeature() {
   core::WebRouteEntry webRouteEntry{};
   webRouteEntry.routeId = "pokemon_party_api";
   webRouteEntry.shouldRegister = shouldRegisterPokemonPartyApiRoute;
-  webRouteEntry.mountRoutes = mountPokemonRoutes;
+  webRouteEntry.routes = kPokemonRoutes;
+  webRouteEntry.routeCount = sizeof(kPokemonRoutes) / sizeof(kPokemonRoutes[0]);
   core::WebRouteRegistry::add(webRouteEntry);
 #endif
 }

@@ -94,13 +94,11 @@ uv run pio run -e simulator
 
 run_case "healthy retained preview" 300000 "" \
   "SMOKE_CTRL_READY preview=retained selectable=1" no no
-run_case "preview-release retry" 160720 "" \
-  "SMOKE_CTRL_READY preview=absent selectable=1" no yes
 run_case "healthy dropped preview" 130000 "" \
   "SMOKE_CTRL_READY preview=absent selectable=1" no no
-run_case "low-total typed recovery" 95000 "" \
-  "SMOKE_CTRL_TYPED_RECOVERY" yes no
-run_case "fragmented-largest typed recovery" 300000 47000 \
-  "SMOKE_CTRL_TYPED_RECOVERY" yes no
+run_case "low-total still opens" 95000 "" \
+  "SMOKE_CTRL_READY preview=absent selectable=1" no no
+run_case "fragmented-largest still opens" 300000 47000 \
+  "SMOKE_CTRL_READY preview=absent selectable=1" no no
 
 echo "All controls smoke assertions passed"

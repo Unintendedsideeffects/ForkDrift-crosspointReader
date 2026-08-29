@@ -29,12 +29,12 @@ namespace {
 #if ENABLE_ANKI_SUPPORT
 static bool shouldRegisterAnkiPluginRoute() { return core::FeatureCatalog::isEnabled("anki_support"); }
 
-static void mountAnkiRoutes(WebServer* server) {
-  server->on("/plugins/anki", HTTP_GET, [server] {
+void handleAnkiPluginPage(WebServer* server) {
     sendPrecompressedHtml(server, AnkiPluginPageHtml, AnkiPluginPageHtmlCompressedSize);
     LOG_DBG("WEB", "Served anki plugin page");
-  });
-  server->on("/api/anki/decks", HTTP_GET, [server] {
+}
+
+void handleAnkiDecks(WebServer* server) {
     std::vector<std::string> allDeckPaths;
     auto decks1 = FlashcardsStore::listDecks("/flashcards");
     allDeckPaths.insert(allDeckPaths.end(), decks1.begin(), decks1.end());
@@ -73,8 +73,9 @@ static void mountAnkiRoutes(WebServer* server) {
     String json;
     serializeJson(doc, json);
     server->send(200, "application/json", json.c_str());
-  });
-  server->on("/api/anki/deck", HTTP_GET, [server] {
+}
+
+void handleAnkiDeck(WebServer* server) {
     if (!server->hasArg("path")) {
       server->send(400, "application/json", "{\"error\":\"missing path parameter\"}");
       return;
@@ -116,19 +117,22 @@ static void mountAnkiRoutes(WebServer* server) {
     String json;
     serializeJson(doc, json);
     server->send(200, "application/json", json.c_str());
-  });
-  server->on("/api/anki/cards", HTTP_GET, [server] {
+}
+
+void handleAnkiCards(WebServer* server) {
     // buildCardsJson holds the AnkiStore mutex internally; release before send().
     std::string json;
     util::AnkiStore::getInstance().buildCardsJson(json);
     server->send(200, "application/json", json.c_str());
-  });
-  server->on("/api/anki/clear", HTTP_POST, [server] {
+}
+
+void handleAnkiClear(WebServer* server) {
     util::AnkiStore::getInstance().clear();
     util::AnkiStore::getInstance().save();
     server->send(200, "application/json", "{\"status\":\"ok\"}");
-  });
-  server->on("/api/anki/delete", HTTP_POST, [server] {
+}
+
+void handleAnkiDelete(WebServer* server) {
     if (!server->hasArg("plain")) {
       server->send(400, "application/json", "{\"error\":\"missing body\"}");
       return;
@@ -151,8 +155,9 @@ static void mountAnkiRoutes(WebServer* server) {
     store.removeCard(static_cast<size_t>(index));
     store.save();
     server->send(200, "application/json", "{\"status\":\"ok\"}");
-  });
-  server->on("/api/anki/update", HTTP_POST, [server] {
+}
+
+void handleAnkiUpdate(WebServer* server) {
     if (!server->hasArg("plain")) {
       server->send(400, "application/json", "{\"error\":\"missing body\"}");
       return;
@@ -175,8 +180,9 @@ static void mountAnkiRoutes(WebServer* server) {
     store.updateCardBack(static_cast<size_t>(index), doc["back"] | "");
     store.save();
     server->send(200, "application/json", "{\"status\":\"ok\"}");
-  });
-  server->on("/api/anki/sync", HTTP_POST, [server] {
+}
+
+void handleAnkiSync(WebServer* server) {
     if (SETTINGS.ankiConnectUrl[0] == '\0') {
       server->send(400, "application/json", "{\"error\":\"AnkiConnect URL not configured\"}");
       return;
@@ -254,8 +260,18 @@ static void mountAnkiRoutes(WebServer* server) {
     snprintf(resp, sizeof(resp), "{\"synced\":%d,\"skipped\":%d}", synced, skipped);
     LOG_INF("ANKI", "AnkiConnect sync: %d synced, %d skipped", synced, skipped);
     server->send(200, "application/json", resp);
-  });
 }
+
+const core::WebRouteSpec kAnkiRoutes[] = {
+    {"/plugins/anki", HTTP_GET, handleAnkiPluginPage, nullptr},
+    {"/api/anki/decks", HTTP_GET, handleAnkiDecks, nullptr},
+    {"/api/anki/deck", HTTP_GET, handleAnkiDeck, nullptr},
+    {"/api/anki/cards", HTTP_GET, handleAnkiCards, nullptr},
+    {"/api/anki/clear", HTTP_POST, handleAnkiClear, nullptr},
+    {"/api/anki/delete", HTTP_POST, handleAnkiDelete, nullptr},
+    {"/api/anki/update", HTTP_POST, handleAnkiUpdate, nullptr},
+    {"/api/anki/sync", HTTP_POST, handleAnkiSync, nullptr},
+};
 
 static bool shouldExposeAnkiHomeAction(core::HomeActionEntry::HomeActionContext ctx) {
   (void)ctx;
@@ -283,7 +299,8 @@ void registerFeature() {
   core::WebRouteEntry webRouteEntry{};
   webRouteEntry.routeId = "anki_plugin";
   webRouteEntry.shouldRegister = shouldRegisterAnkiPluginRoute;
-  webRouteEntry.mountRoutes = mountAnkiRoutes;
+  webRouteEntry.routes = kAnkiRoutes;
+  webRouteEntry.routeCount = sizeof(kAnkiRoutes) / sizeof(kAnkiRoutes[0]);
   core::WebRouteRegistry::add(webRouteEntry);
 
   core::HomeActionEntry homeEntry{};

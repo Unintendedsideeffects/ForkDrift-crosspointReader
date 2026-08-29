@@ -35,10 +35,13 @@ using CrossPointUdpType = WiFiUDP;
 #endif
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
 #include <vector>
+
+class WebRouteTableHandler;
 
 struct FileInfo {
   String name;
@@ -48,7 +51,11 @@ struct FileInfo {
 };
 
 class CrossPointWebServer {
+  friend class WebRouteTableHandler;
+
  public:
+  enum class ServerRole : uint8_t { Foreground, Background };
+
   struct WsUploadStatus {
     bool inProgress = false;
     size_t received = 0;
@@ -62,8 +69,7 @@ class CrossPointWebServer {
   CrossPointWebServer();
   ~CrossPointWebServer();
 
-  // Start the web server (call after WiFi is connected)
-  void begin();
+  void begin(ServerRole role = ServerRole::Foreground);
 
   // Stop the web server
   void stop();
@@ -91,11 +97,15 @@ class CrossPointWebServer {
  private:
   void noteWebUiAccess() const;
   void mountRoutes();
+  void ensureMdns();
+  bool ensureWs();
 
   std::unique_ptr<WebServer> server = nullptr;
   std::unique_ptr<WebSocketsServer> wsServer = nullptr;
   bool running = false;
-  bool apMode = false;  // true when running in AP mode, false for STA mode
+  bool apMode = false;
+  bool mdnsStarted = false;
+  ServerRole serverRole = ServerRole::Foreground;
   std::string apRedirectPath = "/";
   uint16_t port = 80;
   uint16_t wsPort = 81;               // WebSocket port
@@ -191,10 +201,8 @@ class CrossPointWebServer {
     size_t magicHeaderPos = 0;
     size_t bytesWritten = 0;
     static constexpr size_t BUFFER_SIZE = 4096;
-    std::vector<uint8_t> buffer;
+    std::unique_ptr<uint8_t[]> buffer;
     size_t bufferPos = 0;
-
-    FontUploadState() { buffer.resize(BUFFER_SIZE); }
   } fontUpload;
 
   // OPDS server handlers

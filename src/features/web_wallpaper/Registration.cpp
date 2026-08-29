@@ -15,12 +15,14 @@ namespace {
 #if ENABLE_WEB_WALLPAPER_PLUGIN
 bool shouldRegisterWallpaperPluginRoute() { return core::FeatureCatalog::isEnabled("web_wallpaper_plugin"); }
 
-void mountWallpaperRoutes(WebServer* server) {
-  server->on("/plugins/wallpaper", HTTP_GET, [server] {
-    sendPrecompressedHtml(server, WallpaperPluginPageHtml, WallpaperPluginPageHtmlCompressedSize);
-    LOG_DBG("WEB", "Served wallpaper plugin page");
-  });
+void handleWallpaperPage(WebServer* server) {
+  sendPrecompressedHtml(server, WallpaperPluginPageHtml, WallpaperPluginPageHtmlCompressedSize);
+  LOG_DBG("WEB", "Served wallpaper plugin page");
 }
+
+const core::WebRouteSpec kWallpaperRoutes[] = {
+    {"/plugins/wallpaper", HTTP_GET, handleWallpaperPage, nullptr},
+};
 #endif
 
 }  // namespace
@@ -30,7 +32,8 @@ void registerFeature() {
   core::WebRouteEntry webRouteEntry{};
   webRouteEntry.routeId = "wallpaper_plugin";
   webRouteEntry.shouldRegister = shouldRegisterWallpaperPluginRoute;
-  webRouteEntry.mountRoutes = mountWallpaperRoutes;
+  webRouteEntry.routes = kWallpaperRoutes;
+  webRouteEntry.routeCount = sizeof(kWallpaperRoutes) / sizeof(kWallpaperRoutes[0]);
   core::WebRouteRegistry::add(webRouteEntry);
 #endif
 }

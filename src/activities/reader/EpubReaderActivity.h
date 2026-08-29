@@ -52,10 +52,9 @@ class EpubReaderActivity final : public Activity {
   bool skipNextButtonCheck = false;  // Skip button processing for one frame after subactivity exit
   bool automaticPageTurnActive = false;
   bool previewRenderOnly = false;
-  // Set after a heavy foreground section index (createSectionFile). loop() acts on
-  // it with a heap-defrag silent reboot when the largest free block is too small.
   bool heapDirtyFromIndexing_ = false;
   unsigned long heapDefragRetryAfterMs_ = 0;
+  uint8_t heapDefragReclaimAttempts_ = 0;
 #if ENABLE_READING_STATS
   BookReadingStats stats;
   GlobalReadingStats globalStats;
@@ -162,9 +161,8 @@ class EpubReaderActivity final : public Activity {
   void renderStatusBar() const;
   void silentIndexNextChapterIfNeeded(uint16_t viewportWidth, uint16_t viewportHeight);
   bool saveProgress(int spineIndex, int currentPage, int pageCount);
-  bool persistAndRestartForRecovery();
-  bool persistAndRestartForRecovery(uint8_t pendingOrientation);
   bool persistOrientationSelection(uint8_t orientation);
+  void reclaimAfterIndexPressure();
   // Jump to a percentage of the book (0-100), mapping it to spine and page.
   void jumpToPercent(int percent);
   void onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction action);

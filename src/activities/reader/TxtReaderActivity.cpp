@@ -449,7 +449,12 @@ void TxtReaderActivity::renderPage() {
   ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
 
   if (SETTINGS.textAntiAliasing) {
-    ReaderUtils::renderAntiAliased(renderer, [&renderLines]() { renderLines(); });
+    ReaderUtils::renderAntiAliased(
+        renderer, [&renderLines]() { renderLines(); },
+        [&] {
+          renderLines();
+          renderStatusBar();
+        });
   }
   // scope destructor clears font cache via FontCacheManager
 }

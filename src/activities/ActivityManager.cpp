@@ -18,6 +18,7 @@
 #include "browser/OpdsBookBrowserActivity.h"
 #include "core/features/FeatureModules.h"
 #include "core/registries/HomeActionRegistry.h"
+#include "core/registries/HeapReclaimRegistry.h"
 #include "core/registries/ReaderRegistry.h"
 #include "home/AlertActivity.h"
 #include "home/CrashActivity.h"
@@ -169,6 +170,24 @@ void ActivityManager::loop() {
         continue;
       }
 
+    } else if (pendingAction == PendingAction::OpenReader) {
+      RenderLock lock;
+      if (currentActivity) {
+        exitActivity(lock);
+        while (!stackActivities.empty()) {
+          LOG_INF("MEM", "exit %s: free=%u min=%u largest=%u", stackActivities.back()->name.c_str(),
+                  static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(ESP.getMinFreeHeap()),
+                  static_cast<unsigned int>(heapguard::largestBlock()));
+          stackActivities.back()->onExit();
+          stackActivities.pop_back();
+        }
+      }
+      pendingAction = PendingAction::None;
+      lock.unlock();
+      completeOpenReader();
+      activityChanged = true;
+      continue;
+
     } else if (pendingActivity) {
       // Current activity has requested a new activity to be launched
       RenderLock lock;
@@ -312,7 +331,15 @@ void ActivityManager::goToReader(std::string path, const bool suppressBackReleas
   if (suppressBackRelease) {
     mappedInput.suppressNextBackRelease();
   }
-  // Non-capturing lambdas: activityManager is an extern global, no context needed.
+  pendingReaderPath = std::move(path);
+  if (currentActivity) {
+    pendingAction = PendingAction::OpenReader;
+    return;
+  }
+  completeOpenReader();
+}
+
+void ActivityManager::completeOpenReader() {
   static const auto onBackToLibrary = +[](void*, const std::string& bookPath) {
     const auto slash = bookPath.rfind('/');
     const std::string folder = (slash != std::string::npos && slash > 0) ? bookPath.substr(0, slash) : "/";
@@ -320,28 +347,26 @@ void ActivityManager::goToReader(std::string path, const bool suppressBackReleas
   };
   static const auto onBackHome = +[](void*) { activityManager.goHome(); };
 
-  // The factory below loads the whole document -- for EPUB the parse, the CSS and a
-  // 32 KB inflate window -- and only then returns an Activity. An activity's own
-  // onEnter() teardown therefore runs too late to help its own load, and there is no
-  // heap compaction on this platform, so freeing after the fact buys nothing.
-  //
-  // Measured 2026-08-28: loading with the servers up runs at ~11,148 bytes free with
-  // a 5,620-byte largest block and drives min-free to 3,848. The servers hold ~22 KB.
-  // This is the one call site every reader format shares, so freeing here covers all
-  // of them. Restart is automatic: once the activity exits, blocksBackgroundServer()
-  // goes false and main.cpp's reconcile brings them back.
   if (BG_WIFI.isPendingOrRunning()) {
     BG_WIFI.stop(/*keepWifi=*/true);
   }
   BackgroundWebServer::getInstance().stop(/*keepWifi=*/true);
+  if (!core::HeapReclaimRegistry::empty()) {
+    core::HeapReclaimRegistry::releaseAll();
+  }
 
+  const std::string path = std::move(pendingReaderPath);
+  pendingReaderPath.clear();
   const auto result = core::ReaderRegistry::open(path, renderer, mappedInput, nullptr, onBackToLibrary, onBackHome);
   if (result.status == core::ReaderOpenResult::Status::Opened && result.activity) {
-    replaceActivity(std::unique_ptr<Activity>(result.activity));
+    currentActivity = std::unique_ptr<Activity>(result.activity);
+    LOG_INF("MEM", "enter %s: free=%u min=%u largest=%u", currentActivity->name.c_str(),
+            static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(ESP.getMinFreeHeap()),
+            static_cast<unsigned int>(heapguard::largestBlock()));
+    currentActivity->onEnter();
+    applyEffectiveDarkMode();
+    requestUpdate();
   } else {
-    // Unconditional: a failed open must never bounce the user back to Home with
-    // nothing on serial. The `if (result.logMessage)` this replaces meant any
-    // result that forgot to set a reason failed completely silently.
     LOG_ERR("ACT", "Cannot open reader '%s' (status=%d): %s", path.c_str(), static_cast<int>(result.status),
             result.logMessage ? result.logMessage : "no reason given");
     goHome();

@@ -145,11 +145,9 @@ in dependency order before `FeatureCatalog` validation runs.
 - Still opens readers through the `FeatureModules` compatibility wrapper rather than directly through `ReaderRegistry`
 - Must not add new concrete optional-feature construction paths
 
-### `src/network/CrossPointWebServer.cpp`
-- Calls `WebRouteRegistry::mountAll(server)` to register routes
-- Mounts simple plugin routes, Anki routes, and OTA routes via the registry
-- Still mounts some complex feature routes manually (`pokemon_party_api`, `user_fonts_api`, `web_wifi_setup_api`)
-- Must not reintroduce per-feature `#if` blocks in the app shell
+### `src/network/server/CrossPointWebServer.cpp`
+- Firmware mounts one `WebRouteTableHandler` (`addHandler`) that dispatches a flash `WebRouteSpec` table plus `WebRouteRegistry::match()`. Host/simulator tests may still call `WebRouteRegistry::mountAll(server)` onto a mock `on()`.
+- Must not reintroduce per-feature `#if` blocks in the app shell or a second live `server->on()` registration path in firmware.
 
 ---
 

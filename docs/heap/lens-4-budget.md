@@ -1,5 +1,11 @@
 # L4 — State-by-state heap budget map
 
+**2026-08-29 occupancy:** Home + Always serving is **29–36 KB free / 17 KB
+largest** after UDP `"hello"`, not the 11 KB / 5.6 KB figures in this file.
+`SERVER_STARTUP_BYTES` is 4,504, not 16,336. This lens is the 2026-08-28
+diagnosis. Current firmware: [../HEAP_ANALYSIS.md](../HEAP_ANALYSIS.md)
+occupancy addendum.
+
 Lens: replace the stale `HeapGuard.h` assumption ("steady-state reading heap ~60–130 KB free") with an accounting of what this ESP32-C3 actually has, and what is resident in each observed state.
 
 Firmware tree: `/home/malcolm/Code/ForkDrift/crosspoint-reader`. Traces: `scratchpad/heap/traces/01`–`04`. Device settings in play: `backgroundServerMode = Always` (forces `wifiAutoConnect`), USB-CDC attached. **No build was run; no `.map` file was produced.** Linker RAM `128,244 / 327,680` is taken from the brief (PlatformIO summary). Runtime heap numbers are from the four serial traces.

@@ -387,12 +387,12 @@ static bool fetchAndPinTrmnlImage() {
   return true;
 }
 
-// fetchAndPinTrmnlImage nests SdFat writes inside esp_http_client_perform's
-// data callback — too deep for the 8 KB bgwifi web-handler task (overflowed on
-// the first successful image download). Run it on a dedicated task with the
-// stack budget OtaWebCheckTask uses for the same workload; the 12 KB is
-// heap-held only for the fetch's lifetime (a static stack would pin that DRAM
-// permanently for a rare operation).
+// fetchAndPinTrmnlImage reads the HTTP body into a heap buffer, then writes SD
+// after the read returns. It still runs on a dedicated 12 KB task because a
+// high-water mark from a real image download has not been read yet; shrinking
+// or inlining onto bgwifi without that number would recreate the overflow that
+// forced this stack. The freed stack still leaves a hole of this size, which
+// is the leading explanation for intermittent inflate-window failures.
 static constexpr uint32_t TRMNL_FETCH_TASK_STACK = 12288;
 // FreeRTOS also allocates a TCB alongside the stack; leave room so the preflight below
 // does not pass only for xTaskCreate to fail on the overhead.
@@ -428,16 +428,6 @@ static void terminusFetchTask(void*) {
   const bool result = fetchAndPinTrmnlImage();
   recordFetchAttempt(result);
 
-  // Report what the fetch actually used before the task dies. This stack is sized
-  // empirically -- 8 KB overflowed, so 12 KB was chosen -- and nothing has ever
-  // measured the real figure, so there is no way to know how much of it is margin.
-  // That matters beyond tidiness: the stack is heap-allocated and freed here, and on
-  // a heap with no compaction the freed run leaves a hole of exactly this size. A
-  // 12,288-byte hole is the leading explanation for the intermittent contiguity loss
-  // in docs/FINDINGS.md, so every kilobyte of unused margin is costing us twice.
-  //
-  // High-water mark is in words on ESP-IDF; it is the SMALLEST free space ever seen,
-  // so `used = size - free` is the peak. Read it before vTaskDelete.
   const uint32_t freeWords = uxTaskGetStackHighWaterMark(nullptr);
   const uint32_t freeBytes = freeWords * sizeof(StackType_t);
   LOG_INF("TRMNL", "Fetch task stack: %u of %u bytes used, %u free (%.0f%% margin)",
@@ -620,21 +610,20 @@ static void appendMachineStatus(JsonDocument& doc) {
   doc["timed_refresh_evidence"].set(evidenceDoc.as<JsonObjectConst>());
 }
 
-static void mountTerminusRoutes(WebServer* server) {
-  server->on("/plugins/terminus", HTTP_GET, [server] {
+void handleTerminusPluginPage(WebServer* server) {
     sendPrecompressedHtml(server, TerminusPluginPageHtml, TerminusPluginPageHtmlCompressedSize);
     LOG_DBG("WEB", "Served terminus plugin page");
-  });
+}
 
-  server->on("/api/terminus/status", HTTP_GET, [server] {
+void handleTerminusStatus(WebServer* server) {
     JsonDocument doc;
     appendMachineStatus(doc);
     std::string out;
     serializeJson(doc, out);
     server->send(200, "application/json", out.c_str());
-  });
+}
 
-  server->on("/api/terminus/save", HTTP_POST, [server] {
+void handleTerminusSave(WebServer* server) {
     if (fetchTaskRunning) {
       server->send(409, "application/json", "{\"error\":\"fetch in progress; retry after it completes\"}");
       return;
@@ -700,9 +689,9 @@ static void mountTerminusRoutes(WebServer* server) {
     server->send(200, "application/json",
                  sleepEnabled ? "{\"status\":\"ok\",\"message\":\"Terminus setup saved; fetch scheduled\"}"
                               : "{\"status\":\"ok\",\"message\":\"Terminus setup saved\"}");
-  });
+}
 
-  server->on("/api/terminus/test", HTTP_POST, [server] {
+void handleTerminusTest(WebServer* server) {
     if (!TERMINUS_STORE.hasCredentials()) {
       server->send(400, "application/json", "{\"error\":\"not configured\"}");
       return;
@@ -717,9 +706,9 @@ static void mountTerminusRoutes(WebServer* server) {
     forcedFetchRequested = true;
     server->send(202, "application/json",
                  "{\"status\":\"accepted\",\"message\":\"Fetch scheduled; the web server will restart briefly\"}");
-  });
+}
 
-  server->on("/api/terminus/clear", HTTP_POST, [server] {
+void handleTerminusClear(WebServer* server) {
     if (fetchTaskRunning) {
       server->send(409, "application/json", "{\"error\":\"fetch in progress; retry after it completes\"}");
       return;
@@ -742,8 +731,15 @@ static void mountTerminusRoutes(WebServer* server) {
       return;
     }
     server->send(200, "application/json", "{\"status\":\"ok\"}");
-  });
 }
+
+const core::WebRouteSpec kTerminusRoutes[] = {
+    {"/plugins/terminus", HTTP_GET, handleTerminusPluginPage, nullptr},
+    {"/api/terminus/status", HTTP_GET, handleTerminusStatus, nullptr},
+    {"/api/terminus/save", HTTP_POST, handleTerminusSave, nullptr},
+    {"/api/terminus/test", HTTP_POST, handleTerminusTest, nullptr},
+    {"/api/terminus/clear", HTTP_POST, handleTerminusClear, nullptr},
+};
 
 }  // namespace
 #endif
@@ -764,7 +760,8 @@ void registerFeature() {
   core::WebRouteEntry webRouteEntry{};
   webRouteEntry.routeId = "terminus_plugin";
   webRouteEntry.shouldRegister = shouldRegisterTerminusRoutes;
-  webRouteEntry.mountRoutes = mountTerminusRoutes;
+  webRouteEntry.routes = kTerminusRoutes;
+  webRouteEntry.routeCount = sizeof(kTerminusRoutes) / sizeof(kTerminusRoutes[0]);
   core::WebRouteRegistry::add(webRouteEntry);
 
   core::HomeActionEntry homeEntry{};

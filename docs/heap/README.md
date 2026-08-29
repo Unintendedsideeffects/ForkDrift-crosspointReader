@@ -8,11 +8,18 @@ They were reviewed before being filed, and several of their claims did not survi
 that review — where a document is wrong, the correction is recorded in
 [../FINDINGS.md](../FINDINGS.md) rather than by editing the document.
 
+**Exception — occupancy diet, 2026-08-29.** Hunt-3 P0–P2c landed. Home+Always is
+no longer 11.5 KB / 8.2 KB; measured serving idle is 29–36 KB / 17 KB after UDP
+`"hello"`. Current numbers live in [../HEAP_ANALYSIS.md](../HEAP_ANALYSIS.md)
+(occupancy addendum) and FINDINGS 2026-08-29T10:16Z. The 2026-08-28 hunt/lens
+bodies stay as the diagnosis that justified the diet.
+
 ## Decision
 
 | Document | What it is |
 |---|---|
-| [architecture-verdict.md](architecture-verdict.md) | **Start here.** Adjudicates the four angles below, selects the STORED-shadow approach, rejects the framebuffer-loan route as a first fix, and sets Gate 0 — the measurement that must pass before any of it is built. |
+| [architecture-verdict.md](architecture-verdict.md) | **Start here for inflate/STORED.** Adjudicates the four angles below, selects the STORED-shadow approach, rejects the framebuffer-loan route as a first fix, and sets Gate 0 — the measurement that must pass before any of it is built. |
+| [hunt-3-server-diet.md](hunt-3-server-diet.md) | **Start here for Home+Always occupancy.** P0 dispatch table, lazy mDNS/WS, start budget 4,504. Landed 2026-08-29; measured 29–36 KB serving free. |
 | [linker-analysis.md](linker-analysis.md) | Resolves the ~20 KB gap between linker DRAM and the heap pool (TLSF bookkeeping, ~16 B per live block, not reclaimable), and ranks the static-RAM reductions actually available (~7.6-11 KB). Its "what not to do" list is the more useful half. |
 
 ## Candidate angles

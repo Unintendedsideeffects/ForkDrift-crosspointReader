@@ -1,6 +1,5 @@
 #pragma once
-#include <array>
-#include <atomic>
+#include <vector>
 
 #include "SettingInfo.h"
 #include "activities/Activity.h"
@@ -19,10 +18,11 @@ class SettingsActivity final : public Activity {
   static constexpr int categoryCount = 6;
 
  private:
-  // Per-category settings derived from shared list + device-only actions
-  std::array<std::vector<SettingInfo>, categoryCount> settingsByCategory;
+  std::vector<SettingInfo> visibleSettings;
   const std::vector<SettingInfo>* currentSettings = nullptr;
-  std::vector<SettingInfo> cachedMasterSettings;
+  std::vector<const char*> dependencyKeys;
+
+  bool keyAffectsVisibility(const char* key) const;
 
  public:
   static const StrId categoryNames[categoryCount];
@@ -32,7 +32,6 @@ class SettingsActivity final : public Activity {
   void toggleCurrentSetting();
   void openSleepTimeoutPicker();
   void rebuildSettingsLists();
-  void invalidateMasterSettingsCache();
 
  public:
   explicit SettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)

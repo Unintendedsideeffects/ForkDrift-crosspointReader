@@ -71,6 +71,8 @@ void InflateReader::releaseSharedWindow() {
   g_sharedWindow = nullptr;
 }
 
+bool InflateReader::hasSharedWindow() { return g_sharedWindow != nullptr; }
+
 bool InflateReader::ensureSharedWindow() {
   if (g_sharedWindow != nullptr) {
     return true;  // already allocated

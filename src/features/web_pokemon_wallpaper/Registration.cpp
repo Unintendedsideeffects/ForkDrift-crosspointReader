@@ -15,12 +15,14 @@ namespace {
 #if ENABLE_POKEMON_WALLPAPER_PLUGIN
 bool shouldRegisterPokemonWallpaperPluginRoute() { return core::FeatureCatalog::isEnabled("pokemon_wallpaper_plugin"); }
 
-void mountPokemonWallpaperRoutes(WebServer* server) {
-  server->on("/plugins/pokemon-wallpaper", HTTP_GET, [server] {
-    sendPrecompressedHtml(server, PokemonWallpaperPluginPageHtml, PokemonWallpaperPluginPageHtmlCompressedSize);
-    LOG_DBG("WEB", "Served pokemon wallpaper plugin page");
-  });
+void handlePokemonWallpaperPage(WebServer* server) {
+  sendPrecompressedHtml(server, PokemonWallpaperPluginPageHtml, PokemonWallpaperPluginPageHtmlCompressedSize);
+  LOG_DBG("WEB", "Served pokemon wallpaper plugin page");
 }
+
+const core::WebRouteSpec kPokemonWallpaperRoutes[] = {
+    {"/plugins/pokemon-wallpaper", HTTP_GET, handlePokemonWallpaperPage, nullptr},
+};
 #endif
 
 }  // namespace
@@ -30,7 +32,8 @@ void registerFeature() {
   core::WebRouteEntry webRouteEntry{};
   webRouteEntry.routeId = "pokemon_wallpaper_plugin";
   webRouteEntry.shouldRegister = shouldRegisterPokemonWallpaperPluginRoute;
-  webRouteEntry.mountRoutes = mountPokemonWallpaperRoutes;
+  webRouteEntry.routes = kPokemonWallpaperRoutes;
+  webRouteEntry.routeCount = sizeof(kPokemonWallpaperRoutes) / sizeof(kPokemonWallpaperRoutes[0]);
   core::WebRouteRegistry::add(webRouteEntry);
 #endif
 }

@@ -10,6 +10,7 @@
 #include <HalStorage.h>
 #include <HeapGuard.h>
 #include <I18n.h>
+#include <InflateReader.h>
 #include <JsonSettingsIO.h>
 #include <Logging.h>
 #include <Memory.h>
@@ -22,8 +23,8 @@
 #include <limits>
 
 #include "AnkiAddActivity.h"
-#include "SilentRestart.h"
 #include "core/features/FeatureCatalog.h"
+#include "core/registries/HeapReclaimRegistry.h"
 #if ENABLE_TEXT_SELECTION
 #include "ReaderOptionsMemoryPolicy.h"
 #include "util/AnnotationStore.h"
@@ -65,6 +66,7 @@
 #include "MappedInputManager.h"
 #include "ProgressMapper.h"
 #include "QrDisplayActivity.h"
+#include "ReaderHeapRecoveryPolicy.h"
 #include "ReaderUtils.h"
 #include "SpiBusMutex.h"
 #include "activities/util/ConfirmationActivity.h"
@@ -75,6 +77,7 @@
 #include "fontIds.h"
 #include "network/background/BackgroundWebServer.h"
 #include "network/background/BackgroundWifiService.h"
+#include "util/CoverThumbHeapPolicy.h"
 #include "util/CoverThumbSizes.h"
 #include "util/RecentBooksStore.h"
 #include "util/ScreenshotUtil.h"
@@ -85,11 +88,9 @@ void enterDeepSleep();
 namespace {
 // pagesPerRefresh now comes from SETTINGS.getRefreshFrequency()
 constexpr uint8_t maxPageLoadRetryCount = 1;
-constexpr uint32_t minHeapForFontPrewarm = 40000;
+constexpr uint32_t minHeapForFontPrewarm = 24 * 1024;
 
 constexpr unsigned long kCoverThumbBakeIdleMs = 5000;
-constexpr uint32_t kMinFreeHeapForCoverThumbBake = 96000;
-constexpr uint32_t kMinLargestBlockForCoverThumbBake = 64000;
 std::atomic<bool> coverThumbBakeInProgress{false};
 
 struct CoverThumbBakeParams {
@@ -111,21 +112,14 @@ int copyCoverThumbSizesForEpub(const coverthumbs::Size* source, const int source
 }
 
 bool startCoverThumbBakeTask(const std::shared_ptr<Epub>& epub) {
-  // Decide before allocating, not after. The affordability check used to live inside
-  // the task, so the 6,144-byte stack plus its TCB were taken, the task woke, found
-  // it could not proceed, logged "deferred" and exited -- freeing the stack again.
-  //
-  // On this device that is pure loss. The gate wants 96,000 free and a 64,000 largest
-  // block; the most free heap ever measured here is ~78,000 and the working range is
-  // 45,000-52,000, so it essentially never passes. Every attempt therefore spent a
-  // 6 KB allocation to reach a foregone conclusion, and because a task takes two heap
-  // blocks (stack + TCB) the freed stack is left as an isolated run -- exactly the
-  // mechanism behind the 12,288-byte contiguity losses recorded in docs/FINDINGS.md.
-  // There is no compaction on this platform, so that hole outlives the task.
-  const uint32_t freeHeap = ESP.getFreeHeap();
-  const uint32_t largestBlock = ESP.getMaxAllocHeap();
-  if (freeHeap < kMinFreeHeapForCoverThumbBake || largestBlock < kMinLargestBlockForCoverThumbBake) {
-    LOG_DBG("THUMB", "Cover thumbnail bake deferred before spawn: free=%u largest=%u", freeHeap, largestBlock);
+  const CoverThumbMemory snapshot{
+      ESP.getFreeHeap(),
+      ESP.getMaxAllocHeap(),
+      InflateReader::hasSharedWindow(),
+  };
+  if (!CoverThumbHeapPolicy::canAttempt(snapshot)) {
+    LOG_DBG("THUMB", "Cover thumbnail bake skipped: free=%u largest=%u window=%d", snapshot.freeHeap,
+            snapshot.largestBlock, snapshot.inflateWindowReserved ? 1 : 0);
     return false;
   }
 
@@ -158,9 +152,12 @@ void coverThumbBakeTask(void* param) {
     return;
   }
 
-  const uint32_t freeHeap = ESP.getFreeHeap();
-  const uint32_t largestBlock = ESP.getMaxAllocHeap();
-  if (freeHeap >= kMinFreeHeapForCoverThumbBake && largestBlock >= kMinLargestBlockForCoverThumbBake) {
+  const CoverThumbMemory snapshot{
+      ESP.getFreeHeap(),
+      ESP.getMaxAllocHeap(),
+      InflateReader::hasSharedWindow(),
+  };
+  if (CoverThumbHeapPolicy::canAttempt(snapshot)) {
     coverthumbs::Size sizes[8] = {};
     const int count = coverthumbs::all(sizes, 8);
     Epub::ThumbSize epubSizes[8] = {};
@@ -168,7 +165,8 @@ void coverThumbBakeTask(void* param) {
     const bool success = epub->generateThumbBmps(epubSizes, epubCount);
     LOG_INF("THUMB", "Cover thumbnail bake %s for %s", success ? "completed" : "failed", epub->getPath().c_str());
   } else {
-    LOG_DBG("THUMB", "Cover thumbnail bake deferred: free=%u largest=%u", freeHeap, largestBlock);
+    LOG_DBG("THUMB", "Cover thumbnail bake skipped: free=%u largest=%u window=%d", snapshot.freeHeap,
+            snapshot.largestBlock, snapshot.inflateWindowReserved ? 1 : 0);
   }
 
   epub.reset();
@@ -553,33 +551,29 @@ void EpubReaderActivity::loop() {
     return;
   }
 
-  // Heap-defrag refresh: a heavy foreground index (createSectionFile) fragmented
-  // the heap. We're now back in loop() with that render's transient allocations
-  // released, so reclaim the fragmentation the only way the ESP32 can — a silent
-  // reboot straight back into this book (mirrors recoverHeapAfterWifi; the heap
-  // cannot be compacted in place). The threshold is intentionally high so that
-  // essentially every long index is followed by a refresh, guaranteeing that
-  // memory-heavy screens (Controls, Reader Options) open cleanly afterward. The
-  // freshly written section cache makes the resume a cheap load, so no boot loop.
   if (heapDirtyFromIndexing_) {
     const unsigned long now = millis();
     const bool retryDue = heapDefragRetryAfterMs_ == 0 || static_cast<long>(now - heapDefragRetryAfterMs_) >= 0;
     if (retryDue) {
-      constexpr size_t kHeapDefragLargestBlockThreshold = 120 * 1024;
-      const size_t largestBlock = heapguard::largestBlock();
-      if (!section || largestBlock >= kHeapDefragLargestBlockThreshold) {
+      const uint32_t largestBlock = static_cast<uint32_t>(heapguard::largestBlock());
+      const auto action = reader_heap_recovery::decideAfterIndex(section != nullptr, largestBlock,
+                                                                 heapDefragReclaimAttempts_);
+      LOG_INF("ERS", "Post-index heap: free=%u largest=%u action=%u attempts=%u",
+              static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(largestBlock),
+              static_cast<unsigned>(action), static_cast<unsigned>(heapDefragReclaimAttempts_));
+      if (action == reader_heap_recovery::AfterIndexAction::Continue) {
         heapDirtyFromIndexing_ = false;
         heapDefragRetryAfterMs_ = 0;
-      } else if (serialOtaInProgress()) {
-        // OTA_END reboots on success; OTA_ABORT leaves this flag set so the
-        // defrag restart is retried once the flash transaction is no longer active.
+        heapDefragReclaimAttempts_ = 0;
+      } else if (action == reader_heap_recovery::AfterIndexAction::Reclaim) {
+        reclaimAfterIndexPressure();
+        heapDefragReclaimAttempts_ = static_cast<uint8_t>(heapDefragReclaimAttempts_ + 1);
         heapDefragRetryAfterMs_ = now + 1000;
-      } else if (persistAndRestartForRecovery()) {
-        heapDirtyFromIndexing_ = false;
-        heapDefragRetryAfterMs_ = 0;
-        return;
       } else {
-        heapDefragRetryAfterMs_ = now + 1000;
+        LOG_WRN("ERS", "Post-index heap still tight after reclaim; continuing without restart");
+        heapDirtyFromIndexing_ = false;
+        heapDefragRetryAfterMs_ = 0;
+        heapDefragReclaimAttempts_ = 0;
       }
     }
   }
@@ -682,14 +676,6 @@ void EpubReaderActivity::loop() {
                 ),
         [this](const ActivityResult& result) {
           const auto& menu = std::get<MenuResult>(result.data);
-          if (!result.isCancelled && static_cast<EpubReaderMenuActivity::MenuAction>(menu.action) ==
-                                         EpubReaderMenuActivity::MenuAction::MEMORY_RECOVERY_REQUESTED) {
-#ifdef SIMULATOR
-            LOG_INF("SMOKE", "SMOKE_READER_MEMORY_RECOVERY_PROPAGATED orientation=%u", menu.orientation);
-#endif
-            persistAndRestartForRecovery(menu.orientation);
-            return;
-          }
 #if ENABLE_TEXT_SELECTION
           pendingSelectionSnapshot = std::move(const_cast<ActivityResult&>(result).transferredPageSnapshot);
 #endif
@@ -872,6 +858,22 @@ void EpubReaderActivity::queueCoverThumbBakeIfIdle() {
   }
 }
 
+void EpubReaderActivity::reclaimAfterIndexPressure() {
+  if (!core::HeapReclaimRegistry::empty()) {
+    core::HeapReclaimRegistry::releaseAll();
+  }
+  if (epub) {
+    if (CssParser* css = epub->getCssParser()) {
+      css->releaseMemory();
+    }
+  }
+  pendingCoverThumbBake_ = false;
+  if (BG_WIFI.isPendingOrRunning()) {
+    BG_WIFI.stop(true);
+  }
+  BackgroundWebServer::getInstance().stop(true);
+}
+
 bool EpubReaderActivity::persistOrientationSelection(const uint8_t orientation) {
   if (SETTINGS.orientation == orientation) {
     return true;
@@ -886,44 +888,6 @@ bool EpubReaderActivity::persistOrientationSelection(const uint8_t orientation) 
   SETTINGS.orientation = previousOrientation;
   LOG_WRN("EPUB", "Failed to persist orientation setting to SD card");
   return false;
-}
-
-bool EpubReaderActivity::persistAndRestartForRecovery() { return persistAndRestartForRecovery(SETTINGS.orientation); }
-
-bool EpubReaderActivity::persistAndRestartForRecovery(const uint8_t pendingOrientation) {
-  if (!epub) {
-    LOG_WRN("ERS", "No epub state for heap recovery");
-    return false;
-  }
-  if (section && !saveProgress(currentSpineIndex, section->currentPage, section->pageCount)) {
-    LOG_WRN("ERS", "Failed to persist progress before heap recovery");
-    return false;
-  }
-  const uint8_t previousOrientation = SETTINGS.orientation;
-  if (!persistOrientationSelection(pendingOrientation)) {
-    return false;
-  }
-  auto restorePreviousOrientation = [previousOrientation] {
-    if (SETTINGS.orientation == previousOrientation) {
-      return;
-    }
-    SETTINGS.orientation = previousOrientation;
-    if (!SETTINGS.saveToFile()) {
-      LOG_WRN("EPUB", "Failed to restore orientation after aborted heap recovery");
-    }
-  };
-  APP_STATE.openEpubPath = epub->getPath();
-  if (!APP_STATE.saveToFile()) {
-    LOG_WRN("ERS", "Failed to persist resume state before heap recovery");
-    restorePreviousOrientation();
-    return false;
-  }
-  if (!silentRestartToReader()) {
-    LOG_WRN("ERS", "Heap recovery restart refused");
-    restorePreviousOrientation();
-    return false;
-  }
-  return true;
 }
 
 // Translate an absolute percent into a spine index plus a normalized position
@@ -1813,19 +1777,6 @@ void EpubReaderActivity::render(RenderLock&& lock) {
   const uint16_t viewportWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
   const uint16_t viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
 
-  // Drawing the page is the reader's one essential operation, so it is gated on
-  // HeapGuard's CRITICAL floor rather than a bespoke number. The previous 45000-byte
-  // check sat between kCriticalFloorBytes (32KB) and kLowFloorBytes (60KB), so it
-  // refused the render at a pressure level HeapGuard classifies as merely Low -- the
-  // level at which features are meant to drop luxuries, not core function.
-  //
-  // Measured on an X4 (serial trace 2026-08-28, backgroundServerMode=Always): the
-  // teardown in onEnter frees just enough to clear 45000 exactly once, so page one
-  // rendered -- degrading correctly on the way down, skipping the font prewarm at
-  // heap=33136 and drawing without AA after the 8000-byte strip scratch OOM'd. Free
-  // heap then settled at 36348 and every page turn after it was refused, forever,
-  // because nothing on this path reclaimed anything. That 36-45KB dead band, where a
-  // book opens but can never be turned, is the "Page load error" this fixes.
   if (heapguard::freeBytes() < heapguard::kCriticalFloorBytes) {
     LOG_ERR("ERS", "Heap below critical floor for page render: %u free, %u largest; reclaiming",
             static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(heapguard::largestBlock()));
@@ -1905,15 +1856,9 @@ void EpubReaderActivity::render(RenderLock&& lock) {
         renderReaderError(StrId::STR_LOAD_EPUB_FAILED);
         return;
       }
-      // A full section (re)index just parsed + paginated this chapter and wrote it
-      // to SD. On the ESP32-C3 that heavy transient churn leaves the heap
-      // fragmented — total free can look healthy while the largest contiguous
-      // block is too small for later memory-heavy screens (Controls / Reader
-      // Options build a ~48-entry std::vector<SettingInfo>). Flag a heap-defrag
-      // refresh; loop() reclaims it via a silent reboot back into this book once
-      // this render completes. The cache we just wrote makes the post-reboot
-      // resume a cheap loadSectionFile, so this cannot boot-loop.
       heapDirtyFromIndexing_ = true;
+      heapDefragReclaimAttempts_ = 0;
+      heapDefragRetryAfterMs_ = 0;
     } else {
       LOG_DBG("ERS", "Cache found, skipping build...");
     }
@@ -2180,13 +2125,12 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   const auto t0 = millis();
   const int fontId = SETTINGS.getReaderFontId();
 
-  // Font prewarm: scan pass accumulates text, then prewarm, then real render
   auto* fcm = renderer.getFontCacheManager();
   const uint32_t heapBefore = esp_get_free_heap_size();
   std::optional<FontCacheManager::PrewarmScope> prewarmScope;
   if (heapBefore >= minHeapForFontPrewarm) {
     prewarmScope.emplace(fcm->createPrewarmScope());
-    page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);  // scan pass
+    page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
     prewarmScope->endScanAndPrewarm();
   } else {
     LOG_WRN("ERS", "Skipping font prewarm: heap=%u", static_cast<unsigned>(heapBefore));
@@ -2209,35 +2153,39 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   const bool needsImageGrayscale = pageHasImages;
   const bool needsAnyGrayscale = needsTextGrayscale || needsImageGrayscale;
 
+  const auto paintReaderChrome = [&] {
+#if ENABLE_ANNOTATIONS
+    if (!previewRenderOnly && section) {
+      renderAnnotations(*page, orientedMarginLeft, orientedMarginTop);
+    }
+#endif
+    renderStatusBar();
+#if ENABLE_BOOKMARKS
+    if (pendingBookmarkFeedback) {
+      constexpr unsigned long BOOKMARK_FEEDBACK_DURATION_MS = 1200;
+      if (millis() - bookmarkFeedbackShowTime < BOOKMARK_FEEDBACK_DURATION_MS) {
+        StrId msgId = StrId::STR_BOOKMARK_ADDED;
+        if (bookmarkFeedbackType == BookmarkFeedbackType::Removed) {
+          msgId = StrId::STR_BOOKMARK_REMOVED;
+        } else if (bookmarkFeedbackType == BookmarkFeedbackType::LimitReached) {
+          msgId = StrId::STR_BOOKMARK_LIMIT_REACHED;
+        }
+        GUI.drawPopup(renderer, I18N.get(msgId));
+        requestUpdate();
+      } else {
+        pendingBookmarkFeedback = false;
+      }
+    }
+#endif
+  };
+
   page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
 #if ENABLE_TEXT_SELECTION
   if (!previewRenderOnly && section) {
     buildSelectionPageIndex(*page, orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
   }
 #endif
-#if ENABLE_ANNOTATIONS
-  if (!previewRenderOnly && section) {
-    renderAnnotations(*page, orientedMarginLeft, orientedMarginTop);
-  }
-#endif
-  renderStatusBar();
-#if ENABLE_BOOKMARKS
-  if (pendingBookmarkFeedback) {
-    constexpr unsigned long BOOKMARK_FEEDBACK_DURATION_MS = 1200;
-    if (millis() - bookmarkFeedbackShowTime < BOOKMARK_FEEDBACK_DURATION_MS) {
-      StrId msgId = StrId::STR_BOOKMARK_ADDED;
-      if (bookmarkFeedbackType == BookmarkFeedbackType::Removed) {
-        msgId = StrId::STR_BOOKMARK_REMOVED;
-      } else if (bookmarkFeedbackType == BookmarkFeedbackType::LimitReached) {
-        msgId = StrId::STR_BOOKMARK_LIMIT_REACHED;
-      }
-      GUI.drawPopup(renderer, I18N.get(msgId));
-      requestUpdate();  // keep re-rendering until toast expires
-    } else {
-      pendingBookmarkFeedback = false;
-    }
-  }
-#endif
+  paintReaderChrome();
   const auto tBwRender = millis();
 
   if (pageHasImages) {
@@ -2272,138 +2220,23 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
   }
   const auto tDisplay = millis();
 
-  // Tiled grayscale: render each plane band-by-band into a small scratch and
-  // stream straight to the controller, leaving the BW framebuffer intact so no
-  // full-frame storeBwBuffer is needed; controller RAM is re-synced from the
-  // live framebuffer afterward. The page is re-rendered ceil(H/STRIP_ROWS) times
-  // per plane, but renderCharImpl culls out-of-band glyphs before decode so the
-  // cost stays close to one render. Both text (drawPixel) and images
-  // (DirectPixelWriter) honor the active strip target.
-  if (needsAnyGrayscale && !previewRenderOnly && renderer.supportsStripGrayscale()) {
-    constexpr int STRIP_ROWS = 80;
-    const int gh = renderer.getDisplayHeight();
-    const int gwBytes = renderer.getDisplayWidthBytes();
-
-    // 8,000-byte (gwBytes * STRIP_ROWS = 100 * 80) transient buffer freed at end of page.
-    // Use kCriticalFloorBytes (requires free >= 40,768) rather than kLowFloorBytes (requires free >= 69,440).
-    // Reading steady state is 36-40 KB free with ~9.2 KB largest block, so kLowFloorBytes made AA dead code.
-    // 8,000 fits the ~9.2 KB largest block, and if memory is genuinely tight or allocation fails,
-    // the working fallback immediately below (!scratch) safely skips AA.
-    const size_t scratchSize = static_cast<size_t>(gwBytes) * STRIP_ROWS;
-    std::unique_ptr<uint8_t[]> scratch;
-    if (heapguard::canAllocate(scratchSize, heapguard::kCriticalFloorBytes)) {
-      scratch = makeUniqueNoThrow<uint8_t[]>(scratchSize);
-    }
-    if (!scratch) {
-      LOG_ERR("ERS", "OOM: grayscale strip scratch (%d bytes); skipping AA this page", gwBytes * STRIP_ROWS);
-    } else {
-      // Bands may be streamed in any order: X4 windows each via setRamArea, X3
-      // via PTL.
-      renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-      for (int y = 0; y < gh; y += STRIP_ROWS) {
-        const int rows = (gh - y < STRIP_ROWS) ? (gh - y) : STRIP_ROWS;
-        renderer.beginStripTarget(scratch.get(), y, rows);
-        renderer.clearScreen(0x00);
-        if (needsTextGrayscale) {
-          page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
-        } else {
-          page->renderImages(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
-        }
-        renderer.endStripTarget();
-        renderer.writeGrayscalePlaneStrip(true, scratch.get(), y, rows);
-      }
-      const auto tGrayLsb = millis();
-
-      // MSB plane.
-      renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-      for (int y = 0; y < gh; y += STRIP_ROWS) {
-        const int rows = (gh - y < STRIP_ROWS) ? (gh - y) : STRIP_ROWS;
-        renderer.beginStripTarget(scratch.get(), y, rows);
-        renderer.clearScreen(0x00);
-        if (needsTextGrayscale) {
-          page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
-        } else {
-          page->renderImages(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
-        }
-        renderer.endStripTarget();
-        renderer.writeGrayscalePlaneStrip(false, scratch.get(), y, rows);
-      }
-      const auto tGrayMsb = millis();
-
-      renderer.setRenderMode(GfxRenderer::BW);
-      renderer.displayGrayBuffer();
-      const auto tGrayDisplay = millis();
-
-      // BW framebuffer is intact; re-sync controller RAM for the next
-      // differential page turn directly from it.
-      renderer.cleanupGrayscaleWithFrameBuffer();
-      const auto tCleanup = millis();
-
-      const auto tEnd = millis();
-      LOG_DBG("ERS",
-              "Page render (tiled): prewarm=%lums bw_render=%lums display=%lums gray_lsb=%lums "
-              "gray_msb=%lums gray_display=%lums cleanup=%lums total=%lums",
-              tPrewarm - t0, tBwRender - tPrewarm, tDisplay - tBwRender, tGrayLsb - tDisplay, tGrayMsb - tGrayLsb,
-              tGrayDisplay - tGrayMsb, tCleanup - tGrayDisplay, tEnd - t0);
-    }
-  } else if (needsAnyGrayscale && !previewRenderOnly) {
-    // Fallback path for a controller without strip support. grayscale rendering
-    // TODO: Only do this if font supports it
-    if (SETTINGS.textAntiAliasing) {
-      // Save the BW frame before the grayscale passes overwrite it, restore
-      // after. Only needed when grayscale actually renders.
-      const bool bwBufferStored = renderer.storeBwBuffer();
-      const auto tBwStore = millis();
-      if (!bwBufferStored) {
-        const auto tEnd = millis();
-        LOG_WRN("ERS", "Skipping grayscale render: BW buffer allocation failed");
-        LOG_DBG("ERS", "Page render: prewarm=%lums bw_render=%lums display=%lums bw_store=%lums total=%lums",
-                tPrewarm - t0, tBwRender - tPrewarm, tDisplay - tBwRender, tBwStore - tDisplay, tEnd - t0);
-        // Grayscale path never defers, so this is always false.
-        return refreshLeftInFlight;
-      }
-
-      renderer.clearScreen(0x00);
-      renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-      if (needsTextGrayscale) {
-        page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
-      } else {
-        page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop);
-      }
-      renderer.copyGrayscaleLsbBuffers();
-      const auto tGrayLsb = millis();
-
-      renderer.clearScreen(0x00);
-      renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-      if (needsTextGrayscale) {
-        page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
-      } else {
-        page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop);
-      }
-      renderer.copyGrayscaleMsbBuffers();
-      const auto tGrayMsb = millis();
-
-      // display grayscale part
-      renderer.displayGrayBuffer();
-      const auto tGrayDisplay = millis();
-      renderer.setRenderMode(GfxRenderer::BW);
-      // restore the bw data
-      renderer.restoreBwBuffer();
-      const auto tBwRestore = millis();
-
-      const auto tEnd = millis();
-      LOG_DBG("ERS",
-              "Page render: prewarm=%lums bw_render=%lums display=%lums bw_store=%lums "
-              "gray_lsb=%lums gray_msb=%lums gray_display=%lums bw_restore=%lums total=%lums",
-              tPrewarm - t0, tBwRender - tPrewarm, tDisplay - tBwRender, tBwStore - tDisplay, tGrayLsb - tBwStore,
-              tGrayMsb - tGrayLsb, tGrayDisplay - tGrayMsb, tBwRestore - tGrayDisplay, tEnd - t0);
-    } else {
-      // No anti-aliasing: BW frame already displayed above, no grayscale to
-      // render, so no save/restore.
-      const auto tEnd = millis();
-      LOG_DBG("ERS", "Page render: prewarm=%lums bw_render=%lums display=%lums total=%lums", tPrewarm - t0,
-              tBwRender - tPrewarm, tDisplay - tBwRender, tEnd - t0);
-    }
+  if (needsAnyGrayscale && !previewRenderOnly) {
+    ReaderUtils::renderAntiAliased(
+        renderer,
+        [&] {
+          if (needsTextGrayscale) {
+            page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+          } else {
+            page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+          }
+        },
+        [&] {
+          page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop);
+          paintReaderChrome();
+        });
+    const auto tEnd = millis();
+    LOG_DBG("ERS", "Page render: prewarm=%lums bw_render=%lums display=%lums gray=%lums total=%lums", tPrewarm - t0,
+            tBwRender - tPrewarm, tDisplay - tBwRender, tEnd - tDisplay, tEnd - t0);
   } else {
     const auto tEnd = millis();
     LOG_DBG("ERS", "Page render: prewarm=%lums bw_render=%lums display=%lums total=%lums", tPrewarm - t0,

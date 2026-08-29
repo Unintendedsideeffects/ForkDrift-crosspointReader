@@ -71,20 +71,10 @@ struct ReconcileDecision {
 
 ReconcileDecision evaluateReconcile(const ReconcileInput& input);
 
-// ── Background server start resources ──────────────────────────────────────
-//
-// Measured on device 2026-07-30 (ESP32-C3, firmware 44a360c, serial trace of a
-// full CrossPointWebServer start). Total heap that run: 181,240 bytes.
-//
-//   WebServer allocation ..........    304
-//   route setup ................... 11,832
-//   WebSocket server + discovery UDP  4,200
-//                                    ------
-//   server startup ................. 16,336
-//
-// Plus the post-startup safety floor CrossPointWebServer itself enforces twice
-// (WEB_SERVER_MIN_SAFE_HEAP_BYTES, 12 KB), plus the background task's stack.
-constexpr uint32_t SERVER_STARTUP_BYTES = 16336;
+// Occupancy diet 2026-08-29: one RequestHandler + flash table. Budget is the
+// 2026-07-30 remainder after dropping the 11,832-byte route line (WebServer 304
+// + deferred WS/UDP 4,200). Always starts from measured Home idle (~37 KB).
+constexpr uint32_t SERVER_STARTUP_BYTES = 4504;
 constexpr uint32_t SERVER_SAFETY_FLOOR_BYTES = 12 * 1024;
 // Not measured: allocator bookkeeping and small request-time spikes. Named so a
 // future reader can tell the measured part from the judgement part.
@@ -112,16 +102,27 @@ struct StartResourceInput {
 uint32_t startMinFreeBytes(uint32_t taskStackBytes);
 StartResourceVerdict evaluateStartResources(const StartResourceInput& input);
 
-// Floor for a server that is ALREADY running, which is a different question from whether
-// one can be started: the 16 KB of startup cost is already spent, so re-charging for it
-// here just means stopping a healthy server.
-//
-// This covers only what the server itself needs to keep operating. Per-request spikes are
-// each handler's own responsibility and are already gated that way — applySettingsJson
-// demands 48 KB, the library shelf refresh 84 KB. Folding the worst handler's appetite in
-// here would tear the whole server down because one expensive route might be called.
+// Operating floor for a server that is ALREADY running. This is not a teardown trigger:
+// on-charge RUNNING free sits at ~10,200, which is below this number, so using it to stop
+// the server fires in the normal state. Per-request spikes are each handler's own
+// responsibility (library shelf refresh uses LibraryShelfRefreshPolicy, 38 KB HTTPS floor).
 constexpr uint32_t RUNNING_HEADROOM_BYTES = 4096;
 uint32_t runningMinFreeBytes();
+
+// Last-resort abort for a running server. Device walk 2026-08-29, on-charge serving:
+// getMinFreeHeap() ranged 4,860–6,180 while typical free sat at ~10,200. The abort sits
+// at the exclusive lower bound of that watermark so it cannot fire in a state already
+// measured as survivable. The action is stop(keepWifi), never the WAIT_RETRY fault path:
+// that disconnects WiFi, and re-association is itself heap-churning.
+constexpr uint32_t OBSERVED_RUNNING_MIN_FREE_BYTES = 4860;
+uint32_t runningAbortFreeBytes();
+
+enum class RunningHeapAction : uint8_t {
+  KeepServing,
+  StopKeepWifi,
+};
+
+RunningHeapAction evaluateRunningHeap(uint32_t freeBytes);
 
 struct OnChargeServerInput {
   bool hasBackgroundServerCapability = false;

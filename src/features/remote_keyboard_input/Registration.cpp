@@ -39,13 +39,11 @@ void sendSessionSnapshot(WebServer* server) {
   server->send(200, "application/json", json);
 }
 
-void mountRemoteKeyboardRoutes(WebServer* server) {
-  server->on("/remote-input", HTTP_GET,
-             [server] { sendPrecompressedHtml(server, RemoteKeyboardPageHtml, RemoteKeyboardPageHtmlCompressedSize); });
+void handleRemoteInputPage(WebServer* server) {
+  sendPrecompressedHtml(server, RemoteKeyboardPageHtml, RemoteKeyboardPageHtmlCompressedSize);
+}
 
-  server->on("/api/remote-keyboard/session", HTTP_GET, [server] { sendSessionSnapshot(server); });
-
-  server->on("/api/remote-keyboard/claim", HTTP_POST, [server] {
+void handleRemoteKeyboardClaim(WebServer* server) {
     if (!server->hasArg("plain")) {
       server->send(400, "text/plain", "Missing body");
       return;
@@ -66,9 +64,9 @@ void mountRemoteKeyboardRoutes(WebServer* server) {
     }
 
     sendSessionSnapshot(server);
-  });
+}
 
-  server->on("/api/remote-keyboard/submit", HTTP_POST, [server] {
+void handleRemoteKeyboardSubmit(WebServer* server) {
     if (!server->hasArg("plain")) {
       server->send(400, "text/plain", "Missing body");
       return;
@@ -95,8 +93,14 @@ void mountRemoteKeyboardRoutes(WebServer* server) {
         server->send(404, "text/plain", "Remote keyboard session not found");
         return;
     }
-  });
 }
+
+const core::WebRouteSpec kRemoteKeyboardRoutes[] = {
+    {"/remote-input", HTTP_GET, handleRemoteInputPage, nullptr},
+    {"/api/remote-keyboard/session", HTTP_GET, sendSessionSnapshot, nullptr},
+    {"/api/remote-keyboard/claim", HTTP_POST, handleRemoteKeyboardClaim, nullptr},
+    {"/api/remote-keyboard/submit", HTTP_POST, handleRemoteKeyboardSubmit, nullptr},
+};
 #endif
 
 }  // namespace
@@ -106,7 +110,8 @@ void registerFeature() {
   core::WebRouteEntry webRouteEntry{};
   webRouteEntry.routeId = "remote_keyboard_input_api";
   webRouteEntry.shouldRegister = shouldRegisterRemoteKeyboardRoutes;
-  webRouteEntry.mountRoutes = mountRemoteKeyboardRoutes;
+  webRouteEntry.routes = kRemoteKeyboardRoutes;
+  webRouteEntry.routeCount = sizeof(kRemoteKeyboardRoutes) / sizeof(kRemoteKeyboardRoutes[0]);
   core::WebRouteRegistry::add(webRouteEntry);
 #endif
 }

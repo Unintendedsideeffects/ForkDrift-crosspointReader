@@ -130,63 +130,19 @@ void EpubReaderMenuActivity::finishOptionsResult(const ControlsOptionsResult* op
   finish();
 }
 
-void EpubReaderMenuActivity::finishForMemoryRecovery() {
-  ActivityResult result;
-  result.isCancelled = false;
-  result.data = MenuResult{static_cast<int>(MenuAction::MEMORY_RECOVERY_REQUESTED), pendingOrientation};
-  setResult(std::move(result));
-  finish();
-}
-
 void EpubReaderMenuActivity::openReaderOptions() {
-  ReaderMemorySnapshot snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap()};
-  LOG_INF("RDR", "Pre-build ReaderOptions heap: free=%u largest=%u", snapshot.freeHeap, snapshot.maxAllocHeap);
-  if (savedPageBuffer && !ReaderOptionsMemoryPolicy::canBuildSettings(snapshot)) {
-    savedPageBuffer.reset();
-  }
   auto refreshFn = savedPageBuffer ? previewRefresh_ : nullptr;
   startActivityForResult(
       std::make_unique<ReaderOptionsActivity>(renderer, mappedInput, savedPageBuffer.get(), refreshFn),
       [this](const ActivityResult& readerResult) {
-        const auto* optionsResult = std::get_if<ControlsOptionsResult>(&readerResult.data);
-        if (optionsResult && optionsResult->memoryRecoveryRequested) {
-          if (savedPageBuffer) {
-            savedPageBuffer.reset();
-#ifdef SIMULATOR
-            LOG_INF("SMOKE", "SMOKE_READER_OPTIONS_RETRY_WITHOUT_PREVIEW");
-#endif
-            openReaderOptions();
-            return;
-          }
-          finishForMemoryRecovery();
-          return;
-        }
-        finishOptionsResult(optionsResult);
+        finishOptionsResult(std::get_if<ControlsOptionsResult>(&readerResult.data));
       });
 }
 
 void EpubReaderMenuActivity::openControlsOptions() {
-  ReaderMemorySnapshot snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap()};
-  LOG_INF("RDR", "Pre-build ControlsOptions heap: free=%u largest=%u", snapshot.freeHeap, snapshot.maxAllocHeap);
-  if (savedPageBuffer && !ReaderOptionsMemoryPolicy::canBuildSettings(snapshot)) {
-    savedPageBuffer.reset();
-  }
   startActivityForResult(std::make_unique<ControlsOptionsActivity>(renderer, mappedInput, savedPageBuffer.get()),
                          [this](const ActivityResult& controlsResult) {
-                           const auto* optionsResult = std::get_if<ControlsOptionsResult>(&controlsResult.data);
-                           if (optionsResult && optionsResult->memoryRecoveryRequested) {
-                             if (savedPageBuffer) {
-                               savedPageBuffer.reset();
-#ifdef SIMULATOR
-                               LOG_INF("SMOKE", "SMOKE_CTRL_RETRY_WITHOUT_PREVIEW");
-#endif
-                               openControlsOptions();
-                               return;
-                             }
-                             finishForMemoryRecovery();
-                             return;
-                           }
-                           finishOptionsResult(optionsResult);
+                           finishOptionsResult(std::get_if<ControlsOptionsResult>(&controlsResult.data));
                          });
 }
 

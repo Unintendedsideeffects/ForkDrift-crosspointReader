@@ -5,15 +5,12 @@
 #include <I18n.h>
 #include <Logging.h>
 
-#include <algorithm>
 #include <cstring>
-#include <iterator>
 
 #include "CrossPointSettings.h"
 #if ENABLE_PER_BOOK_SETTINGS
 #include "util/BookSettingsOverride.h"
 #endif
-#include "ReaderOptionsMemoryPolicy.h"
 #include "ReaderUtils.h"
 #include "SdCardFontSystem.h"
 #include "SettingsList.h"
@@ -23,6 +20,8 @@
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "fontIds.h"
+#include "network/background/BackgroundWebServer.h"
+#include "network/background/BackgroundWifiService.h"
 
 namespace {
 
@@ -90,18 +89,11 @@ void persistOverlayChange(const char* key) {
 
 void ReaderOptionsActivity::onEnter() {
   Activity::onEnter();
-  ReaderMemorySnapshot snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap()};
-  if (!ReaderOptionsMemoryPolicy::canBuildSettings(snapshot)) {
-    setResult(ControlsOptionsResult{false, true});
-    finish();
-    return;
+  if (BG_WIFI.isPendingOrRunning()) {
+    BG_WIFI.stop(true);
   }
-  sdFontSystem.refreshIfDirty();
-  if (!rebuildSettingsList()) {
-    setResult(ControlsOptionsResult{false, true});
-    finish();
-    return;
-  }
+  BackgroundWebServer::getInstance().stop(true);
+  rebuildSettingsList();
   requestUpdate();
 }
 
@@ -109,19 +101,15 @@ void ReaderOptionsActivity::onExit() { Activity::onExit(); }
 
 bool ReaderOptionsActivity::rebuildSettingsList() {
   settings.clear();
+  sdFontSystem.refreshIfDirty();
 
-  ReaderMemorySnapshot snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap()};
-  if (!ReaderOptionsMemoryPolicy::canBuildSettings(snapshot)) {
-    LOG_WRN("RDR", "Reader options unavailable: free=%u largest=%u", snapshot.freeHeap, snapshot.maxAllocHeap);
-    settingsCount = 0;
-    selectedIndex = 0;
-    return false;
-  }
-
-  const auto allSettings = getSettingsList(&sdFontSystem.registry());
-  settings.reserve(allSettings.size());
-  std::copy_if(allSettings.begin(), allSettings.end(), std::back_inserter(settings),
-               [](const SettingInfo& setting) { return setting.category == StrId::STR_CAT_READER; });
+  const bool hasSleepImages = dirHasAnyImage("/sleep");
+  const bool hasPokedexImages = dirHasAnyImage("/sleep/pokedex");
+  const StrId readerCategory = StrId::STR_CAT_READER;
+  settings.reserve(24);
+  forEachSetting(
+      [](void* ctx, SettingInfo&& info) { static_cast<std::vector<SettingInfo>*>(ctx)->push_back(std::move(info)); },
+      &settings, hasSleepImages, hasPokedexImages, buildFontFamilySetting(&sdFontSystem.registry()), &readerCategory);
 
   groupSettingsByTopic(settings, settings_topics::kReader);
 

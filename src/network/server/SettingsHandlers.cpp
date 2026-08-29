@@ -1,20 +1,12 @@
 #include <Arduino.h>
 #include <Logging.h>
 
+#include "core/registries/HeapReclaimRegistry.h"
 #include "network/server/CrossPointWebServer.h"
 #include "network/server/SettingsApi.h"
 
 namespace {
-// POST rebuilds the full std::vector<SettingInfo> (getSettingsList) to apply
-// values — keep in sync with kMinHeapForSettingsRebuild in SettingsActivity.cpp.
-constexpr uint32_t kMinHeapForSettingsList = 48000;
-
-// GET streams settings one at a time (no full vector, no cumulative String — see
-// network::streamSettingsListJson), so it needs far less headroom. Peak transient
-// is the guarded font/sleep prelude plus a single SettingInfo + one JsonDocument
-// + a ~768 B stack buffer. ~16 KB keeps a ~3x margin over that while letting the
-// settings page load with a book (or the background server) still resident — the
-// exact low-heap state that used to 503 against the old 48 KB guard.
+constexpr uint32_t kMinHeapForSettingsApply = 16000;
 constexpr uint32_t kMinHeapForSettingsStream = 16000;
 }  // namespace
 
@@ -38,12 +30,12 @@ void CrossPointWebServer::handleGetSettings() const {
 }
 
 void CrossPointWebServer::handlePostSettings() {
-  // applySettingsJson builds the full settings list (getSettingsList) — the
-  // same allocation burst the GET guard above protects against. Without this
-  // check a low-heap POST dies in a throwing vector allocation (bad_alloc ->
-  // terminate -> abort) instead of returning an error.
-  const uint32_t freeHeap = ESP.getFreeHeap();
-  if (freeHeap < kMinHeapForSettingsList) {
+  uint32_t freeHeap = ESP.getFreeHeap();
+  if (freeHeap < kMinHeapForSettingsApply && !core::HeapReclaimRegistry::empty()) {
+    core::HeapReclaimRegistry::releaseAll();
+    freeHeap = ESP.getFreeHeap();
+  }
+  if (freeHeap < kMinHeapForSettingsApply) {
     LOG_WRN("WEB", "Settings POST rejected at low heap: %u bytes free", freeHeap);
     server->send(503, "application/json", "{\"error\":\"low memory\"}");
     return;

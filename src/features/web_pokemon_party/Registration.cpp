@@ -15,12 +15,14 @@ namespace {
 #if ENABLE_POKEMON_PARTY
 bool shouldRegisterPokemonPartyPageRoute() { return core::FeatureCatalog::isEnabled("pokemon_party"); }
 
-void mountPokemonPartyRoutes(WebServer* server) {
-  server->on("/plugins/pokemon-party", HTTP_GET, [server] {
-    sendPrecompressedHtml(server, PokemonPartyPluginPageHtml, PokemonPartyPluginPageHtmlCompressedSize);
-    LOG_DBG("WEB", "Served pokemon party plugin page");
-  });
+void handlePokemonPartyPage(WebServer* server) {
+  sendPrecompressedHtml(server, PokemonPartyPluginPageHtml, PokemonPartyPluginPageHtmlCompressedSize);
+  LOG_DBG("WEB", "Served pokemon party plugin page");
 }
+
+const core::WebRouteSpec kPokemonPartyPageRoutes[] = {
+    {"/plugins/pokemon-party", HTTP_GET, handlePokemonPartyPage, nullptr},
+};
 #endif
 
 }  // namespace
@@ -30,7 +32,8 @@ void registerFeature() {
   core::WebRouteEntry webRouteEntry{};
   webRouteEntry.routeId = "pokemon_party_page";
   webRouteEntry.shouldRegister = shouldRegisterPokemonPartyPageRoute;
-  webRouteEntry.mountRoutes = mountPokemonPartyRoutes;
+  webRouteEntry.routes = kPokemonPartyPageRoutes;
+  webRouteEntry.routeCount = sizeof(kPokemonPartyPageRoutes) / sizeof(kPokemonPartyPageRoutes[0]);
   core::WebRouteRegistry::add(webRouteEntry);
 #endif
 }

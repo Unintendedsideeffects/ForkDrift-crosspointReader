@@ -13,10 +13,6 @@ class ReaderOptionsMemoryPolicy {
   static constexpr uint32_t kReserveTotalBytes = 96000;
   static constexpr uint32_t kReserveLargestBlock = 48000;
 
-  static bool canBuildSettings(const ReaderMemorySnapshot& snapshot) {
-    return snapshot.freeHeap >= kReserveTotalBytes && snapshot.maxAllocHeap >= kReserveLargestBlock;
-  }
-
   static bool canRetainPreview(const ReaderMemorySnapshot& snapshot, size_t frameBufferSize) {
     if (frameBufferSize > UINT32_MAX - kReserveTotalBytes || frameBufferSize > UINT32_MAX - kReserveLargestBlock) {
       return false;

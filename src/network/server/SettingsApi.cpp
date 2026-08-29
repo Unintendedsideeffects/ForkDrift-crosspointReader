@@ -188,22 +188,40 @@ SettingsApplyResult applySettingsJson(const String& body) {
     return {400, "text/plain", String("Invalid JSON: ") + err.c_str(), 0};
   }
 
-  const auto settings = getSettingsList();
-  const SettingsApplyTally tally = applySettingsToList(doc, settings);
-  const int applied = tally.appliedCount;
-  const bool updatedKoreaderSettings = tally.updatedKoreaderSettings;
+  bool hasSleepImages = false;
+  bool hasPokedexImages = false;
+  SettingInfo fontFamily;
+  {
+    SpiBusMutex::Guard guard;
+    sdFontSystem.refreshIfDirty();
+    hasSleepImages = dirHasAnyImage("/sleep");
+    hasPokedexImages = dirHasAnyImage("/sleep/pokedex");
+    fontFamily = buildFontFamilySetting(&sdFontSystem.registry());
+  }
+
+  SettingsApplyTally tally;
+  struct ApplyState {
+    JsonDocument* doc;
+    SettingsApplyTally* tally;
+  } state{&doc, &tally};
+  forEachSetting(
+      [](void* ctx, SettingInfo&& info) {
+        auto* applyState = static_cast<ApplyState*>(ctx);
+        applySettingFromDoc(info, *applyState->doc, *applyState->tally);
+      },
+      &state, hasSleepImages, hasPokedexImages, std::move(fontFamily));
 
   core::FeatureModules::onWebSettingsApplied();
-  if (updatedKoreaderSettings) {
+  if (tally.updatedKoreaderSettings) {
     core::FeatureModules::saveKoreaderSettings();
   }
 
   SETTINGS.enforceButtonLayoutConstraints();
   if (!SETTINGS.saveToFile()) {
-    return {500, "text/plain", "Failed to persist settings", applied};
+    return {500, "text/plain", "Failed to persist settings", tally.appliedCount};
   }
 
-  return {200, "text/plain", String("Applied ") + String(applied) + " setting(s)", applied};
+  return {200, "text/plain", String("Applied ") + String(tally.appliedCount) + " setting(s)", tally.appliedCount};
 }
 
 }  // namespace network

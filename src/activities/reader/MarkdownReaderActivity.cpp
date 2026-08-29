@@ -12,6 +12,7 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
+#include "ReaderUtils.h"
 #include "SpiBusMutex.h"
 #include "TocActivity.h"
 #include "activities/TaskShutdown.h"
@@ -566,32 +567,15 @@ void MarkdownReaderActivity::renderContents(std::unique_ptr<Page> page, int orie
     pagesUntilFullRefresh--;
   }
 
-  // If the temp BW buffer can't be allocated, skip grayscale entirely — proceeding
-  // would overwrite the already-displayed BW page with grayscale data that
-  // restoreBwBuffer() then can't undo, corrupting the framebuffer.
-  if (!renderer.storeBwBuffer()) {
-    LOG_WRN("MDR", "Skipping grayscale render: BW buffer allocation failed");
-    return;
-  }
-
-  // Grayscale antialiasing is skipped in dark mode for the same reason as EpubReaderActivity:
-  // the EPD grayscale LUT is polarity-dependent and produces ghosting after a dark-mode BW refresh.
   if (SETTINGS.textAntiAliasing && !renderer.isDarkMode()) {
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
-    renderer.copyGrayscaleLsbBuffers();
-
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
-    renderer.copyGrayscaleMsbBuffers();
-
-    renderer.displayGrayBuffer();
-    renderer.setRenderMode(GfxRenderer::BW);
+    ReaderUtils::renderAntiAliased(
+        renderer,
+        [&] { page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop); },
+        [&] {
+          page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
+          renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
+        });
   }
-
-  renderer.restoreBwBuffer();
 }
 
 void MarkdownReaderActivity::renderStatusBar(int orientedMarginRight, int orientedMarginBottom,

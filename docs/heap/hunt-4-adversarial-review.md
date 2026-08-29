@@ -1,7 +1,13 @@
 # R4 — Adversary: is there a structural win, or is this the limit?
 
-Read-only. No builds. Citations are `file:line` in `/home/malcolm/Code/ForkDrift/crosspoint-reader`.
+Read-only as of 2026-08-28. No builds. Citations are `file:line` in `/home/malcolm/Code/ForkDrift/crosspoint-reader`.
 Numbers labelled *measured* are from `docs/HEAP_ANALYSIS.md` (post-fix table unless noted) and `docs/heap/lens-4-budget.md`.
+
+**2026-08-29 occupancy diet landed.** Claim 1 was right: Home 11.5 / 8.2 was occupancy.
+Dispatch table + lazy mDNS/WS + start budget 4,504 moved Home+Always serving to
+**29–36 KB / 17 KB**. Claim 6 (“no large firmware-internal win left at Home”) is
+falsified by that diet. Remaining visible tells: AA 8 KB scratch, font prewarm
+~39 KB gate. See HEAP_ANALYSIS occupancy addendum and hunt-3.
 
 ---
 
