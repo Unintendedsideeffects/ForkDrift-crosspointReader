@@ -76,12 +76,18 @@ The existing `spiffs` data region is separate from the two firmware application
 slots. CrossInk uses its final 128 KiB as two 64 KiB language slots. It does not
 mount a filesystem there, resize partitions, or overwrite an OTA/rollback image.
 
-Before first use, the data region must be erased or recognizably owned by this
-feature. If previous firmware left other data there, installation is refused.
-Use English and inspect/back up that data before any deliberate flash cleanup.
-There is no automatic formatting or erase button. Removing SD cache folders does
-not clear internal flash. Normal OTA and SD firmware updates leave this region
-alone; a complete flash erase removes the installed language.
+CrossInk owns this firmware data partition. Applying an SD language initializes
+its selected cache slot automatically, even if another firmware left files or
+filesystem metadata there. Existing SPIFFS files are not preserved as a usable
+filesystem; back them up beforehand if you need them. Only the selected 64 KiB
+slot is erased and written during each installation, with the other slot left
+intact. No manufacturer-specific file or layout detection is needed.
+
+Booting, waking, and selecting English do not initialize flash storage. Removing
+SD cache folders does not clear internal flash. Normal OTA and SD firmware
+updates leave this region alone; a complete flash erase removes the installed
+language. The partition table, both application slots, boot metadata, NVS,
+coredump storage, and SD card are outside the language cache write range.
 
 Installation writes the unselected slot and publishes it only after readback and
 checksum validation. The current slot stays mapped until restart. Settings use

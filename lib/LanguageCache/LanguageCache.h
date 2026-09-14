@@ -40,6 +40,8 @@ struct Input {
   void* context;
   int (*read)(void*, void*, size_t);  // zero = EOF, negative = error
 };
+// The caller supplies firmware-owned storage. Installation may replace existing
+// data in its final two slots; the rest of the region is never modified.
 struct Flash {
   void* context;
   size_t size;

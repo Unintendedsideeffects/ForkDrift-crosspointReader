@@ -209,17 +209,38 @@ void capacity() {
   CHECK(!open(storage.slot(0), SLOT_SIZE, schema(), info));
   schemaInit();
 }
-void ownershipAndFailures() {
+void provisioningAndFailures() {
   schemaInit();
   Storage foreign;
   Installed info;
-  foreign.bytes[8] = 0;
-  auto before = foreign.bytes;
-  CHECK(put(foreign, document(), info) == Result::StorageUnavailable && foreign.bytes == before);
-  foreign.bytes[8] = 0xff;
-  foreign.slot(0)[1000] = 0;
-  before = foreign.bytes;
-  CHECK(put(foreign, document(), info) == Result::StorageUnavailable && foreign.bytes == before);
+  // Firmware owns this data region regardless of its previous filesystem.
+  // Provisioning changes only the chosen cache slot, even with data elsewhere.
+  std::fill(foreign.bytes.begin(), foreign.bytes.end(), 0xa5);
+  const auto before = foreign.bytes;
+  CHECK(put(foreign, document(), info) == Result::Ok && info.slot == 0 && info.generation == 1);
+  CHECK(open(foreign.slot(0), SLOT_SIZE, schema(), info));
+  CHECK(std::memcmp(foreign.bytes.data(), before.data(), SLOT_SIZE) == 0);
+  CHECK(std::memcmp(foreign.slot(1), before.data() + 2 * SLOT_SIZE, SLOT_SIZE) == 0);
+  // A first installation interrupted at any flash mutation can be retried.
+  for (bool torn : {false, true})
+    for (int failure = 0; failure < foreign.mutations; ++failure) {
+      Storage trial;
+      trial.bytes = before;
+      trial.failMutation = failure;
+      trial.torn = torn;
+      CHECK(put(trial, document(), info) == Result::Io);
+      CHECK(std::memcmp(trial.bytes.data(), before.data(), SLOT_SIZE) == 0);
+      CHECK(std::memcmp(trial.slot(1), before.data() + 2 * SLOT_SIZE, SLOT_SIZE) == 0);
+      trial.failMutation = -1;
+      CHECK(put(trial, document(), info) == Result::Ok);
+      CHECK(open(trial.slot(info.slot), SLOT_SIZE, schema(), info));
+    }
+  // Ownership policy does not relax partition capacity/alignment checks.
+  for (size_t size : {SLOT_SIZE, 3 * SLOT_SIZE - 1}) {
+    Storage invalid;
+    invalid.bytes.resize(size);
+    CHECK(put(invalid, document(), info) == Result::StorageUnavailable && invalid.mutations == 0);
+  }
   Storage original;
   CHECK(put(original, document(), info) == Result::Ok);
   CHECK(put(original, document("STR_HOME: \"Older inactive copy\"\n"), info, 0) == Result::Ok);
@@ -266,6 +287,6 @@ int main() {
   parser();
   formats();
   capacity();
-  ownershipAndFailures();
-  std::puts("Language cache tests passed: parsing, formats, compatibility, ownership and interrupted writes");
+  provisioningAndFailures();
+  std::puts("Language cache tests passed: parsing, formats, compatibility, provisioning and interrupted writes");
 }

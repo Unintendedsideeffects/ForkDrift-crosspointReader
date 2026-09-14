@@ -24,8 +24,19 @@ with tempfile.TemporaryDirectory(prefix="crossink-language-") as temporary:
     sample = languages / "custom.yaml"
     sample.write_text('_language_code: "ZZ-CUSTOM"\n_language_name: "My language"\n_direction: "rtl"\n'
                       '_keyboard: "HE"\nSTR_SETTINGS_TITLE: "Custom settings"\n', encoding="utf-8")
+    # Legacy filesystem data must not block installation through the real HAL.
+    # The preceding data region and unselected slot stay untouched.
+    old_flash = bytearray(b"\xff" * 0x360000)
+    old_flash[8] = 0x42
+    old_flash[-0x20000:] = b"\xa5" * 0x20000
+    (base / "flash.bin").write_bytes(old_flash)
+    assert run("boot", "ZZ-CUSTOM").startswith("EN|English|Settings|")
+    assert (base / "flash.bin").read_bytes() == old_flash
     assert "ZZ-CUSTOM|My language|0|" in run("scan")
     assert run("install", "EN", 0, "/.crosspoint/languages/custom.yaml") == "ZZ-CUSTOM|1"
+    installed_flash = (base / "flash.bin").read_bytes()
+    assert installed_flash[:-0x20000] == old_flash[:-0x20000]
+    assert installed_flash[-0x10000:] == old_flash[-0x10000:]
     assert run("boot", "ZZ-CUSTOM", 1) == "ZZ-CUSTOM|My language|Custom settings|1"
     sample.write_text(sample.read_text().replace("Custom settings", "Revised settings"))
     assert "|Custom settings|" in run("boot", "ZZ-CUSTOM", 1)  # edits require apply

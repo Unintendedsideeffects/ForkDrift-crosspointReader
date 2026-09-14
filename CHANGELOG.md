@@ -89,6 +89,7 @@
 ### Fixed
 
 - Touch keyboards keep up with faster typing by polling during screen updates and avoiding extra key-highlight redraws.
+- Language installation now prepares its flash cache automatically when another firmware left filesystem data there.
 - Popups with a one-line explanation no longer stall while drawing.
 - File Transfer choices no longer appear preselected when opened on a touch device.
 - EPUB paragraphs now inherit first-line indentation from HTML and body styles while retaining paragraph-level overrides.

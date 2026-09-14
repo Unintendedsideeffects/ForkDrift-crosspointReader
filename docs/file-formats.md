@@ -1218,8 +1218,11 @@ commit word at offset 16, 64-bit generation at 20, total used bytes at 28,
 UTF-8/ASCII metadata fields are code[32] at 40, name[96] at 72, and keyboard[32]
 at 168. Reserved header bytes are zero. CRC32 covers bytes 20 through the end
 of used data with the checksum field treated as zero. The commit word is
-written last. One intact ownership marker claims the two-slot region together,
-allowing recovery of an interrupted erase of its other slot.
+written last. The marker identifies language-cache contents; permission to use
+the region comes from its firmware data-partition role. Applying a language may
+replace previous filesystem contents in the target slot. Other partition bytes
+and the pinned language slot remain unchanged. Interrupted initial provisioning
+can be retried without needing an intact prior ownership marker.
 
 Records follow sequentially: 64-bit FNV-1a key identity, 64-bit FNV-1a English
 reference signature, 16-bit string length including NUL, then the UTF-8 string.

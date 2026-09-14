@@ -3,8 +3,9 @@
 #include <cstddef>
 #include <cstdint>
 
-// Cold-path access to the existing, unused data partition. The caller owns
-// format/ownership checks. No partition table or application slot is modified.
+// Cold-path access to the firmware-owned spiffs data partition. Existing
+// filesystem contents may be replaced. Application slots and the partition
+// table are outside this adapter; the caller restricts writes to cache slots.
 class HalFlashPartition {
  public:
   struct Mapping {

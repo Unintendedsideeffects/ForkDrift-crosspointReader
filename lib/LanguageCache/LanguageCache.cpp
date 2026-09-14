@@ -44,11 +44,6 @@ uint32_t crcByte(uint32_t crc, uint8_t byte) {
   return (crc >> 8) ^ TABLE[(crc ^ byte) & 0xff];
 }
 
-bool blank(const uint8_t* data, size_t size) {
-  for (size_t i = 0; i < size; ++i)
-    if (data[i] != 0xff) return false;
-  return true;
-}
 bool space(char c) { return c == ' ' || c == '\t' || c == '\r'; }
 bool letter(char c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); }
 bool digit(char c) { return c >= '0' && c <= '9'; }
@@ -234,40 +229,6 @@ bool writeVerified(const Flash& flash, size_t offset, const void* bytes, size_t 
   }
   return true;
 }
-Result ownership(const Flash& flash, Workspace& work) {
-  if (flash.size < 2 * SLOT_SIZE || flash.size % SLOT_SIZE != 0) return Result::StorageUnavailable;
-  // A filesystem left by another firmware must not be silently claimed, even
-  // if its last blocks happen to be unused. Only the two owned slots may differ.
-  const size_t reserved = slotOffset(flash.size, 0);
-  for (size_t off = 0; off < reserved; off += 256) {
-    if (!flash.read(flash.context, off, work.header, 256)) return Result::Io;
-    if (!blank(work.header, 256)) return Result::StorageUnavailable;
-  }
-  // Provisioning claims the pair together. One intact ownership marker also
-  // permits retrying a power-interrupted erase of the other, previously owned
-  // slot. Before the first claim, both slots are checked below.
-  for (int slot = 0; slot < 2; ++slot) {
-    if (!flash.read(flash.context, slotOffset(flash.size, slot), work.header, OWNER_SIZE)) return Result::Io;
-    if (std::memcmp(work.header, OWNER, OWNER_SIZE) == 0) return Result::Ok;
-  }
-  for (int slot = 0; slot < 2; ++slot) {
-    const size_t base = slotOffset(flash.size, slot);
-    if (!flash.read(flash.context, base, work.header, OWNER_SIZE)) return Result::Io;
-    if (std::memcmp(work.header, OWNER, OWNER_SIZE) == 0) continue;
-    // A torn first ownership write is retryable only when every programmed
-    // bit belongs to our marker and the rest of that slot is still erased.
-    for (size_t i = 0; i < OWNER_SIZE; ++i)
-      if ((work.header[i] | OWNER[i]) != work.header[i]) return Result::StorageUnavailable;
-    for (size_t off = OWNER_SIZE; off < SLOT_SIZE;) {
-      const size_t n = std::min<size_t>(256, SLOT_SIZE - off);
-      if (!flash.read(flash.context, base + off, work.header, n)) return Result::Io;
-      if (!blank(work.header, n)) return Result::StorageUnavailable;
-      off += n;
-    }
-  }
-  return Result::Ok;
-}
-
 bool formatSignature(const char* text, uint8_t* signature, size_t& count) {
   count = 0;
   const auto arg = [&](uint8_t type) {
@@ -426,7 +387,7 @@ const char* resultName(Result result) {
     case Result::MetadataMissing:
       return "missing language metadata";
     case Result::StorageUnavailable:
-      return "language flash unavailable or contains other data";
+      return "language cache partition unavailable";
   }
   return "unknown";
 }
@@ -467,10 +428,12 @@ Result Inspector::inspect(Input input, Metadata& metadata) {
 
 Result install(Input input, const Schema& schema, const Flash& flash, int pinnedSlot, Installed& installed) {
   if (schema.count > MAX_KEYS || pinnedSlot < -1 || pinnedSlot > 1) return Result::Invalid;
+  if (flash.size < 2 * SLOT_SIZE || flash.size % SLOT_SIZE != 0) return Result::StorageUnavailable;
   auto work = std::unique_ptr<Workspace>(new (std::nothrow) Workspace());
   if (!work) return Result::Memory;
-  auto result = ownership(flash, *work);
-  if (result != Result::Ok) return result;
+  Result result;
+  // The HAL supplies firmware-owned data storage. Legacy filesystem bytes do
+  // not prevent provisioning; only a committed language cache is reusable.
   uint64_t newest = 0;
   int latestSlot = -1;
   for (int slot = 0; slot < 2; ++slot) {
