@@ -278,6 +278,9 @@ class SettingsActivity final : public Activity {
   SettingAction parentSubmenu = SettingAction::None;
 
   OptionPopup optionPopup;
+  std::unique_ptr<I18n::Catalog> languageCatalog;
+  I18n::Option pendingLanguage;
+  StrId languageError = StrId::_COUNT;
 
   static constexpr int categoryCount = 4;
   static const StrId categoryNames[categoryCount];
@@ -310,6 +313,7 @@ class SettingsActivity final : public Activity {
   void openScreenMarginPicker(const SettingInfo& setting);
   void openWordSpacingPicker();
   void openLanguagePicker();
+  void applyLanguage(const I18n::Option& selected);
   void openIdleTimeThresholdPicker();
   void toggleCurrentSetting();
   void openSleepTimeoutPicker();

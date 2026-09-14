@@ -96,6 +96,8 @@ jobs:
       RC_BRANCH: ${{ github.ref_name }}
       RC_HASH: ${{ github.sha }}
     steps:
+      - uses: actions/checkout@v6
+
       - name: Resolve release-candidate metadata
         shell: bash
         run: |
@@ -115,6 +117,9 @@ jobs:
           merge-multiple: true
           path: release-candidate-firmware
 
+      - name: Package SD language files
+        run: python3 scripts/package_languages.py --version "${{ env.RC_TAG }}" --output "release-candidate-firmware/crossink-languages-${{ env.RC_TAG }}.zip"
+
       - name: Create GitHub RC Prerelease
         uses: softprops/action-gh-release@v3
         with:
@@ -127,6 +132,7 @@ jobs:
           draft: true
           prerelease: true
           files: |
+            release-candidate-firmware/crossink-languages-${{ env.RC_TAG }}.zip
             release-candidate-firmware/firmware-x3-x4-${{ env.RC_BRANCH_SAFE }}-${{ env.RC_HASH_SHORT }}-RC.bin
             release-candidate-firmware/firmware-sticky-${{ env.RC_BRANCH_SAFE }}-${{ env.RC_HASH_SHORT }}-RC.bin
             release-candidate-firmware/firmware-x4-pro-${{ env.RC_BRANCH_SAFE }}-${{ env.RC_HASH_SHORT }}-RC.bin

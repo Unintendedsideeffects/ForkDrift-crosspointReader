@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """
-Generate I18n C++ files from per-language YAML translations.
+Generate English-only I18n firmware data and stable translation-key metadata.
 
-Reads YAML files from a translations directory (one file per language) and generates:
+Reads english.yaml and the frozen languages.json compatibility registry and generates:
 - I18nKeys.h:     Language enum, StrId enum, helper functions
 - I18nStrings.h:  String array declarations
-- I18nStrings.cpp: String array definitions with all translations
+- I18nStrings.cpp: English strings and stable key metadata
 
 Each YAML file must contain:
   _language_name: "Native Name"     (e.g. "Español")
   _language_code: "ENUM_NAME"       (e.g. "ES")
   STR_KEY: "translation text"
 
-The English file is the reference. Missing keys in other languages are
-automatically filled from English, with a warning.
+Community YAML files are independent SD assets and are not read during firmware builds.
 
 By default the script scans the src/ and lib/ trees for STR_* references and
 reports any translation keys that are never used.  Pass --strip-unused to
@@ -30,6 +29,7 @@ Examples:
 """
 
 import hashlib
+import json
 import os
 import re
 import sys
@@ -107,7 +107,7 @@ def parse_yaml_file(filepath: str) -> Dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# Load all languages from a directory of YAML files
+# Load English from the source YAML directory
 # ---------------------------------------------------------------------------
 
 
@@ -116,131 +116,35 @@ def load_translations(
     verbose: bool = False,
 ) -> Tuple[List[str], List[str], List[str], Dict[str, List[str]], List[Set[str]]]:
     """
-    Read every YAML file in *translations_dir* and return:
-        language_codes   e.g. ["EN", "ES", ...]
-        language_names   e.g. ["English", "Español", ...]
+    Read english.yaml from *translations_dir* and return:
+        language_codes   ["EN"]
+        language_names   ["English"]
         string_keys      ordered list of STR_* keys (from English)
         translations     {key: [translation_per_language]}
 
-    English is always first;
+    Community files are packaged separately and never parsed here.
     """
-    yaml_dir = Path(translations_dir)
-    if not yaml_dir.is_dir():
-        raise FileNotFoundError(f"Translations directory not found: {translations_dir}")
+    # Community YAML files are release assets, never firmware build inputs.
+    english = parse_yaml_file(str(Path(translations_dir) / "english.yaml"))
+    keys = [key for key in english if not key.startswith("_")]
+    return ["EN"], ["English"], keys, {key: [english[key]] for key in keys}, [set()]
 
-    yaml_files = sorted(yaml_dir.glob("*.yaml"))
-    if not yaml_files:
-        raise FileNotFoundError(f"No .yaml files found in {translations_dir}")
 
-    # Parse every file
-    parsed: Dict[str, Dict[str, str]] = {}
-    for yf in yaml_files:
-        parsed[yf.name] = parse_yaml_file(str(yf))
+def known_languages():
+    """Frozen compatibility identities, independent of community translations."""
+    root = Path(__file__).resolve().parent.parent if "__file__" in globals() else Path.cwd()
+    return json.loads((root / "lib/I18n/languages.json").read_text())
 
-    # Identify the English file (must exist)
-    english_file = None
-    for name, data in parsed.items():
-        if data.get("_language_code", "").upper() == "EN":
-            english_file = name
-            break
 
-    if english_file is None:
-        raise ValueError("No YAML file with _language_code: EN found")
+def stable_hash(text):
+    value = 14695981039346656037
+    for byte in text.encode("utf-8"):
+        value = ((value ^ byte) * 1099511628211) & 0xffffffffffffffff
+    return value
 
-    duplicate_orders: Dict[str, List[str]] = {}
-    order_to_files: Dict[str, List[str]] = {}
-    for fname, data in parsed.items():
-        order = data.get("_order")
-        if not order:
-            continue
-        order_to_files.setdefault(order, []).append(fname)
 
-    for order, files in order_to_files.items():
-        if len(files) > 1:
-            duplicate_orders[order] = sorted(files)
-
-    if duplicate_orders:
-        duplicate_messages = [
-            f"_order {order}: {', '.join(files)}"
-            for order, files in sorted(
-                duplicate_orders.items(), key=lambda item: int(item[0])
-            )
-        ]
-        raise ValueError(
-            "Duplicate _order values found:\n  "
-            + "\n  ".join(duplicate_messages)
-            + "\nEach _order value must be unique to ensure a deterministic language order."
-        )
-
-    # Order: English first, then by _order metadata (falls back to filename)
-    def sort_key(fname: str) -> Tuple[int, int, str]:
-        """English always first (0), then by _order, then by filename."""
-        if fname == english_file:
-            return (0, 0, fname)
-        order = parsed[fname].get("_order", "999")
-        try:
-            order_int = int(order)
-        except ValueError:
-            order_int = 999
-        return (1, order_int, fname)
-
-    ordered_files = sorted(parsed, key=sort_key)
-
-    # Extract metadata
-    language_codes: List[str] = []
-    language_names: List[str] = []
-    for fname in ordered_files:
-        data = parsed[fname]
-        code = data.get("_language_code")
-        name = data.get("_language_name")
-        if not code or not name:
-            raise ValueError(f"{fname}: missing _language_code or _language_name")
-        language_codes.append(code)
-        language_names.append(name)
-
-    # String keys come from English (order matters)
-    english_data = parsed[english_file]
-    string_keys = [k for k in english_data if not k.startswith("_")]
-
-    # Validate all keys are valid C++ identifiers
-    for key in string_keys:
-        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", key):
-            raise ValueError(f"Invalid C++ identifier in English file: '{key}'")
-
-    # Build translations dict, filling missing keys from English
-    inherited_sets: List[Set[str]] = [set() for _ in ordered_files]
-    translations: Dict[str, List[str]] = {}
-    for key in string_keys:
-        row: List[str] = []
-        for lang_idx, fname in enumerate(ordered_files):
-            data = parsed[fname]
-            value = data.get(key, "")
-            if not value.strip() and fname != english_file:
-                value = english_data[key]
-                inherited_sets[lang_idx].add(key)
-                if verbose:
-                    print(
-                        f"  INFO: '{key}' missing in {language_codes[lang_idx]}, using English fallback"
-                    )
-            row.append(value)
-        translations[key] = row
-
-    # Warn about extra keys in non-English files
-    for fname in ordered_files:
-        if fname == english_file:
-            continue
-        data = parsed[fname]
-        extra = [k for k in data if not k.startswith("_") and k not in english_data]
-        if extra:
-            lang_code = data.get("_language_code", fname)
-            if verbose:
-                print(
-                    f"  WARNING: {lang_code} has keys not in English: {', '.join(extra)}"
-                )
-
-    if verbose:
-        print(f"Loaded {len(language_codes)} languages, {len(string_keys)} string keys")
-    return language_codes, language_names, string_keys, translations, inherited_sets
+# Existing printf keys without the preferred _FORMAT suffix.
+FORMAT_KEYS = {"STR_NETWORKS_FOUND", "STR_NEARBY_TRANSFER_SIZE", "STR_MOVE_TO_READ_FAILED_BODY"}
 
 
 # ---------------------------------------------------------------------------
@@ -472,7 +376,7 @@ def generate_keys_header(
     # Language enum
     lines.append("// Language enum")
     lines.append("enum class Language : uint8_t {")
-    for i, lang in enumerate(languages):
+    for i, (lang, _) in enumerate(known_languages()):
         lines.append(f"  {lang} = {i},")
     lines.append("  _COUNT")
     lines.append("};")
@@ -489,6 +393,19 @@ def generate_keys_header(
     lines.append("// Character sets for each language (defined in I18nStrings.cpp)")
     lines.append("extern const char* const CHARACTER_SETS[];")
     lines.append("")
+
+    lines.extend([
+        "// Stable key metadata used only while installing or opening a language cache.",
+        "struct TranslationKey {",
+        "  uint64_t keyHash;",
+        "  uint64_t englishHash;",
+        "  const char* name;",
+        "  uint16_t id;",
+        "  bool formatted;",
+        "};",
+        "extern const TranslationKey TRANSLATION_KEYS[];",
+        "",
+    ])
 
     # StrId enum
     lines.append("// String IDs")
@@ -533,30 +450,6 @@ def generate_keys_header(
         "constexpr uint8_t getLanguageCount() "
         "{ return static_cast<uint8_t>(Language::_COUNT); }"
     )
-    lines.append("")
-
-    # Sorted language indices for display order
-    # (English first, then by native language name alphabetically)
-    english_idx = languages.index("EN")
-    rest = sorted(
-        (i for i in range(len(languages)) if i != english_idx and languages[i] in compiled),
-        key=lambda i: language_names[i],
-    )
-    sorted_indices = [english_idx] + rest
-    lines.append("// Sorted language indices by native name (auto-generated by gen_i18n.py)")
-    for rank, idx in enumerate(sorted_indices):
-        lines.append(f"//   {rank:>2}: {languages[idx]:<4} {language_names[idx]}")
-    lines.append(
-        "constexpr uint8_t SORTED_LANGUAGE_INDICES[] = {"
-        f"{', '.join(str(i) for i in sorted_indices)}"
-        "};"
-    )
-    lines.append("")
-    size_check = "==" if builtin is None else "<="
-    lines.append(
-        f"static_assert(sizeof(SORTED_LANGUAGE_INDICES) / sizeof(SORTED_LANGUAGE_INDICES[0]) {size_check} getLanguageCount(),"
-    )
-    lines.append('              "SORTED_LANGUAGE_INDICES size mismatch");')
     lines.append("")
 
     # V1 language.bin migration table -- frozen enum order from commit 2f969a9.
@@ -629,7 +522,7 @@ def generate_strings_cpp(
     # LANGUAGE_CODES array
     lines.append("// Language codes")
     lines.append("const char* const LANGUAGE_CODES[] = {")
-    for code in languages:
+    for code, _ in known_languages():
         _append_string_entry(lines, code)
     lines.append("};")
     lines.append("")
@@ -637,7 +530,7 @@ def generate_strings_cpp(
     # LANGUAGE_NAMES array
     lines.append("// Language display names")
     lines.append("const char* const LANGUAGE_NAMES[] = {")
-    for name in language_names:
+    for _, name in known_languages():
         _append_string_entry(lines, name)
     lines.append("};")
     lines.append("")
@@ -652,6 +545,16 @@ def generate_strings_cpp(
         _append_string_entry(lines, charset, comment=name)
     lines.append("};")
     lines.append("")
+
+    keyed = sorted((stable_hash(key), key, i) for i, key in enumerate(string_keys))
+    if len({h for h, _, _ in keyed}) != len(keyed):
+        raise ValueError("Translation key hash collision")
+    lines.append("const TranslationKey TRANSLATION_KEYS[] = {")
+    for key_hash, key, i in keyed:
+        source_hash = stable_hash(translations[key][0])
+        formatted = "true" if key.endswith("_FORMAT") or key in FORMAT_KEYS else "false"
+        lines.append(f'  {{0x{key_hash:016x}ULL, 0x{source_hash:016x}ULL, "{key}", {i}, {formatted}}},')
+    lines.extend(["};", ""])
 
     # Per-language flat string blobs and offset tables.
     # Non-English languages skip strings identical to English; their offset
@@ -1005,7 +908,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Generate I18n C++ files from per-language YAML translations."
+        description="Generate English-only I18n firmware data and stable translation-key metadata."
     )
     parser.add_argument(
         "translations_dir",

@@ -1241,7 +1241,7 @@ void LibraryActivity::buildListScreen(UiApp::ScreenType& screen) {
   props.labelText.maxLines = 1;
   props.headerText = screen.theme().bodyText;
   props.headerText.bold = true;
-  props.rtl = (I18N.getLanguage() == Language::AR || I18N.getLanguage() == Language::HE);
+  props.rtl = I18N.isRightToLeft();
   configureUiList(props, screen.theme(), screen.body(), UiListRowType::WithSubtitle);
   props.subtitleText.maxLines = 3;
   listNav.selected = showSelection ? selection - CONTROL_COUNT : -1;

@@ -1071,10 +1071,7 @@ unsigned long MappedInputManager::getHeldTime() const {
 
 namespace {
 
-bool isRightToLeftUiLanguage() {
-  const auto language = I18N.getLanguage();
-  return language == Language::AR || language == Language::HE;
-}
+bool isRightToLeftUiLanguage() { return I18N.isRightToLeft(); }
 
 }  // namespace
 

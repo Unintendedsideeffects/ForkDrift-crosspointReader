@@ -2,6 +2,8 @@
 
 ### Added
 
+- Install and edit interface languages from SD files, including community languages; missing translations fall back to English.
+
 - Track active reading seconds by local day and sync daily reading time to CrossPoint Sync.
 - Show today's reading time and a 7-day average on the This Device reading stats page.
 - Choose Small, Medium, or Large text for the top and bottom reader status bars.
@@ -26,6 +28,7 @@
 ### Changed
 
 - Reduce resident lookup-table memory for SD fonts containing both BMP and supplementary Unicode ranges.
+- English is the only built-in interface language. Other languages are included in a separate release download and installed through Language settings.
 
 ### Fixed
 
@@ -86,6 +89,7 @@
 ### Fixed
 
 - Touch keyboards keep up with faster typing by polling during screen updates and avoiding extra key-highlight redraws.
+- Popups with a one-line explanation no longer stall while drawing.
 - File Transfer choices no longer appear preselected when opened on a touch device.
 - EPUB paragraphs now inherit first-line indentation from HTML and body styles while retaining paragraph-level overrides.
 - Saved clipping lists now show a scrollbar when more clippings are available below the visible rows.

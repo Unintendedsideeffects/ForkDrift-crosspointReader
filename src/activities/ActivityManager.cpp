@@ -10,6 +10,7 @@
 #include <FsHelpers.h>
 #include <HalPowerManager.h>
 #include <HalStorage.h>
+#include <LanguageBenchmark.h>
 #include <Logging.h>
 #include <Memory.h>
 #include <Xtc.h>
@@ -489,7 +490,13 @@ void ActivityManager::renderTaskLoop() {
       // Apply Night Mode to each activity's normal-polarity frame. SleepActivity
       // preserves it only for Quick Resume and clears it for other sleep screens.
       display.setInverted(SETTINGS.screenInverted != 0);
+#if defined(CROSSINK_LANGUAGE_BENCHMARK)
+      language_benchmark::beginFrame(currentActivity->name.c_str());
+#endif
       currentActivity->render(std::move(lock));
+#if defined(CROSSINK_LANGUAGE_BENCHMARK)
+      language_benchmark::endFrame();
+#endif
       restoredActivityNeedsRender = false;
     }
     TouchRegistry::getInstance().publish();

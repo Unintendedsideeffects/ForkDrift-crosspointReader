@@ -7,6 +7,7 @@
 #include <BuildScratch.h>
 #include <FontDecompressor.h>
 #include <HalGPIO.h>
+#include <LanguageBenchmark.h>
 #include <Logging.h>
 #include <SdCardFont.h>
 #include <Utf8.h>
@@ -2394,6 +2395,9 @@ void GfxRenderer::invertRect(const int x, const int y, const int width, const in
 }
 
 void GfxRenderer::displayBuffer(const HalDisplay::RefreshMode refreshMode, const bool turnOffScreen) const {
+#if defined(CROSSINK_LANGUAGE_BENCHMARK)
+  language_benchmark::DisplayScope timing;
+#endif
   display.displayBuffer(refreshMode, fadingFix || turnOffScreen);
 }
 
@@ -2431,6 +2435,9 @@ void GfxRenderer::writeFramebufferRegion(uint16_t x, uint16_t y, uint16_t w, uin
 }
 
 void GfxRenderer::displayBufferAsync(const HalDisplay::RefreshMode refreshMode) const {
+#if defined(CROSSINK_LANGUAGE_BENCHMARK)
+  language_benchmark::DisplayScope timing;
+#endif
   // The async path has no turn-off-screen hook, which the sunlight fading fix
   // relies on; keep those users on the blocking path.
   if (fadingFix) {
@@ -2440,7 +2447,12 @@ void GfxRenderer::displayBufferAsync(const HalDisplay::RefreshMode refreshMode) 
   display.displayBufferAsync(refreshMode);
 }
 
-void GfxRenderer::waitRefreshComplete() const { display.waitRefreshComplete(); }
+void GfxRenderer::waitRefreshComplete() const {
+#if defined(CROSSINK_LANGUAGE_BENCHMARK)
+  language_benchmark::DisplayScope timing;
+#endif
+  display.waitRefreshComplete();
+}
 
 bool GfxRenderer::supportsAsyncRefresh() const { return !fadingFix && display.supportsAsyncRefresh(); }
 
@@ -3124,6 +3136,9 @@ void GfxRenderer::copyGrayscaleLsbBuffers() const { display.copyGrayscaleLsbBuff
 void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuffers(frameBuffer); }
 
 void GfxRenderer::displayGrayBuffer(const bool turnOffScreen) const {
+#if defined(CROSSINK_LANGUAGE_BENCHMARK)
+  language_benchmark::DisplayScope timing;
+#endif
   display.displayGrayBuffer(fadingFix || turnOffScreen);
   absoluteGrayPlanes = false;
 }

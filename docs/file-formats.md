@@ -1205,3 +1205,32 @@ buffer; it marks that counter uploaded only after `accepted_daily: 1`. Old serve
 can still accept aggregate stats, but cannot silently discard daily history and
 acknowledge it. Failed requests remain eligible for retry, including recovered
 `.tmp`/`.bak` records. Nearby-device snapshots are never uploaded as local history.
+## Internal language cache (v1)
+
+The last 128 KiB of the existing `spiffs` data partition contains two 64 KiB
+slots. No application partition or partition-table entry changes. All integer
+fields are explicitly serialized little-endian; no packed C++ structs are cast
+onto flash bytes.
+
+A slot begins with a 256-byte header: a 16-byte `CILANG` v1 ownership marker,
+commit word at offset 16, 64-bit generation at 20, total used bytes at 28,
+16-bit record count at 32, RTL flag at 34, and CRC32 at 36. Fixed NUL-terminated
+UTF-8/ASCII metadata fields are code[32] at 40, name[96] at 72, and keyboard[32]
+at 168. Reserved header bytes are zero. CRC32 covers bytes 20 through the end
+of used data with the checksum field treated as zero. The commit word is
+written last. One intact ownership marker claims the two-slot region together,
+allowing recovery of an interrupted erase of its other slot.
+
+Records follow sequentially: 64-bit FNV-1a key identity, 64-bit FNV-1a English
+reference signature, 16-bit string length including NUL, then the UTF-8 string.
+Only translated entries known at installation are stored. Firmware matches
+stable identities/signatures at startup and builds a uint16_t offset per current
+StrId; 0xffff means English fallback. Numeric StrId order is not an on-flash ABI.
+Checksums, lengths, UTF-8, metadata, and current-key duplicates are validated
+before a mapping is exposed. The mapping remains pinned until restart.
+
+Settings keep the preferred code in the existing `language` JSON key and the
+selected generation in `languageCacheGeneration`. A zero generation permits a
+legacy preference to find the newest matching valid slot. Normal saves use a
+synced `.tmp` and recoverable `.bak`; a remaining backup denotes an unfinished
+publication and is restored before settings are loaded or saved.

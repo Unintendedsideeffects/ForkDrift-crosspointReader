@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "fontIds.h"
+#include "components/OptionLabels.h"
 #include "util/ReaderStatusBarConfig.h"
 
 class GfxRenderer;
@@ -307,11 +308,10 @@ class BaseTheme {
   // With preserveBackdrop, leave the popup on the display but restore the backing
   // pixels for the next redraw. Caller must own RenderLock.
   virtual Rect drawPopup(const GfxRenderer& renderer, const char* message, bool preserveBackdrop = false) const;
-  virtual void drawOptionPopup(const GfxRenderer& renderer, const char* title, const std::vector<std::string>& options,
-                               int selectedIndex, bool showConfirmationFooter = false,
-                               const char* cancelLabel = nullptr, const char* saveLabel = nullptr,
-                               bool saveFocused = false, int primaryOptionIndex = -1, const char* noteLabel = nullptr,
-                               const char* noteBody = nullptr, const std::vector<bool>& disabledOptions = {},
+  virtual void drawOptionPopup(const GfxRenderer& renderer, const char* title, OptionLabels options, int selectedIndex,
+                               bool showConfirmationFooter = false, const char* cancelLabel = nullptr,
+                               const char* saveLabel = nullptr, bool saveFocused = false, int primaryOptionIndex = -1,
+                               const char* noteLabel = nullptr, const char* noteBody = nullptr,
                                int firstOptionIndex = -1) const;
   virtual void fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, const int progress) const;
   // title is borrowed and must stay alive for the call; pass nullptr or "" for none.

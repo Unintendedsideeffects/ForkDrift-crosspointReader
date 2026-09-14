@@ -179,6 +179,9 @@ jobs:
           git commit -S -m "Update release manifests for v${RELEASE_VERSION}"
           git push origin "HEAD:$DEFAULT_BRANCH"
 
+      - name: Package SD language files
+        run: python3 scripts/package_languages.py --version "${{ env.RELEASE_VERSION }}" --output "release-firmware/crossink-languages-${{ env.RELEASE_VERSION }}.zip"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -187,6 +190,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           draft: true
           files: |
+            release-firmware/crossink-languages-${{ env.RELEASE_VERSION }}.zip
             release-firmware/firmware-x3-x4-v${{ env.RELEASE_VERSION }}.bin
             release-firmware/firmware-sticky-v${{ env.RELEASE_VERSION }}.bin
             release-firmware/firmware-x4-pro-v${{ env.RELEASE_VERSION }}.bin

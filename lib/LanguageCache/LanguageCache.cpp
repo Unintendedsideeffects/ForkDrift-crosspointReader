@@ -1,0 +1,612 @@
+#include "LanguageCache.h"
+
+#include <algorithm>
+#include <array>
+#include <cstring>
+#include <limits>
+#include <memory>
+#include <new>
+
+namespace language_cache {
+namespace {
+constexpr uint8_t OWNER[OWNER_SIZE] = {'C', 'I', 'L', 'A', 'N', 'G', 1, 0, 'O', 'W', 'N', 'E', 'R', 0x5a, 0xa5, 0};
+constexpr uint32_t COMMITTED = 0x314e414c;
+constexpr size_t RECORD_SIZE = 18;
+constexpr size_t LINE_SIZE = 2048;
+constexpr size_t UNKNOWN_LIMIT = 256;
+
+uint16_t u16(const uint8_t* p) { return uint16_t(p[0]) | (uint16_t(p[1]) << 8); }
+uint32_t u32(const uint8_t* p) { return uint32_t(u16(p)) | (uint32_t(u16(p + 2)) << 16); }
+uint64_t u64(const uint8_t* p) { return uint64_t(u32(p)) | (uint64_t(u32(p + 4)) << 32); }
+void put16(uint8_t* p, uint16_t n) {
+  p[0] = n;
+  p[1] = n >> 8;
+}
+void put32(uint8_t* p, uint32_t n) {
+  put16(p, n);
+  put16(p + 2, n >> 16);
+}
+void put64(uint8_t* p, uint64_t n) {
+  put32(p, n);
+  put32(p + 4, n >> 32);
+}
+constexpr auto crcTable() {
+  std::array<uint32_t, 256> table{};
+  for (size_t i = 0; i < table.size(); ++i) {
+    uint32_t crc = static_cast<uint32_t>(i);
+    for (int bit = 0; bit < 8; ++bit) crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));
+    table[i] = crc;
+  }
+  return table;
+}
+uint32_t crcByte(uint32_t crc, uint8_t byte) {
+  static constexpr auto TABLE = crcTable();  // flash, not a 1 KiB DRAM reservation
+  return (crc >> 8) ^ TABLE[(crc ^ byte) & 0xff];
+}
+
+bool blank(const uint8_t* data, size_t size) {
+  for (size_t i = 0; i < size; ++i)
+    if (data[i] != 0xff) return false;
+  return true;
+}
+bool space(char c) { return c == ' ' || c == '\t' || c == '\r'; }
+bool letter(char c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); }
+bool digit(char c) { return c >= '0' && c <= '9'; }
+
+// Cold-path workspace: <5 KiB, allocated once per inspection/install. Too large
+// for an activity stack; keeping it resident would penalize C3 reading sessions.
+struct Workspace {
+  char line[LINE_SIZE];
+  uint64_t unknown[UNKNOWN_LIMIT];
+  uint8_t seen[MAX_KEYS / 8] = {};
+  uint8_t header[HEADER_SIZE];
+  uint8_t inputBuffer[256];
+  size_t unknownCount = 0;
+};
+static_assert(sizeof(Workspace) < 5120);
+
+class Reader {
+  Input input;
+  uint8_t* buffer;
+  size_t cursor = 0, available = 0, total = 0;
+
+ public:
+  Reader(Input in, uint8_t* buf) : input(in), buffer(buf) {}
+  Result line(char* out, bool& eof) {
+    size_t length = 0;
+    eof = false;
+    while (true) {
+      if (cursor == available) {
+        const int n = input.read(input.context, buffer, 256);
+        if (n < 0 || n > 256) return Result::Io;
+        cursor = 0;
+        available = static_cast<size_t>(n);
+        if (n == 0) {
+          eof = length == 0;
+          break;
+        }
+      }
+      if (++total > MAX_SOURCE_SIZE) return Result::TooLarge;
+      const char c = static_cast<char>(buffer[cursor++]);
+      if (c == '\0') return Result::Invalid;
+      if (c == '\n') break;
+      if (length == LINE_SIZE - 1) return Result::TooLarge;
+      out[length++] = c;
+    }
+    if (length && out[length - 1] == '\r') --length;
+    out[length] = '\0';
+    return validUtf8(out, length) ? Result::Ok : Result::Invalid;
+  }
+};
+
+Result parseLine(char* line, char*& key, char*& value) {
+  key = value = nullptr;
+  char* p = line;
+  while (space(*p)) ++p;
+  if (*p == '\0' || *p == '#') return Result::Ok;
+  if (!letter(*p) && *p != '_') return Result::Invalid;
+  key = p++;
+  while (letter(*p) || digit(*p) || *p == '_') ++p;
+  char* end = p;
+  if (end - key > 127) return Result::TooLarge;
+  while (space(*p)) ++p;
+  if (*p++ != ':') return Result::Invalid;
+  *end = '\0';
+  while (space(*p)) ++p;
+  if (*p++ != '"') return Result::Invalid;
+  value = p;
+  char* dest = value;
+  while (*p && *p != '"') {
+    char c = *p++;
+    if (c == '\\') {
+      c = *p++;
+      if (c == 'n')
+        c = '\n';
+      else if (c == 't')
+        c = '\t';
+      else if (c != '\\' && c != '"')
+        return Result::Invalid;
+    }
+    *dest++ = c;
+  }
+  if (*p++ != '"') return Result::Invalid;
+  while (space(*p)) ++p;
+  if (*p && *p != '#') return Result::Invalid;
+  *dest = '\0';
+  return validUtf8(value, static_cast<size_t>(dest - value)) ? Result::Ok : Result::Invalid;
+}
+
+bool copyCode(char* dest, char* source) {
+  for (char* p = source; *p; ++p)
+    if (*p >= 'a' && *p <= 'z') *p -= 'a' - 'A';
+  if (!validCode(source)) return false;
+  std::strcpy(dest, source);
+  return true;
+}
+Result metadataLine(const char* key, char* value, Metadata& meta, bool& explicitDirection) {
+  if (std::strcmp(key, "_language_code") == 0) return copyCode(meta.code, value) ? Result::Ok : Result::Invalid;
+  if (std::strcmp(key, "_language_name") == 0) {
+    if (!*value || std::strlen(value) >= NAME_SIZE || std::strchr(value, '\n') || std::strchr(value, '\t'))
+      return Result::Invalid;
+    std::strcpy(meta.name, value);
+  } else if (std::strcmp(key, "_keyboard") == 0) {
+    if (!copyCode(meta.keyboard, value)) return Result::Invalid;
+  } else if (std::strcmp(key, "_direction") == 0) {
+    if (std::strcmp(value, "rtl") != 0 && std::strcmp(value, "ltr") != 0) return Result::Invalid;
+    meta.rtl = std::strcmp(value, "rtl") == 0;
+    explicitDirection = true;
+  }
+  return Result::Ok;
+}
+Result finishMetadata(Metadata& meta, bool explicitDirection) {
+  if (!validCode(meta.code) || !*meta.name) return Result::MetadataMissing;
+  if (std::strcmp(meta.code, "EN") == 0) return Result::Invalid;
+  if (!explicitDirection) meta.rtl = std::strcmp(meta.code, "AR") == 0 || std::strcmp(meta.code, "HE") == 0;
+  if (!*meta.keyboard) std::strcpy(meta.keyboard, meta.code);
+  return Result::Ok;
+}
+bool findKey(const Schema& schema, uint64_t h, Key& out) {
+  size_t first = 0, last = schema.count;
+  while (first < last) {
+    const size_t mid = first + (last - first) / 2;
+    const Key candidate = schema.at(mid);
+    if (candidate.hash < h)
+      first = mid + 1;
+    else
+      last = mid;
+  }
+  if (first == schema.count) return false;
+  out = schema.at(first);
+  return out.hash == h && out.id < schema.count;
+}
+Result remember(Workspace& work, uint64_t h, const Key* known) {
+  if (known) {
+    const uint8_t bit = uint8_t(1u << (known->id % 8));
+    if (work.seen[known->id / 8] & bit) return Result::Duplicate;
+    work.seen[known->id / 8] |= bit;
+  } else {
+    for (size_t i = 0; i < work.unknownCount; ++i)
+      if (work.unknown[i] == h) return Result::Duplicate;
+    if (work.unknownCount == UNKNOWN_LIMIT) return Result::TooLarge;
+    work.unknown[work.unknownCount++] = h;
+  }
+  return Result::Ok;
+}
+bool fieldString(const uint8_t* p, size_t size) {
+  const auto* end = static_cast<const uint8_t*>(std::memchr(p, 0, size));
+  return end && validUtf8(reinterpret_cast<const char*>(p), static_cast<size_t>(end - p));
+}
+bool headerValid(const uint8_t* header) {
+  return std::memcmp(header, OWNER, OWNER_SIZE) == 0 && u32(header + 16) == COMMITTED && u64(header + 20) != 0 &&
+         u32(header + 28) >= HEADER_SIZE && u32(header + 28) <= SLOT_SIZE && u16(header + 32) <= MAX_KEYS &&
+         header[34] <= 1 && fieldString(header + 40, CODE_SIZE) &&
+         validCode(reinterpret_cast<const char*>(header + 40)) &&
+         std::strcmp(reinterpret_cast<const char*>(header + 40), "EN") != 0 && fieldString(header + 72, NAME_SIZE) &&
+         header[72] != 0 && fieldString(header + 168, CODE_SIZE) &&
+         validCode(reinterpret_cast<const char*>(header + 168));
+}
+void decodeHeader(const uint8_t* header, Installed& result) {
+  result.generation = u64(header + 20);
+  result.checksum = u32(header + 36);
+  std::memcpy(result.metadata.code, header + 40, CODE_SIZE);
+  std::memcpy(result.metadata.name, header + 72, NAME_SIZE);
+  std::memcpy(result.metadata.keyboard, header + 168, CODE_SIZE);
+  result.metadata.rtl = header[34] != 0;
+}
+Result readCrc(const Flash& flash, size_t base, size_t size, uint8_t* scratch, uint32_t& result) {
+  uint32_t crc = ~0u;
+  for (size_t offset = 20; offset < size;) {
+    const size_t n = std::min<size_t>(256, size - offset);
+    if (!flash.read(flash.context, base + offset, scratch, n)) return Result::Io;
+    for (size_t i = 0; i < n; ++i) crc = crcByte(crc, offset + i >= 36 && offset + i < 40 ? 0 : scratch[i]);
+    offset += n;
+  }
+  result = ~crc;
+  return Result::Ok;
+}
+bool writeVerified(const Flash& flash, size_t offset, const void* bytes, size_t size) {
+  if (!flash.write(flash.context, offset, bytes, size)) return false;
+  uint8_t check[128];
+  const auto* data = static_cast<const uint8_t*>(bytes);
+  for (size_t i = 0; i < size; i += sizeof(check)) {
+    const size_t n = std::min(sizeof(check), size - i);
+    if (!flash.read(flash.context, offset + i, check, n) || std::memcmp(check, data + i, n) != 0) return false;
+  }
+  return true;
+}
+Result ownership(const Flash& flash, Workspace& work) {
+  if (flash.size < 2 * SLOT_SIZE || flash.size % SLOT_SIZE != 0) return Result::StorageUnavailable;
+  // A filesystem left by another firmware must not be silently claimed, even
+  // if its last blocks happen to be unused. Only the two owned slots may differ.
+  const size_t reserved = slotOffset(flash.size, 0);
+  for (size_t off = 0; off < reserved; off += 256) {
+    if (!flash.read(flash.context, off, work.header, 256)) return Result::Io;
+    if (!blank(work.header, 256)) return Result::StorageUnavailable;
+  }
+  // Provisioning claims the pair together. One intact ownership marker also
+  // permits retrying a power-interrupted erase of the other, previously owned
+  // slot. Before the first claim, both slots are checked below.
+  for (int slot = 0; slot < 2; ++slot) {
+    if (!flash.read(flash.context, slotOffset(flash.size, slot), work.header, OWNER_SIZE)) return Result::Io;
+    if (std::memcmp(work.header, OWNER, OWNER_SIZE) == 0) return Result::Ok;
+  }
+  for (int slot = 0; slot < 2; ++slot) {
+    const size_t base = slotOffset(flash.size, slot);
+    if (!flash.read(flash.context, base, work.header, OWNER_SIZE)) return Result::Io;
+    if (std::memcmp(work.header, OWNER, OWNER_SIZE) == 0) continue;
+    // A torn first ownership write is retryable only when every programmed
+    // bit belongs to our marker and the rest of that slot is still erased.
+    for (size_t i = 0; i < OWNER_SIZE; ++i)
+      if ((work.header[i] | OWNER[i]) != work.header[i]) return Result::StorageUnavailable;
+    for (size_t off = OWNER_SIZE; off < SLOT_SIZE;) {
+      const size_t n = std::min<size_t>(256, SLOT_SIZE - off);
+      if (!flash.read(flash.context, base + off, work.header, n)) return Result::Io;
+      if (!blank(work.header, n)) return Result::StorageUnavailable;
+      off += n;
+    }
+  }
+  return Result::Ok;
+}
+
+bool formatSignature(const char* text, uint8_t* signature, size_t& count) {
+  count = 0;
+  const auto arg = [&](uint8_t type) {
+    if (count == 32) return false;
+    signature[count++] = type;
+    return true;
+  };
+  for (const char* p = text; *p;) {
+    if (*p++ != '%') continue;
+    if (*p == '%') {
+      ++p;
+      continue;
+    }
+    while (*p && std::strchr("-+ #0", *p)) ++p;
+    if (*p == '*') {
+      if (!arg(1)) return false;
+      ++p;
+    } else {
+      unsigned width = 0;
+      while (digit(*p)) {
+        width = width * 10 + (*p++ - '0');
+        if (width > 1024) return false;
+      }
+    }
+    if (*p == '.') {
+      ++p;
+      if (*p == '*') {
+        if (!arg(1)) return false;
+        ++p;
+      } else {
+        unsigned precision = 0;
+        while (digit(*p)) {
+          precision = precision * 10 + (*p++ - '0');
+          if (precision > 128) return false;
+        }
+      }
+    }
+    uint8_t length = 0;
+    if (*p == 'h') {
+      ++p;
+      length = 1;
+      if (*p == 'h') {
+        ++p;
+        length = 2;
+      }
+    } else if (*p == 'l') {
+      ++p;
+      length = 3;
+      if (*p == 'l') {
+        ++p;
+        length = 4;
+      }
+    } else if (*p == 'j') {
+      ++p;
+      length = 5;
+    } else if (*p == 'z') {
+      ++p;
+      length = 6;
+    } else if (*p == 't') {
+      ++p;
+      length = 7;
+    } else if (*p == 'L') {
+      ++p;
+      length = 8;
+    }
+    const char conversion = *p;
+    if (!conversion || conversion == 'n') return false;
+    ++p;
+    uint8_t type = 0;
+    if (conversion == 'd' || conversion == 'i')
+      type = 1;
+    else if (std::strchr("ouxX", conversion))
+      type = 2;
+    else if (std::strchr("aAeEfFgG", conversion))
+      type = 3;
+    else if (conversion == 'c')
+      type = 4;
+    else if (conversion == 's')
+      type = 5;
+    else if (conversion == 'p')
+      type = 6;
+    else
+      return false;  // includes positional arguments and unknown extensions
+    if (!arg(uint8_t(type + length * 8))) return false;
+  }
+  return true;
+}
+}  // namespace
+
+uint64_t hash(const char* text) {
+  uint64_t value = 14695981039346656037ull;
+  for (const auto* p = reinterpret_cast<const uint8_t*>(text); *p; ++p) value = (value ^ *p) * 1099511628211ull;
+  return value;
+}
+bool validCode(const char* code) {
+  const size_t n = std::strlen(code);
+  if (!n || n >= CODE_SIZE || !letter(code[0])) return false;
+  for (size_t i = 0; i < n; ++i)
+    if (!letter(code[i]) && !digit(code[i]) && code[i] != '-' && code[i] != '_') return false;
+  return true;
+}
+bool validUtf8(const char* text, size_t length) {
+  const auto* p = reinterpret_cast<const uint8_t*>(text);
+  for (size_t i = 0; i < length;) {
+    uint32_t cp = p[i++];
+    if (cp < 0x80) {
+      if (cp == 0 || (cp < 0x20 && cp != '\n' && cp != '\t')) return false;
+      continue;
+    }
+    unsigned extra;
+    uint32_t minimum;
+    if (cp >= 0xc2 && cp <= 0xdf) {
+      extra = 1;
+      minimum = 0x80;
+      cp &= 0x1f;
+    } else if (cp >= 0xe0 && cp <= 0xef) {
+      extra = 2;
+      minimum = 0x800;
+      cp &= 0x0f;
+    } else if (cp >= 0xf0 && cp <= 0xf4) {
+      extra = 3;
+      minimum = 0x10000;
+      cp &= 7;
+    } else
+      return false;
+    if (extra > length - i) return false;
+    while (extra--) {
+      const uint8_t c = p[i++];
+      if ((c & 0xc0) != 0x80) return false;
+      cp = (cp << 6) | (c & 0x3f);
+    }
+    if (cp < minimum || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) return false;
+  }
+  return true;
+}
+bool compatibleFormat(const char* english, const char* translated) {
+  uint8_t a[32], b[32];
+  size_t an, bn;
+  return formatSignature(english, a, an) && formatSignature(translated, b, bn) && an == bn &&
+         std::memcmp(a, b, an) == 0;
+}
+const char* resultName(Result result) {
+  switch (result) {
+    case Result::Ok:
+      return "ok";
+    case Result::Io:
+      return "read/write failed";
+    case Result::Memory:
+      return "out of memory";
+    case Result::Invalid:
+      return "invalid language file";
+    case Result::TooLarge:
+      return "language file exceeds limits";
+    case Result::Duplicate:
+      return "duplicate key";
+    case Result::MetadataMissing:
+      return "missing language metadata";
+    case Result::StorageUnavailable:
+      return "language flash unavailable or contains other data";
+  }
+  return "unknown";
+}
+size_t slotOffset(size_t size, int slot) { return size - 2 * SLOT_SIZE + static_cast<size_t>(slot) * SLOT_SIZE; }
+
+struct Inspector::Impl : Workspace {};
+Inspector::Inspector() : workspace_(new (std::nothrow) Impl()) {}
+Inspector::~Inspector() = default;
+
+Result inspect(Input input, Metadata& metadata) {
+  Inspector inspector;
+  return inspector.inspect(input, metadata);
+}
+Result Inspector::inspect(Input input, Metadata& metadata) {
+  auto* work = workspace_.get();
+  if (!work) return Result::Memory;
+  work->unknownCount = 0;
+  metadata = {};
+  Reader reader(input, work->inputBuffer);
+  bool direction = false;
+  while (true) {
+    bool eof;
+    auto result = reader.line(work->line, eof);
+    if (result != Result::Ok) return result;
+    if (eof) break;
+    char *key, *value;
+    result = parseLine(work->line, key, value);
+    if (result != Result::Ok) return result;
+    if (!key) continue;
+    if (key[0] != '_') break;
+    result = remember(*work, hash(key), nullptr);
+    if (result != Result::Ok) return result;
+    result = metadataLine(key, value, metadata, direction);
+    if (result != Result::Ok) return result;
+  }
+  return finishMetadata(metadata, direction);
+}
+
+Result install(Input input, const Schema& schema, const Flash& flash, int pinnedSlot, Installed& installed) {
+  if (schema.count > MAX_KEYS || pinnedSlot < -1 || pinnedSlot > 1) return Result::Invalid;
+  auto work = std::unique_ptr<Workspace>(new (std::nothrow) Workspace());
+  if (!work) return Result::Memory;
+  auto result = ownership(flash, *work);
+  if (result != Result::Ok) return result;
+  uint64_t newest = 0;
+  int latestSlot = -1;
+  for (int slot = 0; slot < 2; ++slot) {
+    const size_t base = slotOffset(flash.size, slot);
+    if (!flash.read(flash.context, base, work->header, HEADER_SIZE)) return Result::Io;
+    if (!headerValid(work->header)) continue;
+    const uint64_t gen = u64(work->header + 20);
+    const uint32_t expected = u32(work->header + 36);
+    uint32_t crc;
+    result = readCrc(flash, base, u32(work->header + 28), work->inputBuffer, crc);
+    if (result != Result::Ok) return result;
+    if (crc == expected && gen > newest) {
+      newest = gen;
+      latestSlot = slot;
+    }
+  }
+  if (newest == std::numeric_limits<uint64_t>::max()) return Result::Invalid;
+  const int target = pinnedSlot >= 0 ? 1 - pinnedSlot : (latestSlot >= 0 ? 1 - latestSlot : 0);
+  const size_t base = slotOffset(flash.size, target);
+  if (!flash.erase(flash.context, base, SLOT_SIZE) || !writeVerified(flash, base, OWNER, OWNER_SIZE)) return Result::Io;
+  Reader reader(input, work->inputBuffer);
+  Metadata metadata;
+  bool direction = false, haveStrings = false;
+  size_t end = HEADER_SIZE;
+  uint16_t count = 0;
+  while (true) {
+    bool eof;
+    result = reader.line(work->line, eof);
+    if (result != Result::Ok) return result;
+    if (eof) break;
+    char *key, *value;
+    result = parseLine(work->line, key, value);
+    if (result != Result::Ok) return result;
+    if (!key) continue;
+    Key known{};
+    const uint64_t h = hash(key);
+    const bool found = key[0] != '_' && findKey(schema, h, known) && std::strcmp(known.name, key) == 0;
+    result = remember(*work, h, found ? &known : nullptr);
+    if (result != Result::Ok) return result;
+    if (key[0] == '_') {
+      if (haveStrings) return Result::Invalid;
+      result = metadataLine(key, value, metadata, direction);
+      if (result != Result::Ok) return result;
+      continue;
+    }
+    if (std::strncmp(key, "STR_", 4) != 0) return Result::Invalid;
+    haveStrings = true;
+    if (!found || !*value) continue;
+    const char* english = schema.english(known.id);
+#if !defined(CROSSINK_LANGUAGE_BENCHMARK)
+    if (std::strcmp(english, value) == 0) continue;
+#endif
+    if (known.formatted && !compatibleFormat(english, value)) continue;
+    const size_t size = std::strlen(value) + 1;
+    if (end + RECORD_SIZE + size > SLOT_SIZE || end + RECORD_SIZE >= MISSING) return Result::TooLarge;
+    uint8_t record[RECORD_SIZE];
+    put64(record, h);
+    put64(record + 8, known.englishHash);
+    put16(record + 16, static_cast<uint16_t>(size));
+    if (!writeVerified(flash, base + end, record, sizeof(record)) ||
+        !writeVerified(flash, base + end + RECORD_SIZE, value, size))
+      return Result::Io;
+    end += RECORD_SIZE + size;
+    ++count;
+  }
+  result = finishMetadata(metadata, direction);
+  if (result != Result::Ok) return result;
+  std::memset(work->header, 0, HEADER_SIZE);
+  std::memcpy(work->header, OWNER, OWNER_SIZE);
+  std::memset(work->header + 16, 0xff, 4);  // publish last
+  put64(work->header + 20, newest + 1);
+  put32(work->header + 28, static_cast<uint32_t>(end));
+  put16(work->header + 32, count);
+  work->header[34] = metadata.rtl;
+  std::memcpy(work->header + 40, metadata.code, CODE_SIZE);
+  std::memcpy(work->header + 72, metadata.name, NAME_SIZE);
+  std::memcpy(work->header + 168, metadata.keyboard, CODE_SIZE);
+  // Leave checksum erased too; flash cannot program zero bits back to one.
+  std::memset(work->header + 36, 0xff, 4);
+  if (!writeVerified(flash, base + 20, work->header + 20, HEADER_SIZE - 20)) return Result::Io;
+  uint32_t crc;
+  result = readCrc(flash, base, end, work->inputBuffer, crc);
+  if (result != Result::Ok) return result;
+  uint8_t encoded[4];
+  put32(encoded, crc);
+  if (!writeVerified(flash, base + 36, encoded, sizeof(encoded))) return Result::Io;
+  put32(encoded, COMMITTED);
+  if (!writeVerified(flash, base + 16, encoded, sizeof(encoded))) return Result::Io;
+  installed.metadata = metadata;
+  installed.generation = newest + 1;
+  installed.checksum = crc;
+  installed.slot = target;
+  return Result::Ok;
+}
+
+bool open(const uint8_t* bytes, size_t length, const Schema& schema, Installed& installed, uint16_t* offsets) {
+  if (!bytes || length < HEADER_SIZE || schema.count > MAX_KEYS || !headerValid(bytes)) return false;
+  const size_t used = u32(bytes + 28);
+  if (used > length) return false;
+  uint32_t crc = ~0u;
+  for (size_t i = 20; i < used; ++i) crc = crcByte(crc, i >= 36 && i < 40 ? 0 : bytes[i]);
+  if (~crc != u32(bytes + 36)) return false;
+  // Check active-key duplicates with a bounded bitset; historical keys that
+  // this firmware does not know cannot populate an offset. Never scan earlier
+  // records here: wake-time work must remain O(n log n), not quadratic.
+  uint8_t seen[MAX_KEYS / 8] = {};
+  size_t pos = HEADER_SIZE;
+  const size_t count = u16(bytes + 32);
+  for (size_t i = 0; i < count; ++i) {
+    if (used - pos < RECORD_SIZE) return false;
+    const size_t n = u16(bytes + pos + 16);
+    if (!n || n > used - pos - RECORD_SIZE || pos + RECORD_SIZE >= MISSING) return false;
+    const char* text = reinterpret_cast<const char*>(bytes + pos + RECORD_SIZE);
+    if (text[n - 1] != '\0' || !validUtf8(text, n - 1)) return false;
+    Key known{};
+    if (findKey(schema, u64(bytes + pos), known)) {
+      const uint8_t bit = uint8_t(1u << (known.id % 8));
+      if (seen[known.id / 8] & bit) return false;
+      seen[known.id / 8] |= bit;
+    }
+    pos += RECORD_SIZE + n;
+  }
+  if (pos != used) return false;
+  if (offsets) {
+    std::fill_n(offsets, schema.count, MISSING);
+    pos = HEADER_SIZE;
+    for (size_t i = 0; i < count; ++i) {
+      Key key{};
+      const char* text = reinterpret_cast<const char*>(bytes + pos + RECORD_SIZE);
+      if (findKey(schema, u64(bytes + pos), key) && key.englishHash == u64(bytes + pos + 8) &&
+          (!key.formatted || compatibleFormat(schema.english(key.id), text)))
+        offsets[key.id] = static_cast<uint16_t>(pos + RECORD_SIZE);
+      pos += RECORD_SIZE + u16(bytes + pos + 16);
+    }
+  }
+  decodeHeader(bytes, installed);
+  return true;
+}
+}  // namespace language_cache
