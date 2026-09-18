@@ -45,210 +45,210 @@ std::vector<uint8_t> decodeBase64(const char* b64, size_t b64Len) {
 }
 
 void handleBookPokemonGet(WebServer* server) {
-    if (!server->hasArg("path")) {
-      server->send(400, "text/plain", "Missing path");
-      return;
-    }
-    String bookPath = PathUtils::urlDecode(server->arg("path"));
-    if (!PathUtils::isValidSdPath(bookPath)) {
-      server->send(400, "text/plain", "Invalid path");
-      return;
-    }
-    bookPath = PathUtils::normalizePath(bookPath);
-    if (PathUtils::pathContainsProtectedItem(bookPath)) {
-      server->send(403, "text/plain", "Cannot access protected items");
-      return;
-    }
-    if (!Storage.exists(bookPath.c_str())) {
-      server->send(404, "text/plain", "Book not found");
-      return;
-    }
-    if (!PokemonBookDataStore::supportsBookPath(bookPath.c_str())) {
-      server->send(400, "text/plain", "Unsupported book type");
-      return;
-    }
-    JsonDocument response;
-    response["path"] = bookPath;
-    JsonDocument pokemonDoc;
-    if (PokemonBookDataStore::loadPokemonDocument(bookPath.c_str(), pokemonDoc) &&
-        pokemonDoc["pokemon"].is<JsonObject>()) {
-      response["pokemon"] = pokemonDoc["pokemon"];
-    } else {
-      response["pokemon"] = nullptr;
-    }
-    String json;
-    serializeJson(response, json);
-    server->send(200, "application/json", json);
+  if (!server->hasArg("path")) {
+    server->send(400, "text/plain", "Missing path");
+    return;
+  }
+  String bookPath = PathUtils::urlDecode(server->arg("path"));
+  if (!PathUtils::isValidSdPath(bookPath)) {
+    server->send(400, "text/plain", "Invalid path");
+    return;
+  }
+  bookPath = PathUtils::normalizePath(bookPath);
+  if (PathUtils::pathContainsProtectedItem(bookPath)) {
+    server->send(403, "text/plain", "Cannot access protected items");
+    return;
+  }
+  if (!Storage.exists(bookPath.c_str())) {
+    server->send(404, "text/plain", "Book not found");
+    return;
+  }
+  if (!PokemonBookDataStore::supportsBookPath(bookPath.c_str())) {
+    server->send(400, "text/plain", "Unsupported book type");
+    return;
+  }
+  JsonDocument response;
+  response["path"] = bookPath;
+  JsonDocument pokemonDoc;
+  if (PokemonBookDataStore::loadPokemonDocument(bookPath.c_str(), pokemonDoc) &&
+      pokemonDoc["pokemon"].is<JsonObject>()) {
+    response["pokemon"] = pokemonDoc["pokemon"];
+  } else {
+    response["pokemon"] = nullptr;
+  }
+  String json;
+  serializeJson(response, json);
+  server->send(200, "application/json", json);
 }
 
 void handleBookPokemonPut(WebServer* server) {
-    if (!server->hasArg("plain")) {
-      server->send(400, "text/plain", "Missing body");
-      return;
-    }
-    const String requestBody = server->arg("plain");
-    JsonDocument request;
-    if (deserializeJson(request, requestBody.c_str())) {
-      server->send(400, "text/plain", "Invalid JSON body");
-      return;
-    }
-    const String rawPath = request["path"] | "";
-    if (rawPath.isEmpty()) {
-      server->send(400, "text/plain", "Missing path");
-      return;
-    }
-    if (!request["pokemon"].is<JsonObject>()) {
-      server->send(400, "text/plain", "Missing pokemon object");
-      return;
-    }
-    if (!PathUtils::isValidSdPath(rawPath)) {
-      server->send(400, "text/plain", "Invalid path");
-      return;
-    }
-    const String bookPath = PathUtils::normalizePath(rawPath);
-    if (PathUtils::pathContainsProtectedItem(bookPath)) {
-      server->send(403, "text/plain", "Cannot access protected items");
-      return;
-    }
-    if (!Storage.exists(bookPath.c_str())) {
-      server->send(404, "text/plain", "Book not found");
-      return;
-    }
-    if (!PokemonBookDataStore::supportsBookPath(bookPath.c_str())) {
-      server->send(400, "text/plain", "Unsupported book type");
-      return;
-    }
-    if (!PokemonBookDataStore::savePokemonDocument(bookPath.c_str(), request["pokemon"])) {
-      server->send(500, "text/plain", "Failed to save pokemon data");
-      return;
-    }
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing body");
+    return;
+  }
+  const String requestBody = server->arg("plain");
+  JsonDocument request;
+  if (deserializeJson(request, requestBody.c_str())) {
+    server->send(400, "text/plain", "Invalid JSON body");
+    return;
+  }
+  const String rawPath = request["path"] | "";
+  if (rawPath.isEmpty()) {
+    server->send(400, "text/plain", "Missing path");
+    return;
+  }
+  if (!request["pokemon"].is<JsonObject>()) {
+    server->send(400, "text/plain", "Missing pokemon object");
+    return;
+  }
+  if (!PathUtils::isValidSdPath(rawPath)) {
+    server->send(400, "text/plain", "Invalid path");
+    return;
+  }
+  const String bookPath = PathUtils::normalizePath(rawPath);
+  if (PathUtils::pathContainsProtectedItem(bookPath)) {
+    server->send(403, "text/plain", "Cannot access protected items");
+    return;
+  }
+  if (!Storage.exists(bookPath.c_str())) {
+    server->send(404, "text/plain", "Book not found");
+    return;
+  }
+  if (!PokemonBookDataStore::supportsBookPath(bookPath.c_str())) {
+    server->send(400, "text/plain", "Unsupported book type");
+    return;
+  }
+  if (!PokemonBookDataStore::savePokemonDocument(bookPath.c_str(), request["pokemon"])) {
+    server->send(500, "text/plain", "Failed to save pokemon data");
+    return;
+  }
 
-    // Best-effort: while the device is online for this web session, pre-fetch and
-    // convert the sprite for every evolution stage so the party theme and sleep
-    // screen can render real Pokémon (instead of the Poké Ball placeholder) as the
-    // reading level crosses each evolution threshold. Offline / SoftAP-only
-    // sessions simply skip this; the renderers fall back gracefully.
-    JsonVariantConst pokemon = request["pokemon"];
-    PokemonSpriteCache::ensureSpriteById(pokemon["speciesId"] | 0, PokemonSpriteCache::kDefaultSpriteSize,
+  // Best-effort: while the device is online for this web session, pre-fetch and
+  // convert the sprite for every evolution stage so the party theme and sleep
+  // screen can render real Pokémon (instead of the Poké Ball placeholder) as the
+  // reading level crosses each evolution threshold. Offline / SoftAP-only
+  // sessions simply skip this; the renderers fall back gracefully.
+  JsonVariantConst pokemon = request["pokemon"];
+  PokemonSpriteCache::ensureSpriteById(pokemon["speciesId"] | 0, PokemonSpriteCache::kDefaultSpriteSize,
+                                       PokemonSpriteCache::kDefaultSpriteSize);
+  for (JsonVariantConst stage : pokemon["evolutionChain"].as<JsonArrayConst>()) {
+    PokemonSpriteCache::ensureSpriteById(stage["speciesId"] | 0, PokemonSpriteCache::kDefaultSpriteSize,
                                          PokemonSpriteCache::kDefaultSpriteSize);
-    for (JsonVariantConst stage : pokemon["evolutionChain"].as<JsonArrayConst>()) {
-      PokemonSpriteCache::ensureSpriteById(stage["speciesId"] | 0, PokemonSpriteCache::kDefaultSpriteSize,
-                                           PokemonSpriteCache::kDefaultSpriteSize);
-    }
+  }
 
-    JsonDocument response;
-    response["ok"] = true;
-    response["path"] = bookPath;
-    response["pokemon"] = request["pokemon"];
-    String json;
-    serializeJson(response, json);
-    server->send(200, "application/json", json);
+  JsonDocument response;
+  response["ok"] = true;
+  response["path"] = bookPath;
+  response["pokemon"] = request["pokemon"];
+  String json;
+  serializeJson(response, json);
+  server->send(200, "application/json", json);
 }
 
 void handleBookPokemonDelete(WebServer* server) {
-    if (!server->hasArg("path")) {
-      server->send(400, "text/plain", "Missing path");
-      return;
-    }
-    String bookPath = PathUtils::urlDecode(server->arg("path"));
-    if (!PathUtils::isValidSdPath(bookPath)) {
-      server->send(400, "text/plain", "Invalid path");
-      return;
-    }
-    bookPath = PathUtils::normalizePath(bookPath);
-    if (PathUtils::pathContainsProtectedItem(bookPath)) {
-      server->send(403, "text/plain", "Cannot access protected items");
-      return;
-    }
-    if (!Storage.exists(bookPath.c_str())) {
-      server->send(404, "text/plain", "Book not found");
-      return;
-    }
-    if (!PokemonBookDataStore::supportsBookPath(bookPath.c_str())) {
-      server->send(400, "text/plain", "Unsupported book type");
-      return;
-    }
-    if (!PokemonBookDataStore::deletePokemonDocument(bookPath.c_str())) {
-      server->send(500, "text/plain", "Failed to delete pokemon data");
-      return;
-    }
-    JsonDocument response;
-    response["ok"] = true;
-    response["path"] = bookPath;
-    String json;
-    serializeJson(response, json);
-    server->send(200, "application/json", json);
+  if (!server->hasArg("path")) {
+    server->send(400, "text/plain", "Missing path");
+    return;
+  }
+  String bookPath = PathUtils::urlDecode(server->arg("path"));
+  if (!PathUtils::isValidSdPath(bookPath)) {
+    server->send(400, "text/plain", "Invalid path");
+    return;
+  }
+  bookPath = PathUtils::normalizePath(bookPath);
+  if (PathUtils::pathContainsProtectedItem(bookPath)) {
+    server->send(403, "text/plain", "Cannot access protected items");
+    return;
+  }
+  if (!Storage.exists(bookPath.c_str())) {
+    server->send(404, "text/plain", "Book not found");
+    return;
+  }
+  if (!PokemonBookDataStore::supportsBookPath(bookPath.c_str())) {
+    server->send(400, "text/plain", "Unsupported book type");
+    return;
+  }
+  if (!PokemonBookDataStore::deletePokemonDocument(bookPath.c_str())) {
+    server->send(500, "text/plain", "Failed to delete pokemon data");
+    return;
+  }
+  JsonDocument response;
+  response["ok"] = true;
+  response["path"] = bookPath;
+  String json;
+  serializeJson(response, json);
+  server->send(200, "application/json", json);
 }
 
 void handlePokemonTeamGet(WebServer* server) {
-    JsonDocument doc;
-    String json;
-    if (PokemonTeamStore::loadTeamDocument(doc) && doc["team"].is<JsonArray>()) {
-      serializeJson(doc["team"], json);
-    } else {
-      json = "[]";
-    }
-    server->send(200, "application/json", json);
+  JsonDocument doc;
+  String json;
+  if (PokemonTeamStore::loadTeamDocument(doc) && doc["team"].is<JsonArray>()) {
+    serializeJson(doc["team"], json);
+  } else {
+    json = "[]";
+  }
+  server->send(200, "application/json", json);
 }
 
 void handlePokemonTeamPut(WebServer* server) {
-    if (!server->hasArg("plain")) {
-      server->send(400, "text/plain", "Missing body");
-      return;
-    }
-    JsonDocument request;
-    if (deserializeJson(request, server->arg("plain").c_str())) {
-      server->send(400, "text/plain", "Invalid JSON body");
-      return;
-    }
-    if (!request["team"].is<JsonArray>()) {
-      server->send(400, "text/plain", "Missing team array");
-      return;
-    }
-    for (JsonVariantConst member : request["team"].as<JsonArrayConst>()) {
-      const int speciesId = member["speciesId"] | 0;
-      JsonArrayConst chain = member["evolutionChain"].as<JsonArrayConst>();
-      if (!chain.isNull() && chain.size() > 0) {
-        const int firstStageId = chain[0]["speciesId"] | 0;
-        if (firstStageId > 0 && firstStageId != speciesId) {
-          server->send(400, "text/plain", "Only base-form Pokemon may be added to the team");
-          return;
-        }
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing body");
+    return;
+  }
+  JsonDocument request;
+  if (deserializeJson(request, server->arg("plain").c_str())) {
+    server->send(400, "text/plain", "Invalid JSON body");
+    return;
+  }
+  if (!request["team"].is<JsonArray>()) {
+    server->send(400, "text/plain", "Missing team array");
+    return;
+  }
+  for (JsonVariantConst member : request["team"].as<JsonArrayConst>()) {
+    const int speciesId = member["speciesId"] | 0;
+    JsonArrayConst chain = member["evolutionChain"].as<JsonArrayConst>();
+    if (!chain.isNull() && chain.size() > 0) {
+      const int firstStageId = chain[0]["speciesId"] | 0;
+      if (firstStageId > 0 && firstStageId != speciesId) {
+        server->send(400, "text/plain", "Only base-form Pokemon may be added to the team");
+        return;
       }
     }
-    if (!PokemonTeamStore::saveTeamDocument(request["team"])) {
-      server->send(500, "text/plain", "Failed to save team");
-      return;
-    }
-    server->send(200, "application/json", "{\"ok\":true}");
+  }
+  if (!PokemonTeamStore::saveTeamDocument(request["team"])) {
+    server->send(500, "text/plain", "Failed to save team");
+    return;
+  }
+  server->send(200, "application/json", "{\"ok\":true}");
 }
 
 void handlePokemonSpritePost(WebServer* server) {
-    if (!server->hasArg("plain")) {
-      server->send(400, "text/plain", "Missing body");
-      return;
-    }
-    JsonDocument request;
-    if (deserializeJson(request, server->arg("plain").c_str())) {
-      server->send(400, "text/plain", "Invalid JSON body");
-      return;
-    }
-    const int speciesId = request["speciesId"] | 0;
-    const char* bmpBase64 = request["bmpBase64"] | "";
-    if (speciesId <= 0 || bmpBase64[0] == '\0') {
-      server->send(400, "text/plain", "Missing speciesId or bmpBase64");
-      return;
-    }
-    const std::vector<uint8_t> bmp = decodeBase64(bmpBase64, strlen(bmpBase64));
-    if (bmp.empty()) {
-      server->send(400, "text/plain", "Invalid base64");
-      return;
-    }
-    if (!PokemonSpriteCache::saveSpriteBmp(speciesId, bmp.data(), bmp.size())) {
-      server->send(500, "text/plain", "Failed to save sprite");
-      return;
-    }
-    server->send(200, "application/json", "{\"ok\":true}");
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing body");
+    return;
+  }
+  JsonDocument request;
+  if (deserializeJson(request, server->arg("plain").c_str())) {
+    server->send(400, "text/plain", "Invalid JSON body");
+    return;
+  }
+  const int speciesId = request["speciesId"] | 0;
+  const char* bmpBase64 = request["bmpBase64"] | "";
+  if (speciesId <= 0 || bmpBase64[0] == '\0') {
+    server->send(400, "text/plain", "Missing speciesId or bmpBase64");
+    return;
+  }
+  const std::vector<uint8_t> bmp = decodeBase64(bmpBase64, strlen(bmpBase64));
+  if (bmp.empty()) {
+    server->send(400, "text/plain", "Invalid base64");
+    return;
+  }
+  if (!PokemonSpriteCache::saveSpriteBmp(speciesId, bmp.data(), bmp.size())) {
+    server->send(500, "text/plain", "Failed to save sprite");
+    return;
+  }
+  server->send(200, "application/json", "{\"ok\":true}");
 }
 
 const core::WebRouteSpec kPokemonRoutes[] = {

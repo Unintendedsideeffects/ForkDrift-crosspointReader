@@ -44,55 +44,55 @@ void handleRemoteInputPage(WebServer* server) {
 }
 
 void handleRemoteKeyboardClaim(WebServer* server) {
-    if (!server->hasArg("plain")) {
-      server->send(400, "text/plain", "Missing body");
-      return;
-    }
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing body");
+    return;
+  }
 
-    const String body = server->arg("plain");
-    JsonDocument doc;
-    if (deserializeJson(doc, body.c_str())) {
-      server->send(400, "text/plain", "Invalid JSON body");
-      return;
-    }
+  const String body = server->arg("plain");
+  JsonDocument doc;
+  if (deserializeJson(doc, body.c_str())) {
+    server->send(400, "text/plain", "Invalid JSON body");
+    return;
+  }
 
-    const uint32_t id = doc["id"] | 0;
-    const char* client = doc["client"] | "browser";
-    if (id == 0 || !REMOTE_KEYBOARD_SESSION.claim(id, client)) {
-      server->send(404, "text/plain", "Remote keyboard session not found");
-      return;
-    }
+  const uint32_t id = doc["id"] | 0;
+  const char* client = doc["client"] | "browser";
+  if (id == 0 || !REMOTE_KEYBOARD_SESSION.claim(id, client)) {
+    server->send(404, "text/plain", "Remote keyboard session not found");
+    return;
+  }
 
-    sendSessionSnapshot(server);
+  sendSessionSnapshot(server);
 }
 
 void handleRemoteKeyboardSubmit(WebServer* server) {
-    if (!server->hasArg("plain")) {
-      server->send(400, "text/plain", "Missing body");
-      return;
-    }
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing body");
+    return;
+  }
 
-    const String body = server->arg("plain");
-    JsonDocument doc;
-    if (deserializeJson(doc, body.c_str())) {
-      server->send(400, "text/plain", "Invalid JSON body");
-      return;
-    }
+  const String body = server->arg("plain");
+  JsonDocument doc;
+  if (deserializeJson(doc, body.c_str())) {
+    server->send(400, "text/plain", "Invalid JSON body");
+    return;
+  }
 
-    const uint32_t id = doc["id"] | 0;
-    const char* text = doc["text"] | "";
-    switch (REMOTE_KEYBOARD_SESSION.submit(id, text)) {
-      case RemoteKeyboardSession::SubmitResult::Submitted:
-        server->send(200, "application/json", "{\"ok\":true}");
-        return;
-      case RemoteKeyboardSession::SubmitResult::TextTooLong:
-        server->send(400, "text/plain", "Text exceeds session length limit");
-        return;
-      case RemoteKeyboardSession::SubmitResult::InvalidSession:
-      default:
-        server->send(404, "text/plain", "Remote keyboard session not found");
-        return;
-    }
+  const uint32_t id = doc["id"] | 0;
+  const char* text = doc["text"] | "";
+  switch (REMOTE_KEYBOARD_SESSION.submit(id, text)) {
+    case RemoteKeyboardSession::SubmitResult::Submitted:
+      server->send(200, "application/json", "{\"ok\":true}");
+      return;
+    case RemoteKeyboardSession::SubmitResult::TextTooLong:
+      server->send(400, "text/plain", "Text exceeds session length limit");
+      return;
+    case RemoteKeyboardSession::SubmitResult::InvalidSession:
+    default:
+      server->send(404, "text/plain", "Remote keyboard session not found");
+      return;
+  }
 }
 
 const core::WebRouteSpec kRemoteKeyboardRoutes[] = {

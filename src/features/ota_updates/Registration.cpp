@@ -19,52 +19,52 @@ namespace {
 bool shouldRegisterOtaApiRoute() { return core::FeatureCatalog::isEnabled("ota_updates"); }
 
 void handleOtaCheckPost(WebServer* server) {
-    if (WiFi.status() != WL_CONNECTED) {
-      server->send(503, "application/json", "{\"status\":\"error\",\"message\":\"Not connected to WiFi\"}");
+  if (WiFi.status() != WL_CONNECTED) {
+    server->send(503, "application/json", "{\"status\":\"error\",\"message\":\"Not connected to WiFi\"}");
+    return;
+  }
+  switch (network::OtaWebCheck::start()) {
+    case network::OtaWebStartResult::AlreadyChecking:
+      server->send(200, "application/json", "{\"status\":\"checking\"}");
       return;
-    }
-    switch (network::OtaWebCheck::start()) {
-      case network::OtaWebStartResult::AlreadyChecking:
-        server->send(200, "application/json", "{\"status\":\"checking\"}");
-        return;
-      case network::OtaWebStartResult::Started:
-        server->send(202, "application/json", "{\"status\":\"checking\"}");
-        return;
-      case network::OtaWebStartResult::StartTaskFailed:
-        server->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Failed to start task\"}");
-        return;
-      case network::OtaWebStartResult::Disabled:
-        server->send(404, "application/json", "{\"status\":\"error\",\"message\":\"OTA API disabled\"}");
-        return;
-    }
+    case network::OtaWebStartResult::Started:
+      server->send(202, "application/json", "{\"status\":\"checking\"}");
+      return;
+    case network::OtaWebStartResult::StartTaskFailed:
+      server->send(500, "application/json", "{\"status\":\"error\",\"message\":\"Failed to start task\"}");
+      return;
+    case network::OtaWebStartResult::Disabled:
+      server->send(404, "application/json", "{\"status\":\"error\",\"message\":\"OTA API disabled\"}");
+      return;
+  }
 }
 
 void handleOtaCheckGet(WebServer* server) {
-    const auto status = network::OtaWebCheck::getSnapshot();
-    if (status.status == network::OtaWebCheckStatus::Disabled) {
-      server->send(404, "application/json", "{\"status\":\"error\",\"message\":\"OTA API disabled\"}");
-      return;
-    }
+  const auto status = network::OtaWebCheck::getSnapshot();
+  if (status.status == network::OtaWebCheckStatus::Disabled) {
+    server->send(404, "application/json", "{\"status\":\"error\",\"message\":\"OTA API disabled\"}");
+    return;
+  }
 
-    JsonDocument doc;
-    doc["currentVersion"] = CROSSPOINT_VERSION;
-    doc["buildTimestamp"] = crosspoint::buildTimestamp();
+  JsonDocument doc;
+  doc["currentVersion"] = CROSSPOINT_VERSION;
+  doc["buildTimestamp"] = crosspoint::buildTimestamp();
 
-    if (status.status == network::OtaWebCheckStatus::Checking) {
-      doc["status"] = "checking";
-    } else if (status.status == network::OtaWebCheckStatus::Done) {
-      doc["status"] = "done";
-      doc["available"] = status.available;
-      doc["latestVersion"] = status.latestVersion.c_str();
-      doc["message"] = status.message.c_str();
-      doc["errorCode"] = status.errorCode;
-    } else {
-      doc["status"] = "idle";
-    }
+  if (status.status == network::OtaWebCheckStatus::Checking) {
+    doc["status"] = "checking";
+  } else if (status.status == network::OtaWebCheckStatus::Done) {
+    doc["status"] = "done";
+    doc["available"] = status.available;
+    doc["latestVersion"] = status.latestVersion.c_str();
+    doc["message"] = status.message.c_str();
+    doc["errorCode"] = status.errorCode;
+  } else {
+    doc["status"] = "idle";
+  }
 
-    String json;
-    serializeJson(doc, json);
-    server->send(200, "application/json", json);
+  String json;
+  serializeJson(doc, json);
+  server->send(200, "application/json", json);
 }
 
 const core::WebRouteSpec kOtaRoutes[] = {

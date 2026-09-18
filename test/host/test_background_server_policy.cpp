@@ -203,9 +203,9 @@ background_server::StartResourceVerdict verdictFor(const uint32_t freeBytes, con
 }  // namespace
 
 TEST_CASE("background start minimum is the sum of the measured parts") {
-  CHECK(background_server::startMinFreeBytes(kBgTaskStack) ==
-        kBgTaskStack + background_server::SERVER_STARTUP_BYTES + background_server::SERVER_SAFETY_FLOOR_BYTES +
-            background_server::START_HEADROOM_BYTES);
+  CHECK(background_server::startMinFreeBytes(kBgTaskStack) == kBgTaskStack + background_server::SERVER_STARTUP_BYTES +
+                                                                  background_server::SERVER_SAFETY_FLOOR_BYTES +
+                                                                  background_server::START_HEADROOM_BYTES);
   CHECK(background_server::startMinFreeBytes(kBgTaskStack) < 60000);
 }
 
@@ -325,9 +325,9 @@ TEST_CASE("background server: observed steady-state heap can now start the on-ch
 TEST_CASE("background server start budget no longer charges deleted route handlers") {
   CHECK(background_server::SERVER_STARTUP_BYTES == 4504);
   constexpr uint32_t kBgWifiTaskStack = 8192;
-  CHECK(background_server::startMinFreeBytes(kBgWifiTaskStack) ==
-        kBgWifiTaskStack + 4504 + background_server::SERVER_SAFETY_FLOOR_BYTES +
-            background_server::START_HEADROOM_BYTES);
+  CHECK(background_server::startMinFreeBytes(kBgWifiTaskStack) == kBgWifiTaskStack + 4504 +
+                                                                      background_server::SERVER_SAFETY_FLOOR_BYTES +
+                                                                      background_server::START_HEADROOM_BYTES);
   CHECK(background_server::startMinFreeBytes(kBgWifiTaskStack) < 40912);
 }
 

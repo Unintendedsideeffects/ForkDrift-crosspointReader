@@ -50,8 +50,8 @@ bool ControlsOptionsActivity::rebuildSettingsList() {
   const StrId readerCategory = StrId::STR_CAT_READER;
   forEachSetting(
       [](void* ctx, SettingInfo&& info) {
-        if (info.key != nullptr && (std::strcmp(info.key, "focusReadingEnabled") == 0 ||
-                                    std::strcmp(info.key, "guideReadingEnabled") == 0)) {
+        if (info.key != nullptr &&
+            (std::strcmp(info.key, "focusReadingEnabled") == 0 || std::strcmp(info.key, "guideReadingEnabled") == 0)) {
           static_cast<std::vector<SettingInfo>*>(ctx)->push_back(std::move(info));
         }
       },
