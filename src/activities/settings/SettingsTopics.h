@@ -60,10 +60,7 @@ inline const std::vector<SettingsTopicGroup> kReader{
 };
 
 inline const std::vector<const char*> kGeneralSystemKeys = {
-    "sleepTimeoutMinutes",
-    "showHiddenFiles",
-    "todoOpenDirectToToday",
-    "moveFinishedToReadFolder",
+    "sleepTimeoutMinutes", "showHiddenFiles", "hideFileExtension", "todoOpenDirectToToday", "moveFinishedToReadFolder",
 };
 
 inline bool isDeferredSystemSettingKey(const char* key) {

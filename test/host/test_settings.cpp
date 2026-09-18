@@ -55,6 +55,11 @@ TEST_CASE("settings metadata keeps Looks and sleep controls available") {
   CHECK(stayAwakeWhileCharging->type == SettingType::TOGGLE);
   CHECK(stayAwakeWhileCharging->category == StrId::STR_CAT_SYSTEM);
 
+  const SettingInfo* hideFileExtension = findSettingByKey(settings, "hideFileExtension");
+  REQUIRE(hideFileExtension != nullptr);
+  CHECK(hideFileExtension->type == SettingType::TOGGLE);
+  CHECK(hideFileExtension->category == StrId::STR_CAT_SYSTEM);
+
   const SettingInfo* globalStatusBar = findSettingByKey(settings, "globalStatusBarPosition");
 #if ENABLE_GLOBAL_STATUS_BAR
   REQUIRE(globalStatusBar != nullptr);
@@ -706,4 +711,86 @@ TEST_CASE("forEachSetting category filter never constructs other categories") {
   }
   CHECK(findSettingByKey(display, "sleepScreenSplit") != nullptr);
   CHECK(findSettingByKey(display, "fontSize") == nullptr);
+}
+
+TEST_CASE("sideButtonLayout enum values stay stable when Next/Next is appended") {
+  CHECK(static_cast<int>(CrossPointSettings::PREV_NEXT) == 0);
+  CHECK(static_cast<int>(CrossPointSettings::NEXT_PREV) == 1);
+  CHECK(static_cast<int>(CrossPointSettings::SIDE_BUTTONS_DISABLED) == 2);
+  CHECK(static_cast<int>(CrossPointSettings::NEXT_NEXT) == 3);
+  CHECK(static_cast<int>(CrossPointSettings::SIDE_BUTTON_LAYOUT_COUNT) == 4);
+
+  Storage.reset();
+  const auto settings = getSettingsList();
+  const SettingInfo* layout = findSettingByKey(settings, "sideButtonLayout");
+  REQUIRE(layout != nullptr);
+  REQUIRE(layout->enumValues.size() == 4);
+  CHECK(layout->enumValues[0] == StrId::STR_PREV_NEXT);
+  CHECK(layout->enumValues[1] == StrId::STR_NEXT_PREV);
+  CHECK(layout->enumValues[2] == StrId::STR_DISABLED);
+  CHECK(layout->enumValues[3] == StrId::STR_NEXT_NEXT);
+
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+  s.sideButtonLayout = CrossPointSettings::NEXT_NEXT;
+  s.validateAndClamp();
+  CHECK(s.sideButtonLayout == CrossPointSettings::NEXT_NEXT);
+  s.sideButtonLayout = CrossPointSettings::SIDE_BUTTONS_DISABLED;
+  s.validateAndClamp();
+  CHECK(s.sideButtonLayout == CrossPointSettings::SIDE_BUTTONS_DISABLED);
+  s.sideButtonLayout = CrossPointSettings::SIDE_BUTTON_LAYOUT_COUNT;
+  s.validateAndClamp();
+  CHECK(s.sideButtonLayout == CrossPointSettings::PREV_NEXT);
+}
+
+TEST_CASE("dark mode shortcut enum values are appended without shifting") {
+  CHECK(static_cast<int>(CrossPointSettings::FOOTNOTES) == 16);
+  CHECK(static_cast<int>(CrossPointSettings::TOGGLE_DARK_MODE) == 17);
+  CHECK(static_cast<int>(CrossPointSettings::SHORT_PWRBTN_COUNT) == 18);
+  CHECK(static_cast<int>(CrossPointSettings::LONG_MENU_TEXT_SELECT) == 13);
+  CHECK(static_cast<int>(CrossPointSettings::LONG_MENU_TOGGLE_DARK_MODE) == 14);
+  CHECK(static_cast<int>(CrossPointSettings::LONG_PRESS_MENU_ACTION_COUNT) == 15);
+
+  Storage.reset();
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+  s.shortPwrBtn = CrossPointSettings::TOGGLE_DARK_MODE;
+  s.longPwrBtn = CrossPointSettings::TOGGLE_DARK_MODE;
+  s.longPressMenuAction = CrossPointSettings::LONG_MENU_TOGGLE_DARK_MODE;
+  s.validateAndClamp();
+#if ENABLE_DARK_MODE
+  CHECK(s.shortPwrBtn == CrossPointSettings::TOGGLE_DARK_MODE);
+  CHECK(s.longPwrBtn == CrossPointSettings::TOGGLE_DARK_MODE);
+  CHECK(s.longPressMenuAction == CrossPointSettings::LONG_MENU_TOGGLE_DARK_MODE);
+
+  const auto settings = getSettingsList();
+  const SettingInfo* shortSetting = findSettingByKey(settings, "shortPwrBtn");
+  const SettingInfo* longSetting = findSettingByKey(settings, "longPwrBtn");
+  const SettingInfo* menuSetting = findSettingByKey(settings, "longPressMenuAction");
+  REQUIRE(shortSetting != nullptr);
+  REQUIRE(longSetting != nullptr);
+  REQUIRE(menuSetting != nullptr);
+  CHECK(optionIndexForValue(*shortSetting, CrossPointSettings::TOGGLE_DARK_MODE) !=
+        shortSetting->enumPersistedValues.size());
+  CHECK(optionIndexForValue(*longSetting, CrossPointSettings::TOGGLE_DARK_MODE) !=
+        longSetting->enumPersistedValues.size());
+  CHECK(optionIndexForValue(*menuSetting, CrossPointSettings::LONG_MENU_TOGGLE_DARK_MODE) !=
+        menuSetting->enumPersistedValues.size());
+#if ENABLE_DOUBLE_TAP_ACTION
+  const SettingInfo* doubleTapSetting = findSettingByKey(settings, "doubleTapPwrBtn");
+  REQUIRE(doubleTapSetting != nullptr);
+  CHECK(optionIndexForValue(*doubleTapSetting, CrossPointSettings::TOGGLE_DARK_MODE) !=
+        doubleTapSetting->enumPersistedValues.size());
+#endif
+#else
+  CHECK(s.shortPwrBtn == CrossPointSettings::IGNORE);
+  CHECK(s.longPwrBtn == CrossPointSettings::IGNORE);
+  CHECK(s.longPressMenuAction == CrossPointSettings::LONG_MENU_OFF);
+#endif
+}
+
+TEST_CASE("UI long-press is 200ms and power-off long-press stays 400ms") {
+  CHECK(CrossPointSettings::UI_LONG_PRESS_MS == 200);
+  CHECK(CrossPointSettings::POWER_BUTTON_LONG_PRESS_MS == 400);
+  CHECK(CrossPointSettings::POWER_BUTTON_WAKE_SHORT_MS == 10);
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+  CHECK(s.getPowerButtonLongPressDuration() == 400);
 }

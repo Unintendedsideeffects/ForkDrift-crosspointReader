@@ -85,12 +85,18 @@ class FontDownloadActivity : public Activity {
   std::atomic<size_t> fileProgress_{0};
   std::atomic<size_t> fileTotal_{0};
   int downloadingFamilyIndex_ = 0;
+  std::string downloadingFamilyName_;
   std::string errorMessage_;
   bool cancelRequested_ = false;
+  ManifestFamily retryFamily_;
+  bool hasRetryFamily_ = false;
+  bool needsManifestReload_ = false;
 
   void onWifiSelectionComplete(bool success);
   bool fetchAndParseManifest();
   void downloadFamily(ManifestFamily& family);
+  void downloadSelectedFamily(int familyIndex);
+  void returnToFamilyList();
   void downloadAll();
   void updateAll();
   static bool computeFileCrc32(const char* path, uint32_t& outCrc);

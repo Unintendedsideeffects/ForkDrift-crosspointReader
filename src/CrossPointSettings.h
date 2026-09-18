@@ -131,7 +131,13 @@ class CrossPointSettings {
   // Side button layout options
   // Default: Previous, Next
   // Swapped: Next, Previous
-  enum SIDE_BUTTON_LAYOUT { PREV_NEXT = 0, NEXT_PREV = 1, SIDE_BUTTONS_DISABLED = 2, SIDE_BUTTON_LAYOUT_COUNT };
+  enum SIDE_BUTTON_LAYOUT {
+    PREV_NEXT = 0,
+    NEXT_PREV = 1,
+    SIDE_BUTTONS_DISABLED = 2,
+    NEXT_NEXT = 3,
+    SIDE_BUTTON_LAYOUT_COUNT
+  };
 
   enum FRONT_BUTTON_ORIENTATION_AWARE {
     FRONT_ORIENTATION_AWARE_OFF = 0,
@@ -205,6 +211,7 @@ class CrossPointSettings {
     // Not meaningful for shortPwrBtn / longPwrBtn; only used by doubleTapPwrBtn.
     DOUBLE_TAP_BACK = 15,
     FOOTNOTES = 16,
+    TOGGLE_DARK_MODE = 17,
     SHORT_PWRBTN_COUNT
   };
 
@@ -280,6 +287,7 @@ class CrossPointSettings {
     LONG_MENU_CYCLE_PAGE_TURN = 11,
     LONG_MENU_FILE_TRANSFER = 12,
     LONG_MENU_TEXT_SELECT = 13,
+    LONG_MENU_TOGGLE_DARK_MODE = 14,
     LONG_PRESS_MENU_ACTION_COUNT
   };
 
@@ -416,6 +424,7 @@ class CrossPointSettings {
   char sdFontFamilyName[32] = "";
   // Show hidden files/directories (starting with '.') in the file browser (0 = hidden, 1 = show)
   uint8_t showHiddenFiles = 0;
+  uint8_t hideFileExtension = 0;
   uint8_t todoOpenDirectToToday = 0;
   uint8_t moveFinishedToReadFolder = 0;
   // Mirror firmware logs to /crosspoint-debug.log on the SD card.
@@ -521,6 +530,10 @@ class CrossPointSettings {
     }
     return false;
   }
+  void toggleReaderDarkMode() {
+    darkModeScope = effectiveDarkMode(true) ? DARK_OFF : DARK_READER_ONLY;
+    syncDarkModeLegacyField();
+  }
 
   static constexpr uint8_t MIN_SLEEP_TIMEOUT_MINUTES = 1;
   static constexpr uint8_t SLEEP_TIMEOUT_NEVER_MINUTES = 31;
@@ -536,6 +549,7 @@ class CrossPointSettings {
   void* sdFontResolverCtx = nullptr;
 
   static constexpr uint16_t POWER_BUTTON_WAKE_SHORT_MS = 10;
+  static constexpr uint16_t UI_LONG_PRESS_MS = 200;
   static constexpr uint16_t POWER_BUTTON_LONG_PRESS_MS = 400;
 
   // Wake detection threshold: how long power must be held to trigger sleep/wake.

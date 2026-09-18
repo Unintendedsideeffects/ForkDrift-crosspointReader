@@ -43,6 +43,7 @@ class EpubReaderActivity final : public Activity {
   int pagesUntilFullRefresh = 0;
   int cachedSpineIndex = 0;
   int cachedChapterTotalPageCount = 0;
+  int cachedChapterPageNumber = 0;
   unsigned long lastPageTurnTime = 0UL;
   unsigned long pageTurnDuration = 0UL;
   bool pendingPercentJump = false;
@@ -170,6 +171,7 @@ class EpubReaderActivity final : public Activity {
   void exportCurrentBookHighlights();
 #endif
   void reindexCurrentSection();
+  void cacheCurrentSectionPosition();
   void executeReaderQuickAction(CrossPointSettings::LONG_PRESS_MENU_ACTION action);
   void executeLongPressMenuAction();
   bool executeShortPowerButtonAction();

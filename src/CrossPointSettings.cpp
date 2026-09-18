@@ -363,6 +363,12 @@ static bool isShortPowerButtonActionSupported(const uint8_t action) {
 #endif
     case S::FILE_TRANSFER:
       return true;
+    case S::TOGGLE_DARK_MODE:
+#if ENABLE_DARK_MODE
+      return true;
+#else
+      return false;
+#endif
     default:
       return action < S::SHORT_PWRBTN_COUNT;
   }
@@ -404,6 +410,12 @@ static bool isLongPressMenuActionSupported(const uint8_t action) {
 #endif
     case S::LONG_MENU_FILE_TRANSFER:
       return true;
+    case S::LONG_MENU_TOGGLE_DARK_MODE:
+#if ENABLE_DARK_MODE
+      return true;
+#else
+      return false;
+#endif
     default:
       return action < S::LONG_PRESS_MENU_ACTION_COUNT;
   }
@@ -538,7 +550,7 @@ void CrossPointSettings::validateAndClamp() {
   if (statusBarTitle >= STATUS_BAR_TITLE_COUNT) statusBarTitle = CHAPTER_TITLE;
   if (orientation > LANDSCAPE_CCW) orientation = PORTRAIT;
   if (frontButtonLayout > LEFT_LEFT_RIGHT_RIGHT) frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;
-  if (sideButtonLayout > NEXT_PREV) sideButtonLayout = PREV_NEXT;
+  if (sideButtonLayout >= SIDE_BUTTON_LAYOUT_COUNT) sideButtonLayout = PREV_NEXT;
   if (fontFamily >= FONT_FAMILY_COUNT) fontFamily = kFirstAvailableFont;
   if (fontSize > EXTRA_LARGE) fontSize = MEDIUM;
 #if !ENABLE_BOOKERLY_FONTS

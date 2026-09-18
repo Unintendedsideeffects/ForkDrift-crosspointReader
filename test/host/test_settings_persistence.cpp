@@ -202,6 +202,46 @@ TEST_CASE("settings migration: round trip preserves STATUS_BAR_READER_ONLY") {
   CHECK(needsResave == false);
 }
 
+TEST_CASE("hideFileExtension round trip default set and absent") {
+  CrossPointSettings& settings = resetSettingsState();
+  CHECK(settings.hideFileExtension == 0);
+
+  settings.hideFileExtension = 1;
+  REQUIRE(settings.saveToFile());
+  const std::string json = Storage.readFile(kSettingsPath).c_str();
+  CHECK(json.find("\"hideFileExtension\":1") != std::string::npos);
+
+  CrossPointSettings& reloaded = resetSettingsState();
+  bool needsResave = false;
+  REQUIRE(JsonSettingsIO::loadSettings(reloaded, json.c_str(), &needsResave));
+  CHECK(reloaded.hideFileExtension == 1);
+
+  CrossPointSettings& absent = resetSettingsState();
+  absent.hideFileExtension = 1;
+  REQUIRE(JsonSettingsIO::loadSettings(absent, "{}", &needsResave));
+  CHECK(absent.hideFileExtension == 0);
+}
+
+TEST_CASE("sideButtonLayout Next/Next round trip default set and absent") {
+  CrossPointSettings& settings = resetSettingsState();
+  CHECK(settings.sideButtonLayout == CrossPointSettings::PREV_NEXT);
+
+  settings.sideButtonLayout = CrossPointSettings::NEXT_NEXT;
+  REQUIRE(settings.saveToFile());
+  const std::string json = Storage.readFile(kSettingsPath).c_str();
+  CHECK(json.find("\"sideButtonLayout\":3") != std::string::npos);
+
+  CrossPointSettings& reloaded = resetSettingsState();
+  bool needsResave = false;
+  REQUIRE(JsonSettingsIO::loadSettings(reloaded, json.c_str(), &needsResave));
+  CHECK(reloaded.sideButtonLayout == CrossPointSettings::NEXT_NEXT);
+
+  CrossPointSettings& absent = resetSettingsState();
+  absent.sideButtonLayout = CrossPointSettings::NEXT_NEXT;
+  REQUIRE(JsonSettingsIO::loadSettings(absent, "{}", &needsResave));
+  CHECK(absent.sideButtonLayout == CrossPointSettings::PREV_NEXT);
+}
+
 TEST_CASE("settings round trip preserves language through the shared serializer") {
   CrossPointSettings& settings = resetSettingsState();
   settings.language = 1;  // any non-zero valid index

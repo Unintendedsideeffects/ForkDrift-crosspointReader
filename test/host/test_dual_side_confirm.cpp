@@ -76,13 +76,11 @@ TEST_CASE("ReaderUtils: classifyDualSideConfirmAction") {
   PhysicalConfirmRelease release;
   release.active = true;
 
-  // 599 ms threshold with quick action enabled
-  release.durationMs = 599;
+  release.durationMs = CrossPointSettings::UI_LONG_PRESS_MS - 1;
   CHECK(classifyDualSideConfirmAction(release, Action::LONG_MENU_TEXT_SELECT) ==
         DualSideConfirmClassification::FALLTHROUGH_TO_PAGE_TURN);
 
-  // 600 ms threshold with quick action enabled
-  release.durationMs = 600;
+  release.durationMs = CrossPointSettings::UI_LONG_PRESS_MS;
   CHECK(classifyDualSideConfirmAction(release, Action::LONG_MENU_TEXT_SELECT) ==
         DualSideConfirmClassification::DISPATCH_QUICK_ACTION);
 

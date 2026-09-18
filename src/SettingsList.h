@@ -140,6 +140,9 @@ inline std::vector<QuickActionOption> shortPowerButtonOptions() {
   options.push_back({StrId::STR_SCREENSHOT_BUTTON, S::SCREENSHOT});
   options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::CYCLE_PAGE_TURN});
   options.push_back({StrId::STR_FILE_TRANSFER, S::FILE_TRANSFER});
+  if (core::FeatureModules::hasCapability(core::Capability::DarkMode)) {
+    options.push_back({StrId::STR_DARK_MODE, S::TOGGLE_DARK_MODE, "dark_mode"});
+  }
   return options;
 }
 
@@ -169,6 +172,9 @@ inline std::vector<QuickActionOption> longPowerButtonOptions() {
   options.push_back({StrId::STR_SCREENSHOT_BUTTON, S::SCREENSHOT});
   options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::CYCLE_PAGE_TURN});
   options.push_back({StrId::STR_FILE_TRANSFER, S::FILE_TRANSFER});
+  if (core::FeatureModules::hasCapability(core::Capability::DarkMode)) {
+    options.push_back({StrId::STR_DARK_MODE, S::TOGGLE_DARK_MODE, "dark_mode"});
+  }
   return options;
 }
 
@@ -200,6 +206,9 @@ inline std::vector<QuickActionOption> doubleTapPowerButtonOptions() {
   options.push_back({StrId::STR_SCREENSHOT_BUTTON, S::SCREENSHOT});
   options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::CYCLE_PAGE_TURN});
   options.push_back({StrId::STR_FILE_TRANSFER, S::FILE_TRANSFER});
+  if (core::FeatureModules::hasCapability(core::Capability::DarkMode)) {
+    options.push_back({StrId::STR_DARK_MODE, S::TOGGLE_DARK_MODE, "dark_mode"});
+  }
   return options;
 }
 #endif
@@ -232,6 +241,9 @@ inline std::vector<QuickActionOption> longPressMenuActionOptions() {
   options.push_back({StrId::STR_CYCLE_PAGE_TURN, S::LONG_MENU_CYCLE_PAGE_TURN});
   options.push_back({StrId::STR_FILE_TRANSFER, S::LONG_MENU_FILE_TRANSFER});
   options.push_back({StrId::STR_SELECT_TEXT, S::LONG_MENU_TEXT_SELECT, "text_selection"});
+  if (core::FeatureModules::hasCapability(core::Capability::DarkMode)) {
+    options.push_back({StrId::STR_DARK_MODE, S::LONG_MENU_TOGGLE_DARK_MODE, "dark_mode"});
+  }
   return options;
 }
 
@@ -871,8 +883,8 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
   // --- Controls ---
   if (want(StrId::STR_CAT_CONTROLS)) {
     emit(SettingInfo::Enum(StrId::STR_SIDE_BTN_LAYOUT, &CrossPointSettings::sideButtonLayout,
-                           {StrId::STR_PREV_NEXT, StrId::STR_NEXT_PREV, StrId::STR_DISABLED}, "sideButtonLayout",
-                           StrId::STR_CAT_CONTROLS)
+                           {StrId::STR_PREV_NEXT, StrId::STR_NEXT_PREV, StrId::STR_DISABLED, StrId::STR_NEXT_NEXT},
+                           "sideButtonLayout", StrId::STR_CAT_CONTROLS)
              .withConfiguratorExport());
     emit(SettingInfo::Enum(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::sideButtonOrientationAware,
                            {StrId::STR_NO, StrId::STR_YES}, "sideButtonOrientationAware", StrId::STR_CAT_CONTROLS)
@@ -962,6 +974,9 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
              .withConfiguratorExport());
     emit(SettingInfo::Toggle(StrId::STR_SHOW_HIDDEN_FILES, &CrossPointSettings::showHiddenFiles, "showHiddenFiles",
                              StrId::STR_CAT_SYSTEM)
+             .withConfiguratorExport());
+    emit(SettingInfo::Toggle(StrId::STR_HIDE_FILE_EXTENSION, &CrossPointSettings::hideFileExtension,
+                             "hideFileExtension", StrId::STR_CAT_SYSTEM)
              .withConfiguratorExport());
 #if ENABLE_TODO_PLANNER
     if (core::FeatureModules::hasCapability(core::Capability::TodoPlanner)) {

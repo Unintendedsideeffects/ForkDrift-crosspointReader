@@ -406,6 +406,7 @@ void EpubReaderActivity::onEnter() {
     }
     if (dataSize == 6) {
       cachedChapterTotalPageCount = data[4] + (data[5] << 8);
+      cachedChapterPageNumber = nextPageNumber;
     }
   }
   // We may want a better condition to detect if we are opening for the first time.
@@ -654,9 +655,9 @@ void EpubReaderActivity::loop() {
 #endif  // ENABLE_READING_STATS
 
   // Long-press Confirm: execute quick action instead of opening reader menu.
-  constexpr unsigned long longPressMenuMs = 600;
   if (SETTINGS.longPressMenuAction != CrossPointSettings::LONG_PRESS_MENU_ACTION::LONG_MENU_OFF &&
-      mappedInput.wasReleased(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() >= longPressMenuMs) {
+      mappedInput.wasReleased(MappedInputManager::Button::Confirm) &&
+      mappedInput.getHeldTime() >= CrossPointSettings::UI_LONG_PRESS_MS) {
     executeLongPressMenuAction();
     return;
   }
@@ -964,6 +965,15 @@ void EpubReaderActivity::jumpToPercent(int percent) {
   requestUpdate();  // Paint the existing cache-building placeholder before rebuilding the section.
 }
 
+void EpubReaderActivity::cacheCurrentSectionPosition() {
+  if (section) {
+    cachedSpineIndex = currentSpineIndex;
+    cachedChapterTotalPageCount = section->pageCount;
+    cachedChapterPageNumber = section->currentPage;
+    nextPageNumber = section->currentPage;
+  }
+}
+
 void EpubReaderActivity::reindexCurrentSection() {
   if (!SETTINGS.saveToFile()) {
     LOG_ERR("ERS", "Failed to save settings");
@@ -971,11 +981,7 @@ void EpubReaderActivity::reindexCurrentSection() {
   {
     RenderLock lock(*this);
     GUI.drawPopup(renderer, tr(STR_INDEXING));
-    if (section) {
-      cachedSpineIndex = currentSpineIndex;
-      cachedChapterTotalPageCount = section->pageCount;
-      nextPageNumber = section->currentPage;
-    }
+    cacheCurrentSectionPosition();
     section.reset();
   }
   requestUpdate();
@@ -988,11 +994,7 @@ void EpubReaderActivity::refreshReaderPreviewBuffer(uint8_t* dest, const size_t 
 
   {
     RenderLock lock(*this);
-    if (section) {
-      cachedSpineIndex = currentSpineIndex;
-      cachedChapterTotalPageCount = section->pageCount;
-      nextPageNumber = section->currentPage;
-    }
+    cacheCurrentSectionPosition();
     section.reset();
   }
 
@@ -1016,6 +1018,7 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
       break;
     case S::LONG_MENU_CHANGE_FONT:
       SETTINGS.fontFamily = (SETTINGS.fontFamily + 1) % S::FONT_FAMILY_COUNT;
+      SETTINGS.sdFontFamilyName[0] = '\0';
       reindexCurrentSection();
       break;
     case S::LONG_MENU_REFRESH_SCREEN:
@@ -1077,6 +1080,14 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
       onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::BOOKMARK_TOGGLE);
 #endif
       break;
+    case S::LONG_MENU_TOGGLE_DARK_MODE:
+      SETTINGS.toggleReaderDarkMode();
+      if (!SETTINGS.saveToFile()) {
+        LOG_ERR("ERS", "Failed to save settings");
+      }
+      activityManager.applyEffectiveDarkMode();
+      requestUpdate();
+      break;
     case S::LONG_MENU_OFF:
     default:
       break;
@@ -1132,6 +1143,9 @@ bool EpubReaderActivity::executeShortPowerButtonAction() {
     case S::FILE_TRANSFER:
       executeReaderQuickAction(S::LONG_MENU_FILE_TRANSFER);
       return true;
+    case S::TOGGLE_DARK_MODE:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_DARK_MODE);
+      return true;
     default:
       return false;
   }
@@ -1179,6 +1193,9 @@ bool EpubReaderActivity::executeLongPowerButtonAction() {
     case S::FILE_TRANSFER:
       executeReaderQuickAction(S::LONG_MENU_FILE_TRANSFER);
       return true;
+    case S::TOGGLE_DARK_MODE:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_DARK_MODE);
+      return true;
     default:
       return false;
   }
@@ -1223,6 +1240,9 @@ bool EpubReaderActivity::executeDoubleTapAction() {
       return true;
     case S::FILE_TRANSFER:
       executeReaderQuickAction(S::LONG_MENU_FILE_TRANSFER);
+      return true;
+    case S::TOGGLE_DARK_MODE:
+      executeReaderQuickAction(S::LONG_MENU_TOGGLE_DARK_MODE);
       return true;
     default:
       return false;
@@ -1493,8 +1513,14 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       break;
     }
     case EpubReaderMenuActivity::MenuAction::DELETE_BOOKMARKS: {
-      BOOKMARKS.clearAll();
-      requestUpdate();
+      startActivityForResult(std::make_unique<ConfirmationActivity>(renderer, mappedInput, tr(STR_DELETE_BOOKMARKS),
+                                                                    epub ? epub->getTitle() : std::string{}),
+                             [this](const ActivityResult& result) {
+                               if (!result.isCancelled) {
+                                 BOOKMARKS.clearAll();
+                               }
+                               requestUpdate();
+                             });
       break;
     }
 #endif  // ENABLE_BOOKMARKS
@@ -1598,11 +1624,7 @@ void EpubReaderActivity::applyOrientation(const uint8_t orientation) {
   // Preserve current reading position so we can restore after reflow.
   {
     RenderLock lock(*this);
-    if (section) {
-      cachedSpineIndex = currentSpineIndex;
-      cachedChapterTotalPageCount = section->pageCount;
-      nextPageNumber = section->currentPage;
-    }
+    cacheCurrentSectionPosition();
 
     // Persist the selection so the reader keeps the new orientation on next launch.
     if (!persistOrientationSelection(orientation)) {
@@ -1640,11 +1662,7 @@ void EpubReaderActivity::setAutoPageTurnIntervalSeconds(uint16_t seconds) {
   automaticPageTurnActive = true;
 
   RenderLock lock(*this);
-  if (section) {
-    cachedSpineIndex = currentSpineIndex;
-    cachedChapterTotalPageCount = section->pageCount;
-    nextPageNumber = section->currentPage;
-  }
+  cacheCurrentSectionPosition();
   section.reset();
 }
 
@@ -1906,11 +1924,17 @@ void EpubReaderActivity::render(RenderLock&& lock) {
     if (cachedChapterTotalPageCount > 0) {
       // only goes to relative position if spine index matches cached value
       if (currentSpineIndex == cachedSpineIndex && section->pageCount != cachedChapterTotalPageCount) {
-        float progress = static_cast<float>(section->currentPage) / static_cast<float>(cachedChapterTotalPageCount);
-        int newPage = static_cast<int>(progress * section->pageCount);
+        float progress = static_cast<float>(cachedChapterPageNumber) / static_cast<float>(cachedChapterTotalPageCount);
+        int newPage = static_cast<int>(progress * static_cast<float>(section->pageCount));
+        if (newPage < 0) {
+          newPage = 0;
+        } else if (section->pageCount > 0 && newPage >= section->pageCount) {
+          newPage = section->pageCount - 1;
+        }
         section->currentPage = newPage;
       }
       cachedChapterTotalPageCount = 0;  // resets to 0 to prevent reading cached progress again
+      cachedChapterPageNumber = 0;
     }
 
     if (pendingPercentJump && section->pageCount > 0) {
@@ -2107,6 +2131,12 @@ void EpubReaderActivity::performDeferredSilentIndexingLocked() {
     return;
   }
 
+  if (heapguard::pressure() != heapguard::Pressure::Normal) {
+    LOG_INF("ERS", "Silent next-chapter indexing skipped: low heap (%u, need %u)",
+            static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(heapguard::kLowFloorBytes));
+    return;
+  }
+
   Section nextSection(epub, nextSpineIndex, renderer);
   if (nextSection.loadSectionFile(SETTINGS.getReaderFontId(), SETTINGS.getReaderLineCompression(),
                                   SETTINGS.extraParagraphSpacing, SETTINGS.forceParagraphIndents,
@@ -2164,6 +2194,7 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
       SETTINGS.textAntiAliasing && !renderer.isDarkMode() && renderer.fontSupportsGrayscale(fontId);
   const bool needsImageGrayscale = pageHasImages;
   const bool needsAnyGrayscale = needsTextGrayscale || needsImageGrayscale;
+  const bool cleanImageBasePending = pagesUntilFullRefresh <= 1;
 
   const auto paintReaderChrome = [&] {
 #if ENABLE_ANNOTATIONS
@@ -2205,6 +2236,9 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
       int16_t imgX, imgY, imgW, imgH;
       if (page->getImageBoundingBox(imgX, imgY, imgW, imgH)) {
         renderer.fillRect(imgX + orientedMarginLeft, imgY + orientedMarginTop, imgW, imgH, false);
+        if (cleanImageBasePending) {
+          renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+        }
         renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
         page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);

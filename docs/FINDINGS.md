@@ -2035,3 +2035,11 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Why not fixed here**: the 401 retry loop is firmware and is fixed. A filled Grimmory catalog is configuration if the server requires auth.
 - **Status**: firmware 401 handling implemented, host-tested; catalog contents are config-not-firmware. Not flashed.
 
+- **Status**: indexing Continue device-walked (Helm EPUB, cache clear, 6× PAGEFWD: one `enter EpubReader`, `Post-index Continue` action=0, no `persistAndRestartForRecovery`). Shelf at Always idle still cannot HTTPS (~22–31 KB vs 38 KB) — honest skip. STORED-shadow host-tested, not on the load path. Image-heavy chapters still cannot hold PNGdec (~58 KB) plus 16 KB headroom against ~16 KB largest; that path logs and does not reboot.
+## 2026-08-24T17:42Z — pre-commit `pio run` inherits git-commit env and can smash the index via JPEGDEC
+
+- **Found by**: grok — during plan 120 (settings-adds absorb)
+- **Where**: `scripts/hooks/pre-commit` (the `uv run pio run -e custom` invocation near the end)
+- **What**: `git commit` exports `GIT_DIR` / `GIT_INDEX_FILE` into the hook. PlatformIO then installs `JPEGDEC` from a git SHA (`platformio.ini` lib_deps). That child `git clone` / `git reset --hard` operates on THIS repo instead of the package cache, leaving the index full of JPEGDEC paths and missing blobs (`fatal: unable to read …`). Working tree files were intact; `git read-tree HEAD` restored the index.
+- **Why not fixed here**: out of scope for plan 120 (settings three-file adds). A one-line `unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_OBJECT_DIRECTORY` before pio is the likely fix; needs its own review so it is not smuggled into an absorb commit.
+- **Status**: open

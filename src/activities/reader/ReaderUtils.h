@@ -71,9 +71,8 @@ inline DualSideConfirmClassification classifyDualSideConfirmAction(
   if (!release.active) {
     return DualSideConfirmClassification::IGNORE;
   }
-  constexpr unsigned long longPressMenuMs = 600;
   if (configuredAction != CrossPointSettings::LONG_PRESS_MENU_ACTION::LONG_MENU_OFF &&
-      release.durationMs >= longPressMenuMs) {
+      release.durationMs >= CrossPointSettings::UI_LONG_PRESS_MS) {
     return DualSideConfirmClassification::DISPATCH_QUICK_ACTION;
   }
   return DualSideConfirmClassification::FALLTHROUGH_TO_PAGE_TURN;

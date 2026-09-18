@@ -95,6 +95,7 @@ void toDoc(const CrossPointSettings& s, JsonDocument& doc) {
   doc["deviceName"] = s.deviceName;
   doc["wifiAutoConnect"] = s.wifiAutoConnect;
   doc["showHiddenFiles"] = s.showHiddenFiles;
+  doc["hideFileExtension"] = s.hideFileExtension;
   doc["todoOpenDirectToToday"] = s.todoOpenDirectToToday;
   doc["moveFinishedToReadFolder"] = s.moveFinishedToReadFolder;
   doc["developerMode"] = s.developerMode;
@@ -259,6 +260,7 @@ bool fromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* needsResave) 
   s.embeddedStyle = doc["embeddedStyle"] | (uint8_t)1;
   s.wifiAutoConnect = doc["wifiAutoConnect"] | (uint8_t)0;
   s.showHiddenFiles = doc["showHiddenFiles"] | (uint8_t)0;
+  s.hideFileExtension = doc["hideFileExtension"] | (uint8_t)0;
   s.todoOpenDirectToToday = doc["todoOpenDirectToToday"] | (uint8_t)0;
   s.moveFinishedToReadFolder = doc["moveFinishedToReadFolder"] | (uint8_t)0;
   s.developerMode = doc["developerMode"] | (uint8_t)0;

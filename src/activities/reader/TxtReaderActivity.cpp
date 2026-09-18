@@ -82,6 +82,10 @@ void TxtReaderActivity::onExit() {
 }
 
 void TxtReaderActivity::loop() {
+  if (executeDarkModePowerButtonAction()) {
+    return;
+  }
+
   // Long press BACK (1s+) goes to file selection
   if (mappedInput.isPressed(MappedInputManager::Button::Back) && mappedInput.getHeldTime() >= ReaderUtils::GO_HOME_MS) {
     activityManager.goToFileBrowser(txt ? txt->getPath() : "");
@@ -122,6 +126,29 @@ void TxtReaderActivity::loop() {
     // Paging forward off the last page used to eject to Home. Stay put: the
     // file boundary is not a request to leave the book.
   }
+}
+
+void TxtReaderActivity::toggleDarkMode() {
+  SETTINGS.toggleReaderDarkMode();
+  if (!SETTINGS.saveToFile()) {
+    LOG_ERR("TXT", "Failed to save settings");
+  }
+  activityManager.applyEffectiveDarkMode();
+  requestUpdate();
+}
+
+bool TxtReaderActivity::executeDarkModePowerButtonAction() {
+  using S = CrossPointSettings;
+  const bool isLong = mappedInput.getHeldTime() >= SETTINGS.getPowerButtonLongPressDuration();
+  const uint8_t action = isLong ? SETTINGS.longPwrBtn : SETTINGS.shortPwrBtn;
+  if (action != S::TOGGLE_DARK_MODE) {
+    return false;
+  }
+  if (!mappedInput.wasReleased(MappedInputManager::Button::Power)) {
+    return false;
+  }
+  toggleDarkMode();
+  return true;
 }
 
 void TxtReaderActivity::initializeReader() {
