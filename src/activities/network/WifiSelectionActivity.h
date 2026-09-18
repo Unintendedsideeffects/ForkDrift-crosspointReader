@@ -160,4 +160,7 @@ class WifiSelectionActivity final : public Activity {
   void loop() override;
   void render(RenderLock&&) override;
   bool blocksBackgroundServer() override { return true; }
+  // Scanning and connecting run for seconds with no button activity to reset
+  // the sleep timer, so the device could sleep mid-scan.
+  bool preventAutoSleep() override { return true; }
 };
