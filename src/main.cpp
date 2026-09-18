@@ -19,8 +19,10 @@
 #include <esp_ota_ops.h>
 #endif
 
+#include <strings.h>
+
 #include <algorithm>
-#include <cinttypes>  // PRIu64 for deep-sleep timer logging (transitively present on ESP32, not on host)
+#include <cinttypes>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -57,6 +59,7 @@
 #include "network/background/BackgroundWebServer.h"
 #include "network/background/BackgroundWifiCoordinator.h"
 #include "network/background/BackgroundWifiService.h"
+#include "network/background/RecoverHeapAfterWifiPolicy.h"
 #include "network/ota/SerialOtaSession.h"
 #include "network/server/SettingsApi.h"
 #include "network/wifi/WifiUtil.h"
@@ -159,36 +162,22 @@ static bool backgroundServerKeepsWifiWhileAwake() {
 
 // TODO: This can be refactored to be leaner
 void recoverHeapAfterWifi(const char* tag) {
-  if (WiFi.getMode() == WIFI_MODE_NULL) {
+  const auto action = wifi_heap_recovery::evaluate({
+      .wifiOff = WiFi.getMode() == WIFI_MODE_NULL,
+      .alwaysKeepsWifi = backgroundServerKeepsWifiWhileAwake(),
+  });
+  if (action == wifi_heap_recovery::Action::Noop) {
     return;
   }
-
-  // When a background-server mode wants WiFi kept up while awake (Always mode, or
-  // On-Charge while plugged in), reboot to the boot-time auto-connect path if a
-  // foreground activity tears WiFi down while the server should stay available.
-  if (backgroundServerKeepsWifiWhileAwake()) {
-    WiFi.disconnect(false);
-    delay(30);
-    silentRestart();
+  if (action == wifi_heap_recovery::Action::LeaveWifiForAlways) {
+    LOG_DBG(tag, "Leaving WiFi up for Always");
     return;
   }
-
-  // Otherwise WiFi is meant to go idle. Fully de-init it (returns the WiFi/LWIP
-  // heap), and reboot only when the largest contiguous block is still too small
-  // for later memory-heavy work — the ESP32 heap cannot be compacted in place.
-  constexpr uint32_t kMinLargestBlockToSkipReboot = 90000;
 
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   delay(30);
-
-  const uint32_t largestBlock = ESP.getMaxAllocHeap();
-  LOG_DBG(tag, "Heap after WiFi teardown: free=%u largest=%u", ESP.getFreeHeap(), largestBlock);
-
-  if (largestBlock < kMinLargestBlockToSkipReboot) {
-    LOG_DBG(tag, "Heap too fragmented (largest=%u), silent restart to recover", largestBlock);
-    silentRestart();
-  }
+  LOG_DBG(tag, "Heap after WiFi teardown: free=%u largest=%u", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 }
 
 namespace {
