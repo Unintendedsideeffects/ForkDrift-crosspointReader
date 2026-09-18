@@ -28,4 +28,11 @@ void CrossPointWebServer::setApRedirectPath(std::string) {}
 // available on-device via the Arduino-ESP32 TLS bundle.
 extern "C" int arduino_esp_crt_bundle_attach(void*) { return 0; }
 
+// HttpDownloader declares esp_crt_bundle_attach with C linkage and takes its
+// address, so it needs a real out-of-line symbol. The simulator's
+// esp_http_client.h only offers a C++-linkage inline, which is a different
+// symbol entirely. On the desktop there is nothing to verify against, so this
+// succeeds and the simulated transport proceeds unencrypted.
+extern "C" int esp_crt_bundle_attach(void*) { return 0; }
+
 #endif  // SIMULATOR

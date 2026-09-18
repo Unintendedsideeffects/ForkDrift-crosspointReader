@@ -77,6 +77,43 @@ def patch_simulator_hal(env):
 
     _missing_patches.clear()
 
+    # 0) esp_http_client_config_t::max_authorization_retries. The firmware sets
+    #    this to -1 so a single HTTP 401 does not burn the redirect budget (IDF
+    #    counts authorization retries against max_redirection_count); the
+    #    simulator's stub config predates the field.
+    _replace_once(
+        os.path.join(src, "esp_http_client.h"),
+        "  esp_http_client_auth_type_t auth_type = HTTP_AUTH_TYPE_NONE;\n};",
+        "  esp_http_client_auth_type_t auth_type = HTTP_AUTH_TYPE_NONE;\n"
+        "  int max_authorization_retries = 0;\n};",
+        marker="max_authorization_retries",
+    )
+
+    # 0b) CrossPointWebServer::begin(ServerRole). The firmware gained a role
+    #     parameter (Foreground vs the background server); the pinned simulator
+    #     package still defines the old no-arg begin(), which no longer matches
+    #     the firmware header it compiles against.
+    _replace_once(
+        os.path.join(src, "CrossPointWebServer.cpp"),
+        "void CrossPointWebServer::begin() {",
+        "void CrossPointWebServer::begin(ServerRole /*role*/) {",
+        marker="begin(ServerRole",
+    )
+
+    # 0c) HalStorage::freeBytes(). The firmware's stored-EPUB cache refuses a
+    #     repack when the card cannot hold the shadow; the simulator's HalStorage
+    #     has no capacity API at all. Report a large fixed budget so the desktop
+    #     run always takes the "there is room" branch.
+    _replace_once(
+        os.path.join(src, "HalStorage.h"),
+        "  bool rmdir(const char *path);",
+        "  bool rmdir(const char *path);\n"
+        "  // Simulator: the host filesystem is effectively unbounded for our\n"
+        "  // purposes, so report a fixed large budget.\n"
+        "  uint64_t freeBytes() { return uint64_t(1) << 32; }",
+        marker="freeBytes",
+    )
+
     # 1) WakeupReason::TimerRefresh
     _replace_once(
         os.path.join(src, "HalGPIO.h"),
