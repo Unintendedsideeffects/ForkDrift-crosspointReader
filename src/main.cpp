@@ -929,6 +929,32 @@ void loop() {
         logSerial.printf("SCREENSHOT_END\n");
       } else if (cmd == "PING") {
         logSerial.printf("PONG\n");
+      } else if (cmd == "ACTIVITY") {
+        const std::string name = activityManager.currentActivityName();
+        logSerial.printf("ACTIVITY:%s stack=%u\n", name.empty() ? "-" : name.c_str(),
+                         activityManager.activityStackDepth());
+      } else if (cmd.startsWith("GOTO:")) {
+        const String dest = cmd.substring(5);
+        const auto gotoHome = []() {
+          if (activityManager.currentActivityName() != "Home") {
+            activityManager.goHome();
+          }
+        };
+        if (strcasecmp(dest.c_str(), "Home") == 0) {
+          gotoHome();
+          logSerial.printf("GOTO_OK:Home\n");
+        } else if (strcasecmp(dest.c_str(), "Settings") == 0) {
+          activityManager.goToSettings();
+          logSerial.printf("GOTO_OK:Settings\n");
+        } else if (strcasecmp(dest.c_str(), "FileTransfer") == 0) {
+          activityManager.goToFileTransfer();
+          logSerial.printf("GOTO_OK:FileTransfer\n");
+        } else if (strcasecmp(dest.c_str(), "Opds") == 0) {
+          activityManager.goToBrowser();
+          logSerial.printf("GOTO_OK:Opds\n");
+        } else {
+          logSerial.printf("GOTO_ERR:%s\n", dest.c_str());
+        }
       } else if (cmd == "HEAPTRACE") {
         // Boot-time heap milestones, unreachable over serial while they happen.
         heaptrace::dump("MEM");

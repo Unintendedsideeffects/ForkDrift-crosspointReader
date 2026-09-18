@@ -1,0 +1,27 @@
+# Four-scenario occupancy gate. Prefer scripts/stabilize_gate.py so Helm/Settings/
+# File Transfer are entered by activity name rather than carousel hunting.
+#
+#   uv run python scripts/device_walk.py run scripts/walks/stabilize-gate.walk --outdir runs/stabilize-gate
+#
+# The dedicated gate script also counts Grimmory HTTPS fetches and USB flaps.
+
+activity Home
+heap boot-home
+press CONFIRM 8
+wait-activity EpubReader 40
+heap in-helm
+go-home
+heap post-helm
+activity Home
+goto Settings
+wait-activity Settings 15
+heap in-settings
+go-home
+heap post-settings
+activity Home
+goto FileTransfer
+wait-activity NetworkModeSelection 15
+heap in-file-transfer
+go-home
+heap post-file-transfer
+activity Home

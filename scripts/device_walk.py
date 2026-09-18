@@ -26,6 +26,10 @@ Usage:
 
 Walk file DSL (one command per line, '#' starts a comment):
   press <BTN> [settle_sec]     inject button, wait settle seconds (default 2.0)
+  activity [name]              query current activity; fail if name is given and differs
+  wait-activity <name> [sec]   poll CMD:ACTIVITY until name matches
+  go-home [timeout_sec]        BACK until activity is Home (state-aware, not BACK×N)
+  goto Home|Settings|FileTransfer|Opds  jump via CMD:GOTO
   settings <json>              apply the same settings payload as POST /api/settings
   deep-sleep                   enter the production deep-sleep path
   shot <name>                  capture screenshot to NNN-<name>.png in outdir
@@ -55,7 +59,9 @@ BAUD = 115200
 FRAME_W, FRAME_H = 800, 480  # raw framebuffer is landscape; rotate for portrait
 DEFAULT_SETTLE_S = 2.0  # e-ink refresh + render time after a button press
 ERROR_MARKERS = ("[ERR]", "Guru Meditation", "abort()", "Backtrace:", "panic'ed")
+RESET_MARKERS = ("rst:0x", "rst:0x3", "Rebooting...", "Guru Meditation")
 BUTTONS = ("BACK", "CONFIRM", "LEFT", "RIGHT", "UP", "DOWN", "PAGEBACK", "PAGEFWD")
+GOTO_TARGETS = ("Home", "Settings", "FileTransfer", "Opds")
 
 
 def autodetect_port() -> str:
@@ -72,6 +78,8 @@ class DeviceLink:
         self.ser = serial.Serial(port, BAUD, timeout=0.1)
         self.log_file = open(log_path, "a", encoding="utf-8") if log_path else None
         self.errors: list[str] = []
+        self.resets: list[str] = []
+        self.usb_flaps: list[str] = []
 
     def close(self):
         self.ser.close()
@@ -85,12 +93,23 @@ class DeviceLink:
         if any(marker in line for marker in ERROR_MARKERS):
             self.errors.append(line)
             print(f"  !! {line}", file=sys.stderr)
+        if any(marker in line for marker in RESET_MARKERS):
+            self.resets.append(line)
+            print(f"  !! reset {line}", file=sys.stderr)
+
+    def _read_raw(self) -> bytes:
+        try:
+            return self.ser.readline()
+        except serial.SerialException as exc:
+            self.usb_flaps.append(str(exc))
+            print(f"  !! usb {exc}", file=sys.stderr)
+            return b""
 
     def read_line(self, timeout_s: float) -> str | None:
         """Read one text line, recording it; None on timeout."""
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
-            raw = self.ser.readline()
+            raw = self._read_raw()
             if not raw:
                 continue
             line = raw.decode("utf-8", errors="replace").strip()
@@ -103,7 +122,7 @@ class DeviceLink:
         """Consume pending log lines (recording them) for duration_s."""
         deadline = time.monotonic() + duration_s
         while True:
-            raw = self.ser.readline()
+            raw = self._read_raw()
             if raw:
                 line = raw.decode("utf-8", errors="replace").strip()
                 if line:
@@ -124,6 +143,50 @@ class DeviceLink:
     def ping(self):
         self.command("PING", re.compile(r"^PONG$"))
 
+    def activity(self) -> tuple[str, int]:
+        line = self.command("ACTIVITY", re.compile(r"^ACTIVITY:"), timeout_s=20.0)
+        payload = line.split(":", 1)[1]
+        name, _, stack_part = payload.partition(" stack=")
+        stack = int(stack_part) if stack_part else 0
+        return name, stack
+
+    def wait_activity(self, expected: str | tuple[str, ...], timeout_s: float) -> str:
+        names = (expected,) if isinstance(expected, str) else expected
+        deadline = time.monotonic() + timeout_s
+        last = ""
+        while time.monotonic() < deadline:
+            try:
+                last, _ = self.activity()
+            except TimeoutError:
+                self.drain(min(2.0, max(0.1, deadline - time.monotonic())))
+                continue
+            if last in names:
+                return last
+            self.drain(0.4)
+        raise TimeoutError(f"Activity stayed {last!r}, expected one of {names!r}")
+
+    def go_home(self, timeout_s: float = 60.0):
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            try:
+                name, _ = self.activity()
+            except TimeoutError:
+                self.drain(2.0)
+                continue
+            if name == "Home":
+                return
+            self.press("BACK", settle_s=4.0)
+        name, stack = self.activity()
+        raise TimeoutError(f"Still in {name!r} stack={stack} after {timeout_s}s of BACK")
+
+    def goto(self, dest: str, settle_s: float = 2.5):
+        if dest not in GOTO_TARGETS:
+            raise ValueError(f"Unknown goto {dest!r}; expected one of {GOTO_TARGETS}")
+        line = self.command(f"GOTO:{dest}", re.compile(r"^GOTO_(OK|ERR):"), timeout_s=20.0)
+        if line.startswith("GOTO_ERR"):
+            raise RuntimeError(f"Firmware rejected goto {dest}: {line}")
+        self.drain(settle_s)
+
     def terminus_status(self) -> dict:
         line = self.command("TRMNL_STATUS", re.compile(r"^TRMNL_STATUS:"), timeout_s=10.0)
         return json.loads(line.split(":", 1)[1])
@@ -141,7 +204,7 @@ class DeviceLink:
         return int(line.rsplit(":", 1)[1])
 
     def heap_profile(self) -> dict:
-        line = self.command("HEAPPROF", re.compile(r"^HEAPPROF:"), timeout_s=10.0)
+        line = self.command("HEAPPROF", re.compile(r"^HEAPPROF:"), timeout_s=25.0)
         return json.loads(line.split(":", 1)[1])
 
     def apply_settings(self, payload: str):
@@ -246,6 +309,27 @@ def run_walk(link: DeviceLink, walk_path: Path, outdir: Path) -> int:
         elif verb == "press":
             settle = float(args[1]) if len(args) > 1 else DEFAULT_SETTLE_S
             link.press(args[0], settle)
+        elif verb == "activity":
+            name, stack = link.activity()
+            print(f"  activity {name} stack={stack}")
+            if args and name != args[0]:
+                sys.exit(f"{walk_path}:{lineno}: expected activity {args[0]!r}, got {name!r}")
+        elif verb == "wait-activity":
+            expected = args[0]
+            timeout_s = float(args[1]) if len(args) > 1 else 30.0
+            name = link.wait_activity(expected, timeout_s)
+            print(f"  activity {name}")
+        elif verb == "go-home":
+            timeout_s = float(args[0]) if args else 45.0
+            link.go_home(timeout_s)
+            name, stack = link.activity()
+            print(f"  activity {name} stack={stack}")
+        elif verb == "goto":
+            dest = args[0]
+            settle = float(args[1]) if len(args) > 1 else 2.5
+            link.goto(dest, settle)
+            name, stack = link.activity()
+            print(f"  activity {name} stack={stack}")
         elif verb == "settings":
             link.apply_settings(" ".join(args))
         elif verb == "deep-sleep":
@@ -261,12 +345,24 @@ def run_walk(link: DeviceLink, walk_path: Path, outdir: Path) -> int:
             sys.exit(f"{walk_path}:{lineno}: unknown verb {verb!r}")
 
     print(f"\nWalk complete: {shot_index} screenshots in {outdir}")
+    failed = False
+    if link.resets:
+        print(f"{len(link.resets)} unexpected reset line(s):", file=sys.stderr)
+        for line in link.resets:
+            print(f"  {line}", file=sys.stderr)
+        failed = True
+    if link.usb_flaps:
+        print(f"{len(link.usb_flaps)} USB passthrough flap(s) (not counted as device resets):", file=sys.stderr)
+        for line in link.usb_flaps:
+            print(f"  {line}", file=sys.stderr)
     if link.errors:
         print(f"{len(link.errors)} error line(s) seen on serial:", file=sys.stderr)
         for err in link.errors:
             print(f"  {err}", file=sys.stderr)
+        failed = True
+    if failed:
         return 1
-    print("No error markers in serial log.")
+    print("No error markers or unexpected resets in serial log.")
     return 0
 
 

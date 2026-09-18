@@ -1,0 +1,25 @@
+# Second-open + Grimmory behavior gate. Prefer scripts/reentry_gate.py so Helm
+# reopen and OPDS fetch are judged as behavior, not heap thresholds.
+#
+#   uv run python scripts/reentry_gate.py --outdir runs/reentry-gate
+
+activity Home
+heap clean-home
+press CONFIRM 8
+wait-activity EpubReader 40
+heap helm-1
+goto Home
+wait-activity Home 40
+heap home-after-helm-1
+press CONFIRM 8
+wait-activity EpubReader 40
+heap helm-2
+press PAGEFWD 8
+wait-activity EpubReader 20
+heap helm-2-turned
+goto Home
+wait-activity Home 40
+heap home-after-helm-2
+goto Opds
+wait-activity OpdsBookBrowser 20
+heap grimmory
