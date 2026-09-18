@@ -23,6 +23,9 @@ void KOReaderAuthActivity::onWifiSelectionComplete(const bool success) {
     return;
   }
 
+  // Modem sleep stalls the TLS handshake and can time authentication out.
+  WiFi.setSleep(false);
+
   if (authTaskHandle != nullptr && !authTaskExited.load()) {
     LOG_WRN("KOAUTH", "Auth task already running, skipping second task creation");
     return;

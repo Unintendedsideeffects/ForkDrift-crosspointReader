@@ -88,6 +88,9 @@ void KOReaderSyncActivity::onWifiSelectionComplete(const bool success) {
 
   LOG_DBG("KOSync", "WiFi connected, starting sync");
 
+  // Modem sleep stalls the TLS handshake and can time the sync out.
+  WiFi.setSleep(false);
+
   {
     RenderLock lock(*this);
     state = SYNCING;
