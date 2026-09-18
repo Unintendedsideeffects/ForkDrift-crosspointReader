@@ -335,8 +335,9 @@ bool Epub::reserveInflateWindowIfNeeded() const {
     return false;
   }
   const bool needsWindow = zipNeedsInflateWindow(inspected);
-  LOG_INF("EBP", "Inflate window: %s (archive kind=%u hasDeflate=%d)", needsWindow ? "reserving" : "not needed for this book",
-          static_cast<unsigned>(inspected.kind), inspected.hasDeflate ? 1 : 0);
+  LOG_INF("EBP", "Inflate window: %s (archive kind=%u hasDeflate=%d)",
+          needsWindow ? "reserving" : "not needed for this book", static_cast<unsigned>(inspected.kind),
+          inspected.hasDeflate ? 1 : 0);
   if (!needsWindow) {
     return true;
   }

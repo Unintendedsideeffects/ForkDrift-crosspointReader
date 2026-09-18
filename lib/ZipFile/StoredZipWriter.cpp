@@ -1,10 +1,10 @@
-#include "InflateStream.h"
-#include "ZipFile.h"
-
 #include <Logging.h>
 #include <esp_task_wdt.h>
 
 #include <cstring>
+
+#include "InflateStream.h"
+#include "ZipFile.h"
 
 namespace {
 

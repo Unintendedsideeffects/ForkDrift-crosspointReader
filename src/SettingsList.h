@@ -580,93 +580,97 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
   // stays independent of the persisted enum values.
   if (want(StrId::STR_CAT_DISPLAY)) {
     emit(SettingInfo::Enum(StrId::STR_SLEEP_STYLE, &CrossPointSettings::sleepScreenSplit,
-                           {StrId::STR_SLEEP_UNIFIED, StrId::STR_SLEEP_SMART}, "sleepScreenSplit", StrId::STR_CAT_DISPLAY)
+                           {StrId::STR_SLEEP_UNIFIED, StrId::STR_SLEEP_SMART}, "sleepScreenSplit",
+                           StrId::STR_CAT_DISPLAY)
              .withConfiguratorExport());
   }
 
-  if (want(StrId::STR_CAT_DISPLAY)) emit([&] {
-    std::vector<StrId> ids;
-    std::vector<uint8_t> vals;
-    std::vector<const char*> optionFeatureKeys;
-    buildSleepModeOptions(ids, vals, optionFeatureKeys, hasSleepImages, hasPokedexImages);
-    return SettingInfo::DynamicEnum(
-               StrId::STR_SLEEP_SCREEN, ids,
-               [vals] {
-                 const uint8_t cur = SETTINGS.sleepScreen;
-                 for (size_t i = 0; i < vals.size(); i++) {
-                   if (vals[i] == cur) return static_cast<uint8_t>(i);
-                 }
-                 return uint8_t{0};
-               },
-               [vals](uint8_t idx) {
-                 if (idx < vals.size()) {
-                   SETTINGS.sleepScreen = vals[idx];
-                   SETTINGS.terminusSleepEnabled =
-                       CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP) ? 1 : 0;
-                 }
-               },
-               "sleepScreen", StrId::STR_CAT_DISPLAY)
-        .withVisibleWhen("sleepScreenSplit", CrossPointSettings::SLEEP_SPLIT_UNIFIED)
-        .withConfiguratorExport()
-        .withEnumPersistedValues(vals)
-        .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
-  }());
+  if (want(StrId::STR_CAT_DISPLAY))
+    emit([&] {
+      std::vector<StrId> ids;
+      std::vector<uint8_t> vals;
+      std::vector<const char*> optionFeatureKeys;
+      buildSleepModeOptions(ids, vals, optionFeatureKeys, hasSleepImages, hasPokedexImages);
+      return SettingInfo::DynamicEnum(
+                 StrId::STR_SLEEP_SCREEN, ids,
+                 [vals] {
+                   const uint8_t cur = SETTINGS.sleepScreen;
+                   for (size_t i = 0; i < vals.size(); i++) {
+                     if (vals[i] == cur) return static_cast<uint8_t>(i);
+                   }
+                   return uint8_t{0};
+                 },
+                 [vals](uint8_t idx) {
+                   if (idx < vals.size()) {
+                     SETTINGS.sleepScreen = vals[idx];
+                     SETTINGS.terminusSleepEnabled =
+                         CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP) ? 1 : 0;
+                   }
+                 },
+                 "sleepScreen", StrId::STR_CAT_DISPLAY)
+          .withVisibleWhen("sleepScreenSplit", CrossPointSettings::SLEEP_SPLIT_UNIFIED)
+          .withConfiguratorExport()
+          .withEnumPersistedValues(vals)
+          .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
+    }());
 
-  if (want(StrId::STR_CAT_DISPLAY)) emit([&] {
-    std::vector<StrId> ids;
-    std::vector<uint8_t> vals;
-    std::vector<const char*> optionFeatureKeys;
-    buildSleepModeOptions(ids, vals, optionFeatureKeys, hasSleepImages, hasPokedexImages);
-    return SettingInfo::DynamicEnum(
-               StrId::STR_SLEEP_READER_SCREEN, ids,
-               [vals] {
-                 const uint8_t cur = SETTINGS.sleepScreenReader;
-                 for (size_t i = 0; i < vals.size(); i++) {
-                   if (vals[i] == cur) return static_cast<uint8_t>(i);
-                 }
-                 return uint8_t{0};
-               },
-               [vals](uint8_t idx) {
-                 if (idx < vals.size()) {
-                   SETTINGS.sleepScreenReader = vals[idx];
-                   SETTINGS.terminusSleepEnabled =
-                       CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP) ? 1 : 0;
-                 }
-               },
-               "sleepScreenReader", StrId::STR_CAT_DISPLAY)
-        .withVisibleWhen("sleepScreenSplit", CrossPointSettings::SLEEP_SPLIT_SMART)
-        .withConfiguratorExport()
-        .withEnumPersistedValues(vals)
-        .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
-  }());
+  if (want(StrId::STR_CAT_DISPLAY))
+    emit([&] {
+      std::vector<StrId> ids;
+      std::vector<uint8_t> vals;
+      std::vector<const char*> optionFeatureKeys;
+      buildSleepModeOptions(ids, vals, optionFeatureKeys, hasSleepImages, hasPokedexImages);
+      return SettingInfo::DynamicEnum(
+                 StrId::STR_SLEEP_READER_SCREEN, ids,
+                 [vals] {
+                   const uint8_t cur = SETTINGS.sleepScreenReader;
+                   for (size_t i = 0; i < vals.size(); i++) {
+                     if (vals[i] == cur) return static_cast<uint8_t>(i);
+                   }
+                   return uint8_t{0};
+                 },
+                 [vals](uint8_t idx) {
+                   if (idx < vals.size()) {
+                     SETTINGS.sleepScreenReader = vals[idx];
+                     SETTINGS.terminusSleepEnabled =
+                         CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP) ? 1 : 0;
+                   }
+                 },
+                 "sleepScreenReader", StrId::STR_CAT_DISPLAY)
+          .withVisibleWhen("sleepScreenSplit", CrossPointSettings::SLEEP_SPLIT_SMART)
+          .withConfiguratorExport()
+          .withEnumPersistedValues(vals)
+          .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
+    }());
 
-  if (want(StrId::STR_CAT_DISPLAY)) emit([&] {
-    std::vector<StrId> ids;
-    std::vector<uint8_t> vals;
-    std::vector<const char*> optionFeatureKeys;
-    buildSleepModeOptions(ids, vals, optionFeatureKeys, hasSleepImages, hasPokedexImages);
-    return SettingInfo::DynamicEnum(
-               StrId::STR_SLEEP_GENERAL_SCREEN, ids,
-               [vals] {
-                 const uint8_t cur = SETTINGS.sleepScreenHome;
-                 for (size_t i = 0; i < vals.size(); i++) {
-                   if (vals[i] == cur) return static_cast<uint8_t>(i);
-                 }
-                 return uint8_t{0};
-               },
-               [vals](uint8_t idx) {
-                 if (idx < vals.size()) {
-                   SETTINGS.sleepScreenHome = vals[idx];
-                   SETTINGS.terminusSleepEnabled =
-                       CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP) ? 1 : 0;
-                 }
-               },
-               "sleepScreenHome", StrId::STR_CAT_DISPLAY)
-        .withVisibleWhen("sleepScreenSplit", CrossPointSettings::SLEEP_SPLIT_SMART)
-        .withConfiguratorExport()
-        .withEnumPersistedValues(vals)
-        .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
-  }());
+  if (want(StrId::STR_CAT_DISPLAY))
+    emit([&] {
+      std::vector<StrId> ids;
+      std::vector<uint8_t> vals;
+      std::vector<const char*> optionFeatureKeys;
+      buildSleepModeOptions(ids, vals, optionFeatureKeys, hasSleepImages, hasPokedexImages);
+      return SettingInfo::DynamicEnum(
+                 StrId::STR_SLEEP_GENERAL_SCREEN, ids,
+                 [vals] {
+                   const uint8_t cur = SETTINGS.sleepScreenHome;
+                   for (size_t i = 0; i < vals.size(); i++) {
+                     if (vals[i] == cur) return static_cast<uint8_t>(i);
+                   }
+                   return uint8_t{0};
+                 },
+                 [vals](uint8_t idx) {
+                   if (idx < vals.size()) {
+                     SETTINGS.sleepScreenHome = vals[idx];
+                     SETTINGS.terminusSleepEnabled =
+                         CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP) ? 1 : 0;
+                   }
+                 },
+                 "sleepScreenHome", StrId::STR_CAT_DISPLAY)
+          .withVisibleWhen("sleepScreenSplit", CrossPointSettings::SLEEP_SPLIT_SMART)
+          .withConfiguratorExport()
+          .withEnumPersistedValues(vals)
+          .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
+    }());
   if (want(StrId::STR_CAT_DISPLAY)) {
     std::vector<StrId> sleepSourceLabels = {StrId::STR_SLEEP};
     std::vector<const char*> sleepSourceFeatureKeys = {nullptr};
@@ -695,8 +699,8 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
                            {StrId::STR_RANDOM, StrId::STR_SEQUENTIAL}, "sleepCycleMode", StrId::STR_CAT_DISPLAY)
              .withConfiguratorExport()
              .withVisiblePredicate(sleepCustomOrCoverActive));
-    emit(SettingInfo::Toggle(StrId::STR_CLEAN_SLEEP_REFRESH, &CrossPointSettings::cleanSleepRefresh, "cleanSleepRefresh",
-                             StrId::STR_CAT_DISPLAY)
+    emit(SettingInfo::Toggle(StrId::STR_CLEAN_SLEEP_REFRESH, &CrossPointSettings::cleanSleepRefresh,
+                             "cleanSleepRefresh", StrId::STR_CAT_DISPLAY)
              .withConfiguratorExport("clean_sleep_refresh"));
 #if ENABLE_HAIKU_CLOCK
     emit(SettingInfo::Toggle(StrId::STR_HAIKU_CLOCK_LANDSCAPE, &CrossPointSettings::haikuClockLandscape,
@@ -716,11 +720,12 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
                            {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE}, "statusBarProgressBar",
                            StrId::STR_CUSTOMISE_STATUS_BAR)
              .withConfiguratorExport());
-    emit(SettingInfo::Enum(StrId::STR_PROGRESS_BAR_THICKNESS, &CrossPointSettings::statusBarProgressBarThickness,
-                           {StrId::STR_PROGRESS_BAR_THIN, StrId::STR_PROGRESS_BAR_MEDIUM, StrId::STR_PROGRESS_BAR_THICK},
-                           "statusBarProgressBarThickness", StrId::STR_CUSTOMISE_STATUS_BAR)
-             .withConfiguratorExport()
-             .withVisibleWhenNot("statusBarProgressBar", CrossPointSettings::HIDE_PROGRESS));
+    emit(
+        SettingInfo::Enum(StrId::STR_PROGRESS_BAR_THICKNESS, &CrossPointSettings::statusBarProgressBarThickness,
+                          {StrId::STR_PROGRESS_BAR_THIN, StrId::STR_PROGRESS_BAR_MEDIUM, StrId::STR_PROGRESS_BAR_THICK},
+                          "statusBarProgressBarThickness", StrId::STR_CUSTOMISE_STATUS_BAR)
+            .withConfiguratorExport()
+            .withVisibleWhenNot("statusBarProgressBar", CrossPointSettings::HIDE_PROGRESS));
     emit(SettingInfo::Enum(StrId::STR_TITLE, &CrossPointSettings::statusBarTitle,
                            {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE}, "statusBarTitle",
                            StrId::STR_CUSTOMISE_STATUS_BAR)
@@ -736,10 +741,10 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
              .withConfiguratorExport());
   }
   if (want(StrId::STR_CAT_DISPLAY)) {
-    emit(SettingInfo::Enum(StrId::STR_REFRESH_FREQ, &CrossPointSettings::refreshFrequency,
-                           {StrId::STR_PAGES_1, StrId::STR_PAGES_5, StrId::STR_PAGES_10, StrId::STR_PAGES_15,
-                            StrId::STR_PAGES_30},
-                           "refreshFrequency", StrId::STR_CAT_DISPLAY)
+    emit(SettingInfo::Enum(
+             StrId::STR_REFRESH_FREQ, &CrossPointSettings::refreshFrequency,
+             {StrId::STR_PAGES_1, StrId::STR_PAGES_5, StrId::STR_PAGES_10, StrId::STR_PAGES_15, StrId::STR_PAGES_30},
+             "refreshFrequency", StrId::STR_CAT_DISPLAY)
              .withConfiguratorExport());
   }
   if (want(StrId::STR_CAT_SYSTEM) && core::FeatureModules::hasCapability(core::Capability::CalibreSync)) {
@@ -755,51 +760,52 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
   }
   // Build options with explicit enum-value mapping so position != value assumptions
   // don't break when individual themes are optionally included or excluded.
-  if (want(StrId::STR_CAT_DISPLAY)) emit([] {
-    std::vector<StrId> ids = {StrId::STR_THEME_CLASSIC};
-    std::vector<uint8_t> vals = {CrossPointSettings::UI_THEME::CLASSIC};
-    std::vector<const char*> optionFeatureKeys = {nullptr};
-    if (core::FeatureModules::hasCapability(core::Capability::LyraTheme)) {
-      ids.insert(ids.end(), {StrId::STR_THEME_LYRA, StrId::STR_THEME_LYRA_EXTENDED, StrId::STR_THEME_FORK_DRIFT,
-                             StrId::STR_THEME_LYRA_CAROUSEL, StrId::STR_THEME_TERMINAL});
-      vals.insert(vals.end(), {CrossPointSettings::UI_THEME::LYRA, CrossPointSettings::UI_THEME::LYRA_EXTENDED,
-                               CrossPointSettings::UI_THEME::FORK_DRIFT, CrossPointSettings::UI_THEME::LYRA_CAROUSEL,
-                               CrossPointSettings::UI_THEME::TERMINAL});
-      optionFeatureKeys.insert(optionFeatureKeys.end(),
-                               {"lyra_theme", "lyra_theme", "lyra_theme", "lyra_theme", "lyra_theme"});
+  if (want(StrId::STR_CAT_DISPLAY))
+    emit([] {
+      std::vector<StrId> ids = {StrId::STR_THEME_CLASSIC};
+      std::vector<uint8_t> vals = {CrossPointSettings::UI_THEME::CLASSIC};
+      std::vector<const char*> optionFeatureKeys = {nullptr};
+      if (core::FeatureModules::hasCapability(core::Capability::LyraTheme)) {
+        ids.insert(ids.end(), {StrId::STR_THEME_LYRA, StrId::STR_THEME_LYRA_EXTENDED, StrId::STR_THEME_FORK_DRIFT,
+                               StrId::STR_THEME_LYRA_CAROUSEL, StrId::STR_THEME_TERMINAL});
+        vals.insert(vals.end(), {CrossPointSettings::UI_THEME::LYRA, CrossPointSettings::UI_THEME::LYRA_EXTENDED,
+                                 CrossPointSettings::UI_THEME::FORK_DRIFT, CrossPointSettings::UI_THEME::LYRA_CAROUSEL,
+                                 CrossPointSettings::UI_THEME::TERMINAL});
+        optionFeatureKeys.insert(optionFeatureKeys.end(),
+                                 {"lyra_theme", "lyra_theme", "lyra_theme", "lyra_theme", "lyra_theme"});
 #if ENABLE_FLOW_THEME
-      ids.push_back(StrId::STR_THEME_FLOW);
-      vals.push_back(CrossPointSettings::UI_THEME::FLOW);
-      optionFeatureKeys.push_back("flow_theme");
+        ids.push_back(StrId::STR_THEME_FLOW);
+        vals.push_back(CrossPointSettings::UI_THEME::FLOW);
+        optionFeatureKeys.push_back("flow_theme");
 #endif
-      if (core::FeatureModules::hasCapability(core::Capability::MinimalTheme)) {
-        ids.push_back(StrId::STR_THEME_MINIMAL);
-        vals.push_back(CrossPointSettings::UI_THEME::MINIMAL);
-        optionFeatureKeys.push_back("minimal_theme");
+        if (core::FeatureModules::hasCapability(core::Capability::MinimalTheme)) {
+          ids.push_back(StrId::STR_THEME_MINIMAL);
+          vals.push_back(CrossPointSettings::UI_THEME::MINIMAL);
+          optionFeatureKeys.push_back("minimal_theme");
+        }
       }
-    }
-    if (core::FeatureModules::hasCapability(core::Capability::PokemonParty)) {
-      ids.push_back(StrId::STR_THEME_POKEMON_PARTY);
-      vals.push_back(CrossPointSettings::UI_THEME::POKEMON_PARTY);
-      optionFeatureKeys.push_back("pokemon_party");
-    }
-    return SettingInfo::DynamicEnum(
-               StrId::STR_UI_THEME, std::move(ids),
-               [vals] {
-                 const uint8_t cur = SETTINGS.uiTheme;
-                 for (size_t i = 0; i < vals.size(); i++) {
-                   if (vals[i] == cur) return static_cast<uint8_t>(i);
-                 }
-                 return uint8_t{0};
-               },
-               [vals](uint8_t idx) {
-                 if (idx < vals.size()) SETTINGS.uiTheme = vals[idx];
-               },
-               "uiTheme", StrId::STR_CAT_DISPLAY)
-        .withConfiguratorExport()
-        .withEnumPersistedValues(vals)
-        .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
-  }());
+      if (core::FeatureModules::hasCapability(core::Capability::PokemonParty)) {
+        ids.push_back(StrId::STR_THEME_POKEMON_PARTY);
+        vals.push_back(CrossPointSettings::UI_THEME::POKEMON_PARTY);
+        optionFeatureKeys.push_back("pokemon_party");
+      }
+      return SettingInfo::DynamicEnum(
+                 StrId::STR_UI_THEME, std::move(ids),
+                 [vals] {
+                   const uint8_t cur = SETTINGS.uiTheme;
+                   for (size_t i = 0; i < vals.size(); i++) {
+                     if (vals[i] == cur) return static_cast<uint8_t>(i);
+                   }
+                   return uint8_t{0};
+                 },
+                 [vals](uint8_t idx) {
+                   if (idx < vals.size()) SETTINGS.uiTheme = vals[idx];
+                 },
+                 "uiTheme", StrId::STR_CAT_DISPLAY)
+          .withConfiguratorExport()
+          .withEnumPersistedValues(vals)
+          .withEnumOptionFeatureKeys(std::move(optionFeatureKeys));
+    }());
   if (want(StrId::STR_CAT_DISPLAY)) {
     emit(SettingInfo::Enum(StrId::STR_RECENT_BOOKS_VIEW, &CrossPointSettings::recentBooksView,
                            {StrId::STR_LIST_VIEW, StrId::STR_GRID_VIEW}, "recentBooksView", StrId::STR_CAT_DISPLAY)
@@ -834,29 +840,31 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
                              StrId::STR_CAT_READER)
              .withConfiguratorExport());
     if (core::FeatureModules::hasCapability(core::Capability::FocusReading)) {
-      emit(SettingInfo::Toggle(StrId::STR_FOCUS_READING, &CrossPointSettings::focusReadingEnabled, "focusReadingEnabled",
-                               StrId::STR_CAT_READER)
+      emit(SettingInfo::Toggle(StrId::STR_FOCUS_READING, &CrossPointSettings::focusReadingEnabled,
+                               "focusReadingEnabled", StrId::STR_CAT_READER)
                .withConfiguratorExport("focus_reading"));
     }
     if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
-      emit(SettingInfo::Toggle(StrId::STR_GUIDE_READING, &CrossPointSettings::guideReadingEnabled, "guideReadingEnabled",
-                               StrId::STR_CAT_READER)
+      emit(SettingInfo::Toggle(StrId::STR_GUIDE_READING, &CrossPointSettings::guideReadingEnabled,
+                               "guideReadingEnabled", StrId::STR_CAT_READER)
                .withConfiguratorExport("guide_dots"));
     }
     emit(SettingInfo::Toggle(StrId::STR_HYPHENATION, &CrossPointSettings::hyphenationEnabled, "hyphenationEnabled",
                              StrId::STR_CAT_READER)
              .withConfiguratorExport("hyphenation"));
-    emit(SettingInfo::Enum(StrId::STR_ORIENTATION, &CrossPointSettings::orientation,
-                           {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_INVERTED, StrId::STR_LANDSCAPE_CCW},
-                           "orientation", StrId::STR_CAT_READER)
-             .withConfiguratorExport());
+    emit(
+        SettingInfo::Enum(StrId::STR_ORIENTATION, &CrossPointSettings::orientation,
+                          {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_INVERTED, StrId::STR_LANDSCAPE_CCW},
+                          "orientation", StrId::STR_CAT_READER)
+            .withConfiguratorExport());
   }
 #if ENABLE_GLOBAL_LANDSCAPE
   if (want(StrId::STR_CAT_DISPLAY)) {
-    emit(SettingInfo::Enum(StrId::STR_UI_ORIENTATION, &CrossPointSettings::uiOrientation,
-                           {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_INVERTED, StrId::STR_LANDSCAPE_CCW},
-                           "uiOrientation", StrId::STR_CAT_DISPLAY)
-             .withConfiguratorExport());
+    emit(
+        SettingInfo::Enum(StrId::STR_UI_ORIENTATION, &CrossPointSettings::uiOrientation,
+                          {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_INVERTED, StrId::STR_LANDSCAPE_CCW},
+                          "uiOrientation", StrId::STR_CAT_DISPLAY)
+            .withConfiguratorExport());
   }
 #endif
   if (want(StrId::STR_CAT_READER)) {
@@ -895,8 +903,8 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
                            "sideButtonLongPress", StrId::STR_CAT_CONTROLS)
              .withConfiguratorExport());
     emit(SettingInfo::Enum(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::frontButtonOrientationAware,
-                           {StrId::STR_NO, StrId::STR_NAV_BUTTONS, StrId::STR_ALL_BUTTONS}, "frontButtonOrientationAware",
-                           StrId::STR_CAT_CONTROLS)
+                           {StrId::STR_NO, StrId::STR_NAV_BUTTONS, StrId::STR_ALL_BUTTONS},
+                           "frontButtonOrientationAware", StrId::STR_CAT_CONTROLS)
              .withConfiguratorExport()
              .withVisibleWhenNot("orientation", CrossPointSettings::PORTRAIT));
     emit(SettingInfo::Enum(StrId::STR_LONG_PRESS_BEHAVIOR, &CrossPointSettings::longPressButtonBehavior,
@@ -1062,8 +1070,8 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
              .withConfiguratorExport("wifi_clock"));
     emit(SettingInfo::DynamicEnum(
              StrId::STR_TIMEZONE_OFFSET, {}, [] { return SETTINGS.timeZoneOffset; },
-             [](uint8_t v) { SETTINGS.timeZoneOffset = std::min(v, uint8_t{26}); }, "timeZoneOffset", StrId::STR_CAT_TIME,
-             timezoneOffsetOptions)
+             [](uint8_t v) { SETTINGS.timeZoneOffset = std::min(v, uint8_t{26}); }, "timeZoneOffset",
+             StrId::STR_CAT_TIME, timezoneOffsetOptions)
              .withConfiguratorExport("wifi_clock"));
   }
 #endif

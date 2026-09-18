@@ -578,8 +578,7 @@ void MarkdownReaderActivity::renderContents(std::unique_ptr<Page> page, int orie
 
   if (SETTINGS.textAntiAliasing && !renderer.isDarkMode()) {
     ReaderUtils::renderAntiAliased(
-        renderer,
-        [&] { page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop); },
+        renderer, [&] { page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop); },
         [&] {
           page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
           renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);

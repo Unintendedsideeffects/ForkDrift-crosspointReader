@@ -635,126 +635,126 @@ static void appendMachineStatus(JsonDocument& doc) {
 }
 
 void handleTerminusPluginPage(WebServer* server) {
-    sendPrecompressedHtml(server, TerminusPluginPageHtml, TerminusPluginPageHtmlCompressedSize);
-    LOG_DBG("WEB", "Served terminus plugin page");
+  sendPrecompressedHtml(server, TerminusPluginPageHtml, TerminusPluginPageHtmlCompressedSize);
+  LOG_DBG("WEB", "Served terminus plugin page");
 }
 
 void handleTerminusStatus(WebServer* server) {
-    JsonDocument doc;
-    appendMachineStatus(doc);
-    std::string out;
-    serializeJson(doc, out);
-    server->send(200, "application/json", out.c_str());
+  JsonDocument doc;
+  appendMachineStatus(doc);
+  std::string out;
+  serializeJson(doc, out);
+  server->send(200, "application/json", out.c_str());
 }
 
 void handleTerminusSave(WebServer* server) {
-    if (fetchTaskRunning) {
-      server->send(409, "application/json", "{\"error\":\"fetch in progress; retry after it completes\"}");
-      return;
-    }
-    if (!server->hasArg("plain")) {
-      server->send(400, "application/json", "{\"error\":\"missing body\"}");
-      return;
-    }
-    JsonDocument doc;
-    if (deserializeJson(doc, server->arg("plain"))) {
-      server->send(400, "application/json", "{\"error\":\"invalid json\"}");
-      return;
-    }
-    const char* apiKey = doc["api_key"] | "";
-    const char* deviceId = doc["device_id"] | "";
-    if (apiKey[0] == '\0' || deviceId[0] == '\0') {
-      server->send(400, "application/json", "{\"error\":\"api_key and device_id required\"}");
-      return;
-    }
-    const char* model = doc["device_model"] | "";
-    const char* url = doc["base_url"] | "";
-    const std::string baseUrl = terminus_api::normalizeBaseUrl(url);
-    if (!terminus_api::isAllowedRemoteUrl(baseUrl)) {
-      server->send(400, "application/json", "{\"error\":\"base_url must be https (or http to a private LAN IP)\"}");
-      return;
-    }
+  if (fetchTaskRunning) {
+    server->send(409, "application/json", "{\"error\":\"fetch in progress; retry after it completes\"}");
+    return;
+  }
+  if (!server->hasArg("plain")) {
+    server->send(400, "application/json", "{\"error\":\"missing body\"}");
+    return;
+  }
+  JsonDocument doc;
+  if (deserializeJson(doc, server->arg("plain"))) {
+    server->send(400, "application/json", "{\"error\":\"invalid json\"}");
+    return;
+  }
+  const char* apiKey = doc["api_key"] | "";
+  const char* deviceId = doc["device_id"] | "";
+  if (apiKey[0] == '\0' || deviceId[0] == '\0') {
+    server->send(400, "application/json", "{\"error\":\"api_key and device_id required\"}");
+    return;
+  }
+  const char* model = doc["device_model"] | "";
+  const char* url = doc["base_url"] | "";
+  const std::string baseUrl = terminus_api::normalizeBaseUrl(url);
+  if (!terminus_api::isAllowedRemoteUrl(baseUrl)) {
+    server->send(400, "application/json", "{\"error\":\"base_url must be https (or http to a private LAN IP)\"}");
+    return;
+  }
 
-    const int timedRefreshInterval = doc["timed_refresh_interval"] | CrossPointSettings::TIMED_REFRESH_SCREENSAVER;
-    if (timedRefreshInterval < CrossPointSettings::TIMED_REFRESH_OFF ||
-        timedRefreshInterval >= CrossPointSettings::TIMED_SLEEP_REFRESH_MODE_COUNT) {
-      server->send(400, "application/json", "{\"error\":\"invalid timed_refresh_interval\"}");
-      return;
-    }
-    const bool sleepEnabled = doc["sleep_enabled"] | true;
+  const int timedRefreshInterval = doc["timed_refresh_interval"] | CrossPointSettings::TIMED_REFRESH_SCREENSAVER;
+  if (timedRefreshInterval < CrossPointSettings::TIMED_REFRESH_OFF ||
+      timedRefreshInterval >= CrossPointSettings::TIMED_SLEEP_REFRESH_MODE_COUNT) {
+    server->send(400, "application/json", "{\"error\":\"invalid timed_refresh_interval\"}");
+    return;
+  }
+  const bool sleepEnabled = doc["sleep_enabled"] | true;
 
-    TERMINUS_STORE.setApiKey(apiKey);
-    TERMINUS_STORE.setDeviceId(deviceId);
-    TERMINUS_STORE.setDeviceModel(model[0] == '\0' ? "xteink_x4" : model);
-    TERMINUS_STORE.setBaseUrl(baseUrl);
-    SETTINGS.terminusSleepEnabled = sleepEnabled ? 1 : 0;  // Legacy serialized mirror.
-    if (sleepEnabled) {
-      SETTINGS.sleepScreenSplit = CrossPointSettings::SLEEP_SPLIT_UNIFIED;
-      SETTINGS.sleepScreen = CrossPointSettings::TERMINUS_SLEEP;
-    } else {
-      if (SETTINGS.sleepScreen == CrossPointSettings::TERMINUS_SLEEP) SETTINGS.sleepScreen = CrossPointSettings::DARK;
-      if (SETTINGS.sleepScreenReader == CrossPointSettings::TERMINUS_SLEEP)
-        SETTINGS.sleepScreenReader = CrossPointSettings::DARK;
-      if (SETTINGS.sleepScreenHome == CrossPointSettings::TERMINUS_SLEEP)
-        SETTINGS.sleepScreenHome = CrossPointSettings::DARK;
-    }
-    SETTINGS.timedSleepRefreshInterval = static_cast<uint8_t>(timedRefreshInterval);
+  TERMINUS_STORE.setApiKey(apiKey);
+  TERMINUS_STORE.setDeviceId(deviceId);
+  TERMINUS_STORE.setDeviceModel(model[0] == '\0' ? "xteink_x4" : model);
+  TERMINUS_STORE.setBaseUrl(baseUrl);
+  SETTINGS.terminusSleepEnabled = sleepEnabled ? 1 : 0;  // Legacy serialized mirror.
+  if (sleepEnabled) {
+    SETTINGS.sleepScreenSplit = CrossPointSettings::SLEEP_SPLIT_UNIFIED;
+    SETTINGS.sleepScreen = CrossPointSettings::TERMINUS_SLEEP;
+  } else {
+    if (SETTINGS.sleepScreen == CrossPointSettings::TERMINUS_SLEEP) SETTINGS.sleepScreen = CrossPointSettings::DARK;
+    if (SETTINGS.sleepScreenReader == CrossPointSettings::TERMINUS_SLEEP)
+      SETTINGS.sleepScreenReader = CrossPointSettings::DARK;
+    if (SETTINGS.sleepScreenHome == CrossPointSettings::TERMINUS_SLEEP)
+      SETTINGS.sleepScreenHome = CrossPointSettings::DARK;
+  }
+  SETTINGS.timedSleepRefreshInterval = static_cast<uint8_t>(timedRefreshInterval);
 
-    bool saved = false;
-    {
-      SpiBusMutex::Guard guard;
-      saved = TERMINUS_STORE.save() && SETTINGS.saveToFile();
-    }
-    if (!saved) {
-      server->send(500, "application/json", "{\"error\":\"failed to persist Terminus setup\"}");
-      return;
-    }
-    forcedFetchRequested = sleepEnabled;
-    server->send(200, "application/json",
-                 sleepEnabled ? "{\"status\":\"ok\",\"message\":\"Terminus setup saved; fetch scheduled\"}"
-                              : "{\"status\":\"ok\",\"message\":\"Terminus setup saved\"}");
+  bool saved = false;
+  {
+    SpiBusMutex::Guard guard;
+    saved = TERMINUS_STORE.save() && SETTINGS.saveToFile();
+  }
+  if (!saved) {
+    server->send(500, "application/json", "{\"error\":\"failed to persist Terminus setup\"}");
+    return;
+  }
+  forcedFetchRequested = sleepEnabled;
+  server->send(200, "application/json",
+               sleepEnabled ? "{\"status\":\"ok\",\"message\":\"Terminus setup saved; fetch scheduled\"}"
+                            : "{\"status\":\"ok\",\"message\":\"Terminus setup saved\"}");
 }
 
 void handleTerminusTest(WebServer* server) {
-    if (!TERMINUS_STORE.hasCredentials()) {
-      server->send(400, "application/json", "{\"error\":\"not configured\"}");
-      return;
-    }
-    if (fetchTaskRunning) {
-      server->send(409, "application/json", "{\"error\":\"fetch already in progress\"}");
-      return;
-    }
-    // A route-heavy running server leaves too little contiguous heap for a safe
-    // fetch. Acknowledge first, then let the main-loop heartbeat recycle this
-    // server and fetch in the pre-server window.
-    forcedFetchRequested = true;
-    server->send(202, "application/json",
-                 "{\"status\":\"accepted\",\"message\":\"Fetch scheduled; the web server will restart briefly\"}");
+  if (!TERMINUS_STORE.hasCredentials()) {
+    server->send(400, "application/json", "{\"error\":\"not configured\"}");
+    return;
+  }
+  if (fetchTaskRunning) {
+    server->send(409, "application/json", "{\"error\":\"fetch already in progress\"}");
+    return;
+  }
+  // A route-heavy running server leaves too little contiguous heap for a safe
+  // fetch. Acknowledge first, then let the main-loop heartbeat recycle this
+  // server and fetch in the pre-server window.
+  forcedFetchRequested = true;
+  server->send(202, "application/json",
+               "{\"status\":\"accepted\",\"message\":\"Fetch scheduled; the web server will restart briefly\"}");
 }
 
 void handleTerminusClear(WebServer* server) {
-    if (fetchTaskRunning) {
-      server->send(409, "application/json", "{\"error\":\"fetch in progress; retry after it completes\"}");
-      return;
-    }
-    bool saved = false;
-    {
-      SpiBusMutex::Guard guard;
-      TERMINUS_STORE.clear();
-      SETTINGS.terminusSleepEnabled = 0;
-      if (SETTINGS.sleepScreen == CrossPointSettings::TERMINUS_SLEEP) SETTINGS.sleepScreen = CrossPointSettings::DARK;
-      if (SETTINGS.sleepScreenReader == CrossPointSettings::TERMINUS_SLEEP)
-        SETTINGS.sleepScreenReader = CrossPointSettings::DARK;
-      if (SETTINGS.sleepScreenHome == CrossPointSettings::TERMINUS_SLEEP)
-        SETTINGS.sleepScreenHome = CrossPointSettings::DARK;
-      forcedFetchRequested = false;
-      saved = SETTINGS.saveToFile();
-    }
-    if (!saved) {
-      server->send(500, "application/json", "{\"error\":\"failed to persist cleared setup\"}");
-      return;
-    }
-    server->send(200, "application/json", "{\"status\":\"ok\"}");
+  if (fetchTaskRunning) {
+    server->send(409, "application/json", "{\"error\":\"fetch in progress; retry after it completes\"}");
+    return;
+  }
+  bool saved = false;
+  {
+    SpiBusMutex::Guard guard;
+    TERMINUS_STORE.clear();
+    SETTINGS.terminusSleepEnabled = 0;
+    if (SETTINGS.sleepScreen == CrossPointSettings::TERMINUS_SLEEP) SETTINGS.sleepScreen = CrossPointSettings::DARK;
+    if (SETTINGS.sleepScreenReader == CrossPointSettings::TERMINUS_SLEEP)
+      SETTINGS.sleepScreenReader = CrossPointSettings::DARK;
+    if (SETTINGS.sleepScreenHome == CrossPointSettings::TERMINUS_SLEEP)
+      SETTINGS.sleepScreenHome = CrossPointSettings::DARK;
+    forcedFetchRequested = false;
+    saved = SETTINGS.saveToFile();
+  }
+  if (!saved) {
+    server->send(500, "application/json", "{\"error\":\"failed to persist cleared setup\"}");
+    return;
+  }
+  server->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 const core::WebRouteSpec kTerminusRoutes[] = {

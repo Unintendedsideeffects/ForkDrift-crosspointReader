@@ -118,8 +118,8 @@ bool writeReadyMarker(const char* path, const char* originalPath, const Fingerpr
   const bool ok = writeExact(file, kMagic, sizeof(kMagic)) && writeU16(file, kSchema) && writeU64(file, source.size) &&
                   writeU16(file, source.date) && writeU16(file, source.time) && writeU32(file, source.cdCrc) &&
                   writeU16(file, source.count) && writeU64(file, output.storedOutputSize) &&
-                  writeU16(file, output.entryCount) && writeU32(file, output.centralDirCrc) && writeU16(file, pathLen) &&
-                  writeExact(file, originalPath, pathLen) && file.sync();
+                  writeU16(file, output.entryCount) && writeU32(file, output.centralDirCrc) &&
+                  writeU16(file, pathLen) && writeExact(file, originalPath, pathLen) && file.sync();
   file.close();
   return ok;
 }
@@ -144,8 +144,7 @@ bool readReadyMarker(const char* path, const char* originalPath, const Fingerpri
                         readU16(file, &schema) && schema == kSchema && readU64(file, &stored.size) &&
                         readU16(file, &stored.date) && readU16(file, &stored.time) && readU32(file, &stored.cdCrc) &&
                         readU16(file, &stored.count) && readU64(file, &storedOutputSize) &&
-                        readU16(file, &storedOutputCount) && readU32(file, &storedOutputCrc) &&
-                        readU16(file, &pathLen);
+                        readU16(file, &storedOutputCount) && readU32(file, &storedOutputCrc) && readU16(file, &pathLen);
   if (!headerOk) {
     file.close();
     return false;

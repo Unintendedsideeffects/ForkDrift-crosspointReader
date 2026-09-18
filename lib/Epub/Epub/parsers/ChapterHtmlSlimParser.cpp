@@ -534,12 +534,12 @@ void ChapterHtmlSlimParser::emitBufferedTableAsFragments(BufferedTable& table) {
 
       if (sourceCell.text) {
         destCell.lines.reserve(TableFragmentCell::MAX_SERIALIZED_LINES);
-        sourceCell.text->layoutAndExtractLines(
-            renderer, fontId, innerColumnWidth, [&destCell](const std::shared_ptr<TextBlock>& textBlock) {
-              if (destCell.lines.size() < TableFragmentCell::MAX_SERIALIZED_LINES) {
-                destCell.lines.push_back(textBlock);
-              }
-            });
+        sourceCell.text->layoutAndExtractLines(renderer, fontId, innerColumnWidth,
+                                               [&destCell](const std::shared_ptr<TextBlock>& textBlock) {
+                                                 if (destCell.lines.size() < TableFragmentCell::MAX_SERIALIZED_LINES) {
+                                                   destCell.lines.push_back(textBlock);
+                                                 }
+                                               });
         if (destCell.lines.empty() && sourceCell.text->size() > 0) {
           return false;
         }

@@ -48,7 +48,8 @@ class Epub {
     int height;
   };
 
-  explicit Epub(std::string filepath, const std::string& cacheDir) : filepath(std::move(filepath)), archivePath(this->filepath) {
+  explicit Epub(std::string filepath, const std::string& cacheDir)
+      : filepath(std::move(filepath)), archivePath(this->filepath) {
     cachePath = BookCachePath::build(cacheDir, "epub_", this->filepath);
   }
   ~Epub() = default;
