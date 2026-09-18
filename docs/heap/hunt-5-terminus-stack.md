@@ -1,10 +1,10 @@
 # R5 — How small can the Terminus fetch task stack safely be?
 
-**Verdict: do not shrink `12288` until a high-water mark is read off a successful image download. The smallest size I would ship without that number is `10240`, and only for a build that cannot do HTTPS. `8192` is not safe while SdFat writes remain nested in the HTTP callback. Un-nesting is the better fix than resizing; it is what made `12288` necessary.**
+**Measured verdict (2026-08-30): complete HTTP fetches used at most 2,256 bytes on the old 12 KB task, 2,352 bytes on the shipped 8 KB fallback (on-charge), and 2,560 bytes on bgwifi's resident 8 KB stack (Always). Always-mode is device-accepted at 5,632 bytes free; on-charge fallback is device-accepted at 5,840 bytes free. HTTPS is still unmeasured.**
 
 This device’s fetch is **plain HTTP** to `http://192.168.86.25:2300`. TLS/mbedTLS is **not** on that path. The product still allows HTTPS (`https://trmnl.com` is the default base URL). A stack sized only for this LAN box will crash a cloud user.
 
-The high-water instrumentation the dispatch said was missing **already exists** at `src/features/terminus_sleep/Registration.cpp:396-400`. No hunt serial log has ever printed it. That one line is the measurement, not another static estimate.
+The durable developer log captured multiple successful full fetches at 2,244-2,256 bytes used, including image validation, the SD rename, and settings persistence. A manifest-only HTTP 500 used 2,168 bytes; the extra full-path cost was therefore only 88 bytes after un-nesting.
 
 ---
 
@@ -109,7 +109,7 @@ OtaWebCheck’s `12288` (`OtaWebCheck.cpp:18`) is the HTTPS-JSON budget **withou
 | Dedicated-task HTTP+SdFat **survives** `12288` | Device has completed manifest→image→pin (FINDINGS 2026-08-12: ~900 ms LAN fetch). |
 | `8192` **overflowed** | Comment at `Registration.cpp:345-347`: nested SdFat inside `perform`, “8 KB bgwifi web-handler task”, first successful image download. Canary would panic. |
 | The 8 KB that overflowed was **bgwifi**, not a fresh 8 KB task | `BackgroundWifiService.h:52` `TASK_STACK = 8192`. The comment says **web-handler** task. Route handlers run on that stack (`HEAP_ANALYSIS.md:286-288`). `POST /api/terminus/test` used to be the natural place to run a fetch; today it only sets a flag (`Registration.cpp:660-674`). |
-| No measured high-water | Hunt serial logs never contain `Fetch task stack:`. |
+| Full HTTP fetch high-water | 2,244-2,256 B used; 10,032-10,044 B free on the former 12,288 B task. Durable `/crosspoint-debug.log`, 2026-08-30. |
 
 A dedicated `TerminusFetch` task starts empty at `terminusFetchTask`. bgwifi at overflow time already had `taskEntry` → `run` and, if the fetch was invoked from a handler, `WebServer::handleClient` + Arduino `String` URI/header objects. Those frames are **not** on the dedicated task. So `8192` overflowing on bgwifi does **not** prove a dedicated `8192` task overflows.
 
@@ -132,7 +132,7 @@ The upper end of that range is why I will not recommend `8192` while the nest re
 
 | Situation | Stack | Why |
 |---|---:|---|
-| **Ship today (HTTPS still allowed)** | **12288, unchanged** | Cloud + CRT bundle + nested SdFat is unmeasured and deeper than this LAN box. 12 KB is the only size with a successful image download. |
+| **Fallback task after measured un-nested fetch** | **8192** | Maximum measured use 2,256 B leaves 5,936 B for HTTPS/logging variance, well above the 2,048 B policy. |
 | **HTTP-only firmware, still nested, no high-water** | **10240** | 2 KB below today, 2 KB above the size that overflowed on a *different* task. Margin: ~1.5–4.5 KB against the guess above. I would not go lower without a number. |
 | **After un-nest + measured free ≥ 2048 B on HTTP *and* HTTPS** | then **8192** or **eliminate the task** | See §5. |
 | **8192 today, nested** | **no** | Repeats a known crash class. A stack overflow is not a deferred fetch. |
@@ -156,7 +156,7 @@ LOG_INF("TRMNL", "Fetch task stack: %u of %u bytes used, %u free (%.0f%% margin)
 
 Read it **before** `vTaskDelete` — that is the right place; it is the minimum remaining stack over the whole task, including `saveToFile`.
 
-What is missing is an **on-device capture**, not more code. Hunt serial never shows that line. Either the flashed build predates it, or no fetch has completed to `vTaskDelete` on an instrumented build (the unwedge2 log dies at `Invalid display manifest` *before* the image GET, so even that boot would not have printed a post-image high-water).
+The on-device capture now exists on both HTTP paths. Dedicated 8 KB task peaked at 2,352 B used / 5,840 B free (on-charge recycle). Always-mode logged `bgwifi pre-server stack: 2560 of 8192 bytes used, 5632 free`. Extra `taskEntry`/`run` frames cost 208–304 B versus the dedicated task. Remaining capture is HTTPS.
 
 To prove a shrink:
 
@@ -201,13 +201,13 @@ A new 12,288 B stack is what leaves the Home hole (`hunt-1`). Using a stack that
 | Existing task | Stack | Can it host the fetch? |
 |---|---:|---|
 | **bgwifi, while serving** | 8192 | **No.** This is the overflow. `handleClient` + HTTP + SdFat. `HEAP_ANALYSIS.md` already forbids shrinking bgwifi for this reason. |
-| **bgwifi, pre-server window** | 8192 | **Maybe, after un-nest.** `onBackgroundNetworkReady` (`BackgroundWifiService.cpp:176-185`) runs *before* `CrossPointWebServer` exists. Stack is `taskEntry` → `run` → hook → fetch, **not** a route handler. Today the hook spawns TerminusFetch and waits (`delay(50)`). It could call `fetchAndPinTrmnlImage()` directly and never allocate 12 KB. Must measure high-water on *that* path; extra `run()` frames vs a dedicated task are a few hundred bytes, not the full WebServer depth. |
+| **bgwifi, pre-server window** | 8192 | **Yes, after un-nest.** `onBackgroundNetworkReady` runs *before* `CrossPointWebServer` exists. Stack is `taskEntry` → `run` → hook → fetch, not a route handler. Device-accepted 2026-08-30: 2,560 B used / 5,632 B free. |
 | **Arduino loop** | 8192 | Sleep/view already block on the fetch (`main.cpp:442`, `TrmnlViewActivity.cpp:201` → `startTrmnlFetchAndWait`). Those callers could call `fetchAndPinTrmnlImage()` on loopTask. FontDownload already does nested HTTPS+SdFat here. **Do not** bounce the Home pre-server fetch onto loopTask: on-charge mode reaches the same hook from the main loop and FINDINGS 2026-08-12 already recorded a 2 s UI stall from waiting there. |
 | TimeSync | 4096 | No. |
 | ActivityManagerRender | 8192 | No. Permanent render task; do not put HTTP on it. |
 | OtaWebCheck / OtaWorker | 12288 / 16384 | Wrong lifetime, HTTPS-shaped, not on the Home pre-server path. Sharing a static 12 KB buffer was rejected in hunt-2 (`.bss` tax). |
 
-**Best structural outcome:** un-nest, then run the Home fetch **synchronously on bgwifi in the pre-server window**. Hole = 0. Sleep/view keep using loopTask (already 8192, already blocking). Delete `TRMNL_FETCH_TASK_STACK` / `xTaskCreate` / the 13312 preflight. The recycle-to-fetch dance (`onBackgroundServerTick` `:513-528`) stays: it exists to free **heap** for the download, not only for the stack — but if there is no 13 KB stack allocation, the recycle is only needed for HTTP/TLS **heap** (2×2048 plus any TLS). That is a much smaller gate.
+**Implemented structural outcome:** un-nest, then run the Always-mode Home fetch **synchronously on bgwifi in the pre-server window**. Hole = 0 on the product's default path. The on-charge dispatcher still uses an 8 KB fallback task because its hook runs on the interactive main loop; making that path synchronous previously froze input. The recycle-to-fetch dance stays because it also frees heap for HTTP/TLS buffers.
 
 Do not put the nested write back onto bgwifi “to save a task” without un-nesting. That is how 8 KB died.
 
@@ -222,7 +222,9 @@ Do not put the nested write back onto bgwifi “to save a task” without un-nes
 ## Bottom line
 
 - **This device, this path: HTTP, no mbedTLS.** Verified. TLS would dominate; it does not, here.
-- **True requirement, nested, dedicated task, HTTP:** probably 6–9 KB. **Unknown to ±2 KB** until `:396` prints.
-- **Safe ship size: `12288`.** Smallest I would guess without a measurement: **`10240`, HTTP-only builds only.** Not `8192` while nested.
-- **Shrinking `12288` → `10240` does not fix the 12,288-byte Home hole** relative to a 32,768 inflate window. Eliminating the extra task (un-nest + run on bgwifi pre-server) does.
-- **Prove it with the log that is already there.** Force one successful LAN image download and one HTTPS download; require ≥2048 B free on both before touching the constant.
+- **Measured un-nested dedicated-task requirement, HTTP:** 2,256 B on the old 12,288 B task; **2,352 B used / 5,840 B free** on the shipped 8,192 B fallback after on-charge recycle (2026-08-30T13:40Z).
+- **Measured Always-path requirement, HTTP:** 2,560 B used / 5,632 B free on bgwifi's 8,192 B stack after flash to `192.168.86.51` (2026-08-30T13:15Z). Compile-time peak is this number.
+- **Fallback ship size: `8192`.** Always-path margin is 5,632 B; on-charge dedicated-task margin is 5,840 B. The compile-time contract refuses any future size below measured peak + 2,048 B.
+- **Default Always-mode fix:** no new task allocation. The fetch uses bgwifi's resident stack before the route table exists, so it does not punch a hole ahead of the 32,768-byte inflate reservation. On the Always acceptance boot, post-fetch largest was 9,204 B — 12 B under the 9,216 B fallback-task preflight — so a shrunk dedicated task would still have deferred.
+- **On-charge fallback:** async 8 KB task, HTTP accepted. `BWS` waits on `backgroundStartupDeferred` rather than running the fetch on the interactive loop.
+- **Remaining proof:** repeat against HTTPS when a cloud endpoint is available. This LAN BYOS box speaks HTTP only.

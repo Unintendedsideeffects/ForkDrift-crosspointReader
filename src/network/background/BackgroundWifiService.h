@@ -79,6 +79,7 @@ class BackgroundWifiService {
   bool isPendingOrRunning() const { return taskHandle != nullptr || startRetryActive(); }
   bool isConnected() const { return connected; }
   bool isServing() const { return serving; }
+  static constexpr uint32_t taskStackBytes() { return TASK_STACK; }
   background_server::ServiceState getServiceState() const { return serviceState; }
   bool isWedged() const { return serviceState == background_server::ServiceState::Wedged; }
   uint32_t getRequestCount() const { return requestCount; }

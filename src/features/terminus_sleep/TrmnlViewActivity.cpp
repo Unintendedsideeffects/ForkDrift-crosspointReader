@@ -182,7 +182,7 @@ void TrmnlViewActivity::loop() {
 }
 
 void TrmnlViewActivity::performRefresh() {
-  // The 12 KB fetch task needs contiguous heap that a running web server does
+  // The fallback fetch task needs contiguous heap that a running web server does
   // not leave behind — the same constraint the sleep path works around. Keep
   // WiFi up so the reconnect below is usually a no-op.
   if (BG_WIFI.isRunning()) BG_WIFI.stop(/*keepWifi=*/true);

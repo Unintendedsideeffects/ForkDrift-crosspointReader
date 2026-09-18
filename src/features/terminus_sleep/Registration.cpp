@@ -248,8 +248,9 @@ static const char* downloadVerifiedImage(const std::string& url) {
         break;
       }
     }
-    esp_http_client_close(client);
   }
+  // cleanup closes any open connection as well as freeing the client. Keeping
+  // one owner for both operations also matches the native simulator shim.
   esp_http_client_cleanup(client);
 
   SpiBusMutex::Guard guard;
@@ -387,13 +388,16 @@ static bool fetchAndPinTrmnlImage() {
   return true;
 }
 
-// fetchAndPinTrmnlImage reads the HTTP body into a heap buffer, then writes SD
-// after the read returns. It still runs on a dedicated 12 KB task because a
-// high-water mark from a real image download has not been read yet; shrinking
-// or inlining onto bgwifi without that number would recreate the overflow that
-// forced this stack. The freed stack still leaves a hole of this size, which
-// is the leading explanation for intermittent inflate-window failures.
-static constexpr uint32_t TRMNL_FETCH_TASK_STACK = 12288;
+// Complete HTTP fetches peaked at 2,256 B on a dedicated task and 2,560 B on
+// bgwifi's resident 8 KB stack (taskEntry/run frames). Keep a 2 KB safety
+// margin and avoid the old 12,288-byte transient hole. Always-mode runs on
+// bgwifi; this task remains for the on-charge main-loop path.
+static constexpr uint32_t TRMNL_FETCH_TASK_STACK = 8192;
+static constexpr uint32_t TRMNL_MEASURED_FETCH_STACK_PEAK = 2560;
+static constexpr uint32_t TRMNL_FETCH_STACK_SAFETY_MARGIN = 2048;
+static_assert(TRMNL_FETCH_TASK_STACK >= TRMNL_MEASURED_FETCH_STACK_PEAK + TRMNL_FETCH_STACK_SAFETY_MARGIN);
+static_assert(BackgroundWifiService::taskStackBytes() >=
+              TRMNL_MEASURED_FETCH_STACK_PEAK + TRMNL_FETCH_STACK_SAFETY_MARGIN);
 // FreeRTOS also allocates a TCB alongside the stack; leave room so the preflight below
 // does not pass only for xTaskCreate to fail on the overhead.
 static constexpr uint32_t TRMNL_FETCH_TASK_OVERHEAD = 1024;
@@ -424,17 +428,30 @@ static void recordFetchAttempt(const bool result) {
   }
 }
 
-static void terminusFetchTask(void*) {
+static bool runFetchOnCurrentTask(const char* stackLabel, const uint32_t stackBytes) {
+  fetchTaskRunning = true;
+  fetchTaskResult = false;
+  fetchStage = "starting";
+  fetchTaskRetryAfterMs = 0;
+
   const bool result = fetchAndPinTrmnlImage();
   recordFetchAttempt(result);
 
-  const uint32_t freeWords = uxTaskGetStackHighWaterMark(nullptr);
-  const uint32_t freeBytes = freeWords * sizeof(StackType_t);
-  LOG_INF("TRMNL", "Fetch task stack: %u of %u bytes used, %u free (%.0f%% margin)",
-          static_cast<unsigned>(TRMNL_FETCH_TASK_STACK - freeBytes), static_cast<unsigned>(TRMNL_FETCH_TASK_STACK),
-          static_cast<unsigned>(freeBytes), 100.0 * freeBytes / TRMNL_FETCH_TASK_STACK);
+  // ESP-IDF's ESP32-C3 FreeRTOS port defines StackType_t as uint8_t, so the
+  // high-water mark is already expressed in bytes. The simulator mirrors that
+  // contract without exposing the target-only StackType_t typedef.
+  const uint32_t freeBytes = uxTaskGetStackHighWaterMark(nullptr);
+  const uint32_t usedBytes = freeBytes < stackBytes ? stackBytes - freeBytes : 0;
+  LOG_INF("TRMNL", "%s stack: %u of %u bytes used, %u free (%.0f%% margin)", stackLabel,
+          static_cast<unsigned>(usedBytes), static_cast<unsigned>(stackBytes), static_cast<unsigned>(freeBytes),
+          100.0 * freeBytes / stackBytes);
 
   fetchTaskRunning = false;
+  return result;
+}
+
+static void terminusFetchTask(void*) {
+  runFetchOnCurrentTask("Fetch task", TRMNL_FETCH_TASK_STACK);
   vTaskDelete(nullptr);
 }
 
@@ -452,10 +469,10 @@ static bool startFetchTask() {
       return false;
     case terminus_refresh::StartDecision::DeferNoHeap:
       // Deliberately NOT recordFetchAttempt(false): a FreeRTOS task stack is a heap
-      // allocation, and right after boot the device simply does not have ~12 KB contiguous
-      // (measured: 6800 bytes free in the pre-server window). Waiting for the device to
-      // settle is normal, not a failed fetch. Arm only the retry timer, which is also what
-      // keeps onBackgroundServerTick from recycling the web server every second.
+      // allocation, and a fragmented session may not have even 9 KB contiguous.
+      // Waiting for the device to settle is normal, not a failed fetch. Arm only the retry
+      // timer, which is also what keeps onBackgroundServerTick from recycling the web
+      // server every second.
       fetchTaskRetryAfterMs = millis() + terminus_refresh::kFailureRetryIntervalS * 1000UL;
       fetchStage = "deferred-low-heap";
       LOG_INF("TRMNL", "Deferring fetch: no room for the %u B task stack (free=%zu, largest=%zu)",
@@ -469,20 +486,20 @@ static bool startFetchTask() {
   fetchTaskRunning = true;
   fetchTaskResult = false;
   fetchStage = "starting";
+  fetchTaskRetryAfterMs = 0;
   if (xTaskCreate(&terminusFetchTask, "TerminusFetch", TRMNL_FETCH_TASK_STACK, nullptr, 1, nullptr) != pdPASS) {
     fetchTaskRunning = false;
     recordFetchAttempt(false);  // also arms the failure backoff
     LOG_ERR("TRMNL", "Failed to create fetch task");
     return false;
   }
-  fetchTaskRetryAfterMs = 0;
   return true;
 }
 
 static void onStorageReady() { TERMINUS_STORE.load(); }
 
 // Credentials as well as the setting: without this a configured-but-unpaired
-// device spawned a 12 KB fetch task on every trigger only to fail inside
+// device started a fetch on every trigger only to fail inside
 // fetchAndPinTrmnlImage().
 static bool terminusFetchConfigured() {
   return CrossPointSettings::sleepModeActive(CrossPointSettings::TERMINUS_SLEEP) && TERMINUS_STORE.hasCredentials();
@@ -521,16 +538,23 @@ static void onBackgroundNetworkReady() {
     return;
   }
   LOG_INF("TRMNL", "Network ready; fetching before background server startup");
+  if (BG_WIFI.isRunning()) {
+    // This hook is executing on bgwifi itself. The full un-nested download used
+    // at most 2,256 bytes on a fresh task, so the existing 8 KB stack has ample margin
+    // for taskEntry/run hook frames. No new heap block means no transient hole
+    // can split the later EPUB inflate reservation.
+    forcedFetchRequested = false;
+    runFetchOnCurrentTask("bgwifi pre-server", BackgroundWifiService::taskStackBytes());
+    return;
+  }
   if (startFetchTask()) {
     forcedFetchRequested = false;
     fetchDeferDeadlineMs = millis() + TRMNL_FETCH_WAIT_CAP_MS;
   }
 }
 
-// Reported to whichever dispatcher started us. This function must never block: on the
-// on-charge path onBackgroundNetworkReady is reached from BackgroundWebServer::startServer()
-// via the main loop, so blocking here froze input and rendering for as long as the fetch
-// took -- up to TRMNL_FETCH_WAIT_CAP_MS. The dispatcher decides how to wait instead.
+// Only the on-charge/main-loop dispatcher can leave async work here. Always-mode bgwifi
+// completes the fetch synchronously in its pre-server window and returns false below.
 static bool backgroundStartupDeferred() {
   if (!fetchTaskRunning) {
     return false;
@@ -551,9 +575,9 @@ static void onBackgroundServerTick() {
     return;
   }
 
-  // The running web server leaves too little contiguous heap for the 12 KB
-  // fetch stack. Recycle only the active server while preserving STA; its next
-  // pre-server hook performs the due fetch, then restores serving.
+  // Recycle only the active server while preserving STA. The next bgwifi
+  // pre-server hook performs the fetch on its existing stack; on-charge keeps
+  // the asynchronous fallback so its main loop remains responsive.
   if (BG_WIFI.isServing()) {
     LOG_INF("TRMNL", "Refresh due; recycling background WiFi server");
     BG_WIFI.stop(/*keepWifi=*/true);
@@ -700,9 +724,9 @@ void handleTerminusTest(WebServer* server) {
       server->send(409, "application/json", "{\"error\":\"fetch already in progress\"}");
       return;
     }
-    // A route-heavy running server leaves too little contiguous heap for the
-    // proven-safe 12 KB fetch task. Acknowledge first, then let the main-loop
-    // heartbeat recycle this server and fetch in the pre-server window.
+    // A route-heavy running server leaves too little contiguous heap for a safe
+    // fetch. Acknowledge first, then let the main-loop heartbeat recycle this
+    // server and fetch in the pre-server window.
     forcedFetchRequested = true;
     server->send(202, "application/json",
                  "{\"status\":\"accepted\",\"message\":\"Fetch scheduled; the web server will restart briefly\"}");

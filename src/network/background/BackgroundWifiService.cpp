@@ -19,6 +19,7 @@
 #include "core/registries/HeapReclaimRegistry.h"
 #include "network/background/BackgroundWebServer.h"
 #include "network/background/LibraryShelfRefreshPolicy.h"
+#include "network/http/FetchFailure.h"
 #include "network/http/HttpDownloader.h"
 #include "network/http/OpdsShelfFetcher.h"
 #include "network/server/CrossPointWebServer.h"
@@ -42,6 +43,7 @@ BackgroundWifiService BackgroundWifiService::instance;
 // the interval gate spans deep sleep; zeroed on cold boot, which correctly
 // forces a refresh after a reset or firmware update.
 RTC_DATA_ATTR static time_t shelfLastRefreshEpoch = 0;
+RTC_DATA_ATTR static time_t shelfLastAuthFailureEpoch = 0;
 
 // Structure passed to the FreeRTOS task so it owns copies of the credentials
 // and we don't hold pointers into the caller's stack after start() returns.
@@ -176,9 +178,9 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
     LOG_DBG("BGWIFI", "Connected! IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
     connected = true;
 
-    // Give network integrations a bounded pre-server window. CrossPointWebServer
-    // route allocation fragments the remaining heap enough that Terminus cannot
-    // subsequently allocate its proven-safe 12 KB download task stack.
+    // Give network integrations a bounded pre-server window. Terminus runs its
+    // un-nested fetch directly on this already-resident task here, before route
+    // allocation consumes and fragments the remaining heap.
     core::FeatureLifecycle::onBackgroundNetworkReady();
     // Unlike BackgroundWebServer (main loop), this runs on our own task, so blocking here
     // costs nothing but a delayed server start. Wait for any async work the hook started
@@ -226,7 +228,7 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
       if (!stopRequested && !shelfRefreshAttempted && ESP.getFreeHeap() >= library_shelf::kMinFreeBytes) {
         shelfRefreshAttempted = refreshLibraryShelf();
       }
-      vTaskDelay(pdMS_TO_TICKS(1));              // Yield to scheduler
+      vTaskDelay(pdMS_TO_TICKS(1));  // Yield to scheduler
     }
 
     LOG_DBG("BGWIFI", "Background task stopping. Requests served: %lu", requestCount);
@@ -271,6 +273,11 @@ bool BackgroundWifiService::refreshLibraryShelf() {
 
   const time_t nowEpoch = time(nullptr);
   const bool clockUsable = nowEpoch > CLOCK_SET_EPOCH_THRESHOLD;
+  if (library_shelf::skipAfterAuthFailure(static_cast<long>(nowEpoch), static_cast<long>(shelfLastAuthFailureEpoch),
+                                          clockUsable)) {
+    LOG_DBG("BGWIFI", "Library shelf refresh skipped: auth backoff");
+    return true;
+  }
   if (clockUsable && shelfLastRefreshEpoch > 0 && nowEpoch >= shelfLastRefreshEpoch &&
       (nowEpoch - shelfLastRefreshEpoch) < static_cast<time_t>(LIBRARY_SHELF_MIN_INTERVAL_S)) {
     LOG_DBG("BGWIFI", "Library shelf refresh skipped: refreshed %llds ago",
@@ -296,8 +303,19 @@ bool BackgroundWifiService::refreshLibraryShelf() {
   }
 
   std::vector<LibraryShelfEntry> shelfEntries;
-  if (!OpdsShelfFetcher::fetchRootBooks(opdsServers[0], shelfEntries)) {
-    LOG_DBG("BGWIFI", "Library shelf refresh failed");
+  LOG_INF("BGWIFI", "Library shelf GET");
+  const http_fetch::Result fetched = OpdsShelfFetcher::fetchRootBooks(opdsServers[0], shelfEntries);
+  if (!fetched.ok()) {
+    if (fetched.reason == http_fetch::Reason::Authentication) {
+      shelfLastAuthFailureEpoch = clockUsable ? nowEpoch : 1;
+      LOG_WRN("BGWIFI", "Library shelf refresh failed: %s", http_fetch::reasonName(fetched.reason));
+      return true;
+    }
+    if (fetched.reason == http_fetch::Reason::LowMemory || fetched.reason == http_fetch::Reason::AllocationFailure) {
+      LOG_WRN("BGWIFI", "Library shelf refresh failed: %s", http_fetch::reasonName(fetched.reason));
+      return false;
+    }
+    LOG_DBG("BGWIFI", "Library shelf refresh failed: %s", http_fetch::reasonName(fetched.reason));
     return true;
   }
 
@@ -307,6 +325,7 @@ bool BackgroundWifiService::refreshLibraryShelf() {
     SpiBusMutex::Guard guard;
     LIBRARY_SHELF.replaceEntries(opdsServers[0].name, std::move(shelfEntries));
   }
+  shelfLastAuthFailureEpoch = 0;
   if (clockUsable) {
     shelfLastRefreshEpoch = nowEpoch;
   }
