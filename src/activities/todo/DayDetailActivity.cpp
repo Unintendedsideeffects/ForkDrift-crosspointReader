@@ -519,7 +519,7 @@ void DayDetailActivity::renderHeader() const {
   char progress[32] = {};
   std::snprintf(progress, sizeof(progress), tr(STR_TODO_DONE_OF_TOTAL), countDoneTasks(), countTotalTasks());
   renderer.drawCenteredText(UI_10_FONT_ID, 42, progress, true);
-  renderer.drawLine(0, HEADER_HEIGHT - 1, renderer.getScreenWidth(), HEADER_HEIGHT - 1);
+  renderer.drawLine(0, HEADER_HEIGHT - 1, renderer.getScreenWidth() - 1, HEADER_HEIGHT - 1);
 }
 
 void DayDetailActivity::renderEmptyState() const {
@@ -531,7 +531,7 @@ void DayDetailActivity::renderAddRow(const int y, const bool selected) const {
   if (selected) {
     renderer.fillRect(0, y, GUTTER_WIDTH, ROW_HEIGHT);
   }
-  renderer.drawLine(0, y + ROW_HEIGHT - 1, renderer.getScreenWidth(), y + ROW_HEIGHT - 1);
+  renderer.drawLine(0, y + ROW_HEIGHT - 1, renderer.getScreenWidth() - 1, y + ROW_HEIGHT - 1);
   const int textY = y + (ROW_HEIGHT - renderer.getLineHeight(UI_10_FONT_ID)) / 2;
   renderer.drawText(UI_10_FONT_ID, MARGIN_X + GUTTER_WIDTH, textY, tr(STR_TODO_NEW_TASK), !selected);
 }
@@ -545,7 +545,7 @@ void DayDetailActivity::renderRow(const int y, const int itemIndex, const bool s
   if (selected) {
     renderer.fillRect(0, y, GUTTER_WIDTH, ROW_HEIGHT);
   }
-  renderer.drawLine(0, y + ROW_HEIGHT - 1, renderer.getScreenWidth(), y + ROW_HEIGHT - 1);
+  renderer.drawLine(0, y + ROW_HEIGHT - 1, renderer.getScreenWidth() - 1, y + ROW_HEIGHT - 1);
 
   if (item.isHeader) {
     const int textY = y + (ROW_HEIGHT - renderer.getLineHeight(UI_10_FONT_ID)) / 2;

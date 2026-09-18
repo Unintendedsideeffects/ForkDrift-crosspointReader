@@ -210,7 +210,8 @@ void DayIndexActivity::renderScreen() {
   renderer.clearScreen();
 
   renderer.drawCenteredText(UI_12_FONT_ID, 15, tr(STR_TODO_DAY_INDEX_TITLE), true, EpdFontFamily::BOLD);
-  renderer.drawLine(0, HEADER_HEIGHT, renderer.getScreenWidth(), HEADER_HEIGHT);
+  const int lastCol = renderer.getScreenWidth() - 1;
+  renderer.drawLine(0, HEADER_HEIGHT, lastCol, HEADER_HEIGHT);
 
   const int visibleRows = (renderer.getScreenHeight() - HEADER_HEIGHT) / ROW_HEIGHT;
   if (entries.empty()) {
@@ -230,7 +231,7 @@ void DayIndexActivity::renderScreen() {
         renderer.fillRect(0, y, GUTTER_WIDTH, ROW_HEIGHT);
       }
 
-      renderer.drawLine(0, y + ROW_HEIGHT - 1, renderer.getScreenWidth(), y + ROW_HEIGHT - 1);
+      renderer.drawLine(0, y + ROW_HEIGHT - 1, lastCol, y + ROW_HEIGHT - 1);
 
       const bool isToday = !today.empty() && entry.isoDate == today;
       char countBuffer[16] = {};

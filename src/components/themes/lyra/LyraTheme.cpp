@@ -187,15 +187,15 @@ void LyraTheme::drawTabBar(const GfxRenderer& renderer, Rect rect, const std::ve
   for (const auto& tab : tabs) {
     const int textWidth = renderer.getTextWidth(UI_10_FONT_ID, tab.label, EpdFontFamily::REGULAR);
 
-    if (tab.selected) {
+    const int tabBoxWidth = textWidth + 2 * hPaddingInSelection;
+    const int lastCol = rect.x + rect.width - 1;
+    if (tab.selected && currentX <= lastCol) {
       if (selected) {
-        renderer.fillRoundedRect(currentX, rect.y + 1, textWidth + 2 * hPaddingInSelection, rect.height - 4,
-                                 cornerRadius, Color::Black);
+        renderer.fillRoundedRect(currentX, rect.y + 1, tabBoxWidth, rect.height - 4, cornerRadius, Color::Black);
       } else {
-        renderer.fillRectDither(currentX, rect.y, textWidth + 2 * hPaddingInSelection, rect.height - 3,
-                                Color::LightGray);
-        renderer.drawLine(currentX, rect.y + rect.height - 3, currentX + textWidth + 2 * hPaddingInSelection,
-                          rect.y + rect.height - 3, 2, true);
+        renderer.fillRectDither(currentX, rect.y, tabBoxWidth, rect.height - 3, Color::LightGray);
+        const int underlineX2 = std::min(currentX + tabBoxWidth - 1, lastCol);
+        renderer.drawLine(currentX, rect.y + rect.height - 3, underlineX2, rect.y + rect.height - 3, 2, true);
       }
     }
 

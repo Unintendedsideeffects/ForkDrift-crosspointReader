@@ -256,7 +256,7 @@ void FontSelectionActivity::render(RenderLock&&) {
                                     : nullptr;
   renderPreviewPane(previewTop, previewHeight, previewFontId, previewFontName);
 
-  renderer.drawLine(0, listTop - metrics_.verticalSpacing / 2, pageWidth, listTop - metrics_.verticalSpacing / 2);
+  renderer.drawLine(0, listTop - metrics_.verticalSpacing / 2, pageWidth - 1, listTop - metrics_.verticalSpacing / 2);
 
   const int savedFontIndex = findSelectionIndexFor(originalSdFontFamilyName_, originalFontFamily_, hasUserFonts);
   GUI.drawList(
