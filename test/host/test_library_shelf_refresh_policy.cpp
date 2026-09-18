@@ -20,3 +20,14 @@ TEST_CASE("library shelf 84 KB floor is not required") {
   CHECK(library_shelf::evaluate({39000, false}) == library_shelf::RefreshAction::Refresh);
   CHECK(library_shelf::kMinFreeBytes < 84000);
 }
+
+TEST_CASE("library shelf caches authentication failures across Home re-entry") {
+  using namespace library_shelf;
+
+  CHECK_FALSE(skipAfterAuthFailure(1700000000, 0, true));
+  CHECK(skipAfterAuthFailure(1700000000, 1700000000, true));
+  CHECK(skipAfterAuthFailure(1700000000 + kAuthBackoffSeconds - 1, 1700000000, true));
+  CHECK_FALSE(skipAfterAuthFailure(1700000000 + kAuthBackoffSeconds, 1700000000, true));
+  CHECK(skipAfterAuthFailure(0, 1, false));
+  CHECK_FALSE(skipAfterAuthFailure(0, 0, false));
+}

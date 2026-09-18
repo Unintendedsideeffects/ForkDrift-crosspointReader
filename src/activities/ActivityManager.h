@@ -114,6 +114,9 @@ class ActivityManager {
   bool showsGlobalStatusBar() const;
   ScreenshotInfo getScreenshotInfo() const;
 
+  std::string currentActivityName() const;
+  unsigned activityStackDepth() const;
+
   // If immediate is true, the update will be triggered immediately.
   // Otherwise, it will be deferred until the end of the current loop iteration.
   void requestUpdate(bool immediate = false);

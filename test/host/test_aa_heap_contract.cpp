@@ -40,7 +40,8 @@ TEST_CASE("on-device Settings UI does not gate rebuild on 48 KB") {
   CHECK(text.find("getSettingsList(") == std::string::npos);
   CHECK(text.find("forEachSetting") != std::string::npos);
   CHECK(text.find("snapshotSetting") == std::string::npos);
-  CHECK(text.find("BackgroundWebServer::getInstance().stop(true)") != std::string::npos);
+  CHECK(text.find("BackgroundWebServer::getInstance().stop(true)") == std::string::npos);
+  CHECK(text.find("BG_WIFI.stop") == std::string::npos);
   CHECK(text.find("kReader") != std::string::npos);
 }
 
@@ -79,7 +80,7 @@ TEST_CASE("book open destroys the outgoing activity before ReaderRegistry::open"
 
   const auto pendingPos = text.find("pendingAction = PendingAction::OpenReader");
   const auto completePos = text.find("void ActivityManager::completeOpenReader()");
-  const auto reclaimPos = text.find("HeapReclaimRegistry::releaseAll()");
+  const auto reclaimPos = text.find("HeapReclaimRegistry::releaseAll()", completePos);
   const auto openPos = text.find("ReaderRegistry::open");
   REQUIRE(pendingPos != std::string::npos);
   REQUIRE(completePos != std::string::npos);

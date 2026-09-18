@@ -21,6 +21,7 @@ struct RefreshInput {
 };
 
 constexpr uint32_t kMinFreeBytes = 38000;
+constexpr uint32_t kAuthBackoffSeconds = 15UL * 60UL;
 
 constexpr RefreshAction evaluate(const RefreshInput& input) {
   if (input.freeBytes >= kMinFreeBytes) {
@@ -30,6 +31,19 @@ constexpr RefreshAction evaluate(const RefreshInput& input) {
     return RefreshAction::PauseHttpThenRetry;
   }
   return RefreshAction::SkipLuxury;
+}
+
+constexpr bool skipAfterAuthFailure(const long nowEpoch, const long lastAuthFailureEpoch, const bool clockUsable) {
+  if (lastAuthFailureEpoch == 0) {
+    return false;
+  }
+  if (!clockUsable) {
+    return true;
+  }
+  if (nowEpoch < lastAuthFailureEpoch) {
+    return false;
+  }
+  return (nowEpoch - lastAuthFailureEpoch) < static_cast<long>(kAuthBackoffSeconds);
 }
 
 }  // namespace library_shelf

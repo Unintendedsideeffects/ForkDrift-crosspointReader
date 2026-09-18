@@ -42,8 +42,6 @@
 #include "activities/util/ListPickerActivity.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
-#include "network/background/BackgroundWebServer.h"
-#include "network/background/BackgroundWifiService.h"
 #include "util/MaintenanceUtils.h"
 #include "util/SettingsBackup.h"
 
@@ -229,11 +227,6 @@ bool SettingsActivity::keyAffectsVisibility(const char* key) const {
 }
 
 void SettingsActivity::rebuildSettingsLists() {
-  if (BG_WIFI.isPendingOrRunning()) {
-    BG_WIFI.stop(true);
-  }
-  BackgroundWebServer::getInstance().stop(true);
-
   visibleSettings.clear();
   visibleSettings.reserve(24);
   sdFontSystem.refreshIfDirty();
@@ -297,7 +290,8 @@ void SettingsActivity::rebuildSettingsLists() {
         const auto insertPos = layoutHeaderIt != visibleSettings.end() ? layoutHeaderIt : visibleSettings.end();
         visibleSettings.insert(insertPos, SettingInfo::Action(StrId::STR_MANAGE_FONTS, SettingAction::DownloadFonts));
       }
-      visibleSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
+      visibleSettings.push_back(
+          SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
       break;
     }
     case 1: {
@@ -693,8 +687,7 @@ void SettingsActivity::toggleCurrentSetting() {
                         if (!res.isCancelled) {
                           applyEnumValue(setting, newValue);
                           persistSettings();
-                          if (setting.key != nullptr &&
-                              keyAffectsVisibility(setting.key)) {
+                          if (setting.key != nullptr && keyAffectsVisibility(setting.key)) {
                             const int previousSelection = selectedSettingIndex;
                             rebuildSettingsLists();
                             selectedSettingIndex = std::min(previousSelection, settingsCount);
@@ -705,8 +698,7 @@ void SettingsActivity::toggleCurrentSetting() {
                 } else {
                   applyEnumValue(setting, newValue);
                   persistSettings();
-                  if (setting.key != nullptr &&
-                      keyAffectsVisibility(setting.key)) {
+                  if (setting.key != nullptr && keyAffectsVisibility(setting.key)) {
                     const int previousSelection = selectedSettingIndex;
                     rebuildSettingsLists();
                     selectedSettingIndex = std::min(previousSelection, settingsCount);

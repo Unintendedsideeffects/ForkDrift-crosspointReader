@@ -77,6 +77,7 @@
 #include "fontIds.h"
 #include "network/background/BackgroundWebServer.h"
 #include "network/background/BackgroundWifiService.h"
+#include "network/background/OccupancyLifetimePolicy.h"
 #include "util/CoverThumbHeapPolicy.h"
 #include "util/CoverThumbSizes.h"
 #include "util/RecentBooksStore.h"
@@ -542,6 +543,17 @@ void EpubReaderActivity::onExit() {
 #if ENABLE_READING_STATS
   }
 #endif  // ENABLE_READING_STATS
+
+  pendingCoverThumbBake_ = false;
+  constexpr unsigned long kThumbWaitMs = 2000;
+  const unsigned long thumbWaitStart = millis();
+  while (coverThumbBakeInProgress.load() && (millis() - thumbWaitStart) < kThumbWaitMs) {
+    delay(10);
+  }
+  if (occupancy::evaluateReaderExitReclaim(coverThumbBakeInProgress.load()) ==
+      occupancy::ReaderExitReclaim::ReleaseInflateWindow) {
+    InflateReader::releaseSharedWindow();
+  }
 }
 
 void EpubReaderActivity::loop() {
@@ -556,8 +568,8 @@ void EpubReaderActivity::loop() {
     const bool retryDue = heapDefragRetryAfterMs_ == 0 || static_cast<long>(now - heapDefragRetryAfterMs_) >= 0;
     if (retryDue) {
       const uint32_t largestBlock = static_cast<uint32_t>(heapguard::largestBlock());
-      const auto action = reader_heap_recovery::decideAfterIndex(section != nullptr, largestBlock,
-                                                                 heapDefragReclaimAttempts_);
+      const auto action =
+          reader_heap_recovery::decideAfterIndex(section != nullptr, largestBlock, heapDefragReclaimAttempts_);
       LOG_INF("ERS", "Post-index heap: free=%u largest=%u action=%u attempts=%u",
               static_cast<unsigned>(heapguard::freeBytes()), static_cast<unsigned>(largestBlock),
               static_cast<unsigned>(action), static_cast<unsigned>(heapDefragReclaimAttempts_));
@@ -2110,7 +2122,7 @@ void EpubReaderActivity::performDeferredSilentIndexingLocked() {
                                      SETTINGS.paragraphAlignment, cachedViewportWidth, cachedViewportHeight,
                                      SETTINGS.hyphenationEnabled, SETTINGS.embeddedStyle, SETTINGS.imageRendering,
                                      SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled)) {
-    LOG_ERR("ERS", "Failed silent indexing for chapter: %d", nextSpineIndex);
+    LOG_WRN("ERS", "Failed silent indexing for chapter: %d", nextSpineIndex);
   }
 }
 

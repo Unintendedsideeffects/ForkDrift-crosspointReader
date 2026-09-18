@@ -9,6 +9,7 @@
 #include <esp_system.h>
 
 #include <algorithm>
+#include <string>
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
@@ -17,8 +18,8 @@
 #include "boot_sleep/SleepActivity.h"
 #include "browser/OpdsBookBrowserActivity.h"
 #include "core/features/FeatureModules.h"
-#include "core/registries/HomeActionRegistry.h"
 #include "core/registries/HeapReclaimRegistry.h"
+#include "core/registries/HomeActionRegistry.h"
 #include "core/registries/ReaderRegistry.h"
 #include "home/AlertActivity.h"
 #include "home/CrashActivity.h"
@@ -208,11 +209,16 @@ void ActivityManager::loop() {
         stackActivities.push_back(std::move(currentActivity));
         LOG_DBG("ACT", "Pushed to activity stack, new size = %zu", stackActivities.size());
       }
+      const bool replacedOutgoing = (pendingAction == PendingAction::Replace);
       pendingAction = PendingAction::None;
       currentActivity = std::move(pendingActivity);
       activityChanged = true;
 
-      lock.unlock();  // onEnter may acquire its own lock
+      lock.unlock();
+
+      if (replacedOutgoing && !core::HeapReclaimRegistry::empty()) {
+        core::HeapReclaimRegistry::releaseAll();
+      }
 
       LOG_INF("MEM", "enter %s: free=%u min=%u largest=%u", currentActivity->name.c_str(),
               static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(ESP.getMinFreeHeap()),
@@ -245,13 +251,13 @@ void ActivityManager::loop() {
 }
 
 void ActivityManager::exitActivity(const RenderLock& lock) {
-  // Note: lock must be held by the caller
   if (currentActivity) {
-    LOG_INF("MEM", "exit %s: free=%u min=%u largest=%u", currentActivity->name.c_str(),
-            static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(ESP.getMinFreeHeap()),
-            static_cast<unsigned int>(heapguard::largestBlock()));
+    const std::string activityName = currentActivity->name;
     currentActivity->onExit();
     currentActivity.reset();
+    LOG_INF("MEM", "exit %s: free=%u min=%u largest=%u", activityName.c_str(),
+            static_cast<unsigned int>(ESP.getFreeHeap()), static_cast<unsigned int>(ESP.getMinFreeHeap()),
+            static_cast<unsigned int>(heapguard::largestBlock()));
   }
 }
 
@@ -477,6 +483,12 @@ ScreenshotInfo ActivityManager::getScreenshotInfo() const {
   }
   return {};
 }
+
+std::string ActivityManager::currentActivityName() const {
+  return currentActivity ? currentActivity->name : std::string();
+}
+
+unsigned ActivityManager::activityStackDepth() const { return static_cast<unsigned>(stackActivities.size()); }
 
 void ActivityManager::requestUpdate(bool immediate) {
   if (immediate) {
