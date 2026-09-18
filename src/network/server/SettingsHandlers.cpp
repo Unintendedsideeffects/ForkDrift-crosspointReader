@@ -31,6 +31,7 @@ void CrossPointWebServer::handleGetSettings() const {
 
 void CrossPointWebServer::handlePostSettings() {
   uint32_t freeHeap = ESP.getFreeHeap();
+  // cppcheck-suppress knownConditionTrueFalse
   if (freeHeap < kMinHeapForSettingsApply && !core::HeapReclaimRegistry::empty()) {
     core::HeapReclaimRegistry::releaseAll();
     freeHeap = ESP.getFreeHeap();

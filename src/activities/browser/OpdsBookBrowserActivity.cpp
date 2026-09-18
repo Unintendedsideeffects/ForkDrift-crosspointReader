@@ -291,6 +291,7 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
       fontCache->clearCache();
     }
   }
+  // cppcheck-suppress knownConditionTrueFalse
   if (!core::HeapReclaimRegistry::empty()) {
     core::HeapReclaimRegistry::releaseAll();
   }

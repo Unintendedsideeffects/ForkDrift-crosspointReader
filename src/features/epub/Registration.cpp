@@ -35,7 +35,8 @@ Activity* createActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
   (void)onBackToLibrary;
   (void)onBackHome;
 
-  std::string archivePath = path;
+  // Assigned unconditionally in the block below; see stored_epub::prepare.
+  std::string archivePath;
   {
     RenderLock renderLock;
     GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));

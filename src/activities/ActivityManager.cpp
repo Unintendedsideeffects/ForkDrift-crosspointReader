@@ -216,6 +216,7 @@ void ActivityManager::loop() {
 
       lock.unlock();
 
+      // cppcheck-suppress knownConditionTrueFalse
       if (replacedOutgoing && !core::HeapReclaimRegistry::empty()) {
         core::HeapReclaimRegistry::releaseAll();
       }
@@ -357,6 +358,7 @@ void ActivityManager::completeOpenReader() {
     BG_WIFI.stop(/*keepWifi=*/true);
   }
   BackgroundWebServer::getInstance().stop(/*keepWifi=*/true);
+  // cppcheck-suppress knownConditionTrueFalse
   if (!core::HeapReclaimRegistry::empty()) {
     core::HeapReclaimRegistry::releaseAll();
   }

@@ -94,12 +94,10 @@ uint8_t snappedValue(const std::vector<SettingValueSnap>& snaps, const char* key
   if (key == nullptr) {
     return 0;
   }
-  for (const auto& snap : snaps) {
-    if (snap.key != nullptr && std::strcmp(snap.key, key) == 0) {
-      return snap.value;
-    }
-  }
-  return 0;
+  const auto it = std::find_if(snaps.begin(), snaps.end(), [key](const SettingValueSnap& snap) {
+    return snap.key != nullptr && std::strcmp(snap.key, key) == 0;
+  });
+  return it != snaps.end() ? it->value : 0;
 }
 
 uint8_t visibilityValue(const char* key, const std::vector<SettingValueSnap>& snaps) {

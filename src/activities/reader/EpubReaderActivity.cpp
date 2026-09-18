@@ -872,6 +872,7 @@ void EpubReaderActivity::queueCoverThumbBakeIfIdle() {
 }
 
 void EpubReaderActivity::reclaimAfterIndexPressure() {
+  // cppcheck-suppress knownConditionTrueFalse
   if (!core::HeapReclaimRegistry::empty()) {
     core::HeapReclaimRegistry::releaseAll();
   }
