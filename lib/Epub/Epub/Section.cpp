@@ -13,6 +13,7 @@
 
 #include "CacheLoadStatus.h"
 #include "Epub/ParsedText.h"
+#include "Epub/SectionCachePolicy.h"
 #include "Epub/css/CssParser.h"
 #include "Page.h"
 #if ENABLE_HYPHENATION
@@ -392,7 +393,7 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
     cssParser = epub->getCssParser();
     if (cssParser) {
       if (!cssParser->loadFromCache()) {
-        LOG_ERR("SCT", "Failed to load CSS from cache");
+        LOG_DBG("SCT", "CSS cache unavailable; laying out without stylesheet");
       }
     }
   }
@@ -455,7 +456,9 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
   // and are still cached. Refusing them would turn a partly readable chapter
   // into an unreadable one on a device that cannot currently index it at all,
   // which is a worse trade than it looks. Recorded as a known gap.
-  if (totalPageElements == 0 && ParsedText::heapTruncationTally() > 0) {
+  if (section_cache::evaluateEmptySection(
+          {totalPageElements, ParsedText::heapTruncationTally(), visitor.imagesAttempted()}) ==
+      section_cache::EmptySectionAction::RefuseOccupancy) {
     LOG_ERR("SCT", "Refusing to cache empty section: %u block(s) dropped by the heap guard (free=%u largest=%u)",
             static_cast<unsigned>(ParsedText::heapTruncationTally()), static_cast<unsigned>(heapguard::freeBytes()),
             static_cast<unsigned>(heapguard::largestBlock()));

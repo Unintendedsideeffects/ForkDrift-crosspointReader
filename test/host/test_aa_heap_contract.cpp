@@ -112,6 +112,22 @@ TEST_CASE("library shelf refresh runs before CrossPointWebServer construction") 
   CHECK(text.find("!stopRequested && !shelfRefreshAttempted") != std::string::npos);
 }
 
+TEST_CASE("line-break DP refuses throwing vector growth under heap pressure") {
+  std::ifstream source("lib/Epub/Epub/ParsedText.cpp");
+  REQUIRE(source.good());
+  std::ostringstream buffer;
+  buffer << source.rdbuf();
+  const std::string text = buffer.str();
+
+  CHECK(text.find("OOM guard: skipping line-break DP") != std::string::npos);
+  CHECK(text.find("lineBreakIndices.reserve(totalWordCount)") != std::string::npos);
+  CHECK(text.find("OOM guard: skipping word widths") != std::string::npos);
+  CHECK(text.find("if (lineBreakIndices.empty())") != std::string::npos);
+  CHECK(text.find("canAllocate(words.size() * sizeof(uint16_t), 0)") != std::string::npos);
+  CHECK(text.find("canAllocate(dpBytes + ansBytes + breaksBytes, 0)") != std::string::npos);
+  CHECK(text.find("canAllocate(wordWidths.size() * sizeof(size_t), 0)") != std::string::npos);
+}
+
 TEST_CASE("indexing recovery does not silent-restart the device") {
   std::ifstream source("src/activities/reader/EpubReaderActivity.cpp");
   REQUIRE(source.good());

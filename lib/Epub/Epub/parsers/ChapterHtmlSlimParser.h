@@ -195,4 +195,5 @@ class ChapterHtmlSlimParser {
   bool parseAndBuildPages();
   void addLineToPage(const std::shared_ptr<TextBlock>& line);
   const std::vector<std::pair<std::string, uint16_t>>& getAnchors() const { return anchorData; }
+  int imagesAttempted() const { return imageCounter; }
 };

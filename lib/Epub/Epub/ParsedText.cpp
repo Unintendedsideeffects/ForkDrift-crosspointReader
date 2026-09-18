@@ -537,6 +537,9 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 
   const int pageWidth = viewportWidth;
   auto wordWidths = calculateWordWidths(renderer, fontId);
+  if (wordWidths.size() != words.size()) {
+    return;
+  }
 
   std::vector<size_t> lineBreakIndices;
 #if ENABLE_HYPHENATION
@@ -550,6 +553,9 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 #else
   lineBreakIndices = computeLineBreaks(renderer, fontId, pageWidth, wordWidths, wordContinues, wordNoSpaceBefore);
 #endif
+  if (lineBreakIndices.empty()) {
+    return;
+  }
   const size_t lineCount = includeLastLine ? lineBreakIndices.size() : lineBreakIndices.size() - 1;
 
   for (size_t i = 0; i < lineCount; ++i) {
@@ -570,6 +576,14 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 
 std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& renderer, const int fontId) {
   std::vector<uint16_t> wordWidths;
+  if (words.empty()) {
+    return wordWidths;
+  }
+  if (!heapguard::canAllocate(words.size() * sizeof(uint16_t), 0)) {
+    LOG_ERR("PTX", "OOM guard: skipping word widths (words=%zu free=%zu largest=%zu)", words.size(),
+            heapguard::freeBytes(), heapguard::largestBlock());
+    return wordWidths;
+  }
   wordWidths.reserve(words.size());
 
   for (size_t i = 0; i < words.size(); ++i) {
@@ -610,10 +624,20 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
   }
 
   const size_t totalWordCount = words.size();
+  if (totalWordCount == 0) {
+    return {};
+  }
 
-  // DP table to store the minimum badness (cost) of lines starting at index i
+  const size_t dpBytes = totalWordCount * sizeof(int);
+  const size_t ansBytes = totalWordCount * sizeof(size_t);
+  const size_t breaksBytes = totalWordCount * sizeof(size_t);
+  if (!heapguard::canAllocate(dpBytes + ansBytes + breaksBytes, 0)) {
+    LOG_ERR("PTX", "OOM guard: skipping line-break DP (words=%zu free=%zu largest=%zu)", totalWordCount,
+            heapguard::freeBytes(), heapguard::largestBlock());
+    return {};
+  }
+
   std::vector<int> dp(totalWordCount);
-  // 'ans[i]' stores the index 'j' of the *last word* in the optimal line starting at 'i'
   std::vector<size_t> ans(totalWordCount);
 
   // Base Case
@@ -691,6 +715,7 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
 
   // Stores the index of the word that starts the next line (last_word_index + 1)
   std::vector<size_t> lineBreakIndices;
+  lineBreakIndices.reserve(totalWordCount);
   size_t currentWordIndex = 0;
 
   while (currentWordIndex < totalWordCount) {
@@ -742,6 +767,12 @@ std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& r
           : 0;
 
   std::vector<size_t> lineBreakIndices;
+  if (!wordWidths.empty() && !heapguard::canAllocate(wordWidths.size() * sizeof(size_t), 0)) {
+    LOG_ERR("PTX", "OOM guard: skipping hyphenated breaks (words=%zu free=%zu largest=%zu)", wordWidths.size(),
+            heapguard::freeBytes(), heapguard::largestBlock());
+    return {};
+  }
+  lineBreakIndices.reserve(wordWidths.size());
   size_t currentIndex = 0;
   bool isFirstLine = true;
 
