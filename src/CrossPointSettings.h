@@ -549,7 +549,10 @@ class CrossPointSettings {
   void* sdFontResolverCtx = nullptr;
 
   static constexpr uint16_t POWER_BUTTON_WAKE_SHORT_MS = 10;
-  static constexpr uint16_t UI_LONG_PRESS_MS = 200;
+  // 600 ms, not upstream's 200: every reader long-press call site used 600
+  // before the threshold was centralized, and 200 ms is short enough that a
+  // deliberate tap opens the long-press menu instead of turning the page.
+  static constexpr uint16_t UI_LONG_PRESS_MS = 600;
   static constexpr uint16_t POWER_BUTTON_LONG_PRESS_MS = 400;
 
   // Wake detection threshold: how long power must be held to trigger sleep/wake.

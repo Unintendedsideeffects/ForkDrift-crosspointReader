@@ -788,7 +788,7 @@ TEST_CASE("dark mode shortcut enum values are appended without shifting") {
 }
 
 TEST_CASE("UI long-press is 200ms and power-off long-press stays 400ms") {
-  CHECK(CrossPointSettings::UI_LONG_PRESS_MS == 200);
+  CHECK(CrossPointSettings::UI_LONG_PRESS_MS == 600);
   CHECK(CrossPointSettings::POWER_BUTTON_LONG_PRESS_MS == 400);
   CHECK(CrossPointSettings::POWER_BUTTON_WAKE_SHORT_MS == 10);
   CrossPointSettings& s = CrossPointSettings::getInstance();
