@@ -2016,6 +2016,10 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
       self->startNewTextBlock(self->blockStyleStack.back());
     }
   }
+
+  if (strcmp(name, "html") == 0) {
+    self->htmlEnded = true;
+  }
 }
 
 bool ChapterHtmlSlimParser::parseAndBuildPages() {
@@ -2067,6 +2071,7 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
 
   // Compute the time taken to parse and build pages
   const uint32_t chapterStartTime = millis();
+  htmlEnded = false;
   do {
     void* const buf = XML_GetBuffer(parser, PARSE_BUFFER_SIZE);
     if (!buf) {
@@ -2088,6 +2093,13 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
     done = file.available() == 0;
 
     if (XML_ParseBuffer(parser, static_cast<int>(len), done) == XML_STATUS_ERROR) {
+      if (htmlEnded) {
+        // The document already closed cleanly; whatever follows </html> is junk
+        // from a sloppy converter. Keep the pages we built instead of losing the
+        // whole chapter.
+        LOG_DBG("EHP", "Ignoring trailing data after </html>: %s", XML_ErrorString(XML_GetErrorCode(parser)));
+        break;
+      }
       LOG_ERR("EHP", "Parse error at line %lu:\n%s", XML_GetCurrentLineNumber(parser),
               XML_ErrorString(XML_GetErrorCode(parser)));
       destroyXmlParser(parser);
