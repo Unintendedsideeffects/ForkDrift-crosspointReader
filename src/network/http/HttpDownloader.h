@@ -4,10 +4,13 @@
 #include <functional>
 #include <string>
 
+#include "network/http/FetchFailure.h"
+
 /**
  * HTTP client utility for fetching content and downloading files. GET/fetch and
- * file download use esp_http_client with 2KB TLS buffers. Server certificates are
- * not verified (no crt bundle), matching the prior setInsecure() behaviour.
+ * file download use esp_http_client with 2KB TLS buffers. HTTPS attaches the IDF
+ * CRT bundle (same helper as OTA) after TimeSync::ensureTrustedClock(); this core
+ * has CONFIG_ESP_TLS_INSECURE unset, so skip-verify is not a legal handshake.
  * postJson still uses the Arduino HTTPClient path.
  */
 class HttpDownloader {
@@ -19,8 +22,8 @@ class HttpDownloader {
 
   // Minimum free heap required before attempting an HTTPS connection. Below
   // this the aggregate mbedTLS allocations are likely to fail or cause heap
-  // exhaustion. Exposed so callers can check and take action (e.g. restart)
-  // before attempting a fetch rather than failing mid-request.
+  // exhaustion. Exposed so callers can skip or fail honestly rather than
+  // starting a handshake that cannot complete.
   static constexpr uint32_t MIN_HEAP_FOR_HTTPS = 38000;
 
   enum DownloadError {
@@ -34,17 +37,25 @@ class HttpDownloader {
   /**
    * Fetch text content from a URL with optional credentials.
    */
+  static http_fetch::Result fetchUrlResult(const std::string& url, std::string& outContent,
+                                           const std::string& username = "", const std::string& password = "",
+                                           bool logFailure = true);
+
+  static http_fetch::Result fetchUrlResult(const std::string& url, Stream& stream, const std::string& username = "",
+                                           const std::string& password = "", bool logFailure = true);
+
+  static http_fetch::Result fetchUrlResult(const std::string& url, const DataCallback& onData,
+                                           const std::string& username = "", const std::string& password = "",
+                                           bool logFailure = true);
+
   static bool fetchUrl(const std::string& url, std::string& outContent, const std::string& username = "",
-                       const std::string& password = "");
+                       const std::string& password = "", int* outStatus = nullptr, bool logFailure = true);
 
   static bool fetchUrl(const std::string& url, Stream& stream, const std::string& username = "",
-                       const std::string& password = "");
+                       const std::string& password = "", int* outStatus = nullptr, bool logFailure = true);
 
-  /**
-   * Stream the response body to onData as it arrives, without buffering it.
-   */
   static bool fetchUrl(const std::string& url, const DataCallback& onData, const std::string& username = "",
-                       const std::string& password = "");
+                       const std::string& password = "", int* outStatus = nullptr, bool logFailure = true);
 
   /**
    * Probe a URL: sends GET with credentials, returns the HTTP status code

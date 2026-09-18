@@ -3,25 +3,30 @@
 #include <OpdsParser.h>
 #include <OpdsStream.h>
 
+#include "core/features/KoreaderOpdsBridge.h"
 #include "network/http/HttpDownloader.h"
 #include "util/UrlUtils.h"
 
 namespace OpdsShelfFetcher {
-bool fetchRootBooks(const OpdsServer& server, std::vector<LibraryShelfEntry>& entries) {
+http_fetch::Result fetchRootBooks(const OpdsServer& server, std::vector<LibraryShelfEntry>& entries) {
   if (server.url.empty()) {
-    return false;
+    return http_fetch::Result{http_fetch::Reason::Unknown, 0};
   }
 
   OpdsParser parser;
+  http_fetch::Result result;
   {
     OpdsParserStream stream{parser};
     const std::string url = UrlUtils::buildUrl(server.url, "");
-    if (!HttpDownloader::fetchUrl(url, stream, server.username, server.password)) {
-      return false;
+    const auto creds = core::effectiveOpdsCredentials(server);
+    result = HttpDownloader::fetchUrlResult(url, stream, creds.username, creds.password, false);
+    if (!result.ok()) {
+      return result;
     }
   }
-  if (!parser) {
-    return false;
+  result.reason = http_fetch::classifyParse(parser.error(), parser.truncated(), parser.getEntries().size());
+  if (result.reason != http_fetch::Reason::Ok) {
+    return result;
   }
 
   entries.clear();
@@ -35,6 +40,6 @@ bool fetchRootBooks(const OpdsServer& server, std::vector<LibraryShelfEntry>& en
       break;
     }
   }
-  return true;
+  return result;
 }
 }  // namespace OpdsShelfFetcher

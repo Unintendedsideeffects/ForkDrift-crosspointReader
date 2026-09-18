@@ -2,6 +2,7 @@
 
 #include <Epub.h>
 #include <FeatureFlags.h>
+#include <FontCacheManager.h>
 #include <GfxRenderer.h>
 #include <I18n.h>
 #include <Logging.h>
@@ -20,7 +21,10 @@
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
 #include "core/features/KoreaderOpdsBridge.h"
+#include "core/registries/HeapReclaimRegistry.h"
 #include "fontIds.h"
+#include "network/background/BackgroundWifiService.h"
+#include "network/http/FetchFailure.h"
 #include "network/http/HttpDownloader.h"
 #include "util/LibraryShelfStore.h"
 #include "util/OpdsFilename.h"
@@ -28,6 +32,27 @@
 
 namespace {
 constexpr int PAGE_ITEMS = 23;
+
+StrId messageForFetchReason(const http_fetch::Reason reason) {
+  switch (reason) {
+    case http_fetch::Reason::Ok:
+    case http_fetch::Reason::Connect:
+    case http_fetch::Reason::TlsHandshake:
+    case http_fetch::Reason::HttpStatus:
+    case http_fetch::Reason::Aborted:
+    case http_fetch::Reason::Unknown:
+      return StrId::STR_FETCH_FEED_FAILED;
+    case http_fetch::Reason::LowMemory:
+    case http_fetch::Reason::AllocationFailure:
+      return StrId::STR_MEMORY_ERROR;
+    case http_fetch::Reason::Authentication:
+      return StrId::STR_OPDS_AUTH_REQUIRED;
+    case http_fetch::Reason::IncompleteBody:
+    case http_fetch::Reason::InvalidXml:
+      return StrId::STR_PARSE_FEED_FAILED;
+  }
+  return StrId::STR_FETCH_FEED_FAILED;
+}
 
 // Href sentinel marking the synthetic "Sync" row prepended to the cached catalog
 // (a NAVIGATION entry the Confirm handler special-cases instead of fetching). The
@@ -46,6 +71,10 @@ OpdsFilename::Format configuredOpdsFilenameFormat() {
 
 void OpdsBookBrowserActivity::onEnter() {
   Activity::onEnter();
+
+  if (BG_WIFI.isPendingOrRunning()) {
+    BG_WIFI.stop(true);
+  }
 
   entries.clear();
   navigationHistory.clear();
@@ -256,40 +285,37 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
   const auto creds = core::effectiveOpdsCredentials(server);
   std::string url = (path.find("http") == 0) ? path : UrlUtils::buildUrl(server.url, path);
 
-  // If this is an HTTPS fetch and the heap is too fragmented to sustain a TLS
-  // session, restart now rather than letting mbedTLS fail mid-request. The
-  // silent restart recovers the heap; onExit's recoverHeapAfterWifi would do
-  // the same thing, but only after the user dismisses an error screen.
-  if (UrlUtils::isHttpsUrl(url) && ESP.getFreeHeap() < HttpDownloader::MIN_HEAP_FOR_HTTPS) {
-    LOG_ERR("OPDS", "Heap too low for HTTPS feed (%u < %u); silent restart", ESP.getFreeHeap(),
-            HttpDownloader::MIN_HEAP_FOR_HTTPS);
-    silentRestart();
-    return;  // unreachable
+  {
+    RenderLock lock;
+    if (auto* fontCache = renderer.getFontCacheManager()) {
+      fontCache->clearCache();
+    }
+  }
+  if (!core::HeapReclaimRegistry::empty()) {
+    core::HeapReclaimRegistry::releaseAll();
   }
 
-  LOG_DBG("OPDS", "Fetching: %s", url.c_str());
-
+  logSerial.printf("[%lu] [OPDS] Catalog GET\n", static_cast<unsigned long>(millis()));
   catalogTruncated = false;
   OpdsParser parser;
+  http_fetch::Result fetch;
   {
     OpdsParserStream stream{parser};
-    if (!HttpDownloader::fetchUrl(url, stream, creds.username, creds.password)) {
+    fetch = HttpDownloader::fetchUrlResult(url, stream, creds.username, creds.password);
+    if (!fetch.ok()) {
+      LOG_WRN("OPDS", "Catalog GET failed: %s", http_fetch::reasonName(fetch.reason));
       state = BrowserState::ERROR;
-      errorMessage = tr(STR_FETCH_FEED_FAILED);
-      if (creds.username.empty()) {
-        int status = HttpDownloader::probeUrl(url, creds.username, creds.password);
-        if (status == 401 || status == 403) {
-          errorMessage = tr(STR_OPDS_AUTH_REQUIRED);
-        }
-      }
+      errorMessage = I18N.get(messageForFetchReason(fetch.reason));
       requestUpdate();
       return;
     }
   }
 
-  if (!parser) {
+  const http_fetch::Reason parseReason =
+      http_fetch::classifyParse(parser.error(), parser.truncated(), parser.getEntries().size());
+  if (parseReason != http_fetch::Reason::Ok) {
     state = BrowserState::ERROR;
-    errorMessage = tr(STR_PARSE_FEED_FAILED);
+    errorMessage = I18N.get(messageForFetchReason(parseReason));
     requestUpdate();
     return;
   }
@@ -322,6 +348,8 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
   const auto& nextUrl = parser.getNextPageUrl();
   const auto& prevUrl = parser.getPrevPageUrl();
   entries = std::move(parser).getEntries();
+  logSerial.printf("[%lu] [OPDS] Catalog parsed: %u entries\n", static_cast<unsigned long>(millis()),
+                   static_cast<unsigned>(entries.size()));
 
   const auto& servers = OPDS_STORE.getServers();
   const bool isRootFeed = navigationHistory.empty() && path.empty();
@@ -570,7 +598,6 @@ void OpdsBookBrowserActivity::launchWifiSelection() {
 
 void OpdsBookBrowserActivity::onWifiSelectionComplete(const bool connected) {
   if (!connected) {
-    // Leave WiFi up; onExit's silent reboot handles teardown without fragmenting.
     pendingAction = PendingAction::None;
     state = BrowserState::ERROR;
     errorMessage = tr(STR_WIFI_CONN_FAILED);

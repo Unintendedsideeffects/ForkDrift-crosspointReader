@@ -15,24 +15,53 @@
 #include <utility>
 
 #include "SpiBusMutex.h"
+#include "util/TimeSync.h"
 #include "util/UrlUtils.h"
 
 namespace {
-// Small TLS read/write buffers. The Arduino WiFiClientSecure path used the
-// 16KB mbedTLS defaults, which need a ~40KB *contiguous* heap block for the
-// handshake; once the heap fragments (e.g. after parsing a multi-family font
-// manifest) that block no longer exists and GET() fails with -1. esp_http_client
-// with small buffers shrinks the requirement to a few KB. Server certificates
-// are intentionally not verified (no crt bundle), matching the prior
-// setInsecure() behaviour: these are public assets and the device clock is not
-// reliably NTP-synced at download time, which breaks certificate validity checks.
-constexpr int kTlsBufferSize = 2048;
+extern "C" {
+extern esp_err_t esp_crt_bundle_attach(void* conf);
+}
+
+constexpr int kTlsBufferSize = 1024;
 
 // Total free-heap floor before attempting an HTTPS handshake. The aggregate of
 // many small mbedTLS allocations (not the largest block) is what matters here.
 // Kept below the ~50KB seen during font downloads so it only rejects genuinely
 // starved cases instead of viable ones.
 constexpr uint32_t kMinHeapForTls = HttpDownloader::MIN_HEAP_FOR_HTTPS;
+
+http_fetch::Reason admitHttps(const std::string& url) {
+  if (!UrlUtils::isHttpsUrl(url)) {
+    return http_fetch::Reason::Ok;
+  }
+  const uint32_t freeHeap = ESP.getFreeHeap();
+  if (freeHeap < kMinHeapForTls) {
+    LOG_WRN("HTTP", "Fetch failed: %s (free %u < %u, largest: %u)",
+            http_fetch::reasonName(http_fetch::Reason::LowMemory), freeHeap, kMinHeapForTls, ESP.getMaxAllocHeap());
+    return http_fetch::Reason::LowMemory;
+  }
+  TimeSync::ensureTrustedClock();
+  return http_fetch::Reason::Ok;
+}
+
+using EspHttpEventHandler = decltype(esp_http_client_config_t::event_handler);
+
+esp_http_client_config_t fillEspHttpGetConfig(const char* url, EspHttpEventHandler handler, void* userData,
+                                              int timeoutMs) {
+  esp_http_client_config_t config = {};
+  config.url = url;
+  config.method = HTTP_METHOD_GET;
+  config.event_handler = handler;
+  config.user_data = userData;
+  config.timeout_ms = timeoutMs;
+  config.buffer_size = kTlsBufferSize;
+  config.buffer_size_tx = kTlsBufferSize;
+  config.user_agent = "CrossPoint-ESP32-" CROSSPOINT_VERSION;
+  config.crt_bundle_attach = esp_crt_bundle_attach;
+  config.max_authorization_retries = -1;
+  return config;
+}
 
 // Carries download state into the esp_http_client event handler.
 struct DownloadContext {
@@ -129,6 +158,8 @@ struct FetchContext {
   Stream* stream = nullptr;
   bool writeOk = true;
   bool aborted = false;
+  size_t expectedBody = 0;
+  size_t receivedBody = 0;
 };
 
 esp_err_t fetchEventHandler(esp_http_client_event_t* evt) {
@@ -136,6 +167,12 @@ esp_err_t fetchEventHandler(esp_http_client_event_t* evt) {
   if (!ctx) return ESP_OK;
 
   switch (evt->event_id) {
+    case HTTP_EVENT_ON_HEADER:
+      if (evt->header_key && evt->header_value && strcasecmp(evt->header_key, "Content-Length") == 0) {
+        ctx->expectedBody = static_cast<size_t>(strtoul(evt->header_value, nullptr, 10));
+      }
+      return ESP_OK;
+
     case HTTP_EVENT_ON_DATA: {
       const int status = esp_http_client_get_status_code(evt->client);
       if (status < 200 || status >= 300) return ESP_OK;
@@ -143,6 +180,7 @@ esp_err_t fetchEventHandler(esp_http_client_event_t* evt) {
       const auto* data = static_cast<const uint8_t*>(evt->data);
       const size_t len = static_cast<size_t>(evt->data_len);
       if (len == 0) return ESP_OK;
+      ctx->receivedBody += len;
 
       if (ctx->onData) {
         if (!ctx->onData(data, len)) {
@@ -164,33 +202,37 @@ esp_err_t fetchEventHandler(esp_http_client_event_t* evt) {
   }
 }
 
-bool espFetch(const std::string& url, FetchContext& ctx, const std::string& username, const std::string& password,
-              int* outStatus) {
-  if (UrlUtils::isHttpsUrl(url)) {
-    const uint32_t freeHeap = ESP.getFreeHeap();
-    if (freeHeap < kMinHeapForTls) {
-      LOG_ERR("HTTP", "Heap too low for TLS fetch (%u < %u, largest: %u)", freeHeap, kMinHeapForTls,
-              ESP.getMaxAllocHeap());
-      if (outStatus) *outStatus = -1;
-      return false;
-    }
+void logFetchFailure(const http_fetch::Result& result, bool logFailure, const uint32_t freeHeap,
+                     const uint32_t largestBlock) {
+  const char* name = http_fetch::reasonName(result.reason);
+  if (!logFailure) {
+    LOG_DBG("HTTP", "Fetch failed: %s (status %d, free heap: %u, largest block: %u)", name, result.httpStatus, freeHeap,
+            largestBlock);
+    return;
+  }
+  if (http_fetch::logAsError(result.reason)) {
+    LOG_ERR("HTTP", "Fetch failed: %s (status %d, free heap: %u, largest block: %u)", name, result.httpStatus, freeHeap,
+            largestBlock);
+    return;
+  }
+  LOG_WRN("HTTP", "Fetch failed: %s (status %d, free heap: %u, largest block: %u)", name, result.httpStatus, freeHeap,
+          largestBlock);
+}
+
+http_fetch::Result espFetch(const std::string& url, FetchContext& ctx, const std::string& username,
+                            const std::string& password, bool logFailure) {
+  const http_fetch::Reason admit = admitHttps(url);
+  if (admit != http_fetch::Reason::Ok) {
+    return http_fetch::Result{admit, -1};
   }
 
-  esp_http_client_config_t config = {};
-  config.url = url.c_str();
-  config.method = HTTP_METHOD_GET;
-  config.event_handler = fetchEventHandler;
-  config.user_data = &ctx;
-  config.timeout_ms = 15000;
-  config.buffer_size = kTlsBufferSize;
-  config.buffer_size_tx = kTlsBufferSize;
-  config.user_agent = "CrossPoint-ESP32-" CROSSPOINT_VERSION;
+  esp_http_client_config_t config = fillEspHttpGetConfig(url.c_str(), fetchEventHandler, &ctx, 15000);
 
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (!client) {
-    LOG_ERR("HTTP", "esp_http_client_init failed (free heap: %u)", ESP.getFreeHeap());
-    if (outStatus) *outStatus = -1;
-    return false;
+    const http_fetch::Result result{http_fetch::Reason::AllocationFailure, -1};
+    logFetchFailure(result, logFailure, ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+    return result;
   }
 
   if (!username.empty()) {
@@ -207,86 +249,95 @@ bool espFetch(const std::string& url, FetchContext& ctx, const std::string& user
   const int status = esp_http_client_get_status_code(client);
   esp_http_client_cleanup(client);
 
-  if (outStatus) *outStatus = status;
+  http_fetch::Result result;
+  result.httpStatus = status;
+  result.reason = http_fetch::classify(http_fetch::ClassifyInput{
+      .https = UrlUtils::isHttpsUrl(url),
+      .admitted = true,
+      .clientAllocated = true,
+      .transportErr = static_cast<int>(err),
+      .httpStatus = status,
+      .writeOk = ctx.writeOk,
+      .aborted = ctx.aborted,
+      .expectedBody = ctx.expectedBody,
+      .receivedBody = ctx.receivedBody,
+      .freeHeap = ESP.getFreeHeap(),
+      .minHeapForTls = kMinHeapForTls,
+  });
 
-  if (ctx.aborted) {
-    LOG_ERR("HTTP", "Fetch aborted by consumer");
-    return false;
-  }
-
-  if (err != ESP_OK) {
-    LOG_ERR("HTTP", "Fetch failed: %s (status %d, free heap: %u, largest block: %u)", esp_err_to_name(err), status,
-            ESP.getFreeHeap(), ESP.getMaxAllocHeap());
-    return false;
-  }
-
-  if (status != 200) {
-    LOG_ERR("HTTP", "Fetch failed: %d", status);
-    return false;
-  }
-
-  if (!ctx.writeOk) {
-    LOG_ERR("HTTP", "Fetch body failed while writing stream");
-    return false;
+  if (!result.ok()) {
+    logFetchFailure(result, logFailure, ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+    return result;
   }
 
   LOG_DBG("HTTP", "Fetch success");
-  return true;
+  return result;
 }
 }  // namespace
 
 bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const std::string& username,
-                              const std::string& password) {
-  FetchContext ctx;
-  ctx.stream = &outContent;
-  return espFetch(url, ctx, username, password, nullptr);
+                              const std::string& password, int* outStatus, bool logFailure) {
+  const http_fetch::Result result = fetchUrlResult(url, outContent, username, password, logFailure);
+  if (outStatus) *outStatus = result.httpStatus;
+  return result.ok();
 }
 
 bool HttpDownloader::fetchUrl(const std::string& url, const DataCallback& onData, const std::string& username,
-                              const std::string& password) {
-  FetchContext ctx;
-  ctx.onData = onData;
-  return espFetch(url, ctx, username, password, nullptr);
+                              const std::string& password, int* outStatus, bool logFailure) {
+  const http_fetch::Result result = fetchUrlResult(url, onData, username, password, logFailure);
+  if (outStatus) *outStatus = result.httpStatus;
+  return result.ok();
 }
 
 bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent, const std::string& username,
-                              const std::string& password) {
-  // Cap the in-RAM body. The only caller is the OPDS OpenSearch-description
-  // fetch (small XML); 64KB is generous while protecting the heap against a
-  // misbehaving or hostile server pushing a huge document.
+                              const std::string& password, int* outStatus, bool logFailure) {
+  const http_fetch::Result result = fetchUrlResult(url, outContent, username, password, logFailure);
+  if (outStatus) *outStatus = result.httpStatus;
+  return result.ok();
+}
+
+http_fetch::Result HttpDownloader::fetchUrlResult(const std::string& url, Stream& outContent,
+                                                  const std::string& username, const std::string& password,
+                                                  bool logFailure) {
+  FetchContext ctx;
+  ctx.stream = &outContent;
+  return espFetch(url, ctx, username, password, logFailure);
+}
+
+http_fetch::Result HttpDownloader::fetchUrlResult(const std::string& url, const DataCallback& onData,
+                                                  const std::string& username, const std::string& password,
+                                                  bool logFailure) {
+  FetchContext ctx;
+  ctx.onData = onData;
+  return espFetch(url, ctx, username, password, logFailure);
+}
+
+http_fetch::Result HttpDownloader::fetchUrlResult(const std::string& url, std::string& outContent,
+                                                  const std::string& username, const std::string& password,
+                                                  bool logFailure) {
   constexpr size_t kMaxBodyBytes = 64u * 1024u;
   BoundedStringSink sink(kMaxBodyBytes);
-  if (!fetchUrl(url, sink, username, password)) {
-    return false;
+  http_fetch::Result result = fetchUrlResult(url, static_cast<Stream&>(sink), username, password, logFailure);
+  if (!result.ok()) {
+    return result;
   }
   if (sink.overflowed()) {
-    LOG_ERR("HTTP", "Response exceeded %u-byte cap; rejecting", static_cast<unsigned>(kMaxBodyBytes));
-    return false;
+    result.reason = http_fetch::Reason::IncompleteBody;
+    LOG_WRN("HTTP", "Fetch failed: %s (status %d, free heap: %u, largest block: %u)",
+            http_fetch::reasonName(result.reason), result.httpStatus, ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+    return result;
   }
   outContent = std::move(sink.data());
-  return true;
+  return result;
 }
 
 int HttpDownloader::probeUrl(const std::string& url, const std::string& username, const std::string& password) {
-  if (UrlUtils::isHttpsUrl(url)) {
-    const uint32_t freeHeap = ESP.getFreeHeap();
-    if (freeHeap < kMinHeapForTls) {
-      LOG_ERR("HTTP", "Heap too low for TLS probe (%u < %u, largest: %u)", freeHeap, kMinHeapForTls,
-              ESP.getMaxAllocHeap());
-      return -1;
-    }
+  if (admitHttps(url) != http_fetch::Reason::Ok) {
+    return -1;
   }
 
   FetchContext ctx;
-  esp_http_client_config_t config = {};
-  config.url = url.c_str();
-  config.method = HTTP_METHOD_GET;
-  config.event_handler = fetchEventHandler;
-  config.user_data = &ctx;
-  config.timeout_ms = 8000;
-  config.buffer_size = kTlsBufferSize;
-  config.buffer_size_tx = kTlsBufferSize;
-  config.user_agent = "CrossPoint-ESP32-" CROSSPOINT_VERSION;
+  esp_http_client_config_t config = fillEspHttpGetConfig(url.c_str(), fetchEventHandler, &ctx, 8000);
 
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (!client) {
@@ -311,15 +362,8 @@ int HttpDownloader::probeUrl(const std::string& url, const std::string& username
 HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& url, const std::string& destPath,
                                                              ProgressCallback progress, bool* cancelFlag,
                                                              const std::string& username, const std::string& password) {
-  const bool isHttps = UrlUtils::isHttpsUrl(url);
-
-  if (isHttps) {
-    const uint32_t freeHeap = ESP.getFreeHeap();
-    if (freeHeap < kMinHeapForTls) {
-      LOG_ERR("HTTP", "Insufficient heap for TLS: %u free (need %u, largest block: %u)", freeHeap, kMinHeapForTls,
-              ESP.getMaxAllocHeap());
-      return HTTP_ERROR;
-    }
+  if (admitHttps(url) != http_fetch::Reason::Ok) {
+    return HTTP_ERROR;
   }
 
   LOG_DBG("HTTP", "Downloading: %s", url.c_str());
@@ -347,15 +391,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   ctx.progress = std::move(progress);
   ctx.cancelFlag = cancelFlag;
 
-  esp_http_client_config_t config = {};
-  config.url = url.c_str();
-  config.method = HTTP_METHOD_GET;
-  config.event_handler = downloadEventHandler;
-  config.user_data = &ctx;
-  config.timeout_ms = 15000;
-  config.buffer_size = kTlsBufferSize;
-  config.buffer_size_tx = kTlsBufferSize;
-  config.user_agent = "CrossPoint-ESP32-" CROSSPOINT_VERSION;
+  esp_http_client_config_t config = fillEspHttpGetConfig(url.c_str(), downloadEventHandler, &ctx, 15000);
 
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (!client) {
