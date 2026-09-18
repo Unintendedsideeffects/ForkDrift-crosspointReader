@@ -43,15 +43,18 @@ class InflateStream {
 
   using FillFn = size_t (*)(void* ctx, const uint8_t** data);
 
+  enum class ScratchPolicy {
+    PreferBuildScratch,
+    RequireBuildScratch,
+  };
+
   InflateStream() = default;
   ~InflateStream();
   InflateStream(const InflateStream&) = delete;
   InflateStream& operator=(const InflateStream&) = delete;
 
-  // Allocate decompressor state (and the 32KB window when streaming) and reset
-  // stream state. Reuses existing allocations on repeated calls. Returns false
-  // on OOM.
-  bool init(bool streaming);
+  bool init(bool streaming, ScratchPolicy policy = ScratchPolicy::PreferBuildScratch);
+  bool usedBuildScratch() const { return arenaBase != nullptr; }
 
   // Free the decompressor state and window.
   void deinit();

@@ -276,7 +276,10 @@ bool ZipFile::loadZipDetails() {
   // foundOffset is found by scanning arbitrary ZIP bytes, so &buffer[foundOffset+N]
   // is rarely 2/4-byte aligned. A direct reinterpret_cast load faults on RISC-V;
   // memcpy the fields out instead.
+  memcpy(&zipDetails.thisDisk, &buffer[foundOffset + 4], sizeof(zipDetails.thisDisk));
+  memcpy(&zipDetails.cdDisk, &buffer[foundOffset + 6], sizeof(zipDetails.cdDisk));
   memcpy(&zipDetails.totalEntries, &buffer[foundOffset + 10], sizeof(zipDetails.totalEntries));
+  memcpy(&zipDetails.centralDirSize, &buffer[foundOffset + 12], sizeof(zipDetails.centralDirSize));
   memcpy(&zipDetails.centralDirOffset, &buffer[foundOffset + 16], sizeof(zipDetails.centralDirOffset));
   zipDetails.isSet = true;
 

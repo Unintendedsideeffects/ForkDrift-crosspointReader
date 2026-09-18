@@ -12,6 +12,7 @@
 #include <ZipFile.h>
 
 #include "Epub/BookCacheEntries.h"
+#include "Epub/StoredEpubCache.h"
 #include "Epub/parsers/ContainerParser.h"
 #include "Epub/parsers/ContentOpfParser.h"
 #include "Epub/parsers/TocNavParser.h"
@@ -322,12 +323,36 @@ bool Epub::parseTocNavFile() const {
   return true;
 }
 
+void Epub::setArchivePath(std::string path) { archivePath = path.empty() ? filepath : std::move(path); }
+
+const std::string& Epub::zipSource() const { return archivePath.empty() ? filepath : archivePath; }
+
+bool Epub::reserveInflateWindowIfNeeded() const {
+  ZipFile archive(zipSource());
+  const ZipInspect inspected = archive.inspect();
+  if (inspected.kind == ZipKind::Corrupt) {
+    LOG_ERR("EBP", "ZIP inspect failed: %s", zipSource().c_str());
+    return false;
+  }
+  const bool needsWindow = zipNeedsInflateWindow(inspected);
+  LOG_INF("EBP", "Inflate window: %s (archive kind=%u hasDeflate=%d)", needsWindow ? "reserving" : "not needed for this book",
+          static_cast<unsigned>(inspected.kind), inspected.hasDeflate ? 1 : 0);
+  if (!needsWindow) {
+    return true;
+  }
+  if (!InflateReader::ensureSharedWindow()) {
+    LOG_ERR("EBP", "Failed to reserve inflate window");
+    return false;
+  }
+  return true;
+}
+
 std::string Epub::getCssRulesCache() const { return cachePath + "/css_rules.cache"; }
 void Epub::discoverCssFilesFromZip() {
   // Only enumerate entries under the OPF directory; CSS files live there or in
   // subfolders, and a zip-wide stat scan on large EPUBs is slow and heap-hungry.
   const std::string& opfDir = contentBasePath;
-  ZipFile zf(filepath);
+  ZipFile zf(zipSource());
 
   if (!zf.enumerateFilePaths([&](std::string_view filePath) {
         if (!opfDir.empty() && filePath.find(opfDir) != 0) {
@@ -449,7 +474,13 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
   SpiBusMutex::Guard guard;
   LOG_DBG("EBP", "Loading ePub: %s", filepath.c_str());
 
-  // Initialize spine/TOC cache
+  if (archivePath == filepath) {
+    std::string selected = stored_epub::select(filepath.c_str());
+    if (!selected.empty()) {
+      archivePath = std::move(selected);
+    }
+  }
+
   bookMetadataCache.reset(new (std::nothrow) BookMetadataCache(cachePath));
   // Always create CssParser - needed for inline style parsing even without CSS files
   cssParser.reset(new (std::nothrow) CssParser(cachePath));
@@ -460,18 +491,8 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
 
   // Try to load existing cache first
   if (bookMetadataCache->load()) {
-    // Reserve the 32 KB inflate window only when the book actually contains
-    // deflated ZIP entries. Stored-only books never need it, so skipping
-    // preserves ~32 KB of contiguous heap for layout. The flag is computed
-    // once during buildBookBin and persisted in book.bin.
-    const bool needsWindow = bookMetadataCache->getHasDeflatedEntries();
-    LOG_INF("EBP", "Inflate window: %s (cached hasDeflatedEntries=%d)",
-            needsWindow ? "reserving" : "not needed for this book", needsWindow ? 1 : 0);
-    if (needsWindow) {
-      if (!InflateReader::ensureSharedWindow()) {
-        LOG_ERR("EBP", "Failed to reserve inflate window for deflated book");
-        return false;
-      }
+    if (!reserveInflateWindowIfNeeded()) {
+      return false;
     }
     if (!skipLoadingCss) {
       if (loadCssRulesFromCache()) {
@@ -513,22 +534,7 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
   LOG_DBG("EBP", "Cache not found, building spine/TOC cache");
   setupCacheDir();
 
-  // Cache miss: there is no persisted hasDeflatedEntries flag yet, so this used to
-  // reserve the window unconditionally. Reserving *early* is right and stays --
-  // measured 2026-08-28, claiming it later from a working heap leaves the largest
-  // block at ~11.7 KB against ~20.5 KB when it is claimed at open. Wrongly skipping
-  // strands the reader on chapters that need decompression.
-  //
-  // But "we do not know" is not the same as "we cannot find out".
-  // ZipFile::hasAnyDeflated() walks the central directory once and needs no
-  // dictionary of its own, so ask the archive instead of guessing. A stored-only
-  // book then never pins 32 KB it will never use, and a deflated one reserves just
-  // as early as before.
-  const bool needsWindowUncached = ZipFile(filepath).hasAnyDeflated();
-  LOG_INF("EBP", "Inflate window: %s (probed central directory, no cached flag yet)",
-          needsWindowUncached ? "reserving" : "not needed for this book");
-  if (needsWindowUncached && !InflateReader::ensureSharedWindow()) {
-    LOG_ERR("EBP", "Failed to pre-allocate inflate window (cache miss)");
+  if (!reserveInflateWindowIfNeeded()) {
     return false;
   }
 
@@ -598,7 +604,7 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
 
   // Build final book.bin
   const uint32_t buildStart = millis();
-  if (!bookMetadataCache->buildBookBin(filepath, bookMetadata)) {
+  if (!bookMetadataCache->buildBookBin(zipSource(), bookMetadata)) {
     LOG_ERR("EBP", "Could not update mappings and sizes");
     return false;
   }
@@ -964,7 +970,7 @@ uint8_t* Epub::readItemContentsToBytes(const std::string& itemHref, size_t* size
 
   const std::string path = FsHelpers::normalisePath(itemHref);
 
-  const auto content = ZipFile(filepath).readFileToMemory(path.c_str(), size, trailingNullByte);
+  const auto content = ZipFile(zipSource()).readFileToMemory(path.c_str(), size, trailingNullByte);
   if (!content) {
     LOG_DBG("EBP", "Failed to read item %s", path.c_str());
     return nullptr;
@@ -981,12 +987,12 @@ bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, con
   }
 
   const std::string path = FsHelpers::normalisePath(itemHref);
-  return ZipFile(filepath).readFileToStream(path.c_str(), out, chunkSize);
+  return ZipFile(zipSource()).readFileToStream(path.c_str(), out, chunkSize);
 }
 
 bool Epub::getItemSize(const std::string& itemHref, size_t* size) const {
   const std::string path = FsHelpers::normalisePath(itemHref);
-  return ZipFile(filepath).getInflatedFileSize(path.c_str(), size);
+  return ZipFile(zipSource()).getInflatedFileSize(path.c_str(), size);
 }
 
 int Epub::getSpineItemsCount() const {

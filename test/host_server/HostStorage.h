@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -26,6 +27,10 @@ class HalFile {
   HalFile& operator=(const HalFile&) = delete;
 
   void flush();
+  bool sync() {
+    flush();
+    return true;
+  }
   size_t getName(char* name, size_t len) const;
   size_t size();
   size_t fileSize() { return size(); }
@@ -79,6 +84,7 @@ class HalStorage {
   bool remove(const char* path);
   bool rename(const char* oldPath, const char* newPath);
   bool rmdir(const char* path);
+  uint64_t freeBytes() { return UINT64_MAX; }
 
   bool openFileForRead(const char* moduleName, const char* path, HalFile& file);
   bool openFileForRead(const char* moduleName, const std::string& path, HalFile& file);

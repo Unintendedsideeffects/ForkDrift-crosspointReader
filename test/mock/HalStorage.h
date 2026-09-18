@@ -50,10 +50,12 @@ class HalFile {
   }
 
   size_t write(const uint8_t* data, size_t len) {
-    if (buf_) buf_->insert(buf_->end(), data, data + len);
+    if (len == 0) return 0;
+    if (buf_ && data) buf_->insert(buf_->end(), data, data + len);
     return len;
   }
   size_t write(uint8_t b) { return write(&b, 1); }
+  size_t write(const void* data, size_t len) { return write(static_cast<const uint8_t*>(data), len); }
 
   size_t read(uint8_t* data, size_t len) {
     if (!buf_) return 0;
@@ -120,6 +122,13 @@ class HalFile {
   void setOpener(std::function<HalFile(const std::string&)> opener) { opener_ = std::move(opener); }
 
   void close() {}
+  void flush() {}
+  bool sync() { return buf_ != nullptr || isDirectory_; }
+  bool getModifyDateTime(uint16_t* pdate, uint16_t* ptime) const {
+    if (pdate) *pdate = 0;
+    if (ptime) *ptime = 0;
+    return true;
+  }
   explicit operator bool() const { return buf_ != nullptr || isDirectory_; }
 
  private:
@@ -225,6 +234,10 @@ class HalStorage {
   }
 
   bool rename(const char* oldPath, const char* newPath) {
+    if (failNextRenames_ > 0) {
+      --failNextRenames_;
+      return false;
+    }
     auto it = files_.find(oldPath);
     if (it == files_.end()) return false;
     ensureParentDirs(newPath ? newPath : "");
@@ -269,6 +282,10 @@ class HalStorage {
     return inst;
   }
 
+  uint64_t freeBytes() const { return freeBytes_; }
+  void setFreeBytes(uint64_t bytes) { freeBytes_ = bytes; }
+  void failNextRenames(int n) { failNextRenames_ = n; }
+
   int openFileForReadCount() const { return openFileForReadCount_; }
 
   // Makes the next `n` calls to openFileForRead() fail regardless of whether
@@ -283,6 +300,8 @@ class HalStorage {
     directories_.insert("/");
     openFileForReadCount_ = 0;
     failNextReads_ = 0;
+    failNextRenames_ = 0;
+    freeBytes_ = 64ull << 20;
   }
 
  private:
@@ -343,6 +362,8 @@ class HalStorage {
   std::set<std::string> directories_;
   int openFileForReadCount_ = 0;
   int failNextReads_ = 0;
+  int failNextRenames_ = 0;
+  uint64_t freeBytes_ = 64ull << 20;
 };
 
 #define Storage HalStorage::getInstance()

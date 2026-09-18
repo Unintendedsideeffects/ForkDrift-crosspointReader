@@ -14,6 +14,7 @@
 
 #if ENABLE_EPUB_SUPPORT
 #include <Epub.h>
+#include <Epub/StoredEpubCache.h>
 #endif
 
 // Standard thumbnail height for cover images (matches HomeActivity: screenHeight/2 on 480px display).
@@ -441,6 +442,7 @@ void FeatureModules::onWebFileChanged(const String& filePath) {
 #if ENABLE_EPUB_SUPPORT
   if (FsHelpers::checkFileExtension(filePath, ".epub")) {
     Epub(filePath.c_str(), "/.crosspoint").clearRenderCache();
+    stored_epub::invalidate(filePath.c_str());
     LOG_DBG("FEATURES", "Cleared epub render cache for: %s", filePath.c_str());
   }
 #else

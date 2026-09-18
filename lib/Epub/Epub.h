@@ -20,7 +20,7 @@ class Epub {
   std::string tocNavItem;
   // where is the EPUBfile?
   std::string filepath;
-  // the base path for items in the EPUB file
+  std::string archivePath;
   std::string contentBasePath;
   // Uniq cache key based on filepath
   std::string cachePath;
@@ -39,6 +39,8 @@ class Epub {
   void parseCssFiles() const;
   std::string getCssRulesCache() const;
   bool loadCssRulesFromCache() const;
+  const std::string& zipSource() const;
+  bool reserveInflateWindowIfNeeded() const;
 
  public:
   struct ThumbSize {
@@ -46,10 +48,11 @@ class Epub {
     int height;
   };
 
-  explicit Epub(std::string filepath, const std::string& cacheDir) : filepath(std::move(filepath)) {
+  explicit Epub(std::string filepath, const std::string& cacheDir) : filepath(std::move(filepath)), archivePath(this->filepath) {
     cachePath = BookCachePath::build(cacheDir, "epub_", this->filepath);
   }
   ~Epub() = default;
+  void setArchivePath(std::string path);
   std::string& getBasePath() { return contentBasePath; }
   bool load(bool buildIfMissing = true, bool skipLoadingCss = false);
   bool clearCache() const;

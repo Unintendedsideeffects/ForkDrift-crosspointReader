@@ -17,25 +17,20 @@ constexpr size_t STATE_ALIGNED = (sizeof(tinfl_decompressor) + 7) & ~size_t{7};
 
 InflateStream::~InflateStream() { deinit(); }
 
-bool InflateStream::init(const bool streaming) {
-  // Every consumer constructs a fresh stream per operation, so acquire storage
-  // from scratch each init (releasing any prior backing first).
+bool InflateStream::init(const bool streaming, const ScratchPolicy policy) {
   deinit();
 
-  // During a framebuffer loan the lent 48KB is up for grabs: state (~11KB) +
-  // window (32KB) fit inside it, so a chapter-build inflate costs the heap
-  // nothing. Absent (or already claimed): plain heap, freed in deinit().
   const size_t needed = STATE_ALIGNED + (streaming ? WINDOW_SIZE : 0);
   arenaBase = buildscratch::claim(needed);
   if (arenaBase) {
     LOG_DBG("INF", "Inflate scratch claim ok: %u bytes", static_cast<unsigned>(needed));
     state = reinterpret_cast<tinfl_decompressor*>(arenaBase);
     window = streaming ? arenaBase + STATE_ALIGNED : nullptr;
+  } else if (policy == ScratchPolicy::RequireBuildScratch) {
+    LOG_ERR("INF", "Inflate scratch required but unavailable (%u bytes)", static_cast<unsigned>(needed));
+    return false;
   } else {
     LOG_DBG("INF", "Inflate scratch unavailable, falling back to heap (%u bytes)", static_cast<unsigned>(needed));
-    // Raw malloc (not makeUniqueNoThrow): the header keeps tinfl_decompressor
-    // an incomplete type so consumers never include miniz; both blocks are
-    // freed in deinit()/the destructor.
     state = static_cast<tinfl_decompressor*>(malloc(sizeof(tinfl_decompressor)));
     if (!state) {
       LOG_ERR("INF", "OOM allocating tinfl state (%u bytes)", static_cast<unsigned>(sizeof(tinfl_decompressor)));

@@ -214,6 +214,8 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/Epub/Epub/BookMetadataCache.cpp" \
   "$ROOT_DIR/lib/ZipFile/ZipFile.cpp" \
   "$ROOT_DIR/lib/ZipFile/StoredShadow.cpp" \
+  "$ROOT_DIR/lib/ZipFile/StoredZipWriter.cpp" \
+  "$ROOT_DIR/lib/Epub/Epub/StoredEpubCache.cpp" \
   "$ROOT_DIR/test/mock/GfxRendererTestStub.cpp" \
   "$BUILD_DIR/md4c.o" \
   "$BUILD_DIR/entity.o" \

@@ -1,10 +1,27 @@
 #pragma once
 #include <HalStorage.h>
 
+#include <cstdint>
 #include <deque>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+
+enum class ZipKind : uint8_t { StoredOnly, HasDeflate, Unsupported, Corrupt };
+
+struct ZipInspect {
+  ZipKind kind = ZipKind::Corrupt;
+  bool hasDeflate = false;
+  uint16_t entryCount = 0;
+  uint32_t centralDirOffset = 0;
+  uint32_t centralDirSize = 0;
+  uint32_t centralDirCrc = 0;
+  uint64_t storedOutputSize = 0;
+};
+
+constexpr bool zipNeedsInflateWindow(const ZipInspect& inspect) {
+  return inspect.hasDeflate && inspect.kind != ZipKind::Corrupt;
+}
 
 class ZipFile {
  public:
@@ -17,7 +34,10 @@ class ZipFile {
 
   struct ZipDetails {
     uint32_t centralDirOffset;
+    uint32_t centralDirSize;
     uint16_t totalEntries;
+    uint16_t thisDisk;
+    uint16_t cdDisk;
     bool isSet;
   };
 
@@ -41,7 +61,7 @@ class ZipFile {
  private:
   const std::string& filePath;
   HalFile file;
-  ZipDetails zipDetails = {0, 0, false};
+  ZipDetails zipDetails = {0, 0, 0, 0, 0, false};
   std::unordered_map<std::string, FileStatSlim> fileStatSlimCache;
 
   // Cursor for sequential central-dir scanning optimization
@@ -75,6 +95,9 @@ class ZipFile {
   // Walks the central directory once; O(entries). Used to decide whether the 32 KB
   // inflate window is needed for this book.
   bool hasAnyDeflated();
+  ZipInspect inspect();
+  bool writeStoredArchive(const char* destPath, const char* offsetsPath);
+  bool validateStoredArchive(uint16_t expectedCount, uint64_t expectedSize);
 
   // Enumerate entry paths. Uses the stat-slim cache when already loaded;
   // otherwise streams the central directory without building the in-memory
