@@ -139,7 +139,9 @@ What moved:
   overlay streams without the 96/48 KB reboot gate; post-index Continue at
   ≥ 14 KB largest (no `persistAndRestart`); cover thumbs and library shelf are
   luxury (shelf floor 38 KB HTTPS); STORED-shadow writes a method-0 ZIP beside
-  cache and is not on the load path.
+  cache and is not on the load path. Terminus Always fetch runs on bgwifi's
+  resident 8 KB stack (device: 2,560 used / 5,632 free) instead of a transient
+  12 KB `TerminusFetch` allocation; on-charge keeps the 8 KB fallback task.
 
 | State | Before (2026-08-28) | After occupancy flash |
 |---|---|---|
