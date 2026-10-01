@@ -897,55 +897,15 @@ void FileBrowserActivity::renameFile(const std::string& oldPath, const std::stri
     return;
   }
 
-  std::string oldCachePath;
-  const char* bookType = nullptr;
-  if (FsHelpers::hasEpubExtension(oldPath)) {
-    oldCachePath = Epub::cachePathForFilePath(oldPath, "/.crosspoint");
-    bookType = "epub";
-  } else if (FsHelpers::hasXtcExtension(oldPath)) {
-    oldCachePath = Xtc(oldPath, "/.crosspoint").getCachePath();
-    bookType = "xtc";
-  } else if (FsHelpers::hasTxtExtension(oldPath) || FsHelpers::hasMarkdownExtension(oldPath)) {
-    oldCachePath = Txt(oldPath, "/.crosspoint").getCachePath();
-    bookType = "txt";
-  }
-
-  if (bookType) {
-    std::string title = getFileName(oldEntry);
-    std::string author;
-    const auto& recentBooks = RECENT_BOOKS.getBooks();
-    const auto recent = std::find_if(recentBooks.begin(), recentBooks.end(),
-                                     [&oldPath](const RecentBook& book) { return book.path == oldPath; });
-    if (recent != recentBooks.end()) {
-      if (!recent->title.empty()) title = recent->title;
-      author = recent->author;
-    }
-    const auto migration =
-        BookMoveUtils::migrateRenamedBookState(oldPath, newPath, oldCachePath, title, author, bookType);
-    if (migration == BookMoveUtils::RenameMigrationResult::RolledBack) {
-      LOG_ERR("FileBrowser", "Could not rename book while preserving reader state: %s -> %s", oldPath.c_str(),
-              newPath.c_str());
-      return;
-    }
-    if (migration == BookMoveUtils::RenameMigrationResult::KeepRenamed) {
-      LOG_ERR("FileBrowser", "Rename kept new path after incomplete state rollback: %s", newPath.c_str());
-    }
-  } else if (!Storage.rename(oldPath.c_str(), newPath.c_str())) {
-    LOG_ERR("FileBrowser", "Failed to rename file: %s -> %s", oldPath.c_str(), newPath.c_str());
+  const auto migration = BookMoveUtils::renameFilePreservingBookState(oldPath, newPath);
+  if (migration != BookMoveUtils::RenameMigrationResult::Success &&
+      migration != BookMoveUtils::RenameMigrationResult::KeepRenamed) {
+    LOG_ERR("FileBrowser", "Could not rename file while preserving reader state: %s -> %s", oldPath.c_str(),
+            newPath.c_str());
     return;
   }
-
-  bool appStateChanged = false;
-  if (APP_STATE.favoriteSleepImagePath == oldPath) {
-    APP_STATE.favoriteSleepImagePath = newPath;
-    appStateChanged = true;
-  }
-  if (APP_STATE.favoriteBootImagePath == oldPath) {
-    APP_STATE.favoriteBootImagePath = newPath;
-    appStateChanged = true;
-  }
-  if (appStateChanged && !APP_STATE.saveToFile()) {
-    LOG_ERR("FileBrowser", "Failed to save renamed favorite image path");
+  if (migration == BookMoveUtils::RenameMigrationResult::KeepRenamed) {
+    LOG_ERR("FileBrowser", "Rename kept new path after incomplete state rollback: %s", newPath.c_str());
   }
 
   library::invalidateLibraryIndex();

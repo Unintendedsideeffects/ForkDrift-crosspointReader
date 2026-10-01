@@ -577,6 +577,14 @@ bool ClippingStore::migrateForFilePath(const std::string& oldFilePath, const std
   return true;
 }
 
+bool ClippingStore::hasStoredStateForFilePath(const std::string& filePath, const std::string& bookType) {
+  const std::string path = storeFilePathForBook(filePath, bookType);
+  for (const char* suffix : {"", ".bak", ".tmp", ".rename.bak"}) {
+    if (Storage.exists((path + suffix).c_str())) return true;
+  }
+  return false;
+}
+
 bool ClippingStore::beginRenameMigration(const std::string& oldFilePath, const std::string& newFilePath,
                                          const std::string& title, const std::string& author,
                                          const std::string& bookType, RenameMigration& migration) {

@@ -38,6 +38,7 @@
 #include "html/StyleCss.generated.h"
 #include "html/js/jszip_minJs.generated.h"
 #include "util/BookCacheUtils.h"
+#include "util/BookMoveUtils.h"
 #include "util/FontFamilyLabel.h"
 #include "util/ReaderStatusBarJson.h"
 #include "util/StringUtils.h"
@@ -1214,21 +1215,36 @@ void CrossPointWebServer::handleRename() const {
     return;
   }
 
-  clearBookCache(itemPath.c_str());
-  const bool success = file.rename(newPath.c_str());
+  // Release the validation handle before migrating metadata and renaming the
+  // book; real SD cards cannot open the same path through multiple readers.
   file.close();
-
-  if (success) {
-    LOG_DBG("WEB", "Renamed file: %s -> %s", itemPath.c_str(), newPath.c_str());
-    ImageFolderIndex::invalidateForPath(itemPath.c_str());
-    sdFontSystem.markRegistryDirtyForPath(itemPath.c_str());
-    ImageFolderIndex::invalidateForPath(newPath.c_str());
-    sdFontSystem.markRegistryDirtyForPath(newPath.c_str());
-    server->send(200, "text/plain", "Renamed successfully");
-  } else {
-    LOG_ERR("WEB", "Failed to rename file: %s -> %s", itemPath.c_str(), newPath.c_str());
-    server->send(500, "text/plain", "Failed to rename file");
+  const auto migration = BookMoveUtils::renameFilePreservingBookState(itemPath.c_str(), newPath.c_str());
+  if (migration == BookMoveUtils::RenameMigrationResult::InvalidBookType) {
+    server->send(400, "text/plain", "Renaming a book cannot change its file type");
+    return;
   }
+  if (migration == BookMoveUtils::RenameMigrationResult::DestinationStateExists) {
+    server->send(409, "text/plain", "Target filename has saved reading data. Choose another filename.");
+    return;
+  }
+  if (migration == BookMoveUtils::RenameMigrationResult::RolledBack) {
+    LOG_ERR("WEB", "Failed to rename file while preserving reader state: %s -> %s", itemPath.c_str(), newPath.c_str());
+    server->send(500, "text/plain", "Could not rename file while preserving saved reading data");
+    return;
+  }
+
+  LOG_DBG("WEB", "Renamed file: %s -> %s", itemPath.c_str(), newPath.c_str());
+  ImageFolderIndex::invalidateForPath(itemPath.c_str());
+  sdFontSystem.markRegistryDirtyForPath(itemPath.c_str());
+  ImageFolderIndex::invalidateForPath(newPath.c_str());
+  sdFontSystem.markRegistryDirtyForPath(newPath.c_str());
+  if (migration == BookMoveUtils::RenameMigrationResult::KeepRenamed) {
+    LOG_ERR("WEB", "Rename kept new path after incomplete state rollback: %s", newPath.c_str());
+    server->send(500, "text/plain",
+                 "File was renamed, but some saved references could not be updated. Refresh the file list.");
+    return;
+  }
+  server->send(200, "text/plain", "Renamed successfully");
 }
 
 void CrossPointWebServer::handleMove() const {
