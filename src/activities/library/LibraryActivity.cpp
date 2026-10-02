@@ -337,7 +337,6 @@ void LibraryActivity::applyFilter() {
   }
   if (!hasActiveFilter() || !index.isOpen() || index.bookCount() == 0) return;
   const uint16_t sourceCount = index.bookCount();
-  if (sourceCount == 0) return;
   filtered = makeUniqueNoThrow<uint16_t[]>(sourceCount);
   if (!filtered) {
     LOG_ERR("LIB", "Cannot allocate Library search results");

@@ -482,14 +482,16 @@ partials use marker `0xC2`. The CSS rule cache format is unchanged.
 
 Version 80 places small inline images within text lines while keeping larger
 images as centered blocks. Page-image records add a one-byte inline flag after
-their coordinates; full section caches (byte `80`) and suspended partial caches (`0xC1`) rebuild so
+their coordinates; older full and suspended partial section caches rebuild so
 existing books receive the new layout. The CSS rule cache moves to version `19`
 so `display: inline` rules retain their meaning.
 
-The v1.6.1 release retains version `80` and partial marker `0xC1`: development
+The v1.6.1 release candidate used version `80` and partial marker `0xC1`: development
 versions `78` and `79` used the older image payload, and earlier release
 preparation used partial marker `0x80`. Reusing those identifiers could accept
-incompatible saved pages. All of those older caches rebuild automatically.
+incompatible saved pages. The final v1.6.1 release uses version `81` and marker
+`0xC2` for the additional root-style indentation change. All of those older caches
+rebuild automatically.
 
 ### Version 79
 
