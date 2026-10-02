@@ -1430,6 +1430,7 @@ class SimulatorSmokeTest {
         break;
 
       case SmokeStep::ThemeHome: {
+#if CROSSINK_APP_CAP_TOUCH
         if (activityManager.getCurrentBookPath() != homeThemeBookPath) fail("Theme switch lost the selected book");
         const int width = renderer.getScreenWidth();
         const int height = renderer.getScreenHeight();
@@ -1444,6 +1445,9 @@ class SimulatorSmokeTest {
         scriptIndex = 0;
         inputCompletionStep = SmokeStep::ThemeSettings;
         step = SmokeStep::ReaderInput;
+#else
+        fail("Home theme regression requires the X4 Pro simulator");
+#endif
         break;
       }
 

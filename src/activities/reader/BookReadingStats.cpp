@@ -6,6 +6,8 @@
 
 #include <cstring>
 
+#include "util/FileContentEquals.h"
+
 namespace {
 // Binary layout v1 (11 bytes):
 //   [0]     version (= 1)
@@ -301,6 +303,10 @@ bool BookReadingStats::save(const std::string& cachePath) const {
     writeLe32(data, 41 + static_cast<int>(i) * 4, dayOfWeekSeconds[i]);
   }
   writeLe32(data, 69, estimatedTimeLeftSeconds);
+
+  // Reader exit saves unconditionally; a quick open-and-close changes nothing.
+  const bool unchanged = fileContentEquals("STATS", statsPath.c_str(), data, sizeof(data));
+  if (unchanged) return true;
 
   // Write to a temp file and rename into place so a save interrupted mid-write
   // (silent restart, SD contention, power loss) can never leave stats_v5.bin

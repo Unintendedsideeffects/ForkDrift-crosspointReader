@@ -75,3 +75,16 @@ add_test(NAME scalable_font_adapter COMMAND scalable_font_adapter_test
   ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/EpdFont/scalableFonts/bitter_bold.ttf
   ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/EpdFont/scalableFonts/bitter_italic.ttf
   ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/EpdFont/scalableFonts/bitter_bolditalic.ttf)
+
+# Takes original and subset font directories; kept out of CTest because the
+# original binary assets are extracted from the requested baseline revision.
+add_executable(scalable_font_subset_compare ScalableFontSubsetCompare.cpp ${SOURCES})
+target_compile_options(scalable_font_subset_compare PRIVATE -UNDEBUG)
+target_include_directories(scalable_font_subset_compare PRIVATE
+  ${SDK}/include ${SDK}/third_party/freetype/include ${SDK}/third_party/stb)
+target_compile_definitions(scalable_font_subset_compare PRIVATE
+  FREEINK_FONT_ENABLE_AUTOHINT=1 FREEINK_FONT_ENABLE_NATIVE_HINTING=1 FREEINK_FONT_ENABLE_MONOCHROME=1)
+if(SANITIZE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+  target_compile_options(scalable_font_subset_compare PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+  target_link_options(scalable_font_subset_compare PRIVATE -fsanitize=address,undefined)
+endif()

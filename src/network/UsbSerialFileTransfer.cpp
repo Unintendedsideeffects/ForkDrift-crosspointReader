@@ -1,5 +1,6 @@
 #include "UsbSerialFileTransfer.h"
 
+#include <AppVersion.h>
 #include <Arduino.h>
 #include <FsHelpers.h>
 #include <HalStorage.h>
@@ -43,9 +44,6 @@ constexpr const char* HIDDEN_ITEMS[] = {"System Volume Information", "XTCache"};
 
 #ifndef CROSSINK_FIRMWARE_DEVICE_TYPE
 #define CROSSINK_FIRMWARE_DEVICE_TYPE "unknown"
-#endif
-#ifndef CROSSINK_VERSION
-#define CROSSINK_VERSION "unknown"
 #endif
 
 uint8_t commandMatchPos = 0;
@@ -307,7 +305,7 @@ bool removeRecursive(const char* path, size_t depth = 0) {
 void handleStatus() {
   char response[160];
   snprintf(response, sizeof(response), "STATUS:protocol=1,device=%s,firmware=%s,free=%u,largest=%u\n",
-           CROSSINK_FIRMWARE_DEVICE_TYPE, CROSSINK_VERSION, ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+           CROSSINK_FIRMWARE_DEVICE_TYPE, AppVersion::version(), ESP.getFreeHeap(), ESP.getMaxAllocHeap());
   writeLine(response);
 }
 

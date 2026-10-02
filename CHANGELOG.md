@@ -31,6 +31,12 @@
 - Leaving an EPUB or TXT reader releases rebuildable font buffers for other screens.
 - Menu buttons now follow the device layout: Left/Right switch tabs and Up/Down select rows in reader menus and global settings.
 - The KOReader Sync progress choice now shows remote and local progress as clear cards with large percentages, progress bars, and an "Ahead" marker on the further position.
+- Saving unchanged reading statistics avoids unnecessary SD card writes.
+- Large TLS downloads reuse the receive buffer until the connection closes, reducing repeated allocations.
+- Normal firmware builds omit wolfSSL debug tracing; explicit TLS debug builds retain it.
+- The web portal uses less firmware space when the pinned esbuild minifier is available.
+- Built-in fonts use less firmware space while preserving their supported characters, ligatures, kerning, and rendered appearance.
+- SD-card reads keep filesystem metadata cached separately from book and font data to reduce repeated card access.
 
 ### Fixed
 
@@ -66,6 +72,22 @@
 - In-book setting choices now open with the current value highlighted and visible, including fonts and font sizes.
 - Changing the Home theme or UI scale through the frontlight drawer no longer leaves overlapping covers or stale controls.
 - Fix filename-based KOReader sync failing at split-chapter boundaries in optimized EPUBs that already contain sync mapping data.
+- Quick Resume wakes without a full-screen clearing flash when the saved page can be restored.
+- Discard stale SD-card cache contents after a failed read to prevent incorrect reads or later writes.
+- Back and Home can cancel an active HTTP book or font upload and remove its incomplete file.
+- BMP images with extended headers now use the correct palette colors, and incomplete palettes are rejected.
+- Touch gestures remain responsive while File Transfer is serving requests.
+- Closing a settings submenu restores its row and scroll position.
+- The image viewer redraws correctly after menus and the frontlight panel close.
+- Settings initialization uses one shared implementation across the firmware.
+- Previous-page and chapter shortcuts do nothing when already at the beginning of an EPUB or XTC book.
+- Reader shortcuts and the frontlight panel save the current reading position before flows that can restart the device.
+- Short upscaled images are cached after decoding instead of being repeatedly decoded on refresh.
+- OPDS asks before replacing books, validates completed downloads, checks available space, and preserves the old book if a transfer or replacement fails.
+
+### Security
+
+- OPDS and download logs hide URL tokens, fragments, and embedded credentials.
 
 ## [v1.6.0] - 2026-09-21
 

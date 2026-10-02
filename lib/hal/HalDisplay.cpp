@@ -76,6 +76,15 @@ void HalDisplay::setInverted(bool inverted) {
   einkDisplay.setInverted(inverted);
 }
 
+bool HalDisplay::restoreVisibleFrame() {
+#ifdef SIMULATOR
+  return false;
+#else
+  HalSpiBus::Lock spiLock;
+  return einkDisplay.restoreVisibleFrame();
+#endif
+}
+
 void HalDisplay::displayBufferAsync(HalDisplay::RefreshMode mode) {
   if (gpio.deviceIsX3() && mode == RefreshMode::HALF_REFRESH) {
     einkDisplay.requestResync(1);

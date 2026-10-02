@@ -24,10 +24,10 @@
 #include "KOReaderCredentialStore.h"
 #include "Memory.h"
 
-#ifndef SIMULATOR
-// wolfSSL is built with DEBUG_WOLFSSL, whose Arduino backend expects the app to
-// provide this print hook (the stock definition lives in <wolfssl.h>, which no
-// translation unit here includes). Route it through the firmware logger, same
+#if !defined(SIMULATOR) && defined(FREEINK_WOLFSSL_DEBUG)
+// With FREEINK_WOLFSSL_DEBUG, wolfSSL is built with DEBUG_WOLFSSL, whose Arduino
+// backend expects the app to provide this print hook (the stock definition lives
+// in <wolfssl.h>, which no translation unit here includes). Route it through the firmware logger, same
 // as upstream CrossPoint's HttpDownloader.cpp.
 extern "C" void wolfSSL_Arduino_Serial_Print(const char* const msg) { LOG_DBG("WOLFSSL", "%s", msg); }
 #endif
