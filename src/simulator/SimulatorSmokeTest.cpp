@@ -59,6 +59,7 @@ enum class SmokeStep : uint8_t {
   FileBrowser,
   FileBrowserSettings,
   Library,
+  RecentLibrary,
   Settings,
   SideButtons,
   ReaderOptions,
@@ -139,6 +140,21 @@ class SimulatorSmokeTest {
   unsigned homeThemePass = 0;
   uint64_t homeThemeScreenHash = 0;
   std::string homeThemeBookPath;
+
+  void prepareRecentLibrary() {
+    SETTINGS.librarySortMethod = 4;
+    SETTINGS.librarySortDescending = 1;
+    SETTINGS.libraryUseMetadata = 1;
+    SETTINGS.libraryShowTxt = 1;
+    SETTINGS.libraryHideFinishedBooks = 0;
+    for (int i = 0; i < 20; ++i) {
+      const std::string path = "/books/recent-smoke-" + std::to_string(i) + ".txt";
+      if (!Storage.writeFile(path.c_str(), "Recent Library smoke fixture")) fail("Cannot create recent fixture");
+      RECENT_BOOKS.addOrUpdateBook(path, "Title " + std::to_string(i), "Author " + std::to_string(i), "");
+    }
+    Storage.remove(library::libraryIndexPath());
+    library::invalidateLibraryIndex();
+  }
 
   static bool enabled() { return std::getenv("CROSSINK_SIMULATOR_SMOKE_TEST") != nullptr; }
 
@@ -1152,14 +1168,97 @@ class SimulatorSmokeTest {
           break;
         }
 #endif
+        prepareRecentLibrary();
         activityManager.goToLibrary();
-        queueStep("Library", SmokeStep::Library);
+        queueStep("Recent Library", SmokeStep::RecentLibrary);
         break;
 
       case SmokeStep::FileBrowserSettings:
+        prepareRecentLibrary();
         activityManager.goToLibrary();
+        queueStep("Recent Library", SmokeStep::RecentLibrary);
+        break;
+
+      case SmokeStep::RecentLibrary: {
+        RenderLock lock;
+        auto* activity = static_cast<LibraryActivity*>(activityManager.simulatorCurrentActivity());
+        if (Storage.exists(library::libraryIndexPath()) || !library::libraryIndexNeedsRefresh())
+          fail("Recently Opened built the missing Library index");
+        RecentBook book;
+        if (activity->simulatorRowCount() != 18 || !activity->simulatorReadBook(0, book) ||
+            book.path != "/books/recent-smoke-19.txt")
+          fail("Recent Library did not show bounded history in newest-first order");
+        activity->simulatorSetView(4, false);
+        if (!activity->simulatorReadBook(0, book) || book.path != "/books/recent-smoke-2.txt")
+          fail("Recent Library did not reverse history");
+        activity->simulatorSetView(4, true, "Author 19");
+        if (activity->simulatorRowCount() != 1 || !activity->simulatorReadBook(0, book) ||
+            book.path != "/books/recent-smoke-19.txt")
+          fail("Recent Library author search failed");
+        SETTINGS.libraryShowTxt = 0;
+        activity->simulatorSetView(4, true);
+        if (activity->simulatorRowCount() != 0) fail("Recent Library file filter failed");
+        SETTINGS.libraryShowTxt = 1;
+        SETTINGS.libraryUseMetadata = 0;
+        activity->simulatorSetView(4, true, "recent-smoke-19");
+        if (activity->simulatorRowCount() != 1 || !activity->simulatorReadBook(0, book) ||
+            book.title != "recent-smoke-19" || !book.author.empty())
+          fail("Recent Library filename display/search failed");
+        SETTINGS.libraryUseMetadata = 1;
+        // An unreadable index must also be irrelevant to a history refresh.
+        if (!Storage.writeFile(library::libraryIndexPath(), "broken")) fail("Cannot write broken index fixture");
+        activity->simulatorSetView(4, true);
+        activity->simulatorRefresh();
+        FsFile broken;
+        if (!Storage.openFileForRead("SMOKE", library::libraryIndexPath(), broken)) fail("Missing broken index");
+        const auto brokenSize = broken.size();
+        broken.close();
+        if (brokenSize != 6 || !library::libraryIndexNeedsRefresh() || activity->simulatorRowCount() != 18)
+          fail("Recent Library refreshed the full index");
+        activity->simulatorSetView(1, false);
+        activity->simulatorSetView(4, true);
+        if (activity->simulatorRowCount() != 18 || !activity->simulatorReadBook(0, book))
+          fail("Recent Library stayed unavailable after a failed full scan");
+        const char* epubPath = std::getenv("CROSSINK_SIMULATOR_SMOKE_BOOK");
+        if (epubPath) {
+          const std::string cachePath = Epub(epubPath, "/.crosspoint").getCachePath();
+          if (!Storage.exists(cachePath.c_str()) && !Storage.mkdir(cachePath.c_str()))
+            fail("Cannot create completed-book cache");
+          auto stats = BookReadingStats::load(cachePath);
+          stats.isCompleted = true;
+          if (!stats.save(cachePath)) fail("Cannot save completed-book fixture");
+          RECENT_BOOKS.addOrUpdateBook(epubPath, "Completed smoke book", "", "");
+          SETTINGS.libraryHideFinishedBooks = 1;
+          activity->simulatorSetView(4, true);
+          if (activity->simulatorRowCount() != 17) fail("Recent Library did not hide finished EPUB");
+          SETTINGS.libraryHideFinishedBooks = 0;
+          activity->simulatorSetView(4, true);
+          if (activity->simulatorRowCount() != 18 || !activity->simulatorReadBook(0, book) || book.path != epubPath)
+            fail("Recent Library did not restore finished EPUB");
+          RECENT_BOOKS.removeByPath(epubPath);
+          stats.isCompleted = false;
+          if (!stats.save(cachePath)) fail("Cannot restore completed-book fixture");
+        }
+        for (int i = 0; i < 20; ++i) {
+          const std::string path = "/books/recent-smoke-" + std::to_string(i) + ".txt";
+          if (!Storage.remove(path.c_str())) fail("Cannot remove recent fixture");
+        }
+        activity->simulatorRefresh();
+        if (activity->simulatorRowCount() != 0) fail("Recent Library did not prune missing books");
+        // The builder deliberately retains an unreadable previous index. Remove
+        // that fixture before checking a deferred build from a missing index.
+        if (!Storage.remove(library::libraryIndexPath())) fail("Cannot remove broken index fixture");
+        // Switching to a full-library sort must still build the deferred index.
+        activity->simulatorSetView(1, false);
+        if (library::libraryIndexNeedsRefresh() || activity->simulatorRowCount() == 0)
+          fail("Full Library did not build its deferred index");
+        SETTINGS.librarySortMethod = 1;
+        SETTINGS.librarySortDescending = 0;
+        LOG_INF("SMOKE",
+                "Recent Library missing/corrupt index, 18-book limit, ordering, search, filters and completion passed");
         queueStep("Library", SmokeStep::Library);
         break;
+      }
 
       case SmokeStep::Library: {
         // Rendering an error screen is not a successful Library smoke test.

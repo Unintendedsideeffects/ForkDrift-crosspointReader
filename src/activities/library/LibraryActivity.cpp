@@ -53,6 +53,11 @@ constexpr int GRID_SELECTION_OUTLINE_GAP = 2;
 constexpr int GRID_SELECTION_OUTER_INSET = GRID_SELECTION_PADDING + GRID_SELECTION_OUTLINE_GAP;
 constexpr int GRID_COVER_CORNER_RADIUS = 2;
 
+uint8_t visibleLibraryFileTypes() {
+  return (SETTINGS.libraryShowEpub ? library::FileEpub : 0) | (SETTINGS.libraryShowXtc ? library::FileXtc : 0) |
+         (SETTINGS.libraryShowTxt ? library::FileTxt : 0) | (SETTINGS.libraryShowMarkdown ? library::FileMarkdown : 0);
+}
+
 const RecentBook* recentBookForPath(const std::string& path) {
   const auto& books = RECENT_BOOKS.getBooks();
   const auto it =
@@ -108,7 +113,8 @@ void LibraryActivity::onEnter() {
     app.setScreen(&LibraryActivity::listScreen, this);
     // The index survives a firmware reflash, but its first boot reconciliation
     // can still take time. Show feedback whenever that scan is due.
-    initialScanPending = library::libraryIndexNeedsRefresh() || !Storage.exists(library::libraryIndexPath());
+    initialScanPending = sort != Sort::RecentlyRead &&
+                         (library::libraryIndexNeedsRefresh() || !Storage.exists(library::libraryIndexPath()));
   }
 
   // Paint the scan message before the main task starts reading the card.
@@ -136,21 +142,33 @@ void LibraryActivity::onExit() {
   Activity::onExit();
 }
 
-void LibraryActivity::refreshIndexIfNeeded() {
+void LibraryActivity::refreshIndexIfNeeded(const bool showScanning) {
+  if (sort == Sort::RecentlyRead) {
+    index.close();
+    scanFailed = false;
+    uiReady = false;
+    applyFilter();
+    return;
+  }
   // Reuse the index across ordinary visits; still reconcile after cold boots, after
   // file changes, and when the format or metadata setting no longer matches.
   if (library::libraryIndexNeedsRefresh() || (!index.isOpen() && !index.open(library::libraryIndexPath())) ||
       index.header().metadataEnabled != static_cast<uint8_t>(SETTINGS.libraryUseMetadata != 0)) {
-    rebuildIndex(false);
+    rebuildIndex(showScanning);
     return;
   }
   scanFailed = false;
   uiReady = false;
-  resolveRecents();
   applyFilter();
 }
 
 bool LibraryActivity::rebuildIndex(const bool showScanning) {
+  if (sort == Sort::RecentlyRead) {
+    library::invalidateLibraryIndex();
+    if (RECENT_BOOKS.pruneMissing()) RECENT_BOOKS.saveToFile();
+    refreshIndexIfNeeded();
+    return true;
+  }
   uiReady = false;
   index.close();
   if (showScanning) GUI.drawPopup(renderer, tr(STR_LIBRARY_SCANNING));
@@ -171,37 +189,41 @@ bool LibraryActivity::rebuildIndex(const bool showScanning) {
       }
     }
   }
-  resolveRecents();
   applyFilter();
   return !scanFailed;
 }
 
+void LibraryActivity::readRecentBook(const size_t historyRow, RecentBook& book) const {
+  book = RECENT_BOOKS.getBooks()[historyRow];
+  if (!SETTINGS.libraryUseMetadata || book.title.empty()) {
+    const auto slash = book.path.find_last_of('/');
+    book.title = book.path.substr(slash == std::string::npos ? 0 : slash + 1);
+    const auto dot = book.title.find_last_of('.');
+    if (dot != std::string::npos && dot != 0) book.title.resize(dot);
+  }
+  if (!SETTINGS.libraryUseMetadata) book.author.clear();
+}
+
 void LibraryActivity::resolveRecents() {
   recentCount = 0;
-  if (!index.isOpen()) return;
   const auto& books = RECENT_BOOKS.getBooks();
-  // Index lookup accepts up to 16 entries per pass; the history holds 18.
-  // Two small batches keep stack use below 256 bytes.
-  constexpr size_t BATCH = 8;
-  library::BookIdentity identities[BATCH]{};
-  uint16_t rows[BATCH]{};
-  for (size_t offset = 0; offset < books.size(); offset += BATCH) {
-    const size_t count = std::min(BATCH, books.size() - offset);
-    for (size_t i = 0; i < count; ++i) {
-      const auto& path = books[offset + i].path;
-      identities[i] = {library::clixPathHash(path.data(), path.size()), 0};
+  const std::string needle = library::fold(query);
+  const uint8_t visibleTypes = visibleLibraryFileTypes();
+  std::string combined;
+  std::string folded;
+  for (size_t row = 0; row < books.size() && recentCount < RecentBooksStore::MAX_RECENT_BOOKS; ++row) {
+    const auto& book = books[row];
+    if ((library::fileTypeFor(book.path) & visibleTypes) == 0) continue;
+    if (SETTINGS.libraryHideFinishedBooks && BookActions::isBookCompleted(book.path)) continue;
+    if (!needle.empty()) {
+      readRecentBook(row, rowScratch);
+      combined.assign(rowScratch.title);
+      combined.push_back(' ');
+      combined.append(rowScratch.author);
+      library::foldInto(combined, folded);
+      if (!library::matchesQuery(folded, needle)) continue;
     }
-    if (!index.recentRowsFor(identities, count, rows)) {
-      LOG_ERR("LIB", "Cannot match reading history to the index");
-      recentCount = 0;
-      scanFailed = true;
-      return;
-    }
-    for (size_t i = 0; i < count && recentCount < RecentBooksStore::MAX_RECENT_BOOKS; ++i) {
-      if (rows[i] == UINT16_MAX || std::find(recentRows, recentRows + recentCount, rows[i]) != recentRows + recentCount)
-        continue;
-      recentRows[recentCount++] = rows[i];
-    }
+    recentRows[recentCount++] = static_cast<uint16_t>(row);
   }
 }
 
@@ -251,8 +273,8 @@ bool LibraryActivity::hasActiveFilter() const {
 }
 
 int LibraryActivity::rowCount() const {
-  if (hasActiveFilter()) return filteredCount;
   if (sort == Sort::RecentlyRead) return static_cast<int>(recentCount);
+  if (hasActiveFilter()) return filteredCount;
   return index.bookCount();
 }
 
@@ -278,16 +300,22 @@ void LibraryActivity::loadGridProgress() {
 }
 
 uint16_t LibraryActivity::ordinalForRow(const int row) {
-  if (row < 0 || row >= rowCount()) return UINT16_MAX;
+  if (sort == Sort::RecentlyRead || row < 0 || row >= rowCount()) return UINT16_MAX;
   if (hasActiveFilter()) return filtered ? filtered[row] : UINT16_MAX;
-  uint16_t indexRow = static_cast<uint16_t>(row);
-  if (sort == Sort::RecentlyRead) {
-    indexRow = library::recentHistoryRow(indexRow, index.bookCount(), recentRows, recentCount, descending);
-  }
-  return index.ordinalForRow(indexOrder(), indexRow);
+  return index.ordinalForRow(indexOrder(), static_cast<uint16_t>(row));
 }
 
 bool LibraryActivity::readBook(const int row, RecentBook& book, const bool fullPath) {
+  if (sort == Sort::RecentlyRead) {
+    const uint16_t historyRow =
+        library::recentHistoryRow(row, RECENT_BOOKS.getCount(), recentRows, recentCount, descending);
+    if (historyRow == UINT16_MAX) {
+      LOG_ERR("LIB", "Cannot read recent book row %d", row);
+      return false;
+    }
+    readRecentBook(historyRow, book);
+    return true;
+  }
   library::ClixRecord record{};
   const auto ordinal = ordinalForRow(row);
   if (ordinal == UINT16_MAX || !index.readRecord(ordinal, record) ||
@@ -303,8 +331,12 @@ void LibraryActivity::applyFilter() {
   filteredCount = 0;
   filterFailed = false;
   filtered.reset();
+  if (sort == Sort::RecentlyRead) {
+    resolveRecents();
+    return;
+  }
   if (!hasActiveFilter() || !index.isOpen() || index.bookCount() == 0) return;
-  const uint16_t sourceCount = sort == Sort::RecentlyRead ? static_cast<uint16_t>(recentCount) : index.bookCount();
+  const uint16_t sourceCount = index.bookCount();
   if (sourceCount == 0) return;
   filtered = makeUniqueNoThrow<uint16_t[]>(sourceCount);
   if (!filtered) {
@@ -313,9 +345,7 @@ void LibraryActivity::applyFilter() {
     return;
   }
   const std::string needle = library::fold(query);
-  const uint8_t visibleTypes =
-      (SETTINGS.libraryShowEpub ? library::FileEpub : 0) | (SETTINGS.libraryShowXtc ? library::FileXtc : 0) |
-      (SETTINGS.libraryShowTxt ? library::FileTxt : 0) | (SETTINGS.libraryShowMarkdown ? library::FileMarkdown : 0);
+  const uint8_t visibleTypes = visibleLibraryFileTypes();
   std::unique_ptr<uint32_t[]> folderOffsets;
   uint16_t folderStride = 0;
   std::string title;
@@ -349,10 +379,7 @@ void LibraryActivity::applyFilter() {
     return true;
   };
   for (uint16_t row = 0; row < sourceCount; ++row) {
-    const uint16_t indexRow = sort == Sort::RecentlyRead ? library::recentHistoryRow(row, index.bookCount(), recentRows,
-                                                                                     recentCount, descending)
-                                                         : row;
-    const uint16_t ordinal = index.ordinalForRow(indexOrder(), indexRow);
+    const uint16_t ordinal = index.ordinalForRow(indexOrder(), row);
     library::ClixRecord record{};
     if (ordinal == UINT16_MAX || !index.readRecord(ordinal, record) || !index.readName(record, name)) {
       LOG_ERR("LIB", "Cannot read Library search data");
@@ -487,7 +514,7 @@ void LibraryActivity::openSortPicker(const int selectedIndex) {
     SETTINGS.librarySortMethod = static_cast<uint8_t>(sort);
     SETTINGS.librarySortDescending = descending;
     if (!SETTINGS.saveToFile()) LOG_ERR("LIB", "Cannot save Library sort");
-    applyFilter();
+    refreshIndexIfNeeded(true);
     resetViewport();
     if (buttonOnly && selected == 0) openSortPicker(0);
   };
@@ -863,7 +890,8 @@ void LibraryActivity::provideRow(void* user, const uint16_t row, fui::ListItem& 
   }
   item.label = self->rowScratch.title.c_str();
   if (!self->rowScratch.author.empty()) item.subtitle = self->rowScratch.author.c_str();
-  if (SETTINGS.libraryUseMetadata && (SETTINGS.libraryShowSeries || SETTINGS.libraryShowGenre)) {
+  if (self->sort != Sort::RecentlyRead && SETTINGS.libraryUseMetadata &&
+      (SETTINGS.libraryShowSeries || SETTINGS.libraryShowGenre)) {
     library::ClixRecord record{};
     const uint16_t ordinal = self->ordinalForRow(row);
     if (ordinal != UINT16_MAX && self->index.readRecord(ordinal, record) &&
@@ -1071,7 +1099,7 @@ void LibraryActivity::buildListScreen(UiApp::ScreenType& screen) {
       const char* message = tr(STR_LIBRARY_EMPTY);
       if (hasActiveFilter())
         message = tr(STR_LIBRARY_NO_RESULTS);
-      else if (sort == Sort::RecentlyRead && index.bookCount() > 0)
+      else if (sort == Sort::RecentlyRead)
         message = tr(STR_NO_RECENT_BOOKS);
       screen.centeredText(message, screen.theme().bodyText);
     }

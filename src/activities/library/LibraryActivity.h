@@ -25,6 +25,16 @@ class LibraryActivity final : public Activity {
 #ifdef SIMULATOR
   size_t simulatorPendingInputs() const { return pendingInput.size(); }
   int simulatorSelection() const { return selection; }
+  int simulatorRowCount() const { return rowCount(); }
+  bool simulatorReadBook(int row, RecentBook& book) { return readBook(row, book); }
+  void simulatorSetView(uint8_t method, bool reverse, const std::string& search = "") {
+    sort = static_cast<Sort>(method);
+    descending = reverse;
+    query = search;
+    refreshIndexIfNeeded();
+    resetViewport();
+  }
+  void simulatorRefresh() { refreshLibrary(); }
 #endif
 
  private:
@@ -70,6 +80,7 @@ class LibraryActivity final : public Activity {
   // Searches and file-type filters allocate one u16 per visible source book, fallibly.
   std::unique_ptr<uint16_t[]> filtered;
   uint16_t filteredCount = 0;
+  // Indices into the bounded recent-books history, independent of the Library index.
   uint16_t recentRows[RecentBooksStore::MAX_RECENT_BOOKS]{};
   size_t recentCount = 0;
   // SDK rowProvider consumes the strings before asking for the next row.
@@ -106,8 +117,9 @@ class LibraryActivity final : public Activity {
   void latchInput();
   void queueInput(LibraryInputBuffer::Type type, int x = -1, int y = -1);
   void handleInput(const LibraryInputBuffer::Event& input);
-  void refreshIndexIfNeeded();
+  void refreshIndexIfNeeded(bool showScanning = false);
   bool rebuildIndex(bool showScanning);
+  void readRecentBook(size_t historyRow, RecentBook& book) const;
   void resolveRecents();
   void applyFilter();
   void resetViewport();
