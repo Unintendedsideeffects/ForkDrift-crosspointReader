@@ -349,6 +349,9 @@ RTC_NOINIT_ATTR uint32_t silentReaderPageBuildFlags;
 constexpr uint32_t SILENT_REBOOT_MAGIC = 0xC1EAB007;
 constexpr uint32_t SILENT_REBOOT_TARGET_HOME = 0;
 constexpr uint32_t SILENT_REBOOT_TARGET_READER = 1;
+// Common restart flags share the target word so destination payloads stay intact.
+constexpr uint32_t SILENT_REBOOT_FRONTLIGHT_VALID = 1U << 31;
+constexpr uint32_t SILENT_REBOOT_FRONTLIGHT_ON = 1U << 30;
 constexpr uint32_t SILENT_REBOOT_READER_CLEAN_IMAGE_BASE = 1U << 0;
 constexpr uint32_t SILENT_READER_PAGE_BUILD_MAGIC = 0xC1EAB017;
 constexpr uint32_t SILENT_READER_PAGE_BUILD_AUTO_TURN = 1U << 0;
@@ -372,6 +375,9 @@ using BootResume = SleepWakePolicy::Resume;
 static bool deepSleepInProgress = false;
 
 static void restartWithSilentToken() {
+  // Capture the live state for every destination without changing wake preferences.
+  silentRebootTarget |= SILENT_REBOOT_FRONTLIGHT_VALID;
+  if (Frontlight.isOn()) silentRebootTarget |= SILENT_REBOOT_FRONTLIGHT_ON;
 #ifdef SIMULATOR
   SimulatorLifecycle::setSilentRebootToken(silentRebootMagic, silentRebootTarget, silentRebootPayload);
 #endif
@@ -1232,6 +1238,9 @@ void setup() {
   // Read-and-clear so a panic later in setup() doesn't loop into silent reboot.
   // Validate the target too — RTC_NOINIT memory is uninitialized on cold boot.
   const bool isSilentReboot = (silentRebootMagic == SILENT_REBOOT_MAGIC);
+  const bool hasRestartFrontlight = (silentRebootTarget & SILENT_REBOOT_FRONTLIGHT_VALID) != 0;
+  const bool restartFrontlightOn = (silentRebootTarget & SILENT_REBOOT_FRONTLIGHT_ON) != 0;
+  silentRebootTarget &= ~(SILENT_REBOOT_FRONTLIGHT_VALID | SILENT_REBOOT_FRONTLIGHT_ON);
   const bool isValidSilentTarget =
       silentRebootTarget <= SILENT_REBOOT_TARGET_READER || isNetworkBootTargetValue(silentRebootTarget);
   const uint32_t snapshotTarget = (isSilentReboot && isValidSilentTarget) ? silentRebootTarget : 0;
@@ -1352,7 +1361,8 @@ void setup() {
   logBootHeap("boot state ready");
   // Silent restarts are invisible recovery steps, so they always retain the
   // current light state rather than applying wake or schedule policy.
-  const bool wasLightOnBeforeSleep = SETTINGS.frontlightOn != 0;
+  const bool wasLightOnBeforeSleep =
+      isSilentReboot && isValidSilentTarget && hasRestartFrontlight ? restartFrontlightOn : SETTINGS.frontlightOn != 0;
   const bool preserveLightAcrossRestart = FrontlightSchedule::shouldPreserveLightAcrossRestart(isSilentReboot);
   bool restoreLightOn = FrontlightSchedule::shouldRestoreLightOnStart(
       preserveLightAcrossRestart, SETTINGS.frontlightRestoreOnWake != 0, wasLightOnBeforeSleep);
@@ -1370,6 +1380,7 @@ void setup() {
       restoreLightOn = false;
     }
   }
+  LOG_DBG("LIGHT", "Frontlight boot state: %s (silent=%d)", restoreLightOn ? "on" : "off", isSilentReboot ? 1 : 0);
   Frontlight.begin(SETTINGS.frontlightBrightness, SETTINGS.frontlightWarmth, restoreLightOn);
 
   if (recoveryFirmwareMode) {
