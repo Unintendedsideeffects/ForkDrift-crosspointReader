@@ -2718,6 +2718,16 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     stripPublisherSpacing(userAlignmentBlockStyle);
   }
 
+  // <html> and <body> are transparent to the block layout stack, but CSS
+  // text-indent is inherited by descendant paragraphs. Preserve that value on
+  // the root style so ordinary child-block merging applies paragraph overrides.
+  if ((strcmp(name, "html") == 0 || strcmp(name, "body") == 0) && self->blockStyleCount_ > 0 &&
+      userAlignmentBlockStyle.textIndentDefined) {
+    auto& rootBlockStyle = self->blockStyleBuf_[0];
+    rootBlockStyle.textIndent = userAlignmentBlockStyle.textIndent;
+    rootBlockStyle.textIndentDefined = true;
+  }
+
   // Force paragraph indent to prevent unreadable walls of text.
   // This applies if the publisher set text-indent: 0, omitted it, or if it was stripped by disabling embedded styles.
   if (self->forceParagraphIndents && strcmp(name, "p") == 0) {

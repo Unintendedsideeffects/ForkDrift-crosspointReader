@@ -337,7 +337,7 @@ individual global changes. **Delete Book Cache** does not reset these choices.
 
 - **Extra Paragraph Spacing**: Set how to handle paragraph breaks:
   - "ON" - Vertical space will be added between paragraphs in Reading Mode
-  - "OFF" - Paragraphs will not have vertical space added, but will have first-line indentation
+  - "OFF" - Paragraphs will not have vertical space added; source-defined first-line indentation is shown when available
 
 - **Embedded Style**, **Images**, **Focus Reading**, and
   **Guide Dots** are directly available from the Reader settings. See

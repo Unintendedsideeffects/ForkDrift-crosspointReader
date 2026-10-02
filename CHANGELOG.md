@@ -35,6 +35,7 @@
 ### Fixed
 
 - File Transfer choices no longer appear preselected when opened on a touch device.
+- EPUB paragraphs now inherit first-line indentation from HTML and body styles while retaining paragraph-level overrides.
 - Saved clipping lists now show a scrollbar when more clippings are available below the visible rows.
 - EPUB Safe Mode no longer pins inherited fonts and page layout as personal book settings.
 - The X4 Pro Home button now steps back through dictionary lookup, chapter selection, and nested settings instead of jumping to Home.

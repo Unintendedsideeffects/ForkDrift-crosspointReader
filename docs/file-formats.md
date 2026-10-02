@@ -470,6 +470,14 @@ Binary layout:
 
 ## `section.bin`
 
+### Version 81
+
+Version 81 carries `text-indent` from the HTML and body root styles into
+descendant paragraph blocks. Existing full section caches (byte `80`) and
+suspended partial caches (`0xC1`) rebuild so inherited paragraph indentation is
+reflected in saved page positions. Complete files use byte `81`; suspended
+partials use marker `0xC2`. The CSS rule cache format is unchanged.
+
 ### Version 80
 
 Version 80 places small inline images within text lines while keeping larger

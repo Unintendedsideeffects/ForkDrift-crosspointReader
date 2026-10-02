@@ -42,7 +42,120 @@ class ChapterHtmlSlimParserTest : public ::testing::TestWithParam<const char*> {
     parser.blockStyleBuf_ = blockStyles.data();
     parser.blockStyleCount_ = 1;
   }
+
+  BlockStyle parseParagraph(const char* className) {
+    const XML_Char* attributes[] = {"class", className, nullptr};
+    ChapterHtmlSlimParser::startElement(&parser, "p", attributes);
+    const BlockStyle style = parser.currentTextBlock->getBlockStyle();
+    ChapterHtmlSlimParser::characterData(&parser, "Text", 4);
+    ChapterHtmlSlimParser::endElement(&parser, "p");
+    return style;
+  }
 };
+
+TEST_F(ChapterHtmlSlimParserTest, InheritsBodyTextIndentAndPreservesExplicitParagraphZero) {
+  parser.cssParser->rulesBySelector_[".class-0"] =
+      CssParser::parseInlineStyle("text-indent: 1.5em; text-align: justify");
+  parser.cssParser->rulesBySelector_[".class_s4K-0"] = CssParser::parseInlineStyle("text-indent: 0");
+  parser.cssParser->rulesBySelector_[".class_s4P-0"] = CssParser::parseInlineStyle("margin-top: 0; margin-bottom: 0");
+
+  const XML_Char* bodyAttributes[] = {"class", "class-0", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "body", bodyAttributes);
+
+  const BlockStyle openingParagraph = parseParagraph("class_s4K-0");
+  EXPECT_TRUE(openingParagraph.textIndentDefined);
+  EXPECT_EQ(openingParagraph.textIndent, 0);
+  EXPECT_EQ(parser.currentTextBlock->resolveFirstLineIndent(true, renderer, 0), 0);
+
+  const BlockStyle followingParagraph = parseParagraph("class_s4P-0");
+  EXPECT_TRUE(followingParagraph.textIndentDefined);
+  EXPECT_EQ(followingParagraph.textIndent, 18);
+  EXPECT_EQ(parser.currentTextBlock->resolveFirstLineIndent(true, renderer, 0), 18);
+
+  ChapterHtmlSlimParser::endElement(&parser, "body");
+}
+
+TEST_F(ChapterHtmlSlimParserTest, HtmlIndentFlowsThroughBodyAndBodyIndentOverridesIt) {
+  parser.cssParser->rulesBySelector_[".html-indent"] = CssParser::parseInlineStyle("text-indent: 1em");
+  parser.cssParser->rulesBySelector_[".body-indent"] = CssParser::parseInlineStyle("text-indent: 1.5em");
+  parser.cssParser->rulesBySelector_[".plain"] = CssParser::parseInlineStyle("margin: 0");
+
+  const XML_Char* htmlAttributes[] = {"class", "html-indent", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "html", htmlAttributes);
+  EXPECT_EQ(parser.blockStyleBuf_[0].textIndent, 12);
+
+  const XML_Char* bodyAttributes[] = {"class", "body-indent", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "body", bodyAttributes);
+
+  const BlockStyle inheritedParagraph = parseParagraph("plain");
+  EXPECT_TRUE(inheritedParagraph.textIndentDefined);
+  EXPECT_EQ(inheritedParagraph.textIndent, 18);
+  EXPECT_EQ(parser.currentTextBlock->resolveFirstLineIndent(true, renderer, 0), 18);
+
+  ChapterHtmlSlimParser::endElement(&parser, "body");
+  ChapterHtmlSlimParser::endElement(&parser, "html");
+}
+
+TEST_F(ChapterHtmlSlimParserTest, InheritsTextIndentFromDivAndKeepsParagraphOverride) {
+  parser.cssParser->rulesBySelector_[".ancestor-indent"] = CssParser::parseInlineStyle("text-indent: 1.5em");
+  parser.cssParser->rulesBySelector_[".plain"] = CssParser::parseInlineStyle("margin: 0");
+  parser.cssParser->rulesBySelector_[".zero"] = CssParser::parseInlineStyle("text-indent: 0");
+
+  const XML_Char* divAttributes[] = {"class", "ancestor-indent", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "div", divAttributes);
+
+  const BlockStyle inheritedParagraph = parseParagraph("plain");
+  EXPECT_TRUE(inheritedParagraph.textIndentDefined);
+  EXPECT_EQ(inheritedParagraph.textIndent, 18);
+  EXPECT_EQ(parser.currentTextBlock->resolveFirstLineIndent(true, renderer, 0), 18);
+
+  const BlockStyle zeroParagraph = parseParagraph("zero");
+  EXPECT_TRUE(zeroParagraph.textIndentDefined);
+  EXPECT_EQ(zeroParagraph.textIndent, 0);
+  EXPECT_EQ(parser.currentTextBlock->resolveFirstLineIndent(true, renderer, 0), 0);
+
+  ChapterHtmlSlimParser::endElement(&parser, "div");
+}
+
+TEST_F(ChapterHtmlSlimParserTest, BodyIndentRespectsSpacingAndForcedIndentSettings) {
+  parser.cssParser->rulesBySelector_[".body-indent"] = CssParser::parseInlineStyle("text-indent: 1.5em");
+  parser.cssParser->rulesBySelector_[".plain"] = CssParser::parseInlineStyle("margin: 0");
+  parser.cssParser->rulesBySelector_[".zero"] = CssParser::parseInlineStyle("text-indent: 0");
+  const XML_Char* bodyAttributes[] = {"class", "body-indent", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "body", bodyAttributes);
+
+  parser.extraParagraphSpacing = true;
+  parser.currentTextBlock = std::make_unique<ParsedText>(true, false);
+  const BlockStyle spacedParagraph = parseParagraph("plain");
+  EXPECT_EQ(spacedParagraph.textIndent, 18);
+  EXPECT_EQ(parser.currentTextBlock->resolveFirstLineIndent(true, renderer, 0), 0);
+
+  parser.extraParagraphSpacing = false;
+  const BlockStyle unspacedParagraph = parseParagraph("plain");
+  EXPECT_EQ(unspacedParagraph.textIndent, 18);
+  EXPECT_EQ(parser.currentTextBlock->resolveFirstLineIndent(true, renderer, 0), 18);
+
+  parser.forceParagraphIndents = true;
+  const BlockStyle forcedZeroParagraph = parseParagraph("zero");
+  EXPECT_EQ(forcedZeroParagraph.textIndent, renderer.getFontAscenderSize(0));
+  EXPECT_EQ(parser.currentTextBlock->resolveFirstLineIndent(true, renderer, 0), renderer.getFontAscenderSize(0));
+
+  ChapterHtmlSlimParser::endElement(&parser, "body");
+}
+
+TEST_F(ChapterHtmlSlimParserTest, RootIndentIsIgnoredWhenEmbeddedStyleIsOff) {
+  parser.embeddedStyle = false;
+  parser.cssParser->rulesBySelector_[".body-indent"] = CssParser::parseInlineStyle("text-indent: 1.5em");
+  parser.cssParser->rulesBySelector_[".plain"] = CssParser::parseInlineStyle("margin: 0");
+  const XML_Char* bodyAttributes[] = {"class", "body-indent", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "body", bodyAttributes);
+
+  const BlockStyle plainParagraph = parseParagraph("plain");
+  EXPECT_FALSE(plainParagraph.textIndentDefined);
+  EXPECT_EQ(parser.currentTextBlock->resolveFirstLineIndent(true, renderer, 0), 0);
+
+  ChapterHtmlSlimParser::endElement(&parser, "body");
+}
 
 TEST_P(ChapterHtmlSlimParserTest, KeepsCssVerticalAlignAndInternalLinkMetadata) {
   const char* verticalAlign = GetParam();
