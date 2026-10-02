@@ -802,7 +802,6 @@ bool dispatchButtonShortcut(const ButtonShortcutController::Result& result) {
 }
 
 namespace {
-constexpr uint16_t POST_SLEEP_SCREEN_SETTLE_MS = 500;
 constexpr uint8_t TILT_SLEEP_MAX_ATTEMPTS = 3;
 constexpr uint16_t TILT_SLEEP_RETRY_DELAY_MS = 10;
 
@@ -1089,13 +1088,16 @@ void enterDeepSleep(bool fromTimeout) {
   // it visible until the first useful reader or Home paint replaces it.
   APP_STATE.showBootScreen = false;
 
-  APP_STATE.saveToFile();
-
   // Commit to sleeping before goToSleep() runs the outgoing activity's onExit():
   // a WiFi activity would otherwise silentRestart() here and reboot instead.
   deepSleepInProgress = true;
   activityManager.goToSleep(fromTimeout);
+  // Reader exit may already have saved this state. Save after the sleep screen
+  // appears, skipping an unchanged snapshot while still retrying failed saves.
+  APP_STATE.saveToFile();
 
+  // Refreshes are synchronous; display.deepSleep() also finishes pending
+  // display work and power-off, so an extra settle delay serves no purpose.
   if (isQuickResumeSleep) {
     saveSleepFrameBuffer();
   } else {
@@ -1103,7 +1105,6 @@ void enterDeepSleep(bool fromTimeout) {
       // A stale Quick Resume frame must not replace the selected sleep screen during wake.
       Storage.remove(SLEEP_FRAME_FILE);
     }
-    delay(POST_SLEEP_SCREEN_SETTLE_MS);
   }
 
   if (halClock.isAvailable() && SETTINGS.shouldTrackReadingStats() && SETTINGS.autoBackupStats != 0) {
