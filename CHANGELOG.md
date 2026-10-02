@@ -64,6 +64,7 @@
 - Side-button Orientation Aware, optional keyboard layouts, and the XTC reader's touchscreen and reading stats settings now show toggle switches instead of Yes/No or On/Off labels.
 - In-book setting choices now open with the current value highlighted and visible, including fonts and font sizes.
 - Changing the Home theme or UI scale through the frontlight drawer no longer leaves overlapping covers or stale controls.
+- Fix filename-based KOReader sync failing at split-chapter boundaries in optimized EPUBs that already contain sync mapping data.
 
 ## [v1.6.0] - 2026-09-21
 
