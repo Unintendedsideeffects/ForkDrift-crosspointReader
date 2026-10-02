@@ -30,6 +30,7 @@
 #include "SdCardFontSystem.h"
 #include "SettingsList.h"
 #include "activities/ActivityManager.h"
+#include "activities/home/HomeActivity.h"
 #include "activities/home/RecentBookProgress.h"
 #include "activities/library/LibraryActivity.h"
 #include "activities/reader/BookReadingStats.h"
@@ -40,6 +41,7 @@
 #include "activities/reader/SideButtonShortcuts.h"
 #include "activities/settings/QuickActionsActivity.h"
 #include "activities/settings/SettingsActivity.h"
+#include "activities/util/FrontlightPanelActivity.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
 #include "simulator/SimulatorHomeKeyInput.h"
@@ -65,6 +67,10 @@ enum class SmokeStep : uint8_t {
   Reader,
   ReaderInput,
   CarouselHome,
+  ThemeHome,
+  ThemeSettings,
+  ThemeReturned,
+  ThemeFresh,
   Done,
 };
 
@@ -96,6 +102,7 @@ class SimulatorSmokeTest {
     AssertTouchscreenEnabled,
     AssertTtfProfileNative,
     OpenSmokeBook,
+    OpenFrontlightSettings,
     DisableReaderTouch,
     EnableReaderTouch,
     TouchDown,
@@ -129,6 +136,9 @@ class SimulatorSmokeTest {
   std::filesystem::file_time_type carouselSecondWrittenAt;
   uint64_t carouselCacheHash = 0;
   uint64_t carouselScreenHash = 0;
+  unsigned homeThemePass = 0;
+  uint64_t homeThemeScreenHash = 0;
+  std::string homeThemeBookPath;
 
   static bool enabled() { return std::getenv("CROSSINK_SIMULATOR_SMOKE_TEST") != nullptr; }
 
@@ -898,6 +908,22 @@ class SimulatorSmokeTest {
     switch (step) {
       case SmokeStep::Start:
         LOG_INF("SMOKE", "Starting simulator smoke test");
+        if (std::getenv("CROSSINK_SIMULATOR_SMOKE_HOME_THEMES")) {
+          if (!mappedInputManager.hasHomeKey() || !mappedInputManager.hasTouchHardware())
+            fail("Home theme regression requires the X4 Pro simulator");
+          for (const char* path : {"/books/theme-first.txt", "/books/theme-second.txt"}) {
+            if (!Storage.writeFile(path, "Home theme fixture")) fail("Cannot create Home theme fixture");
+            RECENT_BOOKS.addOrUpdateBook(path, path, {}, {}, RecentBook::CoverState::Missing);
+          }
+          SETTINGS.uiTheme = CrossPointSettings::LYRA_CAROUSEL;
+          SETTINGS.uiScale = CrossPointSettings::UI_SCALE_SMALL;
+          UITheme::getInstance().reload();
+          homeThemeBookPath = "/books/theme-first.txt";
+          activityManager.replaceActivity(std::make_unique<HomeActivity>(
+              renderer, mappedInputManager, HomeMenuItem::NONE, HalDisplay::FAST_REFRESH, homeThemeBookPath));
+          queueStep("Initial carousel Home", SmokeStep::ThemeHome, 8);
+          break;
+        }
         verifyLoadingPopupBackdrop();
         verifyCachedHomeProgressMigration();
         if (!CrossPointSettings::verifySleepTimeoutMigrationContract()) {
@@ -1303,6 +1329,73 @@ class SimulatorSmokeTest {
       case SmokeStep::CarouselHome:
         verifyCarouselCacheReturn();
         break;
+
+      case SmokeStep::ThemeHome: {
+        if (activityManager.getCurrentBookPath() != homeThemeBookPath) fail("Theme switch lost the selected book");
+        const int width = renderer.getScreenWidth();
+        const int height = renderer.getScreenHeight();
+        inputScript = {touchDown(width / 2, 8),
+                       touchMove(width / 2, height / 4),
+                       touchRelease(width / 2, height / 4),
+                       render("Home frontlight drawer", 4),
+                       assertActivity("FrontlightPanel"),
+                       {ScriptActionType::OpenFrontlightSettings, MappedInputManager::Button::Back, nullptr, 0, 0, 0},
+                       render("Home drawer Settings", 4),
+                       assertActivity("Settings")};
+        scriptIndex = 0;
+        inputCompletionStep = SmokeStep::ThemeSettings;
+        step = SmokeStep::ReaderInput;
+        break;
+      }
+
+      case SmokeStep::ThemeSettings: {
+        static constexpr uint8_t themes[] = {CrossPointSettings::LYRA_3_COVERS, CrossPointSettings::DASHBOARD,
+                                             CrossPointSettings::MINIMAL,       CrossPointSettings::COVER_GRID,
+                                             CrossPointSettings::LYRA,          CrossPointSettings::CLASSIC,
+                                             CrossPointSettings::ROUNDEDRAFF,   CrossPointSettings::LYRA_CAROUSEL,
+                                             CrossPointSettings::LYRA_CAROUSEL, CrossPointSettings::LYRA_CAROUSEL};
+        // Change the global values while the real Settings child is open, then
+        // return through its real drawer callback. Compare with a fresh Home.
+        {
+          RenderLock lock;
+          SETTINGS.uiTheme = themes[homeThemePass];
+          if (homeThemePass == 8) SETTINGS.uiScale = CrossPointSettings::UI_SCALE_LARGE;
+          UITheme::getInstance().reload();
+        }
+        inputScript = {press(MappedInputManager::Button::Back), release(MappedInputManager::Button::Back),
+                       render("Home after drawer Settings", 8), assertActivity("Home")};
+        scriptIndex = 0;
+        inputCompletionStep = SmokeStep::ThemeReturned;
+        step = SmokeStep::ReaderInput;
+        break;
+      }
+
+      case SmokeStep::ThemeReturned: {
+        if (activityManager.getCurrentBookPath() != homeThemeBookPath) fail("Theme switch lost the selected book");
+        {
+          RenderLock lock;
+          homeThemeScreenHash = hashBytes(renderer.getFrameBuffer(), renderer.getBufferSize());
+        }
+        activityManager.replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInputManager, HomeMenuItem::NONE,
+                                                                       HalDisplay::FAST_REFRESH, homeThemeBookPath));
+        queueStep("Fresh Home reference", SmokeStep::ThemeFresh, 8);
+        break;
+      }
+
+      case SmokeStep::ThemeFresh: {
+        {
+          RenderLock lock;
+          if (hashBytes(renderer.getFrameBuffer(), renderer.getBufferSize()) != homeThemeScreenHash)
+            fail("Home after drawer theme change differs from fresh Home (pass %u)", homeThemePass);
+        }
+        LOG_INF("SMOKE", "Home theme/scale return matches fresh render (pass %u)", homeThemePass);
+        if (++homeThemePass == 10) {
+          LOG_INF("SMOKE", "Simulator smoke test passed");
+          std::_Exit(0);
+        }
+        step = SmokeStep::ThemeHome;
+        break;
+      }
 
       case SmokeStep::Done:
         if (SETTINGS.uiTheme == CrossPointSettings::LYRA_CAROUSEL && carouselCachePass == 0 &&
@@ -1912,6 +2005,12 @@ class SimulatorSmokeTest {
 
     const auto& action = inputScript[scriptIndex++];
     switch (action.type) {
+      case ScriptActionType::OpenFrontlightSettings: {
+        auto* panel = dynamic_cast<FrontlightPanelActivity*>(activityManager.simulatorCurrentActivity());
+        if (!panel) fail("Expected frontlight drawer before opening Settings");
+        panel->simulatorActivateQuickAction(3);
+        break;
+      }
       case ScriptActionType::Press:
         mappedInputManager.simulatorInjectPress(action.button);
         break;

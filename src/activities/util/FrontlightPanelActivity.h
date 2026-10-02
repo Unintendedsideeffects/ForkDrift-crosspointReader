@@ -94,4 +94,7 @@ class FrontlightPanelActivity final : public Activity {
   // the overlay back to the current screen.
   bool handleHomeGesture() override;
   bool requiresFreshBackdrop() const override { return true; }
+#ifdef SIMULATOR
+  void simulatorActivateQuickAction(int index) { activateQuickAction(index); }
+#endif
 };

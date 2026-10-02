@@ -1049,7 +1049,27 @@ std::unique_ptr<Activity> HomeActivity::createFrontlightReadingStatsActivity() {
                                               bookStats, progress, false, 0, deviceStats);
 }
 
+void HomeActivity::onFrontlightPanelOpened() {
+  themeBeforeFrontlightPanel = SETTINGS.uiTheme;
+  scaleBeforeFrontlightPanel = SETTINGS.uiScale;
+  // Save the selection before changed theme metrics can reinterpret its index.
+  initialBookPath = getCurrentBookPath();
+}
+
 void HomeActivity::onFrontlightPanelClosed() {
+  if (themeBeforeFrontlightPanel != SETTINGS.uiTheme || scaleBeforeFrontlightPanel != SETTINGS.uiScale) {
+    // Drawer Settings keeps Home alive. Recreate its theme-specific controls,
+    // cover snapshots and thumbnail loading state through the normal lifecycle.
+    // ActivityManager owns the replacement; its heavy caches allocate onEnter,
+    // after the outgoing Home has released its buffers in onExit.
+    auto home = makeUniqueNoThrow<HomeActivity>(renderer, mappedInput, HomeMenuItem::NONE, HalDisplay::FAST_REFRESH,
+                                                initialBookPath);
+    if (home) {
+      activityManager.replaceActivity(std::move(home));
+      return;
+    }
+    LOG_ERR("HOME", "Cannot rebuild Home after theme or UI scale change");
+  }
   globalStats = GlobalReadingStats::load();
   showAllDevicesStats = GlobalReadingStats::hasSyncedStats();
   allDevicesGlobalStats = showAllDevicesStats ? GlobalReadingStats::loadAggregated(globalStats) : globalStats;

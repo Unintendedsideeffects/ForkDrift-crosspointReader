@@ -63,6 +63,7 @@
 - Renaming books in the web portal preserves reading progress, stats, bookmarks, clippings, reader settings, and cached content.
 - Side-button Orientation Aware, optional keyboard layouts, and the XTC reader's touchscreen and reading stats settings now show toggle switches instead of Yes/No or On/Off labels.
 - In-book setting choices now open with the current value highlighted and visible, including fonts and font sizes.
+- Changing the Home theme or UI scale through the frontlight drawer no longer leaves overlapping covers or stale controls.
 
 ## [v1.6.0] - 2026-09-21
 
