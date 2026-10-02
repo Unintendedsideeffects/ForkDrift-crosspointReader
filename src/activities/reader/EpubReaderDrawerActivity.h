@@ -48,6 +48,10 @@ class EpubReaderDrawerActivity final : public Activity {
 
 #ifdef SIMULATOR
   const ReaderDrawerState& simulatorState() const { return state; }
+  bool simulatorFocusedRowVisible() const {
+    return buttonFocusActive && state.selectedIndex >= activeTopIndex() &&
+           state.selectedIndex < activeTopIndex() + visibleRows;
+  }
 #endif
   void onEnter() override;
   void onExit() override;
@@ -218,6 +222,7 @@ class EpubReaderDrawerActivity final : public Activity {
   void buildAutoPageTurnPane(UiApp::ScreenType& screen);
   void buildConfirmButton(UiApp::ScreenType& screen);
   void buildDictionaryPane(UiApp::ScreenType& screen);
+  int currentFontSelectionIndex() const;
   void buildFontFamilyPane(UiApp::ScreenType& screen);
   void buildEnumOptionsPane(UiApp::ScreenType& screen);
   void buildTtfRenderingPane(UiApp::ScreenType& screen);

@@ -1424,6 +1424,21 @@ class SimulatorSmokeTest {
     scriptIndex = 0;
     inputCompletionStep = SmokeStep::Done;
 
+    int currentFontIndex = SETTINGS.fontFamily;
+    std::vector<uint8_t> currentFontSizes(std::begin(BUILTIN_READER_FONT_SIZES), std::end(BUILTIN_READER_FONT_SIZES));
+    if (SETTINGS.sdFontFamilyName[0] != '\0') {
+      sdFontSystem.ensureRegistry();
+      const auto& families = sdFontSystem.registry().getFamilies();
+      for (size_t i = 0; i < families.size(); ++i) {
+        if (families[i].name != SETTINGS.sdFontFamilyName) continue;
+        currentFontIndex = CrossPointSettings::BUILTIN_FONT_COUNT + static_cast<int>(i);
+        currentFontSizes = families[i].availableSizes();
+        break;
+      }
+    }
+    const auto sizeIt = std::find(currentFontSizes.begin(), currentFontSizes.end(), SETTINGS.readerFontPointSize);
+    const int currentSizeIndex = sizeIt == currentFontSizes.end() ? 0 : std::distance(currentFontSizes.begin(), sizeIt);
+
     const int turns = pageTurnCount();
 #if CROSSINK_APP_CAP_TOUCH
     if (mappedInputManager.hasTouch()) {
@@ -1450,14 +1465,18 @@ class SimulatorSmokeTest {
         inputScript.push_back(touchDown(width / (static_cast<int>(READER_DRAWER_TAB_COUNT) * 2), tabY));
         inputScript.push_back(touchRelease(width / (static_cast<int>(READER_DRAWER_TAB_COUNT) * 2), tabY));
         addTap(MappedInputManager::Button::Confirm);
-        addTap(MappedInputManager::Button::Down);
-        addTap(MappedInputManager::Button::Down);
+        addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+        addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
         addTap(MappedInputManager::Button::Confirm);
         inputScript.push_back(render("TTF Rendering opened in reader drawer", 4));
         inputScript.push_back(assertActivity("EpubReaderDrawer"));
         addTap(MappedInputManager::Button::Confirm);
         inputScript.push_back(render("TTF Hinting choices opened in reader drawer", 3));
-        addTap(MappedInputManager::Button::Down);
+        const int currentHinting = TTF_RENDER_PROFILES.profileFor(SETTINGS.sdFontFamilyName).hinting;
+        inputScript.push_back(assertReaderMenu(ReaderDrawerTab::Font, ReaderDrawerPane::EnumOptions, currentHinting));
+        const auto hintingDirection = mappedInputManager.menuButton(
+            currentHinting > 1 ? MappedInputManager::Button::Up : MappedInputManager::Button::Down);
+        for (int i = 0; i < std::abs(currentHinting - 1); ++i) addTap(hintingDirection);
         addTap(MappedInputManager::Button::Confirm);
         inputScript.push_back(render("TTF Native hinting selected", 4));
         inputScript.push_back(assertTtfProfileNative());
@@ -1623,6 +1642,22 @@ class SimulatorSmokeTest {
       inputScript.push_back(render("Reader Menu opened from touch gesture", 4));
       inputScript.push_back(assertActivity("EpubReaderDrawer"));
 
+      const int fontTabX = width / (static_cast<int>(READER_DRAWER_TAB_COUNT) * 2);
+      inputScript.push_back(touchDown(fontTabX, tabY));
+      inputScript.push_back(touchRelease(fontTabX, tabY));
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Touch Reader Font choices", 3));
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Touch Font Family opens on current choice", 4));
+      inputScript.push_back(assertReaderMenu(ReaderDrawerTab::Font, ReaderDrawerPane::FontFamily, currentFontIndex));
+      addTap(MappedInputManager::Button::Back);
+      addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+      addTap(MappedInputManager::Button::Confirm);
+      inputScript.push_back(render("Touch Font Size opens on current choice", 4));
+      inputScript.push_back(assertReaderMenu(ReaderDrawerTab::Font, ReaderDrawerPane::EnumOptions, currentSizeIndex));
+      addTap(MappedInputManager::Button::Back);
+      addTap(MappedInputManager::Button::Back);
+
       // Touch every bottom-drawer tab slot, then dismiss from its handle.
       for (int tab = 0; tab < static_cast<int>(READER_DRAWER_TAB_COUNT); ++tab) {
         const int tabX = width * (tab * 2 + 1) / (static_cast<int>(READER_DRAWER_TAB_COUNT) * 2);
@@ -1727,11 +1762,18 @@ class SimulatorSmokeTest {
     inputScript.push_back(render("Reader Font opened from Reader Menu", 4));
     inputScript.push_back(assertReaderMenu(ReaderDrawerTab::Font, ReaderDrawerPane::ReaderFont, 0));
 
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Font Family opens on current choice", 4));
+    inputScript.push_back(assertReaderMenu(ReaderDrawerTab::Font, ReaderDrawerPane::FontFamily, currentFontIndex));
+    addTap(MappedInputManager::Button::Back);
+    inputScript.push_back(render("Reader Font after closing Font Family", 3));
+
     addTap(menuDown);
     inputScript.push_back(render("Font Size selected", 3));
 
     addTap(MappedInputManager::Button::Confirm);
     inputScript.push_back(render("Font Size choices opened", 3));
+    inputScript.push_back(assertReaderMenu(ReaderDrawerTab::Font, ReaderDrawerPane::EnumOptions, currentSizeIndex));
 
 #if CROSSINK_APP_READER_SAMPLE_PREVIEW
     addTap(menuDown);
@@ -1943,6 +1985,9 @@ class SimulatorSmokeTest {
           fail("Expected reader menu for navigation assertion");
         const auto* drawer = static_cast<EpubReaderDrawerActivity*>(activityManager.simulatorCurrentActivity());
         const auto& state = drawer->simulatorState();
+        if ((state.pane == ReaderDrawerPane::FontFamily || state.pane == ReaderDrawerPane::EnumOptions) &&
+            !drawer->simulatorFocusedRowVisible())
+          fail("Reader picker current choice is not highlighted and visible");
         if (static_cast<int>(state.tab) != action.x || static_cast<int>(state.pane) != action.y ||
             state.selectedIndex != action.settleFrames)
           fail("Reader menu navigation mismatch: tab=%d pane=%d row=%d, expected %d/%d/%d", static_cast<int>(state.tab),
