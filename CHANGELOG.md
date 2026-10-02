@@ -60,6 +60,7 @@
 - Carousel Home screen reuses cached cover artwork after reading and prepares other positions only when viewed, while keeping progress, reading time, and menu choices current.
 - Sleep entry skips unnecessary pauses and repeated session-state writes. PSRAM devices show independent sleep screens before saving reader progress, and Direct grayscale images skip an unused decode.
 - Renaming books in the web portal preserves reading progress, stats, bookmarks, clippings, reader settings, and cached content.
+- Side-button Orientation Aware, optional keyboard layouts, and the XTC reader's touchscreen and reading stats settings now show toggle switches instead of Yes/No or On/Off labels.
 
 ## [v1.6.0] - 2026-09-21
 

@@ -761,8 +761,8 @@ inline const std::vector<SettingInfo>& getBaseSettingsList() {
                           "rightEdgeDown", StrId::STR_CAT_CONTROLS)
             .withEnumRawValues(twoFingerSwipeActionValues));
 #endif
-    add(SettingInfo::Enum(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::sideButtonOrientationAware,
-                          {StrId::STR_NO, StrId::STR_YES}, "sideButtonOrientationAware", StrId::STR_CAT_CONTROLS));
+    add(SettingInfo::Toggle(StrId::STR_ORIENTATION_AWARE, &CrossPointSettings::sideButtonOrientationAware,
+                            "sideButtonOrientationAware", StrId::STR_CAT_CONTROLS));
     add(buildSideButtonActionSetting(StrId::STR_SHORT_PWR_BTN, &CrossPointSettings::sideButtonUpShort,
                                      "sideButtonUpShort"));
     add(buildSideButtonActionSetting(StrId::STR_LONG_PRESS_ACTION, &CrossPointSettings::sideButtonUpLong,
