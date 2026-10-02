@@ -30,6 +30,7 @@
 - Long status titles shorten faster when they do not fit the screen.
 - Leaving an EPUB or TXT reader releases rebuildable font buffers for other screens.
 - Menu buttons now follow the device layout: Left/Right switch tabs and Up/Down select rows in reader menus and global settings.
+- The KOReader Sync progress choice now shows remote and local progress as clear cards with large percentages, progress bars, and an "Ahead" marker on the further position.
 
 ### Fixed
 
