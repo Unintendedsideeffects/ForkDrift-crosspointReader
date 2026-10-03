@@ -688,7 +688,7 @@ void ReaderOptionsActivity::loop() {
 }
 
 void ReaderOptionsActivity::finishWithResult(const bool cancelled) {
-  ActivityResult result{TtfRenderOptionsResult{ttfRenderingChanged}};
+  ActivityResult result{TtfRenderOptionsResult{ttfRenderingChanged, ttfRenderingChanged}};
   result.isCancelled = cancelled;
   setResult(std::move(result));
   finish();

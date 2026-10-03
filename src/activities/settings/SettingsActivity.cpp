@@ -826,7 +826,7 @@ void SettingsActivity::closeRootSettings() {
 }
 
 void SettingsActivity::finishToParent() {
-  setResult(TtfRenderOptionsResult{ttfRenderingChanged});
+  setResult(TtfRenderOptionsResult{ttfRenderingChanged, ttfRenderingChanged});
   finish();
 }
 
