@@ -89,7 +89,6 @@ struct ReadingStatsResult {
 };
 
 struct TtfRenderOptionsResult {
-  bool changed = false;
   bool activeFamilyChanged = false;
 };
 

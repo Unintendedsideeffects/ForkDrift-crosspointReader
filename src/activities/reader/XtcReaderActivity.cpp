@@ -785,8 +785,9 @@ void XtcReaderActivity::commitReadingStats() {
     }
   }
   sessionReadingSeconds = 0;
-  if (statsTrackingActive || paceDirty || pendingStatsCommit) {
-    if (stats.save(xtc->getCachePath()) && (statsTrackingActive || pendingStatsCommit)) {
+  if ((statsTrackingActive || paceDirty || pendingStatsCommit) && stats.save(xtc->getCachePath())) {
+    paceDirty = false;
+    if (statsTrackingActive || pendingStatsCommit) {
       globalStats.save();
       pendingStatsCommit = false;
     }
