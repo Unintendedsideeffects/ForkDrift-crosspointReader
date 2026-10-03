@@ -88,6 +88,14 @@ def run_smoke(args: argparse.Namespace) -> int:
         env["CROSSINK_SIMULATOR_SMOKE_TEST"] = "1"
         env["CROSSINK_SIMULATOR_SMOKE_BOOK"] = simulator_book_path
         env["CROSSINK_SIMULATOR_SMOKE_PAGE_TURNS"] = str(args.page_turns)
+        if args.frontlight_sync:
+            env["CROSSINK_SIMULATOR_SMOKE_FRONTLIGHT_SYNC"] = "1"
+        if args.frontlight_layout:
+            env["CROSSINK_SIMULATOR_SMOKE_FRONTLIGHT_LAYOUT"] = "1"
+        if args.frontlight_captures:
+            capture_dir = Path(args.frontlight_captures).resolve()
+            capture_dir.mkdir(parents=True, exist_ok=True)
+            env["CROSSINK_SIMULATOR_SMOKE_FRONTLIGHT_CAPTURES"] = str(capture_dir)
         if args.home_themes:
             env["CROSSINK_SIMULATOR_SMOKE_HOME_THEMES"] = "1"
         if args.theme:
@@ -103,7 +111,7 @@ def run_smoke(args: argparse.Namespace) -> int:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            timeout=args.timeout,
+            timeout=args.timeout if args.timeout is not None else (180 if args.frontlight_layout else 45),
         )
 
     print(proc.stdout, end="")
@@ -138,9 +146,12 @@ def parse_args() -> argparse.Namespace:
                         help="PlatformIO simulator environment to build and run")
     parser.add_argument("--font-dir", help="Font fixtures copied into isolated /fonts")
     parser.add_argument("--font-family", help="Exercise custom-font size and dictionary lifecycle")
-    parser.add_argument("--timeout", type=int, default=45, help="Seconds before the simulator run is treated as hung")
+    parser.add_argument("--timeout", type=int, help="Seconds before the simulator run is treated as hung (default: 45, or 180 for frontlight layout)")
     parser.add_argument("--page-turns", type=int, default=2, help="Number of EPUB page-forward taps to run")
     parser.add_argument("--theme", choices=sorted(THEMES), help="UI theme to use during the smoke test")
+    parser.add_argument("--frontlight-sync", action="store_true", help="Check frontlight sync outside the reader with stats enabled and disabled (X4 Pro)")
+    parser.add_argument("--frontlight-layout", action="store_true", help="Check frontlight drawer bounds and handle taps across scales, orientations and themes (X4 Pro)")
+    parser.add_argument("--frontlight-captures", help="Directory for frontlight layout framebuffer captures (PGM)")
     parser.add_argument("--home-themes", action="store_true", help="Compare drawer theme changes with fresh Home renders (X4 Pro)")
     parser.add_argument("--no-build", dest="build", action="store_false", help="Run the existing simulator binary")
     parser.add_argument("--window", dest="headless", action="store_false", help="Show the SDL window instead of using dummy video")

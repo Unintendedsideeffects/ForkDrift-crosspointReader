@@ -110,6 +110,7 @@ class SdCardFontManager {
                     const freeink::font::FtFont::RenderOptions& renderOptions, bool temporary = false);
   void refreshScalableHash();
   int registerScalableSize(GfxRenderer& renderer, uint8_t size);
+  bool registerScalableContentSizes(GfxRenderer& renderer);
 #endif
   struct LoadedFont {
     SdCardFont* font;  // heap-allocated, owned

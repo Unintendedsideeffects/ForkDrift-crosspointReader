@@ -313,7 +313,7 @@ let allSettings = [];
     const labels = statusBars.labels;
     const itemOptions = statusBars.options.map(function(option) {
       return { value: option.value, label: option.label,
-        disabled: option.value === 1 && !statusBars.clockAvailable };
+        disabled: (option.value === 1 || option.value === 10) && !statusBars.clockAvailable };
     });
     const slotNames = [labels.left + ' 1', labels.left + ' 2', labels.left + ' 3', labels.center,
       labels.right + ' 1', labels.right + ' 2', labels.right + ' 3'];
@@ -335,6 +335,20 @@ let allSettings = [];
     return html;
   }
 
+  function renderDisplayStatusBar() {
+    const choices = statusBars.options.filter(function(option) {
+      return [0, 1, 2, 10].includes(option.value);
+    }).map(function(option) {
+      return { value: option.value, label: option.label,
+        disabled: (option.value === 1 || option.value === 10) && !statusBars.clockAvailable };
+    });
+    return '<h3>' + escapeHtml(statusBars.labels.display) + '</h3>' +
+      [statusBars.labels.left, statusBars.labels.center, statusBars.labels.right].map(function(label, index) {
+        return statusBarRow(label, statusBarSelect('display-slot-' + index, choices,
+          statusBars.display[index], 'statusBarChanged()'));
+      }).join('');
+  }
+
   function readStatusBarForm(position) {
     const bar = statusBars[position];
     return {
@@ -350,7 +364,7 @@ let allSettings = [];
   function updateStatusBarPreview(position) {
     const bar = readStatusBarForm(position);
     const examples = ['', '10:30', '85%', '2h 15m', '12m', '4/12', '27',
-      (64.12).toFixed(bar.percentageFormat) + '%', 'Book title', 'Chapter title'];
+      (64.12).toFixed(bar.percentageFormat) + '%', 'Book title', 'Chapter title', statusBars.datePreview];
     const slot = function(index) { return escapeHtml(examples[bar.slots[index]] || ''); };
     const right = [4, 5, 6].map(slot).filter(Boolean).join(' &nbsp; ');
     const progressValue = bar.progressBar === 0 ? 64 : 35;
@@ -376,7 +390,7 @@ let allSettings = [];
       statusBars = await response.json();
       container.innerHTML = '<div class="card"><h2>' + escapeHtml(statusBars.labels.top) + ' / ' +
         escapeHtml(statusBars.labels.bottom) + '</h2>' + renderStatusBar('top') +
-        renderStatusBar('bottom') +
+        renderStatusBar('bottom') + renderDisplayStatusBar() +
         statusBarRow(statusBars.labels.xtcMode, statusBarSelect('bar-xtc-mode',
           statusBars.xtcModes.map(function(label, index) { return { value: index, label: label }; }),
           statusBars.xtcMode, 'statusBarChanged()')) +
@@ -398,6 +412,9 @@ let allSettings = [];
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ top: readStatusBarForm('top'), bottom: readStatusBarForm('bottom'),
+          display: statusBars.display.map(function(_, index) {
+            return Number(document.getElementById('display-slot-' + index).value);
+          }),
           xtcMode: Number(document.getElementById('bar-xtc-mode').value) })
       });
       if (!response.ok) throw new Error(await response.text());

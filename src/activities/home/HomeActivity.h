@@ -98,6 +98,7 @@ class HomeActivity final : public Activity {
 
   void onSelectBook(const std::string& path);
   void onFileBrowserOpen();
+  void onMinimalBrowseOpen();
   void onContinueReading();
   void onLibraryOpen();
   void onSettingsOpen();
@@ -127,7 +128,6 @@ class HomeActivity final : public Activity {
   void showNextRecentBookOnHome();
   void updateHighlightedBookContext(bool allowChapterTitleRead = true);
   void loadRecentBooks(int maxBooks);
-  void fillCoverGridFromLibrary();
   void loadCoverGridThumbnails();
   void activateCoverGridSelection();
   void loadAllBookStats();
@@ -155,5 +155,4 @@ class HomeActivity final : public Activity {
   std::unique_ptr<Activity> createFrontlightReadingStatsActivity() override;
   void onFrontlightPanelOpened() override;
   void onFrontlightPanelClosed() override;
-  bool handleFrontlightPanelResult(const FrontlightPanelResult& result) override;
 };

@@ -3305,3 +3305,35 @@ void GfxRenderer::setRenderMode(RenderMode mode) {
   }
   renderMode = mode;
 }
+
+uint8_t GfxRenderer::getFontPointSize(const int fontId) const {
+#if CROSSINK_SCALABLE_FONTS
+  const auto it = fontMap.find(fontId);
+  if (it != fontMap.end()) {
+    const auto* data = it->second.getData();
+    if (data && data->sizeFamily) return data->pointSize;
+  }
+#else
+  (void)fontId;
+#endif
+  return 0;
+}
+
+int GfxRenderer::getFontIdForSize(const int fontId, const uint8_t points) const {
+#if CROSSINK_SCALABLE_FONTS
+  if (!points) return fontId;
+  const auto it = fontMap.find(fontId);
+  if (it == fontMap.end()) return fontId;
+  const auto* base = it->second.getData();
+  if (!base || !base->sizeFamily || base->pointSize == points) return fontId;
+  // Families register their bounded size range before layout/rendering. This
+  // lookup never opens files, mutates the map, or allocates in the render path.
+  for (const auto& font : fontMap) {
+    const auto* data = font.second.getData();
+    if (data && data->sizeFamily == base->sizeFamily && data->pointSize == points) return font.first;
+  }
+#else
+  (void)points;
+#endif
+  return fontId;
+}

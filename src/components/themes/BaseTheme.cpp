@@ -20,6 +20,7 @@
 #include "I18n.h"
 #include "RecentBooksStore.h"
 #include "activities/reader/BookReadingStats.h"
+#include "components/HeaderDate.h"
 #include "components/TouchActionButtons.h"
 #include "components/TouchRegistry.h"
 #include "components/UIScale.h"
@@ -31,8 +32,6 @@
 namespace {
 constexpr int homeMenuMargin = 20;
 constexpr int homeMarginTop = 30;
-constexpr int roundedRaffHeaderClockYOffset = 5;
-constexpr int detachedHeaderBatteryTopInset = 5;
 
 }  // namespace
 
@@ -121,13 +120,6 @@ void BaseTheme::drawBatteryRight(const GfxRenderer& renderer, Rect rect, const b
   const Rect iconRect{rect.x, y, rect.width, rect.height};
   drawBatteryOutline(renderer, rect.x, y, rect.width, rect.height, foregroundBlack);
   fillBatteryIcon(renderer, iconRect, percentage, foregroundBlack);
-}
-
-int BaseTheme::homeHeaderClockTextYOffset(const GfxRenderer& renderer) {
-  const auto& metrics = UITheme::getInstance().getMetrics();
-  const int statusBarHeight = metrics.statusBarVerticalMargin;
-  const int centeredClockY = (statusBarHeight - renderer.getLineHeight(SMALL_FONT_ID)) / 2;
-  return homeHeaderTopInset - centeredClockY;
 }
 
 Rect BaseTheme::buttonMenuTouchTarget(const Rect rowRect, const Rect menuRect, const bool isLastItem,
@@ -426,49 +418,20 @@ void BaseTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* t
   const fui::Rect band{static_cast<int16_t>(rect.x), static_cast<int16_t>(rect.y), static_cast<int16_t>(rect.width),
                        static_cast<int16_t>(rect.height)};
 
-  const bool showHeaderClock = showStatus && halClock.isAvailable() && SETTINGS.shouldShowClockOutsideReader();
-  const bool showBatteryPercentage =
-      showStatus && SETTINGS.hideBatteryPercentage != CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
-  const uint16_t percentage = powerManager.getBatteryPercentage();
-  char percentText[8];
-  snprintf(percentText, sizeof(percentText), "%u%%", static_cast<unsigned>(percentage));
-  constexpr int16_t batteryNubWidth = 2;
-  int16_t batteryReserve = showStatus ? static_cast<int16_t>(metrics.batteryWidth + batteryNubWidth) : 0;
-  if (showBatteryPercentage) {
-    batteryReserve = static_cast<int16_t>(
-        batteryReserve + batteryPercentSpacing +
-        ui.target.measureText(fui::GfxRendererTarget::FONT_SMALL, percentText, tokens.smallText).width);
-  }
-
   fui::HeaderProps props;
   props.title = title;
   props.rightLabel = subtitle;
   props.borderEdges = fui::EdgeBottom;
   props.titleText = tokens.titleText;
-  const bool hasVisibleTitle = title != nullptr && title[0] != '\0';
-  props.titleText.align = showHeaderClock && hasVisibleTitle ? fui::TextAlign::Left : tokens.headerTitleAlign;
+  props.titleText.align = tokens.headerTitleAlign;
   props.subtitleText = tokens.smallText;
   props.styles = tokens.popup;
   props.sidePadding = tokens.headerSidePadding;
-  const bool batteryLeft = metrics.headerBatterySide == 1;
   const bool batteryDetached = metrics.headerBatteryDetached;
-  const bool roundedRaffCompactHeader = !readerContext &&
-                                        SETTINGS.uiTheme == CrossPointSettings::UI_THEME::ROUNDEDRAFF &&
-                                        rect.height != metrics.homeTopPadding;
-  const bool roundedRaffHeader = !readerContext && SETTINGS.uiTheme == CrossPointSettings::UI_THEME::ROUNDEDRAFF;
-  const int clockYOffset =
-      roundedRaffHeader ? roundedRaffHeaderClockYOffset : (!readerContext ? homeHeaderClockTextYOffset(renderer) : 0);
   if (batteryDetached) {
     const int titleLineHeight = ui.target.lineHeight(fui::GfxRendererTarget::FONT_TITLE);
     const int titleTop = static_cast<int>(band.height) - tokens.headerUnderline - tokens.spaceMd - titleLineHeight;
     props.titleOffsetY = static_cast<int16_t>(titleTop - (static_cast<int>(band.height) - titleLineHeight) / 2);
-  } else {
-    const int16_t reserve = static_cast<int16_t>(batteryReserve + tokens.spaceMd);
-    if (batteryLeft) {
-      props.leftReserve = reserve;
-    } else {
-      props.rightReserve = reserve;
-    }
   }
   if (title != nullptr && props.styles.normal.border.kind == fui::PaintKind::None && tokens.headerUnderline > 0) {
     props.styles.normal.border = fui::Paint::solid(fui::Color::Black);
@@ -476,37 +439,7 @@ void BaseTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* t
   }
   fui::header(ui.frame, band, props);
 
-  if (!showStatus) return;
-
-  const int16_t batteryEdgeInset = batteryDetached ? StatusBarMetrics::sideInset : tokens.headerSidePadding;
-  const int16_t batteryX = batteryLeft ? static_cast<int16_t>(band.x + batteryEdgeInset)
-                                       : static_cast<int16_t>(band.right() - batteryEdgeInset - batteryReserve);
-  // Shared detached headers use the same status row as Dashboard Home.
-  const int16_t batteryY = [&] {
-    if (batteryDetached && SETTINGS.uiTheme != CrossPointSettings::UI_THEME::ROUNDEDRAFF) {
-      return static_cast<int16_t>(rect.y + UITheme::getTopStatusBarInset(renderer) + homeHeaderTopInset);
-    }
-
-    // RoundedRaff's Home header is taller than ordinary headers. Shift compact
-    // headers to its battery baseline; Home already has that extra height.
-    return static_cast<int16_t>(
-        band.y + UITheme::getTopStatusBarInset(renderer) +
-        (batteryDetached
-             ? detachedHeaderBatteryTopInset
-             : (roundedRaffCompactHeader ? std::max(0, (metrics.homeTopPadding - metrics.headerHeight) / 2) : 0)));
-  }();
-  const int16_t batteryIconX = batteryLeft
-                                   ? batteryX
-                                   : static_cast<int16_t>(band.right() - batteryEdgeInset - metrics.batteryWidth -
-                                                          (batteryDetached ? 0 : batteryNubWidth));
-  const Rect batteryRect{batteryIconX, batteryY, metrics.batteryWidth, metrics.batteryHeight};
-  if (batteryLeft) {
-    drawBatteryLeft(renderer, batteryRect, showBatteryPercentage);
-  } else {
-    drawBatteryRight(renderer, batteryRect, showBatteryPercentage);
-  }
-
-  drawTopStatusBarClock(renderer, rect.y, nullptr, readerContext, clockYOffset);
+  if (showStatus) drawDisplayStatusBar(renderer, rect.y);
 }
 
 void BaseTheme::drawSubHeader(const GfxRenderer& renderer, Rect rect, const char* label, const char* rightLabel) const {
@@ -892,7 +825,7 @@ void BaseTheme::fillPopupProgress(const GfxRenderer& renderer, const Rect& layou
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
-void BaseTheme::drawReaderStatusBar(GfxRenderer& renderer, const ReaderStatusBarPosition position,
+void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderStatusBarPosition position,
                                     const ReaderStatusBarContent& content,
                                     const ReaderStatusBarConfig* overrideConfig) const {
   const ReaderStatusBarConfig config = overrideConfig ? *overrideConfig : SETTINGS.readerStatusBar(position);
@@ -950,9 +883,12 @@ void BaseTheme::drawReaderStatusBar(GfxRenderer& renderer, const ReaderStatusBar
   }
   if (!hasText) return;
 
-  const bool batteryPercent = SETTINGS.hideBatteryPercentage == CrossPointSettings::HIDE_NEVER;
+  const bool batteryPercent = content.outsideReader ? SETTINGS.hideBatteryPercentage != CrossPointSettings::HIDE_ALWAYS
+                                                    : SETTINGS.hideBatteryPercentage == CrossPointSettings::HIDE_NEVER;
   const auto itemText = [&](const ReaderStatusBarItem item, char* scratch, const size_t len) -> const char* {
     switch (item) {
+      case ReaderStatusBarItem::Date:
+        return formatHeaderDateText(scratch, len) ? scratch : nullptr;
       case ReaderStatusBarItem::Clock:
         if (content.previewClock) return content.previewClock;
         return halClock.isAvailable() &&
@@ -1064,39 +1000,12 @@ void BaseTheme::drawReaderStatusBar(GfxRenderer& renderer, const ReaderStatusBar
   }
 }
 
-void BaseTheme::drawTopStatusBarClock(const GfxRenderer& renderer, int topY, const char* previewTime,
-                                      const bool readerContext, const int textYOffset, const bool darkMode,
-                                      const bool forceVisible) const {
-  if (!forceVisible && !SETTINGS.shouldShowClockOutsideReader()) {
-    return;
-  }
-
-  char timeBuf[9];
-  const char* timeText = previewTime;
-  if (timeText == nullptr) {
-    if (!halClock.isAvailable()) {
-      return;
-    }
-    if (!halClock.formatTime(timeBuf, sizeof(timeBuf), SETTINGS.clockUtcOffsetQ, SETTINGS.clockFormat == 1)) {
-      return;
-    }
-    timeText = timeBuf;
-  }
-
-  const auto& metrics = UITheme::getInstance().getMetrics();
-  const int statusBarHeight = metrics.statusBarVerticalMargin;
-  if (statusBarHeight <= 0) {
-    return;
-  }
-
-  const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, timeText);
-  const int lineHeight = renderer.getLineHeight(SMALL_FONT_ID);
-  const int textX = (renderer.getScreenWidth() - textWidth) / 2;
-  const int effectiveTextYOffset = textYOffset + UITheme::getTopStatusBarInset(renderer) +
-                                   (readerContext ? homeHeaderClockTextYOffset(renderer) : 0);
-  const int baseTopY = topY >= 0 ? topY : metrics.topPadding;
-  const int textY = baseTopY + (statusBarHeight - lineHeight) / 2 + effectiveTextYOffset;
-  renderer.drawText(SMALL_FONT_ID, textX, textY, timeText, !darkMode);
+void BaseTheme::drawDisplayStatusBar(const GfxRenderer& renderer, const int topY) const {
+  ReaderStatusBarContent content;
+  content.outsideReader = true;
+  content.previewOriginY = topY + UITheme::getTopStatusBarInset(renderer);
+  const auto config = SETTINGS.displayStatusBar.asReaderConfig();
+  drawReaderStatusBar(renderer, ReaderStatusBarPosition::Top, content, &config);
 }
 
 void BaseTheme::drawHelpText(const GfxRenderer& renderer, Rect rect, const char* label) const {
@@ -1307,15 +1216,13 @@ void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, 
     for (int visibleIndex = 0; visibleIndex < visibleCount; visibleIndex++) {
       const int optionIndex = visibleStart + visibleIndex;
       const int itemY = y + visibleIndex * (rowHeight + itemSpacing);
-      const bool selected = !saveFocused && optionIndex == safeSelectedIndex;
       const bool disabled = optionIndex < static_cast<int>(disabledOptions.size()) && disabledOptions[optionIndex];
+      const bool selected = !disabled && !saveFocused && optionIndex == safeSelectedIndex;
       const char* labelText = options[optionIndex].c_str();
 
-      if (metrics.optionPopupDrawAllRows || selected || disabled) {
+      if (metrics.optionPopupDrawAllRows || selected) {
         Color rowColor;
-        if (disabled) {
-          rowColor = Color::LightGray;
-        } else if (selected) {
+        if (selected) {
           rowColor = metrics.optionPopupSelectionLight ? Color::LightGray : Color::Black;
         } else {
           rowColor = Color::White;
@@ -1336,6 +1243,8 @@ void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, 
       // Selected on light bg: text stays dark (invert=true).
       const bool invertText = disabled || (selected ? metrics.optionPopupSelectionLight : true);
       renderer.drawText(optionFontId, textX, textY, labelText, invertText, style);
+      // Mark unavailable actions without shading their row like a selection.
+      if (disabled) renderer.drawLine(textX, textY + optionLineHeight / 2, textX + textW, textY + optionLineHeight / 2);
     }
   }
 

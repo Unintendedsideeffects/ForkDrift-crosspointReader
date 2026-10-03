@@ -62,7 +62,7 @@ struct FrontlightPanelResult {
 struct FrontlightPanelContext {
   Activity* sourceActivity = nullptr;
   // An open reader of any supported format. This controls reader header chrome
-  // and Home navigation; EPUB-only actions remain gated by activeEpub.
+  // and Home navigation; activeEpub identifies the reader save/handoff path.
   bool activeReaderBook = false;
   bool activeEpub = false;
   bool showReaderDetails = false;

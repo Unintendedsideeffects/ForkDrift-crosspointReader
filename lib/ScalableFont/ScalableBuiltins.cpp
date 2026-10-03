@@ -48,12 +48,23 @@ void ensureScalableBuiltinFamily(GfxRenderer& renderer, unsigned family) {
       break;
     }
   }
+  if (ok) {
+    for (uint8_t points = ScalableContentMinPointSize; points <= ScalableContentMaxPointSize && ok; ++points) {
+      for (unsigned style = 0; style < 4; ++style) {
+        if (!faces[family * 4 + style]->atSize(points)) {
+          LOG_ERR("TTF", "Built-in size %u unavailable", unsigned(points));
+          ok = false;
+          break;
+        }
+      }
+    }
+  }
   if (!ok) {
     for (unsigned style = 0; style < 4; ++style) faces[family * 4 + style].reset();
     LOG_ERR("TTF", "Built-in family unavailable; using UI recovery font");
   }
   ready[family] = ok;
-  for (uint8_t points : SCALABLE_READER_FONT_SIZES) {
+  for (uint8_t points = ScalableContentMinPointSize; points <= ScalableContentMaxPointSize; ++points) {
     if (ok) {
       EpdFontFamily font(faces[family * 4]->atSize(points), faces[family * 4 + 1]->atSize(points),
                          faces[family * 4 + 2]->atSize(points), faces[family * 4 + 3]->atSize(points));

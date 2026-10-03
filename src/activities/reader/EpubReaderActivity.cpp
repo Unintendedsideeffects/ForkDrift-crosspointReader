@@ -2004,9 +2004,9 @@ bool EpubReaderActivity::isAtOrPastCompletionTrigger() const {
 }
 
 bool EpubReaderActivity::shouldQueueCompletionPromptOnChapterExit() const {
-  if (completionPromptShown || completionPromptQueued || stats.isCompleted || footnoteDepth > 0 ||
-      !completionTriggerCrossed || !epub || !section || section->pageCount == 0 || completionTriggerSpineIndex < 0 ||
-      section->isBuilding() || section->isPartial()) {
+  if (completionPromptShown || completionPromptQueued || stats.isCompleted || activeFootnotePreview ||
+      !pendingFootnotePreviewAnchor.empty() || !completionTriggerCrossed || !epub || !section ||
+      section->pageCount == 0 || completionTriggerSpineIndex < 0 || section->isBuilding() || section->isPartial()) {
     return false;
   }
 
@@ -2018,7 +2018,8 @@ bool EpubReaderActivity::shouldQueueCompletionPromptOnChapterExit() const {
 }
 
 void EpubReaderActivity::queueCompletionPromptIfNeeded() {
-  if (completionPromptShown || completionPromptQueued || stats.isCompleted || footnoteDepth > 0) {
+  if (completionPromptShown || completionPromptQueued || stats.isCompleted || activeFootnotePreview ||
+      !pendingFootnotePreviewAnchor.empty()) {
     return;
   }
 
@@ -2411,6 +2412,8 @@ void EpubReaderActivity::onEnter() {
     }
   }
 
+  loadLinkStack();
+
   // Load reading stats and record session start time.
   // Session count and reading time are committed on exit once thresholds are met.
   stats = BookReadingStats::load(epub->getCachePath());
@@ -2473,7 +2476,7 @@ void EpubReaderActivity::onExit() {
   // Deactivate reader-specific front button mapping.
   mappedInput.setReaderMode(false);
 
-  if (footnoteDepth == 0 && !flushQueuedProgress()) {
+  if (!saveReadingProgress()) {
     LOG_ERR("ERS", "Failed to flush debounced reader progress on exit");
   }
 
@@ -2517,17 +2520,12 @@ void EpubReaderActivity::onExit() {
     }
   }
 
-  // Leaving mid-footnote loses the in-RAM return stack on deep sleep; persist the
-  // pre-footnote position so the book reopens at the link origin, not the footnote.
-  if (footnoteDepth > 0 && epub) {
-    if (!saveFootnoteOriginProgress()) {
-      LOG_ERR("ERS", "Failed to save footnote origin on exit");
-    }
-  }
-
   BOOKMARKS.unload();
   CLIPPINGS.unload();
   section.reset();
+  if (epub && !saveLinkStack()) {
+    LOG_ERR("ERS", "Failed to save link return stack on exit");
+  }
 
   if (pendingReadFolderMove && epub) {
     const std::string srcPath = epub->getPath();
@@ -4202,13 +4200,9 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuAction action, const 
                                    requestUpdate();
                                });
       } else {
-        const int currentPage = section ? section->currentPage : nextPageNumber;
-        const int totalPages = section ? section->estimatedTotalPages() : cachedChapterTotalPageCount;
-
         // Persist current position so the reader resumes at the right page on return.
         // goToReader() depends on this file, so abort the sync if the write fails.
-        const bool saved =
-            footnoteDepth > 0 ? saveFootnoteOriginProgress() : saveProgress(currentSpineIndex, currentPage, totalPages);
+        const bool saved = saveReadingProgress();
         if (!saved) {
           LOG_ERR("KOSync", "Aborting sync because current progress could not be saved");
           pendingSyncSaveError = true;
@@ -5193,6 +5187,8 @@ bool EpubReaderActivity::handleShortcutAction(const uint8_t rawAction) {
     case CrossPointSettings::SHORT_PWRBTN::QUICK_ACTIONS:
       openQuickActionsPopup();
       return true;
+    case CrossPointSettings::SHORT_PWRBTN::HOME_READER:
+      return dispatchShortcutAction(action);
     case CrossPointSettings::SHORT_PWRBTN::LIBRARY:
       return handleGlobalPowerButtonAction(action);
     case CrossPointSettings::SHORT_PWRBTN::QUICK_LOCK:
@@ -5210,6 +5206,7 @@ bool EpubReaderActivity::handleShortcutAction(const uint8_t rawAction) {
 }
 
 bool EpubReaderActivity::handleShortcutAction(const CrossPointSettings::SHORT_PWRBTN action) {
+  if (action == CrossPointSettings::SHORT_PWRBTN::HOME_READER) return dispatchShortcutAction(action);
   switch (action) {
     case CrossPointSettings::SHORT_PWRBTN::PAGE_TURN:
       requestManualPageTurn(true, "shortcut");
@@ -7094,7 +7091,7 @@ bool EpubReaderActivity::saveProgress(int spineIndex, int currentPage, int pageC
   }
   std::optional<uint32_t> visibleTextOffset;
   // A preview section's page table describes the note, not the chapter being saved, so
-  // its offsets must never be attached to the forced origin save above.
+  // its offsets must never be attached to the reading-origin save.
   if (!activeFootnotePreview && section && spineIndex == currentSpineIndex && currentPage >= 0 &&
       currentPage < section->pageCount) {
     visibleTextOffset = section->getVisibleTextOffsetForPage(static_cast<uint16_t>(currentPage));
@@ -7118,21 +7115,22 @@ bool EpubReaderActivity::saveProgress(int spineIndex, int currentPage, int pageC
   return saved;
 }
 
-bool EpubReaderActivity::saveFootnoteOriginProgress() {
-  const SavedPosition& origin = savedPositions[0];
-  // Record the origin chapter's real page count. A zero reads back as a valid
-  // record with hasPageCount set, which breaks the percent math on reopen.
-  // A preview section describes the note rather than the origin chapter, so its page
-  // count is not usable here; fall back to the last count persisted for that spine.
-  int originPageCount = 0;
-  if (!activeFootnotePreview && section && origin.spineIndex == currentSpineIndex) {
-    originPageCount = section->estimatedTotalPages();
-  } else if (lastSavedSpineIndex == origin.spineIndex) {
-    originPageCount = std::max(0, lastSavedPageCount);
-  }
-  // Forced past the footnote-preview suppression: this origin position is exactly what
-  // that suppression protects, so it is the one save that must go through.
-  return saveProgress(origin.spineIndex, origin.pageNumber, originPageCount, /*allowDuringFootnotePreview=*/true);
+bool EpubReaderActivity::saveReadingProgress() {
+  const bool preview = activeFootnotePreview || !pendingFootnotePreviewAnchor.empty();
+  const auto progress = EpubLinkReturnState::readingProgress(
+      savedPositions, footnoteDepth, preview, progressSaveDebouncer, lastSavedSpineIndex, lastSavedPageCount);
+  if (!progress) return true;
+  return saveProgress(progress->spineIndex, progress->pageNumber, progress->pageCount,
+                      /*allowDuringFootnotePreview=*/preview);
+}
+
+bool EpubReaderActivity::saveLinkStack() const {
+  return EpubLinkReturnState::save(epub->getCachePath(), savedPositions, footnoteDepth,
+                                   activeFootnotePreview || !pendingFootnotePreviewAnchor.empty());
+}
+
+void EpubReaderActivity::loadLinkStack() {
+  EpubLinkReturnState::load(epub->getCachePath(), savedPositions, footnoteDepth, epub->getSpineItemsCount());
 }
 
 bool EpubReaderActivity::queueProgressSave(const int spineIndex, const int currentPage, const int pageCount,
@@ -7145,22 +7143,6 @@ bool EpubReaderActivity::queueProgressSave(const int spineIndex, const int curre
     return true;
   }
   return saveProgress(spineIndex, currentPage, pageCount);
-}
-
-bool EpubReaderActivity::flushQueuedProgress() {
-  if (!progressSaveDebouncer.hasPending()) {
-    return true;
-  }
-  // No section check: saveProgress() only consults it opportunistically for the
-  // visible-text offset, and end-of-book leaves it null with a write still pending.
-  if (!epub) {
-    return false;
-  }
-  const uint32_t positionKey = progressSaveDebouncer.lastObservedPosition();
-  const int spineIndex = static_cast<int>(positionKey >> 16);
-  const int pageNumber = static_cast<int>(positionKey & 0xFFFFU);
-  const int pageCount = static_cast<int>(progressSaveDebouncer.lastObservedMetadata());
-  return saveProgress(spineIndex, pageNumber, pageCount);
 }
 
 bool EpubReaderActivity::ensureGrayscaleStripScratch() {
@@ -7666,8 +7648,9 @@ void EpubReaderActivity::drawClippingHighlights(const Page& page, const int font
     const char* wordText = block.wordText(wordIndex);
     const bool hasEmSpace = hasEmSpacePrefix(wordText);
     const char* visibleText = wordText + (hasEmSpace ? 3 : 0);
+    const int lineFontId = block.resolvedFontId(renderer, fontId);
     const auto textStyle = static_cast<EpdFontFamily::Style>(block.wordStyle(wordIndex) & ~EpdFontFamily::UNDERLINE);
-    const int skipX = hasEmSpace ? renderer.getTextAdvanceX(fontId, "\xe2\x80\x83", textStyle) : 0;
+    const int skipX = hasEmSpace ? renderer.getTextAdvanceX(lineFontId, "\xe2\x80\x83", textStyle) : 0;
     const PageWordGeometry geometry = pageWordGeometry(renderer, fontId, line, block, wordIndex);
     const int wordX = orientedMarginLeft + line.xPos + geometry.xOffset + skipX;
     const int wordY = orientedMarginTop + line.yPos;
@@ -7679,7 +7662,7 @@ void EpubReaderActivity::drawClippingHighlights(const Page& page, const int font
       const bool nextHasEmSpace = hasEmSpacePrefix(nextWordText);
       const auto nextTextStyle =
           static_cast<EpdFontFamily::Style>(block.wordStyle(nextIndex) & ~EpdFontFamily::UNDERLINE);
-      const int nextSkipX = nextHasEmSpace ? renderer.getTextAdvanceX(fontId, "\xe2\x80\x83", nextTextStyle) : 0;
+      const int nextSkipX = nextHasEmSpace ? renderer.getTextAdvanceX(lineFontId, "\xe2\x80\x83", nextTextStyle) : 0;
       const PageWordGeometry nextGeometry = pageWordGeometry(renderer, fontId, line, block, nextIndex);
       const int nextWordX = orientedMarginLeft + line.xPos + nextGeometry.xOffset + nextSkipX;
       if (isHighlightedWord(pageWordIndex + 1, line) && nextWordX > wordX + wordW) {
@@ -7718,9 +7701,9 @@ void EpubReaderActivity::drawClippingHighlights(const Page& page, const int font
               wordText, wordLength, focusBoundary, fullWordX, block.focusRunOffset(wordIndex), textStyle,
               baseDir == BidiUtils::BidiBaseDir::RTL,
               [&](const int runX, const char* runText, const EpdFontFamily::Style runStyle) {
-                renderer.drawText(fontId, runX, wordY, runText, true, runStyle, baseDir);
+                renderer.drawText(lineFontId, runX, wordY, runText, true, runStyle, baseDir);
               })) {
-        renderer.drawText(fontId, wordX, wordY, visibleText, true, textStyle);
+        renderer.drawText(lineFontId, wordX, wordY, visibleText, true, textStyle);
       }
       if (line.clipWidth > 0 && line.clipHeight > 0) {
         renderer.endTextClip();
@@ -8071,9 +8054,9 @@ void EpubReaderActivity::navigateToHref(const std::string& hrefStr, const bool s
   // Keep the return stack for an endnote that happens to point at a TOC
   // chapter.
   const bool saveReturnPosition = savePosition && !contentsNavigation;
-  if (saveReturnPosition && section && footnoteDepth < MAX_FOOTNOTE_DEPTH) {
-    savedPositions[footnoteDepth] = {currentSpineIndex, section->currentPage};
-    footnoteDepth++;
+  if (saveReturnPosition) {
+    EpubLinkReturnState::push(savedPositions, footnoteDepth,
+                              {currentSpineIndex, section ? section->currentPage : nextPageNumber});
   }
 
   {
@@ -8308,7 +8291,10 @@ ScreenshotInfo EpubReaderActivity::getScreenshotInfo() const {
 void EpubReaderActivity::saveProgressBeforeRestart() {
   // Silent network-mode restarts skip onExit(); coordinate with the render task.
   RenderLock lock(*this);
-  if (!(footnoteDepth > 0 ? (epub && saveFootnoteOriginProgress()) : flushQueuedProgress())) {
+  if (!saveReadingProgress()) {
     LOG_ERR("READER", "Failed to save progress before restart");
+  }
+  if (epub && !saveLinkStack()) {
+    LOG_ERR("READER", "Failed to save link return stack before restart");
   }
 }

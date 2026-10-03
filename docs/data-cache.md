@@ -23,6 +23,8 @@ The main data directory is `.crosspoint` on the SD card. It stores render caches
 ├── state.bin.bak           # Legacy binary state file after migration, if present
 ├── recent.json             # Reading history for Home and Library
 ├── library.idx             # Library titles, authors, paths and sort indexes
+├── library.meta            # Library EPUB metadata cache: slot table
+├── library.metd            # Library EPUB metadata cache: parsed metadata records
 ├── recent.bin.bak          # Legacy binary recent-books file after migration, if present
 ├── wifi.json               # Saved Wi-Fi networks
 ├── opds.json               # Saved OPDS servers
@@ -97,7 +99,11 @@ index. Failed or memory-limited scans are retried on the next visit. The Library
 refresh action always scans again; use it
 if files were changed externally while the firmware stayed running or the reader
 was asleep.
-Unchanged books reuse their cached metadata.
+Unchanged books reuse their cached metadata. Each EPUB's parsed metadata is also
+saved to `library.meta`/`library.metd` as soon as it is read, so a scan that is
+cancelled, fails, or loses power picks up where it stopped next time instead of
+parsing every book again. Deleting both files is safe; they are rebuilt as books
+are parsed.
 **Library > Settings > Use Book Metadata** selects embedded EPUB titles and
 authors; disabling it uses filenames. TXT, Markdown and XTC files use filename
 fallbacks. CLX1 version 2 adds a first-name author permutation; older Library

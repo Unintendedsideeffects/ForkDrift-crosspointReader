@@ -750,6 +750,8 @@ CrossPointSettings::SHORT_PWRBTN chordPowerAction(const ButtonShortcutController
       return Power::NEARBY_POSITION_SYNC;
     case Chord::Library:
       return Power::LIBRARY;
+    case Chord::HomeReader:
+      return Power::HOME_READER;
     case Chord::FileTransfer:
       return Power::FILE_TRANSFER;
     case Chord::CalibreWireless:
@@ -1606,6 +1608,21 @@ void loop() {
   static unsigned long maxLoopDuration = 0;
   const unsigned long loopStartTime = millis();
   static unsigned long lastMemPrint = 0;
+
+#ifndef SIMULATOR
+  // The main task owns calibration. Exclude render-task battery/clock reads
+  // during each short SDK step without blocking input behind a busy renderer.
+  static bool checkBatteryCapacity = true;
+  static bool batteryCalibrationStarted = false;
+  if (checkBatteryCapacity) {
+    RenderLock lock(RenderLock::Mode::Try);
+    if (lock.ownsLock()) {
+      checkBatteryCapacity = powerManager.updateBatteryCalibration();
+      if (!checkBatteryCapacity && batteryCalibrationStarted) activityManager.requestUpdate();
+      batteryCalibrationStarted = checkBatteryCapacity;
+    }
+  }
+#endif
 
   // Keep release suppression in the mapped-input layer in sync with every
   // hardware input frame. A shortcut may open an activity that never queries

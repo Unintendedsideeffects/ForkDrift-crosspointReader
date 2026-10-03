@@ -1133,6 +1133,15 @@ void SettingsActivity::toggleCurrentSetting() {
       case SettingAction::RemapFrontButtonsReader:
         startActivityForResult(std::make_unique<ButtonRemapActivity>(renderer, mappedInput, true), resultHandler);
         break;
+      case SettingAction::DisplayStatusBar: {
+        auto activity = makeUniqueNoThrow<StatusBarSettingsActivity>(renderer, mappedInput, false, false, true);
+        if (!activity) {
+          LOG_ERR("SET", "Failed to allocate status bar settings");
+          break;
+        }
+        startActivityForResult(std::move(activity), resultHandler);
+        break;
+      }
       case SettingAction::CustomiseStatusBar:
         startActivityForResult(std::make_unique<StatusBarSettingsActivity>(renderer, mappedInput), resultHandler);
         break;
@@ -1596,9 +1605,9 @@ void SettingsActivity::render(RenderLock&&) {
   const char* title = isFileBrowserView() ? tr(STR_FILE_BROWSER_SETTINGS) : tr(STR_SETTINGS_TITLE);
 
   if (mappedInput.hasTouchHardware()) {
-    TouchHeaderBackButton::drawCompact(renderer, title, false, !isFileBrowserView());
+    TouchHeaderBackButton::drawCompact(renderer, title, false, false);
   } else {
-    CompactHeader::drawTitle(renderer, title, true);
+    CompactHeader::drawTitle(renderer, title);
   }
 
   uiReady = false;

@@ -1059,6 +1059,10 @@ unsigned long MappedInputManager::getHeldTime() const {
   for (size_t i = 0; i < BUTTON_COUNT; i++) {
     if (simulatorHeld[i] && simulatorPressStart[i] > 0) {
       heldTime = std::max(heldTime, now - simulatorPressStart[i]);
+    } else if (simulatorReleased[i]) {
+      // Match InputManager: the release frame still reports how long the
+      // button was held, so long-press releases are not read as short taps.
+      heldTime = std::max(heldTime, simulatorReleasedHeldTime[i]);
     }
   }
 #endif
@@ -1208,6 +1212,8 @@ void MappedInputManager::simulatorInjectPress(Button button) {
 
 void MappedInputManager::simulatorInjectRelease(Button button) {
   const size_t idx = buttonIndex(button);
+  simulatorReleasedHeldTime[idx] =
+      simulatorHeld[idx] && simulatorPressStart[idx] > 0 ? millis() - simulatorPressStart[idx] : 0;
   simulatorPressed[idx] = false;
   simulatorReleased[idx] = true;
   simulatorHeld[idx] = false;

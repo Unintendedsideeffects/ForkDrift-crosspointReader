@@ -30,6 +30,7 @@
 #include "WebDAVHandler.h"
 #include "WifiCredentialStore.h"
 #include "activities/boot_sleep/ImageFolderIndex.h"
+#include "components/HeaderDate.h"
 #include "html/FilesPageHtml.generated.h"
 #include "html/FontsPageHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
@@ -160,7 +161,6 @@ bool isWebSettingAvailable(const SettingInfo& setting) {
   if (!halClock.isAvailable()) {
     switch (setting.nameId) {
       case StrId::STR_HIDE_CLOCK:
-      case StrId::STR_CLOCK_OUTSIDE_READER:
       case StrId::STR_AUTO_BACKUP_STATS:
       case StrId::STR_CLOCK_UTC_OFFSET:
       case StrId::STR_CLOCK_FORMAT:
@@ -1468,8 +1468,11 @@ void CrossPointWebServer::handleGetStatusBars() const {
   writeReaderStatusBarJson(doc["bottom"].to<JsonObject>(), SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom));
   doc["xtcMode"] = SETTINGS.xtcStatusBarMode;
   doc["clockAvailable"] = halClock.isAvailable();
+  JsonArray displaySlots = doc["display"].to<JsonArray>();
+  for (const auto item : SETTINGS.displayStatusBar.slots) displaySlots.add(static_cast<uint8_t>(item));
 
   JsonObject labels = doc["labels"].to<JsonObject>();
+  labels["display"] = tr(STR_STATUS_BAR);
   labels["top"] = tr(STR_TOP_STATUS_BAR);
   labels["bottom"] = tr(STR_BOTTOM_STATUS_BAR);
   labels["left"] = tr(STR_STATUS_BAR_LEFT);
@@ -1488,6 +1491,9 @@ void CrossPointWebServer::handleGetStatusBars() const {
     option["label"] = label;
   };
   addOption(ReaderStatusBarItem::Clock, tr(STR_STATUS_BAR_CLOCK));
+  addOption(ReaderStatusBarItem::Date, tr(STR_DATE));
+  char dateText[32];
+  doc["datePreview"] = formatHeaderDateText(dateText, sizeof(dateText)) ? dateText : "";
   addOption(ReaderStatusBarItem::Battery, tr(STR_BATTERY));
   const auto combined = [](const char* first, const char* second) { return std::string(first) + " (" + second + ")"; };
   addOption(ReaderStatusBarItem::TimeLeftBook, combined(tr(STR_TIME_LEFT), tr(STR_BOOK)).c_str());
@@ -1526,7 +1532,9 @@ void CrossPointWebServer::handlePostStatusBars() {
     return;
   }
   ReaderStatusBarsPayload bars;
-  if (!CrossPointSettings::parseReaderStatusBars(doc.as<JsonVariantConst>(), bars)) {
+  DisplayStatusBarConfig display;
+  if ((!doc["display"].isNull() && !readDisplayStatusBarJson(doc["display"], display, halClock.isAvailable())) ||
+      !CrossPointSettings::parseReaderStatusBars(doc.as<JsonVariantConst>(), bars)) {
     server->send(400, "text/plain", "Invalid status bar configuration");
     return;
   }
@@ -1542,6 +1550,7 @@ void CrossPointWebServer::handlePostStatusBars() {
     SETTINGS.topReaderStatusBar = bars.top;
     SETTINGS.bottomReaderStatusBar = bars.bottom;
     SETTINGS.xtcStatusBarMode = bars.xtcMode;
+    if (!doc["display"].isNull()) SETTINGS.displayStatusBar = display;
   }
   if (!SETTINGS.saveToFile()) {
     LOG_ERR("WEB", "Failed to save status bar configuration");

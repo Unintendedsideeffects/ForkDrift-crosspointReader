@@ -460,6 +460,9 @@ void CrossPointSettings::toJson(JsonDocument& doc) const {
     }
   }
 
+  JsonArray displaySlots = doc["displayStatusBar"].to<JsonArray>();
+  for (const auto item : displayStatusBar.slots) displaySlots.add(static_cast<uint8_t>(item));
+
   JsonObject bars = doc["readerStatusBars"].to<JsonObject>();
   bars["version"] = 1;
   writeReaderStatusBarJson(bars["top"].to<JsonObject>(), topReaderStatusBar);
@@ -782,8 +785,22 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc, bool importingCrossPoint
     hideClock = legacyShowClock == LEGACY_SHOW_CLOCK_NEVER ? HIDE_CLOCK_ALWAYS : HIDE_CLOCK_NEVER;
     needsResave = true;
   }
-  if (doc["showClockOutsideReader"].isNull()) {
-    showClockOutsideReader = hideClock != HIDE_CLOCK_ALWAYS;
+  const JsonArrayConst displaySlots = doc["displayStatusBar"].as<JsonArrayConst>();
+  if (displaySlots.size() == displayStatusBar.slots.size()) {
+    for (unsigned i = 0; i < displayStatusBar.slots.size(); ++i) {
+      const int item = displaySlots[i].as<int>();
+      if (displaySlots[i].is<int>() && validDisplayStatusBarItemValue(item, halClock.isAvailable())) {
+        displayStatusBar.slots[i] = static_cast<ReaderStatusBarItem>(item);
+      } else {
+        displayStatusBar.slots[i] = ReaderStatusBarItem::Empty;
+        needsResave = true;
+      }
+    }
+  } else {
+    displayStatusBar = DisplayStatusBarConfig{};
+    const bool legacyClock = doc["showClockOutsideReader"].isNull() ? hideClock != HIDE_CLOCK_ALWAYS
+                                                                    : (doc["showClockOutsideReader"].as<int>() != 0);
+    if (legacyClock && halClock.isAvailable()) displayStatusBar.slots[1] = ReaderStatusBarItem::Clock;
     needsResave = true;
   }
   const JsonVariantConst bars = doc["readerStatusBars"];

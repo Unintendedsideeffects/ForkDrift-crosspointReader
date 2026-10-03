@@ -1,6 +1,7 @@
 #include "FrontlightPanelActivity.h"
 
 #include <CrossInkHalFrontlight.h>
+#include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <I18n.h>
 #include <Memory.h>
@@ -244,7 +245,7 @@ void FrontlightPanelActivity::openSyncDialog() {
   static constexpr std::array<StrId, 3> OPTIONS = {StrId::STR_SYNC_PROGRESS, StrId::STR_NEARBY_POSITION_SYNC,
                                                    StrId::STR_SEND_NEARBY_BOOK};
   drawerState.syncDialogOpen = true;
-  const bool canSyncBookProgress = context.activeEpub;
+  const bool canSyncBookProgress = FsHelpers::hasEpubExtension(context.bookPath);
   const bool canSendBook = !context.bookPath.empty();
   optionPopup.show(StrId::STR_SYNC_AND_TRANSFER, OPTIONS.data(), OPTIONS.size(), canSyncBookProgress ? 0 : 2,
                    [this](const int index) {
@@ -367,7 +368,7 @@ Rect FrontlightPanelActivity::homeButtonRect() const {
               TouchHeaderBackButton::height(metrics, mappedInput)};
 }
 
-int FrontlightPanelActivity::computePanelBottom() const {
+int FrontlightPanelActivity::computePanelBottom() {
   // Mirror buildPanelScreen's takeTop/spacer sequence so the frame, content
   // margin, and dismiss threshold land on the same edge.
   const auto& metrics = UITheme::getInstance().getMetrics();
@@ -388,15 +389,28 @@ int FrontlightPanelActivity::computePanelBottom() const {
     const auto sheet = frontlightSheetProps();
     return y + DrawerHandle::bandHeight(sheet);
   }
-  y += tokens.spaceLg;                     // leading spacer
-  y += tokens.rowHeight + tokens.spaceSm;  // brightness label + frontlight toggle row
-  y += tokens.rowHeight + tokens.spaceLg;  // brightness slider
-  if (Frontlight.hasColorTemperature()) {
-    y += lh + tokens.spaceSm + tokens.rowHeight + tokens.spaceLg;  // warmth label + slider
-  }
-  y += tokens.spaceLg + ACTION_BAR_HEIGHT;  // trailing padding + actions
+  panelRowHeight = tokens.rowHeight;
+  panelSpaceSm = tokens.spaceSm;
+  panelSpaceLg = tokens.spaceLg;
+  const bool hasWarmth = Frontlight.hasColorTemperature();
+  const int rowCount = hasWarmth ? 3 : 2;
+  const int largeGapCount = hasWarmth ? 4 : 3;
+  const int smallGapCount = hasWarmth ? 2 : 1;
   const auto sheet = frontlightSheetProps();
-  return y + DrawerHandle::bandHeight(sheet);
+  const auto safe = uiTarget.deviceContext().safeArea;
+  const int maxBottom = renderer.getScreenHeight() - safe.bottom;
+  const auto bottom = [&] {
+    return y + rowCount * panelRowHeight + (hasWarmth ? lh : 0) + largeGapCount * panelSpaceLg +
+           smallGapCount * panelSpaceSm + ACTION_BAR_HEIGHT + DrawerHandle::bandHeight(sheet);
+  };
+  // Preserve Large text, the action bar, and the close handle. Spend less on
+  // blank spacing first, then on the two-line list padding these single-line
+  // controls inherited from the shared theme.
+  while (bottom() > maxBottom && panelSpaceLg > 2) --panelSpaceLg;
+  while (bottom() > maxBottom && panelSpaceSm > 2) --panelSpaceSm;
+  const int minRowHeight = std::max<int>(tokens.minTouchSize, lh);
+  while (bottom() > maxBottom && panelRowHeight > minRowHeight) --panelRowHeight;
+  return std::min(bottom(), maxBottom);
 }
 
 void FrontlightPanelActivity::prepareReaderDetailsLayout() {
@@ -455,12 +469,15 @@ void FrontlightPanelActivity::buildPanelScreen(UiApp::ScreenType& screen) {
   const fui::Rect sheetContent = fui::sheetContentRect(sheetRect, sheet);
   drawerHandleRect = DrawerHandle::registerTap(screen.frame(), sheetContent, sheet, ACTION_DISMISS);
   const int16_t bottomInset = static_cast<int16_t>(renderer.getScreenHeight() - sheetContent.bottom());
-  screen.setContentMargin(
+  screen.setContentMarginFromScreen(
       fui::Insets{static_cast<int16_t>(metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput) +
                                        (showsBookProgress() ? metrics.tabBarHeight : 0)),
                   0, bottomInset, 0});
 
   const fui::Rect actionBar = screen.takeBottom(ACTION_BAR_HEIGHT);
+#ifdef SIMULATOR
+  simulatorActionBarTop = actionBar.y;
+#endif
   const bool showStats = context.showReadingStatsAction;
   const int16_t slotCount = showStats ? 5 : 4;
   const int16_t slotWidth = static_cast<int16_t>(actionBar.width / slotCount);
@@ -484,17 +501,17 @@ void FrontlightPanelActivity::buildPanelScreen(UiApp::ScreenType& screen) {
   }
 
   const int16_t lh = screen.target().lineHeight(theme.bodyText.font);
-  const int16_t rowH = theme.rowHeight;
+  const int16_t rowH = panelRowHeight;
   const fui::Insets sideInset{0, static_cast<int16_t>(theme.spaceLg * 2), 0, static_cast<int16_t>(theme.spaceLg * 2)};
   char line[48];
 
-  screen.spacer(theme.spaceLg);
+  screen.spacer(panelSpaceLg);
 
   // Header row: "Brightness NN%" on the left, a tappable bulb icon on the right
   // that toggles the light — `lightbulb` when on, `lightbulb-off` when off (the
   // icon itself is the state indicator). Sharing a row with the label frees the
   // whole bottom toggle row, shrinking the panel.
-  const fui::Rect headerRow = screen.takeTop(rowH, theme.spaceSm).inset(sideInset);
+  const fui::Rect headerRow = screen.takeTop(rowH, panelSpaceSm).inset(sideInset);
   snprintf(line, sizeof(line), "%s  %u%%", tr(STR_BRIGHTNESS), static_cast<unsigned>(brightness));
   const fui::BitmapRef lightIcon = fui::bitmapFromIcon(lightOn ? icon_lightbulb_28 : icon_lightbulb_off_28);
   const int16_t iconW = static_cast<int16_t>(lightIcon.width);
@@ -508,24 +525,27 @@ void FrontlightPanelActivity::buildPanelScreen(UiApp::ScreenType& screen) {
   // target fill the otherwise blank right edge and the adjacent row gaps.
   // This makes the control more forgiving without reaching the brightness
   // slider below.
-  const int16_t hitW = static_cast<int16_t>(iconW + theme.spaceLg * 4);
+  const int16_t hitW = static_cast<int16_t>(iconW + panelSpaceLg * 4);
   const fui::Rect hitRect{static_cast<int16_t>(headerRow.right() - hitW),
-                          static_cast<int16_t>(headerRow.y - theme.spaceSm),
-                          static_cast<int16_t>(hitW + sideInset.right), static_cast<int16_t>(rowH + theme.spaceSm * 2)};
+                          static_cast<int16_t>(headerRow.y - panelSpaceSm),
+                          static_cast<int16_t>(hitW + sideInset.right), static_cast<int16_t>(rowH + panelSpaceSm * 2)};
   screen.frame().hit(hitRect, ACTION_TOGGLE);
   screen.target().bitmap(iconRect, lightIcon, fui::BitmapMode::Center);
 
-  addStepSlider(screen, screen.takeTop(theme.rowHeight, theme.spaceLg).inset(sideInset), brightness, ACTION_BRIGHTNESS,
+  addStepSlider(screen, screen.takeTop(rowH, panelSpaceLg).inset(sideInset), brightness, ACTION_BRIGHTNESS,
                 ACTION_BRIGHTNESS_STEP);
 
   if (Frontlight.hasColorTemperature()) {
     snprintf(line, sizeof(line), "%s  %u%%", tr(STR_WARMTH), static_cast<unsigned>(warmth));
-    screen.target().text(screen.takeTop(lh, theme.spaceSm).inset(sideInset), line, theme.bodyText);
-    addStepSlider(screen, screen.takeTop(theme.rowHeight, theme.spaceLg).inset(sideInset), warmth, ACTION_WARMTH,
+    screen.target().text(screen.takeTop(lh, panelSpaceSm).inset(sideInset), line, theme.bodyText);
+    addStepSlider(screen, screen.takeTop(rowH, panelSpaceLg).inset(sideInset), warmth, ACTION_WARMTH,
                   ACTION_WARMTH_STEP);
   }
 
-  screen.spacer(theme.spaceLg);
+  screen.spacer(panelSpaceLg);
+#ifdef SIMULATOR
+  simulatorContentBottom = screen.contentRect().y;
+#endif
 }
 
 void FrontlightPanelActivity::drawHeader() {
@@ -623,7 +643,7 @@ void FrontlightPanelActivity::addStepSlider(UiApp::ScreenType& screen, const fui
 
 void FrontlightPanelActivity::render(RenderLock&&) {
   // Overlay drop-down: keep the framebuffer content (the reader/menu we opened
-  // over) intact below the panel; only the top third is repainted. No full
+  // over) intact below the panel; only the fitted panel is repainted. No full
   // clearScreen — same as the theme popups draw over the current frame.
   panelBottom = computePanelBottom();
   uiReady = false;

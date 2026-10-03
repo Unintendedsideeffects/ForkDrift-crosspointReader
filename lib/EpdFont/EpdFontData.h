@@ -234,6 +234,11 @@ typedef struct EpdFontData {
   int8_t (*kerningHandler)(void*, uint32_t, uint32_t) = nullptr;
   uint32_t (*ligatureHandler)(void*, uint32_t, uint32_t) = nullptr;
 #endif
+#if CROSSINK_SCALABLE_FONTS
+  // Non-owning identity shared by all sizes of one scalable face.
+  const void* sizeFamily = nullptr;
+  uint8_t pointSize = 0;
+#endif
 } EpdFontData;
 
 namespace syntheticGlyph {

@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
     if (mode == FileMode::Stream) assert(storageReadCalls == openedReads);
     std::printf("DEFINITION mode=%d reads=%zu bytes=%zu\n", int(mode), storageReadCalls, storageReadBytes);
     for (int i = 2; i < argc; ++i) {
-      for (unsigned size : {12u, 16u, 22u, 12u}) {
+      for (unsigned size : {12u, 16u, 22u, 32u, 44u, 12u}) {
         for (unsigned cp = 32; cp < 127; ++cp)
           if (!renderGlyph(i, cp, size)) return 1;
       }

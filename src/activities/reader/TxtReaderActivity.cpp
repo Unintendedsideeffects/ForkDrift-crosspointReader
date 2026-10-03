@@ -498,6 +498,7 @@ bool TxtReaderActivity::supportsQuickAction(const CrossPointSettings::SHORT_PWRB
     case CrossPointSettings::SHORT_PWRBTN::LIBRARY:
     case CrossPointSettings::SHORT_PWRBTN::TOGGLE_FRONTLIGHT:
     case CrossPointSettings::SHORT_PWRBTN::TOGGLE_TOUCHSCREEN:
+    case CrossPointSettings::SHORT_PWRBTN::HOME_READER:
       return true;
     default:
       return false;
@@ -631,6 +632,7 @@ bool TxtReaderActivity::handleShortcutAction(const uint8_t action) {
 }
 
 bool TxtReaderActivity::handleShortcutAction(const CrossPointSettings::SHORT_PWRBTN action) {
+  if (action == CrossPointSettings::SHORT_PWRBTN::HOME_READER) return dispatchShortcutAction(action);
   if (action == CrossPointSettings::SHORT_PWRBTN::QUICK_ACTIONS) {
     QuickActions::showConfiguredPopup(
         quickActionsPopup, [this] { requestUpdate(); },

@@ -31,11 +31,13 @@ constexpr uint32_t SECTION_CACHE_MAGIC = 0x535843FF;  // bytes: 0xFF, "CXS"
 // v79: Hangul word boundaries and line-end splits change cached page positions.
 // v80: Small EPUB images can share text lines, changing cached page positions.
 // v81: HTML and body text indents now inherit into descendant blocks.
-constexpr uint8_t SECTION_FILE_VERSION = 81;
+// v82: Scalable headings and blocks serialize point size and line height.
+// v83: Nested blocks inherit bold and italic styles, changing glyphs and wrapping.
+constexpr uint8_t SECTION_FILE_VERSION = 83;
 // Suspended incremental build: valid pages plus LUTs and a parse-watermark trailer.
 // Change this with layout or payload changes so stale partial pages cannot resume
 // under a different layout contract.
-constexpr uint8_t SECTION_FILE_PARTIAL_VERSION = 0xC2;
+constexpr uint8_t SECTION_FILE_PARTIAL_VERSION = 0xC4;
 constexpr uint32_t HEADER_SIZE =
     sizeof(SECTION_CACHE_MAGIC) + sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
     sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(bool) + sizeof(uint8_t) +
@@ -1731,18 +1733,33 @@ std::optional<uint16_t> Section::getPageForVisibleTextOffset(const uint32_t offs
       lutOffset + static_cast<uint32_t>(count) * sizeof(uint32_t) > fileSize) {
     return std::nullopt;
   }
+  if (!f.seek(lutOffset)) return std::nullopt;
   uint16_t result = 0;
   uint32_t last = 0;
-  for (uint16_t i = 0; i < count; i++) {
-    uint32_t start = 0;
-    if (!f.seek(lutOffset + static_cast<uint32_t>(i) * sizeof(uint32_t)) || !serialization::tryReadPod(f, start)) {
+  // Read a bounded batch instead of seeking and reading four bytes per page.
+  // Keep the original first-match order, including repeated offsets on image/table pages.
+  uint32_t starts[32];  // 128 bytes; no heap allocation on the restore/reflow path.
+  for (uint32_t base = 0; base < count; base += 32) {
+    const uint32_t batch = std::min<uint32_t>(32, count - base);
+    const size_t bytes = batch * sizeof(uint32_t);
+    if (f.read(starts, bytes) != static_cast<int>(bytes)) {
+      f.close();
       return std::nullopt;
     }
-    last = start;
-    if (start > offset) break;
-    result = i;
-    if (preferFirstAtOffset && start == offset) break;
+    for (uint32_t i = 0; i < batch; ++i) {
+      last = starts[i];
+      if (last > offset) {
+        f.close();
+        return result;
+      }
+      result = static_cast<uint16_t>(base + i);
+      if (preferFirstAtOffset && last == offset) {
+        f.close();
+        return result;
+      }
+    }
   }
+  f.close();
   if (version == SECTION_FILE_PARTIAL_VERSION && offset > last) return std::nullopt;
   return result;
 }

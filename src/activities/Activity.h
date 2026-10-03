@@ -71,6 +71,9 @@ class Activity {
   // activity validates that trigger without routing any other normal input.
   virtual bool handleQuickLockUnlock(QuickLockTrigger) { return false; }
   virtual bool isReaderActivity() const { return false; }
+  // Reader-mode child screens may also report isReaderActivity(); only the
+  // activity owning the open book should be the Home/Reader unwind target.
+  virtual bool isBookReaderActivity() const { return false; }
   virtual bool isHomeActivity() const { return false; }
   // The open book uses its vertical swipe actions across the entire page;
   // dialogs and lists retain their normal edge or scroll gestures.
@@ -117,7 +120,7 @@ class Activity {
   virtual void persistGlobalSettings() { SETTINGS.saveToFile(); }
   virtual bool onFrontlightGlobalSettingsOpened() { return false; }
   virtual void onFrontlightGlobalSettingsClosed() {}
-  virtual bool handleFrontlightPanelResult(const FrontlightPanelResult&) { return false; }
+  virtual bool handleFrontlightPanelResult(const FrontlightPanelResult& result);
   virtual bool handleExternalReaderMenuAction(uint8_t) { return false; }
   virtual bool restorePendingOverlay(const PendingOverlayResume&) { return false; }
   virtual ScreenshotInfo getScreenshotInfo() const { return {}; }

@@ -2,6 +2,10 @@
 
 #include <cstdint>
 
+// Content may be larger than the reader's selectable 8-22 pt body size.
+constexpr uint8_t ScalableContentMinPointSize = 8;
+constexpr uint8_t ScalableContentMaxPointSize = 44;
+
 // Reader size labels predate scalable fonts and are calibrated to the 150-DPI
 // .cpfont asset pipeline. Keep TTF rendering on that established visual scale
 // so selecting the same size does not unexpectedly enlarge the book text.

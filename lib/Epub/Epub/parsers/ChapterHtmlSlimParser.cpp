@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -22,6 +23,7 @@
 #include <new>
 #include <string_view>
 
+#include "../../../ScalableFont/ScalableFontSizing.h"
 #include "Epub.h"
 #include "Epub/Page.h"
 #include "Epub/converters/ImageDecoderFactory.h"
@@ -342,6 +344,26 @@ void ChapterHtmlSlimParser::applyVerticalAlignToEntry(StyleStackEntry& entry, co
   } else if (css.verticalAlign == CssVerticalAlign::Sub) {
     entry.hasSub = true;
     entry.sub = true;
+  }
+}
+
+// Reuse the depth-scoped inline stack for inherited block font styles. Only
+// explicit properties need entries; unstyled children keep the parent values.
+void ChapterHtmlSlimParser::pushBlockFontStyle(const CssStyle& cssStyle) {
+  if (!cssStyle.hasFontWeight() && !cssStyle.hasFontStyle()) return;
+  if (partWordBufferIndex > 0) {
+    flushPartWordBuffer();
+  }
+  StyleStackEntry entry;
+  entry.depth = depth;
+  entry.hasBold = cssStyle.hasFontWeight();
+  entry.bold = cssStyle.fontWeight == CssFontWeight::Bold;
+  entry.hasItalic = cssStyle.hasFontStyle();
+  entry.italic = cssStyle.fontStyle == CssFontStyle::Italic;
+  if (inlineStyleCount_ < MAX_INLINE_STYLE_DEPTH) {
+    inlineStyleBuf_[inlineStyleCount_++] = entry;
+  } else {
+    LOG_ERR("EHP", "inline style stack overflow (block font)");
   }
 }
 
@@ -778,7 +800,7 @@ void ChapterHtmlSlimParser::flushLongTextRunIfNeeded(const bool force, const boo
   const uint16_t effectiveWidth =
       (horizontalInset < viewportWidth) ? static_cast<uint16_t>(viewportWidth - horizontalInset) : viewportWidth;
   if (!currentTextBlock->layoutAndExtractLines(
-          renderer, fontId, effectiveWidth,
+          renderer, currentTextFontId(), effectiveWidth,
           [this](const std::shared_ptr<TextBlock>& textBlock, const uint32_t offset, const uint32_t referenceOffset) {
             addLineToPage(textBlock, offset, referenceOffset);
           },
@@ -789,6 +811,50 @@ void ChapterHtmlSlimParser::flushLongTextRunIfNeeded(const bool force, const boo
   }
   if (flushLastLine) currentTextBlock->setContinuation(true);
   currentTextRunBytes = 0;
+}
+
+int ChapterHtmlSlimParser::currentTextFontId() const {
+  if (!currentTextBlock || tableDepth > 0) return fontId;
+  return renderer.getFontIdForSize(fontId, currentTextBlock->getBlockStyle().fontSize);
+}
+
+void ChapterHtmlSlimParser::applyBlockFontSize(const CssStyle& cssStyle, const char* tag, BlockStyle& style) {
+  const uint8_t base = renderer.getFontPointSize(fontId);
+  if (!base || isLightMode() || tableDepth > 0) return;
+  const float parent = blockStyleBuf_[blockStyleCount_ - 1].fontScale / 256.0f;
+  float scale = parent;
+  if (tag[0] == 'h' && tag[1] >= '1' && tag[1] <= '6' && tag[2] == '\0') {
+    static constexpr float headingScale[] = {2.0f, 1.5f, 1.17f, 1.0f, 0.83f, 0.67f};
+    scale *= headingScale[tag[1] - '1'];
+  }
+  if (embeddedStyle && cssStyle.hasFontSize()) {
+    const auto& size = cssStyle.fontSize;
+    switch (size.unit) {
+      case CssUnit::Em:
+        scale = parent * size.value;
+        break;
+      case CssUnit::Rem:
+        scale = rootFontScale / 256.0f * size.value;
+        break;
+      case CssUnit::Percent:
+        scale = parent * size.value / 100.0f;
+        break;
+      // Reader zoom: CSS medium (16px/12pt) maps to the user's body size.
+      case CssUnit::Points:
+        scale = size.value / 12.0f;
+        break;
+      case CssUnit::Pixels:
+        scale = size.value / 16.0f;
+        break;
+    }
+  }
+  if (!std::isfinite(scale)) scale = parent;
+  scale = std::clamp(scale, float(ScalableContentMinPointSize) / base, float(ScalableContentMaxPointSize) / base);
+  style.fontScale = static_cast<uint16_t>(scale * 256.0f + 0.5f);
+  style.fontSize = static_cast<uint8_t>(base * scale + 0.5f);
+  // If a recovery font lacks the requested size, layout and drawing must agree.
+  style.fontSize = renderer.getFontPointSize(renderer.getFontIdForSize(fontId, style.fontSize));
+  if (strcmp(tag, "html") == 0) rootFontScale = style.fontScale;
 }
 
 // start a new text block if needed
@@ -2175,6 +2241,10 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->flushPartWordBuffer();
       self->nextWordContinues = false;
     }
+    if (strcmp(name, "br") != 0) {
+      self->pushBlockFontStyle(cssStyle);
+      self->updateEffectiveInlineStyle();
+    }
     self->pushCssAncestor(self->depth, name, classAttr);
     self->depth += 1;
     return;
@@ -2704,10 +2774,25 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     }
   }
 
-  const float emSize = static_cast<float>(self->renderer.getFontAscenderSize(self->fontId));
+  BlockStyle fontStyle;
+  self->applyBlockFontSize(cssStyle, name, fontStyle);
+  const int blockFontId = self->renderer.getFontIdForSize(self->fontId, fontStyle.fontSize);
+  const float emSize = static_cast<float>(self->renderer.getFontAscenderSize(blockFontId));
 
   const CssTextAlign requestedAlign = static_cast<CssTextAlign>(self->paragraphAlignment);
   auto userAlignmentBlockStyle = BlockStyle::fromCssStyle(cssStyle, emSize, requestedAlign, self->viewportWidth);
+  userAlignmentBlockStyle.fontSize = fontStyle.fontSize;
+  userAlignmentBlockStyle.fontScale = fontStyle.fontScale;
+  if ((strcmp(name, "html") == 0 || strcmp(name, "body") == 0) && fontStyle.fontSize) {
+    self->blockStyleBuf_[0].fontSize = fontStyle.fontSize;
+    self->blockStyleBuf_[0].fontScale = fontStyle.fontScale;
+    if (self->currentTextBlock && self->currentTextBlock->isEmpty()) {
+      auto style = self->currentTextBlock->getBlockStyle();
+      style.fontSize = fontStyle.fontSize;
+      style.fontScale = fontStyle.fontScale;
+      self->currentTextBlock->setBlockStyle(style);
+    }
+  }
 
   if (!self->embeddedStyle || requestedAlign != CssTextAlign::None) {
     userAlignmentBlockStyle.textAlignDefined = true;
@@ -2779,11 +2864,18 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     }
   }
 
+  // <br> is a line break, not a font-style container.
+  if (isHeaderOrBlock(name) && strcmp(name, "br") != 0) {
+    self->pushBlockFontStyle(cssStyle);
+  }
+
   if (matches(name, HEADER_TAGS, std::size(HEADER_TAGS))) {
     self->headingDepth = self->depth;
     self->headingOpenerActive = true;
     self->currentCssStyle = cssStyle;
     auto headerBlockStyle = BlockStyle::fromCssStyle(cssStyle, emSize, CssTextAlign::Center, self->viewportWidth);
+    headerBlockStyle.fontSize = fontStyle.fontSize;
+    headerBlockStyle.fontScale = fontStyle.fontScale;
     headerBlockStyle.textAlignDefined = true;
     if (self->embeddedStyle && cssStyle.hasTextAlign()) {
       headerBlockStyle.alignment = cssStyle.textAlign;
@@ -2794,6 +2886,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     const auto accumulated = self->blockStyleBuf_[self->blockStyleCount_ - 1].getCombinedBlockStyle(
         headerBlockStyle, BlockStyle::CombineAxis::Horizontal);
     if (self->blockStyleCount_ < MAX_BLOCK_STYLE_DEPTH) {
+      self->blockStyleDepths_[self->blockStyleCount_] = self->depth;
       self->blockStyleBuf_[self->blockStyleCount_++] = accumulated;
     } else {
       LOG_ERR("EHP", "block style stack overflow (header)");
@@ -2827,6 +2920,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       const auto accumulated = self->blockStyleBuf_[self->blockStyleCount_ - 1].getCombinedBlockStyle(
           userAlignmentBlockStyle, BlockStyle::CombineAxis::Horizontal);
       if (self->blockStyleCount_ < MAX_BLOCK_STYLE_DEPTH) {
+        self->blockStyleDepths_[self->blockStyleCount_] = self->depth;
         self->blockStyleBuf_[self->blockStyleCount_++] = accumulated;
       } else {
         LOG_ERR("EHP", "block style stack overflow (block)");
@@ -3537,6 +3631,9 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
     self->tableRowIndex = 0;
     self->tableColIndex = 0;
     auto paragraphAlignmentBlockStyle = BlockStyle();
+    const auto& parentStyle = self->blockStyleBuf_[self->blockStyleCount_ - 1];
+    paragraphAlignmentBlockStyle.fontScale = parentStyle.fontScale;
+    paragraphAlignmentBlockStyle.fontSize = parentStyle.fontSize;
     paragraphAlignmentBlockStyle.textAlignDefined = true;
     paragraphAlignmentBlockStyle.alignment = (self->paragraphAlignment == static_cast<uint8_t>(CssTextAlign::None))
                                                  ? CssTextAlign::Justify
@@ -3574,7 +3671,7 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   }
 
   // Pop from inline style stack if we pushed an entry at this depth
-  // This handles all inline elements: b, i, u, span, etc.
+  // This also restores inherited font styles when a styled block closes.
   if (self->inlineStyleCount_ > 0 && self->inlineStyleBuf_[self->inlineStyleCount_ - 1].depth == self->depth) {
     self->inlineStyleCount_--;
     self->updateEffectiveInlineStyle();
@@ -3586,7 +3683,8 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
     self->updateEffectiveInlineStyle();
 
     // br is self-closing and not a container — it doesn't push/pop the stack.
-    if (strcmp(name, "br") != 0 && self->blockStyleCount_ > 1) {
+    if (strcmp(name, "br") != 0 && self->blockStyleCount_ > 1 &&
+        self->blockStyleDepths_[self->blockStyleCount_ - 1] == self->depth) {
       // Apply closing element's bottom margin to the current text block so
       // container spacing appears after the element's content (on the last child),
       // not on the first child via the empty-block merge in startNewTextBlock.
@@ -3596,6 +3694,13 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
       }
       self->blockStyleCount_--;
       self->updateEffectiveInlineStyle();
+      if (self->tableDepth == 0 && !self->isLightMode() && self->renderer.getFontPointSize(self->fontId)) {
+        if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
+          self->makePages();
+          self->currentTextBlock.reset();
+        }
+        self->startNewTextBlock(self->blockStyleBuf_[self->blockStyleCount_ - 1].withoutTop().withoutBottom());
+      }
     }
   }
   if (self->tableDepth == 1 && strcmp(name, "caption") == 0 && self->currentCompactTable && self->currentTextBlock) {
@@ -3998,7 +4103,12 @@ void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line, const
   }
 
   const auto& lineImages = currentTextBlock->currentLineImages();
-  const int textHeight = effectiveLineHeight() + line->getRubyShift(renderer.getFontAscenderSize(fontId));
+  const int textHeight = effectiveLineHeight() + line->getRubyShift(renderer.getFontAscenderSize(currentTextFontId()));
+  if (line->getBlockStyle().fontSize) {
+    auto style = line->getBlockStyle();
+    style.lineHeight = static_cast<uint16_t>(textHeight);
+    line->setBlockStyle(style);
+  }
   int lineHeight = textHeight;
   for (const auto& image : lineImages) lineHeight = std::max(lineHeight, static_cast<int>(image.height));
 
@@ -4080,7 +4190,7 @@ void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line, const
 }
 
 int ChapterHtmlSlimParser::effectiveLineHeight() const {
-  return std::max(1, static_cast<int>(renderer.getLineHeight(fontId) * lineCompression + 0.5f));
+  return std::max(1, static_cast<int>(renderer.getLineHeight(currentTextFontId()) * lineCompression + 0.5f));
 }
 
 void ChapterHtmlSlimParser::makePages() {
@@ -4119,7 +4229,7 @@ void ChapterHtmlSlimParser::makePages() {
       (horizontalInset < viewportWidth) ? static_cast<uint16_t>(viewportWidth - horizontalInset) : viewportWidth;
 
   if (!currentTextBlock->layoutAndExtractLines(
-          renderer, fontId, effectiveWidth,
+          renderer, currentTextFontId(), effectiveWidth,
           [this](const std::shared_ptr<TextBlock>& textBlock, const uint32_t offset, const uint32_t referenceOffset) {
             addLineToPage(textBlock, offset, referenceOffset);
           })) {

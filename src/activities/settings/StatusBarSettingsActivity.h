@@ -18,9 +18,10 @@
 class StatusBarSettingsActivity final : public Activity {
  public:
   explicit StatusBarSettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, bool readerContext = false,
-                                     bool stablePageNumbersAvailable = false)
+                                     bool stablePageNumbersAvailable = false, bool displayContext = false)
       : Activity("StatusBarSettings", renderer, mappedInput),
         readerContext(readerContext),
+        displayContext(displayContext),
         uiTarget(makeUiTarget(renderer)),
         app(uiTarget, uiTarget.deviceContext()) {
     (void)stablePageNumbersAvailable;
@@ -40,6 +41,7 @@ class StatusBarSettingsActivity final : public Activity {
   int selectedIndex = 0;
   int visibleItemCount = 0;
   bool readerContext = false;
+  bool displayContext = false;
   View view = View::Root;
 
   using UiApp = freeink::ui::FreeInkApp<20, 4>;

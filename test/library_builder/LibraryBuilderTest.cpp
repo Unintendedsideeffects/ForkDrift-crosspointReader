@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstring>
 #include <numeric>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -11,7 +12,10 @@
 #include "LibraryBuilder.h"
 #include "LibraryFileTypes.h"
 #include "LibraryIndexFile.h"
+#include "LibraryMetadataCache.h"
+#include "LibrarySort.h"
 #include "LibraryText.h"
+#include "Memory.h"
 
 using namespace library;
 
@@ -55,6 +59,13 @@ bool recordAtPath(LibraryIndexFile& index, const std::string& path, ClixRecord& 
   return false;
 }
 
+// Firmware that wrote an older index format never wrote the metadata cache,
+// so upgrade tests start without one.
+void dropMetadataCache() {
+  Storage.remove(LibraryMetadataCache::slotPath());
+  Storage.remove(LibraryMetadataCache::payloadPath());
+}
+
 // Build a genuine V5 name section by removing each V6 position and updating
 // record offsets. Changing only the version byte would leave V6 blobs behind.
 bool downgradeIndexToVersionFive() {
@@ -92,6 +103,9 @@ class LibraryBuilderTest : public ::testing::Test {
 
   void SetUp() override {
     fake::reset();
+    fake::psram = false;
+    fake::psramAllocations = 0;
+    setSortRunCapacityForTesting(0);
     invalidateLibraryIndex();
     bookMetadata.clear();
     cachedBookMetadata.clear();
@@ -430,6 +444,7 @@ TEST_F(LibraryBuilderTest, VersionThreeIndexReparsesSeriesOrderDuringUpgrade) {
   // Two-book v3 and v6 indexes have the same aligned nameStart. The v3
   // permutation section ends early, leaving padding before the name blob.
   fake::files[INDEX]->bytes[offsetof(ClixHeader, formatVersion)] = 3;
+  dropMetadataCache();
   fake::parses = 0;
   ASSERT_TRUE(buildLibraryIndex("/", stats, true));
   EXPECT_EQ(fake::parses, 2u);
@@ -458,6 +473,7 @@ TEST_F(LibraryBuilderTest, VersionFiveIndexReparsesSeriesPositionsAndKeepsArriva
   before.close();
 
   ASSERT_TRUE(downgradeIndexToVersionFive());
+  dropMetadataCache();
   fake::parses = 0;
   ASSERT_TRUE(buildLibraryIndex("/", stats, true));
   EXPECT_EQ(fake::parses, 2u);
@@ -559,6 +575,7 @@ TEST_F(LibraryBuilderTest, VersionFourIndexKeepsFirstSeenDuringUpgrade) {
   // name section. This models an old index without changing its record data.
   fake::files[INDEX]->bytes[offsetof(ClixHeader, formatVersion)] = 4;
   fake::files[INDEX]->bytes[offsetof(ClixHeader, foldVersion)] = 1;
+  dropMetadataCache();
   fake::parses = 0;
   ASSERT_TRUE(buildLibraryIndex("/", stats, true));
   EXPECT_EQ(fake::parses, 2u);
@@ -588,6 +605,7 @@ TEST_F(LibraryBuilderTest, InterruptedUpgradeRestoresVersionThreeBackup) {
   fake::files[BACKUP] = std::make_shared<fake::Node>(*fake::files[INDEX]);
   fake::files[BACKUP]->bytes[offsetof(ClixHeader, formatVersion)] = 3;
   fake::files[INDEX]->bytes[0] = 'X';  // Damaged live index after install.
+  dropMetadataCache();
   fake::parses = 0;
 
   ASSERT_TRUE(buildLibraryIndex("/", stats, true));
@@ -631,6 +649,7 @@ TEST_F(LibraryBuilderTest, VersionTwoIndexRebuildKeepsFirstSeenOrder) {
   // The old format has the same header and record stride. Reconciliation only
   // needs those records and path hashes; its shorter metadata blob is replaced.
   fake::files[INDEX]->bytes[offsetof(ClixHeader, formatVersion)] = 2;
+  dropMetadataCache();
   fake::parses = 0;
   ASSERT_TRUE(buildLibraryIndex("/", stats, true));
   EXPECT_EQ(fake::parses, 2u);
@@ -688,6 +707,22 @@ TEST_F(LibraryBuilderTest, MetadataModeChangesInvalidateCachedMetadata) {
   EXPECT_EQ(index.header().metadataEnabled, 0);
   index.close();
 
+  // Metadata parsed by the first build survives the round trip through the
+  // metadata-off index in the persistent cache.
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(fake::parses, 0u);
+  EXPECT_EQ(stats.metadataCached, 2);
+  ASSERT_TRUE(index.open(INDEX));
+  EXPECT_EQ(index.header().metadataEnabled, 1);
+  ClixRecord record{};
+  ASSERT_TRUE(recordAtPath(index, "/a.epub", record));
+  std::string title;
+  ASSERT_TRUE(index.readTitle(record, title));
+  EXPECT_EQ(title, "Title");
+  index.close();
+
+  dropMetadataCache();
+  ASSERT_TRUE(buildLibraryIndex("/", stats, false));
   ASSERT_TRUE(buildLibraryIndex("/", stats, true));
   EXPECT_EQ(fake::parses, 2u);
 }
@@ -828,35 +863,55 @@ TEST_F(LibraryBuilderTest, CreationTimeChangeUpdatesOrderWithoutReparsingMetadat
   EXPECT_EQ(created, 2u);
 }
 
-TEST_F(LibraryBuilderTest, CreationSortAllocationFailureRetriesOnNextScan) {
-  bool foundArrivalFallback = false;
-  // Find the fallible creation-time array without coupling this test to the
-  // exact allocation order of the other builder phases.
-  for (int failAt = 0; failAt < 32 && !foundArrivalFallback; failAt++) {
+TEST_F(LibraryBuilderTest, EveryAllocationFailureFailsCleanlyOrBuildsTheSameIndex) {
+  const auto populate = [] {
     fake::reset();
-    fake::add("/a.txt");
-    fake::add("/b.txt");
-    fake::files["/a.txt"]->created = 9;
-    fake::files["/b.txt"]->created = 1;
+    for (unsigned i = 0; i < 40; i++) {
+      const std::string path = "/shelf/book" + numbered("", (i * 17) % 40) + ".txt";
+      fake::add(path, std::string(i + 1, 'x'), 3);
+      fake::files[path]->created = (i * 7) % 5;
+    }
+  };
+  populate();
+  ASSERT_TRUE(buildLibraryIndex("/", stats, false));
+  const auto reference = fake::files[INDEX]->bytes;
+
+  bool sawFailure = false;
+  bool sawRecovery = false;
+  for (int failAt = 0; failAt < 64; failAt++) {
+    populate();
     fake::failAlloc = failAt;
-    if (!buildLibraryIndex("/", stats, false)) continue;
-
-    LibraryIndexFile index;
-    ASSERT_TRUE(index.open(INDEX));
-    foundArrivalFallback = (index.header().flags & CLIX_FLAG_ARRIVAL_DEGRADED) != 0;
-    if (!foundArrivalFallback) continue;
-    EXPECT_TRUE(libraryIndexNeedsRefresh());
-    EXPECT_FALSE(stats.ranksDegraded);
-    EXPECT_EQ(pathAt(index, SortOrder::RecentAsc, 0), "/a.txt");
-    index.close();
-
-    ASSERT_TRUE(buildLibraryIndex("/", stats, false));
-    EXPECT_TRUE(stats.indexReplaced);
-    ASSERT_TRUE(index.open(INDEX));
-    EXPECT_EQ(index.header().flags & CLIX_FLAG_ARRIVAL_DEGRADED, 0);
-    EXPECT_EQ(pathAt(index, SortOrder::RecentAsc, 0), "/b.txt");
+    const bool built = buildLibraryIndex("/", stats, false);
+    const bool injected = fake::failureTriggered;
+    fake::failAlloc = -1;
+    for (const char* scratch :
+         {"/.crosspoint/library.stage", "/.crosspoint/library.order", "/.crosspoint/library.canon",
+          "/.crosspoint/library.authors", "/.crosspoint/library.runs", "/.crosspoint/library.prior"}) {
+      EXPECT_FALSE(Storage.exists(scratch)) << failAt << ' ' << scratch;
+    }
+    if (!built) {
+      sawFailure = true;
+      EXPECT_EQ(stats.failure, BuildFailure::Error) << failAt;
+      EXPECT_FALSE(Storage.exists(INDEX)) << failAt;
+      EXPECT_TRUE(libraryIndexNeedsRefresh());
+      continue;
+    }
+    // Fallible-but-optional allocations (buffers, smaller sort runs) must not
+    // change the result. Duplicate detection and spelling harmonisation may
+    // degrade instead, and the index says so and retries.
+    if (stats.ranksDegraded || stats.dedupDegraded) {
+      LibraryIndexFile index;
+      ASSERT_TRUE(index.open(INDEX)) << failAt;
+      EXPECT_EQ(index.bookCount(), 40) << failAt;
+      EXPECT_TRUE(libraryIndexNeedsRefresh());
+    } else {
+      EXPECT_EQ(fake::files[INDEX]->bytes, reference) << failAt;
+      if (injected) sawRecovery = true;
+    }
+    if (!injected) break;
   }
-  EXPECT_TRUE(foundArrivalFallback);
+  EXPECT_TRUE(sawFailure);
+  EXPECT_TRUE(sawRecovery);
 }
 
 TEST_F(LibraryBuilderTest, AddedRemovedMovedAndRenamedBooksKeepArrivalOrder) {
@@ -923,7 +978,18 @@ TEST_F(LibraryBuilderTest, DuplicateDetectionRemainsBoundedAndFindsTrackedKeysAf
   EXPECT_EQ(stats.books, LIBRARY_MAX_DEDUP_KEYS + 1);
   EXPECT_EQ(stats.duplicatesDropped, 1);
   EXPECT_TRUE(stats.dedupDegraded);
+  EXPECT_FALSE(stats.dedupAllocFailed);
+  // The cap is a property of the card's layout; rescanning would hit it again.
+  EXPECT_FALSE(libraryIndexNeedsRefresh());
   EXPECT_LT(fake::delays, 2000u);
+}
+
+TEST_F(LibraryBuilderTest, UnreadableBooksDoNotKeepTheIndexDirty) {
+  fake::add("/empty.epub", "");
+  ASSERT_TRUE(buildLibraryIndex("/", stats, false));
+  EXPECT_EQ(stats.unreadableSkipped, 1);
+  EXPECT_EQ(stats.books, 2);
+  EXPECT_FALSE(libraryIndexNeedsRefresh());
 }
 
 TEST_F(LibraryBuilderTest, ReadWriteCloseAndAllocationFailuresRetainPreviousIndex) {
@@ -976,8 +1042,9 @@ TEST_F(LibraryBuilderTest, TruncatedPersistedPathHashAbortsAndRetainsTheLiveInde
   EXPECT_FALSE(Storage.exists("/.crosspoint/library.stage.f"));
 }
 
-TEST_F(LibraryBuilderTest, LibrariesPastOldGateAndAtFormatCeilingKeepAllOrders) {
-  for (const unsigned count : {513u, static_cast<unsigned>(CLIX_MAX_RECORDS)}) {
+TEST_F(LibraryBuilderTest, LibrariesPastOldGateAndOldCeilingKeepAllOrders) {
+  // 4,096 books spill two sort runs on a device without PSRAM.
+  for (const unsigned count : {513u, 4096u}) {
     fake::reset();
     bookMetadata.clear();
     std::vector<unsigned> authorOrder(count);
@@ -993,12 +1060,12 @@ TEST_F(LibraryBuilderTest, LibrariesPastOldGateAndAtFormatCeilingKeepAllOrders) 
     ASSERT_EQ(stats.books, count);
     EXPECT_FALSE(stats.ranksDegraded);
 
-    if (count == CLIX_MAX_RECORDS) {
+    if (count == 4096) {
       fake::parses = 0;
       fake::resetIoCounters();
       ASSERT_TRUE(buildLibraryIndex("/", stats, true));
       EXPECT_EQ(fake::parses, 0u);
-      EXPECT_EQ(stats.metadataReused, CLIX_MAX_RECORDS);
+      EXPECT_EQ(stats.metadataReused, 4096);
       // The fixed-size per-directory duplicate tracker is deliberately bounded
       // below the maximum library size, so this index remains degraded. It must
       // rebuild rather than silently preserve an old degraded header.
@@ -1025,40 +1092,49 @@ TEST_F(LibraryBuilderTest, LibrariesPastOldGateAndAtFormatCeilingKeepAllOrders) 
 }
 
 TEST_F(LibraryBuilderTest, BookPastFormatCeilingKeepsPreviousIndex) {
+  EXPECT_EQ(libraryBookLimit(), CLIX_MAX_RECORDS);
   initial();
   const auto previous = fake::files[INDEX]->bytes;
-  for (unsigned i = 0; i < CLIX_MAX_RECORDS - 1; i++) {
-    fake::add("/book" + numbered("", i) + ".epub");
+  for (unsigned i = 0; i < CLIX_MAX_RECORDS - 1u; i++) {
+    fake::add("/shelf" + numbered("", i % 64) + "/book" + numbered("", i) + ".txt");
   }
 
   EXPECT_FALSE(buildLibraryIndex("/", stats, false));
+  EXPECT_EQ(stats.failure, BuildFailure::TooManyBooks);
   EXPECT_EQ(fake::files[INDEX]->bytes, previous);
   EXPECT_FALSE(Storage.exists("/.crosspoint/library.stage"));
   EXPECT_FALSE(Storage.exists("/.crosspoint/library.stage.f"));
 }
 
-TEST_F(LibraryBuilderTest, SortAllocationFailureProducesValidDegradedIndex) {
+TEST_F(LibraryBuilderTest, FormatCeilingLibraryBuildsWithBoundedSortRuns) {
   fake::reset();
-  for (unsigned i = 0; i < 513; i++) fake::add("/book" + numbered("", i) + ".txt");
-  fake::failAlloc = 6;
-
+  constexpr unsigned count = CLIX_MAX_RECORDS;
+  for (unsigned i = 0; i < count; i++) {
+    const unsigned title = (i * 7919u) % count;
+    const std::string path = "/shelf" + numbered("", i % 128) + "/book" + numbered("", i) + ".txt";
+    fake::add(path, std::string(1 + i % 7, 'x'), 3);
+    fake::files[path]->created = 1 + title;
+  }
   ASSERT_TRUE(buildLibraryIndex("/", stats, false));
-  EXPECT_TRUE(fake::failureTriggered);
-  EXPECT_TRUE(stats.ranksDegraded);
-  EXPECT_TRUE(stats.indexReplaced);
+  EXPECT_EQ(stats.books, count);
+  EXPECT_FALSE(stats.ranksDegraded);
 
   LibraryIndexFile index;
   ASSERT_TRUE(index.open(INDEX));
-  EXPECT_EQ(index.bookCount(), 513);
-  EXPECT_NE(index.header().flags & CLIX_FLAG_RANKS_DEGRADED, 0);
-  index.close();
-
-  ASSERT_TRUE(buildLibraryIndex("/", stats, false));
-  EXPECT_TRUE(stats.indexReplaced);
-  EXPECT_FALSE(stats.ranksDegraded);
-  ASSERT_TRUE(index.open(INDEX));
-  EXPECT_EQ(index.header().flags & CLIX_FLAG_RANKS_DEGRADED, 0);
-  EXPECT_EQ(pathAt(index, SortOrder::TitleAsc, 0), "/book0000.txt");
+  ASSERT_EQ(index.bookCount(), count);
+  // Title order is the filename order; arrival order is creation-time order.
+  std::string previousTitle;
+  for (uint16_t row = 0; row < count; row += 257) {
+    const std::string path = pathAt(index, SortOrder::TitleAsc, row);
+    const std::string name = path.substr(path.find_last_of('/') + 1);
+    EXPECT_LT(previousTitle, name) << row;
+    previousTitle = name;
+  }
+  for (const uint16_t row : {0u, 1u, 4095u, 16383u, 32766u}) {
+    const std::string path = pathAt(index, SortOrder::RecentAsc, row);
+    ASSERT_FALSE(path.empty()) << row;
+    EXPECT_EQ(fake::files[path]->created, 1u + row) << row;
+  }
 }
 
 TEST_F(LibraryBuilderTest, PriorDedupDegradationForcesReplacement) {
@@ -1083,6 +1159,7 @@ TEST_F(LibraryBuilderTest, DirtyIndexClearsOnSuccessAndRetriesAfterFailure) {
   invalidateLibraryIndex();
   fake::failOpenPath = "/.crosspoint/library.idx";
   EXPECT_FALSE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(stats.failure, BuildFailure::Error);
   EXPECT_TRUE(libraryIndexNeedsRefresh());
   ASSERT_TRUE(buildLibraryIndex("/", stats, true));
   EXPECT_FALSE(libraryIndexNeedsRefresh());
@@ -1115,4 +1192,367 @@ TEST_F(LibraryBuilderTest, SleepRestorationStillAllowsFileChangesToInvalidate) {
   EXPECT_TRUE(libraryIndexNeedsRefresh());
   initial();
   EXPECT_FALSE(libraryIndexNeedsRefresh());
+}
+
+namespace {
+
+struct BuildProbe {
+  // Cancel once this many EPUBs have been parsed; UINT_MAX never cancels.
+  unsigned cancelAfterParses = ~0u;
+  unsigned progressCalls = 0;
+  bool sawOrganizing = false;
+  uint16_t booksWhenOrganizing = 0;
+
+  static bool cancel(void* context) { return fake::parses >= static_cast<BuildProbe*>(context)->cancelAfterParses; }
+  static void progress(void* context, const BuildProgress& progress) {
+    auto* probe = static_cast<BuildProbe*>(context);
+    probe->progressCalls++;
+    if (progress.phase == BuildPhase::Organizing && !probe->sawOrganizing) {
+      probe->sawOrganizing = true;
+      probe->booksWhenOrganizing = progress.books;
+    }
+  }
+  BuildCallbacks callbacks() {
+    BuildCallbacks callbacks;
+    callbacks.context = this;
+    callbacks.cancelRequested = &cancel;
+    callbacks.progress = &progress;
+    return callbacks;
+  }
+};
+
+}  // namespace
+
+TEST_F(LibraryBuilderTest, CancelledScanKeepsPreviousIndexAndSaysWhy) {
+  initial();
+  const auto previous = fake::files[INDEX]->bytes;
+  for (unsigned i = 0; i < 40; i++) fake::add("/book" + numbered("", i) + ".epub");
+
+  BuildProbe probe;
+  probe.cancelAfterParses = 0;
+  const BuildCallbacks callbacks = probe.callbacks();
+  EXPECT_FALSE(buildLibraryIndex("/", stats, true, &callbacks));
+  EXPECT_EQ(stats.failure, BuildFailure::Cancelled);
+  EXPECT_FALSE(stats.indexReplaced);
+  EXPECT_EQ(fake::files[INDEX]->bytes, previous);
+  EXPECT_FALSE(Storage.exists("/.crosspoint/library.stage"));
+  EXPECT_FALSE(Storage.exists("/.crosspoint/library.stage.f"));
+  EXPECT_FALSE(Storage.exists("/.crosspoint/library.new"));
+  EXPECT_TRUE(libraryIndexNeedsRefresh());
+
+  // Cancellation belongs to one build: the next one without callbacks completes.
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(stats.failure, BuildFailure::None);
+  EXPECT_EQ(stats.books, 42);
+}
+
+TEST_F(LibraryBuilderTest, ProgressReportsBooksFoundAndTheOrganizingPhase) {
+  for (unsigned i = 0; i < 40; i++) fake::add("/book" + numbered("", i) + ".txt");
+  BuildProbe probe;
+  const BuildCallbacks callbacks = probe.callbacks();
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true, &callbacks));
+  EXPECT_EQ(stats.failure, BuildFailure::None);
+  EXPECT_GT(probe.progressCalls, 0u);
+  EXPECT_TRUE(probe.sawOrganizing);
+  EXPECT_EQ(probe.booksWhenOrganizing, 42);
+}
+
+TEST_F(LibraryBuilderTest, CancelledScanKeepsParsedMetadataForTheNextScan) {
+  for (unsigned i = 0; i < 40; i++) {
+    const std::string path = "/book" + numbered("", i) + ".epub";
+    fake::add(path, "book" + numbered("", i), 7);
+    bookMetadata[path].title = numbered("Title ", i);
+    bookMetadata[path].series = "Series";
+    bookMetadata[path].seriesIndex = std::to_string(i);
+  }
+
+  BuildProbe probe;
+  probe.cancelAfterParses = 5;
+  const BuildCallbacks callbacks = probe.callbacks();
+  EXPECT_FALSE(buildLibraryIndex("/", stats, true, &callbacks));
+  EXPECT_EQ(stats.failure, BuildFailure::Cancelled);
+  EXPECT_FALSE(Storage.exists(INDEX));
+  const unsigned parsedBeforeCancel = fake::parses;
+  ASSERT_GE(parsedBeforeCancel, 5u);
+  ASSERT_LT(parsedBeforeCancel, 42u);
+
+  fake::parses = 0;
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(fake::parses, 42u - parsedBeforeCancel);
+  EXPECT_EQ(stats.metadataCached, parsedBeforeCancel);
+  EXPECT_EQ(stats.parsed, 42u - parsedBeforeCancel);
+
+  LibraryIndexFile index;
+  ASSERT_TRUE(index.open(INDEX));
+  for (unsigned i = 0; i < 40; i++) {
+    ClixRecord record{};
+    const std::string path = "/book" + numbered("", i) + ".epub";
+    ASSERT_TRUE(recordAtPath(index, path, record)) << path;
+    EXPECT_EQ(record.metadataStatus, CLIX_METADATA_EXTRACTED);
+    std::string title;
+    std::string series;
+    ASSERT_TRUE(index.readTitle(record, title));
+    ASSERT_TRUE(index.readSeries(record, series));
+    EXPECT_EQ(title, numbered("Title ", i));
+    EXPECT_EQ(series, "Series");
+  }
+  EXPECT_EQ(pathAt(index, SortOrder::SeriesAsc, 0), "/book0000.epub");
+  EXPECT_EQ(pathAt(index, SortOrder::SeriesAsc, 39), "/book0039.epub");
+}
+
+TEST_F(LibraryBuilderTest, CachedMetadataIsIgnoredOnceTheBookChanges) {
+  initial();
+  // Lose the previous index, so only the cache can supply metadata.
+  Storage.remove(INDEX);
+  bookMetadata["/a.epub"].title = "Edited";
+  fake::files["/a.epub"]->time++;
+  fake::parses = 0;
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(fake::parses, 1u);
+  EXPECT_EQ(stats.metadataCached, 1);
+
+  LibraryIndexFile index;
+  ASSERT_TRUE(index.open(INDEX));
+  ClixRecord record{};
+  ASSERT_TRUE(recordAtPath(index, "/a.epub", record));
+  std::string title;
+  ASSERT_TRUE(index.readTitle(record, title));
+  EXPECT_EQ(title, "Edited");
+}
+
+TEST_F(LibraryBuilderTest, DamagedCachedMetadataIsReparsedRatherThanTrusted) {
+  initial();
+  Storage.remove(INDEX);
+  auto& payload = fake::files[LibraryMetadataCache::payloadPath()]->bytes;
+  ASSERT_FALSE(payload.empty());
+  for (auto& byte : payload) byte ^= 0x5A;
+  fake::parses = 0;
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(fake::parses, 2u);
+  EXPECT_EQ(stats.metadataCached, 0);
+
+  // A cache from another version is discarded wholesale.
+  Storage.remove(INDEX);
+  fake::files[LibraryMetadataCache::slotPath()]->bytes[4] = 99;
+  fake::parses = 0;
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(fake::parses, 2u);
+  Storage.remove(INDEX);
+  fake::parses = 0;
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(fake::parses, 0u);
+}
+
+TEST_F(LibraryBuilderTest, FailedExtractionIsNotCached) {
+  bookMetadata["/a.epub"].success = false;
+  initial();
+  Storage.remove(INDEX);
+  fake::parses = 0;
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(fake::parses, 1u);
+  EXPECT_EQ(stats.metadataCached, 1);
+}
+
+TEST_F(LibraryBuilderTest, SpilledAndInRamSortsBuildIdenticalIndexes) {
+  const auto populate = [] {
+    fake::reset();
+    bookMetadata.clear();
+    for (unsigned i = 0; i < 300; i++) {
+      const std::string path = "/b" + numbered("", (i * 37) % 300) + ".epub";
+      fake::add(path, std::string(1 + i, 'x'), 5);
+      fake::files[path]->created = i % 9;
+      auto& metadata = bookMetadata[path];
+      // Long shared prefixes force tie refinement across spilled runs.
+      metadata.title = "The Collected Stories of " + numbered("Volume ", i % 23);
+      metadata.author = i % 11 == 0 ? std::string() : numbered("Ursula Writer ", i % 13);
+      if (i % 4 == 0) metadata.author = numbered("Writer, Ursula ", i % 13);
+      metadata.series = i % 5 == 0 ? std::string() : "A Very Long Series Name That Ties " + numbered("", i % 3);
+      metadata.seriesIndex = std::to_string(i % 17);
+      metadata.genre = numbered("Speculative Fiction Genre ", i % 6);
+    }
+  };
+  populate();
+  fake::psram = true;
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_GT(fake::psramAllocations, 0u);
+  const auto inRam = fake::files[INDEX]->bytes;
+
+  // Twenty-entry runs: 15 runs merged one entry per slice is the worst case.
+  populate();
+  fake::psram = false;
+  setSortRunCapacityForTesting(20);
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(fake::files[INDEX]->bytes, inRam);
+  EXPECT_FALSE(Storage.exists("/.crosspoint/library.runs"));
+
+  // A device without PSRAM now indexes past the old 4,096-book limit too.
+  EXPECT_EQ(libraryBookLimit(), CLIX_MAX_RECORDS);
+}
+
+namespace {
+
+struct SortHarness {
+  std::vector<std::string> values;
+  unsigned loads = 0;
+  static bool load(void* context, const uint16_t source, const size_t offset, char* segment, size_t& valueBytes) {
+    static_cast<SortHarness*>(context)->loads++;
+    const auto& value = static_cast<SortHarness*>(context)->values[source];
+    valueBytes = value.size();
+    std::memset(segment, 0, SORT_SEGMENT_BYTES);
+    if (offset < value.size())
+      std::memcpy(segment, value.data() + offset, std::min(value.size() - offset, SORT_SEGMENT_BYTES));
+    return true;
+  }
+  static bool collect(void* context, const SortEntry& entry) {
+    static_cast<std::vector<uint16_t>*>(context)->push_back(entry.ordinal);
+    return true;
+  }
+};
+
+}  // namespace
+
+TEST_F(LibraryBuilderTest, ExternalSorterMatchesAFullSortAtEveryRunSize) {
+  std::mt19937 random(7);
+  SortHarness harness;
+  for (unsigned i = 0; i < 1000; i++) {
+    // Values share long prefixes, and some are "unknown" (all-0xFF prefix).
+    std::string value = i % 10 == 0 ? std::string() : "shared-prefix-" + std::to_string(random() % 40);
+    if (i % 3 == 0) value += "-and-a-much-longer-shared-tail-" + std::to_string(random() % 5);
+    harness.values.push_back(value);
+  }
+  std::vector<uint16_t> expected(harness.values.size());
+  std::iota(expected.begin(), expected.end(), 0);
+  std::stable_sort(expected.begin(), expected.end(), [&](const uint16_t a, const uint16_t b) {
+    const auto& left = harness.values[a];
+    const auto& right = harness.values[b];
+    if (left.empty() || right.empty()) return !left.empty() && right.empty();
+    return left < right;
+  });
+
+  for (const uint16_t capacity : {uint16_t{0}, uint16_t{40}, uint16_t{97}, uint16_t{1000}}) {
+    setSortRunCapacityForTesting(capacity);
+    SortConfig config;
+    config.runPath = "/.crosspoint/test.runs";
+    config.keyBytes = 72;
+    config.load = &SortHarness::load;
+    config.loadContext = &harness;
+    ExternalSorter sorter;
+    ASSERT_TRUE(sorter.begin(config, static_cast<uint16_t>(harness.values.size())));
+    // Entries arrive shuffled so runs are not already in order.
+    std::vector<uint16_t> arrival(expected);
+    std::shuffle(arrival.begin(), arrival.end(), random);
+    for (const uint16_t source : arrival) {
+      SortEntry entry{};
+      if (harness.values[source].empty())
+        std::memset(entry.key, 0xFF, sizeof(entry.key));
+      else {
+        size_t valueBytes = 0;
+        SortHarness::load(&harness, source, 0, entry.key, valueBytes);
+      }
+      entry.ordinal = source;
+      entry.source = source;
+      ASSERT_TRUE(sorter.add(entry));
+    }
+    std::vector<uint16_t> sorted;
+    ASSERT_TRUE(sorter.finish(&SortHarness::collect, &sorted)) << capacity;
+    EXPECT_EQ(sorted, expected) << capacity;
+    EXPECT_FALSE(Storage.exists(config.runPath));
+  }
+}
+
+TEST_F(LibraryBuilderTest, ExternalSorterRetriesWithASmallerBufferAfterAllocationFailure) {
+  SortConfig config;
+  config.runPath = "/.crosspoint/test.runs";
+  ExternalSorter sorter;
+  fake::failAlloc = 0;
+  ASSERT_TRUE(sorter.begin(config, 3000));
+  EXPECT_TRUE(fake::failureTriggered);
+  for (uint16_t i = 0; i < 3000; i++) {
+    SortEntry entry{};
+    entry.key[0] = static_cast<char>(i % 251);
+    entry.ordinal = i;
+    ASSERT_TRUE(sorter.add(entry));
+  }
+  EXPECT_TRUE(sorter.spilled());
+  std::vector<uint16_t> sorted;
+  ASSERT_TRUE(sorter.finish(&SortHarness::collect, &sorted));
+  ASSERT_EQ(sorted.size(), 3000u);
+  for (size_t i = 1; i < sorted.size(); i++) {
+    const auto key = [](const uint16_t ordinal) { return std::make_pair(ordinal % 251, ordinal); };
+    EXPECT_LT(key(sorted[i - 1]), key(sorted[i]));
+  }
+}
+
+TEST_F(LibraryBuilderTest, SpilledMergeOfEqualLongKeysLoadsEachEntryOnlyAFewTimes) {
+  // A Calibre library where every book shares one genre: equal values must
+  // stop refining at the end of the value, not at the 517-byte key limit.
+  setSortRunCapacityForTesting(256);
+  SortHarness harness;
+  harness.values.assign(3000, "fiction");
+  SortConfig config;
+  config.runPath = "/.crosspoint/test.runs";
+  config.keyBytes = 517;
+  config.load = &SortHarness::load;
+  config.loadContext = &harness;
+  ExternalSorter sorter;
+  ASSERT_TRUE(sorter.begin(config, 3000));
+  for (uint16_t i = 0; i < 3000; i++) {
+    SortEntry entry{};
+    size_t valueBytes = 0;
+    SortHarness::load(&harness, i, 0, entry.key, valueBytes);
+    entry.ordinal = static_cast<uint16_t>(2999 - i);
+    entry.source = i;
+    ASSERT_TRUE(sorter.add(entry));
+  }
+  harness.loads = 0;
+  std::vector<uint16_t> sorted;
+  ASSERT_TRUE(sorter.finish(&SortHarness::collect, &sorted));
+  ASSERT_EQ(sorted.size(), 3000u);
+  for (uint16_t i = 0; i < 3000; i++) EXPECT_EQ(sorted[i], i);
+  EXPECT_LT(harness.loads, 3u * 3000u);
+}
+
+TEST_F(LibraryBuilderTest, SpilledMergeOfEqualValuesLongerThanTwoSegmentsStaysBounded) {
+  // BISAC-style subjects and long series names tie well past 24 bytes.
+  setSortRunCapacityForTesting(256);
+  SortHarness harness;
+  harness.values.assign(3000, "fiction / science fiction / space opera / general");
+  SortConfig config;
+  config.runPath = "/.crosspoint/test.runs";
+  config.keyBytes = 517;
+  config.load = &SortHarness::load;
+  config.loadContext = &harness;
+  ExternalSorter sorter;
+  ASSERT_TRUE(sorter.begin(config, 3000));
+  for (uint16_t i = 0; i < 3000; i++) {
+    SortEntry entry{};
+    size_t valueBytes = 0;
+    SortHarness::load(&harness, i, 0, entry.key, valueBytes);
+    entry.ordinal = static_cast<uint16_t>(2999 - i);
+    entry.source = i;
+    ASSERT_TRUE(sorter.add(entry));
+  }
+  harness.loads = 0;
+  std::vector<uint16_t> sorted;
+  ASSERT_TRUE(sorter.finish(&SortHarness::collect, &sorted));
+  ASSERT_EQ(sorted.size(), 3000u);
+  for (uint16_t i = 0; i < 3000; i++) EXPECT_EQ(sorted[i], i);
+  // Four segments past the prefix, loaded once per entry in its run and once
+  // more as a merge head; never once per comparison.
+  EXPECT_LT(harness.loads, 10u * 3000u);
+}
+
+TEST_F(LibraryBuilderTest, CancellingWhileCreatingTheMetadataCacheLeavesNoPartialTable) {
+  for (unsigned i = 0; i < 4; i++) fake::add("/book" + numbered("", i) + ".epub");
+  BuildProbe probe;
+  probe.cancelAfterParses = 1;
+  const BuildCallbacks callbacks = probe.callbacks();
+  EXPECT_FALSE(buildLibraryIndex("/", stats, true, &callbacks));
+  EXPECT_EQ(stats.failure, BuildFailure::Cancelled);
+  // Either the table was completed before the cancel landed, or it is gone.
+  if (Storage.exists(LibraryMetadataCache::slotPath())) {
+    EXPECT_EQ(fake::files[LibraryMetadataCache::slotPath()]->bytes.size(), 512u + 65536u * 16u);
+  }
+  ASSERT_TRUE(buildLibraryIndex("/", stats, true));
+  EXPECT_EQ(stats.books, 6);
 }

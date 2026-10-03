@@ -2,6 +2,7 @@
 
 ### Added
 
+- Assign a physical-button-only Home/Reader shortcut that returns from nested reader menus directly to the open book, and otherwise returns Home.
 - Turn reading stats tracking on or off for the whole device or individual EPUB and XTC books, while keeping saved history and Time Left estimates.
 - Assign separate short-press and long-press actions to the Left/Up and Right/Down side buttons; existing side-button layouts migrate to matching individual actions.
 - Assign a side-button shortcut to flip the reading screen 180°, alongside clockwise and counterclockwise turns.
@@ -13,10 +14,13 @@
 - View a selected book's reading stats from its Library or File Browser action menu.
 - Reset a book's reader settings from the in-reader Settings tab.
 - View chapter pages and book progress in the X4 Pro frontlight drawer while reading.
-- Add a Cover Grid Home theme on devices with PSRAM, showing the current book and six library covers.
+- Add a Cover Grid Home theme on devices with PSRAM, showing the current book and six recently opened books.
 - Show small EPUB images within the surrounding text line instead of separating them from the paragraph.
 - Sort web portal files by name or size, browse folder images from the preview, and control file dialogs with Enter and Escape.
 - OPDS catalogs show category book counts and clearer folder names.
+- EPUB headings and whole text blocks can use different font sizes with built-in scalable fonts and TTF fonts on ESP32-S3 devices.
+- Add a Display toggle to swap Library and File Browser on the Minimal and Dashboard home screens.
+- Choose Clock, Date, Battery, or Empty for the left, center, and right of the Display status bar; dates are also available in reader status bars and follow the selected date format.
 
 ### Changed
 
@@ -38,6 +42,11 @@
 - The web portal uses less firmware space when the pinned esbuild minifier is available.
 - Built-in fonts use less firmware space while preserving their supported characters, ligatures, kerning, and rendered appearance.
 - SD-card reads keep filesystem metadata cached separately from book and font data to reduce repeated card access.
+- Repeated EPUB progress saves avoid rewriting identical positions and Home percentages.
+- Restoring a position in a long EPUB chapter reads its page lookup table in small batches.
+- Library searches skip reading completion history for books that do not match the search.
+- Library scans count the books found so far and can be cancelled with Back or a tap, keeping the previous Library. A card with more books than the Library can hold now says so instead of reporting a generic failure.
+- Library keeps book metadata as each EPUB is read, so a cancelled or interrupted scan resumes where it stopped instead of starting over.
 
 ### Fixed
 
@@ -90,6 +99,10 @@
 - German date-setting labels are translated.
 - EPUB metadata indexing uses bounded scratch memory for books with very large chapter counts.
 - OPDS pagination returns to the parent catalog correctly, and rename dialogs keep file extensions outside the initial selection.
+- Correct X3 battery capacity calibration when the fuel gauge still uses its factory default or an oversized learned capacity.
+- Reopen EPUBs on the last page read after following in-book links, and retain the three most recent Back destinations across closing, sleep, and KOReader sync. Transient footnote previews still return to their immediate reading page.
+- On X4 Pro and Sticky, Library indexes up to 32,767 books instead of failing on cards with more than 4,096.
+- On X3 and X4, Library also indexes up to 32,767 books. Sorting uses the SD card once a library outgrows a fixed memory buffer, so a large library uses no more memory than a small one.
 
 ### Security
 

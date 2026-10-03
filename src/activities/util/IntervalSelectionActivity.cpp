@@ -253,8 +253,18 @@ void IntervalSelectionActivity::buildSliderScreen(UiApp::ScreenType& screen) {
   fui::TextStyle endpointStyle = screen.theme().bodyText;
   endpointStyle.align = fui::TextAlign::Center;
   const int16_t endpointY = static_cast<int16_t>(band.bottom() + READER_SLIDER_SCALE_GAP);
-  screen.target().text(fui::Rect{band.x, endpointY, stepWidth, lineHeight}, minimumLabel, endpointStyle);
-  screen.target().text(fui::Rect{plusX, endpointY, stepWidth, lineHeight}, maximumLabel, endpointStyle);
+  const int16_t minimumWidth = std::min<int16_t>(
+      band.width / 2,
+      std::max(stepWidth, screen.target().measureText(endpointStyle.font, minimumLabel, endpointStyle).width));
+  screen.target().text(fui::Rect{band.x, endpointY, minimumWidth, lineHeight}, minimumLabel, endpointStyle);
+
+  // Anchor the maximum label to the centered + text, leaving the button's outer padding clear.
+  const int16_t plusWidth = screen.target().measureText(step.text.font, "+", step.text).width;
+  const int16_t maximumRight = static_cast<int16_t>(plusX + (stepWidth - plusWidth) / 2 + plusWidth);
+  const int16_t maximumLeft = static_cast<int16_t>(band.x + band.width / 2);
+  endpointStyle.align = fui::TextAlign::Right;
+  screen.target().text(fui::Rect{maximumLeft, endpointY, static_cast<int16_t>(maximumRight - maximumLeft), lineHeight},
+                       maximumLabel, endpointStyle);
 }
 
 void IntervalSelectionActivity::onSliderEvent(const fui::ActionEvent& event, void* user) {

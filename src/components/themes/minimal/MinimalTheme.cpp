@@ -415,19 +415,10 @@ void MinimalTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char
   (void)readerContext;
 
   renderer.fillRect(rect.x, rect.y, rect.width, rect.height, false);
-  const bool showBatteryPercentage =
-      SETTINGS.hideBatteryPercentage != CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
-  const int batteryX = rect.x + rect.width - StatusBarMetrics::sideInset - MinimalMetrics::values.batteryWidth;
-  const int batteryY = rect.y + UITheme::getTopStatusBarInset(renderer) + homeHeaderTopInset;
-  if (showStatus) {
-    drawBatteryRight(
-        renderer, Rect{batteryX, batteryY, MinimalMetrics::values.batteryWidth, MinimalMetrics::values.batteryHeight},
-        showBatteryPercentage);
-  }
 
   if (title) {
     constexpr int titleInsetX = 12;
-    const int titleRight = showStatus ? batteryX : rect.x + rect.width - 12;
+    const int titleRight = rect.x + rect.width - 12;
     const int maxTitleWidth = titleRight - rect.x - titleInsetX - MinimalMetrics::values.contentSidePadding;
     auto truncatedTitle = renderer.truncatedText(UI_12_FONT_ID, title, maxTitleWidth, EpdFontFamily::BOLD);
     renderer.drawText(UI_12_FONT_ID, rect.x + titleInsetX, rect.y + MinimalMetrics::values.batteryBarHeight + 3,
@@ -436,7 +427,7 @@ void MinimalTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char
   }
 
   if (showStatus) {
-    drawTopStatusBarClock(renderer, rect.y, nullptr, false, homeHeaderClockTextYOffset(renderer));
+    drawDisplayStatusBar(renderer, rect.y);
   }
 }
 

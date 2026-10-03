@@ -370,6 +370,8 @@ bool HalScalableFont::openSource(const uint8_t* bytes, size_t size, const bool s
                                  const bool temporary) {
   ScalableFontAccess access;
   if (font_.ready() || !runtime().begin()) return false;
+  // One bounded PSRAM allocation per face; descriptors stay stable while registered.
+  // Glyph pixels and FreeType scratch still share the existing fixed pools.
   sizesStorage_ = makeAlignedByteBufferNoThrow(sizeof(Size) * SizeCount, Pool);
   sizes_ = reinterpret_cast<Size*>(sizesStorage_.get());
   if (sizes_)
@@ -749,6 +751,8 @@ const EpdFont* HalScalableFont::atSize(uint8_t points) {
     size.points = points;
     auto& d = size.data;
     d.is2Bit = true;
+    d.sizeFamily = this;
+    d.pointSize = points;
     d.glyphMissCtx = &size;
     d.dynamicGlyphHandler = glyph;
     d.bitmapHandler = bitmap;

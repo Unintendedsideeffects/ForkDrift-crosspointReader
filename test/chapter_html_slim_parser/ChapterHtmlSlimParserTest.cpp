@@ -53,6 +53,123 @@ class ChapterHtmlSlimParserTest : public ::testing::TestWithParam<const char*> {
   }
 };
 
+TEST_F(ChapterHtmlSlimParserTest, BlockquoteParagraphsInheritItalicAndRestoreFollowingText) {
+  cssParser.rulesBySelector_["blockquote"] =
+      CssParser::parseInlineStyle("margin-left: 2em; margin-right: 1em; font-style: italic");
+  ChapterHtmlSlimParser::startElement(&parser, "blockquote", nullptr);
+
+  for (int i = 0; i < 2; ++i) {
+    ChapterHtmlSlimParser::startElement(&parser, "p", nullptr);
+    ChapterHtmlSlimParser::characterData(&parser, "Quoted", 6);
+    // Closing the paragraph must flush its final word before changing styles.
+    ChapterHtmlSlimParser::endElement(&parser, "p");
+    ASSERT_EQ(parser.currentTextBlock->size(), 1u);
+    EXPECT_EQ(parser.currentTextBlock->getWordStyleAt(0), EpdFontFamily::ITALIC);
+    EXPECT_TRUE(parser.effectiveItalic);
+    EXPECT_EQ(parser.inlineStyleCount_, 1u);
+  }
+
+  ChapterHtmlSlimParser::endElement(&parser, "blockquote");
+  EXPECT_EQ(parser.inlineStyleCount_, 0u);
+  EXPECT_FALSE(parser.effectiveItalic);
+  ChapterHtmlSlimParser::startElement(&parser, "p", nullptr);
+  ChapterHtmlSlimParser::characterData(&parser, "Following", 9);
+  ChapterHtmlSlimParser::endElement(&parser, "p");
+  ASSERT_EQ(parser.currentTextBlock->size(), 1u);
+  EXPECT_EQ(parser.currentTextBlock->getWordStyleAt(0), EpdFontFamily::REGULAR);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, NestedBlocksOverrideAndRestoreInheritedBoldAndItalic) {
+  const XML_Char* parentAttributes[] = {"style", "font-weight: bold; font-style: italic", nullptr};
+  const XML_Char* normalAttributes[] = {"style", "font-weight: normal; font-style: normal", nullptr};
+  const XML_Char* italicAttributes[] = {"style", "font-style: italic", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "div", parentAttributes);
+  ChapterHtmlSlimParser::startElement(&parser, "p", normalAttributes);
+  ChapterHtmlSlimParser::characterData(&parser, "Normal ", 7);
+  ASSERT_EQ(parser.currentTextBlock->size(), 1u);
+  EXPECT_EQ(parser.currentTextBlock->getWordStyleAt(0), EpdFontFamily::REGULAR);
+
+  ChapterHtmlSlimParser::startElement(&parser, "span", italicAttributes);
+  ChapterHtmlSlimParser::characterData(&parser, "Italic", 6);
+  ChapterHtmlSlimParser::endElement(&parser, "span");
+  ASSERT_EQ(parser.currentTextBlock->size(), 2u);
+  EXPECT_EQ(parser.currentTextBlock->getWordStyleAt(1), EpdFontFamily::ITALIC);
+  ChapterHtmlSlimParser::characterData(&parser, "Normal", 6);
+  ChapterHtmlSlimParser::endElement(&parser, "p");
+  ASSERT_EQ(parser.currentTextBlock->size(), 3u);
+  EXPECT_EQ(parser.currentTextBlock->getWordStyleAt(2), EpdFontFamily::REGULAR);
+
+  ChapterHtmlSlimParser::startElement(&parser, "p", nullptr);
+  ChapterHtmlSlimParser::characterData(&parser, "Inherited", 9);
+  ChapterHtmlSlimParser::endElement(&parser, "p");
+  ASSERT_EQ(parser.currentTextBlock->size(), 1u);
+  EXPECT_EQ(parser.currentTextBlock->getWordStyleAt(0),
+            static_cast<EpdFontFamily::Style>(EpdFontFamily::BOLD | EpdFontFamily::ITALIC));
+  ChapterHtmlSlimParser::endElement(&parser, "div");
+  EXPECT_FALSE(parser.effectiveBold);
+  EXPECT_FALSE(parser.effectiveItalic);
+  EXPECT_EQ(parser.inlineStyleCount_, 0u);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, NestedHeadingAndListPreserveBlockFontInheritance) {
+  const XML_Char* attributes[] = {"style", "font-style: italic", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "blockquote", attributes);
+  ChapterHtmlSlimParser::startElement(&parser, "h2", nullptr);
+  EXPECT_TRUE(parser.effectiveItalic);
+  ChapterHtmlSlimParser::characterData(&parser, "Heading", 7);
+  ChapterHtmlSlimParser::endElement(&parser, "h2");
+  ASSERT_EQ(parser.currentTextBlock->size(), 1u);
+  EXPECT_EQ(parser.currentTextBlock->getWordStyleAt(0),
+            static_cast<EpdFontFamily::Style>(EpdFontFamily::BOLD | EpdFontFamily::ITALIC));
+
+  ChapterHtmlSlimParser::startElement(&parser, "ul", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "li", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "p", nullptr);
+  ChapterHtmlSlimParser::characterData(&parser, "Item", 4);
+  ChapterHtmlSlimParser::endElement(&parser, "p");
+  ASSERT_EQ(parser.currentTextBlock->size(), 2u);
+  EXPECT_EQ(parser.currentTextBlock->getWordStyleAt(1), EpdFontFamily::ITALIC);
+  ChapterHtmlSlimParser::endElement(&parser, "li");
+  ChapterHtmlSlimParser::endElement(&parser, "ul");
+  ChapterHtmlSlimParser::endElement(&parser, "blockquote");
+  EXPECT_FALSE(parser.effectiveItalic);
+  EXPECT_EQ(parser.inlineStyleCount_, 0u);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, TableCellBlocksInheritOverrideAndRestoreFontStyles) {
+  const XML_Char* parentAttributes[] = {"style", "font-weight: bold; font-style: italic", nullptr};
+  const XML_Char* normalAttributes[] = {"style", "font-weight: normal; font-style: normal", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "table", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "tr", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "td", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "blockquote", parentAttributes);
+  ChapterHtmlSlimParser::startElement(&parser, "p", nullptr);
+  ChapterHtmlSlimParser::characterData(&parser, "Quoted", 6);
+  ChapterHtmlSlimParser::endElement(&parser, "p");
+  ASSERT_EQ(parser.currentTextBlock->size(), 1u);
+  EXPECT_EQ(parser.currentTextBlock->getWordStyleAt(0),
+            static_cast<EpdFontFamily::Style>(EpdFontFamily::BOLD | EpdFontFamily::ITALIC));
+
+  ChapterHtmlSlimParser::startElement(&parser, "p", normalAttributes);
+  ChapterHtmlSlimParser::characterData(&parser, "Normal", 6);
+  ChapterHtmlSlimParser::endElement(&parser, "p");
+  ASSERT_EQ(parser.currentTextBlock->size(), 2u);
+  EXPECT_EQ(parser.currentTextBlock->getWordStyleAt(1), EpdFontFamily::REGULAR);
+  EXPECT_TRUE(parser.effectiveBold);
+  EXPECT_TRUE(parser.effectiveItalic);
+
+  ChapterHtmlSlimParser::endElement(&parser, "blockquote");
+  ChapterHtmlSlimParser::startElement(&parser, "p", nullptr);
+  ChapterHtmlSlimParser::characterData(&parser, "Following", 9);
+  ChapterHtmlSlimParser::endElement(&parser, "p");
+  ASSERT_EQ(parser.currentTextBlock->size(), 3u);
+  EXPECT_EQ(parser.currentTextBlock->getWordStyleAt(2), EpdFontFamily::REGULAR);
+  ChapterHtmlSlimParser::endElement(&parser, "td");
+  EXPECT_EQ(parser.inlineStyleCount_, 0u);
+  ChapterHtmlSlimParser::endElement(&parser, "tr");
+  ChapterHtmlSlimParser::endElement(&parser, "table");
+}
+
 TEST_F(ChapterHtmlSlimParserTest, InheritsBodyTextIndentAndPreservesExplicitParagraphZero) {
   parser.cssParser->rulesBySelector_[".class-0"] =
       CssParser::parseInlineStyle("text-indent: 1.5em; text-align: justify");
@@ -516,4 +633,139 @@ TEST_F(ChapterHtmlSlimParserTest, HiddenNestedListDoesNotResetOuterCounter) {
   EXPECT_EQ(parser.currentTextBlock->words[0], "2.");
 }
 
+}  // namespace
+
+namespace {
+TEST_F(ChapterHtmlSlimParserTest, ScalableHeadingLevelsAndBodySizeCeiling) {
+  renderer.scalableBaseSize = 12;
+  const XML_Char* attrs[] = {nullptr};
+  const uint8_t expected[] = {24, 18, 14, 12, 10, 8};
+  for (int level = 1; level <= 6; ++level) {
+    const char tag[] = {'h', static_cast<char>('0' + level), 0};
+    ChapterHtmlSlimParser::startElement(&parser, tag, attrs);
+    EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, expected[level - 1]);
+    ChapterHtmlSlimParser::endElement(&parser, tag);
+  }
+  renderer.scalableBaseSize = 22;
+  ChapterHtmlSlimParser::startElement(&parser, "h1", attrs);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 44);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, BlockSizesInheritAndRestoreAcrossSiblings) {
+  renderer.scalableBaseSize = 12;
+  const XML_Char* parent[] = {"style", "font-size: 150%", nullptr};
+  const XML_Char* child[] = {"style", "font-size: 0.5em", nullptr};
+  const XML_Char* plain[] = {nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "div", parent);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 18);
+  ChapterHtmlSlimParser::startElement(&parser, "p", child);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 9);
+  ChapterHtmlSlimParser::characterData(&parser, "Small", 5);
+  ChapterHtmlSlimParser::endElement(&parser, "p");
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 18);
+  ChapterHtmlSlimParser::characterData(&parser, "Parent", 6);
+  ChapterHtmlSlimParser::startElement(&parser, "p", plain);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 18);
+  ChapterHtmlSlimParser::endElement(&parser, "p");
+  ChapterHtmlSlimParser::endElement(&parser, "div");
+  ChapterHtmlSlimParser::startElement(&parser, "p", plain);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 12);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, TextAfterTableKeepsParentFontSize) {
+  renderer.scalableBaseSize = 12;
+  const XML_Char* parent[] = {"style", "font-size: 150%", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "div", parent);
+  ChapterHtmlSlimParser::startElement(&parser, "table", nullptr);
+  ChapterHtmlSlimParser::endElement(&parser, "table");
+  ASSERT_NE(parser.currentTextBlock, nullptr);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 18);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontScale, 384);
+  ChapterHtmlSlimParser::characterData(&parser, "Parent", 6);
+  ChapterHtmlSlimParser::endElement(&parser, "div");
+  ASSERT_NE(parser.currentPage, nullptr);
+  ASSERT_FALSE(parser.currentPage->elements.empty());
+  const auto& line = static_cast<const PageLine&>(*parser.currentPage->elements.back());
+  EXPECT_EQ(line.getBlock()->getBlockStyle().fontSize, 18);
+  EXPECT_EQ(line.getBlock()->getBlockStyle().lineHeight, 36);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, RootRelativeSizesAndAbsoluteSizesRespectReaderZoom) {
+  renderer.scalableBaseSize = 16;
+  const XML_Char* html[] = {"style", "font-size: 125%", nullptr};
+  const XML_Char* body[] = {"style", "font-size: 150%", nullptr};
+  const XML_Char* rem[] = {"style", "font-size: 1rem", nullptr};
+  const XML_Char* points[] = {"style", "font-size: 12pt", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "html", html);
+  ChapterHtmlSlimParser::startElement(&parser, "body", body);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 30);
+  ChapterHtmlSlimParser::startElement(&parser, "p", rem);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 20);
+  ChapterHtmlSlimParser::endElement(&parser, "p");
+  ChapterHtmlSlimParser::startElement(&parser, "p", points);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 16);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, PublisherSizeOverridesHeadingDefaultAndInlineSizesStayUniform) {
+  renderer.scalableBaseSize = 12;
+  const XML_Char* heading[] = {"style", "font-size: 150%", nullptr};
+  const XML_Char* span[] = {"style", "font-size: 300%", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "h1", heading);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 18);
+  ChapterHtmlSlimParser::startElement(&parser, "span", span);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 18);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, BitmapAndLightModesKeepUniformSize) {
+  const XML_Char* heading[] = {"style", "font-size: 200%", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "h1", heading);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 0);
+  ChapterHtmlSlimParser::endElement(&parser, "h1");
+  renderer.scalableBaseSize = 12;
+  parser.renderMode = EpubRenderMode::Light;
+  ChapterHtmlSlimParser::startElement(&parser, "h1", heading);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 0);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, DisabledPublisherStylingKeepsSemanticHeadings) {
+  renderer.scalableBaseSize = 12;
+  parser.embeddedStyle = false;
+  const XML_Char* heading[] = {"style", "font-size: 300%", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "h2", heading);
+  EXPECT_EQ(parser.currentTextBlock->getBlockStyle().fontSize, 18);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, LargerHeadingsWrapAndReserveTheirActualHeight) {
+  renderer.scalableBaseSize = 12;
+  renderer.textAdvancePerChar = 4;
+  parser.viewportWidth = 100;
+  const XML_Char* attrs[] = {nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "h1", attrs);
+  const char* text = "four four four four four four four four";
+  ChapterHtmlSlimParser::characterData(&parser, text, std::strlen(text));
+  ChapterHtmlSlimParser::endElement(&parser, "h1");
+  ASSERT_NE(parser.currentPage, nullptr);
+  ASSERT_GT(parser.currentPage->elements.size(), 2u);
+  int previousY = -48;
+  for (const auto& element : parser.currentPage->elements) {
+    ASSERT_EQ(element->getTag(), TAG_PageLine);
+    const auto& line = static_cast<const PageLine&>(*element);
+    EXPECT_EQ(line.getBlock()->getBlockStyle().fontSize, 24);
+    EXPECT_EQ(line.getBlock()->getBlockStyle().lineHeight, 48);
+    EXPECT_GE(line.yPos - previousY, 48);
+    previousY = line.yPos;
+  }
+}
+
+TEST(CssFontSizeTest, StrictValuesAndCascade) {
+  for (const char* value : {"12badpx", "12foorem", "10vw", "12", "nanem", "-2em", "0px"}) {
+    EXPECT_FALSE(CssParser::parseInlineStyle(std::string("font-size: ") + value).hasFontSize()) << value;
+  }
+  for (const char* value : {"150%", "1.25em", "1rem", "12pt", "16px", "larger", "small", "inherit"}) {
+    EXPECT_TRUE(CssParser::parseInlineStyle(std::string("font-size: ") + value).hasFontSize()) << value;
+  }
+  const auto style = CssParser::parseInlineStyle("font-size: 150%; font-size: nonsense");
+  EXPECT_TRUE(style.hasFontSize());
+  EXPECT_FLOAT_EQ(style.fontSize.value, 150);
+}
 }  // namespace

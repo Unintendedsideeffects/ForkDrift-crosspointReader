@@ -428,6 +428,8 @@ inline uint8_t shortcutRawValue(const ShortcutOptionCatalog catalog, const Cross
           return Chord::CHORD_TOGGLE_TOUCHSCREEN;
         case Action::QUICK_LOCK:
           return Chord::CHORD_QUICK_LOCK;
+        case Action::HOME_READER:
+          return Chord::CHORD_HOME_READER;
         case Action::TOGGLE_TILT_PAGE_TURN:
           return SHORTCUT_OPTION_UNAVAILABLE;
         default:
@@ -492,6 +494,7 @@ inline uint8_t shortcutRawValue(const ShortcutOptionCatalog catalog, const Cross
         case Action::TOGGLE_HOME_BUTTON_IN_READER:
         case Action::TOGGLE_FRONTLIGHT:
         case Action::TOGGLE_TOUCHSCREEN:
+        case Action::HOME_READER:
           return SHORTCUT_OPTION_UNAVAILABLE;
         default:
           return SHORTCUT_OPTION_UNAVAILABLE;
@@ -502,6 +505,7 @@ inline uint8_t shortcutRawValue(const ShortcutOptionCatalog catalog, const Cross
         case Action::TOGGLE_TILT_PAGE_TURN:
         case Action::TOGGLE_HOME_BUTTON_IN_READER:
         case Action::TOGGLE_FRONTLIGHT:
+        case Action::HOME_READER:
           return SHORTCUT_OPTION_UNAVAILABLE;
         default:
           return static_cast<uint8_t>(action);
@@ -980,13 +984,14 @@ inline std::vector<SettingInfo> buildGroupedDisplaySettingsList(const std::vecto
   if (Frontlight.present()) {
     displaySettings.push_back(SettingInfo::Submenu(StrId::STR_FRONTLIGHT, SettingAction::DisplayFrontlight));
   }
+  displaySettings.push_back(SettingInfo::Action(StrId::STR_STATUS_BAR, SettingAction::DisplayStatusBar));
   addDisplaySetting(StrId::STR_HIDE_BATTERY);
-  if (halClock.isAvailable()) {
-    addDisplaySetting(StrId::STR_CLOCK_OUTSIDE_READER);
-  }
   addDisplaySetting(StrId::STR_REFRESH_FREQ);
   addDisplaySetting(StrId::STR_NIGHT_MODE);
   addDisplaySetting(StrId::STR_UI_THEME);
+  if (SETTINGS.supportsLibraryFileBrowserSwap()) {
+    addDisplaySetting(StrId::STR_SWAP_LIBRARY_FILE_BROWSER);
+  }
   addDisplaySetting(StrId::STR_UI_SCALE);
   addDisplaySetting(StrId::STR_SUNLIGHT_FADING_FIX);
 

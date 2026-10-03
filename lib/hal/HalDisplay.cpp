@@ -3,6 +3,17 @@
 
 #include "HalSpiBus.h"
 
+namespace {
+template <typename Display>
+bool restoreVisibleFrameIfSupported(Display& display) {
+  if constexpr (requires { display.restoreVisibleFrame(); }) {
+    return display.restoreVisibleFrame();
+  }
+  // Older SDK revisions rely on the normal wake refresh instead.
+  return false;
+}
+}  // namespace
+
 // Global HalDisplay instance
 HalDisplay display;
 
@@ -81,7 +92,7 @@ bool HalDisplay::restoreVisibleFrame() {
   return false;
 #else
   HalSpiBus::Lock spiLock;
-  return einkDisplay.restoreVisibleFrame();
+  return restoreVisibleFrameIfSupported(einkDisplay);
 #endif
 }
 

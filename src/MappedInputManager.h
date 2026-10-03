@@ -297,6 +297,7 @@ class MappedInputManager {
   std::array<bool, BUTTON_COUNT> simulatorReleased{};
   std::array<bool, BUTTON_COUNT> simulatorHeld{};
   std::array<unsigned long, BUTTON_COUNT> simulatorPressStart{};
+  std::array<unsigned long, BUTTON_COUNT> simulatorReleasedHeldTime{};
 #if CROSSINK_APP_CAP_TOUCH
   struct SimulatorTouch {
     bool pressed = false;
