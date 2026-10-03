@@ -615,10 +615,7 @@ void XtcReaderActivity::syncStatsTrackingState() {
   if (active == statsTrackingActive) return;
   if (statsTrackingActive) {
     pendingStatsCommit = true;
-    if (stats.save(xtc->getCachePath())) {
-      globalStats.save();
-      pendingStatsCommit = false;
-    }
+    commitReadingStats();
   }
   statsTrackingActive = active;
   sessionReadingSeconds = 0;
@@ -770,7 +767,7 @@ void XtcReaderActivity::commitReadingStats() {
   if (!xtc) {
     return;
   }
-  if (statsTrackingActive) recordCurrentPageReadingTime("reader_exit");
+  if (statsTrackingActive) recordCurrentPageReadingTime("session_commit");
   const uint32_t elapsedSecs = sessionReadingSeconds;
   if (statsTrackingActive && elapsedSecs >= 60) {
     stats.sessionCount++;
@@ -787,8 +784,12 @@ void XtcReaderActivity::commitReadingStats() {
       stats.startDate = sessionStartLocalDateTime.date;
     }
   }
+  sessionReadingSeconds = 0;
   if (statsTrackingActive || paceDirty || pendingStatsCommit) {
-    if (stats.save(xtc->getCachePath()) && (statsTrackingActive || pendingStatsCommit)) globalStats.save();
+    if (stats.save(xtc->getCachePath()) && (statsTrackingActive || pendingStatsCommit)) {
+      globalStats.save();
+      pendingStatsCommit = false;
+    }
   }
 }
 

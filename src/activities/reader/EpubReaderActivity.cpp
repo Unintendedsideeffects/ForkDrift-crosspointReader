@@ -1522,10 +1522,38 @@ void EpubReaderActivity::pauseReadingPaceTimer(const char* reason) {
   paceSampleWarmupPending = true;
 }
 
+void EpubReaderActivity::commitReadingStatsSession() {
+  if (!statsTrackingActive) return;
+  recordCurrentPageReadingTime("session_commit");
+
+  // Commit session stats based on active reading time. Page intervals longer
+  // than the idle threshold are rejected before they reach sessionReadingSeconds.
+  // Sessions under 1 minute don't count toward session count.
+  // Sessions under 10 seconds don't add to reading time.
+  const uint32_t elapsedSecs = sessionReadingSeconds;
+  if (elapsedSecs >= 60) {
+    stats.sessionCount++;
+    globalStats.totalSessions++;
+  }
+  if (elapsedSecs >= 10) {
+    stats.totalReadingSeconds += elapsedSecs;
+    globalStats.totalReadingSeconds += elapsedSecs;
+    if (hasSessionStartLocalDateTime) {
+      stats.recordReadingSpan(sessionStartLocalDateTime, elapsedSecs);
+      globalStats.recordReadingSpan(sessionStartLocalDateTime, elapsedSecs);
+    }
+    if (elapsedSecs >= 120 && !stats.startDateManual && !stats.startDate.isValid() && hasSessionStartLocalDateTime) {
+      stats.startDate = sessionStartLocalDateTime.date;
+    }
+  }
+  sessionReadingSeconds = 0;
+}
+
 void EpubReaderActivity::syncStatsTrackingState() {
   const bool enabled = SETTINGS.shouldTrackReadingStats() && bookStatsEnabled;
   if (enabled == statsTrackingActive) return;
   if (statsTrackingActive && !enabled && epub) {
+    commitReadingStatsSession();
     pendingStatsCommit = true;
     if (stats.save(epub->getCachePath())) {
       globalStats.save();
@@ -2487,30 +2515,7 @@ void EpubReaderActivity::onExit() {
   APP_STATE.saveToFile();
 
   syncStatsTrackingState();
-  if (statsTrackingActive) {
-    recordCurrentPageReadingTime("reader_exit");
-
-    // Commit session stats based on active reading time. Page intervals longer
-    // than the idle threshold are rejected before they reach sessionReadingSeconds.
-    // Sessions under 1 minute don't count toward session count or reading time.
-    // Sessions under 10 seconds don't add to reading time.
-    const uint32_t elapsedSecs = sessionReadingSeconds;
-    if (elapsedSecs >= 60) {
-      stats.sessionCount++;
-      globalStats.totalSessions++;
-    }
-    if (elapsedSecs >= 10) {
-      stats.totalReadingSeconds += elapsedSecs;
-      globalStats.totalReadingSeconds += elapsedSecs;
-      if (hasSessionStartLocalDateTime) {
-        stats.recordReadingSpan(sessionStartLocalDateTime, elapsedSecs);
-        globalStats.recordReadingSpan(sessionStartLocalDateTime, elapsedSecs);
-      }
-      if (elapsedSecs >= 120 && !stats.startDateManual && !stats.startDate.isValid() && hasSessionStartLocalDateTime) {
-        stats.startDate = sessionStartLocalDateTime.date;
-      }
-    }
-  }
+  commitReadingStatsSession();
   if (epub) {
     recoverStoredPaceFromSession("reader_exit");
     const uint32_t previousEstimate = stats.estimatedTimeLeftSeconds;
