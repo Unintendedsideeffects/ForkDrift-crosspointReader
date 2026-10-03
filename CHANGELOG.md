@@ -105,6 +105,8 @@
 - On X3 and X4, Library also indexes up to 32,767 books. Sorting uses the SD card once a library outgrows a fixed memory buffer, so a large library uses no more memory than a small one.
 - Keep EPUB text visible after changing TTF rendering options through the frontlight drawer settings.
 - Preserve reading time already accumulated when turning off EPUB or XTC reading stats.
+- Editing reading stats dates from the frontlight drawer or the XTC reader menu no longer counts the current session's reading time twice, and closing the drawer keeps this session's page turns and reading pace.
+- EPUB text re-lays out after changing TTF rendering options from the frontlight drawer even when leaving with the Home/Reader shortcut.
 
 ### Security
 

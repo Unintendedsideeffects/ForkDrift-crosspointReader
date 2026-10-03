@@ -23,6 +23,7 @@
 #include "MappedInputManager.h"
 #include "QuickActions.h"
 #include "ReaderUtils.h"
+#include "ReadingSessionStats.h"
 #include "RecentBooksStore.h"
 #include "XtcReaderChapterSelectionActivity.h"
 #include "XtcReaderMenuActivity.h"
@@ -156,8 +157,7 @@ void XtcReaderActivity::onExit() {
   APP_STATE.readerActivityLoadCount = 0;
   APP_STATE.saveToFile();
 
-  syncStatsTrackingState();
-  commitReadingStats();
+  finalizeReadingStatsOnExit();
 
   // Generate carousel thumbnails while XTC is still loaded so the home screen
   // can display the cover on the very first render without a loading popup.
@@ -767,22 +767,10 @@ void XtcReaderActivity::commitReadingStats() {
   if (!xtc) {
     return;
   }
-  if (statsTrackingActive) recordCurrentPageReadingTime("session_commit");
-  const uint32_t elapsedSecs = sessionReadingSeconds;
-  if (statsTrackingActive && elapsedSecs >= 60) {
-    stats.sessionCount++;
-    globalStats.totalSessions++;
-  }
-  if (statsTrackingActive && elapsedSecs >= 10) {
-    stats.totalReadingSeconds += elapsedSecs;
-    globalStats.totalReadingSeconds += elapsedSecs;
-    if (hasSessionStartLocalDateTime) {
-      stats.recordReadingSpan(sessionStartLocalDateTime, elapsedSecs);
-      globalStats.recordReadingSpan(sessionStartLocalDateTime, elapsedSecs);
-    }
-    if (elapsedSecs >= 120 && !stats.startDateManual && !stats.startDate.isValid() && hasSessionStartLocalDateTime) {
-      stats.startDate = sessionStartLocalDateTime.date;
-    }
+  if (statsTrackingActive) {
+    recordCurrentPageReadingTime("session_commit");
+    commitReadingSession(stats, globalStats, sessionReadingSeconds,
+                         hasSessionStartLocalDateTime ? &sessionStartLocalDateTime : nullptr);
   }
   sessionReadingSeconds = 0;
   if ((statsTrackingActive || paceDirty || pendingStatsCommit) && stats.save(xtc->getCachePath())) {
@@ -792,6 +780,19 @@ void XtcReaderActivity::commitReadingStats() {
       pendingStatsCommit = false;
     }
   }
+}
+
+void XtcReaderActivity::finalizeReadingStatsOnExit() {
+  syncStatsTrackingState();
+  commitReadingStats();
+}
+
+// The stats screen saves a preview that includes the pending session, so keep
+// live counters in memory and import only edits.
+void XtcReaderActivity::applyBookStatsEditsFromDisk() {
+  if (!xtc) return;
+  importBookStatsEdits(stats, BookReadingStats::load(xtc->getCachePath()));
+  globalStats.completedBooks = GlobalReadingStats::load().completedBooks;
 }
 
 void XtcReaderActivity::resetCurrentBookStatsAfterDelete() {
@@ -872,8 +873,10 @@ std::unique_ptr<Activity> XtcReaderActivity::createFrontlightReadingStatsActivit
 }
 
 void XtcReaderActivity::onFrontlightPanelClosed() {
-  globalStats = GlobalReadingStats::load();
-  stats = xtc ? BookReadingStats::load(xtc->getCachePath()) : stats;
+  // Keep live counters: the drawer stats screen may have saved a preview that
+  // already includes the pending session.
+  if (xtc) importBookStatsEdits(stats, BookReadingStats::load(xtc->getCachePath()));
+  refreshGlobalStatsAfterOverlay(globalStats, globalStatsResetRevisionAtPanelOpen);
   resumeReadingStatsTimer("frontlight_panel_return");
   requestUpdate();
 }
@@ -914,8 +917,7 @@ void XtcReaderActivity::openReadingStats() {
     return;
   }
   startActivityForResult(std::move(bookStats), [this](const ActivityResult&) {
-    if (xtc) stats = BookReadingStats::load(xtc->getCachePath());
-    globalStats = GlobalReadingStats::load();
+    applyBookStatsEditsFromDisk();
     resumeReadingStatsTimer("book_stats_return");
     requestUpdate();
   });

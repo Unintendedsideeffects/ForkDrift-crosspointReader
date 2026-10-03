@@ -42,7 +42,6 @@
 #include "activities/reader/BookReadingStats.h"
 #include "activities/reader/EpubReaderDrawerActivity.h"
 #include "activities/reader/ReaderFontLoading.h"
-#include "activities/reader/ReaderOptionsActivity.h"
 #include "activities/reader/ReaderUtils.h"
 #include "activities/reader/SideButtonShortcuts.h"
 #include "activities/settings/QuickActionsActivity.h"
@@ -83,7 +82,6 @@ enum class SmokeStep : uint8_t {
   RecentLibrary,
   Settings,
   SideButtons,
-  ReaderOptions,
   ReaderMenu,
   Sleep,
   Reader,
@@ -1871,11 +1869,6 @@ class SimulatorSmokeTest {
         }
         [[fallthrough]];
       case SmokeStep::SideButtons:
-        activityManager.replaceActivity(std::make_unique<ReaderOptionsActivity>(renderer, mappedInputManager));
-        queueStep("Reader Options", SmokeStep::ReaderOptions);
-        break;
-
-      case SmokeStep::ReaderOptions:
         activityManager.replaceActivity(std::make_unique<EpubReaderDrawerActivity>(
             renderer, mappedInputManager, std::shared_ptr<Epub>{}, nullptr, 0.0f, 0, 0, false, false, false, false,
             false, false, false, false, true, true, 0, 0, 5, false));

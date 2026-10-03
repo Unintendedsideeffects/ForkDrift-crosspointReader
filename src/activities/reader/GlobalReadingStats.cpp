@@ -376,7 +376,15 @@ void GlobalReadingStats::save() const {
   saveToFile(*this, GLOBAL_STATS_PATH, GLOBAL_STATS_BAK_PATH);
 }
 
-bool GlobalReadingStats::resetLocal() { return saveToFile(GlobalReadingStats{}, GLOBAL_STATS_PATH, nullptr); }
+static uint32_t s_localResetRevision = 0;
+
+bool GlobalReadingStats::resetLocal() {
+  if (!saveToFile(GlobalReadingStats{}, GLOBAL_STATS_PATH, nullptr)) return false;
+  s_localResetRevision++;
+  return true;
+}
+
+uint32_t GlobalReadingStats::localResetRevision() { return s_localResetRevision; }
 
 void GlobalReadingStats::recordReadingSpan(const ReadingStatsDateTime& localStart, const uint32_t seconds) {
   recordReadingSpanIntoBuckets(timeOfDaySeconds, dayOfWeekSeconds, localStart, seconds);

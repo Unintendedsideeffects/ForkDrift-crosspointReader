@@ -294,6 +294,7 @@ bool SdCardFontSystem::reloadActiveScalableFamily(GfxRenderer& renderer, const c
   const auto options = ttfRenderOptions(TTF_RENDER_PROFILES.profileFor(familyName));
   if (!manager_.setScalableRenderOptions(renderer, options)) return false;
   setupUiFallbacks(renderer);
+  scalableRenderOptionsGeneration_++;
   return true;
 #else
   (void)renderer;
