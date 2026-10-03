@@ -80,6 +80,9 @@ class XtcReaderActivity final : public Activity {
   void recordForwardPageTurn(uint32_t seconds, bool recordPace);
   bool formatTimeLeftLabel(char* buf, size_t len, uint32_t pageToRender, bool bookEstimate) const;
   void commitReadingStats();
+  void finalizeReadingStatsOnExit();
+  uint32_t globalStatsResetRevisionAtPanelOpen = 0;
+  void applyBookStatsEditsFromDisk();
   void resetCurrentBookStatsAfterDelete();
   void setBookCompleted(bool isCompleted);
   float getCurrentBookProgressPercent() const;
@@ -139,6 +142,7 @@ class XtcReaderActivity final : public Activity {
   void onFrontlightPanelOpened() override {
     pauseReadingStatsTimer("frontlight_panel");
     saveProgressBeforeRestart();
+    globalStatsResetRevisionAtPanelOpen = GlobalReadingStats::localResetRevision();
   }
   void onFrontlightPanelClosed() override;
   bool handleFrontlightPanelResult(const FrontlightPanelResult& result) override;

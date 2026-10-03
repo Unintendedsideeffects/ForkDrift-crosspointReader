@@ -158,7 +158,12 @@ void TtfRenderOptionsActivity::onEnter() {
   requestUpdate();
 }
 
-void TtfRenderOptionsActivity::onExit() { Activity::onExit(); }
+void TtfRenderOptionsActivity::onExit() {
+  // A Home/Reader unwind pops this screen without finishWithResult(); still
+  // apply saved profile changes so the active font matches its stored profile.
+  if (changed_ && !reloadHandled_) sdFontSystem.reloadActiveScalableFamily(renderer, family_.c_str());
+  Activity::onExit();
+}
 
 void TtfRenderOptionsActivity::rebuildRows() {
   rows_ = {Row::Hinting, Row::Raster};
@@ -181,6 +186,7 @@ void TtfRenderOptionsActivity::save() {
 
 void TtfRenderOptionsActivity::finishWithResult() {
   const bool activeFamilyChanged = changed_ && sdFontSystem.reloadActiveScalableFamily(renderer, family_.c_str());
+  reloadHandled_ = true;
   setResult(TtfRenderOptionsResult{activeFamilyChanged});
   finish();
 }

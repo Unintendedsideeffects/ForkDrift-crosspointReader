@@ -84,6 +84,9 @@ class SdCardFontSystem {
   /// Drop and reopen the active TTF family after its rendering profile changes.
   /// Returns true when the named reader family was resident and invalidated.
   bool reloadActiveScalableFamily(GfxRenderer& renderer, const char* familyName);
+  // Advances each time reloadActiveScalableFamily applies new render options, so
+  // a reader below an overlay can tell its laid-out text is stale.
+  uint32_t scalableRenderOptionsGeneration() const { return scalableRenderOptionsGeneration_; }
 
   /// Change the reader font size using the active SD family when one is selected.
   bool changeReaderFontSize(bool larger, FontSizeStepMode mode = FontSizeStepMode::Wrap);
@@ -141,6 +144,7 @@ class SdCardFontSystem {
   uint8_t loadedFontPointSize_ = 0;
   bool fontReloadPending_ = false;
   uint32_t loadedRegistryRevision_ = 0;
+  uint32_t scalableRenderOptionsGeneration_ = 0;
   SettingsPersistenceCallback settingsPersistenceCallback_ = nullptr;
   void* settingsPersistenceContext_ = nullptr;
 };

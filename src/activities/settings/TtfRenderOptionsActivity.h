@@ -39,6 +39,7 @@ class TtfRenderOptionsActivity final : public Activity {
   int topIndex_ = 0;
   bool readerMode_ = false;
   bool changed_ = false;
+  bool reloadHandled_ = false;
 
   using UiApp = freeink::ui::FreeInkApp<12, 4>;
   static constexpr freeink::ui::ActionId ACTION_ROW = 1;

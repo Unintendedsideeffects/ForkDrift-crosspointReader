@@ -56,6 +56,7 @@
 #include "QuickActions.h"
 #include "ReaderFontLoading.h"
 #include "ReaderUtils.h"
+#include "ReadingSessionStats.h"
 #include "RecentBooksStore.h"
 #include "SdCardFontSystem.h"
 #include "SilentRestart.h"
@@ -1525,28 +1526,21 @@ void EpubReaderActivity::pauseReadingPaceTimer(const char* reason) {
 void EpubReaderActivity::commitReadingStatsSession() {
   if (!statsTrackingActive) return;
   recordCurrentPageReadingTime("session_commit");
-
-  // Commit session stats based on active reading time. Page intervals longer
-  // than the idle threshold are rejected before they reach sessionReadingSeconds.
-  // Sessions under 1 minute don't count toward session count.
-  // Sessions under 10 seconds don't add to reading time.
-  const uint32_t elapsedSecs = sessionReadingSeconds;
-  if (elapsedSecs >= 60) {
-    stats.sessionCount++;
-    globalStats.totalSessions++;
-  }
-  if (elapsedSecs >= 10) {
-    stats.totalReadingSeconds += elapsedSecs;
-    globalStats.totalReadingSeconds += elapsedSecs;
-    if (hasSessionStartLocalDateTime) {
-      stats.recordReadingSpan(sessionStartLocalDateTime, elapsedSecs);
-      globalStats.recordReadingSpan(sessionStartLocalDateTime, elapsedSecs);
-    }
-    if (elapsedSecs >= 120 && !stats.startDateManual && !stats.startDate.isValid() && hasSessionStartLocalDateTime) {
-      stats.startDate = sessionStartLocalDateTime.date;
-    }
-  }
+  commitReadingSession(stats, globalStats, sessionReadingSeconds,
+                       hasSessionStartLocalDateTime ? &sessionStartLocalDateTime : nullptr);
   sessionReadingSeconds = 0;
+}
+
+void EpubReaderActivity::finalizeReadingStatsOnExit() {
+  syncStatsTrackingState();
+  commitReadingStatsSession();
+  if (!epub) return;
+  recoverStoredPaceFromSession("reader_exit");
+  const uint32_t previousEstimate = stats.estimatedTimeLeftSeconds;
+  refreshCachedTimeLeftEstimate();
+  if (statsTrackingActive || paceDirty || pendingStatsCommit || stats.estimatedTimeLeftSeconds != previousEstimate) {
+    if (stats.save(epub->getCachePath()) && (statsTrackingActive || pendingStatsCommit)) globalStats.save();
+  }
 }
 
 void EpubReaderActivity::syncStatsTrackingState() {
@@ -1928,12 +1922,7 @@ void EpubReaderActivity::refreshCachedTimeLeftEstimate() {
 // current-session time, so keep live counters in memory and import only edits.
 void EpubReaderActivity::applyBookStatsEditsFromDisk() {
   if (epub) {
-    const BookReadingStats diskStats = BookReadingStats::load(epub->getCachePath());
-    stats.isCompleted = diskStats.isCompleted;
-    stats.startDateManual = diskStats.startDateManual;
-    stats.finishedDateManual = diskStats.finishedDateManual;
-    stats.startDate = diskStats.startDate;
-    stats.finishedDate = diskStats.finishedDate;
+    importBookStatsEdits(stats, BookReadingStats::load(epub->getCachePath()));
   }
 
   const GlobalReadingStats diskGlobalStats = GlobalReadingStats::load();
@@ -2515,16 +2504,7 @@ void EpubReaderActivity::onExit() {
   APP_STATE.readerActivityLoadCount = 0;
   APP_STATE.saveToFile();
 
-  syncStatsTrackingState();
-  commitReadingStatsSession();
-  if (epub) {
-    recoverStoredPaceFromSession("reader_exit");
-    const uint32_t previousEstimate = stats.estimatedTimeLeftSeconds;
-    refreshCachedTimeLeftEstimate();
-    if (statsTrackingActive || paceDirty || pendingStatsCommit || stats.estimatedTimeLeftSeconds != previousEstimate) {
-      if (stats.save(epub->getCachePath()) && (statsTrackingActive || pendingStatsCommit)) globalStats.save();
-    }
-  }
+  finalizeReadingStatsOnExit();
 
   BOOKMARKS.unload();
   CLIPPINGS.unload();
@@ -2817,6 +2797,10 @@ bool EpubReaderActivity::transientFeedbackDismissed(const unsigned long showTime
 
 void EpubReaderActivity::loop() {
   syncStatsTrackingState();
+  if (pendingTtfRenderRelayout && epub) {
+    relayoutAfterTtfRenderChange();
+    requestUpdate();
+  }
   bool rawTouchInput = false;
 #if CROSSINK_APP_CAP_TOUCH
   int touchDownX = 0;
@@ -4503,24 +4487,38 @@ void EpubReaderActivity::onFrontlightPanelOpened() {
   clearPendingManualPageTurns();
   pauseReadingPaceTimer("frontlight_panel");
   saveProgressBeforeRestart();
+  globalStatsResetRevisionAtPanelOpen = GlobalReadingStats::localResetRevision();
+  ttfRenderGenerationAtPanelOpen = sdFontSystem.scalableRenderOptionsGeneration();
 }
 
 void EpubReaderActivity::onFrontlightPanelClosed() {
-  globalStats = GlobalReadingStats::load();
-  stats = epub ? BookReadingStats::load(epub->getCachePath()) : stats;
+  // Keep live counters: the drawer stats screen may have saved a preview that
+  // already includes the pending session.
+  if (epub) importBookStatsEdits(stats, BookReadingStats::load(epub->getCachePath()));
+  refreshGlobalStatsAfterOverlay(globalStats, globalStatsResetRevisionAtPanelOpen);
+  // A shortcut can unwind the drawer without its result, so detect TTF reloads
+  // directly instead of relying only on FrontlightPanelResult.
+  if (sdFontSystem.scalableRenderOptionsGeneration() != ttfRenderGenerationAtPanelOpen) {
+    pendingTtfRenderRelayout = true;
+  }
   resumeReadingPaceTimer("frontlight_panel_return");
   requestUpdate();
+}
+
+void EpubReaderActivity::relayoutAfterTtfRenderChange() {
+  pendingTtfRenderRelayout = false;
+  clearPendingManualPageTurns();
+  ensureReaderSdFontLoaded(renderer);
+  RenderLock lock(*this);
+  prepareCurrentSectionForRelayout();
+  section.reset();
 }
 
 bool EpubReaderActivity::handleFrontlightPanelResult(const FrontlightPanelResult& result) {
   if (!epub) return false;
   bool handled = false;
-  if (result.ttfRenderingChanged) {
-    clearPendingManualPageTurns();
-    ensureReaderSdFontLoaded(renderer);
-    RenderLock lock(*this);
-    prepareCurrentSectionForRelayout();
-    section.reset();
+  if (result.ttfRenderingChanged || pendingTtfRenderRelayout) {
+    relayoutAfterTtfRenderChange();
     handled = true;
   }
   if (result.action == FrontlightPanelAction::None) return handled;
