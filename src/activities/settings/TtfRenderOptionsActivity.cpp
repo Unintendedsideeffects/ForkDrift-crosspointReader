@@ -181,7 +181,7 @@ void TtfRenderOptionsActivity::save() {
 
 void TtfRenderOptionsActivity::finishWithResult() {
   const bool activeFamilyChanged = changed_ && sdFontSystem.reloadActiveScalableFamily(renderer, family_.c_str());
-  setResult(TtfRenderOptionsResult{changed_, activeFamilyChanged});
+  setResult(TtfRenderOptionsResult{activeFamilyChanged});
   finish();
 }
 

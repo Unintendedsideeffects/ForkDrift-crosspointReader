@@ -173,14 +173,14 @@ int main(int argc, char**) {
       settings.ttfRenderingChanged = changed;
       settings.finishToParent();
       auto result = std::get<TtfRenderOptionsResult>(settings.result.data);
-      assert(settings.finished && result.changed == changed && result.activeFamilyChanged == changed);
+      assert(settings.finished && result.activeFamilyChanged == changed);
       for (bool cancelled : {false, true}) {
         ReaderOptionsActivity options;
         options.ttfRenderingChanged = changed;
         options.finishWithResult(cancelled);
         result = std::get<TtfRenderOptionsResult>(options.result.data);
         assert(options.finished && options.result.isCancelled == cancelled);
-        assert(result.changed == changed && result.activeFamilyChanged == changed);
+        assert(result.activeFamilyChanged == changed);
       }
     }
   } else {
@@ -218,8 +218,8 @@ def main():
         source.write_text(FIXTURES + methods + CASES)
         subprocess.run(["c++", "-std=c++20", "-I" + str(ROOT / "src"),
                         str(source), "-o", str(binary)], check=True)
-        results = [subprocess.run([str(binary), *args]).returncode for args in ([], ["fonts"])]
-        assert results == [0, 0], f"Stats and font transition exit codes: {results}"
+        subprocess.run([str(binary)], check=True)
+        subprocess.run([str(binary), "fonts"], check=True)
     print("PASS: font results; book/global stats toggles, re-enable, idle time, and failed saves")
 
 

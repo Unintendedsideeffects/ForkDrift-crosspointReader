@@ -2443,7 +2443,8 @@ void EpubReaderActivity::onEnter() {
   loadLinkStack();
 
   // Load reading stats and record session start time.
-  // Session count and reading time are committed on exit once thresholds are met.
+  // Session count and reading time are committed on exit, or when tracking is
+  // turned off, once thresholds are met.
   stats = BookReadingStats::load(epub->getCachePath());
   bookStatsEnabled = BookStatsTracking::isBookEnabled(epub->getCachePath());
   statsTrackingActive = SETTINGS.shouldTrackReadingStats() && bookStatsEnabled;
