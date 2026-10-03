@@ -1309,6 +1309,10 @@ void setup() {
   switch (wakeupReason) {
     case HalGPIO::WakeupReason::PowerButton:
       wakePowerReleasePending = true;
+      // Readers also handle held Power shortcuts. Hide the wake hold from
+      // mapped input until its release, while allowing the activity to load.
+      mappedInputManager.suppressNextPowerRelease();
+      mappedInputManager.suppressNextPowerConfirmRelease();
       break;
     case HalGPIO::WakeupReason::AfterUSBPower:
       // TEMP: continue booting while diagnosing post-flash/reset behavior.

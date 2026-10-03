@@ -767,6 +767,54 @@ class SimulatorSmokeTest {
     LOG_INF("SMOKE", "Loading popup preserves backdrop in all orientations");
   }
 
+  static void verifyWakePowerReaderShortcut() {
+    if (!activityManager.isCurrentActivityNamed("EpubReader")) return;
+    auto* reader = activityManager.simulatorCurrentActivity();
+    const uint8_t savedShort = SETTINGS.shortPwrBtn;
+    const uint8_t savedLong = SETTINGS.longPwrBtn;
+    const uint8_t savedSlot = SETTINGS.quickActionSlots[0];
+    SETTINGS.shortPwrBtn = CrossPointSettings::SHORT_PWRBTN::QUICK_LOCK;
+    SETTINGS.longPwrBtn = CrossPointSettings::SHORT_PWRBTN::QUICK_ACTIONS;
+    SETTINGS.quickActionSlots[0] = CrossPointSettings::SHORT_PWRBTN::FORCE_REFRESH;
+
+    // Apply the same mapped-input guards as a Power-button wake, then exercise
+    // the reader's independent long-press route across the hold and release.
+    mappedInputManager.suppressNextPowerRelease();
+    mappedInputManager.suppressNextPowerConfirmRelease();
+    mappedInputManager.simulatorInjectPress(MappedInputManager::Button::Power);
+    mappedInputManager.update();
+    delay(SETTINGS.getPowerButtonLongPressDuration() + 10);
+    if (!mappedInputManager.isPhysicalPressed(MappedInputManager::Button::Power)) fail("Wake test lost Power hold");
+    reader->loop();
+    if (reader->blocksGlobalInput()) fail("Wake Power hold opened Quick Actions");
+
+    mappedInputManager.simulatorInjectRelease(MappedInputManager::Button::Power);
+    mappedInputManager.update();
+    reader->loop();
+    if (reader->blocksGlobalInput()) fail("Wake Power release opened Quick Actions");
+    mappedInputManager.simulatorClearInputFrame();
+    mappedInputManager.update();
+
+    mappedInputManager.simulatorInjectPress(MappedInputManager::Button::Power);
+    mappedInputManager.update();
+    delay(SETTINGS.getPowerButtonLongPressDuration() + 10);
+    reader->loop();
+    if (!reader->blocksGlobalInput()) fail("Fresh long Power press did not open Quick Actions");
+    mappedInputManager.simulatorInjectRelease(MappedInputManager::Button::Power);
+    mappedInputManager.update();
+    reader->loop();
+    mappedInputManager.simulatorClearInputFrame();
+    mappedInputManager.update();
+    mappedInputManager.simulatorInjectRelease(MappedInputManager::Button::Back);
+    reader->loop();
+    mappedInputManager.simulatorClearInputFrame();
+    if (reader->blocksGlobalInput()) fail("Wake test could not close Quick Actions");
+    SETTINGS.shortPwrBtn = savedShort;
+    SETTINGS.longPwrBtn = savedLong;
+    SETTINGS.quickActionSlots[0] = savedSlot;
+    LOG_INF("SMOKE", "Wake Power hold/release ignored; fresh long press opens Quick Actions");
+  }
+
   static void verifyCachedHomeProgressMigration() {
     const RecentBook book{"/books/legacy-home-smoke.epub", "Legacy Home smoke", {}, {}};
     const std::string legacy = "/.crosspoint/epub_" + std::to_string(std::hash<std::string>{}(book.path));
@@ -1417,6 +1465,7 @@ class SimulatorSmokeTest {
       }
 
       case SmokeStep::Reader:
+        verifyWakePowerReaderShortcut();
         buildReaderInputScript();
         step = SmokeStep::ReaderInput;
         break;

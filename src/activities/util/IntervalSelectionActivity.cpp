@@ -192,16 +192,12 @@ void IntervalSelectionActivity::buildSliderScreen(UiApp::ScreenType& screen) {
   const int16_t controlTopInset = static_cast<int16_t>(lineHeight + READER_SLIDER_SCALE_GAP);
   const int16_t top = std::max<int16_t>(
       0, static_cast<int16_t>((screen.body().height - READER_SLIDER_CONTROL_HEIGHT) / 2 - controlTopInset));
-  const bool marginPreview = readerPreviewSetting == ReaderPreviewSetting::VerticalMargin ||
-                             readerPreviewSetting == ReaderPreviewSetting::HorizontalMargin;
-  screen.spacer(readerPreviewSetting == ReaderPreviewSetting::None ? top : 0);
-  const fui::Rect row = marginPreview ? screen.takeBottom(rowHeight) : screen.takeTop(rowHeight);
-  if (marginPreview) {
+  const bool hasReaderPreview = readerPreviewSetting != ReaderPreviewSetting::None;
+  screen.spacer(hasReaderPreview ? 0 : top);
+  const fui::Rect row = hasReaderPreview ? screen.takeBottom(rowHeight) : screen.takeTop(rowHeight);
+  if (hasReaderPreview) {
     readerPreviewArea =
         Rect{touchScreen.x, contentTop, touchScreen.width, std::max(0, row.y - metrics.verticalSpacing - contentTop)};
-  } else if (readerPreviewSetting != ReaderPreviewSetting::None) {
-    const int previewTop = row.bottom() + metrics.verticalSpacing;
-    readerPreviewArea = Rect{touchScreen.x, previewTop, touchScreen.width, std::max(0, contentBottom - previewTop)};
   }
   const fui::Rect band{row.x, static_cast<int16_t>(row.y + controlTopInset), row.width, READER_SLIDER_CONTROL_HEIGHT};
   const int16_t stepWidth = std::max<int16_t>(band.height, screen.theme().rowHeight);
@@ -605,12 +601,18 @@ void IntervalSelectionActivity::render(RenderLock&&) {
 
   char formattedValue[32] = {};
   formatValue(formattedValue, sizeof(formattedValue));
-  renderer.drawCenteredText(UI_12_FONT_ID, 90, formattedValue, true, EpdFontFamily::BOLD);
+
+  const bool hasButtonReaderPreview =
+      readerPreviewSetting != ReaderPreviewSetting::None && !mappedInput.hasTouchHardware();
+  const int controlsBottom = safe.y + safe.height - metrics.buttonHintsHeight - metrics.verticalSpacing;
+  // Reserve the value, bar and both step hints below the preview divider.
+  const int barY = hasButtonReaderPreview ? controlsBottom - 72 : 140;
+  const int valueY = barY - 50;
+  renderer.drawCenteredText(UI_12_FONT_ID, valueY, formattedValue, true, EpdFontFamily::BOLD);
 
   const int barWidth = std::min(360, std::max(0, screenWidth - 40));
   constexpr int barHeight = 16;
   const int barX = std::max(0, (screenWidth - barWidth) / 2);
-  const int barY = 140;
 
   renderer.drawRect(barX, barY, barWidth, barHeight);
 
@@ -623,9 +625,9 @@ void IntervalSelectionActivity::render(RenderLock&&) {
   const int knobX = std::max(barX + 2, barX + 2 + fillWidth - 2);
   renderer.fillRect(knobX, barY - 4, 4, barHeight + 8, true);
 
-  if (readerPreviewSetting != ReaderPreviewSetting::None && !mappedInput.hasTouchHardware()) {
-    const int previewTop = barY + 72;
-    const int previewBottom = safe.y + safe.height - metrics.buttonHintsHeight - metrics.verticalSpacing;
+  if (hasButtonReaderPreview) {
+    const int previewTop = header.y + header.height + metrics.verticalSpacing;
+    const int previewBottom = valueY - metrics.verticalSpacing;
     renderReaderPreview(Rect{safe.x, previewTop, safe.width, std::max(0, previewBottom - previewTop)});
   }
 

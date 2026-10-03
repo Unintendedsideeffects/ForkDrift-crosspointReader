@@ -84,6 +84,7 @@
 - Reader shortcuts and the frontlight panel save the current reading position before flows that can restart the device.
 - Short upscaled images are cached after decoding instead of being repeatedly decoded on refresh.
 - OPDS asks before replacing books, validates completed downloads, checks available space, and preserves the old book if a transfer or replacement fails.
+- Holding Power to wake from sleep no longer also opens Quick Actions or runs a reader shortcut.
 
 ### Security
 
