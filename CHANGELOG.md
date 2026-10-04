@@ -111,6 +111,9 @@
 - The frontlight drawer stays within the screen at large UI scales.
 - Nested EPUB paragraphs and blocks keep inherited bold and italic styles.
 - Sync Progress from the File Browser shows one loading notice and returns to the same folder and selection.
+- Keep saved clock and date status-bar positions when the clock is temporarily unavailable at startup.
+- Stay in Settings if there is not enough memory to open TTF Rendering.
+- Translate month names in Library date headings and device dates.
 
 ### Security
 

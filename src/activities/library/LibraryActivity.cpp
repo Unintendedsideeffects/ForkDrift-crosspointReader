@@ -1037,7 +1037,7 @@ void LibraryActivity::provideRow(void* user, const uint16_t row, fui::ListItem& 
       if (date == 0) {
         self->groupHeading = "?";
       } else {
-        char heading[20];
+        char heading[32];
         const char separator = SETTINGS.dateSeparator == CrossPointSettings::DATE_SEPARATOR_PERIOD   ? '.'
                                : SETTINGS.dateSeparator == CrossPointSettings::DATE_SEPARATOR_HYPHEN ? '-'
                                                                                                      : '/';

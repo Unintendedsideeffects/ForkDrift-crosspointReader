@@ -307,31 +307,35 @@ class SimulatorSmokeTest {
   static void verifyStatusBarSettings() {
     JsonDocument original;
     SETTINGS.toJson(original);
-    const bool clockAvailable = halClock.isAvailable();
+    const HalClock originalClock = halClock;
+    halClock = HalClock{};  // Simulate a failed RTC probe during settings loading.
     for (const int clock : {0, 1}) {
       JsonDocument legacy;
       legacy.set(original);
       legacy.remove("displayStatusBar");
       legacy["showClockOutsideReader"] = clock;
       SETTINGS.fromJson(legacy.as<JsonVariantConst>());
-      if (SETTINGS.displayStatusBar.slots[1] !=
-              (clock && clockAvailable ? ReaderStatusBarItem::Clock : ReaderStatusBarItem::Empty) ||
+      if (SETTINGS.displayStatusBar.slots[1] != (clock ? ReaderStatusBarItem::Clock : ReaderStatusBarItem::Empty) ||
           SETTINGS.displayStatusBar.slots[2] != ReaderStatusBarItem::Battery)
         fail("Display clock migration failed");
     }
     SETTINGS.displayStatusBar.slots = {ReaderStatusBarItem::Date, ReaderStatusBarItem::Clock,
                                        ReaderStatusBarItem::Empty};
+    SETTINGS.topReaderStatusBar.slots[ReaderStatusBarConfig::CENTER] = ReaderStatusBarItem::Clock;
+    SETTINGS.bottomReaderStatusBar.slots[ReaderStatusBarConfig::CENTER] = ReaderStatusBarItem::Date;
     JsonDocument saved;
     SETTINGS.toJson(saved);
     if (!saved["showClockOutsideReader"].isNull()) fail("Obsolete clock setting was saved");
     SETTINGS.displayStatusBar = DisplayStatusBarConfig{};
     SETTINGS.fromJson(saved.as<JsonVariantConst>());
-    if (SETTINGS.displayStatusBar.slots[0] !=
-            (clockAvailable ? ReaderStatusBarItem::Date : ReaderStatusBarItem::Empty) ||
-        SETTINGS.displayStatusBar.slots[1] !=
-            (clockAvailable ? ReaderStatusBarItem::Clock : ReaderStatusBarItem::Empty) ||
+    if (SETTINGS.displayStatusBar.slots[0] != ReaderStatusBarItem::Date ||
+        SETTINGS.displayStatusBar.slots[1] != ReaderStatusBarItem::Clock ||
         SETTINGS.displayStatusBar.slots[2] != ReaderStatusBarItem::Empty)
       fail("Display slots did not survive reload");
+    if (SETTINGS.topReaderStatusBar.slots[ReaderStatusBarConfig::CENTER] != ReaderStatusBarItem::Clock ||
+        SETTINGS.bottomReaderStatusBar.slots[ReaderStatusBarConfig::CENTER] != ReaderStatusBarItem::Date)
+      fail("Reader clock/date slots did not survive an unavailable RTC");
+    halClock = originalClock;
     const auto display = buildGroupedDisplaySettingsList(getSettingsList());
     if (std::none_of(display.begin(), display.end(),
                      [](const auto& item) { return item.action == SettingAction::DisplayStatusBar; }))
