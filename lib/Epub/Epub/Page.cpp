@@ -76,9 +76,14 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
 
 void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                        const bool foregroundBlack) {
+  render(renderer, fontId, xOffset, yOffset, foregroundBlack, true);
+}
+
+void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                       const bool foregroundBlack, const bool imageGrayscale) {
   (void)fontId;
   // Images don't use fontId for text rendering
-  imageBlock->render(renderer, xPos + xOffset, yPos + yOffset, foregroundBlack);
+  imageBlock->render(renderer, xPos + xOffset, yPos + yOffset, foregroundBlack, imageGrayscale);
 }
 
 void PageImage::renderPlaceholder(GfxRenderer& renderer, const int xOffset, const int yOffset,
@@ -473,9 +478,9 @@ std::unique_ptr<PageTableFragment> PageTableFragment::deserialize(FsFile& file) 
 }
 
 void Page::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                  const bool foregroundBlack) const {
+                  const bool foregroundBlack, const bool imageGrayscale) const {
   renderText(renderer, fontId, xOffset, yOffset, foregroundBlack);
-  renderImages(renderer, fontId, xOffset, yOffset, foregroundBlack);
+  renderImages(renderer, fontId, xOffset, yOffset, foregroundBlack, imageGrayscale);
 }
 
 void Page::renderText(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
@@ -485,13 +490,17 @@ void Page::renderText(GfxRenderer& renderer, const int fontId, const int xOffset
 }
 
 void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                        const bool foregroundBlack) const {
-  renderFilteredPageElements(elements, renderer, fontId, xOffset, yOffset, foregroundBlack,
-                             [](const PageElement& element) { return element.getTag() == TAG_PageImage; });
+                        const bool foregroundBlack, const bool imageGrayscale) const {
+  for (const auto& element : elements) {
+    if (element->getTag() == TAG_PageImage) {
+      static_cast<PageImage&>(*element).render(renderer, fontId, xOffset, yOffset, foregroundBlack, imageGrayscale);
+    }
+  }
 }
 
 void Page::renderWithImagePlaceholders(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
-                                       const bool foregroundBlack, const bool renderCachedImages) const {
+                                       const bool foregroundBlack, const bool renderCachedImages,
+                                       const bool imageGrayscale) const {
   renderText(renderer, fontId, xOffset, yOffset, foregroundBlack);
   for (const auto& element : elements) {
     if (element->getTag() != TAG_PageImage) {
@@ -501,7 +510,7 @@ void Page::renderWithImagePlaceholders(GfxRenderer& renderer, const int fontId, 
     if (!renderCachedImages || pageImage.getImageBlock().needsDecode()) {
       pageImage.renderPlaceholder(renderer, xOffset, yOffset, foregroundBlack);
     } else {
-      pageImage.render(renderer, fontId, xOffset, yOffset, foregroundBlack);
+      pageImage.render(renderer, fontId, xOffset, yOffset, foregroundBlack, imageGrayscale);
     }
   }
 }

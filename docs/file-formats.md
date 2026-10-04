@@ -387,7 +387,7 @@ if (parsedSize != fileSize) {
 
 ## `reader_settings.bin`
 
-### Version 10
+### Version 11
 
 Each EPUB cache directory may contain `reader_settings.bin`. Missing files mean
 the book uses global Reader settings and the default auto-page-turn interval.
@@ -408,6 +408,10 @@ display setting. Version 10 appends a field mask so a book overrides only the
 reader settings that differ from its current global defaults. Version 2-9
 records with the custom-settings flag keep their full snapshot as an override
 when migrated; they cannot distinguish past manual edits from automatic ones.
+Version 11 appends the image-grayscale toggle after the mask and moves the SD-font
+mask bit from 18 to 19. Older records retain their existing overrides and inherit
+the global image-grayscale setting. This drawing-only setting does not invalidate
+EPUB layout or image caches.
 The file can preserve an auto-page-turn interval without forcing custom
 font/layout settings for the book. It also stores a per-book EPUB render mode override,
 which can be changed from book action menus before opening the book so a
@@ -418,7 +422,7 @@ fallback successfully opens a difficult book.
 
 ```c++
 struct ReaderSettingsBin {
-    u8 version; // 10
+    u8 version; // 11
     u8 flags;   // bit 0 = at least one custom reader field, bit 1 = custom auto-page-turn interval, bit 2 = render mode override, bit 3 = dictionary font override, bit 4 = Safe Mode override
     u16 autoPageTurnSeconds;
     u8 renderMode; // 0 = CrossInk Default, 1 = Balanced, 2 = Light
@@ -445,7 +449,8 @@ struct ReaderSettingsBin {
     char sdFontFamilyName[64];
     char dictionarySdFontFamilyName[64]; // meaningful only when flag bit 3 is set
     u8 dictionaryFontPointSize; // 0 = follow reader size
-    u32 readerSettingsOverrideMask; // bits 0-17 correspond to snapshot fields above, excluding snapshotRenderMode; bit 18 = sdFontFamilyName
+    u32 readerSettingsOverrideMask; // bits 0-17 = snapshot fields excluding snapshotRenderMode; bit 18 = imageGrayscale; bit 19 = sdFontFamilyName
+    u8 imageGrayscale; // 0 = BW only, 1 = grayscale (default)
 };
 ```
 

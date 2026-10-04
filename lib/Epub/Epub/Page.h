@@ -55,6 +55,7 @@ class PageImage final : public PageElement {
   PageImage(std::unique_ptr<ImageBlock> block, const int16_t xPos, const int16_t yPos, const bool inlineImage = false)
       : PageElement(xPos, yPos), imageBlock(std::move(block)), inlineImage(inlineImage) {}
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack = true) override;
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack, bool imageGrayscale);
   void renderPlaceholder(GfxRenderer& renderer, int xOffset, int yOffset, bool foregroundBlack) const;
   bool serialize(FsFile& file) override;
   PageElementTag getTag() const override { return TAG_PageImage; }
@@ -193,13 +194,16 @@ class Page {
     publisherPageMarkers.push_back(marker);
   }
 
-  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack = true) const;
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack = true,
+              bool imageGrayscale = true) const;
   void renderText(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack = true) const;
-  void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack = true) const;
+  void renderImages(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack = true,
+                    bool imageGrayscale = true) const;
   // When renderCachedImages is false, draw placeholders without checking or
   // reading image caches. This keeps transient queued pages free of image I/O.
   void renderWithImagePlaceholders(GfxRenderer& renderer, int fontId, int xOffset, int yOffset,
-                                   bool foregroundBlack = true, bool renderCachedImages = true) const;
+                                   bool foregroundBlack = true, bool renderCachedImages = true,
+                                   bool imageGrayscale = true) const;
   bool forEachTextLine(PageTextLineVisitor visitor, void* context) const;
   bool serialize(FsFile& file) const;
   static std::unique_ptr<Page> deserialize(FsFile& file);

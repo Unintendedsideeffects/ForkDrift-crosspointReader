@@ -110,6 +110,7 @@ enum class ReaderDrawerCatalogItem : uint8_t {
   ForceIndents,
   EmbeddedStyle,
   Images,
+  ImageGrayscale,
   SelectChapter,
   GoToPercent,
   GoToStablePage,
@@ -188,6 +189,7 @@ constexpr ReaderDrawerCatalog makeReaderDrawerCatalog(const ReaderDrawerAvailabi
   layout.add(ReaderDrawerCatalogItem::Orientation);
   layout.add(ReaderDrawerCatalogItem::Alignment);
   layout.add(ReaderDrawerCatalogItem::Images);
+  layout.add(ReaderDrawerCatalogItem::ImageGrayscale);
   layout.add(ReaderDrawerCatalogItem::Hyphenation);
   layout.add(ReaderDrawerCatalogItem::PublisherPages);
   layout.add(ReaderDrawerCatalogItem::ExtraSpacing);
@@ -336,6 +338,7 @@ struct ReaderSettingsDraft {
   uint8_t forceParagraphIndents = 0;
   uint8_t embeddedStyle = 0;
   uint8_t imageRendering = 0;
+  uint8_t imageGrayscale = 1;
   uint8_t epubRenderMode = 0;
   uint8_t indexingMethod = 0;
 };

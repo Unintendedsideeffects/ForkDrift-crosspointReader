@@ -97,7 +97,8 @@ constexpr uint8_t PRE_DICTIONARY_FONT_SIZE_READER_SETTINGS_FILE_VERSION = 6;
 constexpr uint8_t PRE_SPLIT_SCREEN_MARGIN_READER_SETTINGS_FILE_VERSION = 7;
 constexpr uint8_t PRE_GLOBAL_DARK_MODE_READER_SETTINGS_FILE_VERSION = 8;
 constexpr uint8_t PRE_FIELD_OVERRIDES_READER_SETTINGS_FILE_VERSION = 9;
-constexpr uint8_t READER_SETTINGS_FILE_VERSION = 10;
+constexpr uint8_t PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION = 10;
+constexpr uint8_t READER_SETTINGS_FILE_VERSION = 11;
 constexpr uint8_t READER_SETTINGS_FLAG_CUSTOM = 1 << 0;
 constexpr uint8_t READER_SETTINGS_FLAG_AUTO_PAGE_TURN = 1 << 1;
 constexpr uint8_t READER_SETTINGS_FLAG_RENDER_MODE = 1 << 2;
@@ -1120,6 +1121,7 @@ void captureReaderSettings(EpubReaderActivity::ReaderSettingsSnapshot& out) {
   out.hyphenationEnabled = SETTINGS.hyphenationEnabled;
   out.textAntiAliasing = SETTINGS.textAntiAliasing;
   out.imageRendering = SETTINGS.imageRendering;
+  out.imageGrayscale = SETTINGS.imageGrayscale;
   out.extraParagraphSpacing = SETTINGS.extraParagraphSpacing;
   out.forceParagraphIndents = SETTINGS.forceParagraphIndents;
   out.focusReadingEnabled = SETTINGS.focusReadingEnabled;
@@ -1160,6 +1162,7 @@ void applyReaderSettings(const EpubReaderActivity::ReaderSettingsSnapshot& in) {
   SETTINGS.textAntiAliasing = in.textAntiAliasing ? 1 : 0;
   SETTINGS.imageRendering =
       in.imageRendering < CrossPointSettings::IMAGE_RENDERING_COUNT ? in.imageRendering : SETTINGS.imageRendering;
+  SETTINGS.imageGrayscale = in.imageGrayscale ? 1 : 0;
   SETTINGS.extraParagraphSpacing = in.extraParagraphSpacing ? 1 : 0;
   SETTINGS.forceParagraphIndents = in.forceParagraphIndents ? 1 : 0;
   SETTINGS.focusReadingEnabled = in.focusReadingEnabled ? 1 : 0;
@@ -1171,7 +1174,7 @@ void applyReaderSettings(const EpubReaderActivity::ReaderSettingsSnapshot& in) {
 }
 
 using ReaderSettingsSnapshot = EpubReaderActivity::ReaderSettingsSnapshot;
-constexpr std::array<uint8_t ReaderSettingsSnapshot::*, 18> READER_SETTING_FIELDS = {
+constexpr std::array<uint8_t ReaderSettingsSnapshot::*, 19> READER_SETTING_FIELDS = {
     &ReaderSettingsSnapshot::fontFamily,
     &ReaderSettingsSnapshot::readerFontPointSize,
     &ReaderSettingsSnapshot::lineHeightPercent,
@@ -1190,12 +1193,15 @@ constexpr std::array<uint8_t ReaderSettingsSnapshot::*, 18> READER_SETTING_FIELD
     &ReaderSettingsSnapshot::focusReadingEnabled,
     &ReaderSettingsSnapshot::guideReadingEnabled,
     &ReaderSettingsSnapshot::indexingMethod,
+    &ReaderSettingsSnapshot::imageGrayscale,
 };
 constexpr uint32_t SD_FONT_FAMILY_OVERRIDE = 1U << READER_SETTING_FIELDS.size();
 constexpr uint32_t ALL_READER_SETTING_OVERRIDES = (SD_FONT_FAMILY_OVERRIDE << 1) - 1;
 constexpr uint32_t READER_FONT_OVERRIDES = (1U << 0) | (1U << 1) | SD_FONT_FAMILY_OVERRIDE;
-// Anti-aliasing changes the page drawing, but not its saved line/page layout.
-constexpr uint32_t READER_LAYOUT_SETTING_OVERRIDES = ALL_READER_SETTING_OVERRIDES & ~(1U << 11);
+constexpr uint32_t IMAGE_GRAYSCALE_OVERRIDE = 1U << 18;
+// Text AA and image grayscale change drawing, not saved line/page layout.
+constexpr uint32_t READER_LAYOUT_SETTING_OVERRIDES =
+    ALL_READER_SETTING_OVERRIDES & ~((1U << 11) | IMAGE_GRAYSCALE_OVERRIDE);
 constexpr uint32_t SAFE_MODE_SETTING_OVERRIDES = (1U << 9) | (1U << 15) | (1U << 16);
 
 uint32_t changedReaderSettingsMask(const ReaderSettingsSnapshot& current, const ReaderSettingsSnapshot& global) {
@@ -1314,7 +1320,8 @@ BookReaderSettingsData loadBookReaderSettingsFile(const std::string& cachePath) 
       version != PRE_DICTIONARY_FONT_SIZE_READER_SETTINGS_FILE_VERSION &&
       version != PRE_SPLIT_SCREEN_MARGIN_READER_SETTINGS_FILE_VERSION &&
       version != PRE_GLOBAL_DARK_MODE_READER_SETTINGS_FILE_VERSION &&
-      version != PRE_FIELD_OVERRIDES_READER_SETTINGS_FILE_VERSION && version != READER_SETTINGS_FILE_VERSION) {
+      version != PRE_FIELD_OVERRIDES_READER_SETTINGS_FILE_VERSION &&
+      version != PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION && version != READER_SETTINGS_FILE_VERSION) {
     file.close();
     LOG_DBG("ERS", "Reader settings version mismatch, using defaults");
     return data;
@@ -1344,8 +1351,19 @@ BookReaderSettingsData loadBookReaderSettingsFile(const std::string& cachePath) 
     ok = readU8(file, data.dictionaryFontPointSize);
   }
   uint32_t overrideMask = 0;
+  if (ok && version >= PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION) {
+    const uint32_t validMask =
+        version == PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION ? (1U << 19) - 1 : ALL_READER_SETTING_OVERRIDES;
+    ok = readU32(file, overrideMask) && (overrideMask & ~validMask) == 0;
+    if (version == PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION) {
+      // Version 10 used bit 18 for the SD font; the added field moves it to bit 19.
+      const bool hasSdFontOverride = (overrideMask & (1U << 18)) != 0;
+      overrideMask &= ~(1U << 18);
+      if (hasSdFontOverride) overrideMask |= SD_FONT_FAMILY_OVERRIDE;
+    }
+  }
   if (ok && version >= READER_SETTINGS_FILE_VERSION) {
-    ok = readU32(file, overrideMask) && (overrideMask & ~ALL_READER_SETTING_OVERRIDES) == 0;
+    ok = readU8(file, snapshot.imageGrayscale);
   }
   file.close();
   if (!ok) {
@@ -1360,8 +1378,9 @@ BookReaderSettingsData loadBookReaderSettingsFile(const std::string& cachePath) 
   if (flags & READER_SETTINGS_FLAG_CUSTOM) {
     // Older records owned the entire snapshot. New records only own the fields
     // the reader actually changed, so unrelated global defaults still apply.
-    data.readerSettingsOverrideMask =
-        version < READER_SETTINGS_FILE_VERSION ? ALL_READER_SETTING_OVERRIDES : overrideMask;
+    data.readerSettingsOverrideMask = version < PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION
+                                          ? ALL_READER_SETTING_OVERRIDES & ~IMAGE_GRAYSCALE_OVERRIDE
+                                          : overrideMask;
     data.hasCustomReaderSettings = data.readerSettingsOverrideMask != 0;
     applyReaderSettingsOverrides(data.readerSettings, snapshot, data.readerSettingsOverrideMask);
   }
@@ -1406,7 +1425,8 @@ bool saveBookReaderSettingsFile(const std::string& cachePath, const BookReaderSe
                   writeReaderSettingsSnapshot(file, normalizedReaderSettings) &&
                   writeExact(file, data.dictionarySdFontFamilyName, sizeof(data.dictionarySdFontFamilyName)) &&
                   writeU8(file, data.dictionaryFontPointSize) &&
-                  writeU32(file, data.readerSettingsOverrideMask & ALL_READER_SETTING_OVERRIDES);
+                  writeU32(file, data.readerSettingsOverrideMask & ALL_READER_SETTING_OVERRIDES) &&
+                  writeU8(file, normalizedReaderSettings.imageGrayscale ? 1 : 0);
   file.close();
   if (!ok) {
     LOG_ERR("ERS", "Short write saving reader settings");
@@ -7298,7 +7318,7 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int fo
 
   const bool pageHasImages = page->hasImages();
   const bool foregroundBlack = ReaderUtils::readerForegroundBlack();
-  bool needsImageGrayscale = pageHasImages;
+  bool needsImageGrayscale = SETTINGS.imageGrayscale && pageHasImages;
   bool needsTextGrayscale = SETTINGS.textAntiAliasing && foregroundBlack &&
                             !sdFontSystem.fontUsesMonochromeRaster(renderer, fontId, SETTINGS.sdFontFamilyName);
   const int contentBottom = renderer.getScreenHeight() - orientedMarginBottom;
@@ -7340,23 +7360,25 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int fo
   const auto composePageBuffer = [&]() {
     if (deferImageLoading) {
       page->renderWithImagePlaceholders(renderer, fontId, orientedMarginLeft, orientedMarginTop, foregroundBlack,
-                                        /*renderCachedImages=*/false);
+                                        /*renderCachedImages=*/false, SETTINGS.imageGrayscale);
     } else {
-      page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop, foregroundBlack);
+      page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop, foregroundBlack, SETTINGS.imageGrayscale);
     }
     finalizeBufferComposition();
   };
 
   const auto composeGrayscaleBuffer = [&]() {
     if (needsTextGrayscale) {
-      page->render(renderer, fontId, orientedMarginLeft, orientedMarginTop, foregroundBlack);
-    } else {
+      page->renderText(renderer, fontId, orientedMarginLeft, orientedMarginTop, foregroundBlack);
+    }
+    if (needsImageGrayscale) {
       page->renderImages(renderer, fontId, orientedMarginLeft, orientedMarginTop);
     }
     finalizeBufferComposition();
   };
   if (updatePanel && pageHasImagesNeedingDecode) {
-    page->renderWithImagePlaceholders(renderer, fontId, orientedMarginLeft, orientedMarginTop, foregroundBlack);
+    page->renderWithImagePlaceholders(renderer, fontId, orientedMarginLeft, orientedMarginTop, foregroundBlack,
+                                      /*renderCachedImages=*/true, SETTINGS.imageGrayscale);
     finalizeBufferComposition();
     renderStatusBar();
     renderer.displayBuffer(HalDisplay::FAST_REFRESH);
@@ -7436,17 +7458,21 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int fo
       // The restored image frame becomes the base for the grayscale image
       // planes below. On X3, use the same grayscale-aware base waveform as
       // text-only grayscale turns; other panels keep the FAST fallback behavior.
-      renderer.displayGrayscaleBase(HalDisplay::FAST_REFRESH);
+      if (needsAnyGrayscale) {
+        renderer.displayGrayscaleBase(HalDisplay::FAST_REFRESH);
+      } else {
+        renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+      }
     } else {
       renderer.displayBuffer(pagesUntilFullRefresh < 0 ? manualScreenRefreshMode() : HalDisplay::HALF_REFRESH);
     }
     // The image's own page is handled above and doesn't count toward the full
-    // refresh cadence. But the grayscale pass below leaves gray charge in the
-    // image region that a plain fast diff on the *next* page can't clear, so
-    // text there ghosts gray (#2190). Force the next ordinary page onto the
-    // HALF ghost-cleanup path, which drives every pixel to its target
-    // regardless of residue.
-    pagesUntilFullRefresh = 1;
+    // refresh cadence. A grayscale pass leaves gray charge that a fast diff on
+    // the next page can't clear (#2190), so only grayscale pages force that
+    // next ordinary page onto the HALF ghost-cleanup path.
+    if (needsAnyGrayscale) {
+      pagesUntilFullRefresh = 1;
+    }
   } else if (needsAnyGrayscale) {
     if (pagesUntilFullRefresh <= 1) {
       // Cleanup turns still need the stronger HALF pass, but X3 grayscale

@@ -649,6 +649,7 @@ ReaderSettingsDraft EpubReaderDrawerActivity::captureSettings() {
   value.forceParagraphIndents = SETTINGS.forceParagraphIndents;
   value.embeddedStyle = SETTINGS.embeddedStyle;
   value.imageRendering = SETTINGS.imageRendering;
+  value.imageGrayscale = SETTINGS.imageGrayscale;
   value.epubRenderMode = SETTINGS.epubRenderMode;
   value.indexingMethod = SETTINGS.indexingMethod;
   return value;
@@ -674,6 +675,7 @@ void EpubReaderDrawerActivity::applySettings(const ReaderSettingsDraft& value) {
   SETTINGS.forceParagraphIndents = value.forceParagraphIndents;
   SETTINGS.embeddedStyle = value.embeddedStyle;
   SETTINGS.imageRendering = value.imageRendering;
+  SETTINGS.imageGrayscale = value.imageGrayscale;
   SETTINGS.epubRenderMode = value.epubRenderMode;
   SETTINGS.indexingMethod = value.indexingMethod;
 }
@@ -1758,6 +1760,7 @@ void EpubReaderDrawerActivity::activateRow(const RowId row) {
       closeAndReturn(false, EpubReaderMenuAction::RESET_BOOK_READER_SETTINGS);
       return;
     case RowId::TextAa:
+    case RowId::ImageGrayscale:
     case RowId::Focus:
     case RowId::GuideDots:
     case RowId::Hyphenation:
@@ -1840,6 +1843,9 @@ void EpubReaderDrawerActivity::activateRow(const RowId row) {
 
 void EpubReaderDrawerActivity::toggleSetting(const RowId row) {
   switch (row) {
+    case RowId::ImageGrayscale:
+      draft.imageGrayscale = !draft.imageGrayscale;
+      break;
     case RowId::TextAa:
       draft.textAntiAliasing = !draft.textAntiAliasing;
       break;
@@ -1871,6 +1877,8 @@ void EpubReaderDrawerActivity::toggleSetting(const RowId row) {
     // Anti-aliasing changes pixels only. Rebuilding the EPUB section here
     // makes the in-drawer preview appear to zoom while the page reflows.
     markSettingChanged(ReaderSettingsChangeMask::Preview | ReaderSettingsChangeMask::NonLayout);
+  } else if (row == RowId::ImageGrayscale) {
+    markSettingChanged(ReaderSettingsChangeMask::NonLayout);
   } else {
     const bool previews = row == RowId::Focus || row == RowId::GuideDots;
     markSettingChanged(previews ? ReaderSettingsChangeMask::Preview | ReaderSettingsChangeMask::Relayout
@@ -2993,6 +3001,8 @@ const char* EpubReaderDrawerActivity::rowLabel(const RowId row) const {
       return tr(STR_EMBEDDED_STYLE);
     case RowId::Images:
       return tr(STR_IMAGES);
+    case RowId::ImageGrayscale:
+      return tr(STR_IMAGE_GRAYSCALE);
     case RowId::SelectChapter:
       return tr(STR_SELECT_CHAPTER);
     case RowId::GoToPercent:
@@ -3153,6 +3163,7 @@ bool EpubReaderDrawerActivity::rowIsToggle(const RowId row) const {
   switch (row) {
     case RowId::TrackBookStats:
     case RowId::TextAa:
+    case RowId::ImageGrayscale:
     case RowId::Focus:
     case RowId::GuideDots:
     case RowId::Hyphenation:
@@ -3200,6 +3211,8 @@ bool EpubReaderDrawerActivity::rowToggleValue(const RowId row) const {
       return bookStatsEnabled;
     case RowId::TextAa:
       return draft.textAntiAliasing;
+    case RowId::ImageGrayscale:
+      return draft.imageGrayscale;
     case RowId::Focus:
       return draft.focusReadingEnabled;
     case RowId::GuideDots:
