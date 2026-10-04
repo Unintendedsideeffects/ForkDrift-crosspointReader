@@ -24,6 +24,7 @@
 #include "components/themes/lyra/LyraTheme.h"
 #include "components/themes/minimal/MinimalTheme.h"
 #include "components/themes/roundedraff/RoundedRaffTheme.h"
+#include "fontIds.h"
 
 namespace {
 constexpr char kWidthPlaceholder[] = "[WIDTH]";
@@ -278,16 +279,38 @@ UIIcon UITheme::getFileIcon(const std::string& filename) {
   return File;
 }
 
-int UITheme::getStatusBarHeight() { return getReaderStatusBarHeight(ReaderStatusBarPosition::Bottom); }
+int UITheme::getReaderStatusBarFontId() {
+  switch (SETTINGS.statusBarTextSize) {
+    case 1:
+      return UI_10_FONT_ID;
+    case 2:
+      return UI_12_FONT_ID;
+    default:
+      return SMALL_FONT_ID;
+  }
+}
 
-int UITheme::getReaderStatusBarHeight(const ReaderStatusBarPosition position) {
+int UITheme::getReaderStatusBarTextHeight(const GfxRenderer& renderer) {
+  const int defaultHeight = getInstance().getMetrics().statusBarVerticalMargin;
+  const int fontId = getReaderStatusBarFontId();
+  if (fontId == SMALL_FONT_ID) return defaultHeight;
+  // Include ascenders and descenders, with room to center the line in the bar.
+  constexpr int textPadding = 4;
+  return std::max(defaultHeight, renderer.getLineHeight(fontId) + textPadding);
+}
+
+int UITheme::getStatusBarHeight(const GfxRenderer& renderer) {
+  return getReaderStatusBarHeight(ReaderStatusBarPosition::Bottom, renderer);
+}
+
+int UITheme::getReaderStatusBarHeight(const ReaderStatusBarPosition position, const GfxRenderer& renderer) {
   const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();
   const auto config = SETTINGS.readerStatusBar(position);
   const bool hasText = config.hasTextItems(halClock.isAvailable());
   const int progressSpace = config.progressBar != CrossPointSettings::HIDE_PROGRESS
                                 ? static_cast<int>((config.progressBarThickness + 1) * 2) + metrics.progressBarMarginTop
                                 : 0;
-  return readerStatusBarTotalHeight(position, hasText, progressSpace, metrics.statusBarVerticalMargin);
+  return readerStatusBarTotalHeight(position, hasText, progressSpace, getReaderStatusBarTextHeight(renderer));
 }
 
 int UITheme::getProgressBarHeight() { return getReaderProgressBarHeight(ReaderStatusBarPosition::Bottom); }

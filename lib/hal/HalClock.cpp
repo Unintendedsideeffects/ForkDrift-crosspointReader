@@ -279,3 +279,29 @@ bool HalClock::syncSystemTimeFromNTP() {
 
   return true;
 }
+
+bool HalClock::getReadingDateTime(uint16_t& year, uint8_t& month, uint8_t& day, uint8_t& hour, uint8_t& minute,
+                                  uint8_t& second) const {
+  if (_available) {
+    Rtc::DateTime dt;
+    if (!_sdkRtc.now(dt)) return false;
+    year = dt.year;
+    month = dt.month;
+    day = dt.day;
+    hour = dt.hour;
+    minute = dt.minute;
+    second = dt.second;
+  } else {
+    const time_t now = time(nullptr);
+    if (now < 946684800) return false;
+    struct tm utc;
+    if (!gmtime_r(&now, &utc)) return false;
+    year = utc.tm_year + 1900;
+    month = utc.tm_mon + 1;
+    day = utc.tm_mday;
+    hour = utc.tm_hour;
+    minute = utc.tm_min;
+    second = utc.tm_sec;
+  }
+  return isValidDate(year, month, day) && hour < 24 && minute < 60 && second < 60;
+}

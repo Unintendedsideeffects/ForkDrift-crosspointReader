@@ -1,6 +1,9 @@
 #include "ReadingStatsUtils.h"
 
 #include <HalClock.h>
+#ifdef SIMULATOR
+#include <ctime>
+#endif
 
 #include "CrossPointSettings.h"
 
@@ -71,7 +74,7 @@ void ReadingStatsDate::clear() {
   day = 0;
 }
 
-bool ReadingStatsDateTime::isValid() const { return date.isValid(); }
+bool ReadingStatsDateTime::isValid() const { return date.isValid() && hour < 24 && minute < 60 && second < 60; }
 
 bool isLeapYear(const uint16_t year) { return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0; }
 
@@ -468,4 +471,46 @@ uint16_t computeReadingHistoryCurrentStreak(uint32_t anchorDay, const std::array
     streak++;
   }
   return streak;
+}
+
+bool getCurrentLocalDailyReadingDateTime(ReadingStatsDateTime& out) {
+  out = {};
+  if (SETTINGS.clockUtcOffsetQ > 104) return false;
+#ifdef SIMULATOR
+  const time_t now = time(nullptr);
+  struct tm utc;
+  if (now < 946684800 || !gmtime_r(&now, &utc)) return false;
+  out.date = {static_cast<uint16_t>(utc.tm_year + 1900), static_cast<uint8_t>(utc.tm_mon + 1),
+              static_cast<uint8_t>(utc.tm_mday)};
+  out.hour = utc.tm_hour;
+  out.minute = utc.tm_min;
+  out.second = utc.tm_sec;
+#else
+  if (!halClock.getReadingDateTime(out.date.year, out.date.month, out.date.day, out.hour, out.minute, out.second)) {
+    out = {};
+    return false;
+  }
+#endif
+  const int offset = (int(SETTINGS.clockUtcOffsetQ) - 48) * 15;
+  int minute = int(out.hour) * 60 + out.minute + offset;
+  if (minute < 0) {
+    addDaysToReadingStatsDate(out.date, -1);
+    minute += 1440;
+  }
+  if (minute >= 1440) {
+    addDaysToReadingStatsDate(out.date, 1);
+    minute -= 1440;
+  }
+  out.hour = minute / 60;
+  out.minute = minute % 60;
+  return out.isValid();
+}
+
+bool readingStatsIntervalSeconds(uint32_t nowMs, uint32_t shownAtMs, uint32_t idleSeconds, uint32_t& seconds) {
+  seconds = 0;
+  if (!shownAtMs) return false;
+  const uint32_t elapsed = (nowMs - shownAtMs) / 1000u;
+  if (!elapsed || elapsed > idleSeconds) return false;
+  seconds = elapsed;
+  return true;
 }

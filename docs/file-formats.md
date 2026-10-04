@@ -5,6 +5,15 @@ All POD fields are written in the ESP32 little-endian representation used by
 `Serialization.h`; strings are length-prefixed UTF-8 unless a format notes a
 fixed-size char buffer.
 
+## Global settings: status bar text size
+
+`statusBarTextSize` in the settings JSON selects Small (`0`, Inter 8), Medium
+(`1`, Inter 10), or Large (`2`, Inter 12) for both reader status bars. Missing
+values retain Small; invalid values fall back to the default. Larger sizes
+reserve additional reading space through the existing layout dimensions, so
+EPUB layout caches rebuild automatically when those dimensions change. No
+binary cache format change or manual cache reset is required.
+
 ## `epub_<hash>/links.bin`
 
 The EPUB reader writes followed-link Back history on clean exit (Home, sleep,
@@ -1149,3 +1158,45 @@ the card to the host. Manage Fonts performs a full rescan; alternatively remove
 this cache to force reinspection after external same-length font changes.
 
 EPUB layout cache versions and identities are unchanged by this catalog.
+
+
+### Daily reading counters (v1)
+
+Device-local counters live in `/.crosspoint/daily_reading/NNNNN.bin`, where NNNNN
+is the zero-padded day index since 2000-01-01 (2000–2099). Each file is 13 bytes:
+version byte 1; uint32 LE cumulative seconds at offset 1; uint32 LE acknowledged
+seconds at offset 5; uint32 LE FNV-1a checksum at offset 9. The checksum starts at
+`2166136261 XOR day_index` and covers bytes 0–8. Saves write and sync a `.tmp`,
+rotate the previous `.bin` to `.bin.bak`, then publish the temp file. Recovery
+keeps the maximum verified seconds and acknowledgment from all three files.
+Unknown newer formats and unrecoverable corruption are preserved and rejected.
+
+Only accepted page intervals in the existing EPUB/XTC stats paths contribute.
+Idle intervals over the configured threshold are rejected in full; menus,
+dictionary, input lock, overlays, and reader exit use the existing timer boundaries.
+The existing ten-second session minimum applies. Durations remain whole seconds,
+with the existing timer's per-interval millisecond remainder discarded. Each
+accepted interval captures a fresh wall clock and the configured fixed UTC offset
+at its start/end; midnight splits actual intervals, rather than placing accumulated
+active time at session start. Missing/invalid time, changed offsets, or wall time
+changes exceeding two seconds leave that interval undated. RTC readings are
+uncached and reject oscillator-stop/I2C failures. RTC-less devices use valid system
+UTC after NTP; this does not add background NTP or correct deep-sleep clock drift.
+No historical duration is inferred from global totals, buckets, or history bits.
+
+RAM is bounded: two day counters plus at most nine seconds of pending short-session
+intervals per reader. Saves are debounced to 60 accepted seconds, and flushed at
+existing global-stat save/exit boundaries and before sync. A sudden power loss can
+lose uncheckpointed accepted seconds (normally under 60), plus the current page
+interval that has not yet been accepted. Normal sleep commits through reader exit.
+Daily counters survive book/global-total resets and book moves/merges; they are
+monotonic device history for sync, independent of those resettable totals. Deleting
+this directory manually destroys that history; it cannot be reconstructed.
+
+Stats sync extends `PUT /api/v1/stats/global` with an optional `daily` array:
+`[{"date":"2026-10-01","seconds":61}]`. Dates are local calendar dates, not UTC
+timestamps. Firmware streams one changed day per request in the existing 1536-byte
+buffer; it marks that counter uploaded only after `accepted_daily: 1`. Old servers
+can still accept aggregate stats, but cannot silently discard daily history and
+acknowledge it. Failed requests remain eligible for retry, including recovered
+`.tmp`/`.bak` records. Nearby-device snapshots are never uploaded as local history.

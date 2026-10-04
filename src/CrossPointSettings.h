@@ -456,6 +456,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t statusBarTimeLeft = TIME_LEFT_HIDE;
   uint8_t statusBarBattery = 1;
   uint8_t xtcStatusBarMode = XTC_STATUS_BAR_HIDE;
+  uint8_t statusBarTextSize = 0;  // Small (Inter 8), Medium (Inter 10), Large (Inter 12).
   ReaderStatusBarConfig topReaderStatusBar{};
   ReaderStatusBarConfig bottomReaderStatusBar = [] {
     ReaderStatusBarConfig config;

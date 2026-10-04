@@ -64,7 +64,7 @@ void hideOverlayBatteryStrip(const GfxRenderer& renderer) {
   renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
                                    &orientedMarginLeft);
 
-  const int statusBarHeight = UITheme::getInstance().getStatusBarHeight();
+  const int statusBarHeight = UITheme::getInstance().getStatusBarHeight(renderer);
   if (statusBarHeight <= 0) {
     return;
   }
@@ -77,10 +77,14 @@ void hideOverlayBatteryStrip(const GfxRenderer& renderer) {
   // This keeps chapter/progress text readable while removing the battery glance target.
   static constexpr int bookmarkReserveWidth = 13;  // bookmark width + gap from BaseTheme::drawReaderStatusBar()
   static constexpr int batteryPercentSpacing = 4;  // matches BaseTheme::batteryPercentSpacing
-  const int clearWidth =
-      bookmarkReserveWidth + metrics.batteryWidth +
-      (showBatteryPercentage ? batteryPercentSpacing + renderer.getTextWidth(SMALL_FONT_ID, "100%") : 0);
-  const int clearHeight = std::max(renderer.getTextHeight(SMALL_FONT_ID), metrics.batteryHeight + 6);
+  const int clearWidth = bookmarkReserveWidth + metrics.batteryWidth +
+                         (showBatteryPercentage ? batteryPercentSpacing +
+                                                      renderer.getTextWidth(UITheme::getReaderStatusBarFontId(), "100%")
+                                                : 0);
+  const int clearHeight =
+      std::max(renderer.getTextHeight(UITheme::getReaderStatusBarFontId()),
+               metrics.batteryHeight + 6 + renderer.getLineHeight(UITheme::getReaderStatusBarFontId()) -
+                   renderer.getLineHeight(SMALL_FONT_ID));
 
   renderer.fillRect(metrics.statusBarHorizontalMargin + orientedMarginLeft + 1, textY, clearWidth, clearHeight, false);
 }

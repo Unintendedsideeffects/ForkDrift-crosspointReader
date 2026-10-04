@@ -25,6 +25,9 @@ struct GlobalReadingStats {
   // stats if the file is missing or the version byte does not match.
   static GlobalReadingStats load();
 
+  // Checked local export, never includes nearby-device snapshots.
+  static bool loadForUpload(GlobalReadingStats& stats);
+
   // Returns true when the optional synced stats directory exists.
   static bool hasSyncedStats();
 

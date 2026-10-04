@@ -48,10 +48,36 @@ bool getCurrentLocalReadingStatsDateTime(ReadingStatsDateTime& result) {
   result.date.value = 2;
   return true;
 }
+bool getCurrentLocalDailyReadingDateTime(ReadingStatsDateTime& result) {
+  return getCurrentLocalReadingStatsDateTime(result);
+}
+int dailyLogErrors = 0;
+void LOG_ERR(const char*, const char*) { ++dailyLogErrors; }
+// Observe the reader's daily-session calls; daily bucketing and persistence
+// are covered by DailyReadingStatsTest.
+struct DailySession {
+  uint32_t recordedSeconds = 0, lastSessionSeconds = 0;
+  int starts = 0, resets = 0, accepts = 0;
+  bool acceptSucceeds = true;
+  void reset() { ++resets; }
+  void start(const ReadingStatsDateTime&, uint8_t offset) {
+    assert(offset == 48);
+    ++starts;
+  }
+  bool accept(const ReadingStatsDateTime& end, uint8_t offset, uint32_t seconds, uint32_t sessionSeconds) {
+    assert(end.date.value == 2 && offset == 48);
+    ++accepts;
+    lastSessionSeconds = sessionSeconds;
+    if (!acceptSucceeds) return false;
+    recordedSeconds += seconds;
+    return true;
+  }
+};
 unsigned long now = 10000;
 unsigned long millis() { return now; }
 struct Settings {
   bool enabled = true;
+  uint8_t clockUtcOffsetQ = 48;
   bool shouldTrackReadingStats() const { return enabled; }
   uint32_t getReadingIdleTimeThresholdSeconds() const { return 300; }
 } SETTINGS;
@@ -125,6 +151,7 @@ struct ReaderState {
   ReadingStatsDateTime sessionStartLocalDateTime;
   unsigned long pageShownAtMs = 1000;
   uint32_t sessionReadingSeconds = 111;
+  DailySession dailyReadingSession;
   Stats stats, globalStats;
   uint32_t globalStatsResetRevisionAtPanelOpen = 0;
   int updates = 0;
@@ -145,6 +172,7 @@ struct EpubReaderActivity : ReaderState {
   void onFrontlightPanelClosed();
   bool currentPageReadingSecondsForStats(uint32_t&, const char*) const;
   void recordCurrentPageReadingTime(const char*);
+  void startDailyReadingInterval();
   void clearPendingManualPageTurns() {}
   void pauseReadingPaceTimer(const char*) {}
   void saveProgressBeforeRestart() {}
@@ -160,6 +188,7 @@ struct XtcReaderActivity : ReaderState {
   void onFrontlightPanelClosed();
   bool currentPageReadingSecondsForStats(uint32_t&, const char*) const;
   void recordCurrentPageReadingTime(const char*);
+  void startDailyReadingInterval();
   void resumeReadingStatsTimer(const char*) {}
 };
 '''
@@ -180,12 +209,17 @@ template <typename Reader> void checkStats(bool globalToggle) {
   assert(reader.stats.sessionCount == 2 && reader.globalStats.totalSessions == 2);
   assert(reader.stats.spanSeconds == 120 && reader.globalStats.spanSeconds == 120);
   assert(reader.stats.startDate.value == 1);
+  assert(reader.dailyReadingSession.recordedSeconds == 9 && reader.dailyReadingSession.accepts == 1);
+  assert(reader.dailyReadingSession.lastSessionSeconds == 120);
+  assert(reader.dailyReadingSession.resets == 1 && reader.dailyReadingSession.starts == 1);
   reader.syncStatsTrackingState();
   assert(reader.stats.totalReadingSeconds == 220);
+  assert(reader.dailyReadingSession.accepts == 1);
   SETTINGS.enabled = true;
   reader.bookStatsEnabled = true;
   reader.syncStatsTrackingState();
   assert(reader.statsTrackingActive && reader.sessionReadingSeconds == 0);
+  assert(reader.dailyReadingSession.resets == 2 && reader.dailyReadingSession.starts == 2);
   now += 60000;
   reader.bookStatsEnabled = false;
   reader.syncStatsTrackingState();
@@ -194,6 +228,8 @@ template <typename Reader> void checkStats(bool globalToggle) {
   assert(reader.stats.sessionCount == 3 && reader.globalStats.totalSessions == 3);
   assert(reader.stats.spanSeconds == 180 && reader.globalStats.spanSeconds == 180);
   assert(reader.stats.startDate.value == 1);
+  assert(reader.dailyReadingSession.recordedSeconds == 69 && reader.dailyReadingSession.accepts == 2);
+  assert(reader.dailyReadingSession.lastSessionSeconds == 60);
   now = 10000;
 }
 
@@ -224,9 +260,24 @@ template <typename Reader> void checkIdleAndFailure() {
   assert(reader.globalStats.totalReadingSeconds == 211);
   assert(reader.pendingStatsCommit);
   assert(reader.sessionReadingSeconds == 0);
+  assert(reader.dailyReadingSession.accepts == 0);  // Idle time does not reach daily stats.
   reader.syncStatsTrackingState();
   assert(reader.stats.totalReadingSeconds == 211);
   now = 10000;
+}
+
+template <typename Reader> void checkDailyRecordFailure() {
+  SETTINGS.enabled = true;
+  Reader reader;
+  reader.dailyReadingSession.acceptSucceeds = false;
+  const int errors = dailyLogErrors;
+  reader.bookStatsEnabled = false;
+  reader.syncStatsTrackingState();
+  assert(dailyLogErrors == errors + 1);
+  assert(reader.stats.totalReadingSeconds == 220 && reader.globalStats.totalReadingSeconds == 220);
+  assert(reader.dailyReadingSession.accepts == 1 && reader.dailyReadingSession.recordedSeconds == 0);
+  reader.syncStatsTrackingState();
+  assert(dailyLogErrors == errors + 1 && reader.dailyReadingSession.accepts == 1);
 }
 
 void resetDisk() {
@@ -384,6 +435,8 @@ int main(int argc, char**) {
     checkThresholds<XtcReaderActivity>();
     checkIdleAndFailure<EpubReaderActivity>();
     checkIdleAndFailure<XtcReaderActivity>();
+    checkDailyRecordFailure<EpubReaderActivity>();
+    checkDailyRecordFailure<XtcReaderActivity>();
     checkExitAfterToggle<EpubReaderActivity>();
     checkExitAfterToggle<XtcReaderActivity>();
     for (bool reset : {false, true}) {
@@ -409,11 +462,13 @@ def main():
     methods += method(session, "void commitReadingSession(")
     methods += method(session, "void importBookStatsEdits(")
     methods += method(session, "void refreshGlobalStatsAfterOverlay(")
+    methods += method("src/activities/reader/ReadingStatsUtils.cpp", "bool readingStatsIntervalSeconds(")
     for reader in ("EpubReaderActivity", "XtcReaderActivity"):
         path = f"src/activities/reader/{reader}.cpp"
         for name, result in (("syncStatsTrackingState", "void"),
                              ("currentPageReadingSecondsForStats", "bool"),
                              ("recordCurrentPageReadingTime", "void"),
+                             ("startDailyReadingInterval", "void"),
                              ("finalizeReadingStatsOnExit", "void"),
                              ("onFrontlightPanelClosed", "void")):
             methods += method(path, f"{result} {reader}::{name}(")
@@ -431,7 +486,7 @@ def main():
                         str(source), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
         subprocess.run([str(binary), "fonts"], check=True)
-    print("PASS: font results and reload detection; stats toggles, exit ordering, drawer reloads, and failed saves")
+    print("PASS: font results and reload detection; stats toggles, daily intervals, exit ordering, drawer reloads, and failed saves")
 
 
 if __name__ == "__main__":

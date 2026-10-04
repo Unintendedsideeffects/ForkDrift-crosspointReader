@@ -3,6 +3,7 @@
 #include <string>
 
 #include "BookReadingStats.h"
+#include "DailyReadingStats.h"
 #include "GlobalReadingStats.h"
 
 class GfxRenderer;
@@ -26,7 +27,8 @@ void renderPerBookStatsPage(GfxRenderer& renderer, const MappedInputManager* map
                             bool showMoreButton);
 
 void renderGlobalStatsPage(GfxRenderer& renderer, const MappedInputManager* mappedInput, const char* screenTitle,
-                           const GlobalReadingStats& stats, bool showButtonHints, bool showMoreButton);
+                           const GlobalReadingStats& stats, bool showButtonHints, bool showMoreButton,
+                           const DailyReadingStats::Summary* daily = nullptr);
 
 void renderNoRtcCombinedStatsPage(GfxRenderer& renderer, const MappedInputManager* mappedInput,
                                   const std::string& bookTitle, const BookReadingStats& bookStats,

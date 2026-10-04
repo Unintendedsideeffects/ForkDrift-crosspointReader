@@ -4,6 +4,7 @@
 #include <HalStorage.h>
 #include <I18n.h>
 #include <Logging.h>
+#include <Memory.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <freertos/FreeRTOS.h>
@@ -31,6 +32,8 @@
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "network/ClippingsUpload.h"
+#include "network/ReadingSyncUpload.h"
 #include "network/WifiUtils.h"
 
 namespace {
@@ -145,9 +148,9 @@ void drawProgressCard(const GfxRenderer& renderer, const Rect& card, const Progr
   renderer.drawText(UI_10_FONT_ID, x, y, chapter.c_str());
 }
 
-TouchActionButtons::Layout noRemoteProgressActionLayout(const Rect& screen, const ThemeMetrics& metrics) {
-  constexpr uint8_t buttonCount = 2;
-  constexpr int totalHeight =
+TouchActionButtons::Layout bottomActionLayout(const Rect& screen, const ThemeMetrics& metrics,
+                                              const uint8_t buttonCount) {
+  const int totalHeight =
       TouchActionButtons::kDefaultHeight * buttonCount + TouchActionButtons::kDefaultGap * (buttonCount - 1);
   const Rect container{screen.x + metrics.contentSidePadding,
                        screen.y + screen.height - metrics.verticalSpacing - totalHeight,
@@ -186,7 +189,11 @@ void wifiOff() {
 
 void KOReaderSyncActivity::ensureEpubLoaded() {
   if (!epub) {
-    epub = std::make_shared<Epub>(epubPath, "/.crosspoint");
+    epub = makeUniqueNoThrow<Epub>(epubPath, "/.crosspoint");
+    if (!epub) {
+      LOG_ERR("KOSync", "Cannot allocate EPUB for sync");
+      return;
+    }
     epub->setupCacheDir();
     // Load metadata only (no CSS needed for progress mapping, don't rebuild if cache is missing).
     if (!epub->load(false, true, Epub::XLocationLoadMode::Immediate, true)) {
@@ -247,10 +254,24 @@ void KOReaderSyncActivity::saveProgressAndReturn(const CrossPointPosition& posit
     return;
   }
   RecentBookProgress::saveCachedEpubPercent(*epub, position.spineIndex, position.pageNumber, pageCount);
+  progressSucceeded = true;
+  if (!uploadExtras()) return;
+  syncSucceeded = true;
   returnToSource();
 }
 
 void KOReaderSyncActivity::returnToSource() {
+  if (folderSync) {
+    if (syncSucceeded) {
+      setResult(syncResult());
+    } else {
+      ActivityResult result;
+      result.isCancelled = true;
+      setResult(std::move(result));
+    }
+    finish();
+    return;
+  }
   const PendingOverlayResume& resume = APP_STATE.pendingOverlayResume;
   if (resume.origin == PendingOverlayOrigin::FileBrowser && resume.valid()) {
     activityManager.goToFileBrowser(resume.fileBrowserPath);
@@ -278,6 +299,13 @@ bool KOReaderSyncActivity::smartSyncEnabled() const {
 void KOReaderSyncActivity::markAutoReturn() { autoReturnAt = millis() + AUTO_RETURN_DELAY_MS; }
 
 void KOReaderSyncActivity::completeAlreadySynced() {
+  progressSucceeded = true;
+  if (!uploadExtras()) return;
+  syncSucceeded = true;
+  if (folderSync) {
+    returnToSource();
+    return;
+  }
   {
     RenderLock lock(*this);
     state = SYNC_COMPLETE;
@@ -305,8 +333,8 @@ void KOReaderSyncActivity::onWifiSelectionComplete(const bool success) {
   }
   requestUpdate(true);
 
-  // Sync time with NTP before making API requests
-  syncTimeWithNTP();
+  // The folder batch synchronizes time once, with its first book.
+  if (!folderSync || includeGlobalStats) syncTimeWithNTP();
 
   {
     RenderLock lock(*this);
@@ -338,7 +366,7 @@ void KOReaderSyncActivity::performSync() {
   }
   if (requestUpdateAndWait() != RequestUpdateResult::Rendered) {
     LOG_ERR("KOSync", "Fetch progress screen could not be rendered synchronously; aborting sync");
-    wifiOff();
+    if (!folderSync) wifiOff();
     {
       RenderLock lock(*this);
       state = SYNC_FAILED;
@@ -560,7 +588,7 @@ void KOReaderSyncActivity::performUpload() {
   }
   if (requestUpdateAndWait() != RequestUpdateResult::Rendered) {
     LOG_ERR("KOSync", "Upload progress screen could not be rendered synchronously; aborting upload");
-    wifiOff();
+    if (!folderSync) wifiOff();
     {
       RenderLock lock(*this);
       state = SYNC_FAILED;
@@ -623,8 +651,13 @@ void KOReaderSyncActivity::performUpload() {
 
   const auto result = KOReaderSyncClient::updateProgress(progress);
 
+  if (result == KOReaderSyncClient::OK) {
+    progressSucceeded = true;
+    if (!uploadExtras()) return;
+  }
+
   // Drop the radio while user reads the result; full teardown happens at silent reboot.
-  wifiOff();
+  if (!folderSync) wifiOff();
 
   if (result != KOReaderSyncClient::OK) {
     {
@@ -636,6 +669,11 @@ void KOReaderSyncActivity::performUpload() {
     return;
   }
 
+  syncSucceeded = true;
+  if (folderSync) {
+    returnToSource();
+    return;
+  }
   {
     RenderLock lock(*this);
     state = UPLOAD_COMPLETE;
@@ -644,6 +682,41 @@ void KOReaderSyncActivity::performUpload() {
     markAutoReturn();
   }
   requestUpdate(true);
+}
+
+ProgressSyncResult KOReaderSyncActivity::syncResult() const {
+  return {syncSucceeded,
+          progressSucceeded,
+          extrasResult.stats == StatsUploadClient::Result::Ok,
+          extrasResult.clippings == StatsUploadClient::Result::Ok,
+          StatsUploadClient::failed(extrasResult.stats),
+          StatsUploadClient::failed(extrasResult.clippings)};
+}
+
+bool KOReaderSyncActivity::uploadExtras() {
+  if (extrasAttempted) return !StatsUploadClient::failed(globalStatsResult) && extrasResult.success();
+  extrasAttempted = true;
+  if (!KOREADER_STORE.getSyncStats() && !KOREADER_STORE.getSyncClippings()) return true;
+  {
+    RenderLock lock(*this);
+    state = UPLOADING;
+    epub.reset();
+    statusMessage = tr(STR_LOADING);
+  }
+  if (requestUpdateAndWait() != RequestUpdateResult::Rendered) {
+    LOG_ERR("KOSync", "Cannot render extras upload screen");
+  }
+  if (includeGlobalStats && KOREADER_STORE.getSyncStats()) globalStatsResult = ReadingSyncUpload::globalStats();
+  extrasResult = ReadingSyncUpload::extras(epubPath, documentHash);
+  if (!StatsUploadClient::failed(globalStatsResult) && extrasResult.success()) return true;
+  if (!folderSync) wifiOff();
+  {
+    RenderLock lock(*this);
+    state = SYNC_FAILED;
+    statusMessage = progressSucceeded ? tr(STR_SYNC_EXTRAS_FAILED) : tr(STR_SYNC_FAILED_MSG);
+  }
+  requestUpdate(true);
+  return false;
 }
 
 void KOReaderSyncActivity::onEnter() {
@@ -673,8 +746,9 @@ void KOReaderSyncActivity::onEnter() {
   uint8_t syncOrientation =
       readerOrientation < CrossPointSettings::ORIENTATION_COUNT ? readerOrientation : SETTINGS.orientation;
   const PendingOverlayResume& resume = APP_STATE.pendingOverlayResume;
-  if (resume.origin == PendingOverlayOrigin::Reader && resume.overlay == PendingOverlayType::FrontlightDrawer &&
-      resume.preserveReaderOrientation && resume.readerOrientation < CrossPointSettings::ORIENTATION_COUNT) {
+  if (!folderSync && resume.origin == PendingOverlayOrigin::Reader &&
+      resume.overlay == PendingOverlayType::FrontlightDrawer && resume.preserveReaderOrientation &&
+      resume.readerOrientation < CrossPointSettings::ORIENTATION_COUNT) {
     syncOrientation = resume.readerOrientation;
   }
   ReaderUtils::applyOrientation(renderer, syncOrientation);
@@ -719,7 +793,7 @@ void KOReaderSyncActivity::onExit() {
   }
   Activity::onExit();
 
-  if (wifiActivated) {
+  if (wifiActivated && !folderSync) {
     wifiOff();
     if (APP_STATE.pendingOverlayResume.origin == PendingOverlayOrigin::FileBrowser &&
         APP_STATE.pendingOverlayResume.valid()) {
@@ -738,10 +812,11 @@ void KOReaderSyncActivity::render(RenderLock&&) {
 
   const Rect header{screen.x, screen.y + metrics.topPadding, screen.width,
                     TouchHeaderBackButton::height(metrics, mappedInput)};
+  const std::string heading = folderSync ? epubPath.substr(epubPath.find_last_of('/') + 1) : tr(STR_KOREADER_SYNC);
   if (mappedInput.hasTouchHardware()) {
-    TouchHeaderBackButton::draw(renderer, header, tr(STR_KOREADER_SYNC), true);
+    TouchHeaderBackButton::draw(renderer, header, heading.c_str(), true);
   } else {
-    GUI.drawHeader(renderer, header, tr(STR_KOREADER_SYNC));
+    GUI.drawHeader(renderer, header, heading.c_str());
   }
 
   int top = screen.y + screen.height / 2 - 40;
@@ -824,7 +899,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
     UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top + 40, tr(STR_UPLOAD_PROMPT));
 
     if (mappedInput.hasTouch()) {
-      const auto actions = noRemoteProgressActionLayout(screen, metrics);
+      const auto actions = bottomActionLayout(screen, metrics, 2);
       const char* actionLabels[] = {tr(STR_UPLOAD), tr(STR_CANCEL)};
       TouchActionButtons::draw(renderer, actions, actionLabels, 0, -1, UI_10_FONT_ID);
     }
@@ -854,7 +929,22 @@ void KOReaderSyncActivity::render(RenderLock&&) {
     UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top + 40, statusMessage.c_str(), 3, true,
                                      EpdFontFamily::REGULAR, 4);
 
-    const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), "", "", "");
+    if (extrasAttempted) {
+      char results[240];
+      snprintf(results, sizeof(results), "%s: %s\n%s: %s\n%s: %s", tr(STR_ALL_TIME_STATS),
+               StatsUploadClient::resultString(globalStatsResult), tr(STR_READING_STATS),
+               StatsUploadClient::resultString(extrasResult.stats), tr(STR_CLIPPINGS),
+               StatsUploadClient::resultString(extrasResult.clippings));
+      UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top + 120, results, 6, true,
+                                       EpdFontFamily::REGULAR, 4);
+    }
+    if (folderSync && mappedInput.hasTouchHardware()) {
+      const auto actions = bottomActionLayout(screen, metrics, 1);
+      const char* labels[] = {tr(STR_SKIP_BOOK)};
+      TouchActionButtons::draw(renderer, actions, labels, 0);
+    }
+    const auto labels =
+        mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), folderSync ? tr(STR_SKIP_BOOK) : "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
     renderer.displayBuffer(screenTransitionRefresh.modeFor(static_cast<uint8_t>(state)));
     return;
@@ -872,6 +962,35 @@ void KOReaderSyncActivity::loop() {
                     TouchHeaderBackButton::height(metrics, mappedInput)};
   if (TouchHeaderBackButton::wasTapped(mappedInput, header)) {
     returnToSource();
+    return;
+  }
+
+  if (folderSync && state == SYNC_FAILED) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+      returnToSource();
+      return;
+    }
+    if (!extrasAttempted && !documentHash.empty()) {
+      // A failed progress fetch or coordinate map must not strand independent
+      // saved stats/clippings. Back/cancellation above still stops the action.
+      std::string progressError = std::move(statusMessage);
+      uploadExtras();
+      {
+        RenderLock lock(*this);
+        state = SYNC_FAILED;
+        statusMessage = std::move(progressError);
+      }
+      requestUpdate();
+      return;
+    }
+    int x = 0, y = 0;
+    const bool skipTapped = mappedInput.wasScreenTapped(x, y) &&
+                            TouchActionButtons::indexAt(bottomActionLayout(screen, metrics, 1), x, y) == 0;
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) || skipTapped) {
+      LOG_INF("KOSync", "Skipping failed folder book: %s", epubPath.c_str());
+      setResult(syncResult());
+      finish();
+    }
     return;
   }
 
@@ -946,7 +1065,7 @@ void KOReaderSyncActivity::loop() {
     if (mappedInput.hasTouch()) {
       const auto& metrics = UITheme::getInstance().getMetrics();
       const Rect screen = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
-      const auto actions = noRemoteProgressActionLayout(screen, metrics);
+      const auto actions = bottomActionLayout(screen, metrics, 2);
       int touchedOption = -1;
       const auto touch = mappedInput.rowTouch(
           touchedOption, actions.buttons[0].y, TouchActionButtons::kDefaultHeight + TouchActionButtons::kDefaultGap,

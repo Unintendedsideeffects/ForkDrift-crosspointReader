@@ -2,12 +2,14 @@
 
 #include <GfxRenderer.h>
 #include <I18n.h>
+#include <Memory.h>
 
 #include <cstring>
 
 #include "KOReaderCredentialStore.h"
 #include "MappedInputManager.h"
 #include "SilentRestart.h"
+#include "activities/network/StatsUploadActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
@@ -19,10 +21,11 @@
 namespace fui = freeink::ui;
 
 namespace {
-constexpr int MENU_ITEMS = 8;
+constexpr int MENU_ITEMS = 11;
 const StrId menuNames[MENU_ITEMS] = {StrId::STR_USERNAME,          StrId::STR_PASSWORD,      StrId::STR_SYNC_SERVER_URL,
                                      StrId::STR_DOCUMENT_MATCHING, StrId::STR_SEND_METADATA, StrId::STR_SYNC_BEHAVIOR,
-                                     StrId::STR_SIGN_UP,           StrId::STR_AUTHENTICATE};
+                                     StrId::STR_SIGN_UP,           StrId::STR_AUTHENTICATE,  StrId::STR_STATS_UPLOAD,
+                                     StrId::STR_SYNC_STATS,        StrId::STR_SYNC_CLIPPINGS};
 constexpr fui::ActionId ACTION_ROW = 1;
 }  // namespace
 
@@ -177,6 +180,20 @@ void KOReaderSettingsActivity::handleSelection() {
       return;
     }
     silentRestartToNetwork(NetworkBootTarget::KOREADER_AUTH);
+  } else if (selectedIndex == 9 || selectedIndex == 10) {
+    if (selectedIndex == 9)
+      KOREADER_STORE.setSyncStats(!KOREADER_STORE.getSyncStats());
+    else
+      KOREADER_STORE.setSyncClippings(!KOREADER_STORE.getSyncClippings());
+    KOREADER_STORE.saveToFile();
+    requestUpdate();
+  } else if (selectedIndex == 8) {
+    auto upload = makeUniqueNoThrow<StatsUploadActivity>(renderer, mappedInput);
+    if (!upload) {
+      LOG_ERR("StatsSync", "Cannot allocate upload activity");
+      return;
+    }
+    activityManager.replaceActivity(std::move(upload));
   }
 }
 
@@ -216,7 +233,7 @@ void KOReaderSettingsActivity::buildListScreen(UiApp::ScreenType& screen) {
     } else if (i == 5) {
       values[i] =
           KOREADER_STORE.getSyncBehavior() == KOReaderSyncBehavior::SMART ? tr(STR_SMART_SYNC) : tr(STR_ASK_EVERY_TIME);
-    } else {
+    } else if (i != 4 && i != 9 && i != 10) {
       values[i] = KOREADER_STORE.hasCredentials() ? "" : std::string("[") + tr(STR_SET_CREDENTIALS_FIRST) + "]";
     }
   }
@@ -227,8 +244,10 @@ void KOReaderSettingsActivity::buildListScreen(UiApp::ScreenType& screen) {
     fui::ListItem item;
     item.label = I18N.get(menuNames[i]);
     if (!values[i].empty()) item.value = values[i].c_str();
-    item.toggle = i == 4;
-    item.toggleChecked = KOREADER_STORE.getSendMetadata();
+    item.toggle = i == 4 || i == 9 || i == 10;
+    item.toggleChecked = i == 9    ? KOREADER_STORE.getSyncStats()
+                         : i == 10 ? KOREADER_STORE.getSyncClippings()
+                                   : KOREADER_STORE.getSendMetadata();
     item.actionValue = static_cast<int16_t>(i);
     items.push_back(item);
   }

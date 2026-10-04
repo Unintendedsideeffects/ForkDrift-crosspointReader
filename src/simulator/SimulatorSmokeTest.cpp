@@ -4,9 +4,11 @@
 
 #include <Epub.h>
 #include <HalStorage.h>
+#include <KOReaderCredentialStore.h>
 #include <LibraryBuilder.h>
 #include <LibraryIndexFile.h>
 #include <Logging.h>
+#include <WiFi.h>
 
 #include <algorithm>
 #include <chrono>
@@ -14,8 +16,8 @@
 #include <exception>
 #include <filesystem>
 
-#include "CrossPointState.h"
-#include "KOReaderCredentialStore.h"
+#include "ReadingUploadSmokeTest.h"
+#include "StatsUploadSmokeTest.h"
 #if CROSSINK_SCALABLE_FONTS
 #include <Epub/parsers/ChapterHtmlSlimParser.h>
 #include <HalScalableFont.h>
@@ -30,22 +32,28 @@
 #include <vector>
 
 #include "CrossPointSettings.h"
+#include "CrossPointState.h"
 #include "DeviceCapabilities.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
 #include "SdCardFontSystem.h"
 #include "SettingsList.h"
+#include "WifiCredentialStore.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
+#include "activities/home/BookActions.h"
 #include "activities/home/FileBrowserActivity.h"
 #include "activities/home/HomeActivity.h"
 #include "activities/home/RecentBookProgress.h"
 #include "activities/library/LibraryActivity.h"
+#include "activities/network/StatsUploadActivity.h"
 #include "activities/reader/BookReadingStats.h"
 #include "activities/reader/EpubReaderDrawerActivity.h"
+#include "activities/reader/KOReaderSyncActivity.h"
 #include "activities/reader/ReaderFontLoading.h"
 #include "activities/reader/ReaderUtils.h"
 #include "activities/reader/SideButtonShortcuts.h"
+#include "activities/settings/KOReaderSettingsActivity.h"
 #include "activities/settings/QuickActionsActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "activities/settings/StatusBarSettingsActivity.h"
@@ -81,6 +89,9 @@ enum class SmokeStep : uint8_t {
   FileBrowser,
   FileBrowserSettings,
   Library,
+  StatsUploadEntry,
+  StatsUploadReturn,
+  StatsUploadEmptyDone,
   RecentLibrary,
   Settings,
   SideButtons,
@@ -917,6 +928,100 @@ class SimulatorSmokeTest {
     step = nextStep;
   }
 
+  void verifyStatusBarTextSizes() {
+    JsonDocument original;
+    SETTINGS.toJson(original);
+    const auto originalOrientation = renderer.getOrientation();
+    const ReaderStatusBarConfig empty{};
+    ReaderStatusBarConfig crowded;
+    crowded.slots = {ReaderStatusBarItem::Battery,
+                     ReaderStatusBarItem::TimeLeftBook,
+                     ReaderStatusBarItem::Clock,
+                     ReaderStatusBarItem::TitleChapter,
+                     ReaderStatusBarItem::ChapterPageCount,
+                     ReaderStatusBarItem::StablePageNumber,
+                     ReaderStatusBarItem::BookProgressPercentage};
+    ReaderStatusBarContent content;
+    content.previewOriginY = 100;
+    content.previewClock = "12:34";
+    content.chapterTitle = "A long chapter title with descenders: gypsy jumping";
+    content.timeLeftBook = "3h 40m";
+    content.chapterPage = 888;
+    content.chapterPageCount = 999;
+    content.stablePage = 1234;
+    content.stablePageCount = 9999;
+    content.bookProgress = 75.12f;
+    content.bookmarked = true;
+    RenderLock lock;
+    for (const auto orientation : {GfxRenderer::Portrait, GfxRenderer::LandscapeClockwise}) {
+      renderer.setOrientation(orientation);
+      int previousHeight = 0;
+      uint64_t displayBarHash = 0;
+      for (uint8_t size = 0; size < 3; ++size) {
+        SETTINGS.statusBarTextSize = size;
+        JsonDocument saved;
+        SETTINGS.toJson(saved);
+        SETTINGS.statusBarTextSize = 0;
+        SETTINGS.fromJson(saved.as<JsonVariantConst>());
+        if (SETTINGS.statusBarTextSize != size) fail("Status bar text size did not survive settings round trip");
+        const int height = UITheme::getReaderStatusBarTextHeight(renderer);
+        if (height <= previousHeight) fail("Larger status bar text did not reserve more reading space");
+        previousHeight = height;
+        // Display headers share the drawing path but keep their existing text size.
+        ReaderStatusBarContent displayContent;
+        displayContent.outsideReader = true;
+        displayContent.previewOriginY = 100;
+        displayContent.previewClock = "12:34";
+        ReaderStatusBarConfig displayConfig;
+        displayConfig.slots[0] = ReaderStatusBarItem::Clock;
+        displayConfig.slots[6] = ReaderStatusBarItem::Battery;
+        renderer.clearScreen();
+        GUI.drawReaderStatusBar(renderer, ReaderStatusBarPosition::Top, displayContent, &displayConfig);
+        const uint64_t currentDisplayBarHash = hashBytes(renderer.getFrameBuffer(), renderer.getBufferSize());
+        if (size == 0)
+          displayBarHash = currentDisplayBarHash;
+        else if (currentDisplayBarHash != displayBarHash)
+          fail("Reader text size changed the Display status bar");
+        SETTINGS.topReaderStatusBar = empty;
+        SETTINGS.bottomReaderStatusBar = empty;
+        if (UITheme::getStatusBarHeight(renderer) ||
+            UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Top, renderer))
+          fail("Text size reserved space for an empty status bar");
+        if (ReaderUtils::getReaderFooterReservedHeight(renderer, true) < height + ReaderUtils::STATUS_BAR_TEXT_PADDING)
+          fail("Automatic page turn did not reserve its enlarged label");
+        SETTINGS.topReaderStatusBar = crowded;
+        SETTINGS.bottomReaderStatusBar = crowded;
+        for (const auto position : {ReaderStatusBarPosition::Top, ReaderStatusBarPosition::Bottom}) {
+          renderer.clearScreen();
+          GUI.drawReaderStatusBar(renderer, position, content);
+          // Verify the text stays above the reading area (including its existing padding).
+          const int end = content.previewOriginY + UITheme::getReaderStatusBarHeight(position, renderer) +
+                          ReaderUtils::STATUS_BAR_TEXT_PADDING;
+          // Erase the allowed rectangle in logical coordinates, so partial framebuffer
+          // bytes at a rotated boundary cannot look like text outside the bar.
+          renderer.fillRect(0, 0, renderer.getScreenWidth(), end, false);
+          const uint8_t* pixels = renderer.getFrameBuffer();
+          if (!std::all_of(pixels, pixels + renderer.getBufferSize(), [](uint8_t byte) { return byte == 0xff; }))
+            fail("Status bar text escaped its reserved reading space: size=%u orientation=%u position=%u end=%d", size,
+                 static_cast<unsigned>(orientation), static_cast<unsigned>(position), end);
+        }
+      }
+    }
+    JsonDocument invalid;
+    SETTINGS.toJson(invalid);
+    invalid["statusBarTextSize"] = 99;
+    SETTINGS.statusBarTextSize = 0;
+    SETTINGS.fromJson(invalid.as<JsonVariantConst>());
+    if (SETTINGS.statusBarTextSize != 0) fail("Invalid status bar text size was not rejected");
+    invalid.remove("statusBarTextSize");
+    SETTINGS.fromJson(invalid.as<JsonVariantConst>());
+    if (SETTINGS.statusBarTextSize != 0) fail("Legacy settings did not retain Small status bar text");
+    SETTINGS.fromJson(original.as<JsonVariantConst>());
+    renderer.setOrientation(originalOrientation);
+    renderer.clearScreen();
+    LOG_INF("SMOKE", "Status bar text sizes, persistence, empty bars, auto-turn and crowded layout passed");
+  }
+
   void verifyLoadingPopupBackdrop() {
     RenderLock lock;
     const auto originalOrientation = renderer.getOrientation();
@@ -1311,6 +1416,129 @@ class SimulatorSmokeTest {
     switch (step) {
       case SmokeStep::Start:
         LOG_INF("SMOKE", "Starting simulator smoke test");
+        if (std::getenv("CROSSINK_READING_TEST_MENU") && Storage.exists("/expected-progress.json")) {
+          if (Storage.exists("/menu-network-checked")) {
+            LOG_INF("SMOKE", "Stats upload transport smoke passed");
+            std::_Exit(0);
+          }
+          if (!Storage.writeFile("/menu-network-checked", "checked")) fail("Cannot mark menu sync reboot");
+          const char* selectedBook =
+              std::getenv("CROSSINK_READING_TEST_COLD") ? "/read/unread.epub" : "/read/first.epub";
+          if (APP_STATE.openEpubPath != selectedBook || !activityManager.hasActivityNamed(KOReaderSyncActivity::NAME))
+            fail("Book menu did not reboot into selected book sync");
+          inputScript.clear();
+          scriptIndex = 0;
+          inputCompletionStep = SmokeStep::StatsUploadEmptyDone;
+          inputScript.push_back(render("Selected book combined sync", 100));
+          step = SmokeStep::ReaderInput;
+          break;
+        }
+        // Applying remote progress intentionally reboots into the reader. The
+        // isolated fixture marks re-entry so this test cannot repeat uploads.
+        if (std::getenv("CROSSINK_READING_TEST_CURRENT") && Storage.exists("/expected-progress.json")) {
+          LOG_INF("SMOKE", "Stats upload transport smoke passed");
+          std::_Exit(0);
+        }
+        verifyStatsUploadContract();
+        if (prepareReadingUploadSmokeTest()) {
+          WiFi.mode(WIFI_STA);
+          WiFi.begin("reading-smoke");
+          if (std::getenv("CROSSINK_READING_TEST_MENU")) {
+            for (const auto* path : {"/read/first.epub", "/read/notes.txt", "/read/book.xtc"}) {
+              const auto actions = BookActions::buildBookActionItems(path, true);
+              const auto count = std::count_if(actions.begin(), actions.end(), [](const auto& item) {
+                return item.action == FileBrowserAction::SyncProgress;
+              });
+              if (count != (std::string(path) == "/read/first.epub" ? 1 : 0))
+                fail("Book menu sync availability mismatch");
+            }
+            if (!WIFI_STORE.addCredential("reading-smoke", "")) fail("Cannot save test Wi-Fi");
+            WIFI_STORE.setLastConnectedSsid("reading-smoke");
+            APP_STATE.openEpubPath = "/read/sub/second.EPUB";
+            if (!APP_STATE.saveToFile() || !KOREADER_STORE.saveToFile()) fail("Cannot save menu sync fixture");
+            BookActions::syncProgress(
+                renderer, std::getenv("CROSSINK_READING_TEST_COLD") ? "/read/unread.epub" : "/read/first.epub");
+            break;
+          }
+          const bool currentBook = std::getenv("CROSSINK_READING_TEST_CURRENT");
+          if (currentBook)
+            activityManager.replaceActivity(std::make_unique<KOReaderSyncActivity>(
+                renderer, mappedInputManager, "/read/first.epub", DocumentMatchMethod::FILENAME, SETTINGS.orientation));
+          else
+            activityManager.replaceActivity(
+                std::make_unique<StatsUploadActivity>(renderer, mappedInputManager, "/read"));
+          inputScript.clear();
+          scriptIndex = 0;
+          inputCompletionStep = SmokeStep::StatsUploadEmptyDone;
+          if (currentBook) {
+            inputScript.push_back(render("Current book combined sync", 40));
+            step = SmokeStep::ReaderInput;
+            break;
+          }
+          inputScript.push_back(render("Folder upload confirmation", 5));
+          if (!std::getenv("CROSSINK_READING_TEST_CANCEL")) {
+            addTap(MappedInputManager::Button::Confirm);
+            if (std::getenv("CROSSINK_READING_TEST_ASK")) {
+              for (int book = 0; book < 2; ++book) {
+                inputScript.push_back(render("Folder sync choice", 25));
+                inputScript.push_back(assertActivity("KOReaderSync"));
+                if (std::getenv("CROSSINK_READING_TEST_ASK_CANCEL")) break;
+                addTap(MappedInputManager::Button::Confirm);
+              }
+            }
+            inputScript.push_back(render("Folder upload result", 100));
+            if (std::getenv("CROSSINK_READING_TEST_SKIP_FAILED")) {
+              const bool invalidBook = std::getenv("CROSSINK_READING_TEST_INVALID_BOOK");
+              const int failures = std::getenv("CROSSINK_READING_TEST_ALL_FAIL") ? 2 : 1;
+              for (int i = 0; i < failures; ++i) {
+                inputScript.push_back(assertActivity(invalidBook ? "StatsUpload" : "KOReaderSync"));
+                if (std::getenv("CROSSINK_READING_TEST_TOUCH")) {
+#if CROSSINK_APP_CAP_TOUCH
+                  if (!mappedInputManager.hasTouchHardware()) fail("Touch skip test requires a touch simulator");
+                  const auto area = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
+                  const auto& metrics = UITheme::getInstance().getMetrics();
+                  const int x = area.x + area.width / 2;
+                  const int y = area.y + area.height - (invalidBook ? 52 : metrics.verticalSpacing + 28);
+                  inputScript.push_back(touchDown(x, y));
+                  inputScript.push_back(touchRelease(x, y));
+#else
+                  fail("Touch skip test requires a touch simulator");
+#endif
+                } else {
+                  addTap(MappedInputManager::Button::Confirm);
+                }
+                inputScript.push_back(render("Folder sync after skipping failed book", 100));
+              }
+              inputScript.push_back(assertActivity("StatsUpload"));
+            } else if (std::getenv("CROSSINK_READING_TEST_ERROR")) {
+              inputScript.push_back(assertActivity("KOReaderSync"));
+            }
+          }
+          addTap(MappedInputManager::Button::Back);
+          inputScript.push_back(assertActivity("Home"));
+          step = SmokeStep::ReaderInput;
+          break;
+        }
+        if (std::getenv("CROSSINK_STATS_TEST_EMPTY_LIBRARY")) {
+          library::BuildStats stats;
+          if (!Storage.mkdir("/empty-stats-library") || !library::buildLibraryIndex("/empty-stats-library", stats) ||
+              stats.books || stats.folders)
+            fail("Cannot build empty Library fixture");
+          SETTINGS.trackReadingStats = 1;
+          WiFi.mode(WIFI_STA);
+          WiFi.begin("stats-smoke");
+          activityManager.replaceActivity(std::make_unique<StatsUploadActivity>(renderer, mappedInputManager));
+          inputScript.clear();
+          scriptIndex = 0;
+          inputCompletionStep = SmokeStep::StatsUploadEmptyDone;
+          inputScript.push_back(render("Empty Library stats upload confirmation", 5));
+          addTap(MappedInputManager::Button::Confirm);
+          inputScript.push_back(render("Empty Library stats upload result", 100));
+          addTap(MappedInputManager::Button::Back);
+          inputScript.push_back(assertActivity("Home"));
+          step = SmokeStep::ReaderInput;
+          break;
+        }
         if (std::getenv("CROSSINK_SIMULATOR_SMOKE_STATUS_BARS")) {
           verifyStatusBarSettings();
           SETTINGS.clockDateHasBeenSynced = true;
@@ -1347,6 +1575,7 @@ class SimulatorSmokeTest {
           queueStep("Frontlight layout Home", SmokeStep::FrontlightLayout, 4);
           break;
         }
+        verifyStatusBarTextSizes();
         verifyLoadingPopupBackdrop();
         verifyCachedHomeProgressMigration();
         if (!CrossPointSettings::verifySleepTimeoutMigrationContract()) {
@@ -1884,10 +2113,37 @@ class SimulatorSmokeTest {
         if (mappedInputManager.hasHomeKey()) {
           renderer.setOrientation(GfxRenderer::Orientation::LandscapeCounterClockwise);
         }
+        KOREADER_STORE.setCredentials("smoke", "smoke-password");
+        activityManager.replaceActivity(std::make_unique<KOReaderSettingsActivity>(renderer, mappedInputManager));
+        queueStep("Sync Settings", SmokeStep::StatsUploadEntry);
+        break;
+      }
+
+      case SmokeStep::StatsUploadEntry:
+        inputScript.clear();
+        scriptIndex = 0;
+        inputCompletionStep = SmokeStep::StatsUploadReturn;
+        addTap(MappedInputManager::Button::Up);  // Upload Clippings.
+        addTap(MappedInputManager::Button::Up);  // Sync Stats.
+        addTap(MappedInputManager::Button::Up);  // Upload Stats.
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(assertActivity("StatsUpload"));
+        inputScript.push_back(render("Manual stats upload confirmation", 10));
+        addTap(MappedInputManager::Button::Back);  // Opening does not upload.
+        inputScript.push_back(assertActivity("Home"));
+        step = SmokeStep::ReaderInput;
+        break;
+
+      case SmokeStep::StatsUploadEmptyDone:
+        LOG_INF("SMOKE", "Stats upload transport smoke passed");
+        std::_Exit(0);
+
+      case SmokeStep::StatsUploadReturn:
+        KOREADER_STORE.setCredentials("", "");
+        LOG_INF("SMOKE", "Manual stats upload entry and cancellation passed");
         activityManager.goToSettings();
         queueStep(mappedInputManager.hasHomeKey() ? "Settings landscape" : "Settings", SmokeStep::Settings);
         break;
-      }
 
       case SmokeStep::StatusBarEditor: {
         {
@@ -2031,6 +2287,7 @@ class SimulatorSmokeTest {
       }
 
       case SmokeStep::FrontlightLayoutRendered: {
+#if CROSSINK_APP_CAP_TOUCH
         auto* panel = dynamic_cast<FrontlightPanelActivity*>(activityManager.simulatorCurrentActivity());
         if (!panel) fail("Layout matrix expected frontlight drawer");
         const auto handle = panel->simulatorHandleRect();
@@ -2054,7 +2311,6 @@ class SimulatorSmokeTest {
           }
           std::fclose(image);
         }
-#if CROSSINK_APP_CAP_TOUCH
         const int x = handle.x + handle.width / 2;
         const int y = handle.y + handle.height / 2;
         inputScript = {touchDown(x, y), touchRelease(x, y), render("Frontlight closed by visible handle", 4),
@@ -2247,7 +2503,6 @@ class SimulatorSmokeTest {
   static ScriptAction touchRelease(const int x, const int y) {
     return {ScriptActionType::TouchRelease, MappedInputManager::Button::Back, nullptr, 0, x, y};
   }
-
 #endif
 
   void addTap(MappedInputManager::Button button) {

@@ -1527,6 +1527,10 @@ void LibraryActivity::showBookActionMenu(const size_t bookIndex, const bool igno
                    reloadAfterBookAction();
                    return;
                  }
+                 case FileBrowserAction::SyncProgress:
+                   BookActions::syncProgress(renderer, book.path);
+                   requestUpdate();
+                   return;
                  case FileBrowserAction::ReadingStats:
                    openDialog(BookActions::createReadingStatsActivity(renderer, mappedInput, book.path, book.title),
                               [this](const ActivityResult&) { requestUpdate(); });
@@ -1620,6 +1624,7 @@ void LibraryActivity::showBookActionMenu(const size_t bookIndex, const bool igno
                  case FileBrowserAction::UnpinFavorite:
                  case FileBrowserAction::PinBootFavorite:
                  case FileBrowserAction::UnpinBootFavorite:
+                 case FileBrowserAction::UploadFolderProgress:
                  case FileBrowserAction::SetSleepFolder:
                  case FileBrowserAction::ClearSleepFolder:
                  case FileBrowserAction::ViewBookmarks:

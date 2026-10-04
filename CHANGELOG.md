@@ -1,8 +1,25 @@
 ## [Unreleased]
 
-### Changed
+### Added
 
+- Track active reading seconds by local day and sync daily reading time to CrossPoint Sync.
+- Show today's reading time and a 7-day average on the This Device reading stats page.
+- Choose Small, Medium, or Large text for the top and bottom reader status bars.
+- Preview OPDS book descriptions before downloading, with scrollable text on touch and button devices. Long descriptions show a bounded excerpt.
+- Manually upload this reader's saved reading stats to a CrossPoint Sync server from KOReader Sync settings.
+- Optionally upload reading stats and clippings alongside manual progress sync.
+- Upload saved EPUB progress recursively from a File Browser folder action for one-time catch-up.
+- Sync a selected EPUB’s progress from its Library or File Browser context menu.
+
+### Fixed
+
+- Automatically retry interrupted book and font downloads, validating resumed byte ranges and restarting safely when the server cannot resume.
+- Show uploaded Global, Books, and Skipped counts on separate lines so labels fit in every language.
+- Folder sync uploads saved stats and clippings even when a book has no usable reading position, attempts overall stats once per run, and reports independent upload results.
+- A failed stats upload no longer prevents clippings from being uploaded during progress sync.
 - Hide EPUB section-break rules when the publisher suppresses their borders, avoiding duplicate ornaments.
+
+### Changed
 
 ## [v1.6.1] - 2026-10-03
 
@@ -41,6 +58,8 @@
 - The on-screen keyboard now uses wider outlined keys with clearer spacing on touch and button devices.
 - Long status titles shorten faster when they do not fit the screen.
 - Leaving an EPUB or TXT reader releases rebuildable font buffers for other screens.
+- Global reader spacing and margin controls now show a live text preview on touch and button devices; the font preview also includes the Latin sample text.
+- Font previews now separate the sample text from the font name with a horizontal line.
 - Menu buttons now follow the device layout: Left/Right switch tabs and Up/Down select rows in reader menus and global settings.
 - The KOReader Sync progress choice now shows remote and local progress as clear cards with large percentages, progress bars, and an "Ahead" marker on the further position.
 - Saving unchanged reading statistics and session state avoids unnecessary SD card writes.
@@ -56,6 +75,7 @@
 
 ### Fixed
 
+- Touch keyboards keep up with faster typing by polling during screen updates and avoiding extra key-highlight redraws.
 - File Transfer choices no longer appear preselected when opened on a touch device.
 - EPUB paragraphs now inherit first-line indentation from HTML and body styles while retaining paragraph-level overrides.
 - Saved clipping lists now show a scrollbar when more clippings are available below the visible rows.
@@ -81,6 +101,14 @@
 - Changing global font or page layout settings from the pull-down panel on touch devices now updates the open book when it inherits those settings.
 - KOReader authentication now rejects unexpectedly large server responses to avoid crashes.
 - EPUBs rewritten with alternate XML namespace prefixes now open normally instead of jumping straight to End of Book.
+- Global font previews load all letters and punctuation in the Latin sample instead of showing missing-character diamonds.
+- Touch keyboard key hit-testing no longer waits for a screen refresh on devices with TTF support.
+- Touch keyboards show consistent brief key feedback while keeping fast typing responsive.
+- Server connection errors during manual stats uploads no longer appear as Wi-Fi failures.
+
+- Folder progress sync follows the global Smart or Ask setting and rebuilds missing book metadata instead of silently skipping saved progress.
+
+- Skip a failed book during folder sync and continue with the remaining books, with failed books counted in the summary.
 - Carousel Home screen reuses cached cover artwork after reading and prepares other positions only when viewed, while keeping progress, reading time, and menu choices current.
 - Sleep entry skips unnecessary pauses. PSRAM devices show independent sleep screens before saving reader progress, and Direct grayscale images skip an unused decode.
 - Renaming books in the web portal preserves reading progress, stats, bookmarks, clippings, reader settings, and cached content.

@@ -48,7 +48,7 @@ class HalDisplay {
   // normal logical colors.
   void setInverted(bool inverted);
   // Restore the controller's old-image plane from the saved Quick Resume frame.
-  // Only supported panels may use a gentle differential first paint.
+  // Returns false when the SDK or panel cannot support a differential first paint.
   bool restoreVisibleFrame();
   // Non-blocking refresh (shadow-free): starts the panel waveform and returns
   // while the panel refreshes on its own. The framebuffer must stay untouched

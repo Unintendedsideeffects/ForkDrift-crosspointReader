@@ -4,6 +4,8 @@
 #include "HalSpiBus.h"
 
 namespace {
+// Some SDK revisions omit the optional Quick Resume baseline restore API.
+// Keep this check dependent on the display type so those revisions still build.
 template <typename Display>
 bool restoreVisibleFrameIfSupported(Display& display) {
   if constexpr (requires { display.restoreVisibleFrame(); }) {

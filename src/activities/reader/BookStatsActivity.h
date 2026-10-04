@@ -6,6 +6,7 @@
 
 #include "../Activity.h"
 #include "BookReadingStats.h"
+#include "BookStatsView.h"
 #include "GlobalReadingStats.h"
 
 class BookStatsActivity final : public Activity {
@@ -16,6 +17,7 @@ class BookStatsActivity final : public Activity {
   BookReadingStats stats;
   GlobalReadingStats globalStats;
   GlobalReadingStats allDevicesStats;
+  DailyReadingStats::Summary dailySummary;
   bool showAllDevicesStats = false;
   bool returnToHomeOnExit = false;
   float progressPercent = -1.0f;
@@ -36,6 +38,7 @@ class BookStatsActivity final : public Activity {
   bool hasEditableBook() const { return !bookCachePath.empty() && halClock.isAvailable(); }
   bool usesNoRtcSingleScreenLayout() const { return !halClock.isAvailable(); }
   void refreshAllDevicesStats();
+  void loadDailySummary();
   void saveStats();
   void beginDateEditing();
   void finishDateEditing(bool saveChanges);

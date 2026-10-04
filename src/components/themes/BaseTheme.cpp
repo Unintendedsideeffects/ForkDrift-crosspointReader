@@ -85,16 +85,16 @@ void BaseTheme::fillBatteryIcon(const GfxRenderer& renderer, Rect rect, uint16_t
 }
 
 void BaseTheme::drawBatteryLeft(const GfxRenderer& renderer, Rect rect, const bool showPercentage,
-                                const bool foregroundBlack) const {
+                                const bool foregroundBlack, const int fontId) const {
   // Left aligned: icon on left, percentage on right (reader mode)
   const uint16_t percentage = powerManager.getBatteryPercentage();
   // The icon's nub makes its visual center sit slightly below its bounding
   // box. Lift it one pixel to center it with the percentage text.
-  const int y = rect.y + 5;
+  const int y = rect.y + 5 + (renderer.getLineHeight(fontId) - renderer.getLineHeight(SMALL_FONT_ID)) / 2;
 
   if (showPercentage) {
     const auto percentageText = std::to_string(percentage) + "%";
-    renderer.drawText(SMALL_FONT_ID, rect.x + batteryPercentSpacing + rect.width, rect.y, percentageText.c_str(),
+    renderer.drawText(fontId, rect.x + batteryPercentSpacing + rect.width, rect.y, percentageText.c_str(),
                       foregroundBlack);
   }
 
@@ -104,16 +104,16 @@ void BaseTheme::drawBatteryLeft(const GfxRenderer& renderer, Rect rect, const bo
 }
 
 void BaseTheme::drawBatteryRight(const GfxRenderer& renderer, Rect rect, const bool showPercentage,
-                                 const bool foregroundBlack) const {
+                                 const bool foregroundBlack, const int fontId) const {
   // Right aligned: percentage on left, icon on right (UI headers)
   // rect.x is already positioned for the icon (drawHeader calculated it)
   const uint16_t percentage = powerManager.getBatteryPercentage();
-  const int y = rect.y + 5;
+  const int y = rect.y + 5 + (renderer.getLineHeight(fontId) - renderer.getLineHeight(SMALL_FONT_ID)) / 2;
 
   if (showPercentage) {
     const auto percentageText = std::to_string(percentage) + "%";
-    const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, percentageText.c_str());
-    renderer.drawText(SMALL_FONT_ID, rect.x - textWidth - batteryPercentSpacing, rect.y, percentageText.c_str(),
+    const int textWidth = renderer.getTextWidth(fontId, percentageText.c_str());
+    renderer.drawText(fontId, rect.x - textWidth - batteryPercentSpacing, rect.y, percentageText.c_str(),
                       foregroundBlack);
   }
 
@@ -830,6 +830,9 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
                                     const ReaderStatusBarConfig* overrideConfig) const {
   const ReaderStatusBarConfig config = overrideConfig ? *overrideConfig : SETTINGS.readerStatusBar(position);
   const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();
+  const int fontId = content.outsideReader ? SMALL_FONT_ID : UITheme::getReaderStatusBarFontId();
+  const int textLaneHeight =
+      content.outsideReader ? metrics.statusBarVerticalMargin : UITheme::getReaderStatusBarTextHeight(renderer);
   const bool top = position == ReaderStatusBarPosition::Top;
   const bool foregroundBlack = !content.darkMode;
   const bool clockAvailable = halClock.isAvailable() || content.previewClock != nullptr;
@@ -838,8 +841,8 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
                                  ? static_cast<int>((config.progressBarThickness + 1) * 2)
                                  : 0;
   const int progressSpace = progressHeight > 0 ? progressHeight + metrics.progressBarMarginTop : 0;
-  const int textHeight = hasText ? metrics.statusBarVerticalMargin : 0;
-  const int totalHeight = readerStatusBarTotalHeight(position, hasText, progressSpace, metrics.statusBarVerticalMargin);
+  const int textHeight = hasText ? textLaneHeight : 0;
+  const int totalHeight = readerStatusBarTotalHeight(position, hasText, progressSpace, textLaneHeight);
   if (totalHeight <= 0) return;
 
   int marginTop, marginRight, marginBottom, marginLeft;
@@ -849,10 +852,9 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
                         ? content.previewOriginY
                         : (top ? UITheme::getTopStatusBarY(renderer) + content.edgePadding
                                : renderer.getScreenHeight() - marginBottom - totalHeight - content.edgePadding);
-  const int textY = edgeY + (top ? progressSpace : 0) +
-                    (hasText ? (top ? ReaderStatusBarConfig::TOP_TEXT_INSET
-                                    : (textHeight - renderer.getLineHeight(SMALL_FONT_ID)) / 2)
-                             : 0);
+  const int textY =
+      edgeY + (top ? progressSpace : 0) +
+      (hasText ? (top ? ReaderStatusBarConfig::TOP_TEXT_INSET : (textHeight - renderer.getLineHeight(fontId)) / 2) : 0);
 
   if (progressHeight > 0 && content.showProgress) {
     const float percent =
@@ -873,7 +875,9 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
   if (!top && content.bookmarked) {
     constexpr int bookmarkWidth = ReaderStatusBarConfig::BOOKMARK_WIDTH;
     constexpr int bookmarkHeight = ReaderStatusBarConfig::BOOKMARK_HEIGHT;
-    const int bookmarkY = hasText ? textY + (metrics.batteryHeight - bookmarkHeight) / 2 + 5 : edgeY;
+    const int bookmarkY = hasText ? textY + (metrics.batteryHeight - bookmarkHeight) / 2 + 5 +
+                                        (renderer.getLineHeight(fontId) - renderer.getLineHeight(SMALL_FONT_ID)) / 2
+                                  : edgeY;
     const int bookmarkX = marginLeft + metrics.statusBarHorizontalMargin + 1;
     renderer.fillRect(bookmarkX, bookmarkY, bookmarkWidth, bookmarkHeight, foregroundBlack);
     const int notchX[3] = {bookmarkX, bookmarkX + bookmarkWidth, bookmarkX + bookmarkWidth / 2};
@@ -926,13 +930,13 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
       if (batteryPercent) {
         char percent[8];
         snprintf(percent, sizeof(percent), "%u%%", static_cast<unsigned>(powerManager.getBatteryPercentage()));
-        width += batteryPercentSpacing + renderer.getTextWidth(SMALL_FONT_ID, percent);
+        width += batteryPercentSpacing + renderer.getTextWidth(fontId, percent);
       }
       return width;
     }
     char scratch[48];
     const char* value = itemText(item, scratch, sizeof(scratch));
-    return value && value[0] ? std::min(maxWidth, renderer.getTextWidth(SMALL_FONT_ID, value)) : 0;
+    return value && value[0] ? std::min(maxWidth, renderer.getTextWidth(fontId, value)) : 0;
   };
   const auto drawItem = [&](const ReaderStatusBarItem item, const int x, const int allowedWidth,
                             const bool alignRight) {
@@ -941,14 +945,14 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
       char percent[8];
       snprintf(percent, sizeof(percent), "%u%%", static_cast<unsigned>(powerManager.getBatteryPercentage()));
       const bool showPercent = batteryPercent && allowedWidth >= metrics.batteryWidth + batteryPercentSpacing +
-                                                                     renderer.getTextWidth(SMALL_FONT_ID, percent);
+                                                                     renderer.getTextWidth(fontId, percent);
       if (top && alignRight) {
         drawBatteryRight(
             renderer, Rect{x + allowedWidth - metrics.batteryWidth, textY, metrics.batteryWidth, metrics.batteryHeight},
-            showPercent, foregroundBlack);
+            showPercent, foregroundBlack, fontId);
       } else {
         drawBatteryLeft(renderer, Rect{x, textY, metrics.batteryWidth, metrics.batteryHeight}, showPercent,
-                        foregroundBlack);
+                        foregroundBlack, fontId);
       }
       return;
     }
@@ -956,13 +960,13 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
     const char* value = itemText(item, scratch, sizeof(scratch));
     if (!value || !value[0] || allowedWidth <= 0) return;
     std::string clipped;
-    int width = renderer.getTextWidth(SMALL_FONT_ID, value);
+    int width = renderer.getTextWidth(fontId, value);
     if (width > allowedWidth) {
-      clipped = renderer.truncatedText(SMALL_FONT_ID, value, allowedWidth);
+      clipped = renderer.truncatedText(fontId, value, allowedWidth);
       value = clipped.c_str();
-      width = renderer.getTextWidth(SMALL_FONT_ID, value);
+      width = renderer.getTextWidth(fontId, value);
     }
-    renderer.drawText(SMALL_FONT_ID, x + (alignRight ? allowedWidth - width : 0), textY, value, foregroundBlack);
+    renderer.drawText(fontId, x + (alignRight ? allowedWidth - width : 0), textY, value, foregroundBlack);
   };
 
   constexpr int itemGap = 8;

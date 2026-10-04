@@ -384,8 +384,18 @@ void drawPerBookStatsCard(GfxRenderer& renderer, const int x, const int y, const
                finished ? tr(STR_STATS_FINISHED_DATE) : tr(STR_STATS_EST_FINISH_DATE));
 }
 
+// A day with no reading is a real zero, not "< 1 min".
+void formatDailyDuration(const uint32_t seconds, char* buf, const size_t len) {
+  if (seconds == 0) {
+    snprintf(buf, len, "0 min");
+    return;
+  }
+  BookReadingStats::formatDuration(seconds, buf, len);
+}
+
 void drawGlobalStatsCard(GfxRenderer& renderer, const int x, const int y, const int w, const int h, const char* title,
-                         const GlobalReadingStats& stats, const StatsLayout& layout) {
+                         const GlobalReadingStats& stats, const StatsLayout& layout,
+                         const DailyReadingStats::Summary* daily = nullptr) {
   renderer.drawRect(x, y, w, h);
   renderer.drawLine(x, y + layout.topCardTitleH, x + w, y + layout.topCardTitleH);
   const bool showRtcStats = shouldShowRtcBasedStats();
@@ -394,7 +404,8 @@ void drawGlobalStatsCard(GfxRenderer& renderer, const int x, const int y, const 
 
   const int thirdW = w / 3;
   const int halfW = w / 2;
-  const int rowH = (h - layout.topCardTitleH) / 2;
+  const bool showDailyRow = showRtcStats && daily != nullptr;
+  const int rowH = (h - layout.topCardTitleH) / (showDailyRow ? 3 : 2);
   char buf[40];
 
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.totalSessions));
@@ -434,6 +445,25 @@ void drawGlobalStatsCard(GfxRenderer& renderer, const int x, const int y, const 
   }
   drawStatCell(renderer, showRtcStats ? x + thirdW * 2 : x + halfW, showRtcStats ? thirdW : halfW,
                y + layout.topCardTitleH + rowH, rowH, buf, tr(STR_STATS_COMPLETED_LBL));
+
+  if (!showDailyRow) {
+    return;
+  }
+
+  const int dailyY = y + layout.topCardTitleH + rowH * 2;
+  if (daily->hasToday) {
+    formatDailyDuration(daily->todaySeconds, buf, sizeof(buf));
+  } else {
+    snprintf(buf, sizeof(buf), "-");
+  }
+  drawStatCell(renderer, x, halfW, dailyY, rowH, buf, tr(STR_STATS_TODAY_LBL));
+
+  if (daily->hasSevenDayAverage) {
+    formatDailyDuration(daily->sevenDayAverageSeconds, buf, sizeof(buf));
+  } else {
+    snprintf(buf, sizeof(buf), "-");
+  }
+  drawStatCell(renderer, x + halfW, halfW, dailyY, rowH, buf, tr(STR_STATS_SEVEN_DAY_AVG_LBL));
 }
 
 void drawDateField(const GfxRenderer& renderer, const int x, const int y, const int w, const char* text,
@@ -537,11 +567,14 @@ void renderPerBookStatsPage(GfxRenderer& renderer, const MappedInputManager* map
 }
 
 void renderGlobalStatsPage(GfxRenderer& renderer, const MappedInputManager* mappedInput, const char* screenTitle,
-                           const GlobalReadingStats& stats, const bool showButtonHints, const bool showMoreButton) {
+                           const GlobalReadingStats& stats, const bool showButtonHints, const bool showMoreButton,
+                           const DailyReadingStats::Summary* daily) {
   renderer.clearScreen();
   const bool showRtcStats = shouldShowRtcBasedStats();
+  // With the daily row the card has three data rows, so it is sized exactly like the per-book card.
+  const bool showDailyRow = showRtcStats && daily != nullptr;
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const auto& layout = getStatsLayout(renderer, mappedInput, true, showButtonHints, showRtcStats);
+  const auto& layout = getStatsLayout(renderer, mappedInput, !showDailyRow, showButtonHints, showRtcStats);
   if (mappedInput && mappedInput->hasTouchHardware()) {
     TouchHeaderBackButton::drawCompact(renderer, screenTitle, false);
   } else {
@@ -552,7 +585,7 @@ void renderGlobalStatsPage(GfxRenderer& renderer, const MappedInputManager* mapp
   const int cardW = screenW - metrics.contentSidePadding * 2;
   const int availableHeight =
       renderer.getScreenHeight() - metrics.topPadding - statsBottomInset(metrics, showButtonHints);
-  int globalCardH = layout.globalCardH;
+  int globalCardH = showDailyRow ? layout.topCardH : layout.globalCardH;
   const int headerHeight = statsHeaderHeight(metrics, layout, mappedInput);
   int y = metrics.topPadding + headerHeight + layout.topGap;
 
@@ -560,13 +593,16 @@ void renderGlobalStatsPage(GfxRenderer& renderer, const MappedInputManager* mapp
     const int timeOfDayH = sectionCardHeight(layout, static_cast<int>(TIME_BUCKET_LABELS.size()));
     const int dayOfWeekH = sectionCardHeight(layout, static_cast<int>(DAY_LABELS.size()));
     const int compactContentHeight =
-        headerHeight + layout.topGap + layout.globalCardH + layout.cardGap + timeOfDayH + layout.cardGap + dayOfWeekH;
+        headerHeight + layout.topGap + globalCardH + layout.cardGap + timeOfDayH + layout.cardGap + dayOfWeekH;
     const int extraHeight = std::max(0, availableHeight - compactContentHeight);
-    const int perBookCompactContentHeight =
-        headerHeight + layout.topGap + layout.topCardH + layout.cardGap + timeOfDayH + layout.cardGap + dayOfWeekH;
-    const int perBookExtraHeight = std::max(0, availableHeight - perBookCompactContentHeight);
-    const int targetGlobalCardH = globalRtcCardHeightForPerBookRowSpacing(layout, perBookExtraHeight);
-    const int extraTopCardHeight = std::min(extraHeight, std::max(0, targetGlobalCardH - layout.globalCardH));
+    int extraTopCardHeight = std::min(extraHeight, kPerBookRtcTopCardMaxExtra);
+    if (!showDailyRow) {
+      const int perBookCompactContentHeight =
+          headerHeight + layout.topGap + layout.topCardH + layout.cardGap + timeOfDayH + layout.cardGap + dayOfWeekH;
+      const int perBookExtraHeight = std::max(0, availableHeight - perBookCompactContentHeight);
+      const int targetGlobalCardH = globalRtcCardHeightForPerBookRowSpacing(layout, perBookExtraHeight);
+      extraTopCardHeight = std::min(extraHeight, std::max(0, targetGlobalCardH - layout.globalCardH));
+    }
     const int remainingExtraHeight = extraHeight - extraTopCardHeight;
     const int timeOfDayExtraHeight = (remainingExtraHeight * 4) / 11;
     const int dayOfWeekExtraHeight = remainingExtraHeight - timeOfDayExtraHeight;
@@ -574,7 +610,8 @@ void renderGlobalStatsPage(GfxRenderer& renderer, const MappedInputManager* mapp
     const int dayOfWeekCardH = dayOfWeekH + dayOfWeekExtraHeight;
     globalCardH += extraTopCardHeight;
 
-    drawGlobalStatsCard(renderer, cardX, y, cardW, globalCardH, tr(STR_STATS_ALL_TIME), stats, layout);
+    drawGlobalStatsCard(renderer, cardX, y, cardW, globalCardH, tr(STR_STATS_ALL_TIME), stats, layout,
+                        showDailyRow ? daily : nullptr);
     y += globalCardH + layout.cardGap;
 
     drawSectionCard(renderer, cardX, y, cardW, timeOfDayCardH, tr(STR_STATS_TIME_OF_DAY), layout);

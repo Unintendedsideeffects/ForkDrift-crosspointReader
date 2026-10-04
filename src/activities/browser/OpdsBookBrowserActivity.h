@@ -22,7 +22,16 @@
  */
 class OpdsBookBrowserActivity final : public Activity {
  public:
-  enum class BrowserState { CHECK_WIFI, WIFI_SELECTION, LOADING, BROWSING, DOWNLOADING, ERROR, SEARCH_INPUT };
+  enum class BrowserState {
+    CHECK_WIFI,
+    WIFI_SELECTION,
+    LOADING,
+    BROWSING,
+    DESCRIPTION,
+    DOWNLOADING,
+    ERROR,
+    SEARCH_INPUT
+  };
 
   explicit OpdsBookBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, OpdsServer server);
 
@@ -36,7 +45,7 @@ class OpdsBookBrowserActivity final : public Activity {
   // routes touch snapshots, and dispatches row/search actions to the static
   // handlers below. 24 interaction slots cover the densest page (Small scale,
   // ~12 rows) plus the header's search button, with headroom.
-  using UiApp = freeink::ui::FreeInkApp<24, 4>;
+  using UiApp = freeink::ui::FreeInkApp<24, 6>;
 
   ButtonNavigator buttonNavigator;
   BrowserState state = BrowserState::LOADING;
@@ -65,7 +74,12 @@ class OpdsBookBrowserActivity final : public Activity {
   // snapshots against it while this is true (the two run on different tasks).
   std::atomic<bool> uiReady{false};
   int visibleRows = 1;  // rows per page at the current scale; set by the screen builder
-  int topIndex = 0;     // viewport scroll position, decoupled from the selection
+  // Wrapped only when a preview opens or its available width changes.
+  std::vector<std::string> descriptionLines;
+  int descriptionWidth = 0;
+  int descriptionTop = 0;
+  int descriptionRows = 1;
+  int topIndex = 0;  // viewport scroll position, decoupled from the selection
   // Read by HttpDownloader between chunks; set by the Cancel button handler or
   // a Back press, both pumped from the download's progress callback.
   bool cancelDownload = false;
@@ -81,6 +95,9 @@ class OpdsBookBrowserActivity final : public Activity {
   static void onCancelEvent(const freeink::ui::ActionEvent& event, void* user);
   void screenHeader(UiApp::ScreenType& screen, bool withSearch);
   void buildBrowsingScreen(UiApp::ScreenType& screen);
+  static void onDescriptionEvent(const freeink::ui::ActionEvent& event, void* user);
+  void scrollDescription(int direction);
+  void buildDescriptionScreen(UiApp::ScreenType& screen);
   void buildDownloadScreen(UiApp::ScreenType& screen);
   void buildStatusScreen(UiApp::ScreenType& screen);
   void activateSelected();

@@ -58,7 +58,9 @@ inline void applyOrientation(GfxRenderer& renderer, const uint8_t orientation) {
 // stays centered in every orientation instead of sitting at a fixed portrait offset.
 inline int messageCenterY(const GfxRenderer& renderer) { return renderer.getScreenHeight() / 2; }
 
-inline bool shouldShowTopStatusBar() { return UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Top) > 0; }
+inline bool shouldShowTopStatusBar(const GfxRenderer& renderer) {
+  return UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Top, renderer) > 0;
+}
 
 // Night Mode is applied by the display after normal-polarity reader content is
 // rendered. Keep this compatibility helper for existing reader call sites.
@@ -69,7 +71,7 @@ inline uint8_t readerBackgroundColor() { return readerDarkModeEnabled() ? 0x00 :
 inline bool readerForegroundBlack() { return true; }
 
 inline int getTopStatusBarReservedHeight(const GfxRenderer& renderer) {
-  const int statusBarHeight = UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Top);
+  const int statusBarHeight = UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Top, renderer);
   if (statusBarHeight <= 0) {
     return 0;
   }
@@ -84,12 +86,12 @@ inline bool bottomStatusBarHasTextLane() {
   return SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom).hasTextItems(halClock.isAvailable());
 }
 
-inline int getReaderFooterReservedHeight(const bool automaticPageTurnActive) {
-  const int statusBarHeight = UITheme::getInstance().getStatusBarHeight();
+inline int getReaderFooterReservedHeight(const GfxRenderer& renderer, const bool automaticPageTurnActive) {
+  const int statusBarHeight = UITheme::getInstance().getStatusBarHeight(renderer);
   if (automaticPageTurnActive && !bottomStatusBarHasTextLane()) {
     const int autoTurnBarHeight =
         readerStatusBarTotalHeight(ReaderStatusBarPosition::Bottom, true, UITheme::getProgressBarHeight(),
-                                   UITheme::getInstance().getMetrics().statusBarVerticalMargin);
+                                   UITheme::getReaderStatusBarTextHeight(renderer));
     return std::max(static_cast<int>(SETTINGS.screenMarginVertical),
                     std::max(statusBarHeight, autoTurnBarHeight) + STATUS_BAR_TEXT_PADDING);
   }

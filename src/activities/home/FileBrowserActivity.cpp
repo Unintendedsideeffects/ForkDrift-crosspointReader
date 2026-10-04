@@ -26,6 +26,7 @@
 #include "KOReaderCredentialStore.h"
 #include "MappedInputManager.h"
 #include "activities/boot_sleep/ImageFolderIndex.h"
+#include "activities/network/StatsUploadActivity.h"
 #include "activities/reader/EpubReaderActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "activities/util/ConfirmationActivity.h"
@@ -551,6 +552,7 @@ void FileBrowserActivity::showDirectoryActionMenu(const std::string& entry, bool
   std::vector<FileBrowserActionActivity::MenuItem> items;
   items.push_back({useDefaultFolders ? FileBrowserAction::ClearSleepFolder : FileBrowserAction::SetSleepFolder,
                    useDefaultFolders ? StrId::STR_USE_DEFAULT_SLEEP_FOLDERS : StrId::STR_SET_AS_SLEEP_FOLDER});
+  items.push_back({FileBrowserAction::UploadFolderProgress, StrId::STR_FOLDER_SYNC});
   items.push_back({FileBrowserAction::Delete, StrId::STR_DELETE});
 
   startActivityForResult(std::make_unique<FileBrowserActionActivity>(renderer, mappedInput, getFileName(entry),
@@ -564,6 +566,15 @@ void FileBrowserActivity::showDirectoryActionMenu(const std::string& entry, bool
                            const auto action =
                                static_cast<FileBrowserAction>(std::get<FileBrowserActionResult>(result.data).action);
                            switch (action) {
+                             case FileBrowserAction::UploadFolderProgress: {
+                               auto upload = makeUniqueNoThrow<StatsUploadActivity>(renderer, mappedInput, fullPath);
+                               if (!upload) {
+                                 LOG_ERR("ReadingSync", "Cannot allocate folder upload activity");
+                                 return;
+                               }
+                               activityManager.replaceActivity(std::move(upload));
+                               return;
+                             }
                              case FileBrowserAction::Delete:
                                promptDeleteDirectory(fullPath, entry);
                                return;
@@ -573,6 +584,7 @@ void FileBrowserActivity::showDirectoryActionMenu(const std::string& entry, bool
                              case FileBrowserAction::ClearSleepFolder:
                                clearPreferredSleepFolder();
                                return;
+                             case FileBrowserAction::SyncProgress:
                              case FileBrowserAction::DeleteCache:
                              case FileBrowserAction::ToggleBookStatsTracking:
                              case FileBrowserAction::ReadingStats:
@@ -735,6 +747,10 @@ void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool igno
 
         const auto action = static_cast<FileBrowserAction>(std::get<FileBrowserActionResult>(result.data).action);
         switch (action) {
+          case FileBrowserAction::SyncProgress:
+            BookActions::syncProgress(renderer, fullPath);
+            requestUpdate();
+            return;
           case FileBrowserAction::ToggleBookStatsTracking: {
             bool enabled = false;
             if (!BookActions::toggleBookStatsTracking(fullPath, enabled)) {
@@ -865,6 +881,7 @@ void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool igno
           case FileBrowserAction::UnpinBootFavorite:
             unpinBootFavorite();
             return;
+          case FileBrowserAction::UploadFolderProgress:
           case FileBrowserAction::SetSleepFolder:
           case FileBrowserAction::ClearSleepFolder:
           case FileBrowserAction::RemoveFromRecents:

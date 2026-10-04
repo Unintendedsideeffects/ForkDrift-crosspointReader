@@ -27,6 +27,8 @@ void KOReaderCredentialStore::toJson(JsonDocument& doc) const {
   doc["serverUrl"] = serverUrl;
   doc["matchMethod"] = static_cast<uint8_t>(matchMethod);
   doc["sendMetadata"] = sendMetadata;
+  doc["syncStats"] = syncStats;
+  doc["syncClippings"] = syncClippings;
   doc["syncBehavior"] = static_cast<uint8_t>(syncBehavior);
 }
 
@@ -71,6 +73,8 @@ bool KOReaderCredentialStore::fromJson(JsonVariantConst doc) {
     setMatchMethod(DocumentMatchMethod::FILENAME);
   }
   setSendMetadata(doc["sendMetadata"] | false);
+  setSyncStats(doc["syncStats"] | false);
+  setSyncClippings(doc["syncClippings"] | false);
 
   const JsonVariantConst behaviorValue = doc["syncBehavior"];
   const bool missingBehavior = behaviorValue.isNull();

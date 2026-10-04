@@ -10,6 +10,7 @@
 #include "ProgressMapper.h"
 #include "activities/Activity.h"
 #include "activities/ScreenTransitionRefresh.h"
+#include "network/ReadingSyncUpload.h"
 
 /**
  * Activity for syncing reading progress with KOReader sync server.
@@ -39,7 +40,8 @@ class KOReaderSyncActivity final : public Activity {
         readerOrientation(readerOrientation) {}
 
   explicit KOReaderSyncActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string epubPath,
-                                DocumentMatchMethod matchMethod, const uint8_t readerOrientation)
+                                DocumentMatchMethod matchMethod, const uint8_t readerOrientation,
+                                bool folderSync = false, bool includeGlobalStats = true)
       : Activity(NAME, renderer, mappedInput),
         epubPath(std::move(epubPath)),
         currentSpineIndex(0),
@@ -51,6 +53,8 @@ class KOReaderSyncActivity final : public Activity {
         remotePosition{},
         localProgress{},
         localProgressDeferred(true),
+        folderSync(folderSync),
+        includeGlobalStats(includeGlobalStats),
         readerOrientation(readerOrientation) {}
 
   void onEnter() override;
@@ -99,6 +103,14 @@ class KOReaderSyncActivity final : public Activity {
   KOReaderPosition localProgress;
   bool localProgressDeferred = false;
   bool restartBeforeNetwork = false;
+  bool folderSync = false;
+  bool includeGlobalStats = true;
+  bool syncSucceeded = false;
+  bool progressSucceeded = false;
+  bool extrasAttempted = false;
+  ReadingSyncUpload::ExtrasResult extrasResult;
+  StatsUploadClient::Result globalStatsResult = StatsUploadClient::Result::Skipped;
+  ProgressSyncResult syncResult() const;
   // The reader can use a book-specific orientation that its teardown restores
   // before this activity gets control. Keep that one value through the
   // lightweight network reboot so every sync screen matches the book.
@@ -122,6 +134,7 @@ class KOReaderSyncActivity final : public Activity {
   void onWifiSelectionComplete(bool success);
   void performSync();
   void performUpload();
+  bool uploadExtras();
   bool consumeInitialConfirmRelease();
   bool smartSyncEnabled() const;
   void markAutoReturn();

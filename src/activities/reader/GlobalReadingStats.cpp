@@ -9,6 +9,7 @@
 #include <limits>
 #include <string>
 
+#include "DailyReadingStats.h"
 #include "util/FileContentEquals.h"
 
 namespace {
@@ -283,6 +284,15 @@ static StatsLoadOutcome loadFromFile(const char* path, GlobalReadingStats& out) 
   return outcome;
 }
 
+bool GlobalReadingStats::loadForUpload(GlobalReadingStats& stats) {
+  stats = {};
+  const auto primary = loadFromFile(GLOBAL_STATS_PATH, stats);
+  if (primary.result == StatsLoadResult::Ok) return true;
+  if (primary.result == StatsLoadResult::NewerFormat) return false;
+  const auto backup = loadFromFile(GLOBAL_STATS_BAK_PATH, stats);
+  return backup.result == StatsLoadResult::Ok;
+}
+
 GlobalReadingStats GlobalReadingStats::load() {
   GlobalReadingStats stats;
   const StatsLoadOutcome primary = loadFromFile(GLOBAL_STATS_PATH, stats);
@@ -369,6 +379,7 @@ GlobalReadingStats GlobalReadingStats::loadAggregated(const GlobalReadingStats& 
 }
 
 void GlobalReadingStats::save() const {
+  if (!DailyReadingStats::flush()) LOG_ERR("GSTATS", "Failed to flush daily reading counters");
   if (s_blockDestructiveSave) {
     LOG_ERR("GSTATS", "Refusing to overwrite on-disk stats after newer-format file was detected");
     return;

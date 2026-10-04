@@ -19,6 +19,7 @@
 
 #include "AppVersion.h"
 #include "network/DownloadFileSwap.h"
+#include "network/HttpDownloadResume.h"
 #include "network/HttpRedirectPolicy.h"
 #include "network/WifiPowerSaveGuard.h"
 #include "util/UrlUtils.h"
@@ -49,11 +50,25 @@ bool isRedirect(const int status) {
   return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
 }
 
+struct ResponseHeaders {
+  std::string location;
+  std::string range;
+  std::string validator;
+};
+
 esp_err_t captureLocationHeader(esp_http_client_event_t* evt) {
-  auto* location = static_cast<std::string*>(evt->user_data);
-  if (evt->event_id == HTTP_EVENT_ON_HEADER && location != nullptr && evt->header_key != nullptr &&
-      evt->header_value != nullptr && strcasecmp(evt->header_key, "Location") == 0) {
-    location->assign(evt->header_value);
+  auto* headers = static_cast<ResponseHeaders*>(evt->user_data);
+  if (evt->event_id == HTTP_EVENT_ON_HEADER && headers && evt->header_key && evt->header_value) {
+    if (strcasecmp(evt->header_key, "Location") == 0) headers->location.assign(evt->header_value);
+    if (strcasecmp(evt->header_key, "ETag") == 0 && strncmp(evt->header_value, "W/", 2) != 0 &&
+        strlen(evt->header_value) <= 128)
+      headers->validator.assign(evt->header_value);
+    if (strcasecmp(evt->header_key, "Last-Modified") == 0 && headers->validator.empty() &&
+        strlen(evt->header_value) <= 128)
+      headers->validator.assign(evt->header_value);
+    // Range headers are tiny; malformed oversized values must not grow RAM.
+    if (strcasecmp(evt->header_key, "Content-Range") == 0)
+      headers->range.assign(evt->header_value, strnlen(evt->header_value, 96));
   }
   return ESP_OK;
 }
@@ -106,7 +121,36 @@ struct Sink {
   size_t downloaded = 0;
   size_t total = 0;
   bool rangeIgnored = false;
+  bool retryable = false;
+  bool invalidResponse = false;
+  size_t responseEnd = 0;
+  std::string validator;
 };
+
+// Called before any response bytes reach the output, including empty bodies.
+bool prepareResponse(Sink& sink, int status, std::string_view range, bool hasLength, size_t length,
+                     const std::string& validator) {
+  if (status == 200 && sink.resumeOffset > 0) {
+    sink.rangeIgnored = true;
+    return false;
+  }
+  if (status == 206) {
+    if ((!sink.validator.empty() && !validator.empty() && sink.validator != validator) ||
+        !HttpDownloadResume::range(range, sink.resumeOffset, sink.total, hasLength, length, sink.total,
+                                   sink.responseEnd)) {
+      LOG_ERR("HTTP", "Invalid resumed response");
+      sink.invalidResponse = true;
+      return false;
+    }
+  } else if (status == 200) {
+    sink.total = hasLength ? length : 0;
+    sink.responseEnd = sink.total;
+    sink.validator = validator;
+  } else {
+    return false;
+  }
+  return true;
+}
 
 void setRequestHeaders(esp_http_client_handle_t client, const std::string& username, const std::string& password,
                        size_t resumeOffset, bool sendAuthorization) {
@@ -134,6 +178,15 @@ void logTlsError(esp_http_client_handle_t client, const char* phase) {
     LOG_ERR("HTTP", "%s TLS error: err=%s mbedtls=0x%x flags=0x%x", phase, esp_err_to_name(err), tlsCode, tlsFlags);
   }
 }
+
+#if defined(FREEINK_NET_WOLFSSL)
+std::string responseValidator(freeink::SecureHttpClient& http) {
+  std::string value = http.getHeader("etag");
+  if (value.empty() || value.compare(0, 2, "W/") == 0 || value.size() > 128) value = http.getHeader("last-modified");
+  if (value.size() > 128) value.clear();
+  return value;
+}
+#endif
 
 #if defined(FREEINK_NET_WOLFSSL)
 HttpDownloader::DownloadError runGetWolfSsl(const std::string& url, const std::string& username,
@@ -166,6 +219,7 @@ HttpDownloader::DownloadError runGetWolfSsl(const std::string& url, const std::s
       char rangeHeader[40];
       snprintf(rangeHeader, sizeof(rangeHeader), "bytes=%zu-", sink.resumeOffset);
       http.addHeader("Range", rangeHeader);
+      if (!sink.validator.empty()) http.addHeader("If-Range", sink.validator);
       LOG_DBG("HTTP", "Resuming download at byte %zu", sink.resumeOffset);
     }
     if (sendAuthorization) {
@@ -175,20 +229,21 @@ HttpDownloader::DownloadError runGetWolfSsl(const std::string& url, const std::s
     }
 
     LOG_DBG("HTTP", "wolfSSL GET: %s", UrlUtils::forLog(currentUrl).c_str());
+    bool prepared = false;
     const int status = http.GET(
-        [&http, &sink, &progressNotifier](const uint8_t* data, const size_t len) {
+        [&http, &sink, &progressNotifier, &prepared](const uint8_t* data, const size_t len) {
           const int responseStatus = http.getStatus();
-          const bool isResumeResponse = sink.resumeOffset > 0 && responseStatus == 206;
-          if (responseStatus != 200 && !isResumeResponse) return true;
-          if (sink.resumeOffset > 0 && !isResumeResponse) {
-            sink.rangeIgnored = true;
-            return false;
-          }
-
-          if (sink.downloaded < sink.resumeOffset) sink.downloaded = sink.resumeOffset;
-          if (sink.total == 0 && http.hasContentLength()) {
-            sink.total = sink.resumeOffset + http.getContentLength();
+          if (responseStatus != 200 && responseStatus != 206) return true;
+          if (!prepared) {
+            if (!prepareResponse(sink, responseStatus, http.getHeader("content-range"), http.hasContentLength(),
+                                 http.getContentLength(), responseValidator(http)))
+              return false;
+            prepared = true;
             progressNotifier.setTotal(sink.total);
+          }
+          if (!HttpDownloadResume::accepts(sink.downloaded, sink.responseEnd, len)) {
+            sink.invalidResponse = true;
+            return false;
           }
           if (!sink.write(data, len)) return false;
           sink.downloaded += len;
@@ -200,10 +255,11 @@ HttpDownloader::DownloadError runGetWolfSsl(const std::string& url, const std::s
     if (http.aborted()) return HttpDownloader::ABORTED;
     if (sink.rangeIgnored) {
       LOG_DBG("HTTP", "Server ignored range request; restarting download");
-      sink.resumeOffset = 0;
       return HttpDownloader::HTTP_ERROR;
     }
+    if (sink.invalidResponse) return HttpDownloader::HTTP_ERROR;
     if (status < 0) {
+      sink.retryable = !http.callbackAborted();
       LOG_ERR("HTTP", "wolfSSL request failed: %s", UrlUtils::forLog(currentUrl).c_str());
       logNetworkState("wolfSSL request failure");
       return HttpDownloader::HTTP_ERROR;
@@ -231,24 +287,21 @@ HttpDownloader::DownloadError runGetWolfSsl(const std::string& url, const std::s
       continue;
     }
 
-    const bool isResumeResponse = sink.resumeOffset > 0 && status == 206;
-    if (status != 200 && !isResumeResponse) {
-      LOG_ERR("HTTP", "Unexpected status: %d", status);
+    if (!prepared && !prepareResponse(sink, status, http.getHeader("content-range"), http.hasContentLength(),
+                                      http.getContentLength(), responseValidator(http))) {
+      LOG_ERR("HTTP", "Rejected response: %d", status);
       return HttpDownloader::HTTP_ERROR;
     }
     if (http.callbackAborted()) {
       LOG_ERR("HTTP", "Write failed after %zu/%zu bytes", sink.downloaded, sink.total);
       return HttpDownloader::FILE_ERROR;
     }
-    if (!http.responseComplete()) {
+    if (!http.responseComplete() || (sink.total && sink.downloaded != sink.total)) {
+      sink.retryable = true;
       LOG_ERR("HTTP", "Incomplete: got %zu of %zu bytes", sink.downloaded, sink.total);
       return HttpDownloader::HTTP_ERROR;
     }
 
-    if (sink.total == 0 && http.hasContentLength()) {
-      sink.total = sink.resumeOffset + http.getContentLength();
-      progressNotifier.setTotal(sink.total);
-    }
     progressNotifier.notify(sink.downloaded, true);
     return HttpDownloader::OK;
   }
@@ -269,7 +322,7 @@ HttpDownloader::DownloadError runGetDefault(const std::string& url, const std::s
     const bool currentParsed = HttpRedirectPolicy::parseUrl(currentUrl, currentOrigin);
     const bool sendAuthorization =
         currentParsed && HttpRedirectPolicy::shouldSendAuthorization(currentOrigin, credentialOrigin, hasCredentials);
-    std::string redirectLocation;
+    ResponseHeaders responseHeaders;
 
     esp_http_client_config_t config = {};
     config.url = currentUrl.c_str();
@@ -279,7 +332,7 @@ HttpDownloader::DownloadError runGetDefault(const std::string& url, const std::s
     config.crt_bundle_attach = esp_crt_bundle_attach;
     config.keep_alive_enable = false;
     config.event_handler = captureLocationHeader;
-    config.user_data = &redirectLocation;
+    config.user_data = &responseHeaders;
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) {
@@ -289,10 +342,13 @@ HttpDownloader::DownloadError runGetDefault(const std::string& url, const std::s
     }
 
     setRequestHeaders(client, username, password, sink.resumeOffset, sendAuthorization);
+    if (sink.resumeOffset && !sink.validator.empty())
+      esp_http_client_set_header(client, "If-Range", sink.validator.c_str());
 
     esp_err_t err = esp_http_client_open(client, 0);
     if (err != ESP_OK) {
       LOG_ERR("HTTP", "Open failed: %s", esp_err_to_name(err));
+      sink.retryable = true;
       logTlsError(client, "Open failure");
       logNetworkState("Open failure");
       esp_http_client_cleanup(client);
@@ -303,20 +359,21 @@ HttpDownloader::DownloadError runGetDefault(const std::string& url, const std::s
     const int status = esp_http_client_get_status_code(client);
     if (responseLength < 0) {
       LOG_ERR("HTTP", "Fetch headers failed: %lld", static_cast<long long>(responseLength));
+      sink.retryable = true;
       logNetworkState("Fetch headers failure");
       esp_http_client_cleanup(client);
       return HttpDownloader::HTTP_ERROR;
     }
 
     if (isRedirect(status)) {
-      if (redirectLocation.empty()) {
+      if (responseHeaders.location.empty()) {
         LOG_ERR("HTTP", "Redirect missing Location header");
         logNetworkState("Redirect missing Location");
         esp_http_client_cleanup(client);
         return HttpDownloader::HTTP_ERROR;
       }
 
-      const std::string redirectUrl = HttpRedirectPolicy::buildRedirectUrl(currentUrl, redirectLocation);
+      const std::string redirectUrl = HttpRedirectPolicy::buildRedirectUrl(currentUrl, responseHeaders.location);
       HttpRedirectPolicy::Url redirect;
       if (!HttpRedirectPolicy::parseUrl(redirectUrl, redirect)) {
         LOG_ERR("HTTP", "Rejected redirect with unsupported Location");
@@ -334,26 +391,12 @@ HttpDownloader::DownloadError runGetDefault(const std::string& url, const std::s
       continue;
     }
 
-    const bool isResumeResponse = sink.resumeOffset > 0 && status == 206;
-    if (status != 200 && !isResumeResponse) {
-      LOG_ERR("HTTP", "Unexpected status: %d", status);
-      logNetworkState("Unexpected status");
+    if (static_cast<uint64_t>(responseLength) > std::numeric_limits<size_t>::max() ||
+        !prepareResponse(sink, status, responseHeaders.range, responseLength > 0, static_cast<size_t>(responseLength),
+                         responseHeaders.validator)) {
+      LOG_ERR("HTTP", "Rejected response: %d", status);
       esp_http_client_cleanup(client);
       return HttpDownloader::HTTP_ERROR;
-    }
-    if (sink.resumeOffset > 0 && !isResumeResponse) {
-      LOG_DBG("HTTP", "Server ignored range request; restarting download");
-      sink.rangeIgnored = true;
-      sink.resumeOffset = 0;
-      esp_http_client_cleanup(client);
-      return HttpDownloader::HTTP_ERROR;
-    }
-
-    const size_t bodyLength = responseLength > 0 ? static_cast<size_t>(responseLength) : 0;
-    sink.total = bodyLength > 0 ? sink.resumeOffset + bodyLength : 0;
-    sink.downloaded = sink.resumeOffset;
-    if (sink.total > 0) {
-    } else {
     }
 #ifdef ESP_ERR_HTTP_EAGAIN
     err = esp_http_client_set_timeout_ms(client, HTTP_READ_POLL_TIMEOUT_MS);
@@ -389,6 +432,7 @@ HttpDownloader::DownloadError runGetDefault(const std::string& url, const std::s
         if (bytesRead == -ESP_ERR_HTTP_EAGAIN) {
           const uint32_t idleMs = millis() - lastReadMs;
           if (idleMs >= DOWNLOAD_IDLE_TIMEOUT_MS) {
+            sink.retryable = true;
             logDownloadState("Read timed out", sink.downloaded, sink.total, idleMs);
             esp_http_client_cleanup(client);
             return HttpDownloader::HTTP_ERROR;
@@ -398,12 +442,19 @@ HttpDownloader::DownloadError runGetDefault(const std::string& url, const std::s
         }
 #endif
         LOG_ERR("HTTP", "Read error after %zu/%zu bytes", sink.downloaded, sink.total);
+        sink.retryable = true;
         logNetworkState("Read error");
         esp_http_client_cleanup(client);
         return HttpDownloader::HTTP_ERROR;
       }
       if (bytesRead == 0) break;
 
+      if (!HttpDownloadResume::accepts(sink.downloaded, sink.responseEnd, static_cast<size_t>(bytesRead))) {
+        LOG_ERR("HTTP", "Response exceeds its advertised range");
+        sink.invalidResponse = true;
+        esp_http_client_cleanup(client);
+        return HttpDownloader::HTTP_ERROR;
+      }
       if (!sink.write(reinterpret_cast<const uint8_t*>(buffer.get()), static_cast<size_t>(bytesRead))) {
         LOG_ERR("HTTP", "Write failed after %zu/%zu bytes", sink.downloaded, sink.total);
         logNetworkState("Write failure");
@@ -425,7 +476,8 @@ HttpDownloader::DownloadError runGetDefault(const std::string& url, const std::s
     const bool complete = esp_http_client_is_complete_data_received(client);
     esp_http_client_cleanup(client);
     progressNotifier.notify(sink.downloaded, true);
-    if (!complete) {
+    if (!complete || (sink.total && sink.downloaded != sink.total)) {
+      sink.retryable = true;
       LOG_ERR("HTTP", "Incomplete: got %zu of %zu bytes", sink.downloaded, sink.total);
       logNetworkState("Incomplete transfer");
       return HttpDownloader::HTTP_ERROR;
@@ -539,7 +591,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     if (fileOpen) return true;
 #ifndef SIMULATOR
     // The host storage shim does not expose card capacity.
-    if (options.checkFreeSpace && !spaceChecked) {
+    if (options.checkFreeSpace && !spaceChecked && sink.total > 0) {
       spaceChecked = true;
       // Some SD transports cannot report capacity; let the write fail instead.
       const uint64_t totalBytes = Storage.totalBytes();
@@ -574,30 +626,50 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
 
   sink.write = [&](const uint8_t* data, size_t len) { return openOutputFile() && file.write(data, len) == len; };
 
-  DownloadError result =
-      runGet(url, username, password, options.authorizationOrigin, sink, bufferSize, options.transport);
-  if (sink.rangeIgnored) {
-    if (fileOpen) {
-      file.close();
-      fileOpen = false;
+  DownloadError result = HTTP_ERROR;
+  HttpDownloadResume::RetryBudget budget;
+  do {
+    if (isCancelRequested(sink.cancelFlag, sink.shouldCancel)) {
+      result = ABORTED;
+      break;
     }
-    Storage.remove(writePath.c_str());
-    sink.rangeIgnored = false;
-    sink.resumeOffset = 0;
-    sink.downloaded = 0;
-    sink.total = 0;
-    sink.write = [&](const uint8_t* data, size_t len) { return openOutputFile() && file.write(data, len) == len; };
+    const size_t before = sink.resumeOffset;
+    sink.downloaded = before;
+    sink.rangeIgnored = sink.retryable = sink.invalidResponse = false;
+    sink.responseEnd = 0;
     result = runGet(url, username, password, options.authorizationOrigin, sink, bufferSize, options.transport);
-  }
-
-  if (fileOpen) {
-    const bool synced = file.sync();
-    const bool closed = file.close();
-    if (!synced || !closed) {
-      LOG_ERR("HTTP", "Failed to finish downloaded file");
-      result = FILE_ERROR;
+    if (fileOpen) {
+      const bool synced = file.sync();
+      const bool closed = file.close();
+      fileOpen = false;
+      if (!synced || !closed) {
+        LOG_ERR("HTTP", "Failed to finish downloaded file");
+        result = FILE_ERROR;
+      }
     }
-  }
+    if (result != HTTP_ERROR || (!sink.retryable && !sink.rangeIgnored)) break;
+    if (sink.rangeIgnored || (sink.downloaded > 0 && sink.validator.empty())) {
+      // Without a version validator, reconnecting must restart to avoid mixing revisions.
+      // Close before reopening: SdFat permits only one handle per path.
+      if (Storage.exists(writePath.c_str()) && !Storage.remove(writePath.c_str())) {
+        LOG_ERR("HTTP", "Failed to restart partial download");
+        result = FILE_ERROR;
+        break;
+      }
+      sink.downloaded = sink.total = 0;
+#ifndef SIMULATOR
+      spaceChecked = false;
+#endif
+    }
+    if (!budget.again(before, sink.downloaded)) break;
+    sink.resumeOffset = sink.downloaded;
+    LOG_INF("HTTP", "Retrying download at byte %zu (attempt %u)", sink.resumeOffset, budget.attempts + 1);
+    // Short, cancellable backoff on stalled connections; no extra task/buffer.
+    for (unsigned i = 0; i < 10; ++i) {
+      if (isCancelRequested(sink.cancelFlag, sink.shouldCancel)) break;
+      delay(20);
+    }
+  } while (true);
   if (insufficientSpace) result = INSUFFICIENT_SPACE;
 
   if (result != OK) {

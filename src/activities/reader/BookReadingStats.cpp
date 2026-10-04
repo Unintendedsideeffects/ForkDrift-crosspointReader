@@ -172,23 +172,34 @@ ReadingStatsDate readDate(const uint8_t* data, const int offset) {
 
 BookReadingStats BookReadingStats::load(const std::string& cachePath) {
   BookReadingStats stats;
+  loadForUpload(cachePath, stats);
+  return stats;
+}
+
+bool BookReadingStats::loadForUpload(const std::string& cachePath, BookReadingStats& stats) {
+  stats = {};
   FsFile f;
   if (!openStatsFileForRead(cachePath, f)) {
-    return stats;
+    return false;
   }
   uint8_t data[STATS_FILE_SIZE] = {};
+  const size_t fileSize = f.fileSize();
   const int n = f.read(data, STATS_FILE_SIZE);
   f.close();
+  if (n < 0 || static_cast<size_t>(n) != fileSize) {
+    LOG_ERR("STATS", "Incomplete or oversized stats snapshot");
+    return false;
+  }
 
   if (n == STATS_FILE_SIZE_V1 && data[0] == STATS_FILE_VERSION_V1) {
     readCommonStats(data, stats);
-    return stats;
+    return true;
   }
 
   if (n == STATS_FILE_SIZE_V2 && data[0] == STATS_FILE_VERSION_V2) {
     readCommonStats(data, stats);
     stats.isCompleted = data[11] != 0;
-    return stats;
+    return true;
   }
 
   if (n == STATS_FILE_SIZE_V3 && data[0] == STATS_FILE_VERSION_V3) {
@@ -196,20 +207,20 @@ BookReadingStats BookReadingStats::load(const std::string& cachePath) {
     stats.isCompleted = data[11] != 0;
     stats.avgSecondsPerForwardPage = readLe16(data, 12);
     stats.paceSampleCount = readLe16(data, 14);
-    return stats;
+    return true;
   }
 
   if (n != STATS_FILE_SIZE && n != STATS_FILE_SIZE_V4) {
     LOG_DBG("STATS", "Stats missing or version mismatch, starting fresh");
-    return stats;
+    return false;
   }
   if (n == STATS_FILE_SIZE_V4 && data[0] != STATS_FILE_VERSION_V4) {
     LOG_DBG("STATS", "Stats missing or version mismatch, starting fresh");
-    return stats;
+    return false;
   }
   if (n == STATS_FILE_SIZE && data[0] != STATS_FILE_VERSION) {
     LOG_DBG("STATS", "Stats missing or version mismatch, starting fresh");
-    return stats;
+    return false;
   }
   readCommonStats(data, stats);
   stats.isCompleted = data[11] != 0;
@@ -229,7 +240,7 @@ BookReadingStats BookReadingStats::load(const std::string& cachePath) {
   if (n == STATS_FILE_SIZE) {
     stats.estimatedTimeLeftSeconds = readLe32(data, 69);
   }
-  return stats;
+  return true;
 }
 
 void BookReadingStats::recordForwardPageRead(uint32_t seconds) {

@@ -145,3 +145,84 @@ TEST(OpdsParserTest, CountBoundsAndUnrelatedSummaries) {
     EXPECT_EQ(entries[0].count, -1);
   }
 }
+
+namespace {
+std::string descriptionFeed(const std::string& body) {
+  return "<feed><entry><title>Original</title><author><name>Author</name></author>" + body +
+         "<link href='/book.epub' rel='http://opds-spec.org/acquisition' type='application/epub+zip'/></entry></feed>";
+}
+}  // namespace
+
+TEST(OpdsParserTest, DescriptionMarkupCannotOverwriteEntryFields) {
+  OpdsEntry entries[1];
+  OpdsParser parser(entries);
+  const auto xml = descriptionFeed(
+      "<summary type='xhtml'><div><p>First</p><p>Second <title>inside</title> "
+      "<link href='/wrong'/></p></div></summary>");
+  ASSERT_TRUE(parser.parse(xml.c_str(), xml.size()));
+  EXPECT_STREQ(entries[0].description.data(), "First Second inside");
+  EXPECT_EQ(entries[0].title, "Original");
+  EXPECT_EQ(entries[0].href, "/book.epub");
+}
+
+TEST(OpdsParserTest, ContentPreferredRegardlessOfOrder) {
+  for (const auto* body : {"<summary>Short</summary><content>Full description</content>",
+                           "<content>Full description</content><summary>Short</summary>",
+                           "<content>Full description</content><content></content>"}) {
+    OpdsEntry entries[1];
+    OpdsParser parser(entries);
+    const auto xml = descriptionFeed(body);
+    ASSERT_TRUE(parser.parse(xml.c_str(), xml.size()));
+    EXPECT_STREQ(entries[0].description.data(), "Full description");
+  }
+}
+
+TEST(OpdsParserTest, EscapedHtmlAcrossSingleByteChunks) {
+  OpdsEntry entries[1];
+  OpdsParser parser(entries);
+  const auto xml =
+      descriptionFeed("<summary type='html'>&lt;p&gt;One&lt;/p&gt;&lt;p&gt;Two &amp; three&lt;/p&gt;</summary>");
+  for (const auto c : xml) parser.write(static_cast<uint8_t>(c));
+  parser.flush();
+  ASSERT_FALSE(parser.error());
+  EXPECT_STREQ(entries[0].description.data(), "One Two & three");
+}
+
+TEST(OpdsParserTest, PlainTextKeepsAngleBrackets) {
+  OpdsEntry entries[1];
+  OpdsParser parser(entries);
+  const auto xml = descriptionFeed("<summary>2 &lt; 3 and 5 &gt; 4</summary>");
+  ASSERT_TRUE(parser.parse(xml.c_str(), xml.size()));
+  EXPECT_STREQ(entries[0].description.data(), "2 < 3 and 5 > 4");
+}
+
+TEST(OpdsParserTest, DescriptionTruncatesAtUtf8BoundaryAndResets) {
+  OpdsEntry entries[1];
+  OpdsParser parser(entries);
+  for (size_t prefix = 250; prefix < 257; ++prefix) {
+    const auto xml = descriptionFeed("<summary>" + std::string(prefix, 'a') + "漢字 description</summary>");
+    ASSERT_TRUE(parser.parse(xml.c_str(), xml.size()));
+    const std::string out = entries[0].description.data();
+    EXPECT_LE(out.size(), MAX_OPDS_DESCRIPTION_BYTES);
+    ASSERT_GE(out.size(), 3u);
+    EXPECT_EQ(out.substr(out.size() - 3), "...");
+    for (size_t i = 0; i < out.size(); ++i) {
+      const auto c = static_cast<unsigned char>(out[i]);
+      if (c >= 0x80) {
+        ASSERT_EQ(out.substr(i, 3), "漢");
+        i += 2;
+      }
+    }
+  }
+  const auto empty = descriptionFeed("");
+  ASSERT_TRUE(parser.parse(empty.c_str(), empty.size()));
+  EXPECT_STREQ(entries[0].description.data(), "");
+}
+
+TEST(OpdsParserTest, NonTextContentDoesNotReplaceSummary) {
+  OpdsEntry entries[1];
+  OpdsParser parser(entries);
+  const auto xml = descriptionFeed("<summary>A description</summary><content type='application/pdf'>BASE64</content>");
+  ASSERT_TRUE(parser.parse(xml.c_str(), xml.size()));
+  EXPECT_STREQ(entries[0].description.data(), "A description");
+}

@@ -91,6 +91,7 @@ add_subdirectory(absolute_grayscale)
 add_subdirectory(buffered_file)
 add_subdirectory(ota_boot_switch)
 add_subdirectory(http_redirect_policy)
+add_subdirectory(http_downloader)
 add_subdirectory(hal_file_stream)
 add_subdirectory(koreader_xpath_resolver)
 add_subdirectory(fs_helpers)
@@ -108,3 +109,5 @@ add_subdirectory(library_recent_order)
 add_subdirectory(scalable_fonts)
 
 add_subdirectory(glyph_bitmap)
+
+add_subdirectory(daily_reading_stats)

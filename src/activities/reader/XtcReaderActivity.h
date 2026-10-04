@@ -6,6 +6,7 @@
  */
 
 #pragma once
+#include "DailyReadingStats.h"
 
 #include <Xtc.h>
 
@@ -30,6 +31,8 @@ class XtcReaderActivity final : public Activity {
   unsigned long lastPageTurnTime = 0UL;
   unsigned long pageShownAtMs = 0UL;
   uint32_t sessionReadingSeconds = 0;
+  DailyReadingStats::Session dailyReadingSession;
+  void startDailyReadingInterval();
   BookReadingStats stats;
   GlobalReadingStats globalStats;
   ReadingStatsDateTime sessionStartLocalDateTime;

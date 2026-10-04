@@ -204,9 +204,9 @@ void TxtReaderActivity::loop() {
 #endif
   const auto touch = ReaderUtils::detectTouchPageTurn(renderer, mappedInput);
   if (touch.tapped &&
-      (ReaderUtils::isBottomStatusBarTap(renderer, touch.y, UITheme::getInstance().getStatusBarHeight()) ||
+      (ReaderUtils::isBottomStatusBarTap(renderer, touch.y, UITheme::getInstance().getStatusBarHeight(renderer)) ||
        ReaderUtils::isTopStatusBarTap(renderer, touch.y,
-                                      UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Top)))) {
+                                      UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Top, renderer)))) {
     if (SETTINGS.tapToHideStatusBar) {
       statusBarVisible = !statusBarVisible;
       requestUpdate();
@@ -661,7 +661,7 @@ void TxtReaderActivity::initializeReader() {
   cachedHorizontalMargin = SETTINGS.screenMarginHorizontal;
   cachedParagraphAlignment = SETTINGS.paragraphAlignment;
   cachedTopStatusBarHeight = ReaderUtils::getTopStatusBarReservedHeight(renderer);
-  cachedBottomStatusBarHeight = UITheme::getInstance().getStatusBarHeight();
+  cachedBottomStatusBarHeight = UITheme::getInstance().getStatusBarHeight(renderer);
 
   // Calculate viewport dimensions
   renderer.getOrientedViewableTRBL(&cachedOrientedMarginTop, &cachedOrientedMarginRight, &cachedOrientedMarginBottom,
@@ -787,7 +787,7 @@ void TxtReaderActivity::render(RenderLock&&) {
   bool relayout = false;
   size_t readingOffset = 0;
   if (initialized && (cachedTopStatusBarHeight != ReaderUtils::getTopStatusBarReservedHeight(renderer) ||
-                      cachedBottomStatusBarHeight != UITheme::getInstance().getStatusBarHeight())) {
+                      cachedBottomStatusBarHeight != UITheme::getInstance().getStatusBarHeight(renderer))) {
     if (currentPage >= 0 && currentPage < static_cast<int>(pageOffsets.size())) {
       readingOffset = pageOffsets[currentPage];
       relayout = true;
@@ -1163,7 +1163,7 @@ bool TxtReaderActivity::drawCurrentPageToBuffer(const std::string& filePath, Gfx
   } else {
     marginTop += verticalMargin;
   }
-  marginBottom += std::max(verticalMargin, static_cast<uint8_t>(UITheme::getInstance().getStatusBarHeight() +
+  marginBottom += std::max(verticalMargin, static_cast<uint8_t>(UITheme::getInstance().getStatusBarHeight(renderer) +
                                                                 ReaderUtils::STATUS_BAR_TEXT_PADDING));
 
   const int vw = renderer.getScreenWidth() - marginLeft - marginRight;

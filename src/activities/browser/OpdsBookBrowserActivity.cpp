@@ -42,6 +42,7 @@ constexpr size_t OPDS_DOWNLOAD_BUFFER_SIZE = 2048;
 constexpr fui::ActionId ACTION_ROW = 1;
 constexpr fui::ActionId ACTION_SEARCH = 2;
 constexpr fui::ActionId ACTION_CANCEL = 3;
+constexpr fui::ActionId ACTION_DESCRIPTION = 4;
 constexpr int DOWNLOAD_PROGRESS_STEP_PERCENT = 5;
 constexpr unsigned long DOWNLOAD_PROGRESS_MIN_UPDATE_MS = 5000;
 
@@ -93,6 +94,7 @@ void OpdsBookBrowserActivity::onEnter() {
   app.on(ACTION_ROW, &OpdsBookBrowserActivity::onRowEvent, this);
   app.on(ACTION_SEARCH, &OpdsBookBrowserActivity::onSearchEvent, this);
   app.on(ACTION_CANCEL, &OpdsBookBrowserActivity::onCancelEvent, this);
+  app.on(ACTION_DESCRIPTION, &OpdsBookBrowserActivity::onDescriptionEvent, this);
   app.setScreen(&OpdsBookBrowserActivity::rootScreen, this);
   requestUpdate();
 
@@ -133,7 +135,16 @@ void OpdsBookBrowserActivity::activateSelected() {
   if (!entries || entryCount == 0 || selectorIndex < 0 || selectorIndex >= static_cast<int>(entryCount)) return;
   const auto& entry = entries[selectorIndex];
   if (entry.type == OpdsEntryType::BOOK) {
-    requestDownload(entry);
+    if (entry.description[0]) {
+      RenderLock lock;
+      descriptionLines.clear();
+      descriptionWidth = descriptionTop = 0;
+      state = BrowserState::DESCRIPTION;
+      uiReady = false;
+      requestUpdate();
+    } else {
+      requestDownload(entry);
+    }
     return;
   }
   const bool pageLink =
@@ -166,8 +177,56 @@ void OpdsBookBrowserActivity::onCancelEvent(const fui::ActionEvent&, void* user)
   self->cancelDownload = true;
 }
 
+void OpdsBookBrowserActivity::scrollDescription(const int direction) {
+  RenderLock lock;
+  const int next = scrollListBy(descriptionTop, direction * descriptionRows, descriptionRows,
+                                static_cast<int>(descriptionLines.size()));
+  if (next != descriptionTop) {
+    descriptionTop = next;
+    requestUpdate();
+  }
+}
+
+void OpdsBookBrowserActivity::onDescriptionEvent(const fui::ActionEvent& event, void* user) {
+  auto* self = static_cast<OpdsBookBrowserActivity*>(user);
+  if (self->state != BrowserState::DESCRIPTION) return;
+  self->app.clearTapFlash();
+  if (event.value == 0)
+    self->requestDownload(self->entries[self->selectorIndex]);
+  else
+    self->scrollDescription(event.value);
+}
+
 void OpdsBookBrowserActivity::loop() {
   if (state == BrowserState::WIFI_SELECTION || state == BrowserState::SEARCH_INPUT) {
+    return;
+  }
+
+  if (state == BrowserState::DESCRIPTION) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back) ||
+        TouchHeaderBackButton::wasTapped(mappedInput, renderer)) {
+      RenderLock lock;
+      state = BrowserState::BROWSING;
+      uiReady = false;
+      descriptionLines.clear();
+      requestUpdate();
+      return;
+    }
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+      requestDownload(entries[selectorIndex]);
+      return;
+    }
+    if (uiReady) {
+      const auto snap = touchSnapshotFrom(mappedInput);
+      if ((snap.touchPressed || snap.touchReleased) && app.route(snap)) return;
+    }
+    const auto swipe = mappedInput.wasSwipe();
+    if (swipe == MappedInputManager::SwipeDir::Up)
+      scrollDescription(1);
+    else if (swipe == MappedInputManager::SwipeDir::Down)
+      scrollDescription(-1);
+    buttonNavigator.onNext([this] { scrollDescription(1); });
+    buttonNavigator.onPrevious([this] { scrollDescription(-1); });
     return;
   }
 
@@ -280,6 +339,7 @@ bool OpdsBookBrowserActivity::preventAutoSleep() {
     case BrowserState::SEARCH_INPUT:
       return true;
     case BrowserState::BROWSING:
+    case BrowserState::DESCRIPTION:
     case BrowserState::ERROR:
       return false;
   }
@@ -291,6 +351,9 @@ void OpdsBookBrowserActivity::rootScreen(UiApp::ScreenType& screen, void* user) 
   switch (self->state) {
     case BrowserState::BROWSING:
       self->buildBrowsingScreen(screen);
+      break;
+    case BrowserState::DESCRIPTION:
+      self->buildDescriptionScreen(screen);
       break;
     case BrowserState::DOWNLOADING:
       self->buildDownloadScreen(screen);
@@ -305,7 +368,8 @@ void OpdsBookBrowserActivity::rootScreen(UiApp::ScreenType& screen, void* user) 
 // draw the themed header (padding, centering, and rule come from the theme).
 void OpdsBookBrowserActivity::screenHeader(UiApp::ScreenType& screen, const bool withSearch) {
   screen.takeBottom(static_cast<int16_t>(UITheme::getInstance().getMetrics().buttonHintsHeight));
-  const bool useTouchBackHeader = state == BrowserState::BROWSING && mappedInput.hasTouchHardware();
+  const bool useTouchBackHeader =
+      (state == BrowserState::BROWSING || state == BrowserState::DESCRIPTION) && mappedInput.hasTouchHardware();
   if (useTouchBackHeader) {
     const Rect headerRect = TouchHeaderBackButton::headerRect(renderer, mappedInput);
     const auto backLayout = TouchHeaderBackButton::layout(headerRect);
@@ -397,6 +461,41 @@ void OpdsBookBrowserActivity::buildBrowsingScreen(UiApp::ScreenType& screen) {
   screen.list(props);
 }
 
+void OpdsBookBrowserActivity::buildDescriptionScreen(UiApp::ScreenType& screen) {
+  screenHeader(screen, false);
+  const auto& book = entries[selectorIndex];
+  const auto& theme = screen.theme();
+  const int16_t lh = screen.target().lineHeight(theme.bodyText.font);
+  const int16_t gap = theme.spaceMd;
+  fui::TextStyle title = theme.bodyText;
+  title.maxLines = 2;
+  screen.target().text(screen.takeTop(lh * 2, gap), book.title.c_str(), title);
+  if (!book.author.empty()) screen.target().text(screen.takeTop(lh, gap), book.author.c_str(), theme.smallText);
+  const fui::Rect actions = screen.takeBottom(theme.rowHeight, gap);
+  const fui::Rect body = screen.body().inset(fui::Insets{0, gap, 0, gap});
+  if (descriptionWidth != body.width) {
+    descriptionLines = renderer.wrappedText(uiScaleSpec().bodyFontId, book.description.data(), body.width, 64);
+    descriptionWidth = body.width;
+  }
+  descriptionRows = std::max(1, static_cast<int>(body.height / lh));
+  descriptionTop = scrollListBy(descriptionTop, 0, descriptionRows, static_cast<int>(descriptionLines.size()));
+  for (int row = 0; row < descriptionRows && descriptionTop + row < static_cast<int>(descriptionLines.size()); ++row) {
+    screen.target().text(fui::Rect{body.x, static_cast<int16_t>(body.y + row * lh), body.width, lh},
+                         descriptionLines[descriptionTop + row].c_str(), theme.bodyText);
+  }
+  const int16_t width = actions.width / 3;
+  const char* labels[] = {tr(STR_PREV_PAGE), tr(STR_DOWNLOAD), tr(STR_NEXT_PAGE)};
+  for (int i = 0; i < 3; ++i) {
+    fui::ButtonProps button;
+    button.label = labels[i];
+    button.action = ACTION_DESCRIPTION;
+    button.value = i - 1;
+    button.enabled = i == 1 || (i == 0 ? descriptionTop > 0
+                                       : descriptionTop + descriptionRows < static_cast<int>(descriptionLines.size()));
+    screen.button(button, fui::Rect{static_cast<int16_t>(actions.x + i * width), actions.y, width, actions.height});
+  }
+}
+
 void OpdsBookBrowserActivity::buildDownloadScreen(UiApp::ScreenType& screen) {
   screenHeader(screen, false);
 
@@ -460,13 +559,19 @@ void OpdsBookBrowserActivity::render(RenderLock&&) {
   MappedInputManager::Labels labels;
   switch (state) {
     case BrowserState::BROWSING: {
-      const char* confirmLabel =
-          (entryCount > 0 && entries[selectorIndex].type == OpdsEntryType::BOOK) ? tr(STR_DOWNLOAD) : tr(STR_OPEN);
+      const char* confirmLabel = (entryCount > 0 && entries[selectorIndex].type == OpdsEntryType::BOOK &&
+                                  !entries[selectorIndex].description[0])
+                                     ? tr(STR_DOWNLOAD)
+                                     : tr(STR_OPEN);
       const char* searchLabel = (!searchTemplate.empty() && selectorIndex == 0) ? tr(STR_SEARCH) : tr(STR_DIR_UP);
       labels =
           mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), confirmLabel, searchLabel, tr(STR_DIR_DOWN));
       break;
     }
+    case BrowserState::DESCRIPTION:
+      labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_DOWNLOAD), tr(STR_PREV_PAGE),
+                                     tr(STR_NEXT_PAGE));
+      break;
     case BrowserState::DOWNLOADING:
       labels = mappedInput.mapLabels(tr(STR_CANCEL), "", "", "");
       break;
@@ -513,6 +618,10 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
     appendEntry(
         OpdsEntry{OpdsEntryType::BOOK, "A Room of One's Own", "Virginia Woolf", "/books/a-room-of-ones-own.epub", ""});
     appendEntry(OpdsEntry{OpdsEntryType::BOOK, "Frankenstein", "Mary Shelley", "/books/frankenstein.epub", ""});
+    snprintf(entries[1].description.data(), entries[1].description.size(), "%s",
+             "A visitor to a distant world must learn to understand its people. "
+             "This catalog description can be read before choosing Download. "
+             "Use the page buttons or swipe to read the rest at larger text sizes.");
   } else {
     appendEntry(
         OpdsEntry{OpdsEntryType::BOOK, "The Dispossessed", "Ursula K. Le Guin", "/books/the-dispossessed.epub", ""});

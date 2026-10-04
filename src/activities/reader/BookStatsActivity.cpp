@@ -71,6 +71,20 @@ void BookStatsActivity::refreshAllDevicesStats() {
   }
 }
 
+void BookStatsActivity::loadDailySummary() {
+  dailySummary = {};
+  if (!halClock.isAvailable()) {
+    return;
+  }
+  ReadingStatsDateTime now;
+  if (!getCurrentLocalDailyReadingDateTime(now)) {
+    LOG_DBG("BookStats", "No local date for daily reading time");
+    return;
+  }
+
+  dailySummary = DailyReadingStats::summarize(readingStatsDayIndex(now.date));
+}
+
 void BookStatsActivity::saveStats() {
   if (!didChangeStats || !hasEditableBook()) {
     return;
@@ -276,6 +290,7 @@ void BookStatsActivity::onEnter() {
   ignoreInitialConfirmRelease = mappedInput.isPressed(MappedInputManager::Button::Confirm);
   ignoreInitialPowerRelease = mappedInput.isPressed(MappedInputManager::Button::Power);
   if (bookCachePath.empty()) page = Page::ThisDevice;
+  loadDailySummary();
   previousOrientation = renderer.getOrientation();
   renderer.setOrientation(GfxRenderer::Orientation::Portrait);
   requestUpdate();
@@ -499,7 +514,7 @@ void BookStatsActivity::render(RenderLock&&) {
       break;
     case Page::ThisDevice:
       renderGlobalStatsPage(renderer, &mappedInput, tr(STR_STATS_THIS_DEVICE_SCREEN), globalStats, true,
-                            showAllDevicesStats);
+                            showAllDevicesStats, &dailySummary);
       break;
     case Page::AllDevices:
       renderGlobalStatsPage(renderer, &mappedInput, tr(STR_STATS_ALL_DEVICES_SCREEN), allDevicesStats, true, false);

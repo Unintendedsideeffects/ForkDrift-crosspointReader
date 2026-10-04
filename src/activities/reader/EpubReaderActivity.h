@@ -1,4 +1,5 @@
 #pragma once
+#include "DailyReadingStats.h"
 #include <Epub.h>
 #include <Epub/FootnoteEntry.h>
 #include <Epub/Section.h>
@@ -167,6 +168,8 @@ class EpubReaderActivity final : public Activity {
   uint32_t sessionPaceSampleSeconds = 0;
   uint16_t sessionPaceSampleCount = 0;
   uint32_t sessionReadingSeconds = 0;
+  DailyReadingStats::Session dailyReadingSession;
+  void startDailyReadingInterval();
   uint16_t lastAutoPageTurnIntervalSeconds = 0;
   bool bookHasCustomReaderSettings = false;
   bool bookHasAutoPageTurnInterval = false;
