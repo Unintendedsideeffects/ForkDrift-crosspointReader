@@ -64,6 +64,7 @@
 #include "components/UITheme.h"
 #include "simulator/SimulatorHomeKeyInput.h"
 #include "util/ButtonShortcutController.h"
+#include "util/Dictionary.h"
 
 extern ActivityManager activityManager;
 extern GfxRenderer renderer;
@@ -232,6 +233,45 @@ class SimulatorSmokeTest {
       default:
         return "XtcReader";
     }
+  }
+
+  static void verifyDictionaryElisions() {
+    Dictionary::setLookupDictPathOverride("/dictionary-smoke/dict");
+    static constexpr const char* cases[][2] = {
+        {"l'histoire", "histoire"}, {"l’inspecteur", "inspecteur"},
+        {"d'histoire", "histoire"}, {"qu'après", "après"},
+        {"QU’Après", "après"},      {"Lʼécole", "école"},
+        {"l’école", "école"},       {"j'aime", "aime"},
+        {"n’aime", "aime"},         {"m'aime", "aime"},
+        {"s’aime", "aime"},         {"t'aime", "aime"},
+        {"c’est", "est"},
+    };
+    for (const auto& entry : cases) {
+      bool matchedStem = false;
+      const auto result = Dictionary::locateWithStemVariants(Dictionary::cleanWord(entry[0]), &matchedStem);
+      if (!result.found || result.readError || result.headword != entry[1] || !matchedStem)
+        fail("French dictionary lookup failed: %s -> %s", entry[0], entry[1]);
+    }
+    bool matchedStem = true;
+    const auto exact = Dictionary::locateWithStemVariants("d'accord", &matchedStem);
+    if (!exact.found || exact.headword != "d'accord" || matchedStem)
+      fail("Exact dictionary headword must take priority over elision");
+    for (const char* word : {"don't", "aujourd’hui", "l'", "qu’", "élèves"}) {
+      const auto variants = Dictionary::getStemVariants(word);
+      if (!variants.empty()) fail("Unexpected dictionary variant for %s", word);
+    }
+    const auto nameVariants = Dictionary::getStemVariants("O'Brien");
+    if (std::find(nameVariants.begin(), nameVariants.end(), "brien") != nameVariants.end() ||
+        std::find(nameVariants.begin(), nameVariants.end(), "Brien") != nameVariants.end())
+      fail("Unrecognized apostrophe prefix was stripped");
+    const auto stems = Dictionary::getStemVariants("running");
+    if (std::find(stems.begin(), stems.end(), "run") == stems.end()) fail("English stemming regressed");
+    const DictLookupCallbacks cancelled{nullptr, nullptr, [](void*) { return true; }};
+    if (Dictionary::locateWithStemVariants("l'histoire", &matchedStem, cancelled).found)
+      fail("Cancelled dictionary lookup returned a match");
+    Dictionary::clearLookupDictPathOverride();
+    LOG_INF("SMOKE", "Simulator smoke test passed: French dictionary elisions and exact-match priority");
+    std::_Exit(0);
   }
 
   static bool enabled() { return std::getenv("CROSSINK_SIMULATOR_SMOKE_TEST") != nullptr; }
@@ -1660,6 +1700,7 @@ class SimulatorSmokeTest {
           step = SmokeStep::ReaderInput;
           break;
         }
+        if (std::getenv("CROSSINK_SIMULATOR_SMOKE_DICTIONARY")) verifyDictionaryElisions();
         if (std::getenv("CROSSINK_SIMULATOR_SMOKE_STATUS_BARS")) {
           verifyStatusBarSettings();
           SETTINGS.clockDateHasBeenSynced = true;

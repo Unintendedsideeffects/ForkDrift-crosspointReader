@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -81,6 +82,23 @@ def run_smoke(args: argparse.Namespace) -> int:
         if args.font_dir:
             shutil.copytree(Path(args.font_dir), temp_root / "fs_" / "fonts", dirs_exist_ok=True)
         env = os.environ.copy()
+        if args.dictionary:
+            dictionary = temp_root / "fs_" / "dictionary-smoke"
+            dictionary.mkdir()
+            words = sorted(["accord", "aime", "après", "d'accord", "est", "histoire", "inspecteur", "école"])
+            index = bytearray()
+            definitions = bytearray()
+            for word in words:
+                definition = f"Definition of {word}".encode()
+                index.extend(word.encode() + b"\0" + struct.pack(">II", len(definitions), len(definition)))
+                definitions.extend(definition)
+            (dictionary / "dict.idx").write_bytes(index)
+            (dictionary / "dict.dict").write_bytes(definitions)
+            (dictionary / "dict.ifo").write_text(
+                "StarDict's dict ifo file\nversion=2.4.2\nbookname=French smoke\n"
+                f"wordcount={len(words)}\nidxfilesize={len(index)}\nsametypesequence=m\n"
+            )
+            env["CROSSINK_SIMULATOR_SMOKE_DICTIONARY"] = "1"
         if args.font_dir and args.font_family:
             env["CROSSINK_SIMULATOR_SMOKE_ISOLATED_FONTS"] = "1"
         if args.font_family:
@@ -150,6 +168,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--book", default=str(DEFAULT_BOOK), help="EPUB fixture to copy into the isolated simulator fs_")
     parser.add_argument("--env", choices=("simulator", "simulator-X3", "x4-classic-simulator", "sticky-simulator", "x4-pro-simulator"), default="simulator",
                         help="PlatformIO simulator environment to build and run")
+    parser.add_argument("--dictionary", action="store_true", help="Check French contractions and exact dictionary matches")
     parser.add_argument("--font-dir", help="Font fixtures copied into isolated /fonts")
     parser.add_argument("--font-family", help="Exercise custom-font size and dictionary lifecycle")
     parser.add_argument("--timeout", type=int, help="Seconds before the simulator run is treated as hung (default: 45, or 180 for frontlight layout)")

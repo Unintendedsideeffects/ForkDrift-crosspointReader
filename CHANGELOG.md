@@ -22,6 +22,7 @@
 - A failed stats upload no longer prevents clippings from being uploaded during progress sync.
 - Hide EPUB section-break rules when the publisher suppresses their borders, avoiding duplicate ornaments.
 - Translate reading statistics, stats tracking controls, and the Minimal Stats theme label into Polish.
+- Dictionary lookup now recognizes French words with contracted prefixes, such as l’histoire and qu’après.
 
 ### Changed
 
