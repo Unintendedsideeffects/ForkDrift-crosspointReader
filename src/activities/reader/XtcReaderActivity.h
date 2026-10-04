@@ -6,8 +6,6 @@
  */
 
 #pragma once
-#include "DailyReadingStats.h"
-
 #include <Xtc.h>
 
 #include <memory>
@@ -15,6 +13,7 @@
 #include <utility>
 
 #include "BookReadingStats.h"
+#include "DailyReadingStats.h"
 #include "EndOfBookOptions.h"
 #include "GlobalReadingStats.h"
 #include "ReaderProgressSaveDebouncer.h"
@@ -23,6 +22,9 @@
 #include "components/OptionPopup.h"
 
 class XtcReaderActivity final : public Activity {
+#ifdef SIMULATOR
+  friend struct StatusBarFeatureSmokeTest;
+#endif
   OptionPopup quickActionsPopup;
   std::shared_ptr<Xtc> xtc;
 

@@ -411,6 +411,11 @@ void buildCarouselCacheKey(const std::vector<RecentBook>& recentBooks, std::stri
   // Artwork includes Dark Mode's image-polarity correction. Progress, stats,
   // headers and menus are drawn live, so reading cannot invalidate this cache.
   key += SETTINGS.screenInverted ? "dark:1" : "dark:0";
+  // Artwork positions follow the global header's reserved space.
+  if (SETTINGS.displayStatusBarTextSize != 0) {
+    key += "status-size:";
+    key += static_cast<char>('0' + SETTINGS.displayStatusBarTextSize);
+  }
   key += '\0';
   for (const auto& book : recentBooks) {
     appendCarouselCoverStateToKey(key, book);
@@ -1001,12 +1006,14 @@ std::unique_ptr<Activity> HomeActivity::createFrontlightReadingStatsActivity() {
 void HomeActivity::onFrontlightPanelOpened() {
   themeBeforeFrontlightPanel = SETTINGS.uiTheme;
   scaleBeforeFrontlightPanel = SETTINGS.uiScale;
+  statusSizeBeforeFrontlightPanel = SETTINGS.displayStatusBarTextSize;
   // Save the selection before changed theme metrics can reinterpret its index.
   initialBookPath = getCurrentBookPath();
 }
 
 void HomeActivity::onFrontlightPanelClosed() {
-  if (themeBeforeFrontlightPanel != SETTINGS.uiTheme || scaleBeforeFrontlightPanel != SETTINGS.uiScale) {
+  if (themeBeforeFrontlightPanel != SETTINGS.uiTheme || scaleBeforeFrontlightPanel != SETTINGS.uiScale ||
+      statusSizeBeforeFrontlightPanel != SETTINGS.displayStatusBarTextSize) {
     // Drawer Settings keeps Home alive. Recreate its theme-specific controls,
     // cover snapshots and thumbnail loading state through the normal lifecycle.
     // ActivityManager owns the replacement; its heavy caches allocate onEnter,

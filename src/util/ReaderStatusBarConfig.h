@@ -55,6 +55,7 @@ struct ReaderStatusBarConfig {
   uint8_t percentageFormat = 0;
   uint8_t progressBar = 2;
   uint8_t progressBarThickness = 1;
+  bool hidden = false;
 
   constexpr bool contains(ReaderStatusBarItem item) const {
     return std::any_of(slots.begin(), slots.end(), [item](const auto slot) { return slot == item; });
@@ -67,6 +68,16 @@ struct ReaderStatusBarConfig {
     });
   }
 };
+
+inline ReaderStatusBarConfig xtcStatusBarConfigForDisplay(const ReaderStatusBarPosition displayed,
+                                                          const bool legacyTopUsesBottom,
+                                                          const ReaderStatusBarConfig& top,
+                                                          const ReaderStatusBarConfig& bottom) {
+  auto config =
+      xtcStatusBarConfigPosition(displayed, legacyTopUsesBottom) == ReaderStatusBarPosition::Top ? top : bottom;
+  config.hidden = displayed == ReaderStatusBarPosition::Top ? top.hidden : bottom.hidden;
+  return config;
+}
 
 constexpr bool validDisplayStatusBarItemValue(const int value, const bool clockAvailable) {
   return value == static_cast<int>(ReaderStatusBarItem::Empty) ||

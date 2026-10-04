@@ -12,6 +12,7 @@
 - Turn image grayscale on or off globally or for individual EPUB books, independently of text anti-aliasing.
 - Export allowlisted device diagnostics and global preferences from About to a local support JSON file, with optional anonymous EPUB overrides, explicit scope confirmation and credential/history exclusions.
 - Home/Reader shortcuts available on touch devices
+- Hide either reader status bar without clearing its assigned slots, and choose a separate global status bar text size in Settings → Status Bar.
 
 ### Fixed
 

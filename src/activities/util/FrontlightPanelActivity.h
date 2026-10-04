@@ -98,6 +98,7 @@ class FrontlightPanelActivity final : public Activity {
   bool handleHomeGesture() override;
   bool requiresFreshBackdrop() const override { return true; }
 #ifdef SIMULATOR
+  freeink::ui::Rect simulatorQuickActionRect(int index) const;
   freeink::ui::Rect simulatorHandleRect() const { return drawerHandleRect; }
   Rect simulatorSyncOptionRect(const int index) const { return optionPopup.simulatorOptionRect(index); }
   bool simulatorSyncOptionDisabled(const int index) const { return optionPopup.simulatorOptionDisabled(index); }

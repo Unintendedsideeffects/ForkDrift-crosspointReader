@@ -341,3 +341,65 @@ TEST(DisplayStatusBarConfig, JsonRejectsClockAndDateWithoutRtcInEveryPosition) {
   EXPECT_EQ(display.slots[1], ReaderStatusBarItem::Empty);
   EXPECT_EQ(display.slots[2], ReaderStatusBarItem::Battery);
 }
+
+TEST(ReaderStatusBarConfig, HideRoundTripsIndependentlyWithoutClearingAssignments) {
+  for (unsigned mask = 0; mask < 4; ++mask) {
+    ReaderStatusBarsPayload original;
+    original.top = migrateBottomStatusBar({true, true, true, 1, 2, true, 2, 0, 2});
+    original.bottom = original.top;
+    original.top.hidden = mask & 1;
+    original.bottom.hidden = mask & 2;
+    JsonDocument saved;
+    writeReaderStatusBarJson(saved["top"].to<JsonObject>(), original.top);
+    writeReaderStatusBarJson(saved["bottom"].to<JsonObject>(), original.bottom);
+    saved["xtcMode"] = 3;
+    ReaderStatusBarsPayload loaded;
+    ASSERT_TRUE(readReaderStatusBarsPayload(saved.as<JsonVariantConst>(), loaded, true, 3, 3, 3, 4));
+    EXPECT_EQ(loaded.top.hidden, original.top.hidden);
+    EXPECT_EQ(loaded.bottom.hidden, original.bottom.hidden);
+    EXPECT_EQ(loaded.top.slots, original.top.slots);
+    EXPECT_EQ(loaded.bottom.slots, original.bottom.slots);
+    EXPECT_EQ(loaded.top.progressBar, 0);
+    EXPECT_EQ(loaded.bottom.progressBarThickness, 2);
+    loaded.top.hidden = false;
+    EXPECT_EQ(loaded.top.slots, original.top.slots);
+  }
+}
+
+TEST(ReaderStatusBarConfig, MissingHideDefaultsVisibleAndMalformedHideIsAtomic) {
+  ReaderStatusBarConfig original = migrateBottomStatusBar({true, true, true, 1, 2, true, 2, 0, 2});
+  JsonDocument saved;
+  writeReaderStatusBarJson(saved.to<JsonObject>(), original);
+  saved.remove("hidden");
+  ReaderStatusBarConfig parsed;
+  parsed.hidden = true;
+  ASSERT_TRUE(readReaderStatusBarJson(saved.as<JsonVariantConst>(), parsed, true, 3, 3, 3));
+  EXPECT_FALSE(parsed.hidden);
+  EXPECT_EQ(parsed.slots, original.slots);
+  for (const char* raw : {"1", "null", "\"true\"", "[]"}) {
+    JsonDocument bad;
+    ASSERT_FALSE(deserializeJson(bad, raw));
+    saved["hidden"] = bad.as<JsonVariantConst>();
+    parsed.hidden = true;
+    EXPECT_FALSE(readReaderStatusBarJson(saved.as<JsonVariantConst>(), parsed, true, 3, 3, 3));
+    EXPECT_TRUE(parsed.hidden);
+    EXPECT_TRUE(repairReaderStatusBarJson(saved.as<JsonVariantConst>(), parsed, true, 3, 3, 3));
+    EXPECT_FALSE(parsed.hidden);
+    EXPECT_EQ(parsed.slots, original.slots);
+    EXPECT_EQ(parsed.progressBarThickness, original.progressBarThickness);
+  }
+}
+
+TEST(ReaderStatusBarConfig, LegacyXtcHideBelongsToDisplayedBar) {
+  ReaderStatusBarConfig top;
+  ReaderStatusBarConfig bottom = migrateBottomStatusBar({true, true, true, 1, 2, true, 2, 0, 2});
+  for (unsigned mask = 0; mask < 4; ++mask) {
+    top.hidden = mask & 1;
+    bottom.hidden = mask & 2;
+    const auto displayedTop = xtcStatusBarConfigForDisplay(ReaderStatusBarPosition::Top, true, top, bottom);
+    const auto displayedBottom = xtcStatusBarConfigForDisplay(ReaderStatusBarPosition::Bottom, true, top, bottom);
+    EXPECT_EQ(displayedTop.slots, bottom.slots);
+    EXPECT_EQ(displayedTop.hidden, top.hidden);
+    EXPECT_EQ(displayedBottom.hidden, bottom.hidden);
+  }
+}

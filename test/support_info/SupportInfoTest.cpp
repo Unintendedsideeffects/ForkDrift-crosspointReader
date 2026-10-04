@@ -76,11 +76,18 @@ TEST(SupportInfo, SchemaAndExplicitNumericAllowlist) {
   Snapshot s;
   s.preferences[readerFontPointSize] = 22;
   s.preferences[clockUtcOffsetQ] = 52;
+  s.preferences[displayStatusBarTextSize] = 2;
+  s.preferences[statusBarTextSize] = 1;
+  s.statusHidden[0] = true;
   auto d = parse(render(s));
   EXPECT_STREQ(d["schema"], "crossink-support");
   EXPECT_EQ(d["version"].as<int>(), 1);
   EXPECT_EQ(d["globalPreferences"]["readerFontPointSize"].as<int>(), 22);
   EXPECT_EQ(d["globalPreferences"]["clockUtcOffsetQ"].as<int>(), 52);
+  EXPECT_EQ(d["globalPreferences"]["displayStatusBarTextSize"].as<int>(), 2);
+  EXPECT_EQ(d["globalPreferences"]["statusBarTextSize"].as<int>(), 1);
+  EXPECT_EQ(d["globalPreferences"]["statusHidden"][0].as<int>(), 1);
+  EXPECT_EQ(d["globalPreferences"]["statusHidden"][1].as<int>(), 0);
   auto prefs = d["globalPreferences"].as<JsonObjectConst>();
   for (const char* key :
        {"deviceName", "opdsServerUrl", "opdsUsername", "opdsPassword", "opdsDownloadFolder", "nearbyReceiveFolder",

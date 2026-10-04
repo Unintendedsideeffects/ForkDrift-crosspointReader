@@ -135,6 +135,10 @@ class EpubReaderActivity final : public Activity {
   int cachedChapterPageNumber = 0;
   int cachedChapterTotalPageCount = 0;
   std::optional<uint32_t> cachedVisibleTextOffset;
+  // Consecutive status-bar edits retain one content anchor until navigation.
+  std::optional<uint32_t> statusBarRelayoutOffset;
+  int statusBarRelayoutSpine = -1;
+  int statusBarRelayoutPage = -1;
   struct ChapterGroupEstimateCache {
     int currentSpineIndex = -1;
     int firstSpineIndex = -1;
@@ -438,7 +442,7 @@ class EpubReaderActivity final : public Activity {
   void jumpToPercent(float percent);
   void jumpToStablePage(uint32_t page);
   void reindexCurrentSection();
-  void prepareCurrentSectionForRelayout();
+  void prepareCurrentSectionForRelayout(bool preserveStatusBarAnchor = false);
   void executeReaderQuickAction(CrossPointSettings::LONG_PRESS_MENU_ACTION action,
                                 bool dictionaryLookupFramebufferContainsPage = true,
                                 QuickLockTrigger quickLockTrigger = QuickLockTrigger::LongMenu);

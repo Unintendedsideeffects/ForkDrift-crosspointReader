@@ -32,6 +32,20 @@ constexpr char kHeightPlaceholder[] = "[HEIGHT]";
 constexpr size_t kWidthPlaceholderLength = sizeof(kWidthPlaceholder) - 1;
 constexpr size_t kHeightPlaceholderLength = sizeof(kHeightPlaceholder) - 1;
 
+int displayStatusBarHeightIncrease(const uint8_t textSize) {
+  // Built-in Inter advances are 20/25/30px. Enlarged lanes add the same 4px
+  // padding as reader lanes, compared with the existing 19px Small lane.
+  // Keep metric consumers independent of renderer initialization and reader size.
+  switch (textSize) {
+    case 1:
+      return 25 + 4 - 19;
+    case 2:
+      return 30 + 4 - 19;
+    default:
+      return 0;
+  }
+}
+
 int drawCenteredTextLines(const GfxRenderer& renderer, const Rect screen, const int fontId, int y,
                           const std::vector<std::string>& lines, const bool black, const EpdFontFamily::Style style,
                           const int lineSpacing) {
@@ -61,6 +75,7 @@ UITheme UITheme::instance;
 UITheme::UITheme() : currentMetrics(&LyraMetrics::values), currentTheme(std::make_unique<LyraTheme>()) {
   // Static construction must not log or depend on cross-TU serial initialization;
   // main.cpp reloads the saved theme after setup.
+  rebuildMetricVariants();
 }
 
 void UITheme::reload() {
@@ -132,29 +147,31 @@ void UITheme::setTheme(CrossPointSettings::UI_THEME type) {
       currentMetrics = &BaseMetrics::values;
       break;
   }
-  metricsValid = false;
+  rebuildMetricVariants();
+}
+
+void UITheme::rebuildMetricVariants() {
+  for (size_t index = 0; index < metricVariants.size(); ++index) {
+    auto& metrics = metricVariants[index];
+    metrics = *currentMetrics;
+    if (index >= 3) metrics.buttonHintsHeight = 0;
+    const int increase = displayStatusBarHeightIncrease(index % 3);
+    metrics.batteryBarHeight += increase;
+    metrics.headerHeight += increase;
+    metrics.homeTopPadding += increase;
+  }
 }
 
 const ThemeMetrics& UITheme::getMetrics() const {
+  const uint8_t setting = SETTINGS.displayStatusBarTextSize;
+  const size_t size = setting < 3 ? setting : 0;
 #if CROSSINK_APP_CAP_TOUCH
-  // hasTouch() can flip once touch init completes after static construction, so the
-  // cached copy is refreshed when the flag differs instead of copying the struct per call.
-  const bool touch = gpio.hasTouch();
-  if (!metricsValid || touch != metricsForTouch) {
-    adjustedMetrics = *currentMetrics;
-    if (touch) {
-      adjustedMetrics.buttonHintsHeight = 0;
-    }
-    metricsForTouch = touch;
-    metricsValid = true;
-  }
+  // Touch initializes after static construction on some profiles. Both sets
+  // already exist, so this lookup never mutates a published metric object.
+  return metricVariants[size + (gpio.hasTouch() ? 3 : 0)];
 #else
-  if (!metricsValid) {
-    adjustedMetrics = *currentMetrics;
-    metricsValid = true;
-  }
+  return metricVariants[size];
 #endif
-  return adjustedMetrics;
 }
 
 int UITheme::getNumberOfItemsPerPage(const GfxRenderer& renderer, bool hasHeader, bool hasTabBar, bool hasButtonHints,
@@ -279,6 +296,27 @@ UIIcon UITheme::getFileIcon(const std::string& filename) {
   return File;
 }
 
+int UITheme::getDisplayStatusBarFontId() {
+  switch (SETTINGS.displayStatusBarTextSize) {
+    case 1:
+      return UI_10_FONT_ID;
+    case 2:
+      return UI_12_FONT_ID;
+    default:
+      return SMALL_FONT_ID;
+  }
+}
+
+int UITheme::getDisplayStatusBarHeightIncrease() {
+  return displayStatusBarHeightIncrease(SETTINGS.displayStatusBarTextSize);
+}
+
+int UITheme::getDisplayStatusBarTextHeight(const GfxRenderer& renderer) {
+  const int baseline = getInstance().getMetrics().statusBarVerticalMargin;
+  const int fontId = getDisplayStatusBarFontId();
+  return fontId == SMALL_FONT_ID ? baseline : std::max(baseline, renderer.getLineHeight(fontId) + 4);
+}
+
 int UITheme::getReaderStatusBarFontId() {
   switch (SETTINGS.statusBarTextSize) {
     case 1:
@@ -303,9 +341,11 @@ int UITheme::getStatusBarHeight(const GfxRenderer& renderer) {
   return getReaderStatusBarHeight(ReaderStatusBarPosition::Bottom, renderer);
 }
 
-int UITheme::getReaderStatusBarHeight(const ReaderStatusBarPosition position, const GfxRenderer& renderer) {
+int UITheme::getReaderStatusBarHeight(const ReaderStatusBarPosition position, const GfxRenderer& renderer,
+                                      const ReaderStatusBarConfig* overrideConfig) {
   const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();
-  const auto config = SETTINGS.readerStatusBar(position);
+  const auto config = overrideConfig ? *overrideConfig : SETTINGS.readerStatusBar(position);
+  if (config.hidden) return 0;
   const bool hasText = config.hasTextItems(halClock.isAvailable());
   const int progressSpace = config.progressBar != CrossPointSettings::HIDE_PROGRESS
                                 ? static_cast<int>((config.progressBarThickness + 1) * 2) + metrics.progressBarMarginTop
@@ -318,7 +358,7 @@ int UITheme::getProgressBarHeight() { return getReaderProgressBarHeight(ReaderSt
 int UITheme::getReaderProgressBarHeight(const ReaderStatusBarPosition position) {
   const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();
   const auto config = SETTINGS.readerStatusBar(position);
-  return config.progressBar != CrossPointSettings::HIDE_PROGRESS
+  return !config.hidden && config.progressBar != CrossPointSettings::HIDE_PROGRESS
              ? static_cast<int>((config.progressBarThickness + 1) * 2) + metrics.progressBarMarginTop
              : 0;
 }

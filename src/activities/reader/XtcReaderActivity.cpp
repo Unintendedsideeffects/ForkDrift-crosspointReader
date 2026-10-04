@@ -216,9 +216,11 @@ void XtcReaderActivity::loop() {
 
   const auto touch = ReaderUtils::detectTouchPageTurn(renderer, mappedInput);
   const int bottomHeight = UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Bottom, renderer);
-  const int topHeight = SETTINGS.legacyXtcTopUsesBottom
-                            ? bottomHeight
-                            : UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Top, renderer);
+  const auto topConfig = xtcStatusBarConfigForDisplay(ReaderStatusBarPosition::Top, SETTINGS.legacyXtcTopUsesBottom,
+                                                      SETTINGS.readerStatusBar(ReaderStatusBarPosition::Top),
+                                                      SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom));
+  const int topHeight = UITheme::getReaderStatusBarHeight(
+      xtcStatusBarConfigPosition(ReaderStatusBarPosition::Top, SETTINGS.legacyXtcTopUsesBottom), renderer, &topConfig);
   const auto statusBarMode = static_cast<CrossPointSettings::XTC_STATUS_BAR_MODE>(SETTINGS.xtcStatusBarMode);
   const bool tappedStatusBar = touch.tapped && (((statusBarMode == CrossPointSettings::XTC_STATUS_BAR_TOP ||
                                                   statusBarMode == CrossPointSettings::XTC_STATUS_BAR_BOTH) &&
@@ -1215,7 +1217,13 @@ void XtcReaderActivity::renderStatusBarOverlay(const StatusBarOverlayPosition po
   const bool legacyTop = drawTop && SETTINGS.legacyXtcTopUsesBottom;
   const auto displayedBar = drawTop ? ReaderStatusBarPosition::Top : ReaderStatusBarPosition::Bottom;
   const auto configuredBar = xtcStatusBarConfigPosition(displayedBar, legacyTop);
-  const int statusBarHeight = UITheme::getReaderStatusBarHeight(configuredBar, renderer);
+  auto config =
+      xtcStatusBarConfigForDisplay(displayedBar, legacyTop, SETTINGS.readerStatusBar(ReaderStatusBarPosition::Top),
+                                   SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom));
+  const bool hidden = config.hidden;
+  // Preserve the bitmap-strip clearing policy even for a persistently hidden bar.
+  config.hidden = false;
+  const int statusBarHeight = UITheme::getReaderStatusBarHeight(configuredBar, renderer, &config);
   if (statusBarHeight <= 0) {
     return;
   }
@@ -1243,14 +1251,13 @@ void XtcReaderActivity::renderStatusBarOverlay(const StatusBarOverlayPosition po
 
   // XTC pages already contain a status strip in their bitmap. Clear that same
   // overlay area before returning so hiding it does not leave stale pixels.
-  if (!statusBarVisible || !drawContent) {
+  if (hidden || !statusBarVisible || !drawContent) {
     return;
   }
 
   const int pageCount = static_cast<int>(xtc->getPageCount());
   const int displayPage = static_cast<int>(pageToRender) + 1;
   const float progress = pageCount > 0 ? (static_cast<float>(displayPage) * 100.0f) / pageCount : 0.0f;
-  const auto config = SETTINGS.readerStatusBar(configuredBar);
   const auto pageInfo = getStatusBarInfo(pageToRender, config.contains(ReaderStatusBarItem::TitleChapter));
   char bookTime[24] = {};
   char chapterTime[24] = {};

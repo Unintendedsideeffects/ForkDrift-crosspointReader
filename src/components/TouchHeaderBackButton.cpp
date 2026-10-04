@@ -36,7 +36,7 @@ Layout layout(const Rect& header) {
   // spare space above and below the back button/title instead of placing all
   // of it above the title.
   const int actionX = header.x;
-  const int actionY = header.y + (header.height - actionHeight) / 2;
+  const int actionY = header.y + (header.height - actionHeight + UITheme::getDisplayStatusBarHeightIncrease()) / 2;
   const int touchWidth = std::min(touchSize, header.width);
   const int touchHeight = touchSize;
   const int touchX = std::max(header.x, actionX + (actionWidth - touchWidth) / 2);

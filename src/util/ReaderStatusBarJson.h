@@ -23,6 +23,7 @@ inline void writeReaderStatusBarJson(JsonObject target, const ReaderStatusBarCon
   target["percentageFormat"] = config.percentageFormat;
   target["progressBar"] = config.progressBar;
   target["thickness"] = config.progressBarThickness;
+  target["hidden"] = config.hidden;
 }
 
 inline bool readReaderStatusBarJson(const JsonVariantConst source, ReaderStatusBarConfig& config,
@@ -44,6 +45,8 @@ inline bool readReaderStatusBarJson(const JsonVariantConst source, ReaderStatusB
       !source["thickness"].is<int>() || !validReaderStatusBarChoice(thickness, thicknessCount)) {
     return false;
   }
+  if (!source["hidden"].isUnbound() && !source["hidden"].is<bool>()) return false;
+  parsed.hidden = source["hidden"] | false;
   parsed.percentageFormat = percentageFormat;
   parsed.progressBar = progressMode;
   parsed.progressBarThickness = thickness;
@@ -96,6 +99,7 @@ inline bool repairReaderStatusBarJson(const JsonVariantConst source, ReaderStatu
   repaired.percentageFormat = choice(source["percentageFormat"], percentageFormatCount, repaired.percentageFormat);
   repaired.progressBar = choice(source["progressBar"], progressModeCount, repaired.progressBar);
   repaired.progressBarThickness = choice(source["thickness"], thicknessCount, repaired.progressBarThickness);
+  repaired.hidden = source["hidden"].is<bool>() && source["hidden"].as<bool>();
   config = repaired;
   return true;
 }

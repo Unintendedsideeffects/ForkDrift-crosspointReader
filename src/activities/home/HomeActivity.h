@@ -91,6 +91,7 @@ class HomeActivity final : public Activity {
   bool carouselWarmupPending = false;
   uint8_t themeBeforeFrontlightPanel = 0;
   uint8_t scaleBeforeFrontlightPanel = 0;
+  uint8_t statusSizeBeforeFrontlightPanel = 0;
 
   std::vector<RecentBook> recentBooks;
   const HomeMenuItem initialMenuItem;

@@ -28,6 +28,7 @@ enum BarItem {
   PERCENTAGE_FORMAT,
   PROGRESS_BAR,
   PROGRESS_BAR_THICKNESS,
+  HIDE_BAR,
 };
 
 constexpr ReaderStatusBarItem pickerItems[] = {
@@ -154,15 +155,15 @@ ReaderStatusBarPosition StatusBarSettingsActivity::selectedPosition() const {
 }
 
 void StatusBarSettingsActivity::refreshItemCount() {
-  visibleItemCount = displayContext ? 3 : view == View::Root ? 4 : PROGRESS_BAR_THICKNESS + 1;
+  visibleItemCount = displayContext ? 4 : view == View::Root ? 4 : HIDE_BAR + 1;
   selectedIndex = std::clamp(selectedIndex, 0, visibleItemCount - 1);
 }
 
 int StatusBarSettingsActivity::previewHeight() const {
-  if (view == View::Root) return 0;
+  if (view == View::Root || (!displayContext && SETTINGS.readerStatusBar(selectedPosition()).hidden)) return 0;
   const auto& metrics = UITheme::getInstance().getMetrics();
   return renderer.getLineHeight(UI_10_FONT_ID) + 18 +
-         (displayContext ? metrics.statusBarVerticalMargin + ReaderStatusBarConfig::TOP_TEXT_INSET
+         (displayContext ? UITheme::getDisplayStatusBarTextHeight(renderer) + ReaderStatusBarConfig::TOP_TEXT_INSET
                          : UITheme::getReaderStatusBarHeight(selectedPosition(), renderer)) +
          metrics.verticalSpacing;
 }
@@ -240,7 +241,7 @@ void StatusBarSettingsActivity::loop() {
 }
 
 void StatusBarSettingsActivity::handleSelection() {
-  if (view == View::Root && selectedIndex < 2) {
+  if (!displayContext && view == View::Root && selectedIndex < 2) {
     view = selectedIndex == 0 ? View::Top : View::Bottom;
     selectedIndex = 0;
     topIndex = 0;
@@ -253,11 +254,16 @@ void StatusBarSettingsActivity::handleSelection() {
 }
 
 void StatusBarSettingsActivity::openOptionPicker() {
-  if (view == View::Root && selectedIndex == 3) {
-    optionPopup.show(StrId::STR_STATUS_BAR_TEXT_SIZE, textSizeNames, 3, SETTINGS.statusBarTextSize,
+  if ((view == View::Root || displayContext) && selectedIndex == 3) {
+    optionPopup.show(StrId::STR_STATUS_BAR_TEXT_SIZE, textSizeNames, 3,
+                     displayContext ? SETTINGS.displayStatusBarTextSize : SETTINGS.statusBarTextSize,
                      [this](const int selected) {
-                       SETTINGS.statusBarTextSize = static_cast<uint8_t>(selected);
+                       if (displayContext)
+                         SETTINGS.displayStatusBarTextSize = static_cast<uint8_t>(selected);
+                       else
+                         SETTINGS.statusBarTextSize = static_cast<uint8_t>(selected);
                        SETTINGS.saveToFile();
+                       listNav.requestSelection(selectedIndex);
                        requestUpdate();
                      });
     requestUpdate();
@@ -278,6 +284,19 @@ void StatusBarSettingsActivity::openOptionPicker() {
   const auto position = selectedPosition();
   const int item = selectedIndex;
   const auto config = SETTINGS.readerStatusBar(position);
+  if (!displayContext && item == HIDE_BAR) {
+    constexpr StrId toggleNames[] = {StrId::STR_OFF, StrId::STR_ON};
+    optionPopup.show(StrId::STR_HIDE, toggleNames, 2, config.hidden ? 1 : 0, [this, position](const int selected) {
+      auto updated = SETTINGS.readerStatusBar(position);
+      updated.hidden = selected != 0;
+      SETTINGS.setReaderStatusBar(position, updated);
+      SETTINGS.saveToFile();
+      listNav.requestSelection(selectedIndex);
+      requestUpdate();
+    });
+    requestUpdate();
+    return;
+  }
   const auto currentItem = displayContext ? SETTINGS.displayStatusBar.slots[item]
                                           : config.slots[std::min(item, static_cast<int>(SLOT_RIGHT_3))];
   std::vector<std::string> options;
@@ -338,6 +357,7 @@ void StatusBarSettingsActivity::openOptionPicker() {
     SETTINGS.setReaderStatusBar(position, updated);
     SETTINGS.saveToFile();
     refreshItemCount();
+    listNav.requestSelection(selectedIndex);
     requestUpdate();
   });
   requestUpdate();
@@ -382,7 +402,10 @@ void StatusBarSettingsActivity::buildSettingsScreen(UiApp::ScreenType& screen) {
   for (int i = 0; i < visibleItemCount; ++i) {
     fui::ListItem row;
     row.actionValue = static_cast<int16_t>(i);
-    if (displayContext) {
+    if (displayContext && i == 3) {
+      row.label = tr(STR_STATUS_BAR_TEXT_SIZE);
+      row.value = I18N.get(textSizeNames[std::min<uint8_t>(SETTINGS.displayStatusBarTextSize, 2)]);
+    } else if (displayContext) {
       row.label = i == 0 ? tr(STR_STATUS_BAR_LEFT) : i == 1 ? tr(STR_CENTER) : tr(STR_STATUS_BAR_RIGHT);
       values[i] = itemLabel(SETTINGS.displayStatusBar.slots[i]);
       row.value = values[i].c_str();
@@ -413,6 +436,9 @@ void StatusBarSettingsActivity::buildSettingsScreen(UiApp::ScreenType& screen) {
       } else if (item == PROGRESS_BAR) {
         row.label = tr(STR_PROGRESS_BAR);
         row.value = progressModeLabel(config.progressBar);
+      } else if (item == HIDE_BAR) {
+        row.label = tr(STR_HIDE);
+        row.value = config.hidden ? tr(STR_ON) : tr(STR_OFF);
       } else {
         row.label = tr(STR_PROGRESS_BAR_THICKNESS);
         row.value = thicknessLabel(config.progressBarThickness);
@@ -436,20 +462,21 @@ void StatusBarSettingsActivity::buildSettingsScreen(UiApp::ScreenType& screen) {
   visibleRows = listNav.trusts(visibleItemCount) ? listNav.pageRowsFor(visibleItemCount) : std::max<int>(rows, 1);
   topIndex = scrollListBy(topIndex, 0, visibleRows, visibleItemCount);
   props.topIndex = static_cast<uint16_t>(topIndex);
-  if (displayContext || view == View::Root) {
-    props.nav = &listNav;
-    screen.list(props);
-    visibleRows = listNav.pageRowsFor(visibleItemCount);
-    topIndex = listNav.top;
-    return;
-  }
-
   const auto renderScrollingList = [&] {
-    props.nav = &listNav;
+    if (listNav.selected.load() != selectedIndex) listNav.requestSelection(selectedIndex);
+    listNav.top = topIndex;
+    screen.syncListViewport(listNav, props, visibleItemCount);
     screen.list(props);
+#ifdef SIMULATOR
+    simulatorSelectedRowVisible = selectedIndex >= listNav.top && selectedIndex < listNav.top + listNav.drawnRows;
+#endif
     visibleRows = listNav.pageRowsFor(visibleItemCount);
     topIndex = listNav.top;
   };
+  if (displayContext || view == View::Root) {
+    renderScrollingList();
+    return;
+  }
 
   // Keep the separator aligned with FreeInkUI's variable-height rows when the list scrolls or wraps.
   const auto resolvedProps = screen.resolveListProps(props);
@@ -498,7 +525,6 @@ void StatusBarSettingsActivity::buildSettingsScreen(UiApp::ScreenType& screen) {
     // On compact screens, keep every option in one scrollable list instead of
     // splitting off a segment that cannot fit its first row.
     renderScrollingList();
-    screen.target().fill(fui::Rect{body.x, dividerY, body.width, 1}, fui::Paint::solid(fui::Color::Black));
     return;
   }
   const int16_t dividerMargin = std::min(layoutProps.sectionGap, maxDividerMargin);
@@ -527,6 +553,9 @@ void StatusBarSettingsActivity::buildSettingsScreen(UiApp::ScreenType& screen) {
       selectedIndex > dividerIndex ? static_cast<int16_t>(selectedIndex - dividerIndex - 1) : -1;
   afterDivider.scrollIndicator = false;
   screen.list(afterDivider);
+#ifdef SIMULATOR
+  simulatorSelectedRowVisible = selectedIndex >= topIndex;
+#endif
 
   // The split sections share one scroll position, so keep one indicator for the full list.
   if (resolvedProps.scrollIndicator) {
@@ -539,7 +568,6 @@ void StatusBarSettingsActivity::buildSettingsScreen(UiApp::ScreenType& screen) {
 
 void StatusBarSettingsActivity::render(RenderLock&&) {
   if (optionPopup.processRender(renderer, mappedInput)) return;
-  renderer.clearScreen();
   const auto& metrics = UITheme::getInstance().getMetrics();
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
@@ -556,21 +584,30 @@ void StatusBarSettingsActivity::render(RenderLock&&) {
       mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   const Rect header = settingsHeaderRect();
   const bool showHeaderStatus = view == View::Root;
-  if (mappedInput.hasTouchHardware()) {
-    TouchHeaderBackButton::draw(renderer, uiTarget, header, headerTitle, readerContext, 0, nullptr,
-                                TouchHeaderBackButton::TITLE_VERTICAL_OFFSET, showHeaderStatus);
-  } else {
-    GUI.drawHeader(renderer, Rect{contentX, header.y, contentWidth, header.height}, headerTitle, nullptr, readerContext,
-                   showHeaderStatus);
-  }
   uiReady = false;
-  app.render();
+  // Wrapped rows and section headings can make the measured page shorter than
+  // its estimate. Finish following the selection before displaying the frame,
+  // including the last Hide row on compact or translated screens.
+  for (int pass = 0; pass < 8; ++pass) {
+    renderer.clearScreen();
+    if (mappedInput.hasTouchHardware()) {
+      TouchHeaderBackButton::draw(renderer, uiTarget, header, headerTitle, readerContext, 0, nullptr,
+                                  TouchHeaderBackButton::TITLE_VERTICAL_OFFSET, showHeaderStatus);
+    } else {
+      GUI.drawHeader(renderer, Rect{contentX, header.y, contentWidth, header.height}, headerTitle, nullptr,
+                     readerContext, showHeaderStatus);
+    }
+    app.render();
+    if (!listNav.consumeRebuildNeeded()) break;
+    if (pass == 7) LOG_DBG("SBS", "Status bar list did not settle after 8 passes");
+  }
   uiReady = true;
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
-  if (view != View::Root) {
+  if (view != View::Root && (displayContext || !SETTINGS.readerStatusBar(selectedPosition()).hidden)) {
     const auto position = selectedPosition();
-    const int barHeight = displayContext ? metrics.statusBarVerticalMargin + ReaderStatusBarConfig::TOP_TEXT_INSET
-                                         : UITheme::getReaderStatusBarHeight(position, renderer);
+    const int barHeight = displayContext
+                              ? UITheme::getDisplayStatusBarTextHeight(renderer) + ReaderStatusBarConfig::TOP_TEXT_INSET
+                              : UITheme::getReaderStatusBarHeight(position, renderer);
     const int previewOriginY = view == View::Top
                                    ? topPreviewOriginY()
                                    : pageHeight - metrics.buttonHintsHeight - metrics.verticalSpacing - barHeight;

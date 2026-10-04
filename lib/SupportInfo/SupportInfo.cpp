@@ -183,6 +183,10 @@ bool Writer::snapshot(const Snapshot& d) {
     if (i) text(",");
     number(d.statusOptions[i]);
   }
+  text("],\"statusHidden\":[");
+  number(d.statusHidden[0]);
+  text(",");
+  number(d.statusHidden[1]);
   text("],\"quickActions\":[");
   for (unsigned i = 0; i < 5; ++i) {
     if (i) text(",");
