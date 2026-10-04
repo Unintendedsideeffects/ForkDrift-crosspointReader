@@ -129,5 +129,5 @@ class KOReaderSyncActivity final : public Activity {
   void ensureEpubLoaded();
   bool ensureLocalProgressLoaded();
   void saveProgressAndReturn(const CrossPointPosition& position);
-  void returnToReader();
+  void returnToSource();
 };

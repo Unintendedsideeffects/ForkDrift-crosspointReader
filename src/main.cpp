@@ -466,7 +466,15 @@ void silentRestartToNetwork(const NetworkBootTarget target, const uint32_t paylo
   silentRebootMagic = SILENT_REBOOT_MAGIC;
   LOG_DBG("MAIN", "Silent restart (target=network/%lu payload=%lu)", static_cast<unsigned long>(silentRebootTarget),
           static_cast<unsigned long>(payload));
-  GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+  if (target == NetworkBootTarget::KOREADER_SYNC) {
+    RenderLock lock;
+    // A drawer close can queue a backdrop repaint. Serialize the handoff and
+    // replace that frame so only one loading notice remains visible.
+    renderer.clearScreen();
+    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+  } else {
+    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+  }
   delay(50);
   restartWithSilentToken();
 }
@@ -1554,6 +1562,10 @@ void setup() {
       LOG_ERR("MAIN", "Minimal network boot target failed; returning home");
       silentRestart();
     }
+  } else if (resume == BootResume::Silent && snapshotTarget == SILENT_REBOOT_TARGET_HOME &&
+             APP_STATE.pendingOverlayResume.origin == PendingOverlayOrigin::FileBrowser &&
+             APP_STATE.pendingOverlayResume.valid()) {
+    activityManager.goToFileBrowser(APP_STATE.pendingOverlayResume.fileBrowserPath);
   } else if (resume == BootResume::Silent && snapshotTarget == SILENT_REBOOT_TARGET_READER &&
              !APP_STATE.openEpubPath.empty()) {
     activityManager.goToReader(APP_STATE.openEpubPath, false, false, cleanImageBaseOnEntry);

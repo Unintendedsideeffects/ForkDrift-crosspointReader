@@ -107,8 +107,14 @@ class FileBrowserActivity final : public Activity {
   size_t findEntry(const std::string& name);
 
  public:
+#ifdef SIMULATOR
+  const std::string& simulatorFolderPath() const { return basepath; }
+  size_t simulatorSelectedIndex() const { return selectorIndex; }
+  int simulatorTopIndex() const { return topIndex; }
+#endif
   explicit FileBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string initialPath = "/",
                                Mode mode = Mode::Books);
+  bool handleFrontlightPanelResult(const FrontlightPanelResult& result) override;
   void onEnter() override;
   void onExit() override;
   void loop() override;

@@ -143,6 +143,7 @@ void CrossPointState::toJson(JsonDocument& doc) const {
   doc["pendingOverlaySelection"] = pendingOverlayResume.selectedIndex;
   doc["pendingOverlayScroll"] = pendingOverlayResume.scrollPosition;
   doc["pendingOverlayBookPath"] = pendingOverlayResume.bookPath;
+  doc["pendingOverlayFileBrowserPath"] = pendingOverlayResume.fileBrowserPath;
   doc["pendingOverlayReturnHome"] = pendingOverlayResume.returnHomeAfterReaderFlow;
   doc["pendingOverlayReaderOrientation"] = pendingOverlayResume.readerOrientation;
   doc["pendingOverlayPreserveReaderOrientation"] = pendingOverlayResume.preserveReaderOrientation;
@@ -194,9 +195,10 @@ bool CrossPointState::fromJson(JsonVariantConst doc) {
   pendingOverlayResume.overlay = static_cast<PendingOverlayType>(doc["pendingOverlayType"] | static_cast<uint8_t>(0));
   pendingOverlayResume.tab = doc["pendingOverlayTab"] | static_cast<uint8_t>(0);
   pendingOverlayResume.pane = doc["pendingOverlayPane"] | static_cast<uint8_t>(0);
-  pendingOverlayResume.selectedIndex = doc["pendingOverlaySelection"] | static_cast<int16_t>(0);
-  pendingOverlayResume.scrollPosition = doc["pendingOverlayScroll"] | static_cast<int16_t>(0);
+  pendingOverlayResume.selectedIndex = doc["pendingOverlaySelection"] | static_cast<int32_t>(0);
+  pendingOverlayResume.scrollPosition = doc["pendingOverlayScroll"] | static_cast<int32_t>(0);
   pendingOverlayResume.bookPath = doc["pendingOverlayBookPath"] | "";
+  pendingOverlayResume.fileBrowserPath = doc["pendingOverlayFileBrowserPath"] | "";
   pendingOverlayResume.returnHomeAfterReaderFlow = doc["pendingOverlayReturnHome"] | false;
   pendingOverlayResume.readerOrientation = doc["pendingOverlayReaderOrientation"] | static_cast<uint8_t>(0);
   pendingOverlayResume.preserveReaderOrientation = doc["pendingOverlayPreserveReaderOrientation"] | false;

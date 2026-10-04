@@ -328,3 +328,20 @@ TEST(ReaderDrawerModel, SamplePreviewCoversLiveTextSettingsOnly) {
     EXPECT_FALSE(readerDrawerShowsSamplePreview(Pane::EnumOptions, Tab::Layout, row));
   EXPECT_FALSE(readerDrawerShowsSamplePreview(Pane::DictionaryFont, Tab::Font, Row::FontSize));
 }
+
+TEST(PendingOverlayResume, FileBrowserReturnPreservesLargeListPosition) {
+  PendingOverlayResume stored;
+  stored.origin = PendingOverlayOrigin::FileBrowser;
+  EXPECT_FALSE(stored.valid());
+  stored.fileBrowserPath = "/books";
+  stored.selectedIndex = 40000;
+  stored.scrollPosition = 39990;
+
+  PendingOverlayResume consumed;
+  ASSERT_TRUE(consumePendingOverlayResumeOnce(stored, consumed));
+  EXPECT_EQ(consumed.fileBrowserPath, "/books");
+  EXPECT_EQ(consumed.selectedIndex, 40000);
+  EXPECT_EQ(consumed.scrollPosition, 39990);
+  EXPECT_FALSE(stored.valid());
+  EXPECT_TRUE(stored.fileBrowserPath.empty());
+}

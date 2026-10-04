@@ -104,6 +104,7 @@
 - Preserve reading time already accumulated when turning off EPUB or XTC reading stats.
 - Editing reading stats dates from the frontlight drawer or the XTC reader menu no longer counts the current session's reading time twice, and closing the drawer keeps this session's page turns and reading pace.
 - EPUB text re-lays out after changing TTF rendering options from the frontlight drawer even when leaving with the Home/Reader shortcut.
+- Sync Progress from the File Browser shows one loading notice and returns to the same folder and selection.
 
 ### Security
 

@@ -15,6 +15,7 @@
 #include <filesystem>
 
 #include "CrossPointState.h"
+#include "KOReaderCredentialStore.h"
 #if CROSSINK_SCALABLE_FONTS
 #include <Epub/parsers/ChapterHtmlSlimParser.h>
 #include <HalScalableFont.h>
@@ -36,6 +37,7 @@
 #include "SettingsList.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
+#include "activities/home/FileBrowserActivity.h"
 #include "activities/home/HomeActivity.h"
 #include "activities/home/RecentBookProgress.h"
 #include "activities/library/LibraryActivity.h"
@@ -1205,6 +1207,78 @@ class SimulatorSmokeTest {
   }
 #endif
 
+  void tickFileBrowserSyncReturn() {
+    const char* phase = std::getenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_PHASE");
+    if (!phase) {
+      const char* bookPath = std::getenv("CROSSINK_SIMULATOR_SMOKE_BOOK");
+      if (!bookPath || !Storage.exists(bookPath)) fail("Browser sync book fixture missing");
+      for (int row = 0; row < 24; ++row) {
+        const std::string path = "/books/a-sync-fixture-" + std::to_string(row) + ".txt";
+        if (!Storage.writeFile(path.c_str(), "Fixture")) fail("Cannot create browser row fixture");
+      }
+      APP_STATE.openEpubPath = bookPath;
+      if (!APP_STATE.saveToFile()) fail("Cannot save browser sync book path");
+      KOREADER_STORE.setCredentials("smoke", "smoke");
+      if (!KOREADER_STORE.saveToFile()) fail("Cannot save browser sync credentials");
+      activityManager.goToFileBrowser(bookPath);
+      setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_PHASE", "launch", 1);
+      settleFrames = 4;
+      return;
+    }
+    if (std::string_view(phase) == "launch") {
+      auto* browser = dynamic_cast<FileBrowserActivity*>(activityManager.simulatorCurrentActivity());
+      if (!browser || browser->simulatorFolderPath() != "/books" || browser->simulatorSelectedIndex() == 0)
+        fail("Expected a selected book inside its folder before sync");
+      const std::string selection = std::to_string(browser->simulatorSelectedIndex());
+      const std::string scroll = std::to_string(browser->simulatorTopIndex());
+      setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_SELECTION", selection.c_str(), 1);
+      setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_SCROLL", scroll.c_str(), 1);
+      setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_PHASE", "drawer", 1);
+      const int width = renderer.getScreenWidth();
+      const int height = renderer.getScreenHeight();
+      inputScript = {touchDown(width / 2, 8),
+                     touchMove(width / 2, height / 4),
+                     touchRelease(width / 2, height / 4),
+                     render("Browser sync drawer opened", 4),
+                     {ScriptActionType::OpenFrontlightSync, MappedInputManager::Button::Back, nullptr, 0, 0, 0},
+                     render("Browser sync choices opened", 4),
+                     press(MappedInputManager::Button::Confirm)};
+      scriptIndex = 0;
+      return;
+    }
+    if (std::string_view(phase) == "drawer") {
+      if (scriptIndex + 1 == inputScript.size())
+        setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_PHASE", "network", 1);
+      runReaderInputScript();
+      return;
+    }
+    if (std::string_view(phase) == "network") {
+      if (!activityManager.isCurrentActivityNamed("WifiSelection")) fail("Expected Wi-Fi selection after reboot");
+      if (APP_STATE.pendingOverlayResume.origin != PendingOverlayOrigin::FileBrowser ||
+          APP_STATE.pendingOverlayResume.fileBrowserPath != "/books")
+        fail("Browser return route was lost across network reboot");
+      setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_PHASE", "returned", 1);
+      inputScript = {press(MappedInputManager::Button::Back), release(MappedInputManager::Button::Back)};
+      scriptIndex = 0;
+      return;
+    }
+    // The Back input exits Wi-Fi selection and sync, then performs the cleanup
+    // reboot. Until that happens, keep feeding the real activity input loop.
+    if (!inputScript.empty()) {
+      if (scriptIndex < inputScript.size()) runReaderInputScript();
+      return;
+    }
+    auto* browser = dynamic_cast<FileBrowserActivity*>(activityManager.simulatorCurrentActivity());
+    if (!browser || browser->simulatorFolderPath() != "/books") fail("Sync did not return to the original folder");
+    if (browser->simulatorSelectedIndex() !=
+            static_cast<size_t>(std::atoi(std::getenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_SELECTION"))) ||
+        browser->simulatorTopIndex() != std::atoi(std::getenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_SCROLL")))
+      fail("Browser selection or scroll changed after sync");
+    if (APP_STATE.pendingOverlayResume.valid()) fail("Browser sync return route was not consumed");
+    LOG_INF("SMOKE", "Simulator smoke test passed: browser sync returns through both reboots");
+    std::_Exit(0);
+  }
+
   void tickImpl() {
     mappedInputManager.simulatorClearInputFrame();
 
@@ -1214,6 +1288,11 @@ class SimulatorSmokeTest {
         renderCurrentStep(activeStepName);
         activeStepName = nullptr;
       }
+      return;
+    }
+
+    if (std::getenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_RETURN")) {
+      tickFileBrowserSyncReturn();
       return;
     }
 

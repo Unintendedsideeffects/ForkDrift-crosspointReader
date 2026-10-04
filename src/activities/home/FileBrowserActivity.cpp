@@ -23,6 +23,7 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "FileBrowserActionActivity.h"
+#include "KOReaderCredentialStore.h"
 #include "MappedInputManager.h"
 #include "activities/boot_sleep/ImageFolderIndex.h"
 #include "activities/reader/EpubReaderActivity.h"
@@ -362,8 +363,25 @@ const char* FileBrowserActivity::entryNameAt(size_t row) {
   return indexCachedNames[cacheSlot].c_str();
 }
 
+bool FileBrowserActivity::handleFrontlightPanelResult(const FrontlightPanelResult& result) {
+  if (mode == Mode::Books && result.action == FrontlightPanelAction::SyncProgress && KOREADER_STORE.hasCredentials() &&
+      FsHelpers::hasEpubExtension(result.bookPath) && Storage.exists(result.bookPath.c_str())) {
+    PendingOverlayResume resume;
+    resume.origin = PendingOverlayOrigin::FileBrowser;
+    resume.fileBrowserPath = basepath;
+    resume.selectedIndex = static_cast<int32_t>(selectorIndex);
+    resume.scrollPosition = topIndex;
+    APP_STATE.setPendingOverlayResume(std::move(resume));
+  }
+  return Activity::handleFrontlightPanelResult(result);
+}
+
 void FileBrowserActivity::onEnter() {
   Activity::onEnter();
+
+  PendingOverlayResume resume;
+  const bool restoreSyncReturn = APP_STATE.pendingOverlayResume.origin == PendingOverlayOrigin::FileBrowser &&
+                                 APP_STATE.consumePendingOverlayResume(resume);
 
   fileNameBuffer = makeUniqueNoThrow<char[]>(NAME_BUFFER_SIZE);
   if (!fileNameBuffer) {
@@ -408,6 +426,11 @@ void FileBrowserActivity::onEnter() {
   uiReady = false;
   visibleRows = 1;
   topIndex = followListSelection(static_cast<int>(selectorIndex), 0, visibleRows, static_cast<int>(entryCount()));
+  if (restoreSyncReturn && resume.fileBrowserPath == basepath) {
+    const int count = static_cast<int>(entryCount());
+    selectorIndex = static_cast<size_t>(std::clamp<int>(resume.selectedIndex, 0, std::max(0, count - 1)));
+    topIndex = std::clamp<int>(resume.scrollPosition, 0, std::max(0, count - 1));
+  }
   listNav.reset(static_cast<int>(selectorIndex));
   listNav.top = topIndex;
   listNav.visibleRows = visibleRows;

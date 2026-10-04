@@ -247,10 +247,17 @@ void KOReaderSyncActivity::saveProgressAndReturn(const CrossPointPosition& posit
     return;
   }
   RecentBookProgress::saveCachedEpubPercent(*epub, position.spineIndex, position.pageNumber, pageCount);
-  returnToReader();
+  returnToSource();
 }
 
-void KOReaderSyncActivity::returnToReader() { activityManager.goToReader(epubPath, false, false, true); }
+void KOReaderSyncActivity::returnToSource() {
+  const PendingOverlayResume& resume = APP_STATE.pendingOverlayResume;
+  if (resume.origin == PendingOverlayOrigin::FileBrowser && resume.valid()) {
+    activityManager.goToFileBrowser(resume.fileBrowserPath);
+  } else {
+    activityManager.goToReader(epubPath, false, false, true);
+  }
+}
 
 bool KOReaderSyncActivity::consumeInitialConfirmRelease() {
   if (!lockInitialConfirmRelease) {
@@ -282,7 +289,7 @@ void KOReaderSyncActivity::completeAlreadySynced() {
 void KOReaderSyncActivity::onWifiSelectionComplete(const bool success) {
   if (!success) {
     LOG_DBG("KOSync", "WiFi connection failed, exiting");
-    returnToReader();
+    returnToSource();
     return;
   }
 
@@ -714,7 +721,12 @@ void KOReaderSyncActivity::onExit() {
 
   if (wifiActivated) {
     wifiOff();
-    silentRestartToReader(true);
+    if (APP_STATE.pendingOverlayResume.origin == PendingOverlayOrigin::FileBrowser &&
+        APP_STATE.pendingOverlayResume.valid()) {
+      silentRestart();
+    } else {
+      silentRestartToReader(true);
+    }
   }
 }
 
@@ -859,18 +871,18 @@ void KOReaderSyncActivity::loop() {
   const Rect header{screen.x, screen.y + metrics.topPadding, screen.width,
                     TouchHeaderBackButton::height(metrics, mappedInput)};
   if (TouchHeaderBackButton::wasTapped(mappedInput, header)) {
-    returnToReader();
+    returnToSource();
     return;
   }
 
   if (state == NO_CREDENTIALS || state == SYNC_FAILED || state == UPLOAD_COMPLETE || state == SYNC_COMPLETE) {
     if (autoReturnAt != 0 && millis() >= autoReturnAt) {
-      returnToReader();
+      returnToSource();
       return;
     }
     if (mappedInput.wasReleased(MappedInputManager::Button::Back) ||
         mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-      returnToReader();
+      returnToSource();
     }
     return;
   }
@@ -925,7 +937,7 @@ void KOReaderSyncActivity::loop() {
     }
 
     if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-      returnToReader();
+      returnToSource();
     }
     return;
   }
@@ -948,7 +960,7 @@ void KOReaderSyncActivity::loop() {
           }
           performUpload();
         } else if (touchedOption == 1) {
-          returnToReader();
+          returnToSource();
         }
         return;
       }
@@ -963,7 +975,7 @@ void KOReaderSyncActivity::loop() {
     }
 
     if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-      returnToReader();
+      returnToSource();
     }
     return;
   }
