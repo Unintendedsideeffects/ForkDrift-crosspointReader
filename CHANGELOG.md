@@ -30,6 +30,10 @@
 
 ### Changed
 
+### Fixed
+
+- Show full-width Forget and Cancel buttons after a saved Wi-Fi network fails to connect on button devices, with Cancel selected by default below Forget.
+
 ## [v1.6.1] - 2026-10-03
 
 ### Added

@@ -1030,14 +1030,14 @@ void WifiSelectionActivity::loop() {
 
     if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
         mappedInput.wasPressed(MappedInputManager::Button::Left)) {
-      if (forgetPromptSelection > 0) {
-        forgetPromptSelection--;
+      if (forgetPromptSelection == 0) {
+        forgetPromptSelection = 1;
         requestUpdate();
       }
     } else if (mappedInput.wasPressed(MappedInputManager::Button::Down) ||
                mappedInput.wasPressed(MappedInputManager::Button::Right)) {
-      if (forgetPromptSelection < 1) {
-        forgetPromptSelection++;
+      if (forgetPromptSelection == 1) {
+        forgetPromptSelection = 0;
         requestUpdate();
       }
     } else if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
@@ -1441,33 +1441,10 @@ void WifiSelectionActivity::renderForgetPrompt(const Rect* screen, const ThemeMe
 
   UITheme::drawCenteredText(renderer, *screen, UI_10_FONT_ID, top + 40, tr(STR_FORGET_AND_REMOVE));
 
-  if (mappedInput.hasTouch()) {
-    const auto actions = promptActionLayout(*screen, *metrics, height);
-    const char* labels[] = {tr(STR_FORGET_BUTTON), tr(STR_CANCEL)};
-    const int selectedVisualIndex = forgetPromptSelection == 1 ? 0 : 1;
-    TouchActionButtons::draw(renderer, actions, labels, 0, selectedVisualIndex, UI_10_FONT_ID);
-  } else {
-    // Button-only readers still need visible choices for Left/Right selection.
-    const int buttonY = top + 80;
-    constexpr int buttonWidth = 120;
-    constexpr int buttonSpacing = 30;
-    constexpr int totalWidth = buttonWidth * 2 + buttonSpacing;
-    const int startX = screen->x + (screen->width - totalWidth) / 2;
-
-    if (forgetPromptSelection == 0) {
-      const std::string text = "[" + std::string(tr(STR_CANCEL)) + "]";
-      renderer.drawText(UI_10_FONT_ID, startX, buttonY, text.c_str());
-    } else {
-      renderer.drawText(UI_10_FONT_ID, startX + 4, buttonY, tr(STR_CANCEL));
-    }
-
-    if (forgetPromptSelection == 1) {
-      const std::string text = "[" + std::string(tr(STR_FORGET_BUTTON)) + "]";
-      renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, text.c_str());
-    } else {
-      renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, tr(STR_FORGET_BUTTON));
-    }
-  }
+  const auto actions = promptActionLayout(*screen, *metrics, height);
+  const char* actionLabels[] = {tr(STR_FORGET_BUTTON), tr(STR_CANCEL)};
+  const int selectedVisualIndex = 1 - forgetPromptSelection;
+  TouchActionButtons::draw(renderer, actions, actionLabels, 0, selectedVisualIndex, UI_10_FONT_ID);
 
   // Use centralized button hints
   const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_SELECT), tr(STR_DIR_LEFT),
