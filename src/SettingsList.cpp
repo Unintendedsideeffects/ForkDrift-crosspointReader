@@ -141,7 +141,7 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
         StrId::STR_NOT_SET,          StrId::STR_INCREASE_BRIGHTNESS, StrId::STR_DECREASE_BRIGHTNESS,
         StrId::STR_INCREASE_WARMTH,  StrId::STR_DECREASE_WARMTH,     StrId::STR_NEXT_CHAPTER,
         StrId::STR_PREVIOUS_CHAPTER, StrId::STR_INCREASE_FONT_SIZE,  StrId::STR_DECREASE_FONT_SIZE,
-        StrId::STR_BACK_HOME,        StrId::STR_HOME_READER,
+        StrId::STR_BACK_HOME,        StrId::STR_HOME_READER,         StrId::STR_SELECT_CHAPTER,
     };
     const std::vector<uint8_t> twoFingerSwipeActionValues = {
         CrossPointSettings::TWO_FINGER_SWIPE_NOT_SET,
@@ -155,6 +155,7 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
         CrossPointSettings::TWO_FINGER_SWIPE_DECREASE_FONT_SIZE,
         CrossPointSettings::TWO_FINGER_SWIPE_BACK_HOME,
         CrossPointSettings::TWO_FINGER_SWIPE_HOME_READER,
+        CrossPointSettings::TWO_FINGER_SWIPE_SELECT_CHAPTER,
     };
     add(SettingInfo::Enum(StrId::STR_TWO_FINGER_SWIPE_UP, &CrossPointSettings::twoFingerSwipeUp, twoFingerSwipeActions,
                           "twoFingerSwipeUp", StrId::STR_CAT_CONTROLS)

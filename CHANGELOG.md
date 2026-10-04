@@ -2,6 +2,7 @@
 
 ### Added
 
+- Assign Select Chapter to shortcuts, Quick Actions, or touch gestures to open the chapter list directly in EPUB and XTC books.
 - Track active reading seconds by local day and sync daily reading time to CrossPoint Sync.
 - Show today's reading time and a 7-day average on the This Device reading stats page.
 - Choose Small, Medium, or Large text for the top and bottom reader status bars.

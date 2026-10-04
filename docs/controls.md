@@ -117,13 +117,14 @@ Available actions depend on the device and reader:
 | --- | --- |
 | Increase Brightness / Decrease Brightness | Devices with a frontlight |
 | Increase Warmth / Decrease Warmth | Devices with an adjustable warm/cool frontlight |
+| Select Chapter | EPUB and XTC books with a chapter list |
 | Next Chapter / Previous Chapter | EPUB readers |
 | Increase Font Size / Decrease Font Size | EPUB and TXT readers |
 
 Brightness and warmth respond while you drag, with longer swipes allowing
 finer one-point adjustments. Use a clear, mostly straight motion so both
 contacts are recognized as one gesture. Configured two-finger swipes are
-handled separately from the ordinary one-finger page-turn mapping. On image-based XTC books, chapter and font-size
+handled separately from the ordinary one-finger page-turn mapping. Select Chapter opens the chapter list in EPUB and XTC books. On image-based XTC books, Next/Previous Chapter and font-size
 actions are consumed but cannot change the pre-rendered pages.
 
 ## Edge Gestures
@@ -135,7 +136,7 @@ chosen screen edge and slide vertically while staying along that edge. All four
 start as **Not Set**.
 
 The available actions match [Two-finger Swipe Actions](#two-finger-swipe-actions):
-brightness and warmth on supported hardware, chapter changes in EPUBs, and
+brightness and warmth on supported hardware, Select Chapter in EPUB/XTC books, chapter changes in EPUBs, and
 font-size changes in EPUB/TXT books. Edge slides do not require multi-touch.
 Brightness and warmth respond while you drag; a longer slide gives finer
 one-point adjustments. Chapter and font-size actions run when you lift your

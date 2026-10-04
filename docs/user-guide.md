@@ -848,12 +848,12 @@ swipes from **Settings > Controls > Taps & Gestures > Two-finger Swipe**. Set an
 action for **Swipe Up**, **Swipe Down**, **Swipe Left**, or **Swipe Right**, then
 move two fingers together in that direction while reading. Available actions
 are **Not Set**, **Increase Brightness**, **Decrease Brightness**, **Increase
-Warmth**, **Decrease Warmth**, **Next Chapter**, **Previous Chapter**, **Increase
+Warmth**, **Decrease Warmth**, **Select Chapter**, **Next Chapter**, **Previous Chapter**, **Increase
 Font Size**, and **Decrease Font Size**. Brightness and warmth options appear
-only when the hardware supports them; chapter options apply to EPUBs, and font
+only when the hardware supports them; Select Chapter opens the chapter list in EPUB and XTC books, Next/Previous Chapter apply to EPUBs, and font
 size options apply to EPUB and TXT books. Each direction starts as **Not Set**,
 and each action can be assigned to only one direction; choosing it again moves
-it to the new direction. On image-based XTC books, chapter and font-size actions
+it to the new direction. On image-based XTC books, Next/Previous Chapter and font-size actions
 are consumed but cannot change the pre-rendered pages. See [Two-finger Swipe
 Actions](./controls.md#two-finger-swipe-actions) for the complete list and
 reader-specific limitations.

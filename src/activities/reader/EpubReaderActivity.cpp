@@ -3538,6 +3538,9 @@ bool EpubReaderActivity::handleTwoFingerSwipeAction(const CrossPointSettings::TW
   if (!epub) return false;
 
   switch (action) {
+    case CrossPointSettings::TWO_FINGER_SWIPE_SELECT_CHAPTER:
+      executeReaderQuickAction(CrossPointSettings::LONG_MENU_SELECT_CHAPTER);
+      return true;
     case CrossPointSettings::TWO_FINGER_SWIPE_INCREASE_FONT_SIZE:
       if (ReaderUtils::changeReaderFontSizeWithFeedback(renderer, /*larger=*/true, FontSizeStepMode::Clamp))
         reindexCurrentSection();
@@ -3905,32 +3908,37 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuAction action, const 
     case EpubReaderMenuAction::SELECT_CHAPTER: {
       const int spineIdx = currentSpineIndex;
       const std::string path = epub->getPath();
+      auto chapterSelection =
+          makeUniqueNoThrow<EpubReaderChapterSelectionActivity>(renderer, mappedInput, epub, path, spineIdx);
+      if (!chapterSelection) {
+        LOG_ERR("ERE", "OOM: chapter selection activity");
+        requestUpdate();
+        break;
+      }
       pauseReadingPaceTimer("chapter_selection");
-      startActivityForResult(
-          std::make_unique<EpubReaderChapterSelectionActivity>(renderer, mappedInput, epub, path, spineIdx),
-          [this, returnToReaderMenu](const ActivityResult& result) {
-            if (!result.isCancelled) {
-              const auto& chapterResult = std::get<ChapterResult>(result.data);
-              RenderLock lock(*this);
+      startActivityForResult(std::move(chapterSelection), [this, returnToReaderMenu](const ActivityResult& result) {
+        if (!result.isCancelled) {
+          const auto& chapterResult = std::get<ChapterResult>(result.data);
+          RenderLock lock(*this);
 
-              clearFootnotePreviewState();
-              currentSpineIndex = chapterResult.spineIndex;
+          clearFootnotePreviewState();
+          currentSpineIndex = chapterResult.spineIndex;
 
-              // If anchor is not empty, it will be used later to calculate the page number.
-              pendingAnchor = chapterResult.anchor;
+          // If anchor is not empty, it will be used later to calculate the page number.
+          pendingAnchor = chapterResult.anchor;
 
-              // Otherwise page 0 will be used.
-              nextPageNumber = 0;
+          // Otherwise page 0 will be used.
+          nextPageNumber = 0;
 
-              section.reset();
-              armReadingPaceWarmup("chapter_jump");
-              pauseReadingPaceTimer("chapter_jump");
-            } else if (returnToReaderMenu) {
-              openReaderMenu();
-            } else {
-              requestUpdate();
-            }
-          });
+          section.reset();
+          armReadingPaceWarmup("chapter_jump");
+          pauseReadingPaceTimer("chapter_jump");
+        } else if (returnToReaderMenu) {
+          openReaderMenu();
+        } else {
+          requestUpdate();
+        }
+      });
       break;
     }
     case EpubReaderMenuAction::FOOTNOTES: {
@@ -5181,6 +5189,13 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
     case CrossPointSettings::LONG_MENU_FILE_BROWSER:
       activityManager.goToFileBrowser(epub ? epub->getPath() : "");
       break;
+    case CrossPointSettings::LONG_MENU_SELECT_CHAPTER:
+      if (epub) {
+        mappedInput.suppressNextConfirmRelease();
+        suppressPowerShortcutRelease();
+        onReaderMenuConfirm(EpubReaderMenuAction::SELECT_CHAPTER);
+      }
+      break;
     case CrossPointSettings::LONG_MENU_LIBRARY:
       activityManager.goToLibrary();
       break;
@@ -5221,6 +5236,9 @@ bool EpubReaderActivity::handleShortcutAction(const uint8_t rawAction) {
       return true;
     case CrossPointSettings::SHORT_PWRBTN::NEARBY_POSITION_SYNC:
       onReaderMenuConfirm(EpubReaderMenuAction::NEARBY_POSITION_SYNC);
+      return true;
+    case CrossPointSettings::SHORT_PWRBTN::SELECT_CHAPTER:
+      executeReaderQuickAction(CrossPointSettings::LONG_MENU_SELECT_CHAPTER);
       return true;
     case CrossPointSettings::SHORT_PWRBTN::TOGGLE_FONT:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_CHANGE_FONT);
@@ -5316,6 +5334,9 @@ bool EpubReaderActivity::handleShortcutAction(const CrossPointSettings::SHORT_PW
       return true;
     case CrossPointSettings::SHORT_PWRBTN::NEARBY_POSITION_SYNC:
       onReaderMenuConfirm(EpubReaderMenuAction::NEARBY_POSITION_SYNC);
+      return true;
+    case CrossPointSettings::SHORT_PWRBTN::SELECT_CHAPTER:
+      executeReaderQuickAction(CrossPointSettings::LONG_MENU_SELECT_CHAPTER);
       return true;
     case CrossPointSettings::SHORT_PWRBTN::TOGGLE_FONT:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_CHANGE_FONT);
@@ -5518,6 +5539,9 @@ bool EpubReaderActivity::executeShortPowerButtonAction() {
     case CrossPointSettings::SHORT_PWRBTN::NEARBY_POSITION_SYNC:
       onReaderMenuConfirm(EpubReaderMenuAction::NEARBY_POSITION_SYNC);
       return true;
+    case CrossPointSettings::SHORT_PWRBTN::SELECT_CHAPTER:
+      executeReaderQuickAction(CrossPointSettings::LONG_MENU_SELECT_CHAPTER);
+      return true;
     case CrossPointSettings::SHORT_PWRBTN::TOGGLE_FONT:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_CHANGE_FONT);
       return true;
@@ -5627,6 +5651,9 @@ bool EpubReaderActivity::executeLongPowerButtonAction() {
   }
 
   switch (SETTINGS.longPwrBtn) {
+    case CrossPointSettings::SHORT_PWRBTN::SELECT_CHAPTER:
+      executeReaderQuickAction(CrossPointSettings::LONG_MENU_SELECT_CHAPTER);
+      return true;
     case CrossPointSettings::SHORT_PWRBTN::TOGGLE_FONT:
       executeReaderQuickAction(CrossPointSettings::LONG_MENU_CHANGE_FONT);
       return true;

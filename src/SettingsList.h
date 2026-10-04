@@ -398,6 +398,8 @@ inline uint8_t shortcutRawValue(const ShortcutOptionCatalog catalog, const Cross
           return Chord::CHORD_NEARBY_POSITION_SYNC;
         case Action::LIBRARY:
           return Chord::CHORD_LIBRARY;
+        case Action::SELECT_CHAPTER:
+          return Chord::CHORD_SELECT_CHAPTER;
         case Action::FILE_TRANSFER:
           return Chord::CHORD_FILE_TRANSFER;
         case Action::CALIBRE_WIRELESS:
@@ -494,6 +496,8 @@ inline uint8_t shortcutRawValue(const ShortcutOptionCatalog catalog, const Cross
           return LongPress::LONG_MENU_HOME_READER;
         case Action::BACK_HOME:
           return LongPress::LONG_MENU_BACK_HOME;
+        case Action::SELECT_CHAPTER:
+          return LongPress::LONG_MENU_SELECT_CHAPTER;
         case Action::PAGE_TURN:
         case Action::PREVIOUS_PAGE:
         case Action::NEARBY_POSITION_SYNC:
