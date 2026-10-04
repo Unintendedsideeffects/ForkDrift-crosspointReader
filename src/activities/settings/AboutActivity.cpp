@@ -9,6 +9,7 @@
 #include "MappedInputManager.h"
 #include "SupportInfoExport.h"
 #include "activities/util/ConfirmationActivity.h"
+#include "components/TouchActionButtons.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
 #include "components/UiAppHelpers.h"
@@ -100,10 +101,21 @@ void AboutActivity::loop() {
   RenderLock lock(*this);  // Protect viewport state shared with the render task.
   if (scopePopup.handleInput(mappedInput, [this] { requestUpdate(); })) return;
   if (uiReady) {
-    const auto input = touchSnapshotFrom(mappedInput);
+    auto input = touchSnapshotFrom(mappedInput);
+#if CROSSINK_APP_CAP_TOUCH
+    // A completed swipe cancels its button press even if a touch backend also
+    // reports a tap at the contact's starting point (the simulator does this).
+    if (mappedInput.wasSwipe() != MappedInputManager::SwipeDir::None) {
+      input.touchPressed = false;
+      input.touchReleased = true;
+      input.touchX = -1;
+      input.touchY = -1;
+    }
+#endif
     if (input.touchPressed || input.touchReleased) {
+      const bool wasTouchActive = app.touchActive();
       const auto event = app.route(input);
-      if (app.invalidated()) requestUpdate();
+      if (app.invalidated() || wasTouchActive != app.touchActive()) requestUpdate();
       if (event) return;
     }
   }
@@ -128,8 +140,9 @@ void AboutActivity::loop() {
     scroll(swipe == MappedInputManager::SwipeDir::Up ? visibleRows : -visibleRows);
     return;
   }
-  buttonNavigator.onNext([&] { scroll(visibleRows); });
-  buttonNavigator.onPrevious([&] { scroll(-visibleRows); });
+  // Whole-page navigation fires once on release; held buttons must not skip diagnostics.
+  buttonNavigator.onNextRelease([&] { scroll(visibleRows); });
+  buttonNavigator.onPreviousRelease([&] { scroll(-visibleRows); });
 }
 
 void AboutActivity::onExport(const fui::ActionEvent&, void* user) {
@@ -189,6 +202,9 @@ void AboutActivity::provideRow(void* user, uint16_t index, fui::ListItem& item) 
   auto* buf = self.valueBuffer;
   const auto size = sizeof(self.valueBuffer);
   item.label = I18N.get(labels[index]);
+#ifdef SIMULATOR
+  if (index == Device && self.simulatorHeading) item.label = self.simulatorHeading;
+#endif
   item.subtitle = tr(STR_ABOUT_UNSUPPORTED);
   auto kib = [&](uint32_t bytes) {
     snprintf(buf, size, "%lu KiB", static_cast<unsigned long>(bytes / 1024));
@@ -322,18 +338,49 @@ void AboutActivity::aboutScreen(UiApp::ScreenType& screen, void* user) {
                                       static_cast<int16_t>(std::max<int>(0, safe.bottom() - (hints.y + hints.height))),
                                       static_cast<int16_t>(std::max<int>(0, hints.x - safe.x))});
   screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
-  fui::ButtonProps exportButton;
-  exportButton.label = I18N.get(self.exportStatus);
-  exportButton.action = 1;
-  exportButton.inputMask = fui::InputTouch;
-  const auto actionRect = screen.take(fui::LayoutAnchor::Top, screen.theme().rowHeight, screen.theme().spaceSm);
-  self.exportButtonRect = Rect{actionRect.x, actionRect.y, actionRect.width, actionRect.height};
-  screen.button(exportButton, actionRect);
+  self.exportButtonRect = Rect();
+  if (self.mappedInput.hasTouchHardware()) {
+    const int actionHeight = std::max<int>(TouchActionButtons::kDefaultHeight, screen.theme().rowHeight);
+    const auto sideMargin = static_cast<int16_t>(metrics.listSidePadding);
+    const auto actionRect = screen.take(fui::LayoutAnchor::Top, actionHeight, screen.theme().spaceSm)
+                                .inset(fui::Insets{0, sideMargin, 0, sideMargin});
+    const auto actions = TouchActionButtons::vertical(
+        Rect{actionRect.x, actionRect.y, actionRect.width, actionRect.height}, 1, actionHeight, 0);
+    self.exportButtonRect = actions.buttons[0];
+    // Register precisely the existing action's visual bounds; FreeInkUI retains
+    // press feedback and release/drag-off routing without a second touch handler.
+    screen.frame().hit(actionRect, 1, 0, fui::InputTouch);
+    const auto state = screen.frame().stateFor(1);
+    const int selected = fui::hasState(state, fui::StateActive) || fui::hasState(state, fui::StateFocused) ? 0 : -1;
+    auto actionText = screen.theme().bodyText;
+    actionText.bold = true;
+    actionText.maxLines = 1;
+    // Fit localized labels and the existing result messages without render-loop
+    // strings. The actual full-width action helper still paints the whole button.
+    fui::layoutText(self.uiTarget, actionRect.inset(fui::Insets{0, screen.theme().spaceSm, 0, screen.theme().spaceSm}),
+                    I18N.get(self.exportStatus), actionText, [&](const char* line, fui::Rect) {
+                      const char* actionLabels[] = {line};
+                      TouchActionButtons::draw(self.renderer, actions, actionLabels, 0, selected,
+                                               uiScaleSpec().bodyFontId);
+                    });
+  }
   fui::ListProps props;
   props.count = RowCount;
   props.rowProvider = &AboutActivity::provideRow;
   props.rowProviderCtx = &self;
   props.inputMask = fui::InputNone;
+  props.labelText = screen.theme().bodyText;
+  props.labelText.bold = true;
+  props.labelText.maxLines = 2;
+  props.subtitleText = screen.theme().smallText;
+  props.subtitleText.bold = false;
+  props.subtitleText.maxLines = 1;
+  // Paging uses a fixed row count. Reserve two heading lines plus the value
+  // even when only a translated heading on a later page needs that space.
+  props.rowPaddingY = screen.theme().spaceSm;
+  props.rowHeight = std::max<int>(uiListRowHeight(screen.theme(), UiListRowType::WithSubtitle),
+                                  self.uiTarget.lineHeight(props.labelText.font) * 2 +
+                                      self.uiTarget.lineHeight(props.subtitleText.font) + props.rowPaddingY * 2);
   self.visibleRows =
       std::max<int>(1, configureUiList(props, screen.theme(), screen.body(), UiListRowType::WithSubtitle));
   self.topIndex = scrollListBy(self.topIndex, 0, self.visibleRows, RowCount);

@@ -23,6 +23,12 @@ class AboutActivity final : public Activity {
   const Rect& simulatorExportButtonRect() const { return exportButtonRect; }
   const OptionPopup& simulatorScopePopup() const { return scopePopup; }
   bool simulatorScopePopupActive() const { return scopePopup.isActive(); }
+  bool simulatorExportPressed() const { return app.touchActive(); }
+  const char* simulatorFirstHeading() const { return simulatorHeading; }
+  void simulatorSetFirstHeading(const char* text) {
+    simulatorHeading = text;
+    requestUpdate();
+  }
   const HalDeviceInfo::Snapshot& simulatorSnapshot() const { return snapshot; }
 #endif
 
@@ -43,6 +49,9 @@ class AboutActivity final : public Activity {
   static void onExport(const freeink::ui::ActionEvent& event, void* user);
   int topIndex = 0;
   int visibleRows = 1;
+#ifdef SIMULATOR
+  const char* simulatorHeading = nullptr;  // Long localized-heading fixture; absent from hardware builds.
+#endif
   static void aboutScreen(UiApp::ScreenType& screen, void* user);
   static void provideRow(void* user, uint16_t index, freeink::ui::ListItem& item);
 };

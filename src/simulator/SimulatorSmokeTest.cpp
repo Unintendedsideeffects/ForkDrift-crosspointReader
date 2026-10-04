@@ -242,6 +242,8 @@ class SimulatorSmokeTest {
     TouchRelease,
     AssertReaderMenu,
     AssertSettingsNavigation,
+    AssertAboutTopIndex,
+    WaitForNavigationHold,
     AssertActivity,
     Render
   };
@@ -1618,6 +1620,7 @@ class SimulatorSmokeTest {
           RenderLock lock;
           SETTINGS.uiScale = aboutPass % 2 ? CrossPointSettings::UI_SCALE_LARGE : CrossPointSettings::UI_SCALE_SMALL;
           SETTINGS.uiTheme = aboutPass < 2 ? CrossPointSettings::LYRA : CrossPointSettings::CLASSIC;
+          I18N.setLanguage(I18n::languageFromCode(aboutPass % 2 ? "DE" : "EN"));
           static constexpr GfxRenderer::Orientation orientations[] = {
               GfxRenderer::Orientation::Portrait, GfxRenderer::Orientation::LandscapeClockwise,
               GfxRenderer::Orientation::PortraitInverted, GfxRenderer::Orientation::LandscapeCounterClockwise};
@@ -1642,8 +1645,33 @@ class SimulatorSmokeTest {
         break;
       }
       case 2: {
-        const auto* about = dynamic_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        auto* about = dynamic_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
         if (!about || about->simulatorTopIndex() != 0) fail("About initial viewport mismatch");
+        if (aboutPass % 2 && !about->simulatorFirstHeading()) {
+          RenderLock lock;
+          about->simulatorSetFirstHeading(
+              "Geräteprofil mit ausführlicher Hardwarebeschreibung und Diagnoseinformationen");
+          aboutPhase = 2;
+          inputScript.push_back(render("About long localized heading", 3));
+          break;
+        }
+#if CROSSINK_APP_CAP_TOUCH
+        const auto action = about->simulatorExportButtonRect();
+        const auto header = TouchHeaderBackButton::headerRect(renderer, mappedInputManager);
+        if (action.width <= 0 || action.height < 56 || action.x < UITheme::getInstance().getMetrics().listSidePadding ||
+            action.y < header.y + header.height ||
+            action.x + action.width > renderer.getScreenWidth() - UITheme::getInstance().getMetrics().listSidePadding ||
+            action.y + action.height >= renderer.getScreenHeight())
+          fail("About full-width export action escaped content bounds");
+        {
+          RenderLock lock;
+          if (!renderer.isPixelBlack(action.x, action.y + action.height / 2) ||
+              !renderer.isPixelBlack(action.x + action.width / 2, action.y))
+            fail("About export action has no visible outline");
+        }
+#else
+        if (about->simulatorExportButtonRect().width != 0) fail("About export action shown on button device");
+#endif
         const auto& snapshot = about->simulatorSnapshot();
         if (!snapshot.simulated || !snapshot.device || snapshot.width != display.getDisplayWidth() ||
             snapshot.height != display.getDisplayHeight() || snapshot.chip || snapshot.sdk || snapshot.internalFree)
@@ -1655,13 +1683,28 @@ class SimulatorSmokeTest {
           RenderLock lock;
           captureStatusBarScreen(("about-first-" + std::to_string(aboutPass)).c_str());
         }
+        const int nextPage =
+            std::min(about->simulatorVisibleRows(), about->simulatorRowCount() - about->simulatorVisibleRows());
+        // Even a slow release must page once, with no auto-repeat before release.
+        for (const auto button : {MappedInputManager::Button::Down, MappedInputManager::Button::Up}) {
+          const bool down = button == MappedInputManager::Button::Down;
+          inputScript.push_back(press(button));
+          inputScript.push_back({ScriptActionType::WaitForNavigationHold, button, nullptr, 0, 0, 0});
+          inputScript.push_back({ScriptActionType::AssertAboutTopIndex, button, nullptr, 0, down ? 0 : nextPage, 0});
+          inputScript.push_back(release(button));
+          inputScript.push_back(render("About single page after held-button release", 3));
+          inputScript.push_back({ScriptActionType::AssertAboutTopIndex, button, nullptr, 0, down ? nextPage : 0, 0});
+        }
         addTap(MappedInputManager::Button::Down);
         inputScript.push_back(render("About next page", 3));
         break;
       }
       case 3: {
         const auto* about = dynamic_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
-        if (!about || about->simulatorTopIndex() <= 0) fail("About buttons did not scroll");
+        if (!about ||
+            about->simulatorTopIndex() !=
+                std::min(about->simulatorVisibleRows(), about->simulatorRowCount() - about->simulatorVisibleRows()))
+          fail("About Down skipped or repeated a page");
         // Repeated paging must reach the last diagnostic and clamp at the end.
         for (int i = 0; i < 30; ++i) addTap(MappedInputManager::Button::Right);
         inputScript.push_back(render("About last page", 3));
@@ -1690,8 +1733,99 @@ class SimulatorSmokeTest {
       }
       case 5: {
         const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
-        if (about->simulatorTopIndex() + about->simulatorVisibleRows() >= about->simulatorRowCount())
-          fail("About previous page did not scroll");
+        if (about->simulatorTopIndex() != std::max(0, about->simulatorRowCount() - about->simulatorVisibleRows() * 2))
+          fail("About Up skipped or repeated a page");
+#if CROSSINK_APP_CAP_TOUCH
+        // The edge of the full-width outline belongs to the action too.
+        const auto hit = about->simulatorExportButtonRect();
+        // Wait for the activity's own repaint; a forced render masks broken feedback.
+        inputScript = {touchDown(hit.x + 1, hit.y + hit.height / 2), render(nullptr, 6)};
+#else
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("About export scope via physical Confirm", 3));
+#endif
+        break;
+      }
+      case 6: {
+        const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+#if CROSSINK_APP_CAP_TOUCH
+        if (!about->simulatorExportPressed() || about->simulatorScopePopupActive())
+          fail("About export press feedback or release timing mismatch");
+        {
+          RenderLock lock;
+          const auto hit = about->simulatorExportButtonRect();
+          if (!renderer.isPixelBlack(hit.x + 3, hit.y + 3)) fail("About export press did not invert the action");
+          captureStatusBarScreen(("about-pressed-" + std::to_string(aboutPass)).c_str());
+        }
+        const auto hit = about->simulatorExportButtonRect();
+        inputScript = {touchRelease(hit.x + 1, hit.y + hit.height / 2), render("About export edge release", 3)};
+#else
+        if (!about->simulatorScopePopupActive()) fail("About Confirm did not open export scope");
+#endif
+        break;
+      }
+      case 7: {
+        const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (!about->simulatorScopePopupActive()) fail("About export full-width hitbox missed its edge");
+        {
+          RenderLock lock;
+          captureStatusBarScreen(("about-scope-" + std::to_string(aboutPass)).c_str());
+        }
+        // Cancel is still selected by default on scope entry.
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("About default scope cancellation", 3));
+        break;
+      }
+      case 8: {
+        const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (about->simulatorScopePopupActive() || Storage.exists(SupportInfo::Path))
+          fail("About scope cancellation wrote export or stayed open");
+#if CROSSINK_APP_CAP_TOUCH
+        const auto hit = about->simulatorExportButtonRect();
+        // Horizontal drag-off does not page the list, so only the activity's
+        // press-state repaint can clear the inversion after cancellation.
+        inputScript = {touchDown(hit.x + hit.width / 2, hit.y + hit.height / 2),
+                       touchMove(hit.x - 1, hit.y + hit.height / 2), touchRelease(hit.x - 1, hit.y + hit.height / 2),
+                       render(nullptr, 6)};
+#endif
+        break;
+      }
+      case 9: {
+        const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (about->simulatorScopePopupActive() || about->simulatorExportPressed())
+          fail("About drag-off activated export or left pressed feedback");
+#if CROSSINK_APP_CAP_TOUCH
+        const auto hit = about->simulatorExportButtonRect();
+        {
+          RenderLock lock;
+          if (renderer.isPixelBlack(hit.x + 3, hit.y + 3)) fail("About drag-off did not repaint cleared feedback");
+        }
+        inputScript = {touchDown(hit.x + hit.width / 2, hit.y + hit.height + 2),
+                       touchRelease(hit.x + hit.width / 2, hit.y + hit.height + 2),
+                       render("About tap outside export", 3)};
+#endif
+        break;
+      }
+      case 10: {
+        const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (about->simulatorScopePopupActive()) fail("About export hitbox extends below its outline");
+        supportOpenScope();
+        break;
+      }
+      case 11:
+        supportSelectScope(1);
+        break;
+      case 12: {
+        RenderLock lock;
+        captureStatusBarScreen(("about-confirmation-" + std::to_string(aboutPass)).c_str());
+        // Confirm without moving the selection must choose the default Cancel.
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("About default confirmation cancellation", 4));
+        inputScript.push_back(assertActivity("About"));
+        break;
+      }
+      case 13: {
+        if (Storage.exists(SupportInfo::Path)) fail("About confirmation cancellation wrote export");
 #if CROSSINK_APP_CAP_TOUCH
         const auto header = TouchHeaderBackButton::headerRect(renderer, mappedInputManager);
         const auto hit = TouchHeaderBackButton::layout(header).touchRect;
@@ -1705,13 +1839,14 @@ class SimulatorSmokeTest {
             assertSettingsNavigation(3, static_cast<int>(buildSystemSettingsParentList(getSettingsList()).size())));
         break;
       }
-      case 6:
+      case 14:
         if (++aboutPass < 8) {
           aboutPhase = 0;
           break;
         }
         LOG_INF("SMOKE",
-                "Simulator smoke test passed: About navigation, paging, read-only snapshot, scales and orientations");
+                "Simulator smoke test passed: About navigation, paging, snapshot, bold/long headings, full-width "
+                "export outline/press/hitbox, default cancellations, scales and orientations");
         std::_Exit(0);
     }
   }
@@ -3887,6 +4022,15 @@ class SimulatorSmokeTest {
         if (settings->simulatorCategoryIndex() != action.x || settings->simulatorSelectedIndex() != action.y)
           fail("Settings navigation mismatch: category=%d row=%d, expected %d/%d", settings->simulatorCategoryIndex(),
                settings->simulatorSelectedIndex(), action.x, action.y);
+        break;
+      }
+      case ScriptActionType::WaitForNavigationHold:
+        if (mappedInputManager.getHeldTime() < 650) --scriptIndex;
+        break;
+      case ScriptActionType::AssertAboutTopIndex: {
+        const auto* about = dynamic_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (!about || about->simulatorTopIndex() != action.x)
+          fail("About button moved to row %d, expected %d", about ? about->simulatorTopIndex() : -1, action.x);
         break;
       }
       case ScriptActionType::AssertActivity:
