@@ -187,6 +187,7 @@ class ActivityManager {
   bool isCurrentActivityNamed(const char* activityName) const;
   Activity* simulatorCurrentActivity() const { return currentActivity.get(); }
 #endif
+  bool isCurrentActivity(const Activity* activity) const { return currentActivity.get() == activity; }
   bool canSnapshotForSleepOverlay() const;
   bool requestManualReaderRefresh();
   bool handleShortcutAction(CrossPointSettings::SHORT_PWRBTN action);

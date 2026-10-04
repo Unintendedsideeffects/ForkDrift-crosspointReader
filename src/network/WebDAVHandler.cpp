@@ -346,12 +346,18 @@ void WebDAVHandler::handleGet(WebServer& s) {
   }
 
   String contentType = getMimeType(path);
-  s.setContentLength(file.size());
+  const size_t fileSize = file.size();
+  file.close();  // The storage helper opens its own reader.
+  s.setContentLength(fileSize);
   s.send(200, contentType.c_str(), "");
 
+  // HalFile is a Print, not a Stream: client.write(file) converts it to bool
+  // and sends 0x01. The helper handles partial writes and watchdog yielding.
   NetworkClient client = s.client();
-  client.write(file);
-  file.close();
+  if (!Storage.readFileToStream(path.c_str(), client)) {
+    LOG_ERR("DAV", "GET %s: failed to stream file", path.c_str());
+    client.stop();  // Headers are already sent; terminate the incomplete body.
+  }
 }
 
 // ── HEAD ─────────────────────────────────────────────────────────────────────

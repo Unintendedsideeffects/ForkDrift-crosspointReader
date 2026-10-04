@@ -14,6 +14,9 @@
 
 ### Fixed
 
+- Restore complete WebDAV file downloads, including large binary files.
+- Retry low-memory EPUB image sizing with framebuffer scratch and redraw the reader after background image probes.
+
 - Automatically retry interrupted book and font downloads, validating resumed byte ranges and restarting safely when the server cannot resume.
 - Hide EPUB section-break rules when the publisher suppresses their borders, avoiding duplicate ornaments.
 - Translate reading statistics, stats tracking controls, and the Minimal Stats theme label into Polish.

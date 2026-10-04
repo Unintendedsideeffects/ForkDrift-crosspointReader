@@ -13,6 +13,30 @@ enum class BidiBaseDir : signed char { AUTO = -1, LTR = 0, RTL = 1 };
 
 class GfxRenderer {
  public:
+  inline static bool loanActive = false;
+  inline static bool fileProbeHadLoan = false;
+  uint32_t loans = 0;
+  bool hasFrameBuffer() const { return !loanActive; }
+  uint32_t frameBufferLoanCount() const { return loans; }
+  class FrameBufferLoan {
+   public:
+    explicit FrameBufferLoan(GfxRenderer& renderer) : active_(!loanActive) {
+      if (active_) {
+        loanActive = true;
+        ++renderer.loans;
+      }
+    }
+    ~FrameBufferLoan() { end(); }
+    void end() {
+      if (active_) {
+        loanActive = false;
+        active_ = false;
+      }
+    }
+
+   private:
+    bool active_;
+  };
   int textAdvancePerChar = 0;
   uint8_t scalableBaseSize = 0;
   uint8_t getFontPointSize(int id) const { return scalableBaseSize ? (id ? id : scalableBaseSize) : 0; }

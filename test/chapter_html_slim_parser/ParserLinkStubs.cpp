@@ -36,10 +36,22 @@ TextBlock::TextBlock(const std::vector<std::string>& words, const std::vector<in
 bool TextBlock::hasRuby() const { return false; }
 
 bool ImageDecoderFactory::isFormatSupported(const std::string& path) { return path.ends_with(".jpg"); }
-ImageToFramebufferDecoder* ImageDecoderFactory::getDecoder(const std::string&) { return nullptr; }
-size_t ImageDimsProbe::write(uint8_t) { return 0; }
-size_t ImageDimsProbe::write(const uint8_t*, size_t) { return 0; }
-bool ImageDimsProbe::getDimensions(ImageDimensions&) const { return false; }
+namespace {
+class FixtureImageDecoder final : public ImageToFramebufferDecoder {
+ public:
+  bool decodeToFramebuffer(const std::string&, GfxRenderer&, const RenderConfig&) override { return false; }
+  bool getDimensions(const std::string&, ImageDimensions& dims) const override {
+    GfxRenderer::fileProbeHadLoan = GfxRenderer::loanActive;
+    dims = {800, 200};
+    return true;
+  }
+  const char* getFormatName() const override { return "JPEG"; }
+};
+}  // namespace
+ImageToFramebufferDecoder* ImageDecoderFactory::getDecoder(const std::string&) {
+  static FixtureImageDecoder decoder;
+  return &decoder;
+}
 
 ImageBlock::ImageBlock(std::string imagePath, std::string sourcePath, const int16_t width, const int16_t height)
     : imagePath(std::move(imagePath)), sourcePath(std::move(sourcePath)), width(width), height(height) {}

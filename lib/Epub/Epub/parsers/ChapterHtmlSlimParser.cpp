@@ -2400,10 +2400,24 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                   dimensionsFromOptimizer || (self->epub->readItemContentsToStream(resolvedPath, headerProbe, 1024,
                                                                                    /*allowEarlyStop=*/true) &&
                                               headerProbe.getDimensions(dims));
+              if (!gotDimensions) {
+                // A deflated header needs a 32 KiB inflate window even when
+                // image admission passed. Retry using the existing framebuffer.
+                GfxRenderer::FrameBufferLoan probeLoan(self->renderer);
+                ImageDimsProbe retryProbe;
+                gotDimensions = self->epub->readItemContentsToStream(resolvedPath, retryProbe, 1024,
+                                                                     /*allowEarlyStop=*/true) &&
+                                retryProbe.getDimensions(dims);
+              }
               std::string sourcePath;
+              bool extracted = false;
+              if (!gotDimensions) {
+                GfxRenderer::FrameBufferLoan extractLoan(self->renderer);
+                extracted = self->epub->extractItemToFile(resolvedPath, cachedImagePath);
+              }
               if (gotDimensions) {
                 sourcePath = resolvedPath;
-              } else if (self->epub->extractItemToFile(resolvedPath, cachedImagePath)) {
+              } else if (extracted) {
                 // Unusual headers fall back to the existing full-file decoder.
                 // Retry only if needed to tolerate slow SD-card sync.
                 ImageToFramebufferDecoder* decoder = ImageDecoderFactory::getDecoder(cachedImagePath);
