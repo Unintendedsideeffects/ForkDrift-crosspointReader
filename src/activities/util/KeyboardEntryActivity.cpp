@@ -173,7 +173,7 @@ void KeyboardEntryActivity::onExit() { Activity::onExit(); }
 #if CROSSINK_APP_CAP_TOUCH
 void KeyboardEntryActivity::showTouchFeedback(const int16_t value) {
   // Keep zero reserved for no feedback, including after sequence wraparound.
-  if (++feedbackSequence == 0) ++feedbackSequence;
+  feedbackSequence = feedbackSequence == UINT16_MAX ? 1 : feedbackSequence + 1;
   pendingFeedback.store((static_cast<uint32_t>(feedbackSequence) << 16) | static_cast<uint16_t>(value));
   requestUpdate();
 }

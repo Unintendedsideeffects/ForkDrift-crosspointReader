@@ -392,15 +392,16 @@ int FrontlightPanelActivity::computePanelBottom() {
   panelRowHeight = tokens.rowHeight;
   panelSpaceSm = tokens.spaceSm;
   panelSpaceLg = tokens.spaceLg;
-  const bool hasWarmth = Frontlight.hasColorTemperature();
-  const int rowCount = hasWarmth ? 3 : 2;
-  const int largeGapCount = hasWarmth ? 4 : 3;
-  const int smallGapCount = hasWarmth ? 2 : 1;
+  // The warmth row adds one row, its label line, and one gap of each size.
+  const int warmthRows = static_cast<int>(Frontlight.hasColorTemperature());
+  const int rowCount = 2 + warmthRows;
+  const int largeGapCount = 3 + warmthRows;
+  const int smallGapCount = 1 + warmthRows;
   const auto sheet = frontlightSheetProps();
   const auto safe = uiTarget.deviceContext().safeArea;
   const int maxBottom = renderer.getScreenHeight() - safe.bottom;
   const auto bottom = [&] {
-    return y + rowCount * panelRowHeight + (hasWarmth ? lh : 0) + largeGapCount * panelSpaceLg +
+    return y + rowCount * panelRowHeight + warmthRows * lh + largeGapCount * panelSpaceLg +
            smallGapCount * panelSpaceSm + ACTION_BAR_HEIGHT + DrawerHandle::bandHeight(sheet);
   };
   // Preserve Large text, the action bar, and the close handle. Spend less on

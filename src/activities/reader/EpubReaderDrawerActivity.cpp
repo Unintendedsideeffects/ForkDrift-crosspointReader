@@ -383,13 +383,11 @@ EpubReaderDrawerActivity::EpubReaderDrawerActivity(
     const uint16_t autoPageTurnIntervalSeconds, const bool automaticPageTurnActive,
     SaveSettingsCallback saveReaderSettingsCallback, void* saveReaderSettingsContext,
     SaveGlobalSettingsCallback saveGlobalSettingsCallback, void* saveGlobalSettingsContext,
-    GlobalSettingsEditCallback beginGlobalSettingsEditCallback,
-    void* beginGlobalSettingsEditContext,
+    GlobalSettingsEditCallback beginGlobalSettingsEditCallback, void* beginGlobalSettingsEditContext,
     GlobalSettingsEditCallback endGlobalSettingsEditCallback, void* endGlobalSettingsEditContext,
     const char* dictionaryFontFamilyName, const uint8_t dictionaryFontPointSize, const bool hasDictionaryFontOverride,
-    DictionaryFontChangedCallback dictionaryFontChangedCallback,
-    void* dictionaryFontChangedContext, const ReaderDrawerState initialState,
-    std::unique_ptr<EpubReaderPreviewModel> ownedPreviewModel)
+    DictionaryFontChangedCallback dictionaryFontChangedCallback, void* dictionaryFontChangedContext,
+    const ReaderDrawerState initialState, std::unique_ptr<EpubReaderPreviewModel> ownedPreviewModel)
     : Activity("EpubReaderDrawer", renderer, mappedInput),
       epub(std::move(epub)),
       previewModel(previewModel),

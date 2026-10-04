@@ -1,4 +1,4 @@
-## [v1.6.1] - 2026-10-02
+## [v1.6.1] - 2026-10-03
 
 ### Added
 
@@ -107,6 +107,9 @@
 - Preserve reading time already accumulated when turning off EPUB or XTC reading stats.
 - Editing reading stats dates from the frontlight drawer or the XTC reader menu no longer counts the current session's reading time twice, and closing the drawer keeps this session's page turns and reading pace.
 - EPUB text re-lays out after changing TTF rendering options from the frontlight drawer even when leaving with the Home/Reader shortcut.
+- Support the second X4 Classic display panel variant.
+- The frontlight drawer stays within the screen at large UI scales.
+- Nested EPUB paragraphs and blocks keep inherited bold and italic styles.
 
 ### Security
 
