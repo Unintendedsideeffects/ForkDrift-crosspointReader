@@ -292,7 +292,7 @@ class ChapterHtmlSlimParser {
   static void applyDirectionToEntry(StyleStackEntry& entry, const CssStyle& css);
   static void applySmallCapsToEntry(StyleStackEntry& entry, const CssStyle& css);
   static void applyVerticalAlignToEntry(StyleStackEntry& entry, const CssStyle& css);
-  void emitHorizontalRule(const BlockStyle& blockStyle);
+  void emitHorizontalRule(const BlockStyle& blockStyle, bool visible);
   void finalizeCurrentTableCell();
   void emitBufferedTableAsParagraphs(BufferedTable& table);
   void emitBufferedTableAsFragments(BufferedTable& table);

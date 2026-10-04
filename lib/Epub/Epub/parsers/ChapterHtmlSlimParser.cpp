@@ -987,7 +987,7 @@ void ChapterHtmlSlimParser::finalizeCurrentTableCell() {
   nextWordContinues = false;
 }
 
-void ChapterHtmlSlimParser::emitHorizontalRule(const BlockStyle& blockStyle) {
+void ChapterHtmlSlimParser::emitHorizontalRule(const BlockStyle& blockStyle, const bool visible) {
   if (partWordBufferIndex > 0) {
     flushPartWordBuffer();
   }
@@ -1004,14 +1004,15 @@ void ChapterHtmlSlimParser::emitHorizontalRule(const BlockStyle& blockStyle) {
   }
 
   const int16_t lineHeight = static_cast<int16_t>(renderer.getLineHeight(fontId) * lineCompression + 0.5f);
-  const int16_t defaultVerticalSpacing = static_cast<int16_t>(lineHeight / 2);
+  // Invisible thematic breaks retain publisher spacing without a default ornament gap.
+  const int16_t defaultVerticalSpacing = visible ? static_cast<int16_t>(lineHeight / 2) : 0;
   const int16_t topSpacing =
       static_cast<int16_t>((blockStyle.marginTop > 0 ? blockStyle.marginTop : defaultVerticalSpacing) +
                            (blockStyle.paddingTop > 0 ? blockStyle.paddingTop : 0));
   const int16_t bottomSpacing =
       static_cast<int16_t>((blockStyle.marginBottom > 0 ? blockStyle.marginBottom : defaultVerticalSpacing) +
                            (blockStyle.paddingBottom > 0 ? blockStyle.paddingBottom : 0));
-  constexpr uint8_t ruleThickness = 2;
+  const uint8_t ruleThickness = visible ? 2 : 0;
   const int16_t availableWidth =
       std::max<int16_t>(1, static_cast<int16_t>(viewportWidth - blockStyle.totalHorizontalInset()));
   const int16_t width = std::max<int16_t>(1, static_cast<int16_t>(availableWidth / 4));
@@ -1033,15 +1034,17 @@ void ChapterHtmlSlimParser::emitHorizontalRule(const BlockStyle& blockStyle) {
   currentPageNextY += topSpacing;
   attachPendingPublisherPageMarkers(currentPageNextY);
 
-  auto pageRule = makeUniqueNoThrow<PageHorizontalRule>(width, ruleThickness, xPos, currentPageNextY);
-  if (!pageRule) {
-    LOG_ERR("EHP", "Failed to create PageHorizontalRule");
-    lowMemoryAbort = true;
-    return;
+  if (visible) {
+    auto pageRule = makeUniqueNoThrow<PageHorizontalRule>(width, ruleThickness, xPos, currentPageNextY);
+    if (!pageRule) {
+      LOG_ERR("EHP", "Failed to create PageHorizontalRule");
+      lowMemoryAbort = true;
+      return;
+    }
+    currentPage->elements.push_back(std::move(pageRule));
+    setCurrentPageVisibleOffset(visibleTextOffset);
+    markCurrentPageFromCurrentElement();
   }
-  currentPage->elements.push_back(std::move(pageRule));
-  setCurrentPageVisibleOffset(visibleTextOffset);
-  markCurrentPageFromCurrentElement();
   currentPageNextY = static_cast<int16_t>(currentPageNextY + ruleThickness + bottomSpacing);
   headingOpenerActive = false;
 
@@ -2836,7 +2839,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     if (!self->embeddedStyle || self->isLightMode()) {
       stripPublisherSpacing(hrBlockStyle);
     }
-    self->emitHorizontalRule(hrBlockStyle);
+    self->emitHorizontalRule(hrBlockStyle, !cssStyle.suppressesHorizontalRule());
     self->pushCssAncestor(self->depth, name, classAttr);
     self->depth += 1;
     return;

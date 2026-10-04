@@ -769,3 +769,93 @@ TEST(CssFontSizeTest, StrictValuesAndCascade) {
   EXPECT_FLOAT_EQ(style.fontSize.value, 150);
 }
 }  // namespace
+
+TEST(CssBorderTest, SuppressionAndDeclarationOrder) {
+  for (const char* declarations :
+       {"border: none", "border: HIDDEN !important", "border: 0", "border: solid 0px black", "border-style: none",
+        "border-width: 0rem", "border-width: 0 0px 0em 0pt", "border-style: none hidden",
+        "border: solid; border-style: none", "border-width: 0; border-style: solid",
+        "border: none; border-style: solid; border-width: 0",
+        "border-top: none; border-right: 0; border-bottom: hidden; border-left-width: 0"}) {
+    SCOPED_TRACE(declarations);
+    const auto style = CssParser::parseInlineStyle(declarations);
+    EXPECT_TRUE(style.defined.border);
+    EXPECT_TRUE(style.suppressesHorizontalRule());
+  }
+  for (const char* declarations :
+       {"", "border: solid", "border-style: dashed", "border-width: thin", "border-top: none",
+        "border: none; border: 1px solid black", "border: none; border-top-style: solid", "border-width: 0 1px",
+        "border: 0; border-width: 2px; border-style: solid", "border-style: none; border-style: solid"}) {
+    EXPECT_FALSE(CssParser::parseInlineStyle(declarations).suppressesHorizontalRule()) << declarations;
+  }
+}
+
+TEST(CssBorderTest, InvalidLonghandsDoNotOverrideSuppression) {
+  for (const char* value : {"-1px", "1badpx", "nanpx", "2%", "2", "nonsense", "1px 1px 1px 1px 1px"}) {
+    const auto style = CssParser::parseInlineStyle(std::string("border-width: 0; border-width: ") + value);
+    EXPECT_TRUE(style.suppressesHorizontalRule()) << value;
+  }
+  EXPECT_TRUE(CssParser::parseInlineStyle("border-style: none; border-style: nonsense").suppressesHorizontalRule());
+}
+
+TEST(CssBorderTest, CascadeRestoresEdgesWithoutLosingZeroWidths) {
+  auto style = CssParser::parseInlineStyle("border: none");
+  style.applyOver(CssParser::parseInlineStyle("border-top-style: solid"));
+  EXPECT_FALSE(style.suppressesHorizontalRule());
+  style.applyOver(CssParser::parseInlineStyle("border-top-width: 0"));
+  EXPECT_TRUE(style.suppressesHorizontalRule());
+  style.applyOver(CssParser::parseInlineStyle("border-top-width: medium"));
+  EXPECT_FALSE(style.suppressesHorizontalRule());
+  style.reset();
+  EXPECT_FALSE(style.defined.border);
+  EXPECT_FALSE(style.suppressesHorizontalRule());
+}
+
+TEST_F(ChapterHtmlSlimParserTest, CackleTransitionKeepsOnlyPublisherOrnament) {
+  cssParser.rulesBySelector_["hr.transition"] = CssParser::parseInlineStyle("display: block; border: none; margin: 0");
+  cssParser.rulesBySelector_["div.ornament"] = CssParser::parseInlineStyle("text-align: center; margin: 0");
+  const XML_Char* hrAttrs[] = {"class", "transition", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "hr", hrAttrs);
+  ChapterHtmlSlimParser::endElement(&parser, "hr");
+  EXPECT_EQ(parser.currentPageNextY, 0);
+  const XML_Char* ornamentAttrs[] = {"class", "ornament", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "div", ornamentAttrs);
+  ChapterHtmlSlimParser::characterData(&parser, "—", 3);
+  ChapterHtmlSlimParser::endElement(&parser, "div");
+  // Starting the following paragraph seals the ornament's text block.
+  ChapterHtmlSlimParser::startElement(&parser, "p", nullptr);
+  ASSERT_NE(parser.currentPage, nullptr);
+  ASSERT_EQ(parser.currentPage->elements.size(), 1u);
+  EXPECT_EQ(parser.currentPage->elements.front()->getTag(), TAG_PageLine);
+  EXPECT_EQ(parser.depth, 1);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, SuppressedRuleRetainsExplicitSpacing) {
+  const XML_Char* attrs[] = {"style", "border: none; margin: 7px 0 9px; padding: 2px 0 3px", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "hr", attrs);
+  ChapterHtmlSlimParser::endElement(&parser, "hr");
+  ASSERT_NE(parser.currentPage, nullptr);
+  EXPECT_TRUE(parser.currentPage->elements.empty());
+  EXPECT_EQ(parser.currentPageNextY, 21);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, PlainAndExplicitlyVisibleRulesStillRender) {
+  ChapterHtmlSlimParser::startElement(&parser, "hr", nullptr);
+  ChapterHtmlSlimParser::endElement(&parser, "hr");
+  const XML_Char* attrs[] = {"style", "border: none; border-top: 1px solid black", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "hr", attrs);
+  ChapterHtmlSlimParser::endElement(&parser, "hr");
+  ASSERT_NE(parser.currentPage, nullptr);
+  ASSERT_EQ(parser.currentPage->elements.size(), 2u);
+  for (const auto& element : parser.currentPage->elements) EXPECT_EQ(element->getTag(), TAG_PageHorizontalRule);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, ParentBorderDoesNotHideChildRule) {
+  const XML_Char* attrs[] = {"style", "border: none", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "div", attrs);
+  ChapterHtmlSlimParser::startElement(&parser, "hr", nullptr);
+  ChapterHtmlSlimParser::endElement(&parser, "hr");
+  ASSERT_NE(parser.currentPage, nullptr);
+  ASSERT_EQ(parser.currentPage->elements.size(), 1u);
+  EXPECT_EQ(parser.currentPage->elements.front()->getTag(), TAG_PageHorizontalRule);
+}

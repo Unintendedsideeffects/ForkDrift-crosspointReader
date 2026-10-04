@@ -548,6 +548,17 @@ Binary layout:
 
 ## `section.bin`
 
+### Version 84
+
+Explicit CSS border suppression on `<hr>` removes the generated rule from page
+layout. The section payload is unchanged; complete files use byte `84` and
+suspended partials use `0xC5`. Older full and partial caches rebuild automatically.
+
+CSS cache revision `21` appends four edge masks after `listStyleType`: suppressed
+styles, zero widths, defined styles, and defined widths (one byte each, with bits
+0-3 for top/right/bottom/left). Defined-property bit 24 marks border state. The
+fixed style payload grows from 76 to 80 bytes. Older CSS caches rebuild.
+
 ### Version 83
 
 Nested paragraphs and other blocks retain inherited CSS bold and italic styles,

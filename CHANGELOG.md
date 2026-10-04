@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Changed
+
+- Hide EPUB section-break rules when the publisher suppresses their borders, avoiding duplicate ornaments.
+
 ## [v1.6.1] - 2026-10-03
 
 ### Added

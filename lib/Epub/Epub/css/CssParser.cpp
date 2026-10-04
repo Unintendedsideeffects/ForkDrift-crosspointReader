@@ -70,8 +70,8 @@ constexpr size_t MAX_SELECTOR_LENGTH = 256;
 constexpr size_t CSS_LENGTH_FIELD_COUNT = 12;
 constexpr size_t CSS_LENGTH_BYTES = sizeof(float) + sizeof(uint8_t);
 constexpr size_t CSS_FIXED_STYLE_BYTES = 5 * sizeof(uint8_t) + (CSS_LENGTH_FIELD_COUNT * CSS_LENGTH_BYTES) +
-                                         4 * sizeof(uint8_t) + 3 * sizeof(uint8_t) + sizeof(uint32_t);
-static_assert(CSS_FIXED_STYLE_BYTES == 76,
+                                         4 * sizeof(uint8_t) + 7 * sizeof(uint8_t) + sizeof(uint32_t);
+static_assert(CSS_FIXED_STYLE_BYTES == 80,
               "CssStyle cache payload changed; update read/writeCssStylePayload and bump CSS_CACHE_VERSION");
 
 // Check if character is CSS whitespace
@@ -408,6 +408,111 @@ bool CssParser::tryInterpretLength(std::string_view val, CssLength& out) {
   return true;
 }
 
+// Only border visibility is needed for <hr>; keep publisher dimensions and
+// colors out of layout. These helpers allocate no memory.
+bool tryBorderStyleSuppression(std::string_view value, bool& suppressed) {
+  static constexpr const char* styles[] = {"none",   "hidden", "dotted", "dashed", "solid",
+                                           "double", "groove", "ridge",  "inset",  "outset"};
+  for (const char* keyword : styles) {
+    if (iequalsAscii(value, keyword)) {
+      suppressed = iequalsAscii(value, "none") || iequalsAscii(value, "hidden");
+      return true;
+    }
+  }
+  return false;
+}
+
+bool tryBorderWidthSuppression(std::string_view value, bool& suppressed) {
+  if (iequalsAscii(value, "thin") || iequalsAscii(value, "medium") || iequalsAscii(value, "thick")) {
+    suppressed = false;
+    return true;
+  }
+  // Reject unsupported units rather than interpreting them as pixels.
+  for (const auto unit :
+       {std::string_view("px"), std::string_view("pt"), std::string_view("rem"), std::string_view("em")}) {
+    if (value.size() > unit.size() && iequalsAscii(value.substr(value.size() - unit.size()), unit)) {
+      float width = 0;
+      if (!tryParseNumber(value.substr(0, value.size() - unit.size()), width) || !std::isfinite(width) || width < 0)
+        return false;
+      suppressed = width == 0;
+      return true;
+    }
+  }
+  float width = 0;
+  if (!tryParseNumber(value, width) || width != 0) return false;
+  suppressed = true;
+  return true;
+}
+
+bool parseBorderSuppression(std::string_view name, std::string_view value, CssStyle& style) {
+  uint8_t edges = 0x0F;
+  std::string_view suffix;
+  if (iequalsAscii(name, "border")) {
+    suffix = {};
+  } else if (name.size() > 7 && iequalsAscii(name.substr(0, 7), "border-")) {
+    suffix = name.substr(7);
+    static constexpr const char* edgeNames[] = {"top", "right", "bottom", "left"};
+    for (size_t edge = 0; edge < 4; ++edge) {
+      const std::string_view edgeName = edgeNames[edge];
+      if (suffix.size() >= edgeName.size() && iequalsAscii(suffix.substr(0, edgeName.size()), edgeName) &&
+          (suffix.size() == edgeName.size() || suffix[edgeName.size()] == '-')) {
+        edges = 1 << edge;
+        suffix.remove_prefix(edgeName.size());
+        if (!suffix.empty()) suffix.remove_prefix(1);
+        break;
+      }
+    }
+  } else {
+    return false;
+  }
+
+  value = trimCssWhitespace(stripTrailingImportant(value));
+  uint8_t styleMask = 0, widthMask = 0;
+  if (iequalsAscii(suffix, "style") || iequalsAscii(suffix, "width")) {
+    std::string_view tokens[4];
+    size_t count = 0;
+    forEachDelimitedToken(value, isCssWhitespace, [&](std::string_view token) {
+      if (count < 4) tokens[count] = token;
+      ++count;
+    });
+    if (count == 0 || count > 4 || (edges != 0x0F && count != 1)) return true;
+    for (size_t edge = 0; edge < 4; ++edge) {
+      // CSS one/two/three/four-value shorthand order: top/right/bottom/left.
+      const size_t index = edge < count ? edge : (edge == 2 ? 0 : (count > 1 ? 1 : 0));
+      bool suppressed = false;
+      const bool valid = iequalsAscii(suffix, "style") ? tryBorderStyleSuppression(tokens[index], suppressed)
+                                                       : tryBorderWidthSuppression(tokens[index], suppressed);
+      if (!valid) return true;
+      if (suppressed) styleMask |= 1 << edge;
+    }
+    if (iequalsAscii(suffix, "style")) {
+      style.borderStyleSuppressed = (style.borderStyleSuppressed & ~edges) | (styleMask & edges);
+      style.borderStyleDefined |= edges;
+    } else {
+      style.borderWidthSuppressed = (style.borderWidthSuppressed & ~edges) | (styleMask & edges);
+      style.borderWidthDefined |= edges;
+    }
+  } else if (suffix.empty()) {
+    // A border shorthand resets omitted style to none and width to medium.
+    bool styleSuppressed = true, widthSuppressed = false, recognized = false;
+    forEachDelimitedToken(value, isCssWhitespace, [&](std::string_view token) {
+      if (tryBorderStyleSuppression(token, styleSuppressed) || tryBorderWidthSuppression(token, widthSuppressed))
+        recognized = true;
+    });
+    if (!recognized) return true;
+    styleMask = styleSuppressed ? edges : 0;
+    widthMask = widthSuppressed ? edges : 0;
+    style.borderStyleSuppressed = (style.borderStyleSuppressed & ~edges) | styleMask;
+    style.borderWidthSuppressed = (style.borderWidthSuppressed & ~edges) | widthMask;
+    style.borderStyleDefined |= edges;
+    style.borderWidthDefined |= edges;
+  } else {
+    return false;
+  }
+  style.defined.border = 1;
+  return true;
+}
+
 // Declaration parsing
 
 void CssParser::parseDeclarationIntoStyle(std::string_view decl, CssStyle& style) {
@@ -418,6 +523,10 @@ void CssParser::parseDeclarationIntoStyle(std::string_view decl, CssStyle& style
   const std::string_view value = trimCssWhitespace(decl.substr(colonPos + 1));
 
   if (name.empty() || value.empty()) return;
+
+  if (parseBorderSuppression(name, value, style)) {
+    return;
+  }
 
   if (iequalsAscii(name, "text-align")) {
     style.textAlign = interpretAlignment(value);
@@ -1036,7 +1145,9 @@ bool CssParser::writeCssStylePayload(FsFile& file, const CssStyle& style) {
       !writeByte(static_cast<uint8_t>(style.verticalAlign)) || !writeByte(static_cast<uint8_t>(style.direction)) ||
       !writeByte(static_cast<uint8_t>(style.pageBreakBefore ? 1 : 0)) ||
       !writeByte(static_cast<uint8_t>(style.pageBreakAfter ? 1 : 0)) ||
-      !writeByte(static_cast<uint8_t>(style.listStyleType))) {
+      !writeByte(static_cast<uint8_t>(style.listStyleType)) || !writeByte(style.borderStyleSuppressed) ||
+      !writeByte(style.borderWidthSuppressed) || !writeByte(style.borderStyleDefined) ||
+      !writeByte(style.borderWidthDefined)) {
     return false;
   }
 
@@ -1065,6 +1176,7 @@ bool CssParser::writeCssStylePayload(FsFile& file, const CssStyle& style) {
   if (style.defined.pageBreakAfter) definedBits |= 1 << 21;
   if (style.defined.fontVariantCaps) definedBits |= 1 << 22;
   if (style.defined.fontSize) definedBits |= 1 << 23;
+  if (style.defined.border) definedBits |= 1 << 24;
   return writeBytes(&definedBits, sizeof(definedBits));
 }
 
@@ -1116,6 +1228,12 @@ bool CssParser::readCssStylePayload(FsFile& file, CssStyle& style) {
     return false;
   }
   style.listStyleType = static_cast<CssListStyleType>(listStyleTypeVal);
+  if (file.read(&style.borderStyleSuppressed, 1) != 1 || file.read(&style.borderWidthSuppressed, 1) != 1 ||
+      file.read(&style.borderStyleDefined, 1) != 1 || file.read(&style.borderWidthDefined, 1) != 1 ||
+      ((style.borderStyleDefined | style.borderWidthDefined) & ~0x0F) != 0 ||
+      (style.borderStyleSuppressed & ~style.borderStyleDefined) != 0 ||
+      (style.borderWidthSuppressed & ~style.borderWidthDefined) != 0)
+    return false;
 
   uint32_t definedBits = 0;
   if (file.read(&definedBits, sizeof(definedBits)) != sizeof(definedBits)) return false;
@@ -1143,6 +1261,7 @@ bool CssParser::readCssStylePayload(FsFile& file, CssStyle& style) {
   style.defined.pageBreakAfter = (definedBits & 1 << 21) != 0;
   style.defined.fontVariantCaps = (definedBits & 1 << 22) != 0;
   style.defined.fontSize = (definedBits & 1 << 23) != 0;
+  style.defined.border = (definedBits & 1 << 24) != 0;
   if (style.hasFontSize() && (!std::isfinite(style.fontSize.value) || style.fontSize.value <= 0 ||
                               static_cast<uint8_t>(style.fontSize.unit) > static_cast<uint8_t>(CssUnit::Percent)))
     return false;
