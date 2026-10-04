@@ -23,6 +23,8 @@
 
 ### Changed
 
+- Reduce resident lookup-table memory for SD fonts containing both BMP and supplementary Unicode ranges.
+
 ### Fixed
 
 - Show full-width Forget and Cancel buttons after a saved Wi-Fi network fails to connect on button devices, with Cancel selected by default below Forget.
