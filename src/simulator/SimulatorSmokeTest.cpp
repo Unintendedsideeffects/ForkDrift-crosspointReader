@@ -694,8 +694,8 @@ class SimulatorSmokeTest {
         std::string(I18N.get(StrId::STR_HOME_READER)) != "Home/Reader") {
       fail("Home/Reader shortcut label mismatch");
     }
-    if (QuickActions::isActionAvailable(CrossPointSettings::HOME_READER) != !gpio.hasTouch()) {
-      fail("Home/Reader capability gating does not match button-only devices");
+    if (!QuickActions::isActionAvailable(CrossPointSettings::HOME_READER)) {
+      fail("Home/Reader is unavailable on this device");
     }
     const auto containsShortcut = [](const std::vector<SettingInfo>& settings, const char* key,
                                      const ShortcutOptionCatalog catalog) {
@@ -708,12 +708,9 @@ class SimulatorSmokeTest {
              setting->enumValues[static_cast<size_t>(choice - setting->enumRawValues.begin())] ==
                  StrId::STR_HOME_READER;
     };
-    const bool shouldExposeHomeReader = !gpio.hasTouch();
-    if (containsShortcut(allSettings, "shortPwrBtn", ShortcutOptionCatalog::PowerButton) != shouldExposeHomeReader ||
-        containsShortcut(sideButtonSettings, "sideButtonUpShort", ShortcutOptionCatalog::SideButton) !=
-            shouldExposeHomeReader ||
-        containsShortcut(allSettings, "powerChordAction", ShortcutOptionCatalog::ButtonChord) !=
-            shouldExposeHomeReader) {
+    if (!containsShortcut(allSettings, "shortPwrBtn", ShortcutOptionCatalog::PowerButton) ||
+        !containsShortcut(sideButtonSettings, "sideButtonUpShort", ShortcutOptionCatalog::SideButton) ||
+        !containsShortcut(allSettings, "powerChordAction", ShortcutOptionCatalog::ButtonChord)) {
       fail("Home/Reader shortcut availability or settings mapping mismatch");
     }
     if (shortcutRawValue(ShortcutOptionCatalog::HomeButton, CrossPointSettings::HOME_READER) !=
@@ -724,22 +721,24 @@ class SimulatorSmokeTest {
     }
     const uint8_t savedPowerAction = SETTINGS.shortPwrBtn;
     const uint8_t savedChordAction = SETTINGS.powerChordAction;
+    const uint8_t savedQuickActionSlot = SETTINGS.quickActionSlots[0];
     SETTINGS.shortPwrBtn = CrossPointSettings::HOME_READER;
     SETTINGS.powerChordAction = CrossPointSettings::CHORD_HOME_READER;
+    SETTINGS.quickActionSlots[0] = CrossPointSettings::HOME_READER;
     JsonDocument shortcutRoundTrip;
     SETTINGS.toJson(shortcutRoundTrip);
     SETTINGS.shortPwrBtn = CrossPointSettings::IGNORE;
     SETTINGS.powerChordAction = CrossPointSettings::CHORD_DISABLED;
+    SETTINGS.quickActionSlots[0] = CrossPointSettings::IGNORE;
     SETTINGS.fromJson(shortcutRoundTrip.as<JsonVariantConst>());
-    const uint8_t expectedPowerAction =
-        shouldExposeHomeReader ? CrossPointSettings::HOME_READER : CrossPointSettings::IGNORE;
-    const uint8_t expectedChordAction =
-        shouldExposeHomeReader ? CrossPointSettings::CHORD_HOME_READER : CrossPointSettings::CHORD_DISABLED;
-    if (SETTINGS.shortPwrBtn != expectedPowerAction || SETTINGS.powerChordAction != expectedChordAction) {
+    if (SETTINGS.shortPwrBtn != CrossPointSettings::HOME_READER ||
+        SETTINGS.powerChordAction != CrossPointSettings::CHORD_HOME_READER ||
+        SETTINGS.quickActionSlots[0] != CrossPointSettings::HOME_READER) {
       fail("Home/Reader settings round-trip did not match device availability");
     }
     SETTINGS.shortPwrBtn = savedPowerAction;
     SETTINGS.powerChordAction = savedChordAction;
+    SETTINGS.quickActionSlots[0] = savedQuickActionSlot;
     if (!gpio.hasHomeKey() &&
         std::find(chordSetting->enumRawValues.begin(), chordSetting->enumRawValues.end(),
                   CrossPointSettings::CHORD_TOGGLE_HOME_BUTTON) != chordSetting->enumRawValues.end()) {

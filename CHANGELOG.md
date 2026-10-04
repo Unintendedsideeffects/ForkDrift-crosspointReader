@@ -24,6 +24,7 @@
 - Translate reading statistics, stats tracking controls, and the Minimal Stats theme label into Polish.
 - Dictionary lookup now recognizes French words with contracted prefixes, such as l’histoire and qu’après.
 - Page-turn shortcuts no longer crash at the end of an EPUB or while a chapter is loading.
+- Make Home/Reader shortcuts available on touch devices and preserve Home/Reader Quick Actions slots after restarting.
 
 ### Changed
 
