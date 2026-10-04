@@ -11,18 +11,17 @@
 - View device hardware, firmware/build identity, storage and memory diagnostics in Settings → System → About, without exposing network or device identifiers.
 - Turn image grayscale on or off globally or for individual EPUB books, independently of text anti-aliasing.
 - Export allowlisted device diagnostics and global preferences from About to a local support JSON file, with optional anonymous EPUB overrides, explicit scope confirmation and credential/history exclusions.
+- Home/Reader shortcuts available on touch devices
 
 ### Fixed
 
 - Restore complete WebDAV file downloads, including large binary files.
 - Retry low-memory EPUB image sizing with framebuffer scratch and redraw the reader after background image probes.
-
 - Automatically retry interrupted book and font downloads, validating resumed byte ranges and restarting safely when the server cannot resume.
 - Hide EPUB section-break rules when the publisher suppresses their borders, avoiding duplicate ornaments.
 - Translate reading statistics, stats tracking controls, and the Minimal Stats theme label into Polish.
 - Dictionary lookup now recognizes French words with contracted prefixes, such as l’histoire and qu’après.
 - Page-turn shortcuts no longer crash at the end of an EPUB or while a chapter is loading.
-- Make Home/Reader shortcuts available on touch devices and preserve Home/Reader Quick Actions slots after restarting.
 
 ### Changed
 

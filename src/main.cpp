@@ -760,6 +760,8 @@ CrossPointSettings::SHORT_PWRBTN chordPowerAction(const ButtonShortcutController
       return Power::LIBRARY;
     case Chord::HomeReader:
       return Power::HOME_READER;
+    case Chord::BackHome:
+      return Power::BACK_HOME;
     case Chord::FileTransfer:
       return Power::FILE_TRANSFER;
     case Chord::CalibreWireless:
