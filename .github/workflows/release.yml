@@ -179,7 +179,8 @@ jobs:
           git worktree add ../crossink-pages "origin/$DEFAULT_BRANCH"
           cp ".pio/build/catalog" "../crossink-pages/docs/catalog"
           mkdir -p "../crossink-pages/docs/languages/template"
-          cp release-firmware/language-template/* "../crossink-pages/docs/languages/template/"
+          # Additive immutable translation paths keep older editor snapshots usable.
+          cp -R release-firmware/language-template/. "../crossink-pages/docs/languages/template/"
           cd ../crossink-pages
           if git diff --quiet -- docs/catalog docs/languages/template && [ -z "$(git ls-files --others --exclude-standard docs/languages/template)" ]; then
             echo "Catalog and language template are already current"

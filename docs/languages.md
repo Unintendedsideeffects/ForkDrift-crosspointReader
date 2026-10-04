@@ -148,14 +148,38 @@ firmware parser format. `sourceCommit` identifies the source snapshot, and
 all ordered entry keys joined by LF **with a trailing LF**. The companion YAML's
 exact SHA-256 is recorded in `template.sha256`. All hashes use UTF-8 bytes.
 
-Stable release builds generate the pair, attach both files to the draft release
-and language ZIP, and copy the same pair beside the existing Pages release
-catalog. The site asset sync copies `docs/languages/template` to
-`/languages/template`, also available through the CrossInk website. The JSON reports `status: "release-build"`: the workflow
+Stable release builds generate the catalog, template and editor starter assets.
+They attach the catalog, template and language ZIP to the draft release and copy
+the same editor assets beside the existing Pages release catalog. The site asset sync copies `docs/languages/template` to
+`/languages/template`, also available through the CrossInk website. The JSON
+reports `status: "release-build"`: the workflow
 publishes the Pages catalog before a human publishes its draft GitHub Release,
 so this status deliberately does not claim that a release has been published.
-Release candidates attach their own pair but do not replace the stable Pages
-copy. Public fetching becomes available only after this local plumbing is
+Release candidates attach their own assets but do not replace the stable Pages
+copy.
+
+For each available non-English starter source, a language identity in the JSON
+has an optional `translation` descriptor with `filename`, `sha256`, and
+`omittedKeys`. Paths have the form `translations/<sha256>.yaml`, relative to the
+catalog. Inky loads and checksum-validates the selected language file, checks
+its language identity and template provenance, then opens those translations
+for local editing. The catalog remains fixed during editing. Template changes
+cannot redirect an old catalog to different translation text: filenames are
+content-addressed and stable publication adds new files while preserving older
+hashes. The ZIP also includes these editor starter files.
+
+Editor starters are generated from the existing community YAML sources. They
+contain only current canonical keys and preserve nonempty translations exactly,
+including English-identical and whitespace-only values. Obsolete keys, empty
+values and unsafe printf contracts are omitted for English fallback.
+`omittedKeys` counts entries removed from the **source starter**, including
+obsolete IDs; it is not a count of missing canonical translations. Direction
+and keyboard defaults retain the source language's existing behavior. Each file
+has firmware version, source commit, English-source and keyset hashes alongside
+language metadata. All normalized files must pass device UTF-8, scalar, line,
+source and compiled-cache limits before generation succeeds.
+
+Public fetching becomes available only after this local plumbing is
 integrated and the release/Pages workflows run; an older public catalog may
 contain a different keyset from local development firmware.
 
@@ -171,7 +195,7 @@ builds. Inky can load this JSON locally, display its source/version, and export 
 translation without sending translation text to any server. Keep the chosen
 contract while editing; explicitly load another version before migrating keys.
 Metadata must remain ahead of strings. Inky export adds the firmware version,
-English-source hash and keyset hash as informational metadata; unsupported
+source commit, English-source hash and keyset hash as informational metadata; unsupported
 `STR_` entries should be rejected by the editor even though firmware ignores them.
 All device scalar, UTF-8, format, source, line and cache limits still apply.
 Translations do not add CJK glyphs, font coverage, keyboards or shaping support.
