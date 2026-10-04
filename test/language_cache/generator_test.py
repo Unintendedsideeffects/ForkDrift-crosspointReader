@@ -15,8 +15,9 @@ with tempfile.TemporaryDirectory(prefix="crossink-language-generator-") as tempo
     base = Path(temporary)
     (base / "english.yaml").write_bytes((root / "lib/I18n/translations/english.yaml").read_bytes())
     (base / "broken-community.yaml").write_text("this is not valid YAML")
-    languages, names, keys, _, _ = generator.load_translations(str(base))
-    assert languages == ["EN"] and names == ["English"] and "STR_SETTINGS_TITLE" in keys
+    languages, names, keys, _, _ = generator.load_translations(str(base), builtin={"EN"})
+    assert languages == [item[0] for item in generator.known_languages()]
+    assert names[0] == "English" and "STR_SETTINGS_TITLE" in keys
     for key in ("STR_HOLD_FOR_KEYBOARD", "STR_LIBRARY_SCAN_COUNT", "STR_LIBRARY_FILES_COUNT",
                 "STR_STATS_UPLOAD_COUNTS", "STR_FOLDER_SYNC_COUNTS"):
         assert key in generator.FORMAT_KEYS

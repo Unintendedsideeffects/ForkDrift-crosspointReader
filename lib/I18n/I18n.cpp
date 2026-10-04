@@ -19,7 +19,6 @@ namespace {
 using namespace language_cache;
 constexpr size_t KEY_COUNT = static_cast<size_t>(StrId::_COUNT);
 static_assert(KEY_COUNT <= MAX_KEYS);
-constexpr size_t MAX_LANGUAGES = 64;
 constexpr size_t MAX_FILENAME = 128;
 
 Key keyAt(size_t i) {
@@ -48,10 +47,15 @@ uint64_t microseconds() {
 }
 }  // namespace
 
-I18n::I18n() {
-  std::strcpy(active_.code, "EN");
-  std::strcpy(active_.name, "English");
-  std::strcpy(active_.keyboard, "EN");
+I18n::I18n() { selectBuiltin(Language::EN); }
+void I18n::selectBuiltin(Language language) {
+  if (!isLanguageBuiltIn(language)) language = Language::EN;
+  const auto index = static_cast<uint8_t>(language);
+  builtin_ = getLanguageStrings(language);
+  std::strcpy(active_.code, LANGUAGE_CODES[index]);
+  std::strcpy(active_.name, LANGUAGE_NAMES[index]);
+  std::strcpy(active_.keyboard, LANGUAGE_CODES[index]);
+  active_.rtl = language == Language::HE || language == Language::AR;
 }
 I18n& I18n::getInstance() {
   static I18n instance;
@@ -60,16 +64,22 @@ I18n& I18n::getInstance() {
 const char* I18n::get(StrId id) const {
   const size_t index = static_cast<size_t>(id);
   if (index >= KEY_COUNT) return "???";
-  if (activeData_ && offsets_[index] != MISSING) return reinterpret_cast<const char*>(activeData_ + offsets_[index]);
-  return english(static_cast<uint16_t>(index));
+  if (activeData_) {
+    if (offsets_[index] != MISSING) return reinterpret_cast<const char*>(activeData_ + offsets_[index]);
+    return english(static_cast<uint16_t>(index));
+  }
+  const uint16_t offset = builtin_.offsets[index];
+  return offset & 0x8000 ? i18n_strings::STRINGS_EN_DATA + (offset & 0x7fff) : builtin_.data + offset;
 }
 void I18n::begin(const char* preferredCode, uint64_t generation) {
   if (begun_) return;
   begun_ = true;
   if (!preferredCode || std::strcmp(preferredCode, "EN") == 0) return;
+  selectBuiltin(languageFromCode(preferredCode));
+  LOG_INF("LANG", "Built-in fallback %s", active_.code);
   const uint64_t start = microseconds();
   if (!flash_.begin()) {
-    LOG_ERR("LANG", "Cannot open cached language %s; using English", preferredCode);
+    LOG_ERR("LANG", "Cannot open cached language %s; using %s", preferredCode, active_.name);
     return;
   }
   Installed selected;
@@ -94,7 +104,7 @@ void I18n::begin(const char* preferredCode, uint64_t generation) {
   if (!mapping_.data || !language_cache::open(mapping_.data, mapping_.size, SCHEMA, selected, offsets_)) {
     HalFlashPartition::unmap(mapping_);
     slot_ = -1;
-    LOG_ERR("LANG", "Cached language %s unavailable; using English", preferredCode);
+    LOG_ERR("LANG", "Cached language %s unavailable; using %s", preferredCode, active_.name);
     return;
   }
   activeData_ = mapping_.data;
@@ -128,7 +138,10 @@ Language I18n::languageFromCode(const char* code) {
       if (std::strcmp(code, LANGUAGE_CODES[i]) == 0) return static_cast<Language>(i);
   return Language::EN;
 }
-const char* I18n::getCharacterSet(Language) { return CHARACTER_SETS[0]; }
+const char* I18n::getCharacterSet(Language language) {
+  const auto index = static_cast<uint8_t>(language);
+  return CHARACTER_SETS[index < getLanguageCount() ? index : 0];
+}
 
 static_assert(sizeof(I18n::Catalog) < 3072);
 void I18n::Catalog::reset() {
@@ -169,8 +182,15 @@ void I18n::Catalog::select(size_t index, Option& result) const {
 }
 Result I18n::discover(Catalog& catalog) const {
   catalog.reset();
-  catalog.add("EN", "English", "");
-  if (mapping_.data) catalog.add(active_.code, active_.name, "", true);
+  bool cachedAdded = false;
+  for (uint8_t index = 0; index < getLanguageCount(); ++index) {
+    if (!isLanguageBuiltIn(static_cast<Language>(index))) continue;
+    const bool cached = mapping_.data && std::strcmp(active_.code, LANGUAGE_CODES[index]) == 0;
+    if (!catalog.add(LANGUAGE_CODES[index], cached ? active_.name : LANGUAGE_NAMES[index], "", cached))
+      return Result::TooLarge;
+    cachedAdded |= cached;
+  }
+  if (mapping_.data && !cachedAdded && !catalog.add(active_.code, active_.name, "", true)) return Result::TooLarge;
   catalog.cachedGeneration = generation_;
   auto directory = Storage.open(DIRECTORY);
   if (!directory || !directory.isDirectory()) {
@@ -208,7 +228,7 @@ Result I18n::discover(Catalog& catalog) const {
       file.close();
       continue;
     }
-    if (++files > MAX_LANGUAGES) {
+    if (++files > Catalog::MAX_SOURCE_FILES) {
       status = Result::TooLarge;
       file.close();
       break;
@@ -242,7 +262,7 @@ Result I18n::discover(Catalog& catalog) const {
   directory.close();
   if (status != Result::Ok) {
     LOG_ERR("LANG", "Cannot show language catalog: %s (limit=%u text bytes, %u files)", resultName(status),
-            unsigned(Catalog::TEXT_BYTES), unsigned(MAX_LANGUAGES));
+            unsigned(Catalog::TEXT_BYTES), unsigned(Catalog::MAX_SOURCE_FILES));
     return status;
   }
   std::sort(catalog.entries + 1, catalog.entries + catalog.count,

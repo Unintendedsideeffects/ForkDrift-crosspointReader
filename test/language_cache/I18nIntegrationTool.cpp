@@ -10,6 +10,11 @@
 
 int main(int argc, char** argv) {
   if (argc < 2) return 2;
+  if (std::strcmp(argv[1], "format") == 0) {
+    if (argc != 4) return 2;
+    std::printf("%d", language_cache::compatibleFormat(argv[2], argv[3]));
+    return 0;
+  }
   const char* code = argc > 2 ? argv[2] : "EN";
   const uint64_t generation = argc > 3 ? std::strtoull(argv[3], nullptr, 10) : 0;
   I18N.begin(code, generation);

@@ -1,8 +1,10 @@
 # SD language files
 
-CrossInk includes English in the firmware. Other languages come from editable SD
-files and are prepared once in internal flash. Opening menus, reading, and waking
-do not read translation files from the SD card.
+CrossInk includes only English in the default firmware (`custom_i18n_builtin_langs = en`).
+Custom builds may embed an explicit comma-separated subset, or `all`. English is
+always included. Other languages come from editable SD files and are prepared
+once in internal flash. Opening menus, reading, and waking do not read translation
+files from the SD card.
 
 ## Install or edit a language
 
@@ -14,14 +16,18 @@ do not read translation files from the SD card.
 3. To apply edits, select that language again. Editing a file alone does not
    change the installed copy. Keep the source file for future edits or reinstalling.
 
-The cached language remains available if its source file is removed. English is
-always available. A file that fails validation does not replace the running
+The cached language remains available if its source file is removed and takes
+precedence over a built-in translation of the same code. A matching SD file in
+the picker reinstalls that language, even if it is also built in. Without a valid
+cache, a compiled-in translation is used; otherwise the UI falls back to English.
+English is always available. A file that fails validation does not replace the running
 language. The device log explains the failed check. Duplicate language codes in
 multiple SD files are disabled until you remove or rename the duplicate identity.
 
 When upgrading from firmware with built-in translations, the saved language code
-is preserved. The UI initially uses English until you install its SD language
-file. Later firmware updates reuse compatible cached translations; missing keys
+is preserved. An English-only build initially uses English until you install its
+SD language file. A custom build with that translation embedded can use it immediately.
+Later firmware updates reuse compatible cached translations; missing keys
 or keys whose English reference changed use English until you reapply the file.
 The version label in a YAML file is informational, not an exact-version lock.
 
@@ -97,7 +103,12 @@ filesystem damage can still require recovery from a backup.
 
 ## Maintaining firmware and releases
 
-Only `english.yaml` and `languages.json` feed the firmware translation generator.
+The generator reads `english.yaml`, `languages.json`, and only the YAML files
+selected by `custom_i18n_builtin_langs`. `en` is the default; `en,es,fr` embeds
+those three languages, and `all` embeds all registered starter languages. Invalid
+codes, duplicate selected identities, or missing selected sources fail the build.
+Missing translations and unsafe printf contracts fall back to English. Unselected
+starter files are not validated or embedded by an English-only build.
 `languages.json` freezes legacy enum/code/name compatibility; it is not the SD
 language catalog. Adding an English key does not require changes to community
 translations. Prefer `_FORMAT` for new printf-format keys; existing exceptions
@@ -110,8 +121,8 @@ Release and release-candidate workflows attach a language ZIP. To create one:
 python3 scripts/package_languages.py --version 1.5.2 --output /tmp/crossink-languages.zip
 ```
 
-Community files remain starter assets and may be incomplete. Their completeness
-does not block firmware builds. The release template identifies the corresponding
+Community files remain starter assets and may be incomplete. Missing keys do not
+block firmware builds. The release template identifies the corresponding
 English source, and the ZIP manifest records checksums.
 
 ## Validation and timing

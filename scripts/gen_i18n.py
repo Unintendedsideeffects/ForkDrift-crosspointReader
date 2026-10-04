@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate English-only I18n firmware data and stable translation-key metadata.
+Generate selected built-in I18n languages and stable translation-key metadata.
 
 Reads english.yaml and the frozen languages.json compatibility registry and generates:
 - I18nKeys.h:     Language enum, StrId enum, helper functions
@@ -12,7 +12,8 @@ Each YAML file must contain:
   _language_code: "ENUM_NAME"       (e.g. "ES")
   STR_KEY: "translation text"
 
-Community YAML files are independent SD assets and are not read during firmware builds.
+Only selected built-in YAML files are read during firmware builds. Other
+community YAML files remain independent SD assets.
 
 By default the script scans the src/ and lib/ trees for STR_* references and
 reports any translation keys that are never used.  Pass --strip-unused to
@@ -114,20 +115,60 @@ def parse_yaml_file(filepath: str) -> Dict[str, str]:
 def load_translations(
     translations_dir: str,
     verbose: bool = False,
+    builtin: Optional[Set[str]] = None,
 ) -> Tuple[List[str], List[str], List[str], Dict[str, List[str]], List[Set[str]]]:
-    """
-    Read english.yaml from *translations_dir* and return:
-        language_codes   ["EN"]
-        language_names   ["English"]
-        string_keys      ordered list of STR_* keys (from English)
-        translations     {key: [translation_per_language]}
+    """Load selected sources while retaining the frozen legacy identity order.
 
-    Community files are packaged separately and never parsed here.
+    Omitted languages inherit English and are never parsed. This keeps an
+    English-only build independent of malformed community starter files.
     """
-    # Community YAML files are release assets, never firmware build inputs.
-    english = parse_yaml_file(str(Path(translations_dir) / "english.yaml"))
+    directory = Path(translations_dir)
+    english = parse_yaml_file(str(directory / "english.yaml"))
+    if english.get("_language_code", "").upper() != "EN":
+        raise ValueError("english.yaml must declare _language_code: EN")
+    identities = known_languages()
+    languages = [code for code, _ in identities]
+    names = [name for _, name in identities]
+    selected = set(languages) if builtin is None else set(builtin) | {"EN"}
+    parsed = {"EN": english}
+    if selected != {"EN"}:
+        for path in sorted(directory.glob("*.yaml")):
+            if path.name == "english.yaml":
+                continue
+            # Read only the identity before deciding whether to validate a source.
+            match = re.search(rb'^_language_code:\s*"([A-Za-z0-9_-]+)"\s*$',
+                              path.read_bytes(), re.MULTILINE)
+            code = match.group(1).decode("ascii").upper() if match else ""
+            if builtin is not None and code not in selected:
+                continue
+            data = parse_yaml_file(str(path))
+            if code not in languages or not data.get("_language_name"):
+                raise ValueError(f"{path.name}: unknown or missing language identity")
+            if code in parsed:
+                raise ValueError(f"Duplicate built-in language code {code}")
+            parsed[code] = data
+    missing = selected - parsed.keys()
+    if missing:
+        raise ValueError(f"Missing built-in translation source(s): {', '.join(sorted(missing))}")
     keys = [key for key in english if not key.startswith("_")]
-    return ["EN"], ["English"], keys, {key: [english[key]] for key in keys}, [set()]
+    inherited = [set() for _ in languages]
+    translations = {}
+    for key in keys:
+        reference = english[key]
+        formatted = key.endswith("_FORMAT") or key in FORMAT_KEYS
+        signature = format_signature(reference) if formatted else None
+        if formatted and signature is None:
+            raise ValueError(f"Invalid English printf contract: {key}")
+        row = []
+        for index, code in enumerate(languages):
+            value = parsed.get(code, {}).get(key, "")
+            if not value.strip() or (formatted and format_signature(value) != signature):
+                value = reference
+                if code != "EN":
+                    inherited[index].add(key)
+            row.append(value)
+        translations[key] = row
+    return languages, names, keys, translations, inherited
 
 
 def known_languages():
@@ -149,6 +190,35 @@ FORMAT_KEYS = {
     "STR_HOLD_FOR_KEYBOARD", "STR_LIBRARY_SCAN_COUNT", "STR_LIBRARY_FILES_COUNT",
     "STR_STATS_UPLOAD_COUNTS", "STR_FOLDER_SYNC_COUNTS",
 }
+
+
+def format_signature(text):
+    """Match the bounded printf argument contract enforced by LanguageCache."""
+    pattern = re.compile(r'%[-+ #0]*(\*|[0-9]*)(?:\.(\*|[0-9]*))?'
+                         r'(hh|ll|h|l|j|z|t|L)?([diouxXaAeEfFgGcsp])')
+    lengths = {None: 0, "h": 1, "hh": 2, "l": 3, "ll": 4, "j": 5, "z": 6, "t": 7, "L": 8}
+    types = {**dict.fromkeys("di", 1), **dict.fromkeys("ouxX", 2),
+             **dict.fromkeys("aAeEfFgG", 3), "c": 4, "s": 5, "p": 6}
+    signature = []
+    index = 0
+    while (index := text.find("%", index)) >= 0:
+        if text.startswith("%%", index):
+            index += 2
+            continue
+        match = pattern.match(text, index)
+        if not match:
+            return None
+        width, precision, length, conversion = match.groups()
+        for value, limit in [(width, 1024), (precision, 128)]:
+            if value == "*":
+                signature.append(1)
+            elif value is not None and int(value or "0") > limit:
+                return None
+        signature.append(types[conversion] + lengths[length] * 8)
+        if len(signature) > 32:
+            return None
+        index = match.end()
+    return tuple(signature)
 
 
 # ---------------------------------------------------------------------------
@@ -384,6 +454,18 @@ def generate_keys_header(
         lines.append(f"  {lang} = {i},")
     lines.append("  _COUNT")
     lines.append("};")
+    lines.append("")
+
+    lines.append("// Only configured languages have embedded translation tables.")
+    lines.append("constexpr bool isLanguageBuiltIn(Language lang) {")
+    lines.append("  switch (lang) {")
+    for code in compiled:
+        lines.append(f"    case Language::{code}:")
+    lines.append("      return true;")
+    lines.append("    default:")
+    lines.append("      return false;")
+    lines.append("  }")
+    lines.append("}")
     lines.append("")
 
     # Extern declarations
@@ -769,7 +851,7 @@ def main(
     src_dirs: Optional[List[str]] = None,
     strip_unused: bool = False,
     verbose: bool = False,
-    builtin_langs: Optional[str] = None,
+    builtin_langs: Optional[str] = "en",
 ) -> None:
     # Default paths (relative to project root)
     default_translations_dir = "lib/I18n/translations"
@@ -802,10 +884,10 @@ def main(
         print()
 
     try:
+        builtin = parse_builtin_langs(builtin_langs, [code for code, _ in known_languages()])
         languages, language_names, string_keys, translations, inherited_sets = (
-            load_translations(translations_dir, verbose)
+            load_translations(translations_dir, verbose, builtin)
         )
-        builtin = parse_builtin_langs(builtin_langs, languages)
 
         # --- Unused-string detection ---
         scan_dirs = [d for d in src_dirs if os.path.isdir(d)]
@@ -941,8 +1023,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--builtin-langs",
         metavar="CODES",
-        default=None,
-        help='Comma-separated language codes to compile in, e.g. "en,de,fr" (default: all)',
+        default="en",
+        help='Comma-separated language codes to compile in, or "all" (default: en)',
     )
     parser.add_argument(
         "--verbose",
@@ -964,7 +1046,7 @@ else:
         Import("env")
         main(
             strip_unused=True,
-            builtin_langs=env.GetProjectOption("custom_i18n_builtin_langs", "all"),
+            builtin_langs=env.GetProjectOption("custom_i18n_builtin_langs", "en"),
         )
         keys_path = Path("lib/I18n/I18nKeys.h")
         layout_hash = hashlib.sha256(keys_path.read_bytes()).hexdigest()[:16]

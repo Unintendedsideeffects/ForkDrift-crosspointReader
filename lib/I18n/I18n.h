@@ -39,7 +39,8 @@ class I18n {
   // One fallible, <3 KiB catalog. Strings share a bounded arena; the popup
   // borrows them. It is released before allocating installation scratch.
   struct Catalog {
-    static constexpr size_t CAPACITY = 66;
+    static constexpr size_t MAX_SOURCE_FILES = 64;
+    static constexpr size_t CAPACITY = getLanguageCount() + MAX_SOURCE_FILES + 1;
     static constexpr size_t TEXT_BYTES = 2048;
     struct Entry {
       uint16_t code, name, file;
@@ -70,6 +71,8 @@ class I18n {
 
  private:
   I18n();
+  void selectBuiltin(Language language);
+  LangStrings builtin_;
   HalFlashPartition flash_;
   HalFlashPartition::Mapping mapping_;
   language_cache::Metadata active_;
