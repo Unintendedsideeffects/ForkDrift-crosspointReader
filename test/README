@@ -52,5 +52,7 @@ flash / reboot sequence, interrupted settings writes and migration, and activity
 teardown during asynchronous network/storage work. The source-text OTA staging
 check is an ordering guard, not an executable test of the complete updater.
 
-WebDAV regression:
+Image probe and WebDAV regressions:
 - `python3 scripts/test_webdav_get.py` runs the production GET handler with the pinned SDK streamer and host storage/socket doubles. It checks bytes and length, empty/large files, short writes, disconnect/read failures, reader closure, watchdog yielding, and pre-stream guards under ASan/UBSan.
+- `python3 scripts/test_image_probe_framebuffer.py` runs production renderer loan and reader invalidation/popup gate methods with framebuffer/display doubles and the real scratch registry under ASan/UBSan. It covers nesting, early return, blank-buffer invalidation, popup deferral, toast gates, dictionary handoff, screenshot routing, and active versus stacked Quick Lock notifications.
+- The chapter parser target links the real image header probe and tests scratch retries, extraction failure/success, admission guards, and optimizer bypass. Storage and heap failures are simulated; these host checks do not measure device heap or panel refresh quality.

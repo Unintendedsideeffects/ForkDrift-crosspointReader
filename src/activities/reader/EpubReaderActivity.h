@@ -299,6 +299,13 @@ class EpubReaderActivity final : public Activity {
   // Input should win the next RenderLock race. Keep the incremental parser alive,
   // but do not start another background chunk until the requested render begins.
   std::atomic<bool> backgroundBuildYieldForInput{false};
+  // A loan destroys page pixels. The loop normally recomposes under RenderLock;
+  // failed storage recovery leaves this set until render() supplies a safe base.
+  std::atomic<bool> pageBufferStale{false};
+  void invalidatePageBufferAfterBuild(uint32_t loansBefore);
+  bool backgroundBuildCanUsePageBuffer() const;
+  bool renderQuickActionsPopup();
+  void restoreStalePageBufferForInputLock();
   // Full-section next-chapter prefetch is speculative. A forward page turn may
   // stop it, but the visible build at the chapter boundary remains full-section.
   std::atomic<bool> silentPrefetchBuildActive{false};
@@ -524,7 +531,7 @@ class EpubReaderActivity final : public Activity {
   bool backgroundSectionBuildHasHeap();
   void idlePrewarmNextPage();
   bool skipLoopDelay() override {
-    return sectionBuildWantsTick() && !backgroundBuildPausedForLowMemory &&
+    return backgroundBuildCanUsePageBuffer() && sectionBuildWantsTick() && !backgroundBuildPausedForLowMemory &&
            !backgroundBuildYieldForInput.load(std::memory_order_relaxed);
   }
   bool isReaderActivity() const override { return true; }

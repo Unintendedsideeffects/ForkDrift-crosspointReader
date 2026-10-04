@@ -1612,6 +1612,9 @@ void EpubReaderActivity::onInputLockChanged(const bool locked) {
   if (locked) {
     clearPendingManualPageTurns();
     pauseReadingPaceTimer("quick_lock");
+    // notifyInputLockChanged also visits stacked readers; only the visible
+    // reader may prepare the frame main.cpp will paint the lock badge onto.
+    if (activityManager.isCurrentActivity(this)) restoreStalePageBufferForInputLock();
   } else {
     resumeReadingPaceTimer("quick_lock");
   }
@@ -2744,6 +2747,53 @@ void EpubReaderActivity::showBuildPopup() {
   buildPopupPending = false;
 }
 
+void EpubReaderActivity::invalidatePageBufferAfterBuild(const uint32_t loansBefore) {
+  if (renderer.frameBufferLoanCount() == loansBefore) return;
+  pageBufferStale.store(true, std::memory_order_relaxed);
+  // This runs under RenderLock. Recompose in RAM before releasing it: global
+  // badges, sleep overlays and dictionary selection can reuse the frame before
+  // a deferred render is dispatched. The panel already holds this same page.
+  if (restoreCurrentPageBufferAfterSilentIndex()) {
+    pageBufferStale.store(false, std::memory_order_relaxed);
+  } else {
+    // A storage failure must not expose the returned white frame to overlays.
+    renderer.clearScreen(ReaderUtils::readerBackgroundColor());
+    GUI.drawPopup(renderer, tr(STR_PAGE_LOAD_ERROR));
+    renderer.displayBuffer();
+    requestUpdate();
+  }
+}
+
+void EpubReaderActivity::restoreStalePageBufferForInputLock() {
+  if (!pageBufferStale.load(std::memory_order_relaxed)) return;
+  // Outside RenderLock: consume the pending recovery render before main.cpp
+  // snapshots and refreshes the badge. A failed recovery already has an error
+  // frame from invalidatePageBufferAfterBuild(), rather than blank storage.
+  (void)requestUpdateAndWait();
+  {
+    RenderLock lock(*this);
+    // A render can return after scheduling another SD/page-load retry. It may
+    // have cleared the buffer without composing anything the badge can reuse.
+    if (pageBufferStale.load(std::memory_order_relaxed)) {
+      renderer.clearScreen(ReaderUtils::readerBackgroundColor());
+      GUI.drawPopup(renderer, tr(STR_PAGE_LOAD_ERROR));
+      renderer.displayBuffer();
+    }
+  }
+  pauseReadingPaceTimer("quick_lock");
+}
+
+bool EpubReaderActivity::renderQuickActionsPopup() {
+  return !pageBufferStale.load(std::memory_order_relaxed) && quickActionsPopup.processRender(renderer, mappedInput);
+}
+
+bool EpubReaderActivity::backgroundBuildCanUsePageBuffer() const {
+  // Drawers are child activities and suspend this loop. In-reader popups and
+  // toast region restores paint in place and must retain their composed base.
+  return !pageBufferStale.load(std::memory_order_relaxed) && !quickActionsPopup.isActive() && !pendingRenderModeToast &&
+         !pendingSafeModeToast;
+}
+
 bool EpubReaderActivity::backgroundSectionBuildHasHeap() {
   const auto heap = MemoryBudget::snapshot();
   if (MemoryBudget::hasHeap(heap, MemoryBudget::EPUB_TEXT_LAYOUT_MIN_FREE,
@@ -2915,16 +2965,20 @@ void EpubReaderActivity::loop() {
   // rebuild is all cost (whole-chapter re-layout from page 0) and no benefit this session.
   {
     RenderLock lock(*this, RenderLock::Mode::Try);
-    if (lock.ownsLock() && !backgroundBuildYieldForInput.load(std::memory_order_relaxed) && section &&
-        !section->isBuilding() && section->isPartial() && buildViewportWidth > 0 && !partialRebuildStartFailed &&
+    if (lock.ownsLock() && backgroundBuildCanUsePageBuffer() &&
+        !backgroundBuildYieldForInput.load(std::memory_order_relaxed) && section && !section->isBuilding() &&
+        section->isPartial() && buildViewportWidth > 0 && !partialRebuildStartFailed &&
         !partialRebuildAbortedForLowMemory &&
         section->currentPage + PARTIAL_REBUILD_START_MARGIN >= static_cast<int>(section->pageCount)) {
       releaseGrayscaleStripScratch();
       if (backgroundSectionBuildHasHeap()) {
         const int renderFontId = activeSectionFontId != 0 ? activeSectionFontId : SETTINGS.getReaderFontId();
         const SectionBuildProfile profile = buildProfileForRenderMode(normalizeRenderMode(SETTINGS.epubRenderMode));
-        if (!section->startBuild(
-                readerRenderSpecForProfile(renderFontId, buildViewportWidth, buildViewportHeight, profile))) {
+        const uint32_t loansBefore = renderer.frameBufferLoanCount();
+        const bool started = section->startBuild(
+            readerRenderSpecForProfile(renderFontId, buildViewportWidth, buildViewportHeight, profile));
+        invalidatePageBufferAfterBuild(loansBefore);
+        if (!started) {
           partialRebuildStartFailed = true;
           LOG_ERR("ERS", "Failed to start deferred partial extension build");
         } else {
@@ -2950,11 +3004,15 @@ void EpubReaderActivity::loop() {
   // skipLoopDelay(), so the loop only runs hot while a tick can actually happen.
   {
     RenderLock lock(*this, RenderLock::Mode::Try);
-    if (lock.ownsLock() && !backgroundBuildYieldForInput.load(std::memory_order_relaxed) && sectionBuildWantsTick() &&
+    if (lock.ownsLock() && backgroundBuildCanUsePageBuffer() &&
+        !backgroundBuildYieldForInput.load(std::memory_order_relaxed) && sectionBuildWantsTick() &&
         (section->isPartial() || section->activeBuildHasCaughtReadablePages())) {
       releaseGrayscaleStripScratch();
       if (backgroundSectionBuildHasHeap()) {
-        if (!section->buildSomeMore(BACKGROUND_BUILD_PAGES_PER_TICK)) {
+        const uint32_t loansBefore = renderer.frameBufferLoanCount();
+        const bool built = section->buildSomeMore(BACKGROUND_BUILD_PAGES_PER_TICK);
+        invalidatePageBufferAfterBuild(loansBefore);
+        if (!built) {
           LOG_ERR("ERS", "Background section build failed");
           if (section->lastBuildLayoutAbortedForLowMemory() && section->pageCount > 0) {
             partialRebuildAbortedForLowMemory = true;
@@ -3716,6 +3774,7 @@ void EpubReaderActivity::openWordSelect(bool framebufferContainsPage, int initia
 
   {
     RenderLock lock(*this);
+    framebufferContainsPage = framebufferContainsPage && !pageBufferStale.load(std::memory_order_relaxed);
     if (!section || !epub) {
       requestUpdate();
       return;
@@ -6024,7 +6083,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
   if (!epub) {
     return;
   }
-  if (quickActionsPopup.processRender(renderer, mappedInput)) {
+  if (renderQuickActionsPopup()) {
     return;
   }
 
@@ -6052,6 +6111,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
   const auto showBuildError = [this]() {
     renderer.clearScreen(ReaderUtils::readerBackgroundColor());
     GUI.drawPopup(renderer, tr(STR_INDEX_FAILED));
+    pageBufferStale.store(false, std::memory_order_relaxed);
     automaticPageTurnActive = false;
   };
 
@@ -6120,6 +6180,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
       endOfBookOptions->render(renderer, mappedInput);
     }
     renderer.displayBuffer();
+    pageBufferStale.store(false, std::memory_order_relaxed);
     automaticPageTurnActive = false;
     showPendingSyncSaveError();
     return;
@@ -6709,6 +6770,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                               ReaderUtils::readerForegroundBlack(), EpdFontFamily::BOLD);
     renderStatusBar();
     renderer.displayBuffer();
+    pageBufferStale.store(false, std::memory_order_relaxed);
     automaticPageTurnActive = false;
     showPendingSyncSaveError();
     return;
@@ -6720,6 +6782,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                               ReaderUtils::readerForegroundBlack(), EpdFontFamily::BOLD);
     renderStatusBar();
     renderer.displayBuffer();
+    pageBufferStale.store(false, std::memory_order_relaxed);
     automaticPageTurnActive = false;
     showPendingSyncSaveError();
     return;
@@ -6749,6 +6812,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                                 ReaderUtils::readerForegroundBlack(), EpdFontFamily::BOLD);
       renderStatusBar();
       renderer.displayBuffer();
+      pageBufferStale.store(false, std::memory_order_relaxed);
       automaticPageTurnActive = false;
       showPendingSyncSaveError();
       return;
@@ -6772,10 +6836,12 @@ void EpubReaderActivity::render(RenderLock&& lock) {
       renderer.clearScreen(ReaderUtils::readerBackgroundColor());
       GUI.drawPopup(renderer, renderer.isSdCardFont(renderFontId) ? tr(STR_MEMORY_ERROR) : tr(STR_PAGE_LOAD_ERROR));
       renderer.displayBuffer();
+      pageBufferStale.store(false, std::memory_order_relaxed);
       automaticPageTurnActive = false;
       showPendingSyncSaveError();
       return;
     }
+    pageBufferStale.store(false, std::memory_order_relaxed);
     lastRenderCompleteMs = millis();
     const uint8_t heapShapeRedrawStages = pendingHeapShapeReaderRedrawStages.exchange(0, std::memory_order_relaxed);
     if (heapShapeRedrawStages & HEAP_SHAPE_REDRAW_CLIP) {
@@ -6804,6 +6870,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
   }
 
   showPendingSyncSaveError();
+  if (renderQuickActionsPopup()) return;
 
   if (pendingScreenshot) {
     pendingScreenshot = false;

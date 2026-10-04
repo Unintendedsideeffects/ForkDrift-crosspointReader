@@ -13,6 +13,7 @@
 #undef class
 
 #include <Epub.h>
+#include <MemoryBudget.h>
 
 namespace {
 
@@ -37,6 +38,9 @@ class ChapterHtmlSlimParserTest : public ::testing::TestWithParam<const char*> {
   std::array<BlockStyle, ChapterHtmlSlimParser::MAX_BLOCK_STYLE_DEPTH> blockStyles{};
 
   void SetUp() override {
+    GfxRenderer::loanActive = false;
+    GfxRenderer::fileProbeHadLoan = false;
+    MemoryBudget::imageAllowed = true;
     parser.currentTextBlock = std::make_unique<ParsedText>(false);
     parser.inlineStyleBuf_ = inlineStyles.data();
     parser.blockStyleBuf_ = blockStyles.data();
@@ -330,6 +334,91 @@ TEST_F(ChapterHtmlSlimParserTest, PreservesEmptyInlinePaddingBeforeDialogueText)
   EXPECT_EQ(renderedLine->wordXpos(1), 24);
 }
 
+// SOF header of a 800 x 200 JPEG. The real streaming dimension parser is linked.
+static const std::vector<uint8_t> jpegHeader = {0xff, 0xd8, 0xff, 0xc0, 0, 7, 8, 0, 200, 3, 32};
+
+TEST_F(ChapterHtmlSlimParserTest, OrdinaryImageHeaderDoesNotLoanWhenHeapProbeSucceeds) {
+  epub.probeBytes = jpegHeader;
+  const XML_Char* attributes[] = {"src", "wide.jpg", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", attributes);
+  EXPECT_EQ(epub.streamReadCount, 1u);
+  EXPECT_EQ(epub.extractCount, 0u);
+  EXPECT_EQ(renderer.loans, 0u);
+  ASSERT_NE(parser.currentPage, nullptr);
+  ASSERT_EQ(parser.currentPage->elements.size(), 1u);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, RetriesImageHeaderWithLoanAndKeepsLazySource) {
+  epub.probeBytes = jpegHeader;
+  epub.requireLoan = true;
+  const XML_Char* attributes[] = {"src", "wide.jpg", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", attributes);
+  EXPECT_EQ(epub.streamReadCount, 2u);
+  EXPECT_EQ(epub.extractCount, 0u);
+  EXPECT_EQ(renderer.loans, 1u);
+  EXPECT_TRUE(renderer.hasFrameBuffer());
+  ASSERT_NE(parser.currentPage, nullptr);
+  ASSERT_EQ(parser.currentPage->elements.size(), 1u);
+  const auto& image = static_cast<const PageImage&>(*parser.currentPage->elements.front()).getImageBlock();
+  EXPECT_EQ(image.getWidth(), 480);
+  EXPECT_EQ(image.getHeight(), 120);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, FailedOrMalformedProbeLoansExtractionAndReturnsBuffer) {
+  for (const bool streamFails : {false, true}) {
+    epub.probeBytes = streamFails ? jpegHeader : std::vector<uint8_t>{0xff, 0xd8, 0x00};
+    epub.streamFails = streamFails;
+    epub.streamReadCount = epub.extractCount = 0;
+    renderer.loans = 0;
+    const XML_Char* attributes[] = {"src", "broken.jpg", nullptr};
+    ChapterHtmlSlimParser::startElement(&parser, "img", attributes);
+    EXPECT_EQ(epub.streamReadCount, 2u);
+    EXPECT_EQ(epub.extractCount, 1u);
+    EXPECT_TRUE(epub.extractHadLoan);
+    EXPECT_EQ(renderer.loans, 2u);
+    EXPECT_TRUE(renderer.hasFrameBuffer());
+    EXPECT_TRUE(!parser.currentPage || parser.currentPage->elements.empty());
+    ChapterHtmlSlimParser::endElement(&parser, "img");
+  }
+}
+
+TEST_F(ChapterHtmlSlimParserTest, FullFileFallbackReturnsLoanBeforeDecoder) {
+  epub.probeBytes = {0xff, 0xd8, 0};
+  epub.extractSucceeds = true;
+  const XML_Char* attributes[] = {"src", "unusual.jpg", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", attributes);
+  EXPECT_EQ(epub.extractCount, 1u);
+  EXPECT_TRUE(epub.extractHadLoan);
+  EXPECT_FALSE(GfxRenderer::fileProbeHadLoan);
+  EXPECT_TRUE(renderer.hasFrameBuffer());
+  ASSERT_NE(parser.currentPage, nullptr);
+  EXPECT_EQ(parser.currentPage->elements.size(), 1u);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, ImageAdmissionStillRejectsBeforeAnyProbeOrLoan) {
+  MemoryBudget::imageAllowed = false;
+  epub.probeBytes = jpegHeader;
+  epub.requireLoan = true;
+  const XML_Char* attributes[] = {"src", "wide.jpg", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", attributes);
+  EXPECT_EQ(epub.streamReadCount, 0u);
+  EXPECT_EQ(epub.extractCount, 0u);
+  EXPECT_EQ(renderer.loans, 0u);
+  EXPECT_TRUE(parser.lowMemoryImageFallback);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, NestedProbeLoanDoesNotReturnOuterStorage) {
+  epub.probeBytes = {0xff, 0xd8, 0};
+  const XML_Char* attributes[] = {"src", "broken.jpg", nullptr};
+  {
+    GfxRenderer::FrameBufferLoan outer(renderer);
+    ChapterHtmlSlimParser::startElement(&parser, "img", attributes);
+    EXPECT_FALSE(renderer.hasFrameBuffer());
+    EXPECT_EQ(renderer.loans, 1u);
+  }
+  EXPECT_TRUE(renderer.hasFrameBuffer());
+}
+
 TEST_F(ChapterHtmlSlimParserTest, UsesOptimizerImageDimensionsWithoutReadingTheCompressedImage) {
   epub.optimizerImageAvailable = true;
   epub.optimizerImageWidth = 800;
@@ -339,6 +428,7 @@ TEST_F(ChapterHtmlSlimParserTest, UsesOptimizerImageDimensionsWithoutReadingTheC
   ChapterHtmlSlimParser::startElement(&parser, "img", attributes);
 
   EXPECT_EQ(epub.streamReadCount, 0u);
+  EXPECT_EQ(renderer.loans, 0u);
   ASSERT_NE(parser.currentPage, nullptr);
   ASSERT_EQ(parser.currentPage->elements.size(), 1u);
   ASSERT_EQ(parser.currentPage->elements.front()->getTag(), TAG_PageImage);
