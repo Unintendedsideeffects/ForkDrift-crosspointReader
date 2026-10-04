@@ -3,6 +3,12 @@
 ### Changed
 
 - Hide EPUB section-break rules when the publisher suppresses their borders, avoiding duplicate ornaments.
+- Offer Back/Home and Home/Reader together for all button shortcuts, Quick Actions, two-finger swipes, and edge slides.
+
+### Fixed
+
+- Make Home/Reader shortcuts available on touch devices and preserve Home/Reader Quick Actions slots after restarting.
+- Offer Home/Reader directly below Back/Home for Home-button tap, double-tap, and long-press shortcuts.
 
 ## [v1.6.1] - 2026-10-03
 

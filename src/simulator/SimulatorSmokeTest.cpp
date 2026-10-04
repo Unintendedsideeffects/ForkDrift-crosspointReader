@@ -77,6 +77,10 @@ enum class SmokeStep : uint8_t {
   BackHomeNested,
   BackHomeReturnedReader,
   BackHomeReturnedHome,
+  NavigationLongReader,
+  NavigationLongHeld,
+  NavigationLongReleased,
+  NavigationPicker,
   Home,
   FileBrowser,
   FileBrowserSettings,
@@ -112,6 +116,28 @@ class HomeReaderSmokeActivity final : public Activity {
  private:
   bool reader;
   bool bookReader;
+};
+
+class NavigationPickerSmokeActivity final : public Activity {
+  OptionPopup popup;
+
+ public:
+  NavigationPickerSmokeActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
+      : Activity("NavigationPicker", renderer, mappedInput) {}
+  void onEnter() override {
+    Activity::onEnter();
+    const auto setting = buildShortcutSetting(StrId::STR_SHORT_PWR_BTN, &CrossPointSettings::shortPwrBtn, "shortPwrBtn",
+                                              ShortcutOptionCatalog::PowerButton);
+    std::vector<std::string> labels;
+    labels.reserve(setting.enumValues.size());
+    for (const auto label : setting.enumValues) labels.emplace_back(I18N.get(label));
+    popup.show(StrId::STR_SHORT_PWR_BTN, labels, labels.size() - 2, [](int) {});
+    requestUpdate();
+  }
+  void render(RenderLock&&) override {
+    renderer.clearScreen();
+    popup.processRender(renderer, mappedInput);
+  }
 };
 
 class SimulatorSmokeTest {
@@ -192,6 +218,11 @@ class SimulatorSmokeTest {
   Activity* homeReaderSmokeReader = nullptr;
   bool homeReaderConfirmationAccepted = false;
   bool backHomeChildCancelled = false;
+  uint8_t navigationLongPass = 0;
+  uint8_t savedNavigationMenu = 0;
+  uint8_t savedNavigationBack = 0;
+  unsigned long navigationPressAt = 0;
+  Activity* navigationExpected = nullptr;
 
   void prepareRecentLibrary() {
     SETTINGS.librarySortMethod = 4;
@@ -589,60 +620,144 @@ class SimulatorSmokeTest {
                   CrossPointSettings::CHORD_QUICK_ACTIONS) == chordSetting->enumRawValues.end()) {
       fail("Quick Actions is missing from the Power + Up chord setting");
     }
-    if (CrossPointSettings::HOME_READER != 36 || CrossPointSettings::SHORT_PWRBTN_COUNT != 37 ||
-        CrossPointSettings::CHORD_HOME_READER != 32 || CrossPointSettings::POWER_CHORD_ACTION_COUNT != 33) {
+    if (CrossPointSettings::HOME_READER != 36 || CrossPointSettings::SHORT_PWRBTN_COUNT != 38 ||
+        CrossPointSettings::CHORD_HOME_READER != 32 || CrossPointSettings::POWER_CHORD_ACTION_COUNT != 34) {
       fail("Home/Reader changed persisted shortcut IDs or counts");
     }
     if (QuickActions::actionLabel(CrossPointSettings::HOME_READER) != StrId::STR_HOME_READER ||
         std::string(I18N.get(StrId::STR_HOME_READER)) != "Home/Reader") {
       fail("Home/Reader shortcut label mismatch");
     }
-    if (QuickActions::isActionAvailable(CrossPointSettings::HOME_READER) != !gpio.hasTouch()) {
-      fail("Home/Reader capability gating does not match button-only devices");
+    if (!QuickActions::isActionAvailable(CrossPointSettings::HOME_READER)) {
+      fail("Home/Reader is unavailable on this device");
     }
     const auto containsShortcut = [](const std::vector<SettingInfo>& settings, const char* key,
-                                     const ShortcutOptionCatalog catalog) {
+                                     const ShortcutOptionCatalog catalog,
+                                     const CrossPointSettings::SHORT_PWRBTN action = CrossPointSettings::HOME_READER) {
       const auto setting = std::find_if(settings.begin(), settings.end(),
                                         [key](const SettingInfo& candidate) { return settingKeyIs(candidate, key); });
       if (setting == settings.end()) return false;
-      const uint8_t raw = shortcutRawValue(catalog, CrossPointSettings::HOME_READER);
+      const uint8_t raw = shortcutRawValue(catalog, action);
       const auto choice = std::find(setting->enumRawValues.begin(), setting->enumRawValues.end(), raw);
       return choice != setting->enumRawValues.end() &&
              setting->enumValues[static_cast<size_t>(choice - setting->enumRawValues.begin())] ==
-                 StrId::STR_HOME_READER;
+                 QuickActions::actionLabel(action) &&
+             std::count(setting->enumRawValues.begin(), setting->enumRawValues.end(), raw) == 1;
     };
-    const bool shouldExposeHomeReader = !gpio.hasTouch();
-    if (containsShortcut(allSettings, "shortPwrBtn", ShortcutOptionCatalog::PowerButton) != shouldExposeHomeReader ||
-        containsShortcut(sideButtonSettings, "sideButtonUpShort", ShortcutOptionCatalog::SideButton) !=
-            shouldExposeHomeReader ||
-        containsShortcut(allSettings, "powerChordAction", ShortcutOptionCatalog::ButtonChord) !=
-            shouldExposeHomeReader) {
+    if (!containsShortcut(allSettings, "shortPwrBtn", ShortcutOptionCatalog::PowerButton) ||
+        !containsShortcut(sideButtonSettings, "sideButtonUpShort", ShortcutOptionCatalog::SideButton) ||
+        !containsShortcut(allSettings, "powerChordAction", ShortcutOptionCatalog::ButtonChord)) {
       fail("Home/Reader shortcut availability or settings mapping mismatch");
     }
-    if (shortcutRawValue(ShortcutOptionCatalog::HomeButton, CrossPointSettings::HOME_READER) !=
-            SHORTCUT_OPTION_UNAVAILABLE ||
-        shortcutRawValue(ShortcutOptionCatalog::LongPress, CrossPointSettings::HOME_READER) !=
-            SHORTCUT_OPTION_UNAVAILABLE) {
-      fail("Home/Reader was exposed on Home-key or long-press controls");
+    for (const auto action : {CrossPointSettings::BACK_HOME, CrossPointSettings::HOME_READER}) {
+      if (!QuickActions::isQuickActionSlotActionAvailable(action)) fail("Navigation missing from Quick Actions");
+      for (const char* key : {"shortPwrBtn", "longPwrBtn"}) {
+        if (!containsShortcut(allSettings, key, ShortcutOptionCatalog::PowerButton, action))
+          fail("Navigation missing from power shortcut %s", key);
+      }
+      for (const char* key : {"longPressMenuAction", "longPressBackAction"}) {
+        if (!containsShortcut(allSettings, key, ShortcutOptionCatalog::LongPress, action))
+          fail("Navigation missing from long-press shortcut %s", key);
+      }
+      if (!containsShortcut(allSettings, "powerChordAction", ShortcutOptionCatalog::ButtonChord, action))
+        fail("Navigation missing from power chord");
+      if (deviceSupportsSideButtonChord(gpio) &&
+          !containsShortcut(allSettings, "sideButtonChordAction", ShortcutOptionCatalog::ButtonChord, action))
+        fail("Navigation missing from side chord");
+      for (const char* key : {"sideButtonUpShort", "sideButtonUpLong", "sideButtonDownShort", "sideButtonDownLong"}) {
+        if (!containsShortcut(sideButtonSettings, key, ShortcutOptionCatalog::SideButton, action))
+          fail("Navigation missing from side shortcut %s", key);
+      }
+      if (gpio.hasHomeKey()) {
+        for (const char* key : {"homeButtonTapAction", "homeButtonDoubleTapAction", "homeButtonLongPressAction"}) {
+          if (!containsShortcut(allSettings, key, ShortcutOptionCatalog::HomeButton, action))
+            fail("Navigation missing or duplicated in Home shortcut %s", key);
+        }
+      }
+    }
+    if (CrossPointSettings::BACK_HOME != 37 || CrossPointSettings::CHORD_BACK_HOME != 33 ||
+        CrossPointSettings::HOME_BUTTON_BACK_HOME != 23 || CrossPointSettings::LONG_MENU_HOME_READER != 25 ||
+        CrossPointSettings::LONG_MENU_BACK_HOME != 26)
+      fail("Navigation changed persisted IDs");
+    JsonDocument savedNavigationSettings;
+    SETTINGS.toJson(savedNavigationSettings);
+    for (const auto action : {CrossPointSettings::BACK_HOME, CrossPointSettings::HOME_READER}) {
+      const auto chord = shortcutRawValue(ShortcutOptionCatalog::ButtonChord, action);
+      const auto longPress = shortcutRawValue(ShortcutOptionCatalog::LongPress, action);
+      SETTINGS.shortPwrBtn = action;
+      SETTINGS.longPwrBtn = action;
+      SETTINGS.powerChordAction = chord;
+      SETTINGS.sideButtonUpLong = action;
+      SETTINGS.longPressMenuAction = longPress;
+      SETTINGS.longPressBackAction = longPress;
+      SETTINGS.quickActionSlots[0] = action;
+      JsonDocument roundTrip;
+      SETTINGS.toJson(roundTrip);
+      SETTINGS.fromJson(savedNavigationSettings.as<JsonVariantConst>());
+      SETTINGS.fromJson(roundTrip.as<JsonVariantConst>());
+      if (SETTINGS.shortPwrBtn != action || SETTINGS.longPwrBtn != action || SETTINGS.powerChordAction != chord ||
+          SETTINGS.sideButtonUpLong != action || SETTINGS.longPressMenuAction != longPress ||
+          SETTINGS.longPressBackAction != longPress || SETTINGS.quickActionSlots[0] != action)
+        fail("Navigation assignments did not survive settings reload");
+    }
+    SETTINGS.fromJson(savedNavigationSettings.as<JsonVariantConst>());
+    for (const auto action :
+         {CrossPointSettings::TWO_FINGER_SWIPE_BACK_HOME, CrossPointSettings::TWO_FINGER_SWIPE_HOME_READER}) {
+      if (!CrossPointSettings::isTwoFingerSwipeActionAvailable(action, false, false))
+        fail("Navigation swipe unexpectedly requires a frontlight");
+      if (gpio.hasTouch()) {
+        SETTINGS.leftEdgeUp = action;
+        if (gpio.supportsMultiTouch()) SETTINGS.twoFingerSwipeUp = action;
+        JsonDocument swipeRoundTrip;
+        SETTINGS.toJson(swipeRoundTrip);
+        SETTINGS.fromJson(savedNavigationSettings.as<JsonVariantConst>());
+        SETTINGS.fromJson(swipeRoundTrip.as<JsonVariantConst>());
+        if (SETTINGS.leftEdgeUp != action || (gpio.supportsMultiTouch() && SETTINGS.twoFingerSwipeUp != action))
+          fail("Navigation swipe did not survive settings reload");
+      }
+    }
+    SETTINGS.fromJson(savedNavigationSettings.as<JsonVariantConst>());
+    if (gpio.hasHomeKey()) {
+      const auto homeSettings = buildControlsHomeButtonSettingsList(allSettings);
+      for (const char* key : {"homeButtonTapAction", "homeButtonDoubleTapAction", "homeButtonLongPressAction"}) {
+        if (!containsShortcut(homeSettings, key, ShortcutOptionCatalog::HomeButton)) {
+          fail("Home/Reader is missing from a Home-button shortcut picker");
+        }
+      }
+      for (auto field : {&CrossPointSettings::homeButtonTapAction, &CrossPointSettings::homeButtonDoubleTapAction,
+                         &CrossPointSettings::homeButtonLongPressAction}) {
+        const uint8_t saved = SETTINGS.*field;
+        SETTINGS.*field = CrossPointSettings::HOME_READER;
+        JsonDocument homeRoundTrip;
+        SETTINGS.toJson(homeRoundTrip);
+        SETTINGS.*field = CrossPointSettings::IGNORE;
+        SETTINGS.fromJson(homeRoundTrip.as<JsonVariantConst>());
+        if (SETTINGS.*field != CrossPointSettings::HOME_READER) {
+          fail("Home/Reader Home-button assignment did not survive settings reload");
+        }
+        SETTINGS.*field = saved;
+      }
     }
     const uint8_t savedPowerAction = SETTINGS.shortPwrBtn;
     const uint8_t savedChordAction = SETTINGS.powerChordAction;
+    const uint8_t savedQuickActionSlot = SETTINGS.quickActionSlots[0];
     SETTINGS.shortPwrBtn = CrossPointSettings::HOME_READER;
     SETTINGS.powerChordAction = CrossPointSettings::CHORD_HOME_READER;
+    SETTINGS.quickActionSlots[0] = CrossPointSettings::HOME_READER;
     JsonDocument shortcutRoundTrip;
     SETTINGS.toJson(shortcutRoundTrip);
     SETTINGS.shortPwrBtn = CrossPointSettings::IGNORE;
     SETTINGS.powerChordAction = CrossPointSettings::CHORD_DISABLED;
+    SETTINGS.quickActionSlots[0] = CrossPointSettings::IGNORE;
     SETTINGS.fromJson(shortcutRoundTrip.as<JsonVariantConst>());
-    const uint8_t expectedPowerAction =
-        shouldExposeHomeReader ? CrossPointSettings::HOME_READER : CrossPointSettings::IGNORE;
-    const uint8_t expectedChordAction =
-        shouldExposeHomeReader ? CrossPointSettings::CHORD_HOME_READER : CrossPointSettings::CHORD_DISABLED;
-    if (SETTINGS.shortPwrBtn != expectedPowerAction || SETTINGS.powerChordAction != expectedChordAction) {
+    if (SETTINGS.shortPwrBtn != CrossPointSettings::HOME_READER ||
+        SETTINGS.powerChordAction != CrossPointSettings::CHORD_HOME_READER ||
+        SETTINGS.quickActionSlots[0] != CrossPointSettings::HOME_READER) {
       fail("Home/Reader settings round-trip did not match device availability");
     }
     SETTINGS.shortPwrBtn = savedPowerAction;
     SETTINGS.powerChordAction = savedChordAction;
+    SETTINGS.quickActionSlots[0] = savedQuickActionSlot;
     if (!gpio.hasHomeKey() &&
         std::find(chordSetting->enumRawValues.begin(), chordSetting->enumRawValues.end(),
                   CrossPointSettings::CHORD_TOGGLE_HOME_BUTTON) != chordSetting->enumRawValues.end()) {
@@ -1674,7 +1789,8 @@ class SimulatorSmokeTest {
         break;
 
       case SmokeStep::BackHomeNested:
-        if (!activityManager.handleHomeButtonBackOrHome()) fail("Back/Home did not handle nested reader menu");
+        if (!activityManager.handleShortcutAction(CrossPointSettings::BACK_HOME))
+          fail("Back/Home did not handle nested reader menu");
         queueStep("Back/Home returned one level", SmokeStep::BackHomeReturnedReader);
         break;
 
@@ -1682,12 +1798,82 @@ class SimulatorSmokeTest {
         if (!activityManager.simulatorCurrentActivity()->isReaderActivity() || !backHomeChildCancelled) {
           fail("Back/Home no longer pops exactly one canceled nested activity");
         }
-        if (!activityManager.handleHomeButtonBackOrHome()) fail("Back/Home did not return from the reader");
+        if (!activityManager.handleShortcutAction(CrossPointSettings::BACK_HOME))
+          fail("Back/Home did not return from the reader");
         queueStep("Back/Home returned Home", SmokeStep::BackHomeReturnedHome);
         break;
 
       case SmokeStep::BackHomeReturnedHome:
         if (!activityManager.isHomeActivity()) fail("Back/Home from the reader did not return Home");
+        savedNavigationMenu = SETTINGS.longPressMenuAction;
+        savedNavigationBack = SETTINGS.longPressBackAction;
+        navigationLongPass = 0;
+        activityManager.goToReader(std::getenv("CROSSINK_SIMULATOR_SMOKE_BOOK"), true);
+        queueStep("Navigation long-press reader", SmokeStep::NavigationLongReader, 8);
+        break;
+
+      case SmokeStep::NavigationLongReader: {
+        if (!activityManager.isCurrentActivityNamed("EpubReader")) fail("Navigation long-press reader did not open");
+        const bool back = navigationLongPass >= 2;
+        const bool homeReader = navigationLongPass % 2 != 0;
+        SETTINGS.longPressMenuAction = back         ? CrossPointSettings::LONG_MENU_OFF
+                                       : homeReader ? CrossPointSettings::LONG_MENU_HOME_READER
+                                                    : CrossPointSettings::LONG_MENU_BACK_HOME;
+        SETTINGS.longPressBackAction =
+            back ? homeReader ? CrossPointSettings::LONG_MENU_HOME_READER : CrossPointSettings::LONG_MENU_BACK_HOME
+                 : CrossPointSettings::LONG_MENU_OFF;
+        mappedInputManager.simulatorInjectPress(back ? MappedInputManager::Button::Back
+                                                     : MappedInputManager::Button::Confirm);
+        navigationPressAt = millis();
+        step = SmokeStep::NavigationLongHeld;
+        break;
+      }
+
+      case SmokeStep::NavigationLongHeld:
+        if (millis() - navigationPressAt < 1400) break;
+        if (!activityManager.isHomeActivity())
+          fail("Navigation hold did not return Home (pass %u)", navigationLongPass);
+        navigationExpected = activityManager.simulatorCurrentActivity();
+        mappedInputManager.simulatorInjectRelease(navigationLongPass >= 2 ? MappedInputManager::Button::Back
+                                                                          : MappedInputManager::Button::Confirm);
+        queueStep("Navigation release consumed", SmokeStep::NavigationLongReleased);
+        break;
+
+      case SmokeStep::NavigationLongReleased: {
+        if (activityManager.simulatorCurrentActivity() != navigationExpected)
+          fail("Navigation release leaked into the destination screen (pass %u)", navigationLongPass);
+        if (++navigationLongPass < 4) {
+          activityManager.goToReader(std::getenv("CROSSINK_SIMULATOR_SMOKE_BOOK"), true);
+          queueStep("Next navigation long-press", SmokeStep::NavigationLongReader, 8);
+        } else {
+          SETTINGS.longPressMenuAction = savedNavigationMenu;
+          SETTINGS.longPressBackAction = savedNavigationBack;
+          activityManager.replaceActivity(
+              std::make_unique<NavigationPickerSmokeActivity>(renderer, mappedInputManager));
+          queueStep("Navigation shortcut picker", SmokeStep::NavigationPicker);
+        }
+        break;
+      }
+
+      case SmokeStep::NavigationPicker:
+        if (const char* path = std::getenv("CROSSINK_SIMULATOR_SMOKE_NAVIGATION_CAPTURE")) {
+          FILE* image = std::fopen(path, "wb");
+          if (!image) fail("Cannot create navigation picker capture");
+          RenderLock lock;
+          const int width = renderer.getScreenWidth();
+          const int height = renderer.getScreenHeight();
+          std::fprintf(image, "P5\n%d %d\n255\n", width, height);
+          for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) std::fputc(renderer.isPixelBlack(x, y) ? 0 : 255, image);
+          }
+          std::fclose(image);
+        }
+        LOG_INF("SMOKE", "Navigation catalogs, persistence, nested menus, holds and releases passed");
+        if (std::getenv("CROSSINK_SIMULATOR_SMOKE_NAVIGATION_ONLY")) {
+          LOG_INF("SMOKE", "Simulator smoke test passed: navigation shortcuts");
+          std::_Exit(0);
+        }
+        activityManager.goHome();
         queueStep("Home", SmokeStep::Home);
         break;
 

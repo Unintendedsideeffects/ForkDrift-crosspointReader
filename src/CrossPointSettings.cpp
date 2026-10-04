@@ -232,7 +232,8 @@ bool isValidQuickActionSlot(const uint8_t action) {
          action == CrossPointSettings::TOGGLE_HOME_BUTTON_IN_READER ||
          action == CrossPointSettings::TOGGLE_FRONTLIGHT || action == CrossPointSettings::TOGGLE_TOUCHSCREEN ||
          action == CrossPointSettings::PREVIOUS_PAGE || action == CrossPointSettings::NEARBY_POSITION_SYNC ||
-         action == CrossPointSettings::LIBRARY;
+         action == CrossPointSettings::LIBRARY || action == CrossPointSettings::HOME_READER ||
+         action == CrossPointSettings::BACK_HOME;
 }
 
 uint8_t migrateTiltDirectionValue(const uint8_t direction) {
@@ -278,6 +279,8 @@ bool CrossPointSettings::isTwoFingerSwipeActionAvailable(const uint8_t action, c
                                                          const bool hasColorTemperature) {
   switch (static_cast<TWO_FINGER_SWIPE_ACTION>(action)) {
     case TWO_FINGER_SWIPE_NOT_SET:
+    case TWO_FINGER_SWIPE_BACK_HOME:
+    case TWO_FINGER_SWIPE_HOME_READER:
     case TWO_FINGER_SWIPE_NEXT_CHAPTER:
     case TWO_FINGER_SWIPE_PREVIOUS_CHAPTER:
     case TWO_FINGER_SWIPE_INCREASE_FONT_SIZE:

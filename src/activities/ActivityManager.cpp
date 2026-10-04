@@ -201,6 +201,10 @@ bool applyConfiguredSwipeAction(Activity& activity, ActivityManager& activityMan
         activityManager.persistGlobalSettings();
       return true;
     }
+    case CrossPointSettings::TWO_FINGER_SWIPE_BACK_HOME:
+      return activityManager.handleShortcutAction(CrossPointSettings::BACK_HOME);
+    case CrossPointSettings::TWO_FINGER_SWIPE_HOME_READER:
+      return activityManager.handleShortcutAction(CrossPointSettings::HOME_READER);
     case CrossPointSettings::TWO_FINGER_SWIPE_NEXT_CHAPTER:
     case CrossPointSettings::TWO_FINGER_SWIPE_PREVIOUS_CHAPTER:
     case CrossPointSettings::TWO_FINGER_SWIPE_INCREASE_FONT_SIZE:
@@ -1215,6 +1219,10 @@ bool ActivityManager::continueHomeReaderUnwind() {
 }
 
 bool ActivityManager::handleShortcutAction(const CrossPointSettings::SHORT_PWRBTN action) {
+  if (action == CrossPointSettings::SHORT_PWRBTN::BACK_HOME) {
+    handleHomeButtonBackOrHome();
+    return true;
+  }
   if (action == CrossPointSettings::SHORT_PWRBTN::HOME_READER) return handleHomeReaderShortcut();
   return currentActivity && (currentActivity->isReaderActivity() || currentActivity->isHomeActivity()) &&
          currentActivity->handleShortcutAction(action);

@@ -301,12 +301,14 @@ void XtcReaderActivity::loop() {
     return;
   }
 
-  if (longPressMenuAction == CrossPointSettings::LONG_MENU_LIBRARY && mappedInput.getHeldTime() >= LONG_PRESS_MENU_MS &&
+  if ((longPressMenuAction == CrossPointSettings::LONG_MENU_LIBRARY ||
+       ReaderUtils::isNavigationLongPressAction(longPressMenuAction)) &&
+      mappedInput.getHeldTime() >= LONG_PRESS_MENU_MS &&
       (mappedInput.isPressed(MappedInputManager::Button::Confirm) ||
        mappedInput.wasReleased(MappedInputManager::Button::Confirm))) {
     longPressMenuHandled = mappedInput.isPressed(MappedInputManager::Button::Confirm);
     mappedInput.suppressNextConfirmRelease();
-    activityManager.goToLibrary();
+    if (!ReaderUtils::dispatchNavigationLongPressAction(SETTINGS.longPressMenuAction)) activityManager.goToLibrary();
     return;
   }
 
@@ -1035,6 +1037,7 @@ bool XtcReaderActivity::supportsQuickAction(const CrossPointSettings::SHORT_PWRB
     case CrossPointSettings::SHORT_PWRBTN::LIBRARY:
     case CrossPointSettings::SHORT_PWRBTN::TOGGLE_FRONTLIGHT:
     case CrossPointSettings::SHORT_PWRBTN::TOGGLE_TOUCHSCREEN:
+    case CrossPointSettings::SHORT_PWRBTN::BACK_HOME:
     case CrossPointSettings::SHORT_PWRBTN::HOME_READER:
       return true;
     default:
@@ -1083,6 +1086,7 @@ bool XtcReaderActivity::executeReaderShortcutAction(const CrossPointSettings::SH
 }
 
 bool XtcReaderActivity::executeLongPressBackAction() {
+  if (ReaderUtils::dispatchNavigationLongPressAction(SETTINGS.longPressBackAction)) return true;
   switch (static_cast<CrossPointSettings::LONG_PRESS_MENU_ACTION>(SETTINGS.longPressBackAction)) {
     case CrossPointSettings::LONG_PRESS_MENU_ACTION::LONG_MENU_SLEEP:
       enterDeepSleep();
@@ -1122,7 +1126,8 @@ bool XtcReaderActivity::executeLongPressBackAction() {
 }
 
 bool XtcReaderActivity::handleShortcutAction(const CrossPointSettings::SHORT_PWRBTN action) {
-  if (action == CrossPointSettings::SHORT_PWRBTN::HOME_READER) return dispatchShortcutAction(action);
+  if (action == CrossPointSettings::SHORT_PWRBTN::HOME_READER || action == CrossPointSettings::SHORT_PWRBTN::BACK_HOME)
+    return dispatchShortcutAction(action);
   if (action == CrossPointSettings::SHORT_PWRBTN::QUICK_ACTIONS) {
     QuickActions::showConfiguredPopup(
         quickActionsPopup, [this] { requestUpdate(); },

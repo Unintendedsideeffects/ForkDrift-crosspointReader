@@ -3122,7 +3122,8 @@ void EpubReaderActivity::loop() {
     if (SETTINGS.longPressMenuAction != CrossPointSettings::LONG_MENU_OFF &&
         mappedInput.getHeldTime() >= longPressMenuMs) {
       const auto action = static_cast<CrossPointSettings::LONG_PRESS_MENU_ACTION>(SETTINGS.longPressMenuAction);
-      if (action == CrossPointSettings::LONG_MENU_LIBRARY) mappedInput.suppressNextConfirmRelease();
+      if (action == CrossPointSettings::LONG_MENU_LIBRARY || ReaderUtils::isNavigationLongPressAction(action))
+        mappedInput.suppressNextConfirmRelease();
       executeReaderQuickAction(action);
       return;
     }
@@ -3132,7 +3133,8 @@ void EpubReaderActivity::loop() {
       mappedInput.isPressed(MappedInputManager::Button::Confirm) && mappedInput.getHeldTime() >= longPressMenuMs) {
     longPressMenuHandled = true;
     const auto action = static_cast<CrossPointSettings::LONG_PRESS_MENU_ACTION>(SETTINGS.longPressMenuAction);
-    if (action == CrossPointSettings::LONG_MENU_LIBRARY) mappedInput.suppressNextConfirmRelease();
+    if (action == CrossPointSettings::LONG_MENU_LIBRARY || ReaderUtils::isNavigationLongPressAction(action))
+      mappedInput.suppressNextConfirmRelease();
     executeReaderQuickAction(action);
     return;
   }
@@ -5001,6 +5003,7 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
                                                   const bool dictionaryLookupFramebufferContainsPage,
                                                   const QuickLockTrigger quickLockTrigger) {
   clearPendingManualPageTurns();
+  if (ReaderUtils::dispatchNavigationLongPressAction(action)) return;
   switch (action) {
     case CrossPointSettings::LONG_MENU_SLEEP:
       enterDeepSleep();
@@ -5191,6 +5194,7 @@ bool EpubReaderActivity::handleShortcutAction(const uint8_t rawAction) {
     case CrossPointSettings::SHORT_PWRBTN::QUICK_ACTIONS:
       openQuickActionsPopup();
       return true;
+    case CrossPointSettings::SHORT_PWRBTN::BACK_HOME:
     case CrossPointSettings::SHORT_PWRBTN::HOME_READER:
       return dispatchShortcutAction(action);
     case CrossPointSettings::SHORT_PWRBTN::LIBRARY:
@@ -5210,7 +5214,8 @@ bool EpubReaderActivity::handleShortcutAction(const uint8_t rawAction) {
 }
 
 bool EpubReaderActivity::handleShortcutAction(const CrossPointSettings::SHORT_PWRBTN action) {
-  if (action == CrossPointSettings::SHORT_PWRBTN::HOME_READER) return dispatchShortcutAction(action);
+  if (action == CrossPointSettings::SHORT_PWRBTN::HOME_READER || action == CrossPointSettings::SHORT_PWRBTN::BACK_HOME)
+    return dispatchShortcutAction(action);
   switch (action) {
     case CrossPointSettings::SHORT_PWRBTN::PAGE_TURN:
       requestManualPageTurn(true, "shortcut");

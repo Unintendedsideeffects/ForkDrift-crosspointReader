@@ -26,6 +26,16 @@ constexpr uint8_t STATUS_BAR_TEXT_PADDING = 3;
 // Gap between the top reader bar and the first line of book text.
 constexpr int8_t TOP_STATUS_BAR_TEXT_PADDING = 0;
 
+inline bool isNavigationLongPressAction(const uint8_t action) {
+  return action == CrossPointSettings::LONG_MENU_HOME_READER || action == CrossPointSettings::LONG_MENU_BACK_HOME;
+}
+
+inline bool dispatchNavigationLongPressAction(const uint8_t action) {
+  if (!isNavigationLongPressAction(action)) return false;
+  return dispatchShortcutAction(action == CrossPointSettings::LONG_MENU_HOME_READER ? CrossPointSettings::HOME_READER
+                                                                                    : CrossPointSettings::BACK_HOME);
+}
+
 inline bool isRtlBookLanguage(std::string_view tag) {
   if (tag.size() < 2 || (tag.size() > 2 && tag[2] != '-' && tag[2] != '_')) return false;
   const auto first = std::tolower(static_cast<unsigned char>(tag[0]));
