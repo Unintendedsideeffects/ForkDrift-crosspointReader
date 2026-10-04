@@ -21,6 +21,7 @@
 - Folder sync uploads saved stats and clippings even when a book has no usable reading position, attempts overall stats once per run, and reports independent upload results.
 - A failed stats upload no longer prevents clippings from being uploaded during progress sync.
 - Hide EPUB section-break rules when the publisher suppresses their borders, avoiding duplicate ornaments.
+- Translate reading statistics, stats tracking controls, and the Minimal Stats theme label into Polish.
 
 ### Changed
 
