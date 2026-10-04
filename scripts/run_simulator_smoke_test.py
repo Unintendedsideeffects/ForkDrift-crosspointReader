@@ -82,6 +82,12 @@ def run_smoke(args: argparse.Namespace) -> int:
         if args.font_dir:
             shutil.copytree(Path(args.font_dir), temp_root / "fs_" / "fonts", dirs_exist_ok=True)
         env = os.environ.copy()
+        if args.filename_font_dir:
+            shutil.copytree(Path(args.filename_font_dir), temp_root / "fs_" / ".crosspoint" / "languages" / "fonts", dirs_exist_ok=True)
+        if args.filename_font_family:
+            env["CROSSINK_SIMULATOR_SMOKE_FILENAME_FONT"] = args.filename_font_family
+        if args.filename_font_captures:
+            env["CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_CAPTURES"] = str(Path(args.filename_font_captures).resolve())
         if args.dictionary:
             dictionary = temp_root / "fs_" / "dictionary-smoke"
             dictionary.mkdir()
@@ -137,7 +143,7 @@ def run_smoke(args: argparse.Namespace) -> int:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            timeout=args.timeout if args.timeout is not None else (180 if args.frontlight_layout or args.about or args.support_export else 45),
+            timeout=args.timeout if args.timeout is not None else (180 if args.frontlight_layout or args.about or args.support_export or args.filename_font_family else 45),
         )
 
     print(proc.stdout, end="")
@@ -172,6 +178,9 @@ def parse_args() -> argparse.Namespace:
                         help="PlatformIO simulator environment to build and run")
     parser.add_argument("--dictionary", action="store_true", help="Check French contractions and exact dictionary matches")
     parser.add_argument("--font-dir", help="Font fixtures copied into isolated /fonts")
+    parser.add_argument("--filename-font-dir", help="TTF family fixtures copied into /.crosspoint/languages/fonts")
+    parser.add_argument("--filename-font-family", help="Check filename font picker, mixed glyphs and storage lifecycle (S3)")
+    parser.add_argument("--filename-font-captures", help="Directory for filename font framebuffer captures (PGM)")
     parser.add_argument("--font-family", help="Exercise custom-font size and dictionary lifecycle")
     parser.add_argument("--timeout", type=int, help="Seconds before the simulator run is treated as hung (default: 45, or 180 for frontlight layout)")
     parser.add_argument("--page-turns", type=int, default=2, help="Number of EPUB page-forward taps to run")

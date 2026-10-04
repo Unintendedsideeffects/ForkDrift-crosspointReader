@@ -658,3 +658,6 @@ STR_MONTH_SEP: "rugsėjo"
 STR_MONTH_OCT: "spalio"
 STR_MONTH_NOV: "lapkričio"
 STR_MONTH_DEC: "gruodžio"
+
+STR_FILENAME_FALLBACK_FONT: "Atsarginis failų vardų šriftas"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Įprastas būtinas; paryškintas neprivalomas."

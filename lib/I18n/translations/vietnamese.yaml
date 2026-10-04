@@ -716,3 +716,6 @@ STR_MONTH_SEP: "tháng 9"
 STR_MONTH_OCT: "tháng 10"
 STR_MONTH_NOV: "tháng 11"
 STR_MONTH_DEC: "tháng 12"
+
+STR_FILENAME_FALLBACK_FONT: "Phông dự phòng tên tệp"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Bắt buộc kiểu thường; kiểu đậm tùy chọn."

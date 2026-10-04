@@ -658,3 +658,6 @@ STR_MONTH_SEP: "szeptember"
 STR_MONTH_OCT: "október"
 STR_MONTH_NOV: "november"
 STR_MONTH_DEC: "december"
+
+STR_FILENAME_FALLBACK_FONT: "Fájlnevek tartalék betűtípusa"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Normál kötelező; félkövér választható."

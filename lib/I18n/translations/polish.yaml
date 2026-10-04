@@ -713,3 +713,6 @@ STR_MONTH_SEP: "września"
 STR_MONTH_OCT: "października"
 STR_MONTH_NOV: "listopada"
 STR_MONTH_DEC: "grudnia"
+
+STR_FILENAME_FALLBACK_FONT: "Zapasowa czcionka nazw plików"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Zwykły wymagany; pogrubiony opcjonalny."

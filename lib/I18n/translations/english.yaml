@@ -1026,3 +1026,6 @@ STR_LANGUAGE_IO_ERROR: "SD or flash error. Check the card and device log."
 STR_LANGUAGE_SAVE_FAILED: "Cannot save language. Check the SD card and try again."
 STR_LANGUAGE_DUPLICATE: "Duplicate language codes. Check the SD files."
 STR_LANGUAGE_CATALOG_LIMIT: "Too many language files or long names. Keep fewer on SD."
+
+STR_FILENAME_FALLBACK_FONT: "Filename Fallback Font"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Regular required; bold optional."

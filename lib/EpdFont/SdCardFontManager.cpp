@@ -145,8 +145,6 @@ int SdCardFontManager::loadFamilyExtraFile(const char* path, const char* familyN
 }
 
 void SdCardFontManager::unloadAll(GfxRenderer& renderer) {
-  // Drop UI CJK fallbacks before the SD fonts they point at are freed.
-  renderer.clearFallbackFonts();
   renderer.clearSdCardFonts();
   for (auto& lf : loaded_) {
     renderer.removeFont(lf.fontId);
@@ -211,7 +209,6 @@ bool SdCardFontManager::setScalableRenderOptions(GfxRenderer& renderer,
                                                  const freeink::font::FtFont::RenderOptions& renderOptions) {
   if (!scalable_[0] || loadedFamilyName_.empty() || loadedPointSize_ == 0) return false;
 
-  renderer.clearFallbackFonts();
   renderer.clearSdCardFonts();
   for (auto& loaded : loaded_) renderer.removeFont(loaded.fontId);
   loaded_.clear();

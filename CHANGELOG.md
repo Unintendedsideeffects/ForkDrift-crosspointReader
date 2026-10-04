@@ -14,6 +14,7 @@
 - Turn image grayscale on or off globally or for individual EPUB books, independently of text anti-aliasing.
 - Export allowlisted device diagnostics and global preferences from About to a local support JSON file, with optional anonymous EPUB overrides, explicit scope confirmation and credential/history exclusions.
 - Home/Reader shortcuts available on touch devices
+- Choose a Filename Fallback Font on ESP32-S3 devices to display missing characters in book titles and filenames while retaining the built-in font for supported text.
 
 ### Fixed
 

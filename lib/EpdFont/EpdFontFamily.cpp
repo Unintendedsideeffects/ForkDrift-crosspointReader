@@ -212,6 +212,13 @@ EpdFontFamily::GlyphData EpdFontFamily::findGlyphData(const uint32_t cp, const S
       return {fallback->data, glyph};
     }
   }
+  const auto extra = getFallbackFont(style);
+  if (extra) {
+    if (const auto glyph = extra->findGlyph(cp)) return {extra->data, glyph};
+    if (extra != fallbackRegular && fallbackRegular) {
+      if (const auto glyph = fallbackRegular->findGlyph(cp)) return {fallbackRegular->data, glyph};
+    }
+  }
   return {nullptr, nullptr};
 }
 
@@ -242,11 +249,25 @@ uint32_t EpdFontFamily::getFallbackCodepoint(const uint32_t cp, const Style styl
 }
 
 bool EpdFontFamily::hasCodepoint(const uint32_t cp, const Style style) const {
-  return getFont(style)->hasCodepoint(cp) || (fallback && fallback->hasCodepoint(cp));
+  const auto extra = getFallbackFont(style);
+  return getFont(style)->hasCodepoint(cp) || regular->hasCodepoint(cp) || (fallback && fallback->hasCodepoint(cp)) ||
+         (extra && extra->hasCodepoint(cp)) || (fallbackRegular && fallbackRegular->hasCodepoint(cp));
 }
 
 int8_t EpdFontFamily::getKerning(const uint32_t leftCp, const uint32_t rightCp, const Style style) const {
-  return getFont(style)->getKerning(leftCp, rightCp);
+  const auto primary = getFont(style);
+  if (!fallbackRegular) return primary->getKerning(leftCp, rightCp);
+  // Never apply a kerning pair across different faces in a mixed-script filename.
+  const auto owner = [&](uint32_t cp) -> const EpdFont* {
+    if (primary->hasCodepoint(cp)) return primary;
+    if (regular->hasCodepoint(cp)) return regular;
+    if (fallback && fallback->hasCodepoint(cp)) return fallback;
+    const auto extra = getFallbackFont(style);
+    if (extra && extra->hasCodepoint(cp)) return extra;
+    return fallbackRegular->hasCodepoint(cp) ? fallbackRegular : nullptr;
+  };
+  const auto leftFont = owner(leftCp);
+  return leftFont && leftFont == owner(rightCp) ? leftFont->getKerning(leftCp, rightCp) : 0;
 }
 
 uint32_t EpdFontFamily::applyLigatures(const uint32_t cp, const char*& text, const Style style) const {

@@ -76,6 +76,32 @@ STR_TIME_EXAMPLE: "Unknown keys are ignored"
 - Font glyph coverage and available keyboard layouts are unchanged. A new
   translation file cannot add missing font glyphs, shaping rules, or keyboards.
 
+## Filename fallback fonts (ESP32-S3)
+
+Open **Settings → System → Device → Filename Fallback Font**, directly below
+Language, to choose a font for missing characters in filenames and book titles.
+The built-in UI font continues to draw characters it supports, including Latin
+characters inside mixed-script titles. Menu labels keep their built-in fonts.
+Select **None** to disable filename fallback. This option is available on
+ESP32-S3 builds with scalable fonts, including Sticky and X4 Pro.
+
+Copy static TrueType `.ttf` files into a family folder such as
+`/.crosspoint/languages/fonts/Noto Sans SC/`. The folder name is the picker label.
+Font metadata identifies the regular and bold faces; filenames are unrestricted.
+A regular face is required, bold is optional, and missing bold glyphs use regular.
+Italic faces and bitmap `.cpfont` packs are not offered. Each family must contain
+at most one regular and one bold face. Variable fonts, OpenType `.otf` files and
+font collections are unsupported. Keep reading fonts in `/fonts` or `/.fonts`.
+
+Each filename TTF can be up to **32 MiB**. The same face supplies the 8, 10 and
+12 point UI sizes. Compact faces can reside in PSRAM; larger faces stream from
+SD with bounded read and glyph caches. First use and newly visible characters
+can take longer than cached redraws. The UI font is independent of the reader
+font, but shares the bounded font-rendering workspace. Missing or unreadable
+families recover to the built-in UI without changing the saved choice. Reopen
+the picker and select the family again after changing its files on a computer.
+A firmware restart also reloads the selected family.
+
 ## Flash storage and recovery
 
 The existing `spiffs` data region is separate from the two firmware application

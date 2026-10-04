@@ -29,6 +29,7 @@
 #include "ClippingStore.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "FilenameFontSystem.h"
 #include "GlobalActions.h"
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
@@ -408,6 +409,10 @@ void appendCarouselCoverStateToKey(std::string& key, const RecentBook& book) {
 void buildCarouselCacheKey(const std::vector<RecentBook>& recentBooks, std::string& key, uint64_t& keyHash) {
   key.clear();
   key.reserve(512);
+  key += SETTINGS.filenameFallbackFont;
+  key += '\0';
+  key += std::to_string(filenameFontSystem.fingerprint());
+  key += '\0';
   // Artwork includes Dark Mode's image-polarity correction. Progress, stats,
   // headers and menus are drawn live, so reading cannot invalidate this cache.
   key += SETTINGS.screenInverted ? "dark:1" : "dark:0";
@@ -810,6 +815,11 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
 }
 
 void HomeActivity::onEnter() {
+  {
+    RenderLock lock(*this);
+    filenameFontSystem.ensureLoaded(renderer);
+  }
+
   Activity::onEnter();
 
   hasOpdsServers = OPDS_STORE.hasServers();
@@ -1001,12 +1011,14 @@ std::unique_ptr<Activity> HomeActivity::createFrontlightReadingStatsActivity() {
 void HomeActivity::onFrontlightPanelOpened() {
   themeBeforeFrontlightPanel = SETTINGS.uiTheme;
   scaleBeforeFrontlightPanel = SETTINGS.uiScale;
+  filenameFontBeforeFrontlightPanel = filenameFontSystem.fingerprint();
   // Save the selection before changed theme metrics can reinterpret its index.
   initialBookPath = getCurrentBookPath();
 }
 
 void HomeActivity::onFrontlightPanelClosed() {
-  if (themeBeforeFrontlightPanel != SETTINGS.uiTheme || scaleBeforeFrontlightPanel != SETTINGS.uiScale) {
+  if (themeBeforeFrontlightPanel != SETTINGS.uiTheme || scaleBeforeFrontlightPanel != SETTINGS.uiScale ||
+      filenameFontBeforeFrontlightPanel != filenameFontSystem.fingerprint()) {
     // Drawer Settings keeps Home alive. Recreate its theme-specific controls,
     // cover snapshots and thumbnail loading state through the normal lifecycle.
     // ActivityManager owns the replacement; its heavy caches allocate onEnter,
@@ -1017,7 +1029,7 @@ void HomeActivity::onFrontlightPanelClosed() {
       activityManager.replaceActivity(std::move(home));
       return;
     }
-    LOG_ERR("HOME", "Cannot rebuild Home after theme or UI scale change");
+    LOG_ERR("HOME", "Cannot rebuild Home after theme, UI scale or filename font change");
   }
   globalStats = GlobalReadingStats::load();
   showAllDevicesStats = GlobalReadingStats::hasSyncedStats();
@@ -2216,7 +2228,8 @@ void HomeActivity::render(RenderLock&&) {
   }
 
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.homeTopPadding},
-                 metrics.homeContinueReadingInMenu && !recentBooks.empty() ? recentBooks[0].title.c_str() : nullptr);
+                 metrics.homeContinueReadingInMenu && !recentBooks.empty() ? recentBooks[0].title.c_str() : nullptr,
+                 nullptr, false, true, true);
 
   // Record the tile rect so storeCoverBuffer (called from the theme) knows
   // which sub-region of the framebuffer to snapshot. ~16 KB in Portrait

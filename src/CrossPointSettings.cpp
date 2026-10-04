@@ -504,6 +504,7 @@ void CrossPointSettings::toJson(JsonDocument& doc) const {
     quickActionSlotsJson.add(action);
   }
   doc["quickActionsTrigger"] = quickActionsTrigger;
+  doc["filenameFallbackFont"] = filenameFallbackFont;
   doc["language"] = languageCode;
   doc["languageCacheGeneration"] = languageCacheGeneration;
   if (keyboardLayouts != 0) doc["keyboardLayouts"] = keyboardLayouts;
@@ -918,6 +919,11 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc, bool importingCrossPoint
     if (legacy < getLanguageCount()) std::strcpy(languageCode, LANGUAGE_CODES[legacy]);
   }
   languageCacheGeneration = doc["languageCacheGeneration"] | uint64_t{0};
+  const char* filenameFont = doc["filenameFallbackFont"] | "";
+  if (std::strlen(filenameFont) < sizeof(filenameFallbackFont) && !std::strchr(filenameFont, '/') &&
+      !std::strchr(filenameFont, '\\') && std::strcmp(filenameFont, ".") != 0 && std::strcmp(filenameFont, "..") != 0) {
+    std::strcpy(filenameFallbackFont, filenameFont);
+  }
   if (doc["keyboardLayouts"].is<uint16_t>()) {
     keyboardLayouts = doc["keyboardLayouts"].as<uint16_t>();
   }

@@ -38,6 +38,7 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "DeviceCapabilities.h"
+#include "FilenameFontSystem.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
 #include "SdCardFontSystem.h"
@@ -271,6 +272,7 @@ class SimulatorSmokeTest {
   unsigned frontlightLayoutPass = 0;
   unsigned supportPhase = 0;
   std::string priorSupportExport;
+  unsigned filenameFontPhase = 0;
   unsigned aboutPhase = 0;
   unsigned aboutPass = 0;
   uint32_t aboutSnapshotUptime = 0;
@@ -1603,6 +1605,201 @@ class SimulatorSmokeTest {
 #endif
   }
 
+  void tickFilenameFont() {
+#if CROSSINK_SCALABLE_FONTS
+    const char* family = std::getenv("CROSSINK_SIMULATOR_SMOKE_FILENAME_FONT");
+    if (scriptIndex < inputScript.size()) {
+      runReaderInputScript();
+      return;
+    }
+    inputScript.clear();
+    scriptIndex = 0;
+    switch (filenameFontPhase++) {
+      case 0: {
+        RenderLock lock;
+        SETTINGS.filenameFallbackFont[0] = '\0';
+        SETTINGS.uiScale = CrossPointSettings::UI_SCALE_SMALL;
+        SETTINGS.uiTheme = CrossPointSettings::LYRA;
+        UITheme::getInstance().reload();
+        filenameFontSystem.invalidate();
+        if (!filenameFontSystem.ensureLoaded(renderer)) fail("None filename font failed");
+        const auto device = buildSystemDeviceSettingsList(getSettingsList());
+        if (device[3].action != SettingAction::Language || device[4].action != SettingAction::FilenameFallbackFont)
+          fail("Filename setting is not directly below Language");
+        std::vector<std::string> names;
+        if (!filenameFontSystem.discover(names) || std::find(names.begin(), names.end(), family) == names.end())
+          fail("Filename fixture family missing");
+        for (const auto& name : names)
+          if (name == "Variable Only" || name == "Bitmap Only" || name == "Corrupt Only")
+            fail("Unsupported filename font offered");
+        activityManager.replaceActivity(std::make_unique<SettingsActivity>(renderer, mappedInputManager));
+        queueStep("Filename Settings entry", SmokeStep::Start, 4);
+        break;
+      }
+      case 1:
+        for (int i = 0; i < 3; ++i) addTap(MappedInputManager::Button::Confirm);
+        addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Filename Device settings", 4));
+        inputScript.push_back(assertSettingsNavigation(3, 1));
+        for (int i = 0; i < 4; ++i) addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+        inputScript.push_back(render("Filename setting below Language", 4));
+        break;
+      case 2: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-device-setting");
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Filename font picker", 4));
+        break;
+      }
+      case 3: {
+        RenderLock lock;
+        const auto* settings = dynamic_cast<SettingsActivity*>(activityManager.simulatorCurrentActivity());
+        if (!settings || !settings->simulatorOptionPopupActive()) fail("Filename picker did not open");
+        const auto& names = settings->simulatorFilenameFontNames();
+        const auto found = std::find(names.begin(), names.end(), family);
+        if (found == names.end()) fail("Filename picker lacks selected family");
+        captureStatusBarScreen("filename-font-picker");
+        for (int i = 0; i < std::distance(names.begin(), found); ++i) addTap(MappedInputManager::Button::Down);
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Filename font applied", 5));
+        break;
+      }
+      case 4: {
+        RenderLock lock;
+        if (std::strcmp(SETTINGS.filenameFallbackFont, family) != 0) fail("Filename selection was not applied");
+        const auto& fonts = renderer.getFontMap();
+        for (int id : {SMALL_FONT_ID, UI_10_FONT_ID, UI_12_FONT_ID}) {
+          const int compositeId = renderer.filenameFontId(id);
+          if (compositeId == id) fail("Filename composite missing");
+          const auto& primary = fonts.at(id);
+          const auto& composite = fonts.at(compositeId);
+          for (auto style : {EpdFontFamily::REGULAR, EpdFontFamily::BOLD}) {
+            if (primary.getGlyphData('A', style).glyph != composite.getGlyphData('A', style).glyph)
+              fail("Filename font replaced built-in Latin");
+            const auto cjk = composite.getGlyphData(0x4e00, style);
+            if (!composite.hasCodepoint(0x4e00) || !cjk.glyph || cjk.fontData == primary.getData(style))
+              fail("Missing CJK fallback glyph");
+          }
+        }
+        JsonDocument saved;
+        SETTINGS.toJson(saved);
+        saved["filenameFallbackFont"] = std::string(family);  // own bytes before mutating the settings buffer
+        SETTINGS.filenameFallbackFont[0] = '\0';
+        SETTINGS.fromJson(saved.as<JsonVariantConst>());
+        if (std::strcmp(SETTINGS.filenameFallbackFont, family) != 0) fail("Filename JSON round trip failed");
+        captureStatusBarScreen("filename-device-selected");
+        Storage.mkdir("/books/日本語");
+        if (!Storage.writeFile("/books/日本語/Latin 一丁.txt", "Filename font smoke"))
+          fail("Cannot create mixed title");
+        activityManager.replaceActivity(
+            std::make_unique<FileBrowserActivity>(renderer, mappedInputManager, "/books/日本語"));
+        queueStep("Filename mixed browser small", SmokeStep::Start, 8);
+        break;
+      }
+      case 5: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-browser-small");
+        SETTINGS.uiScale = CrossPointSettings::UI_SCALE_LARGE;
+        UITheme::getInstance().reload();
+        activityManager.replaceActivity(
+            std::make_unique<FileBrowserActivity>(renderer, mappedInputManager, "/books/日本語"));
+        queueStep("Filename mixed browser large", SmokeStep::Start, 8);
+        break;
+      }
+      case 6: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-browser-large");
+        RECENT_BOOKS.addOrUpdateBook("/books/日本語/Latin 一丁.txt", "Latin 一丁 日本語", "Author 日本語", "");
+        SETTINGS.uiTheme = CrossPointSettings::LYRA;
+        UITheme::getInstance().reload();
+        activityManager.replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInputManager));
+        queueStep("Filename mixed Home", SmokeStep::Start, 20);
+        break;
+      }
+      case 7: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-home");
+        auto* home = dynamic_cast<HomeActivity*>(activityManager.simulatorCurrentActivity());
+        if (!home) fail("Filename Home missing");
+        home->onFrontlightPanelOpened();
+        SETTINGS.filenameFallbackFont[0] = '\0';
+        filenameFontSystem.ensureLoaded(renderer);
+        home->onFrontlightPanelClosed();
+        queueStep("Filename Home refreshed after None", SmokeStep::Start, 20);
+        break;
+      }
+      case 8: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-home-none");
+        auto* home = dynamic_cast<HomeActivity*>(activityManager.simulatorCurrentActivity());
+        if (!home || renderer.filenameFontId(UI_10_FONT_ID) != UI_10_FONT_ID) fail("Filename None Home mismatch");
+        home->onFrontlightPanelOpened();
+        std::strncpy(SETTINGS.filenameFallbackFont, family, sizeof(SETTINGS.filenameFallbackFont) - 1);
+        if (!filenameFontSystem.ensureLoaded(renderer)) fail("Filename Home reenable failed");
+        home->onFrontlightPanelClosed();
+        queueStep("Filename Home refreshed after selection", SmokeStep::Start, 20);
+        break;
+      }
+      case 9: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-home-reenabled");
+        SETTINGS.librarySortMethod = 4;  // Recently Read includes TXT fixtures
+        SETTINGS.libraryUseMetadata = 1;
+        SETTINGS.libraryShowTxt = 1;
+        SETTINGS.libraryHideFinishedBooks = 0;
+        activityManager.replaceActivity(std::make_unique<LibraryActivity>(renderer, mappedInputManager));
+        queueStep("Filename mixed Library", SmokeStep::Start, 12);
+        break;
+      }
+      case 10: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-library");
+        activityManager.simulatorCurrentActivity()->startActivityForResult(
+            std::make_unique<StatsUploadActivity>(renderer, mappedInputManager), [](const ActivityResult&) {});
+        queueStep("Filename network child releases font", SmokeStep::Start, 5);
+        break;
+      }
+      case 11: {
+        RenderLock lock;
+        if (renderer.filenameFontId(UI_10_FONT_ID) != UI_10_FONT_ID) fail("Network child retained filename font");
+        addTap(MappedInputManager::Button::Back);
+        inputScript.push_back(render("Filename Library restored after network child", 6));
+        inputScript.push_back(assertActivity("Library"));
+        break;
+      }
+      case 12: {
+        RenderLock lock;
+        if (renderer.filenameFontId(UI_10_FONT_ID) == UI_10_FONT_ID) fail("Network child return lost filename font");
+        captureStatusBarScreen("filename-library-after-network");
+        sdFontSystem.releaseForNetwork(renderer);
+        if (renderer.filenameFontId(UI_10_FONT_ID) != UI_10_FONT_ID) fail("Filename font retained at storage release");
+        if (!filenameFontSystem.ensureLoaded(renderer)) fail("Filename font failed after storage release");
+        const auto identity = filenameFontSystem.fingerprint();
+        sdFontSystem.releaseLoadedFont(renderer);
+        if (renderer.filenameFontId(UI_10_FONT_ID) == UI_10_FONT_ID || filenameFontSystem.fingerprint() != identity)
+          fail("Reader font release changed filename fallback");
+        std::strcpy(SETTINGS.filenameFallbackFont, "Missing Family");
+        if (filenameFontSystem.ensureLoaded(renderer) || renderer.filenameFontId(UI_10_FONT_ID) != UI_10_FONT_ID ||
+            std::strcmp(SETTINGS.filenameFallbackFont, "Missing Family") != 0)
+          fail("Missing family did not recover safely");
+        std::strncpy(SETTINGS.filenameFallbackFont, family, sizeof(SETTINGS.filenameFallbackFont) - 1);
+        if (!filenameFontSystem.ensureLoaded(renderer)) fail("Filename reload failed");
+        SETTINGS.filenameFallbackFont[0] = '\0';
+        if (!filenameFontSystem.ensureLoaded(renderer) || renderer.filenameFontId(UI_10_FONT_ID) != UI_10_FONT_ID)
+          fail("None did not remove filename fallback");
+        LOG_INF("SMOKE",
+                "Simulator smoke test passed: filename picker, mixed Latin/CJK, both UI sizes, Library, Home refresh, "
+                "persistence, storage "
+                "release and reader independence");
+        std::_Exit(0);
+      }
+    }
+#else
+    fail("Filename font smoke requires S3 scalable fonts");
+#endif
+  }
+
   void tickAbout() {
     if (scriptIndex < inputScript.size()) {
       runReaderInputScript();
@@ -2007,6 +2204,10 @@ class SimulatorSmokeTest {
       return;
     }
 
+    if (std::getenv("CROSSINK_SIMULATOR_SMOKE_FILENAME_FONT")) {
+      tickFilenameFont();
+      return;
+    }
     if (std::getenv("CROSSINK_SIMULATOR_SMOKE_SUPPORT_EXPORT")) {
       tickSupportExport();
       return;

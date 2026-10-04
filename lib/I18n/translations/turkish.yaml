@@ -657,3 +657,6 @@ STR_MONTH_SEP: "Eylül"
 STR_MONTH_OCT: "Ekim"
 STR_MONTH_NOV: "Kasım"
 STR_MONTH_DEC: "Aralık"
+
+STR_FILENAME_FALLBACK_FONT: "Dosya adı yedek yazı tipi"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Normal gerekli; kalın isteğe bağlı."

@@ -289,7 +289,7 @@ class BaseTheme {
                         const std::function<bool(int index)>& isHeader = nullptr, int rowHeightScale = 1,
                         bool showSelection = true) const;
   virtual void drawHeader(const GfxRenderer& renderer, Rect rect, const char* title, const char* subtitle = nullptr,
-                          bool readerContext = false, bool showStatus = true) const;
+                          bool readerContext = false, bool showStatus = true, bool filenameTitle = false) const;
   virtual void drawSubHeader(const GfxRenderer& renderer, Rect rect, const char* label,
                              const char* rightLabel = nullptr) const;
   virtual void drawTabBar(const GfxRenderer& renderer, Rect rect, const std::vector<TabInfo>& tabs,

@@ -23,6 +23,7 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "FileBrowserActionActivity.h"
+#include "FilenameFontSystem.h"
 #include "KOReaderCredentialStore.h"
 #include "MappedInputManager.h"
 #include "activities/boot_sleep/ImageFolderIndex.h"
@@ -378,6 +379,11 @@ bool FileBrowserActivity::handleFrontlightPanelResult(const FrontlightPanelResul
 }
 
 void FileBrowserActivity::onEnter() {
+  {
+    RenderLock lock(*this);
+    filenameFontSystem.ensureLoaded(renderer);
+  }
+
   Activity::onEnter();
 
   PendingOverlayResume resume;
@@ -1374,21 +1380,21 @@ void FileBrowserActivity::buildListScreen(UiApp::ScreenType& screen) {
     const char* pathStr = basepath.c_str();
     const char* pathDisplay = pathStr;
     char leftTruncBuf[256];
-    if (renderer.getTextWidth(SMALL_FONT_ID, pathStr) > pathMaxWidth) {
+    if (renderer.getTextWidth(renderer.filenameFontId(SMALL_FONT_ID), pathStr) > pathMaxWidth) {
       const char ellipsis[] = "\xe2\x80\xa6";  // UTF-8 ellipsis (…)
-      const int ellipsisWidth = renderer.getTextWidth(SMALL_FONT_ID, ellipsis);
+      const int ellipsisWidth = renderer.getTextWidth(renderer.filenameFontId(SMALL_FONT_ID), ellipsis);
       const int available = pathMaxWidth - ellipsisWidth;
       // Walk forward from the start until the suffix fits, skipping UTF-8 continuation bytes
       const char* p = pathStr;
       while (*p) {
-        if (renderer.getTextWidth(SMALL_FONT_ID, p) <= available) break;
+        if (renderer.getTextWidth(renderer.filenameFontId(SMALL_FONT_ID), p) <= available) break;
         ++p;
         while (*p && (static_cast<unsigned char>(*p) & 0xC0) == 0x80) ++p;
       }
       snprintf(leftTruncBuf, sizeof(leftTruncBuf), "%s%s", ellipsis, p);
       pathDisplay = leftTruncBuf;
     }
-    renderer.drawText(SMALL_FONT_ID, band.x + metrics.contentSidePadding, pathY, pathDisplay);
+    renderer.drawText(renderer.filenameFontId(SMALL_FONT_ID), band.x + metrics.contentSidePadding, pathY, pathDisplay);
   }
 
   const size_t totalEntries = entryCount();
@@ -1475,7 +1481,10 @@ void FileBrowserActivity::buildListScreen(UiApp::ScreenType& screen) {
   // than one line. Keep every rendered item contiguous until the SDK exposes
   // the consumed index.
   props.partialTrailingRow = false;
-  screen.list(props);
+  {
+    FilenameUiFontScope fonts(uiTarget, renderer);
+    screen.list(props);
+  }
   if (usesVirtualList) topIndex = listNav.top;
   // The nav path knows how many rows the layout actually fits; the local
   // window path has only the fixed-height estimate.
@@ -1501,11 +1510,15 @@ void FileBrowserActivity::render(RenderLock&&) {
   // Header via GUI.drawHeader (already FreeInkUI-themed) for the battery
   // indicator; the rest of the screen renders through the app.
   const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput);
+  const bool filenameTitle = mode == Mode::Books && basepath != "/";
   if (mappedInput.hasTouchHardware()) {
+    const auto spec = uiScaleSpec();
+    if (filenameTitle) uiTarget.setFont(fui::GfxRendererTarget::FONT_TITLE, renderer.filenameFontId(spec.titleFontId));
     const int rightReserve = mode == Mode::Books ? TouchHeaderBackButton::layout(header).iconRect.width + 8 : 0;
     TouchHeaderBackButton::draw(renderer, uiTarget, header, folderName.c_str(), false, rightReserve);
+    uiTarget.setFont(fui::GfxRendererTarget::FONT_TITLE, spec.titleFontId);
   } else {
-    GUI.drawHeader(renderer, header, folderName.c_str());
+    GUI.drawHeader(renderer, header, folderName.c_str(), nullptr, false, true, filenameTitle);
   }
 
   uiReady = false;

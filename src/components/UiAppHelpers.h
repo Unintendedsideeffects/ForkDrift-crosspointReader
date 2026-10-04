@@ -26,6 +26,29 @@ inline freeink::ui::GfxRendererTarget makeUiTarget(const GfxRenderer& renderer) 
   return target;
 }
 
+// The scope only wraps filename/book metadata components. UI chrome keeps its
+// original slots, and layout/drawing see the same per-glyph composite fonts.
+class FilenameUiFontScope {
+ public:
+  FilenameUiFontScope(freeink::ui::GfxRendererTarget& target, const GfxRenderer& renderer) : target_(target) {
+    const auto spec = uiScaleSpec();
+    target_.setFont(freeink::ui::GfxRendererTarget::FONT_SMALL, renderer.filenameFontId(spec.smallFontId));
+    target_.setFont(freeink::ui::GfxRendererTarget::FONT_BODY, renderer.filenameFontId(spec.bodyFontId));
+    target_.setFont(freeink::ui::GfxRendererTarget::FONT_TITLE, renderer.filenameFontId(spec.titleFontId));
+  }
+  ~FilenameUiFontScope() {
+    const auto spec = uiScaleSpec();
+    target_.setFont(freeink::ui::GfxRendererTarget::FONT_SMALL, spec.smallFontId);
+    target_.setFont(freeink::ui::GfxRendererTarget::FONT_BODY, spec.bodyFontId);
+    target_.setFont(freeink::ui::GfxRendererTarget::FONT_TITLE, spec.titleFontId);
+  }
+  FilenameUiFontScope(const FilenameUiFontScope&) = delete;
+  FilenameUiFontScope& operator=(const FilenameUiFontScope&) = delete;
+
+ private:
+  freeink::ui::GfxRendererTarget& target_;
+};
+
 // Activities share two static token generations rather than each retaining an
 // identical ~1.5KB copy. A render task always reads the published generation;
 // live configuration changes build the other generation before swapping the

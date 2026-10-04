@@ -655,3 +655,6 @@ STR_MONTH_SEP: "ספטמבר"
 STR_MONTH_OCT: "אוקטובר"
 STR_MONTH_NOV: "נובמבר"
 STR_MONTH_DEC: "דצמבר"
+
+STR_FILENAME_FALLBACK_FONT: "גופן חלופי לשמות קבצים"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. רגיל נדרש; מודגש אופציונלי."
