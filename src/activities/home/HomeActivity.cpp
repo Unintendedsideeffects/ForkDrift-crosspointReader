@@ -1187,14 +1187,16 @@ bool HomeActivity::allocateCarouselFrameSlots(int targetFrameCount) {
 
 void HomeActivity::renderCarouselFrameToCurrentBuffer(int bookIdx) {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  bool coverRendered = false, coverBufferStored = false, bufferRestored = false;
+  // Frame snapshots are independent of the live Home cover state in the members.
+  bool frameCoverRendered = false, frameCoverStored = false, frameBufferRestored = false;
   LyraCarouselTheme::setPreRenderIndex(bookIdx);
   renderer.clearScreen();
   // Snapshot the expensive artwork only. Fresh progress/stats and controls are
   // added after restoring it, without rereading or repainting the covers.
-  GUI.drawRecentBookCover(
-      renderer, Rect{0, metrics.homeTopPadding, renderer.getScreenWidth(), metrics.homeCoverTileHeight}, recentBooks,
-      static_cast<int>(recentBooks.size()), coverRendered, coverBufferStored, bufferRestored, []() { return true; });
+  GUI.drawRecentBookCover(renderer,
+                          Rect{0, metrics.homeTopPadding, renderer.getScreenWidth(), metrics.homeCoverTileHeight},
+                          recentBooks, static_cast<int>(recentBooks.size()), frameCoverRendered, frameCoverStored,
+                          frameBufferRestored, []() { return true; });
 }
 
 bool HomeActivity::saveCarouselFrameToDisk(uint64_t cacheKeyHash, int bookCount, int bookIdx, int slotIdx) {

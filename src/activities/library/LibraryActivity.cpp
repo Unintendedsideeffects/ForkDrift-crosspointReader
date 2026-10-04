@@ -394,8 +394,8 @@ uint16_t LibraryActivity::filteredSourceRow(const uint16_t row) const {
   // is still drawn before the activity swaps out.
   if (!filterBits || !filterRanks || row >= filteredCount || filterSourceCount == 0) return UINT16_MAX;
   const uint16_t blocks = (filterSourceCount + FILTER_BLOCK_ROWS - 1) / FILTER_BLOCK_ROWS;
-  uint16_t block = static_cast<uint16_t>(std::upper_bound(filterRanks.get(), filterRanks.get() + blocks, row) -
-                                         filterRanks.get() - 1);
+  const uint16_t* ranks = filterRanks.get();
+  uint16_t block = static_cast<uint16_t>(std::upper_bound(ranks, ranks + blocks, row) - ranks - 1);
   uint16_t seen = filterRanks[block];
   for (uint32_t source = static_cast<uint32_t>(block) * FILTER_BLOCK_ROWS; source < filterSourceCount; source++) {
     if ((filterBits[source / 8] & (1u << (source % 8))) == 0) continue;
@@ -438,7 +438,6 @@ void LibraryActivity::applyFilter() {
   }
   if (!hasActiveFilter() || !index.isOpen() || index.bookCount() == 0) return;
   const uint16_t sourceCount = index.bookCount();
-  if (sourceCount == 0) return;
   filterOrder = indexOrder();
   filterSourceCount = sourceCount;
   filterBits = makeUniqueNoThrow<uint8_t[]>((sourceCount + 7u) / 8u);

@@ -307,13 +307,15 @@ class SimulatorSmokeTest {
   static void verifyStatusBarSettings() {
     JsonDocument original;
     SETTINGS.toJson(original);
+    const bool clockAvailable = halClock.isAvailable();
     for (const int clock : {0, 1}) {
       JsonDocument legacy;
       legacy.set(original);
       legacy.remove("displayStatusBar");
       legacy["showClockOutsideReader"] = clock;
       SETTINGS.fromJson(legacy.as<JsonVariantConst>());
-      if (SETTINGS.displayStatusBar.slots[1] != (clock ? ReaderStatusBarItem::Clock : ReaderStatusBarItem::Empty) ||
+      if (SETTINGS.displayStatusBar.slots[1] !=
+              (clock && clockAvailable ? ReaderStatusBarItem::Clock : ReaderStatusBarItem::Empty) ||
           SETTINGS.displayStatusBar.slots[2] != ReaderStatusBarItem::Battery)
         fail("Display clock migration failed");
     }
@@ -324,8 +326,10 @@ class SimulatorSmokeTest {
     if (!saved["showClockOutsideReader"].isNull()) fail("Obsolete clock setting was saved");
     SETTINGS.displayStatusBar = DisplayStatusBarConfig{};
     SETTINGS.fromJson(saved.as<JsonVariantConst>());
-    if (SETTINGS.displayStatusBar.slots[0] != ReaderStatusBarItem::Date ||
-        SETTINGS.displayStatusBar.slots[1] != ReaderStatusBarItem::Clock ||
+    if (SETTINGS.displayStatusBar.slots[0] !=
+            (clockAvailable ? ReaderStatusBarItem::Date : ReaderStatusBarItem::Empty) ||
+        SETTINGS.displayStatusBar.slots[1] !=
+            (clockAvailable ? ReaderStatusBarItem::Clock : ReaderStatusBarItem::Empty) ||
         SETTINGS.displayStatusBar.slots[2] != ReaderStatusBarItem::Empty)
       fail("Display slots did not survive reload");
     const auto display = buildGroupedDisplaySettingsList(getSettingsList());
@@ -1208,6 +1212,7 @@ class SimulatorSmokeTest {
 #endif
 
   void tickFileBrowserSyncReturn() {
+#if CROSSINK_APP_CAP_TOUCH
     const char* phase = std::getenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_PHASE");
     if (!phase) {
       const char* bookPath = std::getenv("CROSSINK_SIMULATOR_SMOKE_BOOK");
@@ -1277,6 +1282,9 @@ class SimulatorSmokeTest {
     if (APP_STATE.pendingOverlayResume.valid()) fail("Browser sync return route was not consumed");
     LOG_INF("SMOKE", "Simulator smoke test passed: browser sync returns through both reboots");
     std::_Exit(0);
+#else
+    fail("Browser sync return smoke requires a touch device");
+#endif
   }
 
   void tickImpl() {
