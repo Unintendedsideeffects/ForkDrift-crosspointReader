@@ -497,8 +497,10 @@ class SimulatorSmokeTest {
 
   static void verifyReaderControlsSettings() {
     const auto& base = getBaseSettingsList();
-    if (base.size() > BASE_SETTINGS_CAPACITY || base.capacity() < BASE_SETTINGS_CAPACITY) {
-      fail("Base settings allocation mismatch: size=%zu capacity=%zu", base.size(), base.capacity());
+    const size_t expectedBaseSettingsCapacity = getBaseSettingsCapacity();
+    if (base.size() != expectedBaseSettingsCapacity || base.capacity() < expectedBaseSettingsCapacity) {
+      fail("Base settings allocation mismatch: size=%zu expected=%zu capacity=%zu", base.size(),
+           expectedBaseSettingsCapacity, base.capacity());
     }
     const auto all = getSettingsList();
     const auto gestures = buildControlsTapsGesturesSettingsList(all);
