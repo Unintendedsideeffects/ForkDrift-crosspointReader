@@ -26,6 +26,7 @@
 - Dictionary lookup now recognizes French words with contracted prefixes, such as l’histoire and qu’après.
 - Page-turn shortcuts no longer crash at the end of an EPUB or while a chapter is loading.
 - Make Home/Reader shortcuts available on touch devices and preserve Home/Reader Quick Actions slots after restarting.
+- Reserve enough settings-list space for the image grayscale option, avoiding unnecessary memory growth.
 
 ### Changed
 
