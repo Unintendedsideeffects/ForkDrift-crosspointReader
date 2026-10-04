@@ -6,8 +6,8 @@
 #include <string>
 #include <vector>
 
-#include "fontIds.h"
 #include "components/OptionLabels.h"
+#include "fontIds.h"
 #include "util/ReaderStatusBarConfig.h"
 
 class GfxRenderer;

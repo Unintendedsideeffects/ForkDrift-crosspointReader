@@ -49,6 +49,21 @@ with tempfile.TemporaryDirectory(prefix="crossink-language-") as temporary:
     assert run("boot", "ZZ-CUSTOM", 999).startswith("EN|English|Settings|")
     assert run("boot", "EN").startswith("EN|English|Settings|")
 
+    # Every inherited printf contract must reject incompatible SD translations.
+    contracts = {
+        "STR_HOLD_FOR_KEYBOARD": ("%u", "Hold %s for Keyboard"),
+        "STR_LIBRARY_SCAN_COUNT": ("%s", "Reading your books... %u"),
+        "STR_LIBRARY_FILES_COUNT": ("%s", "%u files"),
+        "STR_STATS_UPLOAD_COUNTS": ("%s", "Global: %u\nBooks: %u\nSkipped: %u"),
+        "STR_FOLDER_SYNC_COUNTS": ("%s", "Synced: %u · Skipped: %u · Failed: %u"),
+    }
+    sample.write_text('_language_code: "TEST-FMT"\n_language_name: "Unsafe format fixture"\n' +
+                      ''.join(f'{key}: "{bad}"\n' for key, (bad, _) in contracts.items()))
+    fmt_code, fmt_generation = run("install", "ZZ-CUSTOM", 2, "/.crosspoint/languages/custom.yaml").split("|")
+    for key, (_, expected) in contracts.items():
+        assert run("lookup", fmt_code, fmt_generation, key) == expected
+    sample.unlink()
+
     # Install every existing starter file using the actual firmware schema.
     code, generation = "ZZ-CUSTOM", 2
     for path in sorted((root / "lib/I18n/translations").glob("*.yaml")):
@@ -61,10 +76,9 @@ with tempfile.TemporaryDirectory(prefix="crossink-language-") as temporary:
     # Duplicate identities remain visible and disabled, not arbitrarily selected.
     shutil.copy2(languages / "french.yaml", languages / "french-copy.yaml")
     assert any(line.startswith("FR|") and "|1|" in line for line in run("scan").splitlines())
-    for allocation in ("catalog", "inspector"):
-        result = subprocess.run([binary, "scan"], env=dict(env, CROSSINK_TEST_LANGUAGE_OOM=allocation),
-                                text=True, capture_output=True)
-        assert result.returncode == 5 and "out of memory" in result.stderr, result
+    result = subprocess.run([binary, "scan"], env=dict(env, CROSSINK_TEST_DIRECTORY_OOM="1"),
+                            text=True, capture_output=True)
+    assert result.returncode == 5 and "out of memory" in result.stderr, result
     # All starter files fit the fixed arena together. Long user-controlled
     # names/filenames and excessive file counts fail without aborting or clipping.
     for path in languages.iterdir():

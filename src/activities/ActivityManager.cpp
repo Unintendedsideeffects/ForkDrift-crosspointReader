@@ -10,7 +10,9 @@
 #include <FsHelpers.h>
 #include <HalPowerManager.h>
 #include <HalStorage.h>
+#if defined(CROSSINK_LANGUAGE_BENCHMARK)
 #include <LanguageBenchmark.h>
+#endif
 #include <Logging.h>
 #include <Memory.h>
 #include <Xtc.h>

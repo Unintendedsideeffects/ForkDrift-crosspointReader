@@ -241,3 +241,31 @@ TEST(OptionPopup, SwipeKeepsDisabledDestinationUnselectableWithoutWrapping) {
 }
 
 }  // namespace
+
+TEST(OptionPopup, BorrowedDisabledOptionsAndOwnedReuse) {
+  GfxRenderer renderer;
+  HalGPIO gpio;
+  MappedInputManager input(gpio, renderer);
+  OptionPopup popup;
+  std::vector<std::string> names{"English", "Duplicate", "Community"};
+  std::vector<bool> disabled{false, true, false};
+  int selected = -1;
+  popup.showBorrowed(STR_SAVE, OptionLabels(names, disabled), 0, [&](int index) { selected = index; });
+  ButtonNavigator::injectNextRelease();
+  EXPECT_TRUE(popup.handleInput(input, [] {}));
+  popup.render(renderer);
+  EXPECT_EQ(GUI.getLastSelectedIndex(), 2);
+  input.injectPowerConfirmPress();
+  EXPECT_TRUE(popup.handleInput(input, [] {}));
+  EXPECT_EQ(selected, 2);
+  popup.clear();
+  names.clear();
+  disabled.clear();
+  const char* owned[] = {"Owned"};
+  popup.show("Reuse", owned, 1, 0, [&](int index) { selected = index + 10; });
+  popup.render(renderer);
+  EXPECT_EQ(GUI.getLastSelectedIndex(), 0);
+  input.injectPowerConfirmPress();
+  EXPECT_TRUE(popup.handleInput(input, [] {}));
+  EXPECT_EQ(selected, 10);
+}

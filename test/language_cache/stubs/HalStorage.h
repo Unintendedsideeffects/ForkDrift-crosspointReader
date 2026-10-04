@@ -1,6 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <string>
@@ -54,7 +55,11 @@ class HalFile {
     std::snprintf(out, length, "%s", name.c_str());
     return name.size();
   }
-  HalFile openNextFile() { return child_ < children_.size() ? HalFile(children_[child_++]) : HalFile(); }
+  bool allocationFailed() const { return std::getenv("CROSSINK_TEST_DIRECTORY_OOM") != nullptr; }
+  HalFile openNextFile() {
+    if (allocationFailed()) return {};
+    return child_ < children_.size() ? HalFile(children_[child_++]) : HalFile();
+  }
   bool iterationFailed() const { return false; }
   bool close() {
     bool ok = true;

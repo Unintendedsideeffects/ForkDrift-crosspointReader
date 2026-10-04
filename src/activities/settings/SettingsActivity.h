@@ -278,7 +278,7 @@ class SettingsActivity final : public Activity {
   SettingAction parentSubmenu = SettingAction::None;
 
   OptionPopup optionPopup;
-  std::unique_ptr<I18n::Catalog> languageCatalog;
+  HeapObject<I18n::Catalog> languageCatalog;
   I18n::Option pendingLanguage;
   StrId languageError = StrId::_COUNT;
 

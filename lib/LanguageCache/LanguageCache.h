@@ -1,8 +1,9 @@
 #pragma once
 
+#include <Memory.h>
+
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 
 namespace language_cache {
 constexpr size_t SLOT_SIZE = 65536;
@@ -67,7 +68,7 @@ class Inspector {
 
  private:
   struct Impl;
-  std::unique_ptr<Impl> workspace_;
+  HeapObject<Impl> workspace_;
 };
 
 // Inspect metadata without reading beyond the first string. Metadata must precede strings.

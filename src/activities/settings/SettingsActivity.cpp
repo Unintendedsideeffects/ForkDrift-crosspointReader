@@ -665,8 +665,8 @@ void SettingsActivity::openLanguagePicker() {
   languageCatalog.reset();
   // Fixed <3 KiB catalog, cold-path only. A failed allocation still offers
   // English and the active cache without constructing any owning label list.
-  languageCatalog = makeUniqueNoThrow<I18n::Catalog>();
-  const auto status = languageCatalog ? I18N.discover(*languageCatalog) : language_cache::Result::Memory;
+  languageCatalog.init(MemoryPool::None);
+  const auto status = languageCatalog ? I18N.discover(*languageCatalog.get()) : language_cache::Result::Memory;
   const bool cached = std::strcmp(I18N.getCode(), "EN") != 0;
   int currentIndex = cached ? 1 : 0;
   OptionLabels labels;

@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "components/OptionLabels.h"
 #include "components/themes/BaseTheme.h"
 
 class GfxRenderer;
@@ -9,9 +10,8 @@ class GfxRenderer;
 class ThemeStub {
  public:
   void drawButtonHints(const GfxRenderer&, const char*, const char*, const char*, const char*, bool) const {}
-  void drawOptionPopup(const GfxRenderer&, const char*, const std::vector<std::string>&, const int selectedIndex, bool,
-                       const char*, const char*, bool, int, const char*, const char*, const std::vector<bool>&,
-                       const int firstOptionIndex) const {
+  void drawOptionPopup(const GfxRenderer&, const char*, OptionLabels, const int selectedIndex, bool, const char*,
+                       const char*, bool, int, const char*, const char*, const int firstOptionIndex) const {
     lastSelectedIndex = selectedIndex;
     lastFirstOptionIndex = firstOptionIndex;
   }

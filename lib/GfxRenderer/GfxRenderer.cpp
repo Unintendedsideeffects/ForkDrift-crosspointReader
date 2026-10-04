@@ -7,7 +7,9 @@
 #include <BuildScratch.h>
 #include <FontDecompressor.h>
 #include <HalGPIO.h>
+#if defined(CROSSINK_LANGUAGE_BENCHMARK)
 #include <LanguageBenchmark.h>
+#endif
 #include <Logging.h>
 #include <SdCardFont.h>
 #include <Utf8.h>

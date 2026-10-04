@@ -144,7 +144,11 @@ def stable_hash(text):
 
 
 # Existing printf keys without the preferred _FORMAT suffix.
-FORMAT_KEYS = {"STR_NETWORKS_FOUND", "STR_NEARBY_TRANSFER_SIZE", "STR_MOVE_TO_READ_FAILED_BODY"}
+FORMAT_KEYS = {
+    "STR_NETWORKS_FOUND", "STR_NEARBY_TRANSFER_SIZE", "STR_MOVE_TO_READ_FAILED_BODY",
+    "STR_HOLD_FOR_KEYBOARD", "STR_LIBRARY_SCAN_COUNT", "STR_LIBRARY_FILES_COUNT",
+    "STR_STATS_UPLOAD_COUNTS", "STR_FOLDER_SYNC_COUNTS",
+}
 
 
 # ---------------------------------------------------------------------------

@@ -394,7 +394,7 @@ const char* resultName(Result result) {
 size_t slotOffset(size_t size, int slot) { return size - 2 * SLOT_SIZE + static_cast<size_t>(slot) * SLOT_SIZE; }
 
 struct Inspector::Impl : Workspace {};
-Inspector::Inspector() : workspace_(new (std::nothrow) Impl()) {}
+Inspector::Inspector() { workspace_.init(MemoryPool::None); }
 Inspector::~Inspector() = default;
 
 Result inspect(Input input, Metadata& metadata) {
@@ -429,8 +429,9 @@ Result Inspector::inspect(Input input, Metadata& metadata) {
 Result install(Input input, const Schema& schema, const Flash& flash, int pinnedSlot, Installed& installed) {
   if (schema.count > MAX_KEYS || pinnedSlot < -1 || pinnedSlot > 1) return Result::Invalid;
   if (flash.size < 2 * SLOT_SIZE || flash.size % SLOT_SIZE != 0) return Result::StorageUnavailable;
-  auto work = std::unique_ptr<Workspace>(new (std::nothrow) Workspace());
-  if (!work) return Result::Memory;
+  HeapObject<Workspace> storage;
+  if (!storage.init(MemoryPool::None)) return Result::Memory;
+  auto* work = storage.get();
   Result result;
   // The HAL supplies firmware-owned data storage. Legacy filesystem bytes do
   // not prevent provisioning; only a committed language cache is reusable.

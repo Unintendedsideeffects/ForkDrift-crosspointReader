@@ -1209,8 +1209,7 @@ void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, 
                                                            static_cast<uint8_t>(visibleCount), rowHeight, itemSpacing);
     const int primaryOffset = primaryOptionIndex - visibleStart;
     const int secondaryOffset = primaryOffset == 0 ? 1 : 0;
-    const char* labels[] = {options[visibleStart + primaryOffset],
-                            options[visibleStart + secondaryOffset]};
+    const char* labels[] = {options[visibleStart + primaryOffset], options[visibleStart + secondaryOffset]};
     const int selectedVisualIndex = safeSelectedIndex == primaryOptionIndex ? 0 : 1;
     TouchActionButtons::draw(renderer, actionLayout, labels, 0, saveFocused ? -1 : selectedVisualIndex, optionFontId);
   } else

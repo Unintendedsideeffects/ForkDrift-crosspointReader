@@ -174,8 +174,9 @@ Result I18n::discover(Catalog& catalog) const {
   catalog.cachedGeneration = generation_;
   auto directory = Storage.open(DIRECTORY);
   if (!directory || !directory.isDirectory()) {
+    const bool allocationFailed = directory.allocationFailed();
     directory.close();
-    return Result::Ok;
+    return allocationFailed ? Result::Memory : Result::Ok;
   }
   Inspector inspector;
   if (!inspector.available()) {
@@ -188,8 +189,10 @@ Result I18n::discover(Catalog& catalog) const {
   while (true) {
     auto file = directory.openNextFile();
     if (!file) {
+      if (directory.allocationFailed()) status = Result::Memory;
 #ifndef SIMULATOR
-      if (directory.iterationFailed()) status = Result::Io;
+      else if (directory.iterationFailed())
+        status = Result::Io;
 #endif
       file.close();
       break;

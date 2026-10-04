@@ -1,28 +1,12 @@
 #include <HalStorage.h>
 #include <I18n.h>
+#include <I18nStrings.h>
 #include <Memory.h>
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <new>
-
-namespace {
-bool failNextWorkspace = false;
-}
-// Test-only allocation injection; normal new/delete pairing is preserved for ASan.
-void* operator new(size_t size, const std::nothrow_t&) noexcept {
-  if (failNextWorkspace) {
-    failNextWorkspace = false;
-    return nullptr;
-  }
-  try {
-    return ::operator new(size);
-  } catch (...) {
-    return nullptr;
-  }
-}
-void operator delete(void* pointer, const std::nothrow_t&) noexcept { ::operator delete(pointer); }
 
 int main(int argc, char** argv) {
   if (argc < 2) return 2;
@@ -35,6 +19,15 @@ int main(int argc, char** argv) {
     if (HalStorage::opens || HalFile::reads) return 4;
     std::printf("%s|%s|%s|%u\n", I18N.getCode(), I18N.getName(), tr(STR_SETTINGS_TITLE), I18N.isRightToLeft());
     I18N.benchmark();
+  } else if (std::strcmp(argv[1], "lookup") == 0) {
+    if (argc < 5) return 2;
+    for (size_t i = 0; i < static_cast<size_t>(StrId::_COUNT); ++i) {
+      if (std::strcmp(TRANSLATION_KEYS[i].name, argv[4]) == 0) {
+        std::printf("%s", I18N.get(static_cast<StrId>(TRANSLATION_KEYS[i].id)));
+        return 0;
+      }
+    }
+    return 2;
   } else if (std::strcmp(argv[1], "install") == 0) {
     if (argc < 5) return 2;
     const char* old = tr(STR_SETTINGS_TITLE);
@@ -48,11 +41,9 @@ int main(int argc, char** argv) {
     if (std::strcmp(old, before.c_str()) != 0 || tr(STR_SETTINGS_TITLE) != old) return 6;
     std::printf("%s|%llu\n", installed.metadata.code, static_cast<unsigned long long>(installed.generation));
   } else if (std::strcmp(argv[1], "scan") == 0) {
-    const char* failure = std::getenv("CROSSINK_TEST_LANGUAGE_OOM");
-    failNextWorkspace = failure && std::strcmp(failure, "catalog") == 0;
-    auto catalog = makeUniqueNoThrow<I18n::Catalog>();
-    failNextWorkspace = failure && std::strcmp(failure, "inspector") == 0;
-    const auto status = catalog ? I18N.discover(*catalog) : language_cache::Result::Memory;
+    HeapObject<I18n::Catalog> catalog;
+    catalog.init(MemoryPool::None);
+    const auto status = catalog ? I18N.discover(*catalog.get()) : language_cache::Result::Memory;
     if (status != language_cache::Result::Ok) {
       std::fprintf(stderr, "%s\n", language_cache::resultName(status));
       return 5;

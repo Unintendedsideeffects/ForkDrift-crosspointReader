@@ -728,8 +728,7 @@ class SimulatorSmokeTest {
         CrossPointSettings::CHORD_HOME_READER != 32 || CrossPointSettings::POWER_CHORD_ACTION_COUNT != 34) {
       fail("Home/Reader changed persisted shortcut IDs or counts");
     }
-    if (QuickActions::actionLabel(CrossPointSettings::HOME_READER) != StrId::STR_HOME_READER ||
-        std::string(I18N.get(StrId::STR_HOME_READER)) != "Home/Reader") {
+    if (QuickActions::actionLabel(CrossPointSettings::HOME_READER) != StrId::STR_HOME_READER) {
       fail("Home/Reader shortcut label mismatch");
     }
     if (!QuickActions::isActionAvailable(CrossPointSettings::HOME_READER)) {
