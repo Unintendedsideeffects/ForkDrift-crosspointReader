@@ -6,9 +6,6 @@
 - Show today's reading time and a 7-day average on the This Device reading stats page.
 - Choose Small, Medium, or Large text for the top and bottom reader status bars.
 - Preview OPDS book descriptions before downloading, with scrollable text on touch and button devices. Long descriptions show a bounded excerpt.
-- Manually upload this reader's saved reading stats to a CrossPoint Sync server from KOReader Sync settings.
-- Optionally upload reading stats and clippings alongside manual progress sync.
-- Upload saved EPUB progress recursively from a File Browser folder action for one-time catch-up.
 - Sync a selected EPUB’s progress from its Library or File Browser context menu.
 - Use server filenames for OPDS downloads to match reading progress across devices; missing or unsafe names fall back to Author - Title.
 - View device hardware, firmware/build identity, storage and memory diagnostics in Settings → System → About, without exposing network or device identifiers.
@@ -18,15 +15,11 @@
 ### Fixed
 
 - Automatically retry interrupted book and font downloads, validating resumed byte ranges and restarting safely when the server cannot resume.
-- Show uploaded Global, Books, and Skipped counts on separate lines so labels fit in every language.
-- Folder sync uploads saved stats and clippings even when a book has no usable reading position, attempts overall stats once per run, and reports independent upload results.
-- A failed stats upload no longer prevents clippings from being uploaded during progress sync.
 - Hide EPUB section-break rules when the publisher suppresses their borders, avoiding duplicate ornaments.
 - Translate reading statistics, stats tracking controls, and the Minimal Stats theme label into Polish.
 - Dictionary lookup now recognizes French words with contracted prefixes, such as l’histoire and qu’après.
 - Page-turn shortcuts no longer crash at the end of an EPUB or while a chapter is loading.
 - Make Home/Reader shortcuts available on touch devices and preserve Home/Reader Quick Actions slots after restarting.
-- Reserve enough settings-list space for the image grayscale option, avoiding unnecessary memory growth.
 
 ### Changed
 
