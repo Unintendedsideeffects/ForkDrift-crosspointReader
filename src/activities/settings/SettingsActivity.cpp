@@ -13,6 +13,7 @@
 #include <cstring>
 #include <iterator>
 
+#include "AboutActivity.h"
 #include "AppCapabilities.h"
 #include "AppVersion.h"
 #include "BackupStatsActivity.h"
@@ -1127,6 +1128,16 @@ void SettingsActivity::toggleCurrentSetting() {
     auto resultHandler = [this](const ActivityResult&) { SETTINGS.saveToFile(); };
 
     switch (setting.action) {
+      case SettingAction::About: {
+        // The bounded activity owns its snapshot and UI host only while open.
+        auto about = makeUniqueNoThrow<AboutActivity>(renderer, mappedInput);
+        if (!about) {
+          LOG_ERR("SET", "OOM: About activity");
+          return;
+        }
+        startActivityForResult(std::move(about), [this](const ActivityResult&) { requestUpdate(); });
+        break;
+      }
       case SettingAction::RemapFrontButtons:
         startActivityForResult(std::make_unique<ButtonRemapActivity>(renderer, mappedInput, false), resultHandler);
         break;

@@ -38,6 +38,7 @@ enum class SettingAction {
   ControlsTapsGestures,
   ControlsTwoFingerSwipe,
   ControlsEdgeGestures,
+  About,
   SystemDevice,
   SystemFilesCache,
   SystemReadingStats,

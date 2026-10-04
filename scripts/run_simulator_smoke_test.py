@@ -98,6 +98,10 @@ def run_smoke(args: argparse.Namespace) -> int:
             capture_dir = Path(args.frontlight_captures).resolve()
             capture_dir.mkdir(parents=True, exist_ok=True)
             env["CROSSINK_SIMULATOR_SMOKE_FRONTLIGHT_CAPTURES"] = str(capture_dir)
+        if args.about:
+            env["CROSSINK_SIMULATOR_SMOKE_ABOUT"] = "1"
+        if args.about_captures:
+            env["CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_CAPTURES"] = str(Path(args.about_captures).resolve())
         if args.home_themes:
             env["CROSSINK_SIMULATOR_SMOKE_HOME_THEMES"] = "1"
         if args.theme:
@@ -113,7 +117,7 @@ def run_smoke(args: argparse.Namespace) -> int:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            timeout=args.timeout if args.timeout is not None else (180 if args.frontlight_layout else 45),
+            timeout=args.timeout if args.timeout is not None else (180 if args.frontlight_layout or args.about else 45),
         )
 
     print(proc.stdout, end="")
@@ -155,6 +159,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--frontlight-sync", action="store_true", help="Check frontlight sync outside the reader with stats enabled and disabled (X4 Pro)")
     parser.add_argument("--frontlight-layout", action="store_true", help="Check frontlight drawer bounds and handle taps across scales, orientations and themes (X4 Pro)")
     parser.add_argument("--frontlight-captures", help="Directory for frontlight layout framebuffer captures (PGM)")
+    parser.add_argument("--about", action="store_true", help="Check About navigation, paging and read-only snapshots across scales/orientations")
+    parser.add_argument("--about-captures", help="Directory for About framebuffer captures (PGM)")
     parser.add_argument("--home-themes", action="store_true", help="Compare drawer theme changes with fresh Home renders (X4 Pro)")
     parser.add_argument("--no-build", dest="build", action="store_false", help="Run the existing simulator binary")
     parser.add_argument("--window", dest="headless", action="store_false", help="Show the SDL window instead of using dummy video")

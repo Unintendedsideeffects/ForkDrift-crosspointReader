@@ -12,6 +12,7 @@
 - Sync a selected EPUB’s progress from its Library or File Browser context menu.
 
 - Use server filenames for OPDS downloads to match reading progress across devices; missing or unsafe names fall back to Author - Title.
+- View device hardware, firmware/build identity, storage and memory diagnostics in Settings → System → About, without exposing network or device identifiers.
 
 ### Fixed
 

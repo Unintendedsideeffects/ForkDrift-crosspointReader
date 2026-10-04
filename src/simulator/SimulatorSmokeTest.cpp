@@ -53,6 +53,7 @@
 #include "activities/reader/ReaderFontLoading.h"
 #include "activities/reader/ReaderUtils.h"
 #include "activities/reader/SideButtonShortcuts.h"
+#include "activities/settings/AboutActivity.h"
 #include "activities/settings/KOReaderSettingsActivity.h"
 #include "activities/settings/QuickActionsActivity.h"
 #include "activities/settings/SettingsActivity.h"
@@ -194,6 +195,9 @@ class SimulatorSmokeTest {
   uint64_t carouselCacheHash = 0;
   uint64_t carouselScreenHash = 0;
   unsigned frontlightLayoutPass = 0;
+  unsigned aboutPhase = 0;
+  unsigned aboutPass = 0;
+  uint32_t aboutSnapshotUptime = 0;
   unsigned homeThemePass = 0;
   uint64_t homeThemeScreenHash = 0;
   std::string homeThemeBookPath;
@@ -1396,6 +1400,119 @@ class SimulatorSmokeTest {
 #endif
   }
 
+  void tickAbout() {
+    if (scriptIndex < inputScript.size()) {
+      runReaderInputScript();
+      return;
+    }
+    inputScript.clear();
+    scriptIndex = 0;
+    switch (aboutPhase++) {
+      case 0: {
+        // Repeat the actual Settings entry/return route at both scales and rotations.
+        {
+          RenderLock lock;
+          SETTINGS.uiScale = aboutPass % 2 ? CrossPointSettings::UI_SCALE_LARGE : CrossPointSettings::UI_SCALE_SMALL;
+          SETTINGS.uiTheme = aboutPass < 2 ? CrossPointSettings::LYRA : CrossPointSettings::CLASSIC;
+          static constexpr GfxRenderer::Orientation orientations[] = {
+              GfxRenderer::Orientation::Portrait, GfxRenderer::Orientation::LandscapeClockwise,
+              GfxRenderer::Orientation::PortraitInverted, GfxRenderer::Orientation::LandscapeCounterClockwise};
+          renderer.setOrientation(orientations[aboutPass / 2]);
+          UITheme::getInstance().reload();
+        }
+        activityManager.replaceActivity(std::make_unique<SettingsActivity>(renderer, mappedInputManager));
+        queueStep("About Settings entry", SmokeStep::Start, 4);
+        break;
+      }
+      case 1: {
+        const auto settings = buildSystemSettingsParentList(getSettingsList());
+        if (settings.back().action != SettingAction::About) fail("About missing from System");
+        for (int i = 0; i < 3; ++i) addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("About System tab", 3));
+        for (size_t i = 0; i < settings.size(); ++i)
+          addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+        inputScript.push_back(assertSettingsNavigation(3, static_cast<int>(settings.size())));
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("About opened from Settings", 4));
+        inputScript.push_back(assertActivity("About"));
+        break;
+      }
+      case 2: {
+        const auto* about = dynamic_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (!about || about->simulatorTopIndex() != 0) fail("About initial viewport mismatch");
+        const auto& snapshot = about->simulatorSnapshot();
+        if (!snapshot.simulated || !snapshot.device || snapshot.width != display.getDisplayWidth() ||
+            snapshot.height != display.getDisplayHeight() || snapshot.chip || snapshot.sdk || snapshot.internalFree)
+          fail("About simulator presented real hardware data");
+        if ((snapshot.touch == HalDeviceInfo::Presence::Simulated) != gpio.hasTouch())
+          fail("About touch profile mismatch");
+        aboutSnapshotUptime = snapshot.uptimeSeconds;
+        {
+          RenderLock lock;
+          captureStatusBarScreen(("about-first-" + std::to_string(aboutPass)).c_str());
+        }
+        addTap(MappedInputManager::Button::Down);
+        inputScript.push_back(render("About next page", 3));
+        break;
+      }
+      case 3: {
+        const auto* about = dynamic_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (!about || about->simulatorTopIndex() <= 0) fail("About buttons did not scroll");
+        // Repeated paging must reach the last diagnostic and clamp at the end.
+        for (int i = 0; i < 30; ++i) addTap(MappedInputManager::Button::Right);
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("About last page", 3));
+        inputScript.push_back(assertActivity("About"));
+        break;
+      }
+      case 4: {
+        const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (about->simulatorTopIndex() + about->simulatorVisibleRows() != about->simulatorRowCount() ||
+            about->simulatorSnapshot().uptimeSeconds != aboutSnapshotUptime)
+          fail("About last page or stable snapshot mismatch");
+        {
+          RenderLock lock;
+          captureStatusBarScreen(("about-last-" + std::to_string(aboutPass)).c_str());
+        }
+#if CROSSINK_APP_CAP_TOUCH
+        const int x = renderer.getScreenWidth() / 2;
+        const int y = renderer.getScreenHeight() / 2;
+        inputScript = {touchDown(x, y), touchMove(x, y + 120), touchRelease(x, y + 120),
+                       render("About swipe previous", 3)};
+#else
+        addTap(MappedInputManager::Button::Up);
+        inputScript.push_back(render("About previous page", 3));
+#endif
+        break;
+      }
+      case 5: {
+        const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (about->simulatorTopIndex() + about->simulatorVisibleRows() >= about->simulatorRowCount())
+          fail("About previous page did not scroll");
+#if CROSSINK_APP_CAP_TOUCH
+        const auto header = TouchHeaderBackButton::headerRect(renderer, mappedInputManager);
+        const auto hit = TouchHeaderBackButton::layout(header).touchRect;
+        inputScript = {touchDown(hit.x + hit.width / 2, hit.y + hit.height / 2),
+                       touchRelease(hit.x + hit.width / 2, hit.y + hit.height / 2)};
+#else
+        addTap(MappedInputManager::Button::Back);
+#endif
+        inputScript.push_back(render("About returns to Settings", 4));
+        inputScript.push_back(
+            assertSettingsNavigation(3, static_cast<int>(buildSystemSettingsParentList(getSettingsList()).size())));
+        break;
+      }
+      case 6:
+        if (++aboutPass < 8) {
+          aboutPhase = 0;
+          break;
+        }
+        LOG_INF("SMOKE",
+                "Simulator smoke test passed: About navigation, paging, read-only snapshot, scales and orientations");
+        std::_Exit(0);
+    }
+  }
+
   void tickImpl() {
     mappedInputManager.simulatorClearInputFrame();
 
@@ -1408,6 +1525,10 @@ class SimulatorSmokeTest {
       return;
     }
 
+    if (std::getenv("CROSSINK_SIMULATOR_SMOKE_ABOUT")) {
+      tickAbout();
+      return;
+    }
     if (std::getenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_RETURN")) {
       tickFileBrowserSyncReturn();
       return;

@@ -63,3 +63,58 @@ This document shows common issues and possible solutions while using the device 
 2. Select **Yes** to remove the saved password
 3. Reconnect and enter the password again
 4. Choose to save the new password
+
+### Device Information
+
+Open **Settings → System → About**. Use Up/Down or Left/Right to scroll with
+buttons, or swipe up/down on touch devices. The header Back arrow and physical
+Back return to the same Settings selection. Rows are read-only; Confirm has no
+side effect. About does not write a file or change settings.
+
+The device profile and display controller reflect the SDK's active profile
+including boot-time panel detection. Resolution is the physical panel size,
+independent of screen rotation. The build row shows the firmware device target,
+source revision and whether tracked sources were modified at build time. Flash
+capacity is the chip's capacity, not free firmware update space. The SDK row is
+the running ESP-IDF version.
+
+Touch and external RTC/IMU distinguish hardware not present from configured
+hardware unavailable after initialization. Frontlight presence describes the
+board's supported hardware; it is not a test of LED operation. SD capacity is
+reported only for mounted storage; computing FAT free space is deliberately
+avoided. No network connection or sensor wake-up is required.
+
+Uptime, internal RAM free/largest block and PSRAM free/largest block are
+snapshots taken when About opens, including About's own small allocation.
+Internal RAM minimum is the allocator's low-water figure since boot. Internal
+RAM uses the 8-bit internal allocation pool and excludes PSRAM. A large PSRAM
+free value does not prove an internal-RAM allocation can succeed. PSRAM absent
+on C3 is shown as **Not present**. Reopen About to capture another snapshot.
+Reset reason is the numeric ESP-IDF `esp_reset_reason_t` code, useful alongside
+the SDK version (1: power-on, 3: software restart, 4: panic, 5/6/7: watchdog,
+8: deep-sleep wake, 9: brownout). It is a boot reason, not a captured crash log.
+
+Simulators show the simulated profile, panel dimensions and simulated
+peripherals. Chip, flash, display-controller, allocator and reset measurements
+are **Unsupported** rather than fabricated hardware readings. Storage transport
+and capacity are marked **Simulated** because the backend is the host filesystem.
+About omits MAC addresses, chip IDs, custom device names, network addresses,
+credentials, server URLs, and book information.
+
+### Sharing Settings for Support
+
+`/.crosspoint/crossink-settings.json` stores global preferences, including the
+reader defaults, controls, status bars, frontlight schedule, language/keyboard,
+library options and selected font/dictionary settings. It does not include
+hardware diagnostics or per-book reader overrides. Custom device names, font
+names and transfer folder paths may reveal private information: review and
+remove them before sharing. Older or manually edited files may retain extra
+keys that current firmware no longer writes.
+
+Do not share the whole `.crosspoint` directory. Wi-Fi (`wifi.json`), OPDS
+(`opds.json`) and KOReader (`koreader.json`) files contain network/server names,
+usernames and reversibly obfuscated passwords. Obfuscation is not encryption.
+Session/recent-book, bookmark, clipping and reading-stat files reveal private
+paths or reading history. A screenshot of About and a sanitized settings file
+are useful together; CrossInk currently has no dedicated sanitized support-dump
+export.

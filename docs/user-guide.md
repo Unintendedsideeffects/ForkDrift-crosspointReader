@@ -439,6 +439,12 @@ which status-bar items are shown.
 - **Device**: Set the device name and time-to-sleep timeout. Devices with a
   real-time clock also expose clock format, UTC offset, and a sync action.
 
+- **About**: Open **Settings → System → About** for the detected device profile,
+  firmware/source revision, chip and display details, available input/sensors,
+  SD transport/capacity, and memory diagnostics. Buttons or swipes scroll the
+  pages; Back returns to Settings. Runtime figures are captured when the screen
+  opens; reopen it for a new snapshot. See [Troubleshooting](./troubleshooting.md#device-information).
+
 - **Files & Cache**: Configure hidden files, file extensions, file-browser view,
   finished-book behavior, and clear the reading cache.
 
