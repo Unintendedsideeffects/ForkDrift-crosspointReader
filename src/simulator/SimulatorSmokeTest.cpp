@@ -28,6 +28,10 @@
 #include "TtfRenderProfileStore.h"
 #include "util/WordSelectNavigator.h"
 #endif
+#include <AppVersion.h>
+#include <ArduinoJson.h>
+#include <SupportInfo.h>
+
 #include <memory>
 #include <vector>
 
@@ -38,6 +42,7 @@
 #include "RecentBooksStore.h"
 #include "SdCardFontSystem.h"
 #include "SettingsList.h"
+#include "SupportInfoExport.h"
 #include "WifiCredentialStore.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
@@ -238,6 +243,8 @@ class SimulatorSmokeTest {
   uint64_t carouselCacheHash = 0;
   uint64_t carouselScreenHash = 0;
   unsigned frontlightLayoutPass = 0;
+  unsigned supportPhase = 0;
+  std::string priorSupportExport;
   unsigned aboutPhase = 0;
   unsigned aboutPass = 0;
   uint32_t aboutSnapshotUptime = 0;
@@ -1541,7 +1548,6 @@ class SimulatorSmokeTest {
         if (!about || about->simulatorTopIndex() <= 0) fail("About buttons did not scroll");
         // Repeated paging must reach the last diagnostic and clamp at the end.
         for (int i = 0; i < 30; ++i) addTap(MappedInputManager::Button::Right);
-        addTap(MappedInputManager::Button::Confirm);
         inputScript.push_back(render("About last page", 3));
         inputScript.push_back(assertActivity("About"));
         break;
@@ -1594,6 +1600,286 @@ class SimulatorSmokeTest {
     }
   }
 
+  void supportOpenScope() {
+    auto* about = dynamic_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+    if (!about) fail("Support export did not return to About");
+#if CROSSINK_APP_CAP_TOUCH
+    const auto hit = about->simulatorExportButtonRect();
+    inputScript = {touchDown(hit.x + hit.width / 2, hit.y + hit.height / 2),
+                   touchRelease(hit.x + hit.width / 2, hit.y + hit.height / 2)};
+#else
+    addTap(MappedInputManager::Button::Confirm);
+#endif
+    inputScript.push_back(render("Support scope selection", 3));
+  }
+  void supportSelectScope(int scope) {
+    auto* about = dynamic_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+    if (!about || !about->simulatorScopePopupActive()) fail("Support scope popup missing");
+#if CROSSINK_APP_CAP_TOUCH
+    const auto hit = about->simulatorScopePopup().simulatorOptionRect(scope);
+    inputScript = {touchDown(hit.x + hit.width / 2, hit.y + hit.height / 2),
+                   touchRelease(hit.x + hit.width / 2, hit.y + hit.height / 2)};
+#else
+    for (int i = 0; i < scope; ++i) addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+    addTap(MappedInputManager::Button::Confirm);
+#endif
+    inputScript.push_back(render("Support scope confirmation", 4));
+    inputScript.push_back(assertActivity("Confirmation"));
+  }
+  void supportConfirmWrite() {
+    addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("Support export result", 4));
+    inputScript.push_back(assertActivity("About"));
+  }
+  void checkSupportExport(bool book) {
+    const std::string contents = Storage.readFile(SupportInfo::Path).c_str();
+    if (contents.find("PRIVATE_SUPPORT") != std::string::npos) fail("Support export leaked private data");
+    JsonDocument doc;  // Host-only regression inspection, never part of firmware export.
+    if (deserializeJson(doc, contents)) fail("Support export invalid JSON");
+    if (doc["version"].as<int>() != 1 || !doc["about"]["runtimeData"].is<const char*>())
+      fail("Support export schema missing");
+    if (std::strcmp(doc["about"]["chipAndMemoryStatus"], "unsupported") || !doc["about"]["internalFreeBytes"].isNull())
+      fail("Support export invented simulator heap");
+    if (std::strcmp(doc["firmware"]["freeinkSdkSha"], AppVersion::sdkSha()))
+      fail("Support export SDK provenance mismatch");
+    if (!book) {
+      if (std::strcmp(doc["bookContext"]["status"], "excluded") ||
+          !doc["bookContext"]["effectiveReaderPreferences"].isNull())
+        fail("Device scope included book settings");
+    } else {
+      const auto prefs = doc["bookContext"]["effectiveReaderPreferences"];
+      if (std::strcmp(doc["bookContext"]["status"], "loaded") ||
+          prefs["readerFontPointSize"]["value"].as<int>() != 27 ||
+          std::strcmp(prefs["readerFontPointSize"]["source"], "book_override") ||
+          std::strcmp(prefs["orientation"]["source"], "global_default") ||
+          !doc["bookContext"]["fontSelectionOverride"].as<bool>() ||
+          !doc["bookContext"]["dictionaryOverride"].as<bool>())
+        fail("Support book inheritance mismatch");
+    }
+  }
+  void checkSupportLegacyAndMissingRecords() {
+    const auto cache = Epub::cachePathForFilePath(APP_STATE.openEpubPath, "/.crosspoint");
+    const auto path = cache + "/reader_settings.bin";
+    uint8_t legacy[88]{};  // Actual v4 format: single margin, legacy dark byte, no dictionary or mask.
+    legacy[0] = 4;
+    legacy[1] = 1;
+    legacy[6] = 2;
+    legacy[8] = 255;
+    legacy[9] = 99;
+    legacy[10] = 255;
+    legacy[12] = 99;
+    legacy[13] = 2;
+    legacy[17] = 99;
+    auto writeRecord = [&] {
+      auto file = Storage.open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC);
+      if (!file || file.write(legacy, sizeof(legacy)) != sizeof(legacy) || !file.sync())
+        fail("Legacy support fixture write failed");
+      file.close();
+    };
+    auto exportDocument = [&] {
+      if (SupportInfoExport::save(true) != SupportInfo::Result::Saved) fail("Support context export failed");
+      JsonDocument document;
+      const auto contents = Storage.readFile(SupportInfo::Path);
+      if (deserializeJson(document, contents)) fail("Support context invalid JSON");
+      if (std::strstr(contents.c_str(), "PRIVATE_SUPPORT")) fail("Support context leaked private data");
+      return document;
+    };
+    // A v11 image override must not be mistaken for a custom-font override.
+    uint8_t grayscale[158]{};
+    grayscale[0] = 11;
+    grayscale[1] = 1;
+    grayscale[155] = 4;  // Image grayscale is bit 18; custom font moved to bit 19.
+    grayscale[157] = SETTINGS.imageGrayscale ? 0 : 1;
+    {
+      auto file = Storage.open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC);
+      if (!file || file.write(grayscale, sizeof(grayscale)) != sizeof(grayscale) || !file.sync())
+        fail("Grayscale support fixture write failed");
+      file.close();
+      auto d = exportDocument();
+      auto field = d["bookContext"]["effectiveReaderPreferences"]["imageGrayscale"];
+      if (!field["value"].is<int>() || field["value"].as<int>() != grayscale[157] ||
+          std::strcmp(field["source"], "book_override") || d["bookContext"]["fontSelectionOverride"].as<bool>())
+        fail("Support grayscale override confused with custom font");
+    }
+    writeRecord();
+    {
+      auto d = exportDocument();
+      auto prefs = d["bookContext"]["effectiveReaderPreferences"];
+      if (prefs["readerFontPointSize"]["value"].as<int>() != 14 ||
+          prefs["lineHeightPercent"]["value"].as<int>() != 70 || prefs["wordSpacing"]["value"].as<int>() != 4 ||
+          prefs["screenMarginHorizontal"]["value"].as<int>() != 150 ||
+          prefs["orientation"]["value"].as<int>() != SETTINGS.orientation ||
+          prefs["imageRendering"]["value"].as<int>() != SETTINGS.imageRendering ||
+          prefs["embeddedStyle"]["value"].as<int>() != 1)
+        fail("Legacy support normalization mismatch");
+    }
+    std::memcpy(legacy + 24, "PRIVATE_SUPPORT_SENTINEL_FONT", 29);
+    writeRecord();
+    {
+      auto d = exportDocument();
+      auto field = d["bookContext"]["effectiveReaderPreferences"]["readerFontPointSize"];
+      if (!field["value"].isNull() || std::strcmp(field["status"], "unavailable_legacy_custom_font_size"))
+        fail("Legacy custom font size misrepresented");
+    }
+    legacy[0] = 99;
+    writeRecord();
+    {
+      auto d = exportDocument();
+      if (std::strcmp(d["bookContext"]["status"], "invalid_record") ||
+          !d["bookContext"]["effectiveReaderPreferences"].isNull())
+        fail("Invalid support context misrepresented");
+    }
+    if (!Storage.remove(path.c_str())) fail("Support missing-record fixture failed");
+    {
+      auto d = exportDocument();
+      if (std::strcmp(d["bookContext"]["status"], "inherited_no_record") ||
+          std::strcmp(d["bookContext"]["effectiveReaderPreferences"]["readerFontPointSize"]["source"],
+                      "global_default"))
+        fail("Missing support record did not inherit");
+    }
+    if (!Storage.rmdir(cache.c_str())) fail("Support unavailable-cache fixture failed");
+    {
+      auto d = exportDocument();
+      if (std::strcmp(d["bookContext"]["status"], "unavailable")) fail("Absent support cache misrepresented");
+    }
+  }
+
+  void tickSupportExport() {
+    if (scriptIndex < inputScript.size()) {
+      runReaderInputScript();
+      return;
+    }
+    inputScript.clear();
+    scriptIndex = 0;
+    switch (supportPhase++) {
+      case 0: {
+        {
+          RenderLock lock;
+          std::strcpy(SETTINGS.deviceName, "PRIVATE_SUPPORT_SENT");
+          std::strcpy(SETTINGS.opdsServerUrl, "PRIVATE_SUPPORT_SENTINEL_URL");
+          std::strcpy(SETTINGS.opdsUsername, "PRIVATE_SUPPORT_SENTINEL_USER");
+          std::strcpy(SETTINGS.opdsPassword, "PRIVATE_SUPPORT_SENTINEL_PASSWORD");
+          std::strcpy(SETTINGS.sdFontFamilyName, "PRIVATE_SUPPORT_SENTINEL_FONT");
+          std::strcpy(SETTINGS.dictionarySdFontFamilyName, "PRIVATE_SUPPORT_SENTINEL_DICT");
+          std::strcpy(SETTINGS.opdsDownloadFolder, "PRIVATE_SUPPORT_SENTINEL_FOLDER");
+          std::strcpy(SETTINGS.nearbyReceiveFolder, "PRIVATE_SUPPORT_SENTINEL_NEARBY");
+        }
+        APP_STATE.openEpubPath = std::getenv("CROSSINK_SIMULATOR_SMOKE_BOOK");
+        const auto cache = Epub::cachePathForFilePath(APP_STATE.openEpubPath, "/.crosspoint");
+        Storage.mkdir(cache.c_str());
+        uint8_t record[157]{};  // Fixed v10 fixture; includes poisoned font names, no metadata parse.
+        record[0] = 10;
+        record[1] = 9;
+        record[6] = 27;
+        record[7] = 100;
+        record[10] = 5;
+        record[11] = 5;
+        std::memcpy(record + 24, "PRIVATE_SUPPORT_SENTINEL_BOOK_FONT", 33);
+        std::memcpy(record + 88, "PRIVATE_SUPPORT_SENTINEL_BOOK_DICT", 33);
+        record[152] = 18;
+        record[153] = 2;
+        record[155] = 4;  // font point-size bit1, font name bit18.
+        auto f = Storage.open((cache + "/reader_settings.bin").c_str(), O_WRONLY | O_CREAT | O_TRUNC);
+        if (!f || f.write(record, sizeof(record)) != sizeof(record) || !f.sync()) fail("Support fixture write failed");
+        f.close();
+        for (const char* name : {"wifi.json", "opds.json", "koreader.json", "ttf-rendering.json"})
+          Storage.writeFile((std::string("/.crosspoint/") + name).c_str(), "PRIVATE_SUPPORT_SENTINEL_CONFIG");
+        activityManager.replaceActivity(std::make_unique<AboutActivity>(renderer, mappedInputManager));
+        queueStep("Support About entry", SmokeStep::Start, 4);
+        break;
+      }
+      case 1:
+        supportOpenScope();
+        break;
+      case 2:  // Default selection cancels; it must never generate a file.
+      {
+        RenderLock lock;
+        captureStatusBarScreen("support-scope");
+      }
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Support scope cancelled", 3));
+        break;
+      case 3:
+        if (Storage.exists(SupportInfo::Path)) fail("Scope cancellation wrote export");
+        supportOpenScope();
+        break;
+      case 4:
+        supportSelectScope(1);
+        break;
+      case 5: {
+        RenderLock lock;
+        captureStatusBarScreen("support-confirmation");
+      }
+        addTap(MappedInputManager::Button::Back);
+        inputScript.push_back(render("Support confirmation cancelled", 4));
+        inputScript.push_back(assertActivity("About"));
+        break;
+      case 6:
+        if (Storage.exists(SupportInfo::Path)) fail("Confirmation cancellation wrote export");
+        supportOpenScope();
+        break;
+      case 7:
+        supportSelectScope(1);
+        break;
+      case 8:
+        supportConfirmWrite();
+        break;
+      case 9: {
+        RenderLock lock;
+        captureStatusBarScreen("support-saved");
+      }
+        checkSupportExport(false);
+        priorSupportExport = Storage.readFile(SupportInfo::Path).c_str();
+        // A directory at the temp filename deterministically rejects the HAL write.
+        if (!Storage.mkdir(SupportInfo::TempPath) || !Storage.writeFile("/crossink-support.json.tmp/blocker", "test"))
+          fail("Support failure fixture failed");
+        supportOpenScope();
+        break;
+      case 10:
+        supportSelectScope(1);
+        break;
+      case 11:
+        supportConfirmWrite();
+        break;
+      case 12: {
+        RenderLock lock;
+        captureStatusBarScreen("support-failed");
+      }
+        if (std::string(Storage.readFile(SupportInfo::Path).c_str()) != priorSupportExport)
+          fail("Failed export destroyed prior file");
+        if (!Storage.remove("/crossink-support.json.tmp/blocker") || !Storage.rmdir(SupportInfo::TempPath))
+          fail("Support failure fixture cleanup failed");
+        if (static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity())->simulatorExportStatus() !=
+            StrId::STR_SUPPORT_FAILED)
+          fail("Support failure was not shown");
+        supportOpenScope();
+        break;
+      case 13:
+        supportSelectScope(2);
+        break;
+      case 14:
+        supportConfirmWrite();
+        break;
+      case 15:
+        checkSupportExport(true);
+        checkSupportLegacyAndMissingRecords();
+        if (Storage.exists(SupportInfo::TempPath) || Storage.exists(SupportInfo::BackupPath))
+          fail("Support transaction files remained");
+        if (static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity())->simulatorExportStatus() !=
+            StrId::STR_SUPPORT_SAVED)
+          fail("Support success was not shown");
+        addTap(MappedInputManager::Button::Back);
+        inputScript.push_back(render("Support About exit", 4));
+        break;
+      case 16:
+        LOG_INF("SMOKE",
+                "Simulator smoke test passed: support export privacy, explicit scopes, cancellation, failure "
+                "preservation and EPUB inheritance");
+        std::_Exit(0);
+    }
+  }
+
   void tickImpl() {
     mappedInputManager.simulatorClearInputFrame();
 
@@ -1606,6 +1892,10 @@ class SimulatorSmokeTest {
       return;
     }
 
+    if (std::getenv("CROSSINK_SIMULATOR_SMOKE_SUPPORT_EXPORT")) {
+      tickSupportExport();
+      return;
+    }
     if (std::getenv("CROSSINK_SIMULATOR_SMOKE_ABOUT")) {
       tickAbout();
       return;

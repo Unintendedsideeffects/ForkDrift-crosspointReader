@@ -5,6 +5,7 @@
 #include <HalDeviceInfo.h>
 
 #include "activities/Activity.h"
+#include "components/OptionPopup.h"
 #include "util/ButtonNavigator.h"
 
 class AboutActivity final : public Activity {
@@ -18,6 +19,10 @@ class AboutActivity final : public Activity {
   int simulatorVisibleRows() const { return visibleRows; }
   int simulatorRowCount() const;
   int simulatorTopIndex() const { return topIndex; }
+  StrId simulatorExportStatus() const { return exportStatus; }
+  const Rect& simulatorExportButtonRect() const { return exportButtonRect; }
+  const OptionPopup& simulatorScopePopup() const { return scopePopup; }
+  bool simulatorScopePopupActive() const { return scopePopup.isActive(); }
   const HalDeviceInfo::Snapshot& simulatorSnapshot() const { return snapshot; }
 #endif
 
@@ -29,6 +34,13 @@ class AboutActivity final : public Activity {
   HalDeviceInfo::Snapshot snapshot;
   // Reused by the render-only row provider; no strings/arrays per row or frame.
   char valueBuffer[96]{};
+  OptionPopup scopePopup;  // At most three scope choices; reuse the existing popup lifecycle.
+  Rect exportButtonRect{};
+  bool uiReady = false;
+  StrId exportStatus = StrId::STR_SUPPORT_EXPORT;
+  void chooseExportScope();
+  void confirmExport(bool includeBook);
+  static void onExport(const freeink::ui::ActionEvent& event, void* user);
   int topIndex = 0;
   int visibleRows = 1;
   static void aboutScreen(UiApp::ScreenType& screen, void* user);

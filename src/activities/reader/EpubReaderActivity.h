@@ -566,6 +566,10 @@ class EpubReaderActivity final : public Activity {
   // Returns false if the page cannot be loaded (missing cache / file error).
   static bool drawCurrentPageToBuffer(const std::string& filePath, GfxRenderer& renderer);
   static BookReaderSettingsData readBookReaderSettings(const Epub& epub);
+  enum class BookSettingsReadStatus : uint8_t { Missing, Loaded, Invalid };
+  // Read only this cache's settings record; no EPUB parsing, migration or history scan.
+  static BookReaderSettingsData readBookReaderSettingsForSupport(const std::string& cachePath,
+                                                                 BookSettingsReadStatus& status);
   static uint8_t loadBookRenderMode(const std::string& filePath);
   static bool saveBookRenderMode(const std::string& filePath, uint8_t renderMode);
   static bool resetBookReaderSettings(const std::string& filePath);

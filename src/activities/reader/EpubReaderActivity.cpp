@@ -1283,7 +1283,10 @@ bool writeReaderSettingsSnapshot(FsFile& file, const EpubReaderActivity::ReaderS
          writeExact(file, in.sdFontFamilyName, sizeof(in.sdFontFamilyName));
 }
 
-BookReaderSettingsData loadBookReaderSettingsFile(const std::string& cachePath) {
+BookReaderSettingsData loadBookReaderSettingsFile(const std::string& cachePath,
+                                                  EpubReaderActivity::BookSettingsReadStatus* status = nullptr) {
+  using ReadStatus = EpubReaderActivity::BookSettingsReadStatus;
+  if (status) *status = ReadStatus::Invalid;
   BookReaderSettingsData data;
   captureReaderSettings(data.readerSettings);
   std::strncpy(data.dictionarySdFontFamilyName, SETTINGS.dictionarySdFontFamilyName,
@@ -1293,6 +1296,7 @@ BookReaderSettingsData loadBookReaderSettingsFile(const std::string& cachePath) 
 
   FsFile file;
   if (!Storage.openFileForRead("ERS", cachePath + READER_SETTINGS_FILE_NAME, file)) {
+    if (status && !Storage.exists((cachePath + READER_SETTINGS_FILE_NAME).c_str())) *status = ReadStatus::Missing;
     return data;
   }
 
@@ -1305,11 +1309,13 @@ BookReaderSettingsData loadBookReaderSettingsFile(const std::string& cachePath) 
 
   if (version == LEGACY_READER_SETTINGS_FILE_VERSION) {
     uint16_t seconds = 0;
-    if (readU16(file, seconds) && seconds != 0) {
+    const bool valid = readU16(file, seconds);
+    if (valid && seconds != 0) {
       data.hasAutoPageTurnInterval = true;
       data.autoPageTurnSeconds = clampAutoPageTurnIntervalSeconds(seconds);
     }
     file.close();
+    if (status) *status = valid ? ReadStatus::Loaded : ReadStatus::Invalid;
     return data;
   }
 
@@ -1399,6 +1405,7 @@ BookReaderSettingsData loadBookReaderSettingsFile(const std::string& cachePath) 
     data.dictionarySdFontFamilyName[sizeof(data.dictionarySdFontFamilyName) - 1] = '\0';
     data.dictionaryFontPointSize = SETTINGS.dictionaryFontPointSize;
   }
+  if (status) *status = ReadStatus::Loaded;
   return data;
 }
 
@@ -1495,6 +1502,11 @@ void moveFinishedBookToReadFolder(const std::string& srcPath, const std::string&
 
 EpubReaderActivity::BookReaderSettingsData EpubReaderActivity::readBookReaderSettings(const Epub& epub) {
   return loadBookReaderSettingsFile(epub.getCachePath());
+}
+
+EpubReaderActivity::BookReaderSettingsData EpubReaderActivity::readBookReaderSettingsForSupport(
+    const std::string& cachePath, BookSettingsReadStatus& status) {
+  return loadBookReaderSettingsFile(cachePath, &status);
 }
 
 uint8_t EpubReaderActivity::loadBookRenderMode(const std::string& filePath) {

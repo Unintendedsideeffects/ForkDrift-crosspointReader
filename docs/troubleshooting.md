@@ -68,8 +68,9 @@ This document shows common issues and possible solutions while using the device 
 
 Open **Settings → System → About**. Use Up/Down or Left/Right to scroll with
 buttons, or swipe up/down on touch devices. The header Back arrow and physical
-Back return to the same Settings selection. Rows are read-only; Confirm has no
-side effect. About does not write a file or change settings.
+Back return to the same Settings selection. Diagnostic rows are read-only.
+Confirm, or the **Export support info** touch button, opens the export scope
+selector. Nothing is written until you choose a scope and confirm it.
 
 The device profile and display controller reflect the SDK's active profile
 including boot-time panel detection. Resolution is the physical panel size,
@@ -115,6 +116,85 @@ Do not share the whole `.crosspoint` directory. Wi-Fi (`wifi.json`), OPDS
 (`opds.json`) and KOReader (`koreader.json`) files contain network/server names,
 usernames and reversibly obfuscated passwords. Obfuscation is not encryption.
 Session/recent-book, bookmark, clipping and reading-stat files reveal private
-paths or reading history. A screenshot of About and a sanitized settings file
-are useful together; CrossInk currently has no dedicated sanitized support-dump
-export.
+paths or reading history. Use the allowlisted support export below instead of
+sharing these stores wholesale.
+
+
+### Export Support Information
+
+Open **Settings → System → About → Export support info**. Choose **Device and
+global settings**, or explicitly choose **Also include last opened EPUB
+settings** when an EPUB is available in the current session state. The second
+scope refers to that one book only; it does not browse the library or scan
+history. The confirmation explains the exclusions and replacement filename.
+Cancel is selected by default in both steps. Confirm writes
+`/crossink-support.json` in the SD card root. There is no upload, automatic
+sharing, network connection, or web-download endpoint.
+
+The JSON has `schema: "crossink-support"` and `version: 1`. Coverage is deliberately
+allowlisted, not a claim to include every persisted setting:
+
+- **Firmware:** canonical project version (without branch suffix), source revision,
+  firmware device target, tracked-source modified flag and the actual compiled
+  FreeInk SDK checkout revision. `about.espIdfVersion` is the runtime ESP-IDF
+  version, which is different from the FreeInk SDK revision.
+- **About:** the same safe hardware fields as the screen, captured again immediately
+  before the export write. Heap measurements include the export allocation.
+  Values use bytes, MHz, physical pixels and seconds. Simulator runtime fields
+  are marked simulated/unsupported, and allocator/chip measurements are omitted.
+  PSRAM absence and initialization failure remain distinct.
+- **Global preferences:** the explicitly listed numeric settings, status-bar slot
+  choices/options and Quick Action IDs. Values are a mutex-protected snapshot of
+  loaded in-memory global preferences, not a reread or validation of the settings
+  file on disk. Numeric enums/units follow this firmware's settings schema;
+  hardware-specific preferences may be retained even on unsupported hardware.
+  Font/dictionary names are reduced to custom-font-selected booleans. `statusSlots`
+  contains top-reader 7, bottom-reader 7, then display 3 choices; `statusOptions`
+  contains percentage format, progress bar mode and thickness for top then bottom.
+  The optional `readerOverrideMask` uses the reader-settings v11 bit order, with
+  bit 18 identifying image grayscale and bit 19 the redacted SD-font-family override.
+- **Configuration status:** only presence of the Wi-Fi, OPDS, KOReader and TTF
+  rendering-profile JSON files. Presence does not prove valid configuration,
+  credentials, a network connection, or loaded profiles. These files are not read,
+  and server counts/options, custom font profiles and hardware NVS overrides are
+  not collected by version 1.
+- **Optional last opened EPUB context:** the current cache's reader-settings
+  record and statistics-off marker only. Numeric reader fields report effective
+  values (including the reader's clamping/fallback rules) and `global_default`,
+  `book_override`, `global_fallback`, or `safe_mode` sources. Built-in legacy font-size steps are
+  converted to physical points. Legacy custom-font steps require a font registry
+  lookup; version 1 exports a null size with an explicit unavailable status instead
+  of scanning fonts or labelling the stored step an effective point size. Font
+  selection, dictionary, render-mode, safe-mode and auto-page-turn overrides are
+  reported without custom names. A zero dictionary point size follows the
+  effective reader font size. `bookStatsEnabled` is the per-book marker;
+  `effectiveStatsEnabled` also respects the global tracking switch. Missing
+  records inside an existing current cache inherit defaults. Invalid records,
+  absent current caches (including unmigrated legacy caches), missing files and
+  unsupported formats report unavailable/invalid context instead of invented
+  effective settings. No cache migration or book metadata parsing occurs.
+
+Credentials (including obfuscated values), usernames, URLs, SSIDs, MAC/chip/device
+identifiers, device names, custom font names, folder/book paths, book titles,
+authors, cache hashes, bookmarks, clippings, progress/history and raw logs are
+excluded. The file still reveals device capabilities and personal preference
+choices; review it before sharing. Excluded, unavailable and simulated information
+is called out rather than represented by plausible hardware values.
+
+The export streams through a fixed 256-byte buffer, with no complete JSON document
+in memory. It writes `.tmp`, checks writes/sync/close, and retains the previous
+export as `.bak` until installation succeeds. FAT does not provide a single
+atomic replace operation: an interrupted rename can temporarily leave `.bak`
+instead of the main filename. The next export restores that backup before
+starting. Failed writes preserve the previous complete export. If rollback
+fails, the UI reports that the prior export remains in `.bak`; retrieve that
+file or retry. If backup cleanup fails after successful installation, the UI
+reports **Saved; previous export kept as .bak**. Do not remove a recovery backup
+before checking it. Storage hardware failures can still prevent recovery.
+
+On X3/X4/Classic, test the button route, both cancellation steps and return to
+Settings. On Sticky/Pro, test the export touch button, scope choices, confirmation
+and header Back. On each, check exports with and without an EPUB override, then
+an absent/read-only/full SD card; the prior file must survive a failed write.
+Compare C3 PSRAM absence and S3 internal/PSRAM pools against serial diagnostics.
+No book-cache reset or hardware flash is required to use this feature.

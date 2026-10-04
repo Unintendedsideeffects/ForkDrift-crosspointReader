@@ -444,6 +444,10 @@ which status-bar items are shown.
   SD transport/capacity, and memory diagnostics. Buttons or swipes scroll the
   pages; Back returns to Settings. Runtime figures are captured when the screen
   opens; reopen it for a new snapshot. See [Troubleshooting](./troubleshooting.md#device-information).
+  You can also choose **Export support info**,
+  select device/global settings alone or include the last opened EPUB's anonymous
+  overrides, then confirm saving `/crossink-support.json` to the SD card. Nothing
+  is uploaded. See [export coverage and privacy](./troubleshooting.md#export-support-information).
 
 - **Files & Cache**: Configure hidden files, file extensions, file-browser view,
   finished-book behavior, and clear the reading cache.

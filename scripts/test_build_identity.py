@@ -2,6 +2,8 @@
 from pathlib import Path
 import runpy
 import unittest
+import os
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = runpy.run_path(str(ROOT / "scripts/git_branch.py"))
@@ -43,5 +45,45 @@ class BuildIdentityTest(unittest.TestCase):
                 captures.append((env.defines, scoped))
             self.assertEqual(captures[0][0], captures[1][0])
             self.assertNotEqual(captures[0][1], captures[1][1])
+
+    def test_support_provenance_excludes_custom_version_and_invalid_sdk_values(self):
+        function = MODULE["inject_version"]
+        globals_ = function.__globals__
+        for name in ("get_crossink_version", "run_git_value"):
+            previous = globals_[name]
+            self.addCleanup(globals_.__setitem__, name, previous)
+        globals_["get_crossink_version"] = lambda _: "1.2.3+PRIVATE_BRANCH_PATH"
+        globals_["run_git_value"] = lambda *_: "PRIVATE_SDK_PATH"
+        env = Env("x4-pro-simulator")
+        function(env)
+        _, defines = env.middleware[0][0](env, "BuildInfo.cpp")
+        values = dict(d for d in defines if isinstance(d, tuple))
+        self.assertIn("unknown", values["CROSSINK_SUPPORT_VERSION"])
+        self.assertIn("unknown", values["CROSSINK_SDK_SHA"])
+        globals_["get_crossink_version"] = lambda _: "1.2.3"
+        globals_["run_git_value"] = lambda *_: "a" * 40
+        env = Env("x4-pro-simulator")
+        function(env)
+        _, defines = env.middleware[0][0](env, "BuildInfo.cpp")
+        values = dict(d for d in defines if isinstance(d, tuple))
+        self.assertIn("1.2.3", values["CROSSINK_SUPPORT_VERSION"])
+        self.assertIn("a" * 40, values["CROSSINK_SDK_SHA"])
+
+    def test_support_version_honors_release_override_and_rc_precedence(self):
+        function = MODULE["inject_version"]
+        globals_ = function.__globals__
+        previous = globals_["get_crossink_version"]
+        self.addCleanup(globals_.__setitem__, "get_crossink_version", previous)
+        globals_["get_crossink_version"] = lambda _: "1.6.1"
+        for release, rc, expected in (("1.6.2", "", "1.6.2"),
+                                       ("v1.6.3", "", "1.6.3"),
+                                       ("1.6.2", "abc123", "1.6.1"),
+                                       ("PRIVATE_VERSION", "", "unknown")):
+            with patch.dict(os.environ, {"CROSSINK_RELEASE_VERSION": release, "CROSSINK_RC_HASH": rc}):
+                env = Env("default")
+                function(env)
+                _, defines = env.middleware[0][0](env, "BuildInfo.cpp")
+                values = dict(d for d in defines if isinstance(d, tuple))
+                self.assertIn(expected, values["CROSSINK_SUPPORT_VERSION"])
 
 if __name__ == "__main__": unittest.main()

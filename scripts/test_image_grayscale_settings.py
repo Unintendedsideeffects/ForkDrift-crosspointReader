@@ -44,6 +44,7 @@ struct FsFile {
 };
 struct StorageFake {
   std::vector<uint8_t> bytes;
+  bool exists(const char*) { return !bytes.empty(); }
   bool openFileForRead(const char*, const std::string&, FsFile& f) {
     if (bytes.empty()) return false;
     f.bytes = &bytes; return true;
@@ -132,7 +133,7 @@ EpubReaderActivity::ReaderSettingsSnapshot globalSnapshot;
 struct { char dictionarySdFontFamilyName[64] = ""; uint8_t dictionaryFontPointSize = 0; } SETTINGS;
 void captureReaderSettings(EpubReaderActivity::ReaderSettingsSnapshot& out) { out = globalSnapshot; }
 '''
-    program = FIXTURE + 'struct EpubReaderActivity {\n' + structs + '\n};\n' + constants + io + setup + production + CASES
+    program = FIXTURE + 'struct EpubReaderActivity {\n' + structs + '\nenum class BookSettingsReadStatus : uint8_t { Missing, Loaded, Invalid };\n};\n' + constants + io + setup + production + CASES
     with tempfile.TemporaryDirectory(prefix='crossink-image-settings-') as directory:
         source = Path(directory) / 'settings.cpp'
         binary = Path(directory) / 'settings'

@@ -2,10 +2,13 @@
 
 #include <AppVersion.h>
 #include <I18n.h>
+#include <Memory.h>
 
 #include <cstdio>
 
 #include "MappedInputManager.h"
+#include "SupportInfoExport.h"
+#include "activities/util/ConfirmationActivity.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
 #include "components/UiAppHelpers.h"
@@ -88,12 +91,26 @@ void AboutActivity::onEnter() {
   LOG_DBG("ABOUT", "Activity allocation: %u bytes; snapshot: %u bytes", static_cast<unsigned>(sizeof(*this)),
           static_cast<unsigned>(sizeof(snapshot)));
   applySharedUiTheme(app, uiTarget);
+  app.on(1, &AboutActivity::onExport, this);
   app.setScreen(&AboutActivity::aboutScreen, this);
   requestUpdate();
 }
 
 void AboutActivity::loop() {
   RenderLock lock(*this);  // Protect viewport state shared with the render task.
+  if (scopePopup.handleInput(mappedInput, [this] { requestUpdate(); })) return;
+  if (uiReady) {
+    const auto input = touchSnapshotFrom(mappedInput);
+    if (input.touchPressed || input.touchReleased) {
+      const auto event = app.route(input);
+      if (app.invalidated()) requestUpdate();
+      if (event) return;
+    }
+  }
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    chooseExportScope();
+    return;
+  }
   if (TouchHeaderBackButton::wasTapped(mappedInput, renderer) ||
       mappedInput.wasPressed(MappedInputManager::Button::Back)) {
     finishAfterBackPress();
@@ -113,6 +130,57 @@ void AboutActivity::loop() {
   }
   buttonNavigator.onNext([&] { scroll(visibleRows); });
   buttonNavigator.onPrevious([&] { scroll(-visibleRows); });
+}
+
+void AboutActivity::onExport(const fui::ActionEvent&, void* user) {
+  auto& self = *static_cast<AboutActivity*>(user);
+  self.app.clearTapFlash();
+  self.chooseExportScope();
+}
+
+void AboutActivity::chooseExportScope() {
+  const StrId choices[] = {StrId::STR_CANCEL, StrId::STR_SUPPORT_DEVICE_ONLY, StrId::STR_SUPPORT_INCLUDE_EPUB};
+  scopePopup.show(StrId::STR_SUPPORT_SCOPE, choices, SupportInfoExport::lastOpenedEpubAvailable() ? 3 : 2, 0,
+                  [this](int index) {
+                    if (index > 0) confirmExport(index == 2);
+                  });
+  requestUpdate();
+}
+
+void AboutActivity::confirmExport(bool includeBook) {
+  auto confirm = makeUniqueNoThrow<ConfirmationActivity>(
+      renderer, mappedInput, includeBook ? tr(STR_SUPPORT_CONFIRM_BOOK) : tr(STR_SUPPORT_CONFIRM_DEVICE),
+      tr(STR_SUPPORT_EXCLUSIONS), true);
+  if (!confirm) {
+    LOG_ERR("SUPPORT", "OOM allocating export confirmation");
+    exportStatus = StrId::STR_SUPPORT_FAILED;
+    requestUpdate();
+    return;
+  }
+  startActivityForResult(std::move(confirm), [this, includeBook](const ActivityResult& result) {
+    if (!result.isCancelled) {
+      const auto saved = SupportInfoExport::save(includeBook);  // SD work must not hold the render mutex.
+      RenderLock lock(*this);
+      switch (saved) {
+        case SupportInfo::Result::Saved:
+          exportStatus = StrId::STR_SUPPORT_SAVED;
+          break;
+        case SupportInfo::Result::SavedBackupRetained:
+          exportStatus = StrId::STR_SUPPORT_SAVED_BACKUP;
+          break;
+        case SupportInfo::Result::RecoveryRequired:
+          exportStatus = StrId::STR_SUPPORT_RECOVERY;
+          break;
+        default:
+          exportStatus = StrId::STR_SUPPORT_FAILED;
+          break;
+      }
+      requestUpdate();
+    } else {
+      RenderLock lock(*this);
+      requestUpdate();
+    }
+  });
 }
 
 void AboutActivity::provideRow(void* user, uint16_t index, fui::ListItem& item) {
@@ -254,6 +322,13 @@ void AboutActivity::aboutScreen(UiApp::ScreenType& screen, void* user) {
                                       static_cast<int16_t>(std::max<int>(0, safe.bottom() - (hints.y + hints.height))),
                                       static_cast<int16_t>(std::max<int>(0, hints.x - safe.x))});
   screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
+  fui::ButtonProps exportButton;
+  exportButton.label = I18N.get(self.exportStatus);
+  exportButton.action = 1;
+  exportButton.inputMask = fui::InputTouch;
+  const auto actionRect = screen.take(fui::LayoutAnchor::Top, screen.theme().rowHeight, screen.theme().spaceSm);
+  self.exportButtonRect = Rect{actionRect.x, actionRect.y, actionRect.width, actionRect.height};
+  screen.button(exportButton, actionRect);
   fui::ListProps props;
   props.count = RowCount;
   props.rowProvider = &AboutActivity::provideRow;
@@ -267,15 +342,18 @@ void AboutActivity::aboutScreen(UiApp::ScreenType& screen, void* user) {
 }
 
 void AboutActivity::render(RenderLock&&) {
+  if (scopePopup.processRender(renderer, mappedInput)) return;
   renderer.clearScreen();
   const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput);
   if (mappedInput.hasTouchHardware())
     TouchHeaderBackButton::draw(renderer, uiTarget, header, tr(STR_ABOUT), false);
   else
     GUI.drawHeader(renderer, header, tr(STR_ABOUT));
+  uiReady = false;
   app.render();
-  const auto labels =
-      mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), "", tr(STR_DIR_UP), tr(STR_DIR_DOWN));
+  uiReady = true;
+  const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_SUPPORT_EXPORT_SHORT),
+                                            tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }

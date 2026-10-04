@@ -166,7 +166,20 @@ def inject_version(env):
     # Keep build provenance separate from CROSSINK_VERSION: production versions
     # intentionally omit the source revision, while diagnostics need the base
     # commit and whether the compiled tree had tracked modifications.
+    # Support exports exclude branch-bearing version labels and identify the actual SDK checkout.
+    canonical_version = (
+        get_production_version(project_dir)
+        if os.environ.get('CROSSINK_RELEASE_VERSION') and not os.environ.get('CROSSINK_RC_HASH')
+        else get_crossink_version(project_dir)
+    )
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", canonical_version):
+        canonical_version = "unknown"
+    sdk_sha = run_git_value(os.path.join(project_dir, "freeink-sdk"), ["rev-parse", "HEAD"], "SDK SHA")
+    if not re.fullmatch(r"[0-9a-f]{40}", sdk_sha):
+        sdk_sha = "unknown"
     scoped = [
+        ('CROSSINK_SUPPORT_VERSION', f'\\"{canonical_version}\\"'),
+        ('CROSSINK_SDK_SHA', f'\\"{sdk_sha}\\"'),
         ('CROSSINK_GIT_SHA', f'\\"{get_git_short_sha(project_dir)}\\"'),
         ('CROSSINK_GIT_DIRTY', f'\\"{get_git_dirty(project_dir)}\\"'),
     ]

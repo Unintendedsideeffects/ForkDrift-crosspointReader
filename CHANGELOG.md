@@ -10,10 +10,10 @@
 - Optionally upload reading stats and clippings alongside manual progress sync.
 - Upload saved EPUB progress recursively from a File Browser folder action for one-time catch-up.
 - Sync a selected EPUB’s progress from its Library or File Browser context menu.
-
 - Use server filenames for OPDS downloads to match reading progress across devices; missing or unsafe names fall back to Author - Title.
 - View device hardware, firmware/build identity, storage and memory diagnostics in Settings → System → About, without exposing network or device identifiers.
 - Turn image grayscale on or off globally or for individual EPUB books, independently of text anti-aliasing.
+- Export allowlisted device diagnostics and global preferences from About to a local support JSON file, with optional anonymous EPUB overrides, explicit scope confirmation and credential/history exclusions.
 
 ### Fixed
 
