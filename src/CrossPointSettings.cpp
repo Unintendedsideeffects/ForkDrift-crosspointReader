@@ -785,11 +785,12 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc, bool importingCrossPoint
     hideClock = legacyShowClock == LEGACY_SHOW_CLOCK_NEVER ? HIDE_CLOCK_ALWAYS : HIDE_CLOCK_NEVER;
     needsResave = true;
   }
+  // Saved layouts must survive a temporarily unavailable RTC; rendering filters unavailable items.
   const JsonArrayConst displaySlots = doc["displayStatusBar"].as<JsonArrayConst>();
   if (displaySlots.size() == displayStatusBar.slots.size()) {
     for (unsigned i = 0; i < displayStatusBar.slots.size(); ++i) {
       const int item = displaySlots[i].as<int>();
-      if (displaySlots[i].is<int>() && validDisplayStatusBarItemValue(item, halClock.isAvailable())) {
+      if (displaySlots[i].is<int>() && validDisplayStatusBarItemValue(item, true)) {
         displayStatusBar.slots[i] = static_cast<ReaderStatusBarItem>(item);
       } else {
         displayStatusBar.slots[i] = ReaderStatusBarItem::Empty;
@@ -800,7 +801,7 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc, bool importingCrossPoint
     displayStatusBar = DisplayStatusBarConfig{};
     const bool legacyClock = doc["showClockOutsideReader"].isNull() ? hideClock != HIDE_CLOCK_ALWAYS
                                                                     : (doc["showClockOutsideReader"].as<int>() != 0);
-    if (legacyClock && halClock.isAvailable()) displayStatusBar.slots[1] = ReaderStatusBarItem::Clock;
+    if (legacyClock) displayStatusBar.slots[1] = ReaderStatusBarItem::Clock;
     needsResave = true;
   }
   const JsonVariantConst bars = doc["readerStatusBars"];
@@ -809,18 +810,16 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc, bool importingCrossPoint
         {statusBarChapterPageCount != 0, stablePageNumbers != 0, statusBarBookProgressPercentage != 0, statusBarTitle,
          statusBarTimeLeft, statusBarBattery != 0, statusBarBookPercentageFormat, statusBarProgressBar,
          statusBarProgressBarThickness});
-    if (halClock.isAvailable() && hideClock == HIDE_CLOCK_NEVER) {
+    if (hideClock == HIDE_CLOCK_NEVER) {
       topReaderStatusBar.slots[ReaderStatusBarConfig::CENTER] = ReaderStatusBarItem::Clock;
     }
     legacyXtcTopUsesBottom = xtcStatusBarMode == XTC_STATUS_BAR_TOP;
     needsResave = true;
   } else {
-    needsResave |=
-        repairReaderStatusBarJson(bars["top"], topReaderStatusBar, halClock.isAvailable(), BOOK_PERCENTAGE_FORMAT_COUNT,
-                                  STATUS_BAR_PROGRESS_BAR_COUNT, STATUS_BAR_PROGRESS_BAR_THICKNESS_COUNT);
-    needsResave |= repairReaderStatusBarJson(bars["bottom"], bottomReaderStatusBar, halClock.isAvailable(),
-                                             BOOK_PERCENTAGE_FORMAT_COUNT, STATUS_BAR_PROGRESS_BAR_COUNT,
-                                             STATUS_BAR_PROGRESS_BAR_THICKNESS_COUNT);
+    needsResave |= repairReaderStatusBarJson(bars["top"], topReaderStatusBar, true, BOOK_PERCENTAGE_FORMAT_COUNT,
+                                             STATUS_BAR_PROGRESS_BAR_COUNT, STATUS_BAR_PROGRESS_BAR_THICKNESS_COUNT);
+    needsResave |= repairReaderStatusBarJson(bars["bottom"], bottomReaderStatusBar, true, BOOK_PERCENTAGE_FORMAT_COUNT,
+                                             STATUS_BAR_PROGRESS_BAR_COUNT, STATUS_BAR_PROGRESS_BAR_THICKNESS_COUNT);
     const int xtcMode = bars["xtcMode"].as<int>();
     if (bars["xtcMode"].is<int>() && xtcMode >= 0 && xtcMode < XTC_STATUS_BAR_MODE_COUNT) {
       xtcStatusBarMode = xtcMode;

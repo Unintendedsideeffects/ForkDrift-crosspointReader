@@ -1191,18 +1191,23 @@ void SettingsActivity::toggleCurrentSetting() {
       case SettingAction::DownloadFonts:
         silentRestartToManageFonts();
         break;
-      case SettingAction::TtfRendering:
+      case SettingAction::TtfRendering: {
 #if CROSSINK_SCALABLE_FONTS
-        startActivityForResult(
-            std::make_unique<TtfRenderOptionsActivity>(renderer, mappedInput, SETTINGS.sdFontFamilyName, false),
-            [this](const ActivityResult& result) {
-              if (const auto* options = std::get_if<TtfRenderOptionsResult>(&result.data)) {
-                ttfRenderingChanged = ttfRenderingChanged || options->activeFamilyChanged;
-              }
-              rebuildSettingsLists();
-            });
+        auto activity =
+            makeUniqueNoThrow<TtfRenderOptionsActivity>(renderer, mappedInput, SETTINGS.sdFontFamilyName, false);
+        if (!activity) {
+          LOG_ERR("SET", "Failed to allocate TTF rendering settings");
+          break;
+        }
+        startActivityForResult(std::move(activity), [this](const ActivityResult& result) {
+          if (const auto* options = std::get_if<TtfRenderOptionsResult>(&result.data)) {
+            ttfRenderingChanged = ttfRenderingChanged || options->activeFamilyChanged;
+          }
+          rebuildSettingsLists();
+        });
 #endif
         break;
+      }
       case SettingAction::Language:
         openLanguagePicker();
         break;

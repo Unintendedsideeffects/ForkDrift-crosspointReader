@@ -554,7 +554,7 @@ void FrontlightPanelActivity::drawHeader() {
   const int headerHeight = TouchHeaderBackButton::height(metrics, mappedInput);
   const Rect header{0, metrics.topPadding, renderer.getScreenWidth(), headerHeight};
 
-  char date[16] = {};
+  char date[32] = {};
   const char* title = context.showReaderDetails ? "" : tr(STR_FRONTLIGHT);
   int titleFontId = UI_12_FONT_ID;
   if (context.showReaderDetails) {

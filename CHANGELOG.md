@@ -110,6 +110,9 @@
 - Support the second X4 Classic display panel variant.
 - The frontlight drawer stays within the screen at large UI scales.
 - Nested EPUB paragraphs and blocks keep inherited bold and italic styles.
+- Keep saved clock and date status-bar positions when the clock is temporarily unavailable at startup.
+- Stay in Settings if there is not enough memory to open TTF Rendering.
+- Translate month names in Library date headings and device dates.
 
 ### Security
 
