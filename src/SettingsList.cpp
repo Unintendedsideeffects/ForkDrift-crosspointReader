@@ -5,7 +5,7 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
     std::vector<SettingInfo> v;
     // Reserve the maximum final size. Growing this process-lifetime vector
     // would otherwise leave it holding roughly twice the memory it needs.
-    v.reserve(BASE_SETTINGS_CAPACITY);
+    v.reserve(getBaseSettingsCapacity());
     auto add = [&v](SettingInfo setting) { v.push_back(std::move(setting)); };
 
     // --- Display ---
