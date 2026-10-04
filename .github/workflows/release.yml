@@ -147,7 +147,15 @@ jobs:
             --firmware "release-firmware/firmware-x4-classic-v${{ env.RELEASE_VERSION }}.bin" \
             --output ".pio/build/catalog"
 
-      - name: Publish catalog to GitHub Pages source
+      - name: Package SD language files and editor template
+        run: |
+          python3 scripts/package_languages.py \
+            --version "${{ env.RELEASE_VERSION }}" \
+            --source-commit "${{ github.sha }}" --status release-build \
+            --output "release-firmware/crossink-languages-${{ env.RELEASE_VERSION }}.zip" \
+            --template-output-dir "release-firmware/language-template"
+
+      - name: Publish catalog and language template to GitHub Pages source
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           CROSSINK_SIGNING_SSH_KEY: ${{ secrets.CROSSINK_SIGNING_SSH_KEY }}
@@ -170,17 +178,16 @@ jobs:
           git fetch origin "$DEFAULT_BRANCH"
           git worktree add ../crossink-pages "origin/$DEFAULT_BRANCH"
           cp ".pio/build/catalog" "../crossink-pages/docs/catalog"
+          mkdir -p "../crossink-pages/docs/languages/template"
+          cp release-firmware/language-template/* "../crossink-pages/docs/languages/template/"
           cd ../crossink-pages
-          if git diff --quiet -- docs/catalog; then
-            echo "docs/catalog is already current"
+          if git diff --quiet -- docs/catalog docs/languages/template && [ -z "$(git ls-files --others --exclude-standard docs/languages/template)" ]; then
+            echo "Catalog and language template are already current"
             exit 0
           fi
-          git add docs/catalog
+          git add docs/catalog docs/languages/template
           git commit -S -m "Update release manifests for v${RELEASE_VERSION}"
           git push origin "HEAD:$DEFAULT_BRANCH"
-
-      - name: Package SD language files
-        run: python3 scripts/package_languages.py --version "${{ env.RELEASE_VERSION }}" --output "release-firmware/crossink-languages-${{ env.RELEASE_VERSION }}.zip"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
@@ -191,6 +198,8 @@ jobs:
           draft: true
           files: |
             release-firmware/crossink-languages-${{ env.RELEASE_VERSION }}.zip
+            release-firmware/language-template/english_template.yaml
+            release-firmware/language-template/language-template.json
             release-firmware/firmware-x3-x4-v${{ env.RELEASE_VERSION }}.bin
             release-firmware/firmware-sticky-v${{ env.RELEASE_VERSION }}.bin
             release-firmware/firmware-x4-pro-v${{ env.RELEASE_VERSION }}.bin

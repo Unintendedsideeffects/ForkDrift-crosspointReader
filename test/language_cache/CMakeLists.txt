@@ -57,3 +57,5 @@ target_compile_definitions(LanguageAllocationTest PRIVATE ARDUINO_ARCH_ESP32 CRO
 target_compile_features(LanguageAllocationTest PRIVATE cxx_std_20)
 target_compile_options(LanguageAllocationTest PRIVATE -Wall -Wextra -Werror -fno-exceptions -UNDEBUG)
 add_test(NAME LanguageAllocationTest COMMAND LanguageAllocationTest)
+
+add_test(NAME LanguageTemplateTest COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/language_template_test.py ${REPO_ROOT})

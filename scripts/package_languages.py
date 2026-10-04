@@ -6,15 +6,25 @@ import json
 from pathlib import Path
 import zipfile
 
+from generate_language_template import generate, write_artifacts
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def package(output: Path, version: str, benchmark: bool = False):
-    entries = {}
+def package(output: Path, version: str, benchmark: bool = False, template_output_dir=None,
+            source_commit=None, status="local-fixture"):
+    artifacts = generate(version, source_commit, status)
+    entries = dict(artifacts)
+    # Keep the established archive spelling as an identical compatibility alias.
+    entries["english-template.yaml"] = artifacts["english_template.yaml"]
+    if template_output_dir is not None:
+        write_artifacts(template_output_dir, artifacts)
     source = ROOT / "lib/I18n/translations"
     prefix = f"_firmware_version: {json.dumps(version, ensure_ascii=False)}\n"
     for path in sorted(source.glob("*.yaml")):
-        destination = "english-template.yaml" if path.name == "english.yaml" else f".crosspoint/languages/{path.name}"
+        if path.name == "english.yaml":
+            continue
+        destination = f".crosspoint/languages/{path.name}"
         entries[destination] = (prefix + path.read_text(encoding="utf-8")).encode("utf-8")
     if benchmark:
         english = (source / "english.yaml").read_text(encoding="utf-8")
@@ -42,5 +52,8 @@ if __name__ == "__main__":
     parser.add_argument("--version", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--benchmark", action="store_true", help="Include the optional English timing fixture")
+    parser.add_argument("--template-output-dir", type=Path, help="Also write the atomic editor JSON and YAML pair")
+    parser.add_argument("--source-commit", help="Full source snapshot Git SHA")
+    parser.add_argument("--status", choices=["local-fixture", "release-build"], default="local-fixture")
     args = parser.parse_args()
-    package(args.output, args.version, args.benchmark)
+    package(args.output, args.version, args.benchmark, args.template_output_dir, args.source_commit, args.status)

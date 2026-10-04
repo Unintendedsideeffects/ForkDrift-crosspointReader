@@ -118,7 +118,12 @@ jobs:
           path: release-candidate-firmware
 
       - name: Package SD language files
-        run: python3 scripts/package_languages.py --version "${{ env.RC_TAG }}" --output "release-candidate-firmware/crossink-languages-${{ env.RC_TAG }}.zip"
+        run: |
+          python3 scripts/package_languages.py \
+            --version "${{ env.RC_TAG }}" \
+            --source-commit "${{ github.sha }}" --status release-build \
+            --output "release-candidate-firmware/crossink-languages-${{ env.RC_TAG }}.zip" \
+            --template-output-dir "release-candidate-firmware/language-template"
 
       - name: Create GitHub RC Prerelease
         uses: softprops/action-gh-release@v3
@@ -133,6 +138,8 @@ jobs:
           prerelease: true
           files: |
             release-candidate-firmware/crossink-languages-${{ env.RC_TAG }}.zip
+            release-candidate-firmware/language-template/english_template.yaml
+            release-candidate-firmware/language-template/language-template.json
             release-candidate-firmware/firmware-x3-x4-${{ env.RC_BRANCH_SAFE }}-${{ env.RC_HASH_SHORT }}-RC.bin
             release-candidate-firmware/firmware-sticky-${{ env.RC_BRANCH_SAFE }}-${{ env.RC_HASH_SHORT }}-RC.bin
             release-candidate-firmware/firmware-x4-pro-${{ env.RC_BRANCH_SAFE }}-${{ env.RC_HASH_SHORT }}-RC.bin

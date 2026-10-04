@@ -2,6 +2,8 @@
 
 ### Added
 
+- Generate a versioned English language template and compatibility catalog automatically for browser translation editors and release downloads.
+
 - Install and edit interface languages from SD files, including community languages; missing translations fall back to English.
 
 - Track active reading seconds by local day and sync daily reading time to CrossPoint Sync.

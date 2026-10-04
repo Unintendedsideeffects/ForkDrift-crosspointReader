@@ -33,7 +33,7 @@ The version label in a YAML file is informational, not an exact-version lock.
 
 ## Create a translation
 
-Copy `english-template.yaml`, choose a filename ending in lowercase `.yaml`, and
+Copy `english_template.yaml` (`english-template.yaml` remains an archive alias), choose a filename ending in lowercase `.yaml`, and
 change its language code and native name. You may remove untranslated entries.
 A new language identity does not require a firmware change.
 
@@ -124,6 +124,57 @@ python3 scripts/package_languages.py --version 1.5.2 --output /tmp/crossink-lang
 Community files remain starter assets and may be incomplete. Missing keys do not
 block firmware builds. The release template identifies the corresponding
 English source, and the ZIP manifest records checksums.
+
+### Automatic template for translation editors
+
+`scripts/generate_language_template.py` generates `english_template.yaml` and
+`language-template.json` from the same `english.yaml` and `gen_i18n.py` rules used
+by firmware. No second string catalog is maintained. Existing `STR_` IDs and
+English source order are preserved, including IDs currently unused by firmware.
+The JSON's `active` flag uses the same source scan as firmware key stripping.
+Only active nonempty translations that differ from English consume cache records.
+Empty translations mean English fallback; whitespace-only translations are literal
+text in the SD parser.
+
+Editors should load the **single JSON document** at
+`https://raw.githubusercontent.com/uxjulia/CrossInk/main/docs/languages/template/language-template.json`.
+This public generated source supports browser cross-origin fetching. It contains the
+English entries, printf argument signatures, parser limits, legacy keyboard
+identities, and exact source provenance together, so two requests cannot mix
+releases. `schemaVersion: 1` describes this editor contract. `format` names the
+firmware parser format. `sourceCommit` identifies the source snapshot, and
+`firmwareVersion` is informational rather than a device version lock.
+`englishSourceSha256` hashes the exact English source bytes; `keysetSha256` hashes
+all ordered entry keys joined by LF **with a trailing LF**. The companion YAML's
+exact SHA-256 is recorded in `template.sha256`. All hashes use UTF-8 bytes.
+
+Stable release builds generate the pair, attach both files to the draft release
+and language ZIP, and copy the same pair beside the existing Pages release
+catalog. The site asset sync copies `docs/languages/template` to
+`/languages/template`, also available through the CrossInk website. The JSON reports `status: "release-build"`: the workflow
+publishes the Pages catalog before a human publishes its draft GitHub Release,
+so this status deliberately does not claim that a release has been published.
+Release candidates attach their own pair but do not replace the stable Pages
+copy. Public fetching becomes available only after this local plumbing is
+integrated and the release/Pages workflows run; an older public catalog may
+contain a different keyset from local development firmware.
+
+For an exact local firmware snapshot, generate an offline fixture instead:
+
+```sh
+python3 scripts/generate_language_template.py --version local-test-languages \
+  --source-commit "$(git rev-parse HEAD)" --output-dir /tmp/crossink-template
+```
+
+The default `status: "local-fixture"` distinguishes this output from live release
+builds. Inky can load this JSON locally, display its source/version, and export a
+translation without sending translation text to any server. Keep the chosen
+contract while editing; explicitly load another version before migrating keys.
+Metadata must remain ahead of strings. Inky export adds the firmware version,
+English-source hash and keyset hash as informational metadata; unsupported
+`STR_` entries should be rejected by the editor even though firmware ignores them.
+All device scalar, UTF-8, format, source, line and cache limits still apply.
+Translations do not add CJK glyphs, font coverage, keyboards or shaping support.
 
 ## Validation and timing
 
