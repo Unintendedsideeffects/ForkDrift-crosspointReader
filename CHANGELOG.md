@@ -14,6 +14,8 @@
 
 ### Fixed
 
+- Restore complete WebDAV file downloads, including large binary files.
+
 - Automatically retry interrupted book and font downloads, validating resumed byte ranges and restarting safely when the server cannot resume.
 - Hide EPUB section-break rules when the publisher suppresses their borders, avoiding duplicate ornaments.
 - Translate reading statistics, stats tracking controls, and the Minimal Stats theme label into Polish.

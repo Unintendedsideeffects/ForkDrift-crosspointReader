@@ -51,3 +51,6 @@ Remaining high-risk integration gaps include the complete firmware download /
 flash / reboot sequence, interrupted settings writes and migration, and activity
 teardown during asynchronous network/storage work. The source-text OTA staging
 check is an ordering guard, not an executable test of the complete updater.
+
+WebDAV regression:
+- `python3 scripts/test_webdav_get.py` runs the production GET handler with the pinned SDK streamer and host storage/socket doubles. It checks bytes and length, empty/large files, short writes, disconnect/read failures, reader closure, watchdog yielding, and pre-stream guards under ASan/UBSan.

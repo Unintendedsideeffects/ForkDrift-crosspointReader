@@ -114,3 +114,7 @@ add_subdirectory(daily_reading_stats)
 
 add_subdirectory(opds_server_store)
 add_subdirectory(support_info)
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME WebDavGetRegression
+  COMMAND ${Python3_EXECUTABLE} ${REPO_ROOT}/scripts/test_webdav_get.py)
