@@ -764,6 +764,10 @@ void OpdsBookBrowserActivity::requestDownload(const OpdsEntry& book) {
   path += '/';
   path += StringUtils::sanitizeFilename(buildBookFilenameBase(book, server.filenameFormat));
   path += ".epub";
+  if (server.filenameFormat == OpdsFilenameFormat::SERVER_FILENAME) {
+    downloadBook(book, path);
+    return;
+  }
   // Recover an interrupted replacement before deciding whether the book exists.
   if (!DownloadFileSwap::recover(path)) {
     state = BrowserState::ERROR;
@@ -775,20 +779,32 @@ void OpdsBookBrowserActivity::requestDownload(const OpdsEntry& book) {
     downloadBook(book, path);
     return;
   }
+  confirmDownload(path, path);
+}
+
+void OpdsBookBrowserActivity::confirmDownload(const std::string& fallbackPath, const std::string& destination) {
+  state = BrowserState::BROWSING;
   auto dialog =
-      makeUniqueNoThrow<ConfirmationActivity>(renderer, mappedInput, std::string(tr(STR_REPLACE)) + "?", book.title);
+      makeUniqueNoThrow<ConfirmationActivity>(renderer, mappedInput, std::string(tr(STR_REPLACE)) + "?", destination);
   if (!dialog) {
     LOG_ERR("OPDS", "Cannot allocate overwrite dialog");
+    state = BrowserState::ERROR;
+    errorMessage = tr(STR_MEMORY_ERROR);
+    requestUpdate();
     return;
   }
   const int bookIndex = selectorIndex;
-  startActivityForResult(std::move(dialog), [this, bookIndex, path = std::move(path)](const ActivityResult& result) {
-    if (result.isCancelled || !entries || bookIndex < 0 || bookIndex >= static_cast<int>(entryCount)) return;
-    downloadBook(entries[bookIndex], path);
+  startActivityForResult(std::move(dialog), [this, bookIndex, fallbackPath, destination](const ActivityResult& result) {
+    if (result.isCancelled || !entries || bookIndex < 0 || bookIndex >= static_cast<int>(entryCount)) {
+      requestUpdate();
+      return;
+    }
+    downloadBook(entries[bookIndex], fallbackPath, destination);
   });
 }
 
-void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book, const std::string& filename) {
+void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book, const std::string& filename,
+                                           const std::string& approvedPath) {
   state = BrowserState::DOWNLOADING;
   statusMessage = book.title;
   downloadProgress = downloadTotal = 0;
@@ -851,6 +867,10 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book, const std::str
   downloadOptions.transport = HttpDownloader::Transport::WOLFSSL;
   downloadOptions.authorizationOrigin = authorizationOrigin;
   downloadOptions.stageAsPart = true;
+  std::string resolvedPath;
+  downloadOptions.useServerFilename = server.filenameFormat == OpdsFilenameFormat::SERVER_FILENAME;
+  downloadOptions.overwriteApprovedPath = approvedPath;
+  downloadOptions.resolvedPath = &resolvedPath;
   downloadOptions.checkFreeSpace = true;
   downloadOptions.validate = [](const std::string& path) {
     ZipFile zip(path);
@@ -878,8 +898,11 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book, const std::str
       &cancelRequested, server.username, server.password, downloadOptions);
 
   if (result == HttpDownloader::OK) {
-    clearBookCache(filename);
+    clearBookCache(resolvedPath);
     state = BrowserState::BROWSING;
+  } else if (result == HttpDownloader::FILE_EXISTS) {
+    confirmDownload(filename, resolvedPath);
+    return;
   } else if (result == HttpDownloader::ABORTED) {
     LOG_INF("OPDS", "Download cancelled");
     if (goHomeAfterCancel) {

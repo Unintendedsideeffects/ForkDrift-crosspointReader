@@ -19,6 +19,7 @@
 
 #include "AppVersion.h"
 #include "network/DownloadFileSwap.h"
+#include "network/HttpDownloadFilename.h"
 #include "network/HttpDownloadResume.h"
 #include "network/HttpRedirectPolicy.h"
 #include "network/WifiPowerSaveGuard.h"
@@ -54,6 +55,9 @@ struct ResponseHeaders {
   std::string location;
   std::string range;
   std::string validator;
+  std::string disposition;
+  bool sawDisposition = false;
+  bool captureDisposition = false;
 };
 
 esp_err_t captureLocationHeader(esp_http_client_event_t* evt) {
@@ -66,6 +70,15 @@ esp_err_t captureLocationHeader(esp_http_client_event_t* evt) {
     if (strcasecmp(evt->header_key, "Last-Modified") == 0 && headers->validator.empty() &&
         strlen(evt->header_value) <= 128)
       headers->validator.assign(evt->header_value);
+    if (headers->captureDisposition && strcasecmp(evt->header_key, "Content-Disposition") == 0) {
+      // Bound extra header storage to 1 KB; duplicate headers are ambiguous.
+      const size_t length = strnlen(evt->header_value, HttpDownloadFilename::MAX_HEADER_BYTES + 1);
+      if (!headers->sawDisposition && length <= HttpDownloadFilename::MAX_HEADER_BYTES)
+        headers->disposition.assign(evt->header_value, length);
+      else
+        headers->disposition.clear();
+      headers->sawDisposition = true;
+    }
     // Range headers are tiny; malformed oversized values must not grow RAM.
     if (strcasecmp(evt->header_key, "Content-Range") == 0)
       headers->range.assign(evt->header_value, strnlen(evt->header_value, 96));
@@ -125,11 +138,15 @@ struct Sink {
   bool invalidResponse = false;
   size_t responseEnd = 0;
   std::string validator;
+  std::function<bool(std::string_view)> prepareDestination;
+  HttpDownloader::DownloadError destinationError = HttpDownloader::OK;
 };
 
 // Called before any response bytes reach the output, including empty bodies.
 bool prepareResponse(Sink& sink, int status, std::string_view range, bool hasLength, size_t length,
-                     const std::string& validator) {
+                     const std::string& validator, std::string_view disposition) {
+  if (status != 200 && status != 206) return false;
+  if (sink.prepareDestination && !sink.prepareDestination(disposition)) return false;
   if (status == 200 && sink.resumeOffset > 0) {
     sink.rangeIgnored = true;
     return false;
@@ -180,6 +197,12 @@ void logTlsError(esp_http_client_handle_t client, const char* phase) {
 }
 
 #if defined(FREEINK_NET_WOLFSSL)
+std::string_view responseDisposition(freeink::SecureHttpClient& http, const Sink& sink) {
+  if (!sink.prepareDestination) return {};
+  const auto* header = http.getUniqueHeader("content-disposition");
+  return header ? std::string_view(*header) : std::string_view{};
+}
+
 std::string responseValidator(freeink::SecureHttpClient& http) {
   std::string value = http.getHeader("etag");
   if (value.empty() || value.compare(0, 2, "W/") == 0 || value.size() > 128) value = http.getHeader("last-modified");
@@ -236,7 +259,7 @@ HttpDownloader::DownloadError runGetWolfSsl(const std::string& url, const std::s
           if (responseStatus != 200 && responseStatus != 206) return true;
           if (!prepared) {
             if (!prepareResponse(sink, responseStatus, http.getHeader("content-range"), http.hasContentLength(),
-                                 http.getContentLength(), responseValidator(http)))
+                                 http.getContentLength(), responseValidator(http), responseDisposition(http, sink)))
               return false;
             prepared = true;
             progressNotifier.setTotal(sink.total);
@@ -287,8 +310,9 @@ HttpDownloader::DownloadError runGetWolfSsl(const std::string& url, const std::s
       continue;
     }
 
-    if (!prepared && !prepareResponse(sink, status, http.getHeader("content-range"), http.hasContentLength(),
-                                      http.getContentLength(), responseValidator(http))) {
+    if (!prepared &&
+        !prepareResponse(sink, status, http.getHeader("content-range"), http.hasContentLength(),
+                         http.getContentLength(), responseValidator(http), responseDisposition(http, sink))) {
       LOG_ERR("HTTP", "Rejected response: %d", status);
       return HttpDownloader::HTTP_ERROR;
     }
@@ -323,6 +347,7 @@ HttpDownloader::DownloadError runGetDefault(const std::string& url, const std::s
     const bool sendAuthorization =
         currentParsed && HttpRedirectPolicy::shouldSendAuthorization(currentOrigin, credentialOrigin, hasCredentials);
     ResponseHeaders responseHeaders;
+    responseHeaders.captureDisposition = static_cast<bool>(sink.prepareDestination);
 
     esp_http_client_config_t config = {};
     config.url = currentUrl.c_str();
@@ -393,7 +418,7 @@ HttpDownloader::DownloadError runGetDefault(const std::string& url, const std::s
 
     if (static_cast<uint64_t>(responseLength) > std::numeric_limits<size_t>::max() ||
         !prepareResponse(sink, status, responseHeaders.range, responseLength > 0, static_cast<size_t>(responseLength),
-                         responseHeaders.validator)) {
+                         responseHeaders.validator, responseHeaders.disposition)) {
       LOG_ERR("HTTP", "Rejected response: %d", status);
       esp_http_client_cleanup(client);
       return HttpDownloader::HTTP_ERROR;
@@ -560,10 +585,17 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   (void)wifiPowerSaveGuard;
 
   const size_t bufferSize = options.bufferSize > 0 ? options.bufferSize : DEFAULT_DOWNLOAD_BUFFER_SIZE;
-  if (options.stageAsPart && !DownloadFileSwap::recover(destPath)) return FILE_ERROR;
-  const std::string writePath = options.stageAsPart ? destPath + ".part" : destPath;
+  if (options.useServerFilename && !options.stageAsPart) {
+    LOG_ERR("HTTP", "Server filenames require staged replacement");
+    return FILE_ERROR;
+  }
+  std::string destination = destPath;
+  if (options.resolvedPath) *options.resolvedPath = destination;
+  if (!options.useServerFilename && options.stageAsPart && !DownloadFileSwap::recover(destination)) return FILE_ERROR;
+  std::string writePath = options.stageAsPart ? destination + ".part" : destination;
+  bool outputPrepared = !options.useServerFilename;
   size_t resumeOffset = 0;
-  if (options.resumePartial && Storage.exists(writePath.c_str())) {
+  if (outputPrepared && options.resumePartial && Storage.exists(writePath.c_str())) {
     FsFile existingFile;
     if (Storage.openFileForRead("HTTP", writePath.c_str(), existingFile)) {
       resumeOffset = existingFile.fileSize();
@@ -571,7 +603,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     }
   }
 
-  if (resumeOffset == 0 && Storage.exists(writePath.c_str())) {
+  if (outputPrepared && resumeOffset == 0 && Storage.exists(writePath.c_str())) {
     Storage.remove(writePath.c_str());
   }
 
@@ -580,6 +612,53 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   sink.cancelFlag = cancelFlag;
   sink.shouldCancel = std::move(options.shouldCancel);
   sink.resumeOffset = resumeOffset;
+
+  if (options.useServerFilename) {
+    sink.prepareDestination = [&](std::string_view disposition) {
+      std::string name;
+      const bool hasServerName = HttpDownloadFilename::parse(disposition, name);
+      if (outputPrepared) {
+        // A resumed response may omit Content-Disposition. If supplied, its
+        // valid name must agree with the first response; never change identity
+        // or append bytes to a different book mid-transfer.
+        if (hasServerName) {
+          const size_t slash = destination.rfind('/');
+          if (name != destination.substr(slash == std::string::npos ? 0 : slash + 1)) {
+            LOG_ERR("HTTP", "Server filename changed during download");
+            sink.destinationError = HTTP_ERROR;
+            return false;
+          }
+        }
+        return true;
+      }
+      if (hasServerName) {
+        const size_t slash = destPath.rfind('/');
+        destination.assign(destPath, 0, slash == std::string::npos ? 0 : slash + 1);
+        destination += name;
+      } else {
+        LOG_INF("HTTP", "Using generated filename: server name missing or unsafe");
+      }
+      if (options.resolvedPath) *options.resolvedPath = destination;
+      if (!DownloadFileSwap::recover(destination)) {
+        sink.destinationError = FILE_ERROR;
+        return false;
+      }
+      if (Storage.exists(destination.c_str()) && options.overwriteApprovedPath != destination) {
+        sink.destinationError = FILE_EXISTS;
+        return false;
+      }
+      writePath = destination + ".part";
+      // Cross-session partials have no retained validator; start fresh. In-call
+      // reconnects below keep the path, version validator and exact byte offset.
+      if (Storage.exists(writePath.c_str()) && !Storage.remove(writePath.c_str())) {
+        LOG_ERR("HTTP", "Could not restart partial download");
+        sink.destinationError = FILE_ERROR;
+        return false;
+      }
+      outputPrepared = true;
+      return true;
+    };
+  }
 
   FsFile file;
   bool fileOpen = false;
@@ -638,6 +717,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     sink.rangeIgnored = sink.retryable = sink.invalidResponse = false;
     sink.responseEnd = 0;
     result = runGet(url, username, password, options.authorizationOrigin, sink, bufferSize, options.transport);
+    if (sink.destinationError != OK) result = sink.destinationError;
     if (fileOpen) {
       const bool synced = file.sync();
       const bool closed = file.close();
@@ -675,7 +755,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   if (result != OK) {
     LOG_ERR("HTTP", "Transfer failed: error=%d downloaded=%zu expected=%zu preservePartial=%d resumePartial=%d",
             static_cast<int>(result), sink.downloaded, sink.total, options.preservePartial, options.resumePartial);
-    if (result == ABORTED || !options.preservePartial) {
+    if (outputPrepared && (result == ABORTED || !options.preservePartial)) {
       Storage.remove(writePath.c_str());
     }
     return result;
@@ -703,7 +783,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     return HTTP_ERROR;
   }
 
-  if (options.stageAsPart && !DownloadFileSwap::publish(destPath)) return FILE_ERROR;
+  if (options.stageAsPart && !DownloadFileSwap::publish(destination)) return FILE_ERROR;
 
   return OK;
 }

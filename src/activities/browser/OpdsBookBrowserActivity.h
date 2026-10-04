@@ -113,7 +113,8 @@ class OpdsBookBrowserActivity final : public Activity {
   void navigateToEntry(const OpdsEntry& entry, bool pageLink);
   void navigateBack();
   void requestDownload(const OpdsEntry& book);
-  void downloadBook(const OpdsEntry& book, const std::string& filename);
+  void confirmDownload(const std::string& fallbackPath, const std::string& destination);
+  void downloadBook(const OpdsEntry& book, const std::string& filename, const std::string& approvedPath = "");
   void launchSearch();
   void performSearch(const std::string& query);
   bool preventAutoSleep() override;

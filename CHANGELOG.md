@@ -11,6 +11,8 @@
 - Upload saved EPUB progress recursively from a File Browser folder action for one-time catch-up.
 - Sync a selected EPUB’s progress from its Library or File Browser context menu.
 
+- Use server filenames for OPDS downloads to match reading progress across devices; missing or unsafe names fall back to Author - Title.
+
 ### Fixed
 
 - Automatically retry interrupted book and font downloads, validating resumed byte ranges and restarting safely when the server cannot resume.

@@ -13,10 +13,13 @@
 namespace {
 constexpr char FILENAME_FORMAT_AUTHOR_TITLE[] = "author_title";
 constexpr char FILENAME_FORMAT_TITLE_AUTHOR[] = "title_author";
+constexpr char FILENAME_FORMAT_SERVER[] = "server_filename";
 }  // namespace
 
 const char* opdsFilenameFormatToJson(const OpdsFilenameFormat format) {
   switch (format) {
+    case OpdsFilenameFormat::SERVER_FILENAME:
+      return FILENAME_FORMAT_SERVER;
     case OpdsFilenameFormat::TITLE_AUTHOR:
       return FILENAME_FORMAT_TITLE_AUTHOR;
     case OpdsFilenameFormat::AUTHOR_TITLE:
@@ -26,6 +29,7 @@ const char* opdsFilenameFormatToJson(const OpdsFilenameFormat format) {
 }
 
 OpdsFilenameFormat opdsFilenameFormatFromJson(const char* value) {
+  if (value && strcmp(value, FILENAME_FORMAT_SERVER) == 0) return OpdsFilenameFormat::SERVER_FILENAME;
   if (value && strcmp(value, FILENAME_FORMAT_TITLE_AUTHOR) == 0) {
     return OpdsFilenameFormat::TITLE_AUTHOR;
   }

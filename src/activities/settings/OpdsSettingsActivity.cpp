@@ -201,9 +201,8 @@ void OpdsSettingsActivity::handleSelection() {
                                                                    editServer.password, 63, InputType::Text),
                            handler);
   } else if (selectedIndex == 4) {
-    editServer.filenameFormat = editServer.filenameFormat == OpdsFilenameFormat::AUTHOR_TITLE
-                                    ? OpdsFilenameFormat::TITLE_AUTHOR
-                                    : OpdsFilenameFormat::AUTHOR_TITLE;
+    editServer.filenameFormat =
+        static_cast<OpdsFilenameFormat>((static_cast<unsigned>(editServer.filenameFormat) + 1) % 3);
     saveServer();
     requestUpdate();
   } else if (selectedIndex == 5 && !isNewServer) {
@@ -243,7 +242,9 @@ void OpdsSettingsActivity::buildListScreen(UiApp::ScreenType& screen) {
       editServer.url.empty() ? tr(STR_NOT_SET) : editServer.url.c_str(),
       editServer.username.empty() ? tr(STR_NOT_SET) : editServer.username.c_str(),
       editServer.password.empty() ? tr(STR_NOT_SET) : "******",
-      editServer.filenameFormat == OpdsFilenameFormat::TITLE_AUTHOR ? tr(STR_TITLE_AUTHOR) : tr(STR_AUTHOR_TITLE),
+      editServer.filenameFormat == OpdsFilenameFormat::SERVER_FILENAME ? tr(STR_SERVER_FILENAME)
+      : editServer.filenameFormat == OpdsFilenameFormat::TITLE_AUTHOR  ? tr(STR_TITLE_AUTHOR)
+                                                                       : tr(STR_AUTHOR_TITLE),
   };
 
   std::vector<fui::ListItem> items;

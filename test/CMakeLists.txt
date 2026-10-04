@@ -111,3 +111,5 @@ add_subdirectory(scalable_fonts)
 add_subdirectory(glyph_bitmap)
 
 add_subdirectory(daily_reading_stats)
+
+add_subdirectory(opds_server_store)

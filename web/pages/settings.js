@@ -569,6 +569,7 @@ let allSettings = [];
         '<span class="setting-name">Filename</span>' +
         '<span class="setting-control"><select id="opds-filename-' + id + '">' +
           '<option value="author_title"' + ((srv.filenameFormat || 'author_title') === 'author_title' ? ' selected' : '') + '>Author - Title</option>' +
+          '<option value="server_filename"' + (srv.filenameFormat === 'server_filename' ? ' selected' : '') + '>Server filename</option>' +
           '<option value="title_author"' + (srv.filenameFormat === 'title_author' ? ' selected' : '') + '>Title - Author</option>' +
         '</select></span>' +
       '</div>' +

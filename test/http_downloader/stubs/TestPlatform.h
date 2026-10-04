@@ -89,6 +89,8 @@ struct Reply {
   bool complete = true;
   std::string location;
   std::string etag = "\"v1\"";
+  std::string disposition;
+  std::vector<std::string> extraDispositions;
 };
 inline std::vector<Reply> replies;
 inline size_t nextReply = 0;
@@ -131,11 +133,15 @@ inline void esp_http_client_set_header(FakeHttp* h, const char* k, const char* v
 inline int esp_http_client_open(FakeHttp* h, int) { return h->reply.status < 0 ? -1 : 0; }
 inline int64_t esp_http_client_fetch_headers(FakeHttp* h) {
   for (auto kv : {std::pair{"Location", h->reply.location}, std::pair{"Content-Range", h->reply.range},
-                  std::pair{"ETag", h->reply.etag}}) {
+                  std::pair{"ETag", h->reply.etag}, std::pair{"Content-Disposition", h->reply.disposition}}) {
     if (!kv.second.empty()) {
       esp_http_client_event_t e{1, h->config.user_data, kv.first, kv.second.c_str()};
       h->config.event_handler(&e);
     }
+  }
+  for (const auto& header : h->reply.extraDispositions) {
+    esp_http_client_event_t e{1, h->config.user_data, "Content-Disposition", header.c_str()};
+    h->config.event_handler(&e);
   }
   return h->reply.length;
 }
@@ -180,10 +186,16 @@ class SecureHttpClient {
   bool hasContentLength() { return reply.length > 0; }
   size_t getContentLength() { return reply.length; }
   std::string getHeader(const char* key) {
-    return std::string(key) == "content-range" ? reply.range
-           : std::string(key) == "etag"        ? reply.etag
-           : std::string(key) == "location"    ? reply.location
-                                               : std::string{};
+    return std::string(key) == "content-range"         ? reply.range
+           : std::string(key) == "etag"                ? reply.etag
+           : std::string(key) == "location"            ? reply.location
+           : std::string(key) == "content-disposition" ? reply.disposition
+                                                       : std::string{};
+  }
+  const std::string* getUniqueHeader(const char* key) const {
+    if (std::strcmp(key, "content-disposition") != 0 || !reply.extraDispositions.empty() || reply.disposition.empty())
+      return nullptr;
+    return &reply.disposition;
   }
   bool aborted() { return wasAborted; }
   bool callbackAborted() { return stopped; }

@@ -26,6 +26,7 @@ class HttpDownloader {
     FILE_ERROR,
     ABORTED,
     INSUFFICIENT_SPACE,
+    FILE_EXISTS,  // Resolved destination needs explicit replacement approval.
   };
 
   enum class Transport {
@@ -64,6 +65,14 @@ class HttpDownloader {
     // writing anything if the SD card cannot hold the file. The first check
     // can scan the whole FAT, so leave it off for small files.
     bool checkFreeSpace = false;
+    // OPDS EPUBs only: choose the final response's safe Content-Disposition
+    // basename, falling back to destPath. Requires stageAsPart. A collision
+    // returns FILE_EXISTS before touching the partial or complete book.
+    bool useServerFilename = false;
+    // Borrowed for this synchronous call; approval applies to exactly one path.
+    std::string_view overwriteApprovedPath;
+    // Receives the chosen path, including when FILE_EXISTS requests approval.
+    std::string* resolvedPath = nullptr;
   };
 
   /**

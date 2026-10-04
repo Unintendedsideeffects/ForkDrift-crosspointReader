@@ -9,6 +9,7 @@
 enum class OpdsFilenameFormat : uint8_t {
   AUTHOR_TITLE = 0,
   TITLE_AUTHOR = 1,
+  SERVER_FILENAME = 2,
 };
 
 const char* opdsFilenameFormatToJson(OpdsFilenameFormat format);
