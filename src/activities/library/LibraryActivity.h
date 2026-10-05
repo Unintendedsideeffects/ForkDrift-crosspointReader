@@ -11,6 +11,7 @@
 #include "LibraryInputBuffer.h"
 #include "RecentBooksStore.h"
 #include "activities/Activity.h"
+#include "activities/home/FinishedBookCache.h"
 #include "components/OptionPopup.h"
 #include "util/ButtonNavigator.h"
 
@@ -21,6 +22,7 @@ class LibraryActivity final : public Activity {
   void onExit() override;
   void loop() override;
   void render(RenderLock&&) override;
+  void onFrontlightPanelClosed() override;
   bool blocksGlobalInput() const override { return actionPopup.isActive(); }
 
 #ifdef SIMULATOR
@@ -109,6 +111,12 @@ class LibraryActivity final : public Activity {
   std::string seriesScratch;
   std::string genreScratch;
   std::string subtitleScratch;
+  // Finished state for recently drawn rows, keyed by a path hash so sort,
+  // filter and search changes cannot mislabel a row. Index rows use the stored
+  // path hash, so cache hits do not read the full path. Any dialog or the
+  // frontlight panel clears it because they can change a book's status.
+  FinishedBookCache finishedCache;
+  bool isFinishedRow(int row);
 
   static void listScreen(UiApp::ScreenType& screen, void* user);
   static void onRowEvent(const freeink::ui::ActionEvent& event, void* user);

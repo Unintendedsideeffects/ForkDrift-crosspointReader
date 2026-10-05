@@ -14,6 +14,7 @@
 - Export allowlisted device diagnostics and global preferences from About to a local support JSON file, with optional anonymous EPUB overrides, explicit scope confirmation and credential/history exclusions.
 - Home/Reader shortcuts available on touch devices
 - Hide either reader status bar without clearing its assigned slots, and choose a separate global status bar text size in Settings → Status Bar.
+- Finished EPUB and XTC books show a checkmarked book icon in the File Browser and Library list.
 
 ### Fixed
 

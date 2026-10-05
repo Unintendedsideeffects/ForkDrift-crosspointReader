@@ -284,7 +284,24 @@ void FileBrowserActivity::loadFiles() {
   loadFilesLocked();
 }
 
+bool FileBrowserActivity::isFinishedBook(const std::string& entry, const std::string& fullPath) {
+  if (mode != Mode::Books || entry.empty() || UITheme::getFileIcon(entry) != UIIcon::Book) return false;
+  const auto key = static_cast<uint32_t>(std::hash<std::string>{}(fullPath));
+  bool finished = false;
+  if (finishedCache.lookup(key, finished)) return finished;
+  finished = BookActions::isBookCompletedForList(fullPath);
+  finishedCache.store(key, finished);
+  return finished;
+}
+
+void FileBrowserActivity::onFrontlightPanelClosed() {
+  // The panel's Reading Stats page can set or clear a book's finished date.
+  markFinishedRowsStale();
+  requestUpdate();
+}
+
 void FileBrowserActivity::loadFilesLocked() {
+  markFinishedRowsStale();
   usingIndex = false;
   clearIndexNameCache();
   fileListMemoryLimited = false;
@@ -763,7 +780,10 @@ void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool igno
           case FileBrowserAction::ReadingStats:
             if (auto statsActivity =
                     BookActions::createReadingStatsActivity(renderer, mappedInput, fullPath, getFileName(entry))) {
-              startActivityForResult(std::move(statsActivity), [this](const ActivityResult&) { requestUpdate(); });
+              startActivityForResult(std::move(statsActivity), [this](const ActivityResult&) {
+                markFinishedRowsStale();
+                requestUpdate();
+              });
             } else {
               LOG_ERR("FileBrowser", "Failed to open reading stats for: %s", fullPath.c_str());
             }
@@ -790,6 +810,7 @@ void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool igno
                                          delay(1000);
                                        }
                                      }
+                                     markFinishedRowsStale();
                                      requestUpdate();
                                    });
             return;
@@ -807,6 +828,7 @@ void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool igno
                       delay(1000);
                     }
                   }
+                  markFinishedRowsStale();
                   requestUpdate();
                 });
             return;
@@ -1424,6 +1446,7 @@ void FileBrowserActivity::buildListScreen(UiApp::ScreenType& screen) {
   }
   const size_t drawCount = std::min<size_t>(visibleRows, totalEntries - static_cast<size_t>(topIndex));
   actionWindowFirst = usesVirtualList ? 0 : static_cast<size_t>(topIndex);
+  if (finishedRowsStale.exchange(false, std::memory_order_acq_rel)) finishedCache.clear();
 
   // Only materialize the visible window. Large folders continue to use
   // FileIndex instead of duplicating every filename on the heap for UI rows.
@@ -1446,7 +1469,8 @@ void FileBrowserActivity::buildListScreen(UiApp::ScreenType& screen) {
     fui::ListItem item;
     item.label = names[i].c_str();
     if (!values[i].empty()) item.value = values[i].c_str();
-    item.icon = listIconFor(UITheme::getFileIcon(entry), twoLineRows ? 32 : 24);
+    const UIIcon icon = isFinishedBook(entry, fullPath) ? UIIcon::BookCheck : UITheme::getFileIcon(entry);
+    item.icon = listIconFor(icon, twoLineRows ? 32 : 24);
     item.actionValue = static_cast<int16_t>(usesVirtualList ? entryIndex : i);
     items.push_back(item);
   }

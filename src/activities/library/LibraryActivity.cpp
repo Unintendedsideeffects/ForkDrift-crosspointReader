@@ -588,6 +588,7 @@ void LibraryActivity::openDialog(std::unique_ptr<Activity>&& child, ActivityResu
     confirmLongPressCaptured = false;
     uiReady = false;
     handler(result);
+    finishedCache.clear();
     requestUpdate();
   });
 }
@@ -991,6 +992,47 @@ void LibraryActivity::handleInput(const LibraryInputBuffer::Event& input) {
   }
 }
 
+bool LibraryActivity::isFinishedRow(const int row) {
+  // Rows are drawn with only the file name (or the full path for recents).
+  if (rowScratch.path.empty() || UITheme::getFileIcon(rowScratch.path) != UIIcon::Book) return false;
+  const bool recentRow = sort == Sort::RecentlyRead;
+  library::ClixRecord record{};
+  uint32_t key = 0;
+  if (recentRow) {
+    key = static_cast<uint32_t>(std::hash<std::string>{}(rowScratch.path));
+  } else {
+    uint64_t pathHash = 0;
+    const uint16_t ordinal = ordinalForRow(row);
+    if (ordinal == UINT16_MAX || !index.readRecord(ordinal, record) || !index.readPathHash(record, pathHash)) {
+      return false;
+    }
+    key = static_cast<uint32_t>(pathHash ^ (pathHash >> 32));
+  }
+  bool finished = false;
+  if (finishedCache.lookup(key, finished)) return finished;
+
+  if (recentRow) {
+    finished = BookActions::isBookCompletedForList(rowScratch.path);
+  } else {
+    std::string fullPath;
+    if (!index.readPath(record, fullPath)) {
+      LOG_ERR("LIB", "Cannot read Library book path");
+      finishedCache.store(key, false);  // log once, not on every render
+      return false;
+    }
+    finished = BookActions::isBookCompletedForList(fullPath);
+  }
+  finishedCache.store(key, finished);
+  return finished;
+}
+
+void LibraryActivity::onFrontlightPanelClosed() {
+  // The panel's Reading Stats page can set or clear a book's finished date.
+  // ActivityManager calls this while it already holds the render lock.
+  finishedCache.clear();
+  requestUpdate();
+}
+
 void LibraryActivity::listScreen(UiApp::ScreenType& screen, void* user) {
   static_cast<LibraryActivity*>(user)->buildListScreen(screen);
 }
@@ -1028,7 +1070,8 @@ void LibraryActivity::provideRow(void* user, const uint16_t row, fui::ListItem& 
       item.subtitle = self->subtitleScratch.c_str();
     }
   }
-  item.icon = listIconFor(UITheme::getFileIcon(self->rowScratch.path), 32);
+  const UIIcon icon = self->isFinishedRow(row) ? UIIcon::BookCheck : UITheme::getFileIcon(self->rowScratch.path);
+  item.icon = listIconFor(icon, 32);
   item.actionValue = static_cast<int16_t>(row);
   if (!SETTINGS.libraryListExpanded) return;
   if (self->sort == Sort::DateAdded) {

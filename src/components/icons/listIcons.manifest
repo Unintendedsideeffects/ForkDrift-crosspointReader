@@ -8,6 +8,7 @@ file-text = file-text
 image = image
 book-open = book-open
 book = book
+book-check = book-check
 book-marked = book-marked
 file = file
 wifi = wifi

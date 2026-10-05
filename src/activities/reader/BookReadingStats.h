@@ -26,6 +26,11 @@ struct BookReadingStats {
   // default-constructed stats if no compatible file exists.
   static BookReadingStats load(const std::string& cachePath);
 
+  // Read-only completion check for list views: reads the first usable
+  // snapshot in load() order, including interrupted-save files, without
+  // logging failed opens or renaming/migrating anything.
+  static bool peekCompleted(const std::string& cachePath);
+
   // Checked export: false for missing, malformed, or unsupported snapshots.
   static bool loadForUpload(const std::string& cachePath, BookReadingStats& stats);
 
