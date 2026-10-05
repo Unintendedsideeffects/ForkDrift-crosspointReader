@@ -79,6 +79,7 @@ bool isWebEnumOptionAvailable(const SettingInfo& setting, size_t optionIndex) {
   if (optionIndex >= setting.enumValues.size()) return true;
 
   const StrId option = setting.enumValues[optionIndex];
+  if (option == StrId::STR_THEME_COVER_GRID && !UITheme::supportsCoverGrid()) return false;
   if (!SETTINGS.shouldTrackReadingStats()) {
     if (option == StrId::STR_READING_STATS) return false;
     if (setting.valuePtr == &CrossPointSettings::sleepScreen && optionIndex < setting.enumRawValues.size()) {

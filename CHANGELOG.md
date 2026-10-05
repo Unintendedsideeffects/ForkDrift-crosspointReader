@@ -26,6 +26,7 @@
 - Dictionary lookup now recognizes French words with contracted prefixes, such as l’histoire and qu’après.
 - Page-turn shortcuts no longer crash at the end of an EPUB or while a chapter is loading.
 - Preserve EPUB image colors and gray detail in Dark Mode, including repeated page redraws.
+- Hide the Cover Grid theme from web settings on devices without PSRAM, matching the device settings menu.
 
 ### Changed
 
