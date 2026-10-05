@@ -657,3 +657,6 @@ STR_MONTH_SEP: "septembrie"
 STR_MONTH_OCT: "octombrie"
 STR_MONTH_NOV: "noiembrie"
 STR_MONTH_DEC: "decembrie"
+
+STR_FILENAME_FALLBACK_FONT: "Font alternativ pentru fișiere"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Normal obligatoriu; aldin opțional."

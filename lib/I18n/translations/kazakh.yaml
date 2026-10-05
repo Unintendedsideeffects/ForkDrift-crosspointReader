@@ -658,3 +658,6 @@ STR_MONTH_SEP: "қыркүйек"
 STR_MONTH_OCT: "қазан"
 STR_MONTH_NOV: "қараша"
 STR_MONTH_DEC: "желтоқсан"
+
+STR_FILENAME_FALLBACK_FONT: "Файл атауларының қосалқы қарпі"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Қалыпты міндетті; қалың міндетті емес."

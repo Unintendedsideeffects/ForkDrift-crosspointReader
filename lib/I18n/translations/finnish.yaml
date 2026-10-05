@@ -647,3 +647,6 @@ STR_MONTH_SEP: "syyskuuta"
 STR_MONTH_OCT: "lokakuuta"
 STR_MONTH_NOV: "marraskuuta"
 STR_MONTH_DEC: "joulukuuta"
+
+STR_FILENAME_FALLBACK_FONT: "Tiedostonimien varafontti"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Tavallinen vaaditaan; lihavoitu valinnainen."

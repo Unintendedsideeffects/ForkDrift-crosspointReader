@@ -725,3 +725,6 @@ STR_MONTH_SEP: "сентября"
 STR_MONTH_OCT: "октября"
 STR_MONTH_NOV: "ноября"
 STR_MONTH_DEC: "декабря"
+
+STR_FILENAME_FALLBACK_FONT: "Запасной шрифт имён файлов"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Обычный обязателен; жирный необязателен."

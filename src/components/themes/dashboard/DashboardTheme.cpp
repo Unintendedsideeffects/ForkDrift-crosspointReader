@@ -105,13 +105,13 @@ void drawMissingBookCover(const GfxRenderer& renderer, const Rect& coverRect, co
   constexpr int textPadding = 14;
   const int textW = coverRect.width - textPadding * 2;
   const char* title = book.title.empty() ? book.path.c_str() : book.title.c_str();
-  auto titleLines = renderer.wrappedText(UI_12_FONT_ID, title, textW, 4, EpdFontFamily::BOLD);
-  const int lineH = renderer.getLineHeight(UI_12_FONT_ID);
+  auto titleLines = renderer.wrappedText(renderer.filenameFontId(UI_12_FONT_ID), title, textW, 4, EpdFontFamily::BOLD);
+  const int lineH = renderer.getLineHeight(renderer.filenameFontId(UI_12_FONT_ID));
   int textY = coverRect.y + (coverRect.height - static_cast<int>(titleLines.size()) * lineH) / 2;
   for (const auto& line : titleLines) {
-    const int lineW = renderer.getTextWidth(UI_12_FONT_ID, line.c_str(), EpdFontFamily::BOLD);
-    renderer.drawText(UI_12_FONT_ID, coverRect.x + (coverRect.width - lineW) / 2, textY, line.c_str(), true,
-                      EpdFontFamily::BOLD);
+    const int lineW = renderer.getTextWidth(renderer.filenameFontId(UI_12_FONT_ID), line.c_str(), EpdFontFamily::BOLD);
+    renderer.drawText(renderer.filenameFontId(UI_12_FONT_ID), coverRect.x + (coverRect.width - lineW) / 2, textY,
+                      line.c_str(), true, EpdFontFamily::BOLD);
     textY += lineH;
   }
 }
@@ -543,21 +543,24 @@ void drawBookText(const GfxRenderer& renderer, const Rect& coverRect, const Rece
   const int inset = contentInset(renderer);
   const int textW = renderer.getScreenWidth() - inset * 2;
   const char* title = book.title.empty() ? book.path.c_str() : book.title.c_str();
-  auto titleLines = renderer.wrappedText(UI_12_FONT_ID, title, textW, kBookTitleMaxLines, EpdFontFamily::BOLD);
+  auto titleLines = renderer.wrappedText(renderer.filenameFontId(UI_12_FONT_ID), title, textW, kBookTitleMaxLines,
+                                         EpdFontFamily::BOLD);
   int textY = coverRect.y + coverRect.height + kTitleTopGap;
-  const int titleLineH = renderer.getLineHeight(UI_12_FONT_ID);
+  const int titleLineH = renderer.getLineHeight(renderer.filenameFontId(UI_12_FONT_ID));
   for (const auto& line : titleLines) {
-    renderer.drawText(UI_12_FONT_ID, coverRect.x, textY, line.c_str(), black, EpdFontFamily::BOLD);
+    renderer.drawText(renderer.filenameFontId(UI_12_FONT_ID), coverRect.x, textY, line.c_str(), black,
+                      EpdFontFamily::BOLD);
     textY += titleLineH;
   }
 
   const char* subtitle =
       (currentChapterTitle != nullptr && currentChapterTitle[0] != '\0') ? currentChapterTitle : book.author.c_str();
   if (subtitle != nullptr && subtitle[0] != '\0') {
-    auto subtitleLines = renderer.wrappedText(UI_12_FONT_ID, subtitle, textW, kBookChapterMaxLines);
+    auto subtitleLines =
+        renderer.wrappedText(renderer.filenameFontId(UI_12_FONT_ID), subtitle, textW, kBookChapterMaxLines);
     int subtitleY = textY + kTitleChapterGap;
     for (const auto& line : subtitleLines) {
-      renderer.drawText(UI_12_FONT_ID, coverRect.x, subtitleY, line.c_str(), black);
+      renderer.drawText(renderer.filenameFontId(UI_12_FONT_ID), coverRect.x, subtitleY, line.c_str(), black);
       subtitleY += titleLineH;
     }
   }

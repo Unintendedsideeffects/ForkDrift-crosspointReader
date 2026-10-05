@@ -21,6 +21,7 @@
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "FilenameFontSystem.h"
 #include "OpdsServerStore.h"
 #include "RecentBooksStore.h"
 #include "SilentRestart.h"
@@ -620,6 +621,13 @@ void ActivityManager::loop() {
         currentActivity = std::move(stackActivities.back());
         stackActivities.pop_back();
         restoredActivityNeedsRender = true;
+
+        // Network children release streamed fonts. Restore browsing metadata
+        // before the first parent redraw, without reloading into network/readers.
+        if (currentActivity->isHomeActivity() || currentActivity->name == "FileBrowser" ||
+            currentActivity->name == "Library") {
+          filenameFontSystem.ensureLoaded(renderer);
+        }
 
         if (closedFrontlightPanel) currentActivity->onFrontlightPanelClosed();
 

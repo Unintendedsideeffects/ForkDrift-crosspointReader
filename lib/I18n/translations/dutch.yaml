@@ -657,3 +657,6 @@ STR_MONTH_SEP: "september"
 STR_MONTH_OCT: "oktober"
 STR_MONTH_NOV: "november"
 STR_MONTH_DEC: "december"
+
+STR_FILENAME_FALLBACK_FONT: "Terugvallettertype bestandsnamen"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Normaal verplicht; vet optioneel."

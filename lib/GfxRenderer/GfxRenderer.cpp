@@ -348,34 +348,26 @@ void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) {
   }
 }
 
-int GfxRenderer::resolveTextFontId(const int fontId, const char* text, const EpdFontFamily::Style style) const {
-  if (fallbackFontMap_.empty() || text == nullptr || *text == '\0') {
-    return fontId;
+int GfxRenderer::filenameFontId(const int primaryFontId) const {
+  const auto it = filenameFontMap_.find(primaryFontId);
+  return it == filenameFontMap_.end() ? primaryFontId : it->second;
+}
+
+bool GfxRenderer::setFilenameFallback(const int primaryFontId, const int compositeFontId, const EpdFont* regular,
+                                      const EpdFont* bold) {
+  const auto it = fontMap.find(primaryFontId);
+  if (it == fontMap.end() || !regular || fontMap.count(compositeFontId)) {
+    LOG_ERR("GFX", "Cannot register filename fallback %d", compositeFontId);
+    return false;
   }
-  const auto fbIt = fallbackFontMap_.find(fontId);
-  if (fbIt == fallbackFontMap_.end()) {
-    return fontId;  // no fallback registered for this font
-  }
-  const int fallbackFontId = fbIt->second;
-  const auto fontIt = fontMap.find(fontId);
-  const auto fallbackIt = fontMap.find(fallbackFontId);
-  if (fontIt == fontMap.end() || fallbackIt == fontMap.end()) {
-    return fontId;  // unknown primary or fallback not loaded — let the caller handle it
-  }
-  const EpdFontFamily& primary = fontIt->second;
-  const EpdFontFamily& fallback = fallbackIt->second;
-  const char* cursor = text;
-  uint32_t cp;
-  while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&cursor)))) {
-    // Only redirect for CJK the primary font cannot draw but the fallback can.
-    // Latin/symbol strings the built-in UI fonts already cover are left
-    // untouched, and a partial-coverage fallback (e.g. kana-only) is not worth
-    // dragging the whole string into for glyphs it would also miss.
-    if (utf8IsCjkCodepoint(cp) && !primary.hasCodepoint(cp, style) && fallback.hasCodepoint(cp, style)) {
-      return fallbackFontId;
-    }
-  }
-  return fontId;
+  insertFont(compositeFontId, it->second.withFallbackFonts(regular, bold));
+  filenameFontMap_[primaryFontId] = compositeFontId;
+  return true;
+}
+
+void GfxRenderer::clearFilenameFallbacks() {
+  for (const auto& entry : filenameFontMap_) removeFont(entry.second);
+  filenameFontMap_.clear();
 }
 
 // Translate logical (x,y) coordinates to physical panel coordinates based on current orientation
@@ -1037,7 +1029,7 @@ int GfxRenderer::getTextWidth(const int fontId, const char* text, const EpdFontF
     return 0;
   }
 
-  const int resolvedFontId = resolveTextFontId(fontId, text, style);
+  const int resolvedFontId = fontId;
 
   std::string visualBuffer;
   const char* textCursor = resolveVisualText(text, visualBuffer, baseDir);
@@ -1079,7 +1071,7 @@ GfxRenderer::TextVerticalBounds GfxRenderer::getTextVerticalBounds(const int fon
   ScalableFontAccess access;
 #endif
   if (!text || !*text) return {};
-  const int resolvedFontId = resolveTextFontId(fontId, text, EpdFontFamily::REGULAR);
+  const int resolvedFontId = fontId;
   const auto fontIt = fontMap.find(resolvedFontId);
   if (fontIt == fontMap.end()) {
     LOG_ERR("GFX", "Font %d not found", resolvedFontId);
@@ -1121,7 +1113,7 @@ void GfxRenderer::drawText(const int fontId, const int x, const int y, const cha
     return;
   }
 
-  const int resolvedFontId = resolveTextFontId(fontId, text, style);
+  const int resolvedFontId = fontId;
   const int yPos = y + getFontAscenderSize(resolvedFontId);
   int lastBaseX = x;
   int lastBaseLeft = 0;
@@ -2783,8 +2775,7 @@ int GfxRenderer::getTextAdvanceX(const int fontId, const char* text, const EpdFo
 #if CROSSINK_SCALABLE_FONTS
   ScalableFontAccess access;
 #endif
-  // Match the font drawText would use for CJK-bearing strings (see resolveTextFontId).
-  const int resolvedFontId = resolveTextFontId(fontId, text, style);
+  const int resolvedFontId = fontId;
   // Measure the exact codepoint stream drawText renders: bidi-reordered and
   // Arabic-shaped (contextual presentation forms, Lam-Alef collapse).
   // Measuring the raw logical text counts the Alef a ligature absorbs and
@@ -2984,8 +2975,7 @@ void GfxRenderer::drawTextRotated90CW(const int fontId, const int x, const int y
     return;
   }
 
-  // Route CJK-bearing strings to the fallback font (see resolveTextFontId).
-  const int resolvedFontId = resolveTextFontId(fontId, text, style);
+  const int resolvedFontId = fontId;
   const auto fontIt = fontMap.find(resolvedFontId);
   if (fontIt == fontMap.end()) {
     LOG_ERR("GFX", "Font %d not found", resolvedFontId);

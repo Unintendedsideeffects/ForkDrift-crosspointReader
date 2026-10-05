@@ -728,3 +728,6 @@ STR_MONTH_SEP: "settembre"
 STR_MONTH_OCT: "ottobre"
 STR_MONTH_NOV: "novembre"
 STR_MONTH_DEC: "dicembre"
+
+STR_FILENAME_FALLBACK_FONT: "Font alternativo nomi file"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Normale obbligatorio; grassetto facoltativo."

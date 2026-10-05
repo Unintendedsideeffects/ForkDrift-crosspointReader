@@ -843,3 +843,6 @@ STR_MONTH_SEP: "září"
 STR_MONTH_OCT: "října"
 STR_MONTH_NOV: "listopadu"
 STR_MONTH_DEC: "prosince"
+
+STR_FILENAME_FALLBACK_FONT: "Záložní písmo názvů souborů"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Běžný řez povinný; tučný volitelný."

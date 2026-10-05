@@ -1071,11 +1071,14 @@ inline std::vector<SettingInfo> buildSystemSettingsParentList(const std::vector<
 
 inline std::vector<SettingInfo> buildSystemDeviceSettingsList(const std::vector<SettingInfo>& allSettings) {
   std::vector<SettingInfo> settings;
-  settings.reserve(10);
+  settings.reserve(11);
   addSettingByName(settings, allSettings, StrId::STR_DEVICE_NAME);
   addSettingByName(settings, allSettings, StrId::STR_TIME_TO_SLEEP);
   addSettingByName(settings, allSettings, StrId::STR_CUSTOM_BOOTSCREEN);
   settings.push_back(SettingInfo::Action(StrId::STR_LANGUAGE, SettingAction::Language));
+#if CROSSINK_SCALABLE_FONTS
+  settings.push_back(SettingInfo::Action(StrId::STR_FILENAME_FALLBACK_FONT, SettingAction::FilenameFallbackFont));
+#endif
   settings.push_back(SettingInfo::Action(StrId::STR_KEYBOARD_LAYOUTS, SettingAction::KeyboardLayouts));
   if (halClock.isAvailable()) {
     addSettingByName(settings, allSettings, StrId::STR_CLOCK_FORMAT);

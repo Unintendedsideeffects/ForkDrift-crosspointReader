@@ -717,3 +717,6 @@ STR_MONTH_SEP: "de setembre"
 STR_MONTH_OCT: "d’octubre"
 STR_MONTH_NOV: "de novembre"
 STR_MONTH_DEC: "de desembre"
+
+STR_FILENAME_FALLBACK_FONT: "Font alternativa de fitxers"
+STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Normal obligatòria; negreta opcional."

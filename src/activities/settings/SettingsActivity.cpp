@@ -23,8 +23,9 @@
 #include "ClockOffsetActivity.h"
 #include "ClockSyncActivity.h"
 #include "CrossPointSettings.h"
-#include "DeviceCapabilities.h"
 #include "CrossPointState.h"
+#include "DeviceCapabilities.h"
+#include "FilenameFontSystem.h"
 #include "FontSelectionActivity.h"
 #if CROSSINK_SCALABLE_FONTS
 #include "TtfRenderOptionsActivity.h"
@@ -659,6 +660,40 @@ void SettingsActivity::openWordSpacingPicker() {
       });
 }
 
+void SettingsActivity::openFilenameFontPicker() {
+#if CROSSINK_SCALABLE_FONTS
+  RenderLock lock(*this);
+  optionPopup.clear();
+  if (!filenameFontSystem.discover(filenameFontNames)) {
+    optionPopup.show(
+        StrId::STR_FILENAME_FALLBACK_FONT, {tr(STR_OK)}, 0, [this](int) { requestUpdate(); },
+        OptionPopup::Note(tr(STR_FONT_DATA_UNREADABLE), tr(STR_FILENAME_FONT_HINT)));
+    requestUpdate();
+    return;
+  }
+  filenameFontNames.insert(filenameFontNames.begin(), tr(STR_NONE_OPT));
+  int selected = 0;
+  for (size_t i = 1; i < filenameFontNames.size(); ++i) {
+    if (filenameFontNames[i] == SETTINGS.filenameFallbackFont) selected = static_cast<int>(i);
+  }
+  optionPopup.showBorrowed(
+      StrId::STR_FILENAME_FALLBACK_FONT,
+      OptionLabels(&filenameFontNames, filenameFontNames.size(),
+                   [](const void* owner, size_t i) {
+                     return (*static_cast<const std::vector<std::string>*>(owner))[i].c_str();
+                   }),
+      selected,
+      [this](int index) {
+        if (index < 0 || static_cast<size_t>(index) >= filenameFontNames.size()) return;
+        std::strncpy(pendingFilenameFont, index ? filenameFontNames[index].c_str() : "",
+                     sizeof(pendingFilenameFont) - 1);
+        filenameFontSelectionPending = true;
+      },
+      OptionPopup::Note("", tr(STR_FILENAME_FONT_HINT)));
+  requestUpdate();
+#endif
+}
+
 void SettingsActivity::openLanguagePicker() {
   RenderLock lock(*this);
   optionPopup.clear();
@@ -919,6 +954,28 @@ void SettingsActivity::applyUiSettingChange(uint8_t CrossPointSettings::* valueP
 }
 
 void SettingsActivity::loop() {
+#if CROSSINK_SCALABLE_FONTS
+  if (filenameFontSelectionPending) {
+    filenameFontSelectionPending = false;
+    RenderLock lock(*this);
+    char previous[sizeof(SETTINGS.filenameFallbackFont)];
+    std::strcpy(previous, SETTINGS.filenameFallbackFont);
+    std::strcpy(SETTINGS.filenameFallbackFont, pendingFilenameFont);
+    filenameFontSystem.invalidate();
+    if (pendingFilenameFont[0]) GUI.drawPopup(renderer, tr(STR_LOADING_POPUP), true);
+    if (filenameFontSystem.ensureLoaded(renderer) && SETTINGS.saveToFile()) {
+      // The selected font and persisted setting are ready together.
+    } else {
+      std::strcpy(SETTINGS.filenameFallbackFont, previous);
+      filenameFontSystem.ensureLoaded(renderer);
+      optionPopup.show(
+          StrId::STR_FILENAME_FALLBACK_FONT, {tr(STR_OK)}, 0, [this](int) { requestUpdate(); },
+          OptionPopup::Note(tr(STR_FONT_DATA_UNREADABLE), tr(STR_FILENAME_FONT_HINT)));
+    }
+    requestUpdate();
+    return;
+  }
+#endif
   if (pendingLanguage.code[0]) {
     const auto selected = pendingLanguage;
     pendingLanguage.code[0] = '\0';
@@ -1297,6 +1354,9 @@ void SettingsActivity::toggleCurrentSetting() {
 #endif
         break;
       }
+      case SettingAction::FilenameFallbackFont:
+        openFilenameFontPicker();
+        break;
       case SettingAction::Language:
         openLanguagePicker();
         break;
@@ -1459,6 +1519,9 @@ std::string SettingsActivity::settingValueText(const SettingInfo& setting) {
   }
   if (setting.type == SettingType::VALUE && (setting.valuePtr != nullptr || setting.value16Ptr != nullptr)) {
     return formatSettingValue(setting);
+  }
+  if (setting.type == SettingType::ACTION && setting.action == SettingAction::FilenameFallbackFont) {
+    return SETTINGS.filenameFallbackFont[0] ? SETTINGS.filenameFallbackFont : tr(STR_NONE_OPT);
   }
   if (setting.type == SettingType::ACTION && setting.action == SettingAction::Language) {
     return I18N.getName();
