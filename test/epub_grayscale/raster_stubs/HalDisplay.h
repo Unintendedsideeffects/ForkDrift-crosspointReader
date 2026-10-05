@@ -27,7 +27,8 @@ class HalDisplay {
   int getDisplayWidthBytes() const { return stride; }
   uint32_t getBufferSize() const { return bw.size(); }
   void clearScreen(uint8_t c) const { memset(bw.data(), c, bw.size()); }
-  bool isInverted() const { return false; }
+  bool inverted = false;
+  bool isInverted() const { return inverted; }
   uint8_t* lendFrameBufferStorage(uint32_t* size) {
     *size = bw.size();
     return bw.data();

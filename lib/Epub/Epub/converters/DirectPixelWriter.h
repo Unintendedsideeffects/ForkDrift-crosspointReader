@@ -42,7 +42,9 @@ struct DirectPixelWriter {
     originY = renderer.getWriteOriginY();
     clipRows = renderer.getWriteRows();
     mode = renderer.getRenderMode();
-    grayscale = imageGrayscale;
+    // Night Mode suppresses grayscale overlays, so its BW image must retain
+    // midtones through dithering instead of leaving an unfinished silhouette.
+    grayscale = imageGrayscale && !renderer.isDisplayInverted();
     displayWidthBytes = renderer.getDisplayWidthBytes();
 
     const int phyW = renderer.getDisplayWidth();
@@ -122,7 +124,10 @@ struct DirectPixelWriter {
                    ? pixelValue < 3
                    : pixelValue * 85 <
                          bayer4x4[(logicalRow + (logicalX >> 2)) & 3][(logicalX + (logicalRow >> 2)) & 3] * 16 + 8;
-        state = true;
+        // Replace white pixels too: a redraw can start from an image whose
+        // polarity was already preserved, rather than a cleared background.
+        state = draw;
+        draw = true;
         break;
       case GfxRenderer::GRAYSCALE_MSB:
         draw = (pixelValue == 1 || pixelValue == 2);
