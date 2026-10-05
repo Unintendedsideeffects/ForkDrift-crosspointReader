@@ -5,6 +5,7 @@
 #include <I18n.h>
 
 #include <algorithm>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -25,11 +26,17 @@ enum BarItem {
   SLOT_RIGHT_1,
   SLOT_RIGHT_2,
   SLOT_RIGHT_3,
+  BATTERY_STYLE,
   PERCENTAGE_FORMAT,
   PROGRESS_BAR,
   PROGRESS_BAR_THICKNESS,
   HIDE_BAR,
 };
+
+// The display (UI header) bar has three slots, then its own option rows.
+constexpr int DISPLAY_BATTERY_ROW = 3;
+constexpr int DISPLAY_TEXT_SIZE_ROW = 4;
+constexpr int ROOT_TEXT_SIZE_ROW = 3;
 
 constexpr ReaderStatusBarItem pickerItems[] = {
     ReaderStatusBarItem::Clock,
@@ -111,6 +118,14 @@ constexpr StrId textSizeNames[] = {StrId::STR_SMALL, StrId::STR_MEDIUM, StrId::S
 constexpr StrId rootLabels[] = {StrId::STR_TOP_STATUS_BAR, StrId::STR_BOTTOM_STATUS_BAR, StrId::STR_XTC_STATUS_BAR,
                                 StrId::STR_STATUS_BAR_TEXT_SIZE};
 
+constexpr StrId batteryStyleNames[] = {StrId::STR_BATTERY_ICON_AND_PERCENT, StrId::STR_BATTERY_ICON_ONLY,
+                                       StrId::STR_BATTERY_PERCENT_ONLY};
+
+const char* batteryStyleLabel(const ReaderStatusBarBatteryStyle style) {
+  const auto index = static_cast<size_t>(style);
+  return I18N.get(batteryStyleNames[index < std::size(batteryStyleNames) ? index : 0]);
+}
+
 const StrId percentageFormatNames[] = {StrId::STR_PERCENTAGE_FORMAT_WHOLE, StrId::STR_PERCENTAGE_FORMAT_ONE_DECIMAL,
                                        StrId::STR_PERCENTAGE_FORMAT_TWO_DECIMALS};
 }  // namespace
@@ -155,7 +170,9 @@ ReaderStatusBarPosition StatusBarSettingsActivity::selectedPosition() const {
 }
 
 void StatusBarSettingsActivity::refreshItemCount() {
-  visibleItemCount = displayContext ? 4 : view == View::Root ? 4 : HIDE_BAR + 1;
+  visibleItemCount = displayContext       ? DISPLAY_TEXT_SIZE_ROW + 1
+                     : view == View::Root ? ROOT_TEXT_SIZE_ROW + 1
+                                          : HIDE_BAR + 1;
   selectedIndex = std::clamp(selectedIndex, 0, visibleItemCount - 1);
 }
 
@@ -254,7 +271,8 @@ void StatusBarSettingsActivity::handleSelection() {
 }
 
 void StatusBarSettingsActivity::openOptionPicker() {
-  if ((view == View::Root || displayContext) && selectedIndex == 3) {
+  if ((displayContext && selectedIndex == DISPLAY_TEXT_SIZE_ROW) ||
+      (!displayContext && view == View::Root && selectedIndex == ROOT_TEXT_SIZE_ROW)) {
     optionPopup.show(StrId::STR_STATUS_BAR_TEXT_SIZE, textSizeNames, 3,
                      displayContext ? SETTINGS.displayStatusBarTextSize : SETTINGS.statusBarTextSize,
                      [this](const int selected) {
@@ -284,6 +302,26 @@ void StatusBarSettingsActivity::openOptionPicker() {
   const auto position = selectedPosition();
   const int item = selectedIndex;
   const auto config = SETTINGS.readerStatusBar(position);
+  if (displayContext ? item == DISPLAY_BATTERY_ROW : item == BATTERY_STYLE) {
+    const auto current = displayContext ? SETTINGS.displayStatusBar.batteryStyle : config.batteryStyle;
+    optionPopup.show(StrId::STR_BATTERY, batteryStyleNames, static_cast<int>(std::size(batteryStyleNames)),
+                     static_cast<int>(current), [this, position](const int selected) {
+                       if (selected < 0 || selected >= static_cast<int>(ReaderStatusBarBatteryStyle::Count)) return;
+                       const auto style = static_cast<ReaderStatusBarBatteryStyle>(selected);
+                       if (displayContext) {
+                         SETTINGS.displayStatusBar.batteryStyle = style;
+                       } else {
+                         auto updated = SETTINGS.readerStatusBar(position);
+                         updated.batteryStyle = style;
+                         SETTINGS.setReaderStatusBar(position, updated);
+                       }
+                       SETTINGS.saveToFile();
+                       listNav.requestSelection(selectedIndex);
+                       requestUpdate();
+                     });
+    requestUpdate();
+    return;
+  }
   if (!displayContext && item == HIDE_BAR) {
     constexpr StrId toggleNames[] = {StrId::STR_OFF, StrId::STR_ON};
     optionPopup.show(StrId::STR_HIDE, toggleNames, 2, config.hidden ? 1 : 0, [this, position](const int selected) {
@@ -402,9 +440,12 @@ void StatusBarSettingsActivity::buildSettingsScreen(UiApp::ScreenType& screen) {
   for (int i = 0; i < visibleItemCount; ++i) {
     fui::ListItem row;
     row.actionValue = static_cast<int16_t>(i);
-    if (displayContext && i == 3) {
+    if (displayContext && i == DISPLAY_TEXT_SIZE_ROW) {
       row.label = tr(STR_STATUS_BAR_TEXT_SIZE);
       row.value = I18N.get(textSizeNames[std::min<uint8_t>(SETTINGS.displayStatusBarTextSize, 2)]);
+    } else if (displayContext && i == DISPLAY_BATTERY_ROW) {
+      row.label = tr(STR_BATTERY);
+      row.value = batteryStyleLabel(SETTINGS.displayStatusBar.batteryStyle);
     } else if (displayContext) {
       row.label = i == 0 ? tr(STR_STATUS_BAR_LEFT) : i == 1 ? tr(STR_CENTER) : tr(STR_STATUS_BAR_RIGHT);
       values[i] = itemLabel(SETTINGS.displayStatusBar.slots[i]);
@@ -430,6 +471,9 @@ void StatusBarSettingsActivity::buildSettingsScreen(UiApp::ScreenType& screen) {
         if (item == SLOT_LEFT_1) row.sectionHeading = tr(STR_STATUS_BAR_LEFT);
         if (item == SLOT_CENTER) row.sectionHeading = tr(STR_CENTER);
         if (item == SLOT_RIGHT_1) row.sectionHeading = tr(STR_STATUS_BAR_RIGHT);
+      } else if (item == BATTERY_STYLE) {
+        row.label = tr(STR_BATTERY);
+        row.value = batteryStyleLabel(config.batteryStyle);
       } else if (item == PERCENTAGE_FORMAT) {
         row.label = tr(STR_PERCENTAGE_FORMAT);
         row.value = I18N.get(percentageFormatNames[config.percentageFormat]);

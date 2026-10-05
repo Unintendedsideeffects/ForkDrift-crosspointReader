@@ -239,13 +239,13 @@ struct StatusBarFeatureSmokeTest {
           editor.render(std::move(lock));
           // Reach the final Hide row through actual button navigation, including
           // the variable-height list's scrolling and section boundaries.
-          for (int i = 0; i < 10; ++i) {
+          for (int i = 0; i < 11; ++i) {
             mappedInputManager.simulatorInjectRelease(mappedInputManager.menuButton(MappedInputManager::Button::Down));
             editor.loop();
             mappedInputManager.simulatorClearInputFrame();
             editor.render(std::move(lock));
           }
-          if (editor.selectedIndex != 10 || !editor.simulatorSelectedRowVisible) return false;
+          if (editor.selectedIndex != 11 || !editor.simulatorSelectedRowVisible) return false;
           for (int repeat = 0; repeat < 4; ++repeat) {
             const auto position = bar ? ReaderStatusBarPosition::Bottom : ReaderStatusBarPosition::Top;
             const bool before = SETTINGS.readerStatusBar(position).hidden;
@@ -276,13 +276,13 @@ struct StatusBarFeatureSmokeTest {
       StatusBarSettingsActivity editor(renderer, mappedInputManager, false, false, true);
       editor.onEnter();
       editor.render(std::move(lock));
-      for (int i = 0; i < 3; ++i) {
+      for (int i = 0; i < 4; ++i) {
         mappedInputManager.simulatorInjectRelease(mappedInputManager.menuButton(MappedInputManager::Button::Down));
         editor.loop();
         mappedInputManager.simulatorClearInputFrame();
         editor.render(std::move(lock));
       }
-      if (editor.selectedIndex != 3 || !editor.simulatorSelectedRowVisible) return false;
+      if (editor.selectedIndex != 4 || !editor.simulatorSelectedRowVisible) return false;
       if (!open(editor)) return false;
       if (!choose(editor, size, lock) || SETTINGS.displayStatusBarTextSize != size ||
           SETTINGS.statusBarTextSize != readerSize)
@@ -292,6 +292,45 @@ struct StatusBarFeatureSmokeTest {
       capture("global-size-editor-" + std::to_string(size));
       editor.onExit();
     }
+    // Battery styles are per bar: changing one must leave the others untouched.
+    const auto displayBattery = SETTINGS.displayStatusBar.batteryStyle;
+    const auto readerTopBattery = SETTINGS.topReaderStatusBar.batteryStyle;
+    const auto readerBottomBattery = SETTINGS.bottomReaderStatusBar.batteryStyle;
+    for (int style = 2; style >= 0; --style) {
+      SETTINGS.displayStatusBar.batteryStyle = ReaderStatusBarBatteryStyle::IconAndPercent;
+      StatusBarSettingsActivity editor(renderer, mappedInputManager, false, false, true);
+      editor.onEnter();
+      editor.selectedIndex = 3;
+      editor.render(std::move(lock));
+      if (!open(editor) || !choose(editor, style, lock) ||
+          SETTINGS.displayStatusBar.batteryStyle != static_cast<ReaderStatusBarBatteryStyle>(style) ||
+          SETTINGS.topReaderStatusBar.batteryStyle != readerTopBattery ||
+          SETTINGS.bottomReaderStatusBar.batteryStyle != readerBottomBattery)
+        return false;
+      editor.render(std::move(lock));
+      editor.render(std::move(lock));
+      capture("global-battery-editor-" + std::to_string(style));
+      editor.onExit();
+    }
+    for (int style = 2; style >= 0; --style) {
+      SETTINGS.bottomReaderStatusBar.batteryStyle = ReaderStatusBarBatteryStyle::IconAndPercent;
+      StatusBarSettingsActivity editor(renderer, mappedInputManager, true);
+      editor.onEnter();
+      editor.selectedIndex = 1;
+      editor.handleSelection();
+      editor.selectedIndex = 7;
+      editor.render(std::move(lock));
+      if (!open(editor) || !choose(editor, style, lock) ||
+          SETTINGS.bottomReaderStatusBar.batteryStyle != static_cast<ReaderStatusBarBatteryStyle>(style) ||
+          SETTINGS.topReaderStatusBar.batteryStyle != readerTopBattery)
+        return false;
+      editor.render(std::move(lock));
+      editor.render(std::move(lock));
+      capture("bottom-battery-editor-" + std::to_string(style));
+      editor.onExit();
+    }
+    SETTINGS.displayStatusBar.batteryStyle = displayBattery;
+    SETTINGS.bottomReaderStatusBar.batteryStyle = readerBottomBattery;
     return true;
   }
   static bool txt(RenderLock& lock, const Capture& capture) {
@@ -786,6 +825,31 @@ class SimulatorSmokeTest {
           SETTINGS.displayStatusBar.slots[2] != ReaderStatusBarItem::Battery)
         fail("Display clock migration failed");
     }
+    // Hide Battery % (Never / In Reader / Always) migrates into per-bar battery styles once.
+    using Style = ReaderStatusBarBatteryStyle;
+    constexpr Style expectedReader[] = {Style::IconAndPercent, Style::IconOnly, Style::IconOnly};
+    constexpr Style expectedDisplay[] = {Style::IconAndPercent, Style::IconAndPercent, Style::IconOnly};
+    for (const uint8_t hide : {0, 1, 2}) {
+      JsonDocument legacy;
+      legacy.set(original);
+      legacy.remove("displayBatteryStyle");
+      legacy["readerStatusBars"]["top"].remove("battery");
+      legacy["readerStatusBars"]["bottom"].remove("battery");
+      legacy["hideBatteryPercentage"] = hide;
+      SETTINGS.fromJson(legacy.as<JsonVariantConst>());
+      if (SETTINGS.topReaderStatusBar.batteryStyle != expectedReader[hide] ||
+          SETTINGS.bottomReaderStatusBar.batteryStyle != expectedReader[hide] ||
+          SETTINGS.displayStatusBar.batteryStyle != expectedDisplay[hide])
+        fail("Battery style migration failed for hideBatteryPercentage=%u", hide);
+      JsonDocument migrated;
+      SETTINGS.toJson(migrated);
+      migrated["hideBatteryPercentage"] = 0;  // A stale legacy key must not override saved styles.
+      SETTINGS.fromJson(migrated.as<JsonVariantConst>());
+      if (SETTINGS.bottomReaderStatusBar.batteryStyle != expectedReader[hide] ||
+          SETTINGS.displayStatusBar.batteryStyle != expectedDisplay[hide])
+        fail("Battery style did not survive a save round trip for hideBatteryPercentage=%u", hide);
+    }
+    SETTINGS.fromJson(original.as<JsonVariantConst>());
     SETTINGS.displayStatusBar.slots = {ReaderStatusBarItem::Date, ReaderStatusBarItem::Clock,
                                        ReaderStatusBarItem::Empty};
     SETTINGS.topReaderStatusBar.slots[ReaderStatusBarConfig::CENTER] = ReaderStatusBarItem::Clock;

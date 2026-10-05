@@ -70,15 +70,16 @@ void hideOverlayBatteryStrip(const GfxRenderer& renderer) {
   }
 
   const int textY = renderer.getScreenHeight() - statusBarHeight - orientedMarginBottom - 4;
-  const bool showBatteryPercentage =
-      SETTINGS.hideBatteryPercentage == CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_NEVER;
+  const auto batteryStyle = SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom).batteryStyle;
+  const bool showBatteryIcon = batteryStyle != ReaderStatusBarBatteryStyle::PercentOnly;
+  const bool showBatteryPercentage = batteryStyle != ReaderStatusBarBatteryStyle::IconOnly;
 
   // Reserve the full left-side status indicator lane used by bookmark + battery.
   // This keeps chapter/progress text readable while removing the battery glance target.
   static constexpr int bookmarkReserveWidth = 13;  // bookmark width + gap from BaseTheme::drawReaderStatusBar()
   static constexpr int batteryPercentSpacing = 4;  // matches BaseTheme::batteryPercentSpacing
-  const int clearWidth = bookmarkReserveWidth + metrics.batteryWidth +
-                         (showBatteryPercentage ? batteryPercentSpacing +
+  const int clearWidth = bookmarkReserveWidth + (showBatteryIcon ? metrics.batteryWidth : 0) +
+                         (showBatteryPercentage ? (showBatteryIcon ? batteryPercentSpacing : 0) +
                                                       renderer.getTextWidth(UITheme::getReaderStatusBarFontId(), "100%")
                                                 : 0);
   const int clearHeight =

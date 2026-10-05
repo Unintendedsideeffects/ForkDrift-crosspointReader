@@ -403,3 +403,39 @@ TEST(ReaderStatusBarConfig, LegacyXtcHideBelongsToDisplayedBar) {
     EXPECT_EQ(displayedBottom.hidden, bottom.hidden);
   }
 }
+
+TEST(ReaderStatusBarConfig, BatteryStyleIsOptionalAndValidated) {
+  ReaderStatusBarConfig original;
+  original.batteryStyle = ReaderStatusBarBatteryStyle::PercentOnly;
+  JsonDocument saved;
+  writeReaderStatusBarJson(saved.to<JsonObject>(), original);
+  ReaderStatusBarConfig parsed;
+  ASSERT_TRUE(readReaderStatusBarJson(saved.as<JsonVariantConst>(), parsed, true, 3, 3, 3));
+  EXPECT_EQ(parsed.batteryStyle, ReaderStatusBarBatteryStyle::PercentOnly);
+
+  // Documents written before battery styles parse with the default style.
+  saved.remove("battery");
+  ASSERT_TRUE(readReaderStatusBarJson(saved.as<JsonVariantConst>(), parsed, true, 3, 3, 3));
+  EXPECT_EQ(parsed.batteryStyle, ReaderStatusBarBatteryStyle::IconAndPercent);
+
+  for (const char* raw : {"3", "-1", "\"2\"", "true", "null"}) {
+    JsonDocument bad;
+    ASSERT_FALSE(deserializeJson(bad, raw));
+    saved["battery"] = bad.as<JsonVariantConst>();
+    parsed.batteryStyle = ReaderStatusBarBatteryStyle::IconOnly;
+    EXPECT_FALSE(readReaderStatusBarJson(saved.as<JsonVariantConst>(), parsed, true, 3, 3, 3)) << raw;
+    EXPECT_EQ(parsed.batteryStyle, ReaderStatusBarBatteryStyle::IconOnly);
+    EXPECT_TRUE(repairReaderStatusBarJson(saved.as<JsonVariantConst>(), parsed, true, 3, 3, 3));
+    EXPECT_EQ(parsed.batteryStyle, ReaderStatusBarBatteryStyle::IconAndPercent);
+  }
+}
+
+TEST(ReaderStatusBarConfig, DisplaySlotsKeepBatteryStyle) {
+  DisplayStatusBarConfig display;
+  display.batteryStyle = ReaderStatusBarBatteryStyle::PercentOnly;
+  JsonDocument slots;
+  ASSERT_FALSE(deserializeJson(slots, "[0,0,2]"));
+  ASSERT_TRUE(readDisplayStatusBarJson(slots.as<JsonVariantConst>(), display, false));
+  EXPECT_EQ(display.batteryStyle, ReaderStatusBarBatteryStyle::PercentOnly);
+  EXPECT_EQ(display.asReaderConfig().batteryStyle, ReaderStatusBarBatteryStyle::PercentOnly);
+}

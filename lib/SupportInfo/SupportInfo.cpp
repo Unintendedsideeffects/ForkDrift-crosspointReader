@@ -179,7 +179,7 @@ bool Writer::snapshot(const Snapshot& d) {
     number(d.statusSlots[i]);
   }
   text("],\"statusOptions\":[");
-  for (unsigned i = 0; i < 6; ++i) {
+  for (unsigned i = 0; i < 9; ++i) {
     if (i) text(",");
     number(d.statusOptions[i]);
   }

@@ -232,10 +232,10 @@ device model and build.
 
 - **Quick Resume on Timeout**: Whether to enable the "Quick Resume" sleep screen when the device goes to sleep due to inactivity (System > Time to Sleep). This is useful for quickly resuming reading without waiting for the device to fully wake up and load the book. This overwrites the Sleep Screen Cover Mode when enabled.
 
-- **Hide Battery %**: Configure where to suppress the battery percentage display in the status bar; the battery icon will still be shown:
-  - "Never" (default) - Always show battery percentage
-  - "In Reader" - Show battery percentage everywhere except in reading mode
-  - "Always" - Always hide battery percentage
+- **Status Bar**: Choose the items shown in the status bar above menus and
+  library screens. **Battery** sets how a Battery item appears: "Icon + %"
+  (default), "Icon Only", or "% Only". Reader bars have their own **Battery**
+  choice under **Status Bars**.
 
 - **Hide Clock**: On devices with a real-time clock, choose whether the clock is
   shown everywhere, hidden only in the reader, or always hidden.
@@ -363,7 +363,8 @@ individual global changes. **Delete Book Cache** does not reset these choices.
   - Progress Bar Thickness - Set the thickness of the progress bar
   - Title - Display the chapter or book title
   - Time Left - Display the estimated reading time left for the book or chapter
-  - Battery - Show/Hide the battery indicator
+  - Battery - Show/Hide the battery indicator. The bar's **Battery** option, above
+    Percentage Format, shows it as "Icon + %" (default), "Icon Only", or "% Only".
   - XTC Status Bar - Show/Hide a status bar for XTC files
 
 On touchscreen readers, when **Tap to Hide Status Bar** is enabled (the default

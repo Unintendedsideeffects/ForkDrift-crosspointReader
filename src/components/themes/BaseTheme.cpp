@@ -888,8 +888,8 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
   }
   if (!hasText) return;
 
-  const bool batteryPercent = content.outsideReader ? SETTINGS.hideBatteryPercentage != CrossPointSettings::HIDE_ALWAYS
-                                                    : SETTINGS.hideBatteryPercentage == CrossPointSettings::HIDE_NEVER;
+  const bool batteryIcon = config.batteryStyle != ReaderStatusBarBatteryStyle::PercentOnly;
+  const bool batteryPercent = config.batteryStyle != ReaderStatusBarBatteryStyle::IconOnly;
   const auto itemText = [&](const ReaderStatusBarItem item, char* scratch, const size_t len) -> const char* {
     switch (item) {
       case ReaderStatusBarItem::Date:
@@ -900,6 +900,10 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
                        halClock.formatTime(scratch, len, SETTINGS.clockUtcOffsetQ, SETTINGS.clockFormat == 1)
                    ? scratch
                    : nullptr;
+      case ReaderStatusBarItem::Battery:
+        // Icon styles are drawn separately; percentage-only renders as plain text.
+        snprintf(scratch, len, "%u%%", static_cast<unsigned>(powerManager.getBatteryPercentage()));
+        return scratch;
       case ReaderStatusBarItem::TimeLeftBook:
         return content.timeLeftBook;
       case ReaderStatusBarItem::TimeLeftChapter:
@@ -926,7 +930,7 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
     }
   };
   const auto measureItem = [&](const ReaderStatusBarItem item, const int maxWidth) {
-    if (item == ReaderStatusBarItem::Battery) {
+    if (item == ReaderStatusBarItem::Battery && batteryIcon) {
       int width = metrics.batteryWidth;
       if (batteryPercent) {
         char percent[8];
@@ -941,7 +945,7 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
   };
   const auto drawItem = [&](const ReaderStatusBarItem item, const int x, const int allowedWidth,
                             const bool alignRight) {
-    if (item == ReaderStatusBarItem::Battery) {
+    if (item == ReaderStatusBarItem::Battery && batteryIcon) {
       if (allowedWidth < metrics.batteryWidth) return;
       char percent[8];
       snprintf(percent, sizeof(percent), "%u%%", static_cast<unsigned>(powerManager.getBatteryPercentage()));

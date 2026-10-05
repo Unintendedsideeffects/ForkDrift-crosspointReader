@@ -600,9 +600,9 @@ inline SettingInfo buildSideButtonActionSetting(const StrId nameId, uint8_t Cros
 // #1636) so the per-entry SettingInfo cost is paid once. Read-only consumers
 // can use it directly; mutable device UI lists use getSettingsList(), which
 // returns an owned copy and can add SD-card font and dictionary options.
-// 106 common entries plus two runtime IMU entries on X3-capable firmware.
+// 105 common entries plus two runtime IMU entries on X3-capable firmware.
 // Four edge gesture entries are compiled only for touch devices.
-inline constexpr size_t BASE_SETTINGS_CAPACITY = 108 + (CROSSINK_APP_CAP_TOUCH ? 4 : 0);
+inline constexpr size_t BASE_SETTINGS_CAPACITY = 107 + (CROSSINK_APP_CAP_TOUCH ? 4 : 0);
 
 inline size_t getBaseSettingsCapacity() {
   return BASE_SETTINGS_CAPACITY + (QuickActions::supportsTiltPageTurn() ? 2 : 0);
@@ -1006,7 +1006,6 @@ inline std::vector<SettingInfo> buildGroupedDisplaySettingsList(const std::vecto
     displaySettings.push_back(SettingInfo::Submenu(StrId::STR_FRONTLIGHT, SettingAction::DisplayFrontlight));
   }
   displaySettings.push_back(SettingInfo::Action(StrId::STR_STATUS_BAR, SettingAction::DisplayStatusBar));
-  addDisplaySetting(StrId::STR_HIDE_BATTERY);
   addDisplaySetting(StrId::STR_REFRESH_FREQ);
   addDisplaySetting(StrId::STR_NIGHT_MODE);
   addDisplaySetting(StrId::STR_UI_THEME);

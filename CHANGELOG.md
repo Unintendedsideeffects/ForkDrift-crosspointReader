@@ -15,6 +15,7 @@
 - Home/Reader shortcuts available on touch devices
 - Hide either reader status bar without clearing its assigned slots, and choose a separate global status bar text size in Settings → Status Bar.
 - Finished EPUB and XTC books show a checkmarked book icon in the File Browser and Library list.
+- Show the battery as Icon + %, Icon Only, or % Only, set separately for the top, bottom, and global status bars.
 
 ### Fixed
 
@@ -31,6 +32,7 @@
 ### Changed
 
 - Reduce resident lookup-table memory for SD fonts containing both BMP and supplementary Unicode ranges.
+- Display → Hide Battery % is replaced by the Battery option in each status bar's settings; existing choices carry over.
 
 ### Fixed
 

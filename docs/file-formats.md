@@ -26,6 +26,14 @@ reflows EPUB/TXT around the saved text position. XTC preserves its fixed-layout
 page and clears the displayed status strip. These fields round-trip through
 settings export/import and the web status-bar editor.
 
+`readerStatusBars.top.battery`, `readerStatusBars.bottom.battery`, and the root
+`displayBatteryStyle` select how a Battery slot renders in that bar: Icon + %
+(`0`), Icon Only (`1`), or % Only (`2`). Invalid values fall back to Icon + %.
+When a key is missing, it is migrated once from the legacy
+`hideBatteryPercentage` value (Never, In Reader, Always): Never keeps Icon + %
+everywhere, In Reader uses Icon Only for reader bars only, and Always uses Icon
+Only everywhere. `hideBatteryPercentage` is no longer written.
+
 ## TXT `progress.bin`
 
 Each TXT cache stores a six-byte progress record: a little-endian `u16` page
