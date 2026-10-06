@@ -68,6 +68,7 @@ class LibraryActivity final : public Activity {
   int gridPageStart = 0;
   int loadedGridPageStart = -1;
   int nextGridCoverRow = -1;
+  bool gridCoverAdded = false;
   int16_t gridCoverWidth = 0;
   int16_t gridCoverHeight = 0;
   int gridProgressRow = -1;

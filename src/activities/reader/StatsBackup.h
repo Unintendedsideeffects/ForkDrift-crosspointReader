@@ -7,5 +7,6 @@
 // it receives the written filename without the directory prefix.
 bool backupGlobalStats(bool manual, char* outFileName = nullptr, size_t outFileNameLen = 0);
 
-// Deletes oldest backup files beyond the keep count. Returns the number removed.
+// Keeps at least one backup, and up to keep in each daily/manual/clockless set.
+// Returns the number removed; negative keep disables pruning.
 int pruneBackups(int keep = 7);

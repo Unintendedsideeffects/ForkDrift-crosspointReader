@@ -869,7 +869,7 @@ void LibraryActivity::loop() {
     handleInput(input);
     return;
   }
-  // Prepare at most one cover between input checks.
+  // Prepare at most one cover between input checks, then repaint the completed page.
   loadGridPageCovers();
 }
 
@@ -1428,11 +1428,15 @@ void LibraryActivity::buildGrid(UiApp::ScreenType& screen) {
 void LibraryActivity::loadGridPageCovers() {
   if (!gridEnabled() || gridCoverWidth <= 0 || gridCoverHeight <= 0 || gridPageStart == loadedGridPageStart) return;
   const int pageEnd = std::min(gridPageStart + GRID_PAGE_SIZE, rowCount());
-  if (nextGridCoverRow < 0) nextGridCoverRow = gridPageStart;
-  if (nextGridCoverRow < pageEnd && loadGridCover(nextGridCoverRow++)) requestUpdate();
+  if (nextGridCoverRow < 0) {
+    nextGridCoverRow = gridPageStart;
+    gridCoverAdded = false;
+  }
+  if (nextGridCoverRow < pageEnd && loadGridCover(nextGridCoverRow++)) gridCoverAdded = true;
   if (nextGridCoverRow >= pageEnd) {
     loadedGridPageStart = gridPageStart;
     nextGridCoverRow = -1;
+    if (gridCoverAdded) requestUpdate();
   }
 }
 

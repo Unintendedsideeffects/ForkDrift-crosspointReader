@@ -32,6 +32,9 @@
 - Prevent a suppressed TXT menu-button release from opening the menu again.
 - Capture serial screenshots consistently and preserve pre-crash logs while restarting.
 - Keep transfer workflows responsive: USB waits yield to background tasks, and Nearby transfers and firmware downloads avoid full-card free-space scans while incomplete writes still fail safely.
+- Remove incomplete File Transfer uploads after SD write failures so they can be retried.
+- Preserve the previous file when a WebDAV replacement fails, and report settings-save failures in the web portal.
+- Keep daily, manual, and clockless reading-stat backups separately, and prune numbered backups in the correct order after 999.
 
 ### Changed
 
@@ -44,6 +47,9 @@
 - Large custom sleep and boot images load faster by skipping image rows that are not shown. Boot images larger than the screen are now dithered at screen size, matching sleep images.
 - Open and resume EPUBs with thousands of chapters faster, and jump to a book percentage without scanning every preceding chapter.
 - Speed up monochrome cover and sleep-image decoding, stylesheet discovery during EPUB indexing, and TTF font validation while preserving image quality and font integrity checks.
+- Avoid writing reading-percentage caches while browsing Home, Library, or sleep screens.
+- Refresh Library cover grids once after missing covers are prepared, keeping input checks between covers.
+- Skip text anti-aliasing on EPUB pages without text and avoid copying optimized images twice when they already match the display size.
 
 ## [v1.6.1] - 2026-10-03
 

@@ -24,6 +24,7 @@
 #include "Epub/ReferencePageNavigation.h"
 #include "Epub/image/OptimizerCachePublish.h"
 #include "Epub/image/OptimizerIndex.h"
+#include "Epub/image/PxcHeaderSink.h"
 #include "Epub/parsers/ContainerParser.h"
 #include "Epub/parsers/ContentOpfParser.h"
 #include "Epub/parsers/TocNavParser.h"
@@ -1635,6 +1636,20 @@ bool Epub::seedOptimizerImageCache(const std::string& itemHref, const int expect
       Storage.remove(temp.c_str());
     }
     if (ok) LOG_DBG("EBP", "Materialized PXC2 image: %s", entry.pxcHref);
+    return ok;
+  }
+  if (entry.width == expectedWidth && entry.height == expectedHeight) {
+    // No resize is needed: validate while inflating directly to the publish temp file.
+    FsFile output;
+    if (!Storage.openFileForWrite("EBP", temp, output)) return false;
+    PxcHeaderSink sink(output);
+    bool ok = readItemContentsToStream(entry.pxcHref, sink, kOptimizerPxcExtractionChunkSize) &&
+              sink.width() == entry.width && sink.height() == entry.height && output.size() == entry.bytes;
+    ok = OptimizerFormat::finishCache(output, Storage, ok, temp.c_str(), destPxcPath.c_str(), backup.c_str());
+    if (!ok) {
+      LOG_ERR("EBP", "PXC extraction failed: %s", entry.pxcHref);
+      Storage.remove(temp.c_str());
+    }
     return ok;
   }
   const std::string source = destPxcPath + ".optimizer.source";

@@ -394,3 +394,29 @@ TEST(EpubTextGrayscaleTest, CachedNightModeImagesMatchMonochromeAcrossStoragePat
     }
   }
 }
+
+namespace {
+class TaggedPageElement final : public PageElement {
+ public:
+  explicit TaggedPageElement(PageElementTag tag) : PageElement(0, 0), tag(tag) {}
+  void render(GfxRenderer&, int, int, int, bool) override {}
+  bool serialize(Print&) override { return true; }
+  PageElementTag getTag() const override { return tag; }
+
+ private:
+  PageElementTag tag;
+};
+}  // namespace
+TEST(PageTextDetection, OnlyTextAndTablesNeedTextAntialiasing) {
+  Page page;
+  EXPECT_FALSE(page.hasText());
+  for (auto tag : {TAG_PageImage, TAG_PageHorizontalRule}) {
+    page.elements.emplace_back(std::make_unique<TaggedPageElement>(tag));
+    EXPECT_FALSE(page.hasText());
+  }
+  for (auto tag : {TAG_PageLine, TAG_PageTableFragment}) {
+    page.elements.emplace_back(std::make_unique<TaggedPageElement>(tag));
+    EXPECT_TRUE(page.hasText());
+    page.elements.pop_back();
+  }
+}
