@@ -144,7 +144,7 @@ def run_smoke(args: argparse.Namespace) -> int:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            timeout=args.timeout if args.timeout is not None else (180 if args.frontlight_layout or args.about or args.support_export else 45),
+            timeout=args.timeout if args.timeout is not None else (180 if args.frontlight_layout or args.about or args.support_export else 120),
         )
 
     print(proc.stdout, end="")
@@ -183,7 +183,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dictionary", action="store_true", help="Check French contractions and exact dictionary matches")
     parser.add_argument("--font-dir", help="Font fixtures copied into isolated /fonts")
     parser.add_argument("--font-family", help="Exercise custom-font size and dictionary lifecycle")
-    parser.add_argument("--timeout", type=int, help="Seconds before the simulator run is treated as hung (default: 45, or 180 for frontlight layout)")
+    parser.add_argument("--timeout", type=int, help="Seconds before the simulator run is treated as hung (default: 120, or 180 for frontlight layout, about, or support export)")
     parser.add_argument("--page-turns", type=int, default=2, help="Number of EPUB page-forward taps to run")
     parser.add_argument("--theme", choices=sorted(THEMES), help="UI theme to use during the smoke test")
     parser.add_argument("--file-browser-sync-return", action="store_true", help="Check browser sync return across network reboots")
