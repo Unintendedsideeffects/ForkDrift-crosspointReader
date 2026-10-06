@@ -35,11 +35,14 @@
 ### Changed
 
 - Reduce resident lookup-table memory for SD fonts containing both BMP and supplementary Unicode ranges.
+- English is the only built-in interface language. Other languages are included in a separate release download and installed through Language settings.
 - Display → Hide Battery % is replaced by the Battery option in each status bar's settings; existing choices carry over.
 - Home appears faster after waking, closing a book, or leaving a menu by reducing the number of screen refreshes.
-- Chapter indexing, dictionary lookups, and cover thumbnail generation respond sooner.
+- Dictionary lookups and cover thumbnail generation respond sooner.
 - Index chapters faster by writing page data to the SD card in larger chunks, speeding up SD font preparation (especially for CJK books), and finding chapters and images faster in EPUBs with many files.
 - Large custom sleep and boot images load faster by skipping image rows that are not shown. Boot images larger than the screen are now dithered at screen size, matching sleep images.
+- Open and resume EPUBs with thousands of chapters faster, and jump to a book percentage without scanning every preceding chapter.
+- Speed up monochrome cover and sleep-image decoding, stylesheet discovery during EPUB indexing, and TTF font validation while preserving image quality and font integrity checks.
 
 ### Fixed
 

@@ -18,6 +18,8 @@ inline constexpr oflag_t O_RDWR = 1;
 
 struct HostFileData {
   std::vector<uint8_t> bytes;
+  size_t readCalls = 0;
+  size_t seekCalls = 0;
   size_t failAt = std::numeric_limits<size_t>::max();
 };
 
@@ -34,6 +36,7 @@ class HalFile : public Print {
 
   int read(void* output, const size_t length) {
     if (!data_) return 0;
+    ++data_->readCalls;
     const size_t readable = std::min(length, data_->bytes.size() - std::min(cursor_, data_->bytes.size()));
     if (readable > 0) std::copy_n(data_->bytes.data() + cursor_, readable, static_cast<uint8_t*>(output));
     cursor_ += readable;
@@ -42,6 +45,7 @@ class HalFile : public Print {
 
   bool seek(const size_t position) {
     if (!data_ || position > data_->bytes.size()) return false;
+    ++data_->seekCalls;
     cursor_ = position;
     return true;
   }
@@ -118,6 +122,8 @@ class HalStorage {
     return true;
   }
 
+  size_t readCalls(const std::string& path) const { return files_.at(path)->readCalls; }
+  size_t seekCalls(const std::string& path) const { return files_.at(path)->seekCalls; }
   void failWritesAt(const std::string& path, size_t offset) { files_.at(path)->failAt = offset; }
   const std::vector<uint8_t>& bytes(const std::string& path) const { return files_.at(path)->bytes; }
   void put(const std::string& path, std::vector<uint8_t> bytes) {

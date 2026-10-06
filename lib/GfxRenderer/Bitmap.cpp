@@ -253,6 +253,25 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
     sourceRowsRead++;
   }
 
+  if (bpp == 1 && outputWidth == width) {
+    // Home thumbnails and monochrome wallpapers already have a native
+    // palette. Expand four pixels together, preserving either palette order
+    // and transparent (undrawn) whites in the renderer. The table lives in
+    // flash; no extra row buffer or framebuffer is needed.
+    static constexpr uint8_t expanded[] = {0x00, 0x03, 0x0C, 0x0F, 0x30, 0x33, 0x3C, 0x3F,
+                                           0xC0, 0xC3, 0xCC, 0xCF, 0xF0, 0xF3, 0xFC, 0xFF};
+    const uint8_t zero = static_cast<uint8_t>((adjustPixel(paletteLum[0]) >> 6) * 0x55);
+    const uint8_t difference = zero ^ static_cast<uint8_t>((adjustPixel(paletteLum[1]) >> 6) * 0x55);
+    const int outputBytes = (width + 3) / 4;
+    for (int i = 0; i < outputBytes; ++i) {
+      const uint8_t nibble = (rowBuffer[i / 2] >> ((i & 1) ? 0 : 4)) & 0x0F;
+      data[i] = zero ^ (expanded[nibble] & difference);
+    }
+    if (width & 3) data[outputBytes - 1] &= static_cast<uint8_t>(0xFF << (2 * (4 - (width & 3))));
+    ++outputRowsRead;
+    return BmpReaderError::Ok;
+  }
+
   uint8_t* outPtr = data;
   uint8_t currentOutByte = 0;
   int bitShift = 6;
