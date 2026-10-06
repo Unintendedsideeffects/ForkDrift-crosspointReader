@@ -8,6 +8,7 @@
 #include <Logging.h>
 #include <Memory.h>
 #include <MemoryBudget.h>
+#include <UniqueCodepointSet.h>
 #include <Utf8.h>
 #include <XmlParserUtils.h>
 #include <expat.h>
@@ -138,26 +139,16 @@ bool isSvgImagePath(const std::string_view path) {
   return false;
 }
 
-bool appendUniquePrewarmCodepoint(const uint32_t cp, uint32_t* codepoints, uint32_t& cpCount, const uint32_t maxCount) {
-  if (cp == 0) return false;
-  for (uint32_t i = 0; i < cpCount; ++i) {
-    if (codepoints[i] == cp) return false;
-  }
-  if (cpCount >= maxCount) return true;
-  codepoints[cpCount++] = cp;
-  return false;
-}
-
 void resetPrewarmUtf8(uint32_t& accumulator, uint8_t& remaining) {
   accumulator = 0;
   remaining = 0;
 }
 
-bool feedPrewarmUtf8Byte(const uint8_t byte, uint32_t* codepoints, uint32_t& cpCount, uint32_t& accumulator,
+bool feedPrewarmUtf8Byte(const uint8_t byte, UniqueCodepointSet& codepoints, uint32_t& accumulator,
                          uint8_t& remaining) {
   if (remaining == 0) {
     if (byte < 0x80) {
-      return appendUniquePrewarmCodepoint(byte, codepoints, cpCount, SECTION_ADVANCE_PREWARM_MAX_CODEPOINTS);
+      return codepoints.add(byte);
     }
     if ((byte & 0xE0) == 0xC0) {
       accumulator = byte & 0x1F;
@@ -169,15 +160,14 @@ bool feedPrewarmUtf8Byte(const uint8_t byte, uint32_t* codepoints, uint32_t& cpC
       accumulator = byte & 0x07;
       remaining = 3;
     } else {
-      return appendUniquePrewarmCodepoint(REPLACEMENT_GLYPH, codepoints, cpCount,
-                                          SECTION_ADVANCE_PREWARM_MAX_CODEPOINTS);
+      return codepoints.add(REPLACEMENT_GLYPH);
     }
     return false;
   }
 
   if ((byte & 0xC0) != 0x80) {
     resetPrewarmUtf8(accumulator, remaining);
-    return appendUniquePrewarmCodepoint(REPLACEMENT_GLYPH, codepoints, cpCount, SECTION_ADVANCE_PREWARM_MAX_CODEPOINTS);
+    return codepoints.add(REPLACEMENT_GLYPH);
   }
 
   accumulator = (accumulator << 6U) | (byte & 0x3FU);
@@ -185,7 +175,7 @@ bool feedPrewarmUtf8Byte(const uint8_t byte, uint32_t* codepoints, uint32_t& cpC
   if (remaining == 0) {
     const uint32_t cp = accumulator;
     accumulator = 0;
-    return appendUniquePrewarmCodepoint(cp, codepoints, cpCount, SECTION_ADVANCE_PREWARM_MAX_CODEPOINTS);
+    return codepoints.add(cp);
   }
   return false;
 }
@@ -3759,7 +3749,7 @@ void ChapterHtmlSlimParser::prewarmSectionAdvanceTable(FsFile& file) const {
   }
 
   const uint32_t startMs = millis();
-  uint32_t cpCount = 0;
+  UniqueCodepointSet uniqueCodepoints(codepoints.get(), SECTION_ADVANCE_PREWARM_MAX_CODEPOINTS);
   uint32_t utf8Accumulator = 0;
   uint8_t utf8Remaining = 0;
   bool inTag = false;
@@ -3802,22 +3792,21 @@ void ChapterHtmlSlimParser::prewarmSectionAdvanceTable(FsFile& file) const {
       if (c == '&') {
         inEntity = true;
         resetPrewarmUtf8(utf8Accumulator, utf8Remaining);
-        hitCap = appendUniquePrewarmCodepoint(' ', codepoints.get(), cpCount, SECTION_ADVANCE_PREWARM_MAX_CODEPOINTS);
+        hitCap = uniqueCodepoints.add(' ');
         continue;
       }
       if (isWhitespace(c)) {
         resetPrewarmUtf8(utf8Accumulator, utf8Remaining);
-        hitCap = appendUniquePrewarmCodepoint(' ', codepoints.get(), cpCount, SECTION_ADVANCE_PREWARM_MAX_CODEPOINTS);
+        hitCap = uniqueCodepoints.add(' ');
         continue;
       }
 
-      hitCap = feedPrewarmUtf8Byte(byte, codepoints.get(), cpCount, utf8Accumulator, utf8Remaining);
+      hitCap = feedPrewarmUtf8Byte(byte, uniqueCodepoints, utf8Accumulator, utf8Remaining);
     }
   }
 
   if (utf8Remaining != 0 && !hitCap) {
-    hitCap = appendUniquePrewarmCodepoint(REPLACEMENT_GLYPH, codepoints.get(), cpCount,
-                                          SECTION_ADVANCE_PREWARM_MAX_CODEPOINTS);
+    hitCap = uniqueCodepoints.add(REPLACEMENT_GLYPH);
   }
   if (hitCap) {
     LOG_DBG("EHP", "Section advance prewarm hit unique codepoint cap (%u)",
@@ -3829,6 +3818,7 @@ void ChapterHtmlSlimParser::prewarmSectionAdvanceTable(FsFile& file) const {
     return;
   }
 
+  const uint32_t cpCount = uniqueCodepoints.finish();
   if (cpCount == 0) {
     return;
   }

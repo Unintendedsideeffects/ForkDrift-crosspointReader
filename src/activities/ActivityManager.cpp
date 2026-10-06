@@ -209,6 +209,7 @@ bool applyConfiguredSwipeAction(Activity& activity, ActivityManager& activityMan
       return activityManager.handleShortcutAction(CrossPointSettings::BACK_HOME);
     case CrossPointSettings::TWO_FINGER_SWIPE_HOME_READER:
       return activityManager.handleShortcutAction(CrossPointSettings::HOME_READER);
+    case CrossPointSettings::TWO_FINGER_SWIPE_SELECT_CHAPTER:
     case CrossPointSettings::TWO_FINGER_SWIPE_NEXT_CHAPTER:
     case CrossPointSettings::TWO_FINGER_SWIPE_PREVIOUS_CHAPTER:
     case CrossPointSettings::TWO_FINGER_SWIPE_INCREASE_FONT_SIZE:

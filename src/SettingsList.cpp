@@ -17,9 +17,6 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
                           "sleepScreenCoverFilter", StrId::STR_CAT_DISPLAY));
     add(SettingInfo::Toggle(StrId::STR_QUICK_RESUME_TIMEOUT, &CrossPointSettings::quickResumeSleepScreen,
                             "quickResumeSleepScreen", StrId::STR_CAT_DISPLAY));
-    add(SettingInfo::Enum(StrId::STR_HIDE_BATTERY, &CrossPointSettings::hideBatteryPercentage,
-                          {StrId::STR_NEVER, StrId::STR_IN_READER, StrId::STR_ALWAYS}, "hideBatteryPercentage",
-                          StrId::STR_CAT_DISPLAY));
     add(SettingInfo::Enum(StrId::STR_HIDE_CLOCK, &CrossPointSettings::hideClock,
                           {StrId::STR_NEVER, StrId::STR_IN_READER, StrId::STR_ALWAYS}, "hideClock",
                           StrId::STR_CAT_DISPLAY)
@@ -141,7 +138,7 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
         StrId::STR_NOT_SET,          StrId::STR_INCREASE_BRIGHTNESS, StrId::STR_DECREASE_BRIGHTNESS,
         StrId::STR_INCREASE_WARMTH,  StrId::STR_DECREASE_WARMTH,     StrId::STR_NEXT_CHAPTER,
         StrId::STR_PREVIOUS_CHAPTER, StrId::STR_INCREASE_FONT_SIZE,  StrId::STR_DECREASE_FONT_SIZE,
-        StrId::STR_BACK_HOME,        StrId::STR_HOME_READER,
+        StrId::STR_BACK_HOME,        StrId::STR_HOME_READER,         StrId::STR_SELECT_CHAPTER,
     };
     const std::vector<uint8_t> twoFingerSwipeActionValues = {
         CrossPointSettings::TWO_FINGER_SWIPE_NOT_SET,
@@ -155,6 +152,7 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
         CrossPointSettings::TWO_FINGER_SWIPE_DECREASE_FONT_SIZE,
         CrossPointSettings::TWO_FINGER_SWIPE_BACK_HOME,
         CrossPointSettings::TWO_FINGER_SWIPE_HOME_READER,
+        CrossPointSettings::TWO_FINGER_SWIPE_SELECT_CHAPTER,
     };
     add(SettingInfo::Enum(StrId::STR_TWO_FINGER_SWIPE_UP, &CrossPointSettings::twoFingerSwipeUp, twoFingerSwipeActions,
                           "twoFingerSwipeUp", StrId::STR_CAT_CONTROLS)
@@ -363,6 +361,9 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
     add(SettingInfo::Enum(StrId::STR_STATUS_BAR_TEXT_SIZE, &CrossPointSettings::statusBarTextSize,
                           {StrId::STR_SMALL, StrId::STR_MEDIUM, StrId::STR_LARGE}, "statusBarTextSize",
                           StrId::STR_STATUS_BARS));
+    add(SettingInfo::Enum(StrId::STR_STATUS_BAR_TEXT_SIZE, &CrossPointSettings::displayStatusBarTextSize,
+                          {StrId::STR_SMALL, StrId::STR_MEDIUM, StrId::STR_LARGE}, "displayStatusBarTextSize",
+                          StrId::STR_CAT_DISPLAY));
     // Clock detail entries live under System > Device in the device UI.
     // Range 0..104 = quarter-hour steps from UTC-12:00 to UTC+14:00, biased by 48.
     add(SettingInfo::Value(StrId::STR_CLOCK_UTC_OFFSET, &CrossPointSettings::clockUtcOffsetQ, {0, 104, 1},

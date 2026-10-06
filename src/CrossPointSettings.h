@@ -167,6 +167,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     TWO_FINGER_SWIPE_DECREASE_FONT_SIZE,
     TWO_FINGER_SWIPE_BACK_HOME,
     TWO_FINGER_SWIPE_HOME_READER,
+    TWO_FINGER_SWIPE_SELECT_CHAPTER,
     TWO_FINGER_SWIPE_ACTION_COUNT,
   };
 
@@ -286,6 +287,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     WAKE_ONLY = 35,
     HOME_READER = 36,
     BACK_HOME = 37,
+    SELECT_CHAPTER = 38,
     SHORT_PWRBTN_COUNT
   };
 
@@ -327,6 +329,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     CHORD_LIBRARY = 31,
     CHORD_HOME_READER = 32,
     CHORD_BACK_HOME = 33,
+    CHORD_SELECT_CHAPTER = 34,
     POWER_CHORD_ACTION_COUNT
   };
 
@@ -341,7 +344,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
 
   static constexpr uint8_t QUICK_ACTION_SLOT_ACTION_COUNT = 23;
 
-  // Hide battery percentage
+  // Legacy Hide Battery % values (migration only)
   enum HIDE_BATTERY_PERCENTAGE { HIDE_NEVER = 0, HIDE_READER = 1, HIDE_ALWAYS = 2, HIDE_BATTERY_PERCENTAGE_COUNT };
 
   // Page turn button long press behavior
@@ -420,6 +423,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     LONG_MENU_LIBRARY = 24,
     LONG_MENU_HOME_READER = 25,
     LONG_MENU_BACK_HOME = 26,
+    LONG_MENU_SELECT_CHAPTER = 27,
     LONG_PRESS_MENU_ACTION_COUNT
   };
 
@@ -462,7 +466,8 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t statusBarTimeLeft = TIME_LEFT_HIDE;
   uint8_t statusBarBattery = 1;
   uint8_t xtcStatusBarMode = XTC_STATUS_BAR_HIDE;
-  uint8_t statusBarTextSize = 0;  // Small (Inter 8), Medium (Inter 10), Large (Inter 12).
+  uint8_t displayStatusBarTextSize = 0;  // Global header status strip, independent of reader text.
+  uint8_t statusBarTextSize = 0;         // Small (Inter 8), Medium (Inter 10), Large (Inter 12).
   ReaderStatusBarConfig topReaderStatusBar{};
   ReaderStatusBarConfig bottomReaderStatusBar = [] {
     ReaderStatusBarConfig config;
@@ -600,7 +605,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   char opdsDownloadFolder[64] = "";
   // Nearby file receive destination (empty = SD root).
   char nearbyReceiveFolder[64] = "";
-  // Hide battery percentage
+  // Legacy Hide Battery % choice, read only to migrate into per-bar battery styles.
   uint8_t hideBatteryPercentage = HIDE_NEVER;
   // Long-press page turn button behavior
   uint8_t longPressButtonBehavior = OFF;

@@ -62,8 +62,13 @@ class Section {
     // the EMA is stepped once per build advance (not per redraw) to damp that wobble.
     float smoothedEstimate = 0;
     uint32_t smoothedAtConsumed = 0;
+    // Staging buffer for page serialization (see onPageComplete()).
+    std::unique_ptr<uint8_t[]> pageWriteBuffer;
   };
   std::unique_ptr<BuildContext> build_;
+  // createSectionFile()'s staging buffer while that full build runs; it owns the
+  // allocation. Incremental builds use BuildContext::pageWriteBuffer instead.
+  uint8_t* fullBuildPageWriteBuffer_ = nullptr;
   bool buildComplete_ = false;
   bool lastImagesWereSuppressed_ = false;
   bool lastLayoutAbortedForLowMemory_ = false;

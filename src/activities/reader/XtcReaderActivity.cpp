@@ -216,9 +216,11 @@ void XtcReaderActivity::loop() {
 
   const auto touch = ReaderUtils::detectTouchPageTurn(renderer, mappedInput);
   const int bottomHeight = UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Bottom, renderer);
-  const int topHeight = SETTINGS.legacyXtcTopUsesBottom
-                            ? bottomHeight
-                            : UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Top, renderer);
+  const auto topConfig = xtcStatusBarConfigForDisplay(ReaderStatusBarPosition::Top, SETTINGS.legacyXtcTopUsesBottom,
+                                                      SETTINGS.readerStatusBar(ReaderStatusBarPosition::Top),
+                                                      SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom));
+  const int topHeight = UITheme::getReaderStatusBarHeight(
+      xtcStatusBarConfigPosition(ReaderStatusBarPosition::Top, SETTINGS.legacyXtcTopUsesBottom), renderer, &topConfig);
   const auto statusBarMode = static_cast<CrossPointSettings::XTC_STATUS_BAR_MODE>(SETTINGS.xtcStatusBarMode);
   const bool tappedStatusBar = touch.tapped && (((statusBarMode == CrossPointSettings::XTC_STATUS_BAR_TOP ||
                                                   statusBarMode == CrossPointSettings::XTC_STATUS_BAR_BOTH) &&
@@ -304,13 +306,17 @@ void XtcReaderActivity::loop() {
   }
 
   if ((longPressMenuAction == CrossPointSettings::LONG_MENU_LIBRARY ||
-       ReaderUtils::isNavigationLongPressAction(longPressMenuAction)) &&
+       ReaderUtils::isNavigationLongPressAction(longPressMenuAction) ||
+       longPressMenuAction == CrossPointSettings::LONG_MENU_SELECT_CHAPTER) &&
       mappedInput.getHeldTime() >= LONG_PRESS_MENU_MS &&
       (mappedInput.isPressed(MappedInputManager::Button::Confirm) ||
        mappedInput.wasReleased(MappedInputManager::Button::Confirm))) {
     longPressMenuHandled = mappedInput.isPressed(MappedInputManager::Button::Confirm);
     mappedInput.suppressNextConfirmRelease();
-    if (!ReaderUtils::dispatchNavigationLongPressAction(SETTINGS.longPressMenuAction)) activityManager.goToLibrary();
+    if (longPressMenuAction == CrossPointSettings::LONG_MENU_SELECT_CHAPTER)
+      openChapterSelection();
+    else if (!ReaderUtils::dispatchNavigationLongPressAction(longPressMenuAction))
+      activityManager.goToLibrary();
     return;
   }
 
@@ -589,7 +595,11 @@ void XtcReaderActivity::loop() {
   }
 }
 
-bool XtcReaderActivity::handleTwoFingerSwipeAction(const CrossPointSettings::TWO_FINGER_SWIPE_ACTION) {
+bool XtcReaderActivity::handleTwoFingerSwipeAction(const CrossPointSettings::TWO_FINGER_SWIPE_ACTION action) {
+  if (action == CrossPointSettings::TWO_FINGER_SWIPE_SELECT_CHAPTER) {
+    openChapterSelection();
+    return true;
+  }
   // XTC pages are pre-rendered images: they cannot be reflowed for font-size
   // changes, and the reader does not expose stable chapter jumps. Consume the
   // configured command without letting it turn into a regular page swipe.
@@ -883,6 +893,9 @@ void XtcReaderActivity::onFrontlightPanelClosed() {
 }
 
 void XtcReaderActivity::openChapterSelection() {
+  // Direct shortcuts have not passed through the already-paused reader menu.
+  // Record their current interval before any success or failure path restarts it.
+  pauseReadingStatsTimer("chapter_selection");
   uint32_t pageToSelect = 0;
   bool hasChapters = false;
   {
@@ -893,20 +906,35 @@ void XtcReaderActivity::openChapterSelection() {
     }
   }
   if (!hasChapters) {
+    {
+      RenderLock lock(*this);
+      drawToast(renderer, tr(STR_NO_CHAPTERS));
+    }
+    delay(1000);
     resumeReadingStatsTimer("chapter_selection_unavailable");
     requestUpdate();
     return;
   }
 
-  startActivityForResult(std::make_unique<XtcReaderChapterSelectionActivity>(renderer, mappedInput, xtc, pageToSelect),
-                         [this](const ActivityResult& result) {
-                           if (!result.isCancelled) {
-                             RenderLock lock(*this);
-                             currentPage = std::get<PageResult>(result.data).page;
-                           }
-                           resumeReadingStatsTimer("chapter_selection_return");
-                           requestUpdate();
-                         });
+  auto chapterSelection =
+      makeUniqueNoThrow<XtcReaderChapterSelectionActivity>(renderer, mappedInput, xtc, pageToSelect);
+  if (!chapterSelection) {
+    LOG_ERR("XTR", "OOM: chapter selection activity");
+    resumeReadingStatsTimer("chapter_selection_oom");
+    requestUpdate();
+    return;
+  }
+  mappedInput.suppressNextConfirmRelease();
+  mappedInput.suppressNextPowerRelease();
+  mappedInput.suppressNextPowerConfirmRelease();
+  startActivityForResult(std::move(chapterSelection), [this](const ActivityResult& result) {
+    if (!result.isCancelled) {
+      RenderLock lock(*this);
+      currentPage = std::get<PageResult>(result.data).page;
+    }
+    resumeReadingStatsTimer("chapter_selection_return");
+    requestUpdate();
+  });
 }
 
 void XtcReaderActivity::openReadingStats() {
@@ -1025,6 +1053,7 @@ bool XtcReaderActivity::handleFrontlightPanelResult(const FrontlightPanelResult&
 
 bool XtcReaderActivity::supportsQuickAction(const CrossPointSettings::SHORT_PWRBTN action) {
   switch (action) {
+    case CrossPointSettings::SHORT_PWRBTN::SELECT_CHAPTER:
     case CrossPointSettings::SHORT_PWRBTN::PREVIOUS_PAGE:
     case CrossPointSettings::SHORT_PWRBTN::SLEEP:
     case CrossPointSettings::SHORT_PWRBTN::FORCE_REFRESH:
@@ -1051,6 +1080,9 @@ bool XtcReaderActivity::executeReaderShortcutAction(const CrossPointSettings::SH
       return true;
     case CrossPointSettings::SHORT_PWRBTN::PREVIOUS_PAGE:
       shortcutPreviousPagePending = true;
+      return true;
+    case CrossPointSettings::SHORT_PWRBTN::SELECT_CHAPTER:
+      openChapterSelection();
       return true;
     case CrossPointSettings::SHORT_PWRBTN::FILE_TRANSFER:
       activityManager.goToFileTransfer(xtc ? xtc->getPath() : "");
@@ -1111,6 +1143,9 @@ bool XtcReaderActivity::executeLongPressBackAction() {
       return true;
     case CrossPointSettings::LONG_PRESS_MENU_ACTION::LONG_MENU_FILE_BROWSER:
       activityManager.goToFileBrowser(xtc ? xtc->getPath() : "");
+      return true;
+    case CrossPointSettings::LONG_PRESS_MENU_ACTION::LONG_MENU_SELECT_CHAPTER:
+      openChapterSelection();
       return true;
     case CrossPointSettings::LONG_PRESS_MENU_ACTION::LONG_MENU_LIBRARY:
       activityManager.goToLibrary();
@@ -1215,7 +1250,13 @@ void XtcReaderActivity::renderStatusBarOverlay(const StatusBarOverlayPosition po
   const bool legacyTop = drawTop && SETTINGS.legacyXtcTopUsesBottom;
   const auto displayedBar = drawTop ? ReaderStatusBarPosition::Top : ReaderStatusBarPosition::Bottom;
   const auto configuredBar = xtcStatusBarConfigPosition(displayedBar, legacyTop);
-  const int statusBarHeight = UITheme::getReaderStatusBarHeight(configuredBar, renderer);
+  auto config =
+      xtcStatusBarConfigForDisplay(displayedBar, legacyTop, SETTINGS.readerStatusBar(ReaderStatusBarPosition::Top),
+                                   SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom));
+  const bool hidden = config.hidden;
+  // Preserve the bitmap-strip clearing policy even for a persistently hidden bar.
+  config.hidden = false;
+  const int statusBarHeight = UITheme::getReaderStatusBarHeight(configuredBar, renderer, &config);
   if (statusBarHeight <= 0) {
     return;
   }
@@ -1243,14 +1284,13 @@ void XtcReaderActivity::renderStatusBarOverlay(const StatusBarOverlayPosition po
 
   // XTC pages already contain a status strip in their bitmap. Clear that same
   // overlay area before returning so hiding it does not leave stale pixels.
-  if (!statusBarVisible || !drawContent) {
+  if (hidden || !statusBarVisible || !drawContent) {
     return;
   }
 
   const int pageCount = static_cast<int>(xtc->getPageCount());
   const int displayPage = static_cast<int>(pageToRender) + 1;
   const float progress = pageCount > 0 ? (static_cast<float>(displayPage) * 100.0f) / pageCount : 0.0f;
-  const auto config = SETTINGS.readerStatusBar(configuredBar);
   const auto pageInfo = getStatusBarInfo(pageToRender, config.contains(ReaderStatusBarItem::TitleChapter));
   char bookTime[24] = {};
   char chapterTime[24] = {};

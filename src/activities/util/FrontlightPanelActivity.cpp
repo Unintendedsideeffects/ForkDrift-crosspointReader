@@ -658,3 +658,15 @@ void FrontlightPanelActivity::render(RenderLock&&) {
 
   renderer.displayBuffer();
 }
+
+#ifdef SIMULATOR
+freeink::ui::Rect FrontlightPanelActivity::simulatorQuickActionRect(const int index) const {
+  freeink::ui::Interaction hit;
+  for (int y = simulatorActionBarTop; y < renderer.getScreenHeight(); y += 4) {
+    for (int x = 0; x < renderer.getScreenWidth(); x += 4) {
+      if (app.hitPublished(x, y, ACTION_QUICK, hit) && hit.value == index) return hit.rect;
+    }
+  }
+  return {};
+}
+#endif

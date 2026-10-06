@@ -57,6 +57,11 @@ void capturePreferences(SupportInfo::Snapshot& d) {
   d.statusOptions[3] = SETTINGS.bottomReaderStatusBar.percentageFormat;
   d.statusOptions[4] = SETTINGS.bottomReaderStatusBar.progressBar;
   d.statusOptions[5] = SETTINGS.bottomReaderStatusBar.progressBarThickness;
+  d.statusOptions[6] = static_cast<uint8_t>(SETTINGS.topReaderStatusBar.batteryStyle);
+  d.statusOptions[7] = static_cast<uint8_t>(SETTINGS.bottomReaderStatusBar.batteryStyle);
+  d.statusOptions[8] = static_cast<uint8_t>(SETTINGS.displayStatusBar.batteryStyle);
+  d.statusHidden[0] = SETTINGS.topReaderStatusBar.hidden;
+  d.statusHidden[1] = SETTINGS.bottomReaderStatusBar.hidden;
   std::memcpy(d.quickActions, SETTINGS.quickActionSlots, sizeof(d.quickActions));
   d.customFont = SETTINGS.sdFontFamilyName[0] != 0;
   d.dictionaryCustomFont = SETTINGS.dictionarySdFontFamilyName[0] != 0;

@@ -68,6 +68,7 @@ class GfxRenderer {
   }
   FontCacheManager* getFontCacheManager() { return &fonts; }
   void preserveImagePolarity(int, int, int, int) {}
+  bool isDisplayInverted() const { return inverted; }
   void fillRect(int, int, int, int, bool) { ++placeholders; }
   bool glyphIntersectsStrip(int x0, int y0, int x1, int y1) const {
     if (!active) return true;

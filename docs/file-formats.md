@@ -5,7 +5,7 @@ All POD fields are written in the ESP32 little-endian representation used by
 `Serialization.h`; strings are length-prefixed UTF-8 unless a format notes a
 fixed-size char buffer.
 
-## Global settings: status bar text size
+## Settings: status bar visibility and text size
 
 `statusBarTextSize` in the settings JSON selects Small (`0`, Inter 8), Medium
 (`1`, Inter 10), or Large (`2`, Inter 12) for both reader status bars. Missing
@@ -13,6 +13,39 @@ values retain Small; invalid values fall back to the default. Larger sizes
 reserve additional reading space through the existing layout dimensions, so
 EPUB layout caches rebuild automatically when those dimensions change. No
 binary cache format change or manual cache reset is required.
+
+`displayStatusBarTextSize` uses the same three values independently for the
+global header status lane, configured under Settings > Status Bar. Missing or
+invalid values default to Small. Global header height and available menu space
+follow this size; reader pagination is unaffected.
+
+`readerStatusBars.top.hidden` and `readerStatusBars.bottom.hidden` are optional
+booleans. Missing values default to `false`. Hiding a bar preserves all of its
+slots and options, removes its text and progress lane from reader geometry, and
+reflows EPUB/TXT around the saved text position. XTC preserves its fixed-layout
+page and clears the displayed status strip. These fields round-trip through
+settings export/import and the web status-bar editor.
+
+`readerStatusBars.top.battery`, `readerStatusBars.bottom.battery`, and the root
+`displayBatteryStyle` select how a Battery slot renders in that bar: Icon + %
+(`0`), Icon Only (`1`), or % Only (`2`). Invalid values fall back to Icon + %.
+When a key is missing, it is migrated once from the legacy
+`hideBatteryPercentage` value (Never, In Reader, Always): Never keeps Icon + %
+everywhere, In Reader uses Icon Only for reader bars only, and Always uses Icon
+Only everywhere. `hideBatteryPercentage` is no longer written.
+
+## TXT `progress.bin`
+
+Each TXT cache stores a six-byte progress record: a little-endian `u16` page
+number followed by a little-endian `u32` source-file byte offset. The format is
+unchanged. A save during font reindexing writes `0xFFFFFFFF` for an unknown
+offset, retaining the page number and compatibility with older readers.
+
+Reopening prefers an in-range offset to preserve text position when the status
+bar geometry changed while the book was closed. Offset zero is valid only for
+page zero; a zero offset with a later page, an out-of-range offset, or a legacy
+short record falls back to the saved page number. The loader tolerates existing
+two- and four-byte page records. The stored page is clamped to the rebuilt index.
 
 ## `epub_<hash>/links.bin`
 

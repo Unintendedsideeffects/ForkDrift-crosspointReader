@@ -8,6 +8,7 @@
 #include <Logging.h>
 #include <Memory.h>
 #include <MemoryBudget.h>
+#include <PrintSerialization.h>
 #include <Serialization.h>
 
 #include "Epub/ReferencePageNavigation.h"
@@ -45,6 +46,10 @@ constexpr uint32_t HEADER_SIZE =
     sizeof(bool) + sizeof(bool) + sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint32_t) +
     sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
 constexpr size_t SECTION_HTML_STREAM_CHUNK_SIZE = 8192;
+// One staging buffer per build (not per page) turns a page's hundreds of 1-4
+// byte field writes into a handful of SD writes. Larger fields (a long line's
+// text arena) bypass it; a failed allocation falls back to direct writes.
+constexpr size_t PAGE_WRITE_BUFFER_SIZE = 1024;
 constexpr size_t LOW_MEMORY_SECTION_HTML_STREAM_CHUNK_SIZE = 1024;
 
 void prepareSectionZipInflate(GfxRenderer& renderer, const int fontId) {
@@ -145,7 +150,11 @@ uint32_t Section::onPageComplete(std::unique_ptr<Page> page) {
   // protected from the later XHTML byte-density projection without changing
   // the serialized page payload.
   const uint16_t imageUnits = page->imageEstimateUnits(imageEstimateViewportWidth_, imageEstimateViewportHeight_);
-  if (!page->serialize(file)) {
+  // Stage the page's many small field writes in RAM and hand SD a few large
+  // writes instead; the bytes written to the file are unchanged.
+  uint8_t* const stage = build_ ? build_->pageWriteBuffer.get() : fullBuildPageWriteBuffer_;
+  serialization::BufferedFilePrint out(file, stage, PAGE_WRITE_BUFFER_SIZE);
+  if (!page->serialize(out) || !out.commit()) {
     LOG_ERR("SCT", "Failed to serialize page %d", builtPageCount_);
     return 0;
   }
@@ -597,6 +606,15 @@ bool Section::createSectionFile(const ReaderRenderSpec& spec, const std::functio
     }
   }
 
+  auto pageWriteBuffer = makeUniqueNoThrow<uint8_t[]>(PAGE_WRITE_BUFFER_SIZE);
+  if (!pageWriteBuffer) LOG_ERR("SCT", "Page write buffer alloc failed; writing pages unstaged");
+  fullBuildPageWriteBuffer_ = pageWriteBuffer.get();
+  // Clear the borrowed pointer on every return path, before the buffer is freed.
+  struct ClearPageWriteBuffer {
+    uint8_t*& buffer;
+    ~ClearPageWriteBuffer() { buffer = nullptr; }
+  } clearPageWriteBuffer{fullBuildPageWriteBuffer_};
+
   ChapterHtmlSlimParser visitor(
       *epub, parsePath, renderer, fontId, lineCompression, extraParagraphSpacing, forceParagraphIndents,
       paragraphAlignment, viewportWidth, viewportHeight, hyphenationEnabled, effectiveFocusReadingEnabled,
@@ -886,6 +904,8 @@ bool Section::startBuild(const ReaderRenderSpec& spec, const SectionBuildOptions
     cleanupTempHtml();
     return false;
   }
+  ctx->pageWriteBuffer = makeUniqueNoThrow<uint8_t[]>(PAGE_WRITE_BUFFER_SIZE);
+  if (!ctx->pageWriteBuffer) LOG_ERR("SCT", "Page write buffer alloc failed; writing pages unstaged");
   ctx->reusedHtml = htmlCached;
   ctx->htmlPath = htmlPath;
   ctx->tmpHtmlPath = tmpHtmlPath;

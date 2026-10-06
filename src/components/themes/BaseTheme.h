@@ -172,7 +172,8 @@ enum UIIcon {
   Opds,
   Wifi,
   Hotspot,
-  Chart
+  Chart,
+  BookCheck
 };
 
 // Default theme implementation (Classic Theme)

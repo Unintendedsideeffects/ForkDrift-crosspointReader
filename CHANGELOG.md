@@ -3,9 +3,8 @@
 ### Added
 
 - Generate a versioned English language template and compatibility catalog automatically for browser translation editors and release downloads.
-
 - Install and edit interface languages from SD files, including community languages; missing translations fall back to English.
-
+- Assign Select Chapter to shortcuts, Quick Actions, or touch gestures to open the chapter list directly in EPUB and XTC books.
 - Track active reading seconds by local day and sync daily reading time to CrossPoint Sync.
 - Show today's reading time and a 7-day average on the This Device reading stats page.
 - Choose Small, Medium, or Large text for the top and bottom reader status bars.
@@ -17,6 +16,9 @@
 - Export allowlisted device diagnostics and global preferences from About to a local support JSON file, with optional anonymous EPUB overrides, explicit scope confirmation and credential/history exclusions.
 - Home/Reader shortcuts available on touch devices
 - Choose a Filename Fallback Font on ESP32-S3 devices to display missing characters in book titles and filenames while retaining the built-in font for supported text.
+- Hide either reader status bar without clearing its assigned slots, and choose a separate global status bar text size in Settings → Status Bar.
+- Finished EPUB and XTC books show a checkmarked book icon in the File Browser and Library list.
+- Show the battery as Icon + %, Icon Only, or % Only, set separately for the top, bottom, and global status bars.
 
 ### Fixed
 
@@ -27,15 +29,19 @@
 - Translate reading statistics, stats tracking controls, and the Minimal Stats theme label into Polish.
 - Dictionary lookup now recognizes French words with contracted prefixes, such as l’histoire and qu’après.
 - Page-turn shortcuts no longer crash at the end of an EPUB or while a chapter is loading.
+- Preserve EPUB image colors and gray detail in Dark Mode, including repeated page redraws.
+- Hide the Cover Grid theme from web settings on devices without PSRAM, matching the device settings menu.
+- Show full-width Forget and Cancel buttons after a saved Wi-Fi network fails to connect on button devices, with Cancel selected by default below Forget.
 
 ### Changed
 
 - Reduce resident lookup-table memory for SD fonts containing both BMP and supplementary Unicode ranges.
 - English is the only built-in interface language. Other languages are included in a separate release download and installed through Language settings.
-
-### Fixed
-
-- Show full-width Forget and Cancel buttons after a saved Wi-Fi network fails to connect on button devices, with Cancel selected by default below Forget.
+- Display → Hide Battery % is replaced by the Battery option in each status bar's settings; existing choices carry over.
+- Home appears faster after waking, closing a book, or leaving a menu by reducing the number of screen refreshes.
+- Dictionary lookups and cover thumbnail generation respond sooner.
+- Index chapters faster by writing page data to the SD card in larger chunks, speeding up SD font preparation (especially for CJK books), and finding chapters and images faster in EPUBs with many files.
+- Large custom sleep and boot images load faster by skipping image rows that are not shown. Boot images larger than the screen are now dithered at screen size, matching sleep images.
 
 ## [v1.6.1] - 2026-10-03
 

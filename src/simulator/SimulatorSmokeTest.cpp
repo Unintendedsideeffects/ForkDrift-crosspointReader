@@ -54,18 +54,22 @@
 #include "activities/library/LibraryActivity.h"
 #include "activities/network/StatsUploadActivity.h"
 #include "activities/reader/BookReadingStats.h"
+#include "activities/reader/BookStatsView.h"
 #include "activities/reader/EpubReaderActivity.h"
 #include "activities/reader/EpubReaderDrawerActivity.h"
 #include "activities/reader/KOReaderSyncActivity.h"
 #include "activities/reader/ReaderFontLoading.h"
 #include "activities/reader/ReaderUtils.h"
 #include "activities/reader/SideButtonShortcuts.h"
+#include "activities/reader/TxtReaderActivity.h"
+#include "activities/reader/XtcReaderActivity.h"
 #include "activities/settings/AboutActivity.h"
 #include "activities/settings/KOReaderSettingsActivity.h"
 #include "activities/settings/QuickActionsActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "activities/settings/StatusBarSettingsActivity.h"
 #include "activities/util/FrontlightPanelActivity.h"
+#include "components/CompactHeader.h"
 #include "components/HeaderDate.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
@@ -79,6 +83,47 @@ extern MappedInputManager mappedInputManager;
 
 // Use a detached reader so these boundary checks cannot race its render task.
 struct EpubReaderCompletionSmokeTest {
+  static std::optional<uint32_t> statusAnchor;
+  static bool openStatusSettings(EpubReaderActivity& reader) {
+    Section* original = nullptr;
+    const bool firstEdit = !statusAnchor;
+    {
+      RenderLock lock;
+      if (!reader.section || reader.section->isBuilding()) return false;
+      original = reader.section.get();
+      if (!statusAnchor && reader.section->pageCount > 1) reader.section->currentPage = 1;
+      if (!statusAnchor) statusAnchor = reader.section->getVisibleTextOffsetForPage(reader.section->currentPage);
+      if (!statusAnchor) return false;
+      SETTINGS.displayStatusBarTextSize = 2;
+    }
+    reader.endGlobalSettingsEdit();
+    if (reader.section.get() != original) return false;  // Global font cannot repaginate the book.
+    if (firstEdit) {
+      // Two settings changes before the chapter can rebuild must retain the
+      // first content anchor even while there is no current Section.
+      const bool originallyHidden = SETTINGS.bottomReaderStatusBar.hidden;
+      for (const bool hidden : {!originallyHidden, originallyHidden}) {
+        {
+          RenderLock lock;
+          SETTINGS.bottomReaderStatusBar.hidden = hidden;
+        }
+        reader.endGlobalSettingsEdit();
+        if (reader.cachedVisibleTextOffset != statusAnchor || reader.statusBarRelayoutOffset != statusAnchor)
+          return false;
+      }
+    }
+    reader.onReaderMenuConfirm(EpubReaderMenuAction::STATUS_BAR_SETTINGS, false);
+    return true;
+  }
+  static bool statusSettingsReturned(EpubReaderActivity& reader) {
+    RenderLock lock;
+    if (!reader.section || reader.pendingRelayoutReposition) return false;
+    const auto page = reader.section->currentPage;
+    const auto start = reader.section->getVisibleTextOffsetForPage(page);
+    const auto next =
+        page + 1 < reader.section->pageCount ? reader.section->getVisibleTextOffsetForPage(page + 1) : std::nullopt;
+    return !statusAnchor || (start && *start <= *statusAnchor && (!next || *next > *statusAnchor));
+  }
   static bool run(EpubReaderActivity& active) {
     auto reader = std::make_unique<EpubReaderActivity>(renderer, mappedInputManager, nullptr,
                                                        EpubReaderActivity::BookReaderSettingsData{}, 1);
@@ -112,6 +157,317 @@ struct EpubReaderCompletionSmokeTest {
     reader->currentSpineIndex = spineCount;
     reader->handleShortcutAction(CrossPointSettings::SHORT_PWRBTN::PAGE_TURN);
     LOG_INF("SMOKE", "EPUB completion shortcuts: missing chapter and end-screen return passed");
+    return true;
+  }
+};
+std::optional<uint32_t> EpubReaderCompletionSmokeTest::statusAnchor;
+
+// Detached activities exercise real popup callbacks and fixed/flowing readers
+// while the smoke runner holds the render mutex.
+struct StatusBarFeatureSmokeTest {
+  using Capture = std::function<void(const std::string&)>;
+  static bool open(StatusBarSettingsActivity& editor) {
+#if CROSSINK_APP_CAP_TOUCH
+    if (mappedInputManager.hasTouchHardware()) {
+      freeink::ui::Interaction hit;
+      const int x = renderer.getScreenWidth() / 2;
+      for (int y = 0; y < renderer.getScreenHeight(); y += 4) {
+        if (!editor.app.hitPublished(x, y, StatusBarSettingsActivity::ACTION_ROW, hit) ||
+            hit.value != editor.selectedIndex)
+          continue;
+        const int tapY = hit.rect.y + hit.rect.height / 2;
+        mappedInputManager.simulatorInjectTouchDown(x, tapY);
+        editor.loop();
+        mappedInputManager.simulatorClearInputFrame();
+        mappedInputManager.simulatorInjectTouchRelease(x, tapY);
+        editor.loop();
+        mappedInputManager.simulatorClearInputFrame();
+        return editor.optionPopup.isActive();
+      }
+      return false;
+    }
+#endif
+    mappedInputManager.simulatorInjectPress(MappedInputManager::Button::Confirm);
+    editor.loop();
+    mappedInputManager.simulatorClearInputFrame();
+    mappedInputManager.simulatorInjectRelease(MappedInputManager::Button::Confirm);
+    editor.loop();
+    mappedInputManager.simulatorClearInputFrame();
+    return editor.optionPopup.isActive();
+  }
+  static bool choose(StatusBarSettingsActivity& editor, int index, RenderLock& lock) {
+    editor.render(std::move(lock));
+#if CROSSINK_APP_CAP_TOUCH
+    if (mappedInputManager.hasTouchHardware()) {
+      const auto hit = editor.optionPopup.simulatorOptionRect(index);
+      mappedInputManager.simulatorInjectTouchDown(hit.x + hit.width / 2, hit.y + hit.height / 2);
+      editor.loop();
+      mappedInputManager.simulatorClearInputFrame();
+      mappedInputManager.simulatorInjectTouchRelease(hit.x + hit.width / 2, hit.y + hit.height / 2);
+      editor.loop();
+      mappedInputManager.simulatorClearInputFrame();
+      return !editor.optionPopup.isActive();
+    }
+#endif
+    // Start from the current option, and move through the real menu mapping.
+    for (int i = 0; i < index; ++i) {
+      mappedInputManager.simulatorInjectRelease(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+      editor.loop();
+      mappedInputManager.simulatorClearInputFrame();
+    }
+    mappedInputManager.simulatorInjectPress(MappedInputManager::Button::Confirm);
+    editor.loop();
+    mappedInputManager.simulatorClearInputFrame();
+    mappedInputManager.simulatorInjectRelease(MappedInputManager::Button::Confirm);
+    editor.loop();
+    mappedInputManager.simulatorClearInputFrame();
+    return !editor.optionPopup.isActive();
+  }
+  static bool settings(RenderLock& lock, const Capture& capture) {
+    SETTINGS.legacyXtcTopUsesBottom = 1;
+    const auto top = SETTINGS.topReaderStatusBar.slots;
+    const auto bottom = SETTINGS.bottomReaderStatusBar.slots;
+    const auto language = I18N.getLanguage();
+    for (const auto orientation : {GfxRenderer::Portrait, GfxRenderer::LandscapeClockwise,
+                                   GfxRenderer::PortraitInverted, GfxRenderer::LandscapeCounterClockwise}) {
+      renderer.setOrientation(orientation);
+      for (int bar = 0; bar < 2; ++bar) {
+        StatusBarSettingsActivity editor(renderer, mappedInputManager, true);
+        editor.onEnter();
+        editor.selectedIndex = bar;
+        editor.handleSelection();
+        editor.render(std::move(lock));
+        // Reach the final Hide row through actual button navigation, including
+        // the variable-height list's scrolling and section boundaries.
+        for (int i = 0; i < 11; ++i) {
+          mappedInputManager.simulatorInjectRelease(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+          editor.loop();
+          mappedInputManager.simulatorClearInputFrame();
+          editor.render(std::move(lock));
+        }
+        if (editor.selectedIndex != 11 || !editor.simulatorSelectedRowVisible) return false;
+        for (int repeat = 0; repeat < 4; ++repeat) {
+          const auto position = bar ? ReaderStatusBarPosition::Bottom : ReaderStatusBarPosition::Top;
+          const bool before = SETTINGS.readerStatusBar(position).hidden;
+          if (!open(editor)) return false;
+          editor.render(std::move(lock));
+          if (repeat == 0)
+            capture("hide-picker-lang-" + std::to_string(static_cast<int>(language)) + "-o-" +
+                    std::to_string(orientation) + "-bar-" + std::to_string(bar));
+          if (!choose(editor, mappedInputManager.hasTouchHardware() ? !before : 1, lock)) return false;
+          if (SETTINGS.readerStatusBar(position).hidden == before || SETTINGS.topReaderStatusBar.slots != top ||
+              SETTINGS.bottomReaderStatusBar.slots != bottom || SETTINGS.legacyXtcTopUsesBottom != 1)
+            return false;
+          editor.render(std::move(lock));
+          editor.render(std::move(lock));  // Closing a popup first restores its saved framebuffer.
+          if (!editor.simulatorSelectedRowVisible) return false;
+          if (repeat == 0)
+            capture("hide-row-lang-" + std::to_string(static_cast<int>(language)) + "-o-" +
+                    std::to_string(orientation) + "-bar-" + std::to_string(bar));
+        }
+        editor.onExit();
+      }
+    }
+
+    for (uint8_t size = 0; size < 3; ++size) {
+      SETTINGS.displayStatusBarTextSize = 0;
+      const auto readerSize = SETTINGS.statusBarTextSize;
+      StatusBarSettingsActivity editor(renderer, mappedInputManager, false, false, true);
+      editor.onEnter();
+      editor.render(std::move(lock));
+      for (int i = 0; i < 4; ++i) {
+        mappedInputManager.simulatorInjectRelease(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+        editor.loop();
+        mappedInputManager.simulatorClearInputFrame();
+        editor.render(std::move(lock));
+      }
+      if (editor.selectedIndex != 4 || !editor.simulatorSelectedRowVisible) return false;
+      if (!open(editor)) return false;
+      if (!choose(editor, size, lock) || SETTINGS.displayStatusBarTextSize != size ||
+          SETTINGS.statusBarTextSize != readerSize)
+        return false;
+      editor.render(std::move(lock));
+      editor.render(std::move(lock));
+      capture("global-size-editor-" + std::to_string(size));
+      editor.onExit();
+    }
+    // Battery styles are per bar: changing one must leave the others untouched.
+    const auto displayBattery = SETTINGS.displayStatusBar.batteryStyle;
+    const auto readerTopBattery = SETTINGS.topReaderStatusBar.batteryStyle;
+    const auto readerBottomBattery = SETTINGS.bottomReaderStatusBar.batteryStyle;
+    for (int style = 2; style >= 0; --style) {
+      SETTINGS.displayStatusBar.batteryStyle = ReaderStatusBarBatteryStyle::IconAndPercent;
+      StatusBarSettingsActivity editor(renderer, mappedInputManager, false, false, true);
+      editor.onEnter();
+      editor.selectedIndex = 3;
+      editor.render(std::move(lock));
+      if (!open(editor) || !choose(editor, style, lock) ||
+          SETTINGS.displayStatusBar.batteryStyle != static_cast<ReaderStatusBarBatteryStyle>(style) ||
+          SETTINGS.topReaderStatusBar.batteryStyle != readerTopBattery ||
+          SETTINGS.bottomReaderStatusBar.batteryStyle != readerBottomBattery)
+        return false;
+      editor.render(std::move(lock));
+      editor.render(std::move(lock));
+      capture("global-battery-editor-" + std::to_string(style));
+      editor.onExit();
+    }
+    for (int style = 2; style >= 0; --style) {
+      SETTINGS.bottomReaderStatusBar.batteryStyle = ReaderStatusBarBatteryStyle::IconAndPercent;
+      StatusBarSettingsActivity editor(renderer, mappedInputManager, true);
+      editor.onEnter();
+      editor.selectedIndex = 1;
+      editor.handleSelection();
+      editor.selectedIndex = 7;
+      editor.render(std::move(lock));
+      if (!open(editor) || !choose(editor, style, lock) ||
+          SETTINGS.bottomReaderStatusBar.batteryStyle != static_cast<ReaderStatusBarBatteryStyle>(style) ||
+          SETTINGS.topReaderStatusBar.batteryStyle != readerTopBattery)
+        return false;
+      editor.render(std::move(lock));
+      editor.render(std::move(lock));
+      capture("bottom-battery-editor-" + std::to_string(style));
+      editor.onExit();
+    }
+    SETTINGS.displayStatusBar.batteryStyle = displayBattery;
+    SETTINGS.bottomReaderStatusBar.batteryStyle = readerBottomBattery;
+    return true;
+  }
+  static bool txt(RenderLock& lock, const Capture& capture) {
+    const char* path = "/books/status-feature.txt";
+    auto file = Storage.open(path, O_WRONLY | O_CREAT | O_TRUNC);
+    if (!file) return false;
+    for (int i = 0; i < 1200; ++i) {
+      const auto line =
+          "Paragraph " + std::to_string(i) + " preserves the reading position through status bar edits.\n";
+      if (file.write(reinterpret_cast<const uint8_t*>(line.data()), line.size()) != line.size()) return false;
+    }
+    file.close();
+    auto book = std::make_unique<Txt>(path, "/.crosspoint");
+    if (!book->load()) return false;
+    book->setupCacheDir();
+    TxtReaderActivity reader(renderer, mappedInputManager, std::move(book), 1);
+    SETTINGS.topReaderStatusBar.hidden = false;
+    SETTINGS.bottomReaderStatusBar.hidden = false;
+    reader.render(std::move(lock));
+    reader.currentPage = std::min(4, reader.totalPages - 1);
+    const auto originalOffset = reader.pageOffsets[reader.currentPage];
+    for (const unsigned mask : {0, 1, 3, 2, 0, 3, 0}) {
+      const auto offset = originalOffset;
+      SETTINGS.topReaderStatusBar.hidden = mask & 1;
+      SETTINGS.bottomReaderStatusBar.hidden = mask & 2;
+      reader.render(std::move(lock));
+      const auto next = reader.currentPage + 1;
+      if (reader.pageOffsets[reader.currentPage] > offset ||
+          (next < reader.totalPages && reader.pageOffsets[next] <= offset))
+        return false;
+      if ((mask & 1) && reader.cachedTopStatusBarHeight != 0) return false;
+      if ((mask & 2) && reader.cachedFooterReservedHeight != SETTINGS.screenMarginVertical) return false;
+      capture("txt-hidden-" + std::to_string(mask));
+    }
+    if (!reader.saveProgress(reader.currentPage)) return false;
+    auto reopened = std::make_unique<Txt>(path, "/.crosspoint");
+    if (!reopened->load()) return false;
+    TxtReaderActivity second(renderer, mappedInputManager, std::move(reopened), 1);
+    second.render(std::move(lock));
+    if (second.currentPage != reader.currentPage || second.pageOffsets != reader.pageOffsets) return false;
+
+    // A page turn starts a new anchor; changing bars while the book is closed
+    // restores the saved content offset rather than a now-obsolete page number.
+    second.currentPage = std::min(second.currentPage + 2, second.totalPages - 1);
+    second.render(std::move(lock));
+    const auto turnedOffset = second.pageOffsets[second.currentPage];
+    if (!second.saveProgress(second.currentPage)) return false;
+    SETTINGS.topReaderStatusBar.hidden = true;
+    SETTINGS.bottomReaderStatusBar.hidden = true;
+    auto closedBook = std::make_unique<Txt>(path, "/.crosspoint");
+    if (!closedBook->load()) return false;
+    TxtReaderActivity third(renderer, mappedInputManager, std::move(closedBook), 1);
+    third.render(std::move(lock));
+    const auto contains = [](const TxtReaderActivity& activity, size_t offset) {
+      return activity.pageOffsets[activity.currentPage] <= offset &&
+             (activity.currentPage + 1 == activity.totalPages ||
+              activity.pageOffsets[activity.currentPage + 1] > offset);
+    };
+    if (!contains(third, turnedOffset)) return false;
+    SETTINGS.topReaderStatusBar.hidden = false;
+    SETTINGS.bottomReaderStatusBar.hidden = false;
+    second.render(std::move(lock));
+    if (!contains(second, turnedOffset)) return false;
+
+    // Preserve legacy page-only progress and tolerate an invalid modern offset.
+    const auto progressPath = third.txt->getCachePath() + "/progress.bin";
+    for (const size_t bytes : {2, 4, 6}) {
+      const uint8_t record[6] = {2, 0, 255, 255, 255, 255};
+      auto progress = Storage.open(progressPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC);
+      if (!progress || progress.write(record, bytes) != bytes) return false;
+      progress.close();
+      third.loadProgress();
+      if (third.currentPage != 2) return false;
+    }
+    const uint8_t invalidZero[6] = {2, 0, 0, 0, 0, 0};
+    auto zeroProgress = Storage.open(progressPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC);
+    if (!zeroProgress || zeroProgress.write(invalidZero, sizeof(invalidZero)) != sizeof(invalidZero)) return false;
+    zeroProgress.close();
+    third.loadProgress();
+    if (third.currentPage != 2) return false;
+    // Exiting during a font rebuild must not publish a made-up byte offset.
+    const int pendingPage = third.currentPage;
+    third.pageOffsets.clear();
+    if (!third.saveProgress(pendingPage)) return false;
+    auto progress = Storage.open(progressPath.c_str(), O_RDONLY);
+    uint8_t pendingRecord[6]{};
+    if (!progress || progress.size() != sizeof(pendingRecord) ||
+        progress.read(pendingRecord, sizeof(pendingRecord)) != sizeof(pendingRecord))
+      return false;
+    progress.close();
+    if (pendingRecord[0] != pendingPage || pendingRecord[1] != 0 || pendingRecord[2] != 255 ||
+        pendingRecord[3] != 255 || pendingRecord[4] != 255 || pendingRecord[5] != 255)
+      return false;
+    return true;
+  }
+  static bool xtc(RenderLock& lock, const Capture& capture) {
+    // A real fixed-layout bitmap with black baked-in strips and a central line.
+    const uint16_t width = renderer.getScreenWidth(), height = renderer.getScreenHeight();
+    const uint32_t bytes = ((width + 7) / 8) * height;
+    xtc::XtcHeader header{};
+    header.magic = xtc::XTC_MAGIC;
+    header.versionMajor = 1;
+    header.pageCount = 1;
+    header.pageTableOffset = sizeof(header);
+    header.dataOffset = sizeof(header) + sizeof(xtc::PageTableEntry);
+    const xtc::PageTableEntry entry{header.dataOffset, static_cast<uint32_t>(sizeof(xtc::XtgPageHeader)) + bytes, width,
+                                    height};
+    const xtc::XtgPageHeader page{xtc::XTG_MAGIC, width, height, 0, 0, bytes, 0};
+    auto file = Storage.open("/books/status-feature.xtc", O_WRONLY | O_CREAT | O_TRUNC);
+    if (!file) return false;
+    file.write(reinterpret_cast<const uint8_t*>(&header), sizeof(header));
+    file.write(reinterpret_cast<const uint8_t*>(&entry), sizeof(entry));
+    file.write(reinterpret_cast<const uint8_t*>(&page), sizeof(page));
+    std::vector<uint8_t> pixels(bytes, 0xff);
+    const size_t stride = (width + 7) / 8;
+    for (int y = 0; y < height; ++y) {
+      if (y < 18 || y >= height - 18 || y == height / 2) std::fill_n(pixels.data() + y * stride, stride, 0);
+    }
+    if (file.write(pixels.data(), pixels.size()) != pixels.size()) return false;
+    file.close();
+    auto book = std::make_unique<Xtc>("/books/status-feature.xtc", "/.crosspoint");
+    if (!book->load()) return false;
+    XtcReaderActivity reader(renderer, mappedInputManager, std::move(book), 1);
+    SETTINGS.xtcStatusBarMode = CrossPointSettings::XTC_STATUS_BAR_BOTH;
+    SETTINGS.legacyXtcTopUsesBottom = 1;
+    for (const unsigned mask : {0, 1, 3, 2, 0}) {
+      SETTINGS.topReaderStatusBar.hidden = mask & 1;
+      SETTINGS.bottomReaderStatusBar.hidden = mask & 2;
+      reader.renderPage(0);
+      if (reader.currentPage != 0 || !renderer.isPixelBlack(width / 2, height / 2)) return false;
+      int marginTop, marginRight, marginBottom, marginLeft;
+      renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
+      // Sample the visible strips, beyond the existing physical panel gutter.
+      if (mask == 3 && (renderer.isPixelBlack(width / 2, marginTop + 1) ||
+                        renderer.isPixelBlack(width / 2, height - marginBottom - 1)))
+        return false;
+      capture("xtc-legacy-hidden-" + std::to_string(mask));
+    }
     return true;
   }
 };
@@ -153,6 +509,8 @@ enum class SmokeStep : uint8_t {
   ReaderInput,
   CompletionReturnedHome,
   CompletionReaderRestored,
+  StatusBarReaderSettings,
+  StatusBarReaderReturned,
   CarouselHome,
   FrontlightLayout,
   FrontlightLayoutRendered,
@@ -221,6 +579,11 @@ class SimulatorSmokeTest {
     Release,
     HomeTap,
     HomeLongPress,
+    ConfigureChapterShortcuts,
+    RestoreChapterShortcuts,
+    ConfigureChapterHomeDoubleTap,
+    WaitForChapterSelection,
+    WaitForMenuLongPress,
     ConfigureHomeButtonPowerLock,
     WaitForPowerLongPress,
     AssertHomeButtonDisabled,
@@ -239,10 +602,14 @@ class SimulatorSmokeTest {
     DisableReaderTouch,
     EnableReaderTouch,
     TouchDown,
+    TouchDrawerHandle,
+    TouchFrontlightQuickAction,
     TouchMove,
     TouchRelease,
     AssertReaderMenu,
     AssertSettingsNavigation,
+    AssertAboutTopIndex,
+    WaitForNavigationHold,
     AssertActivity,
     Render
   };
@@ -256,6 +623,8 @@ class SimulatorSmokeTest {
     int y;
   };
 
+  uint8_t savedChapterShortcuts[7]{};
+  uint32_t lastInjectedHomeAt = 0;
   SmokeStep step = SmokeStep::Start;
   int settleFrames = 0;
   const char* activeStepName = nullptr;
@@ -456,6 +825,31 @@ class SimulatorSmokeTest {
           SETTINGS.displayStatusBar.slots[2] != ReaderStatusBarItem::Battery)
         fail("Display clock migration failed");
     }
+    // Hide Battery % (Never / In Reader / Always) migrates into per-bar battery styles once.
+    using Style = ReaderStatusBarBatteryStyle;
+    constexpr Style expectedReader[] = {Style::IconAndPercent, Style::IconOnly, Style::IconOnly};
+    constexpr Style expectedDisplay[] = {Style::IconAndPercent, Style::IconAndPercent, Style::IconOnly};
+    for (const uint8_t hide : {0, 1, 2}) {
+      JsonDocument legacy;
+      legacy.set(original);
+      legacy.remove("displayBatteryStyle");
+      legacy["readerStatusBars"]["top"].remove("battery");
+      legacy["readerStatusBars"]["bottom"].remove("battery");
+      legacy["hideBatteryPercentage"] = hide;
+      SETTINGS.fromJson(legacy.as<JsonVariantConst>());
+      if (SETTINGS.topReaderStatusBar.batteryStyle != expectedReader[hide] ||
+          SETTINGS.bottomReaderStatusBar.batteryStyle != expectedReader[hide] ||
+          SETTINGS.displayStatusBar.batteryStyle != expectedDisplay[hide])
+        fail("Battery style migration failed for hideBatteryPercentage=%u", hide);
+      JsonDocument migrated;
+      SETTINGS.toJson(migrated);
+      migrated["hideBatteryPercentage"] = 0;  // A stale legacy key must not override saved styles.
+      SETTINGS.fromJson(migrated.as<JsonVariantConst>());
+      if (SETTINGS.bottomReaderStatusBar.batteryStyle != expectedReader[hide] ||
+          SETTINGS.displayStatusBar.batteryStyle != expectedDisplay[hide])
+        fail("Battery style did not survive a save round trip for hideBatteryPercentage=%u", hide);
+    }
+    SETTINGS.fromJson(original.as<JsonVariantConst>());
     SETTINGS.displayStatusBar.slots = {ReaderStatusBarItem::Date, ReaderStatusBarItem::Clock,
                                        ReaderStatusBarItem::Empty};
     SETTINGS.topReaderStatusBar.slots[ReaderStatusBarConfig::CENTER] = ReaderStatusBarItem::Clock;
@@ -728,8 +1122,9 @@ class SimulatorSmokeTest {
                   CrossPointSettings::CHORD_QUICK_ACTIONS) == chordSetting->enumRawValues.end()) {
       fail("Quick Actions is missing from the Power + Up chord setting");
     }
-    if (CrossPointSettings::HOME_READER != 36 || CrossPointSettings::SHORT_PWRBTN_COUNT != 38 ||
-        CrossPointSettings::CHORD_HOME_READER != 32 || CrossPointSettings::POWER_CHORD_ACTION_COUNT != 34) {
+    if (CrossPointSettings::HOME_READER != 36 || CrossPointSettings::SELECT_CHAPTER != 38 ||
+        CrossPointSettings::SHORT_PWRBTN_COUNT != 39 || CrossPointSettings::CHORD_HOME_READER != 32 ||
+        CrossPointSettings::CHORD_SELECT_CHAPTER != 34 || CrossPointSettings::POWER_CHORD_ACTION_COUNT != 35) {
       fail("Home/Reader changed persisted shortcut IDs or counts");
     }
     if (QuickActions::actionLabel(CrossPointSettings::HOME_READER) != StrId::STR_HOME_READER) {
@@ -1008,6 +1403,59 @@ class SimulatorSmokeTest {
       fail("Library is missing from Quick Actions choices");
     }
 
+    const auto verifyChapterChoice = [&](const char* key, const uint8_t raw) {
+      const auto setting = std::find_if(allSettings.begin(), allSettings.end(),
+                                        [key](const SettingInfo& candidate) { return settingKeyIs(candidate, key); });
+      if (setting == allSettings.end()) fail("Missing shortcut setting: %s", key);
+      const auto choice = std::find(setting->enumRawValues.begin(), setting->enumRawValues.end(), raw);
+      if (choice == setting->enumRawValues.end() ||
+          setting->enumValues[static_cast<size_t>(choice - setting->enumRawValues.begin())] !=
+              StrId::STR_SELECT_CHAPTER) {
+        fail("Select Chapter is missing or mislabeled in %s", key);
+      }
+    };
+    for (const char* key : {"shortPwrBtn", "longPwrBtn", "sideButtonUpShort", "sideButtonUpLong", "sideButtonDownShort",
+                            "sideButtonDownLong"}) {
+      verifyChapterChoice(key, CrossPointSettings::SELECT_CHAPTER);
+    }
+    verifyChapterChoice("powerChordAction", CrossPointSettings::CHORD_SELECT_CHAPTER);
+    verifyChapterChoice("longPressMenuAction", CrossPointSettings::LONG_MENU_SELECT_CHAPTER);
+    verifyChapterChoice("longPressBackAction", CrossPointSettings::LONG_MENU_SELECT_CHAPTER);
+    if (hasSideButtonChord) verifyChapterChoice("sideButtonChordAction", CrossPointSettings::CHORD_SELECT_CHAPTER);
+    if (gpio.hasHomeKey()) {
+      for (const char* key : {"homeButtonTapAction", "homeButtonLongPressAction", "homeButtonDoubleTapAction"})
+        verifyChapterChoice(key, CrossPointSettings::SELECT_CHAPTER);
+    }
+    if (gpio.hasTouch()) {
+      for (const char* key : {"twoFingerSwipeUp", "twoFingerSwipeDown", "twoFingerSwipeLeft", "twoFingerSwipeRight",
+                              "leftEdgeUp", "leftEdgeDown", "rightEdgeUp", "rightEdgeDown"})
+        verifyChapterChoice(key, CrossPointSettings::TWO_FINGER_SWIPE_SELECT_CHAPTER);
+    }
+    if (!QuickActions::isQuickActionSlotActionAvailable(CrossPointSettings::SELECT_CHAPTER) ||
+        QuickActions::actionLabel(CrossPointSettings::SELECT_CHAPTER) != StrId::STR_SELECT_CHAPTER) {
+      fail("Select Chapter is missing from Quick Actions");
+    }
+    JsonDocument originalChapterSettings;
+    SETTINGS.toJson(originalChapterSettings);
+    JsonDocument chapterSettings;
+    SETTINGS.toJson(chapterSettings);
+    chapterSettings["shortPwrBtn"] = CrossPointSettings::SELECT_CHAPTER;
+    chapterSettings["longPwrBtn"] = CrossPointSettings::SELECT_CHAPTER;
+    chapterSettings["powerChordAction"] = CrossPointSettings::CHORD_SELECT_CHAPTER;
+    chapterSettings["longPressMenuAction"] = CrossPointSettings::LONG_MENU_SELECT_CHAPTER;
+    chapterSettings["longPressBackAction"] = CrossPointSettings::LONG_MENU_SELECT_CHAPTER;
+    chapterSettings["quickActionSlots"][0] = CrossPointSettings::SELECT_CHAPTER;
+    SETTINGS.fromJson(chapterSettings.as<JsonVariantConst>());
+    if (SETTINGS.shortPwrBtn != CrossPointSettings::SELECT_CHAPTER ||
+        SETTINGS.longPwrBtn != CrossPointSettings::SELECT_CHAPTER ||
+        SETTINGS.powerChordAction != CrossPointSettings::CHORD_SELECT_CHAPTER ||
+        SETTINGS.longPressMenuAction != CrossPointSettings::LONG_MENU_SELECT_CHAPTER ||
+        SETTINGS.longPressBackAction != CrossPointSettings::LONG_MENU_SELECT_CHAPTER ||
+        SETTINGS.quickActionSlots[0] != CrossPointSettings::SELECT_CHAPTER) {
+      fail("Select Chapter settings did not survive reload");
+    }
+    SETTINGS.fromJson(originalChapterSettings.as<JsonVariantConst>());
+
     const uint8_t savedTrackReadingStats = SETTINGS.trackReadingStats;
     SETTINGS.trackReadingStats = 0;
     const auto statsDisabledSettings = getSettingsList();
@@ -1137,6 +1585,209 @@ class SimulatorSmokeTest {
     activeStepName = name;
     settleFrames = framesToSettle;
     step = nextStep;
+  }
+
+  void verifyStatusBarFeature() {
+    JsonDocument original;
+    SETTINGS.toJson(original);
+    const auto originalOrientation = renderer.getOrientation();
+    SETTINGS.clockDateHasBeenSynced = true;
+    SETTINGS.dateFormat = CrossPointSettings::DATE_FORMAT_DAY_MONTH_YEAR_LONG;
+    SETTINGS.displayStatusBar.slots = {ReaderStatusBarItem::Clock, ReaderStatusBarItem::Date,
+                                       ReaderStatusBarItem::Battery};
+    ReaderStatusBarConfig crowded = migrateBottomStatusBar({true, true, true, 1, 2, true, 2, 0, 2});
+    crowded.slots[2] = ReaderStatusBarItem::Clock;
+    SETTINGS.topReaderStatusBar = crowded;
+    SETTINGS.bottomReaderStatusBar = crowded;
+    RenderLock lock;
+    const auto capture = [&](const std::string& name) { captureStatusBarScreen(name.c_str()); };
+    const char* longTitle = "Les paramètres globaux très longs avec descendantes gypsy jumping";
+    for (uint8_t theme = 0; theme < CrossPointSettings::UI_THEME_COUNT; ++theme) {
+      if (theme == CrossPointSettings::COVER_GRID && !UITheme::supportsCoverGrid()) continue;
+      SETTINGS.uiTheme = theme;
+      UITheme::getInstance().reload();
+      for (const auto orientation : {GfxRenderer::Portrait, GfxRenderer::PortraitInverted,
+                                     GfxRenderer::LandscapeClockwise, GfxRenderer::LandscapeCounterClockwise}) {
+        renderer.setOrientation(orientation);
+        for (uint8_t uiScale = 0; uiScale < CrossPointSettings::UI_SCALE_COUNT; ++uiScale) {
+          SETTINGS.uiScale = uiScale;
+          const auto stem =
+              "theme-" + std::to_string(theme) + "-o-" + std::to_string(orientation) + "-ui-" + std::to_string(uiScale);
+          for (uint8_t size = 0; size < 3; ++size) {
+            SETTINGS.displayStatusBarTextSize = size;
+            const auto& metrics = UITheme::getInstance().getMetrics();
+            const auto name = stem + "-global-" + std::to_string(size);
+            if (UITheme::getDisplayStatusBarTextHeight(renderer) > 19 + UITheme::getDisplayStatusBarHeightIncrease())
+              fail("Global metric enlargement is smaller than the measured font lane");
+            const int readerHeight = UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Bottom, renderer);
+            renderer.clearScreen();
+            GUI.drawHeader(renderer, Rect{0, metrics.topPadding, renderer.getScreenWidth(), metrics.headerHeight},
+                           longTitle);
+            capture(name + "-full");
+            renderer.clearScreen();
+            if (mappedInputManager.hasTouchHardware())
+              TouchHeaderBackButton::drawCompact(renderer, longTitle, false, true);
+            else
+              CompactHeader::drawTitle(renderer, longTitle, true);
+            capture(name + "-compact");
+            // The first content row is outlined to make overlap visible in the captures.
+            renderer.clearScreen();
+            if (mappedInputManager.hasTouchHardware())
+              TouchHeaderBackButton::drawCompact(renderer, longTitle, false, true);
+            else
+              CompactHeader::drawTitle(renderer, longTitle, true);
+            const int contentTop = CompactHeader::contentTop(metrics);
+            renderer.drawRect(0, contentTop, renderer.getScreenWidth(), 38);
+            capture(name + "-content");
+            // The clock can change minutes during this large matrix. Keep
+            // captures complete, but compare deterministic date/battery pixels.
+            const auto clockSlot = SETTINGS.displayStatusBar.slots[0];
+            SETTINGS.displayStatusBar.slots[0] = ReaderStatusBarItem::Empty;
+            renderer.clearScreen();
+            if (mappedInputManager.hasTouchHardware())
+              TouchHeaderBackButton::drawCompact(renderer, longTitle, false, true);
+            else
+              CompactHeader::drawTitle(renderer, longTitle, true);
+            const auto globalHash = hashBytes(renderer.getFrameBuffer(), renderer.getBufferSize());
+            for (uint8_t readerSize = 0; readerSize < 3; ++readerSize) {
+              SETTINGS.statusBarTextSize = readerSize;
+              renderer.clearScreen();
+              if (mappedInputManager.hasTouchHardware())
+                TouchHeaderBackButton::drawCompact(renderer, longTitle, false, true);
+              else
+                CompactHeader::drawTitle(renderer, longTitle, true);
+              if (globalHash != hashBytes(renderer.getFrameBuffer(), renderer.getBufferSize()))
+                fail("Reader text size changed global header pixels");
+            }
+            SETTINGS.displayStatusBar.slots[0] = clockSlot;
+            SETTINGS.statusBarTextSize = 0;
+            if (readerHeight != UITheme::getReaderStatusBarHeight(ReaderStatusBarPosition::Bottom, renderer))
+              fail("Global text size changed the reader's reserved space");
+            if (mappedInputManager.hasTouchHardware()) {
+              const auto header = TouchHeaderBackButton::compactHeaderRect(renderer);
+              const auto target = TouchHeaderBackButton::layout(header);
+              if (target.touchRect.height < 68 || target.iconRect.y + target.iconRect.height > header.y + header.height)
+                fail("Enlarged global status strip broke the Back/search action target");
+            }
+            if (uiScale == CrossPointSettings::UI_SCALE_LARGE) {
+              renderer.clearScreen();
+              const GlobalReadingStats stats{};
+              renderGlobalStatsPage(renderer, &mappedInputManager, tr(STR_READING_STATS), stats, true, false);
+              capture(name + "-stats");
+              const BookReadingStats bookStats{};
+              renderPerBookStatsPage(renderer, &mappedInputManager, longTitle, bookStats, 75, false, 0, true, true,
+                                     true);
+              capture(name + "-book-stats");
+              if (!halClock.isAvailable()) {
+                renderNoRtcCombinedStatsPage(renderer, &mappedInputManager, longTitle, bookStats, 75, false, 0, stats,
+                                             &stats, true);
+                capture(name + "-combined-stats");
+              }
+              renderEditBookDatesPage(renderer, &mappedInputManager, longTitle, bookStats, 0, true);
+              capture(name + "-edit-dates");
+            }
+          }
+        }
+      }
+    }
+    // Cached languages stay pinned until reboot. Run the same render matrix
+    // for each language through the runner's --language-file boot fixture.
+    const auto language = I18N.getLanguage();
+    for (uint8_t theme = 0; theme < CrossPointSettings::UI_THEME_COUNT; ++theme) {
+      if (theme == CrossPointSettings::COVER_GRID && !UITheme::supportsCoverGrid()) continue;
+      SETTINGS.uiTheme = theme;
+      UITheme::getInstance().reload();
+      for (const auto orientation : {GfxRenderer::Portrait, GfxRenderer::PortraitInverted,
+                                     GfxRenderer::LandscapeClockwise, GfxRenderer::LandscapeCounterClockwise}) {
+        renderer.setOrientation(orientation);
+        for (const uint8_t size : {0, 2}) {
+          SETTINGS.displayStatusBarTextSize = size;
+          if (UITheme::getDisplayStatusBarTextHeight(renderer) > 19 + UITheme::getDisplayStatusBarHeightIncrease())
+            fail("Localized status text exceeds the global font lane");
+          renderer.clearScreen();
+          if (mappedInputManager.hasTouchHardware())
+            TouchHeaderBackButton::drawCompact(renderer, tr(STR_STATUS_BAR_TEXT_SIZE), false, true);
+          else
+            CompactHeader::drawTitle(renderer, tr(STR_STATUS_BAR_TEXT_SIZE), true);
+          capture("localized-lang-" + std::to_string(static_cast<int>(language)) + "-theme-" + std::to_string(theme) +
+                  "-o-" + std::to_string(orientation) + "-global-" + std::to_string(size));
+        }
+      }
+    }
+
+    SETTINGS.uiTheme = CrossPointSettings::LYRA;
+    UITheme::getInstance().reload();
+    SETTINGS.uiScale = CrossPointSettings::UI_SCALE_LARGE;
+    for (const auto orientation : {GfxRenderer::Portrait, GfxRenderer::PortraitInverted,
+                                   GfxRenderer::LandscapeClockwise, GfxRenderer::LandscapeCounterClockwise}) {
+      renderer.setOrientation(orientation);
+      for (uint8_t size = 0; size < 3; ++size) {
+        SETTINGS.statusBarTextSize = size;
+        for (unsigned mask = 0; mask < 4; ++mask) {
+          SETTINGS.topReaderStatusBar.hidden = mask & 1;
+          SETTINGS.bottomReaderStatusBar.hidden = mask & 2;
+          const auto topSlots = SETTINGS.topReaderStatusBar.slots;
+          const auto bottomSlots = SETTINGS.bottomReaderStatusBar.slots;
+          JsonDocument persisted;
+          SETTINGS.toJson(persisted);
+          if (!SETTINGS.saveToFile()) fail("Cannot persist status bar feature settings");
+          SETTINGS.topReaderStatusBar.hidden = false;
+          SETTINGS.bottomReaderStatusBar.hidden = false;
+          SETTINGS.displayStatusBarTextSize = 0;
+          if (!SETTINGS.loadFromFile()) fail("Cannot reload status bar feature settings");
+          if (SETTINGS.topReaderStatusBar.hidden != bool(mask & 1) ||
+              SETTINGS.bottomReaderStatusBar.hidden != bool(mask & 2) ||
+              SETTINGS.topReaderStatusBar.slots != topSlots || SETTINGS.bottomReaderStatusBar.slots != bottomSlots ||
+              SETTINGS.statusBarTextSize != size || SETTINGS.displayStatusBarTextSize != 2)
+            fail("Independent visibility/sizes/slots failed disk persistence");
+          if ((mask & 1) && ReaderUtils::getTopStatusBarReservedHeight(renderer))
+            fail("Hidden top still reserves reader space");
+          if ((mask & 2) &&
+              (UITheme::getStatusBarHeight(renderer) || UITheme::getProgressBarHeight() ||
+               ReaderUtils::getReaderFooterReservedHeight(renderer, true) != SETTINGS.screenMarginVertical))
+            fail("Hidden bottom still reserves status or auto-turn space");
+          renderer.clearScreen();
+          ReaderStatusBarContent content;
+          content.previewClock = "12:34";
+          content.chapterTitle = longTitle;
+          content.timeLeftBook = "3h 40m";
+          content.chapterPage = 888;
+          content.chapterPageCount = 999;
+          content.stablePage = 1234;
+          content.stablePageCount = 9999;
+          content.bookProgress = 75.12f;
+          content.bookmarked = true;
+          content.autoTurnLabel = "Auto 20s";
+          GUI.drawReaderStatusBar(renderer, ReaderStatusBarPosition::Top, content);
+          GUI.drawReaderStatusBar(renderer, ReaderStatusBarPosition::Bottom, content);
+          capture("reader-o-" + std::to_string(orientation) + "-size-" + std::to_string(size) + "-hidden-" +
+                  std::to_string(mask));
+          if (mask == 3) {
+            const auto* pixels = renderer.getFrameBuffer();
+            if (!std::all_of(pixels, pixels + renderer.getBufferSize(), [](uint8_t b) { return b == 0xff; }))
+              fail("Hidden bars drew progress, bookmark or auto-turn pixels");
+          }
+        }
+      }
+    }
+    renderer.setOrientation(GfxRenderer::Portrait);
+    if (!StatusBarFeatureSmokeTest::settings(lock, capture)) fail("Status bar popup controls failed");
+    renderer.setOrientation(GfxRenderer::Portrait);
+    if (!StatusBarFeatureSmokeTest::txt(lock, capture)) fail("TXT hide/show offset or reopen failed");
+    if (!StatusBarFeatureSmokeTest::xtc(lock, capture)) fail("XTC bitmap hide/show failed");
+    JsonDocument invalid;
+    SETTINGS.toJson(invalid);
+    invalid["displayStatusBarTextSize"] = 99;
+    SETTINGS.fromJson(invalid.as<JsonVariantConst>());
+    if (SETTINGS.displayStatusBarTextSize != 0) fail("Invalid global status size accepted");
+    invalid.remove("displayStatusBarTextSize");
+    SETTINGS.fromJson(invalid.as<JsonVariantConst>());
+    if (SETTINGS.displayStatusBarTextSize != 0) fail("Old settings did not default global size to Small");
+    SETTINGS.fromJson(original.as<JsonVariantConst>());
+    renderer.setOrientation(originalOrientation);
+    UITheme::getInstance().reload();
+    renderer.clearScreen();
+    LOG_INF("SMOKE", "Status bar feature render matrix, independent sizes, hidden geometry and disk reload passed");
   }
 
   void verifyStatusBarTextSizes() {
@@ -1840,8 +2491,33 @@ class SimulatorSmokeTest {
         break;
       }
       case 2: {
-        const auto* about = dynamic_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        auto* about = dynamic_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
         if (!about || about->simulatorTopIndex() != 0) fail("About initial viewport mismatch");
+        if (aboutPass % 2 && !about->simulatorFirstHeading()) {
+          RenderLock lock;
+          about->simulatorSetFirstHeading(
+              "Geräteprofil mit ausführlicher Hardwarebeschreibung und Diagnoseinformationen");
+          aboutPhase = 2;
+          inputScript.push_back(render("About long localized heading", 3));
+          break;
+        }
+#if CROSSINK_APP_CAP_TOUCH
+        const auto action = about->simulatorExportButtonRect();
+        const auto header = TouchHeaderBackButton::headerRect(renderer, mappedInputManager);
+        if (action.width <= 0 || action.height < 56 || action.x < UITheme::getInstance().getMetrics().listSidePadding ||
+            action.y < header.y + header.height ||
+            action.x + action.width > renderer.getScreenWidth() - UITheme::getInstance().getMetrics().listSidePadding ||
+            action.y + action.height >= renderer.getScreenHeight())
+          fail("About full-width export action escaped content bounds");
+        {
+          RenderLock lock;
+          if (!renderer.isPixelBlack(action.x, action.y + action.height / 2) ||
+              !renderer.isPixelBlack(action.x + action.width / 2, action.y))
+            fail("About export action has no visible outline");
+        }
+#else
+        if (about->simulatorExportButtonRect().width != 0) fail("About export action shown on button device");
+#endif
         const auto& snapshot = about->simulatorSnapshot();
         if (!snapshot.simulated || !snapshot.device || snapshot.width != display.getDisplayWidth() ||
             snapshot.height != display.getDisplayHeight() || snapshot.chip || snapshot.sdk || snapshot.internalFree)
@@ -1853,13 +2529,28 @@ class SimulatorSmokeTest {
           RenderLock lock;
           captureStatusBarScreen(("about-first-" + std::to_string(aboutPass)).c_str());
         }
+        const int nextPage =
+            std::min(about->simulatorVisibleRows(), about->simulatorRowCount() - about->simulatorVisibleRows());
+        // Even a slow release must page once, with no auto-repeat before release.
+        for (const auto button : {MappedInputManager::Button::Down, MappedInputManager::Button::Up}) {
+          const bool down = button == MappedInputManager::Button::Down;
+          inputScript.push_back(press(button));
+          inputScript.push_back({ScriptActionType::WaitForNavigationHold, button, nullptr, 0, 0, 0});
+          inputScript.push_back({ScriptActionType::AssertAboutTopIndex, button, nullptr, 0, down ? 0 : nextPage, 0});
+          inputScript.push_back(release(button));
+          inputScript.push_back(render("About single page after held-button release", 3));
+          inputScript.push_back({ScriptActionType::AssertAboutTopIndex, button, nullptr, 0, down ? nextPage : 0, 0});
+        }
         addTap(MappedInputManager::Button::Down);
         inputScript.push_back(render("About next page", 3));
         break;
       }
       case 3: {
         const auto* about = dynamic_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
-        if (!about || about->simulatorTopIndex() <= 0) fail("About buttons did not scroll");
+        if (!about ||
+            about->simulatorTopIndex() !=
+                std::min(about->simulatorVisibleRows(), about->simulatorRowCount() - about->simulatorVisibleRows()))
+          fail("About Down skipped or repeated a page");
         // Repeated paging must reach the last diagnostic and clamp at the end.
         for (int i = 0; i < 30; ++i) addTap(MappedInputManager::Button::Right);
         inputScript.push_back(render("About last page", 3));
@@ -1888,8 +2579,99 @@ class SimulatorSmokeTest {
       }
       case 5: {
         const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
-        if (about->simulatorTopIndex() + about->simulatorVisibleRows() >= about->simulatorRowCount())
-          fail("About previous page did not scroll");
+        if (about->simulatorTopIndex() != std::max(0, about->simulatorRowCount() - about->simulatorVisibleRows() * 2))
+          fail("About Up skipped or repeated a page");
+#if CROSSINK_APP_CAP_TOUCH
+        // The edge of the full-width outline belongs to the action too.
+        const auto hit = about->simulatorExportButtonRect();
+        // Wait for the activity's own repaint; a forced render masks broken feedback.
+        inputScript = {touchDown(hit.x + 1, hit.y + hit.height / 2), render(nullptr, 6)};
+#else
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("About export scope via physical Confirm", 3));
+#endif
+        break;
+      }
+      case 6: {
+        const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+#if CROSSINK_APP_CAP_TOUCH
+        if (!about->simulatorExportPressed() || about->simulatorScopePopupActive())
+          fail("About export press feedback or release timing mismatch");
+        {
+          RenderLock lock;
+          const auto hit = about->simulatorExportButtonRect();
+          if (!renderer.isPixelBlack(hit.x + 3, hit.y + 3)) fail("About export press did not invert the action");
+          captureStatusBarScreen(("about-pressed-" + std::to_string(aboutPass)).c_str());
+        }
+        const auto hit = about->simulatorExportButtonRect();
+        inputScript = {touchRelease(hit.x + 1, hit.y + hit.height / 2), render("About export edge release", 3)};
+#else
+        if (!about->simulatorScopePopupActive()) fail("About Confirm did not open export scope");
+#endif
+        break;
+      }
+      case 7: {
+        const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (!about->simulatorScopePopupActive()) fail("About export full-width hitbox missed its edge");
+        {
+          RenderLock lock;
+          captureStatusBarScreen(("about-scope-" + std::to_string(aboutPass)).c_str());
+        }
+        // Cancel is still selected by default on scope entry.
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("About default scope cancellation", 3));
+        break;
+      }
+      case 8: {
+        const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (about->simulatorScopePopupActive() || Storage.exists(SupportInfo::Path))
+          fail("About scope cancellation wrote export or stayed open");
+#if CROSSINK_APP_CAP_TOUCH
+        const auto hit = about->simulatorExportButtonRect();
+        // Horizontal drag-off does not page the list, so only the activity's
+        // press-state repaint can clear the inversion after cancellation.
+        inputScript = {touchDown(hit.x + hit.width / 2, hit.y + hit.height / 2),
+                       touchMove(hit.x - 1, hit.y + hit.height / 2), touchRelease(hit.x - 1, hit.y + hit.height / 2),
+                       render(nullptr, 6)};
+#endif
+        break;
+      }
+      case 9: {
+        const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (about->simulatorScopePopupActive() || about->simulatorExportPressed())
+          fail("About drag-off activated export or left pressed feedback");
+#if CROSSINK_APP_CAP_TOUCH
+        const auto hit = about->simulatorExportButtonRect();
+        {
+          RenderLock lock;
+          if (renderer.isPixelBlack(hit.x + 3, hit.y + 3)) fail("About drag-off did not repaint cleared feedback");
+        }
+        inputScript = {touchDown(hit.x + hit.width / 2, hit.y + hit.height + 2),
+                       touchRelease(hit.x + hit.width / 2, hit.y + hit.height + 2),
+                       render("About tap outside export", 3)};
+#endif
+        break;
+      }
+      case 10: {
+        const auto* about = static_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (about->simulatorScopePopupActive()) fail("About export hitbox extends below its outline");
+        supportOpenScope();
+        break;
+      }
+      case 11:
+        supportSelectScope(1);
+        break;
+      case 12: {
+        RenderLock lock;
+        captureStatusBarScreen(("about-confirmation-" + std::to_string(aboutPass)).c_str());
+        // Confirm without moving the selection must choose the default Cancel.
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("About default confirmation cancellation", 4));
+        inputScript.push_back(assertActivity("About"));
+        break;
+      }
+      case 13: {
+        if (Storage.exists(SupportInfo::Path)) fail("About confirmation cancellation wrote export");
 #if CROSSINK_APP_CAP_TOUCH
         const auto header = TouchHeaderBackButton::headerRect(renderer, mappedInputManager);
         const auto hit = TouchHeaderBackButton::layout(header).touchRect;
@@ -1903,13 +2685,14 @@ class SimulatorSmokeTest {
             assertSettingsNavigation(3, static_cast<int>(buildSystemSettingsParentList(getSettingsList()).size())));
         break;
       }
-      case 6:
+      case 14:
         if (++aboutPass < 8) {
           aboutPhase = 0;
           break;
         }
         LOG_INF("SMOKE",
-                "Simulator smoke test passed: About navigation, paging, read-only snapshot, scales and orientations");
+                "Simulator smoke test passed: About navigation, paging, snapshot, bold/long headings, full-width "
+                "export outline/press/hitbox, default cancellations, scales and orientations");
         std::_Exit(0);
     }
   }
@@ -2350,6 +3133,11 @@ class SimulatorSmokeTest {
           break;
         }
         if (std::getenv("CROSSINK_SIMULATOR_SMOKE_DICTIONARY")) verifyDictionaryElisions();
+        if (std::getenv("CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_FEATURE")) {
+          verifyStatusBarFeature();
+          LOG_INF("SMOKE", "Simulator smoke test passed: status bar feature");
+          std::_Exit(0);
+        }
         if (std::getenv("CROSSINK_SIMULATOR_SMOKE_STATUS_BARS")) {
           verifyStatusBarSettings();
           SETTINGS.clockDateHasBeenSynced = true;
@@ -3140,10 +3928,57 @@ class SimulatorSmokeTest {
         break;
 
       case SmokeStep::CompletionReaderRestored:
+        if (std::getenv("CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_LIFECYCLE")) {
+          if (!EpubReaderCompletionSmokeTest::openStatusSettings(
+                  *static_cast<EpubReaderActivity*>(activityManager.simulatorCurrentActivity())))
+            fail("Global status size repaginated reader or missing initial chapter");
+          queueStep("Reader status settings", SmokeStep::StatusBarReaderSettings, 4);
+          break;
+        }
         verifyWakePowerReaderShortcut();
         buildReaderInputScript();
         step = SmokeStep::ReaderInput;
         break;
+
+      case SmokeStep::StatusBarReaderSettings: {
+        if (!activityManager.isCurrentActivityNamed("StatusBarSettings")) fail("Reader status settings did not open");
+        static constexpr unsigned masks[] = {3, 1, 2, 0, 3, 0};
+        {
+          RenderLock lock;
+          auto top = SETTINGS.topReaderStatusBar;
+          auto bottom = SETTINGS.bottomReaderStatusBar;
+          top.hidden = masks[statusBarReaderPass] & 1;
+          bottom.hidden = masks[statusBarReaderPass] & 2;
+          SETTINGS.setReaderStatusBar(ReaderStatusBarPosition::Top, top);
+          SETTINGS.setReaderStatusBar(ReaderStatusBarPosition::Bottom, bottom);
+          SETTINGS.saveToFile();
+        }
+        inputScript.clear();
+        scriptIndex = 0;
+        addTap(MappedInputManager::Button::Back);
+        inputScript.push_back(render("Reader after status edit", 16));
+        inputScript.push_back(assertActivity("EpubReader"));
+        inputCompletionStep = SmokeStep::StatusBarReaderReturned;
+        step = SmokeStep::ReaderInput;
+        break;
+      }
+      case SmokeStep::StatusBarReaderReturned: {
+        auto& reader = *static_cast<EpubReaderActivity*>(activityManager.simulatorCurrentActivity());
+        if (!EpubReaderCompletionSmokeTest::statusSettingsReturned(reader)) fail("EPUB status reflow lost text anchor");
+        {
+          RenderLock lock;
+          captureStatusBarScreen(("epub-status-return-" + std::to_string(statusBarReaderPass)).c_str());
+        }
+        if (++statusBarReaderPass < 6) {
+          if (!EpubReaderCompletionSmokeTest::openStatusSettings(reader)) fail("Repeated reader status edit failed");
+          queueStep("Repeated reader status settings", SmokeStep::StatusBarReaderSettings, 4);
+        } else {
+          LOG_INF("SMOKE", "EPUB repeated hide/show, actual Settings return and text-anchor reflow passed");
+          buildReaderInputScript();
+          step = SmokeStep::ReaderInput;
+        }
+        break;
+      }
 
       case SmokeStep::ReaderInput:
         runReaderInputScript();
@@ -3256,6 +4091,7 @@ class SimulatorSmokeTest {
           RenderLock lock;
           SETTINGS.uiTheme = themes[homeThemePass];
           if (homeThemePass == 8) SETTINGS.uiScale = CrossPointSettings::UI_SCALE_LARGE;
+          if (homeThemePass == 9) SETTINGS.displayStatusBarTextSize = 2;
           UITheme::getInstance().reload();
         }
         inputScript = {press(MappedInputManager::Button::Back), release(MappedInputManager::Button::Back),
@@ -3271,6 +4107,7 @@ class SimulatorSmokeTest {
         {
           RenderLock lock;
           homeThemeScreenHash = hashBytes(renderer.getFrameBuffer(), renderer.getBufferSize());
+          captureStatusBarScreen(("home-theme-size-pass-" + std::to_string(homeThemePass)).c_str());
         }
         activityManager.replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInputManager, HomeMenuItem::NONE,
                                                                        HalDisplay::FAST_REFRESH, homeThemeBookPath));
@@ -3284,7 +4121,7 @@ class SimulatorSmokeTest {
           if (hashBytes(renderer.getFrameBuffer(), renderer.getBufferSize()) != homeThemeScreenHash)
             fail("Home after drawer theme change differs from fresh Home (pass %u)", homeThemePass);
         }
-        LOG_INF("SMOKE", "Home theme/scale return matches fresh render (pass %u)", homeThemePass);
+        LOG_INF("SMOKE", "Home theme/scale/status-size return matches fresh render (pass %u)", homeThemePass);
         if (++homeThemePass == 10) {
           LOG_INF("SMOKE", "Simulator smoke test passed");
           std::_Exit(0);
@@ -3394,6 +4231,12 @@ class SimulatorSmokeTest {
   static ScriptAction touchDown(const int x, const int y) {
     return {ScriptActionType::TouchDown, MappedInputManager::Button::Back, nullptr, 0, x, y};
   }
+  static ScriptAction touchDrawerHandle() {
+    return {ScriptActionType::TouchDrawerHandle, MappedInputManager::Button::Back, nullptr, 0, 0, 0};
+  }
+  static ScriptAction touchFrontlightQuickAction(const int index) {
+    return {ScriptActionType::TouchFrontlightQuickAction, MappedInputManager::Button::Back, nullptr, 0, index, 0};
+  }
   static ScriptAction touchMove(const int x, const int y) {
     return {ScriptActionType::TouchMove, MappedInputManager::Button::Back, nullptr, 0, x, y};
   }
@@ -3406,6 +4249,8 @@ class SimulatorSmokeTest {
     inputScript.push_back(press(button));
     inputScript.push_back(release(button));
   }
+
+  unsigned statusBarReaderPass = 0;
 
   void buildReaderInputScript() {
     inputScript.clear();
@@ -3426,6 +4271,58 @@ class SimulatorSmokeTest {
     }
     const auto sizeIt = std::find(currentFontSizes.begin(), currentFontSizes.end(), SETTINGS.readerFontPointSize);
     const int currentSizeIndex = sizeIt == currentFontSizes.end() ? 0 : std::distance(currentFontSizes.begin(), sizeIt);
+    inputScript.push_back(
+        {ScriptActionType::ConfigureChapterShortcuts, MappedInputManager::Button::Power, nullptr, 0, 0, 0});
+    addTap(MappedInputManager::Button::Power);
+    inputScript.push_back(render("Select Chapter from short Power", 4));
+    inputScript.push_back(
+        {ScriptActionType::AssertActivity, MappedInputManager::Button::Back, "EpubReaderChapterSelection", 0, 0, 0});
+    addTap(MappedInputManager::Button::Back);
+    inputScript.push_back(render("Reader after cancelling chapter selection", 4));
+    inputScript.push_back(press(MappedInputManager::Button::Power));
+    inputScript.push_back(waitForPowerLongPress());
+    inputScript.push_back(render("Select Chapter from long Power", 4));
+    inputScript.push_back(release(MappedInputManager::Button::Power));
+    inputScript.push_back(render("Chapter selection after Power release", 4));
+    inputScript.push_back(
+        {ScriptActionType::AssertActivity, MappedInputManager::Button::Back, "EpubReaderChapterSelection", 0, 0, 0});
+    addTap(MappedInputManager::Button::Back);
+    inputScript.push_back(render("Reader after long Power chapter shortcut", 4));
+    inputScript.push_back(press(MappedInputManager::Button::Confirm));
+    inputScript.push_back(
+        {ScriptActionType::WaitForMenuLongPress, MappedInputManager::Button::Confirm, nullptr, 0, 0, 0});
+    inputScript.push_back(render("Select Chapter from long Menu", 4));
+    inputScript.push_back(release(MappedInputManager::Button::Confirm));
+    inputScript.push_back(render("Chapter selection after Menu release", 4));
+    inputScript.push_back(
+        {ScriptActionType::AssertActivity, MappedInputManager::Button::Back, "EpubReaderChapterSelection", 0, 0, 0});
+    addTap(MappedInputManager::Button::Back);
+    inputScript.push_back(render("Reader after long Menu chapter shortcut", 4));
+    if (mappedInputManager.hasHomeKey()) {
+      for (const auto action : {ScriptActionType::HomeTap, ScriptActionType::HomeLongPress}) {
+        inputScript.push_back({action, MappedInputManager::Button::Power, nullptr, 0, 0, 0});
+        inputScript.push_back(
+            {ScriptActionType::WaitForChapterSelection, MappedInputManager::Button::Power, nullptr, 0, 0, 0});
+        inputScript.push_back(render("Select Chapter from Home key", 8));
+        inputScript.push_back(assertActivity("EpubReaderChapterSelection"));
+        addTap(MappedInputManager::Button::Back);
+        inputScript.push_back(render("Reader after Home chapter shortcut", 4));
+        inputScript.push_back(assertActivity("EpubReader"));
+      }
+      inputScript.push_back(
+          {ScriptActionType::ConfigureChapterHomeDoubleTap, MappedInputManager::Button::Power, nullptr, 0, 0, 0});
+      inputScript.push_back({ScriptActionType::HomeTap, MappedInputManager::Button::Power, nullptr, 0, 0, 0});
+      inputScript.push_back({ScriptActionType::HomeTap, MappedInputManager::Button::Power, nullptr, 0, 0, 0});
+      inputScript.push_back(
+          {ScriptActionType::WaitForChapterSelection, MappedInputManager::Button::Power, nullptr, 0, 0, 0});
+      inputScript.push_back(render("Select Chapter from Home double tap", 4));
+      inputScript.push_back(assertActivity("EpubReaderChapterSelection"));
+      addTap(MappedInputManager::Button::Back);
+      inputScript.push_back(render("Reader after Home double tap chapter shortcut", 4));
+      inputScript.push_back(assertActivity("EpubReader"));
+    }
+    inputScript.push_back(
+        {ScriptActionType::RestoreChapterShortcuts, MappedInputManager::Button::Power, nullptr, 0, 0, 0});
 
     const int turns = pageTurnCount();
 #if CROSSINK_APP_CAP_TOUCH
@@ -3522,8 +4419,8 @@ class SimulatorSmokeTest {
         inputScript.push_back(touchRelease(20, 8));
         inputScript.push_back(render("Frontlight Panel remains open after in-drawer swipe up", 4));
         inputScript.push_back(assertActivity("FrontlightPanel"));
-        // The book-progress row puts the portrait sheet's handle near 58% height.
-        inputScript.push_back(touchDown(width / 2, height * 23 / 40));
+        // Use the rendered handle: its position follows the global status text size.
+        inputScript.push_back(touchDrawerHandle());
         inputScript.push_back(touchMove(width / 2, 8));
         inputScript.push_back(touchRelease(width / 2, 8));
         inputScript.push_back(render("Reader restored after Frontlight Panel handle drag up", 4));
@@ -3535,8 +4432,7 @@ class SimulatorSmokeTest {
         inputScript.push_back(assertActivity("FrontlightPanel"));
         // The fourth action-bar slot opens Global Settings through the real
         // FrontlightPanelActivity callback path.
-        inputScript.push_back(touchDown(width * 7 / 10, height * 21 / 40));
-        inputScript.push_back(touchRelease(width * 7 / 10, height * 21 / 40));
+        inputScript.push_back(touchFrontlightQuickAction(3));
         inputScript.push_back(render("Global Settings opened from Frontlight Panel", 4));
         inputScript.push_back(assertActivity("Settings"));
         inputScript.push_back(touchDown(width / 2, height * 3 / 4));
@@ -3554,8 +4450,7 @@ class SimulatorSmokeTest {
         inputScript.push_back(touchRelease(width / 2, height / 4));
         inputScript.push_back(render("Frontlight Panel reopened after Global Settings", 4));
         inputScript.push_back(assertActivity("FrontlightPanel"));
-        inputScript.push_back(touchDown(width * 3 / 10, height * 21 / 40));
-        inputScript.push_back(touchRelease(width * 3 / 10, height * 21 / 40));
+        inputScript.push_back(touchFrontlightQuickAction(1));
         inputScript.push_back(render("Sync dialog opened from Frontlight Panel", 4));
         inputScript.push_back(assertActivity("FrontlightPanel"));
         inputScript.push_back(touchDown(width / 2, height - 60));
@@ -3583,7 +4478,7 @@ class SimulatorSmokeTest {
         inputScript.push_back(touchRelease(width / 2, height - 8));
         inputScript.push_back(render("Reader Menu remains open after in-drawer swipe down", 4));
         inputScript.push_back(assertActivity("EpubReaderDrawer"));
-        inputScript.push_back(touchDown(width / 2, height / 2 - 14));
+        inputScript.push_back(touchDrawerHandle());
         inputScript.push_back(touchMove(width / 2, height - 8));
         inputScript.push_back(touchRelease(width / 2, height - 8));
         inputScript.push_back(render("Reader restored after Reader Menu handle drag down", 4));
@@ -4008,10 +4903,50 @@ class SimulatorSmokeTest {
         mappedInputManager.simulatorInjectRelease(action.button);
         break;
       case ScriptActionType::HomeTap:
+        lastInjectedHomeAt = millis();
         simulatorHomeKeyInput.injectTap();
         break;
       case ScriptActionType::HomeLongPress:
+        lastInjectedHomeAt = millis();
         simulatorHomeKeyInput.injectLongPress();
+        break;
+      case ScriptActionType::WaitForChapterSelection:
+        if (!activityManager.isCurrentActivityNamed("EpubReaderChapterSelection")) {
+          if (millis() - lastInjectedHomeAt > 1000) fail("Home shortcut did not open chapter selection");
+          --scriptIndex;
+        }
+        break;
+      case ScriptActionType::ConfigureChapterShortcuts:
+        savedChapterShortcuts[0] = SETTINGS.shortPwrBtn;
+        savedChapterShortcuts[1] = SETTINGS.longPwrBtn;
+        savedChapterShortcuts[2] = SETTINGS.longPressMenuAction;
+        savedChapterShortcuts[3] = SETTINGS.longPressBackAction;
+        savedChapterShortcuts[4] = SETTINGS.homeButtonTapAction;
+        savedChapterShortcuts[5] = SETTINGS.homeButtonLongPressAction;
+        savedChapterShortcuts[6] = SETTINGS.homeButtonDoubleTapAction;
+        SETTINGS.shortPwrBtn = CrossPointSettings::SELECT_CHAPTER;
+        SETTINGS.longPwrBtn = CrossPointSettings::SELECT_CHAPTER;
+        SETTINGS.longPressMenuAction = CrossPointSettings::LONG_MENU_SELECT_CHAPTER;
+        SETTINGS.longPressBackAction = CrossPointSettings::LONG_MENU_OFF;
+        SETTINGS.homeButtonTapAction = CrossPointSettings::SELECT_CHAPTER;
+        SETTINGS.homeButtonLongPressAction = CrossPointSettings::SELECT_CHAPTER;
+        SETTINGS.homeButtonDoubleTapAction = CrossPointSettings::IGNORE;
+        break;
+      case ScriptActionType::ConfigureChapterHomeDoubleTap:
+        SETTINGS.homeButtonTapAction = CrossPointSettings::IGNORE;
+        SETTINGS.homeButtonDoubleTapAction = CrossPointSettings::SELECT_CHAPTER;
+        break;
+      case ScriptActionType::RestoreChapterShortcuts:
+        SETTINGS.shortPwrBtn = savedChapterShortcuts[0];
+        SETTINGS.longPwrBtn = savedChapterShortcuts[1];
+        SETTINGS.longPressMenuAction = savedChapterShortcuts[2];
+        SETTINGS.longPressBackAction = savedChapterShortcuts[3];
+        SETTINGS.homeButtonTapAction = savedChapterShortcuts[4];
+        SETTINGS.homeButtonLongPressAction = savedChapterShortcuts[5];
+        SETTINGS.homeButtonDoubleTapAction = savedChapterShortcuts[6];
+        break;
+      case ScriptActionType::WaitForMenuLongPress:
+        if (mappedInputManager.getHeldTime() < 650) --scriptIndex;
         break;
       case ScriptActionType::ConfigureHomeButtonPowerLock:
         SETTINGS.homeButtonInReaderEnabled = 1;
@@ -4059,6 +4994,33 @@ class SimulatorSmokeTest {
         mappedInputManager.simulatorInjectTouchDown(action.x, action.y);
 #endif
         break;
+      case ScriptActionType::TouchDrawerHandle:
+#if CROSSINK_APP_CAP_TOUCH
+        if (auto* panel = dynamic_cast<FrontlightPanelActivity*>(activityManager.simulatorCurrentActivity())) {
+          const auto handle = panel->simulatorHandleRect();
+          mappedInputManager.simulatorInjectTouchDown(handle.x + handle.width / 2, handle.y + handle.height / 2);
+        } else if (auto* drawer = dynamic_cast<EpubReaderDrawerActivity*>(activityManager.simulatorCurrentActivity())) {
+          const auto handle = drawer->simulatorHandleRect();
+          mappedInputManager.simulatorInjectTouchDown(handle.x + handle.width / 2, handle.y + handle.height / 2);
+        } else {
+          fail("No visible drawer handle for touch gesture");
+        }
+#endif
+        break;
+      case ScriptActionType::TouchFrontlightQuickAction:
+#if CROSSINK_APP_CAP_TOUCH
+        if (auto* panel = dynamic_cast<FrontlightPanelActivity*>(activityManager.simulatorCurrentActivity())) {
+          const auto hit = panel->simulatorQuickActionRect(action.x);
+          if (hit.width <= 0 || hit.height <= 0) fail("Frontlight quick action has no published target");
+          mappedInputManager.simulatorInjectTouchDown(hit.x + hit.width / 2, hit.y + hit.height / 2);
+          // Queue the matching release before the next existing render step.
+          inputScript.insert(inputScript.begin() + scriptIndex,
+                             touchRelease(hit.x + hit.width / 2, hit.y + hit.height / 2));
+        } else {
+          fail("No Frontlight Panel for quick action");
+        }
+#endif
+        break;
       case ScriptActionType::TouchMove:
 #if CROSSINK_APP_CAP_TOUCH
         mappedInputManager.simulatorInjectTouchMove(action.x, action.y);
@@ -4089,6 +5051,15 @@ class SimulatorSmokeTest {
         if (settings->simulatorCategoryIndex() != action.x || settings->simulatorSelectedIndex() != action.y)
           fail("Settings navigation mismatch: category=%d row=%d, expected %d/%d", settings->simulatorCategoryIndex(),
                settings->simulatorSelectedIndex(), action.x, action.y);
+        break;
+      }
+      case ScriptActionType::WaitForNavigationHold:
+        if (mappedInputManager.getHeldTime() < 650) --scriptIndex;
+        break;
+      case ScriptActionType::AssertAboutTopIndex: {
+        const auto* about = dynamic_cast<AboutActivity*>(activityManager.simulatorCurrentActivity());
+        if (!about || about->simulatorTopIndex() != action.x)
+          fail("About button moved to row %d, expected %d", about ? about->simulatorTopIndex() : -1, action.x);
         break;
       }
       case ScriptActionType::AssertActivity:

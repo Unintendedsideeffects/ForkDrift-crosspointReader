@@ -150,7 +150,8 @@ allowlisted, not a claim to include every persisted setting:
   hardware-specific preferences may be retained even on unsupported hardware.
   Font/dictionary names are reduced to custom-font-selected booleans. `statusSlots`
   contains top-reader 7, bottom-reader 7, then display 3 choices; `statusOptions`
-  contains percentage format, progress bar mode and thickness for top then bottom.
+  contains percentage format, progress bar mode and thickness for top then bottom,
+  followed by the top, bottom and display battery styles.
   The optional `readerOverrideMask` uses the reader-settings v11 bit order, with
   bit 18 identifying image grayscale and bit 19 the redacted SD-font-family override.
 - **Configuration status:** only presence of the Wi-Fi, OPDS, KOReader and TTF

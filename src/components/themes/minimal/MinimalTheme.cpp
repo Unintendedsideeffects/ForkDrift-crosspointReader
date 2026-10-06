@@ -426,8 +426,9 @@ void MinimalTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char
     const int titleRight = rect.x + rect.width - 12;
     const int maxTitleWidth = titleRight - rect.x - titleInsetX - MinimalMetrics::values.contentSidePadding;
     auto truncatedTitle = renderer.truncatedText(titleFontId, title, maxTitleWidth, EpdFontFamily::BOLD);
-    renderer.drawText(titleFontId, rect.x + titleInsetX, rect.y + MinimalMetrics::values.batteryBarHeight + 3,
-                      truncatedTitle.c_str(), true, EpdFontFamily::BOLD);
+    renderer.drawText(titleFontId, rect.x + titleInsetX,
+                      rect.y + UITheme::getInstance().getMetrics().batteryBarHeight + 3, truncatedTitle.c_str(), true,
+                      EpdFontFamily::BOLD);
     renderer.drawLine(rect.x, rect.y + rect.height - 3, rect.x + rect.width - 1, rect.y + rect.height - 3, 3, true);
   }
 

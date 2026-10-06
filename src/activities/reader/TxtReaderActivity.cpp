@@ -392,6 +392,8 @@ void TxtReaderActivity::rebuildTextLayout() {
     RenderLock lock(*this);
     pageOffsets.clear();
     currentPageLines.clear();
+    statusBarRelayoutOffset.reset();
+    statusBarRelayoutPage = -1;
     initialized = false;
   }
   requestUpdate();
@@ -665,7 +667,7 @@ void TxtReaderActivity::initializeReader() {
   cachedHorizontalMargin = SETTINGS.screenMarginHorizontal;
   cachedParagraphAlignment = SETTINGS.paragraphAlignment;
   cachedTopStatusBarHeight = ReaderUtils::getTopStatusBarReservedHeight(renderer);
-  cachedBottomStatusBarHeight = UITheme::getInstance().getStatusBarHeight(renderer);
+  cachedFooterReservedHeight = ReaderUtils::getReaderFooterReservedHeight(renderer, false);
 
   // Calculate viewport dimensions
   renderer.getOrientedViewableTRBL(&cachedOrientedMarginTop, &cachedOrientedMarginRight, &cachedOrientedMarginBottom,
@@ -679,8 +681,7 @@ void TxtReaderActivity::initializeReader() {
   } else {
     cachedOrientedMarginTop += cachedVerticalMargin;
   }
-  cachedOrientedMarginBottom += std::max(
-      cachedVerticalMargin, static_cast<uint8_t>(cachedBottomStatusBarHeight + ReaderUtils::STATUS_BAR_TEXT_PADDING));
+  cachedOrientedMarginBottom += cachedFooterReservedHeight;
 
   viewportWidth = renderer.getScreenWidth() - cachedOrientedMarginLeft - cachedOrientedMarginRight;
   const int viewportHeight = renderer.getScreenHeight() - cachedOrientedMarginTop - cachedOrientedMarginBottom;
@@ -790,10 +791,12 @@ void TxtReaderActivity::render(RenderLock&&) {
 
   bool relayout = false;
   size_t readingOffset = 0;
+  if (initialized && currentPage != statusBarRelayoutPage) statusBarRelayoutOffset.reset();
   if (initialized && (cachedTopStatusBarHeight != ReaderUtils::getTopStatusBarReservedHeight(renderer) ||
-                      cachedBottomStatusBarHeight != UITheme::getInstance().getStatusBarHeight(renderer))) {
+                      cachedFooterReservedHeight != ReaderUtils::getReaderFooterReservedHeight(renderer, false))) {
     if (currentPage >= 0 && currentPage < static_cast<int>(pageOffsets.size())) {
-      readingOffset = pageOffsets[currentPage];
+      if (!statusBarRelayoutOffset) statusBarRelayoutOffset = pageOffsets[currentPage];
+      readingOffset = *statusBarRelayoutOffset;
       relayout = true;
     }
     if (!flushQueuedProgress()) LOG_ERR("TRS", "Failed to save progress before status bar relayout");
@@ -806,6 +809,7 @@ void TxtReaderActivity::render(RenderLock&&) {
     if (relayout && !pageOffsets.empty()) {
       const auto nextPage = std::upper_bound(pageOffsets.begin(), pageOffsets.end(), readingOffset);
       currentPage = std::max(0, static_cast<int>(nextPage - pageOffsets.begin()) - 1);
+      statusBarRelayoutPage = currentPage;
       if (!saveProgress(currentPage)) LOG_ERR("TRS", "Failed to save progress after status bar relayout");
     }
   }
@@ -951,7 +955,8 @@ bool TxtReaderActivity::saveProgress(const int page) {
   }
   // 6-byte format: page(2 bytes LE) + file offset(4 bytes LE)
   // The offset lets drawCurrentPageToBuffer render without requiring index.bin.
-  const size_t offset = (page >= 0 && page < static_cast<int>(pageOffsets.size())) ? pageOffsets[page] : 0;
+  const bool offsetKnown = page >= 0 && page < static_cast<int>(pageOffsets.size());
+  const size_t offset = offsetKnown ? pageOffsets[page] : UINT32_MAX;
   uint8_t data[6];
   data[0] = page & 0xFF;
   data[1] = (page >> 8) & 0xFF;
@@ -959,6 +964,8 @@ bool TxtReaderActivity::saveProgress(const int page) {
   data[3] = (offset >> 8) & 0xFF;
   data[4] = (offset >> 16) & 0xFF;
   data[5] = (offset >> 24) & 0xFF;
+  // Retain the existing six-byte format even while a font rebuild leaves only
+  // the page known. An out-of-range offset lets old and new readers use that page.
   const bool written = f.write(data, sizeof(data)) == sizeof(data);
   f.close();
   if (!written) {
@@ -984,9 +991,20 @@ bool TxtReaderActivity::flushQueuedProgress() {
 void TxtReaderActivity::loadProgress() {
   HalFile f;
   if (Storage.openFileForRead("TRS", txt->getCachePath() + "/progress.bin", f)) {
-    uint8_t data[4];
-    if (f.read(data, 4) == 4) {
+    uint8_t data[6]{};
+    const int bytes = f.read(data, sizeof(data));
+    if (bytes >= 2) {
       currentPage = data[0] + (data[1] << 8);
+      // Page numbers change when status bars change while the book is closed.
+      // Prefer the existing saved byte offset; retain legacy short records.
+      if (bytes == 6 && !pageOffsets.empty()) {
+        const uint32_t offset = static_cast<uint32_t>(data[2]) | (static_cast<uint32_t>(data[3]) << 8) |
+                                (static_cast<uint32_t>(data[4]) << 16) | (static_cast<uint32_t>(data[5]) << 24);
+        if (offset < txt->getFileSize() && (offset != 0 || currentPage == 0)) {
+          const auto nextPage = std::upper_bound(pageOffsets.begin(), pageOffsets.end(), offset);
+          currentPage = std::max(0, static_cast<int>(nextPage - pageOffsets.begin()) - 1);
+        }
+      }
       if (currentPage >= totalPages) {
         currentPage = totalPages - 1;
       }
@@ -1167,8 +1185,7 @@ bool TxtReaderActivity::drawCurrentPageToBuffer(const std::string& filePath, Gfx
   } else {
     marginTop += verticalMargin;
   }
-  marginBottom += std::max(verticalMargin, static_cast<uint8_t>(UITheme::getInstance().getStatusBarHeight(renderer) +
-                                                                ReaderUtils::STATUS_BAR_TEXT_PADDING));
+  marginBottom += ReaderUtils::getReaderFooterReservedHeight(renderer, false);
 
   const int vw = renderer.getScreenWidth() - marginLeft - marginRight;
   const int vh = renderer.getScreenHeight() - marginTop - marginBottom;

@@ -34,6 +34,9 @@ constexpr bool validReaderStatusBarItemValue(const int value, const bool clockAv
           clockAvailable);
 }
 
+// How a Battery slot renders. Values are persisted; keep them stable.
+enum class ReaderStatusBarBatteryStyle : uint8_t { IconAndPercent = 0, IconOnly, PercentOnly, Count };
+
 constexpr bool validReaderStatusBarChoice(const int value, const int optionCount) {
   return value >= 0 && value < optionCount;
 }
@@ -55,6 +58,8 @@ struct ReaderStatusBarConfig {
   uint8_t percentageFormat = 0;
   uint8_t progressBar = 2;
   uint8_t progressBarThickness = 1;
+  ReaderStatusBarBatteryStyle batteryStyle = ReaderStatusBarBatteryStyle::IconAndPercent;
+  bool hidden = false;
 
   constexpr bool contains(ReaderStatusBarItem item) const {
     return std::any_of(slots.begin(), slots.end(), [item](const auto slot) { return slot == item; });
@@ -68,6 +73,16 @@ struct ReaderStatusBarConfig {
   }
 };
 
+inline ReaderStatusBarConfig xtcStatusBarConfigForDisplay(const ReaderStatusBarPosition displayed,
+                                                          const bool legacyTopUsesBottom,
+                                                          const ReaderStatusBarConfig& top,
+                                                          const ReaderStatusBarConfig& bottom) {
+  auto config =
+      xtcStatusBarConfigPosition(displayed, legacyTopUsesBottom) == ReaderStatusBarPosition::Top ? top : bottom;
+  config.hidden = displayed == ReaderStatusBarPosition::Top ? top.hidden : bottom.hidden;
+  return config;
+}
+
 constexpr bool validDisplayStatusBarItemValue(const int value, const bool clockAvailable) {
   return value == static_cast<int>(ReaderStatusBarItem::Empty) ||
          (clockAvailable && (value == static_cast<int>(ReaderStatusBarItem::Clock) ||
@@ -78,10 +93,12 @@ constexpr bool validDisplayStatusBarItemValue(const int value, const bool clockA
 struct DisplayStatusBarConfig {
   std::array<ReaderStatusBarItem, 3> slots{ReaderStatusBarItem::Empty, ReaderStatusBarItem::Empty,
                                            ReaderStatusBarItem::Battery};
+  ReaderStatusBarBatteryStyle batteryStyle = ReaderStatusBarBatteryStyle::IconAndPercent;
 
   ReaderStatusBarConfig asReaderConfig() const {
     ReaderStatusBarConfig config;
     config.progressBar = 2;
+    config.batteryStyle = batteryStyle;
     config.slots[ReaderStatusBarConfig::LEFT_FIRST] = slots[0];
     config.slots[ReaderStatusBarConfig::CENTER] = slots[1];
     config.slots[ReaderStatusBarConfig::RIGHT_FIRST] = slots[2];

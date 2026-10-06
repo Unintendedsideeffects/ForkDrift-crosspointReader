@@ -129,6 +129,7 @@ TEST(ButtonShortcutController, EveryChordActionConsumesBothReleaseOrders) {
       Action::Footnotes,        Action::FileBrowser,        Action::CreateClipping,
       Action::LookupWord,       Action::ToggleHomeButton,   Action::QuickActions,
       Action::ToggleFrontlight, Action::ToggleTouchscreen,  Action::Library,
+      Action::SelectChapter,
   };
 
   for (const auto action : actions) {
@@ -148,22 +149,24 @@ TEST(ButtonShortcutController, EveryChordActionConsumesBothReleaseOrders) {
   }
 }
 
-TEST(ButtonShortcutController, LibraryUpDownChordFiresOnceAndReleasesBothButtons) {
+TEST(ButtonShortcutController, NavigationUpDownChordsFireOnceAndReleaseBothButtons) {
   using Action = ButtonShortcutController::ChordAction;
   using Event = ButtonShortcutController::Event;
 
-  for (const bool releaseUpFirst : {false, true}) {
-    ButtonShortcutController controller;
-    const auto started = controller.updateUpDown(1U, true, true, Action::Library, false);
-    EXPECT_EQ(started.event, Event::ConfiguredAction);
-    EXPECT_EQ(started.action, Action::Library);
-    EXPECT_TRUE(started.consumeInput);
+  for (const auto action : {Action::Library, Action::SelectChapter}) {
+    for (const bool releaseUpFirst : {false, true}) {
+      ButtonShortcutController controller;
+      const auto started = controller.updateUpDown(1U, true, true, action, false);
+      EXPECT_EQ(started.event, Event::ConfiguredAction);
+      EXPECT_EQ(started.action, action);
+      EXPECT_TRUE(started.consumeInput);
 
-    const auto firstRelease = controller.updateUpDown(2U, !releaseUpFirst, releaseUpFirst, Action::Library, false);
-    EXPECT_EQ(firstRelease.event, Event::None);
-    EXPECT_TRUE(firstRelease.consumeInput);
-    EXPECT_TRUE(controller.updateUpDown(3U, false, false, Action::Library, false).consumeInput);
-    EXPECT_FALSE(controller.updateUpDown(4U, false, false, Action::Library, false).consumeInput);
+      const auto firstRelease = controller.updateUpDown(2U, !releaseUpFirst, releaseUpFirst, action, false);
+      EXPECT_EQ(firstRelease.event, Event::None);
+      EXPECT_TRUE(firstRelease.consumeInput);
+      EXPECT_TRUE(controller.updateUpDown(3U, false, false, action, false).consumeInput);
+      EXPECT_FALSE(controller.updateUpDown(4U, false, false, action, false).consumeInput);
+    }
   }
 }
 

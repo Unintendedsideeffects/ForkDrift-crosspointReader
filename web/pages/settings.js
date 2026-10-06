@@ -323,13 +323,15 @@ let allSettings = [];
         itemOptions, bar.slots[i], 'statusBarChanged()'));
     }
     for (const field of [
+      ['battery', labels.battery, statusBars.batteryStyles],
       ['percentageFormat', labels.percentageFormat, statusBars.percentageFormats],
       ['progressBar', labels.progressBar, statusBars.progressModes],
-      ['thickness', labels.thickness, statusBars.thicknesses]
+      ['thickness', labels.thickness, statusBars.thicknesses],
+      ['hidden', labels.hidden, statusBars.hideOptions]
     ]) {
       html += statusBarRow(field[1], statusBarSelect('bar-' + position + '-' + field[0],
         field[2].map(function(label, index) { return { value: index, label: label }; }),
-        bar[field[0]], 'statusBarChanged()'));
+        Number(bar[field[0]]), 'statusBarChanged()'));
     }
     html += '<div class="status-bar-preview" id="bar-' + position + '-preview"></div></div>';
     return html;
@@ -346,7 +348,12 @@ let allSettings = [];
       [statusBars.labels.left, statusBars.labels.center, statusBars.labels.right].map(function(label, index) {
         return statusBarRow(label, statusBarSelect('display-slot-' + index, choices,
           statusBars.display[index], 'statusBarChanged()'));
-      }).join('');
+      }).join('') + statusBarRow(statusBars.labels.battery, statusBarSelect('display-battery',
+        statusBars.batteryStyles.map(function(label, index) { return { value: index, label: label }; }),
+        statusBars.displayBatteryStyle, 'statusBarChanged()')) +
+      statusBarRow(statusBars.labels.textSize, statusBarSelect('display-text-size',
+        statusBars.textSizes.map(function(label, index) { return { value: index, label: label }; }),
+        statusBars.displayTextSize, 'statusBarChanged()'));
   }
 
   function readStatusBarForm(position) {
@@ -355,15 +362,22 @@ let allSettings = [];
       slots: bar.slots.map(function(_, index) {
         return Number(document.getElementById('bar-' + position + '-slot-' + index).value);
       }),
+      battery: Number(document.getElementById('bar-' + position + '-battery').value),
       percentageFormat: Number(document.getElementById('bar-' + position + '-percentageFormat').value),
       progressBar: Number(document.getElementById('bar-' + position + '-progressBar').value),
-      thickness: Number(document.getElementById('bar-' + position + '-thickness').value)
+      thickness: Number(document.getElementById('bar-' + position + '-thickness').value),
+      hidden: document.getElementById('bar-' + position + '-hidden').value === '1'
     };
   }
 
   function updateStatusBarPreview(position) {
     const bar = readStatusBarForm(position);
-    const examples = ['', '10:30', '85%', '2h 15m', '12m', '4/12', '27',
+    if (bar.hidden) {
+      document.getElementById('bar-' + position + '-preview').innerHTML = '';
+      return;
+    }
+    const battery = ['\u25AD 85%', '\u25AD', '85%'][bar.battery] || '85%';
+    const examples = ['', '10:30', battery, '2h 15m', '12m', '4/12', '27',
       (64.12).toFixed(bar.percentageFormat) + '%', 'Book title', 'Chapter title', statusBars.datePreview];
     const slot = function(index) { return escapeHtml(examples[bar.slots[index]] || ''); };
     const right = [4, 5, 6].map(slot).filter(Boolean).join(' &nbsp; ');
@@ -415,6 +429,8 @@ let allSettings = [];
           display: statusBars.display.map(function(_, index) {
             return Number(document.getElementById('display-slot-' + index).value);
           }),
+          displayBatteryStyle: Number(document.getElementById('display-battery').value),
+          displayTextSize: Number(document.getElementById('display-text-size').value),
           xtcMode: Number(document.getElementById('bar-xtc-mode').value) })
       });
       if (!response.ok) throw new Error(await response.text());

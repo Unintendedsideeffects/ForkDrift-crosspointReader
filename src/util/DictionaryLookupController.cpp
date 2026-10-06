@@ -84,8 +84,7 @@ void DictionaryLookupController::startLookup(const std::string& word, bool recor
     // (e.g. from navigation) may still be mid-refresh, and concurrent framebuffer / SPI
     // access from two tasks crashes the e-ink driver.
     RenderLock lock;
-    GUI.drawPopup(renderer, tr(STR_DICT_LOOKING_UP));
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+    GUI.drawPopup(renderer, tr(STR_DICT_LOOKING_UP));  // refreshes the panel itself
   } else if (!lookupToastEnabled_) {
     owner.requestUpdate();
   }
@@ -521,7 +520,6 @@ void DictionaryLookupController::showMemoryErrorAndReset() {
   {
     RenderLock lock;
     GUI.drawPopup(renderer, tr(STR_MEMORY_ERROR));
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
   }
   vTaskDelay(1000 / portTICK_PERIOD_MS);
   state = LookupState::Idle;
@@ -533,7 +531,6 @@ void DictionaryLookupController::showNoWordPopup() {
     // Serialize with render task — see comment in startLookup() for the race this prevents.
     RenderLock lock;
     GUI.drawPopup(renderer, tr(STR_DICT_NO_WORD));
-    renderer.displayBuffer(HalDisplay::FAST_REFRESH);
   }
   vTaskDelay(1000 / portTICK_PERIOD_MS);
   owner.requestUpdate();

@@ -28,7 +28,7 @@ class PageElement {
   explicit PageElement(const int16_t xPos, const int16_t yPos) : xPos(xPos), yPos(yPos) {}
   virtual ~PageElement() = default;
   virtual void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack = true) = 0;
-  virtual bool serialize(FsFile& file) = 0;
+  virtual bool serialize(Print& file) = 0;
   virtual PageElementTag getTag() const = 0;  // Add type identification
 };
 
@@ -41,7 +41,7 @@ class PageLine final : public PageElement {
       : PageElement(xPos, yPos), block(std::move(block)) {}
   const std::shared_ptr<TextBlock>& getBlock() const { return block; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack = true) override;
-  bool serialize(FsFile& file) override;
+  bool serialize(Print& file) override;
   PageElementTag getTag() const override { return TAG_PageLine; }
   static std::unique_ptr<PageLine> deserialize(FsFile& file);
 };
@@ -57,7 +57,7 @@ class PageImage final : public PageElement {
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack = true) override;
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack, bool imageGrayscale);
   void renderPlaceholder(GfxRenderer& renderer, int xOffset, int yOffset, bool foregroundBlack) const;
-  bool serialize(FsFile& file) override;
+  bool serialize(Print& file) override;
   PageElementTag getTag() const override { return TAG_PageImage; }
   static std::unique_ptr<PageImage> deserialize(FsFile& file);
   const ImageBlock& getImageBlock() const { return *imageBlock; }
@@ -73,7 +73,7 @@ class PageHorizontalRule final : public PageElement {
       : PageElement(xPos, yPos), width(width), thickness(thickness) {}
 
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack = true) override;
-  bool serialize(FsFile& file) override;
+  bool serialize(Print& file) override;
   PageElementTag getTag() const override { return TAG_PageHorizontalRule; }
   static std::unique_ptr<PageHorizontalRule> deserialize(FsFile& file);
 };
@@ -84,7 +84,7 @@ struct TableFragmentCell {
   uint8_t colSpan = 1;
   std::vector<std::shared_ptr<TextBlock>> lines;
 
-  bool serialize(FsFile& file) const;
+  bool serialize(Print& file) const;
   static bool deserialize(FsFile& file, TableFragmentCell& outCell);
 };
 
@@ -94,7 +94,7 @@ struct TableFragmentRow {
   bool headerSeparator = false;
   std::vector<TableFragmentCell> cells;
 
-  bool serialize(FsFile& file) const;
+  bool serialize(Print& file) const;
   static bool deserialize(FsFile& file, TableFragmentRow& outRow);
 };
 
@@ -140,7 +140,7 @@ class PageTableFragment final : public PageElement {
         rows(std::move(rows)) {}
 
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack = true) override;
-  bool serialize(FsFile& file) override;
+  bool serialize(Print& file) override;
   PageElementTag getTag() const override { return TAG_PageTableFragment; }
   static std::unique_ptr<PageTableFragment> deserialize(FsFile& file);
   uint16_t getHeight() const;
@@ -205,7 +205,7 @@ class Page {
                                    bool foregroundBlack = true, bool renderCachedImages = true,
                                    bool imageGrayscale = true) const;
   bool forEachTextLine(PageTextLineVisitor visitor, void* context) const;
-  bool serialize(FsFile& file) const;
+  bool serialize(Print& file) const;
   static std::unique_ptr<Page> deserialize(FsFile& file);
 
   // Return the fixed-point page units protected by images on this page. Text

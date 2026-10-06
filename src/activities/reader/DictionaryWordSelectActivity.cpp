@@ -160,7 +160,6 @@ void DictionaryWordSelectActivity::onEnter() {
   if (!buildWorkingSet(consumeInitialConfirm)) {
     if (workingSetMemoryError_) {
       GUI.drawPopup(renderer, tr(STR_MEMORY_ERROR));
-      renderer.displayBuffer();
       delay(1000);
     }
     ActivityResult result;

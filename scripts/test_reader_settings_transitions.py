@@ -28,6 +28,7 @@ FIXTURES = r'''
 #include <cassert>
 #include <cstdint>
 #include <string>
+#include <memory>
 #include "activities/ActivityResult.h"
 
 struct ResultActivity {
@@ -140,7 +141,31 @@ struct TtfRenderOptionsActivity : Activity, ResultActivity {
   void onExit();
   void finishWithResult();
 };
-struct Book { std::string getCachePath() const { return "/book"; } } book;
+struct Book {
+  bool chapters = true;
+  bool hasChapters() const { return chapters; }
+  uint32_t getChapterCount() const { return chapters ? 3 : 0; }
+  uint32_t getPageCount() const { return 6; }
+  std::string getCachePath() const { return "/book"; }
+} book;
+struct RenderLock { template <typename T> explicit RenderLock(T&) {} };
+struct Input {
+  void suppressNextConfirmRelease() {}
+  void suppressNextPowerRelease() {}
+  void suppressNextPowerConfirmRelease() {}
+};
+struct XtcReaderChapterSelectionActivity {
+  XtcReaderChapterSelectionActivity(Renderer&, Input&, Book*, uint32_t) {}
+};
+bool failChapterAllocation = false;
+template <typename T, typename... Args> std::unique_ptr<T> makeUniqueNoThrow(Args&&... args) {
+  if (failChapterAllocation) return {};
+  return std::make_unique<T>(std::forward<Args>(args)...);
+}
+constexpr int STR_NO_CHAPTERS = 0;
+const char* tr(int) { return "No chapters"; }
+void drawToast(Renderer&, const char*) {}
+void delay(unsigned long duration) { now += duration; }
 struct ReaderState {
   Book* epub = &book;
   Book* xtc = &book;
@@ -189,11 +214,53 @@ struct XtcReaderActivity : ReaderState {
   bool currentPageReadingSecondsForStats(uint32_t&, const char*) const;
   void recordCurrentPageReadingTime(const char*);
   void startDailyReadingInterval();
-  void resumeReadingStatsTimer(const char*) {}
+  void resumeReadingStatsTimer(const char*);
+  void pauseReadingStatsTimer(const char*);
+  void openChapterSelection();
+  uint32_t currentPage = 0;
+  Renderer& renderer = ::renderer;
+  Input mappedInput;
+  int chapterStarts = 0;
+  template <typename Callback> void startActivityForResult(
+      std::unique_ptr<XtcReaderChapterSelectionActivity>, Callback) {
+    assert(pageShownAtMs == 0);
+    ++chapterStarts;
+  }
 };
 '''
 
 CASES = r'''
+void checkXtcChapterFailureStats() {
+  SETTINGS.enabled = true;
+  for (bool fromMenu : {false, true}) {
+    for (bool unavailable : {false, true}) {
+      now = 10000;
+      XtcReaderActivity reader;
+      if (fromMenu) reader.pauseReadingStatsTimer("reader_menu");
+      book.chapters = !unavailable;
+      failChapterAllocation = !unavailable;
+      reader.openChapterSelection();
+      assert(reader.chapterStarts == 0);
+      assert(reader.sessionReadingSeconds == 120);
+      assert(reader.dailyReadingSession.recordedSeconds == 9);
+      assert(reader.dailyReadingSession.accepts == 1);
+      assert(reader.pageShownAtMs == now);
+      assert(reader.updates == 1);
+      now += 3000;
+      reader.pauseReadingStatsTimer("exit");
+      assert(reader.sessionReadingSeconds == 123);
+      assert(reader.dailyReadingSession.recordedSeconds == 12);
+    }
+  }
+  book.chapters = true;
+  failChapterAllocation = false;
+  now = 10000;
+  XtcReaderActivity reader;
+  reader.openChapterSelection();
+  assert(reader.chapterStarts == 1 && reader.sessionReadingSeconds == 120);
+  assert(reader.dailyReadingSession.recordedSeconds == 9);
+}
+
 template <typename Reader> void checkStats(bool globalToggle) {
   SETTINGS.enabled = true;
   Reader reader;
@@ -446,6 +513,7 @@ int main(int argc, char**) {
     checkFailedSaveSurvivesReload<EpubReaderActivity>();
     checkFailedSaveSurvivesReload<XtcReaderActivity>();
     checkXtcStatsScreenReturn();
+    checkXtcChapterFailureStats();
     checkEpubResetSnapshot();
   }
 }
@@ -473,6 +541,8 @@ def main():
                              ("onFrontlightPanelClosed", "void")):
             methods += method(path, f"{result} {reader}::{name}(")
         if reader == "XtcReaderActivity":
+            for name in ("openChapterSelection", "pauseReadingStatsTimer", "resumeReadingStatsTimer"):
+                methods += method(path, f"void {reader}::{name}(")
             methods += method(path, f"void {reader}::commitReadingStats()")
             methods += method(path, f"void {reader}::applyBookStatsEditsFromDisk()")
         else:

@@ -2,6 +2,7 @@
 
 #include <Txt.h>
 
+#include <optional>
 #include <vector>
 
 #include "CrossPointSettings.h"
@@ -14,6 +15,9 @@
 #endif
 
 class TxtReaderActivity final : public Activity {
+#ifdef SIMULATOR
+  friend struct StatusBarFeatureSmokeTest;
+#endif
   OptionPopup quickActionsPopup;
   std::unique_ptr<Txt> txt;
 
@@ -46,11 +50,14 @@ class TxtReaderActivity final : public Activity {
   uint8_t cachedHorizontalMargin = 0;
   uint8_t cachedParagraphAlignment = CrossPointSettings::LEFT_ALIGN;
   int cachedTopStatusBarHeight = 0;
-  int cachedBottomStatusBarHeight = 0;
+  int cachedFooterReservedHeight = 0;
   int cachedOrientedMarginTop = 0;
   int cachedOrientedMarginRight = 0;
   int cachedOrientedMarginBottom = 0;
   int cachedOrientedMarginLeft = 0;
+  // Keep one content anchor through repeated bar edits until the reader turns a page.
+  std::optional<size_t> statusBarRelayoutOffset;
+  int statusBarRelayoutPage = -1;
 
   void renderPage();
   void renderStatusBar() const;

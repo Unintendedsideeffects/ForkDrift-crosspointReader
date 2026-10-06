@@ -93,10 +93,12 @@ inline int getTopStatusBarReservedHeight(const GfxRenderer& renderer) {
 }
 
 inline bool bottomStatusBarHasTextLane() {
-  return SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom).hasTextItems(halClock.isAvailable());
+  const auto bar = SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom);
+  return !bar.hidden && bar.hasTextItems(halClock.isAvailable());
 }
 
 inline int getReaderFooterReservedHeight(const GfxRenderer& renderer, const bool automaticPageTurnActive) {
+  if (SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom).hidden) return SETTINGS.screenMarginVertical;
   const int statusBarHeight = UITheme::getInstance().getStatusBarHeight(renderer);
   if (automaticPageTurnActive && !bottomStatusBarHasTextLane()) {
     const int autoTurnBarHeight =

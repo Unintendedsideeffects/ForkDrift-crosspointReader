@@ -398,6 +398,8 @@ inline uint8_t shortcutRawValue(const ShortcutOptionCatalog catalog, const Cross
           return Chord::CHORD_NEARBY_POSITION_SYNC;
         case Action::LIBRARY:
           return Chord::CHORD_LIBRARY;
+        case Action::SELECT_CHAPTER:
+          return Chord::CHORD_SELECT_CHAPTER;
         case Action::FILE_TRANSFER:
           return Chord::CHORD_FILE_TRANSFER;
         case Action::CALIBRE_WIRELESS:
@@ -494,6 +496,8 @@ inline uint8_t shortcutRawValue(const ShortcutOptionCatalog catalog, const Cross
           return LongPress::LONG_MENU_HOME_READER;
         case Action::BACK_HOME:
           return LongPress::LONG_MENU_BACK_HOME;
+        case Action::SELECT_CHAPTER:
+          return LongPress::LONG_MENU_SELECT_CHAPTER;
         case Action::PAGE_TURN:
         case Action::PREVIOUS_PAGE:
         case Action::NEARBY_POSITION_SYNC:
@@ -596,7 +600,8 @@ inline SettingInfo buildSideButtonActionSetting(const StrId nameId, uint8_t Cros
 // #1636) so the per-entry SettingInfo cost is paid once. Read-only consumers
 // can use it directly; mutable device UI lists use getSettingsList(), which
 // returns an owned copy and can add SD-card font and dictionary options.
-// Four edge gesture entries are compiled only for touch devices.
+// 105 common entries. Four edge gesture entries are compiled only for touch
+// devices; getBaseSettingsCapacity() adds the two runtime IMU entries.
 inline constexpr size_t BASE_SETTINGS_CAPACITY = 105 + (CROSSINK_APP_CAP_TOUCH ? 4 : 0);
 
 inline size_t getBaseSettingsCapacity() {
@@ -1001,7 +1006,6 @@ inline std::vector<SettingInfo> buildGroupedDisplaySettingsList(const std::vecto
     displaySettings.push_back(SettingInfo::Submenu(StrId::STR_FRONTLIGHT, SettingAction::DisplayFrontlight));
   }
   displaySettings.push_back(SettingInfo::Action(StrId::STR_STATUS_BAR, SettingAction::DisplayStatusBar));
-  addDisplaySetting(StrId::STR_HIDE_BATTERY);
   addDisplaySetting(StrId::STR_REFRESH_FREQ);
   addDisplaySetting(StrId::STR_NIGHT_MODE);
   addDisplaySetting(StrId::STR_UI_THEME);

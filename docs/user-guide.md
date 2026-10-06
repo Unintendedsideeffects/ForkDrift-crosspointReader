@@ -232,10 +232,10 @@ device model and build.
 
 - **Quick Resume on Timeout**: Whether to enable the "Quick Resume" sleep screen when the device goes to sleep due to inactivity (System > Time to Sleep). This is useful for quickly resuming reading without waiting for the device to fully wake up and load the book. This overwrites the Sleep Screen Cover Mode when enabled.
 
-- **Hide Battery %**: Configure where to suppress the battery percentage display in the status bar; the battery icon will still be shown:
-  - "Never" (default) - Always show battery percentage
-  - "In Reader" - Show battery percentage everywhere except in reading mode
-  - "Always" - Always hide battery percentage
+- **Status Bar**: Choose the items shown in the status bar above menus and
+  library screens. **Battery** sets how a Battery item appears: "Icon + %"
+  (default), "Icon Only", or "% Only". Reader bars have their own **Battery**
+  choice under **Status Bars**.
 
 - **Hide Clock**: On devices with a real-time clock, choose whether the clock is
   shown everywhere, hidden only in the reader, or always hidden.
@@ -363,7 +363,8 @@ individual global changes. **Delete Book Cache** does not reset these choices.
   - Progress Bar Thickness - Set the thickness of the progress bar
   - Title - Display the chapter or book title
   - Time Left - Display the estimated reading time left for the book or chapter
-  - Battery - Show/Hide the battery indicator
+  - Battery - Show/Hide the battery indicator. The bar's **Battery** option, above
+    Percentage Format, shows it as "Icon + %" (default), "Icon Only", or "% Only".
   - XTC Status Bar - Show/Hide a status bar for XTC files
 
 On touchscreen readers, when **Tap to Hide Status Bar** is enabled (the default
@@ -848,12 +849,12 @@ swipes from **Settings > Controls > Taps & Gestures > Two-finger Swipe**. Set an
 action for **Swipe Up**, **Swipe Down**, **Swipe Left**, or **Swipe Right**, then
 move two fingers together in that direction while reading. Available actions
 are **Not Set**, **Increase Brightness**, **Decrease Brightness**, **Increase
-Warmth**, **Decrease Warmth**, **Next Chapter**, **Previous Chapter**, **Increase
+Warmth**, **Decrease Warmth**, **Select Chapter**, **Next Chapter**, **Previous Chapter**, **Increase
 Font Size**, and **Decrease Font Size**. Brightness and warmth options appear
-only when the hardware supports them; chapter options apply to EPUBs, and font
+only when the hardware supports them; Select Chapter opens the chapter list in EPUB and XTC books, Next/Previous Chapter apply to EPUBs, and font
 size options apply to EPUB and TXT books. Each direction starts as **Not Set**,
 and each action can be assigned to only one direction; choosing it again moves
-it to the new direction. On image-based XTC books, chapter and font-size actions
+it to the new direction. On image-based XTC books, Next/Previous Chapter and font-size actions
 are consumed but cannot change the pre-rendered pages. See [Two-finger Swipe
 Actions](./controls.md#two-finger-swipe-actions) for the complete list and
 reader-specific limitations.

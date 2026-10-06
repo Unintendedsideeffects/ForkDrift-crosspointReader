@@ -41,7 +41,8 @@ struct Snapshot {
   HalDeviceInfo::Snapshot hardware;
   uint16_t preferences[PreferenceCount]{};
   uint8_t statusSlots[17]{};   // top 7, bottom 7, display 3; choices, never rendered titles.
-  uint8_t statusOptions[6]{};  // percentage/bar/thickness for top and bottom.
+  uint8_t statusOptions[9]{};  // percentage/bar/thickness for top and bottom, then top/bottom/display battery.
+  bool statusHidden[2]{};      // top and bottom, independent of their assigned slots.
   uint8_t quickActions[5]{};
   bool customFont = false;
   bool dictionaryCustomFont = false;

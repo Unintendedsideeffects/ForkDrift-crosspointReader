@@ -79,6 +79,7 @@ bool isWebEnumOptionAvailable(const SettingInfo& setting, size_t optionIndex) {
   if (optionIndex >= setting.enumValues.size()) return true;
 
   const StrId option = setting.enumValues[optionIndex];
+  if (option == StrId::STR_THEME_COVER_GRID && !UITheme::supportsCoverGrid()) return false;
   if (!SETTINGS.shouldTrackReadingStats()) {
     if (option == StrId::STR_READING_STATS) return false;
     if (setting.valuePtr == &CrossPointSettings::sleepScreen && optionIndex < setting.enumRawValues.size()) {
@@ -117,7 +118,8 @@ uint8_t enumDisplayIndexForWeb(const SettingInfo& setting, uint8_t rawValue) {
 }
 
 bool isWebSettingAvailable(const SettingInfo& setting) {
-  if (setting.category == StrId::STR_STATUS_BARS || setting.nameId == StrId::STR_HIDE_CLOCK) {
+  if (setting.category == StrId::STR_STATUS_BARS || setting.nameId == StrId::STR_HIDE_CLOCK ||
+      settingKeyIs(setting, "displayStatusBarTextSize")) {
     return false;
   }
   if (setting.nameId == StrId::STR_SIDE_BUTTON_CHORD && !deviceSupportsSideButtonChord(gpio)) {
@@ -1467,9 +1469,11 @@ void CrossPointWebServer::handleGetStatusBars() const {
   writeReaderStatusBarJson(doc["top"].to<JsonObject>(), SETTINGS.readerStatusBar(ReaderStatusBarPosition::Top));
   writeReaderStatusBarJson(doc["bottom"].to<JsonObject>(), SETTINGS.readerStatusBar(ReaderStatusBarPosition::Bottom));
   doc["xtcMode"] = SETTINGS.xtcStatusBarMode;
+  doc["displayTextSize"] = SETTINGS.displayStatusBarTextSize;
   doc["clockAvailable"] = halClock.isAvailable();
   JsonArray displaySlots = doc["display"].to<JsonArray>();
   for (const auto item : SETTINGS.displayStatusBar.slots) displaySlots.add(static_cast<uint8_t>(item));
+  doc["displayBatteryStyle"] = static_cast<uint8_t>(SETTINGS.displayStatusBar.batteryStyle);
 
   JsonObject labels = doc["labels"].to<JsonObject>();
   labels["display"] = tr(STR_STATUS_BAR);
@@ -1478,9 +1482,12 @@ void CrossPointWebServer::handleGetStatusBars() const {
   labels["left"] = tr(STR_STATUS_BAR_LEFT);
   labels["center"] = tr(STR_CENTER);
   labels["right"] = tr(STR_STATUS_BAR_RIGHT);
+  labels["battery"] = tr(STR_BATTERY);
   labels["percentageFormat"] = tr(STR_PERCENTAGE_FORMAT);
   labels["progressBar"] = tr(STR_PROGRESS_BAR);
   labels["thickness"] = tr(STR_PROGRESS_BAR_THICKNESS);
+  labels["hidden"] = tr(STR_HIDE);
+  labels["textSize"] = tr(STR_STATUS_BAR_TEXT_SIZE);
   labels["xtcMode"] = tr(STR_XTC_STATUS_BAR);
   labels["preview"] = tr(STR_PREVIEW);
 
@@ -1509,11 +1516,15 @@ void CrossPointWebServer::handleGetStatusBars() const {
     JsonArray labels = doc[name].to<JsonArray>();
     for (const StrId id : ids) labels.add(I18N.get(id));
   };
+  addLabels("batteryStyles",
+            {StrId::STR_BATTERY_ICON_AND_PERCENT, StrId::STR_BATTERY_ICON_ONLY, StrId::STR_BATTERY_PERCENT_ONLY});
   addLabels("percentageFormats", {StrId::STR_PERCENTAGE_FORMAT_WHOLE, StrId::STR_PERCENTAGE_FORMAT_ONE_DECIMAL,
                                   StrId::STR_PERCENTAGE_FORMAT_TWO_DECIMALS});
   addLabels("progressModes", {StrId::STR_BOOK, StrId::STR_CHAPTER, StrId::STR_HIDE});
   addLabels("thicknesses",
             {StrId::STR_PROGRESS_BAR_THIN, StrId::STR_PROGRESS_BAR_MEDIUM, StrId::STR_PROGRESS_BAR_THICK});
+  addLabels("hideOptions", {StrId::STR_OFF, StrId::STR_ON});
+  addLabels("textSizes", {StrId::STR_SMALL, StrId::STR_MEDIUM, StrId::STR_LARGE});
   addLabels("xtcModes", {StrId::STR_HIDE, StrId::STR_BOTTOM, StrId::STR_TOP, StrId::STR_STATUS_BAR_BOTH});
 
   String payload;
@@ -1531,9 +1542,19 @@ void CrossPointWebServer::handlePostStatusBars() {
     server->send(400, "text/plain", "Invalid JSON");
     return;
   }
+  const auto textSize = doc["displayTextSize"];
+  if (!textSize.isUnbound() && (!textSize.is<int>() || textSize.as<int>() < 0 || textSize.as<int>() > 2)) {
+    server->send(400, "text/plain", "Invalid status bar text size");
+    return;
+  }
   ReaderStatusBarsPayload bars;
   DisplayStatusBarConfig display;
+  {
+    std::lock_guard<std::mutex> lock(SETTINGS.getMutex());
+    display = SETTINGS.displayStatusBar;
+  }
   if ((!doc["display"].isNull() && !readDisplayStatusBarJson(doc["display"], display, halClock.isAvailable())) ||
+      !readReaderStatusBarBatteryStyle(doc["displayBatteryStyle"], display.batteryStyle) ||
       !CrossPointSettings::parseReaderStatusBars(doc.as<JsonVariantConst>(), bars)) {
     server->send(400, "text/plain", "Invalid status bar configuration");
     return;
@@ -1544,13 +1565,20 @@ void CrossPointWebServer::handlePostStatusBars() {
     if (previousTop.slots != bars.top.slots || previousTop.percentageFormat != bars.top.percentageFormat ||
         previousTop.progressBar != bars.top.progressBar ||
         previousTop.progressBarThickness != bars.top.progressBarThickness ||
+        (!doc["top"]["battery"].isUnbound() && previousTop.batteryStyle != bars.top.batteryStyle) ||
         SETTINGS.xtcStatusBarMode != bars.xtcMode) {
       SETTINGS.legacyXtcTopUsesBottom = 0;
     }
+    // Older clients have no Hide field; editing slots must retain visibility.
+    if (doc["top"]["hidden"].isUnbound()) bars.top.hidden = previousTop.hidden;
+    if (doc["bottom"]["hidden"].isUnbound()) bars.bottom.hidden = SETTINGS.bottomReaderStatusBar.hidden;
+    if (doc["top"]["battery"].isUnbound()) bars.top.batteryStyle = previousTop.batteryStyle;
+    if (doc["bottom"]["battery"].isUnbound()) bars.bottom.batteryStyle = SETTINGS.bottomReaderStatusBar.batteryStyle;
     SETTINGS.topReaderStatusBar = bars.top;
     SETTINGS.bottomReaderStatusBar = bars.bottom;
     SETTINGS.xtcStatusBarMode = bars.xtcMode;
-    if (!doc["display"].isNull()) SETTINGS.displayStatusBar = display;
+    if (!doc["display"].isNull() || !doc["displayBatteryStyle"].isUnbound()) SETTINGS.displayStatusBar = display;
+    if (!textSize.isUnbound()) SETTINGS.displayStatusBarTextSize = textSize.as<uint8_t>();
   }
   if (!SETTINGS.saveToFile()) {
     LOG_ERR("WEB", "Failed to save status bar configuration");

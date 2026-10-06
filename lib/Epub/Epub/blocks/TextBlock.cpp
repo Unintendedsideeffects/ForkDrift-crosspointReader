@@ -4,6 +4,7 @@
 #include <GfxRenderer.h>
 #include <Logging.h>
 #include <Memory.h>
+#include <PrintSerialization.h>
 #include <Serialization.h>
 
 #include <algorithm>
@@ -374,7 +375,7 @@ void TextBlock::render(const GfxRenderer& renderer, int fontId, const int x, con
   }
 }
 
-bool TextBlock::serialize(HalFile& file) const {
+bool TextBlock::serialize(Print& file) const {
   if (!isValid) {
     LOG_ERR("TXB", "Serialization failed: invalid block");
     return false;
@@ -392,7 +393,7 @@ bool TextBlock::serialize(HalFile& file) const {
   if (numWords > 0) {
     const size_t size =
         arenaSize(numWords, focusPresent, guideDotsPresent, wordFlagsPresent, wordSpacesPresent, textBytes);
-    if (file.write(arena.get(), size) != static_cast<int>(size)) {
+    if (file.write(arena.get(), size) != size) {
       LOG_ERR("TXB", "Serialization failed: arena write (%u bytes)", static_cast<uint32_t>(size));
       return false;
     }

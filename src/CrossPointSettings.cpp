@@ -167,6 +167,14 @@ void applyLegacyFrontButtonLayout(CrossPointSettings& settings) {
   }
 }
 
+// Hide Battery % (Never / In Reader / Always) predates per-bar battery styles.
+// In Reader hid the percentage only in reader bars, so the UI header kept it.
+ReaderStatusBarBatteryStyle legacyBatteryStyle(const uint8_t hideBatteryPercentage, const bool displayBar) {
+  const bool hidden = displayBar ? hideBatteryPercentage == CrossPointSettings::HIDE_ALWAYS
+                                 : hideBatteryPercentage != CrossPointSettings::HIDE_NEVER;
+  return hidden ? ReaderStatusBarBatteryStyle::IconOnly : ReaderStatusBarBatteryStyle::IconAndPercent;
+}
+
 void applyLegacyStatusBarSettings(CrossPointSettings& settings) {
   switch (static_cast<CrossPointSettings::STATUS_BAR_MODE>(settings.statusBar)) {
     case CrossPointSettings::NONE:
@@ -233,7 +241,7 @@ bool isValidQuickActionSlot(const uint8_t action) {
          action == CrossPointSettings::TOGGLE_FRONTLIGHT || action == CrossPointSettings::TOGGLE_TOUCHSCREEN ||
          action == CrossPointSettings::PREVIOUS_PAGE || action == CrossPointSettings::NEARBY_POSITION_SYNC ||
          action == CrossPointSettings::LIBRARY || action == CrossPointSettings::HOME_READER ||
-         action == CrossPointSettings::BACK_HOME;
+         action == CrossPointSettings::BACK_HOME || action == CrossPointSettings::SELECT_CHAPTER;
 }
 
 uint8_t migrateTiltDirectionValue(const uint8_t direction) {
@@ -281,6 +289,7 @@ bool CrossPointSettings::isTwoFingerSwipeActionAvailable(const uint8_t action, c
     case TWO_FINGER_SWIPE_NOT_SET:
     case TWO_FINGER_SWIPE_BACK_HOME:
     case TWO_FINGER_SWIPE_HOME_READER:
+    case TWO_FINGER_SWIPE_SELECT_CHAPTER:
     case TWO_FINGER_SWIPE_NEXT_CHAPTER:
     case TWO_FINGER_SWIPE_PREVIOUS_CHAPTER:
     case TWO_FINGER_SWIPE_INCREASE_FONT_SIZE:
@@ -465,6 +474,7 @@ void CrossPointSettings::toJson(JsonDocument& doc) const {
 
   JsonArray displaySlots = doc["displayStatusBar"].to<JsonArray>();
   for (const auto item : displayStatusBar.slots) displaySlots.add(static_cast<uint8_t>(item));
+  doc["displayBatteryStyle"] = static_cast<uint8_t>(displayStatusBar.batteryStyle);
 
   JsonObject bars = doc["readerStatusBars"].to<JsonObject>();
   bars["version"] = 1;
@@ -583,7 +593,10 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc, bool importingCrossPoint
       continue;
     }
 
-    const uint8_t fieldDefault = this->*(info.valuePtr);
+    // Older exports have no global status font size. Importing one must restore
+    // the original Small header, even if this session previously selected Large.
+    const uint8_t fieldDefault =
+        info.valuePtr == &CrossPointSettings::displayStatusBarTextSize ? 0 : this->*(info.valuePtr);
     uint8_t value = doc[info.key] | fieldDefault;
     if (strcmp(info.key, "sdFontSizeRange") == 0 && value == SD_FONT_RANGE_NO_EMOJI_LEGACY) {
       value = SD_FONT_RANGE_ALL;
@@ -811,6 +824,7 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc, bool importingCrossPoint
   }
   const JsonVariantConst bars = doc["readerStatusBars"];
   if (bars["version"] != 1) {
+    topReaderStatusBar = ReaderStatusBarConfig{};
     bottomReaderStatusBar = migrateBottomStatusBar(
         {statusBarChapterPageCount != 0, stablePageNumbers != 0, statusBarBookProgressPercentage != 0, statusBarTitle,
          statusBarTimeLeft, statusBarBattery != 0, statusBarBookPercentageFormat, statusBarProgressBar,
@@ -832,6 +846,22 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc, bool importingCrossPoint
       needsResave = true;
     }
     legacyXtcTopUsesBottom = bars["legacyXtcTopUsesBottom"].as<bool>() ? 1 : 0;
+  }
+  const uint8_t legacyHideBattery =
+      clamp(doc["hideBatteryPercentage"] | static_cast<uint8_t>(HIDE_NEVER), HIDE_BATTERY_PERCENTAGE_COUNT, HIDE_NEVER);
+  const auto migrateReaderBatteryStyle = [&](const char* key, ReaderStatusBarConfig& bar) {
+    if (bars["version"] == 1 && !bars[key]["battery"].isUnbound()) return;
+    bar.batteryStyle = legacyBatteryStyle(legacyHideBattery, false);
+    needsResave = true;
+  };
+  migrateReaderBatteryStyle("top", topReaderStatusBar);
+  migrateReaderBatteryStyle("bottom", bottomReaderStatusBar);
+  if (doc["displayBatteryStyle"].isUnbound()) {
+    displayStatusBar.batteryStyle = legacyBatteryStyle(legacyHideBattery, true);
+    needsResave = true;
+  } else if (!readReaderStatusBarBatteryStyle(doc["displayBatteryStyle"], displayStatusBar.batteryStyle)) {
+    displayStatusBar.batteryStyle = ReaderStatusBarBatteryStyle::IconAndPercent;
+    needsResave = true;
   }
   if (doc["sleepTimeoutMinutes"].isNull() && !doc["sleepTimeout"].isNull()) {
     const uint8_t legacyValue =
@@ -998,6 +1028,9 @@ bool CrossPointSettings::loadFromFile() {
           {statusBarChapterPageCount != 0, stablePageNumbers != 0, statusBarBookProgressPercentage != 0, statusBarTitle,
            statusBarTimeLeft, statusBarBattery != 0, statusBarBookPercentageFormat, statusBarProgressBar,
            statusBarProgressBarThickness});
+      topReaderStatusBar.batteryStyle = legacyBatteryStyle(hideBatteryPercentage, false);
+      bottomReaderStatusBar.batteryStyle = legacyBatteryStyle(hideBatteryPercentage, false);
+      displayStatusBar.batteryStyle = legacyBatteryStyle(hideBatteryPercentage, true);
       migrateLanguageBinaryFile();
       if (saveToFile()) {
         Storage.rename(SETTINGS_FILE_BIN, SETTINGS_FILE_BAK);
@@ -1189,8 +1222,13 @@ void CrossPointSettings::setReaderStatusBar(const ReaderStatusBarPosition positi
                                             const ReaderStatusBarConfig& config) {
   std::lock_guard<std::mutex> lock(_mutex);
   if (position == ReaderStatusBarPosition::Top) {
+    if (topReaderStatusBar.slots != config.slots || topReaderStatusBar.percentageFormat != config.percentageFormat ||
+        topReaderStatusBar.progressBar != config.progressBar ||
+        topReaderStatusBar.progressBarThickness != config.progressBarThickness ||
+        topReaderStatusBar.batteryStyle != config.batteryStyle) {
+      legacyXtcTopUsesBottom = 0;
+    }
     topReaderStatusBar = config;
-    legacyXtcTopUsesBottom = 0;
   } else {
     bottomReaderStatusBar = config;
   }

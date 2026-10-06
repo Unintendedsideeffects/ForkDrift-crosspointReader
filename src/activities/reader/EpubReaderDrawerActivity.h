@@ -49,6 +49,7 @@ class EpubReaderDrawerActivity final : public Activity {
       std::unique_ptr<EpubReaderPreviewModel> ownedPreviewModel = nullptr);
 
 #ifdef SIMULATOR
+  freeink::ui::Rect simulatorHandleRect() const { return drawerHandleRect; }
   const ReaderDrawerState& simulatorState() const { return state; }
   bool simulatorFocusedRowVisible() const {
     return buttonFocusActive && state.selectedIndex >= activeTopIndex() &&

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import struct
@@ -41,7 +42,8 @@ THEMES = {
 
 
 def program_path(env_name: str) -> Path:
-    return ROOT / ".pio" / "build" / env_name / "program"
+    build_dir = Path(os.environ.get("PLATFORMIO_BUILD_DIR", ROOT / ".pio" / "build"))
+    return build_dir / env_name / "program"
 
 
 def build_simulator(env_name: str) -> None:
@@ -82,12 +84,33 @@ def run_smoke(args: argparse.Namespace) -> int:
         if args.font_dir:
             shutil.copytree(Path(args.font_dir), temp_root / "fs_" / "fonts", dirs_exist_ok=True)
         env = os.environ.copy()
+        if args.language_file:
+            language_path = temp_root / "fs_" / ".crosspoint" / "languages" / "smoke.yaml"
+            language_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(Path(args.language_file), language_path)
+            env["CROSSINK_LANGUAGE_FLASH"] = str(temp_root / "language-flash.bin")
+            installer_env = dict(env, CROSSINK_TEST_SD=str(temp_root / "fs_"))
+            installed = subprocess.run(
+                [str(Path(args.language_installer).resolve()), "install", "EN", "0",
+                 "/.crosspoint/languages/smoke.yaml"],
+                cwd=temp_root, env=installer_env, text=True, capture_output=True, check=True, timeout=30,
+            )
+            code, generation = installed.stdout.strip().split("|")
+            (temp_root / "fs_" / ".crosspoint" / "crossink-settings.json").write_text(
+                json.dumps({"language": code, "languageCacheGeneration": int(generation)})
+            )
         if args.filename_font_dir:
             shutil.copytree(Path(args.filename_font_dir), temp_root / "fs_" / ".crosspoint" / "languages" / "fonts", dirs_exist_ok=True)
         if args.filename_font_family:
             env["CROSSINK_SIMULATOR_SMOKE_FILENAME_FONT"] = args.filename_font_family
         if args.filename_font_captures:
             env["CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_CAPTURES"] = str(Path(args.filename_font_captures).resolve())
+        if args.status_bar_lifecycle:
+            env["CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_LIFECYCLE"] = "1"
+        if args.status_bar_feature:
+            env["CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_FEATURE"] = "1"
+        if args.status_bar_captures:
+            env["CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_CAPTURES"] = str(Path(args.status_bar_captures).resolve())
         if args.dictionary:
             dictionary = temp_root / "fs_" / "dictionary-smoke"
             dictionary.mkdir()
@@ -143,7 +166,7 @@ def run_smoke(args: argparse.Namespace) -> int:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            timeout=args.timeout if args.timeout is not None else (180 if args.frontlight_layout or args.about or args.support_export or args.filename_font_family else 45),
+            timeout=args.timeout if args.timeout is not None else (180 if args.frontlight_layout or args.about or args.support_export or args.filename_font_family else 120),
         )
 
     print(proc.stdout, end="")
@@ -151,6 +174,10 @@ def run_smoke(args: argparse.Namespace) -> int:
     if proc.returncode != 0:
         print(f"Simulator smoke test failed with exit code {proc.returncode}", file=sys.stderr)
         return proc.returncode
+
+    if args.language_file and f"Mapped {code} " not in proc.stdout:
+        print(f"Simulator did not boot with cached language {code}", file=sys.stderr)
+        return 2
 
     for pattern in CRASH_PATTERNS:
         if pattern in proc.stdout:
@@ -176,13 +203,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--book", default=str(DEFAULT_BOOK), help="EPUB fixture to copy into the isolated simulator fs_")
     parser.add_argument("--env", choices=("simulator", "simulator-X3", "x4-classic-simulator", "sticky-simulator", "x4-pro-simulator"), default="simulator",
                         help="PlatformIO simulator environment to build and run")
+    parser.add_argument("--status-bar-lifecycle", action="store_true", help="Exercise reader settings return and reflow")
+    parser.add_argument("--status-bar-feature", action="store_true", help="Check status bar visibility, independent sizes, disk reload and rendered theme/orientation matrix")
+    parser.add_argument("--status-bar-captures", help="Directory for status bar feature framebuffer captures (PGM)")
+    parser.add_argument("--language-file", help="SD language YAML installed before boot for localized smoke checks")
+    parser.add_argument("--language-installer", help="Native I18nIntegrationTool built from the same source (required with --language-file)")
     parser.add_argument("--dictionary", action="store_true", help="Check French contractions and exact dictionary matches")
     parser.add_argument("--font-dir", help="Font fixtures copied into isolated /fonts")
     parser.add_argument("--filename-font-dir", help="TTF family fixtures copied into /.crosspoint/languages/fonts")
     parser.add_argument("--filename-font-family", help="Check filename font picker, mixed glyphs and storage lifecycle (S3)")
     parser.add_argument("--filename-font-captures", help="Directory for filename font framebuffer captures (PGM)")
     parser.add_argument("--font-family", help="Exercise custom-font size and dictionary lifecycle")
-    parser.add_argument("--timeout", type=int, help="Seconds before the simulator run is treated as hung (default: 45, or 180 for frontlight layout)")
+    parser.add_argument("--timeout", type=int, help="Seconds before the simulator run is treated as hung (default: 120, or 180 for frontlight layout, about, support export, or filename font checks)")
     parser.add_argument("--page-turns", type=int, default=2, help="Number of EPUB page-forward taps to run")
     parser.add_argument("--theme", choices=sorted(THEMES), help="UI theme to use during the smoke test")
     parser.add_argument("--file-browser-sync-return", action="store_true", help="Check browser sync return across network reboots")
@@ -196,7 +228,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-build", dest="build", action="store_false", help="Run the existing simulator binary")
     parser.add_argument("--window", dest="headless", action="store_false", help="Show the SDL window instead of using dummy video")
     parser.set_defaults(build=True, headless=True)
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.language_file and not args.language_installer:
+        parser.error("--language-file requires --language-installer")
+    return args
 
 
 def main() -> int:

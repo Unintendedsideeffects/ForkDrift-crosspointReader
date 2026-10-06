@@ -83,6 +83,40 @@ TEST(BitmapResample, DownsamplesBeforeDitheringAndRewindsDeterministically) {
   EXPECT_EQ(secondPass, firstPass);
 }
 
+TEST(BitmapResample, DownsamplingSkipsUnusedSourceRowsWithoutChangingOutput) {
+  constexpr int kSourceWidth = 960;
+  constexpr int kSourceHeight = 1600;
+  constexpr int kTargetWidth = 480;
+  constexpr int kTargetHeight = 800;
+
+  const auto decode = [&](const bool allowSeek, size_t& bytesRead) {
+    HalFile file(create24BitBmp(kSourceWidth, kSourceHeight));
+    Bitmap bitmap(file, true);
+    EXPECT_EQ(bitmap.parseHeaders(), BmpReaderError::Ok);
+    EXPECT_TRUE(bitmap.setDitheredOutputSize(kTargetWidth, kTargetHeight));
+    file.setFailSeekCur(!allowSeek);
+    std::vector<uint8_t> row((kTargetWidth + 3) / 4);
+    std::vector<uint8_t> sourceRow(bitmap.getRowBytes());
+    std::vector<uint8_t> output;
+    for (int y = 0; y < kTargetHeight; y++) {
+      EXPECT_EQ(bitmap.readNextRow(row.data(), sourceRow.data()), BmpReaderError::Ok);
+      output.insert(output.end(), row.begin(), row.end());
+    }
+    bytesRead = file.bytesRead();
+    return output;
+  };
+
+  size_t sequentialBytes = 0;
+  size_t seekingBytes = 0;
+  const auto sequential = decode(false, sequentialBytes);
+  const auto seeking = decode(true, seekingBytes);
+  EXPECT_EQ(seeking, sequential);
+  // Half the rows are needed; headers are read either way.
+  const size_t pixelBytes = static_cast<size_t>((kSourceWidth * 24 + 31) / 32 * 4) * kSourceHeight;
+  EXPECT_GE(sequentialBytes, pixelBytes);
+  EXPECT_LE(seekingBytes, sequentialBytes - pixelBytes / 2 + 1024);
+}
+
 TEST(BitmapResample, ReadsPhysicalRowsBeforeRendererOrientation) {
   HalFile bottomUpFile(create24BitBmp(480, 800));
   HalFile topDownFile(create24BitBmp(480, 800, true));

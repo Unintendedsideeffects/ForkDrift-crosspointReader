@@ -2,6 +2,7 @@
 
 #include <GfxRenderer.h>
 #include <Logging.h>
+#include <PrintSerialization.h>
 #include <Serialization.h>
 
 #include "tables/TableColumnLayout.h"
@@ -42,7 +43,7 @@ void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset, foregroundBlack);
 }
 
-bool PageLine::serialize(FsFile& file) {
+bool PageLine::serialize(Print& file) {
   if (!serialization::tryWritePod(file, xPos) || !serialization::tryWritePod(file, yPos)) {
     LOG_ERR("PGE", "Serialization failed: could not write PageLine coordinates");
     return false;
@@ -91,7 +92,7 @@ void PageImage::renderPlaceholder(GfxRenderer& renderer, const int xOffset, cons
   imageBlock->renderPlaceholder(renderer, xPos + xOffset, yPos + yOffset, foregroundBlack);
 }
 
-bool PageImage::serialize(FsFile& file) {
+bool PageImage::serialize(Print& file) {
   if (!serialization::tryWritePod(file, xPos) || !serialization::tryWritePod(file, yPos) ||
       !serialization::tryWritePod(file, static_cast<uint8_t>(inlineImage))) {
     LOG_ERR("PGE", "Serialization failed: could not write PageImage coordinates");
@@ -137,7 +138,7 @@ void PageHorizontalRule::render(GfxRenderer& renderer, const int fontId, const i
                     foregroundBlack);
 }
 
-bool PageHorizontalRule::serialize(FsFile& file) {
+bool PageHorizontalRule::serialize(Print& file) {
   return serialization::tryWritePod(file, xPos) && serialization::tryWritePod(file, yPos) &&
          serialization::tryWritePod(file, width) && serialization::tryWritePod(file, thickness);
 }
@@ -167,7 +168,7 @@ std::unique_ptr<PageHorizontalRule> PageHorizontalRule::deserialize(FsFile& file
   return std::unique_ptr<PageHorizontalRule>(rule);
 }
 
-bool TableFragmentCell::serialize(FsFile& file) const {
+bool TableFragmentCell::serialize(Print& file) const {
   if (colSpan == 0 || colSpan > MAX_TABLE_CELLS_PER_ROW || lines.size() > MAX_TABLE_LINES_PER_CELL) {
     LOG_ERR("PTB", "Serialization failed: invalid cell span/line count (span=%u lines=%u)", colSpan,
             static_cast<uint32_t>(lines.size()));
@@ -214,7 +215,7 @@ bool TableFragmentCell::deserialize(FsFile& file, TableFragmentCell& outCell) {
   return true;
 }
 
-bool TableFragmentRow::serialize(FsFile& file) const {
+bool TableFragmentRow::serialize(Print& file) const {
   if (cells.size() > MAX_TABLE_CELLS_PER_ROW) {
     LOG_ERR("PTB", "Serialization failed: row cell count %u exceeds maximum", static_cast<uint32_t>(cells.size()));
     return false;
@@ -414,7 +415,7 @@ bool Page::forEachTextLine(const PageTextLineVisitor visitor, void* context) con
   return true;
 }
 
-bool PageTableFragment::serialize(FsFile& file) {
+bool PageTableFragment::serialize(Print& file) {
   if (rows.size() > MAX_TABLE_ROWS_PER_FRAGMENT) {
     LOG_ERR("PTB", "Serialization failed: fragment row count %u exceeds maximum", static_cast<uint32_t>(rows.size()));
     return false;
@@ -563,7 +564,7 @@ uint16_t Page::imageEstimateUnits(const uint16_t viewportWidth, const uint16_t v
   return static_cast<uint16_t>(std::min<uint64_t>(PageCountEstimator::kUnitsPerPage, units));
 }
 
-bool Page::serialize(FsFile& file) const {
+bool Page::serialize(Print& file) const {
   const uint16_t count = elements.size();
   if (elements.size() > MAX_PAGE_ELEMENTS) {
     LOG_ERR("PGE", "Serialization failed: element count %u exceeds maximum", static_cast<uint32_t>(elements.size()));
@@ -594,8 +595,9 @@ bool Page::serialize(FsFile& file) const {
   }
   for (uint16_t i = 0; i < fnCount; i++) {
     const auto& fn = footnotes[i];
-    if (file.write(fn.number, sizeof(fn.number)) != sizeof(fn.number) ||
-        file.write(fn.href, sizeof(fn.href)) != sizeof(fn.href) || !serialization::tryWritePod(file, fn.linkId)) {
+    if (file.write(reinterpret_cast<const uint8_t*>(fn.number), sizeof(fn.number)) != sizeof(fn.number) ||
+        file.write(reinterpret_cast<const uint8_t*>(fn.href), sizeof(fn.href)) != sizeof(fn.href) ||
+        !serialization::tryWritePod(file, fn.linkId)) {
       LOG_ERR("PGE", "Failed to write footnote");
       return false;
     }
@@ -609,7 +611,7 @@ bool Page::serialize(FsFile& file) const {
   for (uint8_t i = 0; i < markerCount; i++) {
     const auto& marker = publisherPageMarkers[i];
     if (!serialization::tryWritePod(file, marker.yPos) ||
-        file.write(marker.label, sizeof(marker.label)) != sizeof(marker.label)) {
+        file.write(reinterpret_cast<const uint8_t*>(marker.label), sizeof(marker.label)) != sizeof(marker.label)) {
       LOG_ERR("PGE", "Failed to write publisher page marker");
       return false;
     }
