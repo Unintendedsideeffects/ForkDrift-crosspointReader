@@ -29,6 +29,7 @@
 - Preserve EPUB image colors and gray detail in Dark Mode, including repeated page redraws.
 - Hide the Cover Grid theme from web settings on devices without PSRAM, matching the device settings menu.
 - Return to the File Browser or Library after syncing progress from a book’s context menu, preserving the browsing view.
+- Cancelling a slow OPDS download on low memory no longer crashes the device when returning to the catalog.
 
 ### Changed
 

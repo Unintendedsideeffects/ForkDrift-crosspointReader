@@ -427,29 +427,12 @@ void OpdsBookBrowserActivity::buildBrowsingScreen(UiApp::ScreenType& screen) {
     return;
   }
 
-  // Transient per-render: sized once via reserve, points into `entries`
-  // strings, freed on scope exit.
-  std::vector<fui::ListItem> items;
-  items.reserve(entryCount);
-  for (size_t i = 0; i < entryCount; ++i) {
-    const auto& entry = entries[i];
-    fui::ListItem item;
-    item.label = entry.title.c_str();
-    if (entry.type == OpdsEntryType::BOOK && !entry.author.empty()) item.subtitle = entry.author.c_str();
-    if (entry.type == OpdsEntryType::NAVIGATION) {
-      item.value = ">";
-      if (entry.count >= 0) {
-        snprintf(countLabels[i].data(), countLabels[i].size(), "(%ld) >", static_cast<long>(entry.count));
-        item.value = countLabels[i].data();
-      }
-    }
-    item.actionValue = static_cast<int16_t>(items.size());
-    items.push_back(item);
-  }
-
+  // Rows are formatted on demand for the visible viewport only, so a redraw
+  // never allocates; after a download the heap can be too fragmented for it.
   fui::ListProps props;
-  props.items = items.data();
-  props.count = static_cast<uint16_t>(items.size());
+  props.rowProvider = &OpdsBookBrowserActivity::provideRow;
+  props.rowProviderCtx = this;
+  props.count = static_cast<uint16_t>(entryCount);
   props.selectedIndex = static_cast<int16_t>(selectorIndex);
   props.action = ACTION_ROW;
   props.inputMask = fui::InputTouch;  // physical buttons stay in loop()
@@ -459,6 +442,22 @@ void OpdsBookBrowserActivity::buildBrowsingScreen(UiApp::ScreenType& screen) {
   topIndex = scrollListBy(topIndex, 0, visibleRows, static_cast<int>(entryCount));  // clamp to range
   props.topIndex = static_cast<uint16_t>(topIndex);
   screen.list(props);
+}
+
+void OpdsBookBrowserActivity::provideRow(void* user, const uint16_t index, fui::ListItem& item) {
+  auto& self = *static_cast<OpdsBookBrowserActivity*>(user);
+  const auto& entry = self.entries[index];
+  item.label = entry.title.c_str();
+  if (entry.type == OpdsEntryType::BOOK && !entry.author.empty()) item.subtitle = entry.author.c_str();
+  if (entry.type == OpdsEntryType::NAVIGATION) {
+    item.value = ">";
+    if (entry.count >= 0) {
+      auto& label = self.countLabels[index];
+      snprintf(label.data(), label.size(), "(%ld) >", static_cast<long>(entry.count));
+      item.value = label.data();
+    }
+  }
+  item.actionValue = static_cast<int16_t>(index);
 }
 
 void OpdsBookBrowserActivity::buildDescriptionScreen(UiApp::ScreenType& screen) {
