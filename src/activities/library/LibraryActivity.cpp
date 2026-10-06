@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <functional>
 
+#include "CrossPointState.h"
 #include "activities/home/BookActions.h"
 #include "activities/home/FileBrowserActionActivity.h"
 #include "activities/home/RecentBookProgress.h"
@@ -92,6 +93,9 @@ void LibraryActivity::onEnter() {
   inputOverflow = false;
   touchTracking = false;
   confirmLongPressCaptured = false;
+  PendingOverlayResume resume;
+  const bool restoreSyncReturn = APP_STATE.pendingOverlayResume.origin == PendingOverlayOrigin::Library &&
+                                 APP_STATE.consumePendingOverlayResume(resume);
   {
     RenderLock lock;
     Activity::onEnter();
@@ -108,6 +112,11 @@ void LibraryActivity::onEnter() {
                ? static_cast<Sort>(SETTINGS.librarySortMethod)
                : Sort::RecentlyRead;
     descending = SETTINGS.librarySortDescending != 0;
+    if (restoreSyncReturn) {
+      if (resume.tab <= static_cast<uint8_t>(Sort::Genre)) sort = static_cast<Sort>(resume.tab);
+      descending = resume.pane != 0;
+      query = std::move(resume.libraryQuery);
+    }
     app.on(ACTION_ROW, &LibraryActivity::onRowEvent, this);
     app.on(ACTION_CONTROL, &LibraryActivity::onControlEvent, this);
     app.setScreen(&LibraryActivity::listScreen, this);
@@ -130,6 +139,17 @@ void LibraryActivity::onEnter() {
     refreshIndexIfNeeded();
     initialScanPending = false;
     resetViewport();
+    if (restoreSyncReturn && rowCount() > 0) {
+      selection = std::clamp<int>(resume.selectedIndex, CONTROL_COUNT, CONTROL_COUNT + rowCount() - 1);
+      topIndex = std::clamp<int>(resume.scrollPosition, 0, rowCount() - 1);
+      listNav.selected = selection - CONTROL_COUNT;
+      listNav.top = topIndex;
+      // Touch lists hide selection, so reset()'s first-build follow would
+      // otherwise discard the restored scroll position.
+      listNav.followOnBuild = false;
+      gridPageStart = ((selection - CONTROL_COUNT) / GRID_PAGE_SIZE) * GRID_PAGE_SIZE;
+      loadGridProgress();
+    }
     ignoreConfirmRelease = mappedInput.isPressed(MappedInputManager::Button::Confirm);
     requestUpdate();
   }
@@ -1574,10 +1594,18 @@ void LibraryActivity::showBookActionMenu(const size_t bookIndex, const bool igno
                    reloadAfterBookAction();
                    return;
                  }
-                 case FileBrowserAction::SyncProgress:
-                   BookActions::syncProgress(renderer, book.path);
+                 case FileBrowserAction::SyncProgress: {
+                   PendingOverlayResume resume;
+                   resume.origin = PendingOverlayOrigin::Library;
+                   resume.tab = static_cast<uint8_t>(sort);
+                   resume.pane = descending;
+                   resume.selectedIndex = selection;
+                   resume.scrollPosition = topIndex;
+                   resume.libraryQuery = query;
+                   BookActions::syncProgress(renderer, book.path, std::move(resume));
                    requestUpdate();
                    return;
+                 }
                  case FileBrowserAction::ReadingStats:
                    openDialog(BookActions::createReadingStatsActivity(renderer, mappedInput, book.path, book.title),
                               [this](const ActivityResult&) { requestUpdate(); });

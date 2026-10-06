@@ -29,6 +29,15 @@ class LibraryActivity final : public Activity {
   size_t simulatorPendingInputs() const { return pendingInput.size(); }
   int simulatorSelection() const { return selection; }
   int simulatorRowCount() const { return rowCount(); }
+  int simulatorTopIndex() const { return topIndex; }
+  const std::string& simulatorQuery() const { return query; }
+  uint8_t simulatorSort() const { return static_cast<uint8_t>(sort); }
+  bool simulatorDescending() const { return descending; }
+  void simulatorSelectRow(int row) {
+    selection = CONTROL_COUNT + row;
+    reloadAfterBookAction();
+  }
+  void simulatorOpenContextMenu() { showBookActionMenu(selection - CONTROL_COUNT); }
   bool simulatorReadBook(int row, RecentBook& book) { return readBook(row, book); }
   void simulatorSetView(uint8_t method, bool reverse, const std::string& search = "") {
     sort = static_cast<Sort>(method);

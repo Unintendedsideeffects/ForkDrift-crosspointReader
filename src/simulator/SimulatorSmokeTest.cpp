@@ -2231,6 +2231,8 @@ class SimulatorSmokeTest {
 
   void tickFileBrowserSyncReturn() {
 #if CROSSINK_APP_CAP_TOUCH
+    const char* contextMenu = std::getenv("CROSSINK_SIMULATOR_SMOKE_CONTEXT_MENU_SYNC_RETURN");
+    const bool fromLibrary = contextMenu && std::string_view(contextMenu) == "library";
     const char* phase = std::getenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_PHASE");
     if (!phase) {
       const char* bookPath = std::getenv("CROSSINK_SIMULATOR_SMOKE_BOOK");
@@ -2243,9 +2245,55 @@ class SimulatorSmokeTest {
       if (!APP_STATE.saveToFile()) fail("Cannot save browser sync book path");
       KOREADER_STORE.setCredentials("smoke", "smoke");
       if (!KOREADER_STORE.saveToFile()) fail("Cannot save browser sync credentials");
-      activityManager.goToFileBrowser(bookPath);
+      if (fromLibrary) {
+        RECENT_BOOKS.addOrUpdateBook(bookPath, "Sync EPUB", "", "");
+        for (int row = 0; row < 12; ++row) {
+          const std::string path = "/books/a-sync-fixture-" + std::to_string(row) + ".txt";
+          RECENT_BOOKS.addOrUpdateBook(path, "Sync fixture", "", "");
+        }
+        if (!RECENT_BOOKS.saveToFile()) fail("Cannot save Library sync fixture");
+        activityManager.goToLibrary();
+      } else {
+        activityManager.goToFileBrowser(bookPath);
+      }
       setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_PHASE", "launch", 1);
       settleFrames = 4;
+      return;
+    }
+    if (std::string_view(phase) == "launch" && fromLibrary) {
+      auto* library = dynamic_cast<LibraryActivity*>(activityManager.simulatorCurrentActivity());
+      if (!library) fail("Expected Library before menu sync");
+      {
+        RenderLock lock;
+        library->simulatorSetView(4, true, "Sync");
+        library->simulatorSelectRow(12);
+        // Restore the view even if saved global preferences differ.
+        SETTINGS.librarySortMethod = 1;
+        SETTINGS.librarySortDescending = false;
+        if (!SETTINGS.saveToFile()) fail("Cannot save Library sync settings fixture");
+        library->requestUpdate();
+      }
+      setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_PHASE", "library-view", 1);
+      settleFrames = 4;
+      return;
+    }
+    if (std::string_view(phase) == "library-view") {
+      auto* library = dynamic_cast<LibraryActivity*>(activityManager.simulatorCurrentActivity());
+      if (!library) fail("Expected settled Library before menu sync");
+      {
+        RenderLock lock;
+        const std::string selection = std::to_string(library->simulatorSelection());
+        const std::string scroll = std::to_string(library->simulatorTopIndex());
+        setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_SELECTION", selection.c_str(), 1);
+        setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_SCROLL", scroll.c_str(), 1);
+        library->simulatorOpenContextMenu();
+      }
+      setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_PHASE", "drawer", 1);
+      inputScript = {render("Library context menu opened", 4), assertActivity("FileBrowserAction")};
+      addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+      addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+      inputScript.push_back(press(MappedInputManager::Button::Confirm));
+      scriptIndex = 0;
       return;
     }
     if (std::string_view(phase) == "launch") {
@@ -2257,6 +2305,17 @@ class SimulatorSmokeTest {
       setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_SELECTION", selection.c_str(), 1);
       setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_SCROLL", scroll.c_str(), 1);
       setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_PHASE", "drawer", 1);
+      if (contextMenu) {
+        {
+          RenderLock lock;
+          browser->simulatorOpenContextMenu();
+        }
+        inputScript = {render("Browser context menu opened", 4), assertActivity("FileBrowserAction")};
+        for (int row = 0; row < 3; ++row) addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+        inputScript.push_back(press(MappedInputManager::Button::Confirm));
+        scriptIndex = 0;
+        return;
+      }
       const int width = renderer.getScreenWidth();
       const int height = renderer.getScreenHeight();
       inputScript = {touchDown(width / 2, 8),
@@ -2277,9 +2336,11 @@ class SimulatorSmokeTest {
     }
     if (std::string_view(phase) == "network") {
       if (!activityManager.isCurrentActivityNamed("WifiSelection")) fail("Expected Wi-Fi selection after reboot");
-      if (APP_STATE.pendingOverlayResume.origin != PendingOverlayOrigin::FileBrowser ||
-          APP_STATE.pendingOverlayResume.fileBrowserPath != "/books")
-        fail("Browser return route was lost across network reboot");
+      const auto expectedOrigin = fromLibrary ? PendingOverlayOrigin::Library : PendingOverlayOrigin::FileBrowser;
+      if (APP_STATE.pendingOverlayResume.origin != expectedOrigin ||
+          (!fromLibrary && APP_STATE.pendingOverlayResume.fileBrowserPath != "/books") ||
+          (fromLibrary && APP_STATE.pendingOverlayResume.libraryQuery != "Sync"))
+        fail("Book list return route was lost across network reboot");
       setenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_PHASE", "returned", 1);
       inputScript = {press(MappedInputManager::Button::Back), release(MappedInputManager::Button::Back)};
       scriptIndex = 0;
@@ -2290,6 +2351,23 @@ class SimulatorSmokeTest {
     if (!inputScript.empty()) {
       if (scriptIndex < inputScript.size()) runReaderInputScript();
       return;
+    }
+    if (fromLibrary) {
+      auto* library = dynamic_cast<LibraryActivity*>(activityManager.simulatorCurrentActivity());
+      if (!library || library->simulatorQuery() != "Sync" || library->simulatorSort() != 4 ||
+          !library->simulatorDescending())
+        fail("Sync did not restore the Library view");
+      if (library->simulatorSelection() !=
+              std::atoi(std::getenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_SELECTION")) ||
+          library->simulatorTopIndex() != std::atoi(std::getenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_SCROLL"))) {
+        LOG_ERR("SMOKE", "Library actual selection=%d scroll=%d expected=%s/%s rows=%d", library->simulatorSelection(),
+                library->simulatorTopIndex(), std::getenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_SELECTION"),
+                std::getenv("CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_SCROLL"), library->simulatorRowCount());
+        fail("Library selection or scroll changed after sync");
+      }
+      if (APP_STATE.pendingOverlayResume.valid()) fail("Library sync return route was not consumed");
+      LOG_INF("SMOKE", "Simulator smoke test passed: Library menu sync returns through both reboots");
+      std::_Exit(0);
     }
     auto* browser = dynamic_cast<FileBrowserActivity*>(activityManager.simulatorCurrentActivity());
     if (!browser || browser->simulatorFolderPath() != "/books") fail("Sync did not return to the original folder");
@@ -2865,6 +2943,8 @@ class SimulatorSmokeTest {
         }
         if (std::getenv("CROSSINK_READING_TEST_MENU") && Storage.exists("/expected-progress.json")) {
           if (Storage.exists("/menu-network-checked")) {
+            if (!activityManager.isCurrentActivityNamed("Library") || APP_STATE.pendingOverlayResume.valid())
+              fail("Completed menu sync did not return to Library");
             LOG_INF("SMOKE", "Stats upload transport smoke passed");
             std::_Exit(0);
           }
@@ -2903,8 +2983,13 @@ class SimulatorSmokeTest {
             WIFI_STORE.setLastConnectedSsid("reading-smoke");
             APP_STATE.openEpubPath = "/read/sub/second.EPUB";
             if (!APP_STATE.saveToFile() || !KOREADER_STORE.saveToFile()) fail("Cannot save menu sync fixture");
+            PendingOverlayResume resume;
+            resume.origin = PendingOverlayOrigin::Library;
+            resume.tab = 4;
+            resume.pane = true;
             BookActions::syncProgress(
-                renderer, std::getenv("CROSSINK_READING_TEST_COLD") ? "/read/unread.epub" : "/read/first.epub");
+                renderer, std::getenv("CROSSINK_READING_TEST_COLD") ? "/read/unread.epub" : "/read/first.epub",
+                std::move(resume));
             break;
           }
           const bool currentBook = std::getenv("CROSSINK_READING_TEST_CURRENT");

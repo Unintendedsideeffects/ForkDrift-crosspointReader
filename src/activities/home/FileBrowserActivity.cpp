@@ -381,15 +381,19 @@ const char* FileBrowserActivity::entryNameAt(size_t row) {
   return indexCachedNames[cacheSlot].c_str();
 }
 
+PendingOverlayResume FileBrowserActivity::syncReturnResume() const {
+  PendingOverlayResume resume;
+  resume.origin = PendingOverlayOrigin::FileBrowser;
+  resume.fileBrowserPath = basepath;
+  resume.selectedIndex = static_cast<int32_t>(selectorIndex);
+  resume.scrollPosition = topIndex;
+  return resume;
+}
+
 bool FileBrowserActivity::handleFrontlightPanelResult(const FrontlightPanelResult& result) {
   if (mode == Mode::Books && result.action == FrontlightPanelAction::SyncProgress && KOREADER_STORE.hasCredentials() &&
       FsHelpers::hasEpubExtension(result.bookPath) && Storage.exists(result.bookPath.c_str())) {
-    PendingOverlayResume resume;
-    resume.origin = PendingOverlayOrigin::FileBrowser;
-    resume.fileBrowserPath = basepath;
-    resume.selectedIndex = static_cast<int32_t>(selectorIndex);
-    resume.scrollPosition = topIndex;
-    APP_STATE.setPendingOverlayResume(std::move(resume));
+    APP_STATE.setPendingOverlayResume(syncReturnResume());
   }
   return Activity::handleFrontlightPanelResult(result);
 }
@@ -765,7 +769,7 @@ void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool igno
         const auto action = static_cast<FileBrowserAction>(std::get<FileBrowserActionResult>(result.data).action);
         switch (action) {
           case FileBrowserAction::SyncProgress:
-            BookActions::syncProgress(renderer, fullPath);
+            BookActions::syncProgress(renderer, fullPath, syncReturnResume());
             requestUpdate();
             return;
           case FileBrowserAction::ToggleBookStatsTracking: {

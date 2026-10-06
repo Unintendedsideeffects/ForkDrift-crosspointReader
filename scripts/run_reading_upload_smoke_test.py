@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--program', type=Path, default=ROOT / '.pio/build/simulator/program')
+    parser.add_argument('--mode', action='append', help='Run only the named scenarios (repeatable)')
     parser.add_argument('--touch', action='store_true', help='Include touch skip checks (requires a touch simulator)')
     args = parser.parse_args()
     requests = []
@@ -82,6 +83,11 @@ def main():
         modes = ['ok', 'disabled', 'cancel', 'auth', 'unsupported', 'folder-mixed', 'folder-equal', 'folder-local-ahead', 'folder-ask', 'folder-ask-cancel', 'folder-missing-cache', 'folder-skip-progress', 'folder-skip-stats', 'folder-skip-clippings', 'folder-skip-invalid', 'folder-skip-all', 'current-upload', 'current-equal', 'current-download', 'current-menu', 'current-menu-cold', 'folder-no-progress', 'folder-legacy-progress', 'folder-zero-count', 'folder-past-end', 'folder-empty', 'folder-global-failure', 'folder-no-stats', 'folder-tracking-disabled']
         if args.touch:
             modes += ['folder-skip-progress-touch', 'folder-skip-invalid-touch']
+        if args.mode:
+            unknown = set(args.mode) - set(modes)
+            if unknown:
+                parser.error(f"Unknown scenarios: {', '.join(sorted(unknown))}")
+            modes = args.mode
         for mode in modes:
             requests.clear()
             failed_document = None

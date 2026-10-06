@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "FileBrowserActionActivity.h"
+#include "PendingOverlayResume.h"
 
 class GfxRenderer;
 class MappedInputManager;
@@ -14,7 +15,7 @@ namespace BookActions {
 
 std::vector<FileBrowserActionActivity::MenuItem> buildBookActionItems(const std::string& fullPath,
                                                                       bool includeRemoveFromRecents);
-void syncProgress(const GfxRenderer& renderer, const std::string& fullPath);
+void syncProgress(const GfxRenderer& renderer, const std::string& fullPath, PendingOverlayResume returnResume);
 bool hasClearableBookCache(const std::string& path);
 bool canSendNearby(const std::string& path);
 void clearFileMetadata(const std::string& fullPath);

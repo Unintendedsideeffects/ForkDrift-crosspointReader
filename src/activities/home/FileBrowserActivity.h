@@ -40,6 +40,7 @@ class FileBrowserActivity final : public Activity {
   void pinBootFavorite(const std::string& fullPath);
   void unpinBootFavorite();
   bool isPinnedBootFavorite(const std::string& fullPath) const;
+  PendingOverlayResume syncReturnResume() const;
   void showFileActionMenu(const std::string& entry, bool ignoreInitialConfirmRelease = false);
   void startRenameFile(const std::string& fullPath, const std::string& entry);
   void renameFile(const std::string& oldPath, const std::string& oldEntry, const std::string& newStem,
@@ -118,6 +119,7 @@ class FileBrowserActivity final : public Activity {
   const std::string& simulatorFolderPath() const { return basepath; }
   size_t simulatorSelectedIndex() const { return selectorIndex; }
   int simulatorTopIndex() const { return topIndex; }
+  void simulatorOpenContextMenu() { showFileActionMenu(entryNameAt(selectorIndex)); }
 #endif
   explicit FileBrowserActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string initialPath = "/",
                                Mode mode = Mode::Books);

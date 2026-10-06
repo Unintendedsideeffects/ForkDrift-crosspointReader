@@ -81,7 +81,7 @@ std::vector<FileBrowserActionActivity::MenuItem> buildBookActionItems(const std:
   return items;
 }
 
-void syncProgress(const GfxRenderer& renderer, const std::string& fullPath) {
+void syncProgress(const GfxRenderer& renderer, const std::string& fullPath, PendingOverlayResume returnResume) {
   if (!FsHelpers::hasEpubExtension(fullPath) || !Storage.exists(fullPath.c_str())) {
     LOG_ERR("BookActions", "Cannot sync missing or unsupported book: %s", fullPath.c_str());
     drawToast(renderer, tr(STR_SYNC_FAILED_MSG));
@@ -110,7 +110,7 @@ void syncProgress(const GfxRenderer& renderer, const std::string& fullPath) {
   std::string previousPath = APP_STATE.openEpubPath;
   auto previousOverlay = std::move(APP_STATE.pendingOverlayResume);
   APP_STATE.openEpubPath = fullPath;
-  APP_STATE.pendingOverlayResume = {};
+  APP_STATE.pendingOverlayResume = std::move(returnResume);
   if (!APP_STATE.saveToFile()) {
     APP_STATE.openEpubPath = std::move(previousPath);
     APP_STATE.pendingOverlayResume = std::move(previousOverlay);

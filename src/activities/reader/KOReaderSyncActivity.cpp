@@ -277,6 +277,8 @@ void KOReaderSyncActivity::returnToSource() {
   const PendingOverlayResume& resume = APP_STATE.pendingOverlayResume;
   if (resume.origin == PendingOverlayOrigin::FileBrowser && resume.valid()) {
     activityManager.goToFileBrowser(resume.fileBrowserPath);
+  } else if (resume.origin == PendingOverlayOrigin::Library && resume.valid()) {
+    activityManager.goToLibrary();
   } else {
     activityManager.goToReader(epubPath, false, false, true);
   }
@@ -799,8 +801,7 @@ void KOReaderSyncActivity::onExit() {
 
   if (wifiActivated && !folderSync) {
     wifiOff();
-    if (APP_STATE.pendingOverlayResume.origin == PendingOverlayOrigin::FileBrowser &&
-        APP_STATE.pendingOverlayResume.valid()) {
+    if (APP_STATE.pendingOverlayResume.returnsToBookList()) {
       silentRestart();
     } else {
       silentRestartToReader(true);

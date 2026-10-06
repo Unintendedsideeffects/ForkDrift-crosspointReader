@@ -1567,9 +1567,12 @@ void setup() {
       silentRestart();
     }
   } else if (resume == BootResume::Silent && snapshotTarget == SILENT_REBOOT_TARGET_HOME &&
-             APP_STATE.pendingOverlayResume.origin == PendingOverlayOrigin::FileBrowser &&
-             APP_STATE.pendingOverlayResume.valid()) {
-    activityManager.goToFileBrowser(APP_STATE.pendingOverlayResume.fileBrowserPath);
+             APP_STATE.pendingOverlayResume.returnsToBookList()) {
+    if (APP_STATE.pendingOverlayResume.origin == PendingOverlayOrigin::Library) {
+      activityManager.goToLibrary();
+    } else {
+      activityManager.goToFileBrowser(APP_STATE.pendingOverlayResume.fileBrowserPath);
+    }
   } else if (resume == BootResume::Silent && snapshotTarget == SILENT_REBOOT_TARGET_READER &&
              !APP_STATE.openEpubPath.empty()) {
     activityManager.goToReader(APP_STATE.openEpubPath, false, false, cleanImageBaseOnEntry);
