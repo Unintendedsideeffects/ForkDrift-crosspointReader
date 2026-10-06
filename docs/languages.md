@@ -265,3 +265,51 @@ wake repeatedly, exercise RTL controls, then perform OTA and SD firmware updates
 Check that the cached selection survives and both firmware-slot behaviors remain
 intact. Interrupt installation only on a backed-up test device. No EPUB cache
 reset is needed for this feature.
+
+## EPUB hyphenation packs
+
+The language ZIP also contains `.crosspoint/hyphenation`. Copy that folder to the
+SD root, then open **Settings → Reader → Page Layout → Hyphenation Packs**.
+Select a language and **Install / Update**. Successful changes restart to Home;
+reopen your book afterward. **Delete** removes its installed copy and also
+restarts. Source files remain on SD for reinstalling. Editing or deleting a source
+file alone does not change the installed pack. Reinstall explicitly after edits.
+
+English hyphenation is always built in. The initial SD packs preserve the existing
+French, German, Russian, Spanish, Italian, Polish, Portuguese, Swedish and Ukrainian
+rules. Hyphenation follows the EPUB's language metadata, independently of the menu
+language. A supported book with a missing pack offers to open the manager once per
+reader session. You can cancel and keep reading: explicit and soft hyphens and
+existing oversized-word handling remain available. The Hyphenation setting still
+controls whether automatic hyphenation is enabled.
+
+Files must have names such as `hyph-de.cphyph`, with the same language identity
+inside the file. The manager accepts upstream **CPHY v1** files for these nine
+languages with the existing 2/2 word-boundary rules. Unsupported scripts, flags,
+versions, truncated files and checksum mismatches are rejected. A pack cannot
+supply font glyphs, keyboards or a new script's character handling.
+
+The firmware reads installed dictionaries from mapped internal flash, with no
+whole-dictionary RAM allocation or SD access for each word. Hyphenation owns the
+first `0x340000` bytes of the existing `spiffs` partition, divided into two
+`0x1a0000` byte banks. The final two 64 KiB UI-language slots are unchanged.
+An update copies retained packs into the inactive bank, verifies their checksums,
+then publishes its commit marker. The running mapping stays pinned until restart.
+Boot checks both banks and can fall back to the older valid one after interruption
+or corruption. Firmware/OTA slots and the partition table are unchanged.
+
+Section caches record the effective pack identity, so installing, replacing or
+removing a pack automatically rebuilds affected complete and partial chapter
+layouts. Manual cache deletion is normally unnecessary. Bookmarks and saved
+reading positions use the reader's existing reflow recovery.
+
+Release packaging automatically includes all nine packs, checksums and original
+pattern sources/license notices. To create just the hyphenation archive locally:
+
+```sh
+python3 scripts/package_hyphenation.py --output /tmp/crossink-hyphenation.zip
+```
+
+Packaging derives the exact binary payload from the checked-in generated tables;
+it performs no network fetch. Keep `assets/hyphenation/patterns` and its notices
+matched to the generated tables when updating pattern data.

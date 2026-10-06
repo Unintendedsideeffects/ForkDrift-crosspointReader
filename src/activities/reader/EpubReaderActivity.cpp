@@ -5,6 +5,7 @@
 #include <Epub/Page.h>
 #include <Epub/PageCountEstimator.h>
 #include <Epub/blocks/TextBlock.h>
+#include <Epub/hyphenation/Hyphenator.h>
 #include <FontCacheManager.h>
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
@@ -45,6 +46,7 @@
 #include "EpubReaderUtils.h"
 #include "FocusReadingText.h"
 #include "GlobalActions.h"
+#include "HyphenationPackStore.h"
 #include "KOReaderCredentialStore.h"
 #include "KOReaderSyncActivity.h"
 #include "LookedUpWordsActivity.h"
@@ -63,6 +65,7 @@
 #include "WordRef.h"
 #include "activities/home/RecentBookProgress.h"
 #include "activities/reader/ControlsOptionsActivity.h"
+#include "activities/settings/HyphenationManagerActivity.h"
 #include "activities/settings/StatusBarSettingsActivity.h"
 #include "activities/util/ConfirmationActivity.h"
 #include "activities/util/IntervalSelectionActivity.h"
@@ -2873,7 +2876,52 @@ bool EpubReaderActivity::transientFeedbackDismissed(const unsigned long showTime
          mappedInput.wasReleased(MappedInputManager::Button::Down);
 }
 
+bool EpubReaderActivity::checkHyphenationPack() {
+  char code[3];
+  {
+    RenderLock lock(*this, RenderLock::Mode::Try);
+    if (!lock.ownsLock() || hyphenationPackChecked || !epub || pageShownAtMs == 0) return false;
+    hyphenationPackChecked = true;
+    if (!SETTINGS.hyphenationEnabled || !Hyphenator::primaryLanguageTag(epub->getLanguage(), code)) return false;
+    const auto* language = findLanguageEntry(code);
+    if (!language || language->hyphenator || HyphenationPackStore::isInstalled(code)) return false;
+  }
+  auto confirmation = makeUniqueNoThrow<ConfirmationActivity>(renderer, mappedInput, tr(STR_HYPHENATION_PACKS),
+                                                              tr(STR_HYPHENATION_MISSING), false, true);
+  if (!confirmation) {
+    LOG_ERR("HYPH", "OOM: missing pack prompt");
+    return false;
+  }
+  {
+    RenderLock lock(*this);
+    pauseReadingPaceTimer("hyphenation_prompt");
+  }
+  startActivityForResult(std::move(confirmation), [this, wanted = std::string(code)](const ActivityResult& result) {
+    if (result.isCancelled) {
+      RenderLock lock(*this);
+      resumeReadingPaceTimer("hyphenation_prompt_cancel");
+      requestUpdate();
+      return;
+    }
+    saveProgressBeforeRestart();
+    if (auto manager = makeUniqueNoThrow<HyphenationManagerActivity>(renderer, mappedInput, wanted.c_str())) {
+      startActivityForResult(std::move(manager), [this](const ActivityResult&) {
+        RenderLock lock(*this);
+        resumeReadingPaceTimer("hyphenation_manager_return");
+        requestUpdate();
+      });
+    } else {
+      LOG_ERR("HYPH", "OOM: hyphenation manager");
+      RenderLock lock(*this);
+      resumeReadingPaceTimer("hyphenation_manager_oom");
+      requestUpdate();
+    }
+  });
+  return true;
+}
+
 void EpubReaderActivity::loop() {
+  if (!hyphenationPackChecked && checkHyphenationPack()) return;
   syncStatsTrackingState();
   if (pendingTtfRenderRelayout && epub) {
     relayoutAfterTtfRenderChange();
@@ -8005,6 +8053,7 @@ void EpubReaderActivity::refreshChapterGroupEstimate(const uint16_t viewportWidt
   mix(SETTINGS.forceParagraphIndents);
   mix(SETTINGS.paragraphAlignment);
   mix(SETTINGS.hyphenationEnabled);
+  mix(SETTINGS.hyphenationEnabled ? Hyphenator::patternIdentity(epub->getLanguage()) : 0u);
   mix(SETTINGS.embeddedStyle);
   mix(SETTINGS.imageRendering);
   mix(SETTINGS.focusReadingEnabled);

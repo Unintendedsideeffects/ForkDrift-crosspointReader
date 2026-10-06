@@ -6,11 +6,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import struct
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 
@@ -99,6 +101,33 @@ def run_smoke(args: argparse.Namespace) -> int:
             (temp_root / "fs_" / ".crosspoint" / "crossink-settings.json").write_text(
                 json.dumps({"language": code, "languageCacheGeneration": int(generation)})
             )
+        if args.hyphenation:
+            from package_hyphenation import pack_bytes
+            # Only the disposable fixture changes: exercise the reader's book
+            # language independently of the selected interface language.
+            target = temp_root / "fs_" / simulator_book_path.lstrip("/")
+            updated = target.with_suffix(".hyphenation.epub")
+            languages = 0
+            with zipfile.ZipFile(target) as source, zipfile.ZipFile(updated, "w") as destination:
+                for entry in source.infolist():
+                    data = source.read(entry)
+                    if entry.filename.endswith(".opf"):
+                        data, found = re.subn(rb"(<dc:language[^>]*>).*?(</dc:language>)",
+                                             rb"\g<1>de-DE\g<2>", data, flags=re.S)
+                        languages += found
+                    destination.writestr(entry, data)
+            if not languages:
+                raise ValueError("Hyphenation smoke fixture needs dc:language metadata")
+            updated.replace(target)
+            packs = temp_root / "fs_" / ".crosspoint" / "hyphenation"
+            packs.mkdir(parents=True, exist_ok=True)
+            data = pack_bytes("de")
+            (packs / "hyph-de.cphyph").write_bytes(data)
+            (packs / "hyph-fr.cphyph").write_bytes(data)  # mismatched header identity
+            env["CROSSINK_SIMULATOR_SMOKE_HYPHENATION"] = "1"
+            env["CROSSINK_HYPHENATION_SMOKE_UI"] = code if args.language_file else "EN"
+        if args.hyphenation_captures:
+            env["CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_CAPTURES"] = str(Path(args.hyphenation_captures).resolve())
         if args.filename_font_dir:
             shutil.copytree(Path(args.filename_font_dir), temp_root / "fs_" / ".crosspoint" / "languages" / "fonts", dirs_exist_ok=True)
         if args.filename_font_family:
@@ -208,6 +237,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--status-bar-captures", help="Directory for status bar feature framebuffer captures (PGM)")
     parser.add_argument("--language-file", help="SD language YAML installed before boot for localized smoke checks")
     parser.add_argument("--language-installer", help="Native I18nIntegrationTool built from the same source (required with --language-file)")
+    parser.add_argument("--hyphenation", action="store_true", help="Check SD pack management, pinned flash banks, restart activation and deletion")
+    parser.add_argument("--hyphenation-captures", help="Directory for hyphenation manager framebuffer captures (PGM)")
     parser.add_argument("--dictionary", action="store_true", help="Check French contractions and exact dictionary matches")
     parser.add_argument("--font-dir", help="Font fixtures copied into isolated /fonts")
     parser.add_argument("--filename-font-dir", help="TTF family fixtures copied into /.crosspoint/languages/fonts")

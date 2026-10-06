@@ -20,6 +20,8 @@
 - Finished EPUB and XTC books show a checkmarked book icon in the File Browser and Library list.
 - Show the battery as Icon + %, Icon Only, or % Only, set separately for the top, bottom, and global status bars.
 
+- Install, update, and remove EPUB hyphenation packs from SD; English remains built in, and book layouts refresh when their packs change.
+
 ### Fixed
 
 - Restore complete WebDAV file downloads, including large binary files.

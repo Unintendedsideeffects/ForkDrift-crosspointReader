@@ -7,6 +7,7 @@ from pathlib import Path
 import zipfile
 
 from generate_language_template import generate, write_artifacts
+from package_hyphenation import artifacts as hyphenation_artifacts
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -15,6 +16,7 @@ def package(output: Path, version: str, benchmark: bool = False, template_output
             source_commit=None, status="local-fixture"):
     artifacts = generate(version, source_commit, status)
     entries = dict(artifacts)
+    entries.update(hyphenation_artifacts())
     # Keep the established archive spelling as an identical compatibility alias.
     entries["english-template.yaml"] = artifacts["english_template.yaml"]
     if template_output_dir is not None:

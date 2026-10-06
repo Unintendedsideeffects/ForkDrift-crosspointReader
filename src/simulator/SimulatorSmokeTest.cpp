@@ -30,6 +30,7 @@
 #endif
 #include <AppVersion.h>
 #include <ArduinoJson.h>
+#include <Epub/hyphenation/Hyphenator.h>
 #include <SupportInfo.h>
 
 #include <memory>
@@ -39,6 +40,7 @@
 #include "CrossPointState.h"
 #include "DeviceCapabilities.h"
 #include "FilenameFontSystem.h"
+#include "HyphenationPackStore.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
 #include "SdCardFontSystem.h"
@@ -64,6 +66,7 @@
 #include "activities/reader/TxtReaderActivity.h"
 #include "activities/reader/XtcReaderActivity.h"
 #include "activities/settings/AboutActivity.h"
+#include "activities/settings/HyphenationManagerActivity.h"
 #include "activities/settings/KOReaderSettingsActivity.h"
 #include "activities/settings/QuickActionsActivity.h"
 #include "activities/settings/SettingsActivity.h"
@@ -687,6 +690,7 @@ class SimulatorSmokeTest {
   unsigned supportPhase = 0;
   std::string priorSupportExport;
   unsigned filenameFontPhase = 0;
+  unsigned hyphenationPhase = 0;
   unsigned aboutPhase = 0;
   unsigned aboutPass = 0;
   uint32_t aboutSnapshotUptime = 0;
@@ -2498,6 +2502,131 @@ class SimulatorSmokeTest {
 #endif
   }
 
+  void tickHyphenation() {
+    if (scriptIndex < inputScript.size()) {
+      runReaderInputScript();
+      return;
+    }
+    inputScript.clear();
+    scriptIndex = 0;
+    const char* savedStage = std::getenv("CROSSINK_HYPHENATION_SMOKE_STAGE");
+    const int stage = savedStage ? std::atoi(savedStage) : 0;
+    auto* manager = dynamic_cast<HyphenationManagerActivity*>(activityManager.simulatorCurrentActivity());
+    if (stage == 2) {
+      switch (hyphenationPhase++) {
+        case 0: {
+          const char* ui = std::getenv("CROSSINK_HYPHENATION_SMOKE_UI");
+          if (ui && std::strcmp(I18N.getCode(), ui)) fail("Pack removal changed the UI language");
+          if (Hyphenator::patternIdentity("de-DE") || !Hyphenator::patternIdentity("en") ||
+              !HyphenationPackStore::hasSource("de"))
+            fail("Pack removal changed the wrong resources");
+          SETTINGS.hyphenationEnabled = true;
+          activityManager.goToReader(std::getenv("CROSSINK_SIMULATOR_SMOKE_BOOK"), true);
+          inputScript.push_back(render("Missing pack reader", 8));
+          break;
+        }
+        case 1:
+        case 4:
+          if (!activityManager.isCurrentActivityNamed("Confirmation")) {
+            --hyphenationPhase;
+            break;  // Wait for the first laid-out page and its missing-pack prompt.
+          }
+          {
+            RenderLock lock;
+            captureStatusBarScreen("hyphenation-missing");
+          }
+          if (hyphenationPhase == 2) {
+            addTap(MappedInputManager::Button::Back);
+            inputScript.push_back(render("Read without missing pack", 12));
+          } else {
+            addTap(MappedInputManager::Button::Down);
+            addTap(MappedInputManager::Button::Confirm);
+            inputScript.push_back(render("Open manager from reader", 8));
+          }
+          break;
+        case 2:
+          if (!activityManager.isCurrentActivityNamed("EpubReader")) fail("Missing pack cancel did not resume reading");
+          activityManager.goHome();
+          inputScript.push_back(render("Home before new reader session", 4));
+          break;
+        case 3:
+          activityManager.goToReader(std::getenv("CROSSINK_SIMULATOR_SMOKE_BOOK"), true);
+          inputScript.push_back(render("New reader session", 8));
+          break;
+        case 5:
+          if (!manager) fail("Missing pack prompt did not open its manager");
+          if (!manager->allowPowerAsConfirmInReaderMode()) fail("Reader manager disabled Power-as-Confirm");
+          addTap(MappedInputManager::Button::Back);
+          inputScript.push_back(render("Reader after manager cancel", 12));
+          break;
+        default:
+          if (!activityManager.isCurrentActivityNamed("EpubReader")) fail("Manager cancel did not resume reading");
+          LOG_INF("SMOKE",
+                  "Simulator smoke test passed: hyphenation install/remove reboots, UI language preservation, "
+                  "missing-pack prompt and reader return");
+          std::_Exit(0);
+      }
+      return;
+    }
+    switch (hyphenationPhase++) {
+      case 0: {
+        const char* ui = std::getenv("CROSSINK_HYPHENATION_SMOKE_UI");
+        if (ui && std::strcmp(I18N.getCode(), ui)) fail("Hyphenation update changed the UI language");
+        if (HyphenationPackStore::isInstalled("de") != (stage == 1)) fail("Hyphenation boot selection mismatch");
+        if (!HyphenationPackStore::hasSource("de")) fail("Hyphenation source was removed");
+        if (!Hyphenator::patternIdentity("en")) fail("Built-in English unavailable");
+        if (stage == 0 && HyphenationPackStore::install("fr") != hyphenation_pack::Result::Invalid)
+          fail("A renamed pack bypassed language identity validation");
+        if (stage == 1) {
+          Hyphenator::setPreferredLanguage("GER");
+          if (Hyphenator::breakOffsets("Satellitensystems", false).empty()) fail("Installed German patterns unused");
+        }
+        const auto settings = buildReaderPageLayoutSettingsList(getSettingsList());
+        auto row = std::find_if(settings.begin(), settings.end(),
+                                [](const auto& setting) { return setting.nameId == StrId::STR_HYPHENATION; });
+        if (row == settings.end() || ++row == settings.end() || row->action != SettingAction::ManageHyphenation)
+          fail("Hyphenation manager is not next to its setting");
+        activityManager.replaceActivity(
+            std::make_unique<HyphenationManagerActivity>(renderer, mappedInputManager, "de"));
+        inputScript.push_back(render("Hyphenation language list", 5));
+        break;
+      }
+      case 1:
+        if (!manager || !manager->simulatorOptionDisabled(0)) fail("Built-in English is not protected");
+        {
+          RenderLock lock;
+          captureStatusBarScreen(stage ? "hyphenation-installed" : "hyphenation-sd");
+        }
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Hyphenation actions", 4));
+        break;
+      case 2:
+        if (!manager || manager->simulatorOptionDisabled(1) || manager->simulatorOptionDisabled(2) != (stage == 0))
+          fail("Hyphenation install/delete availability mismatch");
+        {
+          RenderLock lock;
+          captureStatusBarScreen(stage ? "hyphenation-remove" : "hyphenation-install");
+        }
+        addTap(MappedInputManager::Button::Back);
+        inputScript.push_back(render("Cancel hyphenation change", 4));
+        break;
+      case 3:
+        if (HyphenationPackStore::isInstalled("de") != (stage == 1)) fail("Cancel changed installed hyphenation");
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Reopen hyphenation actions", 4));
+        break;
+      case 4:
+        setenv("CROSSINK_HYPHENATION_SMOKE_STAGE", stage ? "2" : "1", 1);
+        addTap(MappedInputManager::Button::Down);
+        if (stage == 1) addTap(MappedInputManager::Button::Down);
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Apply hyphenation change", 10));
+        break;
+      default:
+        fail("Hyphenation operation did not restart");
+    }
+  }
+
   void tickAbout() {
     if (scriptIndex < inputScript.size()) {
       runReaderInputScript();
@@ -3034,6 +3163,10 @@ class SimulatorSmokeTest {
       return;
     }
 
+    if (std::getenv("CROSSINK_SIMULATOR_SMOKE_HYPHENATION")) {
+      tickHyphenation();
+      return;
+    }
     if (std::getenv("CROSSINK_SIMULATOR_SMOKE_FILENAME_FONT")) {
       tickFilenameFont();
       return;

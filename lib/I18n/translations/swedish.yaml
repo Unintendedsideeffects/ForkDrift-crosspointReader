@@ -718,3 +718,11 @@ STR_MONTH_DEC: "december"
 
 STR_FILENAME_FALLBACK_FONT: "Reservteckensnitt för filnamn"
 STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Normal krävs; fet valfri."
+
+STR_HYPHENATION_PACKS: "Avstavningspaket"
+STR_HYPHENATION_APPLY_HINT: "Ändringar startar om till hemskärmen."
+STR_HYPHENATION_INSTALL: "Installera / Uppdatera"
+STR_HYPHENATION_BUILT_IN: "Inbyggt"
+STR_HYPHENATION_FAILED: "Kontrollera SD-filerna och enhetens logg."
+STR_HYPHENATION_MISSING: "Avstavningspaket saknas. Öppna hanteraren?"
+STR_HYPHENATION_SD_HINT: "SD: /.crosspoint/hyphenation"

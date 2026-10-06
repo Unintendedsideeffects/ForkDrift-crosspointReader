@@ -848,3 +848,11 @@ STR_MONTH_DEC: "prosince"
 
 STR_FILENAME_FALLBACK_FONT: "Záložní písmo názvů souborů"
 STR_FILENAME_FONT_HINT: "TTF: /.crosspoint/languages/fonts. Běžný řez povinný; tučný volitelný."
+
+STR_HYPHENATION_PACKS: "Balíčky dělení slov"
+STR_HYPHENATION_APPLY_HINT: "Změny restartují na hlavní obrazovku."
+STR_HYPHENATION_INSTALL: "Instalovat / Aktualizovat"
+STR_HYPHENATION_BUILT_IN: "Vestavěné"
+STR_HYPHENATION_FAILED: "Zkontrolujte soubory SD a protokol zařízení."
+STR_HYPHENATION_MISSING: "Chybí balíček dělení slov. Otevřít správce?"
+STR_HYPHENATION_SD_HINT: "SD: /.crosspoint/hyphenation"

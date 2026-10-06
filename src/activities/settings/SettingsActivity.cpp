@@ -27,6 +27,7 @@
 #include "DeviceCapabilities.h"
 #include "FilenameFontSystem.h"
 #include "FontSelectionActivity.h"
+#include "HyphenationManagerActivity.h"
 #if CROSSINK_SCALABLE_FONTS
 #include "TtfRenderOptionsActivity.h"
 #endif
@@ -1356,6 +1357,13 @@ void SettingsActivity::toggleCurrentSetting() {
       }
       case SettingAction::FilenameFallbackFont:
         openFilenameFontPicker();
+        break;
+      case SettingAction::ManageHyphenation:
+        if (auto manager = makeUniqueNoThrow<HyphenationManagerActivity>(renderer, mappedInput)) {
+          startActivityForResult(std::move(manager), [](const ActivityResult&) {});
+        } else {
+          LOG_ERR("HYPH", "OOM: hyphenation manager");
+        }
         break;
       case SettingAction::Language:
         openLanguagePicker();

@@ -595,6 +595,15 @@ Binary layout:
 
 ## `section.bin`
 
+### Version 85
+
+Complete sections use byte `85` and suspended partials use `0xC6`. A little-endian
+`u32` hyphenation identity follows `hyphenationEnabled` in the header. It is zero
+when disabled or unavailable, one for built-in English, and a fingerprint of the
+external pack's language, prefix/suffix rules, root offset, size and payload CRC
+otherwise. Storage offsets are excluded. A mismatch rebuilds the section,
+including suspended incremental builds; older full and partial versions rebuild.
+
 ### Version 84
 
 Explicit CSS border suppression on `<hr>` removes the generated rule from page
@@ -797,7 +806,7 @@ import std.mem;
 import std.string;
 import std.core;
 
-#define EXPECTED_VERSION 79
+#define EXPECTED_VERSION 85
 #define MAX_STRING_LENGTH 65535
 #define FOOTNOTE_NUMBER_LEN 32
 #define FOOTNOTE_HREF_LEN 96
@@ -991,6 +1000,7 @@ struct ParagraphLut {
 };
 
 struct SectionBin {
+    u32 magic; // 0x535843FF (bytes: FF, "CXS")
     u8 version;
     if (version != EXPECTED_VERSION) {
         std::error(std::format("Unsupported version: {} (expected {})", version, EXPECTED_VERSION));
@@ -1004,6 +1014,7 @@ struct SectionBin {
     u16 viewportWidth;
     u16 viewportHeight;
     bool hyphenationEnabled;
+    u32 hyphenationPatternIdentity;
     bool embeddedStyle;
     u8 imageRendering;
     bool focusReadingEnabled;
@@ -1017,6 +1028,7 @@ struct SectionBin {
     u32 anchorMapOffset;
     u32 paragraphLutOffset;
     u32 listItemLutOffset;
+    u32 visibleTextLutOffset;
 
     Page pages[pageCount];
 
@@ -1270,3 +1282,44 @@ selected generation in `languageCacheGeneration`. A zero generation permits a
 legacy preference to find the newest matching valid slot. Normal saves use a
 synced `.tmp` and recoverable `.bak`; a remaining backup denotes an unfinished
 publication and is restored before settings are loaded or saved.
+
+## SD hyphenation packs and flash banks
+
+SD path: `/.crosspoint/hyphenation/hyph-<code>.cphyph`. The upstream CPHY v1
+header is 24 bytes, with all multibyte integers little-endian:
+
+- 0: magic `CPHY` (4 bytes)
+- 4: version `1` (u8)
+- 5: primary language code (2 lowercase ASCII bytes)
+- 7, 8: minimum prefix/suffix characters (u8 each; currently 2/2)
+- 9: flags (u8; currently zero)
+- 10: reserved (u16; zero)
+- 12: root offset into payload (u32)
+- 16: payload size (u32)
+- 20: payload CRC32 (u32, IEEE/zlib)
+
+The payload is the existing Hypher trie with its original four-byte root prefix
+removed, unchanged from the firmware table. The root offset excludes that prefix.
+The header language must match the filename chosen by the manager.
+
+CrossInk bank format is independent of upstream's internal flash bank format.
+Two 64 KiB-aligned banks occupy the partition before the UI-language slots.
+For the current 0x360000-byte partition they begin at 0 and 0x1a0000 and each
+hold 0x1a0000 bytes. Only the inactive bank is erased/written; language slots at
+0x340000 and 0x350000 are never touched.
+
+Each bank starts with a 256-byte header. Bytes 0-7 are `CIHP`, version byte 1,
+and three zero bytes. Little-endian u32 fields at offsets 8, 12, 16 and 20 hold
+generation, entry count, used size and header CRC32. Offset 24 is the commit
+marker `0x50485950`, written last. Offset 28 is reserved zero. The header CRC
+covers bytes 0-23 (checksum field treated as zero) and 28-255; it excludes the
+commit marker. Unused header bytes are zero.
+
+Up to ten 20-byte entries begin at offset 32: language code (2 bytes), prefix
+and suffix (one byte each), bank-relative payload offset, payload size, root
+offset and payload CRC32 (four u32 values). Payloads start at offset 4096 and
+are packed in entry order with four-byte alignment. Duplicate/unsupported
+languages, invalid bounds, uncommitted banks and bad header/payload checksums
+are rejected. Boot selects the highest fully valid generation. Generations do
+not wrap; exhausting u32 rejects a further update. A successful update requires
+a restart before another operation or activation of its new mapping.

@@ -19,11 +19,13 @@
 
 #include <GfxRenderer.h>
 
+extern uint32_t testHyphenationIdentity;
+
 namespace {
-constexpr uint8_t kFullVersion = 84;
-constexpr uint8_t kPartialVersion = 0xC5;
-constexpr uint8_t kPreviousFullVersion = 83;
-constexpr uint8_t kPreviousPartialVersion = 0xC4;
+constexpr uint8_t kFullVersion = 85;
+constexpr uint8_t kPartialVersion = 0xC6;
+constexpr uint8_t kPreviousFullVersion = 84;
+constexpr uint8_t kPreviousPartialVersion = 0xC5;
 constexpr uint8_t kOlderFullVersion = 79;
 constexpr uint8_t kOlderPartialVersion = 0xF4;
 constexpr uint8_t kEarlierFullVersion = 78;
@@ -90,7 +92,10 @@ struct SectionHarness {
 
 class SectionPersistenceTest : public testing::Test {
  protected:
-  void SetUp() override { Storage.reset(); }
+  void SetUp() override {
+    Storage.reset();
+    testHyphenationIdentity = 1;
+  }
 };
 
 TEST_F(SectionPersistenceTest, FullCommitReopensAndResolvesMetadataAcrossAChunkBoundary) {
@@ -249,4 +254,31 @@ TEST_F(SectionPersistenceTest, SyncLookupsUseTheSelectedRenderModesCache) {
     EXPECT_EQ(section.getCachedPageCount(), i + 2);
     EXPECT_EQ(section.getPageForParagraphIndex((i + 1) * 3), i + 1);
   }
+}
+
+TEST_F(SectionPersistenceTest, ChangedPatternsInvalidateCompleteAndPartialSections) {
+  for (const auto version : {kFullVersion, kPartialVersion}) {
+    Storage.reset();
+    testHyphenationIdentity = 41;
+    SectionHarness harness;
+    harness.begin();
+    harness.appendPages(1);
+    ASSERT_TRUE(harness.commit(version, version == kPartialVersion ? 100 : 0, 200));
+    harness.finishSuccessfulCommit();
+    testHyphenationIdentity = 42;
+    Section reopened(harness.epub, 0, harness.renderer);
+    EXPECT_FALSE(reopened.loadSectionFile(harness.spec));
+  }
+}
+
+TEST_F(SectionPersistenceTest, PatternChangesDoNotInvalidateDisabledHyphenation) {
+  SectionHarness harness;
+  harness.spec.hyphenationEnabled = false;
+  harness.begin();
+  harness.appendPages(1);
+  ASSERT_TRUE(harness.commit(kFullVersion));
+  harness.finishSuccessfulCommit();
+  testHyphenationIdentity = 99;
+  Section reopened(harness.epub, 0, harness.renderer);
+  EXPECT_TRUE(reopened.loadSectionFile(harness.spec));
 }

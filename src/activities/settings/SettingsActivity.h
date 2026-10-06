@@ -50,6 +50,7 @@ enum class SettingAction {
   CheckForUpdates,
   SdFirmwareUpdate,
   Language,
+  ManageHyphenation,
   FilenameFallbackFont,
   KeyboardLayouts,
   DownloadFonts,
