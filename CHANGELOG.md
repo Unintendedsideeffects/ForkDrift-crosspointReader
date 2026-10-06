@@ -41,6 +41,13 @@
 ### Fixed
 
 - Show full-width Forget and Cancel buttons after a saved Wi-Fi network fails to connect on button devices, with Cancel selected by default below Forget.
+- Prevent redraws from racing screen setup, Calibre upload names, or OPDS catalog navigation.
+- Use each book’s render-mode cache when applying KOReader or Nearby reading progress.
+- Prevent a suppressed TXT menu-button release from opening the menu again.
+- Keep USB transfer waits from starving background system tasks.
+- Prevent settings popups with short notes from freezing the screen.
+- Capture serial screenshots consistently and preserve pre-crash logs while restarting.
+- Avoid full-card free-space scans before Nearby transfers and firmware downloads; incomplete writes still fail safely.
 
 ## [v1.6.1] - 2026-10-03
 

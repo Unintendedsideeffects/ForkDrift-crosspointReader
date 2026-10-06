@@ -37,7 +37,6 @@ constexpr uint8_t BROADCAST_MAC[nearby::MAC_BYTES] = {0xff, 0xff, 0xff, 0xff, 0x
 constexpr uint8_t RESULT_OK = 0;
 constexpr uint8_t RESULT_FAILED = 1;
 constexpr uint8_t REJECT_USER = 1;
-constexpr uint8_t REJECT_STORAGE = 2;
 TouchActionButtons::Layout touchActionLayout(const Rect& screen, const uint8_t count) {
   constexpr int sideMargin = 24;
   constexpr int bottomMargin = 12;
@@ -404,18 +403,8 @@ bool NearbyBookTransferActivity::acceptOffer(const bool keepBoth) {
       return false;
     }
   }
-  uint64_t total = 0;
-  uint64_t used = 0;
-#ifndef SIMULATOR
-  total = Storage.totalBytes();
-  used = Storage.usedBytes();
-#endif
-  if (total > 0 && used <= total && offeredFileSize_ > total - used) {
-    const uint8_t reason = REJECT_STORAGE;
-    sendPacket(nearby::PacketType::Reject, peerMac_.data(), 0, &reason, 1);
-    setError(tr(STR_NEARBY_TRANSFER_NO_SPACE));
-    return false;
-  }
+  // Do not scan the entire FAT to estimate free space here. Each received
+  // chunk must be written in full before it is acknowledged or committed.
   const std::string finalName = fileNameFromPath(finalPath_);
   tempPath_ = joinPath(destinationFolder_, "." + finalName + ".crossink-part");
   backupPath_ = joinPath(destinationFolder_, "." + finalName + ".crossink-backup");

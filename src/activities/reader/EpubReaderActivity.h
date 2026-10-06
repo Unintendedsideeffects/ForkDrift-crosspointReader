@@ -582,6 +582,7 @@ class EpubReaderActivity final : public Activity {
   static BookReaderSettingsData readBookReaderSettingsForSupport(const std::string& cachePath,
                                                                  BookSettingsReadStatus& status);
   static uint8_t loadBookRenderMode(const std::string& filePath);
+  static uint8_t loadBookRenderMode(const Epub& epub);
   static bool saveBookRenderMode(const std::string& filePath, uint8_t renderMode);
   static bool resetBookReaderSettings(const std::string& filePath);
   ScreenshotInfo getScreenshotInfo() const override;

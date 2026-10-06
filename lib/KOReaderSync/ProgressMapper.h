@@ -90,7 +90,8 @@ class ProgressMapper {
    *         should fall back to toCrossPoint().
    */
   static std::optional<CrossPointPosition> fromRichPosition(const std::shared_ptr<Epub>& epub,
-                                                            const KOReaderRichPosition& rich, GfxRenderer& renderer);
+                                                            const KOReaderRichPosition& rich, GfxRenderer& renderer,
+                                                            const char* sectionCacheSuffix);
 
  private:
   /**

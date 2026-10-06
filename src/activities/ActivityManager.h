@@ -99,6 +99,11 @@ class ActivityManager {
 
   // Task to render and display the activity
   TaskHandle_t renderTaskHandle = nullptr;
+  // Guarded by RenderLock. Entry may explicitly render a ready loading screen
+  // with requestUpdateAndWait(), but stale/asynchronous notifications must wait.
+  bool enteringActivity = false;
+  bool entryRenderRequested = false;
+  void enterCurrentActivity();
   static void renderTaskTrampoline(void* param);
   [[noreturn]] virtual void renderTaskLoop();
 

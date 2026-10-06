@@ -45,7 +45,9 @@ ReaderRenderSpec renderSpec() {
 struct SectionHarness {
   Epub epub{"/books/test.epub", "/cache"};
   GfxRenderer renderer;
-  Section section{epub, 0, renderer};
+  Section section;
+  explicit SectionHarness(EpubRenderMode mode = EpubRenderMode::CrossInkDefault)
+      : section(epub, 0, renderer, sectionCacheSuffixForRenderMode(mode)) {}
   ReaderRenderSpec spec = renderSpec();
 
   void begin(const std::vector<std::pair<std::string, uint16_t>>& anchors = {}) {
@@ -229,3 +231,22 @@ TEST_F(SectionPersistenceTest, PartialPositionLookupRejectsOffsetsBeyondCommitte
 }
 
 }  // namespace
+
+TEST_F(SectionPersistenceTest, SyncLookupsUseTheSelectedRenderModesCache) {
+  const EpubRenderMode modes[] = {EpubRenderMode::CrossInkDefault, EpubRenderMode::Balanced, EpubRenderMode::Light};
+  for (int i = 0; i < 3; ++i) {
+    SectionHarness harness(modes[i]);
+    harness.spec.renderMode = modes[i];
+    harness.begin();
+    harness.appendPages(i + 2);
+    ASSERT_TRUE(harness.commit(kFullVersion));
+    harness.finishSuccessfulCommit();
+  }
+  Epub epub{"/books/test.epub", "/cache"};
+  GfxRenderer renderer;
+  for (int i = 0; i < 3; ++i) {
+    Section section(epub, 0, renderer, sectionCacheSuffixForRenderMode(modes[i]));
+    EXPECT_EQ(section.getCachedPageCount(), i + 2);
+    EXPECT_EQ(section.getPageForParagraphIndex((i + 1) * 3), i + 1);
+  }
+}
