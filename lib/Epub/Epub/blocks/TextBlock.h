@@ -90,6 +90,6 @@ class TextBlock final : public Block {
   int resolvedFontId(const GfxRenderer& renderer, int fontId) const;
   void render(const GfxRenderer& renderer, int fontId, int x, int y, bool foregroundBlack = true) const;
   BlockType getType() override { return TEXT_BLOCK; }
-  bool serialize(HalFile& file) const;
+  bool serialize(Print& file) const;
   static std::unique_ptr<TextBlock> deserialize(HalFile& file);
 };

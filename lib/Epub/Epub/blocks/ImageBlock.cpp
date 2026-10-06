@@ -5,6 +5,7 @@
 #include <Logging.h>
 #include <Memory.h>
 #include <MemoryBudget.h>
+#include <PrintSerialization.h>
 #include <Serialization.h>
 
 #include <algorithm>
@@ -574,7 +575,7 @@ void ImageBlock::render(GfxRenderer& renderer, const int x, const int y, const b
   renderer.preserveImagePolarity(x, y, width, height);
 }
 
-bool ImageBlock::serialize(FsFile& file) {
+bool ImageBlock::serialize(Print& file) {
   return serialization::tryWriteString(file, imagePath) && serialization::tryWriteString(file, sourcePath) &&
          serialization::tryWritePod(file, width) && serialization::tryWritePod(file, height);
 }

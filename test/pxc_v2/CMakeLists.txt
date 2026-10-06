@@ -32,3 +32,8 @@ add_executable(download_file_swap_test DownloadFileSwapTest.cpp)
 target_include_directories(download_file_swap_test PRIVATE stubs ${REPO_ROOT}/src/network)
 target_link_libraries(download_file_swap_test PRIVATE gtest_main crosspoint_test_common)
 gtest_discover_tests(download_file_swap_test)
+
+add_executable(ZipCentralDirectoryTest ZipCentralDirectoryTest.cpp ${PXC_ROOT}/lib/ZipFile/ZipFile.cpp)
+target_include_directories(ZipCentralDirectoryTest PRIVATE stubs ${PXC_ROOT}/lib/ZipFile ${PXC_ROOT}/lib/Memory)
+target_link_libraries(ZipCentralDirectoryTest PRIVATE gtest_main crosspoint_test_common)
+gtest_discover_tests(ZipCentralDirectoryTest)

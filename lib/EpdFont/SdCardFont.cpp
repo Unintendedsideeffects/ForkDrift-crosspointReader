@@ -4,6 +4,7 @@
 #include <Logging.h>
 #include <Memory.h>
 #include <PoolBudget.h>
+#include <UniqueCodepointSet.h>
 #include <Utf8.h>
 
 #include <algorithm>
@@ -44,27 +45,15 @@ inline uint16_t readU16(const uint8_t* p) { return p[0] | (p[1] << 8); }
 inline int16_t readI16(const uint8_t* p) { return static_cast<int16_t>(p[0] | (p[1] << 8)); }
 inline uint32_t readU32(const uint8_t* p) { return p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24); }
 
-// Walks a null-terminated UTF-8 string and appends each unique codepoint to
-// codepoints[0..cpCount-1] via O(n²) dedup.  Returns true if the buffer
-// reached maxCount (cap hit), false if all codepoints fit.
-bool collectUniqueCodepoints(const char* text, uint32_t* codepoints, uint32_t& cpCount, uint32_t maxCount) {
+// Walks a null-terminated UTF-8 string and adds each codepoint to `codepoints`.
+// Returns true if the set's capacity was reached (cap hit).
+bool collectUniqueCodepoints(const char* text, UniqueCodepointSet& codepoints) {
   const unsigned char* p = reinterpret_cast<const unsigned char*>(text);
   while (*p) {
     uint32_t cp = utf8NextCodepoint(&p);
     if (cp == 0) break;
     if (utf8IsVariationSelector(cp)) continue;
-
-    bool found = false;
-    for (uint32_t i = 0; i < cpCount; i++) {
-      if (codepoints[i] == cp) {
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      if (cpCount >= maxCount) return true;
-      codepoints[cpCount++] = cp;
-    }
+    if (codepoints.add(cp)) return true;
   }
   return false;
 }
@@ -790,14 +779,16 @@ bool SdCardFont::load(const char* path) {
           return false;
         }
         const size_t intervalsBytes = fullCount * sizeof(EpdUnicodeInterval);
-        if (file.read(reinterpret_cast<uint8_t*>(s.fullIntervals), intervalsBytes) != static_cast<int>(intervalsBytes)) {
+        if (file.read(reinterpret_cast<uint8_t*>(s.fullIntervals), intervalsBytes) !=
+            static_cast<int>(intervalsBytes)) {
           LOG_ERR("SDCF", "Failed to read intervals for style %u", i);
           freeAll();
           return false;
         }
       }
-      LOG_DBG("SDCF", "Style %u interval RAM: compact=%u full=%u bytes=%u", i, bmpCount, fullCount,
-              static_cast<unsigned>(bmpCount * sizeof(PerStyle::BmpInterval16) + fullCount * sizeof(EpdUnicodeInterval)));
+      LOG_DBG(
+          "SDCF", "Style %u interval RAM: compact=%u full=%u bytes=%u", i, bmpCount, fullCount,
+          static_cast<unsigned>(bmpCount * sizeof(PerStyle::BmpInterval16) + fullCount * sizeof(EpdUnicodeInterval)));
     }
 
     // Initialize stub data
@@ -1594,20 +1585,26 @@ int SdCardFont::buildAdvanceTableRange(Iter begin, Iter end, bool includeSpace, 
             static_cast<unsigned>(capacity * sizeof(uint32_t)));
     return -1;
   }
-  uint32_t cpCount = 0;
   bool hitCap = false;
+  // Unique codepoints never exceed the source count, which is itself capped at
+  // MAX_UNIQUE_CODEPOINTS; the two extra slots stay free for space and hyphen.
+  UniqueCodepointSet uniqueCodepoints(codepoints.get(), sourceCodepointCount);
 
   for (auto it = begin; it != end && !hitCap; ++it) {
-    hitCap = collectUniqueCodepoints(asCStr(*it), codepoints.get(), cpCount, MAX_UNIQUE_CODEPOINTS);
+    hitCap = collectUniqueCodepoints(asCStr(*it), uniqueCodepoints);
   }
   if (extraText && !hitCap) {
-    hitCap = collectUniqueCodepoints(extraText, codepoints.get(), cpCount, MAX_UNIQUE_CODEPOINTS);
+    hitCap = collectUniqueCodepoints(extraText, uniqueCodepoints);
   }
+  uint32_t cpCount = uniqueCodepoints.finish();
 
-  if (includeSpace && std::none_of(codepoints.get(), codepoints.get() + cpCount, [](uint32_t c) { return c == ' '; }))
-    codepoints[cpCount++] = ' ';
-  if (includeHyphen && std::none_of(codepoints.get(), codepoints.get() + cpCount, [](uint32_t c) { return c == '-'; }))
-    codepoints[cpCount++] = '-';
+  // Check both against the sorted set before appending either.
+  const bool addSpace =
+      includeSpace && !std::binary_search(codepoints.get(), codepoints.get() + cpCount, static_cast<uint32_t>(' '));
+  const bool addHyphen =
+      includeHyphen && !std::binary_search(codepoints.get(), codepoints.get() + cpCount, static_cast<uint32_t>('-'));
+  if (addSpace) codepoints[cpCount++] = ' ';
+  if (addHyphen) codepoints[cpCount++] = '-';
 
   if (hitCap) {
     LOG_ERR("SDCF", "buildAdvanceTable: unique codepoint cap (%u) hit, layout may be approximate",

@@ -33,6 +33,10 @@
 
 - Reduce resident lookup-table memory for SD fonts containing both BMP and supplementary Unicode ranges.
 - Display → Hide Battery % is replaced by the Battery option in each status bar's settings; existing choices carry over.
+- Home appears faster after waking, closing a book, or leaving a menu by reducing the number of screen refreshes.
+- Chapter indexing, dictionary lookups, and cover thumbnail generation respond sooner.
+- Index chapters faster by writing page data to the SD card in larger chunks, speeding up SD font preparation (especially for CJK books), and finding chapters and images faster in EPUBs with many files.
+- Large custom sleep and boot images load faster by skipping image rows that are not shown. Boot images larger than the screen are now dithered at screen size, matching sleep images.
 
 ### Fixed
 

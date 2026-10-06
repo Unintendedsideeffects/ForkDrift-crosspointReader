@@ -1,5 +1,6 @@
 #include <Epub.h>
 #include <GfxRenderer.h>
+#include <PrintSerialization.h>
 #include <Serialization.h>
 
 #include "Epub/Page.h"
@@ -28,7 +29,7 @@ bool ChapterHtmlSlimParser::finishParse() { return true; }
 void ChapterHtmlSlimParser::abortParse() {}
 void ChapterHtmlSlimParser::releaseInputFile() {}
 
-bool Page::serialize(FsFile& file) const {
+bool Page::serialize(Print& file) const {
   constexpr uint32_t marker = 0x50414745;
   return serialization::tryWritePod(file, marker);
 }

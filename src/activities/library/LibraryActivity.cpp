@@ -1491,8 +1491,12 @@ void LibraryActivity::render(RenderLock&&) {
                             renderer.getScreenHeight() - bounds[2] - buttonHintsHeight -
                                 (FOOTER_HEIGHT + renderer.getLineHeight(SMALL_FONT_ID)) / 2,
                             footer);
-  if (pendingCacheDeletedFeedback) GUI.drawPopup(renderer, tr(STR_BOOK_CACHE_DELETED));
-  renderer.displayBuffer();
+  // drawPopup() refreshes the panel itself; avoid repeating the same frame.
+  if (pendingCacheDeletedFeedback) {
+    GUI.drawPopup(renderer, tr(STR_BOOK_CACHE_DELETED));
+  } else {
+    renderer.displayBuffer();
+  }
 }
 
 void LibraryActivity::promptDeleteBook(const RecentBook& book) {

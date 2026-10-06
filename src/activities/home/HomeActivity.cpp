@@ -575,9 +575,10 @@ void HomeActivity::loadRecentBooks(int maxBooks) {
   }
 }
 
-void HomeActivity::loadCoverGridThumbnails() {
+bool HomeActivity::loadCoverGridThumbnails() {
   recentsLoading = true;
   bool showingLoading = false;
+  bool pathsChanged = false;
   Rect popupRect;
   for (size_t i = 0; i < recentBooks.size(); ++i) {
     auto& book = recentBooks[i];
@@ -592,6 +593,7 @@ void HomeActivity::loadCoverGridThumbnails() {
         auto xtc = makeUniqueNoThrow<Xtc>(book.path, "/.crosspoint");
         if (xtc) book.coverBmpPath = xtc->getThumbBmpPath();
       }
+      pathsChanged = pathsChanged || !book.coverBmpPath.empty();
     }
     const std::string thumbPath = UITheme::getCoverThumbPath(book.coverBmpPath, width, height, false);
     if (thumbPath.empty()) continue;
@@ -607,8 +609,8 @@ void HomeActivity::loadCoverGridThumbnails() {
       showingLoading = true;
       popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
     }
+    // fillPopupProgress() refreshes the panel itself.
     GUI.fillPopupProgress(renderer, popupRect, static_cast<int>(100 * i / std::max<size_t>(1, recentBooks.size())));
-    renderer.displayBuffer();
     if (FsHelpers::hasEpubExtension(book.path)) {
       auto epub = makeUniqueNoThrow<Epub>(book.path, "/.crosspoint");
       if (!epub) {
@@ -629,6 +631,8 @@ void HomeActivity::loadCoverGridThumbnails() {
   }
   recentsLoaded = true;
   recentsLoading = false;
+  // The loading popup or newly resolved artwork must be replaced by a repaint.
+  return showingLoading || pathsChanged;
 }
 
 void HomeActivity::loadAllBookStats() {
@@ -643,23 +647,24 @@ void HomeActivity::loadAllBookStats() {
 }
 
 void HomeActivity::loadRecentCovers(int coverHeight) {
-  // Thumbnail generation may need a 32 KB contiguous inflate buffer. The Home
-  // cover snapshot is only a redraw cache, so release it before ZIP work.
-  if (coverBuffer) {
-    freeCoverBuffer();
-    coverRendered = false;
-  }
-
   recentsLoading = true;
   bool showingLoading = false;
   Rect popupRect;
+  // Every thumbnail generation path shows progress before its ZIP/image work.
   auto showLoadingProgress = [&](const int value) {
     if (!showingLoading) {
       showingLoading = true;
+      // Thumbnail generation may need a 32 KB contiguous inflate buffer. The
+      // Home cover snapshot is only a redraw cache, so release it before ZIP
+      // work. Keep it when every thumbnail already exists: navigation can then
+      // restore the cover from RAM instead of decoding it from SD again.
+      if (coverBuffer) {
+        freeCoverBuffer();
+        coverRendered = false;
+      }
       popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
     }
-    GUI.fillPopupProgress(renderer, popupRect, std::clamp(value, 0, 100));
-    renderer.displayBuffer();
+    GUI.fillPopupProgress(renderer, popupRect, std::clamp(value, 0, 100));  // refreshes the panel itself
   };
 
   const bool isCarouselTheme =
@@ -2072,15 +2077,12 @@ void HomeActivity::render(RenderLock&&) {
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     displayHomeBuffer();
 
-    if (coverGridUi->takeThumbHeightsChanged()) {
-      coverGridUi->refreshCoverPaths();
-      recentsLoaded = false;
-    }
-    if (!firstRenderDone) {
-      firstRenderDone = true;
-      requestUpdate();
-    } else if (!recentsLoaded && !recentsLoading) {
-      loadCoverGridThumbnails();
+    // Layout records each slot's thumbnail size, and its cover path, before
+    // painting it. New sizes only mean the thumbnails must be checked.
+    if (coverGridUi->takeThumbHeightsChanged()) recentsLoaded = false;
+    // The panel already shows Home; repaint only for new artwork or to clear
+    // the progress popup, rather than repeating an identical frame.
+    if (!recentsLoaded && !recentsLoading && loadCoverGridThumbnails()) {
       coverGridUi->refreshCoverPaths();
       requestUpdate();
     }
@@ -2134,12 +2136,6 @@ void HomeActivity::render(RenderLock&&) {
 
     displayHomeBuffer();
 
-    if (!firstRenderDone) {
-      firstRenderDone = true;
-      requestUpdate();
-      return;
-    }
-
     if (!recentsLoaded && !recentsLoading) {
       recentsLoading = true;
       loadRecentCovers(metrics.homeCoverHeight);
@@ -2192,12 +2188,8 @@ void HomeActivity::render(RenderLock&&) {
 
       displayHomeBuffer();
       if (saveViewedFrame) saveCarouselFrameToDisk(gCarouselCache.keyHash, bookCount, centerIdx, slotIdx);
-      // Mirror the slow-path trigger: generate missing thumbnails on the second
-      // render so the E-ink is already showing something before the SD work starts.
-      if (!firstRenderDone) {
-        firstRenderDone = true;
-        requestUpdate();
-      } else if (!recentsLoaded && !recentsLoading) {
+      // Mirror the slow path: Home is already on the panel before SD work starts.
+      if (!recentsLoaded && !recentsLoading) {
         recentsLoading = true;
         loadRecentCovers(metrics.homeCoverHeight);
       }
@@ -2260,12 +2252,9 @@ void HomeActivity::render(RenderLock&&) {
 
   displayHomeBuffer();
 
-  if (!firstRenderDone) {
-    firstRenderDone = true;
-    requestUpdate();
-    return;
-  }
-
+  // The panel already shows Home, so missing-thumbnail work can start now.
+  // loadRecentCovers() requests its own repaint only when artwork changes;
+  // repainting the identical first frame cost a full panel refresh.
   if (!recentsLoaded && !recentsLoading) {
     recentsLoading = true;
     loadRecentCovers(metrics.homeCoverHeight);

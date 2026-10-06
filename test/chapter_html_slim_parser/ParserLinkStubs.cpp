@@ -58,7 +58,7 @@ ImageBlock::ImageBlock(std::string imagePath, std::string sourcePath, const int1
 
 void PageImage::render(GfxRenderer&, int, int, int, bool) {}
 void PageImage::renderPlaceholder(GfxRenderer&, int, int, bool) const {}
-bool PageImage::serialize(FsFile&) { return false; }
+bool PageImage::serialize(Print&) { return false; }
 
 PreviewBlockLocator::PreviewBlockLocator(const char*, IsBlockTagFn) {}
 PreviewBlockLocator::~PreviewBlockLocator() = default;
@@ -77,8 +77,8 @@ CompactTableLayout::RowResult CompactTableLayout::finishRow(TableFragmentRow&, s
 }
 
 void PageLine::render(GfxRenderer&, int, int, int, bool) {}
-bool PageLine::serialize(FsFile&) { return false; }
+bool PageLine::serialize(Print&) { return false; }
 void PageHorizontalRule::render(GfxRenderer&, int, int, int, bool) {}
-bool PageHorizontalRule::serialize(FsFile&) { return false; }
+bool PageHorizontalRule::serialize(Print&) { return false; }
 void PageTableFragment::render(GfxRenderer&, int, int, int, bool) {}
-bool PageTableFragment::serialize(FsFile&) { return false; }
+bool PageTableFragment::serialize(Print&) { return false; }
