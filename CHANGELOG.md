@@ -20,6 +20,10 @@
 
 ### Fixed
 
+- Keep button-keyboard tips steady when text becomes empty or non-empty, and hide tips when they cannot fit above the keys (CrossPoint #3863).
+- Preserve initial publisher spacing on long EPUB paragraphs without repeating it during incremental layout (CrossPoint #3875).
+- Check long EPUB text runs after each fragment to limit temporary layout memory growth (YACP 4bfcfb4).
+
 - Restore complete WebDAV file downloads, including large binary files.
 - Retry low-memory EPUB image sizing with framebuffer scratch and redraw the reader after background image probes.
 - Automatically retry interrupted book and font downloads, validating resumed byte ranges and restarting safely when the server cannot resume.

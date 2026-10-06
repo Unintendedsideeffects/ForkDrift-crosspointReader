@@ -595,6 +595,13 @@ Binary layout:
 
 ## `section.bin`
 
+### Version 85
+
+Long paragraphs apply initial CSS margin/padding on their first emitted line,
+including incremental flushes. Text fragment bounds are checked on each append.
+The payload is unchanged; complete files use `85` and suspended partials use
+`0xC6`, invalidating both kinds of cached layout from earlier versions.
+
 ### Version 84
 
 Explicit CSS border suppression on `<hr>` removes the generated rule from page

@@ -24,14 +24,20 @@ bool computeVisualWordOrder(const std::vector<std::string>& words, bool, std::ve
 
 TextBlock::TextBlock(const std::vector<std::string>& words, const std::vector<int16_t>& wordXpos,
                      const std::vector<EpdFontFamily::Style>&, const std::vector<uint8_t>&,
-                     const std::vector<uint16_t>&, const std::vector<uint16_t>&, const std::vector<uint8_t>&,
+                     const std::vector<uint16_t>&, const std::vector<uint16_t>&, const std::vector<uint8_t>& wordFlags,
                      const std::vector<bool>&, const BlockStyle& blockStyle, std::vector<std::string> rubyTexts)
     : blockStyle(blockStyle), numWords(static_cast<uint16_t>(words.size())), rubyTexts(std::move(rubyTexts)) {
   if (wordXpos.empty()) return;
-  arena = std::make_unique<uint8_t[]>(wordXpos.size() * sizeof(int16_t));
+  arena = std::make_unique<uint8_t[]>(wordXpos.size() * sizeof(int16_t) + wordFlags.size());
   auto* positions = reinterpret_cast<int16_t*>(arena.get());
   std::copy(wordXpos.begin(), wordXpos.end(), positions);
   xposArr = positions;
+  if (!wordFlags.empty()) {
+    auto* flags = arena.get() + wordXpos.size() * sizeof(int16_t);
+    std::copy(wordFlags.begin(), wordFlags.end(), flags);
+    wordFlagsArr = flags;
+    wordFlagsPresent = true;
+  }
 }
 bool TextBlock::hasRuby() const { return false; }
 

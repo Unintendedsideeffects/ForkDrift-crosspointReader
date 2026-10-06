@@ -949,3 +949,235 @@ TEST_F(ChapterHtmlSlimParserTest, ParentBorderDoesNotHideChildRule) {
   ASSERT_EQ(parser.currentPage->elements.size(), 1u);
   EXPECT_EQ(parser.currentPage->elements.front()->getTag(), TAG_PageHorizontalRule);
 }
+
+TEST_F(ChapterHtmlSlimParserTest, SoftFlushAppliesTopSpacingOnFirstEmittedLineOnly) {
+  renderer.textAdvancePerChar = 4;
+  parser.viewportWidth = 40;
+  BlockStyle style;
+  style.marginTop = 7;
+  style.paddingTop = 5;
+  style.marginBottom = 9;
+  style.paddingBottom = 3;
+  style.textIndent = 8;
+  style.textIndentDefined = true;
+  parser.currentTextBlock->setBlockStyle(style);
+  parser.currentTextBlock->addWord("one", EpdFontFamily::REGULAR);
+  parser.flushLongTextRunIfNeeded(true);
+  EXPECT_EQ(parser.wordsExtractedInBlock, 0);
+  EXPECT_EQ(parser.currentPageNextY, 0);
+  EXPECT_FALSE(parser.currentTextBlock->isContinuation());
+  for (int i = 0; i < 8; ++i) parser.currentTextBlock->addWord("one", EpdFontFamily::REGULAR);
+  parser.flushLongTextRunIfNeeded(true);
+  ASSERT_NE(parser.currentPage, nullptr);
+  ASSERT_GT(parser.currentPage->elements.size(), 0u);
+  EXPECT_EQ(parser.currentPage->elements.front()->yPos, 12);
+  const int emitted = parser.currentPage->elements.size();
+  EXPECT_EQ(parser.currentPageNextY, 12 + emitted * 16);
+  EXPECT_TRUE(parser.currentTextBlock->isContinuation());
+  parser.makePages();
+  EXPECT_EQ(parser.currentPageNextY, 24 + int(parser.currentPage->elements.size()) * 16);
+  for (size_t i = 0; i < parser.currentPage->elements.size(); ++i) {
+    EXPECT_EQ(parser.currentPage->elements[i]->yPos, 12 + int(i) * 16);
+  }
+}
+
+TEST_F(ChapterHtmlSlimParserTest, EmptyFinalFlushDoesNotConsumeTopSpacing) {
+  BlockStyle style;
+  style.marginTop = 7;
+  style.paddingTop = 5;
+  parser.currentTextBlock->setBlockStyle(style);
+  parser.makePages();
+  EXPECT_EQ(parser.currentPageNextY, 0);
+  parser.currentTextBlock->addWord("one", EpdFontFamily::REGULAR);
+  parser.makePages();
+  ASSERT_EQ(parser.currentPage->elements.size(), 1u);
+  EXPECT_EQ(parser.currentPage->elements.front()->yPos, 12);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, FullyFlushedParagraphResetsSpacingForReusedBlock) {
+  BlockStyle style;
+  style.marginTop = 7;
+  style.paddingTop = 5;
+  parser.currentTextBlock->setBlockStyle(style);
+  parser.currentTextBlock->addWord("one", EpdFontFamily::REGULAR);
+  parser.flushLongTextRunIfNeeded(true, true);
+  EXPECT_EQ(parser.currentPageNextY, 28);
+  parser.currentTextBlock->addWord("two", EpdFontFamily::REGULAR);
+  parser.flushLongTextRunIfNeeded(true, true);
+  EXPECT_EQ(parser.currentPageNextY, 44);
+  parser.startNewTextBlock(style);
+  parser.currentTextBlock->addWord("three", EpdFontFamily::REGULAR);
+  parser.makePages();
+  ASSERT_EQ(parser.currentPage->elements.size(), 3u);
+  EXPECT_EQ(parser.currentPage->elements.back()->yPos, 56);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, FragmentAppendChecksBoundBeforeCallbackEnds) {
+  renderer.textAdvancePerChar = 4;
+  for (size_t i = 0; i < parser.bufferedWordsBeforeLayoutLimit() + 1; ++i) {
+    std::strcpy(parser.partWordBuffer, "word");
+    parser.partWordBufferIndex = 4;
+    parser.flushPartWordBuffer();
+  }
+  EXPECT_GT(parser.wordsExtractedInBlock, 0);
+  EXPECT_LE(parser.currentTextBlock->size(), parser.bufferedWordsBeforeLayoutLimit());
+}
+
+TEST_F(ChapterHtmlSlimParserTest, HugeCjkCallbackDoesNotRetainWholeRunCapacity) {
+  renderer.textAdvancePerChar = 4;
+  std::string text;
+  for (int i = 0; i < 6000; ++i) text += "\xE4\xB8\xAD";
+  parser.completePageFn = [](std::unique_ptr<Page>, uint16_t, uint16_t, uint32_t, uint32_t) {};
+  ChapterHtmlSlimParser::characterData(&parser, text.data(), text.size());
+  parser.flushPartWordBuffer();
+  EXPECT_FALSE(parser.lowMemoryAbort);
+  EXPECT_GT(parser.wordsExtractedInBlock, 5000);
+  EXPECT_LT(parser.currentTextBlock->wordStyles.capacity(), 1024u);
+  EXPECT_EQ(parser.visibleTextOffset, 6000u);
+  EXPECT_EQ(parser.wordsExtractedInBlock + parser.currentTextBlock->size(), 6000u);
+  if (!parser.currentTextBlock->isEmpty()) {
+    EXPECT_EQ(parser.currentTextBlock->visibleOffsetAt(0), uint32_t(parser.wordsExtractedInBlock));
+  }
+}
+
+TEST_F(ChapterHtmlSlimParserTest, FragmentFlushKeepsRubyGroupBuffered) {
+  renderer.textAdvancePerChar = 4;
+  parser.inRuby = true;
+  for (size_t i = 0; i < parser.bufferedWordsBeforeLayoutLimit() + 1; ++i) {
+    std::strcpy(parser.partWordBuffer, "word");
+    parser.partWordBufferIndex = 4;
+    parser.flushPartWordBuffer();
+  }
+  EXPECT_EQ(parser.wordsExtractedInBlock, 0);
+  EXPECT_EQ(parser.currentTextBlock->size(), parser.bufferedWordsBeforeLayoutLimit() + 1);
+  parser.inRuby = false;
+  parser.flushLongTextRunIfNeeded();
+  EXPECT_GT(parser.wordsExtractedInBlock, 0);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, FragmentFlushKeepsBufferedTableCellIntact) {
+  renderer.textAdvancePerChar = 4;
+  ChapterHtmlSlimParser::startElement(&parser, "table", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "tr", nullptr);
+  ChapterHtmlSlimParser::startElement(&parser, "td", nullptr);
+  ASSERT_NE(parser.currentTableBuffer, nullptr);
+  for (size_t i = 0; i < parser.bufferedWordsBeforeLayoutLimit() + 1; ++i) {
+    std::strcpy(parser.partWordBuffer, "word");
+    parser.partWordBufferIndex = 4;
+    parser.flushPartWordBuffer();
+  }
+  EXPECT_EQ(parser.wordsExtractedInBlock, 0);
+  EXPECT_EQ(parser.currentTextBlock->size(), parser.bufferedWordsBeforeLayoutLimit() + 1);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, SingleHugeCallbackHonorsPreviewPageLimit) {
+  renderer.textAdvancePerChar = 4;
+  parser.viewportHeight = 48;
+  parser.previewAnchor = "note";
+  parser.previewMaxPages = 1;
+  parser.previewAnchorFound = true;
+  int pages = 0;
+  parser.completePageFn = [&](std::unique_ptr<Page>, uint16_t, uint16_t, uint32_t, uint32_t) { ++pages; };
+  std::string text;
+  for (int i = 0; i < 2000; ++i) text += "word ";
+  ChapterHtmlSlimParser::characterData(&parser, text.data(), text.size());
+  EXPECT_TRUE(parser.previewStopRequested);
+  EXPECT_EQ(pages, 1);
+  EXPECT_EQ(parser.completedPageCount, 1);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, SoftFlushLeavesTrailingFootnotesForFinalization) {
+  renderer.textAdvancePerChar = 4;
+  parser.viewportWidth = 40;
+  for (int i = 0; i < 8; ++i) parser.currentTextBlock->addWord("word", EpdFontFamily::REGULAR);
+  FootnoteEntry note{};
+  std::strcpy(note.number, "1");
+  std::strcpy(note.href, "#note");
+  note.linkId = 1;
+  parser.pendingFootnotes.push_back({8, note});
+  parser.flushLongTextRunIfNeeded(true);
+  EXPECT_EQ(parser.pendingFootnotes.size(), 1u);
+  parser.makePages();
+  EXPECT_TRUE(parser.pendingFootnotes.empty());
+  ASSERT_EQ(parser.currentPage->footnotes.size(), 1u);
+  EXPECT_STREQ(parser.currentPage->footnotes[0].href, "#note");
+}
+
+TEST_F(ChapterHtmlSlimParserTest, FragmentFlushKeepsActiveLinkOnEveryEmittedPage) {
+  renderer.textAdvancePerChar = 4;
+  parser.viewportHeight = 64;
+  int linkedPages = 0;
+  parser.completePageFn = [&](std::unique_ptr<Page> page, uint16_t, uint16_t, uint32_t, uint32_t) {
+    ASSERT_EQ(page->footnotes.size(), 1u);
+    EXPECT_STREQ(page->footnotes[0].href, "#note");
+    ++linkedPages;
+  };
+  const XML_Char* attrs[] = {"href", "#note", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "a", attrs);
+  std::string text;
+  for (int i = 0; i < 1000; ++i) text += "linked ";
+  ChapterHtmlSlimParser::characterData(&parser, text.data(), text.size());
+  EXPECT_GT(linkedPages, 0);
+  ChapterHtmlSlimParser::endElement(&parser, "a");
+  parser.makePages();
+  ASSERT_NE(parser.currentPage, nullptr);
+  ASSERT_EQ(parser.currentPage->footnotes.size(), 1u);
+  EXPECT_STREQ(parser.currentPage->footnotes[0].href, "#note");
+}
+
+TEST_F(ChapterHtmlSlimParserTest, PageBreakBeforeDoesNotRepeatPreviousBottomSpacing) {
+  BlockStyle previous;
+  previous.marginBottom = 11;
+  previous.paddingBottom = 7;
+  parser.currentTextBlock->setBlockStyle(previous);
+  parser.extraParagraphSpacing = true;
+  parser.currentTextBlock->addWord("previous", EpdFontFamily::REGULAR);
+  int pages = 0;
+  parser.completePageFn = [&](std::unique_ptr<Page>, uint16_t, uint16_t, uint32_t, uint32_t) { ++pages; };
+  const XML_Char* attrs[] = {"style", "page-break-before: always", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "p", attrs);
+  ChapterHtmlSlimParser::characterData(&parser, "next", 4);
+  parser.flushPartWordBuffer();
+  parser.makePages();
+  EXPECT_EQ(pages, 1);
+  ASSERT_EQ(parser.currentPage->elements.size(), 1u);
+  EXPECT_EQ(parser.currentPage->elements[0]->yPos, 0);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, CallbackChunkingPreservesVisibleAndReferencePageOffsets) {
+  renderer.textAdvancePerChar = 4;
+  const std::string fragment = "word \xE4\xB8\xAD\xF0\x9F\x98\x80 text ";
+  std::string text;
+  for (int i = 0; i < 600; ++i) text += fragment;
+  auto layout = [&](size_t chunkSize) {
+    parser.currentTextBlock = std::make_unique<ParsedText>(false, false, false, false, false, 0, BlockStyle{}, true);
+    parser.trackReferenceCharacters = true;
+    parser.currentPage.reset();
+    parser.currentPageNextY = 0;
+    parser.completedPageCount = 0;
+    parser.wordsExtractedInBlock = 0;
+    parser.visibleTextOffset = 0;
+    parser.referenceTextOffset = 0;
+    parser.referenceTextStarted = false;
+    parser.referenceWhitespacePending = false;
+    parser.currentTextRunBytes = 0;
+    parser.partWordBufferIndex = 0;
+    parser.nextWordContinues = false;
+    std::vector<std::array<uint32_t, 3>> pages;
+    parser.completePageFn = [&](std::unique_ptr<Page> page, uint16_t, uint16_t, uint32_t visible, uint32_t reference) {
+      pages.push_back({visible, reference, uint32_t(page->elements.size())});
+    };
+    for (size_t offset = 0; offset < text.size(); offset += chunkSize) {
+      ChapterHtmlSlimParser::characterData(&parser, text.data() + offset, std::min(chunkSize, text.size() - offset));
+    }
+    parser.flushPartWordBuffer();
+    parser.makePages();
+    if (parser.currentPage && !parser.currentPage->elements.empty()) parser.completeCurrentPage();
+    EXPECT_FALSE(parser.lowMemoryAbort);
+    return pages;
+  };
+  const auto oneCallback = layout(text.size());
+  const auto splitCallbacks = layout(fragment.size());
+  EXPECT_GT(oneCallback.size(), 1u);
+  EXPECT_EQ(oneCallback, splitCallbacks);
+}
