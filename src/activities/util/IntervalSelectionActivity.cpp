@@ -582,7 +582,7 @@ void IntervalSelectionActivity::render(RenderLock&&) {
 #if CROSSINK_APP_CAP_TOUCH
   if (usesReaderSlider()) {
     uiReady = false;
-    app.render();
+    renderUiApp(app, uiTarget);
     uiReady = true;
     renderReaderPreview(readerPreviewArea);
 
@@ -614,7 +614,7 @@ void IntervalSelectionActivity::render(RenderLock&&) {
 
   const bool hasButtonReaderPreview =
       readerPreviewSetting != ReaderPreviewSetting::None && !mappedInput.hasTouchHardware();
-  const int controlsBottom = safe.y + safe.height - metrics.buttonHintsHeight - metrics.verticalSpacing;
+  const int controlsBottom = safe.y + safe.height - UITheme::getButtonHintsReserve(renderer) - metrics.verticalSpacing;
   // Reserve the value, bar and both step hints below the preview divider.
   const int barY = hasButtonReaderPreview ? controlsBottom - 72 : 140;
   const int valueY = barY - 50;

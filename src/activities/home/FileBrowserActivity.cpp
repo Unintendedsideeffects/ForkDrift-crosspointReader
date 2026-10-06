@@ -1363,9 +1363,9 @@ void FileBrowserActivity::listScreen(UiApp::ScreenType& screen, void* user) {
 void FileBrowserActivity::buildListScreen(UiApp::ScreenType& screen) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   // Content below the GUI.drawHeader band, above the button hints.
-  screen.setContentMargin(
-      fui::Insets{static_cast<int16_t>(metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput)), 0,
-                  static_cast<int16_t>(metrics.buttonHintsHeight), 0});
+  setUiContentMargin(screen, renderer,
+                     fui::Insets{static_cast<int16_t>(TouchHeaderBackButton::contentTop(renderer, mappedInput)), 0,
+                                 static_cast<int16_t>(UITheme::getButtonHintsReserve(renderer)), 0});
 
   if (mode == Mode::Books && mappedInput.hasTouchHardware()) {
     const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput);
@@ -1538,7 +1538,7 @@ void FileBrowserActivity::render(RenderLock&&) {
 
   uiReady = false;
   for (int pass = 0; pass < 8; ++pass) {
-    app.render();
+    renderUiApp(app, uiTarget);
     if (!listNav.consumeRebuildNeeded()) break;
   }
   uiReady = true;
@@ -1559,7 +1559,8 @@ void FileBrowserActivity::render(RenderLock&&) {
 
   if (!mappedInput.hasTouch() && mode == Mode::Books && basepath == "/") {
     const int pathLineHeight = renderer.getLineHeight(SMALL_FONT_ID);
-    const int bandY = renderer.getScreenHeight() - metrics.buttonHintsHeight - pathLineHeight - metrics.verticalSpacing;
+    const int bandY = renderer.getScreenHeight() - UITheme::getButtonHintsReserve(renderer) - pathLineHeight -
+                      metrics.verticalSpacing;
     const int pathY = bandY + metrics.verticalSpacing / 2 +
                       (pathLineHeight + metrics.verticalSpacing - metrics.verticalSpacing / 2 - pathLineHeight) / 2;
     const int pathMaxWidth = pageWidth - metrics.contentSidePadding * 2;

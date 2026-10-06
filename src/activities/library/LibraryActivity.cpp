@@ -1219,9 +1219,9 @@ void LibraryActivity::buildListScreen(UiApp::ScreenType& screen) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   int bounds[4]{};
   renderer.getOrientedViewableTRBL(&bounds[0], &bounds[1], &bounds[2], &bounds[3]);
-  const int16_t headerBottom =
-      static_cast<int16_t>(metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput));
-  const int buttonHintsHeight = mappedInput.hasTouchHardware() ? 0 : metrics.buttonHintsHeight;
+  const int16_t headerBottom = static_cast<int16_t>(TouchHeaderBackButton::contentTop(renderer, mappedInput));
+  const int buttonHintsHeight =
+      mappedInput.hasTouchHardware() ? 0 : UITheme::getInstance().getMetrics().buttonHintsHeight;
   screen.setContentMarginFromScreen(fui::Insets{headerBottom, static_cast<int16_t>(bounds[1]),
                                                 static_cast<int16_t>(FOOTER_HEIGHT + buttonHintsHeight + bounds[2]),
                                                 static_cast<int16_t>(bounds[3])});
@@ -1487,7 +1487,7 @@ void LibraryActivity::render(RenderLock&&) {
                                   3 * HEADER_CONTROL_SIZE + 2 * HEADER_CONTROL_GAP + headerControlRightInset() + 10);
     else
       GUI.drawHeader(renderer, header, tr(STR_LIBRARY));
-    app.render();
+    renderUiApp(app, uiTarget);
     topIndex = listNav.top;
     if (!listNav.consumeRebuildNeeded()) break;
   }

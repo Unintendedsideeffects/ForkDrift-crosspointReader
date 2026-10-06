@@ -20,7 +20,7 @@ void drawPageIndicators(const GfxRenderer& renderer, const int currentPage, cons
   const auto& metrics = UITheme::getInstance().getMetrics();
   const int totalDotWidth = totalPages * kDotSize + (totalPages - 1) * kDotSpacing;
   const int dotsStartX = (renderer.getScreenWidth() - totalDotWidth) / 2;
-  const int dotY = renderer.getScreenHeight() - metrics.buttonHintsHeight - metrics.verticalSpacing - 4;
+  const int dotY = renderer.getScreenHeight() - UITheme::getButtonHintsReserve(renderer) - metrics.verticalSpacing - 4;
   for (int pageIndex = 0; pageIndex < totalPages; ++pageIndex) {
     const int dotX = dotsStartX + pageIndex * (kDotSize + kDotSpacing);
     if (pageIndex == currentPage) {

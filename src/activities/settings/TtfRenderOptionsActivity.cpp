@@ -270,10 +270,11 @@ void TtfRenderOptionsActivity::onRowEvent(const fui::ActionEvent& event, void* u
 void TtfRenderOptionsActivity::buildOptionsScreen(UiApp::ScreenType& screen) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, !mappedInput.hasTouchHardware(), false);
-  screen.setContentMargin(fui::Insets{
-      static_cast<int16_t>(safe.y + metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput)),
-      static_cast<int16_t>(renderer.getScreenWidth() - safe.x - safe.width),
-      static_cast<int16_t>(renderer.getScreenHeight() - safe.y - safe.height), static_cast<int16_t>(safe.x)});
+  setUiContentMargin(screen, renderer,
+                     fui::Insets{static_cast<int16_t>(TouchHeaderBackButton::contentTop(renderer, mappedInput, safe.y)),
+                                 static_cast<int16_t>(renderer.getScreenWidth() - safe.x - safe.width),
+                                 static_cast<int16_t>(renderer.getScreenHeight() - safe.y - safe.height),
+                                 static_cast<int16_t>(safe.x)});
   screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
 
   fui::TextStyle familyStyle = screen.theme().smallText;
@@ -328,7 +329,7 @@ void TtfRenderOptionsActivity::render(RenderLock&&) {
     GUI.drawHeader(renderer, header, tr(STR_TTF_RENDERING), nullptr, true);
   }
   uiReady_ = false;
-  app_.render();
+  renderUiApp(app_, uiTarget_);
   uiReady_ = true;
   const auto labels =
       mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));

@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "DeviceCapabilities.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
 #include "components/themes/BaseTheme.h"
@@ -187,7 +188,7 @@ int UITheme::getNumberOfItemsPerPage(const GfxRenderer& renderer, bool hasHeader
   }
   if (hasButtonHints && orientation != GfxRenderer::Orientation::LandscapeClockwise &&
       orientation != GfxRenderer::Orientation::LandscapeCounterClockwise) {
-    reservedHeight += metrics.verticalSpacing + metrics.buttonHintsHeight;
+    reservedHeight += metrics.verticalSpacing + getButtonHintsReserve(renderer);
   }
   const int availableHeight = renderer.getScreenHeight() - reservedHeight - extraReservedHeight;
   return UITheme::getInstance().getTheme().getListPageItems(availableHeight, hasSubtitle);
@@ -200,29 +201,44 @@ Rect UITheme::getScreenSafeArea(const GfxRenderer& renderer, bool hasFrontButton
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
   Rect safeArea = Rect{0, 0, screenWidth, screenHeight};
+  const int hintReserve =
+      renderer.hasCustomViewableInsets() ? getButtonHintsReserve(renderer) : currentMetrics->buttonHintsHeight;
   switch (orientation) {
     case GfxRenderer::Orientation::Portrait:
       if (hasFrontButtonHints) {
-        safeArea.height -= currentMetrics->buttonHintsHeight;
+        safeArea.height -= hintReserve;
       }
       break;
     case GfxRenderer::Orientation::LandscapeClockwise:
       if (hasFrontButtonHints) {
-        safeArea.x += currentMetrics->buttonHintsHeight;
-        safeArea.width -= currentMetrics->buttonHintsHeight;
+        safeArea.x += hintReserve;
+        safeArea.width -= hintReserve;
       }
       break;
     case GfxRenderer::Orientation::PortraitInverted:
       if (hasFrontButtonHints) {
-        safeArea.y += currentMetrics->buttonHintsHeight;
-        safeArea.height -= currentMetrics->buttonHintsHeight;
+        safeArea.y += hintReserve;
+        safeArea.height -= hintReserve;
       }
       break;
     case GfxRenderer::Orientation::LandscapeCounterClockwise:
       if (hasFrontButtonHints) {
-        safeArea.width -= currentMetrics->buttonHintsHeight;
+        safeArea.width -= hintReserve;
       }
       break;
+  }
+  if (renderer.hasCustomViewableInsets()) {
+    int top, right, bottom, left;
+    renderer.getOrientedViewableTRBL(&top, &right, &bottom, &left);
+    if (hasSideButtonHints && !gpio.hasTouch()) {
+      if (deviceHasEdgeSideButtons(gpio)) left += getMetrics().sideButtonHintsWidth;
+      right += getMetrics().sideButtonHintsWidth;
+    }
+    const int x = std::max(safeArea.x, left);
+    const int y = std::max(safeArea.y, top);
+    const int endX = std::min(safeArea.x + safeArea.width, screenWidth - right);
+    const int endY = std::min(safeArea.y + safeArea.height, screenHeight - bottom);
+    safeArea = Rect{x, y, std::max(0, endX - x), std::max(0, endY - y)};
   }
   return safeArea;
 }
@@ -363,8 +379,45 @@ int UITheme::getReaderProgressBarHeight(const ReaderStatusBarPosition position) 
              : 0;
 }
 
+int UITheme::getButtonHintsBottomInset(const GfxRenderer& renderer) {
+  return renderer.hasCustomViewableInsets() ? renderer.getViewableInsets().edges[2] : 0;
+}
+
+int UITheme::getButtonHintsReserve(const GfxRenderer& renderer) {
+  const int height = getInstance().getMetrics().buttonHintsHeight;
+  return height > 0 ? height + getButtonHintsBottomInset(renderer) : 0;
+}
+
+int UITheme::getHintSafeX(const GfxRenderer& renderer, const int x, const int width) {
+  if (!renderer.hasCustomViewableInsets()) return x;
+  const auto edges = renderer.getViewableInsets().rotated(static_cast<unsigned>(renderer.getOrientation())).edges;
+  return std::clamp(x, static_cast<int>(edges[3]),
+                    std::max(static_cast<int>(edges[3]), renderer.getScreenWidth() - edges[1] - width));
+}
+
 int UITheme::getTopStatusBarY(const GfxRenderer& renderer) {
-  return getInstance().getMetrics().topPadding + getTopStatusBarInset(renderer);
+  const int legacyY = getInstance().getMetrics().topPadding + getTopStatusBarInset(renderer);
+  return renderer.getViewableInsets().topOrigin(static_cast<unsigned>(renderer.getOrientation()), legacyY);
+}
+
+Rect UITheme::getHeaderRect(const GfxRenderer& renderer, const int height) {
+  const int legacyTop = getInstance().getMetrics().topPadding;
+  if (!renderer.hasCustomViewableInsets()) return Rect{0, legacyTop, renderer.getScreenWidth(), height};
+  const auto insets = renderer.getViewableInsets().rotated(static_cast<unsigned>(renderer.getOrientation()));
+  // drawDisplayStatusBar adds the existing board offset exactly once.
+  const int y =
+      std::max(static_cast<int>(insets.edges[0]), getTopStatusBarY(renderer) - getTopStatusBarInset(renderer));
+  return Rect{insets.edges[3], y, renderer.getScreenWidth() - insets.edges[1] - insets.edges[3], height};
+}
+
+Rect UITheme::getHeaderRect(const GfxRenderer& renderer, const int height, const Rect& area) {
+  auto header = getHeaderRect(renderer, height);
+  if (!renderer.hasCustomViewableInsets()) return Rect{area.x, area.y + header.y, area.width, height};
+  const int right = std::min(header.x + header.width, area.x + area.width);
+  header.x = std::max(header.x, area.x);
+  header.width = std::max(0, right - header.x);
+  header.y = std::max(header.y, area.y);
+  return header;
 }
 
 int UITheme::getTopStatusBarInset(const GfxRenderer& renderer) {

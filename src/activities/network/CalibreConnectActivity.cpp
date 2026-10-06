@@ -199,7 +199,7 @@ void CalibreConnectActivity::render(RenderLock&&) {
   } else if (state == CalibreConnectState::ERROR) {
     renderer.drawCenteredText(UI_12_FONT_ID, top, tr(STR_CONNECTION_FAILED), true, EpdFontFamily::BOLD);
   } else if (state == CalibreConnectState::SERVER_RUNNING) {
-    const int subHeaderTop = CompactHeader::contentTop(metrics);
+    const int subHeaderTop = CompactHeader::contentTop(renderer);
     GUI.drawSubHeader(renderer, Rect{0, subHeaderTop, pageWidth, metrics.tabBarHeight}, connectedSSID.c_str());
 
     // Keep the network name and full address independently readable on narrow

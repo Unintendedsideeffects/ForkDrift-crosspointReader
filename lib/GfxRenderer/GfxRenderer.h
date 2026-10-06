@@ -2,6 +2,7 @@
 
 #include <EpdFontFamily.h>
 #include <HalDisplay.h>
+#include <ScreenInsets.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
@@ -46,6 +47,7 @@ class GfxRenderer {
   };
 
  private:
+  ScreenInsets viewableInsets;
   static constexpr size_t BW_BUFFER_CHUNK_SIZE = 8000;  // 8KB chunks to allow for non-contiguous memory
 
   HalDisplay& display;
@@ -158,10 +160,10 @@ class GfxRenderer {
     freeBitmapScratchBuffers();
   }
 
-  static constexpr int VIEWABLE_MARGIN_TOP = 9;
-  static constexpr int VIEWABLE_MARGIN_RIGHT = 3;
-  static constexpr int VIEWABLE_MARGIN_BOTTOM = 3;
-  static constexpr int VIEWABLE_MARGIN_LEFT = 3;
+  static constexpr int VIEWABLE_MARGIN_TOP = ScreenInsets{}.edges[0];
+  static constexpr int VIEWABLE_MARGIN_RIGHT = ScreenInsets{}.edges[1];
+  static constexpr int VIEWABLE_MARGIN_BOTTOM = ScreenInsets{}.edges[2];
+  static constexpr int VIEWABLE_MARGIN_LEFT = ScreenInsets{}.edges[3];
 
   // Setup
   void begin();  // must be called right after display.begin()
@@ -232,6 +234,11 @@ class GfxRenderer {
   void invertRect(int x, int y, int width, int height) const;
   void clearScreen(uint8_t color = 0xFF) const;
   void getOrientedViewableTRBL(int* outTop, int* outRight, int* outBottom, int* outLeft) const;
+  const ScreenInsets& getViewableInsets() const { return viewableInsets; }
+  bool hasCustomViewableInsets() const { return viewableInsets != ScreenInsets{}; }
+  void setViewableInsets(const ScreenInsets& insets) {
+    if (insets.valid()) viewableInsets = insets;
+  }
 
   void beginStripTarget(uint8_t* scratch, int stripY0, int stripRows) const;
   void endStripTarget() const;

@@ -667,6 +667,7 @@ void TxtReaderActivity::initializeReader() {
   cachedParagraphAlignment = SETTINGS.paragraphAlignment;
   cachedTopStatusBarHeight = ReaderUtils::getTopStatusBarReservedHeight(renderer);
   cachedFooterReservedHeight = ReaderUtils::getReaderFooterReservedHeight(renderer, false);
+  cachedViewableInsets = renderer.getViewableInsets();
 
   // Calculate viewport dimensions
   renderer.getOrientedViewableTRBL(&cachedOrientedMarginTop, &cachedOrientedMarginRight, &cachedOrientedMarginBottom,
@@ -791,7 +792,8 @@ void TxtReaderActivity::render(RenderLock&&) {
   bool relayout = false;
   size_t readingOffset = 0;
   if (initialized && currentPage != statusBarRelayoutPage) statusBarRelayoutOffset.reset();
-  if (initialized && (cachedTopStatusBarHeight != ReaderUtils::getTopStatusBarReservedHeight(renderer) ||
+  if (initialized && (cachedViewableInsets != renderer.getViewableInsets() ||
+                      cachedTopStatusBarHeight != ReaderUtils::getTopStatusBarReservedHeight(renderer) ||
                       cachedFooterReservedHeight != ReaderUtils::getReaderFooterReservedHeight(renderer, false))) {
     if (currentPage >= 0 && currentPage < static_cast<int>(pageOffsets.size())) {
       if (!statusBarRelayoutOffset) statusBarRelayoutOffset = pageOffsets[currentPage];

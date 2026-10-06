@@ -40,10 +40,20 @@ int headerBottomY(const ThemeMetrics& metrics) { return metrics.topPadding + hei
 
 int contentTop(const ThemeMetrics& metrics) { return headerBottomY(metrics) + kHeaderTopGap; }
 
+Rect headerRect(const GfxRenderer& renderer) {
+  return UITheme::getHeaderRect(renderer, height(UITheme::getInstance().getMetrics()));
+}
+
+int headerBottomY(const GfxRenderer& renderer) {
+  const auto header = headerRect(renderer);
+  return header.y + header.height;
+}
+
+int contentTop(const GfxRenderer& renderer) { return headerBottomY(renderer) + kHeaderTopGap; }
+
 void drawTitle(const GfxRenderer& renderer, const char* title, const bool showDate, const Rect* headerOverride) {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const Rect header =
-      headerOverride ? *headerOverride : Rect{0, metrics.topPadding, renderer.getScreenWidth(), headerHeight(metrics)};
+  const Rect header = headerOverride ? *headerOverride : headerRect(renderer);
   const int pageWidth = header.x + header.width;
   GUI.drawHeader(renderer, header, "");
 

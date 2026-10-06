@@ -991,7 +991,7 @@ inline std::vector<SettingInfo> buildControlsSideButtonSettingsList(const std::v
 
 inline std::vector<SettingInfo> buildGroupedDisplaySettingsList(const std::vector<SettingInfo>& allSettings) {
   std::vector<SettingInfo> displaySettings;
-  displaySettings.reserve(9);
+  displaySettings.reserve(10);
 
   auto addDisplaySetting = [&](StrId nameId) {
     const auto it = std::find_if(allSettings.begin(), allSettings.end(),
@@ -1006,6 +1006,7 @@ inline std::vector<SettingInfo> buildGroupedDisplaySettingsList(const std::vecto
     displaySettings.push_back(SettingInfo::Submenu(StrId::STR_FRONTLIGHT, SettingAction::DisplayFrontlight));
   }
   displaySettings.push_back(SettingInfo::Action(StrId::STR_STATUS_BAR, SettingAction::DisplayStatusBar));
+  displaySettings.push_back(SettingInfo::Action(StrId::STR_SCREEN_CALIBRATION, SettingAction::ScreenCalibration));
   addDisplaySetting(StrId::STR_REFRESH_FREQ);
   addDisplaySetting(StrId::STR_NIGHT_MODE);
   addDisplaySetting(StrId::STR_UI_THEME);

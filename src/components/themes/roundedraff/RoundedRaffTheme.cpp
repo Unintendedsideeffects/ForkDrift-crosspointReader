@@ -409,9 +409,12 @@ void RoundedRaffTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, 
 
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
-  const int sidePadding = 20;
+  const int sidePadding = renderer.hasCustomViewableInsets()
+                              ? std::max(20, static_cast<int>(std::max(renderer.getViewableInsets().edges[1],
+                                                                       renderer.getViewableInsets().edges[3])))
+                              : 20;
   const int groupGap = 10;
-  const int bottomMargin = 10;
+  const int bottomMargin = 10 + UITheme::getButtonHintsBottomInset(renderer);
   const int hintHeight = RoundedRaffMetrics::values.buttonHintsHeight - 10;  // 30px total guide height
   const int groupWidth = (pageWidth - sidePadding * 2 - groupGap) / 2;
   const int outlineY = pageHeight - hintHeight - bottomMargin;

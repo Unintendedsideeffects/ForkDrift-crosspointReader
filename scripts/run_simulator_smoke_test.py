@@ -83,6 +83,9 @@ def run_smoke(args: argparse.Namespace) -> int:
         if args.font_dir:
             shutil.copytree(Path(args.font_dir), temp_root / "fs_" / "fonts", dirs_exist_ok=True)
         env = os.environ.copy()
+        if args.screen_calibration:
+            env["CROSSINK_SIMULATOR_SMOKE_CALIBRATION"] = "1"
+            env["CROSSINK_CALIBRATION_PATH"] = str(temp_root / "device-calibration.nvs")
         if args.status_bar_lifecycle:
             env["CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_LIFECYCLE"] = "1"
         if args.status_bar_feature:
@@ -182,6 +185,7 @@ def parse_args() -> argparse.Namespace:
                         help="PlatformIO simulator environment to build and run")
     parser.add_argument("--status-bar-lifecycle", action="store_true", help="Exercise reader settings return and reflow")
     parser.add_argument("--status-bar-feature", action="store_true", help="Check status bar visibility, independent sizes, disk reload and rendered theme/orientation matrix")
+    parser.add_argument("--screen-calibration", action="store_true", help="Check screen calibration button/touch editing, save, cancel, reset and rotations")
     parser.add_argument("--status-bar-captures", help="Directory for status bar feature framebuffer captures (PGM)")
     parser.add_argument("--dictionary", action="store_true", help="Check French contractions and exact dictionary matches")
     parser.add_argument("--font-dir", help="Font fixtures copied into isolated /fonts")

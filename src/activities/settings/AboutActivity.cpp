@@ -397,7 +397,7 @@ void AboutActivity::render(RenderLock&&) {
   else
     GUI.drawHeader(renderer, header, tr(STR_ABOUT));
   uiReady = false;
-  app.render();
+  renderUiApp(app, uiTarget);
   uiReady = true;
   const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_SUPPORT_EXPORT_SHORT),
                                             tr(STR_DIR_UP), tr(STR_DIR_DOWN));

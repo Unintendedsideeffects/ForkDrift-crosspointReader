@@ -16,6 +16,7 @@
 - Hide either reader status bar without clearing its assigned slots, and choose a separate global status bar text size in Settings → Status Bar.
 - Finished EPUB and XTC books show a checkmarked book icon in the File Browser and Library list.
 - Show the battery as Icon + %, Icon Only, or % Only, set separately for the top, bottom, and global status bars.
+- Calibrate each screen edge in Settings → Display → Screen Calibration to keep text and status bars clear of the bezel. Calibration stays on the device when changing SD cards.
 
 ### Fixed
 

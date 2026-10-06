@@ -49,7 +49,7 @@ Layout layout(const Rect& header) {
 
 Rect standardHeaderRect(const GfxRenderer& renderer) {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  return Rect{0, metrics.topPadding, renderer.getScreenWidth(), metrics.headerHeight};
+  return UITheme::getHeaderRect(renderer, metrics.headerHeight);
 }
 
 int height(const ThemeMetrics& metrics, const MappedInputManager& input) {
@@ -58,13 +58,22 @@ int height(const ThemeMetrics& metrics, const MappedInputManager& input) {
 
 Rect headerRect(const GfxRenderer& renderer, const MappedInputManager& input) {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  return Rect{0, metrics.topPadding, renderer.getScreenWidth(), height(metrics, input)};
+  return UITheme::getHeaderRect(renderer, height(metrics, input));
+}
+
+Rect headerRect(const GfxRenderer& renderer, const MappedInputManager& input, const Rect& area) {
+  return UITheme::getHeaderRect(renderer, height(UITheme::getInstance().getMetrics(), input), area);
 }
 
 Rect compactHeaderRect(const GfxRenderer& renderer) {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  return Rect{0, metrics.topPadding, renderer.getScreenWidth(),
-              CompactHeader::headerBottomY(metrics) - metrics.topPadding};
+  return UITheme::getHeaderRect(renderer, CompactHeader::height(metrics));
+}
+
+int contentTop(const GfxRenderer& renderer, const MappedInputManager& input, const int areaTop) {
+  const auto header = headerRect(renderer, input);
+  const int bottom = header.y + header.height;
+  return renderer.hasCustomViewableInsets() ? std::max(areaTop, header.y) + header.height : areaTop + bottom;
 }
 
 bool wasTapped(const MappedInputManager& input, const Rect& header) {
@@ -121,7 +130,7 @@ void drawCompact(GfxRenderer& renderer, const char* title, const bool readerCont
     const int titleBaselineY = back.iconRect.y + offset +
                                std::max(0, (back.iconRect.height - renderer.getLineHeight(UI_12_FONT_ID)) / 2) +
                                renderer.getFontAscenderSize(UI_12_FONT_ID);
-    drawHeaderDateAtBaseline(renderer, renderer.getScreenWidth(), titleBaselineY);
+    drawHeaderDateAtBaseline(renderer, header.x + header.width, titleBaselineY);
   }
 }
 

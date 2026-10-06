@@ -124,3 +124,4 @@ add_test(NAME ImageProbeFramebufferRegression
   COMMAND ${Python3_EXECUTABLE} ${REPO_ROOT}/scripts/test_image_probe_framebuffer.py)
 
 add_subdirectory(log_retention)
+add_subdirectory(screen_calibration)

@@ -34,6 +34,7 @@
 #include "OpdsServerListActivity.h"
 #include "QuickActions.h"
 #include "QuickActionsActivity.h"
+#include "ScreenCalibrationActivity.h"
 #include "SdCardFontSystem.h"
 #include "SdFirmwareUpdateActivity.h"
 #include "SettingsList.h"
@@ -82,9 +83,7 @@ void formatFrontlightScheduleTime(const uint16_t timeOfDay, char* const buf, con
            I18N.get(time.isPm ? StrId::STR_PM : StrId::STR_AM));
 }
 
-Rect settingsHeaderRect(const ThemeMetrics& metrics, const int pageWidth) {
-  return Rect{0, metrics.topPadding, pageWidth, CompactHeader::headerBottomY(metrics) - metrics.topPadding};
-}
+Rect settingsHeaderRect(const GfxRenderer& renderer) { return TouchHeaderBackButton::compactHeaderRect(renderer); }
 
 bool useLandscapeTouchLayout(const GfxRenderer& renderer) {
   // Layout is an app capability decision, not a live GT911 probe or SDK board
@@ -155,7 +154,7 @@ void drawSystemVersionFooter(const GfxRenderer& renderer, const int pageWidth, c
   const std::string label = AppVersion::versionLabel();
   const int maxWidth = pageWidth - systemVersionFooterSideMargin * 2;
   const int bottomLineY =
-      pageHeight - metrics.buttonHintsHeight - metrics.verticalSpacing - systemVersionFooterBottomInset;
+      pageHeight - UITheme::getButtonHintsReserve(renderer) - metrics.verticalSpacing - systemVersionFooterBottomInset;
 
   if (renderer.getTextWidth(SMALL_FONT_ID, label.c_str()) <= maxWidth) {
     drawCenteredTextLine(renderer, pageWidth, bottomLineY, label);
@@ -861,7 +860,7 @@ void SettingsActivity::loop() {
   if (optionPopup.handleInput(mappedInput, [this] { requestUpdate(); })) return;
 
   const auto& metrics = UITheme::getInstance().getMetrics();
-  if (TouchHeaderBackButton::wasTapped(mappedInput, settingsHeaderRect(metrics, renderer.getScreenWidth()))) {
+  if (TouchHeaderBackButton::wasTapped(mappedInput, settingsHeaderRect(renderer))) {
     if (!isFileBrowserView() && activeSubmenu != SettingAction::None) {
       closeSubmenu();
       requestUpdate();
@@ -1128,6 +1127,19 @@ void SettingsActivity::toggleCurrentSetting() {
     auto resultHandler = [this](const ActivityResult&) { SETTINGS.saveToFile(); };
 
     switch (setting.action) {
+      case SettingAction::ScreenCalibration: {
+        auto activity = makeUniqueNoThrow<ScreenCalibrationActivity>(renderer, mappedInput);
+        if (!activity) {
+          LOG_ERR("SET", "Failed to allocate screen calibration");
+          break;
+        }
+        startActivityForResult(std::move(activity), [this](const ActivityResult&) {
+          RenderLock lock(*this);
+          app.setDevice(uiTarget.deviceContext());
+          requestUpdate();
+        });
+        break;
+      }
       case SettingAction::About: {
         // The bounded activity owns its snapshot and UI host only while open.
         auto about = makeUniqueNoThrow<AboutActivity>(renderer, mappedInput);
@@ -1406,9 +1418,15 @@ void SettingsActivity::buildSettingsScreen(UiApp::ScreenType& screen) {
   // setContentMargin() is relative to the bezel-safe rectangle, while the
   // compact header geometry is in absolute screen coordinates. Overlap the
   // tab's top rule with the header's final underline pixel.
-  const int tabTop = std::max<int>(safe.y, CompactHeader::headerBottomY(metrics) - 1);
-  screen.setContentMargin(
-      fui::Insets{static_cast<int16_t>(tabTop - safe.y), 0, static_cast<int16_t>(metrics.buttonHintsHeight), 0});
+  const int tabTop = std::max<int>(safe.y, CompactHeader::headerBottomY(renderer) - 1);
+  if (renderer.hasCustomViewableInsets()) {
+    setUiContentMargin(screen, renderer,
+                       fui::Insets{static_cast<int16_t>(tabTop), 0,
+                                   static_cast<int16_t>(UITheme::getButtonHintsReserve(renderer)), 0});
+  } else {
+    screen.setContentMargin(fui::Insets{static_cast<int16_t>(tabTop - safe.y), 0,
+                                        static_cast<int16_t>(UITheme::getButtonHintsReserve(renderer)), 0});
+  }
 
   if (isFileBrowserView()) {
     const int16_t listInset = static_cast<int16_t>(metrics.listInset);
@@ -1627,7 +1645,7 @@ void SettingsActivity::render(RenderLock&&) {
   }
 
   uiReady = false;
-  app.render();
+  renderUiApp(app, uiTarget);
   uiReady = true;
 
   // Keep build information discoverable without crowding the common header.

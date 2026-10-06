@@ -1203,16 +1203,15 @@ void WifiSelectionActivity::render(RenderLock&&) {
   // currently about 37 bytes), so leave room without allocating on the heap.
   char countStr[64];
   snprintf(countStr, sizeof(countStr), tr(STR_NETWORKS_FOUND), realNetworkCount);
-  const Rect header{screen.x, screen.y + metrics.topPadding, screen.width,
-                    TouchHeaderBackButton::height(metrics, mappedInput)};
+  const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput, screen);
   if (mappedInput.hasTouchHardware()) {
     TouchHeaderBackButton::draw(renderer, uiTarget, header, tr(STR_WIFI_NETWORKS), false, 150, countStr);
   } else {
     GUI.drawHeader(renderer, header, tr(STR_WIFI_NETWORKS), countStr);
   }
   GUI.drawSubHeader(renderer,
-                    Rect{screen.x, screen.y + metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput),
-                         screen.width, metrics.tabBarHeight},
+                    Rect{screen.x, TouchHeaderBackButton::contentTop(renderer, mappedInput, screen.y), screen.width,
+                         metrics.tabBarHeight},
                     cachedMacAddress.c_str());
 
   switch (state) {
@@ -1259,12 +1258,13 @@ void WifiSelectionActivity::buildListScreen(UiApp::ScreenType& screen) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
   // Content below the header + MAC sub-band, above the legend line.
-  screen.setContentMargin(fui::Insets{
-      static_cast<int16_t>(safe.y + metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput) +
-                           metrics.tabBarHeight + metrics.verticalSpacing),
-      static_cast<int16_t>(renderer.getScreenWidth() - (safe.x + safe.width)),
-      static_cast<int16_t>(renderer.getScreenHeight() - (safe.y + safe.height) + metrics.verticalSpacing * 2),
-      static_cast<int16_t>(safe.x)});
+  setUiContentMargin(screen, renderer,
+                     fui::Insets{static_cast<int16_t>(TouchHeaderBackButton::contentTop(renderer, mappedInput, safe.y) +
+                                                      metrics.tabBarHeight + metrics.verticalSpacing),
+                                 static_cast<int16_t>(renderer.getScreenWidth() - (safe.x + safe.width)),
+                                 static_cast<int16_t>(renderer.getScreenHeight() - (safe.y + safe.height) +
+                                                      metrics.verticalSpacing * 2),
+                                 static_cast<int16_t>(safe.x)});
 
   if (networks.empty()) {
     screen.centeredText(tr(STR_NO_NETWORKS), screen.theme().bodyText);
@@ -1290,7 +1290,7 @@ void WifiSelectionActivity::buildListScreen(UiApp::ScreenType& screen) {
 
 void WifiSelectionActivity::renderNetworkList(const Rect* screen, const ThemeMetrics* metrics) {
   uiReady = false;
-  app.render();
+  renderUiApp(app, uiTarget);
   uiReady = true;
   if (networks.empty()) {
     // Below the centered "no networks" line the app drew.

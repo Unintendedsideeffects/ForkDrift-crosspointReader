@@ -28,8 +28,8 @@ constexpr int DETAIL_LINE_GAP = 6;
 constexpr int TOUCH_DETAIL_BUTTON_HEIGHT = 52;
 constexpr int TOUCH_DETAIL_PAGE_LABEL_RESERVE = 24;
 
-Rect clippingHeaderRect(const Rect& safe, const ThemeMetrics& metrics, const MappedInputManager& mappedInput) {
-  return Rect{safe.x, safe.y + metrics.topPadding, safe.width, TouchHeaderBackButton::height(metrics, mappedInput)};
+Rect clippingHeaderRect(const GfxRenderer& renderer, const Rect& safe, const MappedInputManager& mappedInput) {
+  return TouchHeaderBackButton::headerRect(renderer, mappedInput, safe);
 }
 
 Rect touchDetailOpenButtonRect(const Rect& safe, const ThemeMetrics& metrics) {
@@ -181,7 +181,7 @@ int EpubReaderClippingListActivity::getDetailLinesPerPage() const {
   const int lineStep = renderer.getLineHeight(UI_10_FONT_ID) + DETAIL_LINE_GAP;
 #if CROSSINK_APP_CAP_TOUCH
   if (mappedInput.hasTouchHardware()) {
-    const Rect header = clippingHeaderRect(safe, metrics, mappedInput);
+    const Rect header = clippingHeaderRect(renderer, safe, mappedInput);
     const Rect openButton = touchDetailOpenButtonRect(safe, metrics);
     const int textStart = header.y + header.height + metrics.verticalSpacing;
     const int textBottom = openButton.y - metrics.verticalSpacing - TOUCH_DETAIL_PAGE_LABEL_RESERVE;
@@ -314,7 +314,7 @@ void EpubReaderClippingListActivity::showClippingActionMenu(const bool ignoreIni
 void EpubReaderClippingListActivity::loop() {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
-  const Rect header = clippingHeaderRect(safe, metrics, mappedInput);
+  const Rect header = clippingHeaderRect(renderer, safe, mappedInput);
   if (TouchHeaderBackButton::wasTapped(mappedInput, header)) {
     if (detailMode) {
       closeDetail();
@@ -491,10 +491,11 @@ void EpubReaderClippingListActivity::listScreen(UiApp::ScreenType& screen, void*
 void EpubReaderClippingListActivity::buildListScreen(UiApp::ScreenType& screen) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
-  screen.setContentMargin(fui::Insets{
-      static_cast<int16_t>(safe.y + metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput)),
-      static_cast<int16_t>(renderer.getScreenWidth() - safe.x - safe.width),
-      static_cast<int16_t>(renderer.getScreenHeight() - safe.y - safe.height), static_cast<int16_t>(safe.x)});
+  setUiContentMargin(screen, renderer,
+                     fui::Insets{static_cast<int16_t>(TouchHeaderBackButton::contentTop(renderer, mappedInput, safe.y)),
+                                 static_cast<int16_t>(renderer.getScreenWidth() - safe.x - safe.width),
+                                 static_cast<int16_t>(renderer.getScreenHeight() - safe.y - safe.height),
+                                 static_cast<int16_t>(safe.x)});
   screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
   const size_t count = CLIPPINGS.clippingCount();
   if (count == 0) {
@@ -556,7 +557,7 @@ void EpubReaderClippingListActivity::renderDetail() {
   const bool showTouchControls = mappedInput.hasTouchHardware();
   Rect openButton{};
   if (showTouchControls) {
-    const Rect header = clippingHeaderRect(safe, metrics, mappedInput);
+    const Rect header = clippingHeaderRect(renderer, safe, mappedInput);
     TouchHeaderBackButton::draw(renderer, uiTarget, header, chapter, true);
     textStartY = header.y + header.height + metrics.verticalSpacing;
     openButton = touchDetailOpenButtonRect(safe, metrics);
@@ -633,14 +634,14 @@ void EpubReaderClippingListActivity::render(RenderLock&&) {
 
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
-  const Rect header = clippingHeaderRect(safe, metrics, mappedInput);
+  const Rect header = clippingHeaderRect(renderer, safe, mappedInput);
   if (mappedInput.hasTouchHardware()) {
     TouchHeaderBackButton::draw(renderer, uiTarget, header, tr(STR_CLIPPINGS), true);
   } else {
     GUI.drawHeader(renderer, header, tr(STR_CLIPPINGS), nullptr, true);
   }
   uiReady = false;
-  app.render();
+  renderUiApp(app, uiTarget);
   uiReady = true;
 
   const auto labels =

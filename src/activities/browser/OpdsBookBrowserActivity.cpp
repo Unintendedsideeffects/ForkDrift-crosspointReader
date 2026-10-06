@@ -367,7 +367,7 @@ void OpdsBookBrowserActivity::rootScreen(UiApp::ScreenType& screen, void* user) 
 // Shared chrome for every state: reserve the firmware's button-hint band and
 // draw the themed header (padding, centering, and rule come from the theme).
 void OpdsBookBrowserActivity::screenHeader(UiApp::ScreenType& screen, const bool withSearch) {
-  screen.takeBottom(static_cast<int16_t>(UITheme::getInstance().getMetrics().buttonHintsHeight));
+  screen.takeBottom(static_cast<int16_t>(UITheme::getButtonHintsReserve(renderer)));
   const bool useTouchBackHeader =
       (state == BrowserState::BROWSING || state == BrowserState::DESCRIPTION) && mappedInput.hasTouchHardware();
   if (useTouchBackHeader) {
@@ -584,7 +584,7 @@ void OpdsBookBrowserActivity::render(RenderLock&&) {
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   uiReady = false;
-  app.render();
+  renderUiApp(app, uiTarget);
   uiReady = true;
   renderer.displayBuffer(screenTransitionRefresh.modeFor(static_cast<uint8_t>(state)));
 }

@@ -130,13 +130,13 @@ bool statsLandscape(const GfxRenderer& renderer) {
 
 Rect statsSafeArea(const GfxRenderer& renderer, const bool showButtonHints) {
   return UITheme::getInstance().getScreenSafeArea(
-      renderer, showButtonHints && UITheme::getInstance().getMetrics().buttonHintsHeight > 0, false);
+      renderer, showButtonHints && UITheme::getButtonHintsReserve(renderer) > 0, false);
 }
 
 int statsAvailableHeight(const GfxRenderer& renderer, const bool showButtonHints) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   return statsSafeArea(renderer, showButtonHints).height - metrics.topPadding - metrics.verticalSpacing -
-         (showButtonHints && metrics.buttonHintsHeight > 0 ? kStatsButtonHintTopGap : 0);
+         (showButtonHints && UITheme::getButtonHintsReserve(renderer) > 0 ? kStatsButtonHintTopGap : 0);
 }
 
 void drawStatsHeader(GfxRenderer& renderer, const MappedInputManager* mappedInput, const char* title,
@@ -146,7 +146,7 @@ void drawStatsHeader(GfxRenderer& renderer, const MappedInputManager* mappedInpu
   } else {
     const auto safe = statsSafeArea(renderer, showButtonHints);
     const auto& metrics = UITheme::getInstance().getMetrics();
-    const Rect header{safe.x, safe.y + metrics.topPadding, safe.width, CompactHeader::height(metrics)};
+    const Rect header = UITheme::getHeaderRect(renderer, CompactHeader::height(metrics), safe);
     CompactHeader::drawTitle(renderer, title, showDate, &header);
   }
 }
@@ -554,7 +554,8 @@ void renderPerBookStatsPage(GfxRenderer& renderer, const MappedInputManager* map
   const int availableHeight = statsAvailableHeight(renderer, showButtonHints);
   int topCardH = layout.topCardH;
   const int headerHeight = statsHeaderHeight(metrics, layout, mappedInput);
-  int y = safe.y + metrics.topPadding + headerHeight + layout.topGap;
+  const auto header = UITheme::getHeaderRect(renderer, headerHeight, safe);
+  int y = header.y + header.height + layout.topGap;
 
   if (showRtcStats && statsLandscape(renderer)) {
     // Keep every statistic visible: the main card and the two existing charts
@@ -639,7 +640,8 @@ void renderGlobalStatsPage(GfxRenderer& renderer, const MappedInputManager* mapp
   const int availableHeight = statsAvailableHeight(renderer, showButtonHints);
   int globalCardH = showDailyRow ? layout.topCardH : layout.globalCardH;
   const int headerHeight = statsHeaderHeight(metrics, layout, mappedInput);
-  int y = safe.y + metrics.topPadding + headerHeight + layout.topGap;
+  const auto header = UITheme::getHeaderRect(renderer, headerHeight, safe);
+  int y = header.y + header.height + layout.topGap;
 
   if (showRtcStats && statsLandscape(renderer)) {
     // Keep every statistic visible: the main card and the two existing charts
@@ -728,7 +730,8 @@ void renderNoRtcCombinedStatsPage(GfxRenderer& renderer, const MappedInputManage
   const int deviceCardH = layout.globalCardH + deviceExtraHeight;
   const int allDevicesCardH = layout.globalCardH + allDevicesExtraHeight;
 
-  int y = safe.y + metrics.topPadding + headerHeight + layout.topGap;
+  const auto header = UITheme::getHeaderRect(renderer, headerHeight, safe);
+  int y = header.y + header.height + layout.topGap;
   if (statsLandscape(renderer)) {
     const int columnW = (cardW - layout.cardGap * (visibleCardCount - 1)) / visibleCardCount;
     const int cardH = std::max(layout.globalCardH, availableHeight - headerHeight - layout.topGap);

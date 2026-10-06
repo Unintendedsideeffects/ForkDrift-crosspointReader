@@ -512,7 +512,7 @@ void CrossPointWebServerActivity::renderServerRunning() const {
   const auto pageWidth = renderer.getScreenWidth();
 
   renderHeader();
-  const int subHeaderTop = CompactHeader::contentTop(metrics);
+  const int subHeaderTop = CompactHeader::contentTop(renderer);
   GUI.drawSubHeader(renderer, Rect{0, subHeaderTop, pageWidth, metrics.tabBarHeight}, connectedSSID.c_str());
 
   if (!isApMode) {

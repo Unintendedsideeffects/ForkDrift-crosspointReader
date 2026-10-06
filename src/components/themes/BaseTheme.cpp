@@ -166,8 +166,9 @@ void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
   const int pageHeight = renderer.getScreenHeight();
   constexpr int buttonWidth = 106;
   constexpr int buttonHeight = BaseMetrics::values.buttonHintsHeight;
-  constexpr int buttonY = BaseMetrics::values.buttonHintsHeight;  // Distance from bottom
-  constexpr int textYOffset = 7;                                  // Distance from top of button to text baseline
+  const int buttonY =
+      BaseMetrics::values.buttonHintsHeight + UITheme::getButtonHintsBottomInset(renderer);  // Distance from bottom
+  constexpr int textYOffset = 7;  // Distance from top of button to text baseline
   // Keyed to the portrait panel width: the 528-wide X3 gets more spacing than
   // the 480-wide boards (X4, X4 Pro, and the other 800x480 panels).
   constexpr int narrowButtonPositions[] = {25, 130, 245, 350};
@@ -176,7 +177,7 @@ void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
   const char* labels[] = {btn1, btn2, btn3, btn4};
 
   for (int i = 0; i < 4; i++) {
-    const int x = buttonPositions[i];
+    const int x = UITheme::getHintSafeX(renderer, buttonPositions[i], buttonWidth);
     if (labels[i] != nullptr && labels[i][0] != '\0') {
       TouchRegistry::getInstance().add(Rect{x, pageHeight - buttonY, buttonWidth, buttonHeight}, i,
                                        TouchRegistry::Button);
@@ -190,13 +191,14 @@ void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
   }
 
   renderer.setOrientation(invertText ? GfxRenderer::Orientation::PortraitInverted : GfxRenderer::Orientation::Portrait);
-  const int textY = invertText ? textYOffset : pageHeight - buttonY + textYOffset;
+  const int textY =
+      invertText ? UITheme::getButtonHintsBottomInset(renderer) + textYOffset : pageHeight - buttonY + textYOffset;
 
   for (int i = 0; i < 4; i++) {
     if (labels[i] != nullptr && labels[i][0] != '\0') {
       const int x = buttonPositions[invertText ? 3 - i : i];
       const int textWidth = renderer.getTextWidth(UI_10_FONT_ID, labels[i]);
-      const int textX = x + (buttonWidth - 1 - textWidth) / 2;
+      const int textX = UITheme::getHintSafeX(renderer, x + (buttonWidth - 1 - textWidth) / 2, textWidth);
       renderer.drawText(UI_10_FONT_ID, textX, textY, labels[i]);
     }
   }
@@ -217,7 +219,7 @@ void BaseTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* top
     constexpr int x3ButtonY = 155;
 
     if (topBtn != nullptr && topBtn[0] != '\0') {
-      const int leftX = buttonMargin;
+      const int leftX = UITheme::getHintSafeX(renderer, buttonMargin, buttonWidth);
       renderer.drawRect(leftX, x3ButtonY, buttonWidth, buttonHeight);
       const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, topBtn);
       const int textHeight = renderer.getTextHeight(SMALL_FONT_ID);
@@ -227,7 +229,7 @@ void BaseTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* top
     }
 
     if (bottomBtn != nullptr && bottomBtn[0] != '\0') {
-      const int rightX = screenWidth - buttonMargin - buttonWidth;
+      const int rightX = UITheme::getHintSafeX(renderer, screenWidth - buttonMargin - buttonWidth, buttonWidth);
       renderer.drawRect(rightX, x3ButtonY, buttonWidth, buttonHeight);
       const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, bottomBtn);
       const int textHeight = renderer.getTextHeight(SMALL_FONT_ID);
@@ -239,7 +241,7 @@ void BaseTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* top
     // X4 layout: Both buttons stacked on right side
     constexpr int topButtonY = 345;
     const char* labels[] = {topBtn, bottomBtn};
-    const int x = screenWidth - buttonMargin - buttonWidth;
+    const int x = UITheme::getHintSafeX(renderer, screenWidth - buttonMargin - buttonWidth, buttonWidth);
 
     if (topBtn != nullptr && topBtn[0] != '\0') {
       renderer.drawLine(x, topButtonY, x + buttonWidth - 1, topButtonY);
@@ -1013,6 +1015,10 @@ void BaseTheme::drawDisplayStatusBar(const GfxRenderer& renderer, const int topY
   ReaderStatusBarContent content;
   content.outsideReader = true;
   content.previewOriginY = topY + UITheme::getTopStatusBarInset(renderer);
+  if (renderer.hasCustomViewableInsets()) {
+    const auto insets = renderer.getViewableInsets().rotated(static_cast<unsigned>(renderer.getOrientation()));
+    content.previewOriginY = std::max(content.previewOriginY, static_cast<int>(insets.edges[0]));
+  }
   const auto config = SETTINGS.displayStatusBar.asReaderConfig();
   drawReaderStatusBar(renderer, ReaderStatusBarPosition::Top, content, &config);
 }

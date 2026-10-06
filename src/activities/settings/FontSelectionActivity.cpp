@@ -86,12 +86,7 @@ void FontSelectionActivity::onEnter() {
     sdFontSystem.ensureLoaded(renderer);
   }
 
-  // Get metrics and calculate layout dimensions
-  metrics_ = UITheme::getInstance().getMetrics();
-  afterHeader = metrics_.topPadding + TouchHeaderBackButton::height(metrics_, mappedInput) + metrics_.verticalSpacing;
-  bottomReserved = metrics_.buttonHintsHeight + metrics_.verticalSpacing;
-  usableHeight = renderer.getScreenHeight() - afterHeader - bottomReserved;
-  previewHeight = usableHeight * metrics_.previewHeightPercent / 100;
+  updateLayoutMetrics();
 
   originalFontFamily_ = SETTINGS.fontFamily;
   strncpy(originalSdFontFamilyName_, SETTINGS.sdFontFamilyName, sizeof(originalSdFontFamilyName_) - 1);
@@ -295,8 +290,13 @@ void FontSelectionActivity::handleSelection() {
 }
 
 void FontSelectionActivity::renderPreviewPane(int top, int height, int fontId, const char* fontName) const {
-  const int left = metrics_.previewPadding;
-  const int width = renderer.getScreenWidth() - (metrics_.previewPadding * 2);
+  const auto safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
+  const int left =
+      renderer.hasCustomViewableInsets() ? std::max(metrics_.previewPadding, safe.x) : metrics_.previewPadding;
+  const int right = renderer.hasCustomViewableInsets()
+                        ? std::min(renderer.getScreenWidth() - metrics_.previewPadding, safe.x + safe.width)
+                        : renderer.getScreenWidth() - metrics_.previewPadding;
+  const int width = right - left;
   if (width <= 0 || height <= 0) return;
 
   const int labelFontId = UI_10_FONT_ID;
@@ -392,8 +392,9 @@ void FontSelectionActivity::listScreen(UiApp::ScreenType& screen, void* user) {
 void FontSelectionActivity::buildListScreen(UiApp::ScreenType& screen) {
   const int listTop = afterHeader + previewHeight + metrics_.verticalSpacing;
   const int listHeight = usableHeight - previewHeight - metrics_.verticalSpacing;
-  screen.setContentMargin(fui::Insets{static_cast<int16_t>(listTop), 0,
-                                      static_cast<int16_t>(renderer.getScreenHeight() - listTop - listHeight), 0});
+  setUiContentMargin(screen, renderer,
+                     fui::Insets{static_cast<int16_t>(listTop), 0,
+                                 static_cast<int16_t>(renderer.getScreenHeight() - listTop - listHeight), 0});
   const int currentFontIndex = findCurrentFontIndex(registry_, originalSdFontFamilyName_, originalFontFamily_);
   std::vector<fui::ListItem> items;
   items.reserve(fonts_.size());
@@ -426,7 +427,16 @@ void FontSelectionActivity::buildListScreen(UiApp::ScreenType& screen) {
   screen.list(props);
 }
 
+void FontSelectionActivity::updateLayoutMetrics() {
+  metrics_ = UITheme::getInstance().getMetrics();
+  afterHeader = TouchHeaderBackButton::contentTop(renderer, mappedInput) + metrics_.verticalSpacing;
+  bottomReserved = UITheme::getButtonHintsReserve(renderer) + metrics_.verticalSpacing;
+  usableHeight = renderer.getScreenHeight() - afterHeader - bottomReserved;
+  previewHeight = usableHeight * metrics_.previewHeightPercent / 100;
+}
+
 void FontSelectionActivity::render(RenderLock&&) {
+  updateLayoutMetrics();
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
@@ -455,7 +465,7 @@ void FontSelectionActivity::render(RenderLock&&) {
   renderer.drawLine(0, listTop - metrics_.verticalSpacing / 2, pageWidth, listTop - metrics_.verticalSpacing / 2);
 
   uiReady_ = false;
-  app_.render();
+  renderUiApp(app_, uiTarget_);
   uiReady_ = true;
 
   const bool onPreviewed = selectedIndex_ == previewFontIndex_;

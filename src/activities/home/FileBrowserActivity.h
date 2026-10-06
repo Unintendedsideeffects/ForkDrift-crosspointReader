@@ -116,6 +116,7 @@ class FileBrowserActivity final : public Activity {
 
  public:
 #ifdef SIMULATOR
+  freeink::ui::Rect simulatorSafeRect() const { return app.device().safeRect(); }
   const std::string& simulatorFolderPath() const { return basepath; }
   size_t simulatorSelectedIndex() const { return selectorIndex; }
   int simulatorTopIndex() const { return topIndex; }

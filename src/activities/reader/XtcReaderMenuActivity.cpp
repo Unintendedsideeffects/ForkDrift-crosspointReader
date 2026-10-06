@@ -160,10 +160,12 @@ void XtcReaderMenuActivity::listScreen(UiApp::ScreenType& screen, void* user) {
 
 void XtcReaderMenuActivity::buildListScreen(UiApp::ScreenType& screen) {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const int contentTop = metrics.topPadding + listHeaderHeight + metrics.verticalSpacing;
-  screen.setContentMargin(fui::Insets{static_cast<int16_t>(contentTop), 0,
-                                      static_cast<int16_t>(metrics.buttonHintsHeight + metrics.verticalSpacing * 2),
-                                      0});
+  const auto header = UITheme::getHeaderRect(renderer, listHeaderHeight);
+  const int contentTop = header.y + header.height + metrics.verticalSpacing;
+  setUiContentMargin(
+      screen, renderer,
+      fui::Insets{static_cast<int16_t>(contentTop), 0,
+                  static_cast<int16_t>(UITheme::getButtonHintsReserve(renderer) + metrics.verticalSpacing * 2), 0});
 
   refreshListItems();
   fui::ListProps props;
@@ -202,10 +204,11 @@ void XtcReaderMenuActivity::render(RenderLock&&) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
-  const Rect standardHeader{0, metrics.topPadding, pageWidth, metrics.headerHeight};
+  const Rect standardHeader = UITheme::getHeaderRect(renderer, metrics.headerHeight);
   const int titleX = mappedInput.hasTouchHardware() ? TouchHeaderBackButton::layout(standardHeader).titleX
-                                                    : metrics.contentSidePadding;
-  const int titleMaxWidth = std::max(0, pageWidth - titleX - metrics.contentSidePadding - kBatteryTextReserveWidth);
+                                                    : standardHeader.x + metrics.contentSidePadding;
+  const int titleMaxWidth = std::max(
+      0, standardHeader.x + standardHeader.width - titleX - metrics.contentSidePadding - kBatteryTextReserveWidth);
   const auto titleLines =
       renderer.wrappedText(kTitleFontId, title.c_str(), titleMaxWidth, kTitleMaxLines, EpdFontFamily::BOLD);
   const int titleLineHeight = renderer.getLineHeight(kTitleFontId);
@@ -213,14 +216,14 @@ void XtcReaderMenuActivity::render(RenderLock&&) {
                                std::max(0, static_cast<int>(titleLines.size()) - 1) * kTitleLineGap;
   const int headerHeight = std::max(metrics.headerHeight, metrics.batteryBarHeight + titleBlockHeight + 16);
   listHeaderHeight = headerHeight;
-  const Rect header{0, metrics.topPadding, pageWidth, headerHeight};
+  const Rect header = UITheme::getHeaderRect(renderer, headerHeight);
   if (mappedInput.hasTouchHardware()) {
     TouchHeaderBackButton::draw(renderer, header, "", true, 0, nullptr, 0);
   } else {
     GUI.drawHeader(renderer, header, "");
   }
 
-  const int titleY = metrics.topPadding + metrics.batteryBarHeight + 3;
+  const int titleY = header.y + metrics.batteryBarHeight + 3;
   for (int i = 0; i < static_cast<int>(titleLines.size()); ++i) {
     renderer.drawText(kTitleFontId, titleX, titleY + i * (titleLineHeight + kTitleLineGap), titleLines[i].c_str(), true,
                       EpdFontFamily::BOLD);

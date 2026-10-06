@@ -190,8 +190,9 @@ void SavedItemsHomeActivity::listScreen(UiApp::ScreenType& screen, void* user) {
 
 void SavedItemsHomeActivity::buildListScreen(UiApp::ScreenType& screen) {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  screen.setContentMargin(fui::Insets{static_cast<int16_t>(CompactHeader::contentTop(metrics)), 0,
-                                      static_cast<int16_t>(metrics.buttonHintsHeight), 0});
+  setUiContentMargin(screen, renderer,
+                     fui::Insets{static_cast<int16_t>(CompactHeader::contentTop(renderer)), 0,
+                                 static_cast<int16_t>(UITheme::getButtonHintsReserve(renderer)), 0});
   screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
   if (books.empty()) {
     screen.centeredText(tr(STR_NO_BOOKMARKS), screen.theme().bodyText);
@@ -231,7 +232,7 @@ void SavedItemsHomeActivity::render(RenderLock&&) {
     CompactHeader::drawTitle(renderer, tr(STR_BOOKMARKS_AND_CLIPPINGS));
   }
   uiReady = false;
-  app.render();
+  renderUiApp(app, uiTarget);
   uiReady = true;
 
   const auto labels =

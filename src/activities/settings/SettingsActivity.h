@@ -23,6 +23,7 @@ enum class SettingAction {
   RemapFrontButtonsReader,
   CustomiseStatusBar,
   DisplayStatusBar,
+  ScreenCalibration,
   KOReaderSync,
   OPDSBrowser,
   DisplaySleepScreen,
@@ -330,6 +331,7 @@ class SettingsActivity final : public Activity {
 #ifdef SIMULATOR
   int simulatorCategoryIndex() const { return selectedCategoryIndex; }
   int simulatorSelectedIndex() const { return selectedSettingIndex; }
+  freeink::ui::Rect simulatorSafeRect() const { return app.device().safeRect(); }
 #endif
   void onEnter() override;
   void onExit() override;

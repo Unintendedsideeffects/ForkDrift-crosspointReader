@@ -97,7 +97,7 @@ void KOReaderAuthActivity::render(RenderLock&&) {
   const auto pageHeight = renderer.getScreenHeight();
   const Rect screen = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
 
-  const Rect header{0, metrics.topPadding, pageWidth, TouchHeaderBackButton::height(metrics, mappedInput)};
+  const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput);
   const char* title = mode == Mode::SIGN_UP ? tr(STR_SIGN_UP) : tr(STR_KOREADER_AUTH);
   if ((state == SUCCESS || state == FAILED) && mappedInput.hasTouchHardware()) {
     TouchHeaderBackButton::draw(renderer, header, title, false);

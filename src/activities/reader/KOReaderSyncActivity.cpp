@@ -52,11 +52,13 @@ long displayedTenths(const float percentage) { return std::lround(percentage * 1
 
 // Apply/Upload buttons are pinned above the button hints (or the bottom edge on touch devices) so the
 // progress cards can use the space above them. Rendering and hit testing share this layout.
-TouchActionButtons::Layout resultActionLayout(const Rect& screen, const ThemeMetrics& metrics, const bool hasTouch) {
+TouchActionButtons::Layout resultActionLayout(const GfxRenderer& renderer, const Rect& screen,
+                                              const ThemeMetrics& metrics, const bool hasTouch) {
   constexpr uint8_t buttonCount = 2;
   const int buttonHeight = hasTouch ? TouchActionButtons::kDefaultHeight : RESULT_NON_TOUCH_ACTION_HEIGHT;
   const int buttonGap = hasTouch ? TouchActionButtons::kDefaultGap : RESULT_NON_TOUCH_ACTION_GAP;
-  const int reservedBottom = hasTouch ? metrics.verticalSpacing : metrics.buttonHintsHeight + metrics.verticalSpacing;
+  const int reservedBottom =
+      hasTouch ? metrics.verticalSpacing : UITheme::getButtonHintsReserve(renderer) + metrics.verticalSpacing;
   const int totalHeight = buttonHeight * buttonCount + buttonGap * (buttonCount - 1);
   const Rect container{screen.x + metrics.contentSidePadding, screen.y + screen.height - reservedBottom - totalHeight,
                        std::max(1, screen.width - metrics.contentSidePadding * 2), totalHeight};
@@ -815,8 +817,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
   auto metrics = UITheme::getInstance().getMetrics();
   Rect screen = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
 
-  const Rect header{screen.x, screen.y + metrics.topPadding, screen.width,
-                    TouchHeaderBackButton::height(metrics, mappedInput)};
+  const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput, screen);
   const std::string heading = folderSync ? epubPath.substr(epubPath.find_last_of('/') + 1) : tr(STR_KOREADER_SYNC);
   if (mappedInput.hasTouchHardware()) {
     TouchHeaderBackButton::draw(renderer, header, heading.c_str(), true);
@@ -845,7 +846,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
 
   if (state == SHOWING_RESULT) {
     const bool hasTouch = mappedInput.hasTouchHardware();
-    top = screen.y + metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput) + metrics.verticalSpacing;
+    top = TouchHeaderBackButton::contentTop(renderer, mappedInput, screen.y) + metrics.verticalSpacing;
     renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_PROGRESS_FOUND), true, EpdFontFamily::BOLD);
     top += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing;
 
@@ -887,7 +888,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
       drawProgressCard(renderer, Rect{contentX, top + cardHeight + cardGap, contentWidth, cardHeight}, cards[1]);
     }
 
-    const auto actions = resultActionLayout(screen, metrics, hasTouch);
+    const auto actions = resultActionLayout(renderer, screen, metrics, hasTouch);
     const char* actionLabels[] = {tr(STR_APPLY_REMOTE), tr(STR_UPLOAD_LOCAL)};
     TouchActionButtons::draw(renderer, actions, actionLabels, selectedOption, selectedOption, UI_10_FONT_ID);
 
@@ -963,8 +964,7 @@ void KOReaderSyncActivity::loop() {
 
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect screen = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
-  const Rect header{screen.x, screen.y + metrics.topPadding, screen.width,
-                    TouchHeaderBackButton::height(metrics, mappedInput)};
+  const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput, screen);
   if (TouchHeaderBackButton::wasTapped(mappedInput, header)) {
     returnToSource();
     return;
@@ -1021,7 +1021,7 @@ void KOReaderSyncActivity::loop() {
     };
 
     {
-      const auto actions = resultActionLayout(screen, metrics, mappedInput.hasTouchHardware());
+      const auto actions = resultActionLayout(renderer, screen, metrics, mappedInput.hasTouchHardware());
       const Rect& first = actions.buttons[0];
       int touchedOption = -1;
       const auto touch = mappedInput.rowTouch(touchedOption, first.y, actions.buttons[1].y - first.y, actions.count,

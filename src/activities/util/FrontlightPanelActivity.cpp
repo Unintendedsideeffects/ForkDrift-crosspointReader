@@ -374,7 +374,7 @@ int FrontlightPanelActivity::computePanelBottom() {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto tokens = uiThemeTokens(uiTarget);
   const int16_t lh = uiTarget.lineHeight(tokens.bodyText.font);
-  int y = metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput);
+  int y = TouchHeaderBackButton::contentTop(renderer, mappedInput);
   if (showsBookProgress()) y += metrics.tabBarHeight;
   if (context.showReaderDetails) {
     const int16_t titleLh = uiTarget.lineHeight(tokens.titleText.font);
@@ -471,7 +471,7 @@ void FrontlightPanelActivity::buildPanelScreen(UiApp::ScreenType& screen) {
   drawerHandleRect = DrawerHandle::registerTap(screen.frame(), sheetContent, sheet, ACTION_DISMISS);
   const int16_t bottomInset = static_cast<int16_t>(renderer.getScreenHeight() - sheetContent.bottom());
   screen.setContentMarginFromScreen(
-      fui::Insets{static_cast<int16_t>(metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput) +
+      fui::Insets{static_cast<int16_t>(TouchHeaderBackButton::contentTop(renderer, mappedInput) +
                                        (showsBookProgress() ? metrics.tabBarHeight : 0)),
                   0, bottomInset, 0});
 
@@ -607,7 +607,7 @@ bool FrontlightPanelActivity::showsBookProgress() const {
 void FrontlightPanelActivity::drawBookProgress() {
   if (!showsBookProgress()) return;
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const int y = metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput);
+  const int y = TouchHeaderBackButton::contentTop(renderer, mappedInput);
   const Rect row{0, y, renderer.getScreenWidth(), metrics.tabBarHeight};
   char progress[96];
   formatReaderBookProgress(progress, sizeof(progress), context.bookDetails.chapterPage,
@@ -648,7 +648,7 @@ void FrontlightPanelActivity::render(RenderLock&&) {
   // clearScreen — same as the theme popups draw over the current frame.
   panelBottom = computePanelBottom();
   uiReady = false;
-  app.render();
+  renderUiApp(app, uiTarget);
   uiReady = true;
   drawHeader();
   drawBookProgress();
