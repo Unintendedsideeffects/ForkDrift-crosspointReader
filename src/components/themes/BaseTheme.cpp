@@ -1188,7 +1188,7 @@ void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, 
       }
       y += noteLineHeight;
     }
-    for (size_t line = noteLines.size(); line < 2; ++line) y += noteLineHeight;
+    y += std::max(0, 2 - static_cast<int>(noteLines.size())) * noteLineHeight;
 
     const int separatorY = y + metrics.optionPopupTitleGap / 2;
     renderer.drawLine(dialogX + innerPadding, separatorY, dialogX + dialogW - innerPadding, separatorY, true);

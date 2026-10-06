@@ -537,6 +537,51 @@ class HomeReaderSmokeActivity final : public Activity {
   bool bookReader;
 };
 
+class EntryRenderSmokeActivity final : public Activity {
+  std::atomic<bool> ready{false};
+  std::atomic<unsigned> renders{0};
+
+  static void check(bool passed, const char* message) {
+    if (passed) return;
+    LOG_ERR("SMOKE", "%s", message);
+    std::_Exit(1);
+  }
+
+ public:
+  EntryRenderSmokeActivity(GfxRenderer& renderer, MappedInputManager& input)
+      : Activity("EntryRenderSmoke", renderer, input) {}
+
+  void onEnter() override {
+    Activity::onEnter();
+    requestUpdate(true);
+    delay(80);
+    check(renders == 0, "Activity rendered before entry state was ready");
+    ready = true;
+    check(requestUpdateAndWait() == RequestUpdateResult::Rendered, "Entry loading render was rejected");
+    check(renders > 0, "Entry loading screen was not rendered");
+    ready = false;
+    const unsigned previous = renders;
+    requestUpdate(true);
+    delay(80);
+    check(renders == previous, "Asynchronous render ran while entry resumed initialization");
+    ready = true;
+    requestUpdate();
+    LOG_INF("SMOKE", "Entry render isolation and synchronous short-note popup passed");
+  }
+
+  void render(RenderLock&&) override {
+    check(ready, "Render observed incomplete entry state");
+    renderer.clearScreen();
+    static const char* const options[] = {"Cancel", "Save"};
+    const OptionLabels labels(options, 2,
+                              [](const void* owner, size_t i) { return static_cast<const char* const*>(owner)[i]; });
+    GUI.drawOptionPopup(renderer, "Popup regression", labels, 0, false, nullptr, nullptr, false, -1,
+                        "Note:", "Short note.");
+    ++renders;
+    renderer.displayBuffer();
+  }
+};
+
 class NavigationPickerSmokeActivity final : public Activity {
   OptionPopup popup;
 
@@ -3009,6 +3054,11 @@ class SimulatorSmokeTest {
     switch (step) {
       case SmokeStep::Start:
         LOG_INF("SMOKE", "Starting simulator smoke test");
+        if (std::getenv("CROSSINK_SIMULATOR_SMOKE_APP_NOTES")) {
+          activityManager.replaceActivity(std::make_unique<EntryRenderSmokeActivity>(renderer, mappedInputManager));
+          queueStep("Entry render isolation and short note", SmokeStep::Done, 8);
+          break;
+        }
         if (std::getenv("CROSSINK_READING_TEST_MENU") && Storage.exists("/expected-progress.json")) {
           if (Storage.exists("/menu-network-checked")) {
             LOG_INF("SMOKE", "Stats upload transport smoke passed");
@@ -4131,6 +4181,10 @@ class SimulatorSmokeTest {
       }
 
       case SmokeStep::Done:
+        if (std::getenv("CROSSINK_SIMULATOR_SMOKE_APP_NOTES")) {
+          RenderLock lock;
+          captureStatusBarScreen("short-note-popup");
+        }
         if (SETTINGS.uiTheme == CrossPointSettings::LYRA_CAROUSEL && carouselCachePass == 0 &&
             std::getenv("CROSSINK_SIMULATOR_SMOKE_BOOK")) {
           const RecentBook book = RECENT_BOOKS.getBooks().front();

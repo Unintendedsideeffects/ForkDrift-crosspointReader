@@ -839,7 +839,8 @@ KOReaderPosition ProgressMapper::toKOReader(const std::shared_ptr<Epub>& epub, c
 
 std::optional<CrossPointPosition> ProgressMapper::fromRichPosition(const std::shared_ptr<Epub>& epub,
                                                                    const KOReaderRichPosition& rich,
-                                                                   GfxRenderer& renderer) {
+                                                                   GfxRenderer& renderer,
+                                                                   const char* sectionCacheSuffix) {
   const int spineCount = epub->getSpineItemsCount();
   if (static_cast<int>(rich.spineIndex) >= spineCount) {
     LOG_DBG("PM", "Rich position spine %u out of range (%d spine items)", rich.spineIndex, spineCount);
@@ -849,7 +850,7 @@ std::optional<CrossPointPosition> ProgressMapper::fromRichPosition(const std::sh
   CrossPointPosition result{};
   result.spineIndex = rich.spineIndex;
 
-  Section tempSection(epub, result.spineIndex, renderer);
+  Section tempSection(epub, result.spineIndex, renderer, sectionCacheSuffix);
   const auto cachedCount = tempSection.getCachedPageCount();
   if (!cachedCount || *cachedCount <= 0) {
     // No local layout for the target spine yet; the percentage/xpath mapping

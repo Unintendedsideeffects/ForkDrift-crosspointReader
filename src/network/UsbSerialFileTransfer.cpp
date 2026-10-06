@@ -8,6 +8,8 @@
 #include <Logging.h>
 #include <SdCardFontSystem.h>
 #include <esp_rom_crc.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include <algorithm>
 #include <atomic>
@@ -127,8 +129,8 @@ bool readExact(uint8_t* buffer, size_t length, uint32_t timeoutMs, size_t* recei
     }
 
     // USB transfers run on the Arduino loop task, which is intentionally not
-    // subscribed to the task watchdog. Yielding lets the watched idle tasks run.
-    yield();
+    // subscribed to the task watchdog. Block for a tick so priority-0 idle tasks run.
+    vTaskDelay(1);
   }
   if (receivedOut) *receivedOut = received;
   return true;

@@ -40,6 +40,7 @@ void CalibreConnectActivity::onEnter() {
     startActivityForResult(std::make_unique<WifiSelectionActivity>(renderer, mappedInput),
                            [this](const ActivityResult& result) {
                              if (!result.isCancelled) {
+                               RenderLock lock;
                                const auto& wifi = std::get<WifiResult>(result.data);
                                connectedIP = wifi.ip;
                                connectedSSID = wifi.ssid;
@@ -80,8 +81,11 @@ void CalibreConnectActivity::onWifiSelectionComplete(const bool connected) {
 }
 
 void CalibreConnectActivity::startWebServer() {
-  state = CalibreConnectState::SERVER_STARTING;
-  requestUpdate();
+  {
+    RenderLock lock;
+    state = CalibreConnectState::SERVER_STARTING;
+    requestUpdate();
+  }
 
   MDNS.end();
   if (MDNS.begin(HOSTNAME)) {
@@ -92,6 +96,7 @@ void CalibreConnectActivity::startWebServer() {
   webServer.reset(new CrossPointWebServer());
   webServer->begin();
 
+  RenderLock lock;
   if (webServer->isRunning()) {
     state = CalibreConnectState::SERVER_RUNNING;
     requestUpdate();
@@ -137,6 +142,7 @@ void CalibreConnectActivity::loop() {
     lastHandleClientTime = millis();
 
     const auto status = webServer->getWsUploadStatus();
+    RenderLock lock;  // Publish upload strings and their counters together with respect to render().
     bool changed = false;
     if (status.inProgress) {
       if (status.received != lastProgressReceived || status.total != lastProgressTotal ||
