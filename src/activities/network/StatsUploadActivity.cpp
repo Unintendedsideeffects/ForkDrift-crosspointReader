@@ -12,6 +12,7 @@
 
 #include <cstring>
 
+#include "ClippingStore.h"
 #include "CrossPointState.h"
 #include "HalClock.h"
 #include "SdCardFontSystem.h"
@@ -23,9 +24,18 @@
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "network/ClippingsUpload.h"
 #include "network/ReadingSyncUpload.h"
 #include "network/WifiUtils.h"
 #include "util/InputReleaseGuard.h"
+
+namespace {
+std::string documentIdFor(const std::string& bookPath) {
+  return KOREADER_STORE.getMatchMethod() == DocumentMatchMethod::FILENAME
+             ? KOReaderDocumentId::calculateFromFilename(bookPath)
+             : KOReaderDocumentId::calculate(bookPath);
+}
+}  // namespace
 
 void StatsUploadActivity::onEnter() {
   Activity::onEnter();
@@ -66,6 +76,14 @@ void StatsUploadActivity::leave() {
       activityManager.goToLibrary();
     return;
   }
+  if (!returnBookPath.empty() && Storage.exists(returnBookPath.c_str())) {
+    // The EPUB reader reopens the starting screen too; other readers resume the page.
+    if (FsHelpers::hasEpubExtension(returnBookPath))
+      activityManager.goToReaderAndRunMenuAction(std::move(returnBookPath), returnMenuAction);
+    else
+      activityManager.goToReader(std::move(returnBookPath), true);
+    return;
+  }
   finish();
 }
 
@@ -77,6 +95,8 @@ const char* StatsUploadActivity::title() const {
       return tr(STR_FOLDER_SYNC);
     case Scope::Book:
       return tr(STR_SYNC_BOOK);
+    case Scope::Clippings:
+      return tr(STR_CLIPPINGS);
   }
   return tr(STR_SYNC);
 }
@@ -176,7 +196,9 @@ void StatsUploadActivity::finishUpload() {
   {
     RenderLock lock(*this);
     state = State::Done;
-    message = libraryAvailable ? tr(STR_DONE) : tr(STR_STATS_UPLOAD_LIBRARY);
+    message = scope == Scope::Clippings && StatsUploadClient::failed(clippingsResult) ? tr(STR_SYNC_FAILED_MSG)
+              : libraryAvailable                                                      ? tr(STR_DONE)
+                                                                                      : tr(STR_STATS_UPLOAD_LIBRARY);
   }
   requestUpdate();
 }
@@ -199,6 +221,7 @@ StatsUploadActivity::NextBook StatsUploadActivity::nextBook(std::string& bookPat
       return Storage.exists(bookPath.c_str()) ? NextBook::Book : NextBook::Missing;
     }
     case Scope::Book:
+    case Scope::Clippings:
       if (singleBookTaken) return NextBook::Done;
       singleBookTaken = true;
       bookPath = path;
@@ -208,6 +231,10 @@ StatsUploadActivity::NextBook StatsUploadActivity::nextBook(std::string& bookPat
 }
 
 void StatsUploadActivity::uploadNext() {
+  if (scope == Scope::Clippings) {
+    uploadClippings();
+    return;
+  }
   if (!globalAttempted) {
     // Batch ownership prevents books that skip/fail from starving overall stats,
     // and prevents retries of accepted global snapshots after a per-book failure.
@@ -224,7 +251,6 @@ void StatsUploadActivity::uploadNext() {
 #ifndef SIMULATOR
     halClock.syncSystemTimeFromNTP();
 #endif
-    ReadingSyncUpload::refreshServerSupport();
     const auto result =
         KOREADER_STORE.getSyncStats() ? ReadingSyncUpload::globalStats() : StatsUploadClient::Result::Skipped;
     {
@@ -284,12 +310,28 @@ void StatsUploadActivity::recordExtras(const bool statsOk, const bool clippingsO
   clippingsFailed += clippingsError;
 }
 
+void StatsUploadActivity::uploadClippings() {
+  // An explicit request from the clippings list, so What to Sync does not gate it.
+  if (requestUpdateAndWait() != RequestUpdateResult::Rendered) LOG_ERR("StatsSync", "Cannot render clippings upload");
+  // The list that started this may leave its index loaded (the reader unloads on
+  // exit, Saved Items does not). Upload reads one record at a time from the file,
+  // so free the index before TLS; unload() saves pending edits first.
+  CLIPPINGS.unload();
+  const auto document = documentIdFor(path);
+  const auto result =
+      document.empty() ? StatsUploadClient::Result::InvalidResponse : ClippingsUpload::upload(path, document);
+  recordExtras(false, result == StatsUploadClient::Result::Ok, false, StatsUploadClient::failed(result));
+  {
+    RenderLock lock(*this);
+    clippingsResult = result;
+  }
+  finishUpload();
+}
+
 bool StatsUploadActivity::uploadBookExtras(const std::string& bookPath, bool* sentAny) {
   if (sentAny) *sentAny = false;
   if (!KOREADER_STORE.getSyncStats() && !KOREADER_STORE.getSyncClippings()) return true;
-  const auto document = KOREADER_STORE.getMatchMethod() == DocumentMatchMethod::FILENAME
-                            ? KOReaderDocumentId::calculateFromFilename(bookPath)
-                            : KOReaderDocumentId::calculate(bookPath);
+  const auto document = documentIdFor(bookPath);
   if (document.empty()) return false;
   const auto result = ReadingSyncUpload::extras(bookPath, document);
   if (sentAny)
@@ -353,7 +395,7 @@ void StatsUploadActivity::syncEpub(std::string&& bookPath) {
     if (result.isCancelled) {
       LOG_INF("StatsSync", "Exited: synced=%u skipped=%u failed=%u", static_cast<unsigned>(uploaded),
               static_cast<unsigned>(skipped), static_cast<unsigned>(failed));
-      finish();
+      leave();
       return;
     }
     const auto* synced = std::get_if<ProgressSyncResult>(&result.data);
@@ -386,7 +428,7 @@ void StatsUploadActivity::loop() {
   // Each upload step blocks and buttons are polled, so a held Exit also counts
   // while uploading; a quick press during a request would otherwise be missed.
   if (mappedInput.wasPressed(MappedInputManager::Button::Back) ||
-      (scope != Scope::Book && state == State::Uploading && mappedInput.isPressed(MappedInputManager::Button::Back)) ||
+      (!singleBook() && state == State::Uploading && mappedInput.isPressed(MappedInputManager::Button::Back)) ||
       TouchHeaderBackButton::wasTapped(mappedInput, renderer)) {
     mappedInput.suppressNextBackRelease();
     leave();
@@ -451,6 +493,11 @@ void StatsUploadActivity::render(RenderLock&&) {
     const auto url = KOREADER_STORE.getBaseUrl();
     UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, detailY, url.c_str(), 3, true,
                                      EpdFontFamily::REGULAR, 4);
+  } else if (scope == Scope::Clippings) {
+    // One book, one kind of data: book counts and the stats rows would say nothing.
+    if (state == State::Done)
+      UITheme::drawCenteredStatusRow(renderer, area, UI_10_FONT_ID, detailY, tr(STR_CLIPPINGS),
+                                     StatsUploadClient::resultString(clippingsResult));
   } else {
     char counts[160];
     snprintf(counts, sizeof(counts), tr(STR_FOLDER_SYNC_COUNTS), static_cast<unsigned>(uploaded),
@@ -482,7 +529,7 @@ void StatsUploadActivity::render(RenderLock&&) {
     TouchActionButtons::draw(renderer, layout, labels, 0);
   }
   // Mid-run, Back leaves the whole sync rather than one book or screen.
-  const bool running = scope != Scope::Book && (state == State::Uploading || state == State::BookFailed);
+  const bool running = !singleBook() && (state == State::Uploading || state == State::BookFailed);
   const auto labels =
       mappedInput.mapLabels(mappedInput.withBackArrow(running ? tr(STR_EXIT) : tr(STR_BACK)), action, "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

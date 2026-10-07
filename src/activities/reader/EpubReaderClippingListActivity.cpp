@@ -1,7 +1,10 @@
 #include "EpubReaderClippingListActivity.h"
 
+#include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <I18n.h>
+#include <KOReaderCredentialStore.h>
+#include <Memory.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -10,11 +13,13 @@
 #include "ReaderUtils.h"
 #include "activities/ActivityResult.h"
 #include "activities/home/FileBrowserActionActivity.h"
+#include "activities/network/StatsUploadActivity.h"
 #include "clippings/ClippingPreview.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
 #include "components/UIThemeTokens.h"
 #include "components/UiAppHelpers.h"
+#include "components/icons/syncIcons.h"
 #include "fontIds.h"
 
 namespace fui = freeink::ui;
@@ -266,6 +271,29 @@ void EpubReaderClippingListActivity::deleteSelectedClipping() {
   requestUpdate();
 }
 
+bool EpubReaderClippingListActivity::canSyncClippings() const {
+  return CLIPPINGS.clippingCount() > 0 && FsHelpers::hasEpubExtension(CLIPPINGS.getBookFilePath()) &&
+         KOREADER_STORE.hasCredentials() && KOREADER_STORE.getServerSupport() == SyncServerSupport::SUPPORTED;
+}
+
+void EpubReaderClippingListActivity::startClippingsSync() {
+  const std::string& bookPath = CLIPPINGS.getBookFilePath();
+  auto sync =
+      makeUniqueNoThrow<StatsUploadActivity>(renderer, mappedInput, bookPath, StatsUploadActivity::Scope::Clippings);
+  if (!sync) {
+    LOG_ERR("CLIP", "Cannot allocate clippings sync");
+    return;
+  }
+  if (activityManager.isReaderActivity())
+    sync->setReturnToBook(bookPath, static_cast<uint8_t>(EpubReaderMenuAction::VIEW_CLIPPINGS));
+  // Close normally first: a reader underneath must release the EPUB before TLS needs its heap.
+  activityManager.replaceAfterReturn(std::move(sync));
+  ActivityResult result;
+  result.isCancelled = true;
+  setResult(std::move(result));
+  finish();
+}
+
 void EpubReaderClippingListActivity::showClippingActionMenu(const bool ignoreInitialConfirmRelease) {
   if (selectedIndex < 0 || selectedIndex >= static_cast<int>(CLIPPINGS.clippingCount())) return;
 
@@ -277,8 +305,10 @@ void EpubReaderClippingListActivity::showClippingActionMenu(const bool ignoreIni
   const uint16_t selectedStartWordIndex = selectedClipping->startWordIndex;
   const uint32_t selectedTimestamp = selectedClipping->timestamp;
   std::vector<FileBrowserActionActivity::MenuItem> items;
-  items.reserve(1);
+  items.reserve(2);
   items.push_back({FileBrowserAction::Delete, StrId::STR_DELETE});
+  // Button devices have no header icon; Sync covers the whole book, not just this clipping.
+  if (canSyncClippings()) items.push_back({FileBrowserAction::SyncProgress, StrId::STR_SYNC});
 
   startActivityForResult(
       std::make_unique<FileBrowserActionActivity>(renderer, mappedInput, title, std::move(items),
@@ -292,6 +322,10 @@ void EpubReaderClippingListActivity::showClippingActionMenu(const bool ignoreIni
         }
 
         const auto* actionResult = std::get_if<FileBrowserActionResult>(&result.data);
+        if (actionResult && static_cast<FileBrowserAction>(actionResult->action) == FileBrowserAction::SyncProgress) {
+          startClippingsSync();
+          return;
+        }
         if (!actionResult || static_cast<FileBrowserAction>(actionResult->action) != FileBrowserAction::Delete) {
           requestUpdate();
           return;
@@ -325,6 +359,13 @@ void EpubReaderClippingListActivity::loop() {
       finish();
     }
     return;
+  }
+  if (!detailMode && canSyncClippings()) {
+    const Rect sync = TouchHeaderBackButton::trailingTouchRect(header);
+    if (mappedInput.wasTapInRect(sync.x, sync.y, sync.width, sync.height)) {
+      startClippingsSync();
+      return;
+    }
   }
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (detailMode) {
@@ -636,7 +677,10 @@ void EpubReaderClippingListActivity::render(RenderLock&&) {
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
   const Rect header = clippingHeaderRect(renderer, safe, mappedInput);
   if (mappedInput.hasTouchHardware()) {
-    TouchHeaderBackButton::draw(renderer, uiTarget, header, tr(STR_CLIPPINGS), true);
+    const bool showSync = canSyncClippings();
+    TouchHeaderBackButton::draw(renderer, uiTarget, header, tr(STR_CLIPPINGS), true,
+                                showSync ? TouchHeaderBackButton::TRAILING_ACTION_RESERVE : 0);
+    if (showSync) TouchHeaderBackButton::drawTrailingIcon(renderer, header, icon_cloud_upload_32);
   } else {
     GUI.drawHeader(renderer, header, tr(STR_CLIPPINGS), nullptr, true);
   }

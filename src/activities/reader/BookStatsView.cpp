@@ -15,8 +15,8 @@
 #include "components/TouchHeaderBackButton.h"
 #include "components/TouchRegistry.h"
 #include "components/UITheme.h"
-#include "components/icons/libraryIcons.h"
 #include "components/icons/listIcons.h"
+#include "components/icons/syncIcons.h"
 #include "fontIds.h"
 
 namespace {
@@ -140,34 +140,17 @@ int statsAvailableHeight(const GfxRenderer& renderer, const bool showButtonHints
          (showButtonHints && UITheme::getButtonHintsReserve(renderer) > 0 ? kStatsButtonHintTopGap : 0);
 }
 
-constexpr int kSyncIconGap = 8;
-
 void drawStatsHeader(GfxRenderer& renderer, const MappedInputManager* mappedInput, const char* title,
                      const bool showButtonHints, const bool showDate = false, const bool showSyncAction = false) {
   if (mappedInput && mappedInput->hasTouchHardware()) {
-    const freeink::Icon& icon = icon_refresh_cw_32;
     TouchHeaderBackButton::drawCompact(renderer, title, false, showDate, TouchHeaderBackButton::TITLE_VERTICAL_OFFSET,
-                                       showSyncAction ? icon.w + kSyncIconGap : 0);
+                                       showSyncAction ? TouchHeaderBackButton::TRAILING_ACTION_RESERVE : 0);
     if (showSyncAction) {
-      // Sits left of the battery, on the back button's row; touch has no Confirm hint.
-      const auto& metrics = UITheme::getInstance().getMetrics();
+      // Touch has no Confirm hint, so Sync All Books sits opposite the back button.
       const Rect header = TouchHeaderBackButton::compactHeaderRect(renderer);
-      Rect back = TouchHeaderBackButton::layout(header).iconRect;
-      // Same downward shift the back chevron and title get, so the icon clears the status row.
-      const int iconBottom = back.y + (back.height + TouchHeaderBackButton::ICON_SIZE) / 2;
-      back.y += std::clamp(TouchHeaderBackButton::TITLE_VERTICAL_OFFSET, 0,
-                           std::max(0, header.y + header.height - iconBottom));
-      const int x =
-          header.x + header.width - metrics.batteryWidth - 2 * metrics.headerSidePadding - icon.w - kSyncIconGap / 2;
-      const freeink::ui::BitmapRef bitmap{icon.bits, icon.w, icon.h, freeink::ui::BitmapFormat::Mask1, true};
-      freeink::ui::forEachBitmapPixel(
-          freeink::ui::Rect{static_cast<int16_t>(x), static_cast<int16_t>(back.y), static_cast<int16_t>(icon.w),
-                            static_cast<int16_t>(back.height)},
-          bitmap, freeink::ui::BitmapMode::Center,
-          [&renderer](const int16_t px, const int16_t py) { renderer.drawPixel(px, py, true); });
-      // A finger-sized target around the 32px glyph.
-      TouchRegistry::getInstance().add(Rect(x - kSyncIconGap, header.y, icon.w + kSyncIconGap * 2, header.height),
-                                       BookStatsTouchTarget::SyncAll, TouchRegistry::Item);
+      TouchHeaderBackButton::drawTrailingIcon(renderer, header, icon_cloud_upload_32);
+      TouchRegistry::getInstance().add(TouchHeaderBackButton::trailingTouchRect(header), BookStatsTouchTarget::SyncAll,
+                                       TouchRegistry::Item);
     }
   } else {
     const auto safe = statsSafeArea(renderer, showButtonHints);

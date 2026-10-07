@@ -55,5 +55,8 @@ class EpubReaderClippingListActivity final : public Activity {
   void openSelectedDetail();
   void rebuildDetailLayoutIfNeeded();
   void showClippingActionMenu(bool ignoreInitialConfirmRelease);
+  // Uploading clippings needs an account on a server known to accept them.
+  bool canSyncClippings() const;
+  void startClippingsSync();
   void renderDetail();
 };

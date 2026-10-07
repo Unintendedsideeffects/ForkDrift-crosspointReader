@@ -4447,7 +4447,8 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuAction action, const 
                                  handleClippingJump(clipping);
                                } else {
                                  resumeReadingPaceTimer("clipping_list_cancel");
-                                 if (returnToReaderMenu) {
+                                 // Clippings sync replaces the reader right after this.
+                                 if (returnToReaderMenu && !activityManager.hasDeferredReplace()) {
                                    openReaderMenu();
                                    return;
                                  }
@@ -4624,8 +4625,12 @@ bool EpubReaderActivity::handleFrontlightPanelResult(const FrontlightPanelResult
 }
 
 bool EpubReaderActivity::handleExternalReaderMenuAction(const uint8_t action) {
-  if (action != static_cast<uint8_t>(EpubReaderMenuAction::NEARBY_POSITION_SYNC)) return false;
-  onReaderMenuConfirm(EpubReaderMenuAction::NEARBY_POSITION_SYNC);
+  // READING_STATS / VIEW_CLIPPINGS: a sync started there returns to that screen.
+  if (action != static_cast<uint8_t>(EpubReaderMenuAction::NEARBY_POSITION_SYNC) &&
+      action != static_cast<uint8_t>(EpubReaderMenuAction::READING_STATS) &&
+      action != static_cast<uint8_t>(EpubReaderMenuAction::VIEW_CLIPPINGS))
+    return false;
+  onReaderMenuConfirm(static_cast<EpubReaderMenuAction>(action));
   return true;
 }
 

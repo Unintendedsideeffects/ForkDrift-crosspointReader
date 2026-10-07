@@ -134,7 +134,6 @@ StatsUploadClient::Result StatsUploadClient::probe(const bool trustHtml) {
   http.addHeader("Accept", "application/json");
   http.addHeader("x-auth-user", KOREADER_STORE.getUsername());
   http.addHeader("x-auth-key", KOREADER_STORE.getMd5Password());
-  KOREADER_STORE.markServerProbed();
   // A JSON object body separates the summary API from catch-all HTML pages that
   // some proxies return with 200; only its first non-space byte is kept.
   char first = '\0';

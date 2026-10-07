@@ -69,12 +69,6 @@ bool ReadingSyncUpload::prepareProgress(const std::string& path, KOReaderProgres
   return true;
 }
 
-void ReadingSyncUpload::refreshServerSupport() {
-  if (!KOREADER_STORE.needsServerProbe()) return;
-  StatsUploadClient client;
-  client.probe();
-}
-
 StatsUploadClient::Result ReadingSyncUpload::globalStats() {
   using Result = StatsUploadClient::Result;
   if (!SETTINGS.shouldTrackReadingStats()) return Result::Skipped;

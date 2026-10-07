@@ -3,6 +3,7 @@
 #include <FreeInkUIGfxRenderer.h>
 
 #include "GfxRenderer.h"
+#include "Icon.h"
 #include "MappedInputManager.h"
 #include "themes/BaseTheme.h"
 
@@ -32,8 +33,15 @@ void draw(GfxRenderer& renderer, const Rect& header, const char* title, bool rea
 void draw(GfxRenderer& renderer, freeink::ui::GfxRendererTarget& target, const Rect& header, const char* title,
           bool readerContext, int rightReserve = 0, const char* subtitle = nullptr,
           int verticalOffset = TITLE_VERTICAL_OFFSET, bool showStatus = true);
-// extraRightReserve keeps the title clear of a caller-drawn action left of the status.
+// minRightReserve keeps the title clear of a trailing action (see TRAILING_ACTION_RESERVE).
 void drawCompact(GfxRenderer& renderer, const char* title, bool readerContext = false, bool showDate = false,
-                 int verticalOffset = TITLE_VERTICAL_OFFSET, int extraRightReserve = 0);
+                 int verticalOffset = TITLE_VERTICAL_OFFSET, int minRightReserve = 0);
+
+// A trailing header action mirrors the back button: same lane and touch target,
+// on the right edge of the back button's row.
+extern const int TRAILING_ACTION_RESERVE;
+void drawTrailingIcon(GfxRenderer& renderer, const Rect& header, const freeink::Icon& icon,
+                      int verticalOffset = TITLE_VERTICAL_OFFSET);
+Rect trailingTouchRect(const Rect& header);
 
 }  // namespace TouchHeaderBackButton

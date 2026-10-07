@@ -16,6 +16,7 @@
 - Choose Directional or Legacy menu navigation in Controls to restore the previous button behavior in Settings and the reader menu.
 - Sync All Books from Settings → System → Sync Server or the Reading Stats This Device page to sync progress, reading stats, and clippings for every Library book in one pass.
 - Sync Book from an XTC book's context menu uploads its reading stats; Sync Folder and Sync All Books include XTC stats too.
+- Upload a book's clippings from its clippings list (header icon on touch, hold Confirm → Sync on buttons) when signed in to a server that supports clippings.
 
 ### Fixed
 
@@ -59,10 +60,11 @@
 - Refresh Library cover grids once after missing covers are prepared, keeping input checks between covers.
 - Skip text anti-aliasing on EPUB pages without text and avoid copying optimized images twice when they already match the display size.
 - Settings → System → KOReader Sync is now Sync Server, grouped into account, What to Sync, and Sync Options sections.
-- Reading Stats and Clippings sync turn on automatically for CrossPoint Sync servers; turning either off is remembered. Other servers are checked when you authenticate.
+- Reading Stats and Clippings sync stay off until you turn them on under What to Sync. Servers that cannot receive them are detected when you authenticate.
 - Sync actions are now named Sync Book and Sync Folder because they also send stats and clippings, and File Transfer → Sync Stats is now Nearby Stats Sync.
 - Upload Stats is replaced by Sync All Books, which follows your What to Sync choices instead of always uploading stats only.
 - Every sync result, including a successful single-book sync, lists overall stats, reading stats, and clippings as Done, OFF, or Not supported.
+- Sync All Books from Reading Stats inside a book returns to that book afterwards instead of Home.
 - Use a consistent "Loading..." message across loading screens.
 - Use consistent labels for cover options, date/time syncing, shortcuts, and status messages.
 

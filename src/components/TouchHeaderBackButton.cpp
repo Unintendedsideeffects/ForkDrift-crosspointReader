@@ -118,11 +118,11 @@ void draw(GfxRenderer& renderer, fui::GfxRendererTarget& target, const Rect& hea
 }
 
 void drawCompact(GfxRenderer& renderer, const char* title, const bool readerContext, const bool showDate,
-                 const int verticalOffset, const int extraRightReserve) {
+                 const int verticalOffset, const int minRightReserve) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect header = compactHeaderRect(renderer);
-  const int rightReserve = metrics.batteryWidth + 2 * metrics.headerSidePadding +
-                           (showDate ? headerDateReservedWidth(renderer) : 0) + extraRightReserve;
+  const int rightReserve = std::max(minRightReserve, metrics.batteryWidth + 2 * metrics.headerSidePadding +
+                                                         (showDate ? headerDateReservedWidth(renderer) : 0));
   draw(renderer, header, title, readerContext, rightReserve, nullptr, verticalOffset);
   if (showDate) {
     const Layout back = layout(header);
@@ -132,6 +132,24 @@ void drawCompact(GfxRenderer& renderer, const char* title, const bool readerCont
                                renderer.getFontAscenderSize(UI_12_FONT_ID);
     drawHeaderDateAtBaseline(renderer, header.x + header.width, titleBaselineY);
   }
+}
+
+const int TRAILING_ACTION_RESERVE = actionSize + titleGap;
+
+void drawTrailingIcon(GfxRenderer& renderer, const Rect& header, const freeink::Icon& icon, const int verticalOffset) {
+  Layout back = layout(header);
+  back.iconRect.y += effectiveVerticalOffset(back, header, verticalOffset);
+  const int x = header.x + header.width - back.iconRect.width + (back.iconRect.width - icon.w) / 2;
+  const int y = back.iconRect.y + (back.iconRect.height - icon.h) / 2;
+  auto target = makeUiTarget(renderer);
+  target.bitmap(fui::Rect{static_cast<int16_t>(x), static_cast<int16_t>(y), static_cast<int16_t>(icon.w),
+                          static_cast<int16_t>(icon.h)},
+                fui::bitmapFromIcon(icon), fui::BitmapMode::Center);
+}
+
+Rect trailingTouchRect(const Rect& header) {
+  const Rect touch = layout(header).touchRect;
+  return Rect{header.x + header.width - (touch.x - header.x) - touch.width, touch.y, touch.width, touch.height};
 }
 
 }  // namespace TouchHeaderBackButton

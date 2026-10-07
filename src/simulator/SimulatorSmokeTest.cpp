@@ -58,6 +58,7 @@
 #include "activities/reader/BookStatsActivity.h"
 #include "activities/reader/BookStatsView.h"
 #include "activities/reader/EpubReaderActivity.h"
+#include "activities/reader/EpubReaderClippingListActivity.h"
 #include "activities/reader/EpubReaderDrawerActivity.h"
 #include "activities/reader/EpubReaderFootnotesActivity.h"
 #include "activities/reader/KOReaderSyncActivity.h"
@@ -803,6 +804,7 @@ enum class SmokeStep : uint8_t {
   SyncServerCaptureBottom,
   SyncServerCaptureUnsupported,
   SyncServerCaptureStats,
+  SyncServerCaptureClippings,
   StatsUploadReturn,
   StatsUploadEmptyDone,
   RecentLibrary,
@@ -4637,6 +4639,24 @@ class SimulatorSmokeTest {
           RenderLock lock;
           captureStatusBarScreen("sync-server-4-stats-page");
         }
+        // A book's clippings list offers its own upload on a server known to accept clippings.
+        KOREADER_STORE.setServerUrl("");
+        CLIPPINGS.loadForBook("/sync-capture.epub", "Fixture", "", "epub");
+        if (CLIPPINGS.clippingCount() == 0) {
+          CLIPPINGS.addClipping(0, 0, 0, 1, 0, 3, 4, "Chapter", 0, "A saved passage", 0, 0);
+        }
+        activityManager.replaceActivity(std::make_unique<EpubReaderClippingListActivity>(renderer, mappedInputManager));
+        queueStep("Clippings sync action", SmokeStep::SyncServerCaptureClippings, 6);
+        break;
+      }
+
+      case SmokeStep::SyncServerCaptureClippings: {
+        {
+          RenderLock lock;
+          captureStatusBarScreen("sync-server-5-clippings");
+        }
+        CLIPPINGS.clearAll();
+        CLIPPINGS.unload();
         LOG_INF("SMOKE", "Simulator smoke test passed: Sync Server captures");
         std::_Exit(0);
       }

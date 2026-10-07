@@ -17,8 +17,6 @@ struct ExtrasResult {
   StatsUploadClient::Result clippings = StatsUploadClient::Result::Skipped;
   bool success() const { return !StatsUploadClient::failed(stats) && !StatsUploadClient::failed(clippings); }
 };
-// Probe an unknown server once when an automatic include choice depends on it.
-void refreshServerSupport();
 StatsUploadClient::Result globalStats();
 // Reuse the explicit stats activity's existing buffer/client rather than allocating a second pair.
 StatsUploadClient::Result globalStats(StatsUploadClient& client, char* payload, size_t capacity, const char* deviceId);

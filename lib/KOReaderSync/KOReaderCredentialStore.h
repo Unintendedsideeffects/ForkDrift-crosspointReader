@@ -37,16 +37,12 @@ class KOReaderCredentialStore : public PersistableStore<KOReaderCredentialStore>
   std::string password;
   std::string serverUrl;                                            // Custom sync server URL (empty = default)
   DocumentMatchMethod matchMethod = DocumentMatchMethod::FILENAME;  // Default to filename for compatibility
-  // AUTO follows server support; ON/OFF record an explicit user choice.
-  enum class IncludeChoice : uint8_t { AUTO = 0, OFF = 1, ON = 2 };
-  IncludeChoice statsChoice = IncludeChoice::AUTO;
-  IncludeChoice clippingsChoice = IncludeChoice::AUTO;
+  // Off by default: syncing stats and clippings is always an explicit opt-in.
+  bool syncStats = false;
+  bool syncClippings = false;
   SyncServerSupport serverSupport = SyncServerSupport::UNKNOWN;
   std::string serverSupportUrl;  // Base URL serverSupport was learned for.
-  // Not persisted: the base URL already probed this boot, so an inconclusive
-  // answer (timeout, 5xx, proxy) costs one request per session, not one per book.
-  mutable std::string probedUrl;
-  bool sendMetadata = false;  // Send document metadata with progress sync
+  bool sendMetadata = false;     // Send document metadata with progress sync
   KOReaderSyncBehavior syncBehavior = KOReaderSyncBehavior::SMART;
 
   // Private constructor for singleton
@@ -104,8 +100,8 @@ class KOReaderCredentialStore : public PersistableStore<KOReaderCredentialStore>
     return sendMetadata;
   }
 
-  // Effective "include in sync" values. AUTO is on only for servers known to
-  // support the extensions; an unsupported server always reads as off.
+  // Effective "include in sync" values: the user's choice, except that an
+  // unsupported server always reads as off.
   void setSyncStats(bool enabled);
   bool getSyncStats() const;
   void setSyncClippings(bool enabled);
@@ -116,10 +112,6 @@ class KOReaderCredentialStore : public PersistableStore<KOReaderCredentialStore>
   SyncServerSupport getServerSupport() const;
   // Persists only when the value changes for the current server.
   void setServerSupport(SyncServerSupport support);
-  // True when an AUTO choice is waiting on an unknown server's capability
-  // and this server has not been probed yet this session.
-  bool needsServerProbe() const;
-  void markServerProbed() const;
 
   // Sync behavior
   void setSyncBehavior(KOReaderSyncBehavior behavior);

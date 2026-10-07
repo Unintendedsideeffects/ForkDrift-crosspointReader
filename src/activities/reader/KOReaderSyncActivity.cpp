@@ -777,9 +777,7 @@ bool KOReaderSyncActivity::uploadExtras() {
     return false;
   }
   extrasAttempted = true;
-  // An unknown server still needs a probe before AUTO choices can be decided.
-  const bool mayProbe = KOREADER_STORE.needsServerProbe();
-  if (!mayProbe && !KOREADER_STORE.getSyncStats() && !KOREADER_STORE.getSyncClippings()) return true;
+  if (!KOREADER_STORE.getSyncStats() && !KOREADER_STORE.getSyncClippings()) return true;
   {
     RenderLock lock(*this);
     state = UPLOADING;
@@ -789,9 +787,6 @@ bool KOReaderSyncActivity::uploadExtras() {
   if (requestUpdateAndWait() != RequestUpdateResult::Rendered) {
     LOG_ERR("KOSync", "Cannot render extras upload screen");
   }
-  // Probe only after the EPUB is released: TLS needs the heap it was holding.
-  if (mayProbe) ReadingSyncUpload::refreshServerSupport();
-  if (!KOREADER_STORE.getSyncStats() && !KOREADER_STORE.getSyncClippings()) return true;
   if (includeGlobalStats && KOREADER_STORE.getSyncStats()) globalStatsResult = ReadingSyncUpload::globalStats();
   extrasResult = ReadingSyncUpload::extras(epubPath, documentHash);
   if (!StatsUploadClient::failed(globalStatsResult) && extrasResult.success()) return true;

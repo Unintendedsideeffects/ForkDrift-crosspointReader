@@ -98,18 +98,19 @@ groups:
 - **What to Sync**: **Reading Stats** and **Clippings**.
 - **Sync Options**: Sync Behavior, Document Matching, and Send Metadata.
 
-Reading progress always syncs. **Reading Stats** and **Clippings** use the
-CrossPoint extension API, so they only apply to CrossPoint Sync servers:
+Reading progress always syncs. **Reading Stats** and **Clippings** are off until
+you turn them on. They use the CrossPoint extension API, so they only apply to
+CrossPoint Sync servers:
 
-- On the default server they are on unless you turn them off.
+- The default server always supports them.
 - On a custom server, CrossInk checks for the extension API when you
-  **Authenticate** (or on the first sync after the URL changes). The
+  **Authenticate**, and learns from the first stats or clippings upload. The
   authentication screen says whether stats and clippings can sync too.
 - On a KOReader-only server, both rows show **Requires CrossPoint Sync** and
-  are skipped. Syncs finish normally instead of reporting a failed upload.
+  are skipped, even if turned on. Syncs finish normally instead of reporting a
+  failed upload.
 
-Turning either option on or off is remembered and overrides the automatic
-default. Changing the server URL clears what was learned about the old server.
+Changing the server URL clears what was learned about the old server.
 
 ## Ways to Sync
 
@@ -120,7 +121,11 @@ stats and clippings when they are on under **What to Sync**. Only the scope diff
 | --- | --- | --- |
 | **Sync Book** | Reader menu, frontlight panel, or a book's context menu in Library / File Browser | One book |
 | **Sync Folder** | Long-press a folder in File Browser | That folder and its subfolders |
-| **Sync All Books** | **Settings > System > Sync Server**, or the Reading Stats **This Device** page (Confirm on button devices, the sync icon on touch) | Every book in the Library index |
+| **Sync All Books** | **Settings > System > Sync Server**, or the Reading Stats **This Device** page (Confirm on button devices, the upload icon on touch) | Every book in the Library index |
+
+Sync All Books started from Reading Stats inside a book reopens that book
+afterwards (EPUB books reopen Reading Stats too), the same way **Sync Book**
+returns to the reader.
 
 Overall stats are sent once per action. XTC books have no KOReader position, so
 they sync reading stats only; their **Sync Book** runs in place instead of
@@ -215,7 +220,11 @@ fails or you cancel.
 ## Clippings Upload
 
 With **Clippings** on, manual book sync and folder catch-up include the book's
-saved clippings. The first implementation is upload-only: it does not download
+saved clippings. A book's clippings list can also upload just that book's
+clippings, whether or not **Clippings** is on: tap the upload icon in its header
+on touch devices, or hold Confirm on a clipping and choose **Sync** on button
+devices. This shows only with an account on a server known to support clippings.
+Started from inside a book, it reopens that book's clippings list afterwards. The first implementation is upload-only: it does not download
 server clippings or propagate local deletions. Notes and colors already on the
 server are preserved. Server-deleted IDs stay deleted; this uploader never revives
 a server tombstone.

@@ -15,8 +15,7 @@ constexpr char DEFAULT_SERVER_URL[] = "https://sync.crosspointreader.com";
 constexpr char LEGACY_DEFAULT_SERVER_URL[] = "https://sync.koreader.rocks:443";
 
 // Bumped when a change to defaults would alter behavior for existing configs.
-// v3: stats/clippings sync flags became explicit choices over a server-based default.
-constexpr uint8_t CONFIG_VERSION = 3;
+constexpr uint8_t CONFIG_VERSION = 2;
 }  // namespace
 
 void KOReaderCredentialStore::toJson(JsonDocument& doc) const {
@@ -28,13 +27,8 @@ void KOReaderCredentialStore::toJson(JsonDocument& doc) const {
   doc["serverUrl"] = serverUrl;
   doc["matchMethod"] = static_cast<uint8_t>(matchMethod);
   doc["sendMetadata"] = sendMetadata;
-  // Three-way choices use their own keys; the legacy booleans are still written
-  // so older firmware keeps an explicit ON. Older firmware saves "never chosen"
-  // and "chosen off" as the same false, so an OFF cannot survive its rewrite.
-  doc["statsChoice"] = static_cast<uint8_t>(statsChoice);
-  doc["clippingsChoice"] = static_cast<uint8_t>(clippingsChoice);
-  doc["syncStats"] = statsChoice == IncludeChoice::ON;
-  doc["syncClippings"] = clippingsChoice == IncludeChoice::ON;
+  doc["syncStats"] = syncStats;
+  doc["syncClippings"] = syncClippings;
   if (serverSupport != SyncServerSupport::UNKNOWN && !serverSupportUrl.empty()) {
     doc["serverSupport"] = static_cast<uint8_t>(serverSupport);
     doc["serverSupportUrl"] = serverSupportUrl;
@@ -67,11 +61,13 @@ bool KOReaderCredentialStore::fromJson(JsonVariantConst doc) {
   // against the old default — pin that URL so the upgrade doesn't switch servers
   // out from under the user. Fresh setups get the new default.
   const uint8_t cfgVersion = doc["cfgVersion"] | (uint8_t)1;
-  if (cfgVersion < 2 && getServerUrl().empty() && hasCredentials()) {
-    LOG_DBG("KRS", "Pre-v2 config used the old default server; pinning %s", LEGACY_DEFAULT_SERVER_URL);
-    setServerUrl(LEGACY_DEFAULT_SERVER_URL);
+  if (cfgVersion < CONFIG_VERSION) {
+    if (getServerUrl().empty() && hasCredentials()) {
+      LOG_DBG("KRS", "Pre-v2 config used the old default server; pinning %s", LEGACY_DEFAULT_SERVER_URL);
+      setServerUrl(LEGACY_DEFAULT_SERVER_URL);
+    }
+    needsResave = true;  // stamp cfgVersion so this migration runs once
   }
-  if (cfgVersion < CONFIG_VERSION) needsResave = true;  // stamp cfgVersion so migrations run once
 
   uint8_t method = doc["matchMethod"] | (uint8_t)0;
   if (method <= static_cast<uint8_t>(DocumentMatchMethod::BINARY)) {
@@ -81,17 +77,8 @@ bool KOReaderCredentialStore::fromJson(JsonVariantConst doc) {
     setMatchMethod(DocumentMatchMethod::FILENAME);
   }
   setSendMetadata(doc["sendMetadata"] | false);
-  // Legacy booleans were always written and defaulted to false, so a saved false
-  // was never a user choice: only a saved true migrates to an explicit ON.
-  const auto loadChoice = [](JsonVariantConst choice, JsonVariantConst legacy) {
-    const uint8_t value = choice | static_cast<uint8_t>(0xFF);
-    if (value <= static_cast<uint8_t>(IncludeChoice::ON)) return static_cast<IncludeChoice>(value);
-    return (legacy | false) ? IncludeChoice::ON : IncludeChoice::AUTO;
-  };
-  const bool missingChoices = doc["statsChoice"].isNull() || doc["clippingsChoice"].isNull();
-  statsChoice = loadChoice(doc["statsChoice"], doc["syncStats"]);
-  clippingsChoice = loadChoice(doc["clippingsChoice"], doc["syncClippings"]);
-  needsResave = needsResave || missingChoices;
+  setSyncStats(doc["syncStats"] | false);
+  setSyncClippings(doc["syncClippings"] | false);
   const uint8_t support = doc["serverSupport"] | (uint8_t)0;
   serverSupportUrl = doc["serverSupportUrl"] | "";
   serverSupport = support <= static_cast<uint8_t>(SyncServerSupport::UNSUPPORTED)
@@ -193,42 +180,24 @@ void KOReaderCredentialStore::setServerSupport(const SyncServerSupport support) 
   if (!saveToFile()) LOG_ERR("KRS", "Cannot save sync server support");
 }
 
-bool KOReaderCredentialStore::needsServerProbe() const {
-  ensureLoaded();
-  // Explicit choices already trigger an upload that teaches us the answer.
-  return getServerSupport() == SyncServerSupport::UNKNOWN &&
-         (statsChoice == IncludeChoice::AUTO || clippingsChoice == IncludeChoice::AUTO) && probedUrl != getBaseUrl();
-}
-
-void KOReaderCredentialStore::markServerProbed() const {
-  ensureLoaded();
-  probedUrl = getBaseUrl();
-}
-
 bool KOReaderCredentialStore::getSyncStats() const {
   ensureLoaded();
-  const auto support = getServerSupport();
-  if (support == SyncServerSupport::UNSUPPORTED) return false;
-  return statsChoice == IncludeChoice::ON ||
-         (statsChoice == IncludeChoice::AUTO && support == SyncServerSupport::SUPPORTED);
+  return syncStats && getServerSupport() != SyncServerSupport::UNSUPPORTED;
 }
 
 bool KOReaderCredentialStore::getSyncClippings() const {
   ensureLoaded();
-  const auto support = getServerSupport();
-  if (support == SyncServerSupport::UNSUPPORTED) return false;
-  return clippingsChoice == IncludeChoice::ON ||
-         (clippingsChoice == IncludeChoice::AUTO && support == SyncServerSupport::SUPPORTED);
+  return syncClippings && getServerSupport() != SyncServerSupport::UNSUPPORTED;
 }
 
 void KOReaderCredentialStore::setSyncStats(const bool enabled) {
   ensureLoaded();
-  statsChoice = enabled ? IncludeChoice::ON : IncludeChoice::OFF;
+  syncStats = enabled;
 }
 
 void KOReaderCredentialStore::setSyncClippings(const bool enabled) {
   ensureLoaded();
-  clippingsChoice = enabled ? IncludeChoice::ON : IncludeChoice::OFF;
+  syncClippings = enabled;
 }
 
 void KOReaderCredentialStore::setMatchMethod(DocumentMatchMethod method) {

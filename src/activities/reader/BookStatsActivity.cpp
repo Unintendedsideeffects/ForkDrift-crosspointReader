@@ -3,6 +3,7 @@
 #include <I18n.h>
 
 #include "BookStatsView.h"
+#include "EpubReaderMenuModel.h"
 #include "KOReaderCredentialStore.h"
 #include "MappedInputManager.h"
 #include "activities/network/StatsUploadActivity.h"
@@ -382,6 +383,10 @@ void BookStatsActivity::startSyncAllBooks() {
       requestUpdate();
       return;
     }
+    // Only a reader underneath is a screen to come back to; Home is the default anyway.
+    if (activityManager.isReaderActivity())
+      sync->setReturnToBook(activityManager.getCurrentBookPath(),
+                            static_cast<uint8_t>(EpubReaderMenuAction::READING_STATS));
     saveStats();
     // Close normally first: the parent (often the reader) imports these stats
     // edits in its result handler before Sync All replaces the stack.

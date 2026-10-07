@@ -33,9 +33,10 @@ def main():
             reply = {}
             if self.path == '/api/v1/stats/summary':
                 probes.append(self.path)
-                status = 404 if mode in ('auto-unsupported', 'current-auto-unsupported') else 200
+                # Only Authenticate probes; a sync must never ask.
+                status = 200
                 # A catch-all proxy page must not count as the stats API.
-                data = b'<html>ok</html>' if mode == 'auto-html' else json.dumps({'devices': []}).encode()
+                data = json.dumps({'devices': []}).encode()
                 self.send_response(status)
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Content-Length', str(len(data)))
@@ -93,7 +94,7 @@ def main():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        modes = ['ok', 'folder-xtc', 'all-books', 'stats-entry', 'xtc-book', 'auto-probe', 'auto-unsupported', 'auto-html', 'disabled', 'cancel', 'auth', 'unsupported', 'folder-mixed', 'folder-equal', 'folder-local-ahead', 'folder-ask', 'folder-ask-cancel', 'folder-ask-skip', 'folder-ask-skip-landscape', 'folder-ask-exit-held', 'folder-exit-held', 'folder-missing-cache', 'folder-skip-progress', 'folder-skip-stats', 'folder-skip-clippings', 'folder-skip-invalid', 'folder-skip-all', 'current-upload', 'current-auto', 'current-auto-unsupported', 'current-equal', 'current-download', 'current-menu', 'current-menu-cold', 'folder-no-progress', 'folder-legacy-progress', 'folder-zero-count', 'folder-past-end', 'folder-empty', 'folder-global-failure', 'folder-no-stats', 'folder-tracking-disabled']
+        modes = ['ok', 'folder-xtc', 'all-books', 'stats-entry', 'xtc-book', 'disabled', 'cancel', 'auth', 'unsupported', 'folder-mixed', 'folder-equal', 'folder-local-ahead', 'folder-ask', 'folder-ask-cancel', 'folder-ask-skip', 'folder-ask-skip-landscape', 'folder-ask-exit-held', 'folder-exit-held', 'folder-missing-cache', 'folder-skip-progress', 'folder-skip-stats', 'folder-skip-clippings', 'folder-skip-invalid', 'folder-skip-all', 'current-upload', 'current-equal', 'current-download', 'current-menu', 'current-menu-cold', 'folder-no-progress', 'folder-legacy-progress', 'folder-zero-count', 'folder-past-end', 'folder-empty', 'folder-global-failure', 'folder-no-stats', 'folder-tracking-disabled']
         if args.touch:
             modes += ['folder-skip-progress-touch', 'folder-skip-invalid-touch', 'folder-done-touch']
         modes += ['folder-done-confirm']
@@ -139,8 +140,6 @@ def main():
                     env['CROSSINK_READING_TEST_XTC_BOOK'] = '1'
                 if mode in ('all-books', 'stats-entry'):
                     env['CROSSINK_READING_TEST_ALL'] = '1'
-                if mode.startswith('auto-') or mode.startswith('current-auto'):
-                    env['CROSSINK_READING_TEST_AUTO'] = '1'
                 if mode in ('disabled', 'cancel'):
                     env['CROSSINK_READING_TEST_' + mode.upper()] = '1'
                 if mode == 'folder-done-touch':
@@ -195,6 +194,7 @@ def main():
                 stats = [body for path, body in requests if path == '/api/v1/stats/books']
                 clippings = [(path, body) for path, body in requests if path.startswith('/api/v1/clippings/')]
                 globals_sent = [body for path, body in requests if path == '/api/v1/stats/global']
+                assert mode == 'auth' or not probes, (mode, probes)
                 if mode in variants:
                     assert not progress and len(stats) == 2 and len(clippings) == 1 and len(globals_sent) == 1, requests
                     assert 'Finished: synced=0 skipped=3 failed=0' in log, log[-10000:]
@@ -223,15 +223,11 @@ def main():
                         assert 'Extras: global=0 stats=1 statsFailed=1 clippings=1 clippingsFailed=0' in log
                     if mode == 'folder-skip-clippings':
                         assert 'Extras: global=0 stats=2 statsFailed=0 clippings=1 clippingsFailed=1' in log
-                elif mode == 'current-auto-unsupported':
-                    # Single-book sync probes once after freeing the EPUB, then skips extras.
-                    assert len(probes) == 1 and len(progress) == 1 and len(requests) == 1, (probes, requests)
                 elif mode == 'current-menu-cold':
                     assert not progress and not stats and not clippings, requests
                     assert sum(path == '/api/v1/stats/global' for path, _ in requests) == 1
                 elif mode.startswith('current-'):
-                    assert len(progress) == (1 if mode in ('current-upload', 'current-auto', 'current-menu') else 0), requests
-                    assert len(probes) == (1 if mode == 'current-auto' else 0), probes
+                    assert len(progress) == (1 if mode in ('current-upload', 'current-menu') else 0), requests
                     assert len(stats) == 1 and len(clippings) == 1, requests
                     expected = hashlib.md5(b'first.epub').hexdigest()
                     assert all(body['document'] == expected for body in progress)
@@ -275,11 +271,6 @@ def main():
                     skipped = 1 if mode == 'folder-xtc' else 2
                     assert f'Finished: synced=3 skipped={skipped} failed=0' in log, log[-10000:]
                     assert 'Extras: global=0 stats=3 statsFailed=0 clippings=1 clippingsFailed=0' in log, log[-10000:]
-                elif mode in ('auto-unsupported', 'auto-html'):
-                    # A KOSync-only server answers the probe with 404: progress syncs, extras never attempt.
-                    assert len(probes) == 1 and len(progress) == 2 and len(requests) == 2, (probes, requests)
-                    assert 'Finished: synced=2 skipped=1 failed=0' in log, log[-10000:]
-                    assert 'Extras: global=7 stats=0 statsFailed=0 clippings=0 clippingsFailed=0' in log, log[-10000:]
                 elif mode == 'unsupported':
                     # The first 404 marks the server progress-only: later books skip extras
                     # and the folder finishes instead of stopping on an "extra upload failed" error.
@@ -291,7 +282,6 @@ def main():
                     assert all(0 < body['percentage'] < 1 and body['progress'] for body in progress)
                     expected = {hashlib.md5(name.encode()).hexdigest() for name in ('first.epub', 'second.EPUB')}
                     assert {body['document'] for body in progress} == (expected - {hashlib.md5(b'first.epub').hexdigest()} if mode in ('folder-mixed', 'folder-equal', 'folder-ask') else expected)
-                    assert len(probes) == (1 if mode == 'auto-probe' else 0), probes
                     if mode == 'disabled':
                         assert len(requests) == 2
                     else:
