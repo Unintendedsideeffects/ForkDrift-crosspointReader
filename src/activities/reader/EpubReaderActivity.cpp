@@ -7832,15 +7832,16 @@ void EpubReaderActivity::drawClippingHighlights(const Page& page, const int font
     }
 
     const auto wordIndex = static_cast<uint16_t>(i);
-    const char* wordText = block.wordText(wordIndex);
+    const char* wordText = block.visibleWordText(wordIndex);
     const bool hasEmSpace = hasEmSpacePrefix(wordText);
     const char* visibleText = wordText + (hasEmSpace ? 3 : 0);
-    const int lineFontId = block.resolvedFontId(renderer, fontId);
+    const int lineFontId = block.wordFontId(renderer, fontId, wordIndex);
     const auto textStyle = static_cast<EpdFontFamily::Style>(block.wordStyle(wordIndex) & ~EpdFontFamily::UNDERLINE);
     const int skipX = hasEmSpace ? renderer.getTextAdvanceX(lineFontId, "\xe2\x80\x83", textStyle) : 0;
     const PageWordGeometry geometry = pageWordGeometry(renderer, fontId, line, block, wordIndex);
     const int wordX = orientedMarginLeft + line.xPos + geometry.xOffset + skipX;
     const int wordY = orientedMarginTop + line.yPos;
+    const int textY = wordY + block.wordYOffset(renderer, fontId, wordIndex);
     int wordW = geometry.width - skipX;
     const int wordH = line.lineHeight > 0 ? line.lineHeight : renderer.getLineHeight(fontId);
     if (wordIndex + 1 < block.wordCount()) {
@@ -7880,7 +7881,7 @@ void EpubReaderActivity::drawClippingHighlights(const Page& page, const int font
       // loaded the leading run as bold, so redrawing it as regular here can
       // miss the glyph bitmap for SD-card fonts and show replacement marks.
       const uint8_t focusBoundary = block.focusBoundary(wordIndex);
-      const uint16_t wordLength = block.wordTextLen(wordIndex);
+      const uint16_t wordLength = block.visibleWordTextLen(wordIndex);
       const int fullWordX = orientedMarginLeft + line.xPos + geometry.xOffset;
       const auto baseDir = static_cast<BidiUtils::BidiBaseDir>(
           BidiUtils::detectParagraphLevel(wordText, block.getBlockStyle().isRtl ? 1 : 0));
@@ -7888,9 +7889,9 @@ void EpubReaderActivity::drawClippingHighlights(const Page& page, const int font
               wordText, wordLength, focusBoundary, fullWordX, block.focusRunOffset(wordIndex), textStyle,
               baseDir == BidiUtils::BidiBaseDir::RTL,
               [&](const int runX, const char* runText, const EpdFontFamily::Style runStyle) {
-                renderer.drawText(lineFontId, runX, wordY, runText, true, runStyle, baseDir);
+                renderer.drawText(lineFontId, runX, textY, runText, true, runStyle, baseDir);
               })) {
-        renderer.drawText(lineFontId, wordX, wordY, visibleText, true, textStyle);
+        renderer.drawText(lineFontId, wordX, textY, visibleText, true, textStyle);
       }
       if (line.clipWidth > 0 && line.clipHeight > 0) {
         renderer.endTextClip();

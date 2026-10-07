@@ -604,6 +604,35 @@ Binary layout:
 
 ## `section.bin`
 
+### Version 87
+
+Publisher decorations, contextual CSS selectors, preserved whitespace and inline
+font sizes change layout. Complete caches use `87`; suspended partial caches use
+`0xC8`. Version `86` / `0xC7` already exist on another local feature branch and
+are deliberately not reused. Both old full and partial caches rebuild.
+
+TextBlock adds one-byte `wordSizesPresent` and `initialLetterBytes` fields immediately before `textBytes`.
+The initial-letter prefix (0–12 bytes) stays in the first logical word for dictionary lookup and clippings; ordinary text rendering skips those bytes because the drop cap draws them separately.
+When `wordSizesPresent` is set, the arena stores one point-size byte per word after the whitespace
+bitset and before UTF-8 text; zero uses the block font. The flag is zero for
+ordinary lines, so they require no extra per-word storage. Sizes use the existing
+scalable font family and share the tallest word's baseline and line height.
+
+Page tags `5` and `6` are drop caps and border boxes. Drop caps contain x/y
+(int16 each), source font point size (uint8, zero means the reader font), Q8
+scale (uint16), style (uint8), UTF-8 byte length (uint8, 1–12), then text bytes.
+Border boxes contain x/y (int16 each), width/height (uint16 each), four pairs of
+width/style bytes in top/right/bottom/left order, and a shaded byte. Styles are
+none/solid/double/dotted/dashed (0–4), and border widths are capped at 8 pixels.
+
+CSS cache revision `22` grows the fixed style payload from 80 to 92 bytes:
+whitespace byte after the four existing border masks, eight border width/style
+bytes, then shaded/float-left/initial-letter bytes, followed by the existing
+uint32 defined flags. New flag bits 25–28 identify whitespace, shading, float
+and initial-letter declarations. Context-rule records retain the two-string
+format; the first string is the ancestor chain (`@` means no constraint), and
+the second is the subject compound, optionally ending in `::first-letter`.
+
 ### Version 86
 
 Complete sections use byte `86` and suspended partials use `0xC7`. A little-endian
@@ -612,6 +641,8 @@ when disabled or unavailable, one for built-in English, and a fingerprint of the
 external pack's language, prefix/suffix rules, root offset, size and payload CRC
 otherwise. Storage offsets are excluded. A mismatch rebuilds the section,
 including suspended incremental builds; older full and partial versions rebuild.
+
+### Version 85
 
 Long paragraphs apply initial CSS margin/padding on their first emitted line,
 including incremental flushes. Text fragment bounds are checked on each append.
@@ -1223,7 +1254,6 @@ this cache to force reinspection after external same-length font changes.
 
 EPUB layout cache versions and identities are unchanged by this catalog.
 
-
 ### Daily reading counters (v1)
 
 Device-local counters live in `/.crosspoint/daily_reading/NNNNN.bin`, where NNNNN
@@ -1264,6 +1294,7 @@ buffer; it marks that counter uploaded only after `accepted_daily: 1`. Old serve
 can still accept aggregate stats, but cannot silently discard daily history and
 acknowledge it. Failed requests remain eligible for retry, including recovered
 `.tmp`/`.bak` records. Nearby-device snapshots are never uploaded as local history.
+
 ## Internal language cache (v1)
 
 The last 128 KiB of the existing `spiffs` data partition contains two 64 KiB

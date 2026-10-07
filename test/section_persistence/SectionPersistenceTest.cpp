@@ -22,11 +22,13 @@
 extern uint32_t testHyphenationIdentity;
 
 namespace {
-constexpr uint8_t kFullVersion = 86;
-constexpr uint8_t kPartialVersion = 0xC7;
-constexpr uint8_t kPreviousFullVersion = 85;
+constexpr uint8_t kFullVersion = 87;
+constexpr uint8_t kPartialVersion = 0xC8;
+constexpr uint8_t kPreviousFullVersion = 86;
+constexpr uint8_t kParagraphSpacingFullVersion = 85;
 constexpr uint8_t kBorderSuppressionFullVersion = 84;
-constexpr uint8_t kPreviousPartialVersion = 0xC6;
+constexpr uint8_t kPreviousPartialVersion = 0xC7;
+constexpr uint8_t kParagraphSpacingPartialVersion = 0xC6;
 constexpr uint8_t kBorderSuppressionPartialVersion = 0xC5;
 constexpr uint8_t kOlderFullVersion = 79;
 constexpr uint8_t kOlderPartialVersion = 0xF4;
@@ -173,9 +175,10 @@ TEST_F(SectionPersistenceTest, FailedCommitKeepsThePreviousReadableCache) {
 
 TEST_F(SectionPersistenceTest, RejectsCachesFromPreviousLayoutRevisions) {
   for (const uint8_t staleVersion :
-       {kPreviousFullVersion, kPreviousPartialVersion, kBorderSuppressionFullVersion, kBorderSuppressionPartialVersion,
-        kOlderFullVersion, kOlderPartialVersion, kEarlierFullVersion, kEarlierPartialVersion, kLastReleaseFullVersion,
-        kLastReleasePartialVersion, kPreviousReleasePrepPartialVersion}) {
+       {kPreviousFullVersion, kPreviousPartialVersion, kParagraphSpacingFullVersion, kParagraphSpacingPartialVersion,
+        kBorderSuppressionFullVersion, kBorderSuppressionPartialVersion, kOlderFullVersion, kOlderPartialVersion,
+        kEarlierFullVersion, kEarlierPartialVersion, kLastReleaseFullVersion, kLastReleasePartialVersion,
+        kPreviousReleasePrepPartialVersion}) {
     SectionHarness harness;
     harness.begin();
     harness.appendPages(1);

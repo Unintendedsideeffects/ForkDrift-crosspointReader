@@ -58,7 +58,8 @@ bool hasSyntheticIndentPrefix(const char* word, const uint16_t len) {
 }  // namespace
 
 size_t TextBlock::arenaSize(const uint16_t wordCount, const bool hasFocus, const bool hasGuideDots,
-                            const bool hasWordFlags, const bool hasWordSpaces, const uint16_t textBytes) {
+                            const bool hasWordFlags, const bool hasWordSpaces, const uint16_t textBytes,
+                            const bool hasWordSizes) {
   // 16-bit arrays first so direct loads stay aligned on RISC-V, then byte arrays, then text.
   size_t size = static_cast<size_t>(wordCount) * (sizeof(uint16_t) + sizeof(int16_t) + sizeof(uint8_t));
   if (hasFocus) {
@@ -73,7 +74,7 @@ size_t TextBlock::arenaSize(const uint16_t wordCount, const bool hasFocus, const
   if (hasWordSpaces) {
     size += wordSpacesBytes(wordCount);
   }
-  return size + textBytes;
+  return size + textBytes + (hasWordSizes ? wordCount : 0);
 }
 
 void TextBlock::bindArenaPointers() {
@@ -104,6 +105,10 @@ void TextBlock::bindArenaPointers() {
     wordSpacesArr = base + off;
     off += wordSpacesBytes(numWords);
   }
+  if (wordSizesPresent) {
+    wordSizesArr = base + off;
+    off += wc;
+  }
   textArr = reinterpret_cast<const char*>(base + off);
 }
 
@@ -111,7 +116,8 @@ TextBlock::TextBlock(const std::vector<std::string>& words, const std::vector<in
                      const std::vector<EpdFontFamily::Style>& wordStyles, const std::vector<uint8_t>& focusBoundary,
                      const std::vector<uint16_t>& focusRunOffset, const std::vector<uint16_t>& guideDotXOffset,
                      const std::vector<uint8_t>& wordFlags, const std::vector<bool>& wordHasSpaceBefore,
-                     const BlockStyle& blockStyle, std::vector<std::string> rubyTexts)
+                     const BlockStyle& blockStyle, std::vector<std::string> rubyTexts,
+                     const std::vector<uint8_t>& wordSizes, const char* initialLetter)
     : blockStyle(blockStyle), rubyTexts(std::move(rubyTexts)) {
   // A ruby-less line needs no per-word ruby vector. ParsedText passes one for
   // every extracted line once a book contains any ruby, so free all-empty
@@ -120,6 +126,13 @@ TextBlock::TextBlock(const std::vector<std::string>& words, const std::vector<in
     this->rubyTexts = std::vector<std::string>{};
   }
 
+  initialLetterBytes = static_cast<uint8_t>(std::min<size_t>(12, strlen(initialLetter)));
+  wordSizesPresent = !wordSizes.empty();
+  if (wordSizesPresent && wordSizes.size() != words.size()) {
+    LOG_ERR("TXB", "Invalid word font sizes");
+    isValid = false;
+    return;
+  }
   const bool hasFocus = !focusBoundary.empty();
   const bool hasGuideDots = !guideDotXOffset.empty();
   const bool hasWordFlags = !wordFlags.empty();
@@ -150,7 +163,7 @@ TextBlock::TextBlock(const std::vector<std::string>& words, const std::vector<in
     return;
   }
 
-  size_t totalText = 0;
+  size_t totalText = initialLetterBytes;
   for (const auto& word : words) {
     totalText += word.size() + 1;
   }
@@ -166,8 +179,8 @@ TextBlock::TextBlock(const std::vector<std::string>& words, const std::vector<in
   }
   textBytes = static_cast<uint16_t>(totalText);
 
-  const size_t size =
-      arenaSize(numWords, focusPresent, guideDotsPresent, wordFlagsPresent, wordSpacesPresent, textBytes);
+  const size_t size = arenaSize(numWords, focusPresent, guideDotsPresent, wordFlagsPresent, wordSpacesPresent,
+                                textBytes, wordSizesPresent);
   arena = makeUniqueNoThrow<uint8_t[]>(size);
   if (!arena) {
     LOG_ERR("TXB", "OOM: arena %u bytes", static_cast<uint32_t>(size));
@@ -181,6 +194,7 @@ TextBlock::TextBlock(const std::vector<std::string>& words, const std::vector<in
     return;
   }
   bindArenaPointers();
+  if (wordSizesPresent) memcpy(const_cast<uint8_t*>(wordSizesArr), wordSizes.data(), numWords);
 
   auto* textOff = const_cast<uint16_t*>(textOffArr);
   auto* xpos = const_cast<int16_t*>(xposArr);
@@ -191,6 +205,10 @@ TextBlock::TextBlock(const std::vector<std::string>& words, const std::vector<in
     textOff[i] = off;
     xpos[i] = wordXpos[i];
     styles[i] = static_cast<uint8_t>(wordStyles[i]);
+    if (i == 0 && initialLetterBytes) {
+      memcpy(text + off, initialLetter, initialLetterBytes);
+      off += initialLetterBytes;
+    }
     memcpy(text + off, words[i].data(), words[i].size());
     off += static_cast<uint16_t>(words[i].size());
     text[off++] = '\0';
@@ -233,6 +251,35 @@ bool TextBlock::hasRuby() const {
   return false;
 }
 
+int TextBlock::wordFontId(const GfxRenderer& renderer, int fontId, uint16_t i) const {
+  return renderer.getFontIdForSize(resolvedFontId(renderer, fontId), wordFontSize(i));
+}
+int TextBlock::maxAscender(const GfxRenderer& renderer, int fontId) const {
+  int height = renderer.getFontAscenderSize(resolvedFontId(renderer, fontId));
+  if (wordSizesPresent)
+    for (uint16_t i = 0; i < numWords; ++i)
+      height = std::max(height, renderer.getFontAscenderSize(wordFontId(renderer, fontId, i)));
+  return height;
+}
+int TextBlock::maxLineHeight(const GfxRenderer& renderer, int fontId) const {
+  int height = renderer.getLineHeight(resolvedFontId(renderer, fontId));
+  if (wordSizesPresent)
+    for (uint16_t i = 0; i < numWords; ++i)
+      height = std::max(height, renderer.getLineHeight(wordFontId(renderer, fontId, i)));
+  return height;
+}
+
+int TextBlock::wordYOffset(const GfxRenderer& renderer, int fontId, uint16_t i) const {
+  const int ascender = renderer.getFontAscenderSize(wordFontId(renderer, fontId, i));
+  const int baseline = maxAscender(renderer, fontId);
+  int offset = baseline - ascender + getRubyShift(baseline);
+  if (wordStyle(i) & EpdFontFamily::SUP)
+    offset -= ascender * 2 / 5;
+  else if (wordStyle(i) & EpdFontFamily::SUB)
+    offset += ascender / 4;
+  return offset;
+}
+
 int TextBlock::resolvedFontId(const GfxRenderer& renderer, const int fontId) const {
   return renderer.getFontIdForSize(fontId, blockStyle.fontSize);
 }
@@ -246,10 +293,12 @@ void TextBlock::render(const GfxRenderer& renderer, int fontId, const int x, con
 
   fontId = resolvedFontId(renderer, fontId);
   const bool scanning = renderer.isFontCacheScanning();
-  const int ascender = renderer.getFontAscenderSize(fontId);
+  const int baseFont = fontId;
   for (uint16_t i = 0; i < numWords; i++) {
-    const char* word = wordText(i);
-    const uint16_t wordLen = wordTextLen(i);
+    fontId = wordFontId(renderer, baseFont, i);
+    const int ascender = renderer.getFontAscenderSize(fontId);
+    const char* word = visibleWordText(i);
+    const uint16_t wordLen = visibleWordTextLen(i);
     const int wordX = wordXpos(i) + x;
     const EpdFontFamily::Style currentStyle = wordStyle(i);
     const uint8_t boundary = focusBoundary(i);
@@ -263,12 +312,7 @@ void TextBlock::render(const GfxRenderer& renderer, int fontId, const int x, con
       }
     }
 
-    int wordY = y + getRubyShift(ascender);
-    if ((currentStyle & EpdFontFamily::SUP) != 0) {
-      wordY -= ascender * 2 / 5;
-    } else if ((currentStyle & EpdFontFamily::SUB) != 0) {
-      wordY += ascender / 4;
-    }
+    const int wordY = y + wordYOffset(renderer, baseFont, i);
 
     if (boundary > 0) {
       const auto boldStyle = static_cast<EpdFontFamily::Style>(currentStyle | EpdFontFamily::BOLD);
@@ -345,7 +389,17 @@ void TextBlock::render(const GfxRenderer& renderer, int fontId, const int x, con
     if ((currentStyle & EpdFontFamily::STRIKETHROUGH) != 0) {
       int startX = wordX;
       int strikeWidth = renderer.getTextWidth(fontId, word, currentStyle, baseDir);
-      const int strikeY = y + renderer.getFontAscenderSize(fontId) / 2 + 6;
+      int32_t unusedAdvance = 0;
+      int height = 0;
+      const bool smallCaps = (currentStyle & EpdFontFamily::SMALL_CAPS) != 0;
+      if (!renderer.getCodepointMetrics(fontId, smallCaps ? 'X' : 'x', currentStyle, unusedAdvance, height) ||
+          height <= 0)
+        height = ascender * 2 / 3;
+      if ((currentStyle & (EpdFontFamily::SUP | EpdFontFamily::SUB)) != 0)
+        height = (height + 1) / 2;
+      else if (smallCaps)
+        height = (height * 3 + 3) / 4;
+      const int strikeY = wordY + ascender - std::max(1, height / 2);
 
       if (hasSyntheticIndentPrefix(word, wordLen)) {
         const char* visiblePtr = word + 3;
@@ -386,13 +440,14 @@ bool TextBlock::serialize(Print& file) const {
       !serialization::tryWritePod(file, static_cast<uint8_t>(guideDotsPresent ? 1 : 0)) ||
       !serialization::tryWritePod(file, static_cast<uint8_t>(wordFlagsPresent ? 1 : 0)) ||
       !serialization::tryWritePod(file, static_cast<uint8_t>(wordSpacesPresent ? 1 : 0)) ||
-      !serialization::tryWritePod(file, textBytes)) {
+      !serialization::tryWritePod(file, static_cast<uint8_t>(wordSizesPresent)) ||
+      !serialization::tryWritePod(file, initialLetterBytes) || !serialization::tryWritePod(file, textBytes)) {
     LOG_ERR("TXB", "Serialization failed: could not write block header");
     return false;
   }
   if (numWords > 0) {
-    const size_t size =
-        arenaSize(numWords, focusPresent, guideDotsPresent, wordFlagsPresent, wordSpacesPresent, textBytes);
+    const size_t size = arenaSize(numWords, focusPresent, guideDotsPresent, wordFlagsPresent, wordSpacesPresent,
+                                  textBytes, wordSizesPresent);
     if (file.write(arena.get(), size) != size) {
       LOG_ERR("TXB", "Serialization failed: arena write (%u bytes)", static_cast<uint32_t>(size));
       return false;
@@ -433,10 +488,13 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(HalFile& file) {
   uint8_t hasGuideDots = 0;
   uint8_t hasWordFlags = 0;
   uint8_t hasWordSpaces = 0;
+  uint8_t hasWordSizes = 0;
+  uint8_t initialLetterBytes = 0;
   uint16_t textBytes = 0;
   if (!serialization::tryReadPod(file, wc) || !serialization::tryReadPod(file, hasFocus) ||
       !serialization::tryReadPod(file, hasGuideDots) || !serialization::tryReadPod(file, hasWordFlags) ||
-      !serialization::tryReadPod(file, hasWordSpaces) || !serialization::tryReadPod(file, textBytes)) {
+      !serialization::tryReadPod(file, hasWordSpaces) || !serialization::tryReadPod(file, hasWordSizes) ||
+      !serialization::tryReadPod(file, initialLetterBytes) || !serialization::tryReadPod(file, textBytes)) {
     LOG_ERR("TXB", "Deserialization failed: could not read block header");
     return nullptr;
   }
@@ -445,11 +503,12 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(HalFile& file) {
     LOG_ERR("TXB", "Deserialization failed: word count %u exceeds maximum", wc);
     return nullptr;
   }
-  if (hasFocus > 1 || hasGuideDots > 1 || hasWordFlags > 1 || hasWordSpaces > 1) {
+  if (hasFocus > 1 || hasGuideDots > 1 || hasWordFlags > 1 || hasWordSpaces > 1 || hasWordSizes > 1) {
     LOG_ERR("TXB", "Deserialization failed: invalid metadata flags");
     return nullptr;
   }
-  if ((wc == 0 && textBytes != 0) || (wc > 0 && textBytes < wc)) {
+  if (initialLetterBytes > 12 || (wc == 0 && initialLetterBytes) || (wc == 0 && textBytes != 0) ||
+      (wc > 0 && textBytes < wc)) {
     LOG_ERR("TXB", "Deserialization failed: bad text size %u for %u words", textBytes, wc);
     return nullptr;
   }
@@ -465,10 +524,12 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(HalFile& file) {
   block->guideDotsPresent = hasGuideDots != 0;
   block->wordFlagsPresent = hasWordFlags != 0;
   block->wordSpacesPresent = hasWordSpaces != 0;
+  block->wordSizesPresent = hasWordSizes != 0;
+  block->initialLetterBytes = initialLetterBytes;
 
   if (wc > 0) {
     const size_t size = arenaSize(wc, block->focusPresent, block->guideDotsPresent, block->wordFlagsPresent,
-                                  block->wordSpacesPresent, textBytes);
+                                  block->wordSpacesPresent, textBytes, block->wordSizesPresent);
     const int remaining = file.available();
     if (remaining < 0 || static_cast<size_t>(remaining) < size) {
       LOG_ERR("TXB", "Deserialization failed: truncated arena (%u bytes needed, %d available)",
@@ -486,6 +547,14 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(HalFile& file) {
     }
     block->bindArenaPointers();
 
+    if (block->wordSizesPresent)
+      for (uint16_t i = 0; i < wc; ++i) {
+        const auto size = block->wordFontSize(i);
+        if (size && (size < ScalableContentMinPointSize || size > ScalableContentMaxPointSize)) {
+          LOG_ERR("TXB", "Invalid cached word point size");
+          return nullptr;
+        }
+      }
     const uint16_t* textOff = block->textOffArr;
     const char* text = block->textArr;
     if (textOff[0] != 0 || text[textBytes - 1] != '\0') {
@@ -498,6 +567,12 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(HalFile& file) {
         return nullptr;
       }
     }
+  }
+
+  if (wc && (initialLetterBytes > block->wordTextLen(0) ||
+             (static_cast<uint8_t>(block->wordText(0)[initialLetterBytes]) & 0xc0) == 0x80)) {
+    LOG_ERR("TXB", "Invalid initial-letter prefix");
+    return nullptr;
   }
 
   uint16_t rubyCount = 0;

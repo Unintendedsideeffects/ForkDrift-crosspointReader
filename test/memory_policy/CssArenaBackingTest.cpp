@@ -192,3 +192,30 @@ TEST_F(CssArenaBackingTest, BorderSuppressionSurvivesHydrationAndDiskFallback) {
     EXPECT_TRUE(css.resolveStyle("hr", "", {{0, "div", ""}}).suppressesHorizontalRule());
   }
 }
+
+TEST_F(CssArenaBackingTest, PublisherDecorationsAndContextSurviveAllCacheBackings) {
+  for (int mode = 0; mode < 3; ++mode) {
+    fakeheap::reset(mode != 0);
+    const std::string text =
+        "section#chapter > p.note.wide { border: 2px dashed; background: #ddd; white-space: pre-wrap; } "
+        "p.note::first-letter { initial-letter: 3; float: left; }";
+    Storage.put("input.css", {text.begin(), text.end()});
+    FsFile file;
+    ASSERT_TRUE(Storage.openFileForRead("test", "input.css", file));
+    CssParser css("book");
+    ASSERT_TRUE(css.loadFromStream(file));
+    file.close();
+    ASSERT_TRUE(css.saveToCache());
+    css.clear();
+    if (mode == 2) fakeheap::external.fail = 1;
+    ASSERT_TRUE(css.loadFromCache());
+    auto style = css.resolveStyle("p", "wide note", {{0, "section", "", "chapter"}});
+    EXPECT_EQ(style.borders[0].width, 2);
+    EXPECT_EQ(style.borders[0].style, CssBorderStyle::Dashed);
+    EXPECT_TRUE(style.shaded);
+    EXPECT_TRUE(style.preserveWhitespace);
+    auto cap = css.resolveStyle("p", "note", {}, {}, true);
+    EXPECT_EQ(cap.initialLetter, 3);
+    EXPECT_TRUE(cap.floatLeft);
+  }
+}

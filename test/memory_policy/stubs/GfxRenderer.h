@@ -12,7 +12,9 @@ enum class BidiBaseDir : signed char { AUTO = -1, LTR = 0, RTL = 1 };
 
 class GfxRenderer {
  public:
-  int getFontIdForSize(int id, uint8_t) const { return id; }
+  bool getCodepointMetrics(int, uint32_t, EpdFontFamily::Style, int32_t&, int&) const { return false; }
+  bool scalable = false;
+  int getFontIdForSize(int id, uint8_t size) const { return scalable && size ? size : id; }
   int getFontAscenderSize(int id) const { return 12 + id; }
   int getLineHeight(int id) const { return 16 + id; }
   static int characters(const char* text) {
