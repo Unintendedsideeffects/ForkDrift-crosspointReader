@@ -126,6 +126,10 @@ bool isWebSettingAvailable(const SettingInfo& setting) {
     return false;
   }
 
+  if (setting.nameId == StrId::STR_MENU_NAVIGATION && !deviceHasFrontButtons()) {
+    return false;
+  }
+
   const bool isTouchSetting =
       setting.nameId == StrId::STR_TOUCH_READER_CONTROLS || setting.nameId == StrId::STR_DISABLE_TOUCHSCREEN ||
       setting.nameId == StrId::STR_NEXT_PAGE || setting.nameId == StrId::STR_PREV_PAGE ||

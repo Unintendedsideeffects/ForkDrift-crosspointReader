@@ -2813,19 +2813,26 @@ void EpubReaderDrawerActivity::loop() {
     }
     return;
   }
-  const auto left = mappedInput.menuButton(MappedInputManager::Button::Left);
-  const auto right = mappedInput.menuButton(MappedInputManager::Button::Right);
-  const auto up = mappedInput.menuButton(MappedInputManager::Button::Up);
-  const auto down = mappedInput.menuButton(MappedInputManager::Button::Down);
-  buttonNavigator.onRelease({down, down}, [this] { moveSelection(true, false); });
-  buttonNavigator.onRelease({up, up}, [this] { moveSelection(false, false); });
-  buttonNavigator.onContinuous({down, down}, [this] { moveSelection(true, true); });
-  buttonNavigator.onContinuous({up, up}, [this] { moveSelection(false, true); });
-  if (state.pane == ReaderDrawerPane::Root) {
-    buttonNavigator.onRelease({right, right}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, true)); });
-    buttonNavigator.onRelease({left, left}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, false)); });
-    buttonNavigator.onContinuous({right, right}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, true)); });
-    buttonNavigator.onContinuous({left, left}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, false)); });
+  if (SETTINGS.menuNavigation == CrossPointSettings::MENU_NAV_CLASSIC) {
+    buttonNavigator.onNextRelease([this] { moveSelection(true, false); });
+    buttonNavigator.onPreviousRelease([this] { moveSelection(false, false); });
+    buttonNavigator.onNextContinuous([this] { moveSelection(true, true); });
+    buttonNavigator.onPreviousContinuous([this] { moveSelection(false, true); });
+  } else {
+    const auto left = mappedInput.menuButton(MappedInputManager::Button::Left);
+    const auto right = mappedInput.menuButton(MappedInputManager::Button::Right);
+    const auto up = mappedInput.menuButton(MappedInputManager::Button::Up);
+    const auto down = mappedInput.menuButton(MappedInputManager::Button::Down);
+    buttonNavigator.onRelease({down, down}, [this] { moveSelection(true, false); });
+    buttonNavigator.onRelease({up, up}, [this] { moveSelection(false, false); });
+    buttonNavigator.onContinuous({down, down}, [this] { moveSelection(true, true); });
+    buttonNavigator.onContinuous({up, up}, [this] { moveSelection(false, true); });
+    if (state.pane == ReaderDrawerPane::Root) {
+      buttonNavigator.onRelease({right, right}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, true)); });
+      buttonNavigator.onRelease({left, left}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, false)); });
+      buttonNavigator.onContinuous({right, right}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, true)); });
+      buttonNavigator.onContinuous({left, left}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, false)); });
+    }
   }
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     if (!mappedInput.hasTouchHardware() && state.pane == ReaderDrawerPane::Root && !buttonFocusActive) {
@@ -2908,7 +2915,8 @@ void EpubReaderDrawerActivity::render(RenderLock&&) {
     const bool menuNavigation = state.pane != ReaderDrawerPane::Percent &&
                                 state.pane != ReaderDrawerPane::AutoPageTurn &&
                                 !readerDrawerStepChangesSettings(state.pane);
-    const bool horizontalFront = menuNavigation && !deviceUsesHorizontalSideButtonsForMenus(gpio);
+    const bool horizontalFront = SETTINGS.menuNavigation == CrossPointSettings::MENU_NAV_DIRECTIONAL &&
+                                 menuNavigation && !deviceUsesHorizontalSideButtonsForMenus(gpio);
     const char* previousLabel = horizontalFront ? tr(STR_DIR_LEFT) : tr(STR_DIR_UP);
     const char* nextLabel = horizontalFront ? tr(STR_DIR_RIGHT) : tr(STR_DIR_DOWN);
     if (state.pane == ReaderDrawerPane::Percent && percentKeypadActive) {

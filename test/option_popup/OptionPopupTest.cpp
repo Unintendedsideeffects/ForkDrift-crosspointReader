@@ -76,6 +76,34 @@ TEST(OptionPopup, MenuAndSortDecorationsDoNotLeakToNextPopup) {
   EXPECT_EQ(renderer.triangleCount(), 1);
 }
 
+TEST(OptionPopup, NotesFollowHighlightAndResetOnReuse) {
+  GfxRenderer renderer;
+  HalGPIO gpio;
+  MappedInputManager input(gpio, renderer);
+  OptionPopup popup;
+  const char* options[] = {"Directional", "Legacy"};
+  popup.show("Navigation", options, 2, 0, [](const int) {});
+  popup.setOptionNotes({{"Front:", "Up/Down", "Side:", "Left/Right"}, {"Front:", "Up/Down", "Side:", "Up/Down"}});
+  popup.render(renderer);
+  EXPECT_EQ(GUI.lastNoteLabel, "Front:");
+  EXPECT_EQ(GUI.lastNoteBody, "Up/Down");
+  EXPECT_EQ(GUI.lastSecondNoteLabel, "Side:");
+  EXPECT_EQ(GUI.lastSecondNoteBody, "Left/Right");
+
+  ButtonNavigator::injectNextRelease();
+  popup.handleInput(input, [] {});
+  popup.render(renderer);
+  EXPECT_EQ(GUI.getLastSelectedIndex(), 1);
+  EXPECT_EQ(GUI.lastSecondNoteBody, "Up/Down");
+
+  popup.show("Other", options, 2, 0, [](const int) {}, {"Note:", "Existing note"});
+  popup.render(renderer);
+  EXPECT_EQ(GUI.lastNoteLabel, "Note:");
+  EXPECT_EQ(GUI.lastNoteBody, "Existing note");
+  EXPECT_TRUE(GUI.lastSecondNoteLabel.empty());
+  EXPECT_TRUE(GUI.lastSecondNoteBody.empty());
+}
+
 TEST(OptionPopup, PowerConfirmSelectionSuppressesItsPowerRelease) {
   GfxRenderer renderer;
   HalGPIO gpio;

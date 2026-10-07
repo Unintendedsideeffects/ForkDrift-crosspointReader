@@ -12,6 +12,7 @@
 
 #include "CrossPointSettings.h"
 #include "activities/Activity.h"
+#include "components/MenuNavigationNote.h"
 #include "components/OptionPopup.h"
 #include "util/ButtonNavigator.h"
 
@@ -279,6 +280,7 @@ class SettingsActivity final : public Activity {
   SettingAction parentSubmenu = SettingAction::None;
 
   OptionPopup optionPopup;
+  MenuNavigationNote menuNavigationNote;
 
   static constexpr int categoryCount = 4;
   static const StrId categoryNames[categoryCount];

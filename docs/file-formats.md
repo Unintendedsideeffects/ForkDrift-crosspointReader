@@ -5,6 +5,15 @@ All POD fields are written in the ESP32 little-endian representation used by
 `Serialization.h`; strings are length-prefixed UTF-8 unless a format notes a
 fixed-size char buffer.
 
+## Settings: menu navigation
+
+`menuNavigation` in `/.crosspoint/crossink-settings.json` selects Directional
+(`0`, the default) or Classic (`1`) button navigation in global Settings and
+the EPUB reader menu. This is a global preference, shared with the in-reader
+Controls screen. Missing or invalid values retain the current value, which is
+Directional on startup. The setting uses the existing JSON export/import and
+support-preference paths; no binary cache change or cache reset is required.
+
 ## Settings: status bar visibility and text size
 
 `statusBarTextSize` in the settings JSON selects Small (`0`, Inter 8), Medium

@@ -949,6 +949,9 @@ class SimulatorSmokeTest {
     TouchRelease,
     AssertReaderMenu,
     AssertSettingsNavigation,
+    AssertMenuNavigation,
+    WaitForSettingsCategory,
+    CaptureMenuNavigation,
     AssertAboutTopIndex,
     WaitForNavigationHold,
     AssertActivity,
@@ -1245,6 +1248,35 @@ class SimulatorSmokeTest {
            expectedBaseSettingsCapacity, base.capacity());
     }
     const auto all = getSettingsList();
+    const auto controls = buildControlsSettingsParentList(all);
+    if (!deviceHasFrontButtons()) {
+      if (hasSettingByName(all, StrId::STR_MENU_NAVIGATION) || hasSettingByName(controls, StrId::STR_MENU_NAVIGATION))
+        fail("Menu navigation must be hidden on devices without front buttons");
+    } else if (controls.empty() || controls.back().valuePtr != &CrossPointSettings::menuNavigation) {
+      fail("Menu navigation must be the last shared Controls setting on front-button devices");
+    }
+    JsonDocument navigationOriginal;
+    SETTINGS.toJson(navigationOriginal);
+    SETTINGS.menuNavigation = CrossPointSettings::MENU_NAV_DIRECTIONAL;
+    JsonDocument legacyNavigation;
+    SETTINGS.fromJson(legacyNavigation.as<JsonVariantConst>());
+    if (SETTINGS.menuNavigation != CrossPointSettings::MENU_NAV_DIRECTIONAL)
+      fail("Missing menu navigation must preserve the Directional default");
+    for (const uint8_t mode : {CrossPointSettings::MENU_NAV_DIRECTIONAL, CrossPointSettings::MENU_NAV_CLASSIC}) {
+      SETTINGS.menuNavigation = mode;
+      JsonDocument saved;
+      SETTINGS.toJson(saved);
+      if (saved["menuNavigation"].as<uint8_t>() != mode) fail("Menu navigation missing from settings JSON");
+      SETTINGS.menuNavigation = 255;
+      SETTINGS.fromJson(saved.as<JsonVariantConst>());
+      if (SETTINGS.menuNavigation != mode) fail("Menu navigation JSON round trip failed");
+    }
+    SETTINGS.menuNavigation = CrossPointSettings::MENU_NAV_DIRECTIONAL;
+    legacyNavigation["menuNavigation"] = 255;
+    SETTINGS.fromJson(legacyNavigation.as<JsonVariantConst>());
+    if (SETTINGS.menuNavigation != CrossPointSettings::MENU_NAV_DIRECTIONAL)
+      fail("Invalid menu navigation must preserve the default");
+    SETTINGS.fromJson(navigationOriginal.as<JsonVariantConst>());
     const auto gestures = buildControlsTapsGesturesSettingsList(all);
     if (gpio.hasTouch()) {
       if (gestures.size() < 3 || gestures[0].nameId != StrId::STR_NEXT_PAGE ||
@@ -4508,9 +4540,58 @@ class SimulatorSmokeTest {
           inputScript.push_back(assertSettingsNavigation(0, 0));
           addTap(right);  // Reader tab
           addTap(right);  // Controls tab
-          addTap(down);   // Power Button
-          addTap(down);   // Front Buttons
-          addTap(down);   // Side Buttons
+          const int controlsCount = static_cast<int>(buildControlsSettingsParentList(getSettingsList()).size());
+          for (int i = 0; i < controlsCount; ++i) addTap(down);
+          inputScript.push_back(render("Menu navigation last in Controls", 3));
+          inputScript.push_back({ScriptActionType::CaptureMenuNavigation, down, "menu-navigation-controls", 0, 0, 0});
+          addTap(MappedInputManager::Button::Confirm);
+          inputScript.push_back(render("Menu navigation picker", 3));
+          inputScript.push_back({ScriptActionType::CaptureMenuNavigation, down, "menu-navigation-picker", 0, 0, 0});
+          addTap(MappedInputManager::Button::Right);
+          inputScript.push_back(render("Legacy navigation note", 3));
+          inputScript.push_back(
+              {ScriptActionType::CaptureMenuNavigation, down, "menu-navigation-picker-legacy", 0, 0, 0});
+          addTap(MappedInputManager::Button::Confirm);
+          inputScript.push_back(render("Classic selected without moving the row", 3));
+          inputScript.push_back(
+              {ScriptActionType::AssertMenuNavigation, down, nullptr, 0, CrossPointSettings::MENU_NAV_CLASSIC, 0});
+          inputScript.push_back(assertSettingsNavigation(2, controlsCount));
+          addTap(MappedInputManager::Button::Right);
+          inputScript.push_back(assertSettingsNavigation(2, 0));
+          addTap(MappedInputManager::Button::Left);
+          inputScript.push_back(assertSettingsNavigation(2, controlsCount));
+          addTap(MappedInputManager::Button::Down);
+          inputScript.push_back(assertSettingsNavigation(2, 0));
+          addTap(MappedInputManager::Button::Up);
+          inputScript.push_back(assertSettingsNavigation(2, controlsCount));
+          addTap(MappedInputManager::Button::Right);
+          inputScript.push_back(assertSettingsNavigation(2, 0));
+          addTap(MappedInputManager::Button::Right);
+          inputScript.push_back(assertSettingsNavigation(2, 1));
+          inputScript.push_back(press(MappedInputManager::Button::Right));
+          inputScript.push_back({ScriptActionType::WaitForSettingsCategory, down, nullptr, 0, 3, 0});
+          inputScript.push_back(release(MappedInputManager::Button::Right));
+          inputScript.push_back(assertSettingsNavigation(3, 1));
+          inputScript.push_back(press(MappedInputManager::Button::Left));
+          inputScript.push_back({ScriptActionType::WaitForSettingsCategory, down, nullptr, 0, 2, 0});
+          inputScript.push_back(release(MappedInputManager::Button::Left));
+          inputScript.push_back(assertSettingsNavigation(2, 1));
+          addTap(MappedInputManager::Button::Left);  // Tab band.
+          addTap(MappedInputManager::Button::Left);  // Wrap to Menu navigation.
+          addTap(MappedInputManager::Button::Confirm);
+          addTap(MappedInputManager::Button::Left);
+          addTap(MappedInputManager::Button::Confirm);
+          inputScript.push_back(render("Directional restored without moving the row", 3));
+          inputScript.push_back(
+              {ScriptActionType::AssertMenuNavigation, down, nullptr, 0, CrossPointSettings::MENU_NAV_DIRECTIONAL, 0});
+          inputScript.push_back(assertSettingsNavigation(2, controlsCount));
+          // Return to the Side Buttons submenu from the last row.
+          const auto controls = buildControlsSettingsParentList(getSettingsList());
+          const auto sideButtons = std::find_if(controls.begin(), controls.end(), [](const SettingInfo& setting) {
+            return setting.action == SettingAction::ControlsSideButtons;
+          });
+          const int sideButtonsIndex = static_cast<int>(std::distance(controls.begin(), sideButtons));
+          for (int i = sideButtonsIndex + 1; i < controlsCount; ++i) addTap(up);
           addTap(MappedInputManager::Button::Confirm);
           inputScript.push_back(render("Side Button Settings", 250));
           step = SmokeStep::ReaderInput;
@@ -5250,6 +5331,59 @@ class SimulatorSmokeTest {
     addTap(MappedInputManager::Button::Confirm);
     inputScript.push_back(render("Reader Menu opened from EPUB", 4));
     inputScript.push_back(assertReaderMenu(ReaderDrawerTab::More, ReaderDrawerPane::Root, 0));
+    // Change the shared setting through the real in-reader Controls screen.
+    addTap(MappedInputManager::Button::Confirm);  // Location
+    addTap(MappedInputManager::Button::Confirm);  // Settings
+    addTap(menuDown);                             // Status Bar
+    addTap(menuDown);                             // Controls
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("In-reader Controls opened", 5));
+    inputScript.push_back(assertActivity("ControlsOptions"));
+    const int controlsCount = static_cast<int>(buildControlsSettingsParentList(getSettingsList()).size());
+    for (int i = 1; i < controlsCount; ++i) addTap(menuDown);
+    inputScript.push_back(
+        {ScriptActionType::CaptureMenuNavigation, menuDown, "menu-navigation-reader-controls", 0, 0, 0});
+    addTap(MappedInputManager::Button::Confirm);
+    addTap(MappedInputManager::Button::Right);
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(
+        {ScriptActionType::AssertMenuNavigation, menuDown, nullptr, 0, CrossPointSettings::MENU_NAV_CLASSIC, 0});
+    addTap(MappedInputManager::Button::Back);
+    inputScript.push_back(render("Reader menu after changing Controls", 5));
+    inputScript.push_back(assertReaderMenu(ReaderDrawerTab::Settings, ReaderDrawerPane::Root, 1));
+    for (int i = 0; i < 3; ++i) addTap(MappedInputManager::Button::Confirm);
+    addTap(MappedInputManager::Button::Right);
+    inputScript.push_back(assertReaderMenu(ReaderDrawerTab::More, ReaderDrawerPane::Root, 0));
+    addTap(MappedInputManager::Button::Down);
+    inputScript.push_back(assertReaderMenu(ReaderDrawerTab::More, ReaderDrawerPane::Root, 1));
+    addTap(MappedInputManager::Button::Left);
+    inputScript.push_back(assertReaderMenu(ReaderDrawerTab::More, ReaderDrawerPane::Root, 0));
+    inputScript.push_back(render("Classic reader menu row navigation", 3));
+    inputScript.push_back(
+        {ScriptActionType::CaptureMenuNavigation, menuDown, "menu-navigation-reader-classic", 0, 0, 0});
+    addTap(MappedInputManager::Button::Back);
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(assertReaderMenu(ReaderDrawerTab::Location, ReaderDrawerPane::Root, 0));
+    // Restore the starting tab via Select, the classic tab-band control.
+    for (int i = 0; i < 4; ++i) addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(assertReaderMenu(ReaderDrawerTab::More, ReaderDrawerPane::Root, 0));
+    addTap(MappedInputManager::Button::Confirm);  // Location
+    addTap(MappedInputManager::Button::Confirm);  // Settings
+    addTap(MappedInputManager::Button::Down);
+    addTap(MappedInputManager::Button::Down);
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(render("In-reader Controls reopened in Classic", 5));
+    inputScript.push_back(assertActivity("ControlsOptions"));
+    for (int i = 1; i < controlsCount; ++i) addTap(MappedInputManager::Button::Down);
+    addTap(MappedInputManager::Button::Confirm);
+    addTap(MappedInputManager::Button::Left);
+    addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(
+        {ScriptActionType::AssertMenuNavigation, menuDown, nullptr, 0, CrossPointSettings::MENU_NAV_DIRECTIONAL, 0});
+    addTap(MappedInputManager::Button::Back);
+    inputScript.push_back(render("Reader menu after restoring Directional", 5));
+    for (int i = 0; i < 3; ++i) addTap(MappedInputManager::Button::Confirm);
+    inputScript.push_back(assertReaderMenu(ReaderDrawerTab::More, ReaderDrawerPane::Root, 0));
     // Select retains its original tab-band behavior, including wraparound.
     for (const auto tab : {ReaderDrawerTab::Location, ReaderDrawerTab::Settings, ReaderDrawerTab::Font,
                            ReaderDrawerTab::Layout, ReaderDrawerTab::More}) {
@@ -5691,6 +5825,25 @@ class SimulatorSmokeTest {
         if (settings->simulatorCategoryIndex() != action.x || settings->simulatorSelectedIndex() != action.y)
           fail("Settings navigation mismatch: category=%d row=%d, expected %d/%d", settings->simulatorCategoryIndex(),
                settings->simulatorSelectedIndex(), action.x, action.y);
+        break;
+      }
+      case ScriptActionType::AssertMenuNavigation: {
+        RenderLock lock;
+        if (SETTINGS.menuNavigation != action.x) fail("Menu navigation selection failed");
+        SETTINGS.menuNavigation = 255;
+        if (!SETTINGS.loadFromFile() || SETTINGS.menuNavigation != action.x)
+          fail("Menu navigation did not survive reloading saved settings");
+        break;
+      }
+      case ScriptActionType::WaitForSettingsCategory: {
+        const auto* settings = dynamic_cast<SettingsActivity*>(activityManager.simulatorCurrentActivity());
+        if (!settings) fail("Expected Settings during classic hold");
+        if (settings->simulatorCategoryIndex() != action.x) --scriptIndex;
+        break;
+      }
+      case ScriptActionType::CaptureMenuNavigation: {
+        RenderLock lock;
+        captureStatusBarScreen(action.label);
         break;
       }
       case ScriptActionType::WaitForNavigationHold:

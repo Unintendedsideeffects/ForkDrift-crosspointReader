@@ -234,6 +234,10 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
     add(SettingInfo::Toggle(StrId::STR_TAP_HIDE_STATUS_BAR, &CrossPointSettings::tapToHideStatusBar,
                             "tapToHideStatusBar", StrId::STR_CAT_CONTROLS));
 
+    add(SettingInfo::Enum(StrId::STR_MENU_NAVIGATION, &CrossPointSettings::menuNavigation,
+                          {StrId::STR_MENU_DIRECTIONAL, StrId::STR_MENU_CLASSIC}, "menuNavigation",
+                          StrId::STR_CAT_CONTROLS));
+
     // --- System ---
     add(SettingInfo::String(StrId::STR_DEVICE_NAME, SETTINGS.deviceName, sizeof(SETTINGS.deviceName), "deviceName",
                             StrId::STR_CAT_SYSTEM));

@@ -313,7 +313,8 @@ class BaseTheme {
                                const char* cancelLabel = nullptr, const char* saveLabel = nullptr,
                                bool saveFocused = false, int primaryOptionIndex = -1, const char* noteLabel = nullptr,
                                const char* noteBody = nullptr, const std::vector<bool>& disabledOptions = {},
-                               int firstOptionIndex = -1) const;
+                               int firstOptionIndex = -1, const char* secondNoteLabel = nullptr,
+                               const char* secondNoteBody = nullptr) const;
   virtual void fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, const int progress) const;
   // title is borrowed and must stay alive for the call; pass nullptr or "" for none.
   virtual void drawReaderStatusBar(const GfxRenderer& renderer, ReaderStatusBarPosition position,

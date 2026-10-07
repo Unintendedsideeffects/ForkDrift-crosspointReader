@@ -1050,7 +1050,8 @@ void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, 
                                 int selectedIndex, const bool showConfirmationFooter, const char* cancelLabel,
                                 const char* saveLabel, const bool saveFocused, const int primaryOptionIndex,
                                 const char* noteLabel, const char* noteBody, const std::vector<bool>& disabledOptions,
-                                const int firstOptionIndex) const {
+                                const int firstOptionIndex, const char* secondNoteLabel,
+                                const char* secondNoteBody) const {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
@@ -1093,6 +1094,12 @@ void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, 
     const int noteBodyWidth = renderer.getTextWidth(UI_10_FONT_ID, noteBody);
     const int noteWidth = noteLabelWidth + renderer.getSpaceWidth(UI_10_FONT_ID) + noteBodyWidth;
     maxTextWidth = std::max(maxTextWidth, noteWidth);
+    if (secondNoteLabel && secondNoteBody) {
+      const int secondWidth = renderer.getTextWidth(UI_10_FONT_ID, secondNoteLabel, EpdFontFamily::BOLD) +
+                              renderer.getSpaceWidth(UI_10_FONT_ID) +
+                              renderer.getTextWidth(UI_10_FONT_ID, secondNoteBody);
+      maxTextWidth = std::max(maxTextWidth, secondWidth);
+    }
   }
 
   const int optionCount = static_cast<int>(options.size());
@@ -1170,31 +1177,46 @@ void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, 
   y += metrics.optionPopupTitleGap;
 
   if (hasNote) {
-    const int noteContentWidth = std::max(1, dialogW - innerPadding * 2);
-    const std::string noteText = std::string(noteLabel) + " " + noteBody;
-    const auto noteLines = renderer.wrappedText(UI_10_FONT_ID, noteText.c_str(), noteContentWidth, 2);
-    const int labelWidth = renderer.getTextWidth(UI_10_FONT_ID, noteLabel, EpdFontFamily::BOLD);
-    const int spaceWidth = renderer.getSpaceWidth(UI_10_FONT_ID);
-    const std::string labelPrefix = std::string(noteLabel) + " ";
-    for (size_t i = 0; i < noteLines.size(); ++i) {
-      const auto& line = noteLines[i];
-      if (i == 0 && (line == noteLabel || line.rfind(labelPrefix, 0) == 0)) {
-        const std::string bodyLine = line.size() > labelPrefix.size() ? line.substr(labelPrefix.size()) : std::string();
-        const int bodyWidth =
-            bodyLine.empty() ? 0 : spaceWidth + renderer.getTextWidth(UI_10_FONT_ID, bodyLine.c_str());
-        const int lineWidth = labelWidth + bodyWidth;
+    if (secondNoteLabel && secondNoteBody) {
+      const auto drawNoteLine = [&](const char* label, const char* body) {
+        const int labelWidth = renderer.getTextWidth(UI_10_FONT_ID, label, EpdFontFamily::BOLD);
+        const int spaceWidth = renderer.getSpaceWidth(UI_10_FONT_ID);
+        const int lineWidth = labelWidth + spaceWidth + renderer.getTextWidth(UI_10_FONT_ID, body);
         const int noteX = dialogX + (dialogW - lineWidth) / 2;
-        renderer.drawText(UI_10_FONT_ID, noteX, y, noteLabel, true, EpdFontFamily::BOLD);
-        if (!bodyLine.empty()) {
-          renderer.drawText(UI_10_FONT_ID, noteX + labelWidth + spaceWidth, y, bodyLine.c_str());
+        renderer.drawText(UI_10_FONT_ID, noteX, y, label, true, EpdFontFamily::BOLD);
+        renderer.drawText(UI_10_FONT_ID, noteX + labelWidth + spaceWidth, y, body);
+        y += noteLineHeight;
+      };
+      drawNoteLine(noteLabel, noteBody);
+      drawNoteLine(secondNoteLabel, secondNoteBody);
+    } else {
+      const int noteContentWidth = std::max(1, dialogW - innerPadding * 2);
+      const std::string noteText = std::string(noteLabel) + " " + noteBody;
+      const auto noteLines = renderer.wrappedText(UI_10_FONT_ID, noteText.c_str(), noteContentWidth, 2);
+      const int labelWidth = renderer.getTextWidth(UI_10_FONT_ID, noteLabel, EpdFontFamily::BOLD);
+      const int spaceWidth = renderer.getSpaceWidth(UI_10_FONT_ID);
+      const std::string labelPrefix = std::string(noteLabel) + " ";
+      for (size_t i = 0; i < noteLines.size(); ++i) {
+        const auto& line = noteLines[i];
+        if (i == 0 && (line == noteLabel || line.rfind(labelPrefix, 0) == 0)) {
+          const std::string bodyLine =
+              line.size() > labelPrefix.size() ? line.substr(labelPrefix.size()) : std::string();
+          const int bodyWidth =
+              bodyLine.empty() ? 0 : spaceWidth + renderer.getTextWidth(UI_10_FONT_ID, bodyLine.c_str());
+          const int lineWidth = labelWidth + bodyWidth;
+          const int noteX = dialogX + (dialogW - lineWidth) / 2;
+          renderer.drawText(UI_10_FONT_ID, noteX, y, noteLabel, true, EpdFontFamily::BOLD);
+          if (!bodyLine.empty()) {
+            renderer.drawText(UI_10_FONT_ID, noteX + labelWidth + spaceWidth, y, bodyLine.c_str());
+          }
+        } else {
+          const int lineWidth = renderer.getTextWidth(UI_10_FONT_ID, line.c_str());
+          renderer.drawText(UI_10_FONT_ID, dialogX + (dialogW - lineWidth) / 2, y, line.c_str());
         }
-      } else {
-        const int lineWidth = renderer.getTextWidth(UI_10_FONT_ID, line.c_str());
-        renderer.drawText(UI_10_FONT_ID, dialogX + (dialogW - lineWidth) / 2, y, line.c_str());
+        y += noteLineHeight;
       }
-      y += noteLineHeight;
+      y += std::max(0, 2 - static_cast<int>(noteLines.size())) * noteLineHeight;
     }
-    y += std::max(0, 2 - static_cast<int>(noteLines.size())) * noteLineHeight;
 
     const int separatorY = y + metrics.optionPopupTitleGap / 2;
     renderer.drawLine(dialogX + innerPadding, separatorY, dialogX + dialogW - innerPadding, separatorY, true);
