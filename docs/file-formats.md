@@ -604,6 +604,35 @@ Binary layout:
 
 ## `section.bin`
 
+### Version 87
+
+Publisher decorations, contextual CSS selectors, preserved whitespace and inline
+font sizes change layout. Complete caches use `87`; suspended partial caches use
+`0xC8`. Version `86` / `0xC7` already exist on another local feature branch and
+are deliberately not reused. Both old full and partial caches rebuild.
+
+TextBlock adds one-byte `wordSizesPresent` and `initialLetterBytes` fields immediately before `textBytes`.
+The initial-letter prefix (0–12 bytes) stays in the first logical word for dictionary lookup and clippings; ordinary text rendering skips those bytes because the drop cap draws them separately.
+When `wordSizesPresent` is set, the arena stores one point-size byte per word after the whitespace
+bitset and before UTF-8 text; zero uses the block font. The flag is zero for
+ordinary lines, so they require no extra per-word storage. Sizes use the existing
+scalable font family and share the tallest word's baseline and line height.
+
+Page tags `5` and `6` are drop caps and border boxes. Drop caps contain x/y
+(int16 each), source font point size (uint8, zero means the reader font), Q8
+scale (uint16), style (uint8), UTF-8 byte length (uint8, 1–12), then text bytes.
+Border boxes contain x/y (int16 each), width/height (uint16 each), four pairs of
+width/style bytes in top/right/bottom/left order, and a shaded byte. Styles are
+none/solid/double/dotted/dashed (0–4), and border widths are capped at 8 pixels.
+
+CSS cache revision `22` grows the fixed style payload from 80 to 92 bytes:
+whitespace byte after the four existing border masks, eight border width/style
+bytes, then shaded/float-left/initial-letter bytes, followed by the existing
+uint32 defined flags. New flag bits 25–28 identify whitespace, shading, float
+and initial-letter declarations. Context-rule records retain the two-string
+format; the first string is the ancestor chain (`@` means no constraint), and
+the second is the subject compound, optionally ending in `::first-letter`.
+
 ### Version 85
 
 Long paragraphs apply initial CSS margin/padding on their first emitted line,

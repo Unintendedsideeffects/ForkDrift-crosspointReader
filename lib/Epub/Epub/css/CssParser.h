@@ -43,6 +43,7 @@ struct CssAncestorEntry {
   int depth = 0;
   std::string tag;
   std::string classAttr;
+  std::string idAttr;
 };
 
 class CssParser {
@@ -56,7 +57,7 @@ class CssParser {
 
   // Bump when CSS cache format or rules change; section caches are invalidated when this changes
   static constexpr uint32_t CSS_CACHE_MAGIC = 0x435843FF;  // bytes: 0xFF, "CXC"
-  static constexpr uint8_t CSS_CACHE_VERSION = 21;
+  static constexpr uint8_t CSS_CACHE_VERSION = 22;
 
   // Source text is streamed, never loaded as one allocation. PSRAM readers
   // can admit larger publisher stylesheets; rule-count and internal-heap
@@ -91,7 +92,8 @@ class CssParser {
    * @return Combined style with all applicable rules merged
    */
   [[nodiscard]] CssStyle resolveStyle(std::string_view tagName, std::string_view classAttr,
-                                      const std::vector<CssAncestorEntry>& ancestors = {}) const;
+                                      const std::vector<CssAncestorEntry>& ancestors = {}, std::string_view idAttr = {},
+                                      bool firstLetter = false) const;
 
   /**
    * Parse an inline style attribute string.

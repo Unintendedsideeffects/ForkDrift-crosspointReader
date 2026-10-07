@@ -36,11 +36,12 @@ constexpr uint32_t SECTION_CACHE_MAGIC = 0x535843FF;  // bytes: 0xFF, "CXS"
 // v83: Nested blocks inherit bold and italic styles, changing glyphs and wrapping.
 // v84: Suppressed CSS borders no longer draw horizontal rules.
 // v85: Incremental paragraph spacing and fragment layout change cached positions.
-constexpr uint8_t SECTION_FILE_VERSION = 85;
+// v87: Publisher decorations, whitespace, contextual CSS, and per-word font sizes.
+constexpr uint8_t SECTION_FILE_VERSION = 87;
 // Suspended incremental build: valid pages plus LUTs and a parse-watermark trailer.
 // Change this with layout or payload changes so stale partial pages cannot resume
 // under a different layout contract.
-constexpr uint8_t SECTION_FILE_PARTIAL_VERSION = 0xC6;
+constexpr uint8_t SECTION_FILE_PARTIAL_VERSION = 0xC8;
 constexpr uint32_t HEADER_SIZE =
     sizeof(SECTION_CACHE_MAGIC) + sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
     sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(bool) + sizeof(uint8_t) +

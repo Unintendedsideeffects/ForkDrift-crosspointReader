@@ -38,6 +38,7 @@ class WordSelectNavigator {
     // exposed as independent selectable fragments while retaining this link to
     // the canonical reader word for clipping.
     uint16_t sourceWordByteOffset = 0;
+    uint8_t sourcePrefixBytes = 0;  // logical initial letter omitted from highlight display
     int16_t screenX = 0;
     int16_t screenY = 0;
     int16_t width = 0;
@@ -48,7 +49,7 @@ class WordSelectNavigator {
     bool isIpa = false;
     int fontId = 0;  // resolved at extraction time; used by renderHighlight()
     // Pack display and compound-separator metadata into the byte that already
-    // preceded focusBoundary so WordInfo remains 36 bytes on 32-bit targets.
+    // preceded focusBoundary without separate boolean storage.
     uint8_t isRtl : 1;
     // The source layout placed this token directly beside the previous
     // selectable token without whitespace (for example adjacent CJK glyphs).
