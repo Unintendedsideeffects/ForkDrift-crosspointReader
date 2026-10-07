@@ -242,7 +242,7 @@ void FrontlightPanelActivity::openGlobalSettings() {
 }
 
 void FrontlightPanelActivity::openSyncDialog() {
-  static constexpr std::array<StrId, 3> OPTIONS = {StrId::STR_SYNC_PROGRESS, StrId::STR_NEARBY_POSITION_SYNC,
+  static constexpr std::array<StrId, 3> OPTIONS = {StrId::STR_SYNC_BOOK, StrId::STR_NEARBY_POSITION_SYNC,
                                                    StrId::STR_SEND_NEARBY_BOOK};
   drawerState.syncDialogOpen = true;
   const bool canSyncBookProgress = FsHelpers::hasEpubExtension(context.bookPath);

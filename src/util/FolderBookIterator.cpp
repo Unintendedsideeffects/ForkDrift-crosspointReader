@@ -51,7 +51,8 @@ FolderBookIterator::Result FolderBookIterator::next(std::string& bookPath) {
     positions[++depth] = 0;
     return Result::Entry;
   }
-  if (!FsHelpers::hasEpubExtension(path)) return Result::Entry;
+  // XTC books carry reading stats too; callers sync their stats without a position.
+  if (!FsHelpers::hasEpubExtension(path) && !FsHelpers::hasXtcExtension(path)) return Result::Entry;
   bookPath = path;
   return Result::Book;
 }

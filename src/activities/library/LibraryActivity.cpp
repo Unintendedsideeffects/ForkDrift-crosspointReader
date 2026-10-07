@@ -1606,7 +1606,7 @@ void LibraryActivity::showBookActionMenu(const size_t bookIndex, const bool igno
                    resume.selectedIndex = selection;
                    resume.scrollPosition = topIndex;
                    resume.libraryQuery = query;
-                   BookActions::syncProgress(renderer, book.path, std::move(resume));
+                   BookActions::syncProgress(renderer, mappedInput, book.path, std::move(resume));
                    requestUpdate();
                    return;
                  }

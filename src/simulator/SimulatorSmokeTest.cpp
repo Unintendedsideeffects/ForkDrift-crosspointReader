@@ -54,6 +54,7 @@
 #include "activities/library/LibraryActivity.h"
 #include "activities/network/StatsUploadActivity.h"
 #include "activities/reader/BookReadingStats.h"
+#include "activities/reader/BookStatsActivity.h"
 #include "activities/reader/BookStatsView.h"
 #include "activities/reader/EpubReaderActivity.h"
 #include "activities/reader/EpubReaderDrawerActivity.h"
@@ -72,6 +73,7 @@
 #include "activities/settings/ScreenCalibrationActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "activities/settings/StatusBarSettingsActivity.h"
+#include "activities/util/ConfirmationActivity.h"
 #include "activities/util/FrontlightPanelActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/CompactHeader.h"
@@ -797,6 +799,9 @@ enum class SmokeStep : uint8_t {
   FileBrowserSettings,
   Library,
   StatsUploadEntry,
+  SyncServerCaptureBottom,
+  SyncServerCaptureUnsupported,
+  SyncServerCaptureStats,
   StatsUploadReturn,
   StatsUploadEmptyDone,
   RecentLibrary,
@@ -834,6 +839,35 @@ class HomeReaderSmokeActivity final : public Activity {
  private:
   bool reader;
   bool bookReader;
+};
+
+// Stands in for a reader hosting Reading Stats: its result handler must run
+// before Sync All replaces the stack, even when it pushes another screen.
+bool statsParentHandlerRan = false;
+
+class StatsParentSmokeActivity final : public Activity {
+ public:
+  StatsParentSmokeActivity(GfxRenderer& renderer, MappedInputManager& input)
+      : Activity("StatsParent", renderer, input) {}
+
+  void onEnter() override {
+    Activity::onEnter();
+    startActivityForResult(
+        std::make_unique<BookStatsActivity>(renderer, mappedInput, "Fixture", std::string{}, BookReadingStats{}, -1.0f,
+                                            false, 0, GlobalReadingStats{}),
+        [this](const ActivityResult&) {
+          // Same as EpubReaderActivity importing edits, then reopening its menu.
+          statsParentHandlerRan = activityManager.hasDeferredReplace();
+          startActivityForResult(
+              std::make_unique<ConfirmationActivity>(renderer, mappedInput, "Pushed by parent", "Pushed by parent"),
+              [](const ActivityResult&) {});
+        });
+  }
+  void loop() override {}
+  void render(RenderLock&&) override {
+    renderer.clearScreen();
+    renderer.displayBuffer();
+  }
 };
 
 class EntryRenderSmokeActivity final : public Activity {
@@ -3705,7 +3739,7 @@ class SimulatorSmokeTest {
               const auto count = std::count_if(actions.begin(), actions.end(), [](const auto& item) {
                 return item.action == FileBrowserAction::SyncProgress;
               });
-              if (count != (std::string(path) == "/read/first.epub" ? 1 : 0))
+              if (count != (std::string(path) == "/read/notes.txt" ? 0 : 1))
                 fail("Book menu sync availability mismatch");
             }
             if (!WIFI_STORE.addCredential("reading-smoke", "")) fail("Cannot save test Wi-Fi");
@@ -3717,7 +3751,8 @@ class SimulatorSmokeTest {
             resume.tab = 4;
             resume.pane = true;
             BookActions::syncProgress(
-                renderer, std::getenv("CROSSINK_READING_TEST_COLD") ? "/read/unread.epub" : "/read/first.epub",
+                renderer, mappedInputManager,
+                std::getenv("CROSSINK_READING_TEST_COLD") ? "/read/unread.epub" : "/read/first.epub",
                 std::move(resume));
             break;
           }
@@ -3725,7 +3760,47 @@ class SimulatorSmokeTest {
           if (currentBook)
             activityManager.replaceActivity(std::make_unique<KOReaderSyncActivity>(
                 renderer, mappedInputManager, "/read/first.epub", DocumentMatchMethod::FILENAME, SETTINGS.orientation));
-          else
+          else if (std::getenv("CROSSINK_READING_TEST_XTC_BOOK")) {
+            // The real Library menu path: stats sync in place, then back to Library.
+            PendingOverlayResume resume;
+            resume.origin = PendingOverlayOrigin::Library;
+            BookActions::syncProgress(renderer, mappedInputManager, "/read/sub/comic.xtc", std::move(resume));
+            inputScript.clear();
+            scriptIndex = 0;
+            inputCompletionStep = SmokeStep::StatsUploadEmptyDone;
+            inputScript.push_back(render("XTC Sync Book result", 100));
+            inputScript.push_back(assertActivity("StatsUpload"));
+            addTap(MappedInputManager::Button::Back);
+            inputScript.push_back(assertActivity("Library"));
+            step = SmokeStep::ReaderInput;
+            break;
+          } else if (std::getenv("CROSSINK_READING_TEST_ALL")) {
+            // Sync All Books walks the Library index, not a folder.
+            library::BuildStats stats;
+            if (!library::buildLibraryIndex("/", stats)) fail("Cannot build Sync All Books Library fixture");
+            // An indexed book deleted afterwards is skipped, not a failure.
+            if (!Storage.remove("/read-sibling/outside.epub")) fail("Cannot remove indexed fixture book");
+            if (std::getenv("CROSSINK_READING_TEST_STATS_ENTRY")) {
+              // Reading Stats asks first, closes, then Sync All replaces the stack.
+              activityManager.pushActivity(std::make_unique<StatsParentSmokeActivity>(renderer, mappedInputManager));
+              inputScript.clear();
+              scriptIndex = 0;
+              inputCompletionStep = SmokeStep::StatsUploadEmptyDone;
+              inputScript.push_back(render("Reading stats before Sync All", 5));
+              addTap(MappedInputManager::Button::Confirm);
+              inputScript.push_back(render("Sync All confirmation", 5));
+              inputScript.push_back(assertActivity("Confirmation"));
+              addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+              addTap(MappedInputManager::Button::Confirm);
+              inputScript.push_back(render("Sync All from Reading Stats", 100));
+              inputScript.push_back(assertActivity("StatsUpload"));
+              addTap(MappedInputManager::Button::Back);
+              inputScript.push_back(assertActivity("Home"));
+              step = SmokeStep::ReaderInput;
+              break;
+            }
+            activityManager.replaceActivity(std::make_unique<StatsUploadActivity>(renderer, mappedInputManager));
+          } else
             activityManager.replaceActivity(
                 std::make_unique<StatsUploadActivity>(renderer, mappedInputManager, "/read"));
           inputScript.clear();
@@ -4460,25 +4535,73 @@ class SimulatorSmokeTest {
       case SmokeStep::StatsUploadEntry:
         inputScript.clear();
         scriptIndex = 0;
+        if (std::getenv("CROSSINK_SIMULATOR_SMOKE_SYNC_SERVER_CAPTURES")) {
+          // Capture-only pass: top of the list, the scrolled sync groups, then a KOSync-only server.
+          {
+            RenderLock lock;
+            captureStatusBarScreen("sync-server-1-top");
+          }
+          inputCompletionStep = SmokeStep::SyncServerCaptureBottom;
+          for (int i = 0; i < 6; ++i) addTap(MappedInputManager::Button::Down);
+          inputScript.push_back(render("Sync Server scrolled", 6));
+          step = SmokeStep::ReaderInput;
+          break;
+        }
         inputCompletionStep = SmokeStep::StatsUploadReturn;
-        addTap(MappedInputManager::Button::Up);  // Upload Clippings.
-        addTap(MappedInputManager::Button::Up);  // Sync Stats.
-        addTap(MappedInputManager::Button::Up);  // Upload Stats.
+        for (int i = 0; i < 5; ++i) addTap(MappedInputManager::Button::Down);  // Sync All Books.
         addTap(MappedInputManager::Button::Confirm);
         inputScript.push_back(assertActivity("StatsUpload"));
-        inputScript.push_back(render("Manual stats upload confirmation", 10));
+        inputScript.push_back(render("Sync All Books confirmation", 10));
         addTap(MappedInputManager::Button::Back);  // Opening does not upload.
         inputScript.push_back(assertActivity("Home"));
         step = SmokeStep::ReaderInput;
         break;
 
+      case SmokeStep::SyncServerCaptureBottom: {
+        {
+          RenderLock lock;
+          captureStatusBarScreen("sync-server-2-what-to-sync");
+        }
+        KOREADER_STORE.setServerUrl("http://kosync.invalid");
+        KOREADER_STORE.setServerSupport(SyncServerSupport::UNSUPPORTED);
+        activityManager.requestUpdate();
+        queueStep("Sync Server progress-only", SmokeStep::SyncServerCaptureUnsupported, 6);
+        break;
+      }
+
+      case SmokeStep::SyncServerCaptureUnsupported: {
+        {
+          RenderLock lock;
+          captureStatusBarScreen("sync-server-3-progress-only");
+        }
+        // Reading Stats "This Device" page offers Sync All Books once an account exists.
+        GlobalReadingStats device;
+        device.totalSessions = 12;
+        device.totalReadingSeconds = 3456;
+        activityManager.replaceActivity(std::make_unique<BookStatsActivity>(
+            renderer, mappedInputManager, "Fixture", std::string{}, BookReadingStats{}, -1.0f, false, 0, device));
+        queueStep("Reading stats sync action", SmokeStep::SyncServerCaptureStats, 6);
+        break;
+      }
+
+      case SmokeStep::SyncServerCaptureStats: {
+        {
+          RenderLock lock;
+          captureStatusBarScreen("sync-server-4-stats-page");
+        }
+        LOG_INF("SMOKE", "Simulator smoke test passed: Sync Server captures");
+        std::_Exit(0);
+      }
+
       case SmokeStep::StatsUploadEmptyDone:
+        if (std::getenv("CROSSINK_READING_TEST_STATS_ENTRY") && !statsParentHandlerRan)
+          fail("Reading Stats parent handler did not run before Sync All replaced the stack");
         LOG_INF("SMOKE", "Stats upload transport smoke passed");
         std::_Exit(0);
 
       case SmokeStep::StatsUploadReturn:
         KOREADER_STORE.setCredentials("", "");
-        LOG_INF("SMOKE", "Manual stats upload entry and cancellation passed");
+        LOG_INF("SMOKE", "Sync All Books entry and cancellation passed");
         activityManager.goToSettings();
         queueStep(mappedInputManager.hasHomeKey() ? "Settings landscape" : "Settings", SmokeStep::Settings);
         break;

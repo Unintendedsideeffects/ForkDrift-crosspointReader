@@ -1960,7 +1960,8 @@ void EpubReaderActivity::handleBookStatsReturn(const bool returnToReaderMenu) {
     pendingReadFolderMove = false;
   }
   resumeReadingPaceTimer("book_stats_return");
-  if (returnToReaderMenu) {
+  // Sync All Books from the stats screen replaces the reader right after this.
+  if (returnToReaderMenu && !activityManager.hasDeferredReplace()) {
     openReaderMenu();
   } else {
     requestUpdate();

@@ -6,6 +6,7 @@
 #include <HalStorage.h>
 #include <KOReaderCredentialStore.h>
 #include <Logging.h>
+#include <Xtc.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -32,14 +33,58 @@ void require(bool ok, const char* what) {
 bool prepareReadingUploadSmokeTest() {
   const char* server = std::getenv("CROSSINK_READING_TEST_SERVER");
   if (!server) return false;
-  require(!KOREADER_STORE.getSyncStats() && !KOREADER_STORE.getSyncClippings(), "extensions default off");
+  require(KOREADER_STORE.getSyncStats() && KOREADER_STORE.getSyncClippings() && !KOREADER_STORE.needsServerProbe(),
+          "extensions default on for CrossPoint Sync");
+  const auto load = [](const char* json) {
+    JsonDocument doc;
+    require(!deserializeJson(doc, json), "config fixture JSON");
+    KOREADER_STORE.fromJson(doc.as<JsonVariantConst>());
+  };
+  // Pre-v2 configs with credentials keep the old default server.
+  load(R"({"username":"a","password":"b"})");
+  require(KOREADER_STORE.getServerUrl() == "https://sync.koreader.rocks:443", "v1 config pins legacy server");
+  // v2 always wrote false: that becomes AUTO, while a saved true stays an explicit ON.
+  load(R"({"cfgVersion":2,"syncStats":false,"syncClippings":true})");
+  require(KOREADER_STORE.getSyncStats() && KOREADER_STORE.getSyncClippings(), "v2 flags migrate to AUTO/ON");
+  load(R"({"cfgVersion":2,"serverUrl":"http://kosync.invalid","syncStats":false,"syncClippings":true})");
+  require(!KOREADER_STORE.getSyncStats() && KOREADER_STORE.getSyncClippings(), "v2 false is AUTO, true is ON");
+  // Three-way keys win over the legacy booleans when present.
+  load(R"({"cfgVersion":3,"statsChoice":1,"clippingsChoice":1,"syncStats":true,"syncClippings":true})");
+  require(!KOREADER_STORE.getSyncStats() && !KOREADER_STORE.getSyncClippings(), "explicit OFF read from new keys");
+  {
+    // Older firmware only reads the booleans: an explicit ON must still say true there.
+    KOREADER_STORE.setSyncStats(true);
+    JsonDocument saved;
+    KOREADER_STORE.toJson(saved);
+    require(saved["syncStats"] == true && saved["syncClippings"] == false && saved["statsChoice"] == 2,
+            "legacy booleans keep explicit ON for older firmware");
+  }
+  // Learned support is tied to the server URL it was learned for.
+  load(R"({"cfgVersion":3,"serverUrl":"http://a.invalid","serverSupport":2,"serverSupportUrl":"http://b.invalid"})");
+  require(KOREADER_STORE.getServerSupport() == SyncServerSupport::UNKNOWN, "support resets for another URL");
+  load(R"({"cfgVersion":3,"serverUrl":"http://a.invalid","serverSupport":2,"serverSupportUrl":"http://a.invalid"})");
+  require(KOREADER_STORE.getServerSupport() == SyncServerSupport::UNSUPPORTED, "support persists for its URL");
+
+  load(R"({"cfgVersion":3})");
+  KOREADER_STORE.setCredentials("smoke", "smoke-password");
+  KOREADER_STORE.setServerUrl(server);
+  require(!KOREADER_STORE.getSyncStats() && !KOREADER_STORE.getSyncClippings() && KOREADER_STORE.needsServerProbe(),
+          "unknown server waits for a capability probe");
+  KOREADER_STORE.setServerSupport(SyncServerSupport::UNSUPPORTED);
+  KOREADER_STORE.setSyncStats(true);
+  require(!KOREADER_STORE.getSyncStats(), "unsupported server overrides an explicit choice");
+  // Back to AUTO choices and unknown support for the scenario itself.
+  load(R"({"cfgVersion":3})");
   KOREADER_STORE.setCredentials("smoke", "smoke-password");
   KOREADER_STORE.setServerUrl(server);
   KOREADER_STORE.setSendMetadata(true);
   KOREADER_STORE.setSyncBehavior(std::getenv("CROSSINK_READING_TEST_ASK") ? KOReaderSyncBehavior::ASK_EVERY_TIME
                                                                           : KOReaderSyncBehavior::SMART);
-  KOREADER_STORE.setSyncStats(!std::getenv("CROSSINK_READING_TEST_DISABLED"));
-  KOREADER_STORE.setSyncClippings(!std::getenv("CROSSINK_READING_TEST_DISABLED"));
+  // AUTO leaves both choices to the capability probe made by the sync itself.
+  if (!std::getenv("CROSSINK_READING_TEST_AUTO")) {
+    KOREADER_STORE.setSyncStats(!std::getenv("CROSSINK_READING_TEST_DISABLED"));
+    KOREADER_STORE.setSyncClippings(!std::getenv("CROSSINK_READING_TEST_DISABLED"));
+  }
   SETTINGS.trackReadingStats = 1;
 
   std::set<std::string> paths;
@@ -101,6 +146,16 @@ bool prepareReadingUploadSmokeTest() {
   if (std::getenv("CROSSINK_READING_TEST_INVALID_BOOK")) {
     Epub epub("/read/first.epub", "/.crosspoint");
     require(EpubReaderUtils::saveProgress(epub, 999, 2, 10), "invalid saved chapter fixture");
+  }
+  if (std::getenv("CROSSINK_READING_TEST_XTC")) {
+    // XTC has no KOReader position; only its saved stats should sync.
+    require(Storage.writeFile("/read/sub/comic.xtc", "XTC fixture"), "XTC fixture");
+    const Xtc xtc("/read/sub/comic.xtc", "/.crosspoint");
+    xtc.setupCacheDir();
+    BookReadingStats stats;
+    stats.sessionCount = 2;
+    stats.totalReadingSeconds = 90;
+    require(stats.save(xtc.getCachePath()), "XTC saved stats");
   }
   GlobalReadingStats global;
   global.totalReadingSeconds = 120;

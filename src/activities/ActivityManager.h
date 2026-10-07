@@ -88,6 +88,12 @@ class ActivityManager {
   // Set when an overlay is closed specifically to hand control back to the
   // reader's menu. It must wait until the reader is current again.
   int16_t pendingReaderMenuAction = -1;
+  // Launched by replaceAfterReturn() after the requesting activity has popped.
+  std::unique_ptr<Activity> afterReturnActivity;
+  // Compared only while the owner is still alive; once it is destroyed the
+  // flag below decides, so a reused address can never stand in for it.
+  const Activity* afterReturnOwner = nullptr;
+  bool afterReturnOwnerExited = false;
   // Target reader retained underneath nested screens while Home/Reader cancels
   // each child through the ordinary activity-result path.
   Activity* pendingHomeReaderTarget = nullptr;
@@ -171,6 +177,14 @@ class ActivityManager {
 
   // This will move current activity to stack instead of deleting it
   void pushActivity(std::unique_ptr<Activity>&& activity);
+
+  // Replace the whole stack with `activity` once the current activity has
+  // finished and its parent's result handler has run. Lets a nested screen
+  // start a full-stack flow without skipping the parent's own cleanup.
+  void replaceAfterReturn(std::unique_ptr<Activity>&& activity);
+  // A parent's result handler can skip reopening its own UI when the whole
+  // stack is about to be replaced anyway.
+  bool hasDeferredReplace() const { return afterReturnActivity != nullptr; }
 
   // Remove the currentActivity, returning the last one on stack
   // Note: if popActivity() on last activity on the stack, we will goHome()

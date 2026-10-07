@@ -3066,7 +3066,7 @@ const char* EpubReaderDrawerActivity::rowLabel(const RowId row) const {
     case RowId::ReadingStats:
       return tr(STR_READING_STATS);
     case RowId::SyncProgress:
-      return tr(STR_SYNC_PROGRESS);
+      return tr(STR_SYNC_BOOK);
     case RowId::NearbyPositionSync:
       return tr(STR_NEARBY_POSITION_SYNC);
     case RowId::SendNearbyBook:

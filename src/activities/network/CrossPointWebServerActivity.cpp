@@ -153,7 +153,7 @@ void CrossPointWebServerActivity::onNetworkModeSelected(const NetworkMode mode) 
   } else if (mode == NetworkMode::CREATE_HOTSPOT) {
     modeName = "Create Hotspot";
   } else if (mode == NetworkMode::NEARBY_STATS_SYNC) {
-    modeName = "Sync Stats";
+    modeName = "Nearby Stats Sync";
   } else if (mode == NetworkMode::NEARBY_BOOK_RECEIVE) {
     modeName = "Receive File";
   }

@@ -3,17 +3,36 @@
 #include <LibraryIndexFile.h>
 
 #include <memory>
+#include <string>
 
+#include "PendingOverlayResume.h"
 #include "activities/Activity.h"
 #include "network/StatsUploadClient.h"
 #include "util/FolderBookIterator.h"
 
-// Only entered from an explicit settings action; no reader/background hooks.
+// Bulk "Sync" for several books: progress, reading stats, and clippings for each
+// book, plus overall stats once. Only entered from an explicit user action; no
+// reader/background hooks.
 class StatsUploadActivity final : public Activity {
  public:
-  StatsUploadActivity(GfxRenderer& renderer, MappedInputManager& input) : Activity("StatsUpload", renderer, input) {}
-  StatsUploadActivity(GfxRenderer& renderer, MappedInputManager& input, std::string folder)
-      : Activity("StatsUpload", renderer, input), folder(std::move(folder)) {}
+  enum class Scope : uint8_t {
+    Library,  // Every book in the Library index ("Sync All Books").
+    Folder,   // A File Browser folder and its subfolders ("Sync Folder").
+    Book,     // One book without a KOReader position (XTC): stats only.
+  };
+  // Sync All Books.
+  StatsUploadActivity(GfxRenderer& renderer, MappedInputManager& input)
+      : Activity("StatsUpload", renderer, input), scope(Scope::Library) {}
+  // `confirmed`: the caller already asked, so start without the confirmation screen.
+  StatsUploadActivity(GfxRenderer& renderer, MappedInputManager& input, std::string path, Scope scope = Scope::Folder,
+                      bool confirmed = false)
+      : Activity("StatsUpload", renderer, input),
+        scope(scope),
+        autoStart(confirmed || scope == Scope::Book),
+        path(std::move(path)) {}
+  // Book scope: the Library/File Browser view to return to. Kept here, not in
+  // global state, so leaving another way (Home, sleep) leaves nothing stale.
+  void setReturnTo(PendingOverlayResume resume) { returnTo = std::move(resume); }
   void onEnter() override;
   void onExit() override;
   void loop() override;
@@ -22,13 +41,15 @@ class StatsUploadActivity final : public Activity {
 
  private:
   enum class State { Ready, Wifi, Uploading, SyncingBook, BookFailed, Done, Failed };
+  enum class NextBook { Book, Skip, Missing, Done, Error };  // Missing: indexed but deleted.
   State state = State::Ready;
+  const Scope scope;
+  const bool autoStart = false;  // A single book or a pre-confirmed bulk sync skips Ready.
+  std::string path;              // Folder root or single book; empty for Library.
+  PendingOverlayResume returnTo;
   library::LibraryIndexFile index;
-  std::unique_ptr<StatsUploadClient> client;
-  std::unique_ptr<char[]> payload;
   std::unique_ptr<uint32_t[]> folderOffsets;
   uint16_t folderStride = 0;
-  char deviceId[32]{};
   uint16_t ordinal = 0;
   uint32_t uploaded = 0;
   uint32_t skipped = 0;
@@ -38,22 +59,23 @@ class StatsUploadActivity final : public Activity {
   uint32_t statsFailed = 0;
   uint32_t clippingsFailed = 0;
   StatsUploadClient::Result globalResult = StatsUploadClient::Result::Skipped;
-  std::string folder;
   std::unique_ptr<FolderBookIterator> folderBooks;
   bool globalAttempted = false;
-  bool globalUploaded = false;
-  bool libraryAvailable = false;
+  bool singleBookTaken = false;
+  bool libraryAvailable = true;
   bool ownsWifi = false;
   bool initialConfirm = false;
   std::string message;
+  NextBook nextBook(std::string& bookPath);
+  const char* title() const;
   void start();
   void uploadNext();
-  void uploadFolderBook();
-  bool uploadFolderExtras(const std::string& path);
+  void syncEpub(std::string&& bookPath);
+  bool uploadBookExtras(const std::string& bookPath, bool* sentAny = nullptr);
+  void leave();
   void recordExtras(bool statsOk, bool clippingsOk, bool statsError, bool clippingsError);
-  bool send(const char* endpoint, bool book);
   void fail(const char* text);
-  void failBook(std::string&& path);
+  void failBook(std::string&& bookPath);
   void finishUpload();
   void closeTransfer();
 };

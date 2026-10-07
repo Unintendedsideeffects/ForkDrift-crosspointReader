@@ -12,6 +12,14 @@
 
 #include <cstdio>
 #include <cstring>
+#include <string>
+
+namespace {
+// Only definitive answers update the persisted capability; transient failures keep it.
+void recordMissingApi(const int status) {
+  if (status == 404 || status == 405) KOREADER_STORE.setServerSupport(SyncServerSupport::UNSUPPORTED);
+}
+}  // namespace
 
 struct StatsUploadClient::Impl {
   freeink::SecureHttpClient http;
@@ -84,6 +92,7 @@ StatsUploadClient::Result StatsUploadClient::put(const char* endpoint, const cha
   complete = http.responseComplete();
 #endif
   LOG_INF("StatsSync", "Upload response: HTTP %d", status);
+  recordMissingApi(status);
   auto failure = [&](Result result) {
     http.end();
     return result;
@@ -100,12 +109,73 @@ StatsUploadClient::Result StatsUploadClient::put(const char* endpoint, const cha
       (daily && (!reply["accepted_daily"].is<unsigned>() || reply["accepted_daily"].as<unsigned>() != 1))) {
     return failure(Result::InvalidResponse);
   }
+  // Only a valid extension reply proves support; a catch-all 200 page does not.
+  KOREADER_STORE.setServerSupport(SyncServerSupport::SUPPORTED);
+  return Result::Ok;
+}
+
+StatsUploadClient::Result StatsUploadClient::probe(const bool trustHtml) {
+  if (!impl) {
+    LOG_ERR("StatsSync", "Cannot allocate HTTP client");
+    return Result::LowMemory;
+  }
+  auto& http = impl->http;
+  if (ESP.getFreeHeap() < 35000 || ESP.getMaxAllocHeap() < 20000) {
+    LOG_ERR("StatsSync", "Insufficient memory for capability probe");
+    return Result::LowMemory;
+  }
+  http.setInsecure();
+  http.setTimeout(15000);
+  if (!http.begin(KOREADER_STORE.getBaseUrl() + "/api/v1/stats/summary")) {
+    LOG_ERR("StatsSync", "Invalid server URL");
+    http.end();
+    return Result::Network;
+  }
+  http.addHeader("Accept", "application/json");
+  http.addHeader("x-auth-user", KOREADER_STORE.getUsername());
+  http.addHeader("x-auth-key", KOREADER_STORE.getMd5Password());
+  KOREADER_STORE.markServerProbed();
+  // A JSON object body separates the summary API from catch-all HTML pages that
+  // some proxies return with 200; only its first non-space byte is kept.
+  char first = '\0';
+#ifdef SIMULATOR
+  const int status = http.GET();
+  for (const char c : std::string(http.getString().c_str())) {
+    if (c != ' ' && c != '\n' && c != '\r' && c != '\t') {
+      first = c;
+      break;
+    }
+  }
+#else
+  const int status = http.GET([&first](const uint8_t* data, size_t length) {
+    for (size_t i = 0; first == '\0' && i < length; ++i) {
+      if (data[i] != ' ' && data[i] != '\n' && data[i] != '\r' && data[i] != '\t') first = static_cast<char>(data[i]);
+    }
+    return true;  // Drain the rest of the summary without storing it.
+  });
+#endif
+  http.end();
+  LOG_INF("StatsSync", "Capability probe: HTTP %d", status);
+  recordMissingApi(status);
+  if (status <= 0) return Result::Network;
+  if (status == 401) return Result::Auth;
+  if (status == 404 || status == 405) return Result::Unsupported;
+  if (status != 200) return Result::Server;
+  if (first != '{') {
+    LOG_INF("StatsSync", "Capability probe reply is not the stats API");
+    // Mid-sync this may be a captive portal; leave it unknown until Authenticate.
+    if (!trustHtml) return Result::InvalidResponse;
+    KOREADER_STORE.setServerSupport(SyncServerSupport::UNSUPPORTED);
+    return Result::Unsupported;
+  }
+  KOREADER_STORE.setServerSupport(SyncServerSupport::SUPPORTED);
   return Result::Ok;
 }
 
 const char* StatsUploadClient::resultString(Result result) {
   if (result == Result::Ok) return tr(STR_DONE);
   if (result == Result::Skipped) return tr(STR_NONE_OPT);
+  if (result == Result::Unsupported) return tr(STR_NOT_SUPPORTED);
   return errorString(result);
 }
 

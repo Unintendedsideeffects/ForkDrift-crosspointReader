@@ -2,12 +2,15 @@
 
 #include <Epub.h>
 #include <FsHelpers.h>
+#include <I18n.h>
 #include <KOReaderCredentialStore.h>
 #include <KOReaderDocumentId.h>
 #include <Memory.h>
 #include <ProgressMapper.h>
+#include <Xtc.h>
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 #include "ClippingsUpload.h"
@@ -64,6 +67,12 @@ bool ReadingSyncUpload::prepareProgress(const std::string& path, KOReaderProgres
     progress.position = std::move(rich);
   }
   return true;
+}
+
+void ReadingSyncUpload::refreshServerSupport() {
+  if (!KOREADER_STORE.needsServerProbe()) return;
+  StatsUploadClient client;
+  client.probe();
 }
 
 StatsUploadClient::Result ReadingSyncUpload::globalStats() {
@@ -146,7 +155,9 @@ StatsUploadClient::Result ReadingSyncUpload::globalStats(StatsUploadClient& clie
 StatsUploadClient::Result ReadingSyncUpload::stats(const std::string& path, const std::string& document) {
   using Result = StatsUploadClient::Result;
   if (!SETTINGS.shouldTrackReadingStats()) return Result::Skipped;
-  const auto cache = Epub::resolveCachePathForFilePath(path, "/.crosspoint");
+  // XTC books keep stats in their own cache folder; they have no KOReader position.
+  const auto cache = FsHelpers::hasXtcExtension(path) ? Xtc(path, "/.crosspoint").getCachePath()
+                                                      : Epub::resolveCachePathForFilePath(path, "/.crosspoint");
   BookReadingStats book;
   if (!BookStatsTracking::isEnabled(cache) || !BookReadingStats::loadForUpload(cache, book)) return Result::Skipped;
   auto payload = makeUniqueNoThrow<char[]>(StatsUploadPayload::CAPACITY);
@@ -162,8 +173,35 @@ ReadingSyncUpload::ExtrasResult ReadingSyncUpload::extras(const std::string& pat
   ExtrasResult result;
   if (KOREADER_STORE.getSyncStats()) result.stats = stats(path, document);
   // These independent snapshots must still be attempted after a stats failure.
-  if (KOREADER_STORE.getSyncClippings()) result.clippings = ClippingsUpload::upload(path, document);
+  // Clippings are EPUB-only; XTC books never save any.
+  if (KOREADER_STORE.getSyncClippings() && FsHelpers::hasEpubExtension(path))
+    result.clippings = ClippingsUpload::upload(path, document);
   LOG_INF("ReadingSync", "Extras: stats=%d clippings=%d", static_cast<int>(result.stats),
           static_cast<int>(result.clippings));
   return result;
+}
+
+namespace {
+const char* unavailableLabel(const bool clippings) {
+  if (KOREADER_STORE.getServerSupport() == SyncServerSupport::UNSUPPORTED) return tr(STR_NOT_SUPPORTED);
+  const bool enabled = clippings ? KOREADER_STORE.getSyncClippings() : KOREADER_STORE.getSyncStats();
+  return enabled ? nullptr : tr(STR_STATE_OFF);
+}
+}  // namespace
+
+const char* ReadingSyncUpload::statusLabel(const StatsUploadClient::Result result, const bool clippings) {
+  const char* unavailable = unavailableLabel(clippings);
+  return unavailable ? unavailable : StatsUploadClient::resultString(result);
+}
+
+const char* ReadingSyncUpload::countLabel(char* buffer, const size_t capacity, const uint32_t ok, const uint32_t failed,
+                                          const bool clippings) {
+  const char* unavailable = unavailableLabel(clippings);
+  if (unavailable) return unavailable;
+  if (failed == 0)
+    snprintf(buffer, capacity, "%u", static_cast<unsigned>(ok));
+  else
+    snprintf(buffer, capacity, "%u (%u %s)", static_cast<unsigned>(ok), static_cast<unsigned>(failed),
+             tr(STR_FAILED_LOWER));
+  return buffer;
 }

@@ -15,7 +15,9 @@ namespace BookActions {
 
 std::vector<FileBrowserActionActivity::MenuItem> buildBookActionItems(const std::string& fullPath,
                                                                       bool includeRemoveFromRecents);
-void syncProgress(const GfxRenderer& renderer, const std::string& fullPath, PendingOverlayResume returnResume);
+// EPUB: reboot into progress sync for this book. XTC: send its stats in place.
+void syncProgress(GfxRenderer& renderer, MappedInputManager& mappedInput, const std::string& fullPath,
+                  PendingOverlayResume returnResume);
 bool hasClearableBookCache(const std::string& path);
 bool canSendNearby(const std::string& path);
 void clearFileMetadata(const std::string& fullPath);

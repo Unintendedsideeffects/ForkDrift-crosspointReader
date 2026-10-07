@@ -118,11 +118,11 @@ void draw(GfxRenderer& renderer, fui::GfxRendererTarget& target, const Rect& hea
 }
 
 void drawCompact(GfxRenderer& renderer, const char* title, const bool readerContext, const bool showDate,
-                 const int verticalOffset) {
+                 const int verticalOffset, const int extraRightReserve) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect header = compactHeaderRect(renderer);
-  const int rightReserve =
-      metrics.batteryWidth + 2 * metrics.headerSidePadding + (showDate ? headerDateReservedWidth(renderer) : 0);
+  const int rightReserve = metrics.batteryWidth + 2 * metrics.headerSidePadding +
+                           (showDate ? headerDateReservedWidth(renderer) : 0) + extraRightReserve;
   draw(renderer, header, title, readerContext, rightReserve, nullptr, verticalOffset);
   if (showDate) {
     const Layout back = layout(header);

@@ -4,7 +4,6 @@
 
 - Assign Select Chapter to shortcuts, Quick Actions, or touch gestures to open the chapter list directly in EPUB and XTC books.
 - Track active reading seconds by local day, sync daily reading time to CrossPoint Sync, and show today's total and 7-day average on the This Device reading stats page.
-- Choose Small, Medium, or Large text for the top and bottom reader status bars.
 - Preview OPDS book descriptions before downloading, with scrollable text on touch and button devices. Long descriptions show a bounded excerpt.
 - Sync a selected EPUB’s progress from its Library or File Browser context menu.
 - Use server filenames for OPDS downloads to match reading progress across devices; missing or unsafe names fall back to Author - Title.
@@ -15,6 +14,8 @@
 - Finished EPUB and XTC books show a checkmarked book icon in the File Browser and Library list.
 - Calibrate each screen edge in Settings → Display → Screen Calibration to keep text and status bars clear of the bezel. Calibration stays on the device when changing SD cards.
 - Choose Directional or Legacy menu navigation in Controls to restore the previous button behavior in Settings and the reader menu.
+- Sync All Books from Settings → System → Sync Server or the Reading Stats This Device page to sync progress, reading stats, and clippings for every Library book in one pass.
+- Sync Book from an XTC book's context menu uploads its reading stats; Sync Folder and Sync All Books include XTC stats too.
 
 ### Fixed
 
@@ -36,6 +37,8 @@
 - Remove incomplete File Transfer uploads after SD write failures so they can be retried.
 - Preserve the previous file when a WebDAV replacement fails, and report settings-save failures in the web portal.
 - Keep daily, manual, and clockless reading-stat backups separately, and prune numbered backups in the correct order after 999.
+- KOReader-only sync servers no longer end every sync with "extra upload failed"; stats and clippings show "Requires CrossPoint Sync" instead.
+- Show full-width Forget and Cancel buttons after a saved Wi-Fi network fails to connect on button devices, with Cancel selected by default below Forget.
 
 ### Changed
 
@@ -51,6 +54,11 @@
 - Avoid writing reading-percentage caches while browsing Home, Library, or sleep screens.
 - Refresh Library cover grids once after missing covers are prepared, keeping input checks between covers.
 - Skip text anti-aliasing on EPUB pages without text and avoid copying optimized images twice when they already match the display size.
+- Settings → System → KOReader Sync is now Sync Server, grouped into account, What to Sync, and Sync Options sections.
+- Reading Stats and Clippings sync turn on automatically for CrossPoint Sync servers; turning either off is remembered. Other servers are checked when you authenticate.
+- Sync actions are now named Sync Book and Sync Folder because they also send stats and clippings, and File Transfer → Sync Stats is now Nearby Stats Sync.
+- Upload Stats is replaced by Sync All Books, which follows your What to Sync choices instead of always uploading stats only.
+- Every sync result, including a successful single-book sync, lists overall stats, reading stats, and clippings as Done, OFF, or Not supported.
 
 ## [v1.6.1] - 2026-10-03
 

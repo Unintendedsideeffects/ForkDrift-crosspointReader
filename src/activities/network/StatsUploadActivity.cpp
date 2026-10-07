@@ -12,13 +12,13 @@
 
 #include <cstring>
 
+#include "CrossPointState.h"
 #include "HalClock.h"
 #include "SdCardFontSystem.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/reader/BookStatsTracking.h"
 #include "activities/reader/EpubReaderUtils.h"
 #include "activities/reader/KOReaderSyncActivity.h"
-#include "activities/reader/StatsUploadPayload.h"
 #include "components/TouchActionButtons.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
@@ -31,17 +31,12 @@ void StatsUploadActivity::onEnter() {
   Activity::onEnter();
   sdFontSystem.releaseForNetwork(renderer);
   initialConfirm = mappedInput.isPressed(MappedInputManager::Button::Confirm);
-  if (folder.empty() && !SETTINGS.shouldTrackReadingStats())
-    fail(tr(STR_STATS_UPLOAD_DISABLED));
-  else if (!KOREADER_STORE.hasCredentials())
-    fail(tr(STR_SET_CREDENTIALS_FIRST));
+  if (!KOREADER_STORE.hasCredentials()) fail(tr(STR_SET_CREDENTIALS_FIRST));
   requestUpdate();
 }
 
 void StatsUploadActivity::closeTransfer() {
   index.close();
-  client.reset();
-  payload.reset();
   folderOffsets.reset();
   folderBooks.reset();
   if (ownsWifi) {
@@ -56,6 +51,36 @@ void StatsUploadActivity::onExit() {
   Activity::onExit();
 }
 
+void StatsUploadActivity::leave() {
+  // A single book was synced from its Library or File Browser menu: go back there,
+  // keeping the browsing position, the same way EPUB Sync Book returns.
+  if (scope == Scope::Book && returnTo.valid() &&
+      (returnTo.origin == PendingOverlayOrigin::FileBrowser || returnTo.origin == PendingOverlayOrigin::Library)) {
+    // The list restores its folder and selection from this on entry.
+    const std::string folderPath = returnTo.fileBrowserPath;
+    const bool fileBrowser = returnTo.origin == PendingOverlayOrigin::FileBrowser;
+    APP_STATE.setPendingOverlayResume(std::move(returnTo));
+    if (fileBrowser)
+      activityManager.goToFileBrowser(folderPath);
+    else
+      activityManager.goToLibrary();
+    return;
+  }
+  finish();
+}
+
+const char* StatsUploadActivity::title() const {
+  switch (scope) {
+    case Scope::Library:
+      return tr(STR_SYNC_ALL_BOOKS);
+    case Scope::Folder:
+      return tr(STR_FOLDER_SYNC);
+    case Scope::Book:
+      return tr(STR_SYNC_BOOK);
+  }
+  return tr(STR_SYNC);
+}
+
 void StatsUploadActivity::fail(const char* text) {
   LOG_ERR("StatsSync", "Upload stopped: %s", text);
   {
@@ -67,50 +92,43 @@ void StatsUploadActivity::fail(const char* text) {
   requestUpdate();
 }
 
-void StatsUploadActivity::failBook(std::string&& path) {
-  LOG_ERR("StatsSync", "Book sync failed: %s", path.c_str());
+void StatsUploadActivity::failBook(std::string&& bookPath) {
+  LOG_ERR("StatsSync", "Book sync failed: %s", bookPath.c_str());
   {
     RenderLock lock(*this);
     // EPUB loading may have run out of memory. Reuse the path's existing
     // allocation for the heading instead of allocating an error string.
-    message = std::move(path);
+    message = std::move(bookPath);
     message.erase(0, message.find_last_of('/') + 1);
     ++failed;
     state = State::BookFailed;
   }
-  // Keep the folder iterator and connection alive until Skip book or Back.
+  // Keep the book source and connection alive until Skip book or Back.
   requestUpdate();
 }
 
 void StatsUploadActivity::start() {
-  if (folder.empty()) {
-    // One reusable 1.5KB request buffer on the heap, not the main task's stack.
-    payload = makeUniqueNoThrow<char[]>(StatsUploadPayload::CAPACITY);
-    client = makeUniqueNoThrow<StatsUploadClient>();
-    if (!payload || !client || !StatsUploadClient::deviceId(deviceId, sizeof(deviceId))) {
-      fail(tr(STR_KOREADER_SYNC_LOW_MEMORY));
-      return;
-    }
-  }
-  if (!folder.empty()) {
-    folderBooks = makeUniqueNoThrow<FolderBookIterator>(folder);
+  if (scope == Scope::Folder) {
+    folderBooks = makeUniqueNoThrow<FolderBookIterator>(path);
     if (!folderBooks) {
       fail(tr(STR_KOREADER_SYNC_LOW_MEMORY));
       return;
     }
-  }
-  libraryAvailable = folder.empty() ? index.open(library::libraryIndexPath()) : true;
-  if (folder.empty() && libraryAvailable && index.bookCount() > 0) {
-    // Fixed 512-byte index accelerator: allocated only during manual upload,
-    // avoiding a folder-table scan for every book without growing with the library.
-    folderOffsets = makeUniqueNoThrow<uint32_t[]>(library::LibraryIndexFile::FOLDER_CHECKPOINT_COUNT);
-    if (!folderOffsets) {
-      fail(tr(STR_KOREADER_SYNC_LOW_MEMORY));
-      return;
-    }
-    if (!index.buildFolderCheckpoints(folderOffsets.get(), folderStride)) {
-      fail(tr(STR_STATS_UPLOAD_LIBRARY));
-      return;
+  } else if (scope == Scope::Library) {
+    // Without an index only overall stats can be sent; the result asks for a refresh.
+    libraryAvailable = index.open(library::libraryIndexPath());
+    if (libraryAvailable && index.bookCount() > 0) {
+      // Fixed 512-byte index accelerator: allocated only for this action,
+      // avoiding a folder-table scan for every book without growing with the library.
+      folderOffsets = makeUniqueNoThrow<uint32_t[]>(library::LibraryIndexFile::FOLDER_CHECKPOINT_COUNT);
+      if (!folderOffsets) {
+        fail(tr(STR_KOREADER_SYNC_LOW_MEMORY));
+        return;
+      }
+      if (!index.buildFolderCheckpoints(folderOffsets.get(), folderStride)) {
+        fail(tr(STR_STATS_UPLOAD_LIBRARY));
+        return;
+      }
     }
   }
   if (!hasActiveStationWifiConnection()) {
@@ -126,7 +144,7 @@ void StatsUploadActivity::start() {
     }
     startActivityForResult(std::move(wifi), [this](const ActivityResult& result) {
       if (result.isCancelled) {
-        finish();
+        leave();
         return;
       }
       if (!hasActiveStationWifiConnection()) {
@@ -148,20 +166,12 @@ void StatsUploadActivity::start() {
   }
 }
 
-bool StatsUploadActivity::send(const char* endpoint, const bool book) {
-  const auto result = client->put(endpoint, payload.get(), book);
-  if (result == StatsUploadClient::Result::Ok) return true;
-  fail(StatsUploadClient::errorString(result));
-  return false;
-}
-
 void StatsUploadActivity::finishUpload() {
   LOG_INF("StatsSync", "Finished: synced=%u skipped=%u failed=%u", static_cast<unsigned>(uploaded),
           static_cast<unsigned>(skipped), static_cast<unsigned>(failed));
-  if (!folder.empty())
-    LOG_INF("StatsSync", "Extras: global=%d stats=%u statsFailed=%u clippings=%u clippingsFailed=%u",
-            static_cast<int>(globalResult), static_cast<unsigned>(statsUploaded), static_cast<unsigned>(statsFailed),
-            static_cast<unsigned>(clippingsUploaded), static_cast<unsigned>(clippingsFailed));
+  LOG_INF("StatsSync", "Extras: global=%d stats=%u statsFailed=%u clippings=%u clippingsFailed=%u",
+          static_cast<int>(globalResult), static_cast<unsigned>(statsUploaded), static_cast<unsigned>(statsFailed),
+          static_cast<unsigned>(clippingsUploaded), static_cast<unsigned>(clippingsFailed));
   closeTransfer();
   {
     RenderLock lock(*this);
@@ -171,68 +181,73 @@ void StatsUploadActivity::finishUpload() {
   requestUpdate();
 }
 
+StatsUploadActivity::NextBook StatsUploadActivity::nextBook(std::string& bookPath) {
+  switch (scope) {
+    case Scope::Folder: {
+      const auto next = folderBooks->next(bookPath);
+      if (next == FolderBookIterator::Result::Done) return NextBook::Done;
+      if (next == FolderBookIterator::Result::Error) return NextBook::Error;
+      return next == FolderBookIterator::Result::Book ? NextBook::Book : NextBook::Skip;
+    }
+    case Scope::Library: {
+      if (!libraryAvailable || ordinal >= index.bookCount()) return NextBook::Done;
+      library::ClixRecord record;
+      if (!index.readRecord(ordinal++, record) || !index.readPath(record, bookPath, folderOffsets.get(), folderStride))
+        return NextBook::Error;
+      // The index also lists TXT and Markdown books, which have nothing to sync.
+      if (!FsHelpers::hasEpubExtension(bookPath) && !FsHelpers::hasXtcExtension(bookPath)) return NextBook::Skip;
+      return Storage.exists(bookPath.c_str()) ? NextBook::Book : NextBook::Missing;
+    }
+    case Scope::Book:
+      if (singleBookTaken) return NextBook::Done;
+      singleBookTaken = true;
+      bookPath = path;
+      return NextBook::Book;
+  }
+  return NextBook::Done;
+}
+
 void StatsUploadActivity::uploadNext() {
-  if (!folder.empty()) {
-    if (!globalAttempted) {
-      // Batch ownership prevents books that skip/fail from starving overall stats,
-      // and prevents retries of accepted global snapshots after a per-book failure.
-      globalAttempted = true;
-      if (requestUpdateAndWait() != RequestUpdateResult::Rendered) {
-        LOG_ERR("StatsSync", "Cannot render overall stats upload screen");
-        {
-          RenderLock lock(*this);
-          globalResult = StatsUploadClient::Result::InvalidResponse;
-        }
-        requestUpdate();
-        return;
-      }
-#ifndef SIMULATOR
-      halClock.syncSystemTimeFromNTP();
-#endif
-      const auto result =
-          KOREADER_STORE.getSyncStats() ? ReadingSyncUpload::globalStats() : StatsUploadClient::Result::Skipped;
+  if (!globalAttempted) {
+    // Batch ownership prevents books that skip/fail from starving overall stats,
+    // and prevents retries of accepted global snapshots after a per-book failure.
+    globalAttempted = true;
+    if (requestUpdateAndWait() != RequestUpdateResult::Rendered) {
+      LOG_ERR("StatsSync", "Cannot render overall stats upload screen");
       {
         RenderLock lock(*this);
-        globalResult = result;
+        globalResult = StatsUploadClient::Result::InvalidResponse;
       }
       requestUpdate();
       return;
     }
-    uploadFolderBook();
-    return;
-  }
-  if (!globalAttempted) {
-    globalAttempted = true;
-    const auto result = ReadingSyncUpload::globalStats(*client, payload.get(), StatsUploadPayload::CAPACITY, deviceId);
-    if (StatsUploadClient::failed(result)) {
-      fail(StatsUploadClient::errorString(result));
-      return;
-    }
+#ifndef SIMULATOR
+    halClock.syncSystemTimeFromNTP();
+#endif
+    ReadingSyncUpload::refreshServerSupport();
+    const auto result =
+        KOREADER_STORE.getSyncStats() ? ReadingSyncUpload::globalStats() : StatsUploadClient::Result::Skipped;
     {
       RenderLock lock(*this);
-      globalUploaded = result == StatsUploadClient::Result::Ok;
+      globalResult = result;
     }
     requestUpdate();
     return;
   }
-  if (!libraryAvailable || ordinal >= index.bookCount()) {
+
+  std::string bookPath;
+  const auto next = nextBook(bookPath);
+  if (next == NextBook::Done) {
     finishUpload();
     return;
   }
-  library::ClixRecord record;
-  std::string path;
-  if (!index.readRecord(ordinal++, record) || !index.readPath(record, path, folderOffsets.get(), folderStride)) {
-    fail(tr(STR_STATS_UPLOAD_LIBRARY));
+  if (next == NextBook::Error) {
+    fail(scope == Scope::Library ? tr(STR_STATS_UPLOAD_LIBRARY) : tr(STR_FOLDER_SYNC_READ_FAILED));
     return;
   }
-  const bool epub = FsHelpers::hasEpubExtension(path);
-  const bool xtc = FsHelpers::hasXtcExtension(path);
-  if (!epub && !xtc) return;
-  const std::string cache =
-      epub ? Epub::resolveCachePathForFilePath(path, "/.crosspoint") : Xtc(path, "/.crosspoint").getCachePath();
-  BookReadingStats stats;
-  if (!Storage.exists(path.c_str()) || !BookStatsTracking::isEnabled(cache) ||
-      !BookReadingStats::loadForUpload(cache, stats)) {
+  if (next == NextBook::Skip) return;
+  if (next == NextBook::Missing) {
+    LOG_INF("StatsSync", "Skipping indexed book that no longer exists: %s", bookPath.c_str());
     {
       RenderLock lock(*this);
       ++skipped;
@@ -240,19 +255,24 @@ void StatsUploadActivity::uploadNext() {
     requestUpdate();
     return;
   }
-  const auto document = KOREADER_STORE.getMatchMethod() == DocumentMatchMethod::FILENAME
-                            ? KOReaderDocumentId::calculateFromFilename(path)
-                            : KOReaderDocumentId::calculate(path);
-  if (!StatsUploadPayload::book(payload.get(), StatsUploadPayload::CAPACITY, deviceId, document.c_str(), stats)) {
-    fail(tr(STR_SYNC_FAILED_MSG));
+  if (FsHelpers::hasXtcExtension(bookPath)) {
+    // XTC has no KOReader position: its saved stats are the whole sync.
+    bool sent = false;
+    if (!uploadBookExtras(bookPath, &sent)) {
+      failBook(std::move(bookPath));
+      return;
+    }
+    {
+      RenderLock lock(*this);
+      if (sent)
+        ++uploaded;
+      else
+        ++skipped;
+    }
+    requestUpdate();
     return;
   }
-  if (!send("/api/v1/stats/books", true)) return;
-  {
-    RenderLock lock(*this);
-    ++uploaded;
-  }
-  requestUpdate();
+  syncEpub(std::move(bookPath));
 }
 
 void StatsUploadActivity::recordExtras(const bool statsOk, const bool clippingsOk, const bool statsError,
@@ -264,38 +284,26 @@ void StatsUploadActivity::recordExtras(const bool statsOk, const bool clippingsO
   clippingsFailed += clippingsError;
 }
 
-bool StatsUploadActivity::uploadFolderExtras(const std::string& path) {
+bool StatsUploadActivity::uploadBookExtras(const std::string& bookPath, bool* sentAny) {
+  if (sentAny) *sentAny = false;
   if (!KOREADER_STORE.getSyncStats() && !KOREADER_STORE.getSyncClippings()) return true;
   const auto document = KOREADER_STORE.getMatchMethod() == DocumentMatchMethod::FILENAME
-                            ? KOReaderDocumentId::calculateFromFilename(path)
-                            : KOReaderDocumentId::calculate(path);
+                            ? KOReaderDocumentId::calculateFromFilename(bookPath)
+                            : KOReaderDocumentId::calculate(bookPath);
   if (document.empty()) return false;
-  const auto result = ReadingSyncUpload::extras(path, document);
+  const auto result = ReadingSyncUpload::extras(bookPath, document);
+  if (sentAny)
+    *sentAny = result.stats == StatsUploadClient::Result::Ok || result.clippings == StatsUploadClient::Result::Ok;
   recordExtras(result.stats == StatsUploadClient::Result::Ok, result.clippings == StatsUploadClient::Result::Ok,
                StatsUploadClient::failed(result.stats), StatsUploadClient::failed(result.clippings));
   return result.success();
 }
 
-void StatsUploadActivity::uploadFolderBook() {
-  std::string path;
-  const auto next = folderBooks->next(path);
-  if (next == FolderBookIterator::Result::Done) {
-    finishUpload();
-    return;
-  }
-  if (next == FolderBookIterator::Result::Error) {
-    fail(tr(STR_FOLDER_SYNC_READ_FAILED));
-    return;
-  }
-  if (next != FolderBookIterator::Result::Book) return;
-  if (requestUpdateAndWait() != RequestUpdateResult::Rendered) {
-    fail(tr(STR_SYNC_FAILED_MSG));
-    return;
-  }
+void StatsUploadActivity::syncEpub(std::string&& bookPath) {
   {
     // Rebuild missing metadata (for example after moving a book into Read),
     // but release it before the child makes TLS requests.
-    auto epub = makeUniqueNoThrow<Epub>(path, "/.crosspoint");
+    auto epub = makeUniqueNoThrow<Epub>(bookPath, "/.crosspoint");
     if (!epub) {
       fail(tr(STR_KOREADER_SYNC_LOW_MEMORY));
       return;
@@ -303,10 +311,10 @@ void StatsUploadActivity::uploadFolderBook() {
     EpubReaderUtils::Progress saved;
     if (!EpubReaderUtils::loadProgress(*epub, saved) || !saved.hasPageCount || saved.pageCount < 1 ||
         saved.pageNumber >= saved.pageCount) {
-      LOG_INF("StatsSync", "Skipping EPUB progress without usable saved position: %s", path.c_str());
+      LOG_INF("StatsSync", "Skipping EPUB progress without usable saved position: %s", bookPath.c_str());
       epub.reset();
-      if (!uploadFolderExtras(path)) {
-        failBook(std::move(path));
+      if (!uploadBookExtras(bookPath)) {
+        failBook(std::move(bookPath));
         return;
       }
       {
@@ -316,15 +324,21 @@ void StatsUploadActivity::uploadFolderBook() {
       requestUpdate();
       return;
     }
+    // Refresh the panel only for books that will reach the network, not for
+    // every unread EPUB in a large Library.
+    if (requestUpdateAndWait() != RequestUpdateResult::Rendered) {
+      fail(tr(STR_SYNC_FAILED_MSG));
+      return;
+    }
     if (!epub->load(true, true, Epub::XLocationLoadMode::Skip, true) || saved.spineIndex < 0 ||
         saved.spineIndex >= epub->getSpineItemsCount()) {
       epub.reset();
-      uploadFolderExtras(path);
-      failBook(std::move(path));
+      uploadBookExtras(bookPath);
+      failBook(std::move(bookPath));
       return;
     }
   }
-  auto sync = makeUniqueNoThrow<KOReaderSyncActivity>(renderer, mappedInput, path, KOREADER_STORE.getMatchMethod(),
+  auto sync = makeUniqueNoThrow<KOReaderSyncActivity>(renderer, mappedInput, bookPath, KOREADER_STORE.getMatchMethod(),
                                                       SETTINGS.orientation, true, false);
   if (!sync) {
     fail(tr(STR_KOREADER_SYNC_LOW_MEMORY));
@@ -358,9 +372,15 @@ void StatsUploadActivity::uploadFolderBook() {
 void StatsUploadActivity::loop() {
   if (InputReleaseGuard::consumeInitialRelease(mappedInput, MappedInputManager::Button::Confirm, initialConfirm))
     return;
+  // A single book, or a bulk sync the caller already confirmed: nothing to ask.
+  if (autoStart && state == State::Ready) {
+    start();
+    return;
+  }
   if (mappedInput.wasPressed(MappedInputManager::Button::Back) ||
       TouchHeaderBackButton::wasTapped(mappedInput, renderer)) {
-    finishAfterBackPress();
+    mappedInput.suppressNextBackRelease();
+    leave();
     return;
   }
   if (state == State::Ready || state == State::BookFailed) {
@@ -384,9 +404,8 @@ void StatsUploadActivity::loop() {
       }
     }
   } else if (state == State::Uploading) {
-    // One request per loop permits cancellation between books. No background
+    // One book per loop permits cancellation between books. No background
     // task or persistent upload queue can start networking outside this action.
-    if (folder.empty()) requestUpdateAndWait();
     uploadNext();
   }
 }
@@ -394,61 +413,44 @@ void StatsUploadActivity::loop() {
 void StatsUploadActivity::render(RenderLock&&) {
   renderer.clearScreen();
   const auto header = TouchHeaderBackButton::headerRect(renderer, mappedInput);
-  const char* heading =
-      state == State::BookFailed ? message.c_str() : (folder.empty() ? tr(STR_STATS_UPLOAD) : tr(STR_FOLDER_SYNC));
+  const char* heading = state == State::BookFailed ? message.c_str() : title();
   if (mappedInput.hasTouchHardware())
     TouchHeaderBackButton::draw(renderer, header, heading, false);
   else
     GUI.drawHeader(renderer, header, heading);
   const auto area = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
   const int y = area.y + area.height / 3;
-  const char* text = state == State::Ready
-                         ? (folder.empty() ? tr(STR_STATS_UPLOAD_CONFIRM) : tr(STR_FOLDER_SYNC_CONFIRM))
-                     : state == State::Uploading  ? tr(STR_LOADING)
-                     : state == State::BookFailed ? tr(STR_SYNC_FAILED_MSG)
-                                                  : message.c_str();
+  const bool asking = state == State::Ready && !autoStart;
+  const char* text = asking ? (scope == Scope::Library ? tr(STR_SYNC_ALL_CONFIRM) : tr(STR_FOLDER_SYNC_CONFIRM))
+                     : state == State::Ready || state == State::Uploading ? tr(STR_LOADING)
+                     : state == State::BookFailed                         ? tr(STR_SYNC_FAILED_MSG)
+                                                                          : message.c_str();
   UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, y, text, 3, true, EpdFontFamily::REGULAR, 4);
-  if (state == State::Ready) {
-    const auto url = folder.empty() ? KOREADER_STORE.getBaseUrl() : folder + "\n" + KOREADER_STORE.getBaseUrl();
+  if (state == State::Ready && autoStart) {
+    // About to connect; there are no results to show yet.
+  } else if (asking) {
+    const auto url = scope == Scope::Library ? KOREADER_STORE.getBaseUrl() : path + "\n" + KOREADER_STORE.getBaseUrl();
     UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, y + 80, url.c_str(), 3, true,
                                      EpdFontFamily::REGULAR, 4);
   } else {
     char counts[160];
-    if (folder.empty())
-      snprintf(counts, sizeof(counts), tr(STR_STATS_UPLOAD_COUNTS), globalUploaded ? 1u : 0u,
-               static_cast<unsigned>(uploaded), static_cast<unsigned>(skipped));
-    else
-      snprintf(counts, sizeof(counts), tr(STR_FOLDER_SYNC_COUNTS), static_cast<unsigned>(uploaded),
-               static_cast<unsigned>(skipped), static_cast<unsigned>(failed));
-    if (folder.empty()) {
-      char* countLine = counts;
-      const int countLineHeight = renderer.getLineHeight(UI_10_FONT_ID) + 4;
-      for (int line = 0; line < 3; ++line) {
-        char* nextLine = std::strchr(countLine, '\n');
-        if (nextLine) *nextLine = '\0';
-        UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, y + 80 + line * countLineHeight, countLine, 1,
-                                         true, EpdFontFamily::REGULAR, 4);
-        if (!nextLine) break;
-        countLine = nextLine + 1;
-      }
-    } else {
-      UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, y + 80, counts, 3, true, EpdFontFamily::REGULAR,
-                                       4);
-    }
-    if (!folder.empty()) {
-      char extras[240];
-      snprintf(extras, sizeof(extras), "%s: %s\n%s: %u (%u %s)\n%s: %u (%u %s)", tr(STR_ALL_TIME_STATS),
-               StatsUploadClient::resultString(globalResult), tr(STR_READING_STATS),
-               static_cast<unsigned>(statsUploaded), static_cast<unsigned>(statsFailed), tr(STR_FAILED_LOWER),
-               tr(STR_CLIPPINGS), static_cast<unsigned>(clippingsUploaded), static_cast<unsigned>(clippingsFailed),
-               tr(STR_FAILED_LOWER));
-      UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, y + 140, extras, 6, true, EpdFontFamily::REGULAR,
-                                       4);
-    }
+    snprintf(counts, sizeof(counts), tr(STR_FOLDER_SYNC_COUNTS), static_cast<unsigned>(uploaded),
+             static_cast<unsigned>(skipped), static_cast<unsigned>(failed));
+    UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, y + 80, counts, 3, true, EpdFontFamily::REGULAR, 4);
+    char statsCount[48];
+    char clippingsCount[48];
+    const char* statsText =
+        ReadingSyncUpload::countLabel(statsCount, sizeof(statsCount), statsUploaded, statsFailed, false);
+    const char* clippingsText =
+        ReadingSyncUpload::countLabel(clippingsCount, sizeof(clippingsCount), clippingsUploaded, clippingsFailed, true);
+    char extras[240];
+    snprintf(extras, sizeof(extras), "%s: %s\n%s: %s\n%s: %s", tr(STR_ALL_TIME_STATS),
+             ReadingSyncUpload::statusLabel(globalResult, false), tr(STR_READING_STATS), statsText, tr(STR_CLIPPINGS),
+             clippingsText);
+    UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, y + 140, extras, 6, true, EpdFontFamily::REGULAR,
+                                     4);
   }
-  const char* action = state == State::Ready        ? (folder.empty() ? tr(STR_UPLOAD) : tr(STR_SYNC_PROGRESS))
-                       : state == State::BookFailed ? tr(STR_SKIP_BOOK)
-                                                    : "";
+  const char* action = asking ? tr(STR_SYNC) : state == State::BookFailed ? tr(STR_SKIP_BOOK) : "";
   if (action[0] && mappedInput.hasTouchHardware()) {
     const auto layout =
         TouchActionButtons::vertical(Rect{area.x + 20, area.y + area.height - 80, area.width - 40, 56}, 1);

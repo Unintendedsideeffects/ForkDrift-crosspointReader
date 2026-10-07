@@ -32,7 +32,8 @@ void draw(GfxRenderer& renderer, const Rect& header, const char* title, bool rea
 void draw(GfxRenderer& renderer, freeink::ui::GfxRendererTarget& target, const Rect& header, const char* title,
           bool readerContext, int rightReserve = 0, const char* subtitle = nullptr,
           int verticalOffset = TITLE_VERTICAL_OFFSET, bool showStatus = true);
+// extraRightReserve keeps the title clear of a caller-drawn action left of the status.
 void drawCompact(GfxRenderer& renderer, const char* title, bool readerContext = false, bool showDate = false,
-                 int verticalOffset = TITLE_VERTICAL_OFFSET);
+                 int verticalOffset = TITLE_VERTICAL_OFFSET, int extraRightReserve = 0);
 
 }  // namespace TouchHeaderBackButton

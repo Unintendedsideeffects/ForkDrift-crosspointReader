@@ -769,7 +769,7 @@ void FileBrowserActivity::showFileActionMenu(const std::string& entry, bool igno
         const auto action = static_cast<FileBrowserAction>(std::get<FileBrowserActionResult>(result.data).action);
         switch (action) {
           case FileBrowserAction::SyncProgress:
-            BookActions::syncProgress(renderer, fullPath, syncReturnResume());
+            BookActions::syncProgress(renderer, mappedInput, fullPath, syncReturnResume());
             requestUpdate();
             return;
           case FileBrowserAction::ToggleBookStatsTracking: {
