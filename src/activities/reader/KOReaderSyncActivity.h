@@ -135,6 +135,7 @@ class KOReaderSyncActivity final : public Activity {
   void performSync();
   void performUpload();
   bool uploadExtras();
+  void formatExtrasResults(char* buffer, size_t capacity) const;
   bool consumeInitialConfirmRelease();
   bool smartSyncEnabled() const;
   void markAutoReturn();

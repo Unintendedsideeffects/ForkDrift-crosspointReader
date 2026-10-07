@@ -81,6 +81,8 @@ void verifyStatsUploadContract() {
     KOREADER_STORE.setCredentials(user, password);
     KOREADER_STORE.setServerUrl(server);
     if (std::getenv("CROSSINK_STATS_TEST_EMPTY_LIBRARY")) {
+      // A custom server starts AUTO (off until probed); the fixture opts in explicitly.
+      KOREADER_STORE.setSyncStats(true);
       global = {};
       global.save();
       if (std::getenv("CROSSINK_STATS_TEST_DAILY")) {

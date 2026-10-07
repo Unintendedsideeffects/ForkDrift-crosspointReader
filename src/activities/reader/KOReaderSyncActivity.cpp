@@ -52,11 +52,13 @@ long displayedTenths(const float percentage) { return std::lround(percentage * 1
 
 // Apply/Upload buttons are pinned above the button hints (or the bottom edge on touch devices) so the
 // progress cards can use the space above them. Rendering and hit testing share this layout.
-TouchActionButtons::Layout resultActionLayout(const Rect& screen, const ThemeMetrics& metrics, const bool hasTouch) {
+TouchActionButtons::Layout resultActionLayout(const GfxRenderer& renderer, const Rect& screen,
+                                              const ThemeMetrics& metrics, const bool hasTouch) {
   constexpr uint8_t buttonCount = 2;
   const int buttonHeight = hasTouch ? TouchActionButtons::kDefaultHeight : RESULT_NON_TOUCH_ACTION_HEIGHT;
   const int buttonGap = hasTouch ? TouchActionButtons::kDefaultGap : RESULT_NON_TOUCH_ACTION_GAP;
-  const int reservedBottom = hasTouch ? metrics.verticalSpacing : metrics.buttonHintsHeight + metrics.verticalSpacing;
+  const int reservedBottom =
+      hasTouch ? metrics.verticalSpacing : UITheme::getButtonHintsReserve(renderer) + metrics.verticalSpacing;
   const int totalHeight = buttonHeight * buttonCount + buttonGap * (buttonCount - 1);
   const Rect container{screen.x + metrics.contentSidePadding, screen.y + screen.height - reservedBottom - totalHeight,
                        std::max(1, screen.width - metrics.contentSidePadding * 2), totalHeight};
@@ -277,6 +279,8 @@ void KOReaderSyncActivity::returnToSource() {
   const PendingOverlayResume& resume = APP_STATE.pendingOverlayResume;
   if (resume.origin == PendingOverlayOrigin::FileBrowser && resume.valid()) {
     activityManager.goToFileBrowser(resume.fileBrowserPath);
+  } else if (resume.origin == PendingOverlayOrigin::Library && resume.valid()) {
+    activityManager.goToLibrary();
   } else {
     activityManager.goToReader(epubPath, false, false, true);
   }
@@ -697,10 +701,25 @@ ProgressSyncResult KOReaderSyncActivity::syncResult() const {
           StatsUploadClient::failed(extrasResult.clippings)};
 }
 
+void KOReaderSyncActivity::formatExtrasResults(char* buffer, const size_t capacity) const {
+  // Folder runs report overall stats once in their own summary, not per book.
+  if (includeGlobalStats)
+    snprintf(buffer, capacity, "%s: %s\n%s: %s\n%s: %s", tr(STR_ALL_TIME_STATS),
+             ReadingSyncUpload::statusLabel(globalStatsResult, false), tr(STR_READING_STATS),
+             ReadingSyncUpload::statusLabel(extrasResult.stats, false), tr(STR_CLIPPINGS),
+             ReadingSyncUpload::statusLabel(extrasResult.clippings, true));
+  else
+    snprintf(buffer, capacity, "%s: %s\n%s: %s", tr(STR_READING_STATS),
+             ReadingSyncUpload::statusLabel(extrasResult.stats, false), tr(STR_CLIPPINGS),
+             ReadingSyncUpload::statusLabel(extrasResult.clippings, true));
+}
+
 bool KOReaderSyncActivity::uploadExtras() {
   if (extrasAttempted) return !StatsUploadClient::failed(globalStatsResult) && extrasResult.success();
   extrasAttempted = true;
-  if (!KOREADER_STORE.getSyncStats() && !KOREADER_STORE.getSyncClippings()) return true;
+  // An unknown server still needs a probe before AUTO choices can be decided.
+  const bool mayProbe = KOREADER_STORE.needsServerProbe();
+  if (!mayProbe && !KOREADER_STORE.getSyncStats() && !KOREADER_STORE.getSyncClippings()) return true;
   {
     RenderLock lock(*this);
     state = UPLOADING;
@@ -710,6 +729,9 @@ bool KOReaderSyncActivity::uploadExtras() {
   if (requestUpdateAndWait() != RequestUpdateResult::Rendered) {
     LOG_ERR("KOSync", "Cannot render extras upload screen");
   }
+  // Probe only after the EPUB is released: TLS needs the heap it was holding.
+  if (mayProbe) ReadingSyncUpload::refreshServerSupport();
+  if (!KOREADER_STORE.getSyncStats() && !KOREADER_STORE.getSyncClippings()) return true;
   if (includeGlobalStats && KOREADER_STORE.getSyncStats()) globalStatsResult = ReadingSyncUpload::globalStats();
   extrasResult = ReadingSyncUpload::extras(epubPath, documentHash);
   if (!StatsUploadClient::failed(globalStatsResult) && extrasResult.success()) return true;
@@ -799,8 +821,7 @@ void KOReaderSyncActivity::onExit() {
 
   if (wifiActivated && !folderSync) {
     wifiOff();
-    if (APP_STATE.pendingOverlayResume.origin == PendingOverlayOrigin::FileBrowser &&
-        APP_STATE.pendingOverlayResume.valid()) {
+    if (APP_STATE.pendingOverlayResume.returnsToBookList()) {
       silentRestart();
     } else {
       silentRestartToReader(true);
@@ -814,9 +835,8 @@ void KOReaderSyncActivity::render(RenderLock&&) {
   auto metrics = UITheme::getInstance().getMetrics();
   Rect screen = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
 
-  const Rect header{screen.x, screen.y + metrics.topPadding, screen.width,
-                    TouchHeaderBackButton::height(metrics, mappedInput)};
-  const std::string heading = folderSync ? epubPath.substr(epubPath.find_last_of('/') + 1) : tr(STR_KOREADER_SYNC);
+  const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput, screen);
+  const std::string heading = folderSync ? epubPath.substr(epubPath.find_last_of('/') + 1) : tr(STR_SYNC_BOOK);
   if (mappedInput.hasTouchHardware()) {
     TouchHeaderBackButton::draw(renderer, header, heading.c_str(), true);
   } else {
@@ -844,7 +864,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
 
   if (state == SHOWING_RESULT) {
     const bool hasTouch = mappedInput.hasTouchHardware();
-    top = screen.y + metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput) + metrics.verticalSpacing;
+    top = TouchHeaderBackButton::contentTop(renderer, mappedInput, screen.y) + metrics.verticalSpacing;
     renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_PROGRESS_FOUND), true, EpdFontFamily::BOLD);
     top += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing;
 
@@ -886,7 +906,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
       drawProgressCard(renderer, Rect{contentX, top + cardHeight + cardGap, contentWidth, cardHeight}, cards[1]);
     }
 
-    const auto actions = resultActionLayout(screen, metrics, hasTouch);
+    const auto actions = resultActionLayout(renderer, screen, metrics, hasTouch);
     const char* actionLabels[] = {tr(STR_APPLY_REMOTE), tr(STR_UPLOAD_LOCAL)};
     TouchActionButtons::draw(renderer, actions, actionLabels, selectedOption, selectedOption, UI_10_FONT_ID);
 
@@ -918,6 +938,13 @@ void KOReaderSyncActivity::render(RenderLock&&) {
     UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top,
                               state == UPLOAD_COMPLETE ? tr(STR_UPLOAD_SUCCESS) : tr(STR_ALREADY_SYNCED), true,
                               EpdFontFamily::BOLD);
+    // Same per-data lines as the failure and bulk result screens.
+    const Rect textArea{screen.x + metrics.contentSidePadding, screen.y, screen.width - metrics.contentSidePadding * 2,
+                        screen.height};
+    char results[240];
+    formatExtrasResults(results, sizeof(results));
+    UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top + 60, results, 6, true,
+                                     EpdFontFamily::REGULAR, 4);
 
     const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_DONE), "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
@@ -935,10 +962,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
 
     if (extrasAttempted) {
       char results[240];
-      snprintf(results, sizeof(results), "%s: %s\n%s: %s\n%s: %s", tr(STR_ALL_TIME_STATS),
-               StatsUploadClient::resultString(globalStatsResult), tr(STR_READING_STATS),
-               StatsUploadClient::resultString(extrasResult.stats), tr(STR_CLIPPINGS),
-               StatsUploadClient::resultString(extrasResult.clippings));
+      formatExtrasResults(results, sizeof(results));
       UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top + 120, results, 6, true,
                                        EpdFontFamily::REGULAR, 4);
     }
@@ -962,8 +986,7 @@ void KOReaderSyncActivity::loop() {
 
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect screen = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
-  const Rect header{screen.x, screen.y + metrics.topPadding, screen.width,
-                    TouchHeaderBackButton::height(metrics, mappedInput)};
+  const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput, screen);
   if (TouchHeaderBackButton::wasTapped(mappedInput, header)) {
     returnToSource();
     return;
@@ -1020,7 +1043,7 @@ void KOReaderSyncActivity::loop() {
     };
 
     {
-      const auto actions = resultActionLayout(screen, metrics, mappedInput.hasTouchHardware());
+      const auto actions = resultActionLayout(renderer, screen, metrics, mappedInput.hasTouchHardware());
       const Rect& first = actions.buttons[0];
       int touchedOption = -1;
       const auto touch = mappedInput.rowTouch(touchedOption, first.y, actions.buttons[1].y - first.y, actions.count,

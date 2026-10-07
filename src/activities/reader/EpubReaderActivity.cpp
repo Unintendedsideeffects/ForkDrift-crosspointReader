@@ -4,6 +4,7 @@
 #include <BidiUtils.h>
 #include <Epub/Page.h>
 #include <Epub/PageCountEstimator.h>
+#include <Epub/SpineSizeLookup.h>
 #include <Epub/blocks/TextBlock.h>
 #include <Epub/hyphenation/Hyphenator.h>
 #include <FontCacheManager.h>
@@ -1962,7 +1963,8 @@ void EpubReaderActivity::handleBookStatsReturn(const bool returnToReaderMenu) {
     pendingReadFolderMove = false;
   }
   resumeReadingPaceTimer("book_stats_return");
-  if (returnToReaderMenu) {
+  // Sync All Books from the stats screen replaces the reader right after this.
+  if (returnToReaderMenu && !activityManager.hasDeferredReplace()) {
     openReaderMenu();
   } else {
     requestUpdate();
@@ -2001,17 +2003,9 @@ void EpubReaderActivity::initializeCompletionPromptTrigger() {
     targetSize = bookSize - 1;
   }
 
-  int targetSpineIndex = spineCount - 1;
-  size_t prevCumulative = 0;
-
-  for (int i = 0; i < spineCount; i++) {
-    const size_t cumulative = epub->getCumulativeSpineItemSize(i);
-    if (targetSize <= cumulative) {
-      targetSpineIndex = i;
-      prevCumulative = (i > 0) ? epub->getCumulativeSpineItemSize(i - 1) : 0;
-      break;
-    }
-  }
+  const int targetSpineIndex =
+      findSpineForSize(spineCount, targetSize, [this](int index) { return epub->getCumulativeSpineItemSize(index); });
+  const size_t prevCumulative = targetSpineIndex > 0 ? epub->getCumulativeSpineItemSize(targetSpineIndex - 1) : 0;
 
   const size_t cumulative = epub->getCumulativeSpineItemSize(targetSpineIndex);
   const size_t spineSize = (cumulative > prevCumulative) ? (cumulative - prevCumulative) : 0;
@@ -3665,18 +3659,9 @@ void EpubReaderActivity::jumpToPercent(float percent) {
     return;
   }
 
-  int targetSpineIndex = spineCount - 1;
-  size_t prevCumulative = 0;
-
-  for (int i = 0; i < spineCount; i++) {
-    const size_t cumulative = epub->getCumulativeSpineItemSize(i);
-    if (targetSize <= cumulative) {
-      // Found the spine item containing the absolute position.
-      targetSpineIndex = i;
-      prevCumulative = (i > 0) ? epub->getCumulativeSpineItemSize(i - 1) : 0;
-      break;
-    }
-  }
+  const int targetSpineIndex =
+      findSpineForSize(spineCount, targetSize, [this](int index) { return epub->getCumulativeSpineItemSize(index); });
+  const size_t prevCumulative = targetSpineIndex > 0 ? epub->getCumulativeSpineItemSize(targetSpineIndex - 1) : 0;
 
   const size_t cumulative = epub->getCumulativeSpineItemSize(targetSpineIndex);
   const size_t spineSize = (cumulative > prevCumulative) ? (cumulative - prevCumulative) : 0;
@@ -7491,7 +7476,7 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int fo
   const bool foregroundBlack = ReaderUtils::readerForegroundBlack();
   const bool grayscaleAvailable = !renderer.isDisplayInverted();
   bool needsImageGrayscale = grayscaleAvailable && SETTINGS.imageGrayscale && pageHasImages;
-  bool needsTextGrayscale = grayscaleAvailable && SETTINGS.textAntiAliasing && foregroundBlack &&
+  bool needsTextGrayscale = grayscaleAvailable && SETTINGS.textAntiAliasing && foregroundBlack && page->hasText() &&
                             !sdFontSystem.fontUsesMonochromeRaster(renderer, fontId, SETTINGS.sdFontFamilyName);
   const int contentBottom = renderer.getScreenHeight() - orientedMarginBottom;
 

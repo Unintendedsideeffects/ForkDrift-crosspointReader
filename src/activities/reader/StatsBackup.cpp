@@ -247,7 +247,7 @@ bool backupGlobalStats(const bool manual, char* outFileName, const size_t outFil
   return true;
 }
 
-int pruneBackups(const int keep) {
+int pruneBackups(int keep) {
   if (keep < 0) return 0;
 
   FsFile dir = Storage.open(BACKUP_DIR);
@@ -272,23 +272,37 @@ int pruneBackups(const int keep) {
   }
   dir.close();
 
-  if (static_cast<int>(names.size()) <= keep) return 0;
-
-  std::sort(names.begin(), names.end(),
-            [](const BackupName& lhs, const BackupName& rhs) { return strcmp(lhs.value, rhs.value) < 0; });
-
+  // Daily, dated manual, and clockless backups have independent retention:
+  // dates and sequence numbers cannot establish a shared oldest-first order.
+  // Partition in place so the C3 needs no second list allocation.
+  keep = std::max(keep, 1);
+  const auto dailyEnd = std::partition(names.begin(), names.end(), [](const BackupName& name) {
+    return strlen(name.value) == 20 && name.value[10] == '-' && name.value[13] == '-';
+  });
+  const auto manualEnd = std::partition(
+      dailyEnd, names.end(), [](const BackupName& name) { return strncmp(name.value, "stats_backup_", 13) != 0; });
   int removed = 0;
-  const int toRemove = static_cast<int>(names.size()) - keep;
-  for (int i = 0; i < toRemove; ++i) {
-    char path[128];
-    const int pathWritten = snprintf(path, sizeof(path), "%s/%s", BACKUP_DIR, names[static_cast<size_t>(i)].value);
-    if (pathWritten <= 0 || static_cast<size_t>(pathWritten) >= sizeof(path)) continue;
-    if (Storage.remove(path)) {
-      removed++;
-    } else {
-      LOG_ERR(LOG_TAG, "Failed to prune stats backup: %s", path);
+  const auto pruneSet = [&](const auto begin, const auto end) {
+    if (end - begin <= keep) return;
+    std::sort(begin, end, [](const BackupName& lhs, const BackupName& rhs) {
+      // Numbered backups cross the three-digit boundary at 1000.
+      const size_t leftLength = strlen(lhs.value), rightLength = strlen(rhs.value);
+      return leftLength != rightLength ? leftLength < rightLength : strcmp(lhs.value, rhs.value) < 0;
+    });
+    for (auto it = begin; it != end - keep; ++it) {
+      char path[128];
+      const int written = snprintf(path, sizeof(path), "%s/%s", BACKUP_DIR, it->value);
+      if (written <= 0 || static_cast<size_t>(written) >= sizeof(path)) continue;
+      if (Storage.remove(path)) {
+        ++removed;
+      } else {
+        LOG_ERR(LOG_TAG, "Failed to prune stats backup: %s", path);
+      }
     }
-  }
+  };
+  pruneSet(names.begin(), dailyEnd);
+  pruneSet(dailyEnd, manualEnd);
+  pruneSet(manualEnd, names.end());
 
   if (removed > 0) {
     LOG_DBG(LOG_TAG, "Pruned %d old stats backup(s)", removed);

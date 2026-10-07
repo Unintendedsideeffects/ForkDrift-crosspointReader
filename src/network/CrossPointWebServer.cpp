@@ -126,6 +126,10 @@ bool isWebSettingAvailable(const SettingInfo& setting) {
     return false;
   }
 
+  if (setting.nameId == StrId::STR_MENU_NAVIGATION && !deviceHasFrontButtons()) {
+    return false;
+  }
+
   const bool isTouchSetting =
       setting.nameId == StrId::STR_TOUCH_READER_CONTROLS || setting.nameId == StrId::STR_DISABLE_TOUCHSCREEN ||
       setting.nameId == StrId::STR_NEXT_PAGE || setting.nameId == StrId::STR_PREV_PAGE ||
@@ -456,7 +460,7 @@ bool CrossPointWebServer::dropUploadIfCancelled() const {
   return true;
 }
 
-void CrossPointWebServer::abortUpload(UploadState& state) const {
+void CrossPointWebServer::abortUpload(UploadState& state, const char* error) const {
   state.success = false;
   state.bufferPos = 0;
   if (state.file) {
@@ -464,10 +468,12 @@ void CrossPointWebServer::abortUpload(UploadState& state) const {
     String filePath = state.path;
     if (!filePath.endsWith("/")) filePath += "/";
     filePath += state.fileName;
-    Storage.remove(filePath.c_str());
+    if (!Storage.remove(filePath.c_str())) {
+      LOG_ERR("WEB", "Could not remove incomplete upload: %s", filePath.c_str());
+    }
   }
-  state.error = "Upload aborted";
-  LOG_DBG("WEB", "Upload aborted");
+  state.error = error;
+  LOG_DBG("WEB", "%s", error);
 }
 
 void CrossPointWebServer::abortFontUpload() {
@@ -1032,8 +1038,8 @@ void CrossPointWebServer::handleUpload(UploadState& state) const {
         // Flush buffer when full
         if (state.bufferPos >= UploadState::UPLOAD_BUFFER_SIZE) {
           if (!flushUploadBuffer(state)) {
-            state.error = "Failed to write to SD card - disk may be full";
-            state.file.close();
+            LOG_ERR("WEB", "Failed to flush upload buffer");
+            abortUpload(state, "Failed to write to SD card - disk may be full");
             return;
           }
         }
@@ -1049,10 +1055,22 @@ void CrossPointWebServer::handleUpload(UploadState& state) const {
     }
     if (state.file) {
       // Flush any remaining buffered data
-      if (!flushUploadBuffer(state)) {
-        state.error = "Failed to write final data to SD card";
+      if (!flushUploadBuffer(state) || !state.file.sync()) {
+        LOG_ERR("WEB", "Failed to finish upload");
+        abortUpload(state, "Failed to write final data to SD card");
+        return;
       }
-      state.file.close();
+      if (!state.file.close()) {
+        state.error = "Failed to close file on SD card";
+        String filePath = state.path;
+        if (!filePath.endsWith("/")) filePath += "/";
+        filePath += state.fileName;
+        if (!Storage.remove(filePath.c_str())) {
+          LOG_ERR("WEB", "Could not remove incomplete upload: %s", filePath.c_str());
+        }
+        LOG_ERR("WEB", "%s", state.error.c_str());
+        return;
+      }
 
       if (state.error.isEmpty()) {
         state.success = true;
@@ -1753,6 +1771,7 @@ void CrossPointWebServer::handlePostSettings() {
   int applied = 0;
   uint8_t CrossPointSettings::* twoFingerSwipeEdited = nullptr;
 
+  std::unique_lock<std::mutex> settingsLock(SETTINGS.getMutex());
   for (const auto& s : settings) {
     if (!s.key || !isWebSettingAvailable(s)) continue;
     if (!doc[s.key].is<JsonVariant>()) continue;
@@ -1823,7 +1842,13 @@ void CrossPointWebServer::handlePostSettings() {
   if (twoFingerSwipeEdited != nullptr) {
     CrossPointSettings::normalizeTwoFingerSwipeActions(SETTINGS, twoFingerSwipeEdited);
   }
-  SETTINGS.saveToFile();
+  settingsLock.unlock();  // saveToFile acquires the settings mutex itself.
+  if (!SETTINGS.saveToFile()) {
+    LOG_ERR("WEB", "Failed to save settings");
+    server->send(500, "text/plain", "Failed to save settings");
+    sdFontSystem.releaseRegistry();
+    return;
+  }
 
   LOG_DBG("WEB", "Applied %d setting(s)", applied);
   server->send(200, "text/plain", String("Applied ") + String(applied) + " setting(s)");

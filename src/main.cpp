@@ -11,6 +11,7 @@
 #include <HalDisplay.h>
 #include <HalGPIO.h>
 #include <HalPowerManager.h>
+#include <HalScreenCalibration.h>
 #include <HalStorage.h>
 #include <HalSystem.h>
 #include <HalTiltSensor.h>
@@ -1172,6 +1173,7 @@ void setupDisplayAndFonts(const bool seamless, const bool loadReaderResources, c
   display.begin(seamless);
 #endif
   renderer.begin();
+  renderer.setViewableInsets(HalScreenCalibration::load());
   display.setInverted(SETTINGS.screenInverted != 0);
   // FreeInkUI headers need more than 4 KB once the render loop and nested
   // screen builders share the task stack. Some S3 network flows can render a
@@ -1569,9 +1571,12 @@ void setup() {
       silentRestart();
     }
   } else if (resume == BootResume::Silent && snapshotTarget == SILENT_REBOOT_TARGET_HOME &&
-             APP_STATE.pendingOverlayResume.origin == PendingOverlayOrigin::FileBrowser &&
-             APP_STATE.pendingOverlayResume.valid()) {
-    activityManager.goToFileBrowser(APP_STATE.pendingOverlayResume.fileBrowserPath);
+             APP_STATE.pendingOverlayResume.returnsToBookList()) {
+    if (APP_STATE.pendingOverlayResume.origin == PendingOverlayOrigin::Library) {
+      activityManager.goToLibrary();
+    } else {
+      activityManager.goToFileBrowser(APP_STATE.pendingOverlayResume.fileBrowserPath);
+    }
   } else if (resume == BootResume::Silent && snapshotTarget == SILENT_REBOOT_TARGET_READER &&
              !APP_STATE.openEpubPath.empty()) {
     activityManager.goToReader(APP_STATE.openEpubPath, false, false, cleanImageBaseOnEntry);

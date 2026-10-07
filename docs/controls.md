@@ -184,7 +184,7 @@ Available actions include:
 - Guide Dots
 - Focus Reading
 - Toggle Bookmark
-- Sync Progress
+- Sync Book
 - Mark as Finished
 - Reading Stats
 - Take Screenshot

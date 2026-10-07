@@ -219,6 +219,12 @@ class Page {
                        [](const std::unique_ptr<PageElement>& el) { return el->getTag() == TAG_PageImage; });
   }
 
+  bool hasText() const {
+    return std::any_of(elements.begin(), elements.end(), [](const std::unique_ptr<PageElement>& element) {
+      return element->getTag() == TAG_PageLine || element->getTag() == TAG_PageTableFragment;
+    });
+  }
+
   void prepareImageCaches() const;
 
   bool hasImagesNeedingDecode() const {

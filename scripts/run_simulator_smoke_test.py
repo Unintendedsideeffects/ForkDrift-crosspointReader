@@ -134,6 +134,9 @@ def run_smoke(args: argparse.Namespace) -> int:
             env["CROSSINK_SIMULATOR_SMOKE_FILENAME_FONT"] = args.filename_font_family
         if args.filename_font_captures:
             env["CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_CAPTURES"] = str(Path(args.filename_font_captures).resolve())
+        if args.screen_calibration:
+            env["CROSSINK_SIMULATOR_SMOKE_CALIBRATION"] = "1"
+            env["CROSSINK_CALIBRATION_PATH"] = str(temp_root / "device-calibration.nvs")
         if args.status_bar_lifecycle:
             env["CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_LIFECYCLE"] = "1"
         if args.status_bar_feature:
@@ -164,6 +167,9 @@ def run_smoke(args: argparse.Namespace) -> int:
         env["CROSSINK_SIMULATOR_SMOKE_TEST"] = "1"
         env["CROSSINK_SIMULATOR_SMOKE_BOOK"] = simulator_book_path
         env["CROSSINK_SIMULATOR_SMOKE_PAGE_TURNS"] = str(args.page_turns)
+        if args.context_menu_sync_return:
+            env["CROSSINK_SIMULATOR_SMOKE_CONTEXT_MENU_SYNC_RETURN"] = args.context_menu_sync_return
+            env["CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_RETURN"] = "1"
         if args.file_browser_sync_return:
             env["CROSSINK_SIMULATOR_SMOKE_FILE_BROWSER_SYNC_RETURN"] = "1"
         if args.frontlight_sync:
@@ -174,12 +180,17 @@ def run_smoke(args: argparse.Namespace) -> int:
             capture_dir = Path(args.frontlight_captures).resolve()
             capture_dir.mkdir(parents=True, exist_ok=True)
             env["CROSSINK_SIMULATOR_SMOKE_FRONTLIGHT_CAPTURES"] = str(capture_dir)
+        if args.opds_catalog:
+            env["CROSSINK_SIMULATOR_SMOKE_OPDS_CATALOG"] = "1"
         if args.support_export:
             env["CROSSINK_SIMULATOR_SMOKE_SUPPORT_EXPORT"] = "1"
         if args.about:
             env["CROSSINK_SIMULATOR_SMOKE_ABOUT"] = "1"
         if args.about_captures:
             env["CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_CAPTURES"] = str(Path(args.about_captures).resolve())
+        if args.sync_server_captures:
+            env["CROSSINK_SIMULATOR_SMOKE_STATUS_BAR_CAPTURES"] = str(Path(args.sync_server_captures).resolve())
+            env["CROSSINK_SIMULATOR_SMOKE_SYNC_SERVER_CAPTURES"] = "1"
         if args.home_themes:
             env["CROSSINK_SIMULATOR_SMOKE_HOME_THEMES"] = "1"
         if args.theme:
@@ -234,6 +245,7 @@ def parse_args() -> argparse.Namespace:
                         help="PlatformIO simulator environment to build and run")
     parser.add_argument("--status-bar-lifecycle", action="store_true", help="Exercise reader settings return and reflow")
     parser.add_argument("--status-bar-feature", action="store_true", help="Check status bar visibility, independent sizes, disk reload and rendered theme/orientation matrix")
+    parser.add_argument("--screen-calibration", action="store_true", help="Check screen calibration button/touch editing, save, cancel, reset and rotations")
     parser.add_argument("--status-bar-captures", help="Directory for status bar feature framebuffer captures (PGM)")
     parser.add_argument("--language-file", help="SD language YAML installed before boot for localized smoke checks")
     parser.add_argument("--language-installer", help="Native I18nIntegrationTool built from the same source (required with --language-file)")
@@ -248,13 +260,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=int, help="Seconds before the simulator run is treated as hung (default: 120, or 180 for frontlight layout, about, support export, or filename font checks)")
     parser.add_argument("--page-turns", type=int, default=2, help="Number of EPUB page-forward taps to run")
     parser.add_argument("--theme", choices=sorted(THEMES), help="UI theme to use during the smoke test")
+    parser.add_argument("--context-menu-sync-return", choices=["file-browser", "library"], help="Check context-menu sync return across network reboots")
     parser.add_argument("--file-browser-sync-return", action="store_true", help="Check browser sync return across network reboots")
     parser.add_argument("--frontlight-sync", action="store_true", help="Check frontlight sync outside the reader with stats enabled and disabled (X4 Pro)")
     parser.add_argument("--frontlight-layout", action="store_true", help="Check frontlight drawer bounds and handle taps across scales, orientations and themes (X4 Pro)")
     parser.add_argument("--frontlight-captures", help="Directory for frontlight layout framebuffer captures (PGM)")
+    parser.add_argument("--opds-catalog", action="store_true", help="Check OPDS catalog release and download return flows")
     parser.add_argument("--support-export", action="store_true", help="Check support export privacy, scopes, cancellation and failure preservation")
     parser.add_argument("--about", action="store_true", help="Check About navigation, paging and read-only snapshots across scales/orientations")
     parser.add_argument("--about-captures", help="Directory for About framebuffer captures (PGM)")
+    parser.add_argument("--sync-server-captures", help="Directory for Sync Server settings captures (PGM)")
     parser.add_argument("--home-themes", action="store_true", help="Compare drawer theme changes with fresh Home renders (X4 Pro)")
     parser.add_argument("--no-build", dest="build", action="store_false", help="Run the existing simulator binary")
     parser.add_argument("--window", dest="headless", action="store_false", help="Show the SDL window instead of using dummy video")

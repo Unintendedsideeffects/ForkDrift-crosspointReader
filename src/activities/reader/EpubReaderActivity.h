@@ -40,6 +40,7 @@ struct ToastRect {
 class EpubReaderActivity final : public Activity {
 #ifdef SIMULATOR
   friend struct EpubReaderCompletionSmokeTest;
+  friend struct ScreenCalibrationSmokeTest;
 #endif
  public:
   bool usesFullScreenReaderVerticalSwipes() const override { return true; }

@@ -21,8 +21,10 @@ struct Layout {
 Layout layout(const Rect& header);
 int height(const ThemeMetrics& metrics, const MappedInputManager& input);
 Rect headerRect(const GfxRenderer& renderer, const MappedInputManager& input);
+Rect headerRect(const GfxRenderer& renderer, const MappedInputManager& input, const Rect& area);
 Rect standardHeaderRect(const GfxRenderer& renderer);
 Rect compactHeaderRect(const GfxRenderer& renderer);
+int contentTop(const GfxRenderer& renderer, const MappedInputManager& input, int areaTop = 0);
 bool wasTapped(const MappedInputManager& input, const Rect& header);
 bool wasTapped(const MappedInputManager& input, const GfxRenderer& renderer);
 void draw(GfxRenderer& renderer, const Rect& header, const char* title, bool readerContext, int rightReserve = 0,
@@ -30,7 +32,8 @@ void draw(GfxRenderer& renderer, const Rect& header, const char* title, bool rea
 void draw(GfxRenderer& renderer, freeink::ui::GfxRendererTarget& target, const Rect& header, const char* title,
           bool readerContext, int rightReserve = 0, const char* subtitle = nullptr,
           int verticalOffset = TITLE_VERTICAL_OFFSET, bool showStatus = true);
+// extraRightReserve keeps the title clear of a caller-drawn action left of the status.
 void drawCompact(GfxRenderer& renderer, const char* title, bool readerContext = false, bool showDate = false,
-                 int verticalOffset = TITLE_VERTICAL_OFFSET);
+                 int verticalOffset = TITLE_VERTICAL_OFFSET, int extraRightReserve = 0);
 
 }  // namespace TouchHeaderBackButton

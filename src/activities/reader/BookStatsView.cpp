@@ -15,6 +15,7 @@
 #include "components/TouchHeaderBackButton.h"
 #include "components/TouchRegistry.h"
 #include "components/UITheme.h"
+#include "components/icons/libraryIcons.h"
 #include "components/icons/listIcons.h"
 #include "fontIds.h"
 
@@ -130,23 +131,48 @@ bool statsLandscape(const GfxRenderer& renderer) {
 
 Rect statsSafeArea(const GfxRenderer& renderer, const bool showButtonHints) {
   return UITheme::getInstance().getScreenSafeArea(
-      renderer, showButtonHints && UITheme::getInstance().getMetrics().buttonHintsHeight > 0, false);
+      renderer, showButtonHints && UITheme::getButtonHintsReserve(renderer) > 0, false);
 }
 
 int statsAvailableHeight(const GfxRenderer& renderer, const bool showButtonHints) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   return statsSafeArea(renderer, showButtonHints).height - metrics.topPadding - metrics.verticalSpacing -
-         (showButtonHints && metrics.buttonHintsHeight > 0 ? kStatsButtonHintTopGap : 0);
+         (showButtonHints && UITheme::getButtonHintsReserve(renderer) > 0 ? kStatsButtonHintTopGap : 0);
 }
 
+constexpr int kSyncIconGap = 8;
+
 void drawStatsHeader(GfxRenderer& renderer, const MappedInputManager* mappedInput, const char* title,
-                     const bool showButtonHints, const bool showDate = false) {
+                     const bool showButtonHints, const bool showDate = false, const bool showSyncAction = false) {
   if (mappedInput && mappedInput->hasTouchHardware()) {
-    TouchHeaderBackButton::drawCompact(renderer, title, false, showDate);
+    const freeink::Icon& icon = icon_refresh_cw_32;
+    TouchHeaderBackButton::drawCompact(renderer, title, false, showDate, TouchHeaderBackButton::TITLE_VERTICAL_OFFSET,
+                                       showSyncAction ? icon.w + kSyncIconGap : 0);
+    if (showSyncAction) {
+      // Sits left of the battery, on the back button's row; touch has no Confirm hint.
+      const auto& metrics = UITheme::getInstance().getMetrics();
+      const Rect header = TouchHeaderBackButton::compactHeaderRect(renderer);
+      Rect back = TouchHeaderBackButton::layout(header).iconRect;
+      // Same downward shift the back chevron and title get, so the icon clears the status row.
+      const int iconBottom = back.y + (back.height + TouchHeaderBackButton::ICON_SIZE) / 2;
+      back.y += std::clamp(TouchHeaderBackButton::TITLE_VERTICAL_OFFSET, 0,
+                           std::max(0, header.y + header.height - iconBottom));
+      const int x =
+          header.x + header.width - metrics.batteryWidth - 2 * metrics.headerSidePadding - icon.w - kSyncIconGap / 2;
+      const freeink::ui::BitmapRef bitmap{icon.bits, icon.w, icon.h, freeink::ui::BitmapFormat::Mask1, true};
+      freeink::ui::forEachBitmapPixel(
+          freeink::ui::Rect{static_cast<int16_t>(x), static_cast<int16_t>(back.y), static_cast<int16_t>(icon.w),
+                            static_cast<int16_t>(back.height)},
+          bitmap, freeink::ui::BitmapMode::Center,
+          [&renderer](const int16_t px, const int16_t py) { renderer.drawPixel(px, py, true); });
+      // A finger-sized target around the 32px glyph.
+      TouchRegistry::getInstance().add(Rect(x - kSyncIconGap, header.y, icon.w + kSyncIconGap * 2, header.height),
+                                       BookStatsTouchTarget::SyncAll, TouchRegistry::Item);
+    }
   } else {
     const auto safe = statsSafeArea(renderer, showButtonHints);
     const auto& metrics = UITheme::getInstance().getMetrics();
-    const Rect header{safe.x, safe.y + metrics.topPadding, safe.width, CompactHeader::height(metrics)};
+    const Rect header = UITheme::getHeaderRect(renderer, CompactHeader::height(metrics), safe);
     CompactHeader::drawTitle(renderer, title, showDate, &header);
   }
 }
@@ -554,7 +580,8 @@ void renderPerBookStatsPage(GfxRenderer& renderer, const MappedInputManager* map
   const int availableHeight = statsAvailableHeight(renderer, showButtonHints);
   int topCardH = layout.topCardH;
   const int headerHeight = statsHeaderHeight(metrics, layout, mappedInput);
-  int y = safe.y + metrics.topPadding + headerHeight + layout.topGap;
+  const auto header = UITheme::getHeaderRect(renderer, headerHeight, safe);
+  int y = header.y + header.height + layout.topGap;
 
   if (showRtcStats && statsLandscape(renderer)) {
     // Keep every statistic visible: the main card and the two existing charts
@@ -625,21 +652,22 @@ void renderPerBookStatsPage(GfxRenderer& renderer, const MappedInputManager* map
 
 void renderGlobalStatsPage(GfxRenderer& renderer, const MappedInputManager* mappedInput, const char* screenTitle,
                            const GlobalReadingStats& stats, const bool showButtonHints, const bool showMoreButton,
-                           const DailyReadingStats::Summary* daily) {
+                           const DailyReadingStats::Summary* daily, const bool showSyncAction) {
   renderer.clearScreen();
   const bool showRtcStats = shouldShowRtcBasedStats();
   // With the daily row the card has three data rows, so it is sized exactly like the per-book card.
   const bool showDailyRow = showRtcStats && daily != nullptr;
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto& layout = getStatsLayout(renderer, mappedInput, !showDailyRow, showButtonHints, showRtcStats);
-  drawStatsHeader(renderer, mappedInput, screenTitle, showButtonHints, false);
+  drawStatsHeader(renderer, mappedInput, screenTitle, showButtonHints, false, showSyncAction);
   const auto safe = statsSafeArea(renderer, showButtonHints);
   const int cardX = safe.x + metrics.contentSidePadding;
   const int cardW = safe.width - metrics.contentSidePadding * 2;
   const int availableHeight = statsAvailableHeight(renderer, showButtonHints);
   int globalCardH = showDailyRow ? layout.topCardH : layout.globalCardH;
   const int headerHeight = statsHeaderHeight(metrics, layout, mappedInput);
-  int y = safe.y + metrics.topPadding + headerHeight + layout.topGap;
+  const auto header = UITheme::getHeaderRect(renderer, headerHeight, safe);
+  int y = header.y + header.height + layout.topGap;
 
   if (showRtcStats && statsLandscape(renderer)) {
     // Keep every statistic visible: the main card and the two existing charts
@@ -696,8 +724,8 @@ void renderGlobalStatsPage(GfxRenderer& renderer, const MappedInputManager* mapp
 
   if (showButtonHints && mappedInput) {
     const auto labels =
-        mappedInput->mapLabels(mappedInput->withBackArrow(tr(STR_EXIT)), "", mappedInput->withBackArrow(tr(STR_BACK)),
-                               showMoreButton ? tr(STR_MORE) : "");
+        mappedInput->mapLabels(mappedInput->withBackArrow(tr(STR_EXIT)), showSyncAction ? tr(STR_SYNC) : "",
+                               mappedInput->withBackArrow(tr(STR_BACK)), showMoreButton ? tr(STR_MORE) : "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
   }
 }
@@ -706,11 +734,12 @@ void renderNoRtcCombinedStatsPage(GfxRenderer& renderer, const MappedInputManage
                                   const std::string& bookTitle, const BookReadingStats& bookStats,
                                   const float progressPercent, const bool hasEstimatedTimeLeft,
                                   const uint32_t estimatedTimeLeftSeconds, const GlobalReadingStats& deviceStats,
-                                  const GlobalReadingStats* allDevicesStats, const bool showButtonHints) {
+                                  const GlobalReadingStats* allDevicesStats, const bool showButtonHints,
+                                  const bool showSyncAction) {
   renderer.clearScreen();
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto& layout = getNoRtcCombinedLayout(renderer, mappedInput, showButtonHints, allDevicesStats != nullptr);
-  drawStatsHeader(renderer, mappedInput, tr(STR_READING_STATS), showButtonHints, false);
+  drawStatsHeader(renderer, mappedInput, tr(STR_READING_STATS), showButtonHints, false, showSyncAction);
   const auto safe = statsSafeArea(renderer, showButtonHints);
   const int cardX = safe.x + metrics.contentSidePadding;
   const int cardW = safe.width - metrics.contentSidePadding * 2;
@@ -728,7 +757,8 @@ void renderNoRtcCombinedStatsPage(GfxRenderer& renderer, const MappedInputManage
   const int deviceCardH = layout.globalCardH + deviceExtraHeight;
   const int allDevicesCardH = layout.globalCardH + allDevicesExtraHeight;
 
-  int y = safe.y + metrics.topPadding + headerHeight + layout.topGap;
+  const auto header = UITheme::getHeaderRect(renderer, headerHeight, safe);
+  int y = header.y + header.height + layout.topGap;
   if (statsLandscape(renderer)) {
     const int columnW = (cardW - layout.cardGap * (visibleCardCount - 1)) / visibleCardCount;
     const int cardH = std::max(layout.globalCardH, availableHeight - headerHeight - layout.topGap);
@@ -756,7 +786,8 @@ void renderNoRtcCombinedStatsPage(GfxRenderer& renderer, const MappedInputManage
   }
 
   if (showButtonHints && mappedInput) {
-    const auto labels = mappedInput->mapLabels(mappedInput->withBackArrow(tr(STR_BACK)), "", "", "");
+    const auto labels =
+        mappedInput->mapLabels(mappedInput->withBackArrow(tr(STR_BACK)), showSyncAction ? tr(STR_SYNC) : "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
   }
 }

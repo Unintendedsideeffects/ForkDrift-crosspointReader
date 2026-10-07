@@ -106,23 +106,26 @@ add_subdirectory(library_index_file)
 add_subdirectory(content_opf_parser)
 add_subdirectory(library_builder)
 add_subdirectory(library_input_buffer)
-
 add_subdirectory(library_recent_order)
 add_subdirectory(scalable_fonts)
-
 add_subdirectory(glyph_bitmap)
-
 add_subdirectory(daily_reading_stats)
-
 add_subdirectory(opds_server_store)
 add_subdirectory(support_info)
-
+add_subdirectory(log_retention)
+add_subdirectory(screen_calibration)
+add_subdirectory(keyboard_tips)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_test(NAME WebDavGetRegression
   COMMAND ${Python3_EXECUTABLE} ${REPO_ROOT}/scripts/test_webdav_get.py)
 add_test(NAME ImageProbeFramebufferRegression
   COMMAND ${Python3_EXECUTABLE} ${REPO_ROOT}/scripts/test_image_probe_framebuffer.py)
 add_subdirectory(language_cache)
-add_subdirectory(log_retention)
 
 add_subdirectory(hyphenation_pack)
+add_test(NAME UploadFailureRegression
+  COMMAND ${Python3_EXECUTABLE} ${REPO_ROOT}/test/scripts/test_upload_cancellation.py)
+add_test(NAME StorageAndBrowsingRegression
+  COMMAND ${Python3_EXECUTABLE} ${REPO_ROOT}/test/scripts/test_storage_and_browsing_ports.py)
+add_test(NAME OptimizerCacheSeedRegression
+  COMMAND ${Python3_EXECUTABLE} ${REPO_ROOT}/test/scripts/test_optimizer_cache_seed.py)

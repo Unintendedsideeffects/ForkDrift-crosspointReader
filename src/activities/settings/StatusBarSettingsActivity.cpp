@@ -13,6 +13,7 @@
 #include "MappedInputManager.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
+#include "components/UiAppHelpers.h"
 #include "fontIds.h"
 
 namespace fui = freeink::ui;
@@ -420,15 +421,16 @@ void StatusBarSettingsActivity::buildSettingsScreen(UiApp::ScreenType& screen) {
   const auto orientation = renderer.getOrientation();
   const bool landscape = orientation == GfxRenderer::Orientation::LandscapeClockwise ||
                          orientation == GfxRenderer::Orientation::LandscapeCounterClockwise;
-  const int hintGutterWidth = landscape ? metrics.buttonHintsHeight : 0;
+  const int hintGutterWidth = landscape ? UITheme::getButtonHintsReserve(renderer) : 0;
   const int contentX = orientation == GfxRenderer::Orientation::LandscapeClockwise ? hintGutterWidth : 0;
   const int contentWidth = pageWidth - hintGutterWidth;
   const Rect header = settingsHeaderRect();
   const int contentTop = header.y + header.height + metrics.verticalSpacing;
   const int bottomPreviewHeight = view == View::Bottom ? previewHeight() : 0;
-  const int contentHeight =
-      pageHeight - contentTop - metrics.buttonHintsHeight - bottomPreviewHeight - metrics.verticalSpacing * 2;
-  screen.setContentMargin(
+  const int contentHeight = pageHeight - contentTop - UITheme::getButtonHintsReserve(renderer) - bottomPreviewHeight -
+                            metrics.verticalSpacing * 2;
+  setUiContentMargin(
+      screen, renderer,
       fui::Insets{static_cast<int16_t>(contentTop), static_cast<int16_t>(pageWidth - (contentX + contentWidth)),
                   static_cast<int16_t>(pageHeight - (contentTop + contentHeight)), static_cast<int16_t>(contentX)});
 
@@ -618,8 +620,9 @@ void StatusBarSettingsActivity::render(RenderLock&&) {
   const auto orientation = renderer.getOrientation();
   const bool landscape = orientation == GfxRenderer::Orientation::LandscapeClockwise ||
                          orientation == GfxRenderer::Orientation::LandscapeCounterClockwise;
-  const int contentX = orientation == GfxRenderer::Orientation::LandscapeClockwise ? metrics.buttonHintsHeight : 0;
-  const int contentWidth = pageWidth - (landscape ? metrics.buttonHintsHeight : 0);
+  const int contentX =
+      orientation == GfxRenderer::Orientation::LandscapeClockwise ? UITheme::getButtonHintsReserve(renderer) : 0;
+  const int contentWidth = pageWidth - (landscape ? UITheme::getButtonHintsReserve(renderer) : 0);
   const char* headerTitle = displayContext       ? tr(STR_STATUS_BAR)
                             : view == View::Root ? tr(STR_STATUS_BARS)
                             : view == View::Top  ? tr(STR_TOP_STATUS_BAR)
@@ -641,7 +644,7 @@ void StatusBarSettingsActivity::render(RenderLock&&) {
       GUI.drawHeader(renderer, Rect{contentX, header.y, contentWidth, header.height}, headerTitle, nullptr,
                      readerContext, showHeaderStatus);
     }
-    app.render();
+    renderUiApp(app, uiTarget);
     if (!listNav.consumeRebuildNeeded()) break;
     if (pass == 7) LOG_DBG("SBS", "Status bar list did not settle after 8 passes");
   }
@@ -652,9 +655,9 @@ void StatusBarSettingsActivity::render(RenderLock&&) {
     const int barHeight = displayContext
                               ? UITheme::getDisplayStatusBarTextHeight(renderer) + ReaderStatusBarConfig::TOP_TEXT_INSET
                               : UITheme::getReaderStatusBarHeight(position, renderer);
-    const int previewOriginY = view == View::Top
-                                   ? topPreviewOriginY()
-                                   : pageHeight - metrics.buttonHintsHeight - metrics.verticalSpacing - barHeight;
+    const int previewOriginY =
+        view == View::Top ? topPreviewOriginY()
+                          : pageHeight - UITheme::getButtonHintsReserve(renderer) - metrics.verticalSpacing - barHeight;
     const int labelY = view == View::Top ? previewOriginY + barHeight + 9
                                          : previewOriginY - renderer.getLineHeight(UI_10_FONT_ID) - 18;
     renderer.drawText(UI_10_FONT_ID, contentX + metrics.contentSidePadding, labelY, tr(STR_PREVIEW));

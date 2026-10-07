@@ -12,6 +12,7 @@
 
 #include "CrossPointSettings.h"
 #include "activities/Activity.h"
+#include "components/MenuNavigationNote.h"
 #include "components/OptionPopup.h"
 #include "util/ButtonNavigator.h"
 
@@ -23,6 +24,7 @@ enum class SettingAction {
   RemapFrontButtonsReader,
   CustomiseStatusBar,
   DisplayStatusBar,
+  ScreenCalibration,
   KOReaderSync,
   OPDSBrowser,
   DisplaySleepScreen,
@@ -288,6 +290,7 @@ class SettingsActivity final : public Activity {
   bool filenameFontSelectionPending = false;
 #endif
   StrId languageError = StrId::_COUNT;
+  MenuNavigationNote menuNavigationNote;
 
   static constexpr int categoryCount = 4;
   static const StrId categoryNames[categoryCount];
@@ -346,6 +349,7 @@ class SettingsActivity final : public Activity {
   const std::vector<std::string>& simulatorFilenameFontNames() const { return filenameFontNames; }
   bool simulatorOptionPopupActive() const { return optionPopup.isActive(); }
 #endif
+  freeink::ui::Rect simulatorSafeRect() const { return app.device().safeRect(); }
 #endif
   void onEnter() override;
   void onExit() override;

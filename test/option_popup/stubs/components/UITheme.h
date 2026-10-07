@@ -11,13 +11,23 @@ class ThemeStub {
  public:
   void drawButtonHints(const GfxRenderer&, const char*, const char*, const char*, const char*, bool) const {}
   void drawOptionPopup(const GfxRenderer&, const char*, OptionLabels, const int selectedIndex, bool, const char*,
-                       const char*, bool, int, const char*, const char*, const int firstOptionIndex) const {
+                       const char*, bool, int, const char* noteLabel, const char* noteBody, const int firstOptionIndex,
+                       const char* secondNoteLabel = nullptr, const char* secondNoteBody = nullptr) const {
     lastSelectedIndex = selectedIndex;
     lastFirstOptionIndex = firstOptionIndex;
+    lastNoteLabel = noteLabel ? noteLabel : "";
+    lastNoteBody = noteBody ? noteBody : "";
+    lastSecondNoteLabel = secondNoteLabel ? secondNoteLabel : "";
+    lastSecondNoteBody = secondNoteBody ? secondNoteBody : "";
   }
 
   int getLastSelectedIndex() const { return lastSelectedIndex; }
   int getLastFirstOptionIndex() const { return lastFirstOptionIndex; }
+
+  mutable std::string lastNoteLabel;
+  mutable std::string lastNoteBody;
+  mutable std::string lastSecondNoteLabel;
+  mutable std::string lastSecondNoteBody;
 
  private:
   mutable int lastSelectedIndex = -1;

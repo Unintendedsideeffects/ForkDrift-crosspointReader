@@ -17,6 +17,13 @@ enum class KOReaderSyncBehavior : uint8_t {
   SMART = 1,           // Auto-resolve simple cases using furthest progress.
 };
 
+// Whether the configured server accepts the CrossPoint stats and clippings API.
+enum class SyncServerSupport : uint8_t {
+  UNKNOWN = 0,      // Not probed yet for the current server URL.
+  SUPPORTED = 1,    // CrossPoint Sync (or compatible) extensions are available.
+  UNSUPPORTED = 2,  // KOSync-only server: progress sync only.
+};
+
 /**
  * Singleton class for storing KOReader sync credentials on the SD card.
  * Passwords are XOR-obfuscated with the device's unique hardware MAC address
@@ -30,8 +37,15 @@ class KOReaderCredentialStore : public PersistableStore<KOReaderCredentialStore>
   std::string password;
   std::string serverUrl;                                            // Custom sync server URL (empty = default)
   DocumentMatchMethod matchMethod = DocumentMatchMethod::FILENAME;  // Default to filename for compatibility
-  bool syncStats = false;
-  bool syncClippings = false;
+  // AUTO follows server support; ON/OFF record an explicit user choice.
+  enum class IncludeChoice : uint8_t { AUTO = 0, OFF = 1, ON = 2 };
+  IncludeChoice statsChoice = IncludeChoice::AUTO;
+  IncludeChoice clippingsChoice = IncludeChoice::AUTO;
+  SyncServerSupport serverSupport = SyncServerSupport::UNKNOWN;
+  std::string serverSupportUrl;  // Base URL serverSupport was learned for.
+  // Not persisted: the base URL already probed this boot, so an inconclusive
+  // answer (timeout, 5xx, proxy) costs one request per session, not one per book.
+  mutable std::string probedUrl;
   bool sendMetadata = false;  // Send document metadata with progress sync
   KOReaderSyncBehavior syncBehavior = KOReaderSyncBehavior::SMART;
 
@@ -90,22 +104,22 @@ class KOReaderCredentialStore : public PersistableStore<KOReaderCredentialStore>
     return sendMetadata;
   }
 
-  void setSyncStats(bool enabled) {
-    ensureLoaded();
-    syncStats = enabled;
-  }
-  bool getSyncStats() const {
-    ensureLoaded();
-    return syncStats;
-  }
-  void setSyncClippings(bool enabled) {
-    ensureLoaded();
-    syncClippings = enabled;
-  }
-  bool getSyncClippings() const {
-    ensureLoaded();
-    return syncClippings;
-  }
+  // Effective "include in sync" values. AUTO is on only for servers known to
+  // support the extensions; an unsupported server always reads as off.
+  void setSyncStats(bool enabled);
+  bool getSyncStats() const;
+  void setSyncClippings(bool enabled);
+  bool getSyncClippings() const;
+
+  // Server capability for the current base URL. The default server is always
+  // CrossPoint Sync; other servers stay UNKNOWN until probed or an upload answers.
+  SyncServerSupport getServerSupport() const;
+  // Persists only when the value changes for the current server.
+  void setServerSupport(SyncServerSupport support);
+  // True when an AUTO choice is waiting on an unknown server's capability
+  // and this server has not been probed yet this session.
+  bool needsServerProbe() const;
+  void markServerProbed() const;
 
   // Sync behavior
   void setSyncBehavior(KOReaderSyncBehavior behavior);

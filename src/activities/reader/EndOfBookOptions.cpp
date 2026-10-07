@@ -146,10 +146,12 @@ void EndOfBookOptions::buildListScreen(UiApp::ScreenType& screen) {
   const int titleY = safe.y + safe.height / 8;
   const int subtitleY = titleY + renderer.getLineHeight(UI_12_FONT_ID) + metrics.verticalSpacing;
   const int listTop = subtitleY + renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing * 2;
-  screen.setContentMargin(fui::Insets{
-      static_cast<int16_t>(listTop), static_cast<int16_t>(renderer.getScreenWidth() - (safe.x + safe.width)),
-      static_cast<int16_t>(renderer.getScreenHeight() - (safe.y + safe.height) + metrics.verticalSpacing),
-      static_cast<int16_t>(safe.x)});
+  setUiContentMargin(
+      screen, renderer,
+      fui::Insets{static_cast<int16_t>(listTop),
+                  static_cast<int16_t>(renderer.getScreenWidth() - (safe.x + safe.width)),
+                  static_cast<int16_t>(renderer.getScreenHeight() - (safe.y + safe.height) + metrics.verticalSpacing),
+                  static_cast<int16_t>(safe.x)});
 
   fui::ListProps props;
   props.items = rowItems.data();
@@ -187,8 +189,7 @@ void EndOfBookOptions::render(GfxRenderer& renderer, const MappedInputManager& i
   // orientation can have changed since construction (reader menu rotate), so re-derive
   // the device context before laying out.
   uiReady.store(false, std::memory_order_release);
-  app.setDevice(uiTarget.deviceContext());
-  app.render();
+  renderUiApp(app, uiTarget);
   uiReady.store(true, std::memory_order_release);
 
   const auto labels =

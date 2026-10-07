@@ -53,6 +53,9 @@ class BookStatsActivity final : public Activity {
   bool showPreviousStatsPage();
   bool showNextStatsPage();
   bool selectEditFieldFromTouchTarget(int touchTarget);
+  // "This Device" totals sync from here; needs a configured sync account.
+  bool canSyncAllBooks() const;
+  void startSyncAllBooks();
 
  public:
   BookStatsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const std::string& title,

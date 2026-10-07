@@ -13,6 +13,7 @@
 #include <new>
 
 #include "FixedArenaAllocator.h"
+#include "FontByteDigest.h"
 #include "ScalableFontSizing.h"
 
 namespace {
@@ -36,32 +37,6 @@ constexpr uint32_t SfntChecksumMagic = 0xB1B0AFBAu;
 constexpr uint32_t GlyphIdMarker = 0x80000000u;
 
 constexpr size_t alignSize(size_t value, size_t alignment) { return (value + alignment - 1) & ~(alignment - 1); }
-
-struct SfntChecksum {
-  void add(const uint8_t byte) {
-    word = (word << 8) | byte;
-    ++wordBytes;
-    ++totalBytes;
-    if (wordBytes == 4) {
-      if (totalBytes == 4) signature = word;
-      sum += word;
-      word = 0;
-      wordBytes = 0;
-    }
-  }
-
-  uint32_t value() const { return wordBytes ? sum + (word << (8 * (4 - wordBytes))) : sum; }
-  bool isSingleFaceSfnt() const {
-    return totalBytes >= 12 && (signature == 0x00010000u || signature == 0x4F54544Fu || signature == 0x74727565u ||
-                                signature == 0x74797031u);
-  }
-
-  uint32_t sum = 0;
-  uint32_t word = 0;
-  uint32_t signature = 0;
-  size_t totalBytes = 0;
-  uint8_t wordBytes = 0;
-};
 
 int32_t round26_6To16(int32_t value) {
   const int64_t wide = value;
@@ -324,14 +299,9 @@ struct FontByteSummary {
 };
 
 FontByteSummary summarizeFontBytes(const uint8_t* bytes, const size_t size) {
-  uint32_t contentHash = 2166136261u ^ HalScalableFont::renderingRevision();
-  SfntChecksum checksum;
-  for (size_t i = 0; i < size; ++i) {
-    contentHash = (contentHash ^ bytes[i]) * 16777619u;
-    checksum.add(bytes[i]);
-  }
-  const uint32_t checksumValue = checksum.value();
-  return {contentHash, checksumValue, checksum.isSingleFaceSfnt() && checksumValue != SfntChecksumMagic};
+  FontByteDigest digest(HalScalableFont::renderingRevision());
+  digest.add(bytes, size);
+  return {digest.hash(), digest.checksum(), digest.integrityMismatch()};
 }
 }  // namespace
 void ScalableFontAccess::configure(SemaphoreHandle_t mutex) { renderMutex = mutex; }
@@ -601,8 +571,7 @@ bool HalScalableFont::openFile(const char* path, size_t remainingBytes,
   }
   uint32_t contentHash = 0;
   if (mode != FileMode::Temporary) {
-    contentHash = 2166136261u ^ renderingRevision();
-    SfntChecksum checksum;
+    FontByteDigest digest(renderingRevision());
     if (!file.seekSet(0)) {
       LOG_ERR("TTF", "Cannot rewind streamed font: %s", path);
       file.close();
@@ -623,10 +592,7 @@ bool HalScalableFont::openFile(const char* path, size_t remainingBytes,
         file.close();
         return false;
       }
-      for (size_t i = 0; i < count; ++i) {
-        contentHash = (contentHash ^ chunk[i]) * 16777619u;
-        checksum.add(chunk[i]);
-      }
+      digest.add(chunk.get(), count);
       if (offset < streamPrefixSize_)
         std::memcpy(streamPrefix_.get() + offset, chunk.get(), std::min(count, streamPrefixSize_ - offset));
       offset += count;
@@ -638,8 +604,9 @@ bool HalScalableFont::openFile(const char* path, size_t remainingBytes,
       }
 #endif
     }
-    integrityChecksum_ = checksum.value();
-    integrityMismatch_ = checksum.isSingleFaceSfnt() && integrityChecksum_ != SfntChecksumMagic;
+    contentHash = digest.hash();
+    integrityChecksum_ = digest.checksum();
+    integrityMismatch_ = digest.integrityMismatch();
     if (integrityMismatch_)
       LOG_INF("TTF", "Font integrity warning: %s checksum=%08X expected=%08X", path, unsigned(integrityChecksum_),
               unsigned(SfntChecksumMagic));

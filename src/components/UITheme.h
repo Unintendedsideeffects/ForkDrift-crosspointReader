@@ -66,6 +66,11 @@ class UITheme {
   static int getTopStatusBarInset(const GfxRenderer& renderer);
   // Absolute screen origin shared by Home, menu headers, and the reader.
   static int getTopStatusBarY(const GfxRenderer& renderer);
+  static int getButtonHintsReserve(const GfxRenderer& renderer);
+  static int getButtonHintsBottomInset(const GfxRenderer& renderer);
+  static int getHintSafeX(const GfxRenderer& renderer, int x, int width);
+  static Rect getHeaderRect(const GfxRenderer& renderer, int height);
+  static Rect getHeaderRect(const GfxRenderer& renderer, int height, const Rect& area);
 
  private:
   // Global text-size changes select an immutable variant, rather than rewriting

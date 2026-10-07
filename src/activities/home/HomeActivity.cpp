@@ -1019,6 +1019,7 @@ std::unique_ptr<Activity> HomeActivity::createFrontlightReadingStatsActivity() {
 }
 
 void HomeActivity::onFrontlightPanelOpened() {
+  insetsBeforeFrontlightPanel = renderer.getViewableInsets();
   themeBeforeFrontlightPanel = SETTINGS.uiTheme;
   scaleBeforeFrontlightPanel = SETTINGS.uiScale;
   filenameFontBeforeFrontlightPanel = filenameFontSystem.fingerprint();
@@ -1030,7 +1031,8 @@ void HomeActivity::onFrontlightPanelOpened() {
 void HomeActivity::onFrontlightPanelClosed() {
   if (themeBeforeFrontlightPanel != SETTINGS.uiTheme || scaleBeforeFrontlightPanel != SETTINGS.uiScale ||
       filenameFontBeforeFrontlightPanel != filenameFontSystem.fingerprint() ||
-      statusSizeBeforeFrontlightPanel != SETTINGS.displayStatusBarTextSize) {
+      statusSizeBeforeFrontlightPanel != SETTINGS.displayStatusBarTextSize ||
+      insetsBeforeFrontlightPanel != renderer.getViewableInsets()) {
     // Drawer Settings keeps Home alive. Recreate its theme-specific controls,
     // cover snapshots and thumbnail loading state through the normal lifecycle.
     // ActivityManager owns the replacement; its heavy caches allocate onEnter,
@@ -1041,7 +1043,7 @@ void HomeActivity::onFrontlightPanelClosed() {
       activityManager.replaceActivity(std::move(home));
       return;
     }
-    LOG_ERR("HOME", "Cannot rebuild Home after theme, UI scale, status text size or filename font change");
+    LOG_ERR("HOME", "Cannot rebuild Home after layout change");
   }
   globalStats = GlobalReadingStats::load();
   showAllDevicesStats = GlobalReadingStats::hasSyncedStats();
@@ -2221,7 +2223,7 @@ void HomeActivity::render(RenderLock&&) {
     const int menuRows = std::min(4, static_cast<int>(menuItems.size()));
     const int requiredMenuHeight =
         metrics.verticalSpacing + menuRows * metrics.menuRowHeight + std::max(0, menuRows - 1) * metrics.menuSpacing;
-    const int maxCoverHeight = pageHeight - metrics.buttonHintsHeight - metrics.homeTopPadding -
+    const int maxCoverHeight = pageHeight - UITheme::getButtonHintsReserve(renderer) - metrics.homeTopPadding -
                                metrics.homeMenuTopOffset - requiredMenuHeight;
     homeCoverTileHeight = std::clamp(maxCoverHeight, 0, metrics.homeCoverTileHeight);
   }
@@ -2244,7 +2246,7 @@ void HomeActivity::render(RenderLock&&) {
                           hasAnyBookStats(currentBookStats) ? &currentBookStats : nullptr, currentBookProgressPercent);
 
   const int menuStartY = metrics.homeTopPadding + homeCoverTileHeight + metrics.homeMenuTopOffset;
-  const int menuEndY = pageHeight - metrics.buttonHintsHeight;
+  const int menuEndY = pageHeight - UITheme::getButtonHintsReserve(renderer);
   const int menuHeight = std::max(0, menuEndY - menuStartY);
 
   const bool isCarouselTheme =

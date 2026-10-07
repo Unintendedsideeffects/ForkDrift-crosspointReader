@@ -5,6 +5,15 @@ All POD fields are written in the ESP32 little-endian representation used by
 `Serialization.h`; strings are length-prefixed UTF-8 unless a format notes a
 fixed-size char buffer.
 
+## Settings: menu navigation
+
+`menuNavigation` in `/.crosspoint/crossink-settings.json` selects Directional
+(`0`, the default) or Classic (`1`) button navigation in global Settings and
+the EPUB reader menu. This is a global preference, shared with the in-reader
+Controls screen. Missing or invalid values retain the current value, which is
+Directional on startup. The setting uses the existing JSON export/import and
+support-preference paths; no binary cache change or cache reset is required.
+
 ## Settings: status bar visibility and text size
 
 `statusBarTextSize` in the settings JSON selects Small (`0`, Inter 8), Medium
@@ -595,14 +604,19 @@ Binary layout:
 
 ## `section.bin`
 
-### Version 85
+### Version 86
 
-Complete sections use byte `85` and suspended partials use `0xC6`. A little-endian
+Complete sections use byte `86` and suspended partials use `0xC7`. A little-endian
 `u32` hyphenation identity follows `hyphenationEnabled` in the header. It is zero
 when disabled or unavailable, one for built-in English, and a fingerprint of the
 external pack's language, prefix/suffix rules, root offset, size and payload CRC
 otherwise. Storage offsets are excluded. A mismatch rebuilds the section,
 including suspended incremental builds; older full and partial versions rebuild.
+
+Long paragraphs apply initial CSS margin/padding on their first emitted line,
+including incremental flushes. Text fragment bounds are checked on each append.
+Both branch-specific version 85 formats are invalidated to rebuild complete and
+suspended layouts with the combined header and paragraph-spacing rules.
 
 ### Version 84
 
@@ -806,7 +820,7 @@ import std.mem;
 import std.string;
 import std.core;
 
-#define EXPECTED_VERSION 85
+#define EXPECTED_VERSION 86
 #define MAX_STRING_LENGTH 65535
 #define FOOTNOTE_NUMBER_LEN 32
 #define FOOTNOTE_HREF_LEN 96

@@ -116,7 +116,7 @@ float loadEpubSizeProgressPercentFromCachePath(const std::string& cachePath) {
         static_cast<float>(prevChapterSize) + (static_cast<float>(currentChapterSize) * chapterProgress);
     progressPercent = clampProgressPercent((totalProgress / static_cast<float>(bookSize)) * 100.0f);
   }
-  saveCachedEpubPercentToCachePath(cachePath, progressPercent);
+  // Browsing computes a missing percentage in memory; the reader persists it on save.
   return progressPercent;
 }
 
@@ -138,7 +138,7 @@ float loadEpubProgressPercent(const RecentBook& book) {
   const float chapterProgress = static_cast<float>(progress.pageNumber + 1) / static_cast<float>(progress.pageCount);
   const float progressPercent =
       clampProgressPercent(epub.calculateProgress(progress.spineIndex, chapterProgress) * 100.0f);
-  saveCachedEpubPercentToCachePath(epub.getCachePath(), progressPercent);
+  // Leave percentage-cache writes to the reader.
   return progressPercent;
 }
 

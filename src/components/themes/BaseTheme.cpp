@@ -166,8 +166,9 @@ void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
   const int pageHeight = renderer.getScreenHeight();
   constexpr int buttonWidth = 106;
   constexpr int buttonHeight = BaseMetrics::values.buttonHintsHeight;
-  constexpr int buttonY = BaseMetrics::values.buttonHintsHeight;  // Distance from bottom
-  constexpr int textYOffset = 7;                                  // Distance from top of button to text baseline
+  const int buttonY =
+      BaseMetrics::values.buttonHintsHeight + UITheme::getButtonHintsBottomInset(renderer);  // Distance from bottom
+  constexpr int textYOffset = 7;  // Distance from top of button to text baseline
   // Keyed to the portrait panel width: the 528-wide X3 gets more spacing than
   // the 480-wide boards (X4, X4 Pro, and the other 800x480 panels).
   constexpr int narrowButtonPositions[] = {25, 130, 245, 350};
@@ -176,7 +177,7 @@ void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
   const char* labels[] = {btn1, btn2, btn3, btn4};
 
   for (int i = 0; i < 4; i++) {
-    const int x = buttonPositions[i];
+    const int x = UITheme::getHintSafeX(renderer, buttonPositions[i], buttonWidth);
     if (labels[i] != nullptr && labels[i][0] != '\0') {
       TouchRegistry::getInstance().add(Rect{x, pageHeight - buttonY, buttonWidth, buttonHeight}, i,
                                        TouchRegistry::Button);
@@ -190,13 +191,14 @@ void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
   }
 
   renderer.setOrientation(invertText ? GfxRenderer::Orientation::PortraitInverted : GfxRenderer::Orientation::Portrait);
-  const int textY = invertText ? textYOffset : pageHeight - buttonY + textYOffset;
+  const int textY =
+      invertText ? UITheme::getButtonHintsBottomInset(renderer) + textYOffset : pageHeight - buttonY + textYOffset;
 
   for (int i = 0; i < 4; i++) {
     if (labels[i] != nullptr && labels[i][0] != '\0') {
       const int x = buttonPositions[invertText ? 3 - i : i];
       const int textWidth = renderer.getTextWidth(UI_10_FONT_ID, labels[i]);
-      const int textX = x + (buttonWidth - 1 - textWidth) / 2;
+      const int textX = UITheme::getHintSafeX(renderer, x + (buttonWidth - 1 - textWidth) / 2, textWidth);
       renderer.drawText(UI_10_FONT_ID, textX, textY, labels[i]);
     }
   }
@@ -217,7 +219,7 @@ void BaseTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* top
     constexpr int x3ButtonY = 155;
 
     if (topBtn != nullptr && topBtn[0] != '\0') {
-      const int leftX = buttonMargin;
+      const int leftX = UITheme::getHintSafeX(renderer, buttonMargin, buttonWidth);
       renderer.drawRect(leftX, x3ButtonY, buttonWidth, buttonHeight);
       const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, topBtn);
       const int textHeight = renderer.getTextHeight(SMALL_FONT_ID);
@@ -227,7 +229,7 @@ void BaseTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* top
     }
 
     if (bottomBtn != nullptr && bottomBtn[0] != '\0') {
-      const int rightX = screenWidth - buttonMargin - buttonWidth;
+      const int rightX = UITheme::getHintSafeX(renderer, screenWidth - buttonMargin - buttonWidth, buttonWidth);
       renderer.drawRect(rightX, x3ButtonY, buttonWidth, buttonHeight);
       const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, bottomBtn);
       const int textHeight = renderer.getTextHeight(SMALL_FONT_ID);
@@ -237,9 +239,14 @@ void BaseTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* top
     }
   } else {
     // X4 layout: Both buttons stacked on right side
-    constexpr int topButtonY = 345;
+    const auto insets = renderer.getViewableInsets().rotated(static_cast<unsigned>(renderer.getOrientation()));
+    const int topButtonY = renderer.hasCustomViewableInsets()
+                               ? std::clamp(345, static_cast<int>(insets.edges[0]),
+                                            std::max(static_cast<int>(insets.edges[0]),
+                                                     renderer.getScreenHeight() - insets.edges[2] - 2 * buttonHeight))
+                               : 345;
     const char* labels[] = {topBtn, bottomBtn};
-    const int x = screenWidth - buttonMargin - buttonWidth;
+    const int x = UITheme::getHintSafeX(renderer, screenWidth - buttonMargin - buttonWidth, buttonWidth);
 
     if (topBtn != nullptr && topBtn[0] != '\0') {
       renderer.drawLine(x, topButtonY, x + buttonWidth - 1, topButtonY);
@@ -1014,6 +1021,10 @@ void BaseTheme::drawDisplayStatusBar(const GfxRenderer& renderer, const int topY
   ReaderStatusBarContent content;
   content.outsideReader = true;
   content.previewOriginY = topY + UITheme::getTopStatusBarInset(renderer);
+  if (renderer.hasCustomViewableInsets()) {
+    const auto insets = renderer.getViewableInsets().rotated(static_cast<unsigned>(renderer.getOrientation()));
+    content.previewOriginY = std::max(content.previewOriginY, static_cast<int>(insets.edges[0]));
+  }
   const auto config = SETTINGS.displayStatusBar.asReaderConfig();
   drawReaderStatusBar(renderer, ReaderStatusBarPosition::Top, content, &config);
 }
@@ -1044,7 +1055,8 @@ void BaseTheme::drawTextField(const GfxRenderer& renderer, Rect rect, const int 
 void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, OptionLabels options, int selectedIndex,
                                 const bool showConfirmationFooter, const char* cancelLabel, const char* saveLabel,
                                 const bool saveFocused, const int primaryOptionIndex, const char* noteLabel,
-                                const char* noteBody, const int firstOptionIndex) const {
+                                const char* noteBody, const int firstOptionIndex, const char* secondNoteLabel,
+                                const char* secondNoteBody) const {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
@@ -1087,6 +1099,12 @@ void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, 
     const int noteBodyWidth = renderer.getTextWidth(UI_10_FONT_ID, noteBody);
     const int noteWidth = noteLabelWidth + renderer.getSpaceWidth(UI_10_FONT_ID) + noteBodyWidth;
     maxTextWidth = std::max(maxTextWidth, noteWidth);
+    if (secondNoteLabel && secondNoteBody) {
+      const int secondWidth = renderer.getTextWidth(UI_10_FONT_ID, secondNoteLabel, EpdFontFamily::BOLD) +
+                              renderer.getSpaceWidth(UI_10_FONT_ID) +
+                              renderer.getTextWidth(UI_10_FONT_ID, secondNoteBody);
+      maxTextWidth = std::max(maxTextWidth, secondWidth);
+    }
   }
 
   const int optionCount = static_cast<int>(options.size());
@@ -1164,31 +1182,46 @@ void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, 
   y += metrics.optionPopupTitleGap;
 
   if (hasNote) {
-    const int noteContentWidth = std::max(1, dialogW - innerPadding * 2);
-    const std::string noteText = std::string(noteLabel) + " " + noteBody;
-    const auto noteLines = renderer.wrappedText(UI_10_FONT_ID, noteText.c_str(), noteContentWidth, 2);
-    const int labelWidth = renderer.getTextWidth(UI_10_FONT_ID, noteLabel, EpdFontFamily::BOLD);
-    const int spaceWidth = renderer.getSpaceWidth(UI_10_FONT_ID);
-    const std::string labelPrefix = std::string(noteLabel) + " ";
-    for (size_t i = 0; i < noteLines.size(); ++i) {
-      const auto& line = noteLines[i];
-      if (i == 0 && (line == noteLabel || line.rfind(labelPrefix, 0) == 0)) {
-        const std::string bodyLine = line.size() > labelPrefix.size() ? line.substr(labelPrefix.size()) : std::string();
-        const int bodyWidth =
-            bodyLine.empty() ? 0 : spaceWidth + renderer.getTextWidth(UI_10_FONT_ID, bodyLine.c_str());
-        const int lineWidth = labelWidth + bodyWidth;
+    if (secondNoteLabel && secondNoteBody) {
+      const auto drawNoteLine = [&](const char* label, const char* body) {
+        const int labelWidth = renderer.getTextWidth(UI_10_FONT_ID, label, EpdFontFamily::BOLD);
+        const int spaceWidth = renderer.getSpaceWidth(UI_10_FONT_ID);
+        const int lineWidth = labelWidth + spaceWidth + renderer.getTextWidth(UI_10_FONT_ID, body);
         const int noteX = dialogX + (dialogW - lineWidth) / 2;
-        renderer.drawText(UI_10_FONT_ID, noteX, y, noteLabel, true, EpdFontFamily::BOLD);
-        if (!bodyLine.empty()) {
-          renderer.drawText(UI_10_FONT_ID, noteX + labelWidth + spaceWidth, y, bodyLine.c_str());
+        renderer.drawText(UI_10_FONT_ID, noteX, y, label, true, EpdFontFamily::BOLD);
+        renderer.drawText(UI_10_FONT_ID, noteX + labelWidth + spaceWidth, y, body);
+        y += noteLineHeight;
+      };
+      drawNoteLine(noteLabel, noteBody);
+      drawNoteLine(secondNoteLabel, secondNoteBody);
+    } else {
+      const int noteContentWidth = std::max(1, dialogW - innerPadding * 2);
+      const std::string noteText = std::string(noteLabel) + " " + noteBody;
+      const auto noteLines = renderer.wrappedText(UI_10_FONT_ID, noteText.c_str(), noteContentWidth, 2);
+      const int labelWidth = renderer.getTextWidth(UI_10_FONT_ID, noteLabel, EpdFontFamily::BOLD);
+      const int spaceWidth = renderer.getSpaceWidth(UI_10_FONT_ID);
+      const std::string labelPrefix = std::string(noteLabel) + " ";
+      for (size_t i = 0; i < noteLines.size(); ++i) {
+        const auto& line = noteLines[i];
+        if (i == 0 && (line == noteLabel || line.rfind(labelPrefix, 0) == 0)) {
+          const std::string bodyLine =
+              line.size() > labelPrefix.size() ? line.substr(labelPrefix.size()) : std::string();
+          const int bodyWidth =
+              bodyLine.empty() ? 0 : spaceWidth + renderer.getTextWidth(UI_10_FONT_ID, bodyLine.c_str());
+          const int lineWidth = labelWidth + bodyWidth;
+          const int noteX = dialogX + (dialogW - lineWidth) / 2;
+          renderer.drawText(UI_10_FONT_ID, noteX, y, noteLabel, true, EpdFontFamily::BOLD);
+          if (!bodyLine.empty()) {
+            renderer.drawText(UI_10_FONT_ID, noteX + labelWidth + spaceWidth, y, bodyLine.c_str());
+          }
+        } else {
+          const int lineWidth = renderer.getTextWidth(UI_10_FONT_ID, line.c_str());
+          renderer.drawText(UI_10_FONT_ID, dialogX + (dialogW - lineWidth) / 2, y, line.c_str());
         }
-      } else {
-        const int lineWidth = renderer.getTextWidth(UI_10_FONT_ID, line.c_str());
-        renderer.drawText(UI_10_FONT_ID, dialogX + (dialogW - lineWidth) / 2, y, line.c_str());
+        y += noteLineHeight;
       }
-      y += noteLineHeight;
+      y += std::max(0, 2 - static_cast<int>(noteLines.size())) * noteLineHeight;
     }
-    y += std::max(0, 2 - static_cast<int>(noteLines.size())) * noteLineHeight;
 
     const int separatorY = y + metrics.optionPopupTitleGap / 2;
     renderer.drawLine(dialogX + innerPadding, separatorY, dialogX + dialogW - innerPadding, separatorY, true);

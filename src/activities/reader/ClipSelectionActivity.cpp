@@ -31,7 +31,7 @@ bool pageUsesButtonHintBand(GfxRenderer& renderer) {
   renderer.setOrientation(GfxRenderer::Portrait);
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
-  const int hintTop = std::max(0, screenHeight - UITheme::getInstance().getMetrics().buttonHintsHeight);
+  const int hintTop = std::max(0, screenHeight - UITheme::getButtonHintsReserve(renderer));
   const bool foregroundBlack = ReaderUtils::readerForegroundBlack();
   bool hasInk = false;
   for (int y = hintTop; y < screenHeight && !hasInk; ++y) {

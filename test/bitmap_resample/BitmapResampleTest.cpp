@@ -259,3 +259,37 @@ TEST(BitmapResample, RejectsPaletteThatOverlapsPixelData) {
     EXPECT_EQ(bitmap.parseHeaders(), BmpReaderError::FileInvalid);
   }
 }
+
+TEST(BitmapResample, MonochromeExpansionPreservesPalettePixelsAndPadding) {
+  for (const auto palette : {std::pair{0, 255}, std::pair{255, 0}, std::pair{85, 170}, std::pair{170, 170}}) {
+    for (int width : {1, 2, 3, 4, 5, 7, 8, 9, 255, 480, 1448}) {
+      const int stride = (width + 31) / 32 * 4;
+      auto bytes = create24BitBmp(width, 2);
+      bytes.resize(62 + stride * 2);
+      writeLe32(bytes, 2, bytes.size());
+      writeLe32(bytes, 10, 62);
+      writeLe16(bytes, 28, 1);
+      writeLe32(bytes, 34, stride * 2);
+      writeLe32(bytes, 46, 2);
+      for (int c = 0; c < 3; ++c) {
+        bytes[54 + c] = palette.first;
+        bytes[58 + c] = palette.second;
+      }
+      for (int i = 0; i < stride * 2; ++i) bytes[62 + i] = static_cast<uint8_t>(i * 73 + 39);
+      HalFile file(bytes);
+      Bitmap bitmap(file, true);
+      ASSERT_EQ(bitmap.parseHeaders(), BmpReaderError::Ok);
+      std::vector<uint8_t> row((width + 3) / 4, 0xFF), source(stride);
+      for (int y = 0; y < 2; ++y) {
+        ASSERT_EQ(bitmap.readNextRow(row.data(), source.data()), BmpReaderError::Ok);
+        std::vector<uint8_t> expected(row.size(), 0);
+        for (int x = 0; x < width; ++x) {
+          const bool bit = bytes[62 + y * stride + x / 8] & (0x80 >> (x & 7));
+          const uint8_t value = adjustPixel(bit ? palette.second : palette.first) >> 6;
+          expected[x / 4] |= value << (6 - (x & 3) * 2);
+        }
+        EXPECT_EQ(row, expected) << "width=" << width;
+      }
+    }
+  }
+}

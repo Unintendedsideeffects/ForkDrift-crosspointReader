@@ -43,7 +43,7 @@ inline constexpr std::array<StrId, CrossPointSettings::QUICK_ACTION_SLOT_ACTION_
     StrId::STR_TOGGLE_GUIDE_DOTS,
     StrId::STR_TOGGLE_FOCUS_READING,
     StrId::STR_TOGGLE_BOOKMARK,
-    StrId::STR_SYNC_PROGRESS,
+    StrId::STR_SYNC_BOOK,
     StrId::STR_MARK_FINISHED,
     StrId::STR_READING_STATS,
     StrId::STR_SCREENSHOT_BUTTON,

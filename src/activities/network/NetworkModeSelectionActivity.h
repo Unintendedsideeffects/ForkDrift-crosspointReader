@@ -21,7 +21,7 @@ enum class NetworkMode {
  * - "Join a Network" - Connect to an existing WiFi network (STA mode)
  * - "Connect to Calibre" - Use Calibre wireless device transfers
  * - "Create Hotspot" - Create an Access Point that others can connect to (AP mode)
- * - "Sync Stats" - Sync reading stats directly with a nearby reader
+ * - "Nearby Stats Sync" - Sync reading stats directly with a nearby reader
  * - "Receive File" - Receive a file directly from another reader
  *
  * The onModeSelected callback is called with the user's choice.

@@ -546,10 +546,10 @@ void DictionaryDefinitionActivity::wrapText() {
   const bool isLandscapeCw = orient == GfxRenderer::Orientation::LandscapeClockwise;
   const bool isLandscapeCcw = orient == GfxRenderer::Orientation::LandscapeCounterClockwise;
   const bool isInverted = orient == GfxRenderer::Orientation::PortraitInverted;
-  hintGutterWidth = (isLandscapeCw || isLandscapeCcw) ? metrics.buttonHintsHeight : 0;
-  hintGutterHeight = isInverted ? (metrics.buttonHintsHeight + metrics.verticalSpacing) : 0;
+  hintGutterWidth = (isLandscapeCw || isLandscapeCcw) ? UITheme::getButtonHintsReserve(renderer) : 0;
+  hintGutterHeight = isInverted ? (UITheme::getButtonHintsReserve(renderer) + metrics.verticalSpacing) : 0;
   contentX = isLandscapeCw ? hintGutterWidth : 0;
-  const int bottomArea = metrics.buttonHintsHeight + metrics.verticalSpacing;
+  const int bottomArea = UITheme::getButtonHintsReserve(renderer) + metrics.verticalSpacing;
 
   if (hasModalBackground()) {
     const int dialogMargin = metrics.optionPopupDialogSideMargin;
@@ -759,8 +759,8 @@ void DictionaryDefinitionActivity::prepareDefinitionFontAdvances() {
 void DictionaryDefinitionActivity::sizeModalForCurrentPage() {
   const auto metrics = UITheme::getInstance().getMetrics();
   const int dialogMargin = metrics.optionPopupDialogSideMargin;
-  const int maxHeight =
-      renderer.getScreenHeight() - metrics.buttonHintsHeight - metrics.verticalSpacing - dialogMargin * 2;
+  const int maxHeight = renderer.getScreenHeight() - UITheme::getButtonHintsReserve(renderer) -
+                        metrics.verticalSpacing - dialogMargin * 2;
   const int visibleLines = std::max(1, static_cast<int>(layoutLines.size()));
   const int titleLineHeight = renderer.getLineHeight(getDefinitionFontId());
   const int footerHeight = dictionaryFooterHeight();

@@ -234,6 +234,10 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
     add(SettingInfo::Toggle(StrId::STR_TAP_HIDE_STATUS_BAR, &CrossPointSettings::tapToHideStatusBar,
                             "tapToHideStatusBar", StrId::STR_CAT_CONTROLS));
 
+    add(SettingInfo::Enum(StrId::STR_MENU_NAVIGATION, &CrossPointSettings::menuNavigation,
+                          {StrId::STR_MENU_DIRECTIONAL, StrId::STR_MENU_CLASSIC}, "menuNavigation",
+                          StrId::STR_CAT_CONTROLS));
+
     // --- System ---
     add(SettingInfo::String(StrId::STR_DEVICE_NAME, SETTINGS.deviceName, sizeof(SETTINGS.deviceName), "deviceName",
                             StrId::STR_CAT_SYSTEM));
@@ -284,21 +288,21 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
           KOREADER_STORE.setCredentials(v, KOREADER_STORE.getPassword());
           KOREADER_STORE.saveToFile();
         },
-        "koUsername", StrId::STR_KOREADER_SYNC));
+        "koUsername", StrId::STR_SYNC_SERVER));
     add(SettingInfo::DynamicString(
         StrId::STR_KOREADER_PASSWORD, [] { return KOREADER_STORE.getPassword(); },
         [](const std::string& v) {
           KOREADER_STORE.setCredentials(KOREADER_STORE.getUsername(), v);
           KOREADER_STORE.saveToFile();
         },
-        "koPassword", StrId::STR_KOREADER_SYNC));
+        "koPassword", StrId::STR_SYNC_SERVER));
     add(SettingInfo::DynamicString(
         StrId::STR_SYNC_SERVER_URL, [] { return KOREADER_STORE.getServerUrl(); },
         [](const std::string& v) {
           KOREADER_STORE.setServerUrl(v);
           KOREADER_STORE.saveToFile();
         },
-        "koServerUrl", StrId::STR_KOREADER_SYNC));
+        "koServerUrl", StrId::STR_SYNC_SERVER));
     add(SettingInfo::DynamicEnum(
         StrId::STR_DOCUMENT_MATCHING, {StrId::STR_FILENAME, StrId::STR_BINARY},
         [] { return static_cast<uint8_t>(KOREADER_STORE.getMatchMethod()); },
@@ -306,7 +310,7 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
           KOREADER_STORE.setMatchMethod(static_cast<DocumentMatchMethod>(v));
           KOREADER_STORE.saveToFile();
         },
-        "koMatchMethod", StrId::STR_KOREADER_SYNC));
+        "koMatchMethod", StrId::STR_SYNC_SERVER));
     add(SettingInfo::DynamicEnum(
         StrId::STR_SEND_METADATA, {StrId::STR_STATE_OFF, StrId::STR_STATE_ON},
         [] { return static_cast<uint8_t>(KOREADER_STORE.getSendMetadata()); },
@@ -314,7 +318,7 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
           KOREADER_STORE.setSendMetadata(v != 0);
           KOREADER_STORE.saveToFile();
         },
-        "koSendMetadata", StrId::STR_KOREADER_SYNC));
+        "koSendMetadata", StrId::STR_SYNC_SERVER));
 
     add(SettingInfo::DynamicEnum(
         StrId::STR_SYNC_BEHAVIOR, {StrId::STR_ASK_EVERY_TIME, StrId::STR_SMART_SYNC},
@@ -323,7 +327,7 @@ const std::vector<SettingInfo>& getBaseSettingsList() {
           KOREADER_STORE.setSyncBehavior(static_cast<KOReaderSyncBehavior>(v));
           KOREADER_STORE.saveToFile();
         },
-        "koSyncBehavior", StrId::STR_KOREADER_SYNC));
+        "koSyncBehavior", StrId::STR_SYNC_SERVER));
 
     // Legacy fields stay in JSON for one-time status bar migration; the web
     // editor uses /api/status-bars instead of exposing these controls.

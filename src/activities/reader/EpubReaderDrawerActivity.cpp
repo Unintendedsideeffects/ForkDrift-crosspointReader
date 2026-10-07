@@ -879,8 +879,12 @@ void EpubReaderDrawerActivity::buildDrawer(UiApp::ScreenType& screen) {
   int16_t buttonHeaderHeight = 0;
   if (buttonDevice) {
     const auto& metrics = UITheme::getInstance().getMetrics();
-    buttonHeaderHeight = static_cast<int16_t>(metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput) +
-                                              metrics.tabBarHeight);
+    const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
+    const auto header = TouchHeaderBackButton::headerRect(renderer, mappedInput, safe);
+    buttonHeaderHeight =
+        static_cast<int16_t>(renderer.hasCustomViewableInsets()
+                                 ? std::max(0, header.y + header.height + metrics.tabBarHeight - screen.contentRect().y)
+                                 : metrics.topPadding + header.height + metrics.tabBarHeight);
     screen.takeTop(buttonHeaderHeight);
   }
   // Give every tab row four pixels of white space above and below its icons.
@@ -956,8 +960,7 @@ void EpubReaderDrawerActivity::buildDrawer(UiApp::ScreenType& screen) {
 void EpubReaderDrawerActivity::drawButtonBookHeader() {
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const Rect header{safe.x, safe.y + metrics.topPadding, safe.width,
-                    TouchHeaderBackButton::height(metrics, mappedInput)};
+  const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput, safe);
   GUI.drawHeader(renderer, header, epub ? epub->getTitle().c_str() : "", nullptr, false, true);
 
   const Rect summary{safe.x, header.y + header.height, safe.width, metrics.tabBarHeight};
@@ -2810,19 +2813,26 @@ void EpubReaderDrawerActivity::loop() {
     }
     return;
   }
-  const auto left = mappedInput.menuButton(MappedInputManager::Button::Left);
-  const auto right = mappedInput.menuButton(MappedInputManager::Button::Right);
-  const auto up = mappedInput.menuButton(MappedInputManager::Button::Up);
-  const auto down = mappedInput.menuButton(MappedInputManager::Button::Down);
-  buttonNavigator.onRelease({down, down}, [this] { moveSelection(true, false); });
-  buttonNavigator.onRelease({up, up}, [this] { moveSelection(false, false); });
-  buttonNavigator.onContinuous({down, down}, [this] { moveSelection(true, true); });
-  buttonNavigator.onContinuous({up, up}, [this] { moveSelection(false, true); });
-  if (state.pane == ReaderDrawerPane::Root) {
-    buttonNavigator.onRelease({right, right}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, true)); });
-    buttonNavigator.onRelease({left, left}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, false)); });
-    buttonNavigator.onContinuous({right, right}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, true)); });
-    buttonNavigator.onContinuous({left, left}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, false)); });
+  if (SETTINGS.menuNavigation == CrossPointSettings::MENU_NAV_CLASSIC) {
+    buttonNavigator.onNextRelease([this] { moveSelection(true, false); });
+    buttonNavigator.onPreviousRelease([this] { moveSelection(false, false); });
+    buttonNavigator.onNextContinuous([this] { moveSelection(true, true); });
+    buttonNavigator.onPreviousContinuous([this] { moveSelection(false, true); });
+  } else {
+    const auto left = mappedInput.menuButton(MappedInputManager::Button::Left);
+    const auto right = mappedInput.menuButton(MappedInputManager::Button::Right);
+    const auto up = mappedInput.menuButton(MappedInputManager::Button::Up);
+    const auto down = mappedInput.menuButton(MappedInputManager::Button::Down);
+    buttonNavigator.onRelease({down, down}, [this] { moveSelection(true, false); });
+    buttonNavigator.onRelease({up, up}, [this] { moveSelection(false, false); });
+    buttonNavigator.onContinuous({down, down}, [this] { moveSelection(true, true); });
+    buttonNavigator.onContinuous({up, up}, [this] { moveSelection(false, true); });
+    if (state.pane == ReaderDrawerPane::Root) {
+      buttonNavigator.onRelease({right, right}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, true)); });
+      buttonNavigator.onRelease({left, left}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, false)); });
+      buttonNavigator.onContinuous({right, right}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, true)); });
+      buttonNavigator.onContinuous({left, left}, [this] { changeTab(adjacentReaderDrawerTab(state.tab, false)); });
+    }
   }
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     if (!mappedInput.hasTouchHardware() && state.pane == ReaderDrawerPane::Root && !buttonFocusActive) {
@@ -2872,14 +2882,13 @@ void EpubReaderDrawerActivity::render(RenderLock&&) {
     GUI.drawPopup(renderer, tr(STR_LOADING_POPUP), true);
     fontPreviewLoading = false;
   }
-  app.setDevice(uiTarget.deviceContext());
-  app.render();
+  renderUiApp(app, uiTarget);
   if (buttonDevice) drawButtonBookHeader();
 #if CROSSINK_APP_READER_SAMPLE_PREVIEW
   previewDirty = true;  // The full-screen UI cleared the sample area as well.
   previewRendered = renderPreview(previewFontId, previewPrewarmScope);
   if (showsSamplePreview() && previewUnavailable) {
-    app.render();  // A failed font selection rolled the draft back; repaint its values too.
+    renderUiApp(app, uiTarget);  // A failed font selection rolled the draft back; repaint its values too.
     drawButtonBookHeader();
     renderPreviewUnavailable();
   }
@@ -2906,7 +2915,8 @@ void EpubReaderDrawerActivity::render(RenderLock&&) {
     const bool menuNavigation = state.pane != ReaderDrawerPane::Percent &&
                                 state.pane != ReaderDrawerPane::AutoPageTurn &&
                                 !readerDrawerStepChangesSettings(state.pane);
-    const bool horizontalFront = menuNavigation && !deviceUsesHorizontalSideButtonsForMenus(gpio);
+    const bool horizontalFront = SETTINGS.menuNavigation == CrossPointSettings::MENU_NAV_DIRECTIONAL &&
+                                 menuNavigation && !deviceUsesHorizontalSideButtonsForMenus(gpio);
     const char* previousLabel = horizontalFront ? tr(STR_DIR_LEFT) : tr(STR_DIR_UP);
     const char* nextLabel = horizontalFront ? tr(STR_DIR_RIGHT) : tr(STR_DIR_DOWN);
     if (state.pane == ReaderDrawerPane::Percent && percentKeypadActive) {
@@ -3056,7 +3066,7 @@ const char* EpubReaderDrawerActivity::rowLabel(const RowId row) const {
     case RowId::ReadingStats:
       return tr(STR_READING_STATS);
     case RowId::SyncProgress:
-      return tr(STR_SYNC_PROGRESS);
+      return tr(STR_SYNC_BOOK);
     case RowId::NearbyPositionSync:
       return tr(STR_NEARBY_POSITION_SYNC);
     case RowId::SendNearbyBook:

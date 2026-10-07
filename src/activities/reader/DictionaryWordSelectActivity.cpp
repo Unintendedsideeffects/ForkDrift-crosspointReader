@@ -310,7 +310,7 @@ void DictionaryWordSelectActivity::prebuildAdvanceTable() {
 
 void DictionaryWordSelectActivity::clearFrontButtonHintArea() {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const int hintSize = metrics.buttonHintsHeight;
+  const int hintSize = UITheme::getButtonHintsReserve(renderer);
   const int screenWidth = renderer.getScreenWidth();
   const int screenHeight = renderer.getScreenHeight();
 

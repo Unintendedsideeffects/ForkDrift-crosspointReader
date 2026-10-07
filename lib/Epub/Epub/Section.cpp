@@ -35,12 +35,13 @@ constexpr uint32_t SECTION_CACHE_MAGIC = 0x535843FF;  // bytes: 0xFF, "CXS"
 // v82: Scalable headings and blocks serialize point size and line height.
 // v83: Nested blocks inherit bold and italic styles, changing glyphs and wrapping.
 // v84: Suppressed CSS borders no longer draw horizontal rules.
-// v85: External hyphenation identity participates in complete and partial cache keys.
-constexpr uint8_t SECTION_FILE_VERSION = 85;
+// v85: Branches independently changed hyphenation identity and paragraph layout.
+// v86: Combine external hyphenation identity with incremental paragraph layout fixes.
+constexpr uint8_t SECTION_FILE_VERSION = 86;
 // Suspended incremental build: valid pages plus LUTs and a parse-watermark trailer.
 // Change this with layout or payload changes so stale partial pages cannot resume
 // under a different layout contract.
-constexpr uint8_t SECTION_FILE_PARTIAL_VERSION = 0xC6;
+constexpr uint8_t SECTION_FILE_PARTIAL_VERSION = 0xC7;
 constexpr uint32_t HEADER_SIZE =
     sizeof(SECTION_CACHE_MAGIC) + sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
     sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(uint32_t) + sizeof(bool) +

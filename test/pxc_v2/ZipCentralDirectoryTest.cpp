@@ -219,3 +219,39 @@ TEST_F(ZipCentralDirectory, TruncatedCentralDirectoryStopsCleanly) {
   EXPECT_TRUE(ZipFile(path).getInflatedFileSize(entries[0].name.c_str(), &size));
   EXPECT_FALSE(ZipFile(path).getInflatedFileSize(entries[599].name.c_str(), &size));
 }
+
+TEST_F(ZipCentralDirectory, EnumerationUsesChunksAndPreservesNamesAndOwnership) {
+  ZipFile zip(path);
+  std::vector<std::string> names;
+  const auto collect = [&](std::string_view name) { names.emplace_back(name); };
+  ASSERT_TRUE(zip.enumerateFilePaths(collect));
+  EXPECT_FALSE(zip.isOpen());
+  size_t index = 0;
+  for (const auto& entry : entries) {
+    if (entry.name.size() > 255) continue;
+    ASSERT_LT(index, names.size());
+    EXPECT_EQ(names[index++], entry.name);
+  }
+  EXPECT_EQ(index, names.size());
+  // The old loop needed about four reads and four seeks per entry.
+  EXPECT_LT(Storage.readCalls(path), entries.size());
+  EXPECT_LT(Storage.seekCalls(path), entries.size());
+  ASSERT_TRUE(zip.open());
+  names.clear();
+  ASSERT_TRUE(zip.enumerateFilePaths(collect));
+  EXPECT_TRUE(zip.isOpen());
+  zip.close();
+}
+
+TEST_F(ZipCentralDirectory, EnumerationRejectsTruncatedDirectory) {
+  auto bytes = buildZip(entries);
+  // Preserve the EOCD and its declared count but replace a central signature.
+  const size_t eocd = bytes.size() - 22;
+  uint32_t centralOffset = 0;
+  for (int i = 0; i < 4; ++i) centralOffset |= uint32_t(bytes[eocd + 16 + i]) << (8 * i);
+  bytes[centralOffset] = 0;
+  Storage.put(path, std::move(bytes));
+  ZipFile zip(path);
+  EXPECT_FALSE(zip.enumerateFilePaths([](std::string_view) { ADD_FAILURE(); }));
+  EXPECT_FALSE(zip.isOpen());
+}

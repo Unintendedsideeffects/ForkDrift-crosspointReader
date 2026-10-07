@@ -748,6 +748,11 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
   partWordBufferIndex = 0;
   partWordInlinePadding = 0;
   nextWordContinues = false;
+
+  // YACP 4bfcfb4 (Totofaki): one XML callback can contain many fragments.
+  // Check each append before CJK token storage grows past the layout budget.
+  // Buffered table cells must stay intact until the table lays them out.
+  if (!currentTableBuffer && !currentCompactTable) flushLongTextRunIfNeeded();
 }
 
 size_t ChapterHtmlSlimParser::bufferedWordsBeforeLayoutLimit() const {
@@ -858,7 +863,7 @@ void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
   partWordInlinePadding = 0;
   if (currentTextBlock) {
     // already have a text block running and it is empty - just reuse it
-    if (currentTextBlock->isEmpty()) {
+    if (currentTextBlock->isEmpty() && wordsExtractedInBlock == 0) {
       currentTextBlock->setContinuation(false);
       BlockStyle incoming = blockStyle;
       const bool currentIsEmptyBr = currentTextBlock->getBlockStyle().fromBrElement;
@@ -2860,6 +2865,11 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
       self->makePages();
     }
+    if (self->lowMemoryAbort) return;
+    // The old paragraph is finalized; do not charge its trailing spacing
+    // again when startNewTextBlock() creates the block on the next page.
+    self->currentTextBlock.reset();
+    self->wordsExtractedInBlock = 0;
     if (self->currentPage && !self->currentPage->elements.empty()) {
       self->completeCurrentPage();
       self->completedPageCount++;
@@ -3260,6 +3270,7 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
   uint32_t codepointOffset = callbackVisibleOffset;
   uint32_t codepointReferenceOffset = self->referenceTextOffset;
   for (int i = 0; i < len; i++) {
+    if (self->lowMemoryAbort || self->previewStopRequested) return;
     const bool startsCodepoint = (static_cast<uint8_t>(s[i]) & 0xC0) != 0x80;
     if (startsCodepoint && countReferenceCharacters && !self->collectingRubyText) {
       const auto* codepointPtr = reinterpret_cast<const unsigned char*>(s + i);
@@ -4105,7 +4116,7 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
 
 void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line, const uint32_t visibleOffset,
                                           const uint32_t referenceOffset) {
-  if (lowMemoryAbort) {
+  if (lowMemoryAbort || previewStopRequested) {
     return;
   }
 
@@ -4123,6 +4134,14 @@ void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line, const
     if (!startNewPage("line layout")) {
       return;
     }
+  }
+
+  // CrossPoint #3875 (Phạm Bình An): charge initial CSS spacing only
+  // when the first actual line is emitted, including incremental flushes.
+  if (wordsExtractedInBlock == 0) {
+    const auto& style = currentTextBlock->getBlockStyle();
+    if (style.marginTop > 0) currentPageNextY += style.marginTop;
+    if (style.paddingTop > 0) currentPageNextY += style.paddingTop;
   }
 
   if (currentPageNextY + lineHeight > viewportHeight) {
@@ -4144,6 +4163,12 @@ void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line, const
   for (uint16_t wordIndex = 0; wordIndex < line->wordCount(); ++wordIndex) {
     const uint8_t linkId = line->wordLinkId(wordIndex);
     if (linkId == 0) continue;
+    // Fragment layout can emit a linked line before </a> queues its final
+    // word index. The active link already has the href and display label.
+    if (insideFootnoteLink && linkId == currentFootnote.linkId) {
+      currentPage->addFootnote(currentFootnote.number, currentFootnote.href, linkId);
+      continue;
+    }
     const auto entry = std::find_if(pendingFootnotes.begin(), pendingFootnotes.end(),
                                     [linkId](const auto& pending) { return pending.second.linkId == linkId; });
     if (entry != pendingFootnotes.end()) {
@@ -4216,19 +4241,8 @@ void ChapterHtmlSlimParser::makePages() {
     }
   }
 
-  // Apply top spacing before the paragraph (stored in pixels). An
-  // intermediate text-run flush has already emitted the first lines and
-  // consumed this spacing, so do not apply it again to the remainder.
   const BlockStyle& blockStyle = currentTextBlock->getBlockStyle();
   const int lineHeight = effectiveLineHeight();
-  if (!currentTextBlock->isContinuation()) {
-    if (blockStyle.marginTop > 0) {
-      currentPageNextY += blockStyle.marginTop;
-    }
-    if (blockStyle.paddingTop > 0) {
-      currentPageNextY += blockStyle.paddingTop;
-    }
-  }
 
   // Calculate effective width accounting for horizontal margins/padding
   const int horizontalInset = blockStyle.totalHorizontalInset();

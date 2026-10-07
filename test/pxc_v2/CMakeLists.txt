@@ -37,3 +37,8 @@ add_executable(ZipCentralDirectoryTest ZipCentralDirectoryTest.cpp ${PXC_ROOT}/l
 target_include_directories(ZipCentralDirectoryTest PRIVATE stubs ${PXC_ROOT}/lib/ZipFile ${PXC_ROOT}/lib/Memory)
 target_link_libraries(ZipCentralDirectoryTest PRIVATE gtest_main crosspoint_test_common)
 gtest_discover_tests(ZipCentralDirectoryTest)
+
+add_executable(PxcHeaderSinkTest PxcHeaderSinkTest.cpp)
+target_include_directories(PxcHeaderSinkTest PRIVATE stubs)
+target_link_libraries(PxcHeaderSinkTest PRIVATE gtest_main crosspoint_test_common)
+gtest_discover_tests(PxcHeaderSinkTest)

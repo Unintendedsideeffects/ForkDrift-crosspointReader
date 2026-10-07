@@ -414,6 +414,23 @@ void ZipFileStreamReader::abort() {
   compressedConsumed = 0;
 }
 
+bool ZipFile::enumerateFilePathsImpl(void* context, void (*callback)(void*, std::string_view)) {
+  if (!fileStatSlimCache.empty()) {
+    for (const auto& entry : fileStatSlimCache) callback(context, entry.first);
+    return true;
+  }
+  ScopedOpenClose guard(*this);
+  if (!guard || !loadZipDetails()) return false;
+  CentralDirCursor cursor(file, zipDetails.centralDirOffset);
+  CentralDirEntry entry;
+  char name[ZIP_MAX_STORED_NAME_LEN + 1];
+  for (uint16_t i = 0; i < zipDetails.totalEntries; ++i) {
+    if (!cursor.next(entry, name)) return false;
+    if (entry.nameStored) callback(context, std::string_view{name, entry.nameLen});
+  }
+  return true;
+}
+
 bool ZipFile::loadAllFileStatSlims() {
   const ScopedOpenClose zip{*this};
   if (!zip) return false;

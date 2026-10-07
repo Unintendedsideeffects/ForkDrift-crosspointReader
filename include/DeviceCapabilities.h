@@ -4,6 +4,10 @@
 
 #include "AppCapabilities.h"
 
+// Current button-only images target X3/X4/X4 Classic. Use the image capability
+// so a failed touch probe on another device cannot advertise front buttons.
+inline constexpr bool deviceHasFrontButtons() { return !CROSSINK_APP_CAP_TOUCH; }
+
 inline bool deviceHasEdgeSideButtons(const HalGPIO& gpio) {
 #ifdef SIMULATOR
   return gpio.deviceIsX3();

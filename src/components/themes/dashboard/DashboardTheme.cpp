@@ -504,7 +504,7 @@ void drawRightAnchoredFooterStat(const GfxRenderer& renderer, const int labelRig
 void drawFooterStats(const GfxRenderer& renderer, const Rect& coverRect, const GlobalReadingStats* globalStats,
                      const bool inverted = false) {
   const int inset = contentInset(renderer);
-  const int buttonHintReserve = gpio.hasTouch() ? 0 : DashboardMetrics::values.buttonHintsHeight;
+  const int buttonHintReserve = gpio.hasTouch() ? 0 : UITheme::getButtonHintsReserve(renderer);
   const int footerY = renderer.getScreenHeight() - buttonHintReserve - kFooterBottomGap;
   const int centerY = std::max(coverRect.y + coverRect.height + 120, footerY);
 

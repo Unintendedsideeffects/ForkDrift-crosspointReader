@@ -284,8 +284,7 @@ void EpubReaderPercentSelectionActivity::loop() {
 
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect screen = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
-  const Rect header{screen.x, screen.y + metrics.topPadding, screen.width,
-                    TouchHeaderBackButton::height(metrics, mappedInput)};
+  const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput, screen);
   if (TouchHeaderBackButton::wasTapped(mappedInput, header)) {
     cancel();
     return;
@@ -377,11 +376,12 @@ void EpubReaderPercentSelectionActivity::buildPercentScreen(UiApp::ScreenType& s
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
   // Start below CrossInk's shared back header; its touch-device height differs from
   // the legacy theme header height.
-  screen.setContentMargin(fui::Insets{
-      static_cast<int16_t>(safe.y + metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput) +
-                           metrics.verticalSpacing * 4),
-      static_cast<int16_t>(renderer.getScreenWidth() - (safe.x + safe.width)),
-      static_cast<int16_t>(renderer.getScreenHeight() - (safe.y + safe.height)), static_cast<int16_t>(safe.x)});
+  setUiContentMargin(screen, renderer,
+                     fui::Insets{static_cast<int16_t>(TouchHeaderBackButton::contentTop(renderer, mappedInput, safe.y) +
+                                                      metrics.verticalSpacing * 4),
+                                 static_cast<int16_t>(renderer.getScreenWidth() - (safe.x + safe.width)),
+                                 static_cast<int16_t>(renderer.getScreenHeight() - (safe.y + safe.height)),
+                                 static_cast<int16_t>(safe.x)});
 
   char line[64];
 
@@ -520,8 +520,7 @@ void EpubReaderPercentSelectionActivity::render(RenderLock&&) {
   auto metrics = theme.getMetrics();
   Rect screen = theme.getScreenSafeArea(renderer, true, false);
 
-  const Rect header{screen.x, screen.y + metrics.topPadding, screen.width,
-                    TouchHeaderBackButton::height(metrics, mappedInput)};
+  const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput, screen);
   if (mappedInput.hasTouchHardware()) {
     TouchHeaderBackButton::draw(renderer, header,
                                 mode == Mode::StablePage ? tr(STR_GO_TO_STABLE_PAGE) : tr(STR_GO_TO_PERCENT), true);
@@ -532,8 +531,7 @@ void EpubReaderPercentSelectionActivity::render(RenderLock&&) {
 
   // Percent/page readout, keypad or slider, and step controls render through the app.
   uiReady = false;
-  app.setDevice(uiTarget.deviceContext());
-  app.render();
+  renderUiApp(app, uiTarget);
   uiReady = true;
 
   // Button hints follow the current front button layout and auto-hide on touch devices.

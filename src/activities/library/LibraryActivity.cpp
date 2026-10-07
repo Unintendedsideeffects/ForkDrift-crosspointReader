@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <functional>
 
+#include "CrossPointState.h"
 #include "FilenameFontSystem.h"
 #include "activities/home/BookActions.h"
 #include "activities/home/FileBrowserActionActivity.h"
@@ -98,6 +99,9 @@ void LibraryActivity::onEnter() {
   inputOverflow = false;
   touchTracking = false;
   confirmLongPressCaptured = false;
+  PendingOverlayResume resume;
+  const bool restoreSyncReturn = APP_STATE.pendingOverlayResume.origin == PendingOverlayOrigin::Library &&
+                                 APP_STATE.consumePendingOverlayResume(resume);
   {
     RenderLock lock;
     Activity::onEnter();
@@ -114,6 +118,11 @@ void LibraryActivity::onEnter() {
                ? static_cast<Sort>(SETTINGS.librarySortMethod)
                : Sort::RecentlyRead;
     descending = SETTINGS.librarySortDescending != 0;
+    if (restoreSyncReturn) {
+      if (resume.tab <= static_cast<uint8_t>(Sort::Genre)) sort = static_cast<Sort>(resume.tab);
+      descending = resume.pane != 0;
+      query = std::move(resume.libraryQuery);
+    }
     app.on(ACTION_ROW, &LibraryActivity::onRowEvent, this);
     app.on(ACTION_CONTROL, &LibraryActivity::onControlEvent, this);
     app.setScreen(&LibraryActivity::listScreen, this);
@@ -136,6 +145,17 @@ void LibraryActivity::onEnter() {
     refreshIndexIfNeeded();
     initialScanPending = false;
     resetViewport();
+    if (restoreSyncReturn && rowCount() > 0) {
+      selection = std::clamp<int>(resume.selectedIndex, CONTROL_COUNT, CONTROL_COUNT + rowCount() - 1);
+      topIndex = std::clamp<int>(resume.scrollPosition, 0, rowCount() - 1);
+      listNav.selected = selection - CONTROL_COUNT;
+      listNav.top = topIndex;
+      // Touch lists hide selection, so reset()'s first-build follow would
+      // otherwise discard the restored scroll position.
+      listNav.followOnBuild = false;
+      gridPageStart = ((selection - CONTROL_COUNT) / GRID_PAGE_SIZE) * GRID_PAGE_SIZE;
+      loadGridProgress();
+    }
     ignoreConfirmRelease = mappedInput.isPressed(MappedInputManager::Button::Confirm);
     requestUpdate();
   }
@@ -855,7 +875,7 @@ void LibraryActivity::loop() {
     handleInput(input);
     return;
   }
-  // Prepare at most one cover between input checks.
+  // Prepare at most one cover between input checks, then repaint the completed page.
   loadGridPageCovers();
 }
 
@@ -1205,9 +1225,9 @@ void LibraryActivity::buildListScreen(UiApp::ScreenType& screen) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   int bounds[4]{};
   renderer.getOrientedViewableTRBL(&bounds[0], &bounds[1], &bounds[2], &bounds[3]);
-  const int16_t headerBottom =
-      static_cast<int16_t>(metrics.topPadding + TouchHeaderBackButton::height(metrics, mappedInput));
-  const int buttonHintsHeight = mappedInput.hasTouchHardware() ? 0 : metrics.buttonHintsHeight;
+  const int16_t headerBottom = static_cast<int16_t>(TouchHeaderBackButton::contentTop(renderer, mappedInput));
+  const int buttonHintsHeight =
+      mappedInput.hasTouchHardware() ? 0 : UITheme::getInstance().getMetrics().buttonHintsHeight;
   screen.setContentMarginFromScreen(fui::Insets{headerBottom, static_cast<int16_t>(bounds[1]),
                                                 static_cast<int16_t>(FOOTER_HEIGHT + buttonHintsHeight + bounds[2]),
                                                 static_cast<int16_t>(bounds[3])});
@@ -1418,11 +1438,15 @@ void LibraryActivity::buildGrid(UiApp::ScreenType& screen) {
 void LibraryActivity::loadGridPageCovers() {
   if (!gridEnabled() || gridCoverWidth <= 0 || gridCoverHeight <= 0 || gridPageStart == loadedGridPageStart) return;
   const int pageEnd = std::min(gridPageStart + GRID_PAGE_SIZE, rowCount());
-  if (nextGridCoverRow < 0) nextGridCoverRow = gridPageStart;
-  if (nextGridCoverRow < pageEnd && loadGridCover(nextGridCoverRow++)) requestUpdate();
+  if (nextGridCoverRow < 0) {
+    nextGridCoverRow = gridPageStart;
+    gridCoverAdded = false;
+  }
+  if (nextGridCoverRow < pageEnd && loadGridCover(nextGridCoverRow++)) gridCoverAdded = true;
   if (nextGridCoverRow >= pageEnd) {
     loadedGridPageStart = gridPageStart;
     nextGridCoverRow = -1;
+    if (gridCoverAdded) requestUpdate();
   }
 }
 
@@ -1477,7 +1501,7 @@ void LibraryActivity::render(RenderLock&&) {
                                   3 * HEADER_CONTROL_SIZE + 2 * HEADER_CONTROL_GAP + headerControlRightInset() + 10);
     else
       GUI.drawHeader(renderer, header, tr(STR_LIBRARY));
-    app.render();
+    renderUiApp(app, uiTarget);
     topIndex = listNav.top;
     if (!listNav.consumeRebuildNeeded()) break;
   }
@@ -1584,10 +1608,18 @@ void LibraryActivity::showBookActionMenu(const size_t bookIndex, const bool igno
                    reloadAfterBookAction();
                    return;
                  }
-                 case FileBrowserAction::SyncProgress:
-                   BookActions::syncProgress(renderer, book.path);
+                 case FileBrowserAction::SyncProgress: {
+                   PendingOverlayResume resume;
+                   resume.origin = PendingOverlayOrigin::Library;
+                   resume.tab = static_cast<uint8_t>(sort);
+                   resume.pane = descending;
+                   resume.selectedIndex = selection;
+                   resume.scrollPosition = topIndex;
+                   resume.libraryQuery = query;
+                   BookActions::syncProgress(renderer, mappedInput, book.path, std::move(resume));
                    requestUpdate();
                    return;
+                 }
                  case FileBrowserAction::ReadingStats:
                    openDialog(BookActions::createReadingStatsActivity(renderer, mappedInput, book.path, book.title),
                               [this](const ActivityResult&) { requestUpdate(); });
