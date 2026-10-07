@@ -2,7 +2,6 @@
 
 #include <EpdFontFamily.h>
 #include <HalDisplay.h>
-#include <ScreenInsets.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
@@ -24,6 +23,7 @@ class SdCardFont;
 #include <string>
 #include <vector>
 
+#include "../ScreenCalibration/ScreenInsets.h"
 #include "Bitmap.h"
 
 namespace glyphBitmap {
