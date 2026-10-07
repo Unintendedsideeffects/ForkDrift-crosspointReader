@@ -19,6 +19,8 @@
 
 ### Fixed
 
+- Reduce SD-font cache allocations while preserving kerning and dictionary ligatures, including failed kerning loads (adapted from serialx, CrossPoint #3831 and #3838).
+- Resolve EPUB3 series refinements by collection ID even when interleaved or declared out of order, and refresh stale book/library metadata (series parser adapted from jadehawk, CrossPoint #3804).
 - Keep button-keyboard tips steady when text becomes empty or non-empty, and hide tips when they cannot fit above the keys (CrossPoint #3863).
 - Preserve initial publisher spacing on long EPUB paragraphs without repeating it during incremental layout (CrossPoint #3875).
 - Improve low-memory EPUB layout and image handling: limit temporary memory for long text runs, retry image sizing with a lower-memory fallback, and refresh the reader when background image checks finish (YACP 4bfcfb4).

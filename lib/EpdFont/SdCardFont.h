@@ -179,17 +179,11 @@ class SdCardFont {
       return fullIntervals[index - bmpIntervalCount];
     }
 
-    // Persistent kern-class + ligature tables (lazy-loaded on first prewarm).
-    // The full kern MATRIX is NOT resident — on Literata-class fonts a single
-    // style's matrix is ~36-42KB contiguous, and 4 styles' worth won't fit
-    // alongside bitmaps + framebuffer on a 380KB device. Only kernLeftClasses
-    // and kernRightClasses (small codepoint→classId tables, ~3KB each) stay
-    // resident; the matrix is reconstructed per-page as miniKernMatrix.
-    EpdKernClassEntry* kernLeftClasses = nullptr;
-    EpdKernClassEntry* kernRightClasses = nullptr;
+    // Only ligatures remain resident; kerning classes stream in indexed blocks.
     EpdLigaturePair* ligaturePairs = nullptr;
-    bool kernClassesLoaded = false;
     bool ligaturesLoaded = false;
+    uint16_t* kernBlockIndex = nullptr;
+    bool kernBlockIndexReady = false;
 
     // Stub EpdFontData returned when not prewarmed
     EpdFontData stubData{};
@@ -246,6 +240,7 @@ class SdCardFont {
     uint16_t miniKernLeftCapacity = 0;
     uint16_t miniKernRightCapacity = 0;
     uint32_t miniKernMatrixCapacity = 0;
+    bool miniKernBuilt = false;  // Covers every resident glyph, including no-pair pages.
 
     // The EpdFont whose data pointer we manage
     EpdFont epdFont{&stubData};
@@ -312,9 +307,9 @@ class SdCardFont {
   bool ensureBitmapCapacity(PerStyle& s, uint32_t needed);
   void resetStyleMiniData(PerStyle& s);
   void freeStyleAll(PerStyle& s);
-  void freeStyleKernLigatureData(PerStyle& s);
+  void freeStyleLigatures(PerStyle& s);
   void freeStyleMiniKern(PerStyle& s);
-  bool loadStyleKernLigatureData(PerStyle& s, bool includeKerning);
+  bool loadStyleLigatures(PerStyle& s);
   bool buildMiniKernMatrix(PerStyle& s, const uint32_t* codepoints, uint32_t cpCount);
   void applyKernLigaturePointers(PerStyle& s, EpdFontData& data, bool includeKerning) const;
   void applyGlyphMissCallback(uint8_t styleIdx);

@@ -2,6 +2,7 @@
 
 #include <FsHelpers.h>
 #include <Logging.h>
+#include <Memory.h>
 #include <Serialization.h>
 #include <Utf8.h>
 #include <XmlParserUtils.h>
@@ -206,6 +207,40 @@ bool ContentOpfParser::findItemHref(const std::string& idref, std::string& href)
     }
   }
   return false;
+}
+
+uint16_t ContentOpfParser::storeCollectionText(const char* text, const size_t length) {
+  if (!collectionArena || length + 1 > COLLECTION_ARENA_BYTES - collectionBytes) {
+    LOG_DBG("COF", "Collection metadata exceeds bounded arena; ignoring candidate");
+    return 0;
+  }
+  const uint16_t offset = collectionBytes;
+  memcpy(collectionArena.get() + offset, text, length);
+  collectionArena[offset + length] = '\0';
+  collectionBytes += length + 1;
+  return offset + 1;
+}
+
+int8_t ContentOpfParser::findCollection(const char* id) {
+  // IDs must match exactly: rejecting oversized IDs avoids truncated-prefix aliases.
+  if (!id || !*id || strlen(id) > MAX_METADATA_TEXT) return -1;
+  for (uint8_t i = 0; i < collectionCount; ++i) {
+    if (strcmp(collectionArena.get() + collections[i].id - 1, id) == 0) return i;
+  }
+  if (collectionCount == MAX_COLLECTIONS) return -1;
+  if (!collectionArena) {
+    // Lazy 2 KiB allocation, held only through metadata; too large for C3 task stacks.
+    collectionArena = makeUniqueNoThrow<char[]>(COLLECTION_ARENA_BYTES);
+    if (!collectionArena) {
+      LOG_ERR("COF", "Failed to allocate collection metadata arena");
+      return -1;
+    }
+  }
+  const uint16_t offset = storeCollectionText(id, strlen(id));
+  if (!offset) return -1;
+  collections[collectionCount] = Collection{};
+  collections[collectionCount].id = offset;
+  return collectionCount++;
 }
 
 bool ContentOpfParser::setup() {
@@ -423,30 +458,21 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       self->series.assign(content, static_cast<size_t>(utf8SafeTruncateBuffer(content, static_cast<int>(bytes))));
     }
     if (isSeriesIndex && self->seriesIndex.empty() && content) {
-      self->seriesIndex.assign(content, std::min(strlen(content), MAX_METADATA_TEXT));
+      const size_t bytes = std::min(strlen(content), MAX_METADATA_TEXT);
+      self->seriesIndex.assign(content, static_cast<size_t>(utf8SafeTruncateBuffer(content, static_cast<int>(bytes))));
     }
-    if (isCollection && self->series.empty() && id) {
-      if (self->collectionType == "series") {
-        self->series = std::move(self->collectionName);
-        self->seriesIndex = std::move(self->collectionPosition);
+    if (isCollection || isCollectionType || isCollectionPosition) {
+      const char* target = isCollection ? id : (refines && refines[0] == '#' ? refines + 1 : nullptr);
+      self->activeCollection = self->findCollection(target);
+      if (self->activeCollection >= 0) {
+        self->collectionText.clear();
+        self->seriesTruncated = false;
+        self->collectionTypeTruncated = false;
+        self->collectionPositionTruncated = false;
+        self->metadataSpacePending = false;
+        self->state = isCollection ? IN_BOOK_COLLECTION
+                                   : (isCollectionType ? IN_BOOK_COLLECTION_TYPE : IN_BOOK_COLLECTION_POSITION);
       }
-      self->collectionName.clear();
-      self->collectionType.clear();
-      self->collectionPosition.clear();
-      self->collectionId.assign(id, std::min(strlen(id), MAX_METADATA_TEXT));
-      self->seriesTruncated = false;
-      self->collectionTypeTruncated = false;
-      self->collectionPositionTruncated = false;
-      self->state = IN_BOOK_COLLECTION;
-      self->metadataSpacePending = false;
-    }
-    if (isCollectionType && refines && refines[0] == '#' && self->collectionId == refines + 1) {
-      self->state = IN_BOOK_COLLECTION_TYPE;
-      self->metadataSpacePending = false;
-    }
-    if (isCollectionPosition && refines && refines[0] == '#' && self->collectionId == refines + 1) {
-      self->state = IN_BOOK_COLLECTION_POSITION;
-      self->metadataSpacePending = false;
     }
     return;
   }
@@ -608,15 +634,15 @@ void XMLCALL ContentOpfParser::characterData(void* userData, const XML_Char* s, 
     return;
   }
   if (self->state == IN_BOOK_COLLECTION) {
-    appendMetadataText(self->collectionName, s, len, self->metadataSpacePending, self->seriesTruncated);
+    appendMetadataText(self->collectionText, s, len, self->metadataSpacePending, self->seriesTruncated);
     return;
   }
   if (self->state == IN_BOOK_COLLECTION_TYPE) {
-    appendMetadataText(self->collectionType, s, len, self->metadataSpacePending, self->collectionTypeTruncated);
+    appendMetadataText(self->collectionText, s, len, self->metadataSpacePending, self->collectionTypeTruncated);
     return;
   }
   if (self->state == IN_BOOK_COLLECTION_POSITION) {
-    appendMetadataText(self->collectionPosition, s, len, self->metadataSpacePending, self->collectionPositionTruncated);
+    appendMetadataText(self->collectionText, s, len, self->metadataSpacePending, self->collectionPositionTruncated);
     return;
   }
 }
@@ -668,15 +694,40 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
   if ((self->state == IN_BOOK_COLLECTION || self->state == IN_BOOK_COLLECTION_TYPE ||
        self->state == IN_BOOK_COLLECTION_POSITION) &&
       isOpfElement(name, "meta")) {
+    if (self->activeCollection >= 0) {
+      auto& c = self->collections[self->activeCollection];
+      if (self->state == IN_BOOK_COLLECTION_TYPE) {
+        c.isSeries = self->collectionText == "series";
+      } else {
+        const uint16_t offset = self->storeCollectionText(self->collectionText.data(), self->collectionText.size());
+        if (!offset)
+          c.invalid = true;  // never publish an incomplete or mismatched pair
+        else if (self->state == IN_BOOK_COLLECTION)
+          c.title = offset;
+        else
+          c.position = offset;
+      }
+    }
+    self->activeCollection = -1;
     self->state = IN_METADATA;
     return;
   }
 
   if (self->state == IN_METADATA && isOpfElement(name, "metadata")) {
-    if (self->series.empty() && self->collectionType == "series") {
-      self->series = std::move(self->collectionName);
-      self->seriesIndex = std::move(self->collectionPosition);
+    // Calibre title and index are one source; do not mix in an EPUB3 index.
+    if (self->series.empty()) {
+      self->seriesIndex.clear();
+      for (uint8_t i = 0; i < self->collectionCount; ++i) {
+        const auto& c = self->collections[i];
+        if (!c.isSeries || c.invalid || !c.title || self->collectionArena[c.title - 1] == '\0') continue;
+        self->series = self->collectionArena.get() + c.title - 1;
+        if (c.position) self->seriesIndex = self->collectionArena.get() + c.position - 1;
+        break;
+      }
     }
+    self->collectionArena.reset();
+    self->collectionCount = 0;
+    self->collectionBytes = 0;
     self->state = IN_PACKAGE;
     if (self->metadataOnly) {
       self->metadataComplete = true;

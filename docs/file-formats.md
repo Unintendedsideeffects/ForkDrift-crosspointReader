@@ -146,6 +146,13 @@ struct ImageFolderIndexRecord {
 
 ## `/.crosspoint/library.idx`
 
+### Version 7
+
+Version 7 preserves the version 6 layout but invalidates extracted metadata to
+resolve EPUB3 series refinements by collection ID. The next Library scan reparses
+EPUB metadata when enabled, preserving first-seen history during reconciliation.
+The persistent metadata cache is also invalidated, so it cannot restore stale series.
+
 ### Version 6
 
 Each book's name blob now ends with a `uint32_t` series position after the
@@ -283,6 +290,18 @@ display author, title, the pre-spelling-harmonisation source author, series,
 and genre. Version 6 appends the four-byte series position.
 
 ## `/.crosspoint/library.meta` and `/.crosspoint/library.metd`
+
+### Version 2
+
+Version 2 keeps the binary layout unchanged and rejects version 1 extraction
+results so library scans rebuild series data using ID-based EPUB3 resolution.
+
+Collection resolution accepts up to eight exact IDs in a shared 2048-byte arena;
+oversized IDs and candidates exceeding the budget are ignored rather than joined
+to the wrong title or position. Text fields retain the 512-byte UTF-8-safe limit,
+Calibre series metadata takes precedence, and parser indexes remain strings.
+The reader's `book.bin` version is unchanged: it stores no series fields, and
+`Epub::loadMetadata` already bypasses it when series metadata is requested.
 
 ### Version 1
 

@@ -152,6 +152,178 @@ void clean(const SdCardFont& f) {
 }
 }  // namespace
 
+// Synthetic .cpfont fixture: 320 covered BMP glyphs and two 320-entry class
+// tables (five blocks). The last 65 entries repeat valid classes.
+void kernFixture(const std::string& path, uint8_t classes = 255) {
+  constexpr uint32_t count = 320;
+  std::vector<uint8_t> bytes(64, 0);
+  std::memcpy(bytes.data(), "CPFONT\0\0", 8);
+  bytes[8] = CPFONT_VERSION;
+  bytes[12] = 1;
+  put32(bytes, 36, 2);
+  put32(bytes, 40, count + 1);
+  bytes[44] = 20;
+  bytes[49] = bytes[51] = count & 255;
+  bytes[50] = bytes[52] = count >> 8;
+  bytes[53] = bytes[54] = classes;
+  bytes[55] = 1;
+  put32(bytes, 56, 64);
+  const EpdUnicodeInterval iv{0x100, 0x100 + count - 1, 0};
+  append(bytes, &iv, sizeof(iv));
+  const EpdUnicodeInterval replacement{0xfffd, 0xfffd, count};
+  append(bytes, &replacement, sizeof(replacement));
+  for (uint32_t i = 0; i <= count; ++i) {
+    EpdGlyph g{};
+    g.width = g.height = g.dataLength = 1;
+    g.advanceX = i + 16;
+    append(bytes, &g, sizeof(g));
+  }
+  for (int side = 0; side < 2; ++side) {
+    for (uint32_t i = 0; i < count; ++i) {
+      EpdKernClassEntry e{static_cast<uint16_t>(0x100 + i), static_cast<uint8_t>(i % 255 + 1)};
+      append(bytes, &e, sizeof(e));
+    }
+  }
+  for (uint32_t l = 0; l < classes; ++l)
+    for (uint32_t rr = 0; rr < classes; ++rr) bytes.push_back(static_cast<uint8_t>(int((l + rr) % 11) - 5));
+  const EpdLigaturePair lig{(0x100u << 16) | 0x101u, 0x102};
+  append(bytes, &lig, sizeof(lig));
+  bytes.push_back(0x80);
+  std::ofstream out(path, std::ios::binary);
+  out.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+}
+std::string kernText(uint32_t first, uint32_t count) {
+  std::string text;
+  for (uint32_t cp = first; cp < first + count; ++cp) {
+    text.push_back(char(0xc0 | (cp >> 6)));
+    text.push_back(char(0x80 | (cp & 63)));
+  }
+  return text;
+}
+void streamingChecks(const std::string& path) {
+  kernFixture(path);
+  {
+    SdCardFont f;
+    assert(f.load(path.c_str()));
+    auto& st = f.styles_[0];
+    assert(st.kernBlockIndex && !st.kernBlockIndexReady);
+    const auto all = kernText(0x100, 255);
+    assert(f.prewarm(all.c_str(), 1, false, false) == 0);  // dictionary: ligatures, no classes
+    assert(!st.kernBlockIndexReady);
+    assert(f.getEpdFont()->getLigature(0x100, 0x101) == 0x102);
+    assert(f.getEpdFont()->getKerning(0x100, 0x101) == 0);
+    const auto subset = kernText(0x100, 2);
+    assert(f.prewarm(subset.c_str(), 1, false, true) == 0);
+    assert(st.miniKernBuilt && st.miniKernLeftClassCount == 255 && st.miniKernRightClassCount == 255);
+    for (uint32_t l = 0; l < 255; ++l)
+      for (uint32_t rr = 0; rr < 255; ++rr)
+        assert(f.getEpdFont()->getKerning(0x100 + l, 0x100 + rr) == int((l + rr) % 11) - 5);
+    const int reads = readCalls;
+    for (int i = 0; i < 500; ++i) {
+      f.clearCache();
+      assert(f.prewarm(subset.c_str(), 1, false, false) == 0);
+      assert(f.getEpdFont()->getKerning(0x100, 0x101) == 0);
+      assert(f.getEpdFont()->getLigature(0x100, 0x101) == 0x102);
+      assert(f.prewarm(all.c_str(), 1, false, true) == 0);
+      assert(f.getEpdFont()->getKerning(0x100, 0x101) == -4);
+    }
+    assert(readCalls == reads);
+    f.releaseForLowMemory();
+    assert(st.kernBlockIndexReady && !st.miniKernBuilt);
+    readCalls = 0;
+    assert(f.prewarm(subset.c_str(), 1) == 0);
+    const int indexedReads = readCalls;
+    f.releaseForLowMemory();
+    st.kernBlockIndexReady = false;
+    readCalls = 0;
+    assert(f.prewarm(subset.c_str(), 1) == 0);
+    assert(readCalls == indexedReads + 8);  // skip four of five blocks, on both sides
+    std::printf(
+        "Synthetic kern fixture: full class payload=1920 B; resident index=24 B; reduction=1896 B/style; indexed reads "
+        "saved=8\n");
+    f.freeAll();
+    clean(f);
+  }
+  // Fail each allocation and read during a kern top-up, then retry. Ligatures
+  // have already loaded through the dictionary path and must always survive.
+  int allocations = 0, reads = 0;
+  {
+    SdCardFont f;
+    assert(f.load(path.c_str()));
+    auto text = kernText(0x100, 255);
+    assert(f.prewarm(text.c_str(), 1, false, false) == 0);
+    arrayCalls = readCalls = 0;
+    assert(f.prewarm(text.c_str(), 1) == 0);
+    allocations = arrayCalls;
+    reads = readCalls;
+  }
+  for (int mode = 0; mode < 2; ++mode) {
+    for (int n = 0; n < (mode ? reads : allocations); ++n) {
+      SdCardFont f;
+      assert(f.load(path.c_str()));
+      auto text = kernText(0x100, 255);
+      assert(f.prewarm(text.c_str(), 1, false, false) == 0);
+      arrayCalls = readCalls = 0;
+      if (mode)
+        failReadCall = n;
+      else
+        failArrayCall = n;
+      f.prewarm(text.c_str(), 1);
+      failReadCall = failArrayCall = -1;
+      assert(openFiles == 0);
+      assert(f.getEpdFont()->getLigature(0x100, 0x101) == 0x102);
+      assert(f.prewarm(text.c_str(), 1) == 0);
+      assert(f.getEpdFont()->getKerning(0x100, 0x101) == -4);
+      f.freeAll();
+      clean(f);
+    }
+  }
+  // Out-of-range class IDs are unkerned even when an indexed block is reused.
+  kernFixture(path, 2);
+  {
+    SdCardFont f;
+    assert(f.load(path.c_str()));
+    auto text = kernText(0x100, 4);
+    assert(f.prewarm(text.c_str(), 1) == 0);
+    assert(f.getEpdFont()->getKerning(0x100, 0x101) == -4);
+    assert(f.getEpdFont()->getKerning(0x102, 0x101) == 0);
+  }
+  assert(arrayBytes() == 0);
+
+  // CrossInk's active-text refresh must survive the upstream merge port.
+  fixture(path, {{0, table({{0x100, 0x100 + 999}})}});
+  {
+    SdCardFont f;
+    assert(f.load(path.c_str()));
+    for (uint32_t first : {0x200u, 0x100u, 0x300u, 0x180u}) {
+      auto text = kernText(first, 256);
+      assert(f.buildAdvanceTable(text.c_str(), 1) == 0);
+      assert(f.advanceTableSize_[0] == 256 && f.advanceTableCapacity_[0] == 256);
+      for (uint32_t cp = first; cp < first + 256; ++cp) assert(f.getAdvance(cp, 0) == advance(cp - 0x100, 0));
+    }
+    f.clearPersistentCache();
+    assert(f.ensureAdvanceTableCapacity(0, 256));
+    assert(!f.hasAdvanceTable());
+    std::vector<SdCardFont::AdvanceEntry> expected;
+    for (uint32_t block : {3u, 0u, 5u, 1u, 4u, 2u}) {
+      SdCardFont::AdvanceEntry entries[50];
+      for (uint32_t i = 0; i < 50; ++i) entries[i] = {block * 50 + i, uint16_t(block * 50 + i + 1)};
+      const int calls = arrayCalls;
+      f.mergeIntoAdvanceTable(0, entries, 50);
+      assert(arrayCalls == calls);  // no temporary merge allocation with capacity available
+      expected.insert(expected.end(), entries, entries + 50);
+      std::sort(expected.begin(), expected.end(), [](auto a, auto b) { return a.codepoint < b.codepoint; });
+      if (expected.size() > 256) expected.resize(256);
+      for (size_t i = 0; i < expected.size(); ++i)
+        assert(f.getAdvance(expected[i].codepoint, 0) == expected[i].advanceX);
+    }
+    std::puts(
+        "Advance merge: 0 array allocations with spare capacity; removed up to 2048 B temporary merge payload (host "
+        "fixture)");
+  }
+  assert(arrayBytes() == 0 && openFiles == 0);
+}
+
 int main() {
   auto dir = std::filesystem::temp_directory_path() / "crossink-font-interval-tests";
   std::filesystem::create_directories(dir);
@@ -283,6 +455,7 @@ int main() {
     assert(!font.load(path.c_str()));
     clean(font);
   }
+  streamingChecks(path);
   std::filesystem::remove_all(dir);
   std::puts("SD font interval regression checks passed");
 }

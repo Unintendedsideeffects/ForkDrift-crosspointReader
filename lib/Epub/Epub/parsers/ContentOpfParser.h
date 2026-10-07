@@ -3,6 +3,7 @@
 #include <Print.h>
 
 #include <algorithm>
+#include <memory>
 #include <vector>
 
 #include "Epub.h"
@@ -53,10 +54,23 @@ class ContentOpfParser final : public Print {
   bool seriesTruncated = false;
   bool collectionTypeTruncated = false;
   bool collectionPositionTruncated = false;
-  std::string collectionName;
-  std::string collectionId;
-  std::string collectionType;
-  std::string collectionPosition;
+  // ID-based resolution (jadehawk, CrossPoint #3804), with one bounded shared
+  // arena instead of eight independently allocated 512-byte IDs/titles/indexes.
+  static constexpr size_t COLLECTION_ARENA_BYTES = 2048;
+  static constexpr size_t MAX_COLLECTIONS = 8;
+  struct Collection {
+    uint16_t id = 0, title = 0, position = 0;  // arena offset + 1; zero is absent
+    bool isSeries = false;
+    bool invalid = false;
+  };
+  Collection collections[MAX_COLLECTIONS]{};
+  std::unique_ptr<char[]> collectionArena;
+  uint16_t collectionBytes = 0;
+  uint8_t collectionCount = 0;
+  int8_t activeCollection = -1;
+  std::string collectionText;  // one existing 512-byte UTF-8-limited text accumulator
+  uint16_t storeCollectionText(const char* text, size_t length);
+  int8_t findCollection(const char* id);
   bool hasExplicitStartReference = false;
   bool collectCssFiles = true;
 

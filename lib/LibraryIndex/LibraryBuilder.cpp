@@ -601,7 +601,7 @@ bool findPrior(WalkState& st, const uint64_t pathHash, uint32_t& position, uint1
                     priorRecord.modificationTime == modificationTime && st.previous->header().formatVersion >= 3 &&
                     st.previous->header().metadataEnabled == st.readMetadata &&
                     priorRecord.metadataStatus == expectedStatus &&
-                    (!extractionExpected || st.previous->header().formatVersion >= 6);
+                    (!extractionExpected || st.previous->header().formatVersion >= 7);
   }
   // A fold update invalidates derived sort keys, not the stored book metadata.
   const bool reuseSortKeys = reuseMetadata && st.previous->header().foldVersion == CLIX_FOLD_VERSION;
