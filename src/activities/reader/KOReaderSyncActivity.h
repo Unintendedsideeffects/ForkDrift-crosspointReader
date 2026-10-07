@@ -110,6 +110,7 @@ class KOReaderSyncActivity final : public Activity {
   bool syncSucceeded = false;
   bool progressSucceeded = false;
   bool extrasAttempted = false;
+  bool exitingBatch = false;
   ReadingSyncUpload::ExtrasResult extrasResult;
   StatsUploadClient::Result globalStatsResult = StatsUploadClient::Result::Skipped;
   ProgressSyncResult syncResult() const;
@@ -118,7 +119,8 @@ class KOReaderSyncActivity final : public Activity {
   // lightweight network reboot so every sync screen matches the book.
   uint8_t readerOrientation = CrossPointSettings::ORIENTATION_COUNT;
 
-  // Selection in result screen (0=Apply, 1=Upload)
+  // Selection in result screen (0=Apply, 1=Upload, 2=Skip in bulk sync);
+  // in a bulk sync's no-remote screen (0=Upload, 1=Skip).
   int selectedOption = 0;
 
   // Timed return for successful smart-sync terminal states.
@@ -146,4 +148,8 @@ class KOReaderSyncActivity final : public Activity {
   bool ensureLocalProgressLoaded();
   void saveProgressAndReturn(const CrossPointPosition& position);
   void returnToSource();
+  // Bulk sync only: Skip book keeps the batch going, Exit stops all of it.
+  void skipBook();
+  bool batchExitRequested();
+  void exitBatch();
 };

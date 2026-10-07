@@ -91,6 +91,7 @@ struct ProgressSyncResult {
   bool clippingsUploaded = false;
   bool statsFailed = false;
   bool clippingsFailed = false;
+  bool skipped = false;  // Bulk sync: the user chose Skip book for this one.
 };
 
 struct ReadingStatsResult {

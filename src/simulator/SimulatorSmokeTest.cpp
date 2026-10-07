@@ -3803,9 +3803,13 @@ class SimulatorSmokeTest {
               break;
             }
             activityManager.replaceActivity(std::make_unique<StatsUploadActivity>(renderer, mappedInputManager));
-          } else
+          } else {
+            // Bulk sync screens follow the reader orientation setting.
+            if (std::getenv("CROSSINK_READING_TEST_LANDSCAPE"))
+              SETTINGS.orientation = CrossPointSettings::LANDSCAPE_CCW;
             activityManager.replaceActivity(
                 std::make_unique<StatsUploadActivity>(renderer, mappedInputManager, "/read"));
+          }
           inputScript.clear();
           scriptIndex = 0;
           inputCompletionStep = SmokeStep::StatsUploadEmptyDone;
@@ -3815,6 +3819,17 @@ class SimulatorSmokeTest {
             break;
           }
           inputScript.push_back(render("Folder upload confirmation", 5));
+          if (std::getenv("CROSSINK_READING_TEST_EXIT_HELD")) {
+            // Smart sync with no prompts: holding Exit once the run starts stops it.
+            addTap(MappedInputManager::Button::Confirm);
+            inputScript.push_back(press(MappedInputManager::Button::Back));
+            inputScript.push_back(render("Folder sync held Exit while running", 25));
+            inputScript.push_back(release(MappedInputManager::Button::Back));
+            inputScript.push_back(render("After held Exit", 5));
+            inputScript.push_back(assertActivity("Home"));
+            step = SmokeStep::ReaderInput;
+            break;
+          }
           if (!std::getenv("CROSSINK_READING_TEST_CANCEL")) {
             addTap(MappedInputManager::Button::Confirm);
             if (std::getenv("CROSSINK_READING_TEST_ASK")) {
@@ -3822,6 +3837,22 @@ class SimulatorSmokeTest {
                 inputScript.push_back(render("Folder sync choice", 25));
                 inputScript.push_back(assertActivity("KOReaderSync"));
                 if (std::getenv("CROSSINK_READING_TEST_ASK_CANCEL")) break;
+                if (std::getenv("CROSSINK_READING_TEST_ASK_SKIP")) {
+                  // Skip book is one step up from the default on both prompts.
+                  addTap(MappedInputManager::Button::Up);
+                  inputScript.push_back(render("Folder sync Skip book selected", 5));
+                  addTap(MappedInputManager::Button::Confirm);
+                  continue;
+                }
+                if (std::getenv("CROSSINK_READING_TEST_ASK_EXIT_HELD")) {
+                  // Upload local while Exit is held: the upload checkpoint stops the batch.
+                  addTap(MappedInputManager::Button::Down);
+                  inputScript.push_back(press(MappedInputManager::Button::Back));
+                  addTap(MappedInputManager::Button::Confirm);
+                  inputScript.push_back(render("Folder sync held Exit", 25));
+                  inputScript.push_back(release(MappedInputManager::Button::Back));
+                  break;
+                }
                 addTap(MappedInputManager::Button::Confirm);
               }
             }

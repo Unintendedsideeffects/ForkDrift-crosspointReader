@@ -53,12 +53,28 @@ long displayedTenths(const float percentage) { return std::lround(percentage * 1
 // Apply/Upload buttons are pinned above the button hints (or the bottom edge on touch devices) so the
 // progress cards can use the space above them. Rendering and hit testing share this layout.
 TouchActionButtons::Layout resultActionLayout(const GfxRenderer& renderer, const Rect& screen,
-                                              const ThemeMetrics& metrics, const bool hasTouch) {
-  constexpr uint8_t buttonCount = 2;
+                                              const ThemeMetrics& metrics, const bool hasTouch,
+                                              const uint8_t buttonCount = 2) {
   const int buttonHeight = hasTouch ? TouchActionButtons::kDefaultHeight : RESULT_NON_TOUCH_ACTION_HEIGHT;
   const int buttonGap = hasTouch ? TouchActionButtons::kDefaultGap : RESULT_NON_TOUCH_ACTION_GAP;
   const int reservedBottom =
       hasTouch ? metrics.verticalSpacing : UITheme::getButtonHintsReserve(renderer) + metrics.verticalSpacing;
+  if (buttonCount == 3 && screen.width > screen.height) {
+    // Landscape places the progress cards side by side, leaving room for two rows:
+    // the two progress choices share the first row and Skip book takes the second.
+    const int totalHeight = buttonHeight * 2 + buttonGap;
+    TouchActionButtons::Layout layout;
+    layout.container =
+        Rect{screen.x + metrics.contentSidePadding, screen.y + screen.height - reservedBottom - totalHeight,
+             std::max(1, screen.width - metrics.contentSidePadding * 2), totalHeight};
+    layout.count = 3;
+    const Rect& area = layout.container;
+    const int half = std::max(1, (area.width - buttonGap) / 2);
+    layout.buttons[0] = Rect{area.x, area.y, half, buttonHeight};
+    layout.buttons[1] = Rect{area.x + area.width - half, area.y, half, buttonHeight};
+    layout.buttons[2] = Rect{area.x, area.y + buttonHeight + buttonGap, area.width, buttonHeight};
+    return layout;
+  }
   const int totalHeight = buttonHeight * buttonCount + buttonGap * (buttonCount - 1);
   const Rect container{screen.x + metrics.contentSidePadding, screen.y + screen.height - reservedBottom - totalHeight,
                        std::max(1, screen.width - metrics.contentSidePadding * 2), totalHeight};
@@ -241,6 +257,11 @@ void KOReaderSyncActivity::saveProgressAndReturn(const CrossPointPosition& posit
   // epub is guaranteed non-null here: ensureEpubLoaded() was called in performSync() before
   // SHOWING_RESULT state is entered, and this method is only called from that state.
   assert(epub);
+  // A bulk sync's Exit must not still change this book's saved position.
+  if (batchExitRequested()) {
+    exitBatch();
+    return;
+  }
   const int pageCount = std::max(position.totalPages, position.pageNumber + 1);
   if (pageCount != position.totalPages) {
     LOG_DBG("KOSync", "Adjusted remote page count before save: page=%d count=%d -> %d", position.pageNumber,
@@ -284,6 +305,36 @@ void KOReaderSyncActivity::returnToSource() {
   } else {
     activityManager.goToReader(epubPath, false, false, true);
   }
+}
+
+void KOReaderSyncActivity::skipBook() {
+  LOG_INF("KOSync", "Skipping bulk sync book: %s", epubPath.c_str());
+  // Stats and clippings do not depend on the progress choice.
+  if (!uploadExtras()) return;
+  ProgressSyncResult result = syncResult();
+  result.skipped = true;
+  setResult(result);
+  finish();
+}
+
+bool KOReaderSyncActivity::batchExitRequested() {
+  if (!folderSync || exitingBatch) return exitingBatch;
+  // Bulk work runs synchronously between frames, so sample input here. A held
+  // Exit counts too: a quick press during a request is otherwise missed.
+  mappedInput.update();
+  return mappedInput.isPressed(MappedInputManager::Button::Back) ||
+         mappedInput.wasPressed(MappedInputManager::Button::Back);
+}
+
+void KOReaderSyncActivity::exitBatch() {
+  if (exitingBatch) return;  // Already finishing; never set a second result.
+  LOG_INF("KOSync", "Bulk sync exited at: %s", epubPath.c_str());
+  exitingBatch = true;
+  mappedInput.suppressNextBackRelease();
+  ActivityResult result;
+  result.isCancelled = true;
+  setResult(std::move(result));
+  finish();
 }
 
 bool KOReaderSyncActivity::consumeInitialConfirmRelease() {
@@ -365,6 +416,10 @@ void KOReaderSyncActivity::performSync() {
     return;
   }
   const std::string primaryHash = documentHash;
+  if (batchExitRequested()) {
+    exitBatch();
+    return;
+  }
 
   {
     RenderLock lock(*this);
@@ -589,6 +644,10 @@ void KOReaderSyncActivity::performSync() {
 }
 
 void KOReaderSyncActivity::performUpload() {
+  if (batchExitRequested()) {
+    exitBatch();
+    return;
+  }
   {
     RenderLock lock(*this);
     state = UPLOADING;
@@ -713,6 +772,10 @@ void KOReaderSyncActivity::drawExtrasResults(const Rect textArea, int y) const {
 
 bool KOReaderSyncActivity::uploadExtras() {
   if (extrasAttempted) return !StatsUploadClient::failed(globalStatsResult) && extrasResult.success();
+  if (batchExitRequested()) {
+    exitBatch();
+    return false;
+  }
   extrasAttempted = true;
   // An unknown server still needs a probe before AUTO choices can be decided.
   const bool mayProbe = KOREADER_STORE.needsServerProbe();
@@ -861,6 +924,11 @@ void KOReaderSyncActivity::render(RenderLock&&) {
   if (state == SYNCING || state == UPLOADING) {
     UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top, statusMessage.c_str(), 3, true,
                                      EpdFontFamily::BOLD, 4);
+    if (folderSync) {
+      // Exit is checked between steps; holding it stops after the current request.
+      const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_EXIT)), "", "", "");
+      GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
+    }
     renderer.displayBuffer(screenTransitionRefresh.modeFor(static_cast<uint8_t>(state)));
     return;
   }
@@ -910,13 +978,13 @@ void KOReaderSyncActivity::render(RenderLock&&) {
       drawProgressCard(renderer, Rect{contentX, top + cardHeight + cardGap, contentWidth, cardHeight}, cards[1]);
     }
 
-    const auto actions = resultActionLayout(renderer, screen, metrics, hasTouch);
-    const char* actionLabels[] = {tr(STR_APPLY_REMOTE), tr(STR_UPLOAD_LOCAL)};
+    const auto actions = resultActionLayout(renderer, screen, metrics, hasTouch, folderSync ? 3 : 2);
+    const char* actionLabels[] = {tr(STR_APPLY_REMOTE), tr(STR_UPLOAD_LOCAL), tr(STR_SKIP_BOOK)};
     TouchActionButtons::draw(renderer, actions, actionLabels, selectedOption, selectedOption, UI_10_FONT_ID);
 
-    // Bottom button hints
-    const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_SELECT), tr(STR_DIR_UP),
-                                              tr(STR_DIR_DOWN));
+    // Bottom button hints. In a bulk sync Back leaves the whole sync, not this book.
+    const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(folderSync ? tr(STR_EXIT) : tr(STR_BACK)),
+                                              tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
     renderer.displayBuffer(screenTransitionRefresh.modeFor(static_cast<uint8_t>(state)));
     return;
@@ -928,6 +996,17 @@ void KOReaderSyncActivity::render(RenderLock&&) {
            16;
     UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top, tr(STR_UPLOAD_PROMPT), 3, true,
                                      EpdFontFamily::REGULAR, 4);
+
+    if (folderSync) {
+      const auto actions = resultActionLayout(renderer, screen, metrics, mappedInput.hasTouchHardware());
+      const char* actionLabels[] = {tr(STR_UPLOAD), tr(STR_SKIP_BOOK)};
+      TouchActionButtons::draw(renderer, actions, actionLabels, selectedOption, selectedOption, UI_10_FONT_ID);
+      const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_EXIT)), tr(STR_SELECT), tr(STR_DIR_UP),
+                                                tr(STR_DIR_DOWN));
+      GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
+      renderer.displayBuffer(screenTransitionRefresh.modeFor(static_cast<uint8_t>(state)));
+      return;
+    }
 
     if (mappedInput.hasTouch()) {
       const auto actions = bottomActionLayout(screen, metrics, 2);
@@ -977,8 +1056,8 @@ void KOReaderSyncActivity::render(RenderLock&&) {
       const char* labels[] = {tr(STR_SKIP_BOOK)};
       TouchActionButtons::draw(renderer, actions, labels, 0);
     }
-    const auto labels =
-        mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), folderSync ? tr(STR_SKIP_BOOK) : "", "", "");
+    const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(folderSync ? tr(STR_EXIT) : tr(STR_BACK)),
+                                              folderSync ? tr(STR_SKIP_BOOK) : "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
     renderer.displayBuffer(screenTransitionRefresh.modeFor(static_cast<uint8_t>(state)));
     return;
@@ -1007,7 +1086,7 @@ void KOReaderSyncActivity::loop() {
       // A failed progress fetch or coordinate map must not strand independent
       // saved stats/clippings. Back/cancellation above still stops the action.
       std::string progressError = std::move(statusMessage);
-      uploadExtras();
+      if (!uploadExtras() && exitingBatch) return;
       {
         RenderLock lock(*this);
         state = SYNC_FAILED;
@@ -1040,55 +1119,105 @@ void KOReaderSyncActivity::loop() {
   }
 
   if (state == SHOWING_RESULT) {
+    const int optionCount = folderSync ? 3 : 2;
     auto chooseSelected = [this] {
       if (selectedOption == 0) {
         saveProgressAndReturn(remotePosition);
       } else if (selectedOption == 1) {
         performUpload();
+      } else if (selectedOption == 2) {
+        skipBook();
       }
     };
 
     {
-      const auto actions = resultActionLayout(renderer, screen, metrics, mappedInput.hasTouchHardware());
-      const Rect& first = actions.buttons[0];
-      int touchedOption = -1;
-      const auto touch = mappedInput.rowTouch(touchedOption, first.y, actions.buttons[1].y - first.y, actions.count,
-                                              first.x, first.x + first.width, first.height);
-      if (touch == MappedInputManager::RowTouch::Down) {
-        if (selectedOption != touchedOption) {
-          selectedOption = touchedOption;
-          requestUpdate();
+      const auto actions = resultActionLayout(renderer, screen, metrics, mappedInput.hasTouchHardware(), optionCount);
+      if (actions.buttons[1].x != actions.buttons[0].x) {
+        // The landscape two-row layout is not a single column, so hit-test the tap directly.
+        int x = 0, y = 0;
+        const int tapped = mappedInput.wasScreenTapped(x, y) ? TouchActionButtons::indexAt(actions, x, y) : -1;
+        if (tapped >= 0) {
+          selectedOption = tapped;
+          chooseSelected();
+          return;
         }
-        return;
-      }
-      if (touch == MappedInputManager::RowTouch::Tap) {
-        selectedOption = touchedOption;
-        chooseSelected();
-        return;
+      } else {
+        const Rect& first = actions.buttons[0];
+        int touchedOption = -1;
+        const auto touch = mappedInput.rowTouch(touchedOption, first.y, actions.buttons[1].y - first.y, actions.count,
+                                                first.x, first.x + first.width, first.height);
+        if (touch == MappedInputManager::RowTouch::Down) {
+          if (selectedOption != touchedOption) {
+            selectedOption = touchedOption;
+            requestUpdate();
+          }
+          return;
+        }
+        if (touch == MappedInputManager::RowTouch::Tap) {
+          selectedOption = touchedOption;
+          chooseSelected();
+          return;
+        }
       }
     }
 
     // Navigate options
     if (mappedInput.wasReleased(MappedInputManager::Button::Up) ||
         mappedInput.wasReleased(MappedInputManager::Button::Left)) {
-      selectedOption = (selectedOption + 1) % 2;  // Wrap around among 2 options
+      selectedOption = (selectedOption + optionCount - 1) % optionCount;
       requestUpdate();
     } else if (mappedInput.wasReleased(MappedInputManager::Button::Down) ||
                mappedInput.wasReleased(MappedInputManager::Button::Right)) {
-      selectedOption = (selectedOption + 1) % 2;  // Wrap around among 2 options
+      selectedOption = (selectedOption + 1) % optionCount;
       requestUpdate();
     }
 
     if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-      if (selectedOption == 0) {
-        saveProgressAndReturn(remotePosition);
-      } else if (selectedOption == 1) {
-        // Upload local progress
-        performUpload();
-      }
+      chooseSelected();
+      return;
     }
 
     if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+      returnToSource();
+    }
+    return;
+  }
+
+  if (state == NO_REMOTE_PROGRESS && folderSync) {
+    auto chooseSelected = [this] {
+      if (selectedOption == 0) {
+        if (documentHash.empty()) documentHash = calculateDocumentHashForMethod(epubPath, primaryMatchMethod);
+        performUpload();
+      } else {
+        skipBook();
+      }
+    };
+    const auto actions = resultActionLayout(renderer, screen, metrics, mappedInput.hasTouchHardware());
+    const Rect& first = actions.buttons[0];
+    int touchedOption = -1;
+    const auto touch = mappedInput.rowTouch(touchedOption, first.y, actions.buttons[1].y - first.y, actions.count,
+                                            first.x, first.x + first.width, first.height);
+    if (touch == MappedInputManager::RowTouch::Down) {
+      if (selectedOption != touchedOption) {
+        selectedOption = touchedOption;
+        requestUpdate();
+      }
+      return;
+    }
+    if (touch == MappedInputManager::RowTouch::Tap) {
+      selectedOption = touchedOption;
+      chooseSelected();
+      return;
+    }
+    if (mappedInput.wasReleased(MappedInputManager::Button::Up) ||
+        mappedInput.wasReleased(MappedInputManager::Button::Left) ||
+        mappedInput.wasReleased(MappedInputManager::Button::Down) ||
+        mappedInput.wasReleased(MappedInputManager::Button::Right)) {
+      selectedOption = selectedOption == 0 ? 1 : 0;
+      requestUpdate();
+    } else if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+      chooseSelected();
+    } else if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       returnToSource();
     }
     return;

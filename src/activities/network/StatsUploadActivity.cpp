@@ -349,7 +349,10 @@ void StatsUploadActivity::syncEpub(std::string&& bookPath) {
     state = State::SyncingBook;
   }
   startActivityForResult(std::move(sync), [this](const ActivityResult& result) {
+    // The book screen's Exit stops the whole bulk sync; Skip book continues it.
     if (result.isCancelled) {
+      LOG_INF("StatsSync", "Exited: synced=%u skipped=%u failed=%u", static_cast<unsigned>(uploaded),
+              static_cast<unsigned>(skipped), static_cast<unsigned>(failed));
       finish();
       return;
     }
@@ -362,7 +365,10 @@ void StatsUploadActivity::syncEpub(std::string&& bookPath) {
     {
       RenderLock lock(*this);
       if (synced->progressSucceeded) ++uploaded;
-      if (!synced->success) ++failed;
+      if (synced->skipped)
+        ++skipped;
+      else if (!synced->success)
+        ++failed;
       state = State::Uploading;
     }
     requestUpdate();
@@ -377,7 +383,10 @@ void StatsUploadActivity::loop() {
     start();
     return;
   }
+  // Each upload step blocks and buttons are polled, so a held Exit also counts
+  // while uploading; a quick press during a request would otherwise be missed.
   if (mappedInput.wasPressed(MappedInputManager::Button::Back) ||
+      (scope != Scope::Book && state == State::Uploading && mappedInput.isPressed(MappedInputManager::Button::Back)) ||
       TouchHeaderBackButton::wasTapped(mappedInput, renderer)) {
     mappedInput.suppressNextBackRelease();
     leave();
@@ -472,7 +481,10 @@ void StatsUploadActivity::render(RenderLock&&) {
     const char* labels[] = {action};
     TouchActionButtons::draw(renderer, layout, labels, 0);
   }
-  const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), action, "", "");
+  // Mid-run, Back leaves the whole sync rather than one book or screen.
+  const bool running = scope != Scope::Book && (state == State::Uploading || state == State::BookFailed);
+  const auto labels =
+      mappedInput.mapLabels(mappedInput.withBackArrow(running ? tr(STR_EXIT) : tr(STR_BACK)), action, "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }

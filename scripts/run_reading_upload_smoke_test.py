@@ -42,7 +42,7 @@ def main():
                 self.end_headers()
                 self.wfile.write(data)
                 return
-            if mode in ('current-equal', 'current-download', 'current-menu-cold', 'folder-mixed', 'folder-equal', 'folder-ask', 'folder-ask-cancel', 'folder-local-ahead'):
+            if mode in ('current-equal', 'current-download', 'current-menu-cold', 'folder-mixed', 'folder-equal', 'folder-ask', 'folder-ask-cancel', 'folder-ask-skip', 'folder-ask-skip-landscape', 'folder-ask-exit-held', 'folder-local-ahead'):
                 expected = json.loads((fs / 'expected-progress.json').read_text())
                 if mode == 'current-menu-cold':
                     expected['document'] = hashlib.md5(b'unread.epub').hexdigest()
@@ -50,7 +50,8 @@ def main():
                     reply = expected
                     if mode == 'folder-local-ahead':
                         reply['percentage'] *= 0.1
-                    if mode in ('current-download', 'folder-mixed', 'folder-ask', 'folder-ask-cancel'):
+                    if mode in ('current-download', 'folder-mixed', 'folder-ask', 'folder-ask-cancel', 'folder-ask-skip',
+                                'folder-ask-skip-landscape', 'folder-ask-exit-held'):
                         reply = json.loads((fs / 'remote-progress.json').read_text())
             data = json.dumps(reply).encode()
             self.send_response(200)
@@ -92,7 +93,7 @@ def main():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        modes = ['ok', 'folder-xtc', 'all-books', 'stats-entry', 'xtc-book', 'auto-probe', 'auto-unsupported', 'auto-html', 'disabled', 'cancel', 'auth', 'unsupported', 'folder-mixed', 'folder-equal', 'folder-local-ahead', 'folder-ask', 'folder-ask-cancel', 'folder-missing-cache', 'folder-skip-progress', 'folder-skip-stats', 'folder-skip-clippings', 'folder-skip-invalid', 'folder-skip-all', 'current-upload', 'current-auto', 'current-auto-unsupported', 'current-equal', 'current-download', 'current-menu', 'current-menu-cold', 'folder-no-progress', 'folder-legacy-progress', 'folder-zero-count', 'folder-past-end', 'folder-empty', 'folder-global-failure', 'folder-no-stats', 'folder-tracking-disabled']
+        modes = ['ok', 'folder-xtc', 'all-books', 'stats-entry', 'xtc-book', 'auto-probe', 'auto-unsupported', 'auto-html', 'disabled', 'cancel', 'auth', 'unsupported', 'folder-mixed', 'folder-equal', 'folder-local-ahead', 'folder-ask', 'folder-ask-cancel', 'folder-ask-skip', 'folder-ask-skip-landscape', 'folder-ask-exit-held', 'folder-exit-held', 'folder-missing-cache', 'folder-skip-progress', 'folder-skip-stats', 'folder-skip-clippings', 'folder-skip-invalid', 'folder-skip-all', 'current-upload', 'current-auto', 'current-auto-unsupported', 'current-equal', 'current-download', 'current-menu', 'current-menu-cold', 'folder-no-progress', 'folder-legacy-progress', 'folder-zero-count', 'folder-past-end', 'folder-empty', 'folder-global-failure', 'folder-no-stats', 'folder-tracking-disabled']
         if args.touch:
             modes += ['folder-skip-progress-touch', 'folder-skip-invalid-touch', 'folder-done-touch']
         modes += ['folder-done-confirm']
@@ -150,6 +151,14 @@ def main():
                     env['CROSSINK_READING_TEST_ASK'] = '1'
                 if mode == 'folder-ask-cancel':
                     env['CROSSINK_READING_TEST_ASK_CANCEL'] = '1'
+                if mode.startswith('folder-ask-skip'):
+                    env['CROSSINK_READING_TEST_ASK_SKIP'] = '1'
+                if mode.endswith('-landscape'):
+                    env['CROSSINK_READING_TEST_LANDSCAPE'] = '1'
+                if mode == 'folder-ask-exit-held':
+                    env['CROSSINK_READING_TEST_ASK_EXIT_HELD'] = '1'
+                if mode == 'folder-exit-held':
+                    env['CROSSINK_READING_TEST_EXIT_HELD'] = '1'
                 variants = {'folder-no-progress': 'missing', 'folder-legacy-progress': 'legacy4',
                             'folder-zero-count': 'zero', 'folder-past-end': 'past-end'}
                 if mode in variants:
@@ -176,7 +185,8 @@ def main():
                 if result.returncode or 'Stats upload transport smoke passed' not in log:
                     print(log[-12000:])
                     raise RuntimeError(f'{mode}: simulator failed ({result.returncode})')
-                if mode in ('folder-mixed', 'folder-ask', 'folder-equal', 'folder-ask-cancel'):
+                if mode in ('folder-mixed', 'folder-ask', 'folder-equal', 'folder-ask-cancel', 'folder-ask-skip',
+                            'folder-ask-skip-landscape', 'folder-ask-exit-held'):
                     cache = fs / (fs / 'first-cache.txt').read_text().lstrip('/')
                     saved = (cache / 'progress.bin').read_bytes()
                     page = int.from_bytes(saved[2:4], 'little')
@@ -232,6 +242,21 @@ def main():
                     assert not requests, requests
                 elif mode == 'folder-ask-cancel':
                     assert len(globals_sent) == 1 and len(requests) == 1, requests
+                elif mode.startswith('folder-ask-skip'):
+                    # Skip book keeps the batch going: no positions, but each book's extras still send.
+                    expected = {hashlib.md5(name.encode()).hexdigest() for name in ('first.epub', 'second.EPUB')}
+                    assert not progress and len(globals_sent) == 1 and len(clippings) == 1, requests
+                    assert {b['items'][0]['document'] for b in stats} == expected and len(stats) == 2, requests
+                    assert 'Finished: synced=0 skipped=3 failed=0' in log, log[-10000:]
+                elif mode == 'folder-exit-held':
+                    # Holding Exit as a Smart sync starts leaves before any book or overall upload.
+                    assert not requests, requests
+                    assert 'Finished:' not in log, log[-10000:]
+                elif mode == 'folder-ask-exit-held':
+                    # Holding Exit through Upload local stops before the upload and ends the batch.
+                    assert len(globals_sent) == 1 and len(requests) == 1, requests
+                    assert 'Bulk sync exited at: /read/' in log, log[-10000:]
+                    assert 'Finished:' not in log, log[-10000:]
                 elif mode == 'auth':
                     assert len(globals_sent) == 1 and len(progress) == 1 and len(stats) == 1 and len(clippings) == 1, requests
                 elif mode == 'xtc-book':
