@@ -17,6 +17,7 @@
 #include <exception>
 #include <filesystem>
 
+#include "OpdsCatalogSmokeTest.h"
 #include "ReadingUploadSmokeTest.h"
 #include "StatsUploadSmokeTest.h"
 #if CROSSINK_SCALABLE_FONTS
@@ -3678,6 +3679,8 @@ class SimulatorSmokeTest {
       }
       return;
     }
+
+    if (tickOpdsCatalogSmokeTest()) return;
 
     if (std::getenv("CROSSINK_SIMULATOR_SMOKE_SUPPORT_EXPORT")) {
       tickSupportExport();

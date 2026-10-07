@@ -14,6 +14,7 @@
 #include "OpdsServerStore.h"
 #include "activities/Activity.h"
 #include "activities/ScreenTransitionRefresh.h"
+#include "network/HttpDownloader.h"
 #include "util/ButtonNavigator.h"
 
 /**
@@ -41,6 +42,19 @@ class OpdsBookBrowserActivity final : public Activity {
   void render(RenderLock&&) override;
 
  private:
+#ifdef SIMULATOR
+  friend struct OpdsCatalogSmokeTest;
+#endif
+
+  // Own only the selected book metadata while the full catalog is released.
+  // The extra title copy is parser-bounded to 160 bytes and must outlive an
+  // overwrite callback; URL/filename storage was already needed for downloads.
+  struct DownloadRequest {
+    std::string url;
+    std::string title;
+    std::string filename;
+  };
+
   // FreeInkUI app runtime for the browsing screen: owns the interaction table,
   // routes touch snapshots, and dispatches row/search actions to the static
   // handlers below. 24 interaction slots cover the densest page (Small scale,
@@ -86,6 +100,9 @@ class OpdsBookBrowserActivity final : public Activity {
   // A blocking downloader consumes the one-shot Home event itself. Defer the
   // activity exit until HttpDownloader has unwound and closed the partial file.
   bool goHomeAfterCancel = false;
+  bool catalogReleasedForDownload = false;
+  int downloadSelectorIndex = 0;
+  int downloadTopIndex = 0;
 
   // Single screen fn dispatching on `state`: every state shares the themed
   // header and gets built through FreeInkUI.
@@ -114,8 +131,10 @@ class OpdsBookBrowserActivity final : public Activity {
   void navigateToEntry(const OpdsEntry& entry, bool pageLink);
   void navigateBack();
   void requestDownload(const OpdsEntry& book);
-  void confirmDownload(const std::string& fallbackPath, const std::string& destination);
-  void downloadBook(const OpdsEntry& book, const std::string& filename, const std::string& approvedPath = "");
+  void confirmDownload(DownloadRequest request, const std::string& destination);
+  void downloadBook(DownloadRequest request, const std::string& approvedPath = "");
+  void finishDownload(DownloadRequest request, HttpDownloader::DownloadError result, const std::string& resolvedPath);
+  void restoreCatalogAfterDownload();
   void launchSearch();
   void performSearch(const std::string& query);
   bool preventAutoSleep() override;
