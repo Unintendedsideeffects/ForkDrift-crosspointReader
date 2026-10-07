@@ -18,7 +18,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--program', type=Path, default=ROOT / '.pio/build/simulator/program')
     parser.add_argument('--mode', action='append', help='Run only the named scenarios (repeatable)')
-    parser.add_argument('--touch', action='store_true', help='Include touch skip checks (requires a touch simulator)')
+    parser.add_argument('--touch', action='store_true', help='Include touch skip and Back checks (requires a touch simulator)')
     args = parser.parse_args()
     requests = []
     probes = []
@@ -94,7 +94,8 @@ def main():
     try:
         modes = ['ok', 'folder-xtc', 'all-books', 'stats-entry', 'xtc-book', 'auto-probe', 'auto-unsupported', 'auto-html', 'disabled', 'cancel', 'auth', 'unsupported', 'folder-mixed', 'folder-equal', 'folder-local-ahead', 'folder-ask', 'folder-ask-cancel', 'folder-missing-cache', 'folder-skip-progress', 'folder-skip-stats', 'folder-skip-clippings', 'folder-skip-invalid', 'folder-skip-all', 'current-upload', 'current-auto', 'current-auto-unsupported', 'current-equal', 'current-download', 'current-menu', 'current-menu-cold', 'folder-no-progress', 'folder-legacy-progress', 'folder-zero-count', 'folder-past-end', 'folder-empty', 'folder-global-failure', 'folder-no-stats', 'folder-tracking-disabled']
         if args.touch:
-            modes += ['folder-skip-progress-touch', 'folder-skip-invalid-touch']
+            modes += ['folder-skip-progress-touch', 'folder-skip-invalid-touch', 'folder-done-touch']
+        modes += ['folder-done-confirm']
         if args.mode:
             unknown = set(args.mode) - set(modes)
             if unknown:
@@ -141,6 +142,10 @@ def main():
                     env['CROSSINK_READING_TEST_AUTO'] = '1'
                 if mode in ('disabled', 'cancel'):
                     env['CROSSINK_READING_TEST_' + mode.upper()] = '1'
+                if mode == 'folder-done-touch':
+                    env['CROSSINK_READING_TEST_DONE_TOUCH'] = '1'
+                if mode == 'folder-done-confirm':
+                    env['CROSSINK_READING_TEST_DONE_CONFIRM'] = '1'
                 if mode.startswith('folder-ask'):
                     env['CROSSINK_READING_TEST_ASK'] = '1'
                 if mode == 'folder-ask-cancel':

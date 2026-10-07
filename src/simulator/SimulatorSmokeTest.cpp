@@ -3853,7 +3853,21 @@ class SimulatorSmokeTest {
               inputScript.push_back(assertActivity("KOReaderSync"));
             }
           }
-          addTap(MappedInputManager::Button::Back);
+          if (std::getenv("CROSSINK_READING_TEST_DONE_TOUCH")) {
+#if CROSSINK_APP_CAP_TOUCH
+            if (!mappedInputManager.hasTouchHardware()) fail("Touch Back test requires a touch simulator");
+            const auto area = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
+            const int x = area.x + area.width / 2;
+            const int y = area.y + area.height - 52;
+            inputScript.push_back(touchDown(x, y));
+            inputScript.push_back(touchRelease(x, y));
+#else
+            fail("Touch Back test requires a touch simulator");
+#endif
+          } else {
+            addTap(std::getenv("CROSSINK_READING_TEST_DONE_CONFIRM") ? MappedInputManager::Button::Confirm
+                                                                     : MappedInputManager::Button::Back);
+          }
           inputScript.push_back(assertActivity("Home"));
           step = SmokeStep::ReaderInput;
           break;

@@ -840,12 +840,17 @@ void KOReaderSyncActivity::render(RenderLock&&) {
     GUI.drawHeader(renderer, header, heading.c_str());
   }
 
-  int top = screen.y + screen.height / 2 - 40;
+  int top = screen.width > screen.height
+                ? TouchHeaderBackButton::contentTop(renderer, mappedInput, screen.y) + metrics.verticalSpacing
+                : screen.y + screen.height / 2 - 40;
+  const Rect textArea{screen.x + metrics.contentSidePadding, screen.y, screen.width - metrics.contentSidePadding * 2,
+                      screen.height};
   if (state == NO_CREDENTIALS) {
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top, tr(STR_NO_CREDENTIALS_MSG), true,
-                              EpdFontFamily::BOLD);
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top + 40, tr(STR_KOREADER_SETUP_HINT), true,
-                              EpdFontFamily::BOLD);
+    top += UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top, tr(STR_NO_CREDENTIALS_MSG), 2, true,
+                                            EpdFontFamily::BOLD, 4) +
+           16;
+    UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top, tr(STR_KOREADER_SETUP_HINT), 3, true,
+                                     EpdFontFamily::BOLD, 4);
 
     const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
@@ -854,7 +859,8 @@ void KOReaderSyncActivity::render(RenderLock&&) {
   }
 
   if (state == SYNCING || state == UPLOADING) {
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top, statusMessage.c_str(), true, EpdFontFamily::BOLD);
+    UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top, statusMessage.c_str(), 3, true,
+                                     EpdFontFamily::BOLD, 4);
     renderer.displayBuffer(screenTransitionRefresh.modeFor(static_cast<uint8_t>(state)));
     return;
   }
@@ -862,8 +868,9 @@ void KOReaderSyncActivity::render(RenderLock&&) {
   if (state == SHOWING_RESULT) {
     const bool hasTouch = mappedInput.hasTouchHardware();
     top = TouchHeaderBackButton::contentTop(renderer, mappedInput, screen.y) + metrics.verticalSpacing;
-    renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_PROGRESS_FOUND), true, EpdFontFamily::BOLD);
-    top += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing;
+    top += UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top, tr(STR_PROGRESS_FOUND), 2, true,
+                                            EpdFontFamily::BOLD, 4) +
+           metrics.verticalSpacing;
 
     // Remote chapter name requires Epub (loaded lazily in performSync before this state).
     const int remoteTocIndex = epub->getTocIndexForSpineIndex(remotePosition.spineIndex);
@@ -916,8 +923,11 @@ void KOReaderSyncActivity::render(RenderLock&&) {
   }
 
   if (state == NO_REMOTE_PROGRESS) {
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top, tr(STR_NO_REMOTE_MSG), true, EpdFontFamily::BOLD);
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top + 40, tr(STR_UPLOAD_PROMPT));
+    top += UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top, tr(STR_NO_REMOTE_MSG), 2, true,
+                                            EpdFontFamily::BOLD, 4) +
+           16;
+    UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top, tr(STR_UPLOAD_PROMPT), 3, true,
+                                     EpdFontFamily::REGULAR, 4);
 
     if (mappedInput.hasTouch()) {
       const auto actions = bottomActionLayout(screen, metrics, 2);
@@ -932,13 +942,15 @@ void KOReaderSyncActivity::render(RenderLock&&) {
   }
 
   if (state == UPLOAD_COMPLETE || state == SYNC_COMPLETE) {
-    UITheme::drawCenteredText(renderer, screen, UI_10_FONT_ID, top,
-                              state == UPLOAD_COMPLETE ? tr(STR_UPLOAD_SUCCESS) : tr(STR_ALREADY_SYNCED), true,
-                              EpdFontFamily::BOLD);
+    top = screen.width > screen.height
+              ? TouchHeaderBackButton::contentTop(renderer, mappedInput, screen.y) + metrics.verticalSpacing
+              : screen.y + screen.height / 3;
+    top += UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top,
+                                            state == UPLOAD_COMPLETE ? tr(STR_UPLOAD_SUCCESS) : tr(STR_ALREADY_SYNCED),
+                                            2, true, EpdFontFamily::BOLD, 4) +
+           24;
     // Same per-data lines as the failure and bulk result screens.
-    const Rect textArea{screen.x + metrics.contentSidePadding, screen.y, screen.width - metrics.contentSidePadding * 2,
-                        screen.height};
-    drawExtrasResults(textArea, top + 60);
+    drawExtrasResults(textArea, top);
 
     const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_DONE), "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
@@ -947,15 +959,18 @@ void KOReaderSyncActivity::render(RenderLock&&) {
   }
 
   if (state == SYNC_FAILED) {
-    const Rect textArea{screen.x + metrics.contentSidePadding, screen.y, screen.width - metrics.contentSidePadding * 2,
-                        screen.height};
-    UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top, tr(STR_SYNC_FAILED_MSG), 2, true,
-                                     EpdFontFamily::BOLD);
-    UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top + 40, statusMessage.c_str(), 3, true,
-                                     EpdFontFamily::REGULAR, 4);
+    top = screen.width > screen.height
+              ? TouchHeaderBackButton::contentTop(renderer, mappedInput, screen.y) + metrics.verticalSpacing
+              : screen.y + screen.height / 3;
+    top += UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top, tr(STR_SYNC_FAILED_MSG), 2, true,
+                                            EpdFontFamily::BOLD, 4) +
+           16;
+    top += UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top, statusMessage.c_str(), 3, true,
+                                            EpdFontFamily::REGULAR, 4) +
+           24;
 
     if (extrasAttempted) {
-      drawExtrasResults(textArea, top + 120);
+      drawExtrasResults(textArea, top);
     }
     if (folderSync && mappedInput.hasTouchHardware()) {
       const auto actions = bottomActionLayout(screen, metrics, 1);

@@ -383,17 +383,20 @@ void StatsUploadActivity::loop() {
     leave();
     return;
   }
-  if (state == State::Ready || state == State::BookFailed) {
+  if (state == State::Ready || state == State::BookFailed || state == State::Done) {
     int x = 0, y = 0;
-    bool uploadTapped = false;
+    bool actionTapped = false;
     if (mappedInput.wasScreenTapped(x, y)) {
       const auto area = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
       const auto layout =
           TouchActionButtons::vertical(Rect{area.x + 20, area.y + area.height - 80, area.width - 40, 56}, 1);
-      uploadTapped = TouchActionButtons::indexAt(layout, x, y) == 0;
+      actionTapped = TouchActionButtons::indexAt(layout, x, y) == 0;
     }
-    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) || uploadTapped) {
-      if (state == State::Ready) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) || actionTapped) {
+      if (state == State::Done) {
+        leave();
+        return;
+      } else if (state == State::Ready) {
         start();
       } else {
         {
@@ -425,32 +428,44 @@ void StatsUploadActivity::render(RenderLock&&) {
                      : state == State::Ready || state == State::Uploading ? tr(STR_LOADING)
                      : state == State::BookFailed                         ? tr(STR_SYNC_FAILED_MSG)
                                                                           : message.c_str();
-  UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, y, text, 3, true, EpdFontFamily::REGULAR, 4);
+  int detailY =
+      y + UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, y, text, 3, true, EpdFontFamily::REGULAR, 4) +
+      24;
   if (state == State::Ready && autoStart) {
     // About to connect; there are no results to show yet.
   } else if (asking) {
-    const auto url = scope == Scope::Library ? KOREADER_STORE.getBaseUrl() : path + "\n" + KOREADER_STORE.getBaseUrl();
-    UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, y + 80, url.c_str(), 3, true,
+    if (scope != Scope::Library) {
+      detailY += UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, detailY, path.c_str(), 3, true,
+                                                  EpdFontFamily::REGULAR, 4) +
+                 8;
+    }
+    const auto url = KOREADER_STORE.getBaseUrl();
+    UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, detailY, url.c_str(), 3, true,
                                      EpdFontFamily::REGULAR, 4);
   } else {
     char counts[160];
     snprintf(counts, sizeof(counts), tr(STR_FOLDER_SYNC_COUNTS), static_cast<unsigned>(uploaded),
              static_cast<unsigned>(skipped), static_cast<unsigned>(failed));
-    UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, y + 80, counts, 3, true, EpdFontFamily::REGULAR, 4);
+    detailY += UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, detailY, counts, 3, true,
+                                                EpdFontFamily::REGULAR, 4) +
+               24;
     char statsCount[48];
     char clippingsCount[48];
     const char* statsText =
         ReadingSyncUpload::countLabel(statsCount, sizeof(statsCount), statsUploaded, statsFailed, false);
     const char* clippingsText =
         ReadingSyncUpload::countLabel(clippingsCount, sizeof(clippingsCount), clippingsUploaded, clippingsFailed, true);
-    int rowY = y + 140;
+    int rowY = detailY;
     rowY += UITheme::drawCenteredStatusRow(renderer, area, UI_10_FONT_ID, rowY, tr(STR_ALL_TIME_STATS),
                                            ReadingSyncUpload::statusLabel(globalResult, false)) +
             8;
     rowY += UITheme::drawCenteredStatusRow(renderer, area, UI_10_FONT_ID, rowY, tr(STR_READING_STATS), statsText) + 8;
     UITheme::drawCenteredStatusRow(renderer, area, UI_10_FONT_ID, rowY, tr(STR_CLIPPINGS), clippingsText);
   }
-  const char* action = asking ? tr(STR_SYNC) : state == State::BookFailed ? tr(STR_SKIP_BOOK) : "";
+  const char* action = asking                       ? tr(STR_SYNC)
+                       : state == State::BookFailed ? tr(STR_SKIP_BOOK)
+                       : state == State::Done       ? tr(STR_BACK)
+                                                    : "";
   if (action[0] && mappedInput.hasTouchHardware()) {
     const auto layout =
         TouchActionButtons::vertical(Rect{area.x + 20, area.y + area.height - 80, area.width - 40, 56}, 1);
