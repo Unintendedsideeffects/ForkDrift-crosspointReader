@@ -220,7 +220,7 @@ Result Store::rewrite(const char* code, const Input* input, const Entry* replace
     next = align4(next + entry.size);
     uint32_t crc = 0;
     for (size_t copied = 0; copied < entry.size;) {
-      const size_t n = std::min(BUFFER_SIZE, entry.size - copied);
+      const size_t n = std::min<size_t>(BUFFER_SIZE, entry.size - copied);
       if (!input->read(input->context, PACK_HEADER_SIZE + copied, work->buffer, n)) return Result::Io;
       crc = crc32(work->buffer, n, crc);
       copied += n;
@@ -247,7 +247,7 @@ Result Store::rewrite(const char* code, const Input* input, const Entry* replace
     Entry source;
     if (!added && !find(entry.code, source)) return Result::Invalid;
     for (size_t copied = 0; copied < entry.size;) {
-      const size_t n = std::min(BUFFER_SIZE, entry.size - copied);
+      const size_t n = std::min<size_t>(BUFFER_SIZE, entry.size - copied);
       const bool read = added ? input->read(input->context, PACK_HEADER_SIZE + copied, work->buffer, n)
                               : flash_.read(flash_.context, bankOffset() + source.offset + copied, work->buffer, n);
       if (!read || !flash_.write(flash_.context, target + entry.offset + copied, work->buffer, n)) return Result::Io;

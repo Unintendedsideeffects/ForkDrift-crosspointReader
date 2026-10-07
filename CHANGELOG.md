@@ -46,6 +46,7 @@
 - Show full-width Forget and Cancel buttons after a saved Wi-Fi network fails to connect on button devices, with Cancel selected by default below Forget.
 - Free OPDS catalog memory while downloading books on X3/X4, then reload the same browsing position when finished or cancelled.
 - Keep side-button hints inside calibrated screen edges in landscape.
+- Fix ESP32 firmware builds failing to compile hyphenation pack installation and updates.
 
 ### Changed
 
