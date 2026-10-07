@@ -61,6 +61,7 @@
 - Sync actions are now named Sync Book and Sync Folder because they also send stats and clippings, and File Transfer → Sync Stats is now Nearby Stats Sync.
 - Upload Stats is replaced by Sync All Books, which follows your What to Sync choices instead of always uploading stats only.
 - Every sync result, including a successful single-book sync, lists overall stats, reading stats, and clippings as Done, OFF, or Not supported.
+- Use a consistent "Loading..." message across loading screens.
 
 ## [v1.6.1] - 2026-10-03
 

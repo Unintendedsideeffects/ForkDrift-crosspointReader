@@ -621,7 +621,7 @@ void EpubReaderClippingListActivity::render(RenderLock&&) {
   if (initialListRender && CLIPPINGS.clippingCount() > 0) {
     // Publish feedback before app.render() reads and lays out the clipping previews.
     // drawPopup flushes the framebuffer while this render still owns RenderLock.
-    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+    GUI.drawPopup(renderer, tr(STR_LOADING));
     renderer.clearScreen();
   }
   initialListRender = false;

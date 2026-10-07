@@ -525,7 +525,7 @@ void SettingsActivity::openSubmenu(SettingAction action) {
   activeSubmenu = action;
   if (action == SettingAction::ReaderFontOptions) {
     RenderLock lock;
-    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP), true);
+    GUI.drawPopup(renderer, tr(STR_LOADING), true);
     rebuildSettingsLists();
   }
   setCurrentSettingsForCategory();

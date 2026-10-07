@@ -81,7 +81,7 @@ void FontSelectionActivity::onEnter() {
   Activity::onEnter();
   if (registry_ == &sdFontSystem.registry()) {
     RenderLock lock;
-    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP), true);
+    GUI.drawPopup(renderer, tr(STR_LOADING), true);
     sdFontSystem.refreshIfDirty();
     sdFontSystem.ensureLoaded(renderer);
   }
@@ -128,7 +128,7 @@ void FontSelectionActivity::activateSelected() {
     return;
   }
   RenderLock lock;
-  GUI.drawPopup(renderer, tr(STR_LOADING_POPUP), true);
+  GUI.drawPopup(renderer, tr(STR_LOADING), true);
   const uint8_t previousFamily = SETTINGS.fontFamily;
   char previousSdFamily[sizeof(SETTINGS.sdFontFamilyName)];
   std::memcpy(previousSdFamily, SETTINGS.sdFontFamilyName, sizeof(previousSdFamily));

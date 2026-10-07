@@ -198,7 +198,7 @@ void NearbyBookPositionSyncActivity::render(RenderLock&&) {
   std::string detailSecondary;
   switch (state_) {
     case State::STARTING:
-      primary = tr(STR_LOADING_POPUP);
+      primary = tr(STR_LOADING);
       break;
     case State::READY:
       primary = tr(STR_NEARBY_POSITION_READY);
@@ -1297,7 +1297,7 @@ void NearbyBookPositionSyncActivity::render(RenderLock&&) {
   std::string detailSecondary;
   switch (state_) {
     case State::STARTING:
-      primary = tr(STR_LOADING_POPUP);
+      primary = tr(STR_LOADING);
       break;
     case State::READY:
       primary = tr(STR_NEARBY_POSITION_READY);

@@ -190,7 +190,7 @@ void ReaderActivity::onEnter() {
   }
 
   if (shouldShowLoadingPopup(initialBookPath)) {
-    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+    GUI.drawPopup(renderer, tr(STR_LOADING));
   }
 
   if (isImagePreviewFile(initialBookPath)) {

@@ -2316,7 +2316,7 @@ class SimulatorSmokeTest {
       std::vector<uint8_t> before(bytes), after(bytes);
       if (!renderer.copyRegionToBuffer(0, 0, width, height, before.data(), bytes))
         fail("Could not snapshot loading popup backdrop");
-      GUI.drawPopup(renderer, tr(STR_LOADING_POPUP), true);
+      GUI.drawPopup(renderer, tr(STR_LOADING), true);
       if (!renderer.copyRegionToBuffer(0, 0, width, height, after.data(), bytes) || before != after)
         fail("Loading popup changed the underlying framebuffer");
     }

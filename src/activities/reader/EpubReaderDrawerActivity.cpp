@@ -503,7 +503,7 @@ void EpubReaderDrawerActivity::onExit() {
 
 void EpubReaderDrawerActivity::discoverFonts() {
   RenderLock lock;
-  GUI.drawPopup(renderer, tr(STR_LOADING_POPUP), true);
+  GUI.drawPopup(renderer, tr(STR_LOADING), true);
   sdFontSystem.refreshIfDirty();
   const auto& families = sdFontSystem.registry().getFamilies();
   fontLabels.clear();
@@ -1895,7 +1895,7 @@ void EpubReaderDrawerActivity::showEnumOptions(const RowId row) {
   const bool fontSizeNeedsLoading = row == RowId::FontSize && draft.sdFontFamilyName[0] != '\0' &&
                                     ReaderUtils::shouldShowFontPreviewLoading(draft.sdFontFamilyName.data());
   if (row == RowId::DictionaryFontFamily || row == RowId::DictionaryFontSize || fontSizeNeedsLoading) {
-    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP), true);
+    GUI.drawPopup(renderer, tr(STR_LOADING), true);
   }
   if (row == RowId::DictionaryFontFamily || row == RowId::DictionaryFontSize) sdFontSystem.refreshIfDirty();
   std::vector<std::string> labels;
@@ -2587,7 +2587,7 @@ bool EpubReaderDrawerActivity::renderPreview(int& previewFontId,
   }
   if (CROSSINK_APP_READER_SAMPLE_PREVIEW && releasePreviewIfBelowReserve()) return false;
   if (fontPreviewLoading) {
-    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP), true);
+    GUI.drawPopup(renderer, tr(STR_LOADING), true);
     fontPreviewLoading = false;
   }
   const ReaderSettingsDraft previewSettings = draft;
@@ -2879,7 +2879,7 @@ void EpubReaderDrawerActivity::render(RenderLock&&) {
 #endif
   uiReady = false;
   if (CROSSINK_APP_READER_SAMPLE_PREVIEW && fontPreviewLoading) {
-    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP), true);
+    GUI.drawPopup(renderer, tr(STR_LOADING), true);
     fontPreviewLoading = false;
   }
   renderUiApp(app, uiTarget);

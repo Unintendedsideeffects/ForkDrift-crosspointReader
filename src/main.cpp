@@ -407,7 +407,7 @@ static void silentRestartToHome(const uint32_t payload, const char* const descri
   // Without an overlay, users don't see the reboot and fire input through to
   // Home. Select on the default selectorIndex=0 then opens the most-recent
   // book, looking like a trampoline back to the reader they just exited.
-  GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+  GUI.drawPopup(renderer, tr(STR_LOADING));
   delay(50);
   restartWithSilentToken();
 }
@@ -452,7 +452,7 @@ static void silentRestartToReaderImpl(const bool cleanImageBaseOnEntry) {
   silentRebootPayload = cleanImageBaseOnEntry ? SILENT_REBOOT_READER_CLEAN_IMAGE_BASE : 0;
   silentRebootMagic = SILENT_REBOOT_MAGIC;
   LOG_DBG("MAIN", "Silent restart (target=reader cleanImageBase=%d)", cleanImageBaseOnEntry ? 1 : 0);
-  GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+  GUI.drawPopup(renderer, tr(STR_LOADING));
   delay(50);
   restartWithSilentToken();
 }
@@ -472,9 +472,9 @@ void silentRestartToNetwork(const NetworkBootTarget target, const uint32_t paylo
     // A drawer close can queue a backdrop repaint. Serialize the handoff and
     // replace that frame so only one loading notice remains visible.
     renderer.clearScreen();
-    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+    GUI.drawPopup(renderer, tr(STR_LOADING));
   } else {
-    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+    GUI.drawPopup(renderer, tr(STR_LOADING));
   }
   delay(50);
   restartWithSilentToken();

@@ -114,7 +114,7 @@ void syncProgress(GfxRenderer& renderer, MappedInputManager& mappedInput, const 
     return;
   }
 
-  drawToast(renderer, tr(STR_LOADING_POPUP));
+  drawToast(renderer, tr(STR_LOADING));
   {
     // A never-opened book needs its spine/TOC cache for progress mapping.
     // Keep parsing off the network boot and release this fallible allocation

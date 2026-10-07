@@ -645,7 +645,7 @@ void NearbyStatsSyncActivity::render(RenderLock&&) {
 
   switch (state_) {
     case State::STARTING:
-      primary = tr(STR_LOADING_POPUP);
+      primary = tr(STR_LOADING);
       break;
     case State::READY:
       primary = tr(STR_NEARBY_STATS_READY);

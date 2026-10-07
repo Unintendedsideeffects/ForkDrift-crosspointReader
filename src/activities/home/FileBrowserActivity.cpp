@@ -324,7 +324,7 @@ void FileBrowserActivity::loadFilesLocked() {
   if (!fileIndex) fileIndex = makeUniqueNoThrow<FileIndex>();
   if (!indexEntry) indexEntry = makeUniqueNoThrow<FileIndex::Entry>();
   if (fileIndex && indexEntry) {
-    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+    GUI.drawPopup(renderer, tr(STR_LOADING));
 
     const auto accept =
         mode == Mode::PickFirmware ? acceptFirmware : (mode == Mode::PickDirectory ? acceptDirectory : acceptCommon);

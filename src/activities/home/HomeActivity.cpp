@@ -607,7 +607,7 @@ bool HomeActivity::loadCoverGridThumbnails() {
     }
     if (!showingLoading) {
       showingLoading = true;
-      popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+      popupRect = GUI.drawPopup(renderer, tr(STR_LOADING));
     }
     // fillPopupProgress() refreshes the panel itself.
     GUI.fillPopupProgress(renderer, popupRect, static_cast<int>(100 * i / std::max<size_t>(1, recentBooks.size())));
@@ -662,7 +662,7 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
         freeCoverBuffer();
         coverRendered = false;
       }
-      popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+      popupRect = GUI.drawPopup(renderer, tr(STR_LOADING));
     }
     GUI.fillPopupProgress(renderer, popupRect, std::clamp(value, 0, 100));  // refreshes the panel itself
   };
