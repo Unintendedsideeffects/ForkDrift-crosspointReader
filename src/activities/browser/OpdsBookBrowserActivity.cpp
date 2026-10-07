@@ -12,6 +12,7 @@
 #include <WiFi.h>
 #include <ZipFile.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <utility>
 
@@ -81,6 +82,7 @@ void OpdsBookBrowserActivity::onEnter() {
 
   state = BrowserState::CHECK_WIFI;
   entryCount = 0;
+  catalogReleasedForDownload = false;
   navigationHistory.clear();
   searchTemplate = "";
   currentPath = "";
@@ -235,8 +237,12 @@ void OpdsBookBrowserActivity::loop() {
     int ty = 0;
     if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) || mappedInput.wasScreenTapped(tx, ty)) {
       if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
-        showLoadingBeforeFetch();
-        fetchFeed(currentPath);
+        if (catalogReleasedForDownload) {
+          restoreCatalogAfterDownload();
+        } else {
+          showLoadingBeforeFetch();
+          fetchFeed(currentPath);
+        }
       } else {
         launchWifiSelection();
       }
@@ -261,8 +267,7 @@ void OpdsBookBrowserActivity::loop() {
     }
     if (cancelDownload || mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       cancelDownload = false;
-      state = BrowserState::BROWSING;
-      requestUpdate();
+      finishDownload({}, HttpDownloader::ABORTED, "");
     }
 #endif
     return;
@@ -717,6 +722,7 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
 bool OpdsBookBrowserActivity::ensureEntryBuffer() {
   if (entries) return true;
   entries = makeUniqueNoThrow<OpdsEntry[]>(OPDS_BROWSER_ENTRY_CAPACITY);
+  if (!entries) LOG_ERR("OPDS", "Cannot allocate catalog (%zu bytes)", sizeof(OpdsEntry) * OPDS_BROWSER_ENTRY_CAPACITY);
   return entries != nullptr;
 }
 
@@ -750,6 +756,7 @@ void OpdsBookBrowserActivity::navigateToEntry(const OpdsEntry& entry, const bool
 }
 
 void OpdsBookBrowserActivity::navigateBack() {
+  catalogReleasedForDownload = false;
   if (navigationHistory.empty()) {
     onGoHome();
   } else {
@@ -765,25 +772,30 @@ void OpdsBookBrowserActivity::requestDownload(const OpdsEntry& book) {
   path += '/';
   path += StringUtils::sanitizeFilename(buildBookFilenameBase(book, server.filenameFormat));
   path += ".epub";
+  const std::string feedUrl = UrlUtils::buildUrl(server.url, currentPath);
+  DownloadRequest request{UrlUtils::buildUrl(feedUrl, book.href), book.title, std::move(path)};
   if (server.filenameFormat == OpdsFilenameFormat::SERVER_FILENAME) {
-    downloadBook(book, path);
+    downloadBook(std::move(request));
     return;
   }
   // Recover an interrupted replacement before deciding whether the book exists.
-  if (!DownloadFileSwap::recover(path)) {
+  if (!DownloadFileSwap::recover(request.filename)) {
     state = BrowserState::ERROR;
     errorMessage = tr(STR_DOWNLOAD_FAILED);
     requestUpdate();
     return;
   }
-  if (!Storage.exists(path.c_str())) {
-    downloadBook(book, path);
+  if (!Storage.exists(request.filename.c_str())) {
+    downloadBook(std::move(request));
     return;
   }
-  confirmDownload(path, path);
+  // Copy the destination before moving the request (argument evaluation order).
+  const std::string destination = request.filename;
+  confirmDownload(std::move(request), destination);
 }
 
-void OpdsBookBrowserActivity::confirmDownload(const std::string& fallbackPath, const std::string& destination) {
+void OpdsBookBrowserActivity::confirmDownload(DownloadRequest request, const std::string& destination) {
+  RenderLock lock;
   state = BrowserState::BROWSING;
   auto dialog =
       makeUniqueNoThrow<ConfirmationActivity>(renderer, mappedInput, std::string(tr(STR_REPLACE)) + "?", destination);
@@ -794,23 +806,35 @@ void OpdsBookBrowserActivity::confirmDownload(const std::string& fallbackPath, c
     requestUpdate();
     return;
   }
-  const int bookIndex = selectorIndex;
-  startActivityForResult(std::move(dialog), [this, bookIndex, fallbackPath, destination](const ActivityResult& result) {
-    if (result.isCancelled || !entries || bookIndex < 0 || bookIndex >= static_cast<int>(entryCount)) {
-      requestUpdate();
-      return;
-    }
-    downloadBook(entries[bookIndex], fallbackPath, destination);
-  });
+  // A refreshed catalog may reorder or remove rows. Approval must still apply
+  // to the original URL and filename, never the book now at the same index.
+  startActivityForResult(std::move(dialog),
+                         [this, request = std::move(request), destination](const ActivityResult& result) mutable {
+                           if (result.isCancelled) {
+                             requestUpdate();
+                             return;
+                           }
+                           downloadBook(std::move(request), destination);
+                         });
 }
 
-void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book, const std::string& filename,
-                                           const std::string& approvedPath) {
-  state = BrowserState::DOWNLOADING;
-  statusMessage = book.title;
-  downloadProgress = downloadTotal = 0;
-  cancelDownload = false;
-  goHomeAfterCancel = false;
+void OpdsBookBrowserActivity::downloadBook(DownloadRequest request, const std::string& approvedPath) {
+  {
+    RenderLock lock;
+    state = BrowserState::DOWNLOADING;
+    statusMessage = request.title;
+    downloadProgress = downloadTotal = 0;
+    cancelDownload = false;
+    goHomeAfterCancel = false;
+    downloadSelectorIndex = selectorIndex;
+    downloadTopIndex = topIndex;
+    catalogReleasedForDownload = true;
+    clearEntries();
+    // clearEntries() alone leaves the fixed entry/description array allocated.
+    entries.reset();
+    std::vector<std::string>().swap(descriptionLines);
+    descriptionWidth = descriptionTop = 0;
+  }
   requestUpdate(true);
 
 #ifdef SIMULATOR
@@ -820,9 +844,6 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book, const std::str
   return;
 #endif
 
-  // Build full download URL relative to the current feed, not the root server URL
-  const std::string feedUrl = UrlUtils::buildUrl(server.url, currentPath);
-  std::string downloadUrl = UrlUtils::buildUrl(feedUrl, book.href);
   // This temporary is intentionally retained until downloadToFile returns;
   // DownloadOptions borrows it to avoid copying the server URL per transfer.
   const std::string authorizationOrigin = UrlUtils::ensureProtocol(server.url);
@@ -830,13 +851,14 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book, const std::str
   bool useDownloadFolder = downloadFolder[0] != '\0';
   if (useDownloadFolder && !Storage.exists(downloadFolder) && !Storage.mkdir(downloadFolder)) {
     LOG_ERR("OPDS", "Could not create download folder %s", downloadFolder);
+    RenderLock lock;
     state = BrowserState::ERROR;
     errorMessage = tr(STR_DOWNLOAD_FAILED);
     requestUpdate();
     return;
   }
 
-  LOG_DBG("OPDS", "Downloading: %s -> %s", UrlUtils::forLog(downloadUrl).c_str(), filename.c_str());
+  LOG_DBG("OPDS", "Downloading: %s -> %s", UrlUtils::forLog(request.url).c_str(), request.filename.c_str());
 
   bool cancelRequested = false;
   auto pollCancel = [this, &cancelRequested] {
@@ -882,7 +904,7 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book, const std::str
   unsigned long lastProgressUpdateMs = 0;
 
   const auto result = HttpDownloader::downloadToFile(
-      downloadUrl, filename,
+      request.url, request.filename,
       [this, &lastRenderedPercent, &lastProgressUpdateMs](const size_t downloaded, const size_t total) {
         downloadProgress = downloaded;
         downloadTotal = total;
@@ -898,12 +920,18 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book, const std::str
       },
       &cancelRequested, server.username, server.password, downloadOptions);
 
+  // The downloader has closed TLS and file handles before the catalog reload.
+  finishDownload(std::move(request), result, resolvedPath);
+}
+
+void OpdsBookBrowserActivity::finishDownload(DownloadRequest request, const HttpDownloader::DownloadError result,
+                                             const std::string& resolvedPath) {
   if (result == HttpDownloader::OK) {
     clearBookCache(resolvedPath);
-    state = BrowserState::BROWSING;
+    restoreCatalogAfterDownload();
   } else if (result == HttpDownloader::FILE_EXISTS) {
-    confirmDownload(filename, resolvedPath);
-    return;
+    restoreCatalogAfterDownload();
+    if (state == BrowserState::BROWSING) confirmDownload(std::move(request), resolvedPath);
   } else if (result == HttpDownloader::ABORTED) {
     LOG_INF("OPDS", "Download cancelled");
     if (goHomeAfterCancel) {
@@ -911,11 +939,24 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book, const std::str
       return;
     }
     mappedInput.suppressNextBackRelease();
-    state = BrowserState::BROWSING;
+    restoreCatalogAfterDownload();
   } else {
+    RenderLock lock;
     state = BrowserState::ERROR;
     errorMessage = result == HttpDownloader::INSUFFICIENT_SPACE ? tr(STR_SD_CARD_FULL) : tr(STR_DOWNLOAD_FAILED);
+    requestUpdate();
   }
+}
+
+void OpdsBookBrowserActivity::restoreCatalogAfterDownload() {
+  showLoadingBeforeFetch();
+  fetchFeed(currentPath);
+  RenderLock lock;
+  if (state != BrowserState::BROWSING) return;  // Keep the fetch/allocation error and Retry path.
+  selectorIndex = std::clamp(downloadSelectorIndex, 0, static_cast<int>(entryCount) - 1);
+  topIndex = scrollListBy(downloadTopIndex, 0, visibleRows, static_cast<int>(entryCount));
+  catalogReleasedForDownload = false;
+  uiReady = false;
   requestUpdate();
 }
 
@@ -987,8 +1028,12 @@ void OpdsBookBrowserActivity::launchWifiSelection() {
 
 void OpdsBookBrowserActivity::onWifiSelectionComplete(const bool connected) {
   if (connected) {
-    showLoadingBeforeFetch();
-    fetchFeed(currentPath);
+    if (catalogReleasedForDownload) {
+      restoreCatalogAfterDownload();
+    } else {
+      showLoadingBeforeFetch();
+      fetchFeed(currentPath);
+    }
   } else {
     // Leave WiFi up; onExit's silent reboot handles teardown without fragmenting.
     state = BrowserState::ERROR;

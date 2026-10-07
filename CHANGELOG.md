@@ -39,6 +39,7 @@
 - Keep daily, manual, and clockless reading-stat backups separately, and prune numbered backups in the correct order after 999.
 - KOReader-only sync servers no longer end every sync with "extra upload failed"; stats and clippings show "Requires CrossPoint Sync" instead.
 - Show full-width Forget and Cancel buttons after a saved Wi-Fi network fails to connect on button devices, with Cancel selected by default below Forget.
+- Free OPDS catalog memory while downloading books on X3/X4, then reload the same browsing position when finished or cancelled.
 
 ### Changed
 
