@@ -70,7 +70,7 @@ std::vector<FileBrowserActionActivity::MenuItem> buildBookActionItems(const std:
     if (SETTINGS.shouldTrackReadingStats()) {
       const bool bookEnabled = isBookStatsTrackingEnabled(fullPath);
       items.push_back({FileBrowserAction::ToggleBookStatsTracking, StrId::STR_TRACK_READING_STATS,
-                       bookEnabled ? StrId::STR_STATE_ON : StrId::STR_STATE_OFF});
+                       bookEnabled ? StrId::STR_ON : StrId::STR_OFF});
       if (bookEnabled) {
         items.push_back({FileBrowserAction::ReadingStats, StrId::STR_READING_STATS});
         items.push_back({FileBrowserAction::DeleteStats, StrId::STR_DELETE_BOOK_STATS});

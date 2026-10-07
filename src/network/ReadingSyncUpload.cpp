@@ -185,7 +185,7 @@ namespace {
 const char* unavailableLabel(const bool clippings) {
   if (KOREADER_STORE.getServerSupport() == SyncServerSupport::UNSUPPORTED) return tr(STR_NOT_SUPPORTED);
   const bool enabled = clippings ? KOREADER_STORE.getSyncClippings() : KOREADER_STORE.getSyncStats();
-  return enabled ? nullptr : tr(STR_STATE_OFF);
+  return enabled ? nullptr : tr(STR_OFF);
 }
 }  // namespace
 

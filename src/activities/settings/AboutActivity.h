@@ -43,7 +43,7 @@ class AboutActivity final : public Activity {
   OptionPopup scopePopup;  // At most three scope choices; reuse the existing popup lifecycle.
   Rect exportButtonRect{};
   bool uiReady = false;
-  StrId exportStatus = StrId::STR_SUPPORT_EXPORT;
+  StrId exportStatus = StrId::STR_SUPPORT_EXPORT_SHORT;
   void chooseExportScope();
   void confirmExport(bool includeBook);
   static void onExport(const freeink::ui::ActionEvent& event, void* user);

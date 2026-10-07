@@ -409,7 +409,7 @@ void ControlsOptionsActivity::buildOptionsScreen(UiApp::ScreenType& screen) {
     if (settingShowsNavigationCaret(setting)) {
       values[i] = ">";
     } else if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {
-      values[i] = SETTINGS.*(setting.valuePtr) ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
+      values[i] = SETTINGS.*(setting.valuePtr) ? tr(STR_ON) : tr(STR_OFF);
     } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
       const uint8_t displayValue = enumDisplayIndexForRawValue(setting, SETTINGS.*(setting.valuePtr));
       values[i] = sideButtonOptionLabel(setting, displayValue < settingEnumOptionCount(setting) ? displayValue : 0);

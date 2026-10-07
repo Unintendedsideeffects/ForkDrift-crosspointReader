@@ -349,7 +349,7 @@ library::SortOrder LibraryActivity::indexOrder() const {
 const char* LibraryActivity::sortLabel() const {
   switch (sort) {
     case Sort::Title:
-      return tr(STR_LIBRARY_TITLE);
+      return tr(STR_TITLE);
     case Sort::AuthorLast:
       return tr(STR_LIBRARY_AUTHOR_LAST_NAME);
     case Sort::AuthorFirst:
@@ -623,7 +623,7 @@ void LibraryActivity::openBook(const int row) {
 
 void LibraryActivity::openSortPicker(const int selectedIndex) {
   static constexpr StrId choices[] = {StrId::STR_LIBRARY_DATE_ADDED,
-                                      StrId::STR_LIBRARY_TITLE,
+                                      StrId::STR_TITLE,
                                       StrId::STR_LIBRARY_AUTHOR_LAST_NAME,
                                       StrId::STR_LIBRARY_AUTHOR_FIRST_NAME,
                                       StrId::STR_LIBRARY_RECENTLY_OPENED,
@@ -1557,7 +1557,8 @@ void LibraryActivity::promptRemoveBook(const std::string& path, const std::strin
     }
   };
 
-  openDialog(makeUniqueNoThrow<ConfirmationActivity>(renderer, mappedInput, tr(STR_REMOVE_FROM_RECENTS), title,
+  openDialog(makeUniqueNoThrow<ConfirmationActivity>(renderer, mappedInput,
+                                                     std::string(tr(STR_REMOVE_FROM_RECENTS_ACTION)) + "?", title,
                                                      /*ignoreInitialConfirmRelease=*/false),
              std::move(handler));
 }

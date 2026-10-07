@@ -148,7 +148,7 @@ void StatsUploadActivity::start() {
         return;
       }
       if (!hasActiveStationWifiConnection()) {
-        fail(tr(STR_WIFI_CONN_FAILED));
+        fail(tr(STR_CONNECTION_FAILED));
         return;
       }
       {

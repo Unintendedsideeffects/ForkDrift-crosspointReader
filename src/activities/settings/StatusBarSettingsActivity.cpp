@@ -449,7 +449,7 @@ void StatusBarSettingsActivity::buildSettingsScreen(UiApp::ScreenType& screen) {
       row.label = tr(STR_BATTERY);
       row.value = batteryStyleLabel(SETTINGS.displayStatusBar.batteryStyle);
     } else if (displayContext) {
-      row.label = i == 0 ? tr(STR_STATUS_BAR_LEFT) : i == 1 ? tr(STR_CENTER) : tr(STR_STATUS_BAR_RIGHT);
+      row.label = i == 0 ? tr(STR_DIR_LEFT) : i == 1 ? tr(STR_CENTER) : tr(STR_DIR_RIGHT);
       values[i] = itemLabel(SETTINGS.displayStatusBar.slots[i]);
       row.value = values[i].c_str();
     } else if (view == View::Root) {
@@ -462,17 +462,17 @@ void StatusBarSettingsActivity::buildSettingsScreen(UiApp::ScreenType& screen) {
       if (item <= SLOT_RIGHT_3) {
         values[i] = itemLabel(config.slots[item]);
         if (item <= SLOT_LEFT_3) {
-          labels[i] = std::string(tr(STR_STATUS_BAR_LEFT)) + " " + std::to_string(item + 1);
+          labels[i] = std::string(tr(STR_DIR_LEFT)) + " " + std::to_string(item + 1);
         } else if (item == SLOT_CENTER) {
           labels[i] = tr(STR_CENTER);
         } else {
-          labels[i] = std::string(tr(STR_STATUS_BAR_RIGHT)) + " " + std::to_string(item - SLOT_RIGHT_1 + 1);
+          labels[i] = std::string(tr(STR_DIR_RIGHT)) + " " + std::to_string(item - SLOT_RIGHT_1 + 1);
         }
         row.label = labels[i].c_str();
         row.value = values[i].c_str();
-        if (item == SLOT_LEFT_1) row.sectionHeading = tr(STR_STATUS_BAR_LEFT);
+        if (item == SLOT_LEFT_1) row.sectionHeading = tr(STR_DIR_LEFT);
         if (item == SLOT_CENTER) row.sectionHeading = tr(STR_CENTER);
-        if (item == SLOT_RIGHT_1) row.sectionHeading = tr(STR_STATUS_BAR_RIGHT);
+        if (item == SLOT_RIGHT_1) row.sectionHeading = tr(STR_DIR_RIGHT);
       } else if (item == BATTERY_STYLE) {
         row.label = tr(STR_BATTERY);
         row.value = batteryStyleLabel(config.batteryStyle);

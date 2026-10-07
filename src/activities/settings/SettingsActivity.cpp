@@ -199,7 +199,7 @@ std::string formatSettingValue(const SettingInfo& setting) {
   }
   if (setting.nameId == StrId::STR_TIME_TO_SLEEP) {
     if (SETTINGS.sleepTimeoutMinutes >= CrossPointSettings::SLEEP_TIMEOUT_NEVER_MINUTES) {
-      return tr(STR_SLEEP_NEVER);
+      return tr(STR_NEVER);
     }
     char valueBuffer[32];
     snprintf(valueBuffer, sizeof(valueBuffer), tr(STR_SLEEP_TIMER_VALUE_FORMAT),
@@ -484,7 +484,7 @@ void SettingsActivity::enterCategory(int categoryIndex) {
 StrId SettingsActivity::activeSubmenuTitleId() const {
   switch (activeSubmenu) {
     case SettingAction::DisplaySleepScreen:
-      return StrId::STR_DISPLAY_SLEEP_SCREEN;
+      return StrId::STR_SLEEP_SCREEN;
     case SettingAction::DisplayFrontlight:
       return StrId::STR_FRONTLIGHT;
     case SettingAction::ReaderFontOptions:
@@ -1325,7 +1325,7 @@ void SettingsActivity::openSleepTimeoutPicker() {
           CrossPointSettings::MIN_SLEEP_TIMEOUT_MINUTES, CrossPointSettings::MAX_SLEEP_TIMEOUT_MINUTES, 1, 5,
           StrId::STR_SLEEP_TIMER_VALUE_FORMAT,
           /*readerActivity=*/false, /*allowPowerAsConfirm=*/false, /*ignoreInitialConfirmRelease=*/true,
-          /*showPercentValue=*/false, StrId::STR_SLEEP_NEVER, /*overrideDisabledReaderTouchscreen=*/false,
+          /*showPercentValue=*/false, StrId::STR_NEVER, /*overrideDisabledReaderTouchscreen=*/false,
           /*showTouchHeaderBackButton=*/true, /*valueFormatter=*/nullptr, /*tapStep=*/0,
           /*useReaderSlider=*/true),
       [this](const ActivityResult& result) {
@@ -1393,7 +1393,7 @@ void SettingsActivity::openIdleTimeThresholdPicker() {
 std::string SettingsActivity::settingValueText(const SettingInfo& setting) {
   if (settingShowsNavigationCaret(setting)) return ">";
   if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {
-    return SETTINGS.*(setting.valuePtr) ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
+    return SETTINGS.*(setting.valuePtr) ? tr(STR_ON) : tr(STR_OFF);
   }
   if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
     const uint8_t displayIndex = enumDisplayIndexForRawValue(setting, SETTINGS.*(setting.valuePtr));

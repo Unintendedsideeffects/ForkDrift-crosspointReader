@@ -695,7 +695,7 @@ bool FontDownloadActivity::rebuildListItems() {
     item.label = family.name;
     if (family.description[0] != '\0') item.subtitle = family.description;
     if (family.hasUpdate) {
-      item.value = tr(STR_UPDATE_AVAILABLE);
+      item.value = tr(STR_UPDATE);
     } else if (family.installed) {
       item.value = tr(STR_INSTALLED);
       // Dimmed but still tappable (opens the delete prompt): visual-only

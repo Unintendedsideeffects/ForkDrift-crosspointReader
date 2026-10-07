@@ -356,7 +356,7 @@ void IntervalSelectionActivity::drawStepHintLine(const int y, const StrId labelI
     snprintf(stepText, sizeof(stepText), "%d", step);
   }
   char line[64];
-  snprintf(line, sizeof(line), "%s %s", I18N.get(labelId), stepText);
+  snprintf(line, sizeof(line), "%s: %s", I18N.get(labelId), stepText);
   renderer.drawCenteredText(SMALL_FONT_ID, y, line, true);
 }
 
@@ -691,8 +691,8 @@ void IntervalSelectionActivity::render(RenderLock&&) {
     // Two-line step hint: front buttons do the small step, side buttons the large step. Built from
     // separate label + value strings (rather than splitting one localized sentence) so the layout
     // doesn't depend on translators preserving a hidden separator.
-    drawStepHintLine(barY + 30, StrId::STR_STEP_HINT_FRONT, smallStep);
-    drawStepHintLine(barY + 52, StrId::STR_STEP_HINT_SIDE, largeStep);
+    drawStepHintLine(barY + 30, StrId::STR_FRONT_BUTTONS, smallStep);
+    drawStepHintLine(barY + 52, StrId::STR_SIDE_BUTTONS, largeStep);
 
     const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_SELECT), "-", "+");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, readerActivity);

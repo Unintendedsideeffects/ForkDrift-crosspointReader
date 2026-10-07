@@ -62,6 +62,7 @@
 - Upload Stats is replaced by Sync All Books, which follows your What to Sync choices instead of always uploading stats only.
 - Every sync result, including a successful single-book sync, lists overall stats, reading stats, and clippings as Done, OFF, or Not supported.
 - Use a consistent "Loading..." message across loading screens.
+- Use consistent labels for cover options, date/time syncing, shortcuts, and status messages.
 
 ## [v1.6.1] - 2026-10-03
 

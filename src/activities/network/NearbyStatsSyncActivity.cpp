@@ -680,11 +680,10 @@ void NearbyStatsSyncActivity::render(RenderLock&&) {
     renderReady(primary, detailPrimary, detailSecondary);
     if (mappedInput.hasTouch()) {
       const auto actions = touchActionLayout(renderer);
-      const char* actionLabels[] = {tr(STR_NEARBY_STATS_SYNC_BUTTON), tr(STR_CANCEL)};
+      const char* actionLabels[] = {tr(STR_SYNC), tr(STR_CANCEL)};
       TouchActionButtons::draw(renderer, actions, actionLabels, 0, -1, UI_10_FONT_ID);
     } else {
-      const auto labels =
-          mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_NEARBY_STATS_SYNC_BUTTON), "", "");
+      const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_SYNC), "", "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     }
     renderer.displayBuffer(screenTransitionRefresh_.modeFor(static_cast<uint8_t>(state_)));

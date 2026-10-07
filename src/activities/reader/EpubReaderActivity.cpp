@@ -3040,7 +3040,7 @@ void EpubReaderActivity::loop() {
     completionPromptShown = true;
     pauseReadingPaceTimer("completion_prompt");
     startActivityForResult(
-        std::make_unique<ConfirmationActivity>(renderer, mappedInput, tr(STR_MARK_FINISHED_PROMPT_TITLE),
+        std::make_unique<ConfirmationActivity>(renderer, mappedInput, std::string(tr(STR_MARK_FINISHED)) + "?",
                                                tr(STR_MARK_FINISHED_PROMPT_BODY)),
         [this](const ActivityResult& result) {
           resumeReadingPaceTimer("completion_prompt_return");
@@ -3868,7 +3868,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuAction action, const 
       const int pageCount = section ? section->estimatedTotalPages() : cachedChapterTotalPageCount;
       if (!saveProgress(currentSpineIndex, page, pageCount)) {
         LOG_ERR("NBOOK", "Could not save EPUB progress before transfer");
-        drawToast(renderer, tr(STR_NEARBY_TRANSFER_PROGRESS_SAVE_FAILED));
+        drawToast(renderer, tr(STR_SAVE_PROGRESS_FAILED));
         delay(1200);
         requestUpdate();
         break;
@@ -7893,9 +7893,10 @@ void EpubReaderActivity::renderStatusBar() const {
   if (automaticPageTurnActive) {
     // Fixed-shape label on a per-page-render path: format on the stack instead of
     // allocating a std::to_string temporary and a concatenation result each time.
-    // Sized for the longest translated prefix (Kazakh, 53 bytes) plus the interval
-    // digits, so no locale is cut short or sliced mid-codepoint.
-    snprintf(autoTurnLabel, sizeof(autoTurnLabel), "%s%lu", tr(STR_AUTO_TURN_ENABLED), pageTurnDuration / 1000);
+    // Sized for the translated label, separator, and interval digits so no locale
+    // is cut short or sliced mid-codepoint.
+    snprintf(autoTurnLabel, sizeof(autoTurnLabel), "%s: %lu", tr(STR_AUTO_TURN_INTERVAL_SECONDS),
+             pageTurnDuration / 1000);
   }
 
 #if CROSSINK_APP_CAP_TOUCH

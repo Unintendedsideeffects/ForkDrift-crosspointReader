@@ -419,10 +419,10 @@ void EpubReaderPercentSelectionActivity::buildPercentScreen(UiApp::ScreenType& s
   fui::TextStyle hint = theme.smallText;
   hint.align = fui::TextAlign::Center;
   const int16_t hintLh = screen.target().lineHeight(hint.font);
-  snprintf(line, sizeof(line), mode == Mode::StablePage ? "%s %d" : "%s %d%%", I18N.get(StrId::STR_STEP_HINT_FRONT),
+  snprintf(line, sizeof(line), mode == Mode::StablePage ? "%s: %d" : "%s: %d%%", I18N.get(StrId::STR_FRONT_BUTTONS),
            kSmallStep);
   screen.target().text(screen.takeTop(hintLh, theme.spaceSm), line, hint);
-  snprintf(line, sizeof(line), mode == Mode::StablePage ? "%s %d" : "%s %d%%", I18N.get(StrId::STR_STEP_HINT_SIDE),
+  snprintf(line, sizeof(line), mode == Mode::StablePage ? "%s: %d" : "%s: %d%%", I18N.get(StrId::STR_SIDE_BUTTONS),
            kLargeStep);
   screen.target().text(screen.takeTop(hintLh, theme.spaceSm), line, hint);
 

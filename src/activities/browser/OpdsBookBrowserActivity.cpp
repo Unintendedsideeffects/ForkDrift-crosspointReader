@@ -1037,7 +1037,7 @@ void OpdsBookBrowserActivity::onWifiSelectionComplete(const bool connected) {
   } else {
     // Leave WiFi up; onExit's silent reboot handles teardown without fragmenting.
     state = BrowserState::ERROR;
-    errorMessage = tr(STR_WIFI_CONN_FAILED);
+    errorMessage = tr(STR_CONNECTION_FAILED);
     requestUpdate();
   }
 }

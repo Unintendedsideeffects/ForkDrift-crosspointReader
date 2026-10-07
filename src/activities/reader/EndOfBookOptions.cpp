@@ -41,7 +41,7 @@ void EndOfBookOptions::loadOnce(const std::string& currentBookPath) {
   if (!names.empty()) {
     rowLabels.reserve(names.size() + 1);
     std::transform(names.begin(), names.end(), std::back_inserter(rowLabels), displayName);
-    rowLabels.emplace_back(tr(STR_EOB_HOME));
+    rowLabels.emplace_back(tr(STR_HOME));
     rowCount = static_cast<uint16_t>(rowLabels.size());
     for (uint16_t index = 0; index < rowCount; ++index) {
       rowItems[index].label = rowLabels[index].c_str();

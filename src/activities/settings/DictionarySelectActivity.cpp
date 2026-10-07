@@ -95,7 +95,7 @@ void DictionarySelectActivity::onEnter() {
     const std::string globalPath = Dictionary::readConfiguredDictPath();
     std::string globalFolderName;
     if (globalPath.empty()) {
-      globalFolderName = tr(STR_DICT_NONE);
+      globalFolderName = tr(STR_NONE_OPT);
     } else {
       const size_t lastSlash = globalPath.rfind('/');
       if (lastSlash != std::string::npos && lastSlash > 0) {
@@ -192,7 +192,7 @@ int DictionarySelectActivity::firstSelectableIndexFrom(int start) const {
 }
 
 const char* DictionarySelectActivity::nameForIndex(int index) const {
-  if (index == 0) return bookCachePath.empty() ? tr(STR_DICT_NONE) : useGlobalLabel.c_str();
+  if (index == 0) return bookCachePath.empty() ? tr(STR_NONE_OPT) : useGlobalLabel.c_str();
   if (index <= static_cast<int>(dictFolders.size())) return dictFolders[index - 1].c_str();
   return "";
 }

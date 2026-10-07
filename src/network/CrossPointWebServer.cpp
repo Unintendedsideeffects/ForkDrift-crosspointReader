@@ -1497,9 +1497,9 @@ void CrossPointWebServer::handleGetStatusBars() const {
   labels["display"] = tr(STR_STATUS_BAR);
   labels["top"] = tr(STR_TOP_STATUS_BAR);
   labels["bottom"] = tr(STR_BOTTOM_STATUS_BAR);
-  labels["left"] = tr(STR_STATUS_BAR_LEFT);
+  labels["left"] = tr(STR_DIR_LEFT);
   labels["center"] = tr(STR_CENTER);
-  labels["right"] = tr(STR_STATUS_BAR_RIGHT);
+  labels["right"] = tr(STR_DIR_RIGHT);
   labels["battery"] = tr(STR_BATTERY);
   labels["percentageFormat"] = tr(STR_PERCENTAGE_FORMAT);
   labels["progressBar"] = tr(STR_PROGRESS_BAR);

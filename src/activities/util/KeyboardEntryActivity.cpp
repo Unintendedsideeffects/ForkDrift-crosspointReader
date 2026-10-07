@@ -1104,7 +1104,7 @@ void KeyboardEntryActivity::render(RenderLock&&) {
           (renderer.getTextWidth(UI_12_FONT_ID, tr(STR_KEY_MODE_SYMBOLS)) + 8 + BOTTOM_UNIT_PX - 1) / BOTTOM_UNIT_PX);
       const int okUnits =
           std::max((3 * bottomUnits + LETTER_ROW_UNITS / 2) / LETTER_ROW_UNITS,
-                   (renderer.getTextWidth(UI_12_FONT_ID, tr(STR_OK_BUTTON)) + 8 + BOTTOM_UNIT_PX - 1) / BOTTOM_UNIT_PX);
+                   (renderer.getTextWidth(UI_12_FONT_ID, tr(STR_OK)) + 8 + BOTTOM_UNIT_PX - 1) / BOTTOM_UNIT_PX);
       const int langUnits = bottomRow.count == 4 ? (2 * bottomUnits + LETTER_ROW_UNITS / 2) / LETTER_ROW_UNITS : 0;
       const int spaceUnits = bottomUnits - modeUnits - okUnits - langUnits;
       if (spaceUnits > 0 && spaceUnits <= UINT8_MAX && modeUnits <= UINT8_MAX && okUnits <= UINT8_MAX &&
@@ -1123,7 +1123,7 @@ void KeyboardEntryActivity::render(RenderLock&&) {
     }
   }
   props.keyAction = ACTION_KEY;  // one action id; loop() dispatches on key value
-  props.okLabel = tr(STR_OK_BUTTON);
+  props.okLabel = tr(STR_OK);
   // Match the label to the layer the mode key leads back from: the symbols
   // layer and the URL snippet panel both label it "abc" in the static tables.
   props.modeLabel =

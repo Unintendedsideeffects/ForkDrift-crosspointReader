@@ -139,7 +139,7 @@ const char* TtfRenderOptionsActivity::rowLabel(const Row row) {
 }
 
 const char* TtfRenderOptionsActivity::rowValue(const Row row, const TtfRenderProfile& profile) {
-  if (row == Row::StemDarkening) return profile.stemDarkening ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
+  if (row == Row::StemDarkening) return profile.stemDarkening ? tr(STR_ON) : tr(STR_OFF);
   if (row == Row::Reset) return ">";
   const auto* options = optionLabels(row);
   if (options == nullptr || options->empty()) return "";

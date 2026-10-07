@@ -885,7 +885,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
     const ProgressCard cards[] = {
         {tr(STR_SYNC_REMOTE_TITLE), remoteProgress.device.c_str(), remotePageStr, remoteChapter.c_str(),
          remoteProgress.percentage, remoteTenths > localTenths},
-        {tr(STR_SYNC_LOCAL_TITLE), nullptr, localPageStr, localChapter.c_str(), localProgress.percentage,
+        {tr(STR_STATS_THIS_DEVICE_SCREEN), nullptr, localPageStr, localChapter.c_str(), localProgress.percentage,
          localTenths > remoteTenths},
     };
 

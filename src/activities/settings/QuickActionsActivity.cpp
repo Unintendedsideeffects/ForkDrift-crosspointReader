@@ -12,11 +12,16 @@
 #include "QuickActions.h"
 
 namespace {
-constexpr StrId triggerLabels[] = {
-    StrId::STR_NONE_OPT,          StrId::STR_SHORT_PRESS_POWER,        StrId::STR_LONG_PRESS_POWER,
-    StrId::STR_LONG_PRESS_BACK,   StrId::STR_LONG_PRESS_MENU_SHORTCUT, StrId::STR_POWER_BUTTON_CHORD,
-    StrId::STR_TAP_HOME_SHORTCUT, StrId::STR_LONG_PRESS_HOME_SHORTCUT, StrId::STR_DOUBLE_TAP_HOME_SHORTCUT,
-    StrId::STR_SIDE_BUTTON_CHORD};
+constexpr StrId triggerLabels[] = {StrId::STR_NONE_OPT,
+                                   StrId::STR_SHORT_PRESS_POWER,
+                                   StrId::STR_LONG_PRESS_POWER,
+                                   StrId::STR_LONG_PRESS_BACK_ACTION,
+                                   StrId::STR_LONG_PRESS_MENU_ACTION,
+                                   StrId::STR_POWER_BUTTON_CHORD,
+                                   StrId::STR_TAP_HOME_SHORTCUT,
+                                   StrId::STR_LONG_PRESS_HOME_SHORTCUT,
+                                   StrId::STR_DOUBLE_TAP_HOME_SHORTCUT,
+                                   StrId::STR_SIDE_BUTTON_CHORD};
 
 std::string triggerLabel(const QuickActions::Trigger trigger) {
   const auto raw = static_cast<uint8_t>(trigger);

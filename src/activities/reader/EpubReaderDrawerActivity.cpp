@@ -259,9 +259,9 @@ void drawButtonSliderStepHints(fui::Screen<MaxInteractions>& screen, const int f
   hint.align = fui::TextAlign::Center;
   const int16_t lineHeight = screen.target().lineHeight(hint.font);
   char line[64];
-  std::snprintf(line, sizeof(line), "%s %d%s", tr(STR_STEP_HINT_FRONT), fineStep, unit);
+  std::snprintf(line, sizeof(line), "%s: %d%s", tr(STR_FRONT_BUTTONS), fineStep, unit);
   screen.target().text(screen.takeTop(lineHeight, screen.theme().spaceSm), line, hint);
-  std::snprintf(line, sizeof(line), "%s %d%s", tr(STR_STEP_HINT_SIDE), coarseStep, unit);
+  std::snprintf(line, sizeof(line), "%s: %d%s", tr(STR_SIDE_BUTTONS), coarseStep, unit);
   screen.target().text(screen.takeTop(lineHeight), line, hint);
 }
 
@@ -273,13 +273,14 @@ void drawDualReaderSliderRows(fui::Screen<MaxInteractions>& screen, const Reader
   hint.align = fui::TextAlign::Center;
   char frontHint[64] = {};
   char sideHint[64] = {};
+  const int16_t hintGap = screen.theme().spaceMd;
+  const int16_t hintColumnWidth = std::max<int16_t>(0, static_cast<int16_t>((screen.body().width - hintGap) / 2));
   bool inlineHints = false;
   if (showButtonHints) {
-    std::snprintf(frontHint, sizeof(frontHint), "%s +/- 1", tr(STR_STEP_HINT_FRONT));
-    std::snprintf(sideHint, sizeof(sideHint), "%s +/- 5", tr(STR_STEP_HINT_SIDE));
-    const int16_t halfWidth = static_cast<int16_t>(screen.body().width / 2);
-    inlineHints = screen.target().measureText(hint.font, frontHint, hint).width <= halfWidth &&
-                  screen.target().measureText(hint.font, sideHint, hint).width <= halfWidth;
+    std::snprintf(frontHint, sizeof(frontHint), "%s: +/- 1", tr(STR_FRONT_BUTTONS));
+    std::snprintf(sideHint, sizeof(sideHint), "%s: +/- 5", tr(STR_SIDE_BUTTONS));
+    inlineHints = screen.target().measureText(hint.font, frontHint, hint).width <= hintColumnWidth &&
+                  screen.target().measureText(hint.font, sideHint, hint).width <= hintColumnWidth;
   }
   const int16_t hintLineHeight = showButtonHints ? screen.target().lineHeight(screen.theme().smallText.font) : 0;
   const int16_t hintRows = inlineHints ? 1 : 2;
@@ -299,10 +300,9 @@ void drawDualReaderSliderRows(fui::Screen<MaxInteractions>& screen, const Reader
     screen.spacer(screen.theme().spaceSm);
     const fui::Rect hintRow = screen.takeTop(hintLineHeight);
     if (inlineHints) {
-      const int16_t halfWidth = static_cast<int16_t>(hintRow.width / 2);
-      screen.target().text(fui::Rect{hintRow.x, hintRow.y, halfWidth, hintRow.height}, frontHint, hint);
-      screen.target().text(fui::Rect{static_cast<int16_t>(hintRow.x + halfWidth), hintRow.y,
-                                     static_cast<int16_t>(hintRow.width - halfWidth), hintRow.height},
+      screen.target().text(fui::Rect{hintRow.x, hintRow.y, hintColumnWidth, hintRow.height}, frontHint, hint);
+      screen.target().text(fui::Rect{static_cast<int16_t>(hintRow.x + hintColumnWidth + hintGap), hintRow.y,
+                                     static_cast<int16_t>(hintRow.width - hintColumnWidth - hintGap), hintRow.height},
                            sideHint, hint);
     } else {
       screen.target().text(hintRow, frontHint, hint);
@@ -1932,7 +1932,7 @@ void EpubReaderDrawerActivity::showEnumOptions(const RowId row) {
       break;
     case RowId::Alignment:
       title = StrId::STR_PARA_ALIGNMENT;
-      labels = {tr(STR_JUSTIFY), tr(STR_ALIGN_LEFT), tr(STR_CENTER), tr(STR_ALIGN_RIGHT), tr(STR_BOOK_S_STYLE)};
+      labels = {tr(STR_JUSTIFY), tr(STR_DIR_LEFT), tr(STR_CENTER), tr(STR_DIR_RIGHT), tr(STR_BOOK_S_STYLE)};
       raw = {0, 1, 2, 3, 4};
       currentRaw = draft.paragraphAlignment;
       break;
@@ -3133,8 +3133,8 @@ const char* EpubReaderDrawerActivity::rowValue(const RowId row, char* buffer, co
       return I18N.get(readerOrientationLabel(draft.orientation));
     }
     case RowId::Alignment: {
-      static const std::array<StrId, 5> labels = {StrId::STR_JUSTIFY, StrId::STR_ALIGN_LEFT, StrId::STR_CENTER,
-                                                  StrId::STR_ALIGN_RIGHT, StrId::STR_BOOK_S_STYLE};
+      static const std::array<StrId, 5> labels = {StrId::STR_JUSTIFY, StrId::STR_DIR_LEFT, StrId::STR_CENTER,
+                                                  StrId::STR_DIR_RIGHT, StrId::STR_BOOK_S_STYLE};
       return I18N.get(labels[std::min<size_t>(draft.paragraphAlignment, labels.size() - 1)]);
     }
     case RowId::Images: {

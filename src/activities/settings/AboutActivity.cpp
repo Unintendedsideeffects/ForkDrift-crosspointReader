@@ -73,11 +73,11 @@ const char* presenceText(HalDeviceInfo::Presence value) {
     case HalDeviceInfo::Presence::Available:
       return tr(STR_ABOUT_AVAILABLE);
     case HalDeviceInfo::Presence::Unavailable:
-      return tr(STR_ABOUT_UNAVAILABLE);
+      return tr(STR_UNAVAILABLE);
     case HalDeviceInfo::Presence::Simulated:
       return tr(STR_ABOUT_SIMULATED);
   }
-  return tr(STR_ABOUT_UNAVAILABLE);
+  return tr(STR_UNAVAILABLE);
 }
 }  // namespace
 
@@ -205,7 +205,7 @@ void AboutActivity::provideRow(void* user, uint16_t index, fui::ListItem& item) 
 #ifdef SIMULATOR
   if (index == Device && self.simulatorHeading) item.label = self.simulatorHeading;
 #endif
-  item.subtitle = tr(STR_ABOUT_UNSUPPORTED);
+  item.subtitle = tr(STR_NOT_SUPPORTED);
   auto kib = [&](uint32_t bytes) {
     snprintf(buf, size, "%lu KiB", static_cast<unsigned long>(bytes / 1024));
     item.subtitle = buf;
@@ -221,7 +221,7 @@ void AboutActivity::provideRow(void* user, uint16_t index, fui::ListItem& item) 
       snprintf(buf, size, "%s / %s / %s", CROSSINK_FIRMWARE_DEVICE_TYPE, AppVersion::gitSha(),
                AppVersion::gitDirtyFlag()[0] == '1'   ? tr(STR_ABOUT_MODIFIED)
                : AppVersion::gitDirtyFlag()[0] == '0' ? tr(STR_ABOUT_CLEAN)
-                                                      : tr(STR_ABOUT_UNAVAILABLE));
+                                                      : tr(STR_UNAVAILABLE));
       item.subtitle = buf;
       break;
     case Chip:
@@ -269,7 +269,7 @@ void AboutActivity::provideRow(void* user, uint16_t index, fui::ListItem& item) 
       if (s.simulated && s.sdReady)
         item.subtitle = tr(STR_ABOUT_SIMULATED);
       else if (!s.sdReady || !s.sdBytes)
-        item.subtitle = tr(STR_ABOUT_UNAVAILABLE);
+        item.subtitle = tr(STR_UNAVAILABLE);
       else {
         snprintf(buf, size, "%llu MiB", static_cast<unsigned long long>(s.sdBytes / (1024 * 1024)));
         item.subtitle = buf;
