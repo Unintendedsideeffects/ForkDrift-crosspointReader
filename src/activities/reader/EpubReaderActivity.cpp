@@ -7896,15 +7896,14 @@ void EpubReaderActivity::renderStatusBar() const {
     // Sized for the longest translated prefix (Kazakh, 53 bytes) plus the interval
     // digits, so no locale is cut short or sliced mid-codepoint.
     snprintf(autoTurnLabel, sizeof(autoTurnLabel), "%s%lu", tr(STR_AUTO_TURN_ENABLED), pageTurnDuration / 1000);
-    chapterTitle = autoTurnLabel;
-
   }
+
 #if CROSSINK_APP_CAP_TOUCH
-  else if (activeFootnotePreview) {
+  if (activeFootnotePreview) {
     // The touch header owns the preview title; keep the footer from repeating it.
   }
 #else
-  else if (activeFootnotePreview && uses(ReaderStatusBarItem::TitleChapter)) {
+  if (activeFootnotePreview && uses(ReaderStatusBarItem::TitleChapter)) {
     chapterTitle = tr(STR_FOOTNOTES);
   }
 #endif
@@ -7944,7 +7943,7 @@ void EpubReaderActivity::renderStatusBar() const {
     bookTitle = tr(STR_FOOTNOTES);
 #endif
   }
-  content.bookTitle = automaticPageTurnActive ? autoTurnLabel : bookTitle;
+  content.bookTitle = bookTitle;
   content.chapterTitle = chapterTitle.c_str();
   content.timeLeftBook = !activeFootnotePreview && uses(ReaderStatusBarItem::TimeLeftBook) &&
                                  formatTimeLeftLabel(bookTime, sizeof(bookTime), true)
@@ -7958,8 +7957,13 @@ void EpubReaderActivity::renderStatusBar() const {
   content.showProgress = !activeFootnotePreview;
   content.pageCountEstimated = pageCountEstimated;
   content.darkMode = ReaderUtils::readerDarkModeEnabled();
-  content.autoTurnLabel = automaticPageTurnActive ? autoTurnLabel : nullptr;
   GUI.drawReaderStatusBar(renderer, ReaderStatusBarPosition::Top, content);
+  if (automaticPageTurnActive) {
+    // Replace titles only after the configured top bar has been drawn.
+    content.bookTitle = autoTurnLabel;
+    content.chapterTitle = autoTurnLabel;
+    content.autoTurnLabel = autoTurnLabel;
+  }
   GUI.drawReaderStatusBar(renderer, ReaderStatusBarPosition::Bottom, content);
 }
 
