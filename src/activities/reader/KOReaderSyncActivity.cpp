@@ -701,17 +701,14 @@ ProgressSyncResult KOReaderSyncActivity::syncResult() const {
           StatsUploadClient::failed(extrasResult.clippings)};
 }
 
-void KOReaderSyncActivity::formatExtrasResults(char* buffer, const size_t capacity) const {
+void KOReaderSyncActivity::drawExtrasResults(const Rect textArea, int y) const {
+  const auto drawRow = [&](const char* title, const char* status) {
+    y += UITheme::drawCenteredStatusRow(renderer, textArea, UI_10_FONT_ID, y, title, status) + 8;
+  };
   // Folder runs report overall stats once in their own summary, not per book.
-  if (includeGlobalStats)
-    snprintf(buffer, capacity, "%s: %s\n%s: %s\n%s: %s", tr(STR_ALL_TIME_STATS),
-             ReadingSyncUpload::statusLabel(globalStatsResult, false), tr(STR_READING_STATS),
-             ReadingSyncUpload::statusLabel(extrasResult.stats, false), tr(STR_CLIPPINGS),
-             ReadingSyncUpload::statusLabel(extrasResult.clippings, true));
-  else
-    snprintf(buffer, capacity, "%s: %s\n%s: %s", tr(STR_READING_STATS),
-             ReadingSyncUpload::statusLabel(extrasResult.stats, false), tr(STR_CLIPPINGS),
-             ReadingSyncUpload::statusLabel(extrasResult.clippings, true));
+  if (includeGlobalStats) drawRow(tr(STR_ALL_TIME_STATS), ReadingSyncUpload::statusLabel(globalStatsResult, false));
+  drawRow(tr(STR_READING_STATS), ReadingSyncUpload::statusLabel(extrasResult.stats, false));
+  drawRow(tr(STR_CLIPPINGS), ReadingSyncUpload::statusLabel(extrasResult.clippings, true));
 }
 
 bool KOReaderSyncActivity::uploadExtras() {
@@ -941,10 +938,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
     // Same per-data lines as the failure and bulk result screens.
     const Rect textArea{screen.x + metrics.contentSidePadding, screen.y, screen.width - metrics.contentSidePadding * 2,
                         screen.height};
-    char results[240];
-    formatExtrasResults(results, sizeof(results));
-    UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top + 60, results, 6, true,
-                                     EpdFontFamily::REGULAR, 4);
+    drawExtrasResults(textArea, top + 60);
 
     const auto labels = mappedInput.mapLabels(mappedInput.withBackArrow(tr(STR_BACK)), tr(STR_DONE), "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
@@ -961,10 +955,7 @@ void KOReaderSyncActivity::render(RenderLock&&) {
                                      EpdFontFamily::REGULAR, 4);
 
     if (extrasAttempted) {
-      char results[240];
-      formatExtrasResults(results, sizeof(results));
-      UITheme::drawCenteredWrappedText(renderer, textArea, UI_10_FONT_ID, top + 120, results, 6, true,
-                                       EpdFontFamily::REGULAR, 4);
+      drawExtrasResults(textArea, top + 120);
     }
     if (folderSync && mappedInput.hasTouchHardware()) {
       const auto actions = bottomActionLayout(screen, metrics, 1);

@@ -443,12 +443,12 @@ void StatsUploadActivity::render(RenderLock&&) {
         ReadingSyncUpload::countLabel(statsCount, sizeof(statsCount), statsUploaded, statsFailed, false);
     const char* clippingsText =
         ReadingSyncUpload::countLabel(clippingsCount, sizeof(clippingsCount), clippingsUploaded, clippingsFailed, true);
-    char extras[240];
-    snprintf(extras, sizeof(extras), "%s: %s\n%s: %s\n%s: %s", tr(STR_ALL_TIME_STATS),
-             ReadingSyncUpload::statusLabel(globalResult, false), tr(STR_READING_STATS), statsText, tr(STR_CLIPPINGS),
-             clippingsText);
-    UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, y + 140, extras, 6, true, EpdFontFamily::REGULAR,
-                                     4);
+    int rowY = y + 140;
+    rowY += UITheme::drawCenteredStatusRow(renderer, area, UI_10_FONT_ID, rowY, tr(STR_ALL_TIME_STATS),
+                                           ReadingSyncUpload::statusLabel(globalResult, false)) +
+            8;
+    rowY += UITheme::drawCenteredStatusRow(renderer, area, UI_10_FONT_ID, rowY, tr(STR_READING_STATS), statsText) + 8;
+    UITheme::drawCenteredStatusRow(renderer, area, UI_10_FONT_ID, rowY, tr(STR_CLIPPINGS), clippingsText);
   }
   const char* action = asking ? tr(STR_SYNC) : state == State::BookFailed ? tr(STR_SKIP_BOOK) : "";
   if (action[0] && mappedInput.hasTouchHardware()) {

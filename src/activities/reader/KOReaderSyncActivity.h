@@ -12,6 +12,8 @@
 #include "activities/ScreenTransitionRefresh.h"
 #include "network/ReadingSyncUpload.h"
 
+struct Rect;
+
 /**
  * Activity for syncing reading progress with KOReader sync server.
  *
@@ -135,7 +137,7 @@ class KOReaderSyncActivity final : public Activity {
   void performSync();
   void performUpload();
   bool uploadExtras();
-  void formatExtrasResults(char* buffer, size_t capacity) const;
+  void drawExtrasResults(Rect textArea, int y) const;
   bool consumeInitialConfirmRelease();
   bool smartSyncEnabled() const;
   void markAutoReturn();

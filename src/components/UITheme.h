@@ -24,6 +24,9 @@ class UITheme {
                          bool hasSideButtonHints = false);
   static void drawCenteredText(const GfxRenderer& renderer, Rect screen, int fontId, int y, const char* text,
                                bool black = true, EpdFontFamily::Style style = EpdFontFamily::REGULAR);
+  // Draw one status row with a bold label and regular value. Returns its rendered height.
+  static int drawCenteredStatusRow(const GfxRenderer& renderer, Rect screen, int fontId, int y, const char* label,
+                                   const char* value);
   // Draw a word-wrapped text block centered within screen. Returns its rendered height.
   static int drawCenteredWrappedText(const GfxRenderer& renderer, Rect screen, int fontId, int y, const char* text,
                                      int maxLines, bool black = true,

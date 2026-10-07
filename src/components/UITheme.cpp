@@ -443,6 +443,26 @@ void UITheme::drawCenteredText(const GfxRenderer& renderer, Rect screen, int fon
   renderer.drawText(fontId, x, y, text, black, style);
 }
 
+int UITheme::drawCenteredStatusRow(const GfxRenderer& renderer, const Rect screen, const int fontId, const int y,
+                                   const char* label, const char* value) {
+  const int labelWidth = renderer.getTextWidth(fontId, label, EpdFontFamily::BOLD);
+  const int separatorWidth = renderer.getTextWidth(fontId, ":", EpdFontFamily::BOLD) + renderer.getSpaceWidth(fontId);
+  const int width = labelWidth + separatorWidth + renderer.getTextWidth(fontId, value);
+  if (width > screen.width) {
+    // Long translations still keep this result separate from the next status.
+    const int labelHeight =
+        drawCenteredWrappedText(renderer, screen, fontId, y, label, 2, true, EpdFontFamily::BOLD, 4);
+    return labelHeight + 4 +
+           drawCenteredWrappedText(renderer, screen, fontId, y + labelHeight + 4, value, 2, true,
+                                   EpdFontFamily::REGULAR, 4);
+  }
+  const int x = screen.x + (screen.width - width) / 2;
+  renderer.drawText(fontId, x, y, label, true, EpdFontFamily::BOLD);
+  renderer.drawText(fontId, x + labelWidth, y, ":", true, EpdFontFamily::BOLD);
+  renderer.drawText(fontId, x + labelWidth + separatorWidth, y, value);
+  return renderer.getLineHeight(fontId);
+}
+
 int UITheme::drawCenteredWrappedText(const GfxRenderer& renderer, const Rect screen, const int fontId, int y,
                                      const char* text, const int maxLines, const bool black,
                                      const EpdFontFamily::Style style, const int lineSpacing) {
