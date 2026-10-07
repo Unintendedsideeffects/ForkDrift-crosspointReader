@@ -16,10 +16,9 @@
 class StatsUploadActivity final : public Activity {
  public:
   enum class Scope : uint8_t {
-    Library,    // Every book in the Library index ("Sync All Books").
-    Folder,     // A File Browser folder and its subfolders ("Sync Folder").
-    Book,       // One book without a KOReader position (XTC): stats only.
-    Clippings,  // One EPUB's clippings, asked for from its clippings list.
+    Library,  // Every book in the Library index ("Sync All Books").
+    Folder,   // A File Browser folder and its subfolders ("Sync Folder").
+    Book,     // One book without a KOReader position (XTC): stats only.
   };
   // Sync All Books.
   StatsUploadActivity(GfxRenderer& renderer, MappedInputManager& input)
@@ -29,7 +28,7 @@ class StatsUploadActivity final : public Activity {
                       bool confirmed = false)
       : Activity("StatsUpload", renderer, input),
         scope(scope),
-        autoStart(confirmed || scope == Scope::Book || scope == Scope::Clippings),
+        autoStart(confirmed || scope == Scope::Book),
         path(std::move(path)) {}
   // Book scope: the Library/File Browser view to return to. Kept here, not in
   // global state, so leaving another way (Home, sleep) leaves nothing stale.
@@ -69,7 +68,6 @@ class StatsUploadActivity final : public Activity {
   uint32_t statsFailed = 0;
   uint32_t clippingsFailed = 0;
   StatsUploadClient::Result globalResult = StatsUploadClient::Result::Skipped;
-  StatsUploadClient::Result clippingsResult = StatsUploadClient::Result::Skipped;  // Clippings scope only.
   std::unique_ptr<FolderBookIterator> folderBooks;
   bool globalAttempted = false;
   bool singleBookTaken = false;
@@ -79,11 +77,10 @@ class StatsUploadActivity final : public Activity {
   std::string message;
   NextBook nextBook(std::string& bookPath);
   const char* title() const;
-  bool singleBook() const { return scope == Scope::Book || scope == Scope::Clippings; }
+  bool singleBook() const { return scope == Scope::Book; }
   void start();
   void uploadNext();
   void syncEpub(std::string&& bookPath);
-  void uploadClippings();
   bool uploadBookExtras(const std::string& bookPath, bool* sentAny = nullptr);
   void leave();
   void recordExtras(bool statsOk, bool clippingsOk, bool statsError, bool clippingsError);

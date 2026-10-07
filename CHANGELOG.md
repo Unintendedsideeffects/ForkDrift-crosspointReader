@@ -16,7 +16,6 @@
 - Choose Directional or Legacy menu navigation in Controls to restore the previous button behavior in Settings and the reader menu.
 - Sync All Books from Settings → System → Sync Server or the Reading Stats This Device page to sync progress, reading stats, and clippings for every Library book in one pass.
 - Sync Book from an XTC book's context menu uploads its reading stats; Sync Folder and Sync All Books include XTC stats too.
-- Upload a book's clippings from its clippings list (header icon on touch, hold Confirm → Sync on buttons) when signed in to a server that supports clippings.
 
 ### Fixed
 

@@ -88,7 +88,6 @@ class ClippingStore {
   bool saveToFile();
   void clearAll();
 
-  const std::string& getBookFilePath() const { return bookFilePath; }
   bool hasClippings() const { return !clippings.empty(); }
   size_t clippingCount() const { return clippings.size(); }
   const Clipping* clippingAt(size_t index) const;

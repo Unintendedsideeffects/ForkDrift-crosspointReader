@@ -12,7 +12,6 @@
 
 #include <cstring>
 
-#include "ClippingStore.h"
 #include "CrossPointState.h"
 #include "HalClock.h"
 #include "SdCardFontSystem.h"
@@ -24,7 +23,6 @@
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "network/ClippingsUpload.h"
 #include "network/ReadingSyncUpload.h"
 #include "network/WifiUtils.h"
 #include "util/InputReleaseGuard.h"
@@ -95,8 +93,6 @@ const char* StatsUploadActivity::title() const {
       return tr(STR_FOLDER_SYNC);
     case Scope::Book:
       return tr(STR_SYNC_BOOK);
-    case Scope::Clippings:
-      return tr(STR_CLIPPINGS);
   }
   return tr(STR_SYNC);
 }
@@ -196,9 +192,7 @@ void StatsUploadActivity::finishUpload() {
   {
     RenderLock lock(*this);
     state = State::Done;
-    message = scope == Scope::Clippings && StatsUploadClient::failed(clippingsResult) ? tr(STR_SYNC_FAILED_MSG)
-              : libraryAvailable                                                      ? tr(STR_DONE)
-                                                                                      : tr(STR_STATS_UPLOAD_LIBRARY);
+    message = libraryAvailable ? tr(STR_DONE) : tr(STR_STATS_UPLOAD_LIBRARY);
   }
   requestUpdate();
 }
@@ -221,7 +215,6 @@ StatsUploadActivity::NextBook StatsUploadActivity::nextBook(std::string& bookPat
       return Storage.exists(bookPath.c_str()) ? NextBook::Book : NextBook::Missing;
     }
     case Scope::Book:
-    case Scope::Clippings:
       if (singleBookTaken) return NextBook::Done;
       singleBookTaken = true;
       bookPath = path;
@@ -231,10 +224,6 @@ StatsUploadActivity::NextBook StatsUploadActivity::nextBook(std::string& bookPat
 }
 
 void StatsUploadActivity::uploadNext() {
-  if (scope == Scope::Clippings) {
-    uploadClippings();
-    return;
-  }
   if (!globalAttempted) {
     // Batch ownership prevents books that skip/fail from starving overall stats,
     // and prevents retries of accepted global snapshots after a per-book failure.
@@ -308,24 +297,6 @@ void StatsUploadActivity::recordExtras(const bool statsOk, const bool clippingsO
   clippingsUploaded += clippingsOk;
   statsFailed += statsError;
   clippingsFailed += clippingsError;
-}
-
-void StatsUploadActivity::uploadClippings() {
-  // An explicit request from the clippings list, so What to Sync does not gate it.
-  if (requestUpdateAndWait() != RequestUpdateResult::Rendered) LOG_ERR("StatsSync", "Cannot render clippings upload");
-  // The list that started this may leave its index loaded (the reader unloads on
-  // exit, Saved Items does not). Upload reads one record at a time from the file,
-  // so free the index before TLS; unload() saves pending edits first.
-  CLIPPINGS.unload();
-  const auto document = documentIdFor(path);
-  const auto result =
-      document.empty() ? StatsUploadClient::Result::InvalidResponse : ClippingsUpload::upload(path, document);
-  recordExtras(false, result == StatsUploadClient::Result::Ok, false, StatsUploadClient::failed(result));
-  {
-    RenderLock lock(*this);
-    clippingsResult = result;
-  }
-  finishUpload();
 }
 
 bool StatsUploadActivity::uploadBookExtras(const std::string& bookPath, bool* sentAny) {
@@ -493,11 +464,6 @@ void StatsUploadActivity::render(RenderLock&&) {
     const auto url = KOREADER_STORE.getBaseUrl();
     UITheme::drawCenteredWrappedText(renderer, area, UI_10_FONT_ID, detailY, url.c_str(), 3, true,
                                      EpdFontFamily::REGULAR, 4);
-  } else if (scope == Scope::Clippings) {
-    // One book, one kind of data: book counts and the stats rows would say nothing.
-    if (state == State::Done)
-      UITheme::drawCenteredStatusRow(renderer, area, UI_10_FONT_ID, detailY, tr(STR_CLIPPINGS),
-                                     StatsUploadClient::resultString(clippingsResult));
   } else {
     char counts[160];
     snprintf(counts, sizeof(counts), tr(STR_FOLDER_SYNC_COUNTS), static_cast<unsigned>(uploaded),

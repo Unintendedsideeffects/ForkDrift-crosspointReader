@@ -220,11 +220,7 @@ fails or you cancel.
 ## Clippings Upload
 
 With **Clippings** on, manual book sync and folder catch-up include the book's
-saved clippings. A book's clippings list can also upload just that book's
-clippings, whether or not **Clippings** is on: tap the upload icon in its header
-on touch devices, or hold Confirm on a clipping and choose **Sync** on button
-devices. This shows only with an account on a server known to support clippings.
-Started from inside a book, it reopens that book's clippings list afterwards. The first implementation is upload-only: it does not download
+saved clippings. The first implementation is upload-only: it does not download
 server clippings or propagate local deletions. Notes and colors already on the
 server are preserved. Server-deleted IDs stay deleted; this uploader never revives
 a server tombstone.
