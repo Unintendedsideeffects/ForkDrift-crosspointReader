@@ -198,8 +198,9 @@ void IntervalSelectionActivity::buildSliderScreen(UiApp::ScreenType& screen) {
   screen.spacer(hasReaderPreview ? 0 : top);
   const fui::Rect row = hasReaderPreview ? screen.takeBottom(rowHeight) : screen.takeTop(rowHeight);
   if (hasReaderPreview) {
+    const int previewTop = header.y + header.height;
     readerPreviewArea =
-        Rect{touchScreen.x, contentTop, touchScreen.width, std::max(0, row.y - metrics.verticalSpacing - contentTop)};
+        Rect{touchScreen.x, previewTop, touchScreen.width, std::max(0, row.y - metrics.verticalSpacing - previewTop)};
   }
   const fui::Rect band{row.x, static_cast<int16_t>(row.y + controlTopInset), row.width, READER_SLIDER_CONTROL_HEIGHT};
   const int16_t stepWidth = std::max<int16_t>(band.height, screen.theme().rowHeight);
@@ -366,7 +367,11 @@ void IntervalSelectionActivity::renderReaderPreview(const Rect& area) {
   if (readerPreviewSetting == ReaderPreviewSetting::None || area.width <= 0 || area.height <= 0) return;
   const auto& metrics = UITheme::getInstance().getMetrics();
   const int labelHeight = renderer.getTextHeight(UI_10_FONT_ID);
-  const int textHeight = area.height - labelHeight - metrics.previewPadding * 2 - 4;
+  const bool isMarginPreview = readerPreviewSetting == ReaderPreviewSetting::VerticalMargin ||
+                               readerPreviewSetting == ReaderPreviewSetting::HorizontalMargin;
+  // Margin previews measure from the header bottom, without an extra UI gap.
+  const int topPadding = isMarginPreview ? 0 : metrics.verticalSpacing + metrics.previewPadding;
+  const int textHeight = area.height - labelHeight - topPadding - metrics.previewPadding - 4;
   if (textHeight <= 0) return;
   const int labelY = area.y + area.height - metrics.previewPadding - labelHeight;
   renderer.drawLine(area.x, labelY - 4, area.x + area.width - 1, labelY - 4);
@@ -388,7 +393,7 @@ void IntervalSelectionActivity::renderReaderPreview(const Rect& area) {
       readerPreviewSetting == ReaderPreviewSetting::VerticalMargin ? value : SETTINGS.screenMarginVertical;
   const int marginY = marginVertical * textHeight / std::max(1, static_cast<int>(renderer.getScreenHeight()));
   const int left = area.x + metrics.previewPadding + marginX;
-  const int top = area.y + metrics.previewPadding + marginY;
+  const int top = area.y + topPadding + marginY;
   const int width = std::max(1, area.width - metrics.previewPadding * 2 - marginX * 2);
   const int height = std::max(0, textHeight - marginY * 2);
   renderer.beginTextClip(left, top, width, height);
@@ -641,7 +646,7 @@ void IntervalSelectionActivity::render(RenderLock&&) {
   renderer.fillRect(knobX, barY - 4, 4, barHeight + 8, true);
 
   if (hasButtonReaderPreview) {
-    const int previewTop = header.y + header.height + metrics.verticalSpacing;
+    const int previewTop = header.y + header.height;
     const int previewBottom = valueY - metrics.verticalSpacing;
     renderReaderPreview(Rect{safe.x, previewTop, safe.width, std::max(0, previewBottom - previewTop)});
   }

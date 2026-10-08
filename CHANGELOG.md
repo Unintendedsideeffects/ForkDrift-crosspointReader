@@ -54,6 +54,8 @@
 - Give touch-device line/word spacing and screen margin previews more room with labels beside the sliders and shorter drawers.
 - Give the reader spacing and screen-margin sliders more breathing room above the button hints.
 
+- Measure the top margin in global screen-margin previews from the bottom of the header bar, removing the extra gap.
+
 ### Changed
 
 - SD fonts containing both BMP and supplementary Unicode ranges use less resident lookup-table memory, and TTF fonts validate faster while preserving font integrity checks.
