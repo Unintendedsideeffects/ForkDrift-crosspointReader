@@ -5,7 +5,7 @@
 - Assign Select Chapter to shortcuts, Quick Actions, or touch gestures to open the chapter list directly in EPUB and XTC books.
 - Track active reading seconds by local day, sync daily reading time to CrossPoint Sync, and show today's total and 7-day average on the This Device reading stats page.
 - Preview OPDS book descriptions before downloading, with scrollable text on touch and button devices. Long descriptions show a bounded excerpt.
-- Sync a selected EPUB’s progress from its Library or File Browser context menu.
+- Sync a selected EPUB’s progress or an XTC book’s reading stats from its Library or File Browser context menu; Sync Folder and Sync All Books include XTC stats too.
 - Use server filenames for OPDS downloads to match reading progress across devices; missing or unsafe names fall back to Author - Title.
 - View device hardware, firmware/build identity, storage, and memory diagnostics in Settings → System → About without exposing network or device identifiers. Export allowlisted diagnostics and global preferences as local support JSON after confirming the scope; optional EPUB overrides are anonymous, and network/device identifiers, credentials, and reading history are excluded.
 - Turn image grayscale on or off globally or for individual EPUB books, independently of text anti-aliasing.
@@ -15,11 +15,8 @@
 - Calibrate each screen edge in Settings → Display → Screen Calibration to keep text and status bars clear of the bezel. Calibration stays on the device when changing SD cards.
 - Choose Directional or Legacy menu navigation in Controls to restore the previous button behavior in Settings and the reader menu.
 - Sync All Books from Settings → System → Sync Server or the Reading Stats This Device page to sync progress, reading stats, and clippings for every Library book in one pass.
-- Sync Book from an XTC book's context menu uploads its reading stats; Sync Folder and Sync All Books include XTC stats too.
 - Render publisher drop caps, bordered and shaded blocks, preserved whitespace, and more CSS selectors in EPUBs; scalable fonts also support mixed sizes within a line (CrossPoint #3891).
-
-- Generate a versioned English language template and compatibility catalog automatically for browser translation editors and release downloads.
-- Install and edit interface languages from SD files, including community languages; missing translations fall back to English.
+- Install and edit interface languages from SD files, including community languages, with English fallback for missing translations. Browser translation editors and release downloads use an automatically generated, versioned English template and compatibility catalog.
 - Choose a Filename Fallback Font on ESP32-S3 devices to display missing characters in book titles and filenames while retaining the built-in font for supported text.
 - Install, update, and remove EPUB hyphenation packs from SD; English remains built in, and book layouts refresh when their packs change.
 - Show the current chapter title under the book title in the reader menu on button devices and in the X4 Pro pull-down drawer; the drawer tightens its spacing to keep the handle on screen in landscape.
@@ -31,7 +28,7 @@
 - Keep button-keyboard tips steady when text becomes empty or non-empty, and hide tips when they cannot fit above the keys (CrossPoint #3863).
 - Preserve initial publisher spacing on long EPUB paragraphs without repeating it during incremental layout (CrossPoint #3875).
 - Improve low-memory EPUB layout and image handling: limit temporary memory for long text runs, retry image sizing with a lower-memory fallback, and refresh the reader when background image checks finish (YACP 4bfcfb4).
-- Make large and interrupted downloads more reliable: complete large WebDAV files, safely resume or restart interrupted book and font downloads, reduce memory use for large HTTPS transfers, and keep the catalog stable when cancelling slow OPDS downloads under low memory.
+- Make large and interrupted downloads more reliable: complete large WebDAV files, safely resume or restart interrupted book and font downloads, and reduce memory use for large HTTPS transfers. On X3/X4, free OPDS catalog memory during book downloads and restore the same browsing position when finished or cancelled, keeping slow-download cancellation stable under low memory.
 - Hide EPUB section-break rules when the publisher suppresses their borders, avoiding duplicate ornaments.
 - Translate reading statistics, stats tracking controls, and the Minimal Stats theme label into Polish.
 - Dictionary lookup now recognizes French words with contracted prefixes, such as l’histoire and qu’après.
@@ -48,33 +45,28 @@
 - Keep daily, manual, and clockless reading-stat backups separately, and prune numbered backups in the correct order after 999.
 - KOReader-only sync servers no longer end every sync with "extra upload failed"; stats and clippings show "Requires CrossPoint Sync" instead.
 - Show full-width Forget and Cancel buttons after a saved Wi-Fi network fails to connect on button devices, with Cancel selected by default below Forget.
-- Free OPDS catalog memory while downloading books on X3/X4, then reload the same browsing position when finished or cancelled.
 - Keep the Auto Page Turn interval in the bottom reader status bar, preserving book and chapter titles in the top bar.
 - Keep side-button hints inside calibrated screen edges in landscape.
 - Fix ESP32 firmware builds failing to compile hyphenation pack installation and updates.
 
 ### Changed
 
-- Reduce resident lookup-table memory for SD fonts containing both BMP and supplementary Unicode ranges.
+- SD fonts containing both BMP and supplementary Unicode ranges use less resident lookup-table memory, and TTF fonts validate faster while preserving font integrity checks.
 - English is the only built-in interface language. Other languages are included in a separate release download and installed through Language settings.
 - Display → Hide Battery % is replaced by the Battery option in each status bar's settings; existing choices carry over.
 - Home appears faster after waking, closing a book, or leaving a menu by reducing the number of screen refreshes.
 - Dictionary lookups and cover thumbnail generation respond sooner.
-- Index chapters faster by writing page data to the SD card in larger chunks, speeding up SD font preparation (especially for CJK books), and finding chapters and images faster in EPUBs with many files.
-- Large custom sleep and boot images load faster by skipping image rows that are not shown. Boot images larger than the screen are now dithered at screen size, matching sleep images.
-- Open and resume EPUBs with thousands of chapters faster, and jump to a book percentage without scanning every preceding chapter.
-- Speed up monochrome cover and sleep-image decoding, stylesheet discovery during EPUB indexing, and TTF font validation while preserving image quality and font integrity checks.
+- Index, open, and resume large EPUBs faster with larger SD writes, quicker SD font preparation (especially for CJK books), and faster chapter, image, and stylesheet discovery. Percentage jumps no longer scan every preceding chapter.
+- Monochrome covers and sleep images decode faster while preserving image quality. Large custom sleep and boot images skip rows that are not shown, and oversized boot images are dithered at screen size, matching sleep images.
 - Avoid writing reading-percentage caches while browsing Home, Library, or sleep screens.
 - Refresh Library cover grids once after missing covers are prepared, keeping input checks between covers.
 - Skip text anti-aliasing on EPUB pages without text and avoid copying optimized images twice when they already match the display size.
 - Settings → System → KOReader Sync is now Sync Server, grouped into account, What to Sync, and Sync Options sections.
 - Reading Stats and Clippings sync stay off until you turn them on under What to Sync. Servers that cannot receive them are detected when you authenticate.
-- Sync actions are now named Sync Book and Sync Folder because they also send stats and clippings, and File Transfer → Sync Stats is now Nearby Stats Sync.
-- Upload Stats is replaced by Sync All Books, which follows your What to Sync choices instead of always uploading stats only.
+- Rename sync actions to Sync Book and Sync Folder to reflect stats and clippings support, and File Transfer → Sync Stats to Nearby Stats Sync. Upload Stats becomes Sync All Books and follows your What to Sync choices.
 - Every sync result, including a successful single-book sync, lists overall stats, reading stats, and clippings as Done, OFF, or Not supported.
 - Sync All Books from Reading Stats inside a book returns to that book afterwards instead of Home.
-- Use a consistent "Loading..." message across loading screens.
-- Use consistent labels for cover options, date/time syncing, shortcuts, and status messages.
+- Use consistent labels for cover options, date/time syncing, shortcuts, and status messages, including "Loading..." across loading screens.
 
 ## [v1.6.1] - 2026-10-03
 
