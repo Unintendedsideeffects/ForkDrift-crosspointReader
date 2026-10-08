@@ -49,6 +49,7 @@
 - Keep side-button hints inside calibrated screen edges in landscape.
 - Fix ESP32 firmware builds failing to compile hyphenation pack installation and updates.
 - On button devices in landscape, the reader menu's font, font size, alignment, spacing, and screen margin controls now show the live text preview in a full-height column beside the controls instead of a strip too short to show any text.
+- Give touch-device line/word spacing and screen margin previews more room with labels beside the sliders and shorter drawers.
 
 ### Changed
 

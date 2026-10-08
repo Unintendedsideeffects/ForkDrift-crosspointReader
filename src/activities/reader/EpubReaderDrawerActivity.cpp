@@ -124,6 +124,7 @@ struct ReaderSliderRowProps {
   fui::ActionId decrement = fui::NO_ACTION;
   fui::ActionId increment = fui::NO_ACTION;
   int16_t captionGap = SLIDER_CAPTION_GAP;
+  int16_t inlineLabelWidth = 0;
   bool compact = false;
   bool focused = false;
   bool editing = false;
@@ -135,10 +136,11 @@ void configureReaderSliderScale(ReaderSliderRowProps& row, const char* minimum, 
   row.maximumLabel = maximum;
 }
 
-template <size_t MaxInteractions>
-int16_t readerSliderRowHeight(fui::Screen<MaxInteractions>& screen, const ReaderSliderRowProps& row) {
-  const int16_t lineHeight = screen.target().lineHeight(screen.theme().bodyText.font);
-  const int16_t captionHeight = row.label ? static_cast<int16_t>(lineHeight + row.captionGap) : 0;
+int16_t readerSliderRowHeight(const fui::DrawTarget& target, const fui::ThemeTokens& theme,
+                              const ReaderSliderRowProps& row) {
+  const int16_t lineHeight = target.lineHeight(theme.bodyText.font);
+  const int16_t captionHeight =
+      row.label && row.inlineLabelWidth == 0 ? static_cast<int16_t>(lineHeight + row.captionGap) : 0;
   const int16_t currentValueHeight =
       row.value && !row.compact ? static_cast<int16_t>(lineHeight + SLIDER_SCALE_GAP) : 0;
   const int16_t endpointHeight =
@@ -147,9 +149,29 @@ int16_t readerSliderRowHeight(fui::Screen<MaxInteractions>& screen, const Reader
 }
 
 template <size_t MaxInteractions>
+int16_t readerSliderRowHeight(fui::Screen<MaxInteractions>& screen, const ReaderSliderRowProps& row) {
+  return readerSliderRowHeight(screen.target(), screen.theme(), row);
+}
+
+// Use the same label column for both controls, including translated labels.
+template <size_t MaxInteractions>
+void alignReaderSliderLabels(fui::Screen<MaxInteractions>& screen, ReaderSliderRowProps& first,
+                             ReaderSliderRowProps& second) {
+  const auto& style = screen.theme().bodyText;
+  const int16_t labelWidth = std::max(screen.target().measureText(style.font, first.label, style).width,
+                                      screen.target().measureText(style.font, second.label, style).width);
+  // Leave a usable track and both step buttons even with longer translations.
+  const int16_t controlWidth =
+      static_cast<int16_t>(2 * screen.theme().rowHeight + screen.theme().spaceSm * 2 + screen.theme().minTouchSize);
+  first.inlineLabelWidth = second.inlineLabelWidth =
+      std::max<int16_t>(1, std::min<int16_t>(labelWidth, screen.body().width - controlWidth - screen.theme().spaceMd));
+}
+
+template <size_t MaxInteractions>
 int16_t readerSliderControlTopInset(fui::Screen<MaxInteractions>& screen, const ReaderSliderRowProps& row) {
   const int16_t lineHeight = screen.target().lineHeight(screen.theme().bodyText.font);
-  const int16_t captionHeight = row.label ? static_cast<int16_t>(lineHeight + row.captionGap) : 0;
+  const int16_t captionHeight =
+      row.label && row.inlineLabelWidth == 0 ? static_cast<int16_t>(lineHeight + row.captionGap) : 0;
   const int16_t currentValueHeight =
       row.value && !row.compact ? static_cast<int16_t>(lineHeight + SLIDER_SCALE_GAP) : 0;
   return static_cast<int16_t>(captionHeight + currentValueHeight);
@@ -175,7 +197,8 @@ void drawReaderSliderRow(fui::Screen<MaxInteractions>& screen, const ReaderSlide
   }
 
   const int16_t lineHeight = screen.target().lineHeight(labelStyle.font);
-  const int16_t captionHeight = row.label ? static_cast<int16_t>(lineHeight + row.captionGap) : 0;
+  const int16_t captionHeight =
+      row.label && row.inlineLabelWidth == 0 ? static_cast<int16_t>(lineHeight + row.captionGap) : 0;
   int16_t labelWidth = rect.width;
   if (row.compact && row.value) {
     const fui::Size valueSize = screen.target().measureText(valueStyle.font, row.value, valueStyle);
@@ -184,22 +207,28 @@ void drawReaderSliderRow(fui::Screen<MaxInteractions>& screen, const ReaderSlide
         fui::Rect{static_cast<int16_t>(rect.right() - valueSize.width), rect.y, valueSize.width, lineHeight}, row.value,
         valueStyle);
   }
-  if (row.label) screen.target().text(fui::Rect{rect.x, rect.y, labelWidth, lineHeight}, row.label, labelStyle);
+  if (row.label && row.inlineLabelWidth == 0)
+    screen.target().text(fui::Rect{rect.x, rect.y, labelWidth, lineHeight}, row.label, labelStyle);
 
   const int16_t currentValueHeight =
       row.value && !row.compact ? static_cast<int16_t>(lineHeight + SLIDER_SCALE_GAP) : 0;
   const int16_t controlTop = static_cast<int16_t>(rect.y + captionHeight + currentValueHeight);
-  const fui::Rect band{rect.x, controlTop, rect.width, SLIDER_CONTROL_HEIGHT};
+  const int16_t labelInset =
+      row.inlineLabelWidth > 0 ? static_cast<int16_t>(row.inlineLabelWidth + screen.theme().spaceMd) : 0;
+  const fui::Rect band{static_cast<int16_t>(rect.x + labelInset), controlTop,
+                       static_cast<int16_t>(rect.width - labelInset), SLIDER_CONTROL_HEIGHT};
+  if (row.inlineLabelWidth > 0)
+    screen.target().text(fui::Rect{rect.x, band.y, row.inlineLabelWidth, band.height}, row.label, labelStyle);
   // Match the frontlight slider's control lanes: a shorter track leaves
   // genuinely finger-sized +/- targets at either end, even on the Sticky.
   int16_t stepWidth = std::max<int16_t>(band.height, screen.theme().rowHeight);
-  if (row.compact) {
-    const auto& style = screen.theme().smallText;
-    if (row.minimumLabel)
-      stepWidth = std::max(stepWidth, screen.target().measureText(style.font, row.minimumLabel, style).width);
-    if (row.maximumLabel)
-      stepWidth = std::max(stepWidth, screen.target().measureText(style.font, row.maximumLabel, style).width);
-  }
+  const auto& endpointText = row.compact ? screen.theme().smallText : screen.theme().bodyText;
+  if (row.minimumLabel)
+    stepWidth =
+        std::max(stepWidth, screen.target().measureText(endpointText.font, row.minimumLabel, endpointText).width);
+  if (row.maximumLabel)
+    stepWidth =
+        std::max(stepWidth, screen.target().measureText(endpointText.font, row.maximumLabel, endpointText).width);
   const int16_t sideGap = static_cast<int16_t>(stepWidth + screen.theme().spaceSm);
   // In the narrow button landscape column, put the range at the track ends
   // and the current value beside its caption. Keyboard step hints remain below.
@@ -871,7 +900,17 @@ int16_t EpubReaderDrawerActivity::drawerHeight() const {
   // and grabber do not consume one of the intended visible rows.
   const int16_t tabBarHeight = static_cast<int16_t>(TAB_BAR_HEIGHT + TAB_BAR_VERTICAL_PADDING * 2);
   int16_t drawerHeight = static_cast<int16_t>(readerDrawerHeight(renderer, state.pane) + grabberBand);
-  if (state.pane == ReaderDrawerPane::Root && isLandscapeOrientation(renderer.getOrientation())) {
+  if (mappedInput.hasTouchHardware() && readerDrawerSliderPreviewsText(state.pane)) {
+    ReaderSliderRowProps row;
+    row.label = row.value = row.minimumLabel = row.maximumLabel = " ";
+    row.inlineLabelWidth = 1;
+    const auto& theme = app.theme();
+    // Fit the inline rows instead of retaining the old tall sheet's empty space.
+    drawerHeight =
+        static_cast<int16_t>(grabberBand + sheet.ruleWidth + tabBarHeight + theme.headerHeight +
+                             2 * readerSliderRowHeight(uiTarget, theme, row) + theme.spaceMd + theme.spaceSm);
+    drawerHeight = std::min<int16_t>(drawerHeight, renderer.getScreenHeight());
+  } else if (state.pane == ReaderDrawerPane::Root && isLandscapeOrientation(renderer.getOrientation())) {
     const int16_t rowHeight = app.theme().rowHeight;
     const int16_t gap = app.theme().spaceSm;
     drawerHeight = static_cast<int16_t>(grabberBand + sheet.ruleWidth + tabBarHeight + DRAWER_LIST_TOP_PADDING +
@@ -1195,6 +1234,7 @@ void EpubReaderDrawerActivity::buildSpacingPane(UiApp::ScreenType& screen) {
   word.focused = !mappedInput.hasTouchHardware() && buttonSliderState.focus == 1;
   line.editing = line.focused && buttonSliderState.editing;
   word.editing = word.focused && buttonSliderState.editing;
+  if (mappedInput.hasTouchHardware()) alignReaderSliderLabels(screen, line, word);
   drawDualReaderSliderRows(screen, line, word, !mappedInput.hasTouchHardware());
 }
 
@@ -1231,6 +1271,7 @@ void EpubReaderDrawerActivity::buildMarginsPane(UiApp::ScreenType& screen) {
   horizontal.focused = !mappedInput.hasTouchHardware() && buttonSliderState.focus == 1;
   vertical.editing = vertical.focused && buttonSliderState.editing;
   horizontal.editing = horizontal.focused && buttonSliderState.editing;
+  if (mappedInput.hasTouchHardware()) alignReaderSliderLabels(screen, vertical, horizontal);
   drawDualReaderSliderRows(screen, vertical, horizontal, !mappedInput.hasTouchHardware());
 }
 
