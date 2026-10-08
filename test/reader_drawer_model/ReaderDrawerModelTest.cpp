@@ -346,3 +346,8 @@ TEST(PendingOverlayResume, FileBrowserReturnPreservesLargeListPosition) {
   EXPECT_FALSE(stored.valid());
   EXPECT_TRUE(stored.fileBrowserPath.empty());
 }
+
+TEST(ReaderDrawerModel, LandscapePreviewPanesPlaceSamplePreviewBesideControls) {
+  EXPECT_TRUE(readerDrawerSamplePreviewBesideControls(true));
+  EXPECT_FALSE(readerDrawerSamplePreviewBesideControls(false));
+}

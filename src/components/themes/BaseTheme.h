@@ -49,6 +49,8 @@ struct ReaderStatusBarContent {
   bool darkMode = false;
   int edgePadding = 0;
   int previewOriginY = -1;
+  // Optional borrowed bounds, used only during this draw call.
+  const Rect* horizontalBounds = nullptr;
 };
 
 enum class ThemeTabBarAppearance : uint8_t {
@@ -320,7 +322,7 @@ class BaseTheme {
   virtual void drawReaderStatusBar(const GfxRenderer& renderer, ReaderStatusBarPosition position,
                                    const ReaderStatusBarContent& content,
                                    const ReaderStatusBarConfig* overrideConfig = nullptr) const;
-  void drawDisplayStatusBar(const GfxRenderer& renderer, int topY) const;
+  void drawDisplayStatusBar(const GfxRenderer& renderer, int topY, const Rect* horizontalBounds = nullptr) const;
   virtual void drawHelpText(const GfxRenderer& renderer, Rect rect, const char* label) const;
   virtual void drawTextField(const GfxRenderer& renderer, Rect rect, const int textWidth, bool cursorMode = false,
                              int contentStartX = 0, int contentWidth = 0) const;

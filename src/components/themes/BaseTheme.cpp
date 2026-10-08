@@ -983,10 +983,16 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
   };
 
   constexpr int itemGap = 8;
-  const int leftEdge =
+  int leftEdge =
       top ? std::max(marginLeft, StatusBarMetrics::sideInset) : marginLeft + metrics.statusBarHorizontalMargin + 1;
-  const int rightEdge = screenWidth - (top ? std::max(marginRight, StatusBarMetrics::sideInset)
-                                           : marginRight + metrics.statusBarHorizontalMargin);
+  int rightEdge = screenWidth - (top ? std::max(marginRight, StatusBarMetrics::sideInset)
+                                     : marginRight + metrics.statusBarHorizontalMargin);
+  if (content.horizontalBounds) {
+    // A header can be narrower than the screen because of button-hint gutters.
+    leftEdge = std::max(leftEdge, content.horizontalBounds->x + StatusBarMetrics::sideInset);
+    rightEdge = std::min(rightEdge,
+                         content.horizontalBounds->x + content.horizontalBounds->width - StatusBarMetrics::sideInset);
+  }
   const int available = std::max(0, rightEdge - leftEdge);
 
   std::array<int, ReaderStatusBarConfig::SLOT_COUNT> widths{};
@@ -1011,15 +1017,19 @@ void BaseTheme::drawReaderStatusBar(const GfxRenderer& renderer, const ReaderSta
   if (centerWidth > 0) {
     const int width = measureItem(centerItem, centerWidth);
     if (width > 0) {
-      const int centeredX = std::clamp((screenWidth - width) / 2, placement.centerLeft, placement.centerRight - width);
+      const int centerX = content.horizontalBounds
+                              ? content.horizontalBounds->x + (content.horizontalBounds->width - width) / 2
+                              : (screenWidth - width) / 2;
+      const int centeredX = std::clamp(centerX, placement.centerLeft, placement.centerRight - width);
       drawItem(centerItem, centeredX, width, false);
     }
   }
 }
 
-void BaseTheme::drawDisplayStatusBar(const GfxRenderer& renderer, const int topY) const {
+void BaseTheme::drawDisplayStatusBar(const GfxRenderer& renderer, const int topY, const Rect* horizontalBounds) const {
   ReaderStatusBarContent content;
   content.outsideReader = true;
+  content.horizontalBounds = horizontalBounds;
   content.previewOriginY = topY + UITheme::getTopStatusBarInset(renderer);
   if (renderer.hasCustomViewableInsets()) {
     const auto insets = renderer.getViewableInsets().rotated(static_cast<unsigned>(renderer.getOrientation()));

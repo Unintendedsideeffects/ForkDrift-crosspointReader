@@ -34,6 +34,7 @@
 #endif
 #include "components/DrawerHandle.h"
 #include "components/ReaderBookSummary.h"
+#include "components/ReaderSliderHints.h"
 #include "components/SliderValue.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
@@ -80,6 +81,8 @@ constexpr uint8_t PORTRAIT_DRAWER_HEIGHT_PERCENT = 50;
 // height is calculated from the rows reserved in drawerHeight().
 constexpr uint8_t LANDSCAPE_DRAWER_HEIGHT_PERCENT = 65;
 constexpr uint8_t LANDSCAPE_DUAL_SLIDER_DRAWER_HEIGHT_PERCENT = 75;
+// Button-device landscape preview panes split the body: controls left, sample right.
+constexpr uint8_t LANDSCAPE_SAMPLE_PREVIEW_WIDTH_PERCENT = 55;
 
 bool isLandscapeOrientation(const GfxRenderer::Orientation orientation) {
   return orientation == GfxRenderer::Orientation::LandscapeClockwise ||
@@ -121,6 +124,7 @@ struct ReaderSliderRowProps {
   fui::ActionId decrement = fui::NO_ACTION;
   fui::ActionId increment = fui::NO_ACTION;
   int16_t captionGap = SLIDER_CAPTION_GAP;
+  bool compact = false;
   bool focused = false;
   bool editing = false;
   bool enabled = true;
@@ -135,9 +139,10 @@ template <size_t MaxInteractions>
 int16_t readerSliderRowHeight(fui::Screen<MaxInteractions>& screen, const ReaderSliderRowProps& row) {
   const int16_t lineHeight = screen.target().lineHeight(screen.theme().bodyText.font);
   const int16_t captionHeight = row.label ? static_cast<int16_t>(lineHeight + row.captionGap) : 0;
-  const int16_t currentValueHeight = row.value ? static_cast<int16_t>(lineHeight + SLIDER_SCALE_GAP) : 0;
+  const int16_t currentValueHeight =
+      row.value && !row.compact ? static_cast<int16_t>(lineHeight + SLIDER_SCALE_GAP) : 0;
   const int16_t endpointHeight =
-      (row.minimumLabel || row.maximumLabel) ? static_cast<int16_t>(lineHeight + SLIDER_SCALE_GAP) : 0;
+      (row.minimumLabel || row.maximumLabel) && !row.compact ? static_cast<int16_t>(lineHeight + SLIDER_SCALE_GAP) : 0;
   return static_cast<int16_t>(captionHeight + currentValueHeight + SLIDER_CONTROL_HEIGHT + endpointHeight);
 }
 
@@ -145,7 +150,8 @@ template <size_t MaxInteractions>
 int16_t readerSliderControlTopInset(fui::Screen<MaxInteractions>& screen, const ReaderSliderRowProps& row) {
   const int16_t lineHeight = screen.target().lineHeight(screen.theme().bodyText.font);
   const int16_t captionHeight = row.label ? static_cast<int16_t>(lineHeight + row.captionGap) : 0;
-  const int16_t currentValueHeight = row.value ? static_cast<int16_t>(lineHeight + SLIDER_SCALE_GAP) : 0;
+  const int16_t currentValueHeight =
+      row.value && !row.compact ? static_cast<int16_t>(lineHeight + SLIDER_SCALE_GAP) : 0;
   return static_cast<int16_t>(captionHeight + currentValueHeight);
 }
 
@@ -170,35 +176,63 @@ void drawReaderSliderRow(fui::Screen<MaxInteractions>& screen, const ReaderSlide
 
   const int16_t lineHeight = screen.target().lineHeight(labelStyle.font);
   const int16_t captionHeight = row.label ? static_cast<int16_t>(lineHeight + row.captionGap) : 0;
-  if (row.label) screen.target().text(fui::Rect{rect.x, rect.y, rect.width, lineHeight}, row.label, labelStyle);
+  int16_t labelWidth = rect.width;
+  if (row.compact && row.value) {
+    const fui::Size valueSize = screen.target().measureText(valueStyle.font, row.value, valueStyle);
+    labelWidth = std::max<int16_t>(0, rect.width - valueSize.width - screen.theme().spaceSm);
+    screen.target().text(
+        fui::Rect{static_cast<int16_t>(rect.right() - valueSize.width), rect.y, valueSize.width, lineHeight}, row.value,
+        valueStyle);
+  }
+  if (row.label) screen.target().text(fui::Rect{rect.x, rect.y, labelWidth, lineHeight}, row.label, labelStyle);
 
-  const int16_t currentValueHeight = row.value ? static_cast<int16_t>(lineHeight + SLIDER_SCALE_GAP) : 0;
+  const int16_t currentValueHeight =
+      row.value && !row.compact ? static_cast<int16_t>(lineHeight + SLIDER_SCALE_GAP) : 0;
   const int16_t controlTop = static_cast<int16_t>(rect.y + captionHeight + currentValueHeight);
   const fui::Rect band{rect.x, controlTop, rect.width, SLIDER_CONTROL_HEIGHT};
   // Match the frontlight slider's control lanes: a shorter track leaves
   // genuinely finger-sized +/- targets at either end, even on the Sticky.
-  const int16_t stepWidth = std::max<int16_t>(band.height, screen.theme().rowHeight);
+  int16_t stepWidth = std::max<int16_t>(band.height, screen.theme().rowHeight);
+  if (row.compact) {
+    const auto& style = screen.theme().smallText;
+    if (row.minimumLabel)
+      stepWidth = std::max(stepWidth, screen.target().measureText(style.font, row.minimumLabel, style).width);
+    if (row.maximumLabel)
+      stepWidth = std::max(stepWidth, screen.target().measureText(style.font, row.maximumLabel, style).width);
+  }
   const int16_t sideGap = static_cast<int16_t>(stepWidth + screen.theme().spaceSm);
-  fui::ButtonProps step;
-  step.text = screen.theme().bodyText;
-  step.text.bold = true;
-  step.styles = fui::plainStyles();
-  step.inputMask = fui::InputTouch;
-  step.enabled = row.enabled;
-  step.minTouchSize = stepWidth;
-  step.label = "-";
-  step.action = row.decrement;
-  step.value = -1;
-  step.hitPadding.right = screen.theme().spaceSm;
-  fui::button(screen.frame(), fui::Rect{band.x, band.y, stepWidth, band.height}, step);
+  // In the narrow button landscape column, put the range at the track ends
+  // and the current value beside its caption. Keyboard step hints remain below.
+  if (row.compact) {
+    fui::TextStyle endpointStyle = screen.theme().smallText;
+    endpointStyle.align = fui::TextAlign::Center;
+    if (row.minimumLabel)
+      screen.target().text(fui::Rect{band.x, band.y, stepWidth, band.height}, row.minimumLabel, endpointStyle);
+    if (row.maximumLabel)
+      screen.target().text(fui::Rect{static_cast<int16_t>(band.right() - stepWidth), band.y, stepWidth, band.height},
+                           row.maximumLabel, endpointStyle);
+  } else {
+    fui::ButtonProps step;
+    step.text = screen.theme().bodyText;
+    step.text.bold = true;
+    step.styles = fui::plainStyles();
+    step.inputMask = fui::InputTouch;
+    step.enabled = row.enabled;
+    step.minTouchSize = stepWidth;
+    step.label = "-";
+    step.action = row.decrement;
+    step.value = -1;
+    step.hitPadding.right = screen.theme().spaceSm;
+    fui::button(screen.frame(), fui::Rect{band.x, band.y, stepWidth, band.height}, step);
 
-  const int16_t plusX = static_cast<int16_t>(band.right() - stepWidth);
-  step.label = "+";
-  step.action = row.increment;
-  step.value = 1;
-  step.hitPadding.left = screen.theme().spaceSm;
-  step.hitPadding.right = 0;
-  fui::button(screen.frame(), fui::Rect{plusX, band.y, stepWidth, band.height}, step);
+    const int16_t plusX = static_cast<int16_t>(band.right() - stepWidth);
+    step.label = "+";
+    step.action = row.increment;
+    step.value = 1;
+    step.hitPadding.left = screen.theme().spaceSm;
+    step.hitPadding.right = 0;
+    fui::button(screen.frame(), fui::Rect{plusX, band.y, stepWidth, band.height}, step);
+  }
 
   const fui::Rect trackRect = band.inset(fui::Insets{0, sideGap, 0, sideGap});
   fui::SliderProps slider;
@@ -215,7 +249,7 @@ void drawReaderSliderRow(fui::Screen<MaxInteractions>& screen, const ReaderSlide
   slider.border = fui::Paint::none();
   slider.enabled = row.enabled;
 
-  if (row.value) {
+  if (row.value && !row.compact) {
     const int32_t maxValue = slider.max <= 0 ? 1 : slider.max;
     const int32_t value = std::clamp<int32_t>(slider.value, 0, maxValue);
     const int16_t knobWidth = std::max<int16_t>(4, slider.knobWidth);
@@ -232,7 +266,8 @@ void drawReaderSliderRow(fui::Screen<MaxInteractions>& screen, const ReaderSlide
   }
   fui::slider(screen.frame(), trackRect, slider);
 
-  if (row.minimumLabel || row.maximumLabel) {
+  if (!row.compact && (row.minimumLabel || row.maximumLabel)) {
+    const int16_t plusX = static_cast<int16_t>(band.right() - stepWidth);
     const int16_t endpointY = static_cast<int16_t>(band.bottom() + SLIDER_SCALE_GAP);
     fui::TextStyle endpointStyle = valueStyle;
     endpointStyle.bold = false;
@@ -256,8 +291,7 @@ int16_t centeredReaderSliderControlTop(fui::Screen<MaxInteractions>& screen, con
 template <size_t MaxInteractions>
 void drawButtonSliderStepHints(fui::Screen<MaxInteractions>& screen, const int fineStep, const int coarseStep,
                                const char* unit) {
-  fui::TextStyle hint = screen.theme().smallText;
-  hint.align = fui::TextAlign::Center;
+  const fui::TextStyle hint = ReaderSliderHints::style(screen.theme());
   const int16_t lineHeight = screen.target().lineHeight(hint.font);
   char line[64];
   std::snprintf(line, sizeof(line), "%s: %d%s", tr(STR_FRONT_BUTTONS), fineStep, unit);
@@ -270,8 +304,7 @@ template <size_t MaxInteractions>
 void drawDualReaderSliderRows(fui::Screen<MaxInteractions>& screen, const ReaderSliderRowProps& first,
                               const ReaderSliderRowProps& second, const bool showButtonHints) {
   const int16_t bottomPadding = screen.theme().spaceSm;
-  fui::TextStyle hint = screen.theme().smallText;
-  hint.align = fui::TextAlign::Center;
+  const fui::TextStyle hint = ReaderSliderHints::style(screen.theme());
   char frontHint[64] = {};
   char sideHint[64] = {};
   const int16_t hintGap = screen.theme().spaceMd;
@@ -283,7 +316,7 @@ void drawDualReaderSliderRows(fui::Screen<MaxInteractions>& screen, const Reader
     inlineHints = screen.target().measureText(hint.font, frontHint, hint).width <= hintColumnWidth &&
                   screen.target().measureText(hint.font, sideHint, hint).width <= hintColumnWidth;
   }
-  const int16_t hintLineHeight = showButtonHints ? screen.target().lineHeight(screen.theme().smallText.font) : 0;
+  const int16_t hintLineHeight = showButtonHints ? screen.target().lineHeight(hint.font) : 0;
   const int16_t hintRows = inlineHints ? 1 : 2;
   const int16_t hintHeight =
       showButtonHints ? static_cast<int16_t>((hintLineHeight + screen.theme().spaceSm) * hintRows) : 0;
@@ -291,9 +324,9 @@ void drawDualReaderSliderRows(fui::Screen<MaxInteractions>& screen, const Reader
       std::max<int16_t>(0, static_cast<int16_t>(screen.body().height - readerSliderRowHeight(screen, first) -
                                                 readerSliderRowHeight(screen, second) - hintHeight - bottomPadding));
   drawReaderSliderRow(screen, first);
-  // On button devices, put most of the spare space below the second slider so
-  // the two settings read as a group and the help text stays distinct.
-  const int16_t betweenRows = showButtonHints ? static_cast<int16_t>(remaining / 3) : remaining;
+  // Share spare space between the sliders and the smaller button hints so the
+  // two controls have a clear gap without pushing the help text off-screen.
+  const int16_t betweenRows = showButtonHints ? static_cast<int16_t>(remaining / 2) : remaining;
   screen.spacer(betweenRows);
   drawReaderSliderRow(screen, second);
   if (showButtonHints) {
@@ -434,6 +467,7 @@ EpubReaderDrawerActivity::EpubReaderDrawerActivity(
       dictionaryFontChangedContext(dictionaryFontChangedContext),
       uiTarget(makeUiTarget(renderer)),
       app(uiTarget, uiTarget.deviceContext()) {
+  ReaderSliderHints::bindFont(uiTarget);
   if (dictionaryFontFamilyName) {
     std::strncpy(this->dictionaryFontFamilyName, dictionaryFontFamilyName, sizeof(this->dictionaryFontFamilyName) - 1);
   }
@@ -858,6 +892,10 @@ bool EpubReaderDrawerActivity::showsSamplePreview() const {
   return readerDrawerShowsSamplePreview(state.pane, state.tab, enumOptionRow);
 }
 
+bool EpubReaderDrawerActivity::samplePreviewBesideControls() const {
+  return readerDrawerSamplePreviewBesideControls(isLandscapeOrientation(renderer.getOrientation()));
+}
+
 void EpubReaderDrawerActivity::buildDrawer(UiApp::ScreenType& screen) {
   fui::SheetProps sheet;
   const bool buttonDevice = !mappedInput.hasTouchHardware();
@@ -903,8 +941,8 @@ void EpubReaderDrawerActivity::buildDrawer(UiApp::ScreenType& screen) {
     const int previewBaseHeight =
         screen.body().height + (isLandscapeOrientation(renderer.getOrientation()) ? 0 : buttonHeaderHeight);
     int previewHeight = previewBaseHeight * metrics.previewHeightPercent / 100;
-    if (readerDrawerSliderPreviewsText(state.pane)) {
-      // Leave both controls and both translated help lines usable in landscape.
+    if (readerDrawerSliderPreviewsText(state.pane) && !samplePreviewBesideControls()) {
+      // Keep the sample height unchanged; smaller hints free space between the controls.
       ReaderSliderRowProps row;
       row.label = row.value = row.minimumLabel = row.maximumLabel = " ";
       row.captionGap = COMPACT_SLIDER_CAPTION_GAP;
@@ -914,8 +952,17 @@ void EpubReaderDrawerActivity::buildDrawer(UiApp::ScreenType& screen) {
           screen.theme().spaceSm + sheet.ruleWidth + metrics.verticalSpacing;
       previewHeight = std::min(previewHeight, std::max(0, screen.body().height - controlsHeight));
     }
-    samplePreviewBounds =
-        screen.takeTop(static_cast<int16_t>(previewHeight), static_cast<int16_t>(metrics.verticalSpacing));
+    if (samplePreviewBesideControls()) {
+      // Give the sample the full body height in a right-hand column; the pane
+      // header and controls keep the left column.
+      const fui::Rect body = screen.body();
+      const int16_t width = static_cast<int16_t>(body.width * LANDSCAPE_SAMPLE_PREVIEW_WIDTH_PERCENT / 100);
+      samplePreviewBounds = fui::Rect{static_cast<int16_t>(body.right() - width), body.y, width, body.height};
+      screen.insetContent(fui::Insets{0, static_cast<int16_t>(width + metrics.verticalSpacing), 0, 0});
+    } else {
+      samplePreviewBounds =
+          screen.takeTop(static_cast<int16_t>(previewHeight), static_cast<int16_t>(metrics.verticalSpacing));
+    }
   }
 #endif
   screen.insetContent(fui::Insets{sheet.ruleWidth, DRAWER_SIDE_INSET, 0, DRAWER_SIDE_INSET});
@@ -962,7 +1009,8 @@ void EpubReaderDrawerActivity::buildDrawer(UiApp::ScreenType& screen) {
 void EpubReaderDrawerActivity::drawButtonBookHeader() {
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
   const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput, safe);
-  GUI.drawHeader(renderer, header, epub ? epub->getTitle().c_str() : "", nullptr, false, true);
+  GUI.drawHeader(renderer, header, epub ? epub->getTitle().c_str() : "", nullptr, false, false);
+  GUI.drawDisplayStatusBar(renderer, header.y, &header);
 
   char progress[96];
   formatReaderBookProgress(progress, sizeof(progress), chapterPage, chapterPageCount, chapterPageCountEstimated,
@@ -1013,7 +1061,12 @@ void EpubReaderDrawerActivity::buildPaneHeader(UiApp::ScreenType& screen) {
   header.titleText.bold = true;
   header.sidePadding = screen.theme().headerSidePadding;
   header.minTouchSize = screen.theme().minTouchSize;
-  const fui::Rect rect = screen.takeTop(screen.theme().headerHeight);
+  // Two sliders and their button hints need the landscape column's full height.
+  const bool compactSliders =
+      CROSSINK_APP_READER_SAMPLE_PREVIEW && samplePreviewBesideControls() && readerDrawerSliderPreviewsText(state.pane);
+  const int16_t height =
+      compactSliders ? screen.target().lineHeight(header.titleText.font) + 10 : screen.theme().headerHeight;
+  const fui::Rect rect = screen.takeTop(height);
   fui::header(screen.frame(), rect, header);
 
   fui::ButtonProps back;
@@ -1135,6 +1188,7 @@ void EpubReaderDrawerActivity::buildSpacingPane(UiApp::ScreenType& screen) {
   word.decrement = ACTION_STEP + 3;
   word.increment = ACTION_STEP + 3;
   configureReaderSliderScale(word, "0", "4");
+  line.compact = word.compact = CROSSINK_APP_READER_SAMPLE_PREVIEW && samplePreviewBesideControls();
   line.captionGap = COMPACT_SLIDER_CAPTION_GAP;
   word.captionGap = COMPACT_SLIDER_CAPTION_GAP;
   line.focused = !mappedInput.hasTouchHardware() && buttonSliderState.focus == 0;
@@ -1170,6 +1224,7 @@ void EpubReaderDrawerActivity::buildMarginsPane(UiApp::ScreenType& screen) {
   horizontal.decrement = ACTION_STEP + 3;
   horizontal.increment = ACTION_STEP + 3;
   configureReaderSliderScale(horizontal, "5", "150");
+  vertical.compact = horizontal.compact = CROSSINK_APP_READER_SAMPLE_PREVIEW && samplePreviewBesideControls();
   vertical.captionGap = COMPACT_SLIDER_CAPTION_GAP;
   horizontal.captionGap = COMPACT_SLIDER_CAPTION_GAP;
   vertical.focused = !mappedInput.hasTouchHardware() && buttonSliderState.focus == 0;
@@ -1204,8 +1259,9 @@ void EpubReaderDrawerActivity::buildPercentSlider(UiApp::ScreenType& screen) {
   readout.align = fui::TextAlign::Center;
   const int16_t readoutHeight = screen.target().lineHeight(readout.font);
   const int16_t hintHeight = screen.target().lineHeight(theme.smallText.font);
-  const int16_t groupHeight =
-      static_cast<int16_t>(readoutHeight + theme.rowHeight + hintHeight * 3 + theme.spaceLg * 2 + theme.spaceSm * 2);
+  const int16_t stepHintHeight = screen.target().lineHeight(ReaderSliderHints::style(theme).font);
+  const int16_t groupHeight = static_cast<int16_t>(readoutHeight + SLIDER_CONTROL_HEIGHT + stepHintHeight * 2 +
+                                                   hintHeight + theme.spaceLg * 2 + theme.spaceSm * 2);
   screen.spacer(std::max<int16_t>(0, static_cast<int16_t>((screen.body().height - groupHeight) / 2)));
 
   char value[16];
@@ -1215,7 +1271,7 @@ void EpubReaderDrawerActivity::buildPercentSlider(UiApp::ScreenType& screen) {
   // The slider is visual only on button devices. Physical buttons change the
   // value directly, preserving the old selector's 1% and 10% steps.
   const fui::Insets sideInset{0, static_cast<int16_t>(theme.spaceLg * 2), 0, static_cast<int16_t>(theme.spaceLg * 2)};
-  const fui::Rect row = screen.takeTop(theme.rowHeight, theme.spaceLg).inset(sideInset);
+  const fui::Rect row = screen.takeTop(SLIDER_CONTROL_HEIGHT, theme.spaceLg).inset(sideInset);
   fui::SliderProps slider;
   slider.value = percent / 10;
   slider.max = 1000;
@@ -1328,7 +1384,8 @@ void EpubReaderDrawerActivity::buildAutoPageTurnPane(UiApp::ScreenType& screen) 
   slider.decrement = ACTION_STEP;
   slider.increment = ACTION_STEP;
   configureReaderSliderScale(slider, "5s", "120s");
-  const int16_t hintLineHeight = buttonDevice ? screen.target().lineHeight(screen.theme().smallText.font) : 0;
+  const int16_t hintLineHeight =
+      buttonDevice ? screen.target().lineHeight(ReaderSliderHints::style(screen.theme()).font) : 0;
   const int16_t hintsHeight =
       buttonDevice ? static_cast<int16_t>(hintLineHeight * 2 + screen.theme().spaceMd + screen.theme().spaceSm) : 0;
   const int16_t top =
@@ -2471,8 +2528,12 @@ void EpubReaderDrawerActivity::renderPreviewContents(const ReaderSettingsDraft& 
                         ReaderUtils::readerForegroundBlack());
     }
     renderer.endTextClip();
-    renderer.drawLine(preview.x, preview.bottom() - 1, preview.right() - 1, preview.bottom() - 1,
-                      ReaderUtils::readerForegroundBlack());
+    if (samplePreviewBesideControls()) {
+      renderer.drawLine(preview.x, preview.y, preview.x, preview.bottom() - 1, ReaderUtils::readerForegroundBlack());
+    } else {
+      renderer.drawLine(preview.x, preview.bottom() - 1, preview.right() - 1, preview.bottom() - 1,
+                        ReaderUtils::readerForegroundBlack());
+    }
   }
 }
 
@@ -2547,8 +2608,9 @@ void EpubReaderDrawerActivity::renderSamplePreviewText(const ReaderSettingsDraft
 void EpubReaderDrawerActivity::renderPreviewUnavailable() {
   const fui::Rect preview = previewBounds();
   renderer.fillRect(preview.x, preview.y, preview.width, preview.height, ReaderUtils::readerDarkModeEnabled());
-  renderer.drawCenteredText(UI_12_FONT_ID, preview.y + preview.height / 2, tr(STR_PREVIEW_UNAVAILABLE),
-                            ReaderUtils::readerForegroundBlack());
+  const char* text = tr(STR_PREVIEW_UNAVAILABLE);
+  const int x = preview.x + std::max(0, (preview.width - renderer.getTextWidth(UI_12_FONT_ID, text)) / 2);
+  renderer.drawText(UI_12_FONT_ID, x, preview.y + preview.height / 2, text, ReaderUtils::readerForegroundBlack());
 }
 
 bool EpubReaderDrawerActivity::renderPreview(int& previewFontId,

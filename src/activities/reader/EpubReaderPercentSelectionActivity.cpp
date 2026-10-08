@@ -14,6 +14,7 @@
 #include "DeviceCapabilities.h"
 #include "MappedInputManager.h"
 #include "StablePageSelectionModel.h"
+#include "components/ReaderSliderHints.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
 #include "components/UIThemeTokens.h"
@@ -61,6 +62,7 @@ EpubReaderPercentSelectionActivity::EpubReaderPercentSelectionActivity(GfxRender
 
 void EpubReaderPercentSelectionActivity::onEnter() {
   Activity::onEnter();
+  ReaderSliderHints::bindFont(uiTarget);
   uiReady = false;
   applySharedUiTheme(app, uiTarget);
   app.on(ACTION_KEYPAD_KEY, &EpubReaderPercentSelectionActivity::onKeypadKeyEvent, this);
@@ -416,8 +418,7 @@ void EpubReaderPercentSelectionActivity::buildPercentScreen(UiApp::ScreenType& s
 
   // Two-line step hint built from separate label + value strings (front buttons = fine step, side
   // buttons = coarse step), so the layout doesn't depend on a separator hidden in translated text.
-  fui::TextStyle hint = theme.smallText;
-  hint.align = fui::TextAlign::Center;
+  fui::TextStyle hint = ReaderSliderHints::style(theme);
   const int16_t hintLh = screen.target().lineHeight(hint.font);
   snprintf(line, sizeof(line), mode == Mode::StablePage ? "%s: %d" : "%s: %d%%", I18N.get(StrId::STR_FRONT_BUTTONS),
            kSmallStep);
@@ -429,7 +430,8 @@ void EpubReaderPercentSelectionActivity::buildPercentScreen(UiApp::ScreenType& s
   // Discoverability for the keypad escape hatch: names the actual on-screen label for
   // Confirm on this screen (STR_SELECT), so the hint always matches what's shown below.
   snprintf(line, sizeof(line), I18N.get(StrId::STR_HOLD_FOR_KEYBOARD), tr(STR_SELECT));
-  screen.target().text(screen.takeTop(hintLh), line, hint);
+  hint.font = theme.smallText.font;
+  screen.target().text(screen.takeTop(screen.target().lineHeight(hint.font)), line, hint);
 }
 
 void EpubReaderPercentSelectionActivity::buildKeypadScreen(UiApp::ScreenType& screen, char* line, size_t lineSize) {

@@ -211,6 +211,7 @@ class EpubReaderDrawerActivity final : public Activity {
   void buildDrawer(UiApp::ScreenType& screen);
   void drawButtonBookHeader();
   bool showsSamplePreview() const;
+  bool samplePreviewBesideControls() const;
   void renderPreviewUnavailable();
   void renderSamplePreviewText(const ReaderSettingsDraft& settings, int fontId);
   void buildTabBar(UiApp::ScreenType& screen, freeink::ui::Rect rect, bool drawBottomRule);

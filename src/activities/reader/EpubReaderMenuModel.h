@@ -259,6 +259,10 @@ constexpr bool readerDrawerSliderPreviewsText(const ReaderDrawerPane pane) {
   return pane == ReaderDrawerPane::Spacing || pane == ReaderDrawerPane::Margins;
 }
 
+// A landscape body is too short to stack a readable sample above the controls,
+// so every preview pane puts the sample in a full-height column beside them.
+constexpr bool readerDrawerSamplePreviewBesideControls(const bool landscape) { return landscape; }
+
 constexpr bool shouldRenderReaderDrawerAntiAliasing(const bool previewRendered, const bool textAntiAliasing,
                                                     const bool foregroundBlack) {
   return previewRendered && textAntiAliasing && foregroundBlack;
