@@ -483,6 +483,8 @@ class EpubReaderActivity final : public Activity {
   bool isAtBookStart() const;
   void pageTurn(bool isForwardTurn, const char* source = "unknown");
   float getCurrentBookProgressPercent() const;
+  // Caller holds RenderLock. Matches the status bar's chapter-group title.
+  std::string currentChapterTitle() const;
   void initializeCompletionPromptTrigger();
   bool isAtOrPastCompletionTrigger() const;
   bool shouldQueueCompletionPromptOnChapterExit() const;

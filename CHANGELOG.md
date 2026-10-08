@@ -22,6 +22,7 @@
 - Install and edit interface languages from SD files, including community languages; missing translations fall back to English.
 - Choose a Filename Fallback Font on ESP32-S3 devices to display missing characters in book titles and filenames while retaining the built-in font for supported text.
 - Install, update, and remove EPUB hyphenation packs from SD; English remains built in, and book layouts refresh when their packs change.
+- Show the current chapter title under the book title in the reader menu on button devices and in the X4 Pro pull-down drawer; the drawer tightens its spacing to keep the handle on screen in landscape.
 
 ### Fixed
 

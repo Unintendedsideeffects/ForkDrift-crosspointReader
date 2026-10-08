@@ -17,6 +17,7 @@
 #include "activities/settings/SettingsActivity.h"
 #include "components/DrawerHandle.h"
 #include "components/HeaderDate.h"
+#include "components/ReaderBookSummary.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
 #include "components/UIThemeTokens.h"
@@ -371,11 +372,10 @@ Rect FrontlightPanelActivity::homeButtonRect() const {
 int FrontlightPanelActivity::computePanelBottom() {
   // Mirror buildPanelScreen's takeTop/spacer sequence so the frame, content
   // margin, and dismiss threshold land on the same edge.
-  const auto& metrics = UITheme::getInstance().getMetrics();
   const auto tokens = uiThemeTokens(uiTarget);
   const int16_t lh = uiTarget.lineHeight(tokens.bodyText.font);
   int y = TouchHeaderBackButton::contentTop(renderer, mappedInput);
-  if (showsBookProgress()) y += metrics.tabBarHeight;
+  showChapterLine = showsBookProgress() && !context.bookDetails.chapter.empty();
   if (context.showReaderDetails) {
     const int16_t titleLh = uiTarget.lineHeight(tokens.titleText.font);
     y += tokens.spaceLg * 2;
@@ -389,9 +389,6 @@ int FrontlightPanelActivity::computePanelBottom() {
     const auto sheet = frontlightSheetProps();
     return y + DrawerHandle::bandHeight(sheet);
   }
-  panelRowHeight = tokens.rowHeight;
-  panelSpaceSm = tokens.spaceSm;
-  panelSpaceLg = tokens.spaceLg;
   // The warmth row adds one row, its label line, and one gap of each size.
   const int warmthRows = static_cast<int>(Frontlight.hasColorTemperature());
   const int rowCount = 2 + warmthRows;
@@ -401,16 +398,28 @@ int FrontlightPanelActivity::computePanelBottom() {
   const auto safe = uiTarget.deviceContext().safeArea;
   const int maxBottom = renderer.getScreenHeight() - safe.bottom;
   const auto bottom = [&] {
-    return y + rowCount * panelRowHeight + warmthRows * lh + largeGapCount * panelSpaceLg +
+    return y + bookSummaryHeight() + rowCount * panelRowHeight + warmthRows * lh + largeGapCount * panelSpaceLg +
            smallGapCount * panelSpaceSm + ACTION_BAR_HEIGHT + DrawerHandle::bandHeight(sheet);
   };
-  // Preserve Large text, the action bar, and the close handle. Spend less on
-  // blank spacing first, then on the two-line list padding these single-line
-  // controls inherited from the shared theme.
-  while (bottom() > maxBottom && panelSpaceLg > 2) --panelSpaceLg;
-  while (bottom() > maxBottom && panelSpaceSm > 2) --panelSpaceSm;
   const int minRowHeight = std::max<int>(tokens.minTouchSize, lh);
-  while (bottom() > maxBottom && panelRowHeight > minRowHeight) --panelRowHeight;
+  const auto fit = [&] {
+    panelRowHeight = tokens.rowHeight;
+    panelSpaceSm = tokens.spaceSm;
+    panelSpaceLg = tokens.spaceLg;
+    // Preserve Large text, the action bar, and the close handle. Spend less on
+    // blank spacing first, then on the two-line list padding these single-line
+    // controls inherited from the shared theme.
+    while (bottom() > maxBottom && panelSpaceLg > 2) --panelSpaceLg;
+    while (bottom() > maxBottom && panelSpaceSm > 2) --panelSpaceSm;
+    while (bottom() > maxBottom && panelRowHeight > minRowHeight) --panelRowHeight;
+  };
+  fit();
+  // The chapter line is the only optional content; give it up before the
+  // handle would be pushed off screen.
+  if (bottom() > maxBottom && showChapterLine) {
+    showChapterLine = false;
+    fit();
+  }
   return std::min(bottom(), maxBottom);
 }
 
@@ -460,7 +469,6 @@ void FrontlightPanelActivity::panelScreen(UiApp::ScreenType& screen, void* user)
 }
 
 void FrontlightPanelActivity::buildPanelScreen(UiApp::ScreenType& screen) {
-  const auto& metrics = UITheme::getInstance().getMetrics();
   const auto& theme = screen.theme();
   const fui::SheetProps sheet = frontlightSheetProps();
   const fui::Rect sheetRect{0, 0, static_cast<int16_t>(renderer.getScreenWidth()), static_cast<int16_t>(panelBottom)};
@@ -471,8 +479,7 @@ void FrontlightPanelActivity::buildPanelScreen(UiApp::ScreenType& screen) {
   drawerHandleRect = DrawerHandle::registerTap(screen.frame(), sheetContent, sheet, ACTION_DISMISS);
   const int16_t bottomInset = static_cast<int16_t>(renderer.getScreenHeight() - sheetContent.bottom());
   screen.setContentMarginFromScreen(
-      fui::Insets{static_cast<int16_t>(TouchHeaderBackButton::contentTop(renderer, mappedInput) +
-                                       (showsBookProgress() ? metrics.tabBarHeight : 0)),
+      fui::Insets{static_cast<int16_t>(TouchHeaderBackButton::contentTop(renderer, mappedInput) + bookSummaryHeight()),
                   0, bottomInset, 0});
 
   const fui::Rect actionBar = screen.takeBottom(ACTION_BAR_HEIGHT);
@@ -604,17 +611,22 @@ bool FrontlightPanelActivity::showsBookProgress() const {
   return context.activeReaderBook && !context.showReaderDetails && !context.bookDetails.title.empty();
 }
 
+const char* FrontlightPanelActivity::bookSummaryChapter() const {
+  return showChapterLine ? context.bookDetails.chapter.c_str() : nullptr;
+}
+
+int FrontlightPanelActivity::bookSummaryHeight() const {
+  return showsBookProgress() ? ReaderBookSummary::height(renderer, bookSummaryChapter()) : 0;
+}
+
 void FrontlightPanelActivity::drawBookProgress() {
   if (!showsBookProgress()) return;
-  const auto& metrics = UITheme::getInstance().getMetrics();
   const int y = TouchHeaderBackButton::contentTop(renderer, mappedInput);
-  const Rect row{0, y, renderer.getScreenWidth(), metrics.tabBarHeight};
   char progress[96];
   formatReaderBookProgress(progress, sizeof(progress), context.bookDetails.chapterPage,
                            context.bookDetails.chapterPageCount, context.bookDetails.chapterPageCountEstimated,
                            context.bookDetails.progressPercent);
-  GUI.drawSubHeader(renderer, row, progress);
-  renderer.drawLine(row.x, row.y + row.height - 1, row.x + row.width - 1, row.y + row.height - 1, 1, true);
+  ReaderBookSummary::draw(renderer, Rect{0, y, renderer.getScreenWidth(), 0}, bookSummaryChapter(), progress);
 }
 
 void FrontlightPanelActivity::addStepSlider(UiApp::ScreenType& screen, const fui::Rect& row, const uint8_t value,

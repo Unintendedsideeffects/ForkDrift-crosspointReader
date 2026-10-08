@@ -33,6 +33,7 @@
 #include "activities/settings/TtfRenderOptionsActivity.h"
 #endif
 #include "components/DrawerHandle.h"
+#include "components/ReaderBookSummary.h"
 #include "components/SliderValue.h"
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
@@ -881,10 +882,11 @@ void EpubReaderDrawerActivity::buildDrawer(UiApp::ScreenType& screen) {
     const auto& metrics = UITheme::getInstance().getMetrics();
     const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
     const auto header = TouchHeaderBackButton::headerRect(renderer, mappedInput, safe);
+    const int summaryHeight = ReaderBookSummary::height(renderer, chapterTitle.c_str());
     buttonHeaderHeight =
         static_cast<int16_t>(renderer.hasCustomViewableInsets()
-                                 ? std::max(0, header.y + header.height + metrics.tabBarHeight - screen.contentRect().y)
-                                 : metrics.topPadding + header.height + metrics.tabBarHeight);
+                                 ? std::max(0, header.y + header.height + summaryHeight - screen.contentRect().y)
+                                 : metrics.topPadding + header.height + summaryHeight);
     screen.takeTop(buttonHeaderHeight);
   }
   // Give every tab row four pixels of white space above and below its icons.
@@ -959,17 +961,14 @@ void EpubReaderDrawerActivity::buildDrawer(UiApp::ScreenType& screen) {
 
 void EpubReaderDrawerActivity::drawButtonBookHeader() {
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
-  const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect header = TouchHeaderBackButton::headerRect(renderer, mappedInput, safe);
   GUI.drawHeader(renderer, header, epub ? epub->getTitle().c_str() : "", nullptr, false, true);
 
-  const Rect summary{safe.x, header.y + header.height, safe.width, metrics.tabBarHeight};
   char progress[96];
   formatReaderBookProgress(progress, sizeof(progress), chapterPage, chapterPageCount, chapterPageCountEstimated,
                            percentSeed / 100);
-  GUI.drawSubHeader(renderer, summary, progress);
-  renderer.drawLine(summary.x, summary.y + summary.height - 1, summary.x + summary.width - 1,
-                    summary.y + summary.height - 1, 1, true);
+  ReaderBookSummary::draw(renderer, Rect{safe.x, header.y + header.height, safe.width, 0}, chapterTitle.c_str(),
+                          progress);
 }
 
 void EpubReaderDrawerActivity::buildTabBar(UiApp::ScreenType& screen, const fui::Rect rect, const bool drawBottomRule) {
