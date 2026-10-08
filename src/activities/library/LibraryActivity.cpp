@@ -21,6 +21,7 @@
 #include <functional>
 
 #include "CrossPointState.h"
+#include "FilenameFontSystem.h"
 #include "activities/home/BookActions.h"
 #include "activities/home/FileBrowserActionActivity.h"
 #include "activities/home/RecentBookProgress.h"
@@ -89,6 +90,11 @@ LibraryActivity::LibraryActivity(GfxRenderer& renderer, MappedInputManager& mapp
       app(uiTarget, uiTarget.deviceContext()) {}
 
 void LibraryActivity::onEnter() {
+  {
+    RenderLock lock(*this);
+    filenameFontSystem.ensureLoaded(renderer);
+  }
+
   pendingInput.clear();
   inputOverflow = false;
   touchTracking = false;
@@ -1304,14 +1310,17 @@ void LibraryActivity::buildListScreen(UiApp::ScreenType& screen) {
   props.labelText.maxLines = 1;
   props.headerText = screen.theme().bodyText;
   props.headerText.bold = true;
-  props.rtl = (I18N.getLanguage() == Language::AR || I18N.getLanguage() == Language::HE);
+  props.rtl = I18N.isRightToLeft();
   configureUiList(props, screen.theme(), screen.body(), UiListRowType::WithSubtitle);
   props.subtitleText.maxLines = 3;
   listNav.selected = showSelection ? selection - CONTROL_COUNT : -1;
   listNav.top = topIndex;
   listNav.syncToProps(screen.body(), props.rowHeight, props.rowGap, rowCount(), props);
   topIndex = listNav.top;
-  screen.list(props);
+  {
+    FilenameUiFontScope fonts(uiTarget, renderer);
+    screen.list(props);
+  }
 }
 
 void LibraryActivity::buildGrid(UiApp::ScreenType& screen) {
@@ -1343,6 +1352,7 @@ void LibraryActivity::buildGrid(UiApp::ScreenType& screen) {
     const bool hasProgress = gridProgressRow == selectedRow && RecentBookProgress::hasPercent(gridProgress);
     subtitleScratch.clear();
     if (hasProgress) subtitleScratch.assign("  ·  ").append(RecentBookProgress::formatPercent(gridProgress));
+    FilenameUiFontScope fonts(uiTarget, renderer);
     auto style = screen.theme().bodyText;
     style.maxLines = 1;
     // Center the whole title row between the sort divider and the first cover.
@@ -1355,7 +1365,7 @@ void LibraryActivity::buildGrid(UiApp::ScreenType& screen) {
         hasProgress ? uiTarget.measureText(style.font, subtitleScratch.c_str(), style).width : 0;
     const int16_t titleWidth = std::max<int16_t>(0, textBand.width - suffixWidth);
     const std::string visibleTitle =
-        renderer.truncatedText(uiScaleSpec().bodyFontId, rowScratch.title.c_str(), titleWidth,
+        renderer.truncatedText(renderer.filenameFontId(uiScaleSpec().bodyFontId), rowScratch.title.c_str(), titleWidth,
                                style.bold ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
     const int16_t drawnTitleWidth = uiTarget.measureText(style.font, visibleTitle.c_str(), style).width;
     uiTarget.text(fui::Rect{textBand.x, textBand.y, titleWidth, textBand.height}, visibleTitle.c_str(), style);

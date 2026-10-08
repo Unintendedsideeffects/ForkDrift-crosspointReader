@@ -9,6 +9,7 @@
 
 #include "GfxRenderer.h"
 #include "MappedInputManager.h"
+#include "components/OptionLabels.h"
 #include "components/TouchActionButtons.h"
 #include "components/UIScale.h"
 #include "components/UITheme.h"
@@ -74,6 +75,7 @@ class OptionPopup {
   void showConfirmed(StrId titleId, const std::vector<std::string>& options, int currentIndex,
                      std::function<void(int)> onActivate, std::function<void()> onSave,
                      std::function<void()> onCancel) {
+    borrowedLabels = {};
     title = I18N.get(titleId);
     ownedStrings = options;
     onSelectCallback = std::move(onActivate);
@@ -84,6 +86,17 @@ class OptionPopup {
     confirmationMode = true;
     dividerAfterOption = -1;
     selectionArrow = false;
+    activate(currentIndex);
+  }
+
+  void showBorrowed(StrId titleId, OptionLabels labels, int currentIndex, std::function<void(int)> onSelect,
+                    Note note = Note()) {
+    clear();
+    title = I18N.get(titleId);
+    onSelectCallback = std::move(onSelect);
+    popupNote = note;
+    prepareStandardShow();
+    borrowedLabels = labels;
     activate(currentIndex);
   }
 
@@ -134,10 +147,26 @@ class OptionPopup {
   // after their selection callback returns.
   void skipPostSelectionUpdate() { skipPostSelectionUpdate_ = true; }
 
+  // Retire a completed popup before starting memory-intensive work. Call only
+  // after its selection callback returns, while holding the render lock.
+  void clear() {
+    active = false;
+    borrowedLabels = {};
+    std::vector<std::string>().swap(ownedStrings);
+    std::vector<bool>().swap(disabledOptions);
+    std::vector<Note>().swap(optionNotes);
+    onSelectCallback = nullptr;
+    onSaveCallback = nullptr;
+    onCancelCallback = nullptr;
+    popupNote = Note();
+    layout = Layout{};
+    layoutValid = false;
+  }
+
   bool handleInput(MappedInputManager& input, const std::function<void()>& requestUpdate) {
     if (!active) return false;
 
-    const int count = static_cast<int>(ownedStrings.size());
+    const int count = static_cast<int>(labels().size());
     if (count <= 0) {
       active = false;
       return true;
@@ -300,8 +329,8 @@ class OptionPopup {
     if (!active) return;
     const auto& renderLayout = getLayout(renderer);
     const auto& note = selectedNote();
-    GUI.drawOptionPopup(renderer, title.c_str(), ownedStrings, selectedIndex, confirmationMode, tr(STR_CANCEL),
-                        tr(STR_SAVE), footerFocused, primaryOptionIndex, note.boldLabel, note.body, disabledOptions,
+    GUI.drawOptionPopup(renderer, title.c_str(), labels(), selectedIndex, confirmationMode, tr(STR_CANCEL),
+                        tr(STR_SAVE), footerFocused, primaryOptionIndex, note.boldLabel, note.body,
                         renderLayout.firstOptionIndex, note.secondBoldLabel, note.secondBody);
     const int visibleIndex = dividerAfterOption - renderLayout.firstOptionIndex;
     if (visibleIndex >= 0 && visibleIndex + 1 < static_cast<int>(renderLayout.options.size())) {
@@ -354,7 +383,7 @@ class OptionPopup {
     const EpdFontFamily::Style optionStyle =
         metrics.optionPopupOptionFontBold ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
 
-    const bool touchActionStyle = touch && primaryOptionIndex >= 0 && ownedStrings.size() == 2;
+    const bool touchActionStyle = touch && primaryOptionIndex >= 0 && labels().size() == 2;
     const int itemSpacing = touchActionStyle ? TouchActionButtons::kDefaultGap : metrics.optionPopupItemSpacing;
     const int innerPadding = metrics.optionPopupInnerPadding;
     const int selectionHPadding = metrics.optionPopupSelectionHPadding;
@@ -369,10 +398,11 @@ class OptionPopup {
         touchActionStyle ? TouchActionButtons::kDefaultHeight : optionLineHeight + selectionVPadding * 2;
 
     int maxTextWidth = renderer.getTextWidth(UI_12_FONT_ID, title.c_str(), EpdFontFamily::BOLD);
-    for (size_t i = 0; i < ownedStrings.size(); ++i) {
-      const auto& opt = ownedStrings[i];
+    const auto options = labels();
+    for (size_t i = 0; i < options.size(); ++i) {
+      const char* opt = options[i];
       const auto style = primaryOptionIndex == static_cast<int>(i) ? EpdFontFamily::BOLD : optionStyle;
-      const int width = renderer.getTextWidth(optionFontId, opt.c_str(), style);
+      const int width = renderer.getTextWidth(optionFontId, opt, style);
       if (width > maxTextWidth) maxTextWidth = width;
     }
     const auto measureNote = [&](const Note& candidate) {
@@ -388,7 +418,7 @@ class OptionPopup {
     };
     measureNote(note);
 
-    const int optionCount = static_cast<int>(ownedStrings.size());
+    const int optionCount = static_cast<int>(labels().size());
     constexpr int footerHeight = 56;
     const int footerSpace = confirmationMode ? footerHeight : 0;
     const int maxDialogH = std::max(
@@ -468,6 +498,10 @@ class OptionPopup {
   bool footerFocused = false;
   std::string title;
   std::vector<std::string> ownedStrings;
+  OptionLabels borrowedLabels;
+  OptionLabels labels() const {
+    return borrowedLabels.read ? borrowedLabels : OptionLabels(ownedStrings, disabledOptions);
+  }
   std::vector<bool> disabledOptions;
   int selectedIndex = 0;
   mutable int firstOptionIndex = -1;
@@ -497,17 +531,17 @@ class OptionPopup {
     firstOptionIndex = -1;
     touchDownOptionIndex = -1;
     touchDownTarget = TouchTarget::None;
-    disabledOptions.assign(ownedStrings.size(), false);
+    if (!borrowedLabels.read) disabledOptions.assign(ownedStrings.size(), false);
     footerFocused = false;
     skipPostSelectionUpdate_ = false;
-    if (ownedStrings.empty()) {
+    if (labels().empty()) {
       active = false;
       onSelectCallback = nullptr;
       selectedIndex = 0;
       return;
     }
 
-    const int count = static_cast<int>(ownedStrings.size());
+    const int count = static_cast<int>(labels().size());
     if (currentIndex < 0) {
       selectedIndex = 0;
     } else if (currentIndex >= count) {
@@ -519,6 +553,7 @@ class OptionPopup {
   }
 
   void prepareStandardShow() {
+    borrowedLabels = {};
     confirmationMode = false;
     footerFocused = false;
     onSaveCallback = nullptr;
@@ -581,12 +616,12 @@ class OptionPopup {
   }
 
   bool isDisabled(const int index) const {
-    return index >= 0 && index < static_cast<int>(disabledOptions.size()) && disabledOptions[index];
+    return index >= 0 && index < static_cast<int>(labels().size()) && labels().isDisabled(index);
   }
 
   int firstEnabledIndex(const int start, const int direction) const {
-    if (ownedStrings.empty()) return 0;
-    const int count = static_cast<int>(ownedStrings.size());
+    if (labels().empty()) return 0;
+    const int count = static_cast<int>(labels().size());
     int index = std::clamp(start, 0, count - 1);
     for (int attempts = 0; attempts < count; ++attempts) {
       if (!isDisabled(index)) return index;

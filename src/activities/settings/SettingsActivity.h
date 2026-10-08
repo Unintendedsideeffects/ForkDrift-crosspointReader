@@ -52,6 +52,8 @@ enum class SettingAction {
   CheckForUpdates,
   SdFirmwareUpdate,
   Language,
+  ManageHyphenation,
+  FilenameFallbackFont,
   KeyboardLayouts,
   DownloadFonts,
   TtfRendering,
@@ -280,6 +282,14 @@ class SettingsActivity final : public Activity {
   SettingAction parentSubmenu = SettingAction::None;
 
   OptionPopup optionPopup;
+  HeapObject<I18n::Catalog> languageCatalog;
+  I18n::Option pendingLanguage;
+#if CROSSINK_SCALABLE_FONTS
+  std::vector<std::string> filenameFontNames;
+  char pendingFilenameFont[64] = {};
+  bool filenameFontSelectionPending = false;
+#endif
+  StrId languageError = StrId::_COUNT;
   MenuNavigationNote menuNavigationNote;
 
   static constexpr int categoryCount = 4;
@@ -313,6 +323,8 @@ class SettingsActivity final : public Activity {
   void openScreenMarginPicker(const SettingInfo& setting);
   void openWordSpacingPicker();
   void openLanguagePicker();
+  void openFilenameFontPicker();
+  void applyLanguage(const I18n::Option& selected);
   void openIdleTimeThresholdPicker();
   void toggleCurrentSetting();
   void openSleepTimeoutPicker();
@@ -333,6 +345,10 @@ class SettingsActivity final : public Activity {
 #ifdef SIMULATOR
   int simulatorCategoryIndex() const { return selectedCategoryIndex; }
   int simulatorSelectedIndex() const { return selectedSettingIndex; }
+#if CROSSINK_SCALABLE_FONTS
+  const std::vector<std::string>& simulatorFilenameFontNames() const { return filenameFontNames; }
+  bool simulatorOptionPopupActive() const { return optionPopup.isActive(); }
+#endif
   freeink::ui::Rect simulatorSafeRect() const { return app.device().safeRect(); }
 #endif
   void onEnter() override;

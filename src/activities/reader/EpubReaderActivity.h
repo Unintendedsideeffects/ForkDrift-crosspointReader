@@ -168,6 +168,8 @@ class EpubReaderActivity final : public Activity {
   unsigned long pageTurnDuration = 0UL;
   ManualPageTurnQueue pendingManualPageTurns;
   QueuedTurnRenderingState queuedTurnRendering;
+  bool hyphenationPackChecked = false;
+  bool checkHyphenationPack();
   unsigned long pageShownAtMs = 0UL;
   unsigned long lastRenderCompleteMs = 0UL;
   int idlePrewarmSpine = -1;

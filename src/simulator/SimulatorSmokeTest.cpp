@@ -32,6 +32,7 @@
 #endif
 #include <AppVersion.h>
 #include <ArduinoJson.h>
+#include <Epub/hyphenation/Hyphenator.h>
 #include <SupportInfo.h>
 
 #include <memory>
@@ -40,6 +41,8 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "DeviceCapabilities.h"
+#include "FilenameFontSystem.h"
+#include "HyphenationPackStore.h"
 #include "MappedInputManager.h"
 #include "RecentBooksStore.h"
 #include "SdCardFontSystem.h"
@@ -69,6 +72,7 @@
 #include "activities/settings/AboutActivity.h"
 #include "activities/settings/FontSelectionActivity.h"
 #include "activities/settings/FrontlightTimePickerActivity.h"
+#include "activities/settings/HyphenationManagerActivity.h"
 #include "activities/settings/KOReaderSettingsActivity.h"
 #include "activities/settings/QuickActionsActivity.h"
 #include "activities/settings/ScreenCalibrationActivity.h"
@@ -235,50 +239,48 @@ struct StatusBarFeatureSmokeTest {
     SETTINGS.legacyXtcTopUsesBottom = 1;
     const auto top = SETTINGS.topReaderStatusBar.slots;
     const auto bottom = SETTINGS.bottomReaderStatusBar.slots;
-    for (const auto language : {Language::EN, Language::DE, Language::FR}) {
-      I18N.setLanguage(language);
-      for (const auto orientation : {GfxRenderer::Portrait, GfxRenderer::LandscapeClockwise,
-                                     GfxRenderer::PortraitInverted, GfxRenderer::LandscapeCounterClockwise}) {
-        renderer.setOrientation(orientation);
-        for (int bar = 0; bar < 2; ++bar) {
-          StatusBarSettingsActivity editor(renderer, mappedInputManager, true);
-          editor.onEnter();
-          editor.selectedIndex = bar;
-          editor.handleSelection();
+    const auto language = I18N.getLanguage();
+    for (const auto orientation : {GfxRenderer::Portrait, GfxRenderer::LandscapeClockwise,
+                                   GfxRenderer::PortraitInverted, GfxRenderer::LandscapeCounterClockwise}) {
+      renderer.setOrientation(orientation);
+      for (int bar = 0; bar < 2; ++bar) {
+        StatusBarSettingsActivity editor(renderer, mappedInputManager, true);
+        editor.onEnter();
+        editor.selectedIndex = bar;
+        editor.handleSelection();
+        editor.render(std::move(lock));
+        // Reach the final Hide row through actual button navigation, including
+        // the variable-height list's scrolling and section boundaries.
+        for (int i = 0; i < 11; ++i) {
+          mappedInputManager.simulatorInjectRelease(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+          editor.loop();
+          mappedInputManager.simulatorClearInputFrame();
           editor.render(std::move(lock));
-          // Reach the final Hide row through actual button navigation, including
-          // the variable-height list's scrolling and section boundaries.
-          for (int i = 0; i < 11; ++i) {
-            mappedInputManager.simulatorInjectRelease(mappedInputManager.menuButton(MappedInputManager::Button::Down));
-            editor.loop();
-            mappedInputManager.simulatorClearInputFrame();
-            editor.render(std::move(lock));
-          }
-          if (editor.selectedIndex != 11 || !editor.simulatorSelectedRowVisible) return false;
-          for (int repeat = 0; repeat < 4; ++repeat) {
-            const auto position = bar ? ReaderStatusBarPosition::Bottom : ReaderStatusBarPosition::Top;
-            const bool before = SETTINGS.readerStatusBar(position).hidden;
-            if (!open(editor)) return false;
-            editor.render(std::move(lock));
-            if (repeat == 0)
-              capture("hide-picker-lang-" + std::to_string(static_cast<int>(language)) + "-o-" +
-                      std::to_string(orientation) + "-bar-" + std::to_string(bar));
-            if (!choose(editor, mappedInputManager.hasTouchHardware() ? !before : 1, lock)) return false;
-            if (SETTINGS.readerStatusBar(position).hidden == before || SETTINGS.topReaderStatusBar.slots != top ||
-                SETTINGS.bottomReaderStatusBar.slots != bottom || SETTINGS.legacyXtcTopUsesBottom != 1)
-              return false;
-            editor.render(std::move(lock));
-            editor.render(std::move(lock));  // Closing a popup first restores its saved framebuffer.
-            if (!editor.simulatorSelectedRowVisible) return false;
-            if (repeat == 0)
-              capture("hide-row-lang-" + std::to_string(static_cast<int>(language)) + "-o-" +
-                      std::to_string(orientation) + "-bar-" + std::to_string(bar));
-          }
-          editor.onExit();
         }
+        if (editor.selectedIndex != 11 || !editor.simulatorSelectedRowVisible) return false;
+        for (int repeat = 0; repeat < 4; ++repeat) {
+          const auto position = bar ? ReaderStatusBarPosition::Bottom : ReaderStatusBarPosition::Top;
+          const bool before = SETTINGS.readerStatusBar(position).hidden;
+          if (!open(editor)) return false;
+          editor.render(std::move(lock));
+          if (repeat == 0)
+            capture("hide-picker-lang-" + std::to_string(static_cast<int>(language)) + "-o-" +
+                    std::to_string(orientation) + "-bar-" + std::to_string(bar));
+          if (!choose(editor, mappedInputManager.hasTouchHardware() ? !before : 1, lock)) return false;
+          if (SETTINGS.readerStatusBar(position).hidden == before || SETTINGS.topReaderStatusBar.slots != top ||
+              SETTINGS.bottomReaderStatusBar.slots != bottom || SETTINGS.legacyXtcTopUsesBottom != 1)
+            return false;
+          editor.render(std::move(lock));
+          editor.render(std::move(lock));  // Closing a popup first restores its saved framebuffer.
+          if (!editor.simulatorSelectedRowVisible) return false;
+          if (repeat == 0)
+            capture("hide-row-lang-" + std::to_string(static_cast<int>(language)) + "-o-" +
+                    std::to_string(orientation) + "-bar-" + std::to_string(bar));
+        }
+        editor.onExit();
       }
     }
-    I18N.setLanguage(Language::EN);
+
     for (uint8_t size = 0; size < 3; ++size) {
       SETTINGS.displayStatusBarTextSize = 0;
       const auto readerSize = SETTINGS.statusBarTextSize;
@@ -906,7 +908,10 @@ class EntryRenderSmokeActivity final : public Activity {
   void render(RenderLock&&) override {
     check(ready, "Render observed incomplete entry state");
     renderer.clearScreen();
-    GUI.drawOptionPopup(renderer, "Popup regression", {"Cancel", "Save"}, 0, false, nullptr, nullptr, false, -1,
+    static const char* const options[] = {"Cancel", "Save"};
+    const OptionLabels labels(options, 2,
+                              [](const void* owner, size_t i) { return static_cast<const char* const*>(owner)[i]; });
+    GUI.drawOptionPopup(renderer, "Popup regression", labels, 0, false, nullptr, nullptr, false, -1,
                         "Note:", "Short note.");
     ++renders;
     renderer.displayBuffer();
@@ -1020,6 +1025,8 @@ class SimulatorSmokeTest {
   unsigned frontlightLayoutPass = 0;
   unsigned supportPhase = 0;
   std::string priorSupportExport;
+  unsigned filenameFontPhase = 0;
+  unsigned hyphenationPhase = 0;
   unsigned aboutPhase = 0;
   unsigned aboutPass = 0;
   uint32_t aboutSnapshotUptime = 0;
@@ -1540,8 +1547,7 @@ class SimulatorSmokeTest {
         CrossPointSettings::CHORD_SELECT_CHAPTER != 34 || CrossPointSettings::POWER_CHORD_ACTION_COUNT != 35) {
       fail("Home/Reader changed persisted shortcut IDs or counts");
     }
-    if (QuickActions::actionLabel(CrossPointSettings::HOME_READER) != StrId::STR_HOME_READER ||
-        std::string(I18N.get(StrId::STR_HOME_READER)) != "Home/Reader") {
+    if (QuickActions::actionLabel(CrossPointSettings::HOME_READER) != StrId::STR_HOME_READER) {
       fail("Home/Reader shortcut label mismatch");
     }
     if (!QuickActions::isActionAvailable(CrossPointSettings::HOME_READER)) {
@@ -2005,7 +2011,6 @@ class SimulatorSmokeTest {
     JsonDocument original;
     SETTINGS.toJson(original);
     const auto originalOrientation = renderer.getOrientation();
-    const auto originalLanguage = I18N.getLanguage();
     SETTINGS.clockDateHasBeenSynced = true;
     SETTINGS.dateFormat = CrossPointSettings::DATE_FORMAT_DAY_MONTH_YEAR_LONG;
     SETTINGS.displayStatusBar.slots = {ReaderStatusBarItem::Clock, ReaderStatusBarItem::Date,
@@ -2105,33 +2110,31 @@ class SimulatorSmokeTest {
         }
       }
     }
-    // Exercise actual supported non-Latin/fallback character sets. CJK UI
-    // languages are not in this firmware's language catalog.
-    for (const auto language : {Language::RU, Language::HE, Language::AR, Language::VI}) {
-      I18N.setLanguage(language);
-      for (uint8_t theme = 0; theme < CrossPointSettings::UI_THEME_COUNT; ++theme) {
-        if (theme == CrossPointSettings::COVER_GRID && !UITheme::supportsCoverGrid()) continue;
-        SETTINGS.uiTheme = theme;
-        UITheme::getInstance().reload();
-        for (const auto orientation : {GfxRenderer::Portrait, GfxRenderer::PortraitInverted,
-                                       GfxRenderer::LandscapeClockwise, GfxRenderer::LandscapeCounterClockwise}) {
-          renderer.setOrientation(orientation);
-          for (const uint8_t size : {0, 2}) {
-            SETTINGS.displayStatusBarTextSize = size;
-            if (UITheme::getDisplayStatusBarTextHeight(renderer) > 19 + UITheme::getDisplayStatusBarHeightIncrease())
-              fail("Localized status text exceeds the global font lane");
-            renderer.clearScreen();
-            if (mappedInputManager.hasTouchHardware())
-              TouchHeaderBackButton::drawCompact(renderer, tr(STR_STATUS_BAR_TEXT_SIZE), false, true);
-            else
-              CompactHeader::drawTitle(renderer, tr(STR_STATUS_BAR_TEXT_SIZE), true);
-            capture("localized-lang-" + std::to_string(static_cast<int>(language)) + "-theme-" + std::to_string(theme) +
-                    "-o-" + std::to_string(orientation) + "-global-" + std::to_string(size));
-          }
+    // Cached languages stay pinned until reboot. Run the same render matrix
+    // for each language through the runner's --language-file boot fixture.
+    const auto language = I18N.getLanguage();
+    for (uint8_t theme = 0; theme < CrossPointSettings::UI_THEME_COUNT; ++theme) {
+      if (theme == CrossPointSettings::COVER_GRID && !UITheme::supportsCoverGrid()) continue;
+      SETTINGS.uiTheme = theme;
+      UITheme::getInstance().reload();
+      for (const auto orientation : {GfxRenderer::Portrait, GfxRenderer::PortraitInverted,
+                                     GfxRenderer::LandscapeClockwise, GfxRenderer::LandscapeCounterClockwise}) {
+        renderer.setOrientation(orientation);
+        for (const uint8_t size : {0, 2}) {
+          SETTINGS.displayStatusBarTextSize = size;
+          if (UITheme::getDisplayStatusBarTextHeight(renderer) > 19 + UITheme::getDisplayStatusBarHeightIncrease())
+            fail("Localized status text exceeds the global font lane");
+          renderer.clearScreen();
+          if (mappedInputManager.hasTouchHardware())
+            TouchHeaderBackButton::drawCompact(renderer, tr(STR_STATUS_BAR_TEXT_SIZE), false, true);
+          else
+            CompactHeader::drawTitle(renderer, tr(STR_STATUS_BAR_TEXT_SIZE), true);
+          capture("localized-lang-" + std::to_string(static_cast<int>(language)) + "-theme-" + std::to_string(theme) +
+                  "-o-" + std::to_string(orientation) + "-global-" + std::to_string(size));
         }
       }
     }
-    I18N.setLanguage(originalLanguage);
+
     SETTINGS.uiTheme = CrossPointSettings::LYRA;
     UITheme::getInstance().reload();
     SETTINGS.uiScale = CrossPointSettings::UI_SCALE_LARGE;
@@ -2201,7 +2204,6 @@ class SimulatorSmokeTest {
     SETTINGS.fromJson(invalid.as<JsonVariantConst>());
     if (SETTINGS.displayStatusBarTextSize != 0) fail("Old settings did not default global size to Small");
     SETTINGS.fromJson(original.as<JsonVariantConst>());
-    I18N.setLanguage(originalLanguage);
     renderer.setOrientation(originalOrientation);
     UITheme::getInstance().reload();
     renderer.clearScreen();
@@ -2754,6 +2756,326 @@ class SimulatorSmokeTest {
 #endif
   }
 
+  void tickFilenameFont() {
+#if CROSSINK_SCALABLE_FONTS
+    const char* family = std::getenv("CROSSINK_SIMULATOR_SMOKE_FILENAME_FONT");
+    if (scriptIndex < inputScript.size()) {
+      runReaderInputScript();
+      return;
+    }
+    inputScript.clear();
+    scriptIndex = 0;
+    switch (filenameFontPhase++) {
+      case 0: {
+        RenderLock lock;
+        SETTINGS.filenameFallbackFont[0] = '\0';
+        SETTINGS.uiScale = CrossPointSettings::UI_SCALE_SMALL;
+        SETTINGS.uiTheme = CrossPointSettings::LYRA;
+        UITheme::getInstance().reload();
+        filenameFontSystem.invalidate();
+        if (!filenameFontSystem.ensureLoaded(renderer)) fail("None filename font failed");
+        const auto device = buildSystemDeviceSettingsList(getSettingsList());
+        if (device[3].action != SettingAction::Language || device[4].action != SettingAction::FilenameFallbackFont)
+          fail("Filename setting is not directly below Language");
+        std::vector<std::string> names;
+        if (!filenameFontSystem.discover(names) || std::find(names.begin(), names.end(), family) == names.end())
+          fail("Filename fixture family missing");
+        for (const auto& name : names)
+          if (name == "Variable Only" || name == "Bitmap Only" || name == "Corrupt Only")
+            fail("Unsupported filename font offered");
+        activityManager.replaceActivity(std::make_unique<SettingsActivity>(renderer, mappedInputManager));
+        queueStep("Filename Settings entry", SmokeStep::Start, 4);
+        break;
+      }
+      case 1:
+        for (int i = 0; i < 3; ++i) addTap(MappedInputManager::Button::Confirm);
+        addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Filename Device settings", 4));
+        inputScript.push_back(assertSettingsNavigation(3, 1));
+        for (int i = 0; i < 4; ++i) addTap(mappedInputManager.menuButton(MappedInputManager::Button::Down));
+        inputScript.push_back(render("Filename setting below Language", 4));
+        break;
+      case 2: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-device-setting");
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Filename font picker", 4));
+        break;
+      }
+      case 3: {
+        RenderLock lock;
+        const auto* settings = dynamic_cast<SettingsActivity*>(activityManager.simulatorCurrentActivity());
+        if (!settings || !settings->simulatorOptionPopupActive()) fail("Filename picker did not open");
+        const auto& names = settings->simulatorFilenameFontNames();
+        const auto found = std::find(names.begin(), names.end(), family);
+        if (found == names.end()) fail("Filename picker lacks selected family");
+        captureStatusBarScreen("filename-font-picker");
+        for (int i = 0; i < std::distance(names.begin(), found); ++i) addTap(MappedInputManager::Button::Down);
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Filename font applied", 5));
+        break;
+      }
+      case 4: {
+        RenderLock lock;
+        if (std::strcmp(SETTINGS.filenameFallbackFont, family) != 0) fail("Filename selection was not applied");
+        const auto& fonts = renderer.getFontMap();
+        for (int id : {SMALL_FONT_ID, UI_10_FONT_ID, UI_12_FONT_ID}) {
+          const int compositeId = renderer.filenameFontId(id);
+          if (compositeId == id) fail("Filename composite missing");
+          const auto& primary = fonts.at(id);
+          const auto& composite = fonts.at(compositeId);
+          for (auto style : {EpdFontFamily::REGULAR, EpdFontFamily::BOLD}) {
+            if (primary.getGlyphData('A', style).glyph != composite.getGlyphData('A', style).glyph)
+              fail("Filename font replaced built-in Latin");
+            const auto cjk = composite.getGlyphData(0x4e00, style);
+            if (!composite.hasCodepoint(0x4e00) || !cjk.glyph || cjk.fontData == primary.getData(style))
+              fail("Missing CJK fallback glyph");
+          }
+        }
+        JsonDocument saved;
+        SETTINGS.toJson(saved);
+        saved["filenameFallbackFont"] = std::string(family);  // own bytes before mutating the settings buffer
+        SETTINGS.filenameFallbackFont[0] = '\0';
+        SETTINGS.fromJson(saved.as<JsonVariantConst>());
+        if (std::strcmp(SETTINGS.filenameFallbackFont, family) != 0) fail("Filename JSON round trip failed");
+        captureStatusBarScreen("filename-device-selected");
+        Storage.mkdir("/books/日本語");
+        if (!Storage.writeFile("/books/日本語/Latin 一丁.txt", "Filename font smoke"))
+          fail("Cannot create mixed title");
+        activityManager.replaceActivity(
+            std::make_unique<FileBrowserActivity>(renderer, mappedInputManager, "/books/日本語"));
+        queueStep("Filename mixed browser small", SmokeStep::Start, 8);
+        break;
+      }
+      case 5: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-browser-small");
+        SETTINGS.uiScale = CrossPointSettings::UI_SCALE_LARGE;
+        UITheme::getInstance().reload();
+        activityManager.replaceActivity(
+            std::make_unique<FileBrowserActivity>(renderer, mappedInputManager, "/books/日本語"));
+        queueStep("Filename mixed browser large", SmokeStep::Start, 8);
+        break;
+      }
+      case 6: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-browser-large");
+        RECENT_BOOKS.addOrUpdateBook("/books/日本語/Latin 一丁.txt", "Latin 一丁 日本語", "Author 日本語", "");
+        SETTINGS.uiTheme = CrossPointSettings::LYRA;
+        UITheme::getInstance().reload();
+        activityManager.replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInputManager));
+        queueStep("Filename mixed Home", SmokeStep::Start, 20);
+        break;
+      }
+      case 7: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-home");
+        auto* home = dynamic_cast<HomeActivity*>(activityManager.simulatorCurrentActivity());
+        if (!home) fail("Filename Home missing");
+        home->onFrontlightPanelOpened();
+        SETTINGS.filenameFallbackFont[0] = '\0';
+        filenameFontSystem.ensureLoaded(renderer);
+        home->onFrontlightPanelClosed();
+        queueStep("Filename Home refreshed after None", SmokeStep::Start, 20);
+        break;
+      }
+      case 8: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-home-none");
+        auto* home = dynamic_cast<HomeActivity*>(activityManager.simulatorCurrentActivity());
+        if (!home || renderer.filenameFontId(UI_10_FONT_ID) != UI_10_FONT_ID) fail("Filename None Home mismatch");
+        home->onFrontlightPanelOpened();
+        std::strncpy(SETTINGS.filenameFallbackFont, family, sizeof(SETTINGS.filenameFallbackFont) - 1);
+        if (!filenameFontSystem.ensureLoaded(renderer)) fail("Filename Home reenable failed");
+        home->onFrontlightPanelClosed();
+        queueStep("Filename Home refreshed after selection", SmokeStep::Start, 20);
+        break;
+      }
+      case 9: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-home-reenabled");
+        SETTINGS.librarySortMethod = 4;  // Recently Read includes TXT fixtures
+        SETTINGS.libraryUseMetadata = 1;
+        SETTINGS.libraryShowTxt = 1;
+        SETTINGS.libraryHideFinishedBooks = 0;
+        activityManager.replaceActivity(std::make_unique<LibraryActivity>(renderer, mappedInputManager));
+        queueStep("Filename mixed Library", SmokeStep::Start, 12);
+        break;
+      }
+      case 10: {
+        RenderLock lock;
+        captureStatusBarScreen("filename-library");
+        activityManager.simulatorCurrentActivity()->startActivityForResult(
+            std::make_unique<StatsUploadActivity>(renderer, mappedInputManager), [](const ActivityResult&) {});
+        queueStep("Filename network child releases font", SmokeStep::Start, 5);
+        break;
+      }
+      case 11: {
+        RenderLock lock;
+        if (renderer.filenameFontId(UI_10_FONT_ID) != UI_10_FONT_ID) fail("Network child retained filename font");
+        addTap(MappedInputManager::Button::Back);
+        inputScript.push_back(render("Filename Library restored after network child", 6));
+        inputScript.push_back(assertActivity("Library"));
+        break;
+      }
+      case 12: {
+        RenderLock lock;
+        if (renderer.filenameFontId(UI_10_FONT_ID) == UI_10_FONT_ID) fail("Network child return lost filename font");
+        captureStatusBarScreen("filename-library-after-network");
+        sdFontSystem.releaseForNetwork(renderer);
+        if (renderer.filenameFontId(UI_10_FONT_ID) != UI_10_FONT_ID) fail("Filename font retained at storage release");
+        if (!filenameFontSystem.ensureLoaded(renderer)) fail("Filename font failed after storage release");
+        const auto identity = filenameFontSystem.fingerprint();
+        sdFontSystem.releaseLoadedFont(renderer);
+        if (renderer.filenameFontId(UI_10_FONT_ID) == UI_10_FONT_ID || filenameFontSystem.fingerprint() != identity)
+          fail("Reader font release changed filename fallback");
+        std::strcpy(SETTINGS.filenameFallbackFont, "Missing Family");
+        if (filenameFontSystem.ensureLoaded(renderer) || renderer.filenameFontId(UI_10_FONT_ID) != UI_10_FONT_ID ||
+            std::strcmp(SETTINGS.filenameFallbackFont, "Missing Family") != 0)
+          fail("Missing family did not recover safely");
+        std::strncpy(SETTINGS.filenameFallbackFont, family, sizeof(SETTINGS.filenameFallbackFont) - 1);
+        if (!filenameFontSystem.ensureLoaded(renderer)) fail("Filename reload failed");
+        SETTINGS.filenameFallbackFont[0] = '\0';
+        if (!filenameFontSystem.ensureLoaded(renderer) || renderer.filenameFontId(UI_10_FONT_ID) != UI_10_FONT_ID)
+          fail("None did not remove filename fallback");
+        LOG_INF("SMOKE",
+                "Simulator smoke test passed: filename picker, mixed Latin/CJK, both UI sizes, Library, Home refresh, "
+                "persistence, storage "
+                "release and reader independence");
+        std::_Exit(0);
+      }
+    }
+#else
+    fail("Filename font smoke requires S3 scalable fonts");
+#endif
+  }
+
+  void tickHyphenation() {
+    if (scriptIndex < inputScript.size()) {
+      runReaderInputScript();
+      return;
+    }
+    inputScript.clear();
+    scriptIndex = 0;
+    const char* savedStage = std::getenv("CROSSINK_HYPHENATION_SMOKE_STAGE");
+    const int stage = savedStage ? std::atoi(savedStage) : 0;
+    auto* manager = dynamic_cast<HyphenationManagerActivity*>(activityManager.simulatorCurrentActivity());
+    if (stage == 2) {
+      switch (hyphenationPhase++) {
+        case 0: {
+          const char* ui = std::getenv("CROSSINK_HYPHENATION_SMOKE_UI");
+          if (ui && std::strcmp(I18N.getCode(), ui)) fail("Pack removal changed the UI language");
+          if (Hyphenator::patternIdentity("de-DE") || !Hyphenator::patternIdentity("en") ||
+              !HyphenationPackStore::hasSource("de"))
+            fail("Pack removal changed the wrong resources");
+          SETTINGS.hyphenationEnabled = true;
+          activityManager.goToReader(std::getenv("CROSSINK_SIMULATOR_SMOKE_BOOK"), true);
+          inputScript.push_back(render("Missing pack reader", 8));
+          break;
+        }
+        case 1:
+        case 4:
+          if (!activityManager.isCurrentActivityNamed("Confirmation")) {
+            --hyphenationPhase;
+            break;  // Wait for the first laid-out page and its missing-pack prompt.
+          }
+          {
+            RenderLock lock;
+            captureStatusBarScreen("hyphenation-missing");
+          }
+          if (hyphenationPhase == 2) {
+            addTap(MappedInputManager::Button::Back);
+            inputScript.push_back(render("Read without missing pack", 12));
+          } else {
+            addTap(MappedInputManager::Button::Down);
+            addTap(MappedInputManager::Button::Confirm);
+            inputScript.push_back(render("Open manager from reader", 8));
+          }
+          break;
+        case 2:
+          if (!activityManager.isCurrentActivityNamed("EpubReader")) fail("Missing pack cancel did not resume reading");
+          activityManager.goHome();
+          inputScript.push_back(render("Home before new reader session", 4));
+          break;
+        case 3:
+          activityManager.goToReader(std::getenv("CROSSINK_SIMULATOR_SMOKE_BOOK"), true);
+          inputScript.push_back(render("New reader session", 8));
+          break;
+        case 5:
+          if (!manager) fail("Missing pack prompt did not open its manager");
+          if (!manager->allowPowerAsConfirmInReaderMode()) fail("Reader manager disabled Power-as-Confirm");
+          addTap(MappedInputManager::Button::Back);
+          inputScript.push_back(render("Reader after manager cancel", 12));
+          break;
+        default:
+          if (!activityManager.isCurrentActivityNamed("EpubReader")) fail("Manager cancel did not resume reading");
+          LOG_INF("SMOKE",
+                  "Simulator smoke test passed: hyphenation install/remove reboots, UI language preservation, "
+                  "missing-pack prompt and reader return");
+          std::_Exit(0);
+      }
+      return;
+    }
+    switch (hyphenationPhase++) {
+      case 0: {
+        const char* ui = std::getenv("CROSSINK_HYPHENATION_SMOKE_UI");
+        if (ui && std::strcmp(I18N.getCode(), ui)) fail("Hyphenation update changed the UI language");
+        if (HyphenationPackStore::isInstalled("de") != (stage == 1)) fail("Hyphenation boot selection mismatch");
+        if (!HyphenationPackStore::hasSource("de")) fail("Hyphenation source was removed");
+        if (!Hyphenator::patternIdentity("en")) fail("Built-in English unavailable");
+        if (stage == 0 && HyphenationPackStore::install("fr") != hyphenation_pack::Result::Invalid)
+          fail("A renamed pack bypassed language identity validation");
+        if (stage == 1) {
+          Hyphenator::setPreferredLanguage("GER");
+          if (Hyphenator::breakOffsets("Satellitensystems", false).empty()) fail("Installed German patterns unused");
+        }
+        const auto settings = buildReaderPageLayoutSettingsList(getSettingsList());
+        auto row = std::find_if(settings.begin(), settings.end(),
+                                [](const auto& setting) { return setting.nameId == StrId::STR_HYPHENATION; });
+        if (row == settings.end() || ++row == settings.end() || row->action != SettingAction::ManageHyphenation)
+          fail("Hyphenation manager is not next to its setting");
+        activityManager.replaceActivity(
+            std::make_unique<HyphenationManagerActivity>(renderer, mappedInputManager, "de"));
+        inputScript.push_back(render("Hyphenation language list", 5));
+        break;
+      }
+      case 1:
+        if (!manager || !manager->simulatorOptionDisabled(0)) fail("Built-in English is not protected");
+        {
+          RenderLock lock;
+          captureStatusBarScreen(stage ? "hyphenation-installed" : "hyphenation-sd");
+        }
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Hyphenation actions", 4));
+        break;
+      case 2:
+        if (!manager || manager->simulatorOptionDisabled(1) || manager->simulatorOptionDisabled(2) != (stage == 0))
+          fail("Hyphenation install/delete availability mismatch");
+        {
+          RenderLock lock;
+          captureStatusBarScreen(stage ? "hyphenation-remove" : "hyphenation-install");
+        }
+        addTap(MappedInputManager::Button::Back);
+        inputScript.push_back(render("Cancel hyphenation change", 4));
+        break;
+      case 3:
+        if (HyphenationPackStore::isInstalled("de") != (stage == 1)) fail("Cancel changed installed hyphenation");
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Reopen hyphenation actions", 4));
+        break;
+      case 4:
+        setenv("CROSSINK_HYPHENATION_SMOKE_STAGE", stage ? "2" : "1", 1);
+        addTap(MappedInputManager::Button::Down);
+        if (stage == 1) addTap(MappedInputManager::Button::Down);
+        addTap(MappedInputManager::Button::Confirm);
+        inputScript.push_back(render("Apply hyphenation change", 10));
+        break;
+      default:
+        fail("Hyphenation operation did not restart");
+    }
+  }
+
   void tickCalibration() {
     if (scriptIndex < inputScript.size()) {
       runReaderInputScript();
@@ -2952,17 +3274,16 @@ class SimulatorSmokeTest {
           fail("Calibration touch save failed");
         {
           RenderLock lock;
-          I18N.setLanguage(Language::DE);
           SETTINGS.uiScale = CrossPointSettings::UI_SCALE_LARGE;
         }
         addTap(MappedInputManager::Button::Confirm);
-        inputScript.push_back(render("Calibration German large UI", 4));
+        inputScript.push_back(render("Calibration current language large UI", 4));
         break;
       }
       case 11: {
         auto* editor = dynamic_cast<ScreenCalibrationActivity*>(activityManager.simulatorCurrentActivity());
         if (!editor) fail("Calibration localized reopen failed");
-        renderCapture("calibration-german-large");
+        renderCapture("calibration-localized-large");
         const char* storage = std::getenv("CROSSINK_CALIBRATION_PATH");
         calibrationStoragePath = storage ? storage : ".screen-calibration.nvs";
         setenv("CROSSINK_CALIBRATION_PATH", "/missing-calibration-directory/settings", 1);
@@ -3019,7 +3340,6 @@ class SimulatorSmokeTest {
           captureStatusBarScreen(("calibration-orientation-" + std::to_string(static_cast<int>(orientation))).c_str());
         }
         renderer.setOrientation(GfxRenderer::Portrait);
-        I18N.setLanguage(Language::EN);
         if (!ScreenCalibrationSmokeTest::txt(lock))
           fail("TXT calibration reflow or reading-position preservation failed");
         captureStatusBarScreen("calibration-txt-reflow");
@@ -3157,7 +3477,6 @@ class SimulatorSmokeTest {
           RenderLock lock;
           SETTINGS.uiScale = aboutPass % 2 ? CrossPointSettings::UI_SCALE_LARGE : CrossPointSettings::UI_SCALE_SMALL;
           SETTINGS.uiTheme = aboutPass < 2 ? CrossPointSettings::LYRA : CrossPointSettings::CLASSIC;
-          I18N.setLanguage(I18n::languageFromCode(aboutPass % 2 ? "DE" : "EN"));
           static constexpr GfxRenderer::Orientation orientations[] = {
               GfxRenderer::Orientation::Portrait, GfxRenderer::Orientation::LandscapeClockwise,
               GfxRenderer::Orientation::PortraitInverted, GfxRenderer::Orientation::LandscapeCounterClockwise};
@@ -3680,6 +3999,14 @@ class SimulatorSmokeTest {
       return;
     }
 
+    if (std::getenv("CROSSINK_SIMULATOR_SMOKE_HYPHENATION")) {
+      tickHyphenation();
+      return;
+    }
+    if (std::getenv("CROSSINK_SIMULATOR_SMOKE_FILENAME_FONT")) {
+      tickFilenameFont();
+      return;
+    }
     if (tickOpdsCatalogSmokeTest()) return;
 
     if (std::getenv("CROSSINK_SIMULATOR_SMOKE_SUPPORT_EXPORT")) {

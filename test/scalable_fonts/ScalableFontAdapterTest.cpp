@@ -4,6 +4,7 @@
 #include <cassert>
 #include <chrono>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <string>
@@ -191,4 +192,39 @@ int main(int argc, char** argv) {
   }
   assert(openStorageFiles == 0);
   testHeap = {SIZE_MAX, SIZE_MAX, SIZE_MAX};
+  // Large filename faces must stream without lifting the reader's 2 MiB cap.
+  const auto largePath = std::filesystem::temp_directory_path() /
+                         ("crossink-filename-font-" +
+                          std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".ttf");
+  {
+    std::ofstream large(largePath, std::ios::binary);
+    large.write(reinterpret_cast<const char*>(bytes[0].data()), bytes[0].size());
+    large.seekp(3 * 1024 * 1024 - 1);
+    large.put('\0');
+    assert(large.good());
+  }
+  size_t largeBytes = 0;
+  assert(!HalScalableFont::fileSize(largePath.c_str(), largeBytes));
+  assert(HalScalableFont::fileSize(largePath.c_str(), largeBytes, HalScalableFont::MaxFilenameFileBytes));
+  assert(largeBytes == 3 * 1024 * 1024);
+  HalScalableFont::Info info;
+  assert(!HalScalableFont::inspectFile(largePath.c_str(), info));
+  assert(HalScalableFont::inspectFile(largePath.c_str(), info, nullptr, HalScalableFont::MaxFilenameFileBytes));
+  {
+    HalScalableFont reader;
+    assert(!reader.openFile(largePath.c_str()));
+    assert(openStorageFiles == 0);
+    HalScalableFont filename;
+    assert(filename.openFile(largePath.c_str(), HalScalableFont::MaxFilenameFileBytes, options, FileMode::Filename));
+    assert(openStorageFiles == 1);
+    assert(filename.probeGlyph('T', 8));
+    assert(filename.probeGlyph('T', 10));
+    assert(filename.probeGlyph('T', 12));
+    const auto* streamedData = filename.atSize(12)->data;
+    const auto* residentData = builtin[0].atSize(12)->data;
+    assert(streamedData->dynamicGlyphHandler(streamedData->glyphMissCtx, 'T')->width ==
+           residentData->dynamicGlyphHandler(residentData->glyphMissCtx, 'T')->width);
+  }
+  assert(openStorageFiles == 0);
+  std::filesystem::remove(largePath);
 }

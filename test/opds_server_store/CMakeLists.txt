@@ -2,6 +2,7 @@ add_executable(OpdsServerStoreTest
   OpdsServerStoreTest.cpp
   ${REPO_ROOT}/src/OpdsServerStore.cpp
   ${REPO_ROOT}/lib/Serialization/PersistableStore.cpp
+  ${REPO_ROOT}/lib/Serialization/AtomicFile.cpp
 )
 target_include_directories(OpdsServerStoreTest PRIVATE
   stubs

@@ -18,6 +18,8 @@ enum PageElementTag : uint8_t {
   TAG_PageImage = 2,  // New tag
   TAG_PageTableFragment = 3,
   TAG_PageHorizontalRule = 4,
+  TAG_PageDropCap = 5,
+  TAG_PageBorderBox = 6,
 };
 
 // represents something that has been added to a page
@@ -76,6 +78,50 @@ class PageHorizontalRule final : public PageElement {
   bool serialize(Print& file) override;
   PageElementTag getTag() const override { return TAG_PageHorizontalRule; }
   static std::unique_ptr<PageHorizontalRule> deserialize(FsFile& file);
+};
+
+// An initial letter spanning several lines, drawn scaled up from a font's glyph.
+// yPos is the baseline of the last spanned line.
+class PageDropCap final : public PageElement {
+ public:
+  static constexpr size_t MAX_TEXT_BYTES = 12;  // leading punctuation plus the letter
+
+ private:
+  uint8_t fontSize;
+  uint16_t scale256;
+  EpdFontFamily::Style style;
+  char text[MAX_TEXT_BYTES + 1] = {};
+
+ public:
+  PageDropCap(uint8_t fontSize, uint16_t scale256, EpdFontFamily::Style style, const char* utf8, int16_t xPos,
+              int16_t yPos);
+  const char* getText() const { return text; }
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack = true) override;
+  bool serialize(Print& file) override;
+  PageElementTag getTag() const override { return TAG_PageDropCap; }
+  static std::unique_ptr<PageDropCap> deserialize(FsFile& file);
+};
+
+// A CSS border and/or background shade around a block element's slice on this page.
+// Sides split off by a page break have zero width.
+class PageBorderBox final : public PageElement {
+  uint16_t width;
+  uint16_t height;
+  CssBorderSide sides[4];  // top, right, bottom, left
+  bool shaded;
+
+ public:
+  PageBorderBox(uint16_t width, uint16_t height, const CssBorderSide (&sides)[4], bool shaded, int16_t xPos,
+                int16_t yPos)
+      : PageElement(xPos, yPos),
+        width(width),
+        height(height),
+        sides{sides[0], sides[1], sides[2], sides[3]},
+        shaded(shaded) {}
+  void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset, bool foregroundBlack = true) override;
+  bool serialize(Print& file) override;
+  PageElementTag getTag() const override { return TAG_PageBorderBox; }
+  static std::unique_ptr<PageBorderBox> deserialize(FsFile& file);
 };
 
 struct TableFragmentCell {

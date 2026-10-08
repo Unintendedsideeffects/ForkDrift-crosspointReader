@@ -239,7 +239,12 @@ void BaseTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* top
     }
   } else {
     // X4 layout: Both buttons stacked on right side
-    constexpr int topButtonY = 345;
+    const auto insets = renderer.getViewableInsets().rotated(static_cast<unsigned>(renderer.getOrientation()));
+    const int topButtonY = renderer.hasCustomViewableInsets()
+                               ? std::clamp(345, static_cast<int>(insets.edges[0]),
+                                            std::max(static_cast<int>(insets.edges[0]),
+                                                     renderer.getScreenHeight() - insets.edges[2] - 2 * buttonHeight))
+                               : 345;
     const char* labels[] = {topBtn, bottomBtn};
     const int x = UITheme::getHintSafeX(renderer, screenWidth - buttonMargin - buttonWidth, buttonWidth);
 
@@ -410,7 +415,7 @@ void BaseTheme::drawList(const GfxRenderer& renderer, Rect rect, int itemCount, 
 }
 
 void BaseTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* title, const char* subtitle,
-                           const bool readerContext, const bool showStatus) const {
+                           const bool readerContext, const bool showStatus, const bool filenameTitle) const {
   namespace fui = freeink::ui;
   const auto spec = uiScaleSpec();
   fui::GfxRendererFrame<1> ui(renderer, spec.smallFontId, spec.bodyFontId, spec.titleFontId);
@@ -421,6 +426,7 @@ void BaseTheme::drawHeader(const GfxRenderer& renderer, Rect rect, const char* t
                        static_cast<int16_t>(rect.height)};
 
   fui::HeaderProps props;
+  if (filenameTitle) ui.target.setFont(fui::GfxRendererTarget::FONT_TITLE, renderer.filenameFontId(spec.titleFontId));
   props.title = title;
   props.rightLabel = subtitle;
   props.borderEdges = fui::EdgeBottom;
@@ -1046,11 +1052,10 @@ void BaseTheme::drawTextField(const GfxRenderer& renderer, Rect rect, const int 
   }
 }
 
-void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, const std::vector<std::string>& options,
-                                int selectedIndex, const bool showConfirmationFooter, const char* cancelLabel,
-                                const char* saveLabel, const bool saveFocused, const int primaryOptionIndex,
-                                const char* noteLabel, const char* noteBody, const std::vector<bool>& disabledOptions,
-                                const int firstOptionIndex, const char* secondNoteLabel,
+void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, OptionLabels options, int selectedIndex,
+                                const bool showConfirmationFooter, const char* cancelLabel, const char* saveLabel,
+                                const bool saveFocused, const int primaryOptionIndex, const char* noteLabel,
+                                const char* noteBody, const int firstOptionIndex, const char* secondNoteLabel,
                                 const char* secondNoteBody) const {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto pageWidth = renderer.getScreenWidth();
@@ -1084,9 +1089,9 @@ void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, 
 
   int maxTextWidth = renderer.getTextWidth(UI_12_FONT_ID, title, EpdFontFamily::BOLD);
   for (size_t i = 0; i < options.size(); ++i) {
-    const auto& opt = options[i];
+    const char* opt = options[i];
     const auto style = primaryOptionIndex == static_cast<int>(i) ? EpdFontFamily::BOLD : optionStyle;
-    int w = renderer.getTextWidth(optionFontId, opt.c_str(), style);
+    int w = renderer.getTextWidth(optionFontId, opt, style);
     if (w > maxTextWidth) maxTextWidth = w;
   }
   if (hasNote) {
@@ -1243,8 +1248,7 @@ void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, 
                                                            static_cast<uint8_t>(visibleCount), rowHeight, itemSpacing);
     const int primaryOffset = primaryOptionIndex - visibleStart;
     const int secondaryOffset = primaryOffset == 0 ? 1 : 0;
-    const char* labels[] = {options[visibleStart + primaryOffset].c_str(),
-                            options[visibleStart + secondaryOffset].c_str()};
+    const char* labels[] = {options[visibleStart + primaryOffset], options[visibleStart + secondaryOffset]};
     const int selectedVisualIndex = safeSelectedIndex == primaryOptionIndex ? 0 : 1;
     TouchActionButtons::draw(renderer, actionLayout, labels, 0, saveFocused ? -1 : selectedVisualIndex, optionFontId);
   } else
@@ -1253,9 +1257,9 @@ void BaseTheme::drawOptionPopup(const GfxRenderer& renderer, const char* title, 
     for (int visibleIndex = 0; visibleIndex < visibleCount; visibleIndex++) {
       const int optionIndex = visibleStart + visibleIndex;
       const int itemY = y + visibleIndex * (rowHeight + itemSpacing);
-      const bool disabled = optionIndex < static_cast<int>(disabledOptions.size()) && disabledOptions[optionIndex];
+      const bool disabled = options.isDisabled(optionIndex);
       const bool selected = !disabled && !saveFocused && optionIndex == safeSelectedIndex;
-      const char* labelText = options[optionIndex].c_str();
+      const char* labelText = options[optionIndex];
 
       if (metrics.optionPopupDrawAllRows || selected) {
         Color rowColor;

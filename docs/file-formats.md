@@ -623,12 +623,50 @@ Binary layout:
 
 ## `section.bin`
 
+### Version 87
+
+Publisher decorations, contextual CSS selectors, preserved whitespace and inline
+font sizes change layout. Complete caches use `87`; suspended partial caches use
+`0xC8`. Version `86` / `0xC7` already exist on another local feature branch and
+are deliberately not reused. Both old full and partial caches rebuild.
+
+TextBlock adds one-byte `wordSizesPresent` and `initialLetterBytes` fields immediately before `textBytes`.
+The initial-letter prefix (0–12 bytes) stays in the first logical word for dictionary lookup and clippings; ordinary text rendering skips those bytes because the drop cap draws them separately.
+When `wordSizesPresent` is set, the arena stores one point-size byte per word after the whitespace
+bitset and before UTF-8 text; zero uses the block font. The flag is zero for
+ordinary lines, so they require no extra per-word storage. Sizes use the existing
+scalable font family and share the tallest word's baseline and line height.
+
+Page tags `5` and `6` are drop caps and border boxes. Drop caps contain x/y
+(int16 each), source font point size (uint8, zero means the reader font), Q8
+scale (uint16), style (uint8), UTF-8 byte length (uint8, 1–12), then text bytes.
+Border boxes contain x/y (int16 each), width/height (uint16 each), four pairs of
+width/style bytes in top/right/bottom/left order, and a shaded byte. Styles are
+none/solid/double/dotted/dashed (0–4), and border widths are capped at 8 pixels.
+
+CSS cache revision `22` grows the fixed style payload from 80 to 92 bytes:
+whitespace byte after the four existing border masks, eight border width/style
+bytes, then shaded/float-left/initial-letter bytes, followed by the existing
+uint32 defined flags. New flag bits 25–28 identify whitespace, shading, float
+and initial-letter declarations. Context-rule records retain the two-string
+format; the first string is the ancestor chain (`@` means no constraint), and
+the second is the subject compound, optionally ending in `::first-letter`.
+
+### Version 86
+
+Complete sections use byte `86` and suspended partials use `0xC7`. A little-endian
+`u32` hyphenation identity follows `hyphenationEnabled` in the header. It is zero
+when disabled or unavailable, one for built-in English, and a fingerprint of the
+external pack's language, prefix/suffix rules, root offset, size and payload CRC
+otherwise. Storage offsets are excluded. A mismatch rebuilds the section,
+including suspended incremental builds; older full and partial versions rebuild.
+
 ### Version 85
 
 Long paragraphs apply initial CSS margin/padding on their first emitted line,
 including incremental flushes. Text fragment bounds are checked on each append.
-The payload is unchanged; complete files use `85` and suspended partials use
-`0xC6`, invalidating both kinds of cached layout from earlier versions.
+Both branch-specific version 85 formats are invalidated to rebuild complete and
+suspended layouts with the combined header and paragraph-spacing rules.
 
 ### Version 84
 
@@ -832,7 +870,7 @@ import std.mem;
 import std.string;
 import std.core;
 
-#define EXPECTED_VERSION 79
+#define EXPECTED_VERSION 86
 #define MAX_STRING_LENGTH 65535
 #define FOOTNOTE_NUMBER_LEN 32
 #define FOOTNOTE_HREF_LEN 96
@@ -1026,6 +1064,7 @@ struct ParagraphLut {
 };
 
 struct SectionBin {
+    u32 magic; // 0x535843FF (bytes: FF, "CXS")
     u8 version;
     if (version != EXPECTED_VERSION) {
         std::error(std::format("Unsupported version: {} (expected {})", version, EXPECTED_VERSION));
@@ -1039,6 +1078,7 @@ struct SectionBin {
     u16 viewportWidth;
     u16 viewportHeight;
     bool hyphenationEnabled;
+    u32 hyphenationPatternIdentity;
     bool embeddedStyle;
     u8 imageRendering;
     bool focusReadingEnabled;
@@ -1052,6 +1092,7 @@ struct SectionBin {
     u32 anchorMapOffset;
     u32 paragraphLutOffset;
     u32 listItemLutOffset;
+    u32 visibleTextLutOffset;
 
     Page pages[pageCount];
 
@@ -1232,7 +1273,6 @@ this cache to force reinspection after external same-length font changes.
 
 EPUB layout cache versions and identities are unchanged by this catalog.
 
-
 ### Daily reading counters (v1)
 
 Device-local counters live in `/.crosspoint/daily_reading/NNNNN.bin`, where NNNNN
@@ -1273,3 +1313,77 @@ buffer; it marks that counter uploaded only after `accepted_daily: 1`. Old serve
 can still accept aggregate stats, but cannot silently discard daily history and
 acknowledge it. Failed requests remain eligible for retry, including recovered
 `.tmp`/`.bak` records. Nearby-device snapshots are never uploaded as local history.
+
+## Internal language cache (v1)
+
+The last 128 KiB of the existing `spiffs` data partition contains two 64 KiB
+slots. No application partition or partition-table entry changes. All integer
+fields are explicitly serialized little-endian; no packed C++ structs are cast
+onto flash bytes.
+
+A slot begins with a 256-byte header: a 16-byte `CILANG` v1 ownership marker,
+commit word at offset 16, 64-bit generation at 20, total used bytes at 28,
+16-bit record count at 32, RTL flag at 34, and CRC32 at 36. Fixed NUL-terminated
+UTF-8/ASCII metadata fields are code[32] at 40, name[96] at 72, and keyboard[32]
+at 168. Reserved header bytes are zero. CRC32 covers bytes 20 through the end
+of used data with the checksum field treated as zero. The commit word is
+written last. The marker identifies language-cache contents; permission to use
+the region comes from its firmware data-partition role. Applying a language may
+replace previous filesystem contents in the target slot. Other partition bytes
+and the pinned language slot remain unchanged. Interrupted initial provisioning
+can be retried without needing an intact prior ownership marker.
+
+Records follow sequentially: 64-bit FNV-1a key identity, 64-bit FNV-1a English
+reference signature, 16-bit string length including NUL, then the UTF-8 string.
+Only translated entries known at installation are stored. Firmware matches
+stable identities/signatures at startup and builds a uint16_t offset per current
+StrId; 0xffff means English fallback. Numeric StrId order is not an on-flash ABI.
+Checksums, lengths, UTF-8, metadata, and current-key duplicates are validated
+before a mapping is exposed. The mapping remains pinned until restart.
+
+Settings keep the preferred code in the existing `language` JSON key and the
+selected generation in `languageCacheGeneration`. A zero generation permits a
+legacy preference to find the newest matching valid slot. Normal saves use a
+synced `.tmp` and recoverable `.bak`; a remaining backup denotes an unfinished
+publication and is restored before settings are loaded or saved.
+
+## SD hyphenation packs and flash banks
+
+SD path: `/.crosspoint/hyphenation/hyph-<code>.cphyph`. The upstream CPHY v1
+header is 24 bytes, with all multibyte integers little-endian:
+
+- 0: magic `CPHY` (4 bytes)
+- 4: version `1` (u8)
+- 5: primary language code (2 lowercase ASCII bytes)
+- 7, 8: minimum prefix/suffix characters (u8 each; currently 2/2)
+- 9: flags (u8; currently zero)
+- 10: reserved (u16; zero)
+- 12: root offset into payload (u32)
+- 16: payload size (u32)
+- 20: payload CRC32 (u32, IEEE/zlib)
+
+The payload is the existing Hypher trie with its original four-byte root prefix
+removed, unchanged from the firmware table. The root offset excludes that prefix.
+The header language must match the filename chosen by the manager.
+
+CrossInk bank format is independent of upstream's internal flash bank format.
+Two 64 KiB-aligned banks occupy the partition before the UI-language slots.
+For the current 0x360000-byte partition they begin at 0 and 0x1a0000 and each
+hold 0x1a0000 bytes. Only the inactive bank is erased/written; language slots at
+0x340000 and 0x350000 are never touched.
+
+Each bank starts with a 256-byte header. Bytes 0-7 are `CIHP`, version byte 1,
+and three zero bytes. Little-endian u32 fields at offsets 8, 12, 16 and 20 hold
+generation, entry count, used size and header CRC32. Offset 24 is the commit
+marker `0x50485950`, written last. Offset 28 is reserved zero. The header CRC
+covers bytes 0-23 (checksum field treated as zero) and 28-255; it excludes the
+commit marker. Unused header bytes are zero.
+
+Up to ten 20-byte entries begin at offset 32: language code (2 bytes), prefix
+and suffix (one byte each), bank-relative payload offset, payload size, root
+offset and payload CRC32 (four u32 values). Payloads start at offset 4096 and
+are packed in entry order with four-byte alignment. Duplicate/unsupported
+languages, invalid bounds, uncommitted banks and bad header/payload checksums
+are rejected. Boot selects the highest fully valid generation. Generations do
+not wrap; exhausting u32 rejects a further update. A successful update requires
+a restart before another operation or activation of its new mapping.

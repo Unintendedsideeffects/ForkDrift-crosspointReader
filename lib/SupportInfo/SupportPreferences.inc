@@ -123,7 +123,11 @@ SUPPORT_PREF(frontlightRestoreOnWake)
 SUPPORT_PREF(frontlightScheduleEnabled)
 SUPPORT_PREF(frontlightScheduleStart)
 SUPPORT_PREF(frontlightScheduleEnd)
+#ifdef SUPPORT_LANGUAGE_CODE
+SUPPORT_LANGUAGE_CODE()
+#else
 SUPPORT_PREF(language)
+#endif
 SUPPORT_PREF(keyboardLayouts)
 SUPPORT_PREF(quickResumeSleepScreen)
 SUPPORT_PREF(trackReadingStats)

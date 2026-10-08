@@ -831,11 +831,12 @@ inline std::vector<SettingInfo> buildReaderFontSettingsList(const std::vector<Se
 
 inline std::vector<SettingInfo> buildReaderPageLayoutSettingsList(const std::vector<SettingInfo>& allSettings) {
   std::vector<SettingInfo> settings;
-  settings.reserve(6);
+  settings.reserve(7);
   addSettingByName(settings, allSettings, StrId::STR_ORIENTATION);
   addSettingByName(settings, allSettings, StrId::STR_SCREEN_MARGIN);
   addSettingByName(settings, allSettings, StrId::STR_PARA_ALIGNMENT);
   addSettingByName(settings, allSettings, StrId::STR_HYPHENATION);
+  settings.push_back(SettingInfo::Action(StrId::STR_HYPHENATION_PACKS, SettingAction::ManageHyphenation));
   addSettingByName(settings, allSettings, StrId::STR_EXTRA_SPACING);
   addSettingByName(settings, allSettings, StrId::STR_FORCE_PARAGRAPH_INDENTS);
   return settings;
@@ -1082,11 +1083,14 @@ inline std::vector<SettingInfo> buildSystemSettingsParentList(const std::vector<
 
 inline std::vector<SettingInfo> buildSystemDeviceSettingsList(const std::vector<SettingInfo>& allSettings) {
   std::vector<SettingInfo> settings;
-  settings.reserve(10);
+  settings.reserve(11);
   addSettingByName(settings, allSettings, StrId::STR_DEVICE_NAME);
   addSettingByName(settings, allSettings, StrId::STR_TIME_TO_SLEEP);
   addSettingByName(settings, allSettings, StrId::STR_CUSTOM_BOOTSCREEN);
   settings.push_back(SettingInfo::Action(StrId::STR_LANGUAGE, SettingAction::Language));
+#if CROSSINK_SCALABLE_FONTS
+  settings.push_back(SettingInfo::Action(StrId::STR_FILENAME_FALLBACK_FONT, SettingAction::FilenameFallbackFont));
+#endif
   settings.push_back(SettingInfo::Action(StrId::STR_KEYBOARD_LAYOUTS, SettingAction::KeyboardLayouts));
   if (halClock.isAvailable()) {
     addSettingByName(settings, allSettings, StrId::STR_CLOCK_FORMAT);

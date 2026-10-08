@@ -10,6 +10,9 @@
 #include <FsHelpers.h>
 #include <HalPowerManager.h>
 #include <HalStorage.h>
+#if defined(CROSSINK_LANGUAGE_BENCHMARK)
+#include <LanguageBenchmark.h>
+#endif
 #include <Logging.h>
 #include <Memory.h>
 #include <Xtc.h>
@@ -18,6 +21,7 @@
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "FilenameFontSystem.h"
 #include "OpdsServerStore.h"
 #include "RecentBooksStore.h"
 #include "SilentRestart.h"
@@ -495,7 +499,13 @@ void ActivityManager::renderTaskLoop() {
       // Apply Night Mode to each activity's normal-polarity frame. SleepActivity
       // preserves it only for Quick Resume and clears it for other sleep screens.
       display.setInverted(SETTINGS.screenInverted != 0);
+#if defined(CROSSINK_LANGUAGE_BENCHMARK)
+      language_benchmark::beginFrame(currentActivity->name.c_str());
+#endif
       currentActivity->render(std::move(lock));
+#if defined(CROSSINK_LANGUAGE_BENCHMARK)
+      language_benchmark::endFrame();
+#endif
       restoredActivityNeedsRender = false;
     }
     TouchRegistry::getInstance().publish();
@@ -629,6 +639,13 @@ void ActivityManager::loop() {
         currentActivity = std::move(stackActivities.back());
         stackActivities.pop_back();
         restoredActivityNeedsRender = true;
+
+        // Network children release streamed fonts. Restore browsing metadata
+        // before the first parent redraw, without reloading into network/readers.
+        if (currentActivity->isHomeActivity() || currentActivity->name == "FileBrowser" ||
+            currentActivity->name == "Library") {
+          filenameFontSystem.ensureLoaded(renderer);
+        }
 
         if (closedFrontlightPanel) currentActivity->onFrontlightPanelClosed();
 

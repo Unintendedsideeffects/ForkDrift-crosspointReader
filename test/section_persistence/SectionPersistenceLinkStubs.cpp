@@ -20,6 +20,9 @@ int Epub::getTocItemsCount() const { return 0; }
 int Epub::getTocIndexForSpineIndex(int) const { return -1; }
 bool Epub::readItemContentsToStream(const std::string&, Print&, size_t, bool) const { return false; }
 
+uint32_t testHyphenationIdentity = 1;
+uint32_t Hyphenator::patternIdentity(const std::string&) { return testHyphenationIdentity; }
+
 void Hyphenator::setPreferredLanguage(const std::string&) {}
 
 ChapterHtmlSlimParser::~ChapterHtmlSlimParser() = default;

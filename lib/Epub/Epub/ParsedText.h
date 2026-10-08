@@ -19,6 +19,7 @@ class ArenaVector;
 
 class ParsedText {
  public:
+  void setInitialLetter(const char* prefix);
   struct InlineImagePlacement {
     uint16_t id;
     int16_t x;
@@ -35,8 +36,11 @@ class ParsedText {
   // (largest contiguous alloc stays ~2 KB regardless of token count), so it never
   // triggers that. The per-token parallel arrays below stay vectors: 1 byte / 1 bit
   // each, they never approach the contiguous-block ceiling.
+  char initialLetter[13] = {};
   std::deque<std::string> words;
   std::vector<EpdFontFamily::Style> wordStyles;
+  std::vector<uint8_t> wordFontSizes;  // empty for ordinary paragraphs; one byte per token otherwise
+  int wordFontId(const GfxRenderer& renderer, int base, size_t index) const;
   std::vector<bool> wordContinues;         // true = word attaches to previous (no space before it)
   std::vector<bool> wordNoSpaceBefore;     // true = may break before token, but no synthetic space when joined
   std::vector<uint8_t> wordFocusBoundary;  // UTF-8 byte offset where the regular suffix starts; 0 = no split
@@ -146,7 +150,8 @@ class ParsedText {
 
   void addWord(std::string word, EpdFontFamily::Style fontStyle, bool underline = false, bool attachToPrevious = false,
                bool backgroundBlack = false, uint8_t linkId = 0, uint32_t visibleTextOffset = 0,
-               uint32_t referenceTextOffset = 0, int16_t leadingPadding = 0);
+               uint32_t referenceTextOffset = 0, int16_t leadingPadding = 0, bool noSpaceBefore = false,
+               uint8_t pointSize = 0);
   void addInlineImage(uint16_t id, uint16_t width, uint16_t height, bool attachToPrevious, uint32_t visibleTextOffset,
                       uint32_t referenceTextOffset);
   const std::vector<InlineImagePlacement>& currentLineImages() const { return lineImagesScratch; }
@@ -165,7 +170,7 @@ class ParsedText {
   void setContinuation(bool continuation) { isContinuation_ = continuation; }
   bool layoutAndExtractLines(const GfxRenderer& renderer, int fontId, uint16_t viewportWidth,
                              const std::function<void(std::shared_ptr<TextBlock>, uint32_t, uint32_t)>& processLine,
-                             bool includeLastLine = true);
+                             bool includeLastLine = true, size_t maxLines = SIZE_MAX);
   bool layoutAndExtractLinesPreservingSource(const GfxRenderer& renderer, int fontId, uint16_t viewportWidth,
                                              const std::function<void(std::shared_ptr<TextBlock>)>& processLine,
                                              bool allowCharacterBreaks = false) const;

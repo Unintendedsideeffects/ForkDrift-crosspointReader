@@ -25,13 +25,20 @@ bool computeVisualWordOrder(const std::vector<std::string>& words, bool, std::ve
 TextBlock::TextBlock(const std::vector<std::string>& words, const std::vector<int16_t>& wordXpos,
                      const std::vector<EpdFontFamily::Style>&, const std::vector<uint8_t>&,
                      const std::vector<uint16_t>&, const std::vector<uint16_t>&, const std::vector<uint8_t>& wordFlags,
-                     const std::vector<bool>&, const BlockStyle& blockStyle, std::vector<std::string> rubyTexts)
+                     const std::vector<bool>&, const BlockStyle& blockStyle, std::vector<std::string> rubyTexts,
+                     const std::vector<uint8_t>& wordSizes, const char*)
     : blockStyle(blockStyle), numWords(static_cast<uint16_t>(words.size())), rubyTexts(std::move(rubyTexts)) {
   if (wordXpos.empty()) return;
-  arena = std::make_unique<uint8_t[]>(wordXpos.size() * sizeof(int16_t) + wordFlags.size());
+  arena = std::make_unique<uint8_t[]>(wordXpos.size() * sizeof(int16_t) + wordFlags.size() + wordSizes.size());
   auto* positions = reinterpret_cast<int16_t*>(arena.get());
   std::copy(wordXpos.begin(), wordXpos.end(), positions);
   xposArr = positions;
+  if (!wordSizes.empty()) {
+    auto* sizes = arena.get() + wordXpos.size() * sizeof(int16_t) + wordFlags.size();
+    std::copy(wordSizes.begin(), wordSizes.end(), sizes);
+    wordSizesArr = sizes;
+    wordSizesPresent = true;
+  }
   if (!wordFlags.empty()) {
     auto* flags = arena.get() + wordXpos.size() * sizeof(int16_t);
     std::copy(wordFlags.begin(), wordFlags.end(), flags);
@@ -88,3 +95,30 @@ void PageHorizontalRule::render(GfxRenderer&, int, int, int, bool) {}
 bool PageHorizontalRule::serialize(Print&) { return false; }
 void PageTableFragment::render(GfxRenderer&, int, int, int, bool) {}
 bool PageTableFragment::serialize(Print&) { return false; }
+
+PageDropCap::PageDropCap(uint8_t size, uint16_t scale, EpdFontFamily::Style style, const char* source, int16_t x,
+                         int16_t y)
+    : PageElement(x, y), fontSize(size), scale256(scale), style(style) {
+  std::strncpy(text, source, MAX_TEXT_BYTES);
+}
+void PageDropCap::render(GfxRenderer&, int, int, int, bool) {}
+bool PageDropCap::serialize(Print&) { return false; }
+void PageBorderBox::render(GfxRenderer&, int, int, int, bool) {}
+bool PageBorderBox::serialize(Print&) { return false; }
+
+int TextBlock::resolvedFontId(const GfxRenderer& r, int font) const {
+  return r.getFontIdForSize(font, blockStyle.fontSize);
+}
+int TextBlock::wordFontId(const GfxRenderer& r, int font, uint16_t i) const {
+  return r.getFontIdForSize(resolvedFontId(r, font), wordFontSize(i));
+}
+int TextBlock::maxAscender(const GfxRenderer& r, int font) const {
+  int result = r.getFontAscenderSize(resolvedFontId(r, font));
+  for (uint16_t i = 0; i < numWords; ++i) result = std::max(result, r.getFontAscenderSize(wordFontId(r, font, i)));
+  return result;
+}
+int TextBlock::maxLineHeight(const GfxRenderer& r, int font) const {
+  int result = r.getLineHeight(resolvedFontId(r, font));
+  for (uint16_t i = 0; i < numWords; ++i) result = std::max(result, r.getLineHeight(wordFontId(r, font, i)));
+  return result;
+}

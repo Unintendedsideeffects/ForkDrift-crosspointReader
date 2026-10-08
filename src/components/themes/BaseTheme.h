@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "components/OptionLabels.h"
 #include "fontIds.h"
 #include "util/ReaderStatusBarConfig.h"
 
@@ -289,7 +290,7 @@ class BaseTheme {
                         const std::function<bool(int index)>& isHeader = nullptr, int rowHeightScale = 1,
                         bool showSelection = true) const;
   virtual void drawHeader(const GfxRenderer& renderer, Rect rect, const char* title, const char* subtitle = nullptr,
-                          bool readerContext = false, bool showStatus = true) const;
+                          bool readerContext = false, bool showStatus = true, bool filenameTitle = false) const;
   virtual void drawSubHeader(const GfxRenderer& renderer, Rect rect, const char* label,
                              const char* rightLabel = nullptr) const;
   virtual void drawTabBar(const GfxRenderer& renderer, Rect rect, const std::vector<TabInfo>& tabs,
@@ -308,11 +309,10 @@ class BaseTheme {
   // With preserveBackdrop, leave the popup on the display but restore the backing
   // pixels for the next redraw. Caller must own RenderLock.
   virtual Rect drawPopup(const GfxRenderer& renderer, const char* message, bool preserveBackdrop = false) const;
-  virtual void drawOptionPopup(const GfxRenderer& renderer, const char* title, const std::vector<std::string>& options,
-                               int selectedIndex, bool showConfirmationFooter = false,
-                               const char* cancelLabel = nullptr, const char* saveLabel = nullptr,
-                               bool saveFocused = false, int primaryOptionIndex = -1, const char* noteLabel = nullptr,
-                               const char* noteBody = nullptr, const std::vector<bool>& disabledOptions = {},
+  virtual void drawOptionPopup(const GfxRenderer& renderer, const char* title, OptionLabels options, int selectedIndex,
+                               bool showConfirmationFooter = false, const char* cancelLabel = nullptr,
+                               const char* saveLabel = nullptr, bool saveFocused = false, int primaryOptionIndex = -1,
+                               const char* noteLabel = nullptr, const char* noteBody = nullptr,
                                int firstOptionIndex = -1, const char* secondNoteLabel = nullptr,
                                const char* secondNoteBody = nullptr) const;
   virtual void fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, const int progress) const;

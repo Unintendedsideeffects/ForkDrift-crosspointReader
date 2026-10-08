@@ -16,6 +16,12 @@
 - Choose Directional or Legacy menu navigation in Controls to restore the previous button behavior in Settings and the reader menu.
 - Sync All Books from Settings → System → Sync Server or the Reading Stats This Device page to sync progress, reading stats, and clippings for every Library book in one pass.
 - Sync Book from an XTC book's context menu uploads its reading stats; Sync Folder and Sync All Books include XTC stats too.
+- Render publisher drop caps, bordered and shaded blocks, preserved whitespace, and more CSS selectors in EPUBs; scalable fonts also support mixed sizes within a line (CrossPoint #3891).
+
+- Generate a versioned English language template and compatibility catalog automatically for browser translation editors and release downloads.
+- Install and edit interface languages from SD files, including community languages; missing translations fall back to English.
+- Choose a Filename Fallback Font on ESP32-S3 devices to display missing characters in book titles and filenames while retaining the built-in font for supported text.
+- Install, update, and remove EPUB hyphenation packs from SD; English remains built in, and book layouts refresh when their packs change.
 
 ### Fixed
 
@@ -43,6 +49,8 @@
 - Show full-width Forget and Cancel buttons after a saved Wi-Fi network fails to connect on button devices, with Cancel selected by default below Forget.
 - Free OPDS catalog memory while downloading books on X3/X4, then reload the same browsing position when finished or cancelled.
 - Keep the Auto Page Turn interval in the bottom reader status bar, preserving book and chapter titles in the top bar.
+- Keep side-button hints inside calibrated screen edges in landscape.
+- Fix ESP32 firmware builds failing to compile hyphenation pack installation and updates.
 
 ### Changed
 

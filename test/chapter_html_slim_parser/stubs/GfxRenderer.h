@@ -42,6 +42,11 @@ class GfxRenderer {
   uint8_t getFontPointSize(int id) const { return scalableBaseSize ? (id ? id : scalableBaseSize) : 0; }
   int getFontIdForSize(int id, uint8_t size) const { return scalableBaseSize && size ? size : id; }
   int getFontAscenderSize(int id) const { return scalableBaseSize ? getFontPointSize(id) : 12; }
+  bool getCodepointMetrics(int id, uint32_t, EpdFontFamily::Style, int32_t& advance, int& top) const {
+    advance = std::max(1, textAdvancePerChar) * 16;
+    top = getFontAscenderSize(id);
+    return true;
+  }
   int getLineHeight(int id) const { return scalableBaseSize ? getFontPointSize(id) * 2 : 16; }
   int getTextWidth(int, const char*, EpdFontFamily::Style = EpdFontFamily::REGULAR) const { return 0; }
   int getTextAdvanceX(int id, const char* text, EpdFontFamily::Style, uint32_t = 0) const {

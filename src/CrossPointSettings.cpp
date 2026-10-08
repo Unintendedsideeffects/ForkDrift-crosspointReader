@@ -514,7 +514,9 @@ void CrossPointSettings::toJson(JsonDocument& doc) const {
     quickActionSlotsJson.add(action);
   }
   doc["quickActionsTrigger"] = quickActionsTrigger;
-  doc["language"] = (language < getLanguageCount()) ? LANGUAGE_CODES[language] : "EN";
+  doc["filenameFallbackFont"] = filenameFallbackFont;
+  doc["language"] = languageCode;
+  doc["languageCacheGeneration"] = languageCacheGeneration;
   if (keyboardLayouts != 0) doc["keyboardLayouts"] = keyboardLayouts;
   doc["tiltPageTurnDirectionSchema"] = TILT_DIRECTION_SCHEMA_CURRENT;
   doc["clockDateHasBeenSynced"] = clockDateHasBeenSynced;
@@ -936,7 +938,21 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc, bool importingCrossPoint
     needsResave = true;
   }
   if (doc["language"].is<const char*>()) {
-    language = static_cast<uint8_t>(I18n::languageFromCode(doc["language"].as<const char*>()));
+    const char* code = doc["language"].as<const char*>();
+    if (language_cache::validCode(code)) {
+      std::strcpy(languageCode, code);
+      for (char* p = languageCode; *p; ++p)
+        if (*p >= 'a' && *p <= 'z') *p -= 'a' - 'A';
+    }
+  } else if (doc["language"].is<uint8_t>()) {
+    const auto legacy = doc["language"].as<uint8_t>();
+    if (legacy < getLanguageCount()) std::strcpy(languageCode, LANGUAGE_CODES[legacy]);
+  }
+  languageCacheGeneration = doc["languageCacheGeneration"] | uint64_t{0};
+  const char* filenameFont = doc["filenameFallbackFont"] | "";
+  if (std::strlen(filenameFont) < sizeof(filenameFallbackFont) && !std::strchr(filenameFont, '/') &&
+      !std::strchr(filenameFont, '\\') && std::strcmp(filenameFont, ".") != 0 && std::strcmp(filenameFont, "..") != 0) {
+    std::strcpy(filenameFallbackFont, filenameFont);
   }
   if (doc["keyboardLayouts"].is<uint16_t>()) {
     keyboardLayouts = doc["keyboardLayouts"].as<uint16_t>();
@@ -952,10 +968,11 @@ bool CrossPointSettings::saveToFile() const {
   std::lock_guard<std::mutex> lock(storeMutex);
   JsonDocument doc;
   toJson(doc);
-  return PersistableStoreBase::writeDocToFileAtomically(SETTINGS_FILE_JSON, doc);
+  return PersistableStoreBase::writeDocToFileAtomic(SETTINGS_FILE_JSON, doc);
 }
 
 bool CrossPointSettings::loadFromFile() {
+  if (!PersistableStoreBase::recoverAtomicFile(SETTINGS_FILE_JSON)) return false;
   enum class JsonLoadStatus : uint8_t { MissingOrEmpty, Loaded, Failed };
 
   auto loadJsonSettings = [this](const char* path, bool migrateToCurrentPath) -> JsonLoadStatus {
@@ -1043,10 +1060,12 @@ bool CrossPointSettings::migrateLanguageBinaryFile() {
       uint8_t oldIndex;
       serialization::readPod(f, oldIndex);
       if (oldIndex < V1_LANGUAGE_COUNT) {
-        language = static_cast<uint8_t>(V1_LANGUAGES[oldIndex]);
+        std::strcpy(languageCode, LANGUAGE_CODES[static_cast<uint8_t>(V1_LANGUAGES[oldIndex])]);
+        languageCacheGeneration = 0;
       }
     }
   }
+  f.close();
   Storage.rename(LANG_FILE_BIN, LANG_FILE_BAK);
   saveToFile();
   LOG_DBG("CPS", "Migrated language.bin into crossink-settings.json");

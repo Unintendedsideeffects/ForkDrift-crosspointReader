@@ -453,22 +453,27 @@ void LyraTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* top
     }
   } else {
     // X4 layout: Both buttons stacked on right side
+    const auto insets = renderer.getViewableInsets().rotated(static_cast<unsigned>(renderer.getOrientation()));
+    const int stackTop = renderer.hasCustomViewableInsets()
+                             ? std::clamp(topHintButtonY, static_cast<int>(insets.edges[0]),
+                                          std::max(static_cast<int>(insets.edges[0]),
+                                                   renderer.getScreenHeight() - insets.edges[2] - 2 * buttonHeight - 5))
+                             : topHintButtonY;
     const char* labels[] = {topBtn, bottomBtn};
     const int x = UITheme::getHintSafeX(renderer, screenWidth - buttonWidth, buttonWidth);
 
     if (topBtn != nullptr && topBtn[0] != '\0') {
-      renderer.drawRoundedRect(x, topHintButtonY, buttonWidth, buttonHeight, 1, cornerRadius, true, false, true, false,
-                               true);
+      renderer.drawRoundedRect(x, stackTop, buttonWidth, buttonHeight, 1, cornerRadius, true, false, true, false, true);
     }
 
     if (bottomBtn != nullptr && bottomBtn[0] != '\0') {
-      renderer.drawRoundedRect(x, topHintButtonY + buttonHeight + 5, buttonWidth, buttonHeight, 1, cornerRadius, true,
-                               false, true, false, true);
+      renderer.drawRoundedRect(x, stackTop + buttonHeight + 5, buttonWidth, buttonHeight, 1, cornerRadius, true, false,
+                               true, false, true);
     }
 
     for (int i = 0; i < 2; i++) {
       if (labels[i] != nullptr && labels[i][0] != '\0') {
-        const int y = topHintButtonY + (i * buttonHeight) + 5;
+        const int y = stackTop + (i * buttonHeight) + 5;
         const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, labels[i]);
         renderer.drawTextRotated90CW(SMALL_FONT_ID, x, y + (buttonHeight + textWidth) / 2, labels[i]);
       }
@@ -558,14 +563,16 @@ void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
                                hPaddingInSelection, cornerRadius, false, false, true, true, Color::LightGray);
     }
 
-    auto titleLines = renderer.wrappedText(UI_12_FONT_ID, book.title.c_str(), textWidth, 3, EpdFontFamily::BOLD);
+    auto titleLines = renderer.wrappedText(renderer.filenameFontId(UI_12_FONT_ID), book.title.c_str(), textWidth, 3,
+                                           EpdFontFamily::BOLD);
 
-    auto author = renderer.truncatedText(UI_10_FONT_ID, book.author.c_str(), textWidth);
-    const int titleLineHeight = renderer.getLineHeight(UI_12_FONT_ID);
-    const int statsLineHeight = renderer.getLineHeight(SMALL_FONT_ID);
-    const int progressLineHeight = renderer.getLineHeight(UI_10_FONT_ID);
+    auto author = renderer.truncatedText(renderer.filenameFontId(UI_10_FONT_ID), book.author.c_str(), textWidth);
+    const int titleLineHeight = renderer.getLineHeight(renderer.filenameFontId(UI_12_FONT_ID));
+    const int statsLineHeight = renderer.getLineHeight(renderer.filenameFontId(SMALL_FONT_ID));
+    const int progressLineHeight = renderer.getLineHeight(renderer.filenameFontId(UI_10_FONT_ID));
     const int titleBlockHeight = titleLineHeight * static_cast<int>(titleLines.size());
-    const int authorHeight = book.author.empty() ? 0 : (renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2);
+    const int authorHeight =
+        book.author.empty() ? 0 : (renderer.getLineHeight(renderer.filenameFontId(UI_10_FONT_ID)) * 3 / 2);
     const bool hasStats = (stats != nullptr && stats->sessionCount > 0);
     const bool hasProgress = progressPercent >= 0.0f;
     const int statsBlockHeight = hasStats ? (statsLineHeight * 2 + 6) : 0;
@@ -574,12 +581,12 @@ void LyraTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std:
     int titleY = tileY + tileHeight / 2 - totalBlockHeight / 2;
     const int textX = tileX + hPaddingInSelection + coverWidth + LyraMetrics::values.verticalSpacing;
     for (const auto& line : titleLines) {
-      renderer.drawText(UI_12_FONT_ID, textX, titleY, line.c_str(), true, EpdFontFamily::BOLD);
+      renderer.drawText(renderer.filenameFontId(UI_12_FONT_ID), textX, titleY, line.c_str(), true, EpdFontFamily::BOLD);
       titleY += titleLineHeight;
     }
     if (!book.author.empty()) {
       titleY += renderer.getLineHeight(UI_10_FONT_ID) / 2;
-      renderer.drawText(UI_10_FONT_ID, textX, titleY, author.c_str(), true);
+      renderer.drawText(renderer.filenameFontId(UI_10_FONT_ID), textX, titleY, author.c_str(), true);
       titleY += renderer.getLineHeight(UI_10_FONT_ID);
     }
     if (hasStats) {

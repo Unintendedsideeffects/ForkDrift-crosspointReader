@@ -3,6 +3,10 @@
 #include <HalStorage.h>
 #include <Logging.h>
 #include <freertos/task.h>
+#ifndef SIMULATOR
+#include <Arduino.h>
+#include <esp_task_wdt.h>
+#endif
 
 #include <algorithm>
 #include <cstring>
@@ -283,10 +287,9 @@ Runtime& runtime() {
   static Runtime value;
   return value;
 }
-bool validFileSize(const char* path, size_t size) {
-  if (size >= 12 && size <= HalScalableFont::MaxFileBytes) return true;
-  LOG_ERR("TTF", "Unsupported TTF file size: %s (%u bytes; limit=%u)", path, unsigned(size),
-          unsigned(HalScalableFont::MaxFileBytes));
+bool validFileSize(const char* path, size_t size, size_t limit = HalScalableFont::MaxFileBytes) {
+  if (size >= 12 && size <= limit) return true;
+  LOG_ERR("TTF", "Unsupported TTF file size: %s (%u bytes; limit=%u)", path, unsigned(size), unsigned(limit));
   return false;
 }
 struct FontByteSummary {
@@ -428,12 +431,12 @@ bool HalScalableFont::setRenderOptions(const freeink::font::FtFont::RenderOption
   hashOption(streamed_ ? 1u : 0u);
   return true;
 }
-bool HalScalableFont::fileSize(const char* path, size_t& size) {
+bool HalScalableFont::fileSize(const char* path, size_t& size, size_t limit) {
   HalFile file;
   if (!Storage.openFileForRead("TTF", path, file)) return false;
   size = file.size();
   file.close();
-  return validFileSize(path, size);
+  return validFileSize(path, size, limit);
 }
 bool HalScalableFont::prepareFamily(size_t bytes, size_t faces) {
   ScalableFontAccess access;
@@ -473,7 +476,7 @@ bool HalScalableFont::openFile(const char* path, size_t remainingBytes,
     return false;
   }
   const size_t size = file.size();
-  if (!validFileSize(path, size)) {
+  if (!validFileSize(path, size, mode == FileMode::Filename ? MaxFilenameFileBytes : MaxFileBytes)) {
     file.close();
     return false;
   }
@@ -505,7 +508,8 @@ bool HalScalableFont::openFile(const char* path, size_t remainingBytes,
   // tiny glyph reads. Cap temporary residency at 256 KiB per style (1 MiB per
   // family); large dictionary fonts should not scan megabytes before opening.
   constexpr size_t TemporaryResidentLimit = 256 * 1024;
-  const bool allowResident = mode == FileMode::Auto || (mode == FileMode::Temporary && size <= TemporaryResidentLimit);
+  const bool allowResident = mode == FileMode::Auto || ((mode == FileMode::Temporary || mode == FileMode::Filename) &&
+                                                        size <= TemporaryResidentLimit);
   const bool canReside = allowResident && size <= heap.free - reserve && heap.largest >= size;
   if (canReside) {
     auto bytes = makeAlignedByteBufferNoThrow(size, Pool);
@@ -573,6 +577,12 @@ bool HalScalableFont::openFile(const char* path, size_t remainingBytes,
       file.close();
       return false;
     }
+#ifndef SIMULATOR
+    // Large CJK files can take seconds over SPI. Let idle tasks run and feed
+    // the subscribed caller while hashing, as the SDK's SD stream path does.
+    const bool watchdogWatchesThisTask = esp_task_wdt_status(nullptr) == ESP_OK;
+    uint32_t lastYieldMs = millis();
+#endif
     for (size_t offset = 0; offset < size;) {
       const size_t count = std::min(StreamBufferBytes, size - offset);
       const int got = file.read(chunk.get(), count);
@@ -586,6 +596,13 @@ bool HalScalableFont::openFile(const char* path, size_t remainingBytes,
       if (offset < streamPrefixSize_)
         std::memcpy(streamPrefix_.get() + offset, chunk.get(), std::min(count, streamPrefixSize_ - offset));
       offset += count;
+#ifndef SIMULATOR
+      if (millis() - lastYieldMs >= 100) {
+        if (watchdogWatchesThisTask) esp_task_wdt_reset();
+        vTaskDelay(1);
+        lastYieldMs = millis();
+      }
+#endif
     }
     contentHash = digest.hash();
     integrityChecksum_ = digest.checksum();
@@ -676,12 +693,12 @@ unsigned long HalScalableFont::streamRead(void* ctx, unsigned long offset, unsig
   }
   return count;
 }
-bool HalScalableFont::inspectFile(const char* path, Info& info, bool* unavailable) {
+bool HalScalableFont::inspectFile(const char* path, Info& info, bool* unavailable, size_t limit) {
   if (unavailable) *unavailable = true;
   HalFile file;
   if (!Storage.openFileForRead("TTF", path, file)) return false;
   const size_t size = file.size();
-  if (!validFileSize(path, size)) {
+  if (!validFileSize(path, size, limit)) {
     if (unavailable) *unavailable = false;
     file.close();
     return false;
@@ -697,6 +714,35 @@ bool HalScalableFont::inspectFile(const char* path, Info& info, bool* unavailabl
   };
   const auto result =
       freeink::font::FtFont::inspectStream(read, &file, size, details, info.family, sizeof(info.family));
+  info.variable = false;
+  if (result == freeink::font::FtFont::InspectResult::Ok) {
+    // The filename picker needs fixed regular/bold faces. Read SFNT tags
+    // without loading the font bytes or exposing FreeType internals to app code.
+    uint8_t record[16];
+    if (!file.seekSet(0) || file.read(record, 12) != 12) {
+      LOG_ERR("TTF", "Cannot read font table directory: %s", path);
+      file.close();
+      return false;
+    }
+    const unsigned tables = (unsigned(record[4]) << 8) | record[5];
+    if (12u + size_t(tables) * 16u > size) {
+      LOG_ERR("TTF", "Invalid font table directory: %s", path);
+      file.close();
+      if (unavailable) *unavailable = false;
+      return false;
+    }
+    for (unsigned i = 0; i < tables; ++i) {
+      if (file.read(record, sizeof(record)) != sizeof(record)) {
+        LOG_ERR("TTF", "Cannot read font table tag: %s", path);
+        file.close();
+        return false;
+      }
+      if (std::memcmp(record, "fvar", 4) == 0) {
+        info.variable = true;
+        break;
+      }
+    }
+  }
   file.close();
   if (unavailable) *unavailable = result == freeink::font::FtFont::InspectResult::Unavailable;
   if (result != freeink::font::FtFont::InspectResult::Ok) {

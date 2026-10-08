@@ -27,6 +27,7 @@ My goal with this fork was to maintain the core Crosspoint firmware while integr
 
 ### Highlights
 
+- Editable SD language files with persistent caching. See [language setup and translation instructions](docs/languages.md).
 - New reader fonts: Lexend Deca and Bitter.
 - Music notation and selected supplemental Unicode glyph support to be able to render Project Hail Mary accurately.
 - Added a custom `Minimal` theme and sleep screen option for the minimalists out there.
