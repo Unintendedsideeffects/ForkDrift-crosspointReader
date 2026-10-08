@@ -53,8 +53,8 @@
 - On button devices in landscape, the reader menu's font, font size, alignment, spacing, and screen margin controls now show the live text preview in a full-height column beside the controls instead of a strip too short to show any text.
 - Give touch-device line/word spacing and screen margin previews more room with labels beside the sliders and shorter drawers.
 - Give the reader spacing and screen-margin sliders more breathing room above the button hints.
-
 - Measure the top margin in global screen-margin previews from the bottom of the header bar, removing the extra gap.
+- Display the "Sleeping..." toast on sleep.
 
 ### Changed
 
