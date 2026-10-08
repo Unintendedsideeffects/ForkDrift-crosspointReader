@@ -148,6 +148,8 @@ void IntervalSelectionActivity::formatValue(char* const buf, const size_t len) c
 void IntervalSelectionActivity::formatEndpoint(const int endpoint, char* const buf, const size_t len) const {
   if (maxBoundaryLabelId != StrId::STR_NONE_OPT && endpoint == maxValue) {
     snprintf(buf, len, "%s", I18N.get(maxBoundaryLabelId));
+  } else if (valueFormatter) {
+    valueFormatter(endpoint, buf, len);
   } else if (showPercentValue) {
     snprintf(buf, len, "%d%%", endpoint);
   } else {
@@ -379,7 +381,7 @@ void IntervalSelectionActivity::renderReaderPreview(const Rect& area) {
                                  ? CrossPointSettings::clampedLineHeightPercent(static_cast<uint8_t>(value))
                                  : SETTINGS.lineHeightPercent;
   const uint8_t wordSpacing =
-      readerPreviewSetting == ReaderPreviewSetting::WordSpacing ? static_cast<uint8_t>(value) : SETTINGS.wordSpacing;
+      readerPreviewSetting == ReaderPreviewSetting::WordSpacing ? WordSpacing::fromSlider(value) : SETTINGS.wordSpacing;
   const int marginX =
       readerPreviewSetting == ReaderPreviewSetting::HorizontalMargin ? value : SETTINGS.screenMarginHorizontal;
   const int marginVertical =
@@ -390,8 +392,11 @@ void IntervalSelectionActivity::renderReaderPreview(const Rect& area) {
   const int width = std::max(1, area.width - metrics.previewPadding * 2 - marginX * 2);
   const int height = std::max(0, textHeight - marginY * 2);
   renderer.beginTextClip(left, top, width, height);
-  previewModel->renderText(renderer, fontId, left, top, width, lineHeight, wordSpacing, SETTINGS.paragraphAlignment,
-                           SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled, true, top + height);
+  previewModel->renderText(
+      renderer, fontId, left, top, width, lineHeight, wordSpacing, SETTINGS.paragraphAlignment,
+      SETTINGS.focusReadingEnabled, SETTINGS.guideReadingEnabled, true, top + height,
+      CrossPointSettings::characterSpacingLevel(
+          readerPreviewSetting == ReaderPreviewSetting::CharacterSpacing ? value : SETTINGS.characterSpacing));
   renderer.endTextClip();
 }
 

@@ -82,6 +82,83 @@ struct RasterFont {
   }
 };
 
+TEST(EpubTextGrayscaleTest, CharacterSpacingMeasuresAndDrawsTheSameGlyphPositions) {
+  for (bool sd : {false, true}) {
+    fakeheap::reset(true);
+    Storage.reset();
+    RasterFont fixture(12);
+    HalDisplay display(800, 480);
+    GfxRenderer renderer(display);
+    renderer.begin();
+    SdCardFont sdFont;
+    if (sd) {
+      Storage.put("spacing.cpfont", fixture.file());
+      ASSERT_TRUE(sdFont.load("spacing.cpfont"));
+      renderer.insertFont(1, EpdFontFamily(sdFont.getEpdFont()));
+      renderer.registerSdCardFont(1, &sdFont);
+      sdFont.prewarm(
+          "ABCD A B A\xcc\x81"
+          "BCD",
+          0x01);
+    } else {
+      renderer.insertFont(1, EpdFontFamily(&fixture.font));
+    }
+    renderer.setOrientation(GfxRenderer::LandscapeCounterClockwise);
+    for (int spacing = -5; spacing <= 5; ++spacing) {
+      SCOPED_TRACE(spacing);
+      // Four equal glyphs: three adjustable gaps, with half-pixel rounding.
+      const int shift = (3 * spacing + 1) >> 1;
+      EXPECT_EQ(renderer.getTextAdvanceX(1, "ABCD", EpdFontFamily::REGULAR, 0, spacing), 48 + shift);
+      EXPECT_EQ(renderer.getTextAdvanceX(1, "A B", EpdFontFamily::REGULAR, 0, spacing), 36);
+      EXPECT_EQ(renderer.getTextAdvanceX(1,
+                                         "A\xcc\x81"
+                                         "BCD",
+                                         EpdFontFamily::REGULAR, 0, spacing),
+                48 + shift);
+      renderer.clearScreen();
+      renderer.drawText(1, 20, 20, "ABCD", true, EpdFontFamily::REGULAR, BidiUtils::BidiBaseDir::AUTO, spacing);
+      const auto actual = display.bw;
+      renderer.clearScreen();
+      for (int i = 0; i < 4; ++i) {
+        char letter[] = {static_cast<char>('A' + i), 0};
+        renderer.drawText(1, 20 + i * 12 + ((i * spacing + 1) >> 1), 20, letter);
+      }
+      EXPECT_EQ(display.bw, actual);
+    }
+    EXPECT_EQ(renderer.getTextAdvanceX(1, "ABCD", EpdFontFamily::REGULAR), 48);
+  }
+}
+
+TEST(EpubTextGrayscaleTest, CharacterSpacingDecorationsFollowTextWidth) {
+  fakeheap::reset(true);
+  Storage.reset();
+  RasterFont fixture(12);
+  HalDisplay display(800, 480);
+  GfxRenderer renderer(display);
+  renderer.begin();
+  renderer.insertFont(1, EpdFontFamily(&fixture.font));
+  renderer.setOrientation(GfxRenderer::LandscapeCounterClockwise);
+  for (int8_t spacing : {-5, 5}) {
+    for (auto decoration : {EpdFontFamily::UNDERLINE, EpdFontFamily::STRIKETHROUGH}) {
+      for (auto size : {EpdFontFamily::REGULAR, EpdFontFamily::SUP}) {
+        const auto style = static_cast<EpdFontFamily::Style>(decoration | size);
+        TextBlock line({"ABCD"}, {0}, {style}, {}, {}, {}, {}, {}, {}, {}, {}, "", spacing);
+        renderer.clearScreen();
+        line.render(renderer, 1, 20, 20, true);
+        const auto actual = display.bw;
+        renderer.clearScreen();
+        const int wordY = 20 + line.wordYOffset(renderer, 1, 0);
+        renderer.drawText(1, 20, wordY, "ABCD", true, style, BidiUtils::BidiBaseDir::AUTO, spacing);
+        const int width = renderer.getTextAdvanceX(1, "ABCD", style, 0, spacing);
+        const int glyphHeight = size == EpdFontFamily::SUP ? 7 : 13;
+        const int lineY = decoration == EpdFontFamily::UNDERLINE ? wordY + 15 : wordY + 13 - glyphHeight / 2;
+        renderer.drawLine(20, lineY, 20 + width, lineY, 3, true);
+        EXPECT_EQ(display.bw, actual) << int(spacing) << ' ' << int(style);
+      }
+    }
+  }
+}
+
 TEST(EpubTextGrayscaleTest, RealTextRasterMatchesFullAndStripTargets) {
   for (bool sd : {false, true})
     for (int size : {12, 20})

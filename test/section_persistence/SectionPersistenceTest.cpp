@@ -22,12 +22,12 @@
 extern uint32_t testHyphenationIdentity;
 
 namespace {
-constexpr uint8_t kFullVersion = 87;
-constexpr uint8_t kPartialVersion = 0xC8;
-constexpr uint8_t kPreviousFullVersion = 86;
+constexpr uint8_t kFullVersion = 88;
+constexpr uint8_t kPartialVersion = 0xC9;
+constexpr uint8_t kPreviousFullVersion = 87;
 constexpr uint8_t kParagraphSpacingFullVersion = 85;
 constexpr uint8_t kBorderSuppressionFullVersion = 84;
-constexpr uint8_t kPreviousPartialVersion = 0xC7;
+constexpr uint8_t kPreviousPartialVersion = 0xC8;
 constexpr uint8_t kParagraphSpacingPartialVersion = 0xC6;
 constexpr uint8_t kBorderSuppressionPartialVersion = 0xC5;
 constexpr uint8_t kOlderFullVersion = 79;
@@ -286,4 +286,20 @@ TEST_F(SectionPersistenceTest, PatternChangesDoNotInvalidateDisabledHyphenation)
   testHyphenationIdentity = 99;
   Section reopened(harness.epub, 0, harness.renderer);
   EXPECT_TRUE(reopened.loadSectionFile(harness.spec));
+}
+
+TEST_F(SectionPersistenceTest, CharacterSpacingInvalidatesCompleteAndPartialSections) {
+  for (const auto version : {kFullVersion, kPartialVersion}) {
+    Storage.reset();
+    SectionHarness harness;
+    harness.spec.characterSpacing = -5;
+    harness.begin();
+    harness.appendPages(1);
+    ASSERT_TRUE(harness.commit(version, version == kPartialVersion ? 100 : 0, 200));
+    harness.finishSuccessfulCommit();
+    Section reopened(harness.epub, 0, harness.renderer);
+    EXPECT_TRUE(reopened.loadSectionFile(harness.spec));
+    harness.spec.characterSpacing = 5;
+    EXPECT_FALSE(reopened.loadSectionFile(harness.spec));
+  }
 }

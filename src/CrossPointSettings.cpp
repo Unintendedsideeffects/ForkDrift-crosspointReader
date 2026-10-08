@@ -1250,6 +1250,7 @@ ReaderRenderSpec CrossPointSettings::readerRenderSpec(const uint16_t viewportWid
   spec.focusReadingEnabled = focusReadingEnabled != 0;
   spec.guideReadingEnabled = guideReadingEnabled != 0;
   spec.wordSpacing = wordSpacing;
+  spec.characterSpacing = characterSpacingLevel(characterSpacing);
   spec.renderMode = renderMode;
   return spec;
 }
@@ -1441,4 +1442,14 @@ int CrossPointSettings::getBuiltInReaderFontId() const {
   }
   return getFallbackReaderFontIdForFamily(static_cast<FONT_FAMILY>(fontFamily));
 #endif
+}
+
+void CrossPointSettings::formatCharacterSpacing(const int value, char* buffer, const size_t length) {
+  const int level = characterSpacingLevel(static_cast<uint8_t>(std::clamp(value, 0, 10)));
+  snprintf(buffer, length, level > 0 ? "+%d" : "%d", level);
+}
+
+void CrossPointSettings::formatWordSpacingSlider(const int value, char* buffer, const size_t length) {
+  const int level = WordSpacing::level(WordSpacing::fromSlider(value));
+  snprintf(buffer, length, "%d", level);
 }

@@ -292,7 +292,7 @@ TEST(SupportInfo, BookScalarsMatchReaderClampsAndFallbacks) {
   EXPECT_EQ(b.values[Reader_imageRendering], 2);
   EXPECT_EQ(b.values[Reader_imageGrayscale], 1);
   EXPECT_EQ(b.values[Reader_lineHeightPercent], 200);
-  EXPECT_EQ(b.values[Reader_wordSpacing], 4);
+  EXPECT_EQ(b.values[Reader_wordSpacing], 8);
   EXPECT_EQ(b.values[Reader_screenMarginVertical], 150);
   EXPECT_EQ(b.values[Reader_indexingMethod], 1);
   EXPECT_EQ(b.values[Reader_embeddedStyle], 1);

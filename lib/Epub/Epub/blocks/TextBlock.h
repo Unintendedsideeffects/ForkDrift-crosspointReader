@@ -16,6 +16,7 @@
 class TextBlock final : public Block {
  private:
   BlockStyle blockStyle;
+  int8_t characterSpacing = 0;
   uint16_t numWords = 0;
   uint16_t textBytes = 0;  // Total size of the text region, including NULs.
   bool focusPresent = false;
@@ -58,7 +59,8 @@ class TextBlock final : public Block {
                      const std::vector<uint16_t>& focusRunOffset, const std::vector<uint16_t>& guideDotXOffset,
                      const std::vector<uint8_t>& wordFlags, const std::vector<bool>& wordHasSpaceBefore,
                      const BlockStyle& blockStyle = BlockStyle(), std::vector<std::string> rubyTexts = {},
-                     const std::vector<uint8_t>& wordSizes = {}, const char* initialLetter = "");
+                     const std::vector<uint8_t>& wordSizes = {}, const char* initialLetter = "",
+                     int8_t characterSpacing = 0);
   ~TextBlock() override = default;
   TextBlock(const TextBlock&) = delete;
   TextBlock& operator=(const TextBlock&) = delete;
@@ -87,6 +89,7 @@ class TextBlock final : public Block {
     return static_cast<uint8_t>((wordFlags(i) & WORD_FLAG_LINK_ID_MASK) >> WORD_FLAG_LINK_ID_SHIFT);
   }
   bool wordEndsWithInsertedHyphen(const uint16_t i) const { return (wordFlags(i) & WORD_FLAG_INSERTED_HYPHEN) != 0; }
+  int8_t getCharacterSpacing() const { return characterSpacing; }
   bool hasRuby() const;
   int getRubyShift(int ascender) const { return hasRuby() ? (ascender / 2) : 0; }
   const std::vector<std::string>& getRubyTexts() const { return rubyTexts; }

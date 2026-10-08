@@ -49,12 +49,12 @@ class GfxRenderer {
   }
   int getLineHeight(int id) const { return scalableBaseSize ? getFontPointSize(id) * 2 : 16; }
   int getTextWidth(int, const char*, EpdFontFamily::Style = EpdFontFamily::REGULAR) const { return 0; }
-  int getTextAdvanceX(int id, const char* text, EpdFontFamily::Style, uint32_t = 0) const {
+  int getTextAdvanceX(int id, const char* text, EpdFontFamily::Style, uint32_t = 0, int8_t = 0) const {
     return static_cast<int>(std::strlen(text)) * textAdvancePerChar * (scalableBaseSize ? getFontPointSize(id) : 1) /
            (scalableBaseSize ? scalableBaseSize : 1);
   }
   int getSpaceWidth(int, EpdFontFamily::Style) const { return 0; }
-  int getKerning(int, uint32_t, uint32_t, EpdFontFamily::Style) const { return 0; }
+  int getKerning(int, uint32_t, uint32_t, EpdFontFamily::Style, int8_t = 0) const { return 0; }
   int getSpaceAdvance(int, uint32_t, uint32_t, EpdFontFamily::Style) const { return 0; }
   bool isSdCardFont(int) const { return false; }
   bool releaseSdCardFontForLowMemory(int, bool = false) { return false; }

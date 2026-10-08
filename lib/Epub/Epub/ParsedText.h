@@ -72,6 +72,7 @@ class ParsedText {
   bool focusReadingEnabled;
   bool guideReadingEnabled;
   uint8_t wordSpacing;
+  int8_t characterSpacing;
   BlockStyle blockStyle;
   bool hasRtlWord;
   bool trackReferenceOffsets;
@@ -136,13 +137,15 @@ class ParsedText {
   explicit ParsedText(const bool extraParagraphSpacing, const bool forceParagraphIndents = false,
                       const bool hyphenationEnabled = false, const bool focusReadingEnabled = false,
                       const bool guideReadingEnabled = false, const uint8_t wordSpacing = 0,
-                      const BlockStyle& blockStyle = BlockStyle(), const bool trackReferenceOffsets = false)
+                      const BlockStyle& blockStyle = BlockStyle(), const bool trackReferenceOffsets = false,
+                      const int8_t characterSpacing = 0)
       : extraParagraphSpacing(extraParagraphSpacing),
         forceParagraphIndents(forceParagraphIndents),
         hyphenationEnabled(hyphenationEnabled),
         focusReadingEnabled(focusReadingEnabled),
         guideReadingEnabled(guideReadingEnabled),
         wordSpacing(wordSpacing),
+        characterSpacing(characterSpacing),
         blockStyle(blockStyle),
         hasRtlWord(false),
         trackReferenceOffsets(trackReferenceOffsets) {}

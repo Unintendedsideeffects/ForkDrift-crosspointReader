@@ -1,4 +1,5 @@
 #include <Epub/ParsedText.h>
+#include <Epub/WordSpacing.h>
 #include <Epub/blocks/TextBlock.h>
 #include <Epub/hyphenation/Hyphenator.h>
 #include <GfxRenderer.h>
@@ -120,4 +121,26 @@ TEST(KoreanLineBreaking, HangulGluedAcrossInlineStyleStaysTogether) {
   }));
   const std::vector<std::vector<std::string>> expected{{"가나"}, {"한국", "어"}};
   EXPECT_EQ(lines, expected);
+}
+
+TEST(KoreanLineBreaking, NegativeWordSpacingTightensLayoutWithoutOverlapping) {
+  GfxRenderer renderer;
+  BlockStyle style;
+  style.alignment = CssTextAlign::Left;
+  style.textIndentDefined = true;
+  int previous = 1000;
+  for (int level = 0; level >= -4; --level) {
+    ParsedText text(false, false, false, false, false, WordSpacing::fromLevel(level), style);
+    text.addWord("AA", EpdFontFamily::REGULAR);
+    text.addWord("BB", EpdFontFamily::REGULAR);
+    int position = 0;
+    ASSERT_TRUE(text.layoutAndExtractLines(renderer, 0, 200, [&](std::shared_ptr<TextBlock> block, uint32_t, uint32_t) {
+      ASSERT_EQ(block->wordCount(), 2);
+      position = block->wordXpos(1);
+    }));
+    EXPECT_GT(position, 16);
+    EXPECT_LE(position, previous);
+    previous = position;
+  }
+  EXPECT_EQ(previous, 17);
 }

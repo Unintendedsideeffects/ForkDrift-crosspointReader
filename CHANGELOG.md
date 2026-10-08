@@ -20,6 +20,8 @@
 - Choose a Filename Fallback Font on ESP32-S3 devices to display missing characters in book titles and filenames while retaining the built-in font for supported text.
 - Install, update, and remove EPUB hyphenation packs from SD; English remains built in, and book layouts refresh when their packs change.
 - Show the current chapter title under the book title in the reader menu on button devices and in the X4 Pro pull-down drawer; the drawer tightens its spacing to keep the handle on screen in landscape.
+- Tighten or widen Word Spacing with a -4 to +4 slider and live preview.
+- Adjust Character Spacing from -5 to +5 with a live preview in Reader settings and the in-book Reader Font menu.
 
 ### Fixed
 
@@ -50,6 +52,7 @@
 - Fix ESP32 firmware builds failing to compile hyphenation pack installation and updates.
 - On button devices in landscape, the reader menu's font, font size, alignment, spacing, and screen margin controls now show the live text preview in a full-height column beside the controls instead of a strip too short to show any text.
 - Give touch-device line/word spacing and screen margin previews more room with labels beside the sliders and shorter drawers.
+- Give the reader spacing and screen-margin sliders more breathing room above the button hints.
 
 ### Changed
 

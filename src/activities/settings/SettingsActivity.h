@@ -322,6 +322,7 @@ class SettingsActivity final : public Activity {
   void openEnumOptionPicker(const SettingInfo& setting);
   void openScreenMarginPicker(const SettingInfo& setting);
   void openWordSpacingPicker();
+  void openCharacterSpacingPicker();
   void openLanguagePicker();
   void openFilenameFontPicker();
   void applyLanguage(const I18n::Option& selected);

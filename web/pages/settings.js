@@ -44,8 +44,12 @@ let allSettings = [];
     }
 
     if (setting.type === 'value') {
-      return '<input type="number" id="' + id + '" value="' + setting.value + '"' +
-        ' min="' + setting.min + '" max="' + setting.max + '" step="' + setting.step + '"' +
+      const wordSpacing = setting.key === 'wordSpacing';
+      const value = wordSpacing && setting.value > 4 ? 4 - setting.value : setting.value;
+      const minimum = wordSpacing ? -4 : setting.min;
+      const maximum = wordSpacing ? 4 : setting.max;
+      return '<input type="number" id="' + id + '" value="' + value + '"' +
+        ' min="' + minimum + '" max="' + maximum + '" step="' + setting.step + '"' +
         ' onchange="handleSettingChanged(\'' + setting.key + '\')">';
     }
 
@@ -70,7 +74,13 @@ let allSettings = [];
       return parseInt(el.value, 10);
     }
     if (setting.type === 'value') {
-      return parseInt(el.value, 10);
+      const value = parseInt(el.value, 10);
+      if (setting.key === 'wordSpacing' && Number.isFinite(value)) {
+        const level = Math.max(-4, Math.min(4, value));
+        el.value = String(level);
+        return level < 0 ? 4 - level : level;
+      }
+      return value;
     }
     if (setting.type === 'string') {
       return el.value;

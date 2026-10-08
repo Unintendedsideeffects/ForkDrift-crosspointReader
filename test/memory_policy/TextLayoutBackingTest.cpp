@@ -179,3 +179,25 @@ TEST_F(TextLayoutBackingTest, MixedWordBaselinesAndScriptOffsetsMatchHighlightRe
   EXPECT_EQ(block.wordYOffset(renderer, 0, 1), 0);
   EXPECT_EQ(block.wordYOffset(renderer, 0, 2), 12 - 24 * 2 / 5);
 }
+
+TEST_F(TextLayoutBackingTest, CharacterSpacingSurvivesCacheRoundTrip) {
+  for (int8_t spacing : {-5, 0, 5}) {
+    ParsedText text(false, false, false, false, false, 0, BlockStyle{}, false, spacing);
+    text.addWord("Spacing", EpdFontFamily::REGULAR);
+    GfxRenderer renderer;
+    FsFile output;
+    ASSERT_TRUE(Storage.openFileForWrite("test", "spacing-line", output));
+    ASSERT_TRUE(text.layoutAndExtractLines(renderer, 0, 480, [&](std::shared_ptr<TextBlock> block, uint32_t, uint32_t) {
+      EXPECT_EQ(block->getCharacterSpacing(), spacing);
+      ASSERT_TRUE(block->serialize(output));
+    }));
+    output.close();
+    FsFile input;
+    ASSERT_TRUE(Storage.openFileForRead("test", "spacing-line", input));
+    auto restored = TextBlock::deserialize(input);
+    input.close();
+    ASSERT_NE(restored, nullptr);
+    EXPECT_EQ(restored->getCharacterSpacing(), spacing);
+    EXPECT_STREQ(restored->wordText(0), "Spacing");
+  }
+}

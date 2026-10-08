@@ -3814,7 +3814,7 @@ class SimulatorSmokeTest {
       auto d = exportDocument();
       auto prefs = d["bookContext"]["effectiveReaderPreferences"];
       if (prefs["readerFontPointSize"]["value"].as<int>() != 14 ||
-          prefs["lineHeightPercent"]["value"].as<int>() != 70 || prefs["wordSpacing"]["value"].as<int>() != 4 ||
+          prefs["lineHeightPercent"]["value"].as<int>() != 70 || prefs["wordSpacing"]["value"].as<int>() != 8 ||
           prefs["screenMarginHorizontal"]["value"].as<int>() != 150 ||
           prefs["orientation"]["value"].as<int>() != SETTINGS.orientation ||
           prefs["imageRendering"]["value"].as<int>() != SETTINGS.imageRendering ||

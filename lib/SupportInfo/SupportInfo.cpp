@@ -52,7 +52,7 @@ void normalizeBookValues(BookContext& b, const uint16_t* g) {
     b.fallbackMask |= 1U << Reader_fontFamily;
   }
   v[Reader_lineHeightPercent] = std::clamp<uint8_t>(v[Reader_lineHeightPercent], 70, 200);
-  v[Reader_wordSpacing] = std::min<uint8_t>(v[Reader_wordSpacing], 4);
+  v[Reader_wordSpacing] = std::min<uint8_t>(v[Reader_wordSpacing], 8);
   if (v[Reader_orientation] >= 4) {
     v[Reader_orientation] = g[orientation];
     b.fallbackMask |= 1U << Reader_orientation;

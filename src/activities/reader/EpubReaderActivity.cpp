@@ -102,7 +102,8 @@ constexpr uint8_t PRE_SPLIT_SCREEN_MARGIN_READER_SETTINGS_FILE_VERSION = 7;
 constexpr uint8_t PRE_GLOBAL_DARK_MODE_READER_SETTINGS_FILE_VERSION = 8;
 constexpr uint8_t PRE_FIELD_OVERRIDES_READER_SETTINGS_FILE_VERSION = 9;
 constexpr uint8_t PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION = 10;
-constexpr uint8_t READER_SETTINGS_FILE_VERSION = 11;
+constexpr uint8_t PRE_CHARACTER_SPACING_READER_SETTINGS_FILE_VERSION = 11;
+constexpr uint8_t READER_SETTINGS_FILE_VERSION = 12;
 constexpr uint8_t READER_SETTINGS_FLAG_CUSTOM = 1 << 0;
 constexpr uint8_t READER_SETTINGS_FLAG_AUTO_PAGE_TURN = 1 << 1;
 constexpr uint8_t READER_SETTINGS_FLAG_RENDER_MODE = 1 << 2;
@@ -1102,6 +1103,7 @@ void captureReaderSettings(EpubReaderActivity::ReaderSettingsSnapshot& out) {
   out.readerFontPointSize = SETTINGS.readerFontPointSize;
   out.lineHeightPercent = SETTINGS.lineHeightPercent;
   out.wordSpacing = SETTINGS.wordSpacing;
+  out.characterSpacing = SETTINGS.characterSpacing;
   out.orientation = SETTINGS.orientation;
   out.screenMarginVertical = SETTINGS.screenMarginVertical;
   out.screenMarginHorizontal = SETTINGS.screenMarginHorizontal;
@@ -1138,6 +1140,7 @@ void applyReaderSettings(const EpubReaderActivity::ReaderSettingsSnapshot& in) {
   }
   SETTINGS.lineHeightPercent = CrossPointSettings::clampedLineHeightPercent(in.lineHeightPercent);
   SETTINGS.wordSpacing = std::min<uint8_t>(in.wordSpacing, CrossPointSettings::MAX_WORD_SPACING);
+  SETTINGS.characterSpacing = std::min<uint8_t>(in.characterSpacing, CrossPointSettings::MAX_CHARACTER_SPACING);
   SETTINGS.orientation = in.orientation < CrossPointSettings::ORIENTATION_COUNT ? in.orientation : SETTINGS.orientation;
   SETTINGS.screenMarginVertical = std::clamp<uint8_t>(in.screenMarginVertical, CrossPointSettings::MIN_SCREEN_MARGIN,
                                                       CrossPointSettings::MAX_SCREEN_MARGIN);
@@ -1164,7 +1167,7 @@ void applyReaderSettings(const EpubReaderActivity::ReaderSettingsSnapshot& in) {
 }
 
 using ReaderSettingsSnapshot = EpubReaderActivity::ReaderSettingsSnapshot;
-constexpr std::array<uint8_t ReaderSettingsSnapshot::*, 19> READER_SETTING_FIELDS = {
+constexpr std::array<uint8_t ReaderSettingsSnapshot::*, 20> READER_SETTING_FIELDS = {
     &ReaderSettingsSnapshot::fontFamily,
     &ReaderSettingsSnapshot::readerFontPointSize,
     &ReaderSettingsSnapshot::lineHeightPercent,
@@ -1184,9 +1187,13 @@ constexpr std::array<uint8_t ReaderSettingsSnapshot::*, 19> READER_SETTING_FIELD
     &ReaderSettingsSnapshot::guideReadingEnabled,
     &ReaderSettingsSnapshot::indexingMethod,
     &ReaderSettingsSnapshot::imageGrayscale,
+    &ReaderSettingsSnapshot::characterSpacing,
 };
-constexpr uint32_t SD_FONT_FAMILY_OVERRIDE = 1U << READER_SETTING_FIELDS.size();
-constexpr uint32_t ALL_READER_SETTING_OVERRIDES = (SD_FONT_FAMILY_OVERRIDE << 1) - 1;
+// Preserve the existing SD-family bit when appending the new field.
+constexpr uint32_t SD_FONT_FAMILY_OVERRIDE = 1U << 19;
+constexpr uint32_t CHARACTER_SPACING_OVERRIDE = 1U << 20;
+constexpr uint32_t ALL_READER_SETTING_OVERRIDES = (CHARACTER_SPACING_OVERRIDE << 1) - 1;
+constexpr uint32_t readerSettingBit(size_t index) { return index < 19 ? 1U << index : CHARACTER_SPACING_OVERRIDE; }
 constexpr uint32_t READER_FONT_OVERRIDES = (1U << 0) | (1U << 1) | SD_FONT_FAMILY_OVERRIDE;
 constexpr uint32_t IMAGE_GRAYSCALE_OVERRIDE = 1U << 18;
 // Text AA and image grayscale change drawing, not saved line/page layout.
@@ -1198,7 +1205,7 @@ uint32_t changedReaderSettingsMask(const ReaderSettingsSnapshot& current, const 
   uint32_t mask = 0;
   for (size_t i = 0; i < READER_SETTING_FIELDS.size(); ++i) {
     const auto field = READER_SETTING_FIELDS[i];
-    if (current.*field != global.*field) mask |= 1U << i;
+    if (current.*field != global.*field) mask |= readerSettingBit(i);
   }
   if (std::strcmp(current.sdFontFamilyName, global.sdFontFamilyName) != 0) mask |= SD_FONT_FAMILY_OVERRIDE;
   return mask;
@@ -1207,7 +1214,7 @@ uint32_t changedReaderSettingsMask(const ReaderSettingsSnapshot& current, const 
 void applyReaderSettingsOverrides(ReaderSettingsSnapshot& target, const ReaderSettingsSnapshot& book,
                                   const uint32_t mask) {
   for (size_t i = 0; i < READER_SETTING_FIELDS.size(); ++i) {
-    if (mask & (1U << i)) {
+    if (mask & readerSettingBit(i)) {
       const auto field = READER_SETTING_FIELDS[i];
       target.*field = book.*field;
     }
@@ -1317,7 +1324,8 @@ BookReaderSettingsData loadBookReaderSettingsFile(const std::string& cachePath,
       version != PRE_SPLIT_SCREEN_MARGIN_READER_SETTINGS_FILE_VERSION &&
       version != PRE_GLOBAL_DARK_MODE_READER_SETTINGS_FILE_VERSION &&
       version != PRE_FIELD_OVERRIDES_READER_SETTINGS_FILE_VERSION &&
-      version != PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION && version != READER_SETTINGS_FILE_VERSION) {
+      version != PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION &&
+      version != PRE_CHARACTER_SPACING_READER_SETTINGS_FILE_VERSION && version != READER_SETTINGS_FILE_VERSION) {
     file.close();
     LOG_DBG("ERS", "Reader settings version mismatch, using defaults");
     return data;
@@ -1348,8 +1356,10 @@ BookReaderSettingsData loadBookReaderSettingsFile(const std::string& cachePath,
   }
   uint32_t overrideMask = 0;
   if (ok && version >= PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION) {
-    const uint32_t validMask =
-        version == PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION ? (1U << 19) - 1 : ALL_READER_SETTING_OVERRIDES;
+    const uint32_t validMask = version == PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION ? (1U << 19) - 1
+                               : version == PRE_CHARACTER_SPACING_READER_SETTINGS_FILE_VERSION
+                                   ? (1U << 20) - 1
+                                   : ALL_READER_SETTING_OVERRIDES;
     ok = readU32(file, overrideMask) && (overrideMask & ~validMask) == 0;
     if (version == PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION) {
       // Version 10 used bit 18 for the SD font; the added field moves it to bit 19.
@@ -1358,8 +1368,12 @@ BookReaderSettingsData loadBookReaderSettingsFile(const std::string& cachePath,
       if (hasSdFontOverride) overrideMask |= SD_FONT_FAMILY_OVERRIDE;
     }
   }
-  if (ok && version >= READER_SETTINGS_FILE_VERSION) {
+  if (ok && version >= PRE_CHARACTER_SPACING_READER_SETTINGS_FILE_VERSION) {
     ok = readU8(file, snapshot.imageGrayscale);
+  }
+  if (ok && version >= READER_SETTINGS_FILE_VERSION) {
+    ok = readU8(file, snapshot.characterSpacing) &&
+         snapshot.characterSpacing <= CrossPointSettings::MAX_CHARACTER_SPACING;
   }
   file.close();
   if (!ok) {
@@ -1374,9 +1388,10 @@ BookReaderSettingsData loadBookReaderSettingsFile(const std::string& cachePath,
   if (flags & READER_SETTINGS_FLAG_CUSTOM) {
     // Older records owned the entire snapshot. New records only own the fields
     // the reader actually changed, so unrelated global defaults still apply.
-    data.readerSettingsOverrideMask = version < PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION
-                                          ? ALL_READER_SETTING_OVERRIDES & ~IMAGE_GRAYSCALE_OVERRIDE
-                                          : overrideMask;
+    data.readerSettingsOverrideMask =
+        version < PRE_IMAGE_GRAYSCALE_READER_SETTINGS_FILE_VERSION
+            ? ALL_READER_SETTING_OVERRIDES & ~(IMAGE_GRAYSCALE_OVERRIDE | CHARACTER_SPACING_OVERRIDE)
+            : overrideMask;
     data.hasCustomReaderSettings = data.readerSettingsOverrideMask != 0;
     applyReaderSettingsOverrides(data.readerSettings, snapshot, data.readerSettingsOverrideMask);
   }
@@ -1423,7 +1438,9 @@ bool saveBookReaderSettingsFile(const std::string& cachePath, const BookReaderSe
                   writeExact(file, data.dictionarySdFontFamilyName, sizeof(data.dictionarySdFontFamilyName)) &&
                   writeU8(file, data.dictionaryFontPointSize) &&
                   writeU32(file, data.readerSettingsOverrideMask & ALL_READER_SETTING_OVERRIDES) &&
-                  writeU8(file, normalizedReaderSettings.imageGrayscale ? 1 : 0);
+                  writeU8(file, normalizedReaderSettings.imageGrayscale ? 1 : 0) &&
+                  writeU8(file, std::min<uint8_t>(normalizedReaderSettings.characterSpacing,
+                                                  CrossPointSettings::MAX_CHARACTER_SPACING));
   file.close();
   if (!ok) {
     LOG_ERR("ERS", "Short write saving reader settings");
@@ -8065,6 +8082,7 @@ void EpubReaderActivity::refreshChapterGroupEstimate(const uint16_t viewportWidt
   mix(SETTINGS.focusReadingEnabled);
   mix(SETTINGS.guideReadingEnabled);
   mix(SETTINGS.wordSpacing);
+  mix(SETTINGS.characterSpacing);
   mix(SETTINGS.epubRenderMode);
   if (chapterGroupEstimate.valid && chapterGroupEstimate.currentSpineIndex == currentSpineIndex &&
       chapterGroupEstimate.settingsSignature == signature) {

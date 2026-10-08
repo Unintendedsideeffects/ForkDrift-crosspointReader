@@ -218,6 +218,7 @@ class EpubReaderDrawerActivity final : public Activity {
   void buildPaneHeader(UiApp::ScreenType& screen);
   void buildRootRows(UiApp::ScreenType& screen);
   void buildSimplePane(UiApp::ScreenType& screen);
+  void buildCharacterSpacingPane(UiApp::ScreenType& screen);
   void buildSpacingPane(UiApp::ScreenType& screen);
   void buildMarginsPane(UiApp::ScreenType& screen);
   void buildPercentPane(UiApp::ScreenType& screen);

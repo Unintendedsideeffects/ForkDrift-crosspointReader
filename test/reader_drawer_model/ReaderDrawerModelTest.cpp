@@ -351,3 +351,10 @@ TEST(ReaderDrawerModel, LandscapePreviewPanesPlaceSamplePreviewBesideControls) {
   EXPECT_TRUE(readerDrawerSamplePreviewBesideControls(true));
   EXPECT_FALSE(readerDrawerSamplePreviewBesideControls(false));
 }
+
+TEST(ReaderDrawerModelTest, CharacterSpacingReservesPreviewAndUsesSliderInput) {
+  EXPECT_TRUE(readerDrawerStepChangesSettings(ReaderDrawerPane::CharacterSpacing));
+  EXPECT_TRUE(readerDrawerShowsSamplePreview(ReaderDrawerPane::CharacterSpacing, ReaderDrawerTab::Font,
+                                             ReaderDrawerCatalogItem::CharacterSpacing));
+  EXPECT_TRUE(readerDrawerSliderPreviewsText(ReaderDrawerPane::CharacterSpacing));
+}

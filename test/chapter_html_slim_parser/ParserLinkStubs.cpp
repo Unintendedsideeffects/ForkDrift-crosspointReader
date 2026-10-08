@@ -26,8 +26,11 @@ TextBlock::TextBlock(const std::vector<std::string>& words, const std::vector<in
                      const std::vector<EpdFontFamily::Style>&, const std::vector<uint8_t>&,
                      const std::vector<uint16_t>&, const std::vector<uint16_t>&, const std::vector<uint8_t>& wordFlags,
                      const std::vector<bool>&, const BlockStyle& blockStyle, std::vector<std::string> rubyTexts,
-                     const std::vector<uint8_t>& wordSizes, const char*)
-    : blockStyle(blockStyle), numWords(static_cast<uint16_t>(words.size())), rubyTexts(std::move(rubyTexts)) {
+                     const std::vector<uint8_t>& wordSizes, const char*, int8_t characterSpacing)
+    : blockStyle(blockStyle),
+      characterSpacing(characterSpacing),
+      numWords(static_cast<uint16_t>(words.size())),
+      rubyTexts(std::move(rubyTexts)) {
   if (wordXpos.empty()) return;
   arena = std::make_unique<uint8_t[]>(wordXpos.size() * sizeof(int16_t) + wordFlags.size() + wordSizes.size());
   auto* positions = reinterpret_cast<int16_t*>(arena.get());
@@ -78,8 +81,8 @@ PreviewBlockLocator::~PreviewBlockLocator() = default;
 bool PreviewBlockLocator::feed(const char*, int, bool) { return false; }
 
 CompactTableLayout::CompactTableLayout(GfxRenderer& renderer, int, uint16_t, uint16_t, uint16_t, uint8_t,
-                                       BlockStyle tableStyle)
-    : renderer_(renderer), tableStyle_(tableStyle) {}
+                                       BlockStyle tableStyle, int8_t characterSpacing)
+    : renderer_(renderer), tableStyle_(tableStyle), characterSpacing_(characterSpacing) {}
 bool CompactTableLayout::beginRow() { return true; }
 bool CompactTableLayout::beginCell(bool, uint8_t, uint32_t, const BlockStyle&) { return true; }
 bool CompactTableLayout::appendWord(std::string_view, EpdFontFamily::Style, bool, bool, uint8_t) { return true; }
