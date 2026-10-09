@@ -51,6 +51,29 @@ def _apply_mcu_skip_fixes(filepath):
     if old_dc_write in content and new_dc_write not in content:
         content = content.replace(old_dc_write, new_dc_write, 1)
 
+    # Upstream jpegdec_patches/0003: a progressive scan can carry luma without one or
+    # both chroma components, and grayscale decode skipped both unconditionally —
+    # consuming entropy bits that belong to the next block. The Cb skip also ran with
+    # Cr's Huffman tables. Skip only components present in this scan, with their own tables.
+    old_chroma_skip = (
+        "                    if (pJPEG->ucMode == 0xc2) { // progressive\n"
+        "                        iErr |= JPEGDecodeMCU_P(pJPEG, MCU_SKIP, &iDCPred1);\n"
+        "                        iErr |= JPEGDecodeMCU_P(pJPEG, MCU_SKIP, &iDCPred2);\n"
+    )
+    new_chroma_skip = (
+        "                    if (pJPEG->ucMode == 0xc2) { // progressive\n"
+        "                        // CrossPoint patch: skip only chroma components present in this scan\n"
+        "                        if (pJPEG->JPCI[1].component_needed)\n"
+        "                            iErr |= JPEGDecodeMCU_P(pJPEG, MCU_SKIP, &iDCPred1);\n"
+        "                        if (pJPEG->JPCI[2].component_needed) {\n"
+        "                            pJPEG->ucACTable = cACTable2;\n"
+        "                            pJPEG->ucDCTable = cDCTable2;\n"
+        "                            iErr |= JPEGDecodeMCU_P(pJPEG, MCU_SKIP, &iDCPred2);\n"
+        "                        }\n"
+    )
+    if old_chroma_skip in content:
+        content = content.replace(old_chroma_skip, new_chroma_skip, 1)
+
     if content != original:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
