@@ -2,6 +2,7 @@
 
 #include <HTTPClient.h>
 #include <Logging.h>
+#include <Memory.h>
 #include <StreamString.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
@@ -12,9 +13,11 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <string_view>
 #include <utility>
 
 #include "SpiBusMutex.h"
+#include "network/http/HttpOrigin.h"
 #include "util/TimeSync.h"
 #include "util/UrlUtils.h"
 
@@ -60,7 +63,103 @@ esp_http_client_config_t fillEspHttpGetConfig(const char* url, EspHttpEventHandl
   config.user_agent = "CrossPoint-ESP32-" CROSSPOINT_VERSION;
   config.crt_bundle_attach = esp_crt_bundle_attach;
   config.max_authorization_retries = -1;
+  // Redirects are followed by performWithRedirects(), not by the client: its
+  // automatic redirect replays every custom header, so OPDS Basic credentials
+  // would go to whatever host a redirect names.
+  config.disable_auto_redirect = true;
   return config;
+}
+
+// Credential scoping across redirects (upstream d6f7f2565, in our transport).
+// The Authorization header rides only on hops to the origin the credentials
+// were configured for; HTTPS->HTTP downgrades are not followed at all.
+struct RedirectGuard {
+  std::string currentUrl;
+  std::string credentialUrl;
+  std::string authHeader;  // empty when the request has no credentials
+};
+
+constexpr int kMaxRedirectUrl = 1024;  // OPDS URLs are capped at 768 chars
+
+esp_err_t followRedirect(esp_http_client_handle_t client, RedirectGuard& guard) {
+  const bool hasCredentials = !guard.authHeader.empty();
+  const auto dropCredentials = [&] {
+    if (hasCredentials) esp_http_client_delete_header(client, "Authorization");
+  };
+
+  if (esp_http_client_set_redirection(client) != ESP_OK) {
+    dropCredentials();
+    return ESP_FAIL;
+  }
+  // Cold path (once per redirect hop): heap rather than a 1 KB stack buffer.
+  auto next = makeUniqueNoThrow<char[]>(kMaxRedirectUrl);
+  if (!next || esp_http_client_get_url(client, next.get(), kMaxRedirectUrl) != ESP_OK) {
+    LOG_ERR("HTTP", "Redirect: could not read target URL");
+    dropCredentials();
+    return ESP_FAIL;
+  }
+
+  http_origin::Origin from;
+  http_origin::Origin to;
+  const bool fromOk = http_origin::parse(guard.currentUrl, from);
+  if (!http_origin::parse(next.get(), to)) {
+    LOG_ERR("HTTP", "Redirect: unparseable target");
+    dropCredentials();
+    return ESP_FAIL;
+  }
+  if (fromOk && http_origin::isDowngrade(from, to)) {
+    LOG_ERR("HTTP", "Refusing HTTPS->HTTP redirect to %.*s", static_cast<int>(to.host.size()), to.host.data());
+    dropCredentials();
+    return ESP_FAIL;
+  }
+
+  if (hasCredentials) {
+    http_origin::Origin credentialOrigin;
+    if (http_origin::parse(guard.credentialUrl, credentialOrigin) && http_origin::sameOrigin(credentialOrigin, to)) {
+      esp_http_client_set_header(client, "Authorization", guard.authHeader.c_str());
+    } else {
+      LOG_INF("HTTP", "Redirect to %.*s: not sending credentials to a different origin",
+              static_cast<int>(to.host.size()), to.host.data());
+      esp_http_client_delete_header(client, "Authorization");
+    }
+  }
+  guard.currentUrl.assign(next.get());
+  return ESP_OK;
+}
+
+constexpr int kMaxRedirects = 5;
+
+bool isRedirectStatus(const int status) {
+  return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+}
+
+// esp_http_client_perform() with redirects followed through followRedirect().
+// With disable_auto_redirect the client returns each 3xx to us; the handlers
+// ignore non-2xx bodies and headers, so only the final response reaches the sink.
+esp_err_t performWithRedirects(esp_http_client_handle_t client, RedirectGuard& guard) {
+  for (int hop = 0;; ++hop) {
+    const esp_err_t err = esp_http_client_perform(client);
+    if (err != ESP_OK) return err;
+    if (!isRedirectStatus(esp_http_client_get_status_code(client))) return ESP_OK;
+    if (hop >= kMaxRedirects) {
+      LOG_ERR("HTTP", "Too many redirects");
+      return ESP_ERR_HTTP_MAX_REDIRECT;
+    }
+    if (followRedirect(client, guard) != ESP_OK) return ESP_FAIL;
+  }
+}
+
+// Initialises guard for a request to url and attaches Basic credentials, if any.
+void applyCredentials(esp_http_client_handle_t client, RedirectGuard& guard, const std::string& url,
+                      const std::string& username, const std::string& password) {
+  guard.currentUrl = url;
+  guard.credentialUrl = url;
+  if (username.empty()) return;
+  const std::string credentials = username + ":" + password;
+  String encoded = base64::encode(credentials.c_str());
+  encoded.trim();
+  guard.authHeader = std::string("Basic ") + encoded.c_str();
+  esp_http_client_set_header(client, "Authorization", guard.authHeader.c_str());
 }
 
 // Carries download state into the esp_http_client event handler.
@@ -72,6 +171,7 @@ struct DownloadContext {
   bool* cancelFlag = nullptr;
   bool writeOk = true;
   bool aborted = false;
+  RedirectGuard redirect;
 };
 
 esp_err_t downloadEventHandler(esp_http_client_event_t* evt) {
@@ -80,8 +180,10 @@ esp_err_t downloadEventHandler(esp_http_client_event_t* evt) {
 
   switch (evt->event_id) {
     case HTTP_EVENT_ON_HEADER:
+      // Only the final 2xx response's length counts, not an intermediate redirect's.
       if (evt->header_key && evt->header_value && strcasecmp(evt->header_key, "Content-Length") == 0) {
-        ctx->total = static_cast<size_t>(strtoul(evt->header_value, nullptr, 10));
+        const int status = esp_http_client_get_status_code(evt->client);
+        if (status >= 200 && status < 300) ctx->total = static_cast<size_t>(strtoul(evt->header_value, nullptr, 10));
       }
       return ESP_OK;
 
@@ -160,6 +262,7 @@ struct FetchContext {
   bool aborted = false;
   size_t expectedBody = 0;
   size_t receivedBody = 0;
+  RedirectGuard redirect;
 };
 
 esp_err_t fetchEventHandler(esp_http_client_event_t* evt) {
@@ -168,8 +271,12 @@ esp_err_t fetchEventHandler(esp_http_client_event_t* evt) {
 
   switch (evt->event_id) {
     case HTTP_EVENT_ON_HEADER:
+      // Only the final 2xx response's length counts, not an intermediate redirect's.
       if (evt->header_key && evt->header_value && strcasecmp(evt->header_key, "Content-Length") == 0) {
-        ctx->expectedBody = static_cast<size_t>(strtoul(evt->header_value, nullptr, 10));
+        const int status = esp_http_client_get_status_code(evt->client);
+        if (status >= 200 && status < 300) {
+          ctx->expectedBody = static_cast<size_t>(strtoul(evt->header_value, nullptr, 10));
+        }
       }
       return ESP_OK;
 
@@ -235,17 +342,11 @@ http_fetch::Result espFetch(const std::string& url, FetchContext& ctx, const std
     return result;
   }
 
-  if (!username.empty()) {
-    const std::string credentials = username + ":" + password;
-    String encoded = base64::encode(credentials.c_str());
-    encoded.trim();
-    const std::string authHeader = std::string("Basic ") + encoded.c_str();
-    esp_http_client_set_header(client, "Authorization", authHeader.c_str());
-  }
+  applyCredentials(client, ctx.redirect, url, username, password);
 
   LOG_DBG("HTTP", "Fetching: %s", url.c_str());
 
-  const esp_err_t err = esp_http_client_perform(client);
+  const esp_err_t err = performWithRedirects(client, ctx.redirect);
   const int status = esp_http_client_get_status_code(client);
   esp_http_client_cleanup(client);
 
@@ -344,15 +445,9 @@ int HttpDownloader::probeUrl(const std::string& url, const std::string& username
     return -1;
   }
 
-  if (!username.empty()) {
-    const std::string credentials = username + ":" + password;
-    String encoded = base64::encode(credentials.c_str());
-    encoded.trim();
-    const std::string authHeader = std::string("Basic ") + encoded.c_str();
-    esp_http_client_set_header(client, "Authorization", authHeader.c_str());
-  }
+  applyCredentials(client, ctx.redirect, url, username, password);
 
-  (void)esp_http_client_perform(client);
+  (void)performWithRedirects(client, ctx.redirect);
   const int status = esp_http_client_get_status_code(client);
   esp_http_client_cleanup(client);
   LOG_DBG("HTTP", "Probe %s → %d", url.c_str(), status);
@@ -370,17 +465,21 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   LOG_DBG("HTTP", "Destination: %s", destPath.c_str());
   LOG_DBG("HTTP", "Free heap before GET: %u (largest block: %u)", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 
+  // Download beside the destination and only replace it once the transfer is
+  // verified complete: removing destPath up front meant a failed or cancelled
+  // re-download destroyed the copy the user already had (crossink 1d954ae34).
+  const std::string partPath = destPath + ".part";
   {
     SpiBusMutex::Guard guard;
-    if (Storage.exists(destPath.c_str())) {
-      Storage.remove(destPath.c_str());
+    if (Storage.exists(partPath.c_str())) {
+      Storage.remove(partPath.c_str());  // stale partial from an interrupted download
     }
   }
 
   HalFile file;
   {
     SpiBusMutex::Guard guard;
-    if (!Storage.openFileForWrite("HTTP", destPath.c_str(), file)) {
+    if (!Storage.openFileForWrite("HTTP", partPath.c_str(), file)) {
       LOG_ERR("HTTP", "Failed to open file for writing");
       return FILE_ERROR;
     }
@@ -398,19 +497,13 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     LOG_ERR("HTTP", "esp_http_client_init failed (free heap: %u)", ESP.getFreeHeap());
     SpiBusMutex::Guard guard;
     file.close();
-    Storage.remove(destPath.c_str());
+    Storage.remove(partPath.c_str());
     return HTTP_ERROR;
   }
 
-  if (!username.empty()) {
-    const std::string credentials = username + ":" + password;
-    String encoded = base64::encode(credentials.c_str());
-    encoded.trim();
-    const std::string authHeader = std::string("Basic ") + encoded.c_str();
-    esp_http_client_set_header(client, "Authorization", authHeader.c_str());
-  }
+  applyCredentials(client, ctx.redirect, url, username, password);
 
-  const esp_err_t err = esp_http_client_perform(client);
+  const esp_err_t err = performWithRedirects(client, ctx.redirect);
   const int status = esp_http_client_get_status_code(client);
   esp_http_client_cleanup(client);
 
@@ -421,7 +514,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
 
   if (ctx.aborted || (cancelFlag && *cancelFlag)) {
     SpiBusMutex::Guard guard;
-    Storage.remove(destPath.c_str());
+    Storage.remove(partPath.c_str());
     return ABORTED;
   }
 
@@ -429,21 +522,21 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     LOG_ERR("HTTP", "Download failed: %s (status %d, free heap: %u, largest block: %u)", esp_err_to_name(err), status,
             ESP.getFreeHeap(), ESP.getMaxAllocHeap());
     SpiBusMutex::Guard guard;
-    Storage.remove(destPath.c_str());
+    Storage.remove(partPath.c_str());
     return (err == ESP_ERR_HTTP_EAGAIN) ? TIMEOUT : HTTP_ERROR;
   }
 
   if (status != 200) {
     LOG_ERR("HTTP", "Download failed: HTTP %d", status);
     SpiBusMutex::Guard guard;
-    Storage.remove(destPath.c_str());
+    Storage.remove(partPath.c_str());
     return HTTP_ERROR;
   }
 
   if (!ctx.writeOk) {
     LOG_ERR("HTTP", "Write failed during download");
     SpiBusMutex::Guard guard;
-    Storage.remove(destPath.c_str());
+    Storage.remove(partPath.c_str());
     return FILE_ERROR;
   }
 
@@ -453,15 +546,27 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   if (downloaded == 0) {
     LOG_ERR("HTTP", "Download failed: no data received");
     SpiBusMutex::Guard guard;
-    Storage.remove(destPath.c_str());
+    Storage.remove(partPath.c_str());
     return HTTP_ERROR;
   }
 
   if (ctx.total > 0 && downloaded != ctx.total) {
     LOG_ERR("HTTP", "Size mismatch: got %zu, expected %zu", downloaded, ctx.total);
     SpiBusMutex::Guard guard;
-    Storage.remove(destPath.c_str());
+    Storage.remove(partPath.c_str());
     return HTTP_ERROR;
+  }
+
+  {
+    SpiBusMutex::Guard guard;
+    if (Storage.exists(destPath.c_str())) {
+      Storage.remove(destPath.c_str());
+    }
+    if (!Storage.rename(partPath.c_str(), destPath.c_str())) {
+      LOG_ERR("HTTP", "Failed to move %s into place", partPath.c_str());
+      Storage.remove(partPath.c_str());
+      return FILE_ERROR;
+    }
   }
 
   return OK;
