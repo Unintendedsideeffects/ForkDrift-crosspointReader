@@ -56,7 +56,7 @@ class CssParser {
   // Refusing the bad write only protects new caches, and on the cached-metadata path
   // the empty cache is never re-examined. Bumping the version invalidates all of them
   // exactly once, which is what the mismatch path at CssParser.cpp:895 is for.
-  static constexpr uint8_t CSS_CACHE_VERSION = 9;
+  static constexpr uint8_t CSS_CACHE_VERSION = 10;  // v10: !important stripped for every property
 
   static constexpr size_t MAX_DESCENDANT_RULES = 100;
 

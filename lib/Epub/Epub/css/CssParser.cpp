@@ -266,7 +266,10 @@ void CssParser::parseDeclarationIntoStyle(std::string_view decl, CssStyle& style
   if (colonPos == std::string_view::npos || colonPos == 0) return;
 
   const std::string_view name = trimCssWhitespace(decl.substr(0, colonPos));
-  const std::string_view value = trimCssWhitespace(decl.substr(colonPos + 1));
+  // "!important" is accepted but carries no extra priority here; stripping it for
+  // every property (not just display/direction) keeps e.g. "text-indent: 1em
+  // !important" from failing to parse and being dropped.
+  const std::string_view value = stripTrailingImportant(trimCssWhitespace(decl.substr(colonPos + 1)));
 
   if (name.empty() || value.empty()) return;
 
@@ -343,15 +346,13 @@ void CssParser::parseDeclarationIntoStyle(std::string_view decl, CssStyle& style
       style.defined.imageWidth = 1;
     }
   } else if (iequalsAscii(name, "display")) {
-    const std::string_view displayValue = stripTrailingImportant(value);
-    style.display = iequalsAscii(displayValue, "none") ? CssDisplay::None : CssDisplay::Block;
+    style.display = iequalsAscii(value, "none") ? CssDisplay::None : CssDisplay::Block;
     style.defined.display = 1;
   } else if (iequalsAscii(name, "direction")) {
-    const std::string_view directionValue = stripTrailingImportant(value);
-    if (iequalsAscii(directionValue, "rtl")) {
+    if (iequalsAscii(value, "rtl")) {
       style.direction = CssTextDirection::Rtl;
       style.defined.direction = 1;
-    } else if (iequalsAscii(directionValue, "ltr")) {
+    } else if (iequalsAscii(value, "ltr")) {
       style.direction = CssTextDirection::Ltr;
       style.defined.direction = 1;
     }

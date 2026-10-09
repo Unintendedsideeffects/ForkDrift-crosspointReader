@@ -21,3 +21,19 @@ TEST_CASE("CssParser::releaseMemory drops parsed rules") {
   CHECK(parser.empty());
   CHECK(parser.ruleCount() == 0);
 }
+
+// Absorbed from upstream 52444a0c9: "!important" used to be stripped only for
+// display/direction, so any other property carrying it failed to parse and was dropped.
+TEST_CASE("CssParser applies declarations marked !important for every property") {
+  const CssStyle style = CssParser::parseInlineStyle(
+      "text-align: center !important; font-weight: bold!important; text-indent: 2em !important");
+  CHECK(style.defined.textAlign);
+  CHECK(style.textAlign == CssTextAlign::Center);
+  CHECK(style.defined.fontWeight);
+  CHECK(style.fontWeight == CssFontWeight::Bold);
+  CHECK(style.defined.textIndent);
+
+  const CssStyle hidden = CssParser::parseInlineStyle("display: none !important");
+  CHECK(hidden.hasDisplay());
+  CHECK(hidden.display == CssDisplay::None);
+}

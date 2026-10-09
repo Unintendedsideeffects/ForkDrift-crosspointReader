@@ -40,7 +40,10 @@ namespace {
 // ~3.6x and the dither turned the block edges into noise. The image element's
 // width/height change, so v34 pages -- and the .pxc pixel caches keyed to their
 // dimensions -- no longer match.
-constexpr uint8_t SECTION_FILE_VERSION = 35;
+// v36: "!important" declarations apply for every CSS property (were dropped
+// unless display/direction), and elements with the HTML hidden attribute are
+// skipped like display:none. Both change which content lays out.
+constexpr uint8_t SECTION_FILE_VERSION = 36;
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) +
                                  sizeof(bool) + sizeof(bool) + sizeof(uint8_t) + sizeof(bool) + sizeof(bool) +

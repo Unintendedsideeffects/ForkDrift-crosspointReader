@@ -711,10 +711,11 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     self->xpathListItemIndex++;
   }
 
-  // Extract class, style, id, and dir attributes for CSS/RTL processing
+  // Extract class, style, id, dir and hidden attributes for CSS/RTL processing
   std::string classAttr;
   std::string styleAttr;
   std::string dirAttr;
+  bool hasHiddenAttr = false;
   if (atts != nullptr) {
     for (int i = 0; atts[i]; i += 2) {
       if (strcmp(atts[i], "class") == 0) {
@@ -745,6 +746,8 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
         }
       } else if (strcmp(atts[i], "dir") == 0) {
         dirAttr = atts[i + 1];
+      } else if (strcmp(atts[i], "hidden") == 0) {
+        hasHiddenAttr = true;
       }
     }
   }
@@ -773,6 +776,12 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       cssStyle.direction = CssTextDirection::Ltr;
       cssStyle.defined.direction = 1;
     }
+  }
+
+  // The HTML hidden attribute overrides CSS display (and applies with no stylesheet).
+  if (hasHiddenAttr) {
+    cssStyle.display = CssDisplay::None;
+    cssStyle.defined.display = 1;
   }
 
   // Direction is inherited in HTML/CSS. If this element does not define one, carry
