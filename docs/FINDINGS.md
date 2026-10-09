@@ -2044,11 +2044,18 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Why not fixed here**: out of scope for plan 120 (settings three-file adds). A one-line `unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_OBJECT_DIRECTORY` before pio is the likely fix; needs its own review so it is not smuggled into an absorb commit.
 - **Status**: open
 
-## 2026-10-09T17:52Z — KOSync and Terminus send credential headers across redirects
+## 2026-10-09T17:52Z — HTTP clients send credential headers across redirects
 - **Found by**: claude — during the 2026-10 upstream/crossink absorption (plans/UPSTREAM_ABSORPTION_2026-10.md)
-- **Where**: `lib/KOReaderSync/KOReaderSyncClient.cpp:95-96` (`x-auth-user`/`x-auth-key`), `src/features/terminus_sleep/Registration.cpp:335-336` (`ID`/`Access-Token`)
-- **What**: both build their own `esp_http_client` with automatic redirects on. IDF replays every custom header to the redirect target, so a redirect to another host receives the credentials. `HttpDownloader` was fixed for this (origin-scoped `performWithRedirects`); these two clients were not.
-- **Why not fixed here**: out of scope (scope was the OPDS/HttpDownloader port of upstream d6f7f2565); KOSync lives in `lib/` and cannot include `src/network/http/HttpOrigin.h` as-is — the helper would need to move to a lib.
+- **Where**: `src/network/http/HttpDownloader.cpp` (OPDS `Authorization`), `lib/KOReaderSync/KOReaderSyncClient.cpp:95-96` (`x-auth-user`/`x-auth-key`), `src/features/terminus_sleep/Registration.cpp:335-336` (`ID`/`Access-Token`)
+- **What**: all three use `esp_http_client` with automatic redirects on, and IDF replays every custom header to the redirect target, so a redirect to another host receives the credentials (upstream d6f7f2565 fixed this for OPDS in their transport).
+- **Why not fixed here**: the OPDS fix exists twice and needs an owner's choice: `absorb/2026-10-09` commit 825a42b75 (manual redirect loop, origin-scoped header, device-pending) and a fresh-client-per-hop version left uncommitted in the shared checkout by a concurrent session. KOSync/Terminus were out of that scope; KOSync lives in `lib/` and would need the origin helper moved to a lib.
+- **Status**: open
+
+## 2026-10-09T17:52Z — Failed OPDS re-download deletes the existing book
+- **Found by**: claude — during the 2026-10 crossink absorption (crossink 1d954ae34)
+- **Where**: `src/network/http/HttpDownloader.cpp` `downloadToFile` (removes `destPath` before the transfer)
+- **What**: re-downloading a book that is already on the SD card removes it first; a failed or cancelled download leaves the user with nothing.
+- **Why not fixed here**: the fix (download to `<dest>.part`, replace on verified success) is in the same contested commit 825a42b75 as the redirect fix above; land it with whichever HttpDownloader version is chosen.
 - **Status**: open
 
 ## 2026-10-09T17:52Z — FOOTNOTE_HREF_LEN 96 truncates long calibre footnote hrefs
