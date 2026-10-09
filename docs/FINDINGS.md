@@ -2048,15 +2048,15 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Found by**: claude — during the 2026-10 upstream/crossink absorption (plans/UPSTREAM_ABSORPTION_2026-10.md)
 - **Where**: `src/network/http/HttpDownloader.cpp` (OPDS `Authorization`), `lib/KOReaderSync/KOReaderSyncClient.cpp:95-96` (`x-auth-user`/`x-auth-key`), `src/features/terminus_sleep/Registration.cpp:335-336` (`ID`/`Access-Token`)
 - **What**: all three use `esp_http_client` with automatic redirects on, and IDF replays every custom header to the redirect target, so a redirect to another host receives the credentials (upstream d6f7f2565 fixed this for OPDS in their transport).
-- **Why not fixed here**: the OPDS fix exists twice and needs an owner's choice: `absorb/2026-10-09` commit 825a42b75 (manual redirect loop, origin-scoped header, device-pending) and a fresh-client-per-hop version left uncommitted in the shared checkout by a concurrent session. KOSync/Terminus were out of that scope; KOSync lives in `lib/` and would need the origin helper moved to a lib.
-- **Status**: open
+- **Why not fixed here**: KOSync/Terminus were out of the OPDS scope; KOSync lives in `lib/` and would need the origin helper (`src/network/http/HttpOrigin.h`) moved to a lib.
+- **Status**: OPDS/HttpDownloader fixed in 6a4d33c19 (owner chose it over a concurrent session's version, kept in `git stash` "concurrent session 2026-10-09 18:29" and plans/stash-backup-2026-10-09-concurrent-session/); KOSync + Terminus still open
 
 ## 2026-10-09T17:52Z — Failed OPDS re-download deletes the existing book
 - **Found by**: claude — during the 2026-10 crossink absorption (crossink 1d954ae34)
 - **Where**: `src/network/http/HttpDownloader.cpp` `downloadToFile` (removes `destPath` before the transfer)
 - **What**: re-downloading a book that is already on the SD card removes it first; a failed or cancelled download leaves the user with nothing.
-- **Why not fixed here**: the fix (download to `<dest>.part`, replace on verified success) is in the same contested commit 825a42b75 as the redirect fix above; land it with whichever HttpDownloader version is chosen.
-- **Status**: open
+- **Why not fixed here**: n/a — fixed in the same commit as the redirect fix.
+- **Status**: fixed in 6a4d33c19 (download to `<dest>.part`, replace only on verified success)
 
 ## 2026-10-09T17:52Z — FOOTNOTE_HREF_LEN 96 truncates long calibre footnote hrefs
 - **Found by**: claude — during the 2026-10 upstream absorption
