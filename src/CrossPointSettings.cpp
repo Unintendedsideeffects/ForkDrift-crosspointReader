@@ -298,6 +298,18 @@ bool CrossPointSettings::saveToFile() const {
 }
 
 bool CrossPointSettings::loadFromFile() {
+  {
+    // Recover from a save interrupted between remove(settings) and rename(tmp).
+    const std::string tmpPath = std::string(SETTINGS_FILE_JSON) + ".tmp";
+    if (Storage.exists(tmpPath.c_str())) {
+      if (!Storage.exists(SETTINGS_FILE_JSON)) {
+        if (Storage.rename(tmpPath.c_str(), SETTINGS_FILE_JSON))
+          LOG_INF("CPS", "Recovered settings from interrupted save");
+      } else {
+        Storage.remove(tmpPath.c_str());
+      }
+    }
+  }
   if (Storage.exists(SETTINGS_FILE_JSON)) {
     HalFile file;
     if (Storage.openFileForRead("CPS", SETTINGS_FILE_JSON, file)) {

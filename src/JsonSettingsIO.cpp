@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 #include <utility>
 
 #include "CrossPointSettings.h"
@@ -70,7 +71,13 @@ bool JsonSettingsIO::saveState(const CrossPointState& s, const char* path) {
 
   String json;
   serializeJson(doc, json);
-  return Storage.writeFile(path, json);
+  // Write-then-rename: writeFile truncates in place, so a power cut mid-save left
+  // an empty settings.json. CrossPointSettings::loadFromFile promotes the temp if
+  // a crash lands between the remove and the rename (absorbed from crossink 712d1bd49).
+  const std::string tmpPath = std::string(path) + ".tmp";
+  if (!Storage.writeFile(tmpPath.c_str(), json)) return false;
+  Storage.remove(path);
+  return Storage.rename(tmpPath.c_str(), path);
 }
 
 bool JsonSettingsIO::loadState(CrossPointState& s, const char* json) {
@@ -97,7 +104,13 @@ bool JsonSettingsIO::saveSettings(const CrossPointSettings& s, const char* path)
 
   String json;
   serializeJson(doc, json);
-  return Storage.writeFile(path, json);
+  // Write-then-rename: writeFile truncates in place, so a power cut mid-save left
+  // an empty settings.json. CrossPointSettings::loadFromFile promotes the temp if
+  // a crash lands between the remove and the rename (absorbed from crossink 712d1bd49).
+  const std::string tmpPath = std::string(path) + ".tmp";
+  if (!Storage.writeFile(tmpPath.c_str(), json)) return false;
+  Storage.remove(path);
+  return Storage.rename(tmpPath.c_str(), path);
 }
 
 bool JsonSettingsIO::loadSettings(CrossPointSettings& s, const char* json, bool* needsResave) {
@@ -174,7 +187,13 @@ bool JsonSettingsIO::saveRecentBooks(const RecentBooksStore& store, const char* 
 
   String json;
   serializeJson(doc, json);
-  return Storage.writeFile(path, json);
+  // Write-then-rename: writeFile truncates in place, so a power cut mid-save left
+  // an empty settings.json. CrossPointSettings::loadFromFile promotes the temp if
+  // a crash lands between the remove and the rename (absorbed from crossink 712d1bd49).
+  const std::string tmpPath = std::string(path) + ".tmp";
+  if (!Storage.writeFile(tmpPath.c_str(), json)) return false;
+  Storage.remove(path);
+  return Storage.rename(tmpPath.c_str(), path);
 }
 
 bool JsonSettingsIO::loadRecentBooks(RecentBooksStore& store, const char* json) {
@@ -224,7 +243,13 @@ bool JsonSettingsIO::saveOpds(const OpdsServerStore& store, const char* path) {
 
   String json;
   serializeJson(doc, json);
-  return Storage.writeFile(path, json);
+  // Write-then-rename: writeFile truncates in place, so a power cut mid-save left
+  // an empty settings.json. CrossPointSettings::loadFromFile promotes the temp if
+  // a crash lands between the remove and the rename (absorbed from crossink 712d1bd49).
+  const std::string tmpPath = std::string(path) + ".tmp";
+  if (!Storage.writeFile(tmpPath.c_str(), json)) return false;
+  Storage.remove(path);
+  return Storage.rename(tmpPath.c_str(), path);
 }
 
 bool JsonSettingsIO::loadOpds(OpdsServerStore& store, const char* json, bool* needsResave) {
@@ -307,7 +332,13 @@ bool JsonSettingsIO::saveReadingStats(const ReadingStatsStore& store, const char
 
   String json;
   serializeJson(doc, json);
-  return Storage.writeFile(path, json);
+  // Write-then-rename: writeFile truncates in place, so a power cut mid-save left
+  // an empty settings.json. CrossPointSettings::loadFromFile promotes the temp if
+  // a crash lands between the remove and the rename (absorbed from crossink 712d1bd49).
+  const std::string tmpPath = std::string(path) + ".tmp";
+  if (!Storage.writeFile(tmpPath.c_str(), json)) return false;
+  Storage.remove(path);
+  return Storage.rename(tmpPath.c_str(), path);
 }
 
 bool JsonSettingsIO::loadReadingStats(ReadingStatsStore& store, const char* json) {
