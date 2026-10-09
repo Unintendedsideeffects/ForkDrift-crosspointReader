@@ -2043,3 +2043,31 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **What**: `git commit` exports `GIT_DIR` / `GIT_INDEX_FILE` into the hook. PlatformIO then installs `JPEGDEC` from a git SHA (`platformio.ini` lib_deps). That child `git clone` / `git reset --hard` operates on THIS repo instead of the package cache, leaving the index full of JPEGDEC paths and missing blobs (`fatal: unable to read …`). Working tree files were intact; `git read-tree HEAD` restored the index.
 - **Why not fixed here**: out of scope for plan 120 (settings three-file adds). A one-line `unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_OBJECT_DIRECTORY` before pio is the likely fix; needs its own review so it is not smuggled into an absorb commit.
 - **Status**: open
+
+## 2026-10-09T17:52Z — KOSync and Terminus send credential headers across redirects
+- **Found by**: claude — during the 2026-10 upstream/crossink absorption (plans/UPSTREAM_ABSORPTION_2026-10.md)
+- **Where**: `lib/KOReaderSync/KOReaderSyncClient.cpp:95-96` (`x-auth-user`/`x-auth-key`), `src/features/terminus_sleep/Registration.cpp:335-336` (`ID`/`Access-Token`)
+- **What**: both build their own `esp_http_client` with automatic redirects on. IDF replays every custom header to the redirect target, so a redirect to another host receives the credentials. `HttpDownloader` was fixed for this (origin-scoped `performWithRedirects`); these two clients were not.
+- **Why not fixed here**: out of scope (scope was the OPDS/HttpDownloader port of upstream d6f7f2565); KOSync lives in `lib/` and cannot include `src/network/http/HttpOrigin.h` as-is — the helper would need to move to a lib.
+- **Status**: open
+
+## 2026-10-09T17:52Z — FOOTNOTE_HREF_LEN 96 truncates long calibre footnote hrefs
+- **Found by**: claude — during the 2026-10 upstream absorption
+- **Where**: `lib/Epub/Epub/FootnoteEntry.h:6`
+- **What**: calibre-split EPUBs have URL-encoded footnote hrefs over 96 bytes; they are truncated and the footnote link resolves to the wrong place or nowhere. Upstream 1582e70ef raised the cap to 256, but `ChapterHtmlSlimParser.cpp:39-45` budgets up to 512 entries per chapter at 132 B each, so 256 B entries roughly double that worst case on a ~36-40 KB reader heap.
+- **Why not fixed here**: needs a heap-aware design (e.g. hrefs in a side file or arena), not a constant bump.
+- **Status**: open
+
+## 2026-10-09T17:52Z — docs/file-formats.md section version is stale and self-contradictory
+- **Found by**: claude — during the 2026-10 upstream absorption
+- **Where**: `docs/file-formats.md:99-139`
+- **What**: the section.bin heading says Version 34 and the field table says version must be 29; the code is at `SECTION_FILE_VERSION = 36` (`lib/Epub/Epub/Section.cpp`). The layout table has not been re-derived since.
+- **Why not fixed here**: re-deriving the byte layout is its own task.
+- **Status**: open
+
+## 2026-10-09T17:52Z — Russian STR_PAGE_TOTAL_OVERALL_FORMAT drops the overall percentage
+- **Found by**: claude — format-specifier audit during the 2026-10 translation absorption
+- **Where**: `lib/I18n/translations/russian.yaml` (`STR_PAGE_TOTAL_OVERALL_FORMAT`), used at `src/activities/reader/KOReaderSyncActivity.cpp:362`
+- **What**: English is `Page %d/%d, %.2f%% overall`; Russian is `Страница %d/%d`. snprintf ignores the extra argument, so it is safe, but Russian users lose the overall percentage on the sync screen.
+- **Why not fixed here**: pre-existing translation; needs a translator's string, not a guess.
+- **Status**: open
