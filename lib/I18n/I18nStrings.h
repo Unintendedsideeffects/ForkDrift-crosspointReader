@@ -74,3 +74,8 @@ extern const char STRINGS_FA_DATA[];
 extern const uint16_t OFFSETS_FA[];
 
 }  // namespace i18n_strings
+
+// Whether each Language was compiled into this build (custom_i18n_languages).
+// Indexed by Language; the enum itself always lists every language so saved
+// settings keep their meaning across builds with different selections.
+extern const bool LANGUAGE_AVAILABLE[];

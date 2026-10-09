@@ -24,6 +24,10 @@ class I18n {
   void setLanguage(Language lang);
   const char* getLanguageName(Language lang) const;
   static Language languageFromCode(const char* code);
+  // False for a language left out of this build (custom_i18n_languages). The
+  // Language enum always lists every language, so a saved choice keeps its
+  // meaning across builds; an unavailable one just renders as English.
+  static bool isLanguageAvailable(Language lang);
 
   // Get all unique characters used in a specific language
   // Returns a sorted string of unique characters

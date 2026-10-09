@@ -18,8 +18,9 @@ const char* I18n::get(const StrId id) const {
     return "???";
   }
 
-  // Use generated helper function - no hardcoded switch needed!
-  const LangStrings lang = getLanguageStrings(_language);
+  // setLanguage() never stores an unavailable language, but stay safe: its
+  // tables are one-element stubs, so indexing them would read past the end.
+  const LangStrings lang = getLanguageStrings(isLanguageAvailable(_language) ? _language : Language::EN);
 
   // If bit 15 of the offset is set, apply the offset to the English lookup table
   const uint16_t off = lang.offsets[index];
@@ -28,7 +29,7 @@ const char* I18n::get(const StrId id) const {
 }
 
 void I18n::setLanguage(const Language lang) {
-  if (lang >= Language::LANGUAGE_COUNT) {
+  if (lang >= Language::LANGUAGE_COUNT || !isLanguageAvailable(lang)) {
     return;
   }
   _language = lang;
@@ -55,4 +56,9 @@ const char* I18n::getCharacterSet(const Language lang) {
     return CHARACTER_SETS[0];
   }
   return CHARACTER_SETS[index];
+}
+
+bool I18n::isLanguageAvailable(const Language lang) {
+  const auto index = static_cast<size_t>(lang);
+  return index < static_cast<size_t>(Language::LANGUAGE_COUNT) && LANGUAGE_AVAILABLE[index];
 }

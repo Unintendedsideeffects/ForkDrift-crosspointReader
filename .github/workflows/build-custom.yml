@@ -23,6 +23,11 @@ on:
         required: false
         type: string
         default: ''
+      languages:
+        description: 'Comma-separated UI language codes to compile in (blank = all; EN always kept)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -49,11 +54,14 @@ jobs:
 
       - name: Generate custom build configuration
         id: config
+        env:
+          LANGUAGES_INPUT: ${{ inputs.languages }}
         run: |
           uv run python scripts/build_custom_workflow.py \
             --profile "${{ inputs.profile }}" \
             --enable-features "${{ inputs.enable_features }}" \
-            --disable-features "${{ inputs.disable_features }}"
+            --disable-features "${{ inputs.disable_features }}" \
+            --languages "$LANGUAGES_INPUT"
 
           # Show generated configuration
           echo "### Generated configuration:"

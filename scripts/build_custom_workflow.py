@@ -44,6 +44,11 @@ def main() -> int:
         help="Comma/space-separated feature keys to disable",
     )
     parser.add_argument(
+        "--languages",
+        default="",
+        help="Comma-separated UI language codes to compile in (default: all; see generate_build_config.py)",
+    )
+    parser.add_argument(
         "--output",
         default="platformio-custom.ini",
         help="Output path for platformio-custom.ini (default: platformio-custom.ini)",
@@ -74,6 +79,8 @@ def main() -> int:
         command.extend(["--enable", feature])
     for feature in disable_features:
         command.extend(["--disable", feature])
+    if args.languages.strip():
+        command.extend(["--languages", args.languages.strip()])
     command.extend(["--output", args.output])
 
     print("Executing:", " ".join(command))

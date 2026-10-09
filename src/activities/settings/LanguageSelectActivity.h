@@ -30,5 +30,8 @@ class LanguageSelectActivity final : public Activity {
   void onBack() { finish(); }
   ButtonNavigator buttonNavigator;
   int selectedIndex = 0;
-  constexpr static uint8_t totalItems = getLanguageCount();
+  // Languages compiled into this build, in display order (SORTED_LANGUAGE_INDICES
+  // filtered by I18n::isLanguageAvailable). Fixed-size: at most one byte per language.
+  uint8_t items[getLanguageCount()] = {};
+  uint8_t totalItems = 0;
 };

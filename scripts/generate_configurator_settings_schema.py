@@ -137,9 +137,36 @@ def export_schema() -> dict:
     return json.loads(raw)
 
 
+def ui_languages() -> list[dict]:
+    """UI languages for the configurator's language picker, read from the translation YAML.
+
+    sizeBytes approximates what gen_i18n.py emits for the language: its strings that
+    differ from English (identical ones point into the English blob) plus a uint16_t
+    offset per key. That is the flash a build saves by leaving the language out.
+    """
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from gen_i18n import parse_yaml_file  # noqa: PLC0415 - script-local helper
+
+    files = sorted((ROOT / "lib" / "I18n" / "translations").glob("*.yaml"))
+    parsed = {f.name: parse_yaml_file(str(f)) for f in files}
+    english = next(d for d in parsed.values() if d.get("_language_code", "").upper() == "EN")
+    keys = [k for k in english if not k.startswith("_")]
+    langs = []
+    for data in parsed.values():
+        code = data["_language_code"].upper()
+        differing = sum(len(data[k].encode("utf-8")) + 1 for k in keys if k in data and data[k] != english[k])
+        langs.append({
+            "code": code,
+            "name": data["_language_name"],
+            "sizeBytes": 0 if code == "EN" else differing + 2 * len(keys),
+        })
+    return sorted(langs, key=lambda lang: (lang["code"] != "EN", lang["name"].casefold()))
+
+
 def render_asset(schema: dict) -> str:
     payload = json.dumps(schema, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
-    return f"window.CONFIGURATOR_SETTINGS_SCHEMA = {payload};\n"
+    languages = json.dumps(ui_languages(), ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    return f"window.CONFIGURATOR_SETTINGS_SCHEMA = {payload};\nwindow.CONFIGURATOR_UI_LANGUAGES = {languages};\n"
 
 
 def persisted_setting_keys() -> set[str]:

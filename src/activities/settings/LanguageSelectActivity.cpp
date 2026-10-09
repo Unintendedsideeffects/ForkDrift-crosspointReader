@@ -15,10 +15,15 @@
 void LanguageSelectActivity::onEnter() {
   Activity::onEnter();
 
+  totalItems = 0;
+  for (const uint8_t lang : SORTED_LANGUAGE_INDICES) {
+    if (I18n::isLanguageAvailable(static_cast<Language>(lang))) items[totalItems++] = lang;
+  }
+
   // Set current selection based on current language
   const auto currentLang = static_cast<uint8_t>(I18N.getLanguage());
-  const auto* begin = std::begin(SORTED_LANGUAGE_INDICES);
-  const auto* end = std::end(SORTED_LANGUAGE_INDICES);
+  const auto* begin = std::begin(items);
+  const auto* end = begin + totalItems;
   const auto* it = std::find(begin, end, currentLang);
   selectedIndex = (it != end) ? std::distance(begin, it) : 0;
 
@@ -63,7 +68,8 @@ void LanguageSelectActivity::loop() {
 }
 
 void LanguageSelectActivity::handleSelection() {
-  const uint8_t langIndex = SORTED_LANGUAGE_INDICES[selectedIndex];
+  if (selectedIndex < 0 || selectedIndex >= totalItems) return;
+  const uint8_t langIndex = items[selectedIndex];
 
   {
     RenderLock lock(*this);
@@ -94,10 +100,8 @@ void LanguageSelectActivity::render(RenderLock&&) {
   const auto currentLang = static_cast<uint8_t>(I18N.getLanguage());
   GUI.drawList(
       renderer, Rect{0, contentTop, pageWidth, contentHeight}, totalItems, selectedIndex,
-      [this](int index) { return I18N.getLanguageName(static_cast<Language>(SORTED_LANGUAGE_INDICES[index])); },
-      nullptr, nullptr,
-      [this, currentLang](int index) { return SORTED_LANGUAGE_INDICES[index] == currentLang ? tr(STR_SELECTED) : ""; },
-      true);
+      [this](int index) { return I18N.getLanguageName(static_cast<Language>(items[index])); }, nullptr, nullptr,
+      [this, currentLang](int index) { return items[index] == currentLang ? tr(STR_SELECTED) : ""; }, true);
 
   // Button hints
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
