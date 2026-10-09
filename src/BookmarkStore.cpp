@@ -252,6 +252,61 @@ void BookmarkStore::deleteForFilePath(const std::string& filePath, const std::st
   }
 }
 
+bool BookmarkStore::migrateFilePath(const std::string& oldPath, const std::string& newPath,
+                                    const std::string& bookType) {
+  const auto storePathFor = [&](const std::string& bookPath) {
+    const uint32_t crc = static_cast<uint32_t>(std::hash<std::string>{}(bookPath));
+    return std::string(BOOKMARKS_DIR) + "/" + bookType + "_" + std::to_string(crc) + ".bin";
+  };
+  const std::string oldStore = storePathFor(oldPath);
+  const std::string newStore = storePathFor(newPath);
+  if (oldStore == newStore || !Storage.exists(oldStore.c_str())) return true;
+
+  {
+    HalFile in;
+    HalFile out;
+    if (!Storage.openFileForRead("BKS", oldStore, in) || !Storage.openFileForWrite("BKS", newStore, out)) {
+      LOG_ERR("BKS", "Failed to open bookmark files to migrate %s", oldPath.c_str());
+      return false;
+    }
+    uint8_t version = 0;
+    uint16_t count = 0;
+    std::string title;
+    std::string author;
+    std::string storedPath;
+    serialization::readPod(in, version);
+    serialization::readPod(in, count);
+    serialization::readString(in, title);
+    serialization::readString(in, author);
+    serialization::readString(in, storedPath);
+    if (version != VERSION || storedPath != oldPath) {
+      LOG_ERR("BKS", "Not migrating bookmark file %s (version %u)", oldStore.c_str(), version);
+      out.close();
+      Storage.remove(newStore.c_str());
+      return false;
+    }
+    serialization::writePod(out, version);
+    serialization::writePod(out, count);
+    serialization::writeString(out, title);
+    serialization::writeString(out, author);
+    serialization::writeString(out, newPath);
+    // Bookmark records do not reference the path: copy them verbatim.
+    uint8_t chunk[128];
+    int n;
+    while ((n = in.read(chunk, sizeof(chunk))) > 0) {
+      if (out.write(chunk, static_cast<size_t>(n)) != static_cast<size_t>(n)) {
+        LOG_ERR("BKS", "Short write migrating bookmarks to %s", newStore.c_str());
+        out.close();
+        Storage.remove(newStore.c_str());
+        return false;
+      }
+    }
+  }  // both files close here, before the old one is removed
+  Storage.remove(oldStore.c_str());
+  LOG_DBG("BKS", "Migrated bookmarks %s -> %s", oldPath.c_str(), newPath.c_str());
+  return true;
+}
+
 bool BookmarkStore::hasAnyBookmarks() {
   if (!Storage.exists(BOOKMARKS_DIR)) return false;
   return !Storage.listFiles(BOOKMARKS_DIR).empty();

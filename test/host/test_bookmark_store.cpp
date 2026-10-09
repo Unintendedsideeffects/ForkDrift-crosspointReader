@@ -85,3 +85,27 @@ TEST_CASE("BookmarkStore listing skips legacy bookmark files") {
   CHECK(BookmarkStore::getAllBookmarkedBooks(entries));
   CHECK(entries.empty());
 }
+
+// Absorbed from crossink b61acd13d: renaming a book in the web portal re-keys its
+// bookmark file. A plain rename would not do: the file also stores the book path,
+// which loadForBook validates, so the moved bookmarks would be silently rejected.
+TEST_CASE("BookmarkStore migrates bookmarks when a book is renamed") {
+  Storage.reset();
+  Storage.writeFile("/books/dune-renamed.epub", "book");
+  const std::string oldStore = bookmarkPathFor("/books/dune.epub", "epub");
+  writeBookmarkFile(oldStore, 3, false);
+
+  CHECK(BookmarkStore::migrateFilePath("/books/dune.epub", "/books/dune-renamed.epub", "epub"));
+  CHECK_FALSE(Storage.exists(oldStore.c_str()));
+
+  auto& store = BookmarkStore::getInstance();
+  CHECK(store.loadForBook("/books/dune-renamed.epub", "Dune", "Frank Herbert", "epub"));
+  REQUIRE(store.getBookmarks().size() == 1);
+  CHECK(store.getBookmarks()[0].spineIndex == 2);
+  CHECK(std::string(store.getBookmarks()[0].chapterTitle) == "Arrakis");
+  store.unload();
+
+  // Nothing to migrate is success, and leaves nothing behind.
+  CHECK(BookmarkStore::migrateFilePath("/books/none.epub", "/books/other.epub", "epub"));
+  CHECK_FALSE(Storage.exists(bookmarkPathFor("/books/other.epub", "epub").c_str()));
+}

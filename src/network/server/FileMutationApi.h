@@ -10,6 +10,9 @@ namespace network {
 struct FileMutationResult {
   int statusCode;
   String body;
+  // Set by a successful rename/move so callers can carry path-keyed data along.
+  String fromPath;
+  String toPath;
 
   bool ok() const { return statusCode >= 200 && statusCode < 300; }
 };

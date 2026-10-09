@@ -56,6 +56,12 @@ class BookmarkStore {
   // bookType must be "epub", "xtc", or "txt".
   static void deleteForFilePath(const std::string& filePath, const std::string& bookType);
 
+  // Re-key the bookmark file of a book that moved from oldPath to newPath (web
+  // rename/move). The file is keyed by a hash of the path and also stores the path,
+  // which readFromFile validates, so it is rewritten rather than just renamed.
+  // Returns true when there was nothing to move or the move succeeded.
+  static bool migrateFilePath(const std::string& oldPath, const std::string& newPath, const std::string& bookType);
+
   // Scan /.crosspoint/bookmarks/ and populate `out` with one entry per book that has bookmarks.
   // Reads only the file header (does not load full bookmark records).
   // Caller should reserve `out` before calling.

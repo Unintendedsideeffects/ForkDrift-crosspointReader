@@ -175,7 +175,8 @@ FileMutationResult renameFile(const String& rawItemPath, const String& rawRename
   }
   file.close();
 
-  return success ? FileMutationResult{200, "Renamed successfully"} : FileMutationResult{500, "Failed to rename file"};
+  return success ? FileMutationResult{200, "Renamed successfully", itemPath, newPath}
+                 : FileMutationResult{500, "Failed to rename file"};
 }
 
 FileMutationResult moveFile(const String& rawItemPath, const String& rawDestPath,
@@ -252,7 +253,8 @@ FileMutationResult moveFile(const String& rawItemPath, const String& rawDestPath
   }
   file.close();
 
-  return success ? FileMutationResult{200, "Moved successfully"} : FileMutationResult{500, "Failed to move file"};
+  return success ? FileMutationResult{200, "Moved successfully", itemPath, newPath}
+                 : FileMutationResult{500, "Failed to move file"};
 }
 
 FileMutationResult deletePaths(const std::vector<String>& rawPaths, const FileMutationCallback& onPathChanged) {
