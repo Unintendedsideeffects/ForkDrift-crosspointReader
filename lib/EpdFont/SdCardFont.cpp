@@ -889,6 +889,13 @@ int SdCardFont::prewarmStyle(uint8_t styleIdx, const uint32_t* codepoints, uint3
     lastReadIndex = gIdx;
   }
 
+  // The codepoint->glyph mapping is not read past the metadata phase. Free it
+  // before the (larger) bitmap allocation so that request sees a bigger
+  // contiguous region; the remaining delete[] calls become no-ops
+  // (upstream c80c537f2 via crossink 3a59c61c4).
+  delete[] mappings;
+  mappings = nullptr;
+
   uint32_t totalBitmapSize = 0;
 
   if (!metadataOnly) {

@@ -2,7 +2,9 @@
 
 #include <cstdint>
 #include <cstring>
-#include <new>
+#include <memory>
+
+#include "../Memory/Memory.h"
 
 struct BmpHeader;
 
@@ -25,15 +27,15 @@ void createBmpHeader(BmpHeader* bmpHeader, int width, int height, BmpRowOrder ro
 class Atkinson1BitDitherer {
  public:
   explicit Atkinson1BitDitherer(int width) : width(width) {
-    errorRow0 = new (std::nothrow) int16_t[width + 4]();  // Current row
-    errorRow1 = new (std::nothrow) int16_t[width + 4]();  // Next row
-    errorRow2 = new (std::nothrow) int16_t[width + 4]();  // Row after next
-  }
-
-  ~Atkinson1BitDitherer() {
-    delete[] errorRow0;
-    delete[] errorRow1;
-    delete[] errorRow2;
+    // The three error rows share one zeroed block: one heap hole and one free
+    // instead of three interleaved allocations (upstream 3555ff556).
+    if (width <= 0) return;
+    const size_t rowSize = static_cast<size_t>(width) + 4;
+    errorRows = makeUniqueNoThrow<int16_t[]>(rowSize * 3);
+    if (!errorRows) return;
+    errorRow0 = errorRows.get();      // Current row
+    errorRow1 = errorRow0 + rowSize;  // Next row
+    errorRow2 = errorRow1 + rowSize;  // Row after next
   }
 
   // EXPLICITLY DELETE THE COPY CONSTRUCTOR
@@ -94,9 +96,10 @@ class Atkinson1BitDitherer {
 
  private:
   int width;
-  int16_t* errorRow0;
-  int16_t* errorRow1;
-  int16_t* errorRow2;
+  std::unique_ptr<int16_t[]> errorRows;  // owns all three rows
+  int16_t* errorRow0 = nullptr;
+  int16_t* errorRow1 = nullptr;
+  int16_t* errorRow2 = nullptr;
 };
 
 // Atkinson dithering - distributes only 6/8 (75%) of error for cleaner results
@@ -108,15 +111,15 @@ class Atkinson1BitDitherer {
 class AtkinsonDitherer {
  public:
   explicit AtkinsonDitherer(int width) : width(width) {
-    errorRow0 = new (std::nothrow) int16_t[width + 4]();  // Current row
-    errorRow1 = new (std::nothrow) int16_t[width + 4]();  // Next row
-    errorRow2 = new (std::nothrow) int16_t[width + 4]();  // Row after next
-  }
-
-  ~AtkinsonDitherer() {
-    delete[] errorRow0;
-    delete[] errorRow1;
-    delete[] errorRow2;
+    // The three error rows share one zeroed block: one heap hole and one free
+    // instead of three interleaved allocations (upstream 3555ff556).
+    if (width <= 0) return;
+    const size_t rowSize = static_cast<size_t>(width) + 4;
+    errorRows = makeUniqueNoThrow<int16_t[]>(rowSize * 3);
+    if (!errorRows) return;
+    errorRow0 = errorRows.get();      // Current row
+    errorRow1 = errorRow0 + rowSize;  // Next row
+    errorRow2 = errorRow1 + rowSize;  // Row after next
   }
   // **1. EXPLICITLY DELETE THE COPY CONSTRUCTOR**
   AtkinsonDitherer(const AtkinsonDitherer& other) = delete;
@@ -179,6 +182,7 @@ class AtkinsonDitherer {
 
  private:
   int width;
+  std::unique_ptr<int16_t[]> errorRows;  // owns all three rows
   int16_t* errorRow0 = nullptr;
   int16_t* errorRow1 = nullptr;
   int16_t* errorRow2 = nullptr;
@@ -195,13 +199,13 @@ class AtkinsonDitherer {
 class FloydSteinbergDitherer {
  public:
   explicit FloydSteinbergDitherer(int width) : width(width), rowCount(0) {
-    errorCurRow = new (std::nothrow) int16_t[width + 2]();  // +2 for boundary handling
-    errorNextRow = new (std::nothrow) int16_t[width + 2]();
-  }
-
-  ~FloydSteinbergDitherer() {
-    delete[] errorCurRow;
-    delete[] errorNextRow;
+    // Both error rows share one zeroed block (+2 each for boundary handling).
+    if (width <= 0) return;
+    const size_t rowSize = static_cast<size_t>(width) + 2;
+    errorRows = makeUniqueNoThrow<int16_t[]>(rowSize * 2);
+    if (!errorRows) return;
+    errorCurRow = errorRows.get();
+    errorNextRow = errorCurRow + rowSize;
   }
 
   // **1. EXPLICITLY DELETE THE COPY CONSTRUCTOR**
@@ -292,6 +296,7 @@ class FloydSteinbergDitherer {
  private:
   int width;
   int rowCount;
+  std::unique_ptr<int16_t[]> errorRows;  // owns both rows
   int16_t* errorCurRow = nullptr;
   int16_t* errorNextRow = nullptr;
 };
