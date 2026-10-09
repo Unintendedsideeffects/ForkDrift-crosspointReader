@@ -50,6 +50,13 @@ void IntervalSelectionActivity::loop() {
     return;
   }
 
+  // Back cancels on release, but a front-button remap can also expose its press
+  // as a directional input; the pending cancel owns the whole hold so the value
+  // cannot change before the release exits (crossink dccd09e7c).
+  if (mappedInput.isPressed(MappedInputManager::Button::Back)) {
+    return;
+  }
+
   buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Left}, [this] { adjustValue(-smallStep); });
   buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Right}, [this] { adjustValue(smallStep); });
   buttonNavigator.onPressAndContinuous({MappedInputManager::Button::Up}, [this] { adjustValue(largeStep); });
