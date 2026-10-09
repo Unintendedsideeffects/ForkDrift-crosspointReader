@@ -174,7 +174,7 @@ COLOR_KEYWORDS: dict[str, list[str]] = {
         "LOAD:",
         "ENTRY",
         "[SD]",
-        "STARTING CROSSPOINT",
+        "STARTING CROSSINK",
         "VERSION",
     ],
     Fore.LIGHTCYAN_EX: ["[RBS]"],
@@ -221,7 +221,7 @@ def parse_memory_line(line: str) -> tuple[int | None, int | None, int | None]:
     Returns: (free_bytes, total_bytes, max_alloc_bytes)
     """
     def _find(pattern: str) -> int | None:
-        m = re.search(pattern, line)
+        m = re.search(pattern, line, re.IGNORECASE)
         if m:
             try:
                 return int(m.group(1))
@@ -230,10 +230,21 @@ def parse_memory_line(line: str) -> tuple[int | None, int | None, int | None]:
         return None
 
     return (
-        _find(r"\bFree:\s*(\d+)"),
-        _find(r"\bTotal:\s*(\d+)"),
-        _find(r"\bMaxAlloc:\s*(\d+)"),
+        _find(r"\bFree\s*[:=]\s*(\d+)"),
+        _find(r"\bTotal\s*[:=]\s*(\d+)"),
+        _find(r"\bMaxAlloc\s*[:=]\s*(\d+)"),
     )
+
+
+def parse_memory_samples(line: str) -> list[tuple[str, tuple[int | None, int | None, int | None]]]:
+    """Separate CrossInk's combined heap/PSRAM line and legacy upstream lines."""
+    pools = list(re.finditer(r"\b(heap|psram)\s*:?\s+(?=free\s*[:=])", line, re.IGNORECASE))
+    if not pools:
+        return [("heap", parse_memory_line(line))]
+    return [
+        (match.group(1).lower(), parse_memory_line(line[match.end():pools[i + 1].start() if i + 1 < len(pools) else len(line)]))
+        for i, match in enumerate(pools)
+    ]
 
 
 def serial_worker(ser, kwargs: dict[str, str]) -> None:
@@ -312,19 +323,19 @@ def serial_worker(ser, kwargs: dict[str, str]) -> None:
 
                     # Check for Memory Line
                     if "[MEM]" in formatted_line:
-                        free_val, total_val, max_alloc_val = parse_memory_line(formatted_line)
-                        if free_val is not None and total_val is not None:
-                            with data_lock:
-                                if "PSRAM:" in formatted_line:
-                                    psram_time_data.append(pc_time)
-                                    psram_free_mem_data.append(free_val / 1024)
-                                    psram_total_mem_data.append(total_val / 1024)
-                                    psram_max_alloc_data.append((max_alloc_val or 0) / 1024)
-                                else:
-                                    time_data.append(pc_time)
-                                    free_mem_data.append(free_val / 1024)
-                                    total_mem_data.append(total_val / 1024)
-                                    max_alloc_data.append((max_alloc_val or 0) / 1024)
+                        for pool, (free_val, total_val, max_alloc_val) in parse_memory_samples(formatted_line):
+                            if free_val is not None and total_val is not None:
+                                with data_lock:
+                                    if pool == "psram":
+                                        psram_time_data.append(pc_time)
+                                        psram_free_mem_data.append(free_val / 1024)
+                                        psram_total_mem_data.append(total_val / 1024)
+                                        psram_max_alloc_data.append((max_alloc_val or 0) / 1024)
+                                    else:
+                                        time_data.append(pc_time)
+                                        free_mem_data.append(free_val / 1024)
+                                        total_mem_data.append(total_val / 1024)
+                                        max_alloc_data.append((max_alloc_val or 0) / 1024)
                     # Apply filters
                     if filter_keyword and filter_keyword not in formatted_line.lower():
                         continue
