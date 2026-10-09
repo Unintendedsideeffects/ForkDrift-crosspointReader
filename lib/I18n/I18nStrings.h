@@ -58,5 +58,19 @@ extern const char STRINGS_SK_DATA[];
 extern const uint16_t OFFSETS_SK[];
 extern const char STRINGS_VI_DATA[];
 extern const uint16_t OFFSETS_VI[];
+extern const char STRINGS_NB_DATA[];
+extern const uint16_t OFFSETS_NB[];
+extern const char STRINGS_P2_DATA[];
+extern const uint16_t OFFSETS_P2[];
+extern const char STRINGS_AR_DATA[];
+extern const uint16_t OFFSETS_AR[];
+extern const char STRINGS_BS_DATA[];
+extern const uint16_t OFFSETS_BS[];
+extern const char STRINGS_ID_DATA[];
+extern const uint16_t OFFSETS_ID[];
+extern const char STRINGS_BG_DATA[];
+extern const uint16_t OFFSETS_BG[];
+extern const char STRINGS_FA_DATA[];
+extern const uint16_t OFFSETS_FA[];
 
 }  // namespace i18n_strings
