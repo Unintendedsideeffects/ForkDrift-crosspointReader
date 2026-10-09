@@ -145,6 +145,10 @@ void FileBrowserActivity::onEnter() {
   // its release — otherwise we'd immediately auto-open whatever is at index 0.
   lockNextConfirmRelease = mappedInput.isPressed(MappedInputManager::Button::Confirm);
 
+  // render() reads basepath, files and selectorIndex on the render task; every
+  // block that replaces them holds the render lock (upstream 33f07db71 / crossink
+  // 34487e1bd). loadFiles() itself never locks, so callers cannot double-lock.
+  RenderLock lock(*this);
   auto root = Storage.open(basepath.c_str());
   if (!root) {
     basepath = "/";
@@ -162,6 +166,7 @@ void FileBrowserActivity::onEnter() {
   } else {
     loadFiles();
   }
+  lock.unlock();
 
   requestUpdate();
 }
@@ -285,8 +290,11 @@ void FileBrowserActivity::toggleEpubCompleted(const std::string& fullPath, const
     }
   }
 
-  loadFiles();
-  selectorIndex = files.empty() ? 0 : std::min(selectorIndex, files.size() - 1);
+  {
+    RenderLock lock(*this);
+    loadFiles();
+    selectorIndex = files.empty() ? 0 : std::min(selectorIndex, files.size() - 1);
+  }
   requestUpdate(true);
 }
 #endif  // ENABLE_READING_STATS
@@ -411,11 +419,14 @@ void FileBrowserActivity::confirmDeleteEntry(const std::string& entry) {
         if (isPinnedSleepFavorite(fullPath)) {
           unpinSleepFavorite();
         }
-        loadFiles();
-        if (files.empty()) {
-          selectorIndex = 0;
-        } else if (selectorIndex >= files.size()) {
-          selectorIndex = files.size() - 1;
+        {
+          RenderLock lock(*this);
+          loadFiles();
+          if (files.empty()) {
+            selectorIndex = 0;
+          } else if (selectorIndex >= files.size()) {
+            selectorIndex = files.size() - 1;
+          }
         }
         requestUpdate(true);
       } else {
@@ -438,14 +449,17 @@ void FileBrowserActivity::toggleHiddenFiles() {
     LOG_ERR("FileBrowser", "Failed to save showHiddenFiles=%u", SETTINGS.showHiddenFiles);
   }
 
-  if (!SETTINGS.showHiddenFiles && containsHiddenPathSegment(basepath)) {
-    basepath = "/";
-  }
+  {
+    RenderLock lock(*this);
+    if (!SETTINGS.showHiddenFiles && containsHiddenPathSegment(basepath)) {
+      basepath = "/";
+    }
 
-  loadFiles();
-  selectorIndex = currentEntry.empty() ? 0 : findEntry(currentEntry);
-  if (!files.empty() && selectorIndex >= files.size()) {
-    selectorIndex = files.size() - 1;
+    loadFiles();
+    selectorIndex = currentEntry.empty() ? 0 : findEntry(currentEntry);
+    if (!files.empty() && selectorIndex >= files.size()) {
+      selectorIndex = files.size() - 1;
+    }
   }
   requestUpdate();
 }
@@ -520,15 +534,22 @@ void FileBrowserActivity::loop() {
       return;
     }
 
-    if (basepath.back() != '/') basepath += "/";
-
+    std::string selectedBook;
+    {
+      RenderLock lock(*this);
+      if (basepath.back() != '/') basepath += "/";
+      if (isDirectory) {
+        basepath += entry.substr(0, entry.length() - 1);
+        loadFiles();
+        selectorIndex = 0;
+      } else {
+        selectedBook = basepath + entry;
+      }
+    }
     if (isDirectory) {
-      basepath += entry.substr(0, entry.length() - 1);
-      loadFiles();
-      selectorIndex = 0;
       requestUpdate();
     } else {
-      onSelectBook(basepath + entry);
+      onSelectBook(selectedBook);
     }
     return;
   }
@@ -540,16 +561,18 @@ void FileBrowserActivity::loop() {
     }
     if (mappedInput.getHeldTime() < GO_HOME_MS) {
       if (basepath != "/") {
-        const std::string oldPath = basepath;
+        {
+          RenderLock lock(*this);
+          const std::string oldPath = basepath;
 
-        basepath.replace(basepath.find_last_of('/'), std::string::npos, "");
-        if (basepath.empty()) basepath = "/";
-        loadFiles();
+          basepath.replace(basepath.find_last_of('/'), std::string::npos, "");
+          if (basepath.empty()) basepath = "/";
+          loadFiles();
 
-        const auto pos = oldPath.find_last_of('/');
-        const std::string dirName = oldPath.substr(pos + 1) + "/";
-        selectorIndex = findEntry(dirName);
-
+          const auto pos = oldPath.find_last_of('/');
+          const std::string dirName = oldPath.substr(pos + 1) + "/";
+          selectorIndex = findEntry(dirName);
+        }
         requestUpdate();
       } else if (mode == Mode::PickFirmware) {
         // Firmware picker at root: cancel back to caller instead of going home.
