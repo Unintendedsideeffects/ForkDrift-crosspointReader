@@ -135,9 +135,10 @@ void logPrintf(const char* level, const char* origin, const char* format, ...) {
     }
   }
   va_end(args);
-  if (logSerial) {
-    logSerial.print(buf);
-  }
+  // Write even when `logSerial` reports disconnected: after a brief SOF-watchdog flap
+  // (common at the 10 MHz low-power clock) HWCDC keeps `connected` false until its next
+  // TX interrupt. write() queues without blocking in that state and re-arms that interrupt.
+  logSerial.print(buf);
   addToLogRingBuffer(buf);
   appendDeveloperLogLine(buf);
 }

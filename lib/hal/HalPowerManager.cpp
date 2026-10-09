@@ -71,20 +71,23 @@ void HalPowerManager::setPowerSaving(bool enabled) {
     enabled = false;
   }
 
-  // Note: We don't use mutex here to avoid too much overhead,
-  // it's not very important if we read a slightly stale value for lockCount
+  // Held across the check and the switch: a Lock taken in between would find full speed, do
+  // nothing, and then run at LOW_POWER_FREQ until the next key press.
+  xSemaphoreTake(modeMutex, portMAX_DELAY);
   const int count = lockCount;
 
   if (count == 0 && enabled && !isLowPower) {
     // Only scale down to low-power mode if the device is actually idle
     extern unsigned long lastActivityTime;
     if (millis() - lastActivityTime < IDLE_POWER_SAVING_MS) {
+      xSemaphoreGive(modeMutex);
       return;
     }
 
     LOG_DBG("PWR", "Going to low-power mode");
     if (!setCpuFrequencyMhz(LOW_POWER_FREQ)) {
       LOG_DBG("PWR", "Failed to set CPU frequency = %d MHz", LOW_POWER_FREQ);
+      xSemaphoreGive(modeMutex);
       return;
     }
     isLowPower = true;
@@ -93,12 +96,14 @@ void HalPowerManager::setPowerSaving(bool enabled) {
     LOG_DBG("PWR", "Restoring normal CPU frequency");
     if (!setCpuFrequencyMhz(normalFreq)) {
       LOG_DBG("PWR", "Failed to set CPU frequency = %d MHz", normalFreq);
+      xSemaphoreGive(modeMutex);
       return;
     }
     isLowPower = false;
   }
 
   // Otherwise, no change needed
+  xSemaphoreGive(modeMutex);
 }
 
 void HalPowerManager::startDeepSleep(HalGPIO& gpio, uint64_t timerWakeupMicros) const {
