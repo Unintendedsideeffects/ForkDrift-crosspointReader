@@ -184,6 +184,14 @@ KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& doc
       return JSON_ERROR;
     }
 
+    // The reference server answers 200 with an empty object when it has no
+    // progress stored for this document: that is "no remote progress", not a
+    // malformed reply (crossink 280dd0387).
+    if (doc["progress"].isNull() && doc["percentage"].isNull()) {
+      LOG_DBG("KOSync", "No stored progress in successful response");
+      return NOT_FOUND;
+    }
+
     // A compliant KOSync 200 response carries a numeric percentage. Reject a
     // malformed body rather than silently treating a missing field as 0%.
     if (!doc["percentage"].is<float>() && !doc["percentage"].is<int>()) {

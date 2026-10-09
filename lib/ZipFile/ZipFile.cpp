@@ -548,12 +548,15 @@ bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t ch
 
     size_t remaining = inflatedDataSize;
     while (remaining > 0) {
-      const size_t dataRead = file.read(buffer, remaining < chunkSize ? remaining : chunkSize);
-      if (dataRead == 0) {
-        LOG_ERR("ZIP", "Could not read more bytes");
+      // HalFile::read() returns a negative int on error; as size_t it became a huge
+      // length handed straight to out.write() (crossink bfe70a6ba).
+      const int readResult = file.read(buffer, remaining < chunkSize ? remaining : chunkSize);
+      if (readResult <= 0) {
+        LOG_ERR("ZIP", "Could not read more bytes: %d", readResult);
         free(buffer);
         return false;
       }
+      const size_t dataRead = static_cast<size_t>(readResult);
 
       if (out.write(buffer, dataRead) != dataRead) {
         LOG_ERR("ZIP", "Failed to write all output bytes to stream");
