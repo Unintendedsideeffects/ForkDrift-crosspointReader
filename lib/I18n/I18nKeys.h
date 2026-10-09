@@ -833,6 +833,8 @@ enum class StrId : uint16_t {
   STR_TRMNL_REFRESHING,
   STR_TRMNL_REFRESH_FAILED,
   STR_TRMNL_NO_WIFI,
+  STR_INVALID_BMP_FILE,
+  STR_FILE_OPEN_FAILED,
   // Sentinel - must be last
   STR_COUNT
 };

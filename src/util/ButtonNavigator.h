@@ -1,13 +1,15 @@
 #pragma once
 
 #include <functional>
-#include <vector>
+#include <initializer_list>
 
 #include "MappedInputManager.h"
 
 class ButtonNavigator final {
   using Callback = std::function<void()>;
-  using Buttons = std::vector<MappedInputManager::Button>;
+  // Borrowed lists are consumed synchronously and never retained, so no
+  // per-call heap vector: activities call onNext() etc. on every loop tick.
+  using Buttons = std::initializer_list<MappedInputManager::Button>;
 
   const uint16_t continuousStartMs;
   const uint16_t continuousIntervalMs;
@@ -44,10 +46,13 @@ class ButtonNavigator final {
   [[nodiscard]] static int nextPageIndex(int currentIndex, int totalItems, int itemsPerPage);
   [[nodiscard]] static int previousPageIndex(int currentIndex, int totalItems, int itemsPerPage);
 
+  // Static storage: an initializer_list returned from a braced list would dangle.
   [[nodiscard]] static Buttons getNextButtons() {
-    return {MappedInputManager::Button::Down, MappedInputManager::Button::Right};
+    static constexpr Buttons buttons = {MappedInputManager::Button::Down, MappedInputManager::Button::Right};
+    return buttons;
   }
   [[nodiscard]] static Buttons getPreviousButtons() {
-    return {MappedInputManager::Button::Up, MappedInputManager::Button::Left};
+    static constexpr Buttons buttons = {MappedInputManager::Button::Up, MappedInputManager::Button::Left};
+    return buttons;
   }
 };

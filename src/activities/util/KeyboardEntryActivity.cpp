@@ -21,6 +21,24 @@
 
 const char* const KeyboardEntryActivity::shiftString[2] = {"shift", "SHIFT"};
 
+namespace {
+// The cursor indexes bytes of a UTF-8 string; these keep it on character
+// boundaries so moving, deleting and drawing never split a multi-byte character.
+size_t utf8PrevBoundary(const std::string& s, size_t pos) {
+  if (pos == 0) return 0;
+  --pos;
+  while (pos > 0 && (static_cast<uint8_t>(s[pos]) & 0xC0) == 0x80) --pos;
+  return pos;
+}
+
+size_t utf8NextBoundary(const std::string& s, size_t pos) {
+  if (pos >= s.size()) return s.size();
+  ++pos;
+  while (pos < s.size() && (static_cast<uint8_t>(s[pos]) & 0xC0) == 0x80) ++pos;
+  return pos;
+}
+}  // namespace
+
 void KeyboardEntryActivity::onEnter() {
   Activity::onEnter();
   cursorPos = text.length();
@@ -185,8 +203,9 @@ bool KeyboardEntryActivity::handleKeyPress() {
           hintShowTime = millis();
         }
         if (cursorPos > 0 && !text.empty()) {
-          text.erase(cursorPos - 1, 1);
-          cursorPos--;
+          const size_t start = utf8PrevBoundary(text, cursorPos);
+          text.erase(start, cursorPos - start);
+          cursorPos = start;
         }
         return true;
       case SpecialKeyType::Ok:
@@ -341,7 +360,7 @@ void KeyboardEntryActivity::loop() {
         togglePos = false;
         requestUpdate();
       } else if (cursorPos > 0) {
-        cursorPos--;
+        cursorPos = utf8PrevBoundary(text, cursorPos);
         requestUpdate();
       }
     }
@@ -378,7 +397,7 @@ void KeyboardEntryActivity::loop() {
       rightLongHandled = false;
     }
     if (cursorMode && !togglePos && cursorPos < text.length()) {
-      cursorPos++;
+      cursorPos = utf8NextBoundary(text, cursorPos);
       requestUpdate();
     }
     if (cursorMode) return;
@@ -460,11 +479,14 @@ void KeyboardEntryActivity::render([[maybe_unused]] RenderLock&& lock) {
     if (cursorMode) {
       revealPos = text.length();  // no reveal in displayText; block draws actual char directly
     } else {
-      revealPos = (text.length() > 0 && cursorPos > 0) ? cursorPos - 1 : std::string::npos;
+      revealPos = (text.length() > 0 && cursorPos > 0) ? utf8PrevBoundary(text, cursorPos) : std::string::npos;
     }
+    // Masked per byte so displayText keeps text's byte offsets; the revealed
+    // character keeps all of its bytes.
+    const size_t revealEnd = revealPos < text.length() ? utf8NextBoundary(text, revealPos) : revealPos;
     displayText = text;
     for (size_t i = 0; i < displayText.length(); i++) {
-      if (i != revealPos) {
+      if (i < revealPos || i >= revealEnd) {
         displayText[i] = '*';
       }
     }
@@ -487,9 +509,11 @@ void KeyboardEntryActivity::render([[maybe_unused]] RenderLock&& lock) {
   const int maxLineWidth = textAreaWidth;
   const bool centerText = metrics.keyboardCenteredText;
 
+  // Bytes of the whole character under the cursor (0 at end of text).
+  const size_t cursorCharBytes = cursorPos < text.length() ? utf8NextBoundary(text, cursorPos) - cursorPos : 0;
   int cursorCharWidth = 6;
   if (cursorPos < text.length()) {
-    int w = renderer.getTextWidth(UI_12_FONT_ID, text.substr(cursorPos, 1).c_str());
+    int w = renderer.getTextWidth(UI_12_FONT_ID, text.substr(cursorPos, cursorCharBytes).c_str());
     if (w > cursorCharWidth) cursorCharWidth = w;
   }
 
@@ -517,11 +541,11 @@ void KeyboardEntryActivity::render([[maybe_unused]] RenderLock&& lock) {
         int beforeWidth = renderer.getTextAdvanceX(UI_12_FONT_ID, beforeCursor.c_str(), EpdFontFamily::REGULAR);
         int kernOffset = 0;
         if (cursorPos < displayText.length()) {
-          std::string beforeAndCursor = beforeCursor + displayText.substr(cursorPos, 1);
+          std::string beforeAndCursor = beforeCursor + displayText.substr(cursorPos, cursorCharBytes);
           int beforeAndCursorWidth =
               renderer.getTextAdvanceX(UI_12_FONT_ID, beforeAndCursor.c_str(), EpdFontFamily::REGULAR);
-          int charAdvance =
-              renderer.getTextAdvanceX(UI_12_FONT_ID, displayText.substr(cursorPos, 1).c_str(), EpdFontFamily::REGULAR);
+          int charAdvance = renderer.getTextAdvanceX(
+              UI_12_FONT_ID, displayText.substr(cursorPos, cursorCharBytes).c_str(), EpdFontFamily::REGULAR);
           kernOffset = beforeAndCursorWidth - beforeWidth - charAdvance;
         }
         if (centerText) {
@@ -543,7 +567,7 @@ void KeyboardEntryActivity::render([[maybe_unused]] RenderLock&& lock) {
         renderer.drawText(UI_12_FONT_ID, lineStartX, inputStartY + inputHeight, part1.c_str());
         // Part 2: skip cursor slot (block + actual char drawn later)
         // Part 3: chars after cursor position (skip char under cursor), starting at cursorPixelX + cursorCharWidth
-        const int afterStart = static_cast<int>(cursorPos) + (cursorPos < text.length() ? 1 : 0);
+        const int afterStart = static_cast<int>(cursorPos + cursorCharBytes);
         const int afterEnd = lineEndIdx;
         if (afterStart < afterEnd) {
           const std::string part3 = displayText.substr(afterStart, afterEnd - afterStart);
@@ -573,8 +597,8 @@ void KeyboardEntryActivity::render([[maybe_unused]] RenderLock&& lock) {
     static constexpr int blockPadding = 1;
     renderer.fillRect(cursorPixelX - blockPadding, cursorLineY, cursorCharWidth + blockPadding * 2, lineHeight, true);
     if (cursorPos < text.length()) {
-      const char buf[2] = {text[cursorPos], '\0'};
-      renderer.drawText(UI_12_FONT_ID, cursorPixelX, cursorLineY, buf, false);
+      const std::string cursorChar = text.substr(cursorPos, cursorCharBytes);
+      renderer.drawText(UI_12_FONT_ID, cursorPixelX, cursorLineY, cursorChar.c_str(), false);
     }
   } else if (cursorPos <= displayText.length()) {
     static constexpr int serifW = 3;
@@ -901,8 +925,10 @@ void KeyboardEntryActivity::renderRemoteMode(RenderLock&&) {
     if (network.apMode) {
       renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_RKB_JOIN_HOTSPOT), true, EpdFontFamily::BOLD);
       renderer.drawCenteredText(UI_10_FONT_ID, y + lineHeight, network.ssid.c_str());
+      // The hotspot is open (softAP with no password); T:nopass per the zxing Wi-Fi spec,
+      // which some Android scanners require rather than inferring it from a missing T.
       QrUtils::drawQrCode(renderer, Rect{(pageWidth - 240) / 2, y + lineHeight + qrTextGap, 240, 180},
-                          "WIFI:S:" + network.ssid + ";;");
+                          "WIFI:T:nopass;S:" + network.ssid + ";;");
 
       y += 230 + qrTextGap;
       renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_RKB_OPEN_INPUT), true, EpdFontFamily::BOLD);

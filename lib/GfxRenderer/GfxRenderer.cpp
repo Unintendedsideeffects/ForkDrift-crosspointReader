@@ -24,6 +24,18 @@ namespace {
 uint8_t resolveSdCardStyle(const SdCardFont& font, const EpdFontFamily::Style style) {
   return font.resolveStyle(static_cast<uint8_t>(style));
 }
+
+// Space advance for layout. The advance table reports 0 for a codepoint it does
+// not hold (style not prewarmed, partial cache miss); a 0-width space glues
+// words together, so fall back to the glyph, as the per-codepoint path does.
+uint16_t getSdCardSpaceAdvance(SdCardFont& font, const EpdFontFamily::Style style) {
+  const uint8_t resolvedStyle = resolveSdCardStyle(font, style);
+  const uint16_t advance = font.getAdvance(' ', resolvedStyle);
+  if (advance != 0) return advance;
+  const EpdFont* epdFont = font.getEpdFont(resolvedStyle);
+  const EpdGlyph* glyph = epdFont ? epdFont->getGlyph(' ') : nullptr;
+  return glyph ? glyph->advanceX : 0;
+}
 }  // namespace
 
 namespace {
@@ -1707,11 +1719,39 @@ std::string GfxRenderer::truncatedText(const int fontId, const char* text, const
     return item;
   }
 
-  while (!item.empty() && getTextWidth(fontId, (item + ellipsis).c_str(), style) >= maxWidth) {
-    utf8RemoveLastChar(item);
+  size_t charCount = 0;
+  for (const unsigned char c : item) {
+    if ((c & 0xC0) != 0x80) ++charCount;
   }
 
-  return item.empty() ? ellipsis : item + ellipsis;
+  std::string candidate;
+  candidate.reserve(item.size() + 3);
+  const auto setCandidate = [&](const size_t characterCount) {
+    size_t end = 0;
+    for (size_t count = 0; end < item.size() && count < characterCount; ++count) {
+      ++end;
+      while (end < item.size() && (static_cast<unsigned char>(item[end]) & 0xC0) == 0x80) ++end;
+    }
+    candidate.assign(item.data(), end);
+    candidate += ellipsis;
+  };
+
+  // Binary search: removing one character at a time re-measures nearly the whole
+  // string per step, O(n^2) glyph lookups for a long title on every status-bar draw.
+  size_t low = 0;
+  size_t high = charCount;
+  while (low < high) {
+    const size_t mid = low + (high - low + 1) / 2;
+    setCandidate(mid);
+    if (getTextWidth(fontId, candidate.c_str(), style) < maxWidth) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  setCandidate(low);
+  return candidate;
 }
 
 std::vector<std::string> GfxRenderer::wrappedText(const int fontId, const char* text, const int maxWidth,
@@ -1947,8 +1987,7 @@ int GfxRenderer::getSpaceWidth(const int fontId, const EpdFontFamily::Style styl
   // Advance table fast-path for SD card fonts during layout
   auto sdIt = sdCardFonts_.find(fontId);
   if (sdIt != sdCardFonts_.end() && sdIt->second->hasAdvanceTable()) {
-    const uint8_t resolvedStyle = resolveSdCardStyle(*sdIt->second, style);
-    return fp4::toPixel(sdIt->second->getAdvance(' ', resolvedStyle));
+    return fp4::toPixel(getSdCardSpaceAdvance(*sdIt->second, style));
   }
 
   const auto fontIt = fontMap.find(fontId);
@@ -1968,8 +2007,7 @@ int GfxRenderer::getSpaceAdvance(const int fontId, const uint32_t leftCp, const 
   // so we return just the space advance without kerning.
   auto sdIt = sdCardFonts_.find(fontId);
   if (sdIt != sdCardFonts_.end() && sdIt->second->hasAdvanceTable()) {
-    const uint8_t resolvedStyle = resolveSdCardStyle(*sdIt->second, style);
-    return fp4::toPixel(sdIt->second->getAdvance(' ', resolvedStyle));
+    return fp4::toPixel(getSdCardSpaceAdvance(*sdIt->second, style));
   }
 
   const auto fontIt = fontMap.find(fontId);

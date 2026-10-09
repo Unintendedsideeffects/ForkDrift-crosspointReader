@@ -392,3 +392,5 @@ STR_FIRMWARE_WRITE_FAILED: "Не ўдалося запісаць прашыўк�
 STR_FIRMWARE_UPDATE_DO_NOT_POWER_OFF: "Не выключайце прыладу!"
 STR_RECOVERY_MODE: "Рэжым аднаўлення"
 STR_RECOVERY_MODE_HINT: "Змясціце firmware.bin у корань SD-карты і абярыце яго"
+STR_INVALID_BMP_FILE: "Няправільны файл BMP"
+STR_FILE_OPEN_FAILED: "Не ўдалося адкрыць файл"

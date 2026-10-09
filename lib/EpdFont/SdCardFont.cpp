@@ -95,6 +95,12 @@ void SdCardFont::freeStyleKernLigatureData(PerStyle& s) {
   s.kernRightClasses = nullptr;
   delete[] s.ligaturePairs;
   s.ligaturePairs = nullptr;
+  // Both font views borrow the resident ligature table (applyKernLigaturePointers
+  // and the stub setup); clear them too, or the next shaped draw reads freed memory.
+  s.stubData.ligaturePairs = nullptr;
+  s.stubData.ligaturePairCount = 0;
+  s.miniData.ligaturePairs = nullptr;
+  s.miniData.ligaturePairCount = 0;
   s.kernLigLoaded = false;
 }
 
