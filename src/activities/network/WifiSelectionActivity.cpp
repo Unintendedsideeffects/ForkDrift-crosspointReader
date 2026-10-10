@@ -347,10 +347,13 @@ void WifiSelectionActivity::serviceRadioStep() {
       NetworkNames::getDhcpHostname(dhcpHostname, sizeof(dhcpHostname));
       WiFi.setHostname(dhcpHostname);
 
+#ifndef SIMULATOR
       // Scan all channels so a network with several APs (mesh, repeaters) joins the
       // strongest matching BSSID instead of the first one the default fast scan finds.
+      // ESP32 WiFiSTA API; the desktop simulator's WiFi stub has no scan/sort methods.
       WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
       WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
+#endif
 
       if (selectedRequiresPassword && !enteredPassword.empty()) {
         WiFi.begin(selectedSSID.c_str(), enteredPassword.c_str());

@@ -259,6 +259,47 @@ def patch_simulator_hal(env):
         marker="ESP_ERR_HTTP_EAGAIN",
     )
 
+    # 5e3) esp_http_client redirect API: HttpDownloader follows redirects itself
+    #      (disable_auto_redirect + set_redirection/get_url) so it can drop the
+    #      Authorization header on cross-origin hops. The stub's curl -L already
+    #      follows redirects, so perform() never returns a 3xx here; it only needs
+    #      the symbols, with the same semantics as IDF.
+    _replace_once(
+        os.path.join(src, "esp_http_client.h"),
+        "  int max_authorization_retries = 0;\n};",
+        "  int max_authorization_retries = 0;\n"
+        "  bool disable_auto_redirect = false;\n};",
+        marker="disable_auto_redirect",
+    )
+    _replace_once(
+        os.path.join(src, "esp_http_client.h"),
+        "struct esp_http_client_config_t {",
+        "#ifndef ESP_ERR_HTTP_MAX_REDIRECT\n"
+        "#define ESP_ERR_HTTP_MAX_REDIRECT 0x7001\n"
+        "#endif\n"
+        "struct esp_http_client_config_t {",
+        marker="ESP_ERR_HTTP_MAX_REDIRECT",
+    )
+    _replace_once(
+        os.path.join(src, "esp_http_client.h"),
+        "inline esp_err_t esp_http_client_set_redirection(",
+        "inline esp_err_t esp_http_client_delete_header(esp_http_client_handle_t handle, const char *key) {\n"
+        "  if (!handle || !key) return ESP_FAIL;\n"
+        "  handle->headers.erase(key);\n"
+        "  return ESP_OK;\n"
+        "}\n"
+        "\n"
+        "inline esp_err_t esp_http_client_get_url(esp_http_client_handle_t handle, char *url, const int len) {\n"
+        "  if (!handle || !url || len <= 0 || !handle->config.url) return ESP_FAIL;\n"
+        "  strncpy(url, handle->config.url, static_cast<size_t>(len) - 1);\n"
+        "  url[len - 1] = '\\0';\n"
+        "  return ESP_OK;\n"
+        "}\n"
+        "\n"
+        "inline esp_err_t esp_http_client_set_redirection(",
+        marker="esp_http_client_delete_header",
+    )
+
     # 5e2) esp_mac.h: the fork reads the station MAC directly, because
     #      WiFi.macAddress() needs the STA netif to exist and WifiSelectionActivity
     #      is routinely entered with the radio off. The sim stub only offers
