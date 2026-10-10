@@ -110,6 +110,10 @@ void EpubReaderMenuActivity::onEnter() {
     memcpy(savedPageBuffer.get(), renderer.getFrameBuffer(), bufSize);
     LOG_INF("RDR", "Preview retained");
   } else {
+#ifdef SIMULATOR
+    extern bool g_sim_reader_preview_dropped;
+    g_sim_reader_preview_dropped = true;
+#endif
     LOG_WRN("RDR", "Preview dropped: free=%u largest=%u", snapshot.freeHeap, snapshot.maxAllocHeap);
   }
   requestUpdate();

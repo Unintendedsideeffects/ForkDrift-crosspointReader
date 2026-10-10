@@ -18,6 +18,9 @@
 // Smoke-test probe: ReaderOptionsActivity::render() records which layout mode it
 // took so the smoke test can assert the half-screen preview path was used.
 bool g_sim_reader_options_full_screen = false;
+// Set when EpubReaderMenuActivity declines the 48 KB page snapshot under the heap
+// model; the full-screen ReaderOptions fallback is then the designed behaviour.
+bool g_sim_reader_preview_dropped = false;
 
 static std::mutex heap_mutex;
 static uint32_t live_bytes = 0;

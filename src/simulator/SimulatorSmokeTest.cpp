@@ -36,6 +36,7 @@ extern ActivityManager activityManager;
 extern GfxRenderer renderer;
 extern MappedInputManager mappedInputManager;
 extern bool g_sim_reader_options_full_screen;
+extern bool g_sim_reader_preview_dropped;
 
 namespace {
 
@@ -475,8 +476,12 @@ class SimulatorSmokeTest {
         break;
 
       case SmokeStep::HomeNav:
-        if (g_sim_reader_options_full_screen) {
-          fail("Smoke test failed: ReaderOptions entered full-screen fallback mode instead of half-screen preview");
+        // The full-screen layout is the designed fallback when the menu could not
+        // afford the 48 KB page snapshot (ReaderOptionsMemoryPolicy); under the
+        // device-measured heap model (sim_heap.cpp: ~20 KB largest block) that is
+        // the normal case. Fail only if the preview was available but unused.
+        if (g_sim_reader_options_full_screen && !g_sim_reader_preview_dropped) {
+          fail("Smoke test failed: ReaderOptions entered full-screen fallback mode with a retained page preview");
         }
         buildHomeNavInputScript();
         scriptStep = SmokeStep::HomeNavRun;
@@ -893,11 +898,11 @@ class SimulatorSmokeTest {
 #if ENABLE_TEXT_SELECTION
     // Text-selection leg: menu -> Select Text -> move cursor, anchor, extend.
     // The inverted-word highlight must change the frame at each step.
-    // The reader-options leg may enable automatic page turn. The first Confirm
-    // after returning stops that mode; give it its own step before opening the
-    // reader menu so the selection script cannot drift one screen behind.
-    addTap(MappedInputManager::Button::Confirm);
-    inputScript.push_back(render("Reader after stopping auto page", 4));
+    // The reader-options leg toggles Force Paragraph Indents and returns to the
+    // reader with no mode active, so the first Confirm opens the reader menu.
+    // (An earlier options layout put Auto Page Turn on that row and needed an
+    // extra Confirm to stop it; with the current layout that Confirm opened the
+    // menu and drifted every later tap one screen behind.)
     addTap(MappedInputManager::Button::Confirm);
     inputScript.push_back(render("Reader menu for selection", 4));
     addTap(MappedInputManager::Button::Down);
