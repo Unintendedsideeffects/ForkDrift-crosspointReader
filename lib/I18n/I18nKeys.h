@@ -526,6 +526,7 @@ enum class StrId : uint16_t {
   STR_SYNC_PROGRESS,
   STR_DELETE_CACHE,
   STR_DELETE,
+  STR_DELETE_ITEM_CONFIRM,
   STR_PIN_AS_FAVORITE,
   STR_UNPIN_AS_FAVORITE,
   STR_PIN_PNG_WARNING,
@@ -838,6 +839,8 @@ enum class StrId : uint16_t {
   // Sentinel - must be last
   STR_COUNT
 };
+
+constexpr uint16_t I18N_ENGLISH_FALLBACK_OFFSET = 65535;
 
 // Holds a flat string blob and its offset table for one language
 struct LangStrings {

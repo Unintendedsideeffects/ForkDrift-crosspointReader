@@ -328,7 +328,7 @@ void MyLibraryActivity::loop() {
           }
         };
 
-        std::string heading = tr(STR_DELETE) + std::string("? ");
+        std::string heading = tr(STR_DELETE_ITEM_CONFIRM);
         startActivityForResult(std::make_unique<ConfirmationActivity>(renderer, mappedInput, heading, entry), handler);
         return;
       } else {

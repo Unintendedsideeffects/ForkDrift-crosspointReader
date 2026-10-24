@@ -437,7 +437,7 @@ void FileBrowserActivity::confirmDeleteEntry(const std::string& entry) {
     }
   };
 
-  const std::string heading = tr(STR_DELETE) + std::string("? ");
+  const std::string heading = tr(STR_DELETE_ITEM_CONFIRM);
   startActivityForResult(std::make_unique<ConfirmationActivity>(renderer, mappedInput, heading, entry), handler);
 }
 

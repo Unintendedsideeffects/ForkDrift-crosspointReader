@@ -22,9 +22,8 @@ const char* I18n::get(const StrId id) const {
   // tables are one-element stubs, so indexing them would read past the end.
   const LangStrings lang = getLanguageStrings(isLanguageAvailable(_language) ? _language : Language::EN);
 
-  // If bit 15 of the offset is set, apply the offset to the English lookup table
   const uint16_t off = lang.offsets[index];
-  if (off & 0x8000) return STRINGS_EN_DATA + (off & 0x7FFF);
+  if (off == I18N_ENGLISH_FALLBACK_OFFSET) return STRINGS_EN_DATA + OFFSETS_EN[index];
   return lang.data + off;
 }
 
