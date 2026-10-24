@@ -13,6 +13,7 @@ TEST_CASE("book cache: reader-owned entries survive invalidation") {
   CHECK(book_cache::isUserStateEntry("annotations.bin"));
   CHECK(book_cache::isUserStateEntry("book_settings.json"));
   CHECK(book_cache::isUserStateEntry("pokemon.json"));
+  CHECK(book_cache::isUserStateEntry("links.bin"));
 }
 
 TEST_CASE("book cache: derived entries are not protected") {
@@ -32,6 +33,7 @@ TEST_CASE("book cache: matching is exact") {
   // Prefix or suffix matching would protect scratch files like progress.bin.tmp
   // and, worse, could be tricked into protecting derived data.
   CHECK_FALSE(book_cache::isUserStateEntry("progress.bin.tmp"));
+  CHECK_FALSE(book_cache::isUserStateEntry("links.bin.tmp"));
   CHECK_FALSE(book_cache::isUserStateEntry("progress"));
   CHECK_FALSE(book_cache::isUserStateEntry("my_progress.bin"));
   CHECK_FALSE(book_cache::isUserStateEntry(""));
@@ -42,5 +44,5 @@ TEST_CASE("book cache: the protected set is pinned") {
   // Deliberate tripwire. If you added a per-book store, add it to
   // kUserStateEntries and bump this count; if this fires without you having
   // added one, a store just lost its protection.
-  CHECK(std::size(book_cache::kUserStateEntries) == 4);
+  CHECK(std::size(book_cache::kUserStateEntries) == 5);
 }

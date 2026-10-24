@@ -17,6 +17,7 @@
 #include "String.h"
 
 using oflag_t = int;
+inline int gMockHalReadCalls = 0;
 constexpr oflag_t O_RDONLY = 0;
 constexpr oflag_t O_WRONLY = 1;
 constexpr oflag_t O_CREAT = 2;
@@ -50,14 +51,21 @@ class HalFile {
   }
 
   size_t write(const uint8_t* data, size_t len) {
+    ++s_writeCalls;
+    if (s_failNextWrites > 0) {
+      --s_failNextWrites;
+      return 0;
+    }
     if (len == 0) return 0;
     if (buf_ && data) buf_->insert(buf_->end(), data, data + len);
+    pos_ += len;
     return len;
   }
   size_t write(uint8_t b) { return write(&b, 1); }
   size_t write(const void* data, size_t len) { return write(static_cast<const uint8_t*>(data), len); }
 
   size_t read(uint8_t* data, size_t len) {
+    ++s_readCalls;
     if (!buf_) return 0;
     const size_t avail = buf_->size() - pos_;
     const size_t n = std::min(len, avail);
@@ -67,6 +75,7 @@ class HalFile {
     // sidecarIsOursOrAbsent), so guard rather than forbid it.
     if (n > 0) {
       std::memcpy(data, buf_->data() + pos_, n);
+      ++gMockHalReadCalls;
     }
     pos_ += n;
     return n;
@@ -83,6 +92,7 @@ class HalFile {
   }
 
   size_t size() const { return buf_ ? buf_->size() : 0; }
+  size_t fileSize() const { return size(); }
   uint64_t fileSize64() const { return static_cast<uint64_t>(size()); }
   bool isOpen() const { return buf_ != nullptr || isDirectory_; }
 
@@ -119,6 +129,8 @@ class HalFile {
     return opener_ ? opener_(entries_[entryIndex_++]) : HalFile();
   }
 
+  void rewindDirectory() { entryIndex_ = 0; }
+
   void setOpener(std::function<HalFile(const std::string&)> opener) { opener_ = std::move(opener); }
 
   void close() {}
@@ -131,7 +143,19 @@ class HalFile {
   }
   explicit operator bool() const { return buf_ != nullptr || isDirectory_; }
 
+  static int readCalls() { return s_readCalls; }
+  static int writeCalls() { return s_writeCalls; }
+  static void failNextWrites(int n) { s_failNextWrites = n; }
+  static void resetIoCounters() {
+    s_readCalls = 0;
+    s_writeCalls = 0;
+    s_failNextWrites = 0;
+  }
+
  private:
+  inline static int s_readCalls = 0;
+  inline static int s_writeCalls = 0;
+  inline static int s_failNextWrites = 0;
   std::shared_ptr<std::vector<uint8_t>> buf_;
   size_t pos_ = 0;
   std::string path_;
@@ -287,6 +311,7 @@ class HalStorage {
   void failNextRenames(int n) { failNextRenames_ = n; }
 
   int openFileForReadCount() const { return openFileForReadCount_; }
+  int readCallCount() const { return gMockHalReadCalls; }
 
   // Makes the next `n` calls to openFileForRead() fail regardless of whether
   // the file exists, simulating a slow SD card where a file written just
@@ -299,9 +324,11 @@ class HalStorage {
     directories_.clear();
     directories_.insert("/");
     openFileForReadCount_ = 0;
+    gMockHalReadCalls = 0;
     failNextReads_ = 0;
     failNextRenames_ = 0;
     freeBytes_ = 64ull << 20;
+    HalFile::resetIoCounters();
   }
 
  private:

@@ -20,6 +20,7 @@ inline constexpr const char* kUserStateEntries[] = {
     "annotations.bin",     // AnnotationStore — highlights and notes
     "book_settings.json",  // BookSettingsOverride — per-book settings
     "pokemon.json",        // PokemonBookDataStore — per-book party
+    "links.bin",           // footnote back-stack across sleep/home
 };
 
 // True if `name` (a bare entry name, not a path) is reader-owned data that must

@@ -12,16 +12,19 @@ namespace serialization {
 // reads of 1-4 bytes each. Batching them into sector-sized chunks takes the
 // mutex once per 512 bytes instead of once per field. Falls back to unbuffered
 // passthrough if the chunk buffer cannot be allocated.
-// Only valid for sequential reads: do not seek the underlying file while a
-// BufferedReader on it is live.
+// Mix direct HalFile access while a reader is live only after seek(), which
+// drops the window and then seeks the file.
 class BufferedReader {
  public:
-  explicit BufferedReader(HalFile& file) : file_(file), buf_(makeUniqueNoThrow<uint8_t[]>(kBufSize)) {}
+  static constexpr size_t kBufSize = 512;
+
+  explicit BufferedReader(HalFile& file, size_t cap = kBufSize)
+      : file_(file), cap_(cap), buf_(cap > 0 ? makeUniqueNoThrow<uint8_t[]>(cap) : nullptr) {}
   BufferedReader(const BufferedReader&) = delete;
   BufferedReader& operator=(const BufferedReader&) = delete;
 
   int read(void* dst, size_t count) {
-    if (!buf_) {
+    if (!buf_ || cap_ == 0) {
       return static_cast<int>(file_.read(static_cast<uint8_t*>(dst), count));
     }
     auto* out = static_cast<uint8_t*>(dst);
@@ -37,14 +40,14 @@ class BufferedReader {
         count -= n;
         continue;
       }
-      if (count >= kBufSize) {  // large read: bypass the buffer
+      if (count >= cap_) {
         const int n = file_.read(out, count);
         if (n > 0) {
           total += static_cast<size_t>(n);
         }
         return static_cast<int>(total);
       }
-      const int n = file_.read(bufData(), kBufSize);
+      const int n = file_.read(bufData(), cap_);
       if (n <= 0) {
         break;
       }
@@ -54,11 +57,26 @@ class BufferedReader {
     return static_cast<int>(total);
   }
 
+  size_t position() const {
+    if (!buf_ || cap_ == 0) {
+      return file_.position();
+    }
+    const size_t unread = fill_ - pos_;
+    const size_t filePos = file_.position();
+    return filePos >= unread ? filePos - unread : 0;
+  }
+
+  bool seek(size_t pos) {
+    fill_ = 0;
+    pos_ = 0;
+    return file_.seek(pos);
+  }
+
  private:
   uint8_t* bufData() { return buf_.get(); }
 
-  static constexpr size_t kBufSize = 512;  // one SD sector
   HalFile& file_;
+  size_t cap_ = kBufSize;
   std::unique_ptr<uint8_t[]> buf_;
   size_t fill_ = 0;
   size_t pos_ = 0;
@@ -70,20 +88,23 @@ class BufferedReader {
 // sequential writes: flush() before seeking the underlying file.
 class BufferedWriter {
  public:
-  explicit BufferedWriter(HalFile& file) : file_(file), buf_(makeUniqueNoThrow<uint8_t[]>(kBufSize)) {}
+  static constexpr size_t kBufSize = 512;
+
+  explicit BufferedWriter(HalFile& file, size_t cap = kBufSize)
+      : file_(file), cap_(cap), buf_(cap > 0 ? makeUniqueNoThrow<uint8_t[]>(cap) : nullptr) {}
   BufferedWriter(const BufferedWriter&) = delete;
   BufferedWriter& operator=(const BufferedWriter&) = delete;
   ~BufferedWriter() { flush(); }
 
   size_t write(const void* src, size_t count) {
-    if (!buf_) {
+    if (!buf_ || cap_ == 0) {
       const size_t n = file_.write(reinterpret_cast<const uint8_t*>(src), count);
       if (n != count) {
         failed_ = true;
       }
       return n;
     }
-    if (count >= kBufSize) {  // large write: flush pending bytes, then bypass
+    if (count >= cap_) {
       if (!flush()) {
         return 0;
       }
@@ -93,7 +114,7 @@ class BufferedWriter {
       }
       return n;
     }
-    if (fill_ + count > kBufSize && !flush()) {
+    if (fill_ + count > cap_ && !flush()) {
       return 0;
     }
     memcpy(bufData() + fill_, src, count);
@@ -112,16 +133,15 @@ class BufferedWriter {
     return !failed_;
   }
 
-  // Logical position including bytes still in the buffer.
-  size_t position() { return file_.position() + fill_; }
+  size_t position() const { return file_.position() + fill_; }
 
   bool failed() const { return failed_; }
 
  private:
   uint8_t* bufData() { return buf_.get(); }
 
-  static constexpr size_t kBufSize = 512;  // one SD sector
   HalFile& file_;
+  size_t cap_ = kBufSize;
   std::unique_ptr<uint8_t[]> buf_;
   size_t fill_ = 0;
   bool failed_ = false;

@@ -92,9 +92,9 @@ class BookMetadataCache {
   }
 
   HalFile bookFile;
-  // Temp file handles during build
   HalFile spineFile;
   HalFile tocFile;
+  std::unique_ptr<serialization::BufferedWriter> passOut;
 
   // Index for fast href→spineIndex lookup (used only for large EPUBs)
   struct SpineHrefIndexEntry {
@@ -118,7 +118,9 @@ class BookMetadataCache {
   }
 
   uint32_t writeSpineEntry(HalFile& file, const SpineEntry& entry) const;
+  uint32_t writeSpineEntry(serialization::BufferedWriter& writer, const SpineEntry& entry) const;
   uint32_t writeTocEntry(HalFile& file, const TocEntry& entry) const;
+  uint32_t writeTocEntry(serialization::BufferedWriter& writer, const TocEntry& entry) const;
   SpineEntry readSpineEntry(HalFile& file) const;
   TocEntry readTocEntry(HalFile& file) const;
   // Overloads accepting BufferedReader for efficient batched reads

@@ -112,9 +112,10 @@ Persisted, and restored on the next `onEnter`:
 Lost (RAM only; `onExit` would have handled some of these, reboot does not):
 
 - **Footnote return stack** — `savedPositions[]` / `footnoteDepth`
-  (`EpubReaderActivity.h:139-140`). `onExit` writes the *origin*
-  (`EpubReaderActivity.cpp:477-482`). Recovery writes the *current*
-  page. A defrag mid-footnote resumes inside the note with no Back-to-origin.
+  (`EpubReaderActivity.h`). Clean `onExit` / sleep persist the stack in
+  `links.bin` and leave `progress.bin` on the viewed page. An unclean
+  reboot still loses the in-RAM stack: the sidecar is consume-once and is
+  not rewritten without `onExit`.
 - **Text selection mode** — cursor, overlay, 48 KB snapshot.
 - **Auto page-turn** — `automaticPageTurnActive`, `lastPageTurnTime`
   (`:53,46-47`). `millis()` is 0 after reset anyway.
