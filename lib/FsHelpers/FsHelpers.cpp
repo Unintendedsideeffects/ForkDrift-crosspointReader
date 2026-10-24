@@ -36,6 +36,13 @@ std::string decodeUriEscapes(const std::string& path) {
   return decoded;
 }
 
+void stripUriFragment(std::string& path) {
+  const size_t hash = path.find('#');
+  if (hash != std::string::npos) {
+    path.resize(hash);
+  }
+}
+
 std::string normalisePath(const std::string& path) {
   std::vector<std::string_view> components;
   components.reserve(8);  // Eight nested folders is more than we might expect

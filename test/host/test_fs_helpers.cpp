@@ -5,6 +5,24 @@
 
 MockESP ESP;
 
+TEST_CASE("stripUriFragment removes hash suffixes but not percent-encoded hashes") {
+  std::string none = "cover.png";
+  FsHelpers::stripUriFragment(none);
+  CHECK(none == "cover.png");
+
+  std::string svgView = "cover.png#svgView(viewBox(0,0,100,80))";
+  FsHelpers::stripUriFragment(svgView);
+  CHECK(svgView == "cover.png");
+
+  std::string idFrag = "images/foo.png#id";
+  FsHelpers::stripUriFragment(idFrag);
+  CHECK(idFrag == "images/foo.png");
+
+  std::string encoded = "cover.png%23svgView";
+  FsHelpers::stripUriFragment(encoded);
+  CHECK(encoded == "cover.png%23svgView");
+}
+
 TEST_CASE("testPathNormalisation") {
   CHECK(FsHelpers::normalisePath("/a/b/c") == "a/b/c");
   CHECK(FsHelpers::normalisePath("a/b/../c") == "a/c");

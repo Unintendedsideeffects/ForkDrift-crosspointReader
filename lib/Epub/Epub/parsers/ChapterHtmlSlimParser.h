@@ -15,6 +15,7 @@
 #include "Epub/blocks/TextBlock.h"
 #include "Epub/css/CssParser.h"
 #include "Epub/css/CssStyle.h"
+#include "Epub/parsers/InlineStyleEntry.h"
 
 class Page;
 class GfxRenderer;
@@ -31,7 +32,7 @@ class ChapterHtmlSlimParser {
   std::shared_ptr<Epub> epub;
   const std::string& filepath;
   GfxRenderer& renderer;
-  std::function<void(std::unique_ptr<Page>, uint16_t, uint16_t)> completePageFn;
+  std::function<void(std::unique_ptr<Page>, uint16_t, uint16_t, uint32_t)> completePageFn;
   std::function<void()> popupFn;  // Popup callback
   int depth = 0;
   int skipUntilDepth = INT_MAX;
@@ -68,18 +69,6 @@ class ChapterHtmlSlimParser {
   std::string imageBasePath;
   int imageCounter = 0;
 
-  // Style tracking (replaces depth-based approach)
-  struct StyleStackEntry {
-    int depth = 0;
-    bool hasBold = false, bold = false;
-    bool hasItalic = false, italic = false;
-    bool hasUnderline = false, underline = false;
-    bool hasStrikethrough = false, strikethrough = false;
-    bool hasDirection = false;
-    CssTextDirection direction = CssTextDirection::Ltr;
-    bool hasSup = false, sup = false;
-    bool hasSub = false, sub = false;
-  };
   std::vector<StyleStackEntry> inlineStyleStack;
   std::vector<BlockStyle> blockStyleStack;  // accumulated block styles from open ancestor elements
   CssStyle currentCssStyle;
@@ -133,6 +122,14 @@ class ChapterHtmlSlimParser {
   std::vector<std::string> tocAnchors;  // the list of anchors that are TOC chapter boundaries
   uint16_t xpathParagraphIndex = 0;
   uint16_t xpathListItemIndex = 0;
+  uint32_t visibleTextOffset = 0;
+  uint32_t partWordVisibleOffset = 0;
+  uint32_t currentPageVisibleOffset = 0;
+  bool currentPageVisibleOffsetSet = false;
+  uint32_t lastLineVisibleOffset = 0;  // offset of the last line placed (heading carry moves it)
+  bool insideBody = false;
+  bool syntheticCharacterData = false;
+  uint16_t nonVisibleTextDepth = 0;
 
   // Footnote link tracking
   bool insideFootnoteLink = false;
@@ -143,13 +140,20 @@ class ChapterHtmlSlimParser {
   bool footnotesTruncated = false;                              // this chapter hit the footnote cap or the heap guard
   int wordsExtractedInBlock = 0;
   std::vector<CssAncestorEntry> ancestorStack_;
+  bool pendingPageBreak = false;
+  uint8_t keepWithNextLines = 0;
+  uint8_t linesOnCurrentBlockPage = 0;
 
   void updateEffectiveInlineStyle();
   void startNewTextBlock(const BlockStyle& blockStyle);
   void flushPendingAnchor();
   void flushPartWordBuffer();
+  void setCurrentPageVisibleOffset(uint32_t offset);
   void makePages();
-  static void applyDirectionToEntry(StyleStackEntry& entry, const CssStyle& css);
+  void applyBlockFontScale(BlockStyle& blockStyle, const CssStyle& cssStyle, const char* tagName) const;
+  void assignBlockFont(BlockStyle& blockStyle) const;
+  void applyPendingPageBreak();
+  bool tryCarryHeadingLastLine(int incomingLineHeight);
   void emitHorizontalRule(const BlockStyle& blockStyle);
   void finalizeCurrentTableCell();
   void emitBufferedTableAsParagraphs(BufferedTable& table);
@@ -162,17 +166,15 @@ class ChapterHtmlSlimParser {
   static void XMLCALL endElement(void* userData, const XML_Char* name);
 
  public:
-  explicit ChapterHtmlSlimParser(std::shared_ptr<Epub> epub, const std::string& filepath, GfxRenderer& renderer,
-                                 const int fontId, const float lineCompression, const bool extraParagraphSpacing,
-                                 const bool forceParagraphIndents, const uint8_t paragraphAlignment,
-                                 const uint16_t viewportWidth, const uint16_t viewportHeight,
-                                 const bool hyphenationEnabled, const bool focusReadingEnabled,
-                                 const bool guideReadingEnabled,
-                                 const std::function<void(std::unique_ptr<Page>, uint16_t, uint16_t)>& completePageFn,
-                                 const bool embeddedStyle, const std::string& contentBase,
-                                 const std::string& imageBasePath, const uint8_t imageRendering = 0,
-                                 std::vector<std::string> tocAnchors = {},
-                                 const std::function<void()>& popupFn = nullptr, const CssParser* cssParser = nullptr)
+  explicit ChapterHtmlSlimParser(
+      std::shared_ptr<Epub> epub, const std::string& filepath, GfxRenderer& renderer, const int fontId,
+      const float lineCompression, const bool extraParagraphSpacing, const bool forceParagraphIndents,
+      const uint8_t paragraphAlignment, const uint16_t viewportWidth, const uint16_t viewportHeight,
+      const bool hyphenationEnabled, const bool focusReadingEnabled, const bool guideReadingEnabled,
+      const std::function<void(std::unique_ptr<Page>, uint16_t, uint16_t, uint32_t)>& completePageFn,
+      const bool embeddedStyle, const std::string& contentBase, const std::string& imageBasePath,
+      const uint8_t imageRendering = 0, std::vector<std::string> tocAnchors = {},
+      const std::function<void()>& popupFn = nullptr, const CssParser* cssParser = nullptr)
 
       : epub(epub),
         filepath(filepath),
@@ -198,7 +200,7 @@ class ChapterHtmlSlimParser {
 
   ~ChapterHtmlSlimParser() = default;
   bool parseAndBuildPages();
-  void addLineToPage(const std::shared_ptr<TextBlock>& line);
+  void addLineToPage(const std::shared_ptr<TextBlock>& line, uint32_t visibleOffset);
   const std::deque<std::pair<std::string, uint16_t>>& getAnchors() const { return anchorData; }
   int imagesAttempted() const { return imageCounter; }
 };

@@ -15,8 +15,10 @@
 #if ENABLE_READING_STATS
 #include "BookReadingStats.h"
 #endif
+#include "ChapterPosition.h"
 #include "CrossPointSettings.h"
 #include "EpubReaderMenuActivity.h"
+#include "LinkStack.h"
 #include "ProgressMapper.h"
 #if ENABLE_TEXT_SELECTION
 #include "SelectionCapturePolicy.h"
@@ -44,6 +46,7 @@ class EpubReaderActivity final : public Activity {
   int cachedSpineIndex = 0;
   int cachedChapterTotalPageCount = 0;
   int cachedChapterPageNumber = 0;
+  std::optional<uint32_t> cachedVisibleTextOffset;
   unsigned long lastPageTurnTime = 0UL;
   unsigned long pageTurnDuration = 0UL;
   bool pendingPercentJump = false;
@@ -135,7 +138,7 @@ class EpubReaderActivity final : public Activity {
     int spineIndex;
     int pageNumber;
   };
-  static constexpr int MAX_FOOTNOTE_DEPTH = 3;
+  static constexpr int MAX_FOOTNOTE_DEPTH = LinkStack::kMaxDepth;
   SavedPosition savedPositions[MAX_FOOTNOTE_DEPTH] = {};
   int footnoteDepth = 0;
 
@@ -162,11 +165,14 @@ class EpubReaderActivity final : public Activity {
   void renderStatusBar() const;
   void silentIndexNextChapterIfNeeded(uint16_t viewportWidth, uint16_t viewportHeight);
   bool saveProgress(int spineIndex, int currentPage, int pageCount);
+  void rememberCurrentContentOffset();
   bool persistOrientationSelection(uint8_t orientation);
   void reclaimAfterIndexPressure();
   // Jump to a percentage of the book (0-100), mapping it to spine and page.
   void jumpToPercent(int percent);
   void onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction action);
+  ChapterPosition chapterPosition() const;
+  int bookPercentFor(const ChapterPosition& position) const;
 #if ENABLE_ANNOTATIONS || ENABLE_BOOKMARKS
   void exportCurrentBookHighlights();
 #endif
@@ -200,6 +206,8 @@ class EpubReaderActivity final : public Activity {
   void refreshReaderPreviewBuffer(uint8_t* dest, size_t size);
   void navigateToHref(const std::string& href, bool savePosition = false);
   void restoreSavedPosition();
+  void saveLinkStack() const;
+  void loadLinkStack();
   static void showLoadingPopupTrampoline(void* ctx);
 
   bool pendingSilentIndexing = false;

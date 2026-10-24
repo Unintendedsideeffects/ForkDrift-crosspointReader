@@ -67,7 +67,7 @@ std::vector<std::shared_ptr<TextBlock>> layoutFragments(bool secondFragmentConti
   GfxRenderer renderer(display);
   std::vector<std::shared_ptr<TextBlock>> lines;
   text.layoutAndExtractLines(renderer, kFontId, kPageWidthFitsOnlyWithContinuation,
-                             [&](std::shared_ptr<TextBlock> line) { lines.push_back(std::move(line)); });
+                             [&](std::shared_ptr<TextBlock> line, uint32_t) { lines.push_back(std::move(line)); });
   return lines;
 }
 
@@ -167,7 +167,7 @@ TEST_CASE("ParsedText: a 3-fragment chain that overflows packs as many fragments
   GfxRenderer renderer(display);
   std::vector<std::shared_ptr<TextBlock>> lines;
   text.layoutAndExtractLines(renderer, kFontId, kPageWidthFitsTwoNotThree,
-                             [&](std::shared_ptr<TextBlock> line) { lines.push_back(std::move(line)); });
+                             [&](std::shared_ptr<TextBlock> line, uint32_t) { lines.push_back(std::move(line)); });
 
   REQUIRE(lines.size() == 2);
   REQUIRE(lines[0]->getWords().size() == 2);
@@ -194,7 +194,7 @@ std::vector<std::shared_ptr<TextBlock>> layoutJustified(ParsedText& text, uint16
   GfxRenderer renderer(display);
   std::vector<std::shared_ptr<TextBlock>> lines;
   text.layoutAndExtractLines(renderer, kFontId, pageWidth,
-                             [&](std::shared_ptr<TextBlock> line) { lines.push_back(std::move(line)); });
+                             [&](std::shared_ptr<TextBlock> line, uint32_t) { lines.push_back(std::move(line)); });
   return lines;
 }
 
@@ -287,4 +287,69 @@ TEST_CASE("ParsedText: after visual reorder an attached space is not a gap unles
   const int extra = justifyExtra(kWidth - kWordSum - kNaturalGaps, kGaps);
   REQUIRE(xpos.size() == 4);
   CHECK(xpos[1] - xpos[0] == static_cast<int16_t>(20 + 6 + extra));
+}
+
+TEST_CASE("ParsedText: CJK split tokens keep advancing visible offsets") {
+  ParsedText text(/*extraParagraphSpacing=*/true, /*forceParagraphIndents=*/false, /*hyphenationEnabled=*/false,
+                  /*focusReadingEnabled=*/false, nonJustifiedLeftAlignedStyle());
+  const std::string hanzi = std::string("\xe6\xbc\xa2") + "\xe5\xad\x97";
+  text.addWord(hanzi, EpdFontFamily::REGULAR, false, false, 40);
+  REQUIRE(text.size() == 2);
+  CHECK(text.visibleOffsetAt(0) == 40);
+  CHECK(text.visibleOffsetAt(1) == 41);
+}
+
+TEST_CASE("ParsedText: focus split puts the suffix at the bold-prefix codepoint count") {
+  ParsedText text(/*extraParagraphSpacing=*/true, /*forceParagraphIndents=*/false, /*hyphenationEnabled=*/false,
+                  /*focusReadingEnabled=*/true, nonJustifiedLeftAlignedStyle());
+  text.addWord("hello", EpdFontFamily::REGULAR, false, false, 20);
+  REQUIRE(text.size() == 2);
+  CHECK(text.visibleOffsetAt(0) == 20);
+  CHECK(text.visibleOffsetAt(1) == 22);
+}
+
+TEST_CASE("ParsedText: an explicit hyphen split preserves source offsets") {
+  ParsedText text(/*extraParagraphSpacing=*/true, /*forceParagraphIndents=*/false, /*hyphenationEnabled=*/false,
+                  /*focusReadingEnabled=*/false, nonJustifiedLeftAlignedStyle());
+  text.addWord("foo-bar", EpdFontFamily::REGULAR, false, false, 100);
+  REQUIRE(text.size() == 2);
+  CHECK(text.visibleOffsetAt(0) == 100);
+  CHECK(text.visibleOffsetAt(1) == 104);
+}
+
+TEST_CASE("ParsedText: prefix-erase keeps the remainder word's offset") {
+  ParsedText text(/*extraParagraphSpacing=*/true, /*forceParagraphIndents=*/false, /*hyphenationEnabled=*/false,
+                  /*focusReadingEnabled=*/false, nonJustifiedLeftAlignedStyle());
+  text.addWord("AAAA", EpdFontFamily::REGULAR, false, false, 10);
+  text.addWord("BBBBBBBBBB", EpdFontFamily::REGULAR, false, false, 14);
+  GfxRenderer renderer(display);
+  std::vector<uint32_t> lineOffsets;
+  text.layoutAndExtractLines(
+      renderer, kFontId, 50, [&](std::shared_ptr<TextBlock>, uint32_t offset) { lineOffsets.push_back(offset); },
+      false);
+  REQUIRE(lineOffsets.size() == 1);
+  CHECK(lineOffsets[0] == 10);
+  REQUIRE(text.size() == 1);
+  CHECK(text.visibleOffsetAt(0) == 14);
+}
+
+TEST_CASE("ParsedText: a uint16 delta overflow records a rebase") {
+  ParsedText text(/*extraParagraphSpacing=*/true, /*forceParagraphIndents=*/false, /*hyphenationEnabled=*/false,
+                  /*focusReadingEnabled=*/false, nonJustifiedLeftAlignedStyle());
+  text.addWord("aa", EpdFontFamily::REGULAR, false, false, 0);
+  text.addWord("bb", EpdFontFamily::REGULAR, false, false, 70000);
+  REQUIRE(text.size() == 2);
+  CHECK(text.visibleOffsetAt(0) == 0);
+  CHECK(text.visibleOffsetAt(1) == 70000);
+}
+
+TEST_CASE("ParsedText: a guide-reading middle-dot stamps the next word's offset") {
+  ParsedText text(/*extraParagraphSpacing=*/true, /*forceParagraphIndents=*/false, /*hyphenationEnabled=*/false,
+                  /*focusReadingEnabled=*/false, nonJustifiedLeftAlignedStyle(), /*guideReadingEnabled=*/true);
+  text.addWord("aa", EpdFontFamily::REGULAR, false, false, 5);
+  text.addWord("bb", EpdFontFamily::REGULAR, false, false, 7);
+  REQUIRE(text.size() == 3);
+  CHECK(text.visibleOffsetAt(0) == 5);
+  CHECK(text.visibleOffsetAt(1) == 7);
+  CHECK(text.visibleOffsetAt(2) == 7);
 }

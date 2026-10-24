@@ -714,34 +714,32 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(HalFile& jpegFile, Print& b
     }
 
     ctx.atkinson1BitDitherer = makeUniqueNoThrow<Atkinson1BitDitherer>(outWidth);
-    if (!ctx.atkinson1BitDitherer) {
+    if (!ctx.atkinson1BitDitherer || !ctx.atkinson1BitDitherer->isReady()) {
       LOG_ERR("JPG", "OOM: Atkinson1BitDitherer");
-      return false;
+      ctx.atkinson1BitDitherer.reset();
     }
   } else if (!USE_8BIT_OUTPUT) {
     if (USE_ATKINSON) {
-      // Atkinson ditherer allocates error buffers ~3KB
       if (!heapguard::canAllocate(3500, heapguard::kCriticalFloorBytes)) {
         LOG_ERR("JPG", "Skipping cover dithering: low heap");
         return false;
       }
 
       ctx.atkinsonDitherer = makeUniqueNoThrow<AtkinsonDitherer>(outWidth);
-      if (!ctx.atkinsonDitherer) {
+      if (!ctx.atkinsonDitherer || !ctx.atkinsonDitherer->isReady()) {
         LOG_ERR("JPG", "OOM: AtkinsonDitherer");
-        return false;
+        ctx.atkinsonDitherer.reset();
       }
     } else if (USE_FLOYD_STEINBERG) {
-      // Floyd-Steinberg ditherer allocates error buffers ~3KB
       if (!heapguard::canAllocate(3500, heapguard::kCriticalFloorBytes)) {
         LOG_ERR("JPG", "Skipping cover dithering: low heap");
         return false;
       }
 
       ctx.fsDitherer = makeUniqueNoThrow<FloydSteinbergDitherer>(outWidth);
-      if (!ctx.fsDitherer) {
+      if (!ctx.fsDitherer || !ctx.fsDitherer->isReady()) {
         LOG_ERR("JPG", "OOM: FloydSteinbergDitherer");
-        return false;
+        ctx.fsDitherer.reset();
       }
     }
   }

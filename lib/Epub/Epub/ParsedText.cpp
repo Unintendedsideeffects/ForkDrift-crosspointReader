@@ -12,6 +12,7 @@
 #include <functional>
 #include <limits>
 #include <new>
+#include <string_view>
 #include <vector>
 
 #if ENABLE_HYPHENATION
@@ -322,8 +323,18 @@ uint16_t measureWordWidth(const GfxRenderer& renderer, const int fontId, const s
   return renderer.getTextAdvanceX(fontId, sanitized.c_str(), style);
 }
 
-// Checks if a UTF-8 codepoint should be counted as part of a word for Focus Reading
-bool isWordCharacter(uint32_t cp) {
+uint32_t countCodepoints(const std::string_view text) {
+  const auto* ptr = reinterpret_cast<const unsigned char*>(text.data());
+  const auto* const end = ptr + text.size();
+  uint32_t count = 0;
+  while (ptr < end) {
+    utf8NextCodepoint(&ptr);
+    count++;
+  }
+  return count;
+}
+
+bool isWordCharacter(const uint32_t cp) {
   // ASCII range (Catches 95%+ of characters immediately)
   if (cp < 128) {
     // Bitwise trick: (cp | 0x20) converts uppercase ASCII to lowercase.
@@ -359,8 +370,75 @@ void ParsedText::resetHeapTruncationTally() { heapTruncationTallyCount = 0; }
 
 uint32_t ParsedText::heapTruncationTally() { return heapTruncationTallyCount; }
 
+uint32_t ParsedText::visibleOffsetBaseAt(const size_t wordIndex) const {
+  uint32_t base = visibleOffsetBase;
+  for (const auto& rebase : visibleOffsetRebases) {
+    if (rebase.wordIndex > wordIndex) break;
+    base = rebase.base;
+  }
+  return base;
+}
+
+uint32_t ParsedText::visibleOffsetAt(const size_t wordIndex) const {
+  if (wordIndex >= wordVisibleOffsetDeltas.size()) return 0;
+  return visibleOffsetBaseAt(wordIndex) + wordVisibleOffsetDeltas[wordIndex];
+}
+
+void ParsedText::pushVisibleOffset(const uint32_t offset) {
+  uint32_t base = visibleOffsetBase;
+  if (wordVisibleOffsetDeltas.empty()) {
+    visibleOffsetBase = offset;
+    base = offset;
+  } else if (!visibleOffsetRebases.empty()) {
+    base = visibleOffsetRebases.back().base;
+  }
+
+  if (offset < base || offset - base > std::numeric_limits<uint16_t>::max()) {
+    visibleOffsetRebases.push_back({wordVisibleOffsetDeltas.size(), offset});
+    base = offset;
+  }
+  wordVisibleOffsetDeltas.push_back(static_cast<uint16_t>(offset - base));
+}
+
+void ParsedText::insertVisibleOffset(const size_t wordIndex, const uint32_t offset) {
+  const uint32_t base = wordIndex > 0 ? visibleOffsetBaseAt(wordIndex - 1) : visibleOffsetBase;
+  for (auto& rebase : visibleOffsetRebases) {
+    if (rebase.wordIndex >= wordIndex) rebase.wordIndex++;
+  }
+
+  uint32_t insertionBase = base;
+  if (offset < base || offset - base > std::numeric_limits<uint16_t>::max()) {
+    const auto rebaseIt = std::find_if(visibleOffsetRebases.begin(), visibleOffsetRebases.end(),
+                                       [wordIndex](const auto& rebase) { return rebase.wordIndex > wordIndex; });
+    visibleOffsetRebases.insert(rebaseIt, {wordIndex, offset});
+    insertionBase = offset;
+  }
+  wordVisibleOffsetDeltas.insert(wordVisibleOffsetDeltas.begin() + wordIndex,
+                                 static_cast<uint16_t>(offset - insertionBase));
+}
+
+void ParsedText::eraseVisibleOffsetPrefix(const size_t count) {
+  if (count >= wordVisibleOffsetDeltas.size()) {
+    wordVisibleOffsetDeltas.clear();
+    visibleOffsetRebases.clear();
+    visibleOffsetBase = 0;
+    return;
+  }
+
+  const uint32_t newBase = visibleOffsetBaseAt(count);
+  wordVisibleOffsetDeltas.erase(wordVisibleOffsetDeltas.begin(), wordVisibleOffsetDeltas.begin() + count);
+  size_t writeIndex = 0;
+  for (auto rebase : visibleOffsetRebases) {
+    if (rebase.wordIndex <= count) continue;
+    rebase.wordIndex -= count;
+    visibleOffsetRebases[writeIndex++] = rebase;
+  }
+  visibleOffsetRebases.resize(writeIndex);
+  visibleOffsetBase = newBase;
+}
+
 void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle, const bool underline,
-                         const bool attachToPrevious) {
+                         const bool attachToPrevious, const uint32_t visibleTextOffset) {
   if (word.empty()) return;
 
   // Technique #4 — graceful degradation. The word vectors below grow via
@@ -402,7 +480,9 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
     words.emplace_back("\xc2\xb7");
     wordStyles.push_back(EpdFontFamily::REGULAR);
     wordContinues.push_back(false);
+    wordNoSpaceBefore.push_back(false);
     wordIsFocusSuffix.push_back(false);
+    pushVisibleOffset(visibleTextOffset);
   }
 
   EpdFontFamily::Style baseStyle = fontStyle;
@@ -413,12 +493,13 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
                              BidiUtils::startsWithRtl(word.c_str(), RTL_PER_WORD_PROBE_DEPTH);
 
   const auto pushToken = [&](std::string token, const bool continues, const bool noSpaceBefore,
-                             const bool isFocusSuffix) {
+                             const bool isFocusSuffix, const uint32_t tokenOffset) {
     words.push_back(std::move(token));
     wordStyles.push_back(baseStyle);
     wordContinues.push_back(continues);
     wordNoSpaceBefore.push_back(noSpaceBefore);
     wordIsFocusSuffix.push_back(isFocusSuffix);
+    pushVisibleOffset(tokenOffset);
   };
 
   bool effectiveAttachToPrevious = attachToPrevious;
@@ -435,19 +516,21 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
   if (auto breakOffsets = cjkCharacterBreakByteOffsets(word); !breakOffsets.empty()) {
     bool firstToken = true;
     size_t tokenStart = 0;
+    uint32_t tokenVisibleOffset = visibleTextOffset;
     for (const size_t breakOffset : breakOffsets) {
       if (breakOffset <= tokenStart || breakOffset > word.size()) continue;
       const bool attach =
           firstToken ? effectiveAttachToPrevious : (!words.empty() && endsWithBreakableHyphen(words.back()));
-      pushToken(word.substr(tokenStart, breakOffset - tokenStart), attach, firstToken ? effectiveNoSpaceBefore : true,
-                false);
+      const std::string_view token(word.data() + tokenStart, breakOffset - tokenStart);
+      pushToken(std::string(token), attach, firstToken ? effectiveNoSpaceBefore : true, false, tokenVisibleOffset);
+      tokenVisibleOffset += countCodepoints(token);
       firstToken = false;
       tokenStart = breakOffset;
     }
     if (tokenStart < word.size()) {
       const bool attach =
           firstToken ? effectiveAttachToPrevious : (!words.empty() && endsWithBreakableHyphen(words.back()));
-      pushToken(word.substr(tokenStart), attach, firstToken ? effectiveNoSpaceBefore : true, false);
+      pushToken(word.substr(tokenStart), attach, firstToken ? effectiveNoSpaceBefore : true, false, tokenVisibleOffset);
     }
     if (wordStartsRtl) {
       hasRtlWord = true;
@@ -456,7 +539,7 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
   }
 
   if (containsCjkBreakableCodepoint(word)) {
-    pushToken(std::move(word), effectiveAttachToPrevious, effectiveNoSpaceBefore, false);
+    pushToken(std::move(word), effectiveAttachToPrevious, effectiveNoSpaceBefore, false, visibleTextOffset);
     if (wordStartsRtl) {
       hasRtlWord = true;
     }
@@ -468,16 +551,19 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
     if (auto breakOffsets = explicitHyphenBreakByteOffsets(word, effectiveAttachToPrevious); !breakOffsets.empty()) {
       bool firstToken = true;
       size_t tokenStart = 0;
+      uint32_t tokenVisibleOffset = visibleTextOffset;
       for (const size_t breakOffset : breakOffsets) {
         if (breakOffset <= tokenStart || breakOffset > word.size()) continue;
-        pushToken(word.substr(tokenStart, breakOffset - tokenStart), firstToken ? effectiveAttachToPrevious : true,
-                  firstToken ? effectiveNoSpaceBefore : true, false);
+        const std::string_view token(word.data() + tokenStart, breakOffset - tokenStart);
+        pushToken(std::string(token), firstToken ? effectiveAttachToPrevious : true,
+                  firstToken ? effectiveNoSpaceBefore : true, false, tokenVisibleOffset);
+        tokenVisibleOffset += countCodepoints(token);
         firstToken = false;
         tokenStart = breakOffset;
       }
       if (tokenStart < word.size()) {
         pushToken(word.substr(tokenStart), firstToken ? effectiveAttachToPrevious : true,
-                  firstToken ? effectiveNoSpaceBefore : true, false);
+                  firstToken ? effectiveNoSpaceBefore : true, false, tokenVisibleOffset);
       }
       if (wordStartsRtl) {
         hasRtlWord = true;
@@ -485,7 +571,7 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
       return;
     }
 
-    pushToken(std::move(word), effectiveAttachToPrevious, effectiveNoSpaceBefore, false);
+    pushToken(std::move(word), effectiveAttachToPrevious, effectiveNoSpaceBefore, false, visibleTextOffset);
     if (wordStartsRtl) {
       hasRtlWord = true;
     }
@@ -509,18 +595,27 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
     wordContinues.reserve(newCapacity);
     wordNoSpaceBefore.reserve(newCapacity);
     wordIsFocusSuffix.reserve(newCapacity);
+    wordVisibleOffsetDeltas.reserve(newCapacity);
   }
 
   // Lambda helper to process and push individual sub-segments of the string
   // Use std::string_view to avoid heap allocations when slicing
   auto processSegment = [&](std::string_view segment, bool isWord, bool attach, bool noSpaceBefore) {
+    const unsigned char* wordBegin = reinterpret_cast<const unsigned char*>(word.data());
+    const unsigned char* segmentBegin = reinterpret_cast<const unsigned char*>(segment.data());
+    uint32_t segmentOffset = visibleTextOffset;
+    const unsigned char* offsetPtr = wordBegin;
+    while (offsetPtr < segmentBegin) {
+      utf8NextCodepoint(&offsetPtr);
+      segmentOffset++;
+    }
     if (!isWord) {
-      // Punctuation and Numbers stay regular
       words.emplace_back(segment);
       wordStyles.push_back(baseStyle);
       wordContinues.push_back(attach);
       wordNoSpaceBefore.push_back(noSpaceBefore);
       wordIsFocusSuffix.push_back(false);
+      pushVisibleOffset(segmentOffset);
     } else {
       size_t charCount = 0;
       const unsigned char* countPtr = reinterpret_cast<const unsigned char*>(segment.data());
@@ -537,12 +632,12 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
       targetBoldChars = std::clamp<size_t>(targetBoldChars, 1, 9);
 
       if (targetBoldChars >= charCount) {
-        // Whole segment is bold - no suffix split needed
         words.emplace_back(segment);
         wordStyles.push_back(static_cast<EpdFontFamily::Style>(baseStyle | EpdFontFamily::BOLD));
         wordContinues.push_back(attach);
         wordNoSpaceBefore.push_back(noSpaceBefore);
         wordIsFocusSuffix.push_back(false);
+        pushVisibleOffset(segmentOffset);
       } else {
         countPtr = reinterpret_cast<const unsigned char*>(segment.data());
         for (size_t i = 0; i < targetBoldChars; ++i) {
@@ -550,19 +645,19 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
         }
         size_t splitByteOffset = countPtr - reinterpret_cast<const unsigned char*>(segment.data());
 
-        // Bold prefix
         words.emplace_back(segment.substr(0, splitByteOffset));
         wordStyles.push_back(static_cast<EpdFontFamily::Style>(baseStyle | EpdFontFamily::BOLD));
         wordContinues.push_back(attach);
         wordNoSpaceBefore.push_back(noSpaceBefore);
         wordIsFocusSuffix.push_back(false);
+        pushVisibleOffset(segmentOffset);
 
-        // Regular suffix - marked so extractLine can merge it back into single TextBlock entry
         words.emplace_back(segment.substr(splitByteOffset));
         wordStyles.push_back(baseStyle);
         wordContinues.push_back(true);
         wordNoSpaceBefore.push_back(false);
         wordIsFocusSuffix.push_back(true);
+        pushVisibleOffset(segmentOffset + static_cast<uint32_t>(targetBoldChars));
       }
     }
   };
@@ -611,7 +706,7 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
 
 // Consumes data to minimize memory usage
 void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fontId, const uint16_t viewportWidth,
-                                       const std::function<void(std::shared_ptr<TextBlock>)>& processLine,
+                                       const std::function<void(std::shared_ptr<TextBlock>, uint32_t)>& processLine,
                                        const bool includeLastLine) {
   if (words.empty()) {
     return;
@@ -690,6 +785,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
     wordContinues.erase(wordContinues.begin(), wordContinues.begin() + consumed);
     wordNoSpaceBefore.erase(wordNoSpaceBefore.begin(), wordNoSpaceBefore.begin() + consumed);
     wordIsFocusSuffix.erase(wordIsFocusSuffix.begin(), wordIsFocusSuffix.begin() + consumed);
+    eraseVisibleOffsetPrefix(consumed);
   }
 }
 
@@ -1004,11 +1100,17 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   }
 
   if (chosenWidth < 0) {
-    // No hyphenation point produced a prefix that fits in the remaining space.
     return false;
   }
 
-  // Split the word at the selected breakpoint and append a hyphen if required.
+  uint32_t remainderOffset = visibleOffsetAt(wordIndex);
+  const unsigned char* offsetPtr = reinterpret_cast<const unsigned char*>(word.data());
+  const unsigned char* splitPtr = offsetPtr + chosenOffset;
+  while (offsetPtr < splitPtr) {
+    utf8NextCodepoint(&offsetPtr);
+    remainderOffset++;
+  }
+
   std::string remainder = word.substr(chosenOffset);
   words[wordIndex].resize(chosenOffset);
   if (chosenNeedsHyphen) {
@@ -1018,7 +1120,7 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   // Insert the remainder word (with matching style and continuation flag) directly after the prefix.
   words.insert(words.begin() + wordIndex + 1, remainder);
   wordStyles.insert(wordStyles.begin() + wordIndex + 1, style);
-  // The hyphen remainder is not a focus suffix - it starts fresh on the next line.
+  insertVisibleOffset(wordIndex + 1, remainderOffset);
   wordIsFocusSuffix.insert(wordIsFocusSuffix.begin() + wordIndex + 1, false);
 
   // Continuation flag handling after splitting a word into prefix + remainder.
@@ -1055,7 +1157,7 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
 void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const std::vector<uint16_t>& wordWidths,
                              const std::vector<bool>& continuesVec, const std::vector<bool>& noSpaceBeforeVec,
                              const std::vector<size_t>& lineBreakIndices,
-                             const std::function<void(std::shared_ptr<TextBlock>)>& processLine,
+                             const std::function<void(std::shared_ptr<TextBlock>, uint32_t)>& processLine,
                              const GfxRenderer& renderer, const int fontId) {
   const size_t lineBreak = lineBreakIndices[breakIndex];
   size_t lastBreakAt = breakIndex > 0 ? lineBreakIndices[breakIndex - 1] : 0;
@@ -1065,6 +1167,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     }
   }
   const size_t lineWordCount = lineBreak - lastBreakAt;
+  const uint32_t lineVisibleOffset = visibleOffsetAt(lastBreakAt);
 
   // Calculate first line indent (only for left/justified text).
   // Positive text-indent (paragraph indent) is suppressed when extraParagraphSpacing is on.
@@ -1386,7 +1489,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
       LOG_ERR("PTX", "OOM: TextBlock; dropping line");
       return;
     }
-    processLine(std::shared_ptr<TextBlock>(tb));
+    processLine(std::shared_ptr<TextBlock>(tb), lineVisibleOffset);
     return;
   }
 
@@ -1437,5 +1540,5 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     LOG_ERR("PTX", "OOM: TextBlock; dropping line");
     return;
   }
-  processLine(std::shared_ptr<TextBlock>(tb));
+  processLine(std::shared_ptr<TextBlock>(tb), lineVisibleOffset);
 }

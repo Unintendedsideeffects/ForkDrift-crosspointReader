@@ -35,7 +35,7 @@ bool readBoundedWord(serialization::BufferedReader& reader, std::string& word) {
 }
 }  // namespace
 
-void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int x, const int y) const {
+void TextBlock::render(const GfxRenderer& renderer, const int sectionFontId, const int x, const int y) const {
   // Focus annotations are optional: empty vectors mean no word in this block has a split.
   // When present, they must be sized in lockstep with words[].
   const bool hasFocus = !wordFocusBoundary.empty();
@@ -48,6 +48,7 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
   }
 
   const bool scanning = renderer.isFontCacheScanning();
+  const int fontId = blockStyle.resolvedFontId(sectionFontId);
   const int ascender = renderer.getFontAscenderSize(fontId);
   for (size_t i = 0; i < words.size(); i++) {
     const int wordX = wordXpos[i] + x;
@@ -186,6 +187,7 @@ bool TextBlock::serialize(serialization::BufferedWriter& file) const {
   serialization::writePod(file, blockStyle.textIndentDefined);
   serialization::writePod(file, blockStyle.isRtl);
   serialization::writePod(file, blockStyle.directionDefined);
+  serialization::writePod(file, blockStyle.fontId);
 
   return true;
 }
@@ -276,7 +278,7 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(serialization::BufferedReader&
       !serialization::readPod(file, blockStyle.paddingLeft) || !serialization::readPod(file, blockStyle.paddingRight) ||
       !serialization::readPod(file, blockStyle.textIndent) ||
       !serialization::readPod(file, blockStyle.textIndentDefined) || !serialization::readPod(file, blockStyle.isRtl) ||
-      !serialization::readPod(file, blockStyle.directionDefined)) {
+      !serialization::readPod(file, blockStyle.directionDefined) || !serialization::readPod(file, blockStyle.fontId)) {
     LOG_ERR("TXB", "Deserialization failed: truncated block style metadata");
     return nullptr;
   }

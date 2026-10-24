@@ -32,6 +32,7 @@ std::shared_ptr<TextBlock> sampleTextBlock() {
   BlockStyle style;
   style.marginTop = 3;
   style.textAlignDefined = true;
+  style.fontId = 42;
   return std::make_shared<TextBlock>(std::vector<std::string>{"alpha", "beta"}, std::vector<int16_t>{4, 24},
                                      std::vector<EpdFontFamily::Style>{EpdFontFamily::REGULAR, EpdFontFamily::BOLD},
                                      std::vector<uint8_t>{2, 0}, std::vector<uint16_t>{7, 0}, style);
@@ -65,6 +66,7 @@ TEST_CASE("section cache TextBlock round-trips and rejects every truncated prefi
   CHECK(decoded->getWordStyles() == original->getWordStyles());
   CHECK(decoded->getBlockStyle().marginTop == 3);
   CHECK(decoded->getBlockStyle().textAlignDefined);
+  CHECK(decoded->getBlockStyle().fontId == 42);
 
   for (size_t length = 0; length < bytes.size(); length++) {
     INFO("truncated length=" << length);

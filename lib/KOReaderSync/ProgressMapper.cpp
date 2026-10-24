@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 
 #include "ChapterXPathResolver.h"
@@ -690,9 +691,12 @@ SavedProgressPosition ProgressMapper::toSavedProgress(const std::shared_ptr<Epub
   float intra =
       (pos.totalPages > 1) ? static_cast<float>(pos.pageNumber) / static_cast<float>(pos.totalPages - 1) : 0.0f;
   result.percentage = epub->calculateProgress(pos.spineIndex, intra);
-  // Progress-based XPath correctly handles both <p> and <li> positions.
-  result.xpath = ChapterXPathResolver::findXPathForProgress(epub, pos.spineIndex, intra);
-  // Fall back to paragraph-index lookup when progress-based resolution fails.
+  if (pos.hasVisibleTextOffset) {
+    result.xpath = ChapterXPathResolver::findXPathForVisibleTextOffset(epub, pos.spineIndex, pos.visibleTextOffset);
+  }
+  if (result.xpath.empty()) {
+    result.xpath = ChapterXPathResolver::findXPathForProgress(epub, pos.spineIndex, intra);
+  }
   if (result.xpath.empty() && pos.hasParagraphIndex && pos.paragraphIndex > 0) {
     result.xpath = ChapterXPathResolver::findXPathForParagraph(epub, pos.spineIndex, pos.paragraphIndex);
   }
@@ -728,6 +732,7 @@ CrossPointPosition ProgressMapper::toCrossPoint(const std::shared_ptr<Epub>& epu
 
   if (xpathSpine >= 0 && xpathSpine < spineCount) {
     result.spineIndex = xpathSpine;
+    result.hasResolvedSpineIndex = true;
   } else if (const int found = epub->getSpineIndexForSize(targetBytes); found >= 0) {
     result.spineIndex = found;
   }
@@ -763,6 +768,9 @@ CrossPointPosition ProgressMapper::toCrossPoint(const std::shared_ptr<Epub>& epu
     if (streamSpine(epub, result.spineIndex, s) && s.found()) {
       intra = s.progress();
       resolvedIntra = true;
+      result.visibleTextOffset =
+          static_cast<uint32_t>(std::min<size_t>(s.getTargetVisChars(), static_cast<size_t>(UINT32_MAX)));
+      result.hasVisibleTextOffset = true;
       const int pAtMatch = s.getParagraphAtMatch();
       if (pAtMatch > 0) {
         result.paragraphIndex = static_cast<uint16_t>(pAtMatch);
@@ -789,6 +797,9 @@ CrossPointPosition ProgressMapper::toCrossPoint(const std::shared_ptr<Epub>& epu
     if (streamSpine(epub, result.spineIndex, s) && s.found()) {
       intra = s.progress();
       resolvedIntra = true;
+      result.visibleTextOffset =
+          static_cast<uint32_t>(std::min<size_t>(s.getTargetVisChars(), static_cast<size_t>(UINT32_MAX)));
+      result.hasVisibleTextOffset = true;
       LOG_DBG("PM", "XPath p[%d]/text()[%d]+%d -> %.1f%% (target=%zu total=%zu)", xpathP, xpathTextNode, xpathChar,
               intra * 100, s.getTargetVisChars(), s.getTotalVisChars());
     }
@@ -796,7 +807,25 @@ CrossPointPosition ProgressMapper::toCrossPoint(const std::shared_ptr<Epub>& epu
   if (!resolvedIntra && xpathSpine >= 0 && xpathSpine < spineCount && isChapterStartXPath(koPos.xpath)) {
     intra = 0.0f;
     resolvedIntra = true;
+    result.visibleTextOffset = 0;
+    result.hasVisibleTextOffset = true;
     LOG_DBG("PM", "Chapter-start XPath %s -> spine=%d page start", koPos.xpath.c_str(), result.spineIndex);
+  }
+  if (result.hasVisibleTextOffset) {
+    Section offsetSection(epub, result.spineIndex, renderer);
+    const bool imageAnchor = useAncestry && xpathStepCount > 0 &&
+                             (strcasecmp(xpathSteps[xpathStepCount - 1].tag, "img") == 0 ||
+                              strcasecmp(xpathSteps[xpathStepCount - 1].tag, "image") == 0);
+    if (const auto offsetPage = offsetSection.getPageForVisibleTextOffset(result.visibleTextOffset, imageAnchor)) {
+      result.pageNumber = *offsetPage;
+      result.totalPages = std::max(result.totalPages, result.pageNumber + 1);
+      result.hasMappedPage = true;
+      LOG_DBG("PM", "XPath content offset %u -> spine=%d page=%d/%d", result.visibleTextOffset, result.spineIndex,
+              result.pageNumber, result.totalPages);
+      return result;
+    }
+    LOG_DBG("PM", "No page-offset LUT for spine=%d offset=%u; using percentage fallback", result.spineIndex,
+            result.visibleTextOffset);
   }
   if (!resolvedIntra) {
     const size_t bytesIn = (targetBytes > prevCum) ? (targetBytes - prevCum) : 0;
@@ -817,6 +846,7 @@ CrossPointPosition ProgressMapper::toCrossPoint(const std::shared_ptr<Epub>& epu
       if (liPage.has_value()) {
         LOG_DBG("PM", "Li index %u -> page %d (was %d)", result.liIndex, *liPage, result.pageNumber);
         result.pageNumber = *liPage;
+        result.hasMappedPage = true;
         refined = true;
       } else {
         LOG_DBG("PM", "Li index %u not found in section LUT", result.liIndex);
@@ -827,6 +857,7 @@ CrossPointPosition ProgressMapper::toCrossPoint(const std::shared_ptr<Epub>& epu
       if (anchorPage.has_value()) {
         LOG_DBG("PM", "Anchor '%s' -> page %d (was %d)", result.xpathAnchorId, *anchorPage, result.pageNumber);
         result.pageNumber = *anchorPage;
+        result.hasMappedPage = true;
         refined = true;
       } else {
         LOG_DBG("PM", "Anchor '%s' not found in section cache", result.xpathAnchorId);
@@ -854,6 +885,7 @@ CrossPointPosition ProgressMapper::toCrossPoint(const std::shared_ptr<Epub>& epu
         LOG_DBG("PM", "Paragraph %u -> LUT page %d, nextPara page %s, intra page %d, using %d", result.paragraphIndex,
                 *paragraphPage, nextParaBuf, result.pageNumber, refinedPage);
         result.pageNumber = refinedPage;
+        result.hasMappedPage = true;
       } else {
         LOG_DBG("PM", "Paragraph %u not found in section LUT", result.paragraphIndex);
       }

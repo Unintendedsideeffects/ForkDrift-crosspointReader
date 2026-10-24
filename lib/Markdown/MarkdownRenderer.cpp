@@ -1102,7 +1102,7 @@ void MarkdownRenderer::flushTextBlock() {
   const int availableWidth = (viewportWidth > indentWidth) ? (viewportWidth - indentWidth) : 0;
   currentTextBlock->layoutAndExtractLines(
       renderer, fontId, static_cast<uint16_t>(availableWidth),
-      [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
+      [this](const std::shared_ptr<TextBlock>& textBlock, uint32_t) { addLineToPage(textBlock); });
 
   // Extra paragraph spacing if enabled
   if (extraParagraphSpacing) {

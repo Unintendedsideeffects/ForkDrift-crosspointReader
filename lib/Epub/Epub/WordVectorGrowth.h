@@ -1,9 +1,10 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
-// Growth arithmetic for ParsedText's five parallel word vectors.
+// Growth arithmetic for ParsedText's six parallel word vectors.
 //
 // Split out as a dependency-free header so the numbers are host-testable: the
 // old guard was a flat 8KB constant that nobody could exercise, and it turned
@@ -18,14 +19,14 @@
 // 8KB request that would have fit the largest block four times over.
 namespace wordgrowth {
 
-// The five vectors reserve together, so charge them together. `words` dominates
+// The six vectors reserve together, so charge them together. `words` dominates
 // at sizeof(std::string) per slot (24 bytes on this 32-bit target); wordStyles
-// adds one byte and the three std::vector<bool> about one bit each, rounded up
-// to one byte between them.
+// adds one byte, the three std::vector<bool> about one bit each rounded up to
+// one byte between them, and wordVisibleOffsetDeltas adds a uint16_t.
 // (24 on the 32-bit device target, 32 on a 64-bit host; deriving it from
 // sizeof rather than hardcoding keeps the host test honest about the target it
 // is actually running on.)
-constexpr size_t kBytesPerSlot = sizeof(std::string) + 2;
+constexpr size_t kBytesPerSlot = sizeof(std::string) + 2 + sizeof(uint16_t);
 
 // Floor on the first allocation, so early words do not trigger a run of tiny
 // reallocations. Matches the pre-existing focus-reading reserve.

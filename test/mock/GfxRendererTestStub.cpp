@@ -47,8 +47,9 @@ int GfxRenderer::getSpaceAdvance(int, uint32_t, uint32_t, EpdFontFamily::Style) 
 
 int GfxRenderer::getKerning(int, uint32_t, uint32_t, EpdFontFamily::Style) const { return 0; }
 
-int GfxRenderer::getTextAdvanceX(int, const char* text, EpdFontFamily::Style) const {
-  return codepointCount(text) * kPixelsPerCodepoint;
+int GfxRenderer::getTextAdvanceX(int fontId, const char* text, EpdFontFamily::Style) const {
+  const int px = fontId == 1 ? kPixelsPerCodepoint : kPixelsPerCodepoint + 4;
+  return codepointCount(text) * px;
 }
 
 int GfxRenderer::getLineHeight(int) const { return 20; }

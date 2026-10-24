@@ -15,6 +15,7 @@
 #include "KOReaderCredentialStore.h"
 #include "KOReaderDocumentId.h"
 #include "MappedInputManager.h"
+#include "ProgressComparison.h"
 #include "ReaderUtils.h"
 #include "activities/ActivityManager.h"
 #include "activities/network/WifiSelectionActivity.h"
@@ -50,10 +51,12 @@ void KOReaderSyncActivity::ensureEpubLoaded() {
 }
 
 void KOReaderSyncActivity::saveProgressAndReturn(int spineIndex, int page) {
-  // epub is guaranteed non-null here: ensureEpubLoaded() was called in performSync() before
-  // SHOWING_RESULT state is entered, and this method is only called from that state.
   assert(epub);
-  if (!EpubReaderUtils::saveProgress(*epub, spineIndex, page, 0)) {
+  std::optional<uint32_t> offset;
+  if (remotePosition.hasVisibleTextOffset && remotePosition.spineIndex == spineIndex) {
+    offset = remotePosition.visibleTextOffset;
+  }
+  if (!EpubReaderUtils::saveProgress(*epub, spineIndex, page, 0, offset)) {
     {
       RenderLock lock(*this);
       state = SYNC_FAILED;
@@ -173,19 +176,15 @@ void KOReaderSyncActivity::performSync() {
   }
 
   SavedProgressPosition koPos = {remoteProgress.progress, remoteProgress.percentage};
-  remotePosition = ProgressMapper::toCrossPoint(epub, koPos, renderer, currentSpineIndex, totalPagesInSpine);
+  remotePosition =
+      ProgressMapper::toCrossPoint(epub, koPos, renderer, localPosition.spineIndex, localPosition.totalPages);
 
-  // localProgress was pre-computed in EpubReaderActivity before the Epub was released.
   {
     RenderLock lock(*this);
     state = SHOWING_RESULT;
-
-    // Default to the option that corresponds to the furthest progress
-    if (localProgress.percentage > remoteProgress.percentage) {
-      selectedOption = 1;  // Upload local progress
-    } else {
-      selectedOption = 0;  // Apply remote progress
-    }
+    const ProgressComparison comparison =
+        compareProgress(localPosition, localProgress.percentage, remotePosition, remoteProgress.percentage);
+    selectedOption = comparison == ProgressComparison::LocalAhead ? 1 : 0;
   }
   requestUpdate(true);
 }
@@ -344,8 +343,9 @@ void KOReaderSyncActivity::render(RenderLock&&) {
                               : (std::string(tr(STR_SECTION_PREFIX)) + std::to_string(remotePosition.spineIndex + 1));
     // Local chapter name was pre-computed before Epub was released.
     const std::string localChapter =
-        !localChapterName.empty() ? localChapterName
-                                  : (std::string(tr(STR_SECTION_PREFIX)) + std::to_string(currentSpineIndex + 1));
+        !localChapterName.empty()
+            ? localChapterName
+            : (std::string(tr(STR_SECTION_PREFIX)) + std::to_string(localPosition.spineIndex + 1));
 
     // Remote progress - chapter and page
     renderer.drawText(UI_10_FONT_ID, 20, 160, tr(STR_REMOTE_LABEL), true);
@@ -369,8 +369,8 @@ void KOReaderSyncActivity::render(RenderLock&&) {
     snprintf(localChapterStr, sizeof(localChapterStr), "  %s", localChapter.c_str());
     renderer.drawText(UI_10_FONT_ID, 20, 295, localChapterStr);
     char localPageStr[64];
-    snprintf(localPageStr, sizeof(localPageStr), tr(STR_PAGE_TOTAL_OVERALL_FORMAT), currentPage + 1, totalPagesInSpine,
-             localProgress.percentage * 100);
+    snprintf(localPageStr, sizeof(localPageStr), tr(STR_PAGE_TOTAL_OVERALL_FORMAT), localPosition.pageNumber + 1,
+             localPosition.totalPages, localProgress.percentage * 100);
     renderer.drawText(UI_10_FONT_ID, 20, 320, localPageStr);
 
     const int optionY = 350;

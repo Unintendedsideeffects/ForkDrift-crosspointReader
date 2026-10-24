@@ -38,6 +38,15 @@ struct BlockStyle {
   // getCombinedBlockStyle() so it can never leak onto a sibling block's style.
   bool fromBrElement = false;
 
+  float fontScale = 1.0f;
+  bool fontScaleDefined = false;
+  int32_t fontId = 0;
+  bool pageBreakBefore = false;
+  bool pageBreakAfter = false;
+  bool keepWithNext = false;
+
+  [[nodiscard]] int resolvedFontId(int sectionFontId) const { return fontId != 0 ? fontId : sectionFontId; }
+
   // Combined insets (margin + padding)
   [[nodiscard]] int16_t leftInset() const { return marginLeft + paddingLeft; }
   [[nodiscard]] int16_t rightInset() const { return marginRight + paddingRight; }
@@ -129,12 +138,18 @@ struct BlockStyle {
       result.marginBottom = std::max(child.marginBottom, marginBottom);
       result.paddingTop = static_cast<int16_t>(child.paddingTop + paddingTop);
       result.paddingBottom = static_cast<int16_t>(child.paddingBottom + paddingBottom);
+      result.pageBreakBefore = child.pageBreakBefore || pageBreakBefore;
     }
 
     // Direction is not axis-specific. Inherit from parent when child doesn't define it.
     if (!child.directionDefined && directionDefined) {
       result.isRtl = isRtl;
       result.directionDefined = true;
+    }
+    if (!child.fontScaleDefined && fontScaleDefined) {
+      result.fontScale = fontScale;
+      result.fontScaleDefined = true;
+      result.fontId = fontId;
     }
 
     // fromBrElement only means something for the exact block startNewTextBlock() tagged;
@@ -185,6 +200,8 @@ struct BlockStyle {
       blockStyle.isRtl = (cssStyle.direction == CssTextDirection::Rtl);
       blockStyle.directionDefined = true;
     }
+    blockStyle.pageBreakBefore = cssStyle.hasPageBreakBefore() && cssStyle.pageBreakBefore;
+    blockStyle.pageBreakAfter = cssStyle.hasPageBreakAfter() && cssStyle.pageBreakAfter;
     return blockStyle;
   }
 };

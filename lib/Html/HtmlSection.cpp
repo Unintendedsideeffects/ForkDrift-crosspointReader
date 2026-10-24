@@ -11,7 +11,7 @@
 #include "SpiBusMutex.h"
 
 namespace {
-constexpr uint8_t SECTION_FILE_VERSION = 4;
+constexpr uint8_t SECTION_FILE_VERSION = 5;  // v5: TextBlock serializes its per-block fontId
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) +
                                  sizeof(uint32_t) + sizeof(bool) + sizeof(bool) + sizeof(uint16_t) + sizeof(uint32_t);
@@ -209,7 +209,8 @@ bool HtmlSection::createSectionFile(int fontId, float lineCompression, bool extr
   ChapterHtmlSlimParser visitor(
       nullptr, htmlPath, renderer, fontId, lineCompression, extraParagraphSpacing, forceParagraphIndents,
       paragraphAlignment, viewportWidth, viewportHeight, hyphenationEnabled, focusReadingEnabled, guideReadingEnabled,
-      [this, &lut](std::unique_ptr<Page> page, uint16_t /*paragraphIndex*/, uint16_t /*liIndex*/) {
+      [this, &lut](std::unique_ptr<Page> page, uint16_t /*paragraphIndex*/, uint16_t /*liIndex*/,
+                   uint32_t /*visibleOffset: EPUB-only (KOSync)*/) {
         lut.emplace_back(this->onPageComplete(std::move(page)));
       },
       false, contentBasePath, cachePath + "/img_");

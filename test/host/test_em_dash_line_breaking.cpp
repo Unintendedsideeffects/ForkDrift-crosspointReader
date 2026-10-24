@@ -33,7 +33,7 @@ std::vector<std::shared_ptr<TextBlock>> layoutWords(const std::vector<std::strin
   GfxRenderer renderer(display);
   std::vector<std::shared_ptr<TextBlock>> lines;
   text.layoutAndExtractLines(renderer, kFontId, width,
-                             [&](std::shared_ptr<TextBlock> line) { lines.push_back(std::move(line)); });
+                             [&](std::shared_ptr<TextBlock> line, uint32_t) { lines.push_back(std::move(line)); });
   return lines;
 }
 
@@ -136,7 +136,7 @@ TEST_CASE("ParsedText: hyphen glue does not inflate justify gap count") {
   GfxRenderer renderer(display);
   std::vector<std::shared_ptr<TextBlock>> lines;
   text.layoutAndExtractLines(renderer, kFontId, kWidth,
-                             [&](std::shared_ptr<TextBlock> line) { lines.push_back(std::move(line)); });
+                             [&](std::shared_ptr<TextBlock> line, uint32_t) { lines.push_back(std::move(line)); });
 
   REQUIRE(lines.size() >= 2);
   const auto& words = lines[0]->getWords();

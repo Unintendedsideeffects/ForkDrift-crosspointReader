@@ -9,6 +9,7 @@ target_include_directories(KOReaderXPathResolverTest PRIVATE
   ${REPO_ROOT}/lib/KOReaderSync
   ${REPO_ROOT}/lib/Utf8
   ${REPO_ROOT}/lib/XmlParserUtils
+  ${REPO_ROOT}/lib/Epub
 )
 
 target_link_libraries(KOReaderXPathResolverTest PRIVATE

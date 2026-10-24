@@ -51,6 +51,28 @@ TEST_CASE("BlockStyle: \"Book's Style\" falls back to justify when the CSS defin
   CHECK_FALSE(resolved.textAlignDefined);
 }
 
+TEST_CASE("BlockStyle: getCombinedBlockStyle inherits isRtl only when the child is undefined") {
+  BlockStyle parent;
+  parent.directionDefined = true;
+  parent.isRtl = true;
+  BlockStyle child;
+  const auto combined = parent.getCombinedBlockStyle(child, BlockStyle::CombineAxis::Horizontal);
+  CHECK(combined.directionDefined);
+  CHECK(combined.isRtl);
+}
+
+TEST_CASE("BlockStyle: getCombinedBlockStyle keeps a child that defined its own direction") {
+  BlockStyle parent;
+  parent.directionDefined = true;
+  parent.isRtl = true;
+  BlockStyle child;
+  child.directionDefined = true;
+  child.isRtl = false;
+  const auto combined = parent.getCombinedBlockStyle(child, BlockStyle::CombineAxis::Horizontal);
+  CHECK(combined.directionDefined);
+  CHECK_FALSE(combined.isRtl);
+}
+
 TEST_CASE("BlockStyle: textAlignDefined tracks the CSS, not the user setting") {
   // The caller marks its own blocks defined when the user has a preference;
   // the helper must report only what the stylesheet actually said, or block

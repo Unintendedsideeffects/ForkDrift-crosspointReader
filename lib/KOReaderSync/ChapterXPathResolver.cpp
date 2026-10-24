@@ -13,6 +13,8 @@
 #include <utility>
 #include <vector>
 
+#include "Epub/VisibleTextUtils.h"
+
 namespace {
 std::string stripPrefix(const XML_Char* name) {
   if (!name) {
@@ -91,20 +93,7 @@ size_t countUtf8Codepoints(const XML_Char* data, const int len) {
   return count;
 }
 
-bool equalsTag(const std::string& name, const char* tag) {
-  size_t i = 0;
-  for (; tag[i] != '\0'; ++i) {
-    if (i >= name.size()) return false;
-    const char c = name[i] >= 'A' && name[i] <= 'Z' ? static_cast<char>(name[i] + ('a' - 'A')) : name[i];
-    if (c != tag[i]) return false;
-  }
-  return i == name.size();
-}
-
-bool isNonVisibleTextTag(const std::string& name) {
-  return equalsTag(name, "head") || equalsTag(name, "style") || equalsTag(name, "script") || equalsTag(name, "title") ||
-         equalsTag(name, "rp") || equalsTag(name, "rt");
-}
+bool isNonVisibleTextTag(const std::string& name) { return VisibleTextUtils::isNonVisibleElement(name); }
 
 class ParagraphTextCounter final : public Print {
  public:

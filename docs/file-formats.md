@@ -94,18 +94,36 @@ Defined as:
 
 ---
 
+## 1b. Footnote back-stack (`links.bin`)
+
+Per-book sidecar at `.crosspoint/epub_<hash>/links.bin`. It is reader-owned (listed in `book_cache::kUserStateEntries`) and is not a `book.bin` / `section.bin` version bump.
+
+### Version 1
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ version (u8) [value = 1]                                │
+│ depth   (u8) [1..3]                                     │
+│ entries: depth × (spineIndex u16 LE, pageNumber u16 LE) │
+└─────────────────────────────────────────────────────────┘
+```
+
+Maximum size is **14 bytes**. Missing, truncated, oversized, version-mismatched, or out-of-range `spineIndex` values are ignored. The file is deleted after load (consume-once), including when the payload is rejected.
+
+---
+
 ## 2. Section Layout Cache (`section.bin`)
 
-### Version 38
+### Version 39
 
-The `section.bin` caches pre-computed typesetting details (word positions, styles, line breaks, page sizes) for a single spine section under a specific set of layout parameters. It is recalculated automatically if any cache-busting setting is altered. Version 38 invalidates cached word lists (wrap-carried NBSP omitted, only stretchable literal spaces counted including after visual reorder, tokens split after explicit hyphens/dashes, figure containers apply publisher alignment/spacing) without changing the struct layout.
+The `section.bin` caches pre-computed typesetting details (word positions, styles, line breaks, page sizes) for a single spine section under a specific set of layout parameters. It is recalculated automatically if any cache-busting setting is altered. Version 38 invalidates cached word lists (wrap-carried NBSP omitted, only stretchable literal spaces counted including after visual reorder, tokens split after explicit hyphens/dashes, figure containers apply publisher alignment/spacing). Version 39 stores a per-`TextBlock` `fontId` so heading/CSS block sizes render with an already-registered face, and adds a per-page visible-text offset LUT (`u32[pageCount]` after `liLut`) so resume and KOSync land on a content coordinate rather than a page fraction. Header grows by one `u32` (`visibleLutOffset`).
 
 ### File Structure Layout
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│ HEADER (38 bytes)                                       │
-│ - version (u8) [value = 38]                             │
+│ HEADER (43 bytes)                                       │
+│ - version (u8) [value = 39]                             │
 │ - fontId (s32)                                          │
 │ - lineCompression (float)                               │
 │ - ... (other layout/typesetting flags)                  │
@@ -114,6 +132,7 @@ The `section.bin` caches pre-computed typesetting details (word positions, style
 │ - anchorMapOffset (u32)                                 │
 │ - paragraphLutOffset (u32)                              │
 │ - liLutOffset (u32)                                     │
+│ - visibleLutOffset (u32)                                │
 ├─────────────────────────────────────────────────────────┤
 │ PAGES                                                   │
 │ - pageData: Page[pageCount]                             │
@@ -125,18 +144,19 @@ The `section.bin` caches pre-computed typesetting details (word positions, style
 │   - anchors ( { String anchor, u16 page }[] )           │
 │ - paragraphLut (u16[pageCount])                         │
 │ - liLut (u16[pageCount])                                │
+│ - visibleTextLut (u32[pageCount])                       │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Header (38 Bytes)
+### Header (43 Bytes)
 
 The header contains all rendering and layout parameters. Any mismatch during load invalidates the cache.
 
 | Offset | Field Name | Type | Description |
 |---|---|---|---|
-| 0 | `version` | `u8` | Format version. Must be **`38`**. |
+| 0 | `version` | `u8` | Format version. Must be **`39`**. |
 | 1 | `fontId` | `s32` | Built-in or custom font ID. |
 | 5 | `lineCompression` | `float` | Line spacing factor (tight, normal, wide compression). |
 | 9 | `extraParagraphSpacing` | `bool` (u8) | Extra space added between paragraphs. |
@@ -154,6 +174,7 @@ The header contains all rendering and layout parameters. Any mismatch during loa
 | 27 | `anchorMapOffset` | `u32` | Absolute file offset of the Anchor Map. |
 | 31 | `paragraphLutOffset` | `u32` | Absolute file offset of the Paragraph Lookup Table. |
 | 35 | `liLutOffset` | `u32` | Absolute file offset of the List Item Lookup Table. |
+| 39 | `visibleLutOffset` | `u32` | Absolute file offset of the visible-text offset LUT. |
 
 ---
 
@@ -193,7 +214,7 @@ Every typeset element begins with a **`u8 tag`** defining its layout subclass:
 | `wordCount` | `u16` | Number of words in the text block. |
 | `words` | `String[wordCount]` | Array of words. |
 | `wordXpos` | `s16[wordCount]` | Absolute typesetting offsets for each word relative to `xPos`. |
-| `wordStyles` | `u8[wordCount]` | EpdFontFamily styles for each word. Bitmask values: `REGULAR=0`, `BOLD=1`, `ITALIC=2`, `UNDERLINE=4`, `STRIKETHROUGH=8`. |
+| `wordStyles` | `u8[wordCount]` | EpdFontFamily styles for each word. Bitmask values: `REGULAR=0`, `BOLD=1`, `ITALIC=2`, `UNDERLINE=4`, `STRIKETHROUGH=8`, `SUP=16`, `SUB=32`. |
 | `hasFocus` | `u8` | Focus/Bionic splitting presence flag (`1` = yes, `0` = no). |
 | `wordFocusBoundary` | `u8[wordCount]` | *Only if `hasFocus == 1`*. Byte length of the bolded prefix for each word. |
 | `wordFocusSuffixX` | `u16[wordCount]` | *Only if `hasFocus == 1`*. Pixel offset to start drawing the regular suffix style. |
@@ -209,6 +230,9 @@ Every typeset element begins with a **`u8 tag`** defining its layout subclass:
 | `paddingRight` | `s16` | Right padding in pixels. |
 | `textIndent` | `s16` | First line indent. |
 | `textIndentDefined`| `bool` (u8) | True if text-indent CSS was set. |
+| `isRtl` | `bool` (u8) | True if resolved paragraph direction is RTL. |
+| `directionDefined` | `bool` (u8) | True if CSS/HTML set `direction`. |
+| `fontId` | `s32` | Renderer font for this line. `0` means the section's reader font. |
 
 ---
 
@@ -283,6 +307,34 @@ Located at `paragraphLutOffset`.
 #### List Item Lookup Table
 Located at `liLutOffset`.
 - **`listItemIndexes`**: `u16[lutSize]` array mapping each page to its starting typeset HTML list item index.
+
+#### Visible-text offset LUT
+Located at `visibleLutOffset`.
+- **`visibleTextOffsets`**: `u32[pageCount]` array mapping each page to the first visible body codepoint on that page. Page 0 is always 0. Image-only pages repeat the previous offset.
+
+---
+
+## 3. Reader progress (`progress.bin`)
+
+Per-book file at `.crosspoint/epub_<hash>/progress.bin`. Little-endian. Readers accept 4, 6, or 10 bytes:
+
+| Size | Layout |
+|---|---|
+| 4 | `spineIndex` u16, `pageNumber` u16 |
+| 6 | above + `pageCount` u16 |
+| 10 | above + `visibleTextOffset` u32 |
+
+A missing offset (4- or 6-byte files) restores by page number, then page-fraction if the chapter was reindexed.
+
+---
+
+## 3. CSS rules cache (`css_rules.cache`)
+
+Per-book parsed stylesheet, written next to `book.bin`. `CssParser::CSS_CACHE_VERSION` is **12**. A version mismatch deletes the file and re-parses from the EPUB.
+
+Version 12 adds `font-size` (as `CssLength`) and `page-break-before` / `page-break-after` (u8 flags) to each serialized `CssStyle`, plus defined-flag bits 18–20. Older v11 caches are discarded.
+
+`font-size` values are stored as multipliers: `em`/`%` relative to the parent, `rem`/`px`/`pt` relative to the reader's body size. `page-break-*: always` and `break-*: page` (also `left`/`right`/`recto`/`verso`) force a new page during section build.
 
 ---
 

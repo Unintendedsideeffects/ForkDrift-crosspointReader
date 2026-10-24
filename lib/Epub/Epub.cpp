@@ -386,16 +386,18 @@ bool Epub::loadCssRulesFromCache() const {
   return false;
 }
 
-void Epub::parseCssFiles() const {
+bool Epub::parseCssFiles() const {
   if (cssFiles.empty()) {
     LOG_DBG("EBP", "No CSS files to parse, but CssParser created for inline styles");
   }
 
-  // Try to load from CSS cache first
+  bool wroteCompleteCache = false;
+  bool keepRulesResident = false;
+
   if (!loadCssRulesFromCache()) {
-    // Cache miss - parse CSS files
-    // An incomplete parse must not be cached because the cache is preferred over re-parsing on subsequent opens.
     bool skippedRecoverableCssFile = false;
+    bool sawPartial = false;
+    bool sawError = false;
     for (const auto& cssPath : cssFiles) {
       LOG_DBG("EBP", "Parsing CSS file: %s", cssPath.c_str());
 
@@ -413,7 +415,6 @@ void Epub::parseCssFiles() const {
         continue;
       }
 
-      // Extract CSS file to temp location
       const auto tmpCssPath = getCachePath() + "/.tmp.css";
       HalFile tempCssFile;
       if (!Storage.openFileForWrite("EBP", tmpCssPath, tempCssFile)) {
@@ -423,13 +424,11 @@ void Epub::parseCssFiles() const {
       }
       if (!readItemContentsToStream(cssPath, tempCssFile, 1024)) {
         LOG_ERR("EBP", "Could not read CSS file: %s", cssPath.c_str());
-        // Explicitly close() file before calling Storage.remove()
         tempCssFile.close();
         Storage.remove(tmpCssPath.c_str());
         skippedRecoverableCssFile = true;
         continue;
       }
-      // Explicitly close() file before reopening for reading
       tempCssFile.close();
 
       HalFile cssReadFile;
@@ -439,23 +438,35 @@ void Epub::parseCssFiles() const {
         skippedRecoverableCssFile = true;
         continue;
       }
-      cssParser->loadFromStream(cssReadFile);
-      // Explicitly close() file before calling Storage.remove()
+      const CssParser::ParseResult parseResult = cssParser->loadFromStream(cssReadFile);
       cssReadFile.close();
       Storage.remove(tmpCssPath.c_str());
+      if (parseResult == CssParser::ParseResult::Partial) {
+        sawPartial = true;
+      } else if (parseResult == CssParser::ParseResult::Error) {
+        sawError = true;
+      }
     }
 
-    // Save parsed CSS rules to cache for next time
-    if (skippedRecoverableCssFile) {
-      LOG_ERR("EBP",
-              "Not caching CSS rules: %zu rule(s) parsed but at least one stylesheet was skipped (free=%u); will retry "
-              "on next open",
-              cssParser->ruleCount(), static_cast<unsigned>(ESP.getFreeHeap()));
+    const CssParser::ParseResult overall =
+        sawPartial ? CssParser::ParseResult::Partial
+                   : (sawError ? CssParser::ParseResult::Error : CssParser::ParseResult::Complete);
+    const bool persist = CssParser::shouldPersistCache(overall) && !skippedRecoverableCssFile;
+    if (!persist) {
+      if (sawError && !sawPartial && !skippedRecoverableCssFile) {
+        LOG_ERR("EBP", "Not caching CSS rules: stylesheet parse error; leaving any existing cache in place");
+      } else {
+        LOG_ERR("EBP",
+                "Not caching CSS rules: %zu rule(s) parsed but parse was incomplete (free=%u); will retry on next open",
+                cssParser->ruleCount(), static_cast<unsigned>(ESP.getFreeHeap()));
+      }
+      keepRulesResident = sawPartial && cssParser->ruleCount() > 0;
     } else {
       HalFile cssCacheFile;
       if (Storage.openFileForWrite("EBP", getCssRulesCache(), cssCacheFile)) {
         cssParser->saveToCache(cssCacheFile);
         cssCacheFile.close();
+        wroteCompleteCache = true;
       }
     }
 
@@ -463,11 +474,10 @@ void Epub::parseCssFiles() const {
   }
 
   LOG_DBG("EBP", "Loaded %zu CSS style rules from %zu files", cssParser->ruleCount(), cssFiles.size());
-  // Rules are only consumed while a section is being laid out, and
-  // Section::createSectionFile reloads them from the cache written above.
-  // releaseMemory() rather than clear(): clear() leaves the bucket array
-  // allocated, so it would not actually give the heap anything back.
-  cssParser->releaseMemory();
+  if (!keepRulesResident) {
+    cssParser->releaseMemory();
+  }
+  return wroteCompleteCache;
 }
 
 // load in the meta data for the epub file
@@ -617,10 +627,11 @@ bool Epub::load(const bool buildIfMissing, const bool skipLoadingCss) {
   }
 
   if (!skipLoadingCss) {
-    // Parse CSS before reloading book.bin to leave more heap for CSS rule-table growth.
     bookMetadataCache.reset();
-    parseCssFiles();
-    Storage.removeDir((cachePath + "/sections").c_str());
+    const bool cssComplete = parseCssFiles();
+    if (cssComplete) {
+      Storage.removeDir((cachePath + "/sections").c_str());
+    }
   }
 
   // Reload the cache from disk so it's in the correct state

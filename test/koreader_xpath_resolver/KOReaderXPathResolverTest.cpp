@@ -1,11 +1,15 @@
+#include <expat.h>
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "ChapterXPathResolver.h"
+#include "Epub/VisibleTextUtils.h"
+#include "Utf8.h"
 
 namespace {
 std::shared_ptr<Epub> epubWith(std::string xhtml) {
@@ -233,6 +237,89 @@ TEST(KOReaderXPathResolver, IgnoresNonVisibleTagsOutsideParagraphs) {
   EXPECT_EQ(ChapterXPathResolver::findXPathForVisibleTextOffset(epub, 0, 4),
             "/body/DocFragment[1]/body/div[1]/text()[2].1");
   EXPECT_EQ(ChapterXPathResolver::findXPathForProgress(epub, 0, 1.0f), "/body/DocFragment[1]/body/div[1]/text()[2].3");
+}
+
+namespace {
+struct ParserOffsetProbe {
+  XML_Parser parser = nullptr;
+  bool insideBody = false;
+  int depth = 0;
+  int bodyDepth = -1;
+  int nonVisibleDepth = 0;
+  uint32_t visibleChars = 0;
+
+  ParserOffsetProbe() {
+    parser = XML_ParserCreate(nullptr);
+    if (!parser) return;
+    XML_SetUserData(parser, this);
+    XML_SetElementHandler(parser, &ParserOffsetProbe::startElement, &ParserOffsetProbe::endElement);
+    XML_SetCharacterDataHandler(parser, &ParserOffsetProbe::characterData);
+  }
+
+  ~ParserOffsetProbe() {
+    if (parser) XML_ParserFree(parser);
+  }
+
+  static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char**) {
+    auto* self = static_cast<ParserOffsetProbe*>(userData);
+    if (!self->insideBody) {
+      if (VisibleTextUtils::equalsTag(name, "body")) {
+        self->insideBody = true;
+        self->bodyDepth = self->depth;
+      }
+      self->depth++;
+      return;
+    }
+    if (self->nonVisibleDepth > 0 || VisibleTextUtils::isNonVisibleElement(name)) self->nonVisibleDepth++;
+    self->depth++;
+  }
+
+  static void XMLCALL endElement(void* userData, const XML_Char* name) {
+    auto* self = static_cast<ParserOffsetProbe*>(userData);
+    self->depth--;
+    if (!self->insideBody) return;
+    if (self->depth == self->bodyDepth && VisibleTextUtils::equalsTag(name, "body")) {
+      self->insideBody = false;
+      self->nonVisibleDepth = 0;
+      return;
+    }
+    if (self->nonVisibleDepth > 0) self->nonVisibleDepth--;
+  }
+
+  static void XMLCALL characterData(void* userData, const XML_Char* data, const int len) {
+    auto* self = static_cast<ParserOffsetProbe*>(userData);
+    if (!self->insideBody || self->nonVisibleDepth > 0 || len <= 0) return;
+    const unsigned char* ptr = reinterpret_cast<const unsigned char*>(data);
+    const unsigned char* end = ptr + len;
+    while (ptr < end) {
+      utf8NextCodepoint(&ptr);
+      self->visibleChars++;
+    }
+  }
+
+  uint32_t count(const char* xhtml) {
+    if (!parser) return 0;
+    const int n = static_cast<int>(std::char_traits<char>::length(xhtml));
+    if (XML_Parse(parser, xhtml, n, XML_TRUE) != XML_STATUS_OK) return 0;
+    return visibleChars;
+  }
+};
+}  // namespace
+
+TEST(KOReaderXPathResolver, ParserOffsetProbeAgreesOnRubyRtAndEntities) {
+  constexpr char kFixture[] =
+      "<html><head><title>skip</title></head><body><p>ab<ruby>漢<rt>kan</rt></ruby>cd&amp;x</p>"
+      "<style>no</style><script>no</script></body></html>";
+  ParserOffsetProbe probe;
+  const uint32_t counted = probe.count(kFixture);
+  EXPECT_EQ(counted, 7u);
+  const auto epub = epubWith(kFixture);
+  const std::string atHan = ChapterXPathResolver::findXPathForVisibleTextOffset(epub, 0, 2);
+  const std::string afterRuby = ChapterXPathResolver::findXPathForVisibleTextOffset(epub, 0, 3);
+  EXPECT_NE(atHan.find("ruby"), std::string::npos);
+  EXPECT_EQ(afterRuby.find("rt"), std::string::npos);
+  EXPECT_FALSE(ChapterXPathResolver::findXPathForVisibleTextOffset(epub, 0, counted - 1).empty());
+  EXPECT_TRUE(ChapterXPathResolver::findXPathForVisibleTextOffset(epub, 0, counted).empty());
 }
 
 TEST(KOReaderXPathResolver, WhitespaceTargetsAreIndependentOfStreamChunkSize) {

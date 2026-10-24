@@ -12,7 +12,7 @@
 #include "SpiBusMutex.h"
 
 namespace {
-constexpr uint8_t SECTION_FILE_VERSION = 5;
+constexpr uint8_t SECTION_FILE_VERSION = 6;  // v6: TextBlock serializes its per-block fontId
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) +
                                  sizeof(uint32_t) + sizeof(bool) + sizeof(bool) + sizeof(uint16_t) + sizeof(uint32_t);

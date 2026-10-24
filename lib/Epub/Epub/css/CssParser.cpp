@@ -261,6 +261,61 @@ bool CssParser::tryInterpretLength(std::string_view val, CssLength& out) {
   return true;
 }
 
+static bool interpretForcedBreak(const std::string_view value) {
+  return iequalsAscii(value, "always") || iequalsAscii(value, "page") || iequalsAscii(value, "left") ||
+         iequalsAscii(value, "right") || iequalsAscii(value, "recto") || iequalsAscii(value, "verso");
+}
+
+static bool tryInterpretFontSize(std::string_view val, CssLength& out) {
+  val = trimCssWhitespace(val);
+
+  struct Keyword {
+    std::string_view name;
+    float scale;
+    CssUnit unit;
+  };
+  static constexpr Keyword KEYWORDS[] = {
+      {"xx-small", 0.6f, CssUnit::Rem}, {"x-small", 0.75f, CssUnit::Rem},  {"small", 0.89f, CssUnit::Rem},
+      {"medium", 1.0f, CssUnit::Rem},   {"large", 1.2f, CssUnit::Rem},     {"x-large", 1.5f, CssUnit::Rem},
+      {"xx-large", 2.0f, CssUnit::Rem}, {"xxx-large", 3.0f, CssUnit::Rem}, {"smaller", 0.83f, CssUnit::Em},
+      {"larger", 1.2f, CssUnit::Em},
+  };
+  for (const Keyword& keyword : KEYWORDS) {
+    if (iequalsAscii(val, keyword.name)) {
+      out = CssLength{keyword.scale, keyword.unit};
+      return true;
+    }
+  }
+
+  size_t unitStart = val.size();
+  for (size_t i = 0; i < val.size(); ++i) {
+    if (!std::isdigit(static_cast<unsigned char>(val[i])) && val[i] != '.' && val[i] != '+' && val[i] != '-') {
+      unitStart = i;
+      break;
+    }
+  }
+  float number = 0;
+  if (!tryParseNumber(val.substr(0, unitStart), number) || !(number > 0)) return false;
+
+  const std::string_view unit = val.substr(unitStart);
+  if (unit.empty() || iequalsAscii(unit, "px")) {
+    out = CssLength{number / 16.0f, CssUnit::Rem};
+  } else if (iequalsAscii(unit, "pt")) {
+    out = CssLength{number / 12.0f, CssUnit::Rem};
+  } else if (iequalsAscii(unit, "rem")) {
+    out = CssLength{number, CssUnit::Rem};
+  } else if (iequalsAscii(unit, "em")) {
+    out = CssLength{number, CssUnit::Em};
+  } else if (unit == "%") {
+    out = CssLength{number / 100.0f, CssUnit::Em};
+  } else if (iequalsAscii(unit, "ex") || iequalsAscii(unit, "ch")) {
+    out = CssLength{number / 2.0f, CssUnit::Em};
+  } else {
+    return false;
+  }
+  return true;
+}
+
 // Declaration parsing
 
 void CssParser::parseDeclarationIntoStyle(std::string_view decl, CssStyle& style) {
@@ -367,6 +422,18 @@ void CssParser::parseDeclarationIntoStyle(std::string_view decl, CssStyle& style
       style.verticalAlign = CssVerticalAlign::Sub;
       style.defined.verticalAlign = 1;
     }
+  } else if (iequalsAscii(name, "font-size")) {
+    CssLength size;
+    if (tryInterpretFontSize(value, size)) {
+      style.fontSize = size;
+      style.defined.fontSize = 1;
+    }
+  } else if (iequalsAscii(name, "page-break-before") || iequalsAscii(name, "break-before")) {
+    style.pageBreakBefore = interpretForcedBreak(value);
+    style.defined.pageBreakBefore = 1;
+  } else if (iequalsAscii(name, "page-break-after") || iequalsAscii(name, "break-after")) {
+    style.pageBreakAfter = interpretForcedBreak(value);
+    style.defined.pageBreakAfter = 1;
   }
 }
 
@@ -462,6 +529,7 @@ void CssParser::processRuleBlockWithStyle(std::string_view selectorGroup, const 
   // and we avoid a heap query for every comma-separated selector.
   if (!canGrowRuleContainers()) {
     LOG_ERR("CSS", "Low heap, stopping CSS rule storage at %zu rules", rulesBySelector_.size());
+    ruleGrowthStopped_ = true;
     return;
   }
 
@@ -550,10 +618,11 @@ void CssParser::processRuleBlockWithStyle(std::string_view selectorGroup, const 
 
 // Main parsing entry point
 
-bool CssParser::loadFromStream(HalFile& source) {
+CssParser::ParseResult CssParser::loadFromStream(HalFile& source) {
+  ruleGrowthStopped_ = false;
   if (!source) {
     LOG_ERR("CSS", "Cannot read from invalid file");
-    return false;
+    return ParseResult::Error;
   }
 
   size_t totalRead = 0;
@@ -693,7 +762,10 @@ bool CssParser::loadFromStream(HalFile& source) {
   }
 
   LOG_DBG("CSS", "Parsed %zu rules from %zu bytes", rulesBySelector_.size(), totalRead);
-  return true;
+  if (ruleGrowthStopped_) {
+    return ParseResult::Partial;
+  }
+  return ParseResult::Complete;
 }
 
 // Style resolution
@@ -813,10 +885,12 @@ bool CssParser::saveToCache(HalFile& file) const {
     writeLength(style.paddingRight);
     writeLength(style.imageHeight);
     writeLength(style.imageWidth);
+    writeLength(style.fontSize);
     file.write(static_cast<uint8_t>(style.display));
     file.write(static_cast<uint8_t>(style.verticalAlign));
+    file.write(static_cast<uint8_t>(style.pageBreakBefore ? 1 : 0));
+    file.write(static_cast<uint8_t>(style.pageBreakAfter ? 1 : 0));
 
-    // Write defined flags as uint32_t
     uint32_t definedBits = 0;
     if (style.defined.textAlign) definedBits |= 1 << 0;
     if (style.defined.fontStyle) definedBits |= 1 << 1;
@@ -836,6 +910,9 @@ bool CssParser::saveToCache(HalFile& file) const {
     if (style.defined.display) definedBits |= 1 << 15;
     if (style.defined.direction) definedBits |= 1 << 16;
     if (style.defined.verticalAlign) definedBits |= 1 << 17;
+    if (style.defined.fontSize) definedBits |= 1 << 18;
+    if (style.defined.pageBreakBefore) definedBits |= 1 << 19;
+    if (style.defined.pageBreakAfter) definedBits |= 1 << 20;
     file.write(reinterpret_cast<const uint8_t*>(&definedBits), sizeof(definedBits));
   };
 
@@ -958,12 +1035,6 @@ bool CssParser::loadFromCache(HalFile& file) {
     }
     style.direction = static_cast<CssTextDirection>(enumVal);
 
-    if (file.read(&enumVal, 1) != 1) {
-      rulesBySelector_.clear();
-      return false;
-    }
-    style.direction = static_cast<CssTextDirection>(enumVal);
-
     // Read CssLength fields
     auto readLength = [&file](CssLength& len) -> bool {
       if (file.read(&len.value, sizeof(len.value)) != sizeof(len.value)) {
@@ -980,7 +1051,7 @@ bool CssParser::loadFromCache(HalFile& file) {
     if (!readLength(style.textIndent) || !readLength(style.marginTop) || !readLength(style.marginBottom) ||
         !readLength(style.marginLeft) || !readLength(style.marginRight) || !readLength(style.paddingTop) ||
         !readLength(style.paddingBottom) || !readLength(style.paddingLeft) || !readLength(style.paddingRight) ||
-        !readLength(style.imageHeight) || !readLength(style.imageWidth)) {
+        !readLength(style.imageHeight) || !readLength(style.imageWidth) || !readLength(style.fontSize)) {
       return false;
     }
 
@@ -991,6 +1062,14 @@ bool CssParser::loadFromCache(HalFile& file) {
     uint8_t verticalAlignVal;
     if (file.read(&verticalAlignVal, 1) != 1) return false;
     style.verticalAlign = static_cast<CssVerticalAlign>(verticalAlignVal);
+
+    uint8_t pageBreakBeforeVal;
+    if (file.read(&pageBreakBeforeVal, 1) != 1 || pageBreakBeforeVal > 1) return false;
+    style.pageBreakBefore = pageBreakBeforeVal != 0;
+
+    uint8_t pageBreakAfterVal;
+    if (file.read(&pageBreakAfterVal, 1) != 1 || pageBreakAfterVal > 1) return false;
+    style.pageBreakAfter = pageBreakAfterVal != 0;
 
     uint32_t definedBits = 0;
     if (file.read(&definedBits, sizeof(definedBits)) != sizeof(definedBits)) return false;
@@ -1012,6 +1091,9 @@ bool CssParser::loadFromCache(HalFile& file) {
     style.defined.display = (definedBits & 1 << 15) != 0;
     style.defined.direction = (definedBits & 1 << 16) != 0;
     style.defined.verticalAlign = (definedBits & 1 << 17) != 0;
+    style.defined.fontSize = (definedBits & 1 << 18) != 0;
+    style.defined.pageBreakBefore = (definedBits & 1 << 19) != 0;
+    style.defined.pageBreakAfter = (definedBits & 1 << 20) != 0;
     return true;
   };
 

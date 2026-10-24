@@ -2070,7 +2070,7 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Where**: `docs/file-formats.md:99-139`
 - **What**: the section.bin heading says Version 34 and the field table says version must be 29; the code is at `SECTION_FILE_VERSION = 36` (`lib/Epub/Epub/Section.cpp`). The layout table has not been re-derived since.
 - **Why not fixed here**: re-deriving the byte layout is its own task.
-- **Status**: open
+- **Status**: superseded by lane K Version 39 docs (`docs/file-formats.md` header 43 B + `visibleTextLut`).
 
 ## 2026-10-09T17:52Z — Russian STR_PAGE_TOTAL_OVERALL_FORMAT drops the overall percentage
 - **Found by**: claude — format-specifier audit during the 2026-10 translation absorption
@@ -2103,4 +2103,36 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Where**: `docs/http-api.openapi.yaml:2565-2599`
 - **What**: `OpdsServer` / `OpdsServerUpsert` still document only index/name/url/username/hasPassword/password. GET and POST `/api/opds` now also carry `downloadFolder` and `headers` (`docs/webserver-endpoints.md`).
 - **Why not fixed here**: lane B docs target was `docs/webserver-endpoints.md`; the OpenAPI file is a separate contract.
+- **Status**: open
+
+## 2026-10-24T15:41Z — utf8DecomposedBase is declared and has no definition
+- **Found by**: cursor grok-4.6 — during absorb-1024 lane U
+- **Where**: `lib/Utf8/Utf8.h:37`
+- **What**: `uint32_t utf8DecomposedBase(uint32_t cp)` is declared in the public Utf8 header with a long comment about the compose table, but no `.cpp` body exists. Calling it is a link error, the same class of trap as the missing `utf8ComposeNfcInPlace` body this lane restored.
+- **Why not fixed here**: lane U was Hangul NFC, File Browser display compose, listing `reserve`, and idle-button wake. The declaration predates this work and has no callers.
+- **Status**: open
+
+## 2026-10-24T15:41Z — some filename display copies still skip NFC
+- **Found by**: cursor grok-4.6 — during absorb-1024 lane U
+- **Where**: `src/activities/home/FileBrowserActivity.cpp` folder header (~626) and bottom path line; `src/activities/home/MyLibraryActivity.cpp:493-501` recent-tab path fallback; `src/activities/home/HomeActivity.cpp:246` `fallbackTitleFromPath`
+- **What**: File Browser rows, delete-confirm body, and My Library files-tab/grid/folder header now compose a display copy. Remaining filename surfaces still render raw NFD bytes (macOS L+V[+T] jamo), so Korean names can still show as scattered jamo or missing glyphs there. Storage paths stay correctly uncomposed.
+- **Why not fixed here**: 8c84ef326 explicitly kept Home and File Browser header/path out of this sha; Home fallback was optional on f437bb506. Same class of bug, different call sites.
+
+## 2026-10-24T15:45Z — `skipNextButtonCheck` is dead and a Confirm-release leak can re-open the reader menu
+- **Found by**: cursor grok-4.6 — during absorb-1024 lane R (2bad1d09f)
+- **Where**: `src/activities/reader/EpubReaderActivity.h:55` (declaration only); Confirm open at `EpubReaderActivity.cpp` (no `if (!section)` guard)
+- **What**: `skipNextButtonCheck` is never assigned. After a child of the reader menu returns, a leaked Confirm release can re-open the menu. The ChapterPosition fallback makes that re-open show the cached X/Y and book percent instead of zeros; it does not stop the leak.
+- **Why not fixed here**: lane R scope was cached chapter chrome plus BMC build I/O and `links.bin`. Stopping the leak is a separate input-edge fix.
+
+## 2026-10-24T16:15Z — JpegToBmpConverter calls finishSmoothUpscale twice
+- **Found by**: cursor grok-4.6 — during absorb-1024 lane A3
+- **Where**: `lib/JpegToBmpConverter/JpegToBmpConverter.cpp:752-758`
+- **What**: after `jpeg->decode`, the same `if (rc == 1 && ctx.smoothUpscale && !ctx.error) finishSmoothUpscale(&ctx);` block is duplicated back-to-back, so a successful progressive-JPEG cover convert runs the smoother twice.
+- **Why not fixed here**: out of scope for lane A3 (ditherer `isReady()` OOM contract only; the card forbids packing `rowAccum`/`rowCount` or other converter-scratch changes under 3555ff556).
+
+## 2026-10-24T17:15Z — TOC page-break path uses bare `new Page()`
+- **Found by**: cursor grok-4.6 — during absorb-1024 lane K
+- **Where**: `lib/Epub/Epub/parsers/ChapterHtmlSlimParser.cpp:224`
+- **What**: `flushPendingAnchor` does `currentPage.reset(new Page())` after a TOC chapter boundary. Neighbouring page allocations in the same file use `new (std::nothrow)` and null-check. With `-fno-exceptions`, this bare `new` calls `abort()` on OOM instead of degrading.
+- **Why not fixed here**: out of scope for lane K (scope was KOSync mapped-position compare and visible-text offset LUT). Other completePageFn sites already use nothrow.
 - **Status**: open

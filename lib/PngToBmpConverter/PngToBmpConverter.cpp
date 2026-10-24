@@ -632,16 +632,13 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(HalFile& pngFile, Print& bmpO
       return false;
     }
     atkinson1BitDitherer = new (std::nothrow) Atkinson1BitDitherer(outWidth);
-    if (!atkinson1BitDitherer) {
+    if (!atkinson1BitDitherer || !atkinson1BitDitherer->isReady()) {
       LOG_ERR("PNG", "Failed to allocate Atkinson1BitDitherer");
-      free(rowBuffer);
-      free(ctx.currentRow);
-      free(ctx.previousRow);
-      return false;
+      delete atkinson1BitDitherer;
+      atkinson1BitDitherer = nullptr;
     }
   } else if (!USE_8BIT_OUTPUT) {
     if (USE_ATKINSON) {
-      // AtkinsonDitherer allocates error buffers ~3KB
       if (!heapguard::canAllocate(3500, heapguard::kCriticalFloorBytes)) {
         LOG_ERR("PNG", "Skipping cover: low heap for AtkinsonDitherer");
         free(rowBuffer);
@@ -650,15 +647,12 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(HalFile& pngFile, Print& bmpO
         return false;
       }
       atkinsonDitherer = new (std::nothrow) AtkinsonDitherer(outWidth);
-      if (!atkinsonDitherer) {
+      if (!atkinsonDitherer || !atkinsonDitherer->isReady()) {
         LOG_ERR("PNG", "Failed to allocate AtkinsonDitherer");
-        free(rowBuffer);
-        free(ctx.currentRow);
-        free(ctx.previousRow);
-        return false;
+        delete atkinsonDitherer;
+        atkinsonDitherer = nullptr;
       }
     } else if (USE_FLOYD_STEINBERG) {
-      // FloydSteinbergDitherer allocates error buffers ~3KB
       if (!heapguard::canAllocate(3500, heapguard::kCriticalFloorBytes)) {
         LOG_ERR("PNG", "Skipping cover: low heap for FloydSteinbergDitherer");
         free(rowBuffer);
@@ -667,12 +661,10 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(HalFile& pngFile, Print& bmpO
         return false;
       }
       fsDitherer = new (std::nothrow) FloydSteinbergDitherer(outWidth);
-      if (!fsDitherer) {
+      if (!fsDitherer || !fsDitherer->isReady()) {
         LOG_ERR("PNG", "Failed to allocate FloydSteinbergDitherer");
-        free(rowBuffer);
-        free(ctx.currentRow);
-        free(ctx.previousRow);
-        return false;
+        delete fsDitherer;
+        fsDitherer = nullptr;
       }
     }
   }

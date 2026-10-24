@@ -45,6 +45,10 @@ struct CssAncestorEntry {
 
 class CssParser {
  public:
+  enum class ParseResult { Complete, Partial, Error };
+
+  static constexpr bool shouldPersistCache(ParseResult result) { return result == ParseResult::Complete; }
+
   // Bump when CSS cache format or rules change; section caches are invalidated when this changes
   // v7: textDecoration became combinable bit flags (v6); direction (RTL) added.
   // 8: rules defining no supported property are no longer stored, so a v7 cache
@@ -56,7 +60,7 @@ class CssParser {
   // Refusing the bad write only protects new caches, and on the cached-metadata path
   // the empty cache is never re-examined. Bumping the version invalidates all of them
   // exactly once, which is what the mismatch path at CssParser.cpp:895 is for.
-  static constexpr uint8_t CSS_CACHE_VERSION = 11;  // v11: font-weight/style inherit preserved (was parsed as normal)
+  static constexpr uint8_t CSS_CACHE_VERSION = 12;  // v12: font-size + page-break-before/after
 
   static constexpr size_t MAX_DESCENDANT_RULES = 100;
 
@@ -68,13 +72,7 @@ class CssParser {
   CssParser(const CssParser&) = delete;
   CssParser& operator=(const CssParser&) = delete;
 
-  /**
-   * Load and parse CSS from a file stream.
-   * Can be called multiple times to accumulate rules from multiple stylesheets.
-   * @param source Open file handle to read from
-   * @return true if parsing completed (even if no rules found)
-   */
-  bool loadFromStream(HalFile& source);
+  ParseResult loadFromStream(HalFile& source);
 
   /**
    * Look up the style for an HTML element, considering tag name, class attributes, and ancestors.
@@ -157,6 +155,7 @@ class CssParser {
   std::unordered_map<std::string, CssStyle> rulesBySelector_;
   std::vector<DescendantRule> descendantRules_;
   std::string cacheDir_;
+  bool ruleGrowthStopped_ = false;
 
   // Internal parsing helpers
   void processRuleBlockWithStyle(std::string_view selectorGroup, const CssStyle& style);
