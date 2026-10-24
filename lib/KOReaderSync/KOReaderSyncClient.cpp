@@ -61,6 +61,12 @@ struct ResponseBuffer {
 esp_err_t httpEventHandler(esp_http_client_event_t* evt) {
   auto* buf = static_cast<ResponseBuffer*>(evt->user_data);
   if (evt->event_id == HTTP_EVENT_ON_DATA && buf) {
+    // Redirects are followed by performKoSyncWithRedirects(), so intermediate 3xx
+    // bodies arrive here too. Only 2xx bodies are ever parsed; collecting the rest
+    // would prepend redirect HTML to the JSON, and a large error page could trip
+    // the overflow cap and turn a 401 into SERVER_ERROR.
+    const int status = esp_http_client_get_status_code(evt->client);
+    if (status < 200 || status >= 300) return ESP_OK;
     if (buf->ensure(buf->len + evt->data_len + 1)) {
       memcpy(buf->data + buf->len, evt->data, evt->data_len);
       buf->len += evt->data_len;
