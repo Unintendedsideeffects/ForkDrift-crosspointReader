@@ -120,15 +120,22 @@ typedef struct {
   const EpdFontGroup* groups;                 ///< NULL for uncompressed fonts
   uint16_t groupCount;                        ///< 0 for uncompressed fonts
   const uint16_t* glyphToGroup;               ///< Per-glyph group ID (nullptr for contiguous-group fonts)
-  const EpdKernClassEntry* kernLeftClasses;   ///< Sorted left-side class map (nullptr if none)
-  const EpdKernClassEntry* kernRightClasses;  ///< Sorted right-side class map (nullptr if none)
-  const int8_t* kernMatrix;              ///< Flat leftClassCount x rightClassCount matrix, 4.4 fixed-point in pixels
-  uint16_t kernLeftEntryCount;           ///< Entries in kernLeftClasses
-  uint16_t kernRightEntryCount;          ///< Entries in kernRightClasses
-  uint8_t kernLeftClassCount;            ///< Number of distinct left classes (matrix rows)
-  uint8_t kernRightClassCount;           ///< Number of distinct right classes (matrix cols)
-  const EpdLigaturePair* ligaturePairs;  ///< Sorted ligature pair table (nullptr if none)
-  uint32_t ligaturePairCount;            ///< Number of entries in ligaturePairs
+  const EpdKernClassEntry* kernLeftClasses;   ///< Packed class map (SD fonts). nullptr when split arrays are used
+  const EpdKernClassEntry* kernRightClasses;  ///< Packed class map (SD fonts). nullptr when split arrays are used
+  const uint16_t* kernLeftCodepoints;         ///< Split class map: sorted BMP codepoints (built-in). nullptr = packed
+  const uint8_t* kernLeftClassIds;            ///< Parallel 1-based class IDs for kernLeftCodepoints
+  const uint16_t* kernRightCodepoints;        ///< Split class map: sorted BMP codepoints (built-in). nullptr = packed
+  const uint8_t* kernRightClassIds;           ///< Parallel 1-based class IDs for kernRightCodepoints
+  const int8_t* kernMatrix;                   ///< Dense leftClassCount x rightClassCount matrix (SD fonts)
+  const uint16_t* kernRowOffsets;             ///< CSR row starts, length kernLeftClassCount+1. nullptr = dense
+  const uint8_t* kernSparseCols;              ///< 0-based right class of each stored CSR entry
+  const int8_t* kernSparseValues;             ///< 4.4 fixed-point value of each stored CSR entry
+  uint16_t kernLeftEntryCount;                ///< Entries in packed or split left class map
+  uint16_t kernRightEntryCount;               ///< Entries in packed or split right class map
+  uint8_t kernLeftClassCount;                 ///< Number of distinct left classes (matrix rows)
+  uint8_t kernRightClassCount;                ///< Number of distinct right classes (matrix cols)
+  const EpdLigaturePair* ligaturePairs;       ///< Sorted ligature pair table (nullptr if none)
+  uint32_t ligaturePairCount;                 ///< Number of entries in ligaturePairs
 
   /// On-demand glyph loading for fonts that don't keep all glyphs in RAM (e.g. SD card fonts).
   /// Called by getGlyph() when a codepoint is not found in the interval table.

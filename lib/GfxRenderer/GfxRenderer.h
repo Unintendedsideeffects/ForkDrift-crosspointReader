@@ -22,8 +22,10 @@ class SdCardFont;
 
 #include "Bitmap.h"
 
-// Color representation: uint8_t mapped to 4x4 Bayer matrix dithering levels
-// 0 = transparent, 1-16 = gray levels (white to black)
+namespace glyphBitmap {
+struct Frame;
+}
+
 enum Color : uint8_t { Clear = 0x00, White = 0x01, LightGray = 0x05, DarkGray = 0x0A, Black = 0x10 };
 
 class GfxRenderer {
@@ -177,6 +179,8 @@ class GfxRenderer {
 
   // Drawing
   void drawPixel(int x, int y, bool state = true) const;
+  void drawGlyphBitmap(const uint8_t* bitmap, int width, int height, const glyphBitmap::Frame& frame, bool twoBit,
+                       RenderMode mode, bool state) const;
   void drawLine(int x1, int y1, int x2, int y2, bool state = true) const;
   void drawLine(int x1, int y1, int x2, int y2, int lineWidth, bool state) const;
   void drawArc(int maxRadius, int cx, int cy, int xDir, int yDir, int lineWidth, bool state) const;

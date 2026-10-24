@@ -64,9 +64,16 @@ const EpdFontData kTestFontData = {
   .groups            = nullptr,
   .groupCount        = 0,
   .glyphToGroup      = nullptr,
-  .kernLeftClasses   = kKernLeft,
-  .kernRightClasses  = kKernRight,
-  .kernMatrix        = kKernMatrix,
+  .kernLeftClasses     = kKernLeft,
+  .kernRightClasses    = kKernRight,
+  .kernLeftCodepoints  = nullptr,
+  .kernLeftClassIds    = nullptr,
+  .kernRightCodepoints = nullptr,
+  .kernRightClassIds   = nullptr,
+  .kernMatrix          = kKernMatrix,
+  .kernRowOffsets      = nullptr,
+  .kernSparseCols      = nullptr,
+  .kernSparseValues    = nullptr,
   .kernLeftEntryCount  = 2,
   .kernRightEntryCount = 2,
   .kernLeftClassCount  = 2,
@@ -174,6 +181,141 @@ TEST(EpdFont, KernLookup) {
   EXPECT_EQ(testFont().getKerning('x', 'o'), 0);  // 'x' has no left class
   EXPECT_EQ(testFont().getKerning('T', 'x'), 0);  // 'x' has no right class
   EXPECT_EQ(testFont().getKerning('T', 'T'), 0);  // 'T' has no right class
+}
+
+namespace {
+const uint16_t kKernRowOffsetsFull[] = {0, 2, 4};
+const uint8_t kKernSparseColsFull[] = {0, 1, 0, 1};
+const int8_t kKernSparseValuesFull[] = {-5, -7, -2, -3};
+
+const uint16_t kKernRowOffsetsSparse[] = {0, 1, 2};
+const uint8_t kKernSparseColsSparse[] = {1, 0};
+const int8_t kKernSparseValuesSparse[] = {-7, -2};
+
+const uint16_t kKernLeftCps[] = {0x54, 0x6F};
+const uint8_t kKernLeftIds[] = {1, 2};
+const uint16_t kKernRightCps[] = {0x61, 0x6F};
+const uint8_t kKernRightIds[] = {1, 2};
+
+const uint32_t kKernProbeLeft[] = {'T', 'a', 'o', 'x', 'z'};
+const uint32_t kKernProbeRight[] = {'T', 'a', 'o', 'x', 'z'};
+
+EpdFontData makeSparseFontData(const uint16_t* rowOffsets, const uint8_t* cols, const int8_t* values) {
+  EpdFontData d = kTestFontData;
+  d.kernMatrix = nullptr;
+  d.kernRowOffsets = rowOffsets;
+  d.kernSparseCols = cols;
+  d.kernSparseValues = values;
+  return d;
+}
+
+EpdFontData makeSplitClassFontData() {
+  EpdFontData d = kTestFontData;
+  d.kernLeftClasses = nullptr;
+  d.kernRightClasses = nullptr;
+  d.kernLeftCodepoints = kKernLeftCps;
+  d.kernLeftClassIds = kKernLeftIds;
+  d.kernRightCodepoints = kKernRightCps;
+  d.kernRightClassIds = kKernRightIds;
+  return d;
+}
+
+void expectKernParity(EpdFont& a, EpdFont& b) {
+  for (const uint32_t left : kKernProbeLeft) {
+    for (const uint32_t right : kKernProbeRight) {
+      EXPECT_EQ(a.getKerning(left, right), b.getKerning(left, right))
+          << "pair " << static_cast<char>(left) << static_cast<char>(right);
+    }
+  }
+}
+}  // namespace
+
+TEST(EpdFont, KernLookupSparseMatchesDense) {
+  const EpdFontData sparseData = makeSparseFontData(kKernRowOffsetsFull, kKernSparseColsFull, kKernSparseValuesFull);
+  EpdFont sparse(&sparseData);
+  expectKernParity(sparse, testFont());
+}
+
+TEST(EpdFont, KernLookupSparseHandlesMissingEntries) {
+  const EpdFontData sparseData =
+      makeSparseFontData(kKernRowOffsetsSparse, kKernSparseColsSparse, kKernSparseValuesSparse);
+  EpdFont sparse(&sparseData);
+
+  EXPECT_EQ(sparse.getKerning('T', 'o'), -7);
+  EXPECT_EQ(sparse.getKerning('o', 'a'), -2);
+  EXPECT_EQ(sparse.getKerning('T', 'a'), 0);
+  EXPECT_EQ(sparse.getKerning('o', 'o'), 0);
+  EXPECT_EQ(sparse.getKerning('a', 'o'), 0);
+  EXPECT_EQ(sparse.getKerning('T', 'x'), 0);
+}
+
+TEST(EpdFont, KernSplitClassMapMatchesPacked) {
+  const EpdFontData splitData = makeSplitClassFontData();
+  EpdFont split(&splitData);
+  expectKernParity(split, testFont());
+}
+
+TEST(EpdFont, KernSplitClassMapWithSparseMatrix) {
+  EpdFontData d = makeSplitClassFontData();
+  d.kernMatrix = nullptr;
+  d.kernRowOffsets = kKernRowOffsetsFull;
+  d.kernSparseCols = kKernSparseColsFull;
+  d.kernSparseValues = kKernSparseValuesFull;
+  EpdFont shipped(&d);
+
+  EXPECT_EQ(shipped.getKerning('T', 'a'), -5);
+  EXPECT_EQ(shipped.getKerning('T', 'o'), -7);
+  EXPECT_EQ(shipped.getKerning('o', 'a'), -2);
+  EXPECT_EQ(shipped.getKerning('o', 'o'), -3);
+  EXPECT_EQ(shipped.getKerning('a', 'o'), 0);
+  EXPECT_EQ(shipped.getKerning('T', 'x'), 0);
+}
+
+TEST(EpdFont, KernLookupEmptyRowIsZero) {
+  static const uint16_t rowOffsets[] = {0, 0, 1};
+  static const uint8_t cols[] = {0};
+  static const int8_t values[] = {-2};
+  const EpdFontData sparseData = makeSparseFontData(rowOffsets, cols, values);
+  EpdFont sparse(&sparseData);
+
+  EXPECT_EQ(sparse.getKerning('T', 'a'), 0);
+  EXPECT_EQ(sparse.getKerning('T', 'o'), 0);
+  EXPECT_EQ(sparse.getKerning('o', 'a'), -2);
+}
+
+TEST(EpdFont, KernLookupSparseInteriorZerosEarlyExit) {
+  static const EpdKernClassEntry wideLeft[] = {{0x41, 1}};
+  static const EpdKernClassEntry wideRight[] = {
+      {0x30, 1}, {0x31, 2}, {0x32, 3}, {0x33, 4}, {0x34, 5}, {0x35, 6},
+  };
+  static const int8_t wideDense[] = {0, -3, 0, 0, -8, 5};
+  static const uint16_t wideOffsets[] = {0, 3};
+  static const uint8_t wideCols[] = {1, 4, 5};
+  static const int8_t wideValues[] = {-3, -8, 5};
+
+  EpdFontData dense = kTestFontData;
+  dense.kernLeftClasses = wideLeft;
+  dense.kernRightClasses = wideRight;
+  dense.kernMatrix = wideDense;
+  dense.kernLeftEntryCount = 1;
+  dense.kernRightEntryCount = 6;
+  dense.kernLeftClassCount = 1;
+  dense.kernRightClassCount = 6;
+
+  EpdFontData sparse = dense;
+  sparse.kernMatrix = nullptr;
+  sparse.kernRowOffsets = wideOffsets;
+  sparse.kernSparseCols = wideCols;
+  sparse.kernSparseValues = wideValues;
+
+  EpdFont denseFont(&dense);
+  EpdFont sparseFont(&sparse);
+  static const uint32_t rights[] = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36};
+  for (const uint32_t right : rights) {
+    EXPECT_EQ(sparseFont.getKerning(0x41, right), denseFont.getKerning(0x41, right)) << "right=" << right;
+  }
+  EXPECT_EQ(sparseFont.getKerning(0x41, 0x32), 0);
+  EXPECT_EQ(sparseFont.getKerning(0x41, 0x33), 0);
 }
 
 TEST(EpdFont, GlyphLookup) {

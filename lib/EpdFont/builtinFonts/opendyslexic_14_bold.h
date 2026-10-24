@@ -3294,82 +3294,43 @@ static const EpdFontGroup opendyslexic_14_boldGroups[] = {
     { 36579, 351, 1062, 6, 878 },
 };
 
-static const EpdKernClassEntry opendyslexic_14_boldKernLeftClasses[] = {
-    { 0x0021, 1 }, // !
-    { 0x0022, 1 }, // "
-    { 0x0023, 1 }, // #
-    { 0x0027, 1 }, // '
-    { 0x0028, 1 }, // (
-    { 0x0029, 1 }, // )
-    { 0x002A, 1 }, // *
-    { 0x002C, 1 }, // ,
-    { 0x002D, 1 }, // -
-    { 0x002E, 1 }, // .
-    { 0x002F, 1 }, // /
-    { 0x003A, 1 }, // :
-    { 0x003B, 1 }, // ;
-    { 0x003F, 1 }, // ?
-    { 0x005B, 1 }, // [
-    { 0x005C, 1 }, // <backslash>
-    { 0x005D, 1 }, // ]
-    { 0x005F, 1 }, // _
-    { 0x007B, 1 }, // {
-    { 0x007D, 1 }, // }
-    { 0x00A1, 1 }, // U+00A1
-    { 0x00AB, 1 }, // U+00AB
-    { 0x00AD, 1 }, // U+00AD
-    { 0x00B7, 1 }, // U+00B7
-    { 0x00BB, 1 }, // U+00BB
-    { 0x00BF, 1 }, // U+00BF
-    { 0x2010, 1 }, // U+2010
-    { 0x2011, 1 }, // U+2011
-    { 0x2012, 1 }, // U+2012
-    { 0x2013, 1 }, // U+2013
-    { 0x2014, 1 }, // U+2014
-    { 0x2015, 1 }, // U+2015
-    { 0x2016, 1 }, // U+2016
-    { 0x2017, 1 }, // U+2017
-    { 0x2018, 1 }, // U+2018
-    { 0x2019, 1 }, // U+2019
-    { 0x201A, 1 }, // U+201A
-    { 0x201B, 1 }, // U+201B
-    { 0x201C, 1 }, // U+201C
-    { 0x201D, 1 }, // U+201D
-    { 0x201E, 1 }, // U+201E
-    { 0x201F, 1 }, // U+201F
-    { 0x2022, 1 }, // U+2022
-    { 0x2023, 1 }, // U+2023
-    { 0x2024, 1 }, // U+2024
-    { 0x2025, 1 }, // U+2025
-    { 0x2026, 1 }, // U+2026
-    { 0x2027, 1 }, // U+2027
-    { 0x2034, 1 }, // U+2034
-    { 0x2035, 1 }, // U+2035
-    { 0x2036, 1 }, // U+2036
-    { 0x2037, 1 }, // U+2037
-    { 0x2038, 1 }, // U+2038
-    { 0x2039, 1 }, // U+2039
-    { 0x203A, 1 }, // U+203A
-    { 0x203B, 1 }, // U+203B
-    { 0x203C, 1 }, // U+203C
-    { 0x203D, 1 }, // U+203D
-    { 0x203E, 1 }, // U+203E
-    { 0x203F, 1 }, // U+203F
-    { 0x2042, 1 }, // U+2042
-    { 0x2047, 1 }, // U+2047
-    { 0x2048, 1 }, // U+2048
-    { 0x2049, 1 }, // U+2049
-    { 0x208D, 1 }, // U+208D
-    { 0x208E, 1 }, // U+208E
+static const uint16_t opendyslexic_14_boldKernLeftCodepoints[] = {
+    0x0021, 0x0022, 0x0023, 0x0027, 0x0028, 0x0029, 0x002A, 0x002C, 0x002D, 0x002E, 0x002F, 0x003A,
+    0x003B, 0x003F, 0x005B, 0x005C, 0x005D, 0x005F, 0x007B, 0x007D, 0x00A1, 0x00AB, 0x00AD, 0x00B7,
+    0x00BB, 0x00BF, 0x2010, 0x2011, 0x2012, 0x2013, 0x2014, 0x2015, 0x2016, 0x2017, 0x2018, 0x2019,
+    0x201A, 0x201B, 0x201C, 0x201D, 0x201E, 0x201F, 0x2022, 0x2023, 0x2024, 0x2025, 0x2026, 0x2027,
+    0x2034, 0x2035, 0x2036, 0x2037, 0x2038, 0x2039, 0x203A, 0x203B, 0x203C, 0x203D, 0x203E, 0x203F,
+    0x2042, 0x2047, 0x2048, 0x2049, 0x208D, 0x208E,
 };
 
-static const EpdKernClassEntry opendyslexic_14_boldKernRightClasses[] = {
-    { 0x0020, 1 }, // U+0020
+static const uint8_t opendyslexic_14_boldKernLeftClassIds[] = {
+      1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,
+      1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,
+      1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,
+      1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,
+      1,   1,
 };
 
-static const int8_t opendyslexic_14_boldKernMatrix[] = {
+static const uint16_t opendyslexic_14_boldKernRightCodepoints[] = {
+    0x0020,
+};
+
+static const uint8_t opendyslexic_14_boldKernRightClassIds[] = {
+      1,
+};
+
+static const uint16_t opendyslexic_14_boldKernRowOffsets[] = {
+        0,     1,
+};
+
+static const uint8_t opendyslexic_14_boldKernSparseCols[] = {
+      0,
+};
+
+static const int8_t opendyslexic_14_boldKernSparseValues[] = {
       75,
 };
+
 
 static const EpdFontData opendyslexic_14_bold = {
     opendyslexic_14_boldBitmaps,
@@ -3383,9 +3344,16 @@ static const EpdFontData opendyslexic_14_bold = {
     opendyslexic_14_boldGroups,
     13,
     nullptr,
-    opendyslexic_14_boldKernLeftClasses,
-    opendyslexic_14_boldKernRightClasses,
-    opendyslexic_14_boldKernMatrix,
+    nullptr,
+    nullptr,
+    opendyslexic_14_boldKernLeftCodepoints,
+    opendyslexic_14_boldKernLeftClassIds,
+    opendyslexic_14_boldKernRightCodepoints,
+    opendyslexic_14_boldKernRightClassIds,
+    nullptr,
+    opendyslexic_14_boldKernRowOffsets,
+    opendyslexic_14_boldKernSparseCols,
+    opendyslexic_14_boldKernSparseValues,
     66,
     1,
     1,
