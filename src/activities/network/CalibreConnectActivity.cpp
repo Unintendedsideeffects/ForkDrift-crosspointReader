@@ -214,10 +214,10 @@ void CalibreConnectActivity::renderServerRunning() const {
   int y = 55 + TOP_PADDING;
   renderer.drawCenteredText(UI_10_FONT_ID, y, "Network", true, EpdFontFamily::BOLD);
   y += LINE_SPACING;
-  std::string ssidInfo = "Network: " + connectedSSID;
-  if (ssidInfo.length() > 28) {
-    ssidInfo.replace(25, ssidInfo.length() - 25, "...");
-  }
+  const auto pageWidth = renderer.getScreenWidth();
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const std::string ssidInfo = renderer.truncatedText(UI_10_FONT_ID, ("Network: " + connectedSSID).c_str(),
+                                                      pageWidth - 2 * metrics.contentSidePadding);
   renderer.drawCenteredText(UI_10_FONT_ID, y, ssidInfo.c_str());
   renderer.drawCenteredText(UI_10_FONT_ID, y + LINE_SPACING, ("IP: " + connectedIP).c_str());
 

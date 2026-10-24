@@ -1001,10 +1001,8 @@ void WifiSelectionActivity::renderConnectionFailed() const {
   const int centre = pageHeight / 2;
   renderer.drawCenteredText(UI_12_FONT_ID, centre - 40, tr(STR_CONNECTION_FAILED), true, EpdFontFamily::BOLD);
 
-  std::string ssidInfo = selectedSSID;
-  if (ssidInfo.length() > 32) {
-    ssidInfo.replace(29, ssidInfo.length() - 29, "...");
-  }
+  const std::string ssidInfo =
+      renderer.truncatedText(UI_10_FONT_ID, selectedSSID.c_str(), pageWidth - 2 * metrics.contentSidePadding);
   if (!ssidInfo.empty()) {
     renderer.drawCenteredText(UI_10_FONT_ID, centre - 5, ssidInfo.c_str());
   }
@@ -1023,10 +1021,8 @@ void WifiSelectionActivity::renderForgetPrompt() const {
 
   const int centre = pageHeight / 2;
 
-  std::string ssidInfo = selectedSSID;
-  if (ssidInfo.length() > 32) {
-    ssidInfo.replace(29, ssidInfo.length() - 29, "...");
-  }
+  const std::string ssidInfo =
+      renderer.truncatedText(UI_10_FONT_ID, selectedSSID.c_str(), pageWidth - 2 * metrics.contentSidePadding);
   renderer.drawCenteredText(UI_10_FONT_ID, centre - 50, ssidInfo.c_str(), true, EpdFontFamily::BOLD);
   renderer.drawCenteredText(SMALL_FONT_ID, centre - 20, tr(STR_FORGET_AND_REMOVE));
 

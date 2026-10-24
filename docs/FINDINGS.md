@@ -2078,3 +2078,10 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **What**: English is `Page %d/%d, %.2f%% overall`; Russian is `Страница %d/%d`. snprintf ignores the extra argument, so it is safe, but Russian users lose the overall percentage on the sync screen.
 - **Why not fixed here**: pre-existing translation; needs a translator's string, not a guess.
 - **Status**: open
+
+## 2026-10-24T14:00Z — BLE, scan-detail, and upload labels still ellipsize by byte count
+- **Found by**: claude — during plan absorb-1024 (port/reader)
+- **Where**: `src/activities/network/WifiSelectionActivity.cpp:879-880,985-987`, `src/activities/network/CrossPointWebServerActivity.cpp:580-582,595-597`, `src/activities/network/CalibreConnectActivity.cpp:239-240,253-254`
+- **What**: these strings still use `length() > N` then `replace(..., "...")`, which can split a UTF-8 codepoint. The SSID sites in the same files were switched to `renderer.truncatedText` (width, glyph-safe); these leftover labels were not in that commit's slice.
+- **Why not fixed here**: out of scope for port/reader (scope was SSID truncation at the listed call sites, plus the other named commits).
+- **Status**: open

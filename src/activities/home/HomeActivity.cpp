@@ -1612,7 +1612,7 @@ void HomeActivity::render(RenderLock&&) {
   }
 
   renderer.clearScreen();
-  bool bufferRestored = coverBufferStored && restoreCoverBuffer();
+  bool bufferRestored = coverRendered && coverBufferStored && restoreCoverBuffer();
   // If we are using the new media picker UI, use its specialized rendering
   const bool mediaPickerEnabled = core::FeatureModules::hasCapability(core::Capability::HomeMediaPicker);
   if (mediaPickerEnabled) {

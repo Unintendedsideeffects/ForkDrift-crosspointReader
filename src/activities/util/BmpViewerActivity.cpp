@@ -6,10 +6,12 @@
 #include <HalStorage.h>
 #include <I18n.h>
 #include <Logging.h>
+#include <Memory.h>
 
 #include <algorithm>
 #include <cstring>
 
+#include "ConfirmationActivity.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "components/UITheme.h"
@@ -206,7 +208,19 @@ void BmpViewerActivity::loop() {
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    doSetSleepCover();
+    auto confirmation = makeUniqueNoThrow<ConfirmationActivity>(renderer, mappedInput, tr(STR_SET_SLEEP_COVER),
+                                                                filePath.substr(filePath.find_last_of('/') + 1));
+    if (!confirmation) {
+      LOG_ERR("BMP", "OOM: sleep cover confirmation (%zu bytes)", sizeof(ConfirmationActivity));
+      return;
+    }
+    startActivityForResult(std::move(confirmation), [this](const ActivityResult& result) {
+      if (result.isCancelled) {
+        onEnter();
+        return;
+      }
+      doSetSleepCover();
+    });
     return;
   }
 

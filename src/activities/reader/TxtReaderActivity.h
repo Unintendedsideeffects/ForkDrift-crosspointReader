@@ -7,6 +7,7 @@
 #include <freertos/task.h>
 
 #include <atomic>
+#include <cstdint>
 #include <vector>
 
 #include "CrossPointSettings.h"
@@ -56,7 +57,8 @@ class TxtReaderActivity final : public Activity {
   void renderStatusBar() const;
 
   void initializeReader();
-  bool loadPageAtOffset(size_t offset, std::vector<StyledLine>& outLines, size_t& nextOffset);
+  bool loadPageAtOffset(size_t offset, std::vector<StyledLine>& outLines, size_t& nextOffset,
+                        uint8_t* scratch = nullptr);
   void buildPageIndex();
   bool loadPageIndexCache();
   void savePageIndexCache() const;

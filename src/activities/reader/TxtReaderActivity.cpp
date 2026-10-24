@@ -6,6 +6,7 @@
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
+#include <Memory.h>
 #include <Serialization.h>
 #include <Utf8.h>
 
@@ -201,13 +202,21 @@ void TxtReaderActivity::buildPageIndex() {
 
   LOG_DBG("TRS", "Building page index for %zu bytes...", fileSize);
 
+  renderer.clearScreen();
   GUI.drawPopup(renderer, tr(STR_INDEXING));
+
+  ScopedBuffer scratch(CHUNK_SIZE + 1);
+  if (!scratch) {
+    LOG_ERR("TRS", "Failed to allocate TXT indexing scratch");
+    totalPages = pageOffsets.size();
+    return;
+  }
 
   while (offset < fileSize) {
     std::vector<StyledLine> tempLines;
     size_t nextOffset = offset;
 
-    if (!loadPageAtOffset(offset, tempLines, nextOffset)) {
+    if (!loadPageAtOffset(offset, tempLines, nextOffset, scratch.data())) {
       break;
     }
 
@@ -231,13 +240,15 @@ void TxtReaderActivity::buildPageIndex() {
   LOG_DBG("TRS", "Built page index: %d pages", totalPages);
 }
 
-bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<StyledLine>& outLines, size_t& nextOffset) {
+bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<StyledLine>& outLines, size_t& nextOffset,
+                                         uint8_t* scratch) {
   outLines.clear();
   size_t fileSize = 0;
   size_t chunkSize = 0;
-  ScopedBuffer buffer(CHUNK_SIZE + 1);
+  auto owned = scratch ? std::unique_ptr<uint8_t[]>{} : makeUniqueNoThrow<uint8_t[]>(CHUNK_SIZE + 1);
+  uint8_t* buffer = scratch ? scratch : owned.get();
   if (!buffer) {
-    LOG_ERR("TRS", "Failed to allocate %zu bytes", chunkSize);
+    LOG_ERR("TRS", "Failed to allocate %zu bytes", CHUNK_SIZE + 1);
     return false;
   }
 
@@ -250,11 +261,11 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<StyledLine>&
 
     // Read a chunk from file
     chunkSize = std::min(CHUNK_SIZE, fileSize - offset);
-    if (!txt->readContent(buffer.data(), offset, chunkSize)) {
+    if (!txt->readContent(buffer, offset, chunkSize)) {
       return false;
     }
   }
-  buffer.data()[chunkSize] = '\0';
+  buffer[chunkSize] = '\0';
 
   // Parse lines from buffer
   size_t pos = 0;
@@ -262,7 +273,7 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<StyledLine>&
   while (pos < chunkSize && static_cast<int>(outLines.size()) < linesPerPage) {
     // Find end of line
     size_t lineEnd = pos;
-    while (lineEnd < chunkSize && buffer.data()[lineEnd] != '\n') {
+    while (lineEnd < chunkSize && buffer[lineEnd] != '\n') {
       lineEnd++;
     }
 
@@ -278,11 +289,11 @@ bool TxtReaderActivity::loadPageAtOffset(size_t offset, std::vector<StyledLine>&
     size_t lineContentLen = lineEnd - pos;
 
     // Check for carriage return
-    bool hasCR = (lineContentLen > 0 && buffer.data()[pos + lineContentLen - 1] == '\r');
+    bool hasCR = (lineContentLen > 0 && buffer[pos + lineContentLen - 1] == '\r');
     size_t displayLen = hasCR ? lineContentLen - 1 : lineContentLen;
 
     // Extract raw line content (without CR/LF)
-    std::string rawLine(reinterpret_cast<char*>(buffer.data() + pos), displayLen);
+    std::string rawLine(reinterpret_cast<char*>(buffer + pos), displayLen);
 
     std::string lineText = rawLine;
     const EpdFontFamily::Style lineStyle = EpdFontFamily::REGULAR;

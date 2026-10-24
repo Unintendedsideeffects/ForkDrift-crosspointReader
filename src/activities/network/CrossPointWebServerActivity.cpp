@@ -554,10 +554,10 @@ void CrossPointWebServerActivity::renderCalibreUI() const {
   renderer.drawCenteredText(UI_10_FONT_ID, y, "Network", true, EpdFontFamily::BOLD);
   y += LINE_SPACING;
 
-  std::string ssidInfo = "Network: " + connectedSSID;
-  if (ssidInfo.length() > 28) {
-    ssidInfo.replace(25, ssidInfo.length() - 25, "...");
-  }
+  const auto pageWidth = renderer.getScreenWidth();
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const std::string ssidInfo = renderer.truncatedText(UI_10_FONT_ID, ("Network: " + connectedSSID).c_str(),
+                                                      pageWidth - 2 * metrics.contentSidePadding);
   renderer.drawCenteredText(UI_10_FONT_ID, y, ssidInfo.c_str());
   renderer.drawCenteredText(UI_10_FONT_ID, y + LINE_SPACING, ("IP: " + connectedIP).c_str());
 
@@ -646,10 +646,11 @@ void CrossPointWebServerActivity::renderFileTransferUI() const {
     // STA mode display
     const int startY = 65;
 
-    std::string ssidInfo = std::string(tr(STR_NETWORK_PREFIX)) + connectedSSID;
-    if (ssidInfo.length() > 28) {
-      ssidInfo.replace(25, ssidInfo.length() - 25, "...");
-    }
+    const auto pageWidth = renderer.getScreenWidth();
+    const auto& metrics = UITheme::getInstance().getMetrics();
+    const std::string ssidInfo =
+        renderer.truncatedText(UI_10_FONT_ID, (std::string(tr(STR_NETWORK_PREFIX)) + connectedSSID).c_str(),
+                               pageWidth - 2 * metrics.contentSidePadding);
     renderer.drawCenteredText(UI_10_FONT_ID, startY, ssidInfo.c_str());
 
     std::string ipInfo = std::string(tr(STR_IP_ADDRESS_PREFIX)) + connectedIP;

@@ -2,6 +2,7 @@
 
 #include <FeatureFlags.h>
 #include <GfxRenderer.h>
+#include <HalStorage.h>
 #include <HeapGuard.h>
 #include <I18n.h>
 
@@ -71,7 +72,9 @@ std::vector<EpubReaderMenuActivity::MenuItem> EpubReaderMenuActivity::buildMenuI
   items.push_back(
       {MenuAction::TOGGLE_COMPLETED, isBookCompleted ? StrId::STR_MARK_UNFINISHED : StrId::STR_MARK_FINISHED});
 #if ENABLE_DICTIONARY
-  items.push_back({MenuAction::DICTIONARY, StrId::STR_DICTIONARY});
+  if (Storage.exists("/dictionary/en.dict")) {
+    items.push_back({MenuAction::DICTIONARY, StrId::STR_DICTIONARY});
+  }
 #endif
 #if ENABLE_BOOKMARKS
   items.push_back(

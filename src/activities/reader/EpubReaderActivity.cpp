@@ -721,13 +721,14 @@ void EpubReaderActivity::loop() {
       mappedInput.getHeldTime() > ReaderUtils::SKIP_HOLD_MS) {
     if (mappedInput.wasReleased(MappedInputManager::Button::PageForward)) {
       if (SETTINGS.fontSize < CrossPointSettings::FONT_SIZE_COUNT - 1) {
-        SETTINGS.fontSize++;
-        if (!SETTINGS.saveToFile()) {
-          LOG_ERR("ERS", "Failed to save settings");
-        }
         {
           RenderLock lock(*this);
+          SETTINGS.fontSize++;
+          cacheCurrentSectionPosition();
           section.reset();
+        }
+        if (!SETTINGS.saveToFile()) {
+          LOG_ERR("ERS", "Failed to save settings");
         }
         requestUpdate();
       }
@@ -735,13 +736,14 @@ void EpubReaderActivity::loop() {
     }
     if (mappedInput.wasReleased(MappedInputManager::Button::PageBack)) {
       if (SETTINGS.fontSize > 0) {
-        SETTINGS.fontSize--;
-        if (!SETTINGS.saveToFile()) {
-          LOG_ERR("ERS", "Failed to save settings");
-        }
         {
           RenderLock lock(*this);
+          SETTINGS.fontSize--;
+          cacheCurrentSectionPosition();
           section.reset();
+        }
+        if (!SETTINGS.saveToFile()) {
+          LOG_ERR("ERS", "Failed to save settings");
         }
         requestUpdate();
       }
@@ -981,6 +983,7 @@ void EpubReaderActivity::reindexCurrentSection() {
   }
   {
     RenderLock lock(*this);
+    renderer.clearScreen();
     GUI.drawPopup(renderer, tr(STR_INDEXING));
     cacheCurrentSectionPosition();
     section.reset();
@@ -1858,6 +1861,7 @@ void EpubReaderActivity::render(RenderLock&& lock) {
                                   EpdFontFamily::BOLD);
         return;
       }
+      renderer.clearScreen();
       GUI.drawPopup(renderer, tr(STR_INDEXING));
 
       // Lend the framebuffer's 48 KB to the blocking chapter build. The popup
@@ -3066,6 +3070,7 @@ void EpubReaderActivity::showLoadingPopupTrampoline(void* ctx) {
   if (!self->renderer.hasFrameBuffer()) {
     return;
   }
+  self->renderer.clearScreen();
   GUI.drawPopup(self->renderer, tr(STR_INDEXING));
 }
 

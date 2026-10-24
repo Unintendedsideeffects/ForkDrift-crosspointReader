@@ -797,6 +797,7 @@ void MarkdownReaderActivity::reindexSection() {
   }
   {
     RenderLock lock(*this);
+    renderer.clearScreen();
     GUI.drawPopup(renderer, tr(STR_INDEXING));
     mdSection.reset();
     htmlSection.reset();
