@@ -7,8 +7,6 @@
 ImageBlock::ImageBlock(const std::string& imagePath, const int16_t width, const int16_t height)
     : imagePath(imagePath), width(width), height(height) {}
 
-bool ImageBlock::imageExists() const { return Storage.exists(imagePath.c_str()); }
-
 bool ImageBlock::serialize(serialization::BufferedWriter& file) {
   serialization::writeString(file, imagePath);
   serialization::writePod(file, width);

@@ -53,7 +53,7 @@ void EpubReaderChapterSelectionActivity::onEnter() {
   }
 
   const int syncOffset = hasSyncOption() ? 1 : 0;
-  selectorIndex = epub->getTocIndexForSpineIndex(currentSpineIndex);
+  selectorIndex = (currentTocIndex >= 0) ? currentTocIndex : epub->getTocIndexForSpineIndex(currentSpineIndex);
   if (selectorIndex == -1) {
     selectorIndex = 0;
   }

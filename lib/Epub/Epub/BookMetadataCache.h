@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <deque>
+#include <memory>
 #include <string>
 
 class BookMetadataCache {
@@ -97,8 +98,8 @@ class BookMetadataCache {
     uint16_t hrefLen;   // length for collision reduction
     int16_t spineIndex;
   };
-  std::deque<SpineHrefIndexEntry> spineHrefIndex;
-  bool useSpineHrefIndex = false;
+  // Only allocated for the duration of the TOC pass on large spines.
+  std::unique_ptr<std::deque<SpineHrefIndexEntry>> spineHrefIndex;
 
   static constexpr uint16_t LARGE_SPINE_THRESHOLD = 400;
 

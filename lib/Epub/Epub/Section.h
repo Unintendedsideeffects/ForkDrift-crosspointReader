@@ -30,6 +30,7 @@ class Section {
                               bool guideReadingEnabled);
   uint32_t onPageComplete(std::unique_ptr<Page> page, serialization::BufferedWriter& writer);
   void closeSectionFile();
+  bool openAnchorMap(HalFile& anchorFile, uint16_t& count) const;
 
  public:
   uint16_t pageCount = 0;
@@ -52,6 +53,9 @@ class Section {
                          bool guideReadingEnabled, PopupCallback popupFn = {});
   std::unique_ptr<Page> loadPageFromSectionFile();
   std::string getTextFromSectionFile();
+
+  // Select a TOC boundary without reopening the anchor map for every story.
+  int getTocIndexForPage(int page) const;
 
   // Look up the page number for an anchor id from the section cache file.
   std::optional<uint16_t> getPageForAnchor(const std::string& anchor) const;

@@ -6,6 +6,7 @@
 #include <HalStorage.h>
 #include <HeapGuard.h>
 #include <Logging.h>
+#include <Memory.h>
 #include <Serialization.h>
 #include <freertos/task.h>
 
@@ -43,7 +44,9 @@ namespace {
 // v36: "!important" declarations apply for every CSS property (were dropped
 // unless display/direction), and elements with the HTML hidden attribute are
 // skipped like display:none. Both change which content lays out.
-constexpr uint8_t SECTION_FILE_VERSION = 36;
+// v37: explicit font-weight/font-style: inherit preserved, and pending words flushed
+// before header and generic block elements open.
+constexpr uint8_t SECTION_FILE_VERSION = 37;
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) +
                                  sizeof(bool) + sizeof(bool) + sizeof(uint8_t) + sizeof(bool) + sizeof(bool) +
@@ -677,29 +680,51 @@ std::optional<uint16_t> Section::getCachedPageCount() const {
   return count;
 }
 
-std::optional<uint16_t> Section::getPageForAnchor(const std::string& anchor) const {
-  HalFile f;
+bool Section::openAnchorMap(HalFile& f, uint16_t& count) const {
   if (!Storage.openFileForRead("SCT", filePath, f)) {
-    return std::nullopt;
+    return false;
   }
 
   const uint32_t fileSize = f.size();
-  if (!f.seek(HEADER_SIZE - sizeof(uint32_t) * 3)) return std::nullopt;
+  if (!f.seek(HEADER_SIZE - sizeof(uint32_t) * 3)) {
+    f.close();
+    return false;
+  }
   uint32_t anchorMapOffset = 0;
-  if (!serialization::readPod(f, anchorMapOffset)) return std::nullopt;
+  if (!serialization::readPod(f, anchorMapOffset)) {
+    f.close();
+    return false;
+  }
   if (anchorMapOffset == 0 || anchorMapOffset >= fileSize) {
     f.close();
-    return std::nullopt;
+    return false;
   }
 
-  if (!f.seek(anchorMapOffset)) return std::nullopt;
-  serialization::BufferedReader reader(f);
+  if (!f.seek(anchorMapOffset)) {
+    f.close();
+    return false;
+  }
+  count = 0;
+  if (!serialization::readPod(f, count)) {
+    f.close();
+    return false;
+  }
+  return true;
+}
+
+std::optional<uint16_t> Section::getPageForAnchor(const std::string& anchor) const {
+  HalFile f;
   uint16_t count = 0;
-  if (!serialization::readPod(reader, count)) return std::nullopt;
+  if (!openAnchorMap(f, count)) return std::nullopt;
+
+  serialization::BufferedReader reader(f);
   for (uint16_t i = 0; i < count; i++) {
     std::string key;
     uint16_t page = 0;
-    if (!serialization::readString(reader, key) || !serialization::readPod(reader, page)) return std::nullopt;
+    if (!serialization::readString(reader, key) || !serialization::readPod(reader, page)) {
+      f.close();
+      return std::nullopt;
+    }
     if (key == anchor) {
       f.close();
       return page;
@@ -708,6 +733,76 @@ std::optional<uint16_t> Section::getPageForAnchor(const std::string& anchor) con
 
   f.close();
   return std::nullopt;
+}
+
+int Section::getTocIndexForPage(const int page) const {
+  int selected = epub->getTocIndexForSpineIndex(spineIndex);
+  int latestPage = -1;
+  struct TocAnchor {
+    size_t hash;
+    int index;
+  };
+  // Bound scratch space to 512 bytes on C3; anchor text stays in the existing caches.
+  constexpr size_t BATCH_SIZE = 64;
+  auto targets = makeUniqueNoThrow<TocAnchor[]>(BATCH_SIZE);
+  if (!targets) {
+    LOG_ERR("SCT", "OOM: TOC anchor lookup");
+    return selected;
+  }
+  HalFile anchorFile;
+  uint16_t anchorCount = 0;
+  uint32_t anchorStart = 0;
+  const bool hasAnchorMap = openAnchorMap(anchorFile, anchorCount);
+  if (hasAnchorMap) {
+    anchorStart = anchorFile.position();
+  }
+  std::string cachedAnchor;
+  size_t count = 0;
+  const auto considerAnchor = [&](const std::string& anchor, const uint16_t anchorPage) {
+    const size_t hash = std::hash<std::string>{}(anchor);
+    for (size_t i = 0; i < count; ++i) {
+      if (targets[i].hash != hash || epub->getTocItem(targets[i].index).anchor != anchor) continue;
+      const int resolvedPage = anchorPage;
+      if (resolvedPage <= page &&
+          (resolvedPage > latestPage || (resolvedPage == latestPage && targets[i].index > selected))) {
+        selected = targets[i].index;
+        latestPage = resolvedPage;
+      }
+    }
+  };
+  const auto resolveBatch = [&]() {
+    if (hasAnchorMap && anchorFile.seek(anchorStart)) {
+      serialization::BufferedReader anchorReader(anchorFile);
+      for (uint16_t i = 0; i < anchorCount; ++i) {
+        uint16_t anchorPage = 0;
+        if (!serialization::readString(anchorReader, cachedAnchor) ||
+            !serialization::readPod(anchorReader, anchorPage)) {
+          break;
+        }
+        considerAnchor(cachedAnchor, anchorPage);
+      }
+    }
+    count = 0;
+  };
+  const int first = std::max(0, selected);
+  for (int i = first; i < epub->getTocItemsCount(); ++i) {
+    const auto item = epub->getTocItem(i);
+    if (item.spineIndex != spineIndex) continue;
+    if (item.anchor.empty()) {
+      if (page >= 0 && latestPage <= 0) {
+        selected = i;
+        latestPage = 0;
+      }
+    } else {
+      targets[count++] = {std::hash<std::string>{}(item.anchor), i};
+      if (count == BATCH_SIZE) resolveBatch();
+    }
+  }
+  if (count > 0) resolveBatch();
+  if (hasAnchorMap) {
+    anchorFile.close();
+  }
+  return selected;
 }
 
 std::optional<uint16_t> Section::getPageForParagraphIndex(const uint16_t pIndex) const {

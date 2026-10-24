@@ -1320,8 +1320,10 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       const int currentPage = section ? section->currentPage : 0;
       const int totalPages = section ? section->pageCount : 0;
       const std::string path = epub->getPath();
-      startActivityForResult(std::make_unique<EpubReaderChapterSelectionActivity>(renderer, mappedInput, epub, path,
-                                                                                  spineIdx, currentPage, totalPages),
+      const int currentTocIndex = section ? section->getTocIndexForPage(section->currentPage)
+                                          : (epub ? epub->getTocIndexForSpineIndex(spineIdx) : 0);
+      startActivityForResult(std::make_unique<EpubReaderChapterSelectionActivity>(
+                                 renderer, mappedInput, epub, path, spineIdx, currentPage, totalPages, currentTocIndex),
                              [this](const ActivityResult& result) {
                                if (result.isCancelled) {
                                  return;

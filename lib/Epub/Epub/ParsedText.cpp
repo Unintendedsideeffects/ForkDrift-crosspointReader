@@ -155,35 +155,37 @@ bool hasCjkBreakOpportunityBetween(const uint32_t leftCp, const uint32_t rightCp
 }
 
 std::vector<size_t> cjkCharacterBreakByteOffsets(const std::string& text) {
-  struct CodepointBoundary {
-    uint32_t cp;
-    size_t endOffset;
-  };
+  // Pass 1: count break opportunities without staging codepoints.
+  size_t boundaryCount = 0;
+  {
+    const auto* ptr = reinterpret_cast<const unsigned char*>(text.c_str());
+    uint32_t current = 0;
+    bool hasCurrent = false;
+    while (*ptr) {
+      const uint32_t cp = utf8NextCodepoint(&ptr);
+      if (cp == 0) break;
+      if (hasCurrent && hasCjkBreakOpportunityBetween(current, cp)) ++boundaryCount;
+      current = cp;
+      hasCurrent = true;
+    }
+  }
+  if (boundaryCount == 0) return {};
 
-  std::vector<CodepointBoundary> codepoints;
-  codepoints.reserve(text.size());
-  bool hasCjkBreakable = false;
-
+  // Pass 2: fill exactly-sized offsets.
+  std::vector<size_t> allowedOffsets;
+  allowedOffsets.reserve(boundaryCount);
   const auto* ptr = reinterpret_cast<const unsigned char*>(text.c_str());
   const auto* const start = ptr;
+  uint32_t current = 0;
+  size_t currentEnd = 0;
+  bool hasCurrent = false;
   while (*ptr) {
     const uint32_t cp = utf8NextCodepoint(&ptr);
     if (cp == 0) break;
-    if (utf8IsCjkBreakable(cp)) {
-      hasCjkBreakable = true;
-    }
-    codepoints.push_back({cp, static_cast<size_t>(ptr - start)});
-  }
-
-  if (!hasCjkBreakable || codepoints.size() < 2) return {};
-
-  std::vector<size_t> allowedOffsets;
-  allowedOffsets.reserve(codepoints.size() - 1);
-  for (size_t i = 0; i + 1 < codepoints.size(); ++i) {
-    const uint32_t current = codepoints[i].cp;
-    const uint32_t next = codepoints[i + 1].cp;
-    if (!hasCjkBreakOpportunityBetween(current, next)) continue;
-    allowedOffsets.push_back(codepoints[i].endOffset);
+    if (hasCurrent && hasCjkBreakOpportunityBetween(current, cp)) allowedOffsets.push_back(currentEnd);
+    current = cp;
+    currentEnd = static_cast<size_t>(ptr - start);
+    hasCurrent = true;
   }
   return allowedOffsets;
 }

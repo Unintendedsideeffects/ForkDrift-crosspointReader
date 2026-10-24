@@ -8,9 +8,11 @@ extern "C" {
 #undef otherwise
 
 #include <Logging.h>
+#include <Memory.h>
 #include <Utf8.h>
 
 #include <cstring>
+#include <memory>
 
 namespace {
 
@@ -68,17 +70,28 @@ int detectParagraphLevel(const char* utf8, const int fallbackLevel, const int ma
   return fallbackLevel & 1;
 }
 
-// Shared scratch for both entry points below (~1536B of DRAM instead of one
-// static per function). Safe to share: every caller — drawText glyph
+// Shared scratch for both entry points below (~1536B of heap, allocated on first
+// use, instead of resident BSS or one static per function). Safe to share: every caller — drawText glyph
 // resolution and ParsedText line layout — runs inside render()/section-build
 // code serialized by the ActivityManager RenderLock, so the two functions
 // never execute concurrently. Do not call BidiUtils from outside that lock.
-static bidi_char bidiLineScratch[BIDI_MAX_LINE];
+static std::unique_ptr<bidi_char[]> bidiLineScratch;
+
+static bidi_char* acquireBidiLineScratch() {
+  if (!bidiLineScratch) {
+    bidiLineScratch = makeUniqueNoThrow<bidi_char[]>(BIDI_MAX_LINE);
+    if (!bidiLineScratch) {
+      LOG_ERR("BIDI", "OOM: bidi workspace (%d chars)", BIDI_MAX_LINE);
+    }
+  }
+  return bidiLineScratch.get();
+}
 
 bool applyBidiVisual(const char* utf8, std::string& out, int paragraphLevel) {
   if (!utf8 || !*utf8) return false;
 
-  bidi_char* line = bidiLineScratch;
+  bidi_char* line = acquireBidiLineScratch();
+  if (!line) return false;
   int count = 0;
   auto* p = reinterpret_cast<const unsigned char*>(utf8);
   while (*p) {
@@ -113,7 +126,8 @@ bool computeVisualWordOrder(const std::vector<std::string>& words, bool paragrap
   const size_t nWords = words.size();
   if (nWords <= 1 || nWords > BIDI_MAX_LINE) return false;
 
-  bidi_char* line = bidiLineScratch;
+  bidi_char* line = acquireBidiLineScratch();
+  if (!line) return false;
   int count = 0;
   bool truncated = false;
 
