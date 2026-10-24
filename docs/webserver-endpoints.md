@@ -1224,6 +1224,10 @@ Applied 2 setting(s)
 **Protected Items:**
 - `System Volume Information`
 - `XTCache`
+- anything under `/.crosspoint`
+
+Hidden items (names that start with `.`) can be deleted. Non-empty folders are
+rejected. EPUB cache data for deleted files is cleared.
 
 ---
 

@@ -2081,6 +2081,9 @@
       document.body.appendChild(notification);
     }
 
+    clearTimeout(notification.hideTimer);
+    clearTimeout(notification.removeTimer);
+
     // Set styles based on type
     const styles = {
       'success': 'background-color: #27ae60;',
@@ -2096,10 +2099,10 @@
     notification.style.transform = 'translateX(0)';
 
     // Auto-hide after 5 seconds
-    setTimeout(() => {
+    notification.hideTimer = setTimeout(() => {
       notification.style.opacity = '0';
       notification.style.transform = 'translateX(100%)';
-      setTimeout(() => {
+      notification.removeTimer = setTimeout(() => {
         if (notification.parentNode) {
           notification.parentNode.removeChild(notification);
         }
@@ -2124,9 +2127,14 @@
     // Close modals when clicking overlay (bind once across re-hydrates).
     if (!modalOverlayHandlersBound) {
       document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+        let clickTarget = null;
+        overlay.addEventListener('mousedown', function(e) {
+          clickTarget = e.target;
+        });
         overlay.addEventListener('click', function(e) {
-          if (e.target === overlay) {
-            // Call the appropriate close function for each modal to ensure cleanup
+          const clickedBackdrop = clickTarget === overlay && e.target === overlay;
+          clickTarget = null;
+          if (clickedBackdrop) {
             if (overlay.id === 'uploadModal') return closeUploadModal();
             if (overlay.id === 'folderModal') return closeFolderModal();
             if (overlay.id === 'deleteModal') return closeDeleteModal();
@@ -5620,6 +5628,7 @@ function uploadFile() {
     }
 
     let file = files[currentIndex];
+    file = new File([file], file.name.normalize('NFC'), {type: file.type, lastModified: file.lastModified});
     const originalFile = file;
     // Reset progress bar instantly without transition when starting a new file
     progressFill.classList.add('no-transition');

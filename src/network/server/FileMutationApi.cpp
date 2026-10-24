@@ -278,7 +278,7 @@ FileMutationResult deletePaths(const std::vector<String>& rawPaths, const FileMu
       allSuccess = false;
       continue;
     }
-    if (PathUtils::pathContainsProtectedItem(itemPath)) {
+    if (PathUtils::pathContainsUndeletableWebItem(itemPath)) {
       failedItems += itemPath + " (protected path); ";
       allSuccess = false;
       continue;

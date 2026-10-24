@@ -381,4 +381,42 @@ bool pathContainsProtectedItem(const char* path) {
   return false;
 }
 
+bool pathContainsUndeletableWebItem(const String& path) { return pathContainsUndeletableWebItem(path.c_str()); }
+
+bool pathContainsUndeletableWebItem(const char* path) {
+  if (path == nullptr || path[0] == '\0' || (path[0] == '/' && path[1] == '\0')) {
+    return false;
+  }
+
+  const char* cursor = path;
+  while (*cursor != '\0') {
+    while (*cursor == '/') {
+      cursor++;
+    }
+    if (*cursor == '\0') {
+      break;
+    }
+
+    const char* component = cursor;
+    while (*cursor != '\0' && *cursor != '/') {
+      cursor++;
+    }
+    const size_t componentLen = static_cast<size_t>(cursor - component);
+    if (componentLen == 0) {
+      continue;
+    }
+
+    if (equalsIgnoreCaseN(component, componentLen, ".crosspoint")) {
+      return true;
+    }
+    for (size_t i = 0; i < kHiddenWebItemsCount; i++) {
+      if (equalsIgnoreCaseN(component, componentLen, kHiddenWebItems[i])) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 }  // namespace PathUtils

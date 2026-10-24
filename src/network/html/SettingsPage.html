@@ -405,10 +405,11 @@
 
   function showMessage(text, isError) {
     const msg = document.getElementById('message');
+    clearTimeout(msg.hideTimer);
     msg.textContent = text;
     msg.className = 'message ' + (isError ? 'error' : 'success');
     msg.style.display = 'block';
-    setTimeout(function() { msg.style.display = 'none'; }, 4000);
+    msg.hideTimer = setTimeout(function() { msg.style.display = 'none'; }, 4000);
   }
 
   function renderControl(setting) {

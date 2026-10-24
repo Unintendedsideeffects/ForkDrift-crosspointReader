@@ -191,12 +191,6 @@ class ParagraphStreamer final : public Print {
   char entityBuffer[MAX_ENTITY_SIZE] = {};
   size_t entityLen = 0;
 
-  // Forward mode: count <p> paragraphs at a byte offset (legacy, used by generateXPath)
-  size_t fwdTarget;
-  int fwdResult = 0;
-  bool fwdCaptured = false;
-
-  // Reverse mode shared state
   int revChar;
   bool revPFound = false;
   bool revDone = false;
@@ -592,29 +586,17 @@ class ParagraphStreamer final : public Print {
   }
 
  public:
-  explicit ParagraphStreamer(size_t targetByte) : fwdTarget(targetByte), revChar(0) {
-    memset(stepEnteredAtDepth, -1, sizeof(stepEnteredAtDepth));
-  }
-
   ParagraphStreamer(int paragraph, int charOff, int textNodeIdx = 1)
-      : fwdTarget(SIZE_MAX), revChar(charOff), revParagraph(paragraph), targetTextNode(textNodeIdx) {
+      : revChar(charOff), revParagraph(paragraph), targetTextNode(textNodeIdx) {
     memset(stepEnteredAtDepth, -1, sizeof(stepEnteredAtDepth));
   }
 
   ParagraphStreamer(const XPathStep* xpathSteps, int xpathStepCount, int charOff, int textNodeIdx = 1)
-      : fwdTarget(SIZE_MAX),
-        revChar(charOff),
-        steps(xpathSteps),
-        stepCount(xpathStepCount),
-        targetTextNode(textNodeIdx) {
+      : revChar(charOff), targetTextNode(textNodeIdx), steps(xpathSteps), stepCount(xpathStepCount) {
     memset(stepEnteredAtDepth, -1, sizeof(stepEnteredAtDepth));
   }
 
   size_t write(uint8_t c) override {
-    if (!fwdCaptured && bytesWritten >= fwdTarget) {
-      fwdResult = pCount;
-      fwdCaptured = true;
-    }
     bytesWritten++;
 
     if (globalInEntity) {
@@ -684,7 +666,6 @@ class ParagraphStreamer final : public Print {
     return size;
   }
 
-  int paragraphCount() const { return fwdCaptured ? fwdResult : pCount; }
   int getParagraphAtMatch() const { return paragraphAtMatch; }
   int getListItemAtMatch() const { return liCountAtMatch; }
   const char* getCapturedAnchorId() const { return capturedAnchorIdLen > 0 ? capturedAnchorId : nullptr; }
@@ -716,7 +697,7 @@ SavedProgressPosition ProgressMapper::toSavedProgress(const std::shared_ptr<Epub
     result.xpath = ChapterXPathResolver::findXPathForParagraph(epub, pos.spineIndex, pos.paragraphIndex);
   }
   if (result.xpath.empty()) {
-    result.xpath = generateXPath(epub, pos.spineIndex, intra);
+    LOG_ERR("PM", "Cannot resolve a structural XPath for spine %d", pos.spineIndex);
   }
   LOG_DBG("PM", "-> Progress: spine=%d page=%d/%d %.2f%% %s", pos.spineIndex, pos.pageNumber, pos.totalPages,
           result.percentage * 100, result.xpath.c_str());
@@ -884,19 +865,4 @@ CrossPointPosition ProgressMapper::toCrossPoint(const std::shared_ptr<Epub>& epu
     }
   }
   return result;
-}
-
-std::string ProgressMapper::generateXPath(const std::shared_ptr<Epub>& epub, int spineIndex, float intra) {
-  const std::string base = "/body/DocFragment[" + std::to_string(spineIndex + 1) + "]/body";
-  if (intra <= 0.0f) return base;
-
-  size_t spineSize = 0;
-  const auto href = epub->getSpineItem(spineIndex).href;
-  if (href.empty() || !epub->getItemSize(href, &spineSize) || spineSize == 0) return base;
-
-  ParagraphStreamer s(static_cast<size_t>(spineSize * std::min(intra, 1.0f)));
-  if (!streamSpine(epub, spineIndex, s)) return base;
-
-  const int p = s.paragraphCount();
-  return (p > 0) ? base + "/p[" + std::to_string(p) + "]" : base;
 }

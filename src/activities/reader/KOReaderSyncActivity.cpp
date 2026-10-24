@@ -198,7 +198,17 @@ void KOReaderSyncActivity::performUpload() {
   }
   requestUpdateAndWait();
 
-  // localProgress was pre-computed in EpubReaderActivity before the Epub was released.
+  if (localProgress.xpath.empty()) {
+    LOG_ERR("KOSync", "Cannot upload progress without a structural XPath");
+    {
+      RenderLock lock(*this);
+      state = SYNC_FAILED;
+      statusMessage = tr(STR_SYNC_FAILED_MSG);
+    }
+    requestUpdate(true);
+    return;
+  }
+
   KOReaderProgress progress;
   progress.document = documentHash;
   progress.progress = localProgress.xpath;

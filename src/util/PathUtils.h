@@ -86,4 +86,11 @@ bool isProtectedWebComponent(const char* component);
 bool pathContainsProtectedItem(const String& path);
 bool pathContainsProtectedItem(const char* path);
 
+/**
+ * True for web paths that must not be deleted: System Volume Information,
+ * XTCache, and anything under /.crosspoint. Other hidden names are deletable.
+ */
+bool pathContainsUndeletableWebItem(const String& path);
+bool pathContainsUndeletableWebItem(const char* path);
+
 }  // namespace PathUtils

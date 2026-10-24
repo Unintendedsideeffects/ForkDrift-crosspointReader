@@ -65,3 +65,44 @@ TEST_CASE("file mutation api rejects deleting non-empty folder") {
   CHECK(result.body.indexOf("folder not empty") >= 0);
   CHECK(Storage.exists("/docs/nested"));
 }
+
+TEST_CASE("file mutation api deletes generic hidden files") {
+  Storage.reset();
+  REQUIRE(Storage.writeFile("/books/.notes.txt", "hidden"));
+
+  const auto result = network::deletePaths({"/books/.notes.txt"}, nullptr);
+
+  REQUIRE(result.ok());
+  CHECK(!Storage.exists("/books/.notes.txt"));
+}
+
+TEST_CASE("file mutation api refuses deleting crosspoint and system items") {
+  Storage.reset();
+  REQUIRE(Storage.writeFile("/.crosspoint/wifi.json", "creds"));
+  REQUIRE(Storage.writeFile("/XTCache", "x"));
+  REQUIRE(Storage.mkdir("/System Volume Information"));
+
+  const auto wifi = network::deletePaths({"/.crosspoint/wifi.json"}, nullptr);
+  CHECK(wifi.statusCode == 500);
+  CHECK(wifi.body.indexOf("protected path") >= 0);
+  CHECK(Storage.exists("/.crosspoint/wifi.json"));
+
+  const auto cache = network::deletePaths({"/XTCache"}, nullptr);
+  CHECK(cache.statusCode == 500);
+  CHECK(cache.body.indexOf("protected path") >= 0);
+  CHECK(Storage.exists("/XTCache"));
+
+  const auto sysVol = network::deletePaths({"/System Volume Information"}, nullptr);
+  CHECK(sysVol.statusCode == 500);
+  CHECK(sysVol.body.indexOf("protected path") >= 0);
+}
+
+TEST_CASE("file mutation api still refuses renaming hidden files") {
+  Storage.reset();
+  REQUIRE(Storage.writeFile("/books/.notes.txt", "hidden"));
+
+  const auto result = network::renameFile("/books/.notes.txt", "notes.txt", true, nullptr);
+
+  CHECK(result.statusCode == 403);
+  CHECK(Storage.exists("/books/.notes.txt"));
+}

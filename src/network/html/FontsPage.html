@@ -167,23 +167,46 @@
         color: var(--black);
       }
       .picked-info { margin-top: 10px; }
-      #status {
-        display: none;
-        margin-top: 12px;
-        padding: 10px;
-        border: 1px solid var(--black);
+      #fontFeedback {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        z-index: 10000;
+        box-sizing: border-box;
+        width: max-content;
+        max-width: min(420px, calc(100vw - 32px));
+        max-height: calc(100vh - 32px);
+        overflow: auto;
+        overflow-wrap: anywhere;
+        background: var(--white);
+        color: var(--black);
+        border: 2px solid var(--black);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        padding: 12px 44px 12px 12px;
         font-size: 0.85em;
       }
-      .status-ok {
+      #status.status-ok {
         background: var(--gray-9);
         color: var(--black);
         display: block !important;
       }
-      .status-err {
+      #status.status-err {
         background: var(--white);
         color: var(--black);
         border-style: double;
         display: block !important;
+      }
+      .feedback-close {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 44px;
+        height: 44px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        font-size: 24px;
       }
       .empty {
         color: var(--gray-5);
@@ -258,12 +281,21 @@
         <button type="submit" class="btn btn-primary">Upload</button>
       </form>
       <p id="pickedInfo" class="family-meta picked-info"></p>
-      <div id="status"></div>
     </div>
+
+<div id="fontFeedback" hidden>
+  <button type="button" class="feedback-close" aria-label="Dismiss font notification" onclick="document.getElementById('fontFeedback').hidden = true;">&times;</button>
+  <div id="status" role="status" aria-live="polite" aria-atomic="true"></div>
+</div>
 
     <div class="footer">CrossPoint &middot; Open Source &middot; Built for Reading</div>
 
   <script>
+    function showFontStatus(status, text) {
+      document.getElementById('fontFeedback').hidden = false;
+      status.textContent = text;
+    }
+
     function formatSize(bytes) {
       if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
       if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
@@ -326,8 +358,7 @@
       if (!confirm('Delete font family "' + name + '"?')) return;
       const status = document.getElementById('status');
       status.className = '';
-      status.style.display = 'block';
-      status.textContent = 'Deleting ' + name + '...';
+      showFontStatus(status, 'Deleting ' + name + '...');
       try {
         const res = await fetch('/api/fonts/delete', {
           method: 'POST',
@@ -336,14 +367,14 @@
         });
         if (res.ok) {
           status.className = 'status-ok';
-          status.textContent = 'Deleted "' + name + '".';
+          showFontStatus(status, 'Deleted "' + name + '".');
         } else {
           status.className = 'status-err';
-          status.textContent = 'Failed to delete "' + name + '".';
+          showFontStatus(status, 'Failed to delete "' + name + '".');
         }
       } catch (err) {
         status.className = 'status-err';
-        status.textContent = 'Delete error: ' + err.message;
+        showFontStatus(status, 'Delete error: ' + err.message);
       }
       await loadFonts();
     }
@@ -383,8 +414,7 @@
       const files = cpfontFilesOnly(document.getElementById('fontFiles').files);
       if (files.length === 0) {
         status.className = 'status-err';
-        status.style.display = 'block';
-        status.textContent = 'No .cpfont files selected.';
+        showFontStatus(status, 'No .cpfont files selected.');
         return;
       }
 
@@ -394,18 +424,16 @@
       const families = [...new Set(files.map(f => sanitizeFamily(familyFromFilename(f.name))))];
       if (families.length !== 1) {
         status.className = 'status-err';
-        status.style.display = 'block';
-        status.textContent = 'Please select files from a single font family.';
+        showFontStatus(status, 'Please select files from a single font family.');
         return;
       }
       const family = families[0];
 
       status.className = '';
-      status.style.display = 'block';
 
       let uploaded = 0;
       for (const file of files) {
-        status.textContent = 'Uploading ' + (uploaded + 1) + '/' + files.length + ': ' + file.name;
+        showFontStatus(status, 'Uploading ' + (uploaded + 1) + '/' + files.length + ': ' + file.name);
         const formData = new FormData();
         formData.append('family', family);
         formData.append('file', file, file.name);
@@ -414,13 +442,13 @@
           const data = await res.json();
           if (!data.ok) {
             status.className = 'status-err';
-            status.textContent = 'Failed on ' + file.name + ': ' + (data.error || 'unknown error');
+            showFontStatus(status, 'Failed on ' + file.name + ': ' + (data.error || 'unknown error'));
             await loadFonts();
             return;
           }
         } catch (err) {
           status.className = 'status-err';
-          status.textContent = 'Upload error on ' + file.name + ': ' + err.message;
+          showFontStatus(status, 'Upload error on ' + file.name + ': ' + err.message);
           await loadFonts();
           return;
         }
@@ -428,8 +456,8 @@
       }
 
       status.className = 'status-ok';
-      status.textContent = 'Uploaded ' + uploaded + ' file' + (uploaded === 1 ? '' : 's') +
-        ' to family "' + family + '".';
+      showFontStatus(status, 'Uploaded ' + uploaded + ' file' + (uploaded === 1 ? '' : 's') +
+        ' to family "' + family + '".');
       await loadFonts();
     });
 

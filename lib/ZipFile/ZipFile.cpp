@@ -19,6 +19,24 @@ namespace {
 constexpr uint16_t ZIP_METHOD_STORED = 0;
 constexpr uint16_t ZIP_METHOD_DEFLATED = 8;
 constexpr uint32_t ZIP_CENTRAL_DIR_SIG = 0x02014b50;
+constexpr size_t CENTRAL_HEADER_BYTES = 46;
+
+uint16_t readLe16(const uint8_t* bytes) {
+  uint16_t value;
+  memcpy(&value, bytes, sizeof(value));
+  return value;
+}
+
+uint32_t readLe32(const uint8_t* bytes) {
+  uint32_t value;
+  memcpy(&value, bytes, sizeof(value));
+  return value;
+}
+
+bool readCentralHeader(HalFile& file, uint8_t header[CENTRAL_HEADER_BYTES]) {
+  const int headerRead = static_cast<int>(file.read(header, CENTRAL_HEADER_BYTES));
+  return headerRead == static_cast<int>(CENTRAL_HEADER_BYTES) && readLe32(header) == ZIP_CENTRAL_DIR_SIG;
+}
 
 // RAII zip: opens the zip if not already open, closes on destruction only if
 // it performed the open.  Removes the wasOpen/close boilerplate from every method.
@@ -75,8 +93,8 @@ bool ZipFile::loadAllFileStatSlims() {
 
   file.seek(zipDetails.centralDirOffset);
 
-  uint32_t sig;
   char itemName[256];
+  uint8_t header[CENTRAL_HEADER_BYTES];
   fileStatSlimCache.clear();
   // totalEntries comes straight from the (possibly corrupt) EOCD record. reserve()
   // preallocates the bucket array up front, so a bogus 65535 would grab ~256KB on a
@@ -87,34 +105,27 @@ bool ZipFile::loadAllFileStatSlims() {
                                                                          : kMaxReserveEntries);
 
   while (file.available()) {
-    file.read(&sig, 4);
-    if (sig != 0x02014b50) break;  // End of list
+    if (!readCentralHeader(file, header)) break;
 
     FileStatSlim fileStat = {};
-
-    file.seekCur(6);
-    file.read(&fileStat.method, 2);
-    file.seekCur(8);
-    file.read(&fileStat.compressedSize, 4);
-    file.read(&fileStat.uncompressedSize, 4);
-    uint16_t nameLen, m, k;
-    file.read(&nameLen, 2);
-    file.read(&m, 2);
-    file.read(&k, 2);
-    file.seekCur(8);
-    file.read(&fileStat.localHeaderOffset, 4);
+    fileStat.method = readLe16(header + 10);
+    fileStat.compressedSize = readLe32(header + 20);
+    fileStat.uncompressedSize = readLe32(header + 24);
+    const uint16_t nameLen = readLe16(header + 28);
+    const uint16_t extraLen = readLe16(header + 30);
+    const uint16_t commentLen = readLe16(header + 32);
+    fileStat.localHeaderOffset = readLe32(header + 42);
 
     if (nameLen < sizeof(itemName)) {
-      file.read(itemName, nameLen);
+      const int nameRead = static_cast<int>(file.read(itemName, nameLen));
+      if (nameRead != static_cast<int>(nameLen)) break;
       itemName[nameLen] = '\0';
       fileStatSlimCache.emplace(itemName, fileStat);
     } else {
-      // Skip over oversized entry names to avoid writing past fixed buffer.
       file.seekCur(nameLen);
     }
 
-    // Skip the rest of this entry (extra field + comment)
-    file.seekCur(m + k);
+    file.seekCur(static_cast<int32_t>(extraLen) + commentLen);
   }
 
   // Set cursor to start of central directory for sequential access
@@ -139,69 +150,56 @@ bool ZipFile::loadFileStatSlim(const char* filename, FileStatSlim* fileStat) {
 
   if (!loadZipDetails()) return false;
 
-  // Phase 1: Try scanning from cursor position first
-  uint32_t startPos = lastCentralDirPosValid ? lastCentralDirPos : zipDetails.centralDirOffset;
+  const uint32_t startPos = lastCentralDirPosValid ? lastCentralDirPos : zipDetails.centralDirOffset;
+  uint32_t entryStart = startPos;
   bool wrapped = false;
-  bool found = false;
+  file.seek(entryStart);
 
-  file.seek(startPos);
-
-  uint32_t sig;
+  const size_t targetLen = strlen(filename);
+  uint8_t header[CENTRAL_HEADER_BYTES];
   char itemName[256];
 
   while (true) {
-    uint32_t entryStart = file.position();
+    if (wrapped && entryStart >= startPos) break;
 
-    if (file.read(&sig, 4) != 4 || sig != 0x02014b50) {
-      // End of central directory
-      if (!wrapped && lastCentralDirPosValid && startPos != zipDetails.centralDirOffset) {
-        // Wrap around to beginning
-        file.seek(zipDetails.centralDirOffset);
+    if (!readCentralHeader(file, header)) {
+      if (!wrapped && startPos != zipDetails.centralDirOffset) {
+        entryStart = zipDetails.centralDirOffset;
+        file.seek(entryStart);
         wrapped = true;
         continue;
       }
       break;
     }
 
-    // If we've wrapped and reached our start position, stop
-    if (wrapped && entryStart >= startPos) {
-      break;
-    }
+    const uint16_t nameLen = readLe16(header + 28);
+    const uint16_t extraLen = readLe16(header + 30);
+    const uint16_t commentLen = readLe16(header + 32);
+    const uint32_t nextEntry = entryStart + sizeof(header) + nameLen + extraLen + commentLen;
 
-    file.seekCur(6);
-    file.read(&fileStat->method, 2);
-    file.seekCur(8);
-    file.read(&fileStat->compressedSize, 4);
-    file.read(&fileStat->uncompressedSize, 4);
-    uint16_t nameLen, m, k;
-    file.read(&nameLen, 2);
-    file.read(&m, 2);
-    file.read(&k, 2);
-    file.seekCur(8);
-    file.read(&fileStat->localHeaderOffset, 4);
-
-    if (nameLen < 256) {
-      file.read(itemName, nameLen);
-      itemName[nameLen] = '\0';
-
-      if (strcmp(itemName, filename) == 0) {
-        // Found it! Update cursor to next entry
-        file.seekCur(m + k);
-        lastCentralDirPos = file.position();
-        lastCentralDirPosValid = true;
-        found = true;
+    if (nameLen == targetLen && nameLen < sizeof(itemName)) {
+      const int nameRead = static_cast<int>(file.read(itemName, nameLen));
+      if (nameRead != static_cast<int>(nameLen)) {
+        LOG_ERR("ZIP", "Failed to read entry name for %s: expected %u bytes, got %d", filename,
+                static_cast<unsigned int>(nameLen), nameRead);
         break;
       }
-    } else {
-      // Name too long, skip it
-      file.seekCur(nameLen);
+      if (memcmp(itemName, filename, nameLen) == 0) {
+        fileStat->method = readLe16(header + 10);
+        fileStat->compressedSize = readLe32(header + 20);
+        fileStat->uncompressedSize = readLe32(header + 24);
+        fileStat->localHeaderOffset = readLe32(header + 42);
+        lastCentralDirPos = nextEntry;
+        lastCentralDirPosValid = true;
+        return true;
+      }
     }
 
-    // Skip extra field + comment
-    file.seekCur(m + k);
+    entryStart = nextEntry;
+    file.seek(entryStart);
   }
 
-  return found;
+  return false;
 }
 
 long ZipFile::getDataOffset(const FileStatSlim& fileStat) {
@@ -340,30 +338,20 @@ int ZipFile::fillUncompressedSizes(std::deque<SizeTarget>& targets, std::deque<u
 
   int matched = 0;
   const int targetCount = static_cast<int>(targets.size());
-  uint32_t sig;
+  uint8_t header[CENTRAL_HEADER_BYTES];
   char itemName[256];
 
   while (file.available()) {
-    file.read(&sig, 4);
-    if (sig != 0x02014b50) break;
+    if (!readCentralHeader(file, header)) break;
 
-    file.seekCur(6);
-    uint16_t method;
-    file.read(&method, 2);
-    file.seekCur(8);
-    uint32_t compressedSize, uncompressedSize;
-    file.read(&compressedSize, 4);
-    file.read(&uncompressedSize, 4);
-    uint16_t nameLen, m, k;
-    file.read(&nameLen, 2);
-    file.read(&m, 2);
-    file.read(&k, 2);
-    file.seekCur(8);
-    uint32_t localHeaderOffset;
-    file.read(&localHeaderOffset, 4);
+    const uint32_t uncompressedSize = readLe32(header + 24);
+    const uint16_t nameLen = readLe16(header + 28);
+    const uint16_t extraLen = readLe16(header + 30);
+    const uint16_t commentLen = readLe16(header + 32);
 
-    if (nameLen < 256) {
-      file.read(itemName, nameLen);
+    if (nameLen < sizeof(itemName)) {
+      const int nameRead = static_cast<int>(file.read(itemName, nameLen));
+      if (nameRead != static_cast<int>(nameLen)) break;
       itemName[nameLen] = '\0';
 
       uint64_t hash = fnvHash64(itemName, nameLen);
@@ -388,7 +376,7 @@ int ZipFile::fillUncompressedSizes(std::deque<SizeTarget>& targets, std::deque<u
       file.seekCur(nameLen);
     }
 
-    file.seekCur(m + k);
+    file.seekCur(static_cast<int32_t>(extraLen) + commentLen);
   }
 
   return matched;

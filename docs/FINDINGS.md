@@ -2079,8 +2079,14 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Why not fixed here**: pre-existing translation; needs a translator's string, not a guess.
 - **Status**: open
 
+## 2026-10-24T13:48Z — ZipFile::enumerateFilePaths still walks the central directory with many small SPI reads
+- **Found by**: cursor grok-4.6 — during upstream absorption 2026-10-24 (port/webnet, 87f9c34c6)
+- **Where**: `lib/ZipFile/ZipFile.h:126-153`
+- **What**: `loadFileStatSlim`, `loadAllFileStatSlims`, and `fillUncompressedSizes` now read each central-directory header in one 46-byte block. The header-only `enumerateFilePaths` template still does `read(&sig, 4)` plus several `seekCur`/`read` of 2-byte lengths per entry, the same many-small-SPI pattern the zip scan fix removed from the other three loops.
+- **Why not fixed here**: the webnet zip port was scoped to those three loops and must not add `lastLookupName`; changing the inline template is a separate walk of every callback site.
+
 ## 2026-10-24T14:00Z — BLE, scan-detail, and upload labels still ellipsize by byte count
-- **Found by**: claude — during plan absorb-1024 (port/reader)
+- **Found by**: cursor grok-4.6 — during upstream absorption 2026-10-24 (port/reader)
 - **Where**: `src/activities/network/WifiSelectionActivity.cpp:879-880,985-987`, `src/activities/network/CrossPointWebServerActivity.cpp:580-582,595-597`, `src/activities/network/CalibreConnectActivity.cpp:239-240,253-254`
 - **What**: these strings still use `length() > N` then `replace(..., "...")`, which can split a UTF-8 codepoint. The SSID sites in the same files were switched to `renderer.truncatedText` (width, glyph-safe); these leftover labels were not in that commit's slice.
 - **Why not fixed here**: out of scope for port/reader (scope was SSID truncation at the listed call sites, plus the other named commits).
