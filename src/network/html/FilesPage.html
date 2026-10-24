@@ -176,21 +176,33 @@
     .delete-action-btn:hover {
       background-color: #c0392b;
     }
-    /* Upload modal */
+    /* Modals */
     .modal-overlay {
-      display: none;
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
-      z-index: 200;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      max-height: none;
+      margin: auto;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      overflow: visible;
       justify-content: center;
       align-items: center;
+      z-index: 200;
     }
-    .modal-overlay.open {
+    .modal-overlay:not([open]) {
+      display: none;
+    }
+    .modal-overlay[open] {
       display: flex;
+    }
+    .modal-overlay::backdrop {
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(8px);
     }
     .modal {
       background: var(--white);
@@ -1744,7 +1756,7 @@
 </div>
 
 <!-- Upload Modal -->
-<div class="modal-overlay" id="uploadModal">
+<dialog class="modal-overlay" id="uploadModal">
   <div class="modal">
     <button class="modal-close" id="uploadModalClose" onclick="closeUploadModal()">&times;</button>
     <h3>📤 Upload file</h3>
@@ -1930,10 +1942,10 @@
       </div>
     </div>
   </div>
-</div>
+</dialog>
 
 <!-- New Folder Modal -->
-<div class="modal-overlay" id="folderModal">
+<dialog class="modal-overlay" id="folderModal">
   <div class="modal">
     <button class="modal-close" onclick="closeFolderModal()">&times;</button>
     <h3>📁 New Folder</h3>
@@ -1944,10 +1956,10 @@
       <button class="delete-btn-cancel" onclick="closeFolderModal()">Cancel</button>
     </div>
   </div>
-</div>
+</dialog>
 
 <!-- Delete Confirmation Modal -->
-<div class="modal-overlay" id="deleteModal">
+<dialog class="modal-overlay" id="deleteModal">
   <div class="modal">
     <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
     <h3>🗑️ Delete Item(s)</h3>
@@ -1959,10 +1971,10 @@
       <button class="delete-btn-cancel" onclick="closeDeleteModal()">Cancel</button>
     </div>
   </div>
-</div>
+</dialog>
 
 <!-- Rename Modal -->
-<div class="modal-overlay" id="renameModal">
+<dialog class="modal-overlay" id="renameModal">
   <div class="modal">
     <button class="modal-close" onclick="closeRenameModal()">&times;</button>
     <h3>✏️ Rename File</h3>
@@ -1974,10 +1986,10 @@
       <button class="delete-btn-cancel" onclick="closeRenameModal()">Cancel</button>
     </div>
   </div>
-</div>
+</dialog>
 
 <!-- Move Modal -->
-<div class="modal-overlay" id="moveModal">
+<dialog class="modal-overlay" id="moveModal">
   <div class="modal">
     <button class="modal-close" onclick="closeMoveModal()">&times;</button>
     <h3>📂 Move File</h3>
@@ -1990,10 +2002,10 @@
       <button class="delete-btn-cancel" onclick="closeMoveModal()">Cancel</button>
     </div>
   </div>
-</div>
+</dialog>
 
 <!-- Todo Planner Modal -->
-<div class="modal-overlay" id="todoPlannerModal">
+<dialog class="modal-overlay" id="todoPlannerModal">
   <div class="modal todo-planner-modal">
     <button class="modal-close" onclick="closeTodoPlannerModal()">&times;</button>
     <h3>🗂️ Daily Todo Planner</h3>
@@ -2009,7 +2021,7 @@
       Tip: TODO rows use checkboxes. Agenda rows are plain notes. Empty rows are removed on save.
     </p>
   </div>
-</div>
+</dialog>
 
 <script>
   // Get current path from query parameter; default safely on malformed encoding.
@@ -2118,30 +2130,51 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)).toLocaleString() + ' ' + sizes[i];
   }
 
+  function openWebModal(id) {
+    const modal = document.getElementById(id);
+    if (modal && !modal.open) modal.showModal();
+  }
+
+  function closeWebModal(id) {
+    const modal = document.getElementById(id);
+    if (modal && modal.open) modal.close();
+  }
+
   let modalOverlayHandlersBound = false;
 
   async function hydrate() {
     // Fetch CrossPoint version
     fetchVersion();
 
-    // Close modals when clicking overlay (bind once across re-hydrates).
+    // Close modals when cancelling or clicking backdrop (bind once across re-hydrates).
     if (!modalOverlayHandlersBound) {
-      document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+      const closeModal = {
+        uploadModal: closeUploadModal,
+        folderModal: closeFolderModal,
+        deleteModal: closeDeleteModal,
+        renameModal: closeRenameModal,
+        moveModal: closeMoveModal,
+        todoPlannerModal: closeTodoPlannerModal
+      };
+      document.querySelectorAll('dialog.modal-overlay').forEach(function(modal) {
         let clickTarget = null;
-        overlay.addEventListener('mousedown', function(e) {
-          clickTarget = e.target;
-        });
-        overlay.addEventListener('click', function(e) {
-          const clickedBackdrop = clickTarget === overlay && e.target === overlay;
+        const recordTarget = function(event) {
+          clickTarget = event.target;
+        };
+        modal.addEventListener('pointerdown', recordTarget);
+        modal.addEventListener('mousedown', recordTarget);
+        modal.addEventListener('cancel', function(event) {
+          event.preventDefault();
           clickTarget = null;
-          if (clickedBackdrop) {
-            if (overlay.id === 'uploadModal') return closeUploadModal();
-            if (overlay.id === 'folderModal') return closeFolderModal();
-            if (overlay.id === 'deleteModal') return closeDeleteModal();
-            if (overlay.id === 'renameModal') return closeRenameModal();
-            if (overlay.id === 'moveModal') return closeMoveModal();
-            overlay.classList.remove('open');
-          }
+          if (closeModal[modal.id]) closeModal[modal.id]();
+        });
+        modal.addEventListener('click', function(event) {
+          const clickedBackdrop = clickTarget === modal && event.target === modal;
+          clickTarget = null;
+          if (clickedBackdrop && closeModal[modal.id]) closeModal[modal.id]();
+        });
+        modal.addEventListener('close', function() {
+          clickTarget = null;
         });
       });
       modalOverlayHandlersBound = true;
@@ -2305,7 +2338,7 @@
     if (logContainer) logContainer.innerHTML = '';
 
     document.getElementById('uploadPathDisplay').textContent = currentPath === '/' ? '/ 🏠' : currentPath;
-    document.getElementById('uploadModal').classList.add('open');
+    openWebModal('uploadModal');
   }
 
   function handleCancelUploadModal() {
@@ -2342,7 +2375,7 @@
     if (isUploadInProgress) {
       return;
     }
-    document.getElementById('uploadModal').classList.remove('open');
+    closeWebModal('uploadModal');
     const fileInput = document.getElementById('fileInput');
     fileInput.value = '';
     fileInput.classList.remove('has-files');
@@ -2903,7 +2936,7 @@
     // Check if JSZip is available
     if (typeof JSZip === 'undefined') {
       console.error('JSZip not loaded');
-      alert('JSZip library not available. Conversion will proceed without image picker.');
+      showWebAlert('JSZip library not available. Conversion will proceed without image picker.');
       startConversionWithImageStates();
       return;
     }
@@ -2961,7 +2994,7 @@
 
     } catch (error) {
       console.error('Failed to extract images:', error);
-      alert('Failed to preview images: ' + error.message + '\n\nConversion will proceed normally.');
+      showWebAlert('Failed to preview images: ' + error.message + '\n\nConversion will proceed normally.');
       // Fallback: start conversion directly
       startConversionWithImageStates();
     }
@@ -3197,14 +3230,14 @@
 
   function openFolderModal() {
     document.getElementById('folderPathDisplay').textContent = currentPath === '/' ? '/ 🏠' : currentPath;
-    document.getElementById('folderModal').classList.add('open');
+    openWebModal('folderModal');
     document.getElementById('folderName').value = '';
     setTimeout(() => document.getElementById('folderName').focus(), 50);
     document.getElementById('folderName').onkeydown = (e) => { if (e.key === 'Enter' && e.target.value.trim()) createFolder(); };
   }
 
   function closeFolderModal() {
-    document.getElementById('folderModal').classList.remove('open');
+    closeWebModal('folderModal');
   }
 
   // Toggle select-all checkbox
@@ -3231,7 +3264,7 @@
   function openDeleteSelectedModal() {
     const items = getSelectedItems();
     if (items.length === 0) {
-      alert('Please select at least one item to delete.');
+      showWebAlert('Please select at least one item to delete.');
       return;
     }
     openDeleteModalForItems(items);
@@ -3254,11 +3287,11 @@
       div.textContent = (it.isFolder ? '📁 ' : '📄 ') + it.path;
       listEl.appendChild(div);
     });
-    document.getElementById('deleteModal').classList.add('open');
+    openWebModal('deleteModal');
   }
 
   function closeDeleteModal() {
-    document.getElementById('deleteModal').classList.remove('open');
+    closeWebModal('deleteModal');
   }
 
   function confirmDelete() {
@@ -3283,11 +3316,11 @@
         window.location.reload();
       } else {
         const text = await res.text();
-        alert('Failed to delete: ' + text);
+        showWebAlert('Failed to delete: ' + text);
         closeDeleteModal();
       }
     }).catch(() => {
-      alert('Failed to delete - network error');
+      showWebAlert('Failed to delete - network error');
       closeDeleteModal();
     });
   }
@@ -3484,7 +3517,7 @@ function openPokedexPlugin() {
 
 async function openTodoPrompt(agendaEntry) {
   const label = agendaEntry ? 'agenda' : 'TODO';
-  const text = prompt(`Enter ${label} text`);
+  const text = await showWebPrompt(`Enter ${label} text`);
   if (!text) {
     return;
   }
@@ -3501,21 +3534,21 @@ async function openTodoPrompt(agendaEntry) {
     });
     if (!response.ok) {
       const message = await response.text();
-      alert(message || 'Failed to add entry');
+      showWebAlert(message || 'Failed to add entry');
       return;
     }
     hydrate();
   } catch (error) {
-    alert(`Failed to add entry: ${error.message}`);
+    showWebAlert(`Failed to add entry: ${error.message}`);
   }
 }
 
 function closeTodoPlannerModal() {
-  document.getElementById('todoPlannerModal').classList.remove('open');
+  closeWebModal('todoPlannerModal');
 }
 
 async function openTodoPlannerModal() {
-  document.getElementById('todoPlannerModal').classList.add('open');
+  openWebModal('todoPlannerModal');
   await loadTodoPlanner();
 }
 
@@ -3658,7 +3691,7 @@ async function saveTodoPlanner() {
     }
     await loadTodoPlanner();
   } catch (error) {
-    alert(`Failed to save planner: ${error.message}`);
+    showWebAlert(`Failed to save planner: ${error.message}`);
   }
 }
 
@@ -5548,7 +5581,7 @@ function uploadFile() {
   const convertEnabled = document.getElementById('convertBeforeUpload').checked;
 
   if (files.length === 0) {
-    alert('Please select at least one file!');
+    showWebAlert('Please select at least one file!');
     return;
   }
 
@@ -5868,14 +5901,14 @@ function retryAllFailedUploads() {
     const folderName = document.getElementById('folderName').value.trim();
 
     if (!folderName) {
-      alert('Please enter a folder name!');
+      showWebAlert('Please enter a folder name!');
       return;
     }
 
     // Validate folder name
     const validName = /^(?!\.{1,2}$)[^"*:<>?\/\\|]+$/.test(folderName);
     if (!validName) {
-      alert('Folder name cannot contain \" * : < > ? / \\ | and must not be . or ..');
+      showWebAlert('Folder name cannot contain \" * : < > ? / \\ | and must not be . or ..');
       return;
     }
 
@@ -5887,12 +5920,12 @@ function retryAllFailedUploads() {
       if (xhr.status === 200) {
         window.location.reload();
       } else {
-        alert('Failed to create folder: ' + xhr.responseText);
+        showWebAlert('Failed to create folder: ' + xhr.responseText);
       }
     };
 
     xhr.onerror = function() {
-      alert('Failed to create folder - network error');
+      showWebAlert('Failed to create folder - network error');
     };
 
     xhr.send(JSON.stringify({ name: folderName, path: currentPath }));
@@ -5903,7 +5936,7 @@ function retryAllFailedUploads() {
     document.getElementById('renameItemName').textContent = '📄 ' + name;
     document.getElementById('renameItemPath').value = path;
     document.getElementById('renameNewName').value = name;
-    document.getElementById('renameModal').classList.add('open');
+    openWebModal('renameModal');
     setTimeout(() => {
       const input = document.getElementById('renameNewName');
       input.focus();
@@ -5912,7 +5945,7 @@ function retryAllFailedUploads() {
   }
 
   function closeRenameModal() {
-    document.getElementById('renameModal').classList.remove('open');
+    closeWebModal('renameModal');
   }
 
   function confirmRename() {
@@ -5920,11 +5953,11 @@ function retryAllFailedUploads() {
     const newName = document.getElementById('renameNewName').value.trim();
 
     if (!newName) {
-      alert('Please enter a new name.');
+      showWebAlert('Please enter a new name.');
       return;
     }
     if (newName.includes('/') || newName.includes('\\')) {
-      alert('File name cannot include slashes.');
+      showWebAlert('File name cannot include slashes.');
       return;
     }
 
@@ -5936,13 +5969,13 @@ function retryAllFailedUploads() {
       if (xhr.status === 200) {
         window.location.reload();
       } else {
-        alert('Failed to rename: ' + xhr.responseText);
+        showWebAlert('Failed to rename: ' + xhr.responseText);
       }
       closeRenameModal();
     };
 
     xhr.onerror = function() {
-      alert('Failed to rename - network error');
+      showWebAlert('Failed to rename - network error');
       closeRenameModal();
     };
 
@@ -6015,7 +6048,7 @@ function retryAllFailedUploads() {
     document.getElementById('moveItemName').textContent = '📄 ' + name;
     document.getElementById('moveItemPath').value = path;
     document.getElementById('moveDestPath').value = currentPath === '/' ? '/' : currentPath;
-    document.getElementById('moveModal').classList.add('open');
+    openWebModal('moveModal');
     loadMoveFolderOptions();
     setTimeout(() => {
       document.getElementById('moveDestPath').focus();
@@ -6023,7 +6056,7 @@ function retryAllFailedUploads() {
   }
 
   function closeMoveModal() {
-    document.getElementById('moveModal').classList.remove('open');
+    closeWebModal('moveModal');
   }
 
   function confirmMove() {
@@ -6031,7 +6064,7 @@ function retryAllFailedUploads() {
     const destPath = normalizePath(document.getElementById('moveDestPath').value);
 
     if (!destPath) {
-      alert('Please enter a destination folder.');
+      showWebAlert('Please enter a destination folder.');
       return;
     }
 
@@ -6043,13 +6076,13 @@ function retryAllFailedUploads() {
       if (xhr.status === 200) {
         window.location.reload();
       } else {
-        alert('Failed to move: ' + xhr.responseText);
+        showWebAlert('Failed to move: ' + xhr.responseText);
       }
       closeMoveModal();
     };
 
     xhr.onerror = function() {
-      alert('Failed to move - network error');
+      showWebAlert('Failed to move - network error');
       closeMoveModal();
     };
 
@@ -6058,5 +6091,6 @@ function retryAllFailedUploads() {
   loadPluginCapabilities();
   hydrate();
 </script>
+<!--#include file="shared/web-dialog.inc" -->
 </body>
 </html>

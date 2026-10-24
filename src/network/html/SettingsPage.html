@@ -472,14 +472,14 @@
     return undefined;
   }
 
-  function markChanged(key) {
+  async function markChanged(key) {
     if (key === BACKGROUND_SERVER_MODE_KEY) {
       const el = document.getElementById('setting-' + key);
       if (el) {
         const previousValue = parseInt(el.dataset.lastValue || originalValues[key] || 0, 10);
         const nextValue = parseInt(el.value, 10);
         if (nextValue === BACKGROUND_SERVER_MODE_ALWAYS && previousValue !== BACKGROUND_SERVER_MODE_ALWAYS) {
-          if (!confirm(BACKGROUND_SERVER_ALWAYS_WARNING)) {
+          if (!await showWebConfirm(BACKGROUND_SERVER_ALWAYS_WARNING)) {
             el.value = String(previousValue);
             return;
           }
@@ -786,7 +786,7 @@
   async function connectWifi(ssid, secured) {
     let password = "";
     if (secured) {
-      password = prompt("Enter password for " + ssid);
+      password = await showWebPrompt("Enter password for " + ssid, "", { password: true });
       if (password === null) return;
     }
 
@@ -871,7 +871,7 @@
   }
 
   async function forgetWifi(ssid) {
-    if (!confirm("Forget " + ssid + "?")) return;
+    if (!await showWebConfirm("Forget " + ssid + "?")) return;
     try {
       const response = await fetch('/api/wifi/forget', {
         method: 'POST',
@@ -1056,7 +1056,7 @@
   async function runMaintenanceAction(action) {
     const endpoint = MAINTENANCE_ENDPOINTS[action];
     if (!endpoint) return;
-    if (MAINTENANCE_CONFIRM[action] && !confirm(MAINTENANCE_CONFIRM[action])) return;
+    if (MAINTENANCE_CONFIRM[action] && !await showWebConfirm(MAINTENANCE_CONFIRM[action])) return;
     try {
       const resp = await fetch(endpoint, { method: 'POST' });
       const data = await resp.json().catch(function() { return {}; });
@@ -1080,5 +1080,6 @@
 
 
 </script>
+<!--#include file="shared/web-dialog.inc" -->
 </body>
 </html>

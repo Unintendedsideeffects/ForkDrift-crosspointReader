@@ -74,6 +74,23 @@ def inject_pokemon_cache(html_path: str, html: str) -> str:
     print(f"Injected Pokemon cache from {cache_path} ({len(cache_data)} entries)")
     return injected
 
+def resolve_includes(html: str, base_dir: str) -> str:
+    """Inline <!--#include file="path" --> directives (path relative to base_dir or SRC_DIR).
+
+    Must run BEFORE minify_html, which strips all HTML comments. Includes are
+    single-level (no included file includes another), so one pass suffices."""
+    pattern = re.compile(r'<!--\s*#include\s+file="([^"]+)"\s*-->')
+
+    def repl(match):
+        rel_path = match.group(1)
+        inc_path = os.path.join(base_dir, rel_path)
+        if not os.path.exists(inc_path):
+            inc_path = os.path.join(SRC_DIR, "network", "html", rel_path)
+        with open(inc_path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    return pattern.sub(repl, html)
+
 def minify_html(html: str) -> str:
     # Tags where whitespace should be preserved
     preserve_tags = ['pre', 'code', 'textarea', 'script', 'style']
@@ -147,6 +164,7 @@ for root, _, files in os.walk(SRC_DIR):
             if file.endswith(".html"):
                 content = inject_pokemon_cache(file_path, content)
                 content = inject_theme_tokens(content, theme_tokens)
+                content = resolve_includes(content, root)
                 processed = minify_html(content)
             else:
                 processed = content
