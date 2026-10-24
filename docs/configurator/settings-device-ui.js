@@ -18,7 +18,7 @@ window.ConfiguratorSettingsDeviceUi = (function () {
 
   const SETTINGS_TAB_TOPICS = [
     [
-      { label: 'APPEARANCE', keys: ['uiTheme', 'recentBooksView', 'darkMode', 'fadingFix'] },
+      { label: 'APPEARANCE', keys: ['uiTheme', 'recentBooksView', 'darkModeScope', 'fadingFix'] },
       { label: 'STATUS BAR', keys: ['globalStatusBarPosition'] },
       { label: 'SLEEP SCREEN', keys: ['sleepScreen', 'smartSleepReaderMode', 'smartSleepHomeMode', 'sleepScreenSource', 'sleepScreenCoverMode', 'sleepScreenCoverFilter', 'sleepCycleMode', 'haikuClockLandscape', 'trmnlSleepEnabled', 'sleepPinnedPath'] },
       { label: 'DISPLAY', keys: ['refreshFrequency'] },
@@ -31,7 +31,7 @@ window.ConfiguratorSettingsDeviceUi = (function () {
     ],
     [],
     [
-      { label: 'GENERAL', keys: ['sleepTimeoutMinutes', 'showHiddenFiles', 'todoOpenDirectToToday', 'moveFinishedToReadFolder'] },
+      { label: 'GENERAL', keys: ['sleepTimeoutMinutes', 'showHiddenFiles', 'hideFileExtension', 'todoOpenDirectToToday', 'moveFinishedToReadFolder'] },
       { label: 'TIME', keys: ['timeMode', 'timeZoneOffset'] },
       { label: 'ADVANCED', keys: [], headerOnly: true },
       { label: 'FILE SERVER', keys: ['backgroundServerMode', 'autoSyncDayOnBackgroundPing', 'opdsFilenameFormat'] },

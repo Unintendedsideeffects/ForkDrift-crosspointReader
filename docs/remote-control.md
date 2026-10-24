@@ -14,6 +14,8 @@ When WiFi is enabled and the web server is running, the device accepts remote bu
 
 ### HTTP API
 
+#### Turn Page
+
 **Endpoint:** `POST /api/remote/button`  
 **Content-Type:** `application/json`
 
@@ -28,11 +30,34 @@ When WiFi is enabled and the web server is running, the device accepts remote bu
 - `page_forward`, `next`: Equivalent to a "Next Page" action.
 - `page_back`, `prev`, `previous`: Equivalent to a "Previous Page" action.
 
+**Response:** HTTP `202 Accepted` with `{"status":"ok"}`.
+
 **Example using curl:**
 ```bash
-curl -X POST http://<device-ip>/api/remote/button 
-     -H "Content-Type: application/json" 
+curl -X POST http://<device-ip>/api/remote/button \
+     -H "Content-Type: application/json" \
      -d '{"button": "page_forward"}'
+```
+
+#### Open Book
+
+**Endpoint:** `POST /api/open-book`  
+**Content-Type:** `application/json`
+
+**Request Body:**
+```json
+{
+  "path": "/Books/sample.epub"
+}
+```
+
+**Response:** HTTP `202 Accepted` with `{"status":"opening"}` (or `400` / `404` if path is invalid or missing).
+
+**Example using curl:**
+```bash
+curl -X POST http://<device-ip>/api/open-book \
+     -H "Content-Type: application/json" \
+     -d '{"path": "/Books/sample.epub"}'
 ```
 
 ### WebSocket API
@@ -55,20 +80,29 @@ wscat -c ws://<device-ip>:81/
 
 ## USB Serial Remote Control
 
-The device accepts JSON commands over the USB Serial interface (CDC).
+The device accepts newline-terminated maintenance and button commands over the USB Serial interface (CDC).
 
-**Command Format:**
-```json
-{"cmd":"remote_button","arg":"page_forward"}
+**Button Command Format:**
+```text
+CMD:BTN:<BUTTON>
 ```
 
-**Supported Arguments (`arg`):**
-- `page_forward`, `next`: Turn to the next page.
-- `page_back`, `prev`: Turn to the previous page.
+**Supported Buttons:**
+- `PAGEFWD`: Equivalent to "Next Page" / Page Forward.
+- `PAGEBACK`: Equivalent to "Previous Page" / Page Back.
+- `UP`, `DOWN`, `LEFT`, `RIGHT`: Directional navigation.
+- `CONFIRM`: Confirm / Select.
+- `BACK`: Back button.
+
+**Response:**
+```text
+BTN_OK:<BUTTON>
+```
+(or `BTN_ERR:<BUTTON>` if unrecognized).
 
 **Example (sending via serial terminal):**
 ```bash
-echo '{"cmd":"remote_button","arg":"page_forward"}' > /dev/ttyACM0
+echo "CMD:BTN:PAGEFWD" > /dev/ttyACM0
 ```
 
 ---
