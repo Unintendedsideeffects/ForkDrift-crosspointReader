@@ -1,6 +1,7 @@
 #include "network/http/HttpDownloader.h"
 
 #include <HTTPClient.h>
+#include <HttpOrigin.h>
 #include <Logging.h>
 #include <Memory.h>
 #include <StreamString.h>
@@ -17,7 +18,6 @@
 #include <utility>
 
 #include "SpiBusMutex.h"
-#include "network/http/HttpOrigin.h"
 #include "util/TimeSync.h"
 #include "util/UrlUtils.h"
 
@@ -76,8 +76,35 @@ esp_http_client_config_t fillEspHttpGetConfig(const char* url, EspHttpEventHandl
 struct RedirectGuard {
   std::string currentUrl;
   std::string credentialUrl;
-  std::string authHeader;  // empty when the request has no credentials
+  std::string authHeader;
+  const HttpHeader* extraHeaders = nullptr;
+  size_t extraHeaderCount = 0;
 };
+
+void applyExtraHeaders(esp_http_client_handle_t client, const HttpHeader* headers, const size_t count) {
+  if (headers == nullptr) {
+    return;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    if (headers[i].name.empty()) {
+      continue;
+    }
+    esp_http_client_set_header(client, headers[i].name.c_str(), headers[i].value.c_str());
+  }
+}
+
+void dropExtraHeaders(esp_http_client_handle_t client, const HttpHeader* headers, const size_t count) {
+  if (headers == nullptr) {
+    return;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    if (headers[i].name.empty()) {
+      continue;
+    }
+    LOG_INF("HTTP", "Redirect: dropping extra header %s", headers[i].name.c_str());
+    esp_http_client_delete_header(client, headers[i].name.c_str());
+  }
+}
 
 constexpr int kMaxRedirectUrl = 1024;  // OPDS URLs are capped at 768 chars
 
@@ -123,6 +150,11 @@ esp_err_t followRedirect(esp_http_client_handle_t client, RedirectGuard& guard) 
       esp_http_client_delete_header(client, "Authorization");
     }
   }
+  if (http_origin::extraHeadersFollowRedirect(guard.credentialUrl, next.get())) {
+    applyExtraHeaders(client, guard.extraHeaders, guard.extraHeaderCount);
+  } else {
+    dropExtraHeaders(client, guard.extraHeaders, guard.extraHeaderCount);
+  }
   guard.currentUrl.assign(next.get());
   return ESP_OK;
 }
@@ -151,9 +183,13 @@ esp_err_t performWithRedirects(esp_http_client_handle_t client, RedirectGuard& g
 
 // Initialises guard for a request to url and attaches Basic credentials, if any.
 void applyCredentials(esp_http_client_handle_t client, RedirectGuard& guard, const std::string& url,
-                      const std::string& username, const std::string& password) {
+                      const std::string& username, const std::string& password, const HttpHeader* extraHeaders,
+                      const size_t extraHeaderCount) {
   guard.currentUrl = url;
   guard.credentialUrl = url;
+  guard.extraHeaders = extraHeaders;
+  guard.extraHeaderCount = extraHeaderCount;
+  applyExtraHeaders(client, extraHeaders, extraHeaderCount);
   if (username.empty()) return;
   const std::string credentials = username + ":" + password;
   String encoded = base64::encode(credentials.c_str());
@@ -327,7 +363,8 @@ void logFetchFailure(const http_fetch::Result& result, bool logFailure, const ui
 }
 
 http_fetch::Result espFetch(const std::string& url, FetchContext& ctx, const std::string& username,
-                            const std::string& password, bool logFailure) {
+                            const std::string& password, bool logFailure, const HttpHeader* extraHeaders,
+                            const size_t extraHeaderCount) {
   const http_fetch::Reason admit = admitHttps(url);
   if (admit != http_fetch::Reason::Ok) {
     return http_fetch::Result{admit, -1};
@@ -342,7 +379,7 @@ http_fetch::Result espFetch(const std::string& url, FetchContext& ctx, const std
     return result;
   }
 
-  applyCredentials(client, ctx.redirect, url, username, password);
+  applyCredentials(client, ctx.redirect, url, username, password, extraHeaders, extraHeaderCount);
 
   LOG_DBG("HTTP", "Fetching: %s", url.c_str());
 
@@ -377,48 +414,58 @@ http_fetch::Result espFetch(const std::string& url, FetchContext& ctx, const std
 }  // namespace
 
 bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent, const std::string& username,
-                              const std::string& password, int* outStatus, bool logFailure) {
-  const http_fetch::Result result = fetchUrlResult(url, outContent, username, password, logFailure);
+                              const std::string& password, int* outStatus, bool logFailure,
+                              const HttpHeader* extraHeaders, const size_t extraHeaderCount) {
+  const http_fetch::Result result =
+      fetchUrlResult(url, outContent, username, password, logFailure, extraHeaders, extraHeaderCount);
   if (outStatus) *outStatus = result.httpStatus;
   return result.ok();
 }
 
 bool HttpDownloader::fetchUrl(const std::string& url, const DataCallback& onData, const std::string& username,
-                              const std::string& password, int* outStatus, bool logFailure) {
-  const http_fetch::Result result = fetchUrlResult(url, onData, username, password, logFailure);
+                              const std::string& password, int* outStatus, bool logFailure,
+                              const HttpHeader* extraHeaders, const size_t extraHeaderCount) {
+  const http_fetch::Result result =
+      fetchUrlResult(url, onData, username, password, logFailure, extraHeaders, extraHeaderCount);
   if (outStatus) *outStatus = result.httpStatus;
   return result.ok();
 }
 
 bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent, const std::string& username,
-                              const std::string& password, int* outStatus, bool logFailure) {
-  const http_fetch::Result result = fetchUrlResult(url, outContent, username, password, logFailure);
+                              const std::string& password, int* outStatus, bool logFailure,
+                              const HttpHeader* extraHeaders, const size_t extraHeaderCount) {
+  const http_fetch::Result result =
+      fetchUrlResult(url, outContent, username, password, logFailure, extraHeaders, extraHeaderCount);
   if (outStatus) *outStatus = result.httpStatus;
   return result.ok();
 }
 
 http_fetch::Result HttpDownloader::fetchUrlResult(const std::string& url, Stream& outContent,
                                                   const std::string& username, const std::string& password,
-                                                  bool logFailure) {
+                                                  bool logFailure, const HttpHeader* extraHeaders,
+                                                  const size_t extraHeaderCount) {
   FetchContext ctx;
   ctx.stream = &outContent;
-  return espFetch(url, ctx, username, password, logFailure);
+  return espFetch(url, ctx, username, password, logFailure, extraHeaders, extraHeaderCount);
 }
 
 http_fetch::Result HttpDownloader::fetchUrlResult(const std::string& url, const DataCallback& onData,
                                                   const std::string& username, const std::string& password,
-                                                  bool logFailure) {
+                                                  bool logFailure, const HttpHeader* extraHeaders,
+                                                  const size_t extraHeaderCount) {
   FetchContext ctx;
   ctx.onData = onData;
-  return espFetch(url, ctx, username, password, logFailure);
+  return espFetch(url, ctx, username, password, logFailure, extraHeaders, extraHeaderCount);
 }
 
 http_fetch::Result HttpDownloader::fetchUrlResult(const std::string& url, std::string& outContent,
                                                   const std::string& username, const std::string& password,
-                                                  bool logFailure) {
+                                                  bool logFailure, const HttpHeader* extraHeaders,
+                                                  const size_t extraHeaderCount) {
   constexpr size_t kMaxBodyBytes = 64u * 1024u;
   BoundedStringSink sink(kMaxBodyBytes);
-  http_fetch::Result result = fetchUrlResult(url, static_cast<Stream&>(sink), username, password, logFailure);
+  http_fetch::Result result =
+      fetchUrlResult(url, static_cast<Stream&>(sink), username, password, logFailure, extraHeaders, extraHeaderCount);
   if (!result.ok()) {
     return result;
   }
@@ -432,7 +479,8 @@ http_fetch::Result HttpDownloader::fetchUrlResult(const std::string& url, std::s
   return result;
 }
 
-int HttpDownloader::probeUrl(const std::string& url, const std::string& username, const std::string& password) {
+int HttpDownloader::probeUrl(const std::string& url, const std::string& username, const std::string& password,
+                             const HttpHeader* extraHeaders, const size_t extraHeaderCount) {
   if (admitHttps(url) != http_fetch::Reason::Ok) {
     return -1;
   }
@@ -445,7 +493,7 @@ int HttpDownloader::probeUrl(const std::string& url, const std::string& username
     return -1;
   }
 
-  applyCredentials(client, ctx.redirect, url, username, password);
+  applyCredentials(client, ctx.redirect, url, username, password, extraHeaders, extraHeaderCount);
 
   (void)performWithRedirects(client, ctx.redirect);
   const int status = esp_http_client_get_status_code(client);
@@ -456,7 +504,9 @@ int HttpDownloader::probeUrl(const std::string& url, const std::string& username
 
 HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& url, const std::string& destPath,
                                                              ProgressCallback progress, bool* cancelFlag,
-                                                             const std::string& username, const std::string& password) {
+                                                             const std::string& username, const std::string& password,
+                                                             const HttpHeader* extraHeaders,
+                                                             const size_t extraHeaderCount) {
   if (admitHttps(url) != http_fetch::Reason::Ok) {
     return HTTP_ERROR;
   }
@@ -501,7 +551,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
     return HTTP_ERROR;
   }
 
-  applyCredentials(client, ctx.redirect, url, username, password);
+  applyCredentials(client, ctx.redirect, url, username, password, extraHeaders, extraHeaderCount);
 
   const esp_err_t err = performWithRedirects(client, ctx.redirect);
   const int status = esp_http_client_get_status_code(client);

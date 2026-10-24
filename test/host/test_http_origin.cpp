@@ -1,5 +1,5 @@
+#include "HttpOrigin.h"
 #include "doctest/doctest.h"
-#include "network/http/HttpOrigin.h"
 
 // Credentials must only follow a redirect to the exact origin they were configured
 // for (upstream d6f7f2565); these pin the origin comparison the redirect guard uses.
@@ -39,4 +39,16 @@ TEST_CASE("http_origin keeps credentials on the same origin only") {
   REQUIRE(http_origin::parse("https://opds.example.org@evil.example.com/x", hop));
   CHECK(hop.host == "evil.example.com");
   CHECK_FALSE(http_origin::sameOrigin(cred, hop));
+}
+
+TEST_CASE("extra headers drop off-origin the same way Authorization does") {
+  CHECK(http_origin::extraHeadersFollowRedirect("https://opds.example.org/catalog",
+                                                "https://OPDS.example.org:443/download/1.epub"));
+  CHECK_FALSE(
+      http_origin::extraHeadersFollowRedirect("https://opds.example.org/catalog", "https://cdn.example.net/1.epub"));
+  CHECK_FALSE(http_origin::extraHeadersFollowRedirect("https://opds.example.org/catalog",
+                                                      "https://opds.example.org:8443/1.epub"));
+  CHECK_FALSE(
+      http_origin::extraHeadersFollowRedirect("https://opds.example.org/catalog", "http://opds.example.org/1.epub"));
+  CHECK_FALSE(http_origin::extraHeadersFollowRedirect("https://opds.example.org/catalog", "not-a-url"));
 }

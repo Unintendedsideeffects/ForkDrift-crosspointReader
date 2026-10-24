@@ -1,7 +1,9 @@
 #pragma once
 
 #include <HalStorage.h>
+#include <HttpHeader.h>
 
+#include <array>
 #include <string>
 #include <vector>
 
@@ -9,7 +11,10 @@ struct OpdsServer {
   std::string name;
   std::string url;
   std::string username;
-  std::string password;  // Plaintext in memory; obfuscated with hardware key on disk
+  std::string password;
+  static constexpr size_t MAX_CUSTOM_HEADERS = 2;
+  std::array<HttpHeader, MAX_CUSTOM_HEADERS> customHeaders{};
+  std::string downloadFolder;
 };
 
 class OpdsServerStore;
@@ -19,16 +24,10 @@ bool loadOpds(OpdsServerStore& store, const char* json, bool* needsResave);
 bool loadOpds(OpdsServerStore& store, HalFile& file, bool* needsResave);
 }  // namespace JsonSettingsIO
 
-/**
- * Singleton for OPDS catalog server entries (calibre_sync / OPDS Support feature).
- * Passwords are XOR-obfuscated with the device's unique hardware MAC address
- * and base64-encoded before writing to JSON.
- */
 class OpdsServerStore {
  private:
   static OpdsServerStore instance;
   std::vector<OpdsServer> servers;
-  // torn read impossible for bool on single-core; worst case stale for one frame
   bool loadedThisBoot_ = false;
   bool dirty_ = true;
 

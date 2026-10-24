@@ -2,27 +2,37 @@
 
 #include <GfxRenderer.h>
 #include <HTTPClient.h>
+#include <HttpHeader.h>
 #include <I18n.h>
 #include <Logging.h>
+#include <Memory.h>
 #include <WiFi.h>
 
 #include <cstring>
+#include <vector>
 
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
+#include "activities/util/ListPickerActivity.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
 #include "core/features/KoreaderOpdsBridge.h"
 #include "fontIds.h"
 #include "network/http/HttpDownloader.h"
+#include "util/OpdsDownloadFolder.h"
 
 namespace {
-// Editable fields: Name, URL, Username, Password.
-// Existing servers also show a Delete option (BASE_ITEMS + 1).
-constexpr int BASE_ITEMS = 4;
+constexpr int IDX_NAME = 0;
+constexpr int IDX_URL = 1;
+constexpr int IDX_USER = 2;
+constexpr int IDX_PASS = 3;
+constexpr int IDX_HEADER1 = 4;
+constexpr int IDX_HEADER2 = 5;
+constexpr int IDX_FOLDER = 6;
+constexpr int BASE_ITEMS = 7;
 }  // namespace
 
 int OpdsSettingsActivity::getMenuItemCount() const {
@@ -42,6 +52,7 @@ void OpdsSettingsActivity::onEnter() {
   isNewServer = (serverIndex < 0);
   showSaveError = false;
   showSyncConfirmed = false;
+  showInvalidFolder = false;
 
   if (!isNewServer) {
     // Edit flow: copy the selected server into local editable state.
@@ -118,65 +129,118 @@ bool OpdsSettingsActivity::saveServer() {
 
 void OpdsSettingsActivity::handleSelection() {
   showSyncConfirmed = false;
-  // Each field edit is saved immediately so partially configured servers
-  // survive navigation and power-loss scenarios.
-  if (selectedIndex == 0) {
-    // Server Name
-    auto handler = [this](const ActivityResult& result) {
+  showInvalidFolder = false;
+  const auto startKeyboard = [this](const char* title, const std::string& initial, size_t maxLength, InputType type,
+                                    auto onText) {
+    auto keyboard = makeUniqueNoThrow<KeyboardEntryActivity>(renderer, mappedInput, title, initial, maxLength, type);
+    if (!keyboard) {
+      LOG_ERR("OPS", "OOM: KeyboardEntryActivity");
+      return;
+    }
+    startActivityForResult(std::move(keyboard), [this, onText](const ActivityResult& result) {
       if (!result.isCancelled) {
         const auto& kb = std::get<KeyboardResult>(result.data);
-        editServer.name = kb.text;
+        onText(kb.text);
         saveServer();
         requestUpdate();
       }
-    };
-    startActivityForResult(std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_SERVER_NAME),
-                                                                   editServer.name, 63, InputType::Text),
-                           handler);
-  } else if (selectedIndex == 1) {
-    // Server URL
-    const std::string prefillUrl = editServer.url.empty() ? "https://" : editServer.url;
-    auto handler = [this](const ActivityResult& result) {
-      if (!result.isCancelled) {
-        const auto& kb = std::get<KeyboardResult>(result.data);
-        editServer.url = (kb.text == "https://" || kb.text == "http://") ? "" : kb.text;
-        saveServer();
-        requestUpdate();
+    });
+  };
+
+  switch (static_cast<int>(selectedIndex)) {
+    case IDX_NAME:
+      startKeyboard(tr(STR_SERVER_NAME), editServer.name, 63, InputType::Text,
+                    [this](const std::string& text) { editServer.name = text; });
+      return;
+    case IDX_URL: {
+      const std::string prefillUrl = editServer.url.empty() ? "https://" : editServer.url;
+      startKeyboard(tr(STR_OPDS_SERVER_URL), prefillUrl, 127, InputType::Url, [this](const std::string& text) {
+        editServer.url = (text == "https://" || text == "http://") ? "" : text;
+      });
+      return;
+    }
+    case IDX_USER:
+      startKeyboard(tr(STR_USERNAME), editServer.username, 63, InputType::Text,
+                    [this](const std::string& text) { editServer.username = text; });
+      return;
+    case IDX_PASS:
+      startKeyboard(tr(STR_PASSWORD), editServer.password, 63, InputType::Password,
+                    [this](const std::string& text) { editServer.password = text; });
+      return;
+    case IDX_HEADER1:
+    case IDX_HEADER2: {
+      const size_t slot = static_cast<size_t>(selectedIndex - IDX_HEADER1);
+      const StrId titleId = slot == 0 ? StrId::STR_CUSTOM_HEADER_1 : StrId::STR_CUSTOM_HEADER_2;
+      startKeyboard(I18N.get(titleId), formatHttpHeaderLine(editServer.customHeaders[slot]), 160, InputType::Text,
+                    [this, slot](const std::string& text) {
+                      HttpHeader parsed;
+                      if (parseHttpHeaderLine(text, parsed)) {
+                        editServer.customHeaders[slot] = std::move(parsed);
+                      }
+                    });
+      return;
+    }
+    case IDX_FOLDER: {
+      std::vector<std::string> choices;
+      choices.reserve(2);
+      choices.emplace_back(tr(STR_OPDS_SD_ROOT));
+      choices.emplace_back(tr(STR_OPDS_CUSTOM_FOLDER));
+      const int initial = (editServer.downloadFolder.empty() || editServer.downloadFolder == "/") ? 0 : 1;
+      auto picker = makeUniqueNoThrow<ListPickerActivity>(renderer, mappedInput, StrId::STR_OPDS_DOWNLOAD_FOLDER,
+                                                          std::move(choices), initial);
+      if (!picker) {
+        LOG_ERR("OPS", "OOM: ListPickerActivity");
+        return;
       }
-    };
-    startActivityForResult(std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_OPDS_SERVER_URL),
-                                                                   prefillUrl, 127, InputType::Url),
-                           handler);
-  } else if (selectedIndex == 2) {
-    // Username
-    auto handler = [this](const ActivityResult& result) {
-      if (!result.isCancelled) {
-        const auto& kb = std::get<KeyboardResult>(result.data);
-        editServer.username = kb.text;
-        saveServer();
-        requestUpdate();
-      }
-    };
-    startActivityForResult(std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_USERNAME),
-                                                                   editServer.username, 63, InputType::Text),
-                           handler);
-  } else if (selectedIndex == 3) {
-    // Password
-    auto handler = [this](const ActivityResult& result) {
-      if (!result.isCancelled) {
-        const auto& kb = std::get<KeyboardResult>(result.data);
-        editServer.password = kb.text;
-        saveServer();
-        requestUpdate();
-      }
-    };
-    startActivityForResult(std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_PASSWORD),
-                                                                   editServer.password, 63, InputType::Password),
-                           handler);
-  } else if (selectedIndex == 4 && !isNewServer) {
+      startActivityForResult(std::move(picker), [this](const ActivityResult& result) {
+        if (result.isCancelled) {
+          return;
+        }
+        const auto& picked = std::get<ListPickerResult>(result.data);
+        if (picked.selectedIndex == 0) {
+          editServer.downloadFolder = "/";
+          saveServer();
+          requestUpdate();
+          return;
+        }
+        if (picked.selectedIndex != 1) {
+          return;
+        }
+        auto keyboard = makeUniqueNoThrow<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_OPDS_CUSTOM_FOLDER),
+                                                                 editServer.downloadFolder,
+                                                                 OpdsDownloadFolder::MAX_LENGTH, InputType::Text);
+        if (!keyboard) {
+          LOG_ERR("OPS", "OOM: KeyboardEntryActivity");
+          return;
+        }
+        startActivityForResult(std::move(keyboard), [this](const ActivityResult& kbResult) {
+          if (kbResult.isCancelled) {
+            return;
+          }
+          const auto& kb = std::get<KeyboardResult>(kbResult.data);
+          std::string folder;
+          if (!OpdsDownloadFolder::normalize(kb.text, folder)) {
+            showInvalidFolder = true;
+            requestUpdate();
+            return;
+          }
+          editServer.downloadFolder = std::move(folder);
+          saveServer();
+          requestUpdate();
+        });
+      });
+      return;
+    }
+    default:
+      break;
+  }
+
+  if (isNewServer) {
+    return;
+  }
+  if (static_cast<int>(selectedIndex) == BASE_ITEMS) {
     runTestConnection();
-  } else if (selectedIndex == 5 && !isNewServer) {
-    // Delete flow is only available for existing servers.
+  } else if (static_cast<int>(selectedIndex) == BASE_ITEMS + 1) {
     if (!OPDS_STORE.removeServer(static_cast<size_t>(serverIndex))) {
       LOG_ERR("OPS", "Failed to remove OPDS server at index %d", serverIndex);
       showSaveError = true;
@@ -184,9 +248,7 @@ void OpdsSettingsActivity::handleSelection() {
       return;
     }
     finish();
-  } else if (!isNewServer && static_cast<int>(selectedIndex) == BASE_ITEMS + 2) {
-    // Use this OPDS server's host + credentials for KOReader (KOSync) progress sync:
-    // derives <origin>/api/koreader, copies username/password, sets Binary matching.
+  } else if (static_cast<int>(selectedIndex) == BASE_ITEMS + 2) {
     core::applyOpdsServerToKoreaderSync(editServer);
     showSyncConfirmed = true;
     requestUpdate();
@@ -210,8 +272,13 @@ void OpdsSettingsActivity::render(RenderLock&&) {
   const int contentHeight = pageHeight - contentTop - metrics.buttonHintsHeight - metrics.verticalSpacing * 2;
   const int menuItems = getMenuItemCount();
 
-  const StrId fieldNames[] = {StrId::STR_SERVER_NAME, StrId::STR_OPDS_SERVER_URL, StrId::STR_USERNAME,
-                              StrId::STR_PASSWORD};
+  const StrId fieldNames[] = {StrId::STR_SERVER_NAME,
+                              StrId::STR_OPDS_SERVER_URL,
+                              StrId::STR_USERNAME,
+                              StrId::STR_PASSWORD,
+                              StrId::STR_CUSTOM_HEADER_1,
+                              StrId::STR_CUSTOM_HEADER_2,
+                              StrId::STR_OPDS_DOWNLOAD_FOLDER};
 
   GUI.drawList(
       renderer, Rect{0, contentTop, pageWidth, contentHeight}, menuItems, static_cast<int>(selectedIndex),
@@ -229,16 +296,27 @@ void OpdsSettingsActivity::render(RenderLock&&) {
       },
       nullptr, nullptr,
       [this](int index) {
-        if (index == 0) {
-          return editServer.name.empty() ? std::string(tr(STR_NOT_SET)) : editServer.name;
-        } else if (index == 1) {
-          return editServer.url.empty() ? std::string(tr(STR_NOT_SET)) : editServer.url;
-        } else if (index == 2) {
-          return editServer.username.empty() ? std::string(tr(STR_NOT_SET)) : editServer.username;
-        } else if (index == 3) {
-          return editServer.password.empty() ? std::string(tr(STR_NOT_SET)) : std::string("******");
+        switch (index) {
+          case IDX_NAME:
+            return editServer.name.empty() ? std::string(tr(STR_NOT_SET)) : editServer.name;
+          case IDX_URL:
+            return editServer.url.empty() ? std::string(tr(STR_NOT_SET)) : editServer.url;
+          case IDX_USER:
+            return editServer.username.empty() ? std::string(tr(STR_NOT_SET)) : editServer.username;
+          case IDX_PASS:
+            return editServer.password.empty() ? std::string(tr(STR_NOT_SET)) : std::string("******");
+          case IDX_HEADER1:
+            return formatHttpHeaderLine(editServer.customHeaders[0], true);
+          case IDX_HEADER2:
+            return formatHttpHeaderLine(editServer.customHeaders[1], true);
+          case IDX_FOLDER:
+            if (editServer.downloadFolder.empty() || editServer.downloadFolder == "/") {
+              return std::string(tr(STR_OPDS_SD_ROOT));
+            }
+            return editServer.downloadFolder;
+          default:
+            return std::string("");
         }
-        return std::string("");
       },
       true);
 
@@ -247,6 +325,8 @@ void OpdsSettingsActivity::render(RenderLock&&) {
 
   if (showSaveError) {
     GUI.drawPopup(renderer, tr(STR_ERROR_GENERAL_FAILURE));
+  } else if (showInvalidFolder) {
+    GUI.drawPopup(renderer, tr(STR_OPDS_INVALID_FOLDER));
   } else if (showSyncConfirmed) {
     GUI.drawPopup(renderer, tr(STR_KOREADER_SYNC_CONFIGURED));
   }
@@ -293,7 +373,8 @@ void OpdsSettingsActivity::runTestConnection() {
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 
   // Call probeUrl blocking
-  const int code = HttpDownloader::probeUrl(editServer.url, editServer.username, editServer.password);
+  const int code = HttpDownloader::probeUrl(editServer.url, editServer.username, editServer.password,
+                                            editServer.customHeaders.data(), OpdsServer::MAX_CUSTOM_HEADERS);
 
   std::string resultMsg;
   if (code >= 200 && code < 300) {

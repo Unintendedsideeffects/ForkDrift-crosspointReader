@@ -65,4 +65,24 @@ TEST_CASE("opds server store ensureLoaded reload policy") {
     REQUIRE(store.getCount() == 1);
     CHECK(store.getServer(0)->name == "External");
   }
+
+  SUBCASE("headers value_obf round-trip and missing headers stay empty") {
+    writeOpdsFile("Alpha");
+    REQUIRE(store.loadFromFile());
+    REQUIRE(store.getCount() == 1);
+    CHECK(store.getServer(0)->customHeaders[0].name.empty());
+
+    OpdsServer withHeader = *store.getServer(0);
+    withHeader.customHeaders[0] = {"CF-Access-Client-Id", "token"};
+    REQUIRE(store.updateServer(0, withHeader));
+    const String json = Storage.readFile(kOpdsPath);
+    CHECK(json.indexOf("value_obf") >= 0);
+    CHECK(json.indexOf("CF-Access-Client-Id") >= 0);
+
+    store.markDirty();
+    REQUIRE(store.loadFromFile());
+    REQUIRE(store.getCount() == 1);
+    CHECK(store.getServer(0)->customHeaders[0].name == "CF-Access-Client-Id");
+    CHECK(store.getServer(0)->customHeaders[0].value == "token");
+  }
 }

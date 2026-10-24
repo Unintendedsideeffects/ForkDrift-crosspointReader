@@ -34,6 +34,7 @@ namespace test_hooks {
 extern std::string (*getKoreaderUsername)();
 extern std::string (*getKoreaderPassword)();
 extern std::string (*getKoreaderServerUrl)();
+extern void (*setKoreaderCustomHeader)(size_t slot, const std::string& name, const std::string& value);
 }  // namespace test_hooks
 #endif
 

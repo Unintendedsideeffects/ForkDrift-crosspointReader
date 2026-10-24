@@ -10,6 +10,7 @@
 #include <array>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <utility>
 
 #if ENABLE_EPUB_SUPPORT
@@ -413,6 +414,81 @@ void FeatureModules::setKoreaderMatchMethod(const uint8_t method, const bool sav
   if (api != nullptr && api->setMatchMethod != nullptr) {
     api->setMatchMethod(method, save);
   }
+}
+
+std::string FeatureModules::getKoreaderCustomHeaderLine(const size_t slot) {
+  const auto* api = SyncServiceRegistry::getKoreaderApi();
+  if (api == nullptr || api->getCustomHeaderLine == nullptr) {
+    return "";
+  }
+  char buffer[kSyncHeaderBufSize] = {};
+  api->getCustomHeaderLine(slot, buffer, sizeof(buffer));
+  return buffer;
+}
+
+void FeatureModules::setKoreaderCustomHeaderLine(const size_t slot, const std::string& line, const bool save) {
+  const auto* api = SyncServiceRegistry::getKoreaderApi();
+  if (api != nullptr && api->setCustomHeaderLine != nullptr) {
+    api->setCustomHeaderLine(slot, line.c_str(), save);
+  }
+}
+
+void FeatureModules::setKoreaderCustomHeader(const size_t slot, const std::string& name, const std::string& value,
+                                             const bool save) {
+  const auto* api = SyncServiceRegistry::getKoreaderApi();
+  if (api != nullptr && api->setCustomHeader != nullptr) {
+    api->setCustomHeader(slot, name.c_str(), value.c_str(), save);
+  }
+}
+
+uint8_t FeatureModules::getKoreaderActiveProfile() {
+  const auto* api = SyncServiceRegistry::getKoreaderApi();
+  if (api == nullptr || api->getActiveProfile == nullptr) {
+    return 0;
+  }
+  return api->getActiveProfile();
+}
+
+void FeatureModules::setKoreaderActiveProfile(const uint8_t index, const bool save) {
+  const auto* api = SyncServiceRegistry::getKoreaderApi();
+  if (api != nullptr && api->setActiveProfile != nullptr) {
+    api->setActiveProfile(index, save);
+  }
+}
+
+std::string FeatureModules::getKoreaderProfileName() {
+  const auto* api = SyncServiceRegistry::getKoreaderApi();
+  if (api == nullptr || api->getProfileName == nullptr) {
+    return "";
+  }
+  char buffer[kSyncCredBufSize] = {};
+  api->getProfileName(buffer, sizeof(buffer));
+  return buffer;
+}
+
+void FeatureModules::setKoreaderProfileName(const std::string& name, const bool save) {
+  const auto* api = SyncServiceRegistry::getKoreaderApi();
+  if (api != nullptr && api->setProfileName != nullptr) {
+    api->setProfileName(name.c_str(), save);
+  }
+}
+
+std::vector<std::string> FeatureModules::getKoreaderProfileLabels() {
+  const auto* api = SyncServiceRegistry::getKoreaderApi();
+  std::vector<std::string> labels;
+  labels.reserve(kSyncProfileCount);
+  for (size_t i = 0; i < kSyncProfileCount; ++i) {
+    char buffer[kSyncCredBufSize] = {};
+    if (api != nullptr && api->getProfileLabel != nullptr) {
+      api->getProfileLabel(i, buffer, sizeof(buffer));
+    }
+    if (buffer[0] == '\0') {
+      labels.push_back(std::to_string(i + 1));
+    } else {
+      labels.push_back(buffer);
+    }
+  }
+  return labels;
 }
 
 void FeatureModules::saveKoreaderSettings() {

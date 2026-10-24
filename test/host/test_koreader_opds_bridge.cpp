@@ -1,3 +1,6 @@
+#include <array>
+
+#include "HttpHeader.h"
 #include "OpdsServerStore.h"
 #include "core/features/KoreaderOpdsBridge.h"
 #include "doctest/doctest.h"
@@ -9,18 +12,27 @@ namespace {
 std::string mockUsername;
 std::string mockPassword;
 std::string mockServerUrl;
+std::array<HttpHeader, 2> mockHeaders;
 
 std::string getMockUsername() { return mockUsername; }
 std::string getMockPassword() { return mockPassword; }
 std::string getMockServerUrl() { return mockServerUrl; }
 
+void setMockHeader(size_t slot, const std::string& name, const std::string& value) {
+  if (slot < mockHeaders.size()) {
+    mockHeaders[slot] = {name, value};
+  }
+}
+
 void resetMocks() {
   mockUsername.clear();
   mockPassword.clear();
   mockServerUrl.clear();
+  mockHeaders = {};
   core::test_hooks::getKoreaderUsername = nullptr;
   core::test_hooks::getKoreaderPassword = nullptr;
   core::test_hooks::getKoreaderServerUrl = nullptr;
+  core::test_hooks::setKoreaderCustomHeader = nullptr;
 }
 
 void setupMocks(const std::string& user, const std::string& pass, const std::string& url) {
@@ -76,4 +88,21 @@ TEST_CASE("effectiveOpdsCredentials fallback behavior") {
     CHECK(creds.username == "");
     CHECK(creds.password == "");
   }
+}
+
+TEST_CASE("applyOpdsServerToKoreaderSync copies custom headers") {
+  Storage.reset();
+  resetMocks();
+  core::test_hooks::setKoreaderCustomHeader = setMockHeader;
+
+  OpdsServer server{"My Server", "http://myopdsserver.com/feed.xml", "user", "pass"};
+  server.customHeaders[0] = {"CF-Access-Client-Id", "id-token"};
+  server.customHeaders[1] = {"CF-Access-Client-Secret", "secret-token"};
+
+  const std::string syncUrl = core::applyOpdsServerToKoreaderSync(server);
+  CHECK(syncUrl.find("/api/koreader") != std::string::npos);
+  CHECK(mockHeaders[0].name == "CF-Access-Client-Id");
+  CHECK(mockHeaders[0].value == "id-token");
+  CHECK(mockHeaders[1].name == "CF-Access-Client-Secret");
+  CHECK(mockHeaders[1].value == "secret-token");
 }

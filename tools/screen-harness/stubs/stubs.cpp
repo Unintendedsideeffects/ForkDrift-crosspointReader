@@ -153,6 +153,14 @@ void FeatureModules::setKoreaderUsername(const std::string&, bool) {}
 void FeatureModules::setKoreaderPassword(const std::string&, bool) {}
 void FeatureModules::setKoreaderServerUrl(const std::string&, bool) {}
 void FeatureModules::setKoreaderMatchMethod(uint8_t, bool) {}
+std::string FeatureModules::getKoreaderCustomHeaderLine(size_t) { return ""; }
+void FeatureModules::setKoreaderCustomHeaderLine(size_t, const std::string&, bool) {}
+void FeatureModules::setKoreaderCustomHeader(size_t, const std::string&, const std::string&, bool) {}
+uint8_t FeatureModules::getKoreaderActiveProfile() { return 0; }
+void FeatureModules::setKoreaderActiveProfile(uint8_t, bool) {}
+std::string FeatureModules::getKoreaderProfileName() { return ""; }
+void FeatureModules::setKoreaderProfileName(const std::string&, bool) {}
+std::vector<std::string> FeatureModules::getKoreaderProfileLabels() { return {"1", "2", "3", "4"}; }
 void FeatureModules::saveKoreaderSettings() {}
 std::vector<std::string> FeatureModules::getUserFontFamilies() { return {}; }
 uint8_t FeatureModules::getSelectedUserFontFamilyIndex() { return 0; }

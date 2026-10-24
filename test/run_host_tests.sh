@@ -107,6 +107,9 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -I"$ROOT_DIR/lib/third_party/uzlib/src" \
   -I"$ROOT_DIR/lib/third_party/md4c" \
   -I"$ROOT_DIR/lib/Serialization" \
+  -I"$ROOT_DIR/lib/HttpHeader" \
+  -I"$ROOT_DIR/lib/HttpOrigin" \
+  -I"$ROOT_DIR/lib/KOReaderSync" \
   -I"$ROOT_DIR/lib/GfxRenderer" \
   -I"$ROOT_DIR/lib/OpdsParser" \
   -I"$ROOT_DIR/lib/JsonParser" \
@@ -171,6 +174,11 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/src/util/UrlUtils.cpp" \
   "$ROOT_DIR/src/util/StringUtils.cpp" \
   "$ROOT_DIR/src/util/OpdsFilename.cpp" \
+  "$ROOT_DIR/src/util/OpdsDownloadFolder.cpp" \
+  "$ROOT_DIR/lib/HttpHeader/HttpHeader.cpp" \
+  "$ROOT_DIR/lib/KOReaderSync/KOReaderJsonIO.cpp" \
+  "$ROOT_DIR/lib/KOReaderSync/KOReaderCredentialStore.cpp" \
+  "$ROOT_DIR/test/mock/ObfuscationUtils.cpp" \
   "$ROOT_DIR/lib/Utf8/Utf8.cpp" \
   "$ROOT_DIR/src/util/PokemonBookDataStore.cpp" \
   "$ROOT_DIR/src/util/PokemonProgress.cpp" \

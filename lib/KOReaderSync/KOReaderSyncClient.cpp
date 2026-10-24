@@ -1,13 +1,17 @@
 #include "KOReaderSyncClient.h"
 
 #include <ArduinoJson.h>
+#include <HttpHeader.h>
+#include <HttpOrigin.h>
 #include <Logging.h>
+#include <Memory.h>
 #include <esp_crt_bundle.h>
 #include <esp_http_client.h>
 
 #include <ctime>
 
 #include "KOReaderCredentialStore.h"
+#include "KOReaderProgressPolicy.h"
 
 int KOReaderSyncClient::lastHttpCode = 0;
 
@@ -69,8 +73,94 @@ esp_err_t httpEventHandler(esp_http_client_event_t* evt) {
   return ESP_OK;
 }
 
-// Create configured esp_http_client with small TLS buffers
-esp_http_client_handle_t createClient(const char* url, ResponseBuffer* buf,
+constexpr int kMaxRedirectUrl = 1024;
+constexpr int kMaxRedirects = 5;
+
+bool isRedirectStatus(const int status) {
+  return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+}
+
+void applyKoSyncHeaders(esp_http_client_handle_t client) {
+  esp_http_client_set_header(client, "Accept", "application/vnd.koreader.v1+json");
+  esp_http_client_set_header(client, "x-auth-user", KOREADER_STORE.getUsername().c_str());
+  esp_http_client_set_header(client, "x-auth-key", KOREADER_STORE.getMd5Password().c_str());
+  for (const auto& header : KOREADER_STORE.getCustomHeaders()) {
+    if (header.name.empty()) {
+      continue;
+    }
+    esp_http_client_set_header(client, header.name.c_str(), header.value.c_str());
+  }
+}
+
+void dropKoSyncCredentialHeaders(esp_http_client_handle_t client) {
+  esp_http_client_delete_header(client, "Authorization");
+  esp_http_client_delete_header(client, "x-auth-user");
+  esp_http_client_delete_header(client, "x-auth-key");
+  for (const auto& header : KOREADER_STORE.getCustomHeaders()) {
+    if (header.name.empty()) {
+      continue;
+    }
+    LOG_INF("KOSync", "Redirect: dropping extra header %s", header.name.c_str());
+    esp_http_client_delete_header(client, header.name.c_str());
+  }
+}
+
+struct KoSyncRedirectGuard {
+  std::string currentUrl;
+  std::string credentialUrl;
+};
+
+esp_err_t followKoSyncRedirect(esp_http_client_handle_t client, KoSyncRedirectGuard& guard) {
+  if (esp_http_client_set_redirection(client) != ESP_OK) {
+    dropKoSyncCredentialHeaders(client);
+    return ESP_FAIL;
+  }
+  auto next = makeUniqueNoThrow<char[]>(kMaxRedirectUrl);
+  if (!next || esp_http_client_get_url(client, next.get(), kMaxRedirectUrl) != ESP_OK) {
+    LOG_ERR("KOSync", "Redirect: could not read target URL");
+    dropKoSyncCredentialHeaders(client);
+    return ESP_FAIL;
+  }
+
+  http_origin::Origin from;
+  http_origin::Origin to;
+  const bool fromOk = http_origin::parse(guard.currentUrl, from);
+  if (!http_origin::parse(next.get(), to)) {
+    LOG_ERR("KOSync", "Redirect: unparseable target");
+    dropKoSyncCredentialHeaders(client);
+    return ESP_FAIL;
+  }
+  if (fromOk && http_origin::isDowngrade(from, to)) {
+    LOG_ERR("KOSync", "Refusing HTTPS->HTTP redirect");
+    dropKoSyncCredentialHeaders(client);
+    return ESP_FAIL;
+  }
+
+  if (http_origin::extraHeadersFollowRedirect(guard.credentialUrl, next.get())) {
+    applyKoSyncHeaders(client);
+  } else {
+    LOG_INF("KOSync", "Redirect to %.*s: not sending credentials to a different origin",
+            static_cast<int>(to.host.size()), to.host.data());
+    dropKoSyncCredentialHeaders(client);
+  }
+  guard.currentUrl.assign(next.get());
+  return ESP_OK;
+}
+
+esp_err_t performKoSyncWithRedirects(esp_http_client_handle_t client, KoSyncRedirectGuard& guard) {
+  for (int hop = 0;; ++hop) {
+    const esp_err_t err = esp_http_client_perform(client);
+    if (err != ESP_OK) return err;
+    if (!isRedirectStatus(esp_http_client_get_status_code(client))) return ESP_OK;
+    if (hop >= kMaxRedirects) {
+      LOG_ERR("KOSync", "Too many redirects");
+      return ESP_ERR_HTTP_MAX_REDIRECT;
+    }
+    if (followKoSyncRedirect(client, guard) != ESP_OK) return ESP_FAIL;
+  }
+}
+
+esp_http_client_handle_t createClient(const char* url, ResponseBuffer* buf, KoSyncRedirectGuard& guard,
                                       esp_http_client_method_t method = HTTP_METHOD_GET) {
   esp_http_client_config_t config = {};
   config.url = url;
@@ -81,8 +171,8 @@ esp_http_client_handle_t createClient(const char* url, ResponseBuffer* buf,
   config.buffer_size = HTTP_BUF_SIZE;
   config.buffer_size_tx = HTTP_BUF_SIZE;
   config.crt_bundle_attach = arduino_esp_crt_bundle_attach;
+  config.disable_auto_redirect = true;
 
-  // HTTP Basic Auth for Calibre-Web-Automated compatibility
   config.username = KOREADER_STORE.getUsername().c_str();
   config.password = KOREADER_STORE.getPassword().c_str();
   config.auth_type = HTTP_AUTH_TYPE_BASIC;
@@ -90,7 +180,6 @@ esp_http_client_handle_t createClient(const char* url, ResponseBuffer* buf,
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (!client) return nullptr;
 
-  // KOSync auth headers
   if (esp_http_client_set_header(client, "Accept", "application/vnd.koreader.v1+json") != ESP_OK ||
       esp_http_client_set_header(client, "x-auth-user", KOREADER_STORE.getUsername().c_str()) != ESP_OK ||
       esp_http_client_set_header(client, "x-auth-key", KOREADER_STORE.getMd5Password().c_str()) != ESP_OK) {
@@ -99,6 +188,9 @@ esp_http_client_handle_t createClient(const char* url, ResponseBuffer* buf,
     return nullptr;
   }
 
+  applyKoSyncHeaders(client);
+  guard.currentUrl = url;
+  guard.credentialUrl = url;
   return client;
 }
 }  // namespace
@@ -119,10 +211,11 @@ KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
   }
 
   ResponseBuffer buf;
-  esp_http_client_handle_t client = createClient(url.c_str(), &buf);
+  KoSyncRedirectGuard guard;
+  esp_http_client_handle_t client = createClient(url.c_str(), &buf, guard);
   if (!client) return NETWORK_ERROR;
 
-  esp_err_t err = esp_http_client_perform(client);
+  esp_err_t err = performKoSyncWithRedirects(client, guard);
   const int httpCode = esp_http_client_get_status_code(client);
   lastHttpCode = httpCode;
   esp_http_client_cleanup(client);
@@ -157,10 +250,11 @@ KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& doc
   }
 
   ResponseBuffer buf;
-  esp_http_client_handle_t client = createClient(url.c_str(), &buf);
+  KoSyncRedirectGuard guard;
+  esp_http_client_handle_t client = createClient(url.c_str(), &buf, guard);
   if (!client) return NETWORK_ERROR;
 
-  esp_err_t err = esp_http_client_perform(client);
+  esp_err_t err = performKoSyncWithRedirects(client, guard);
   const int httpCode = esp_http_client_get_status_code(client);
   lastHttpCode = httpCode;
   esp_http_client_cleanup(client);
@@ -185,18 +279,18 @@ KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& doc
       return JSON_ERROR;
     }
 
-    // The reference server answers 200 with an empty object when it has no
-    // progress stored for this document: that is "no remote progress", not a
-    // malformed reply (crossink 280dd0387).
-    if (doc["progress"].isNull() && doc["percentage"].isNull()) {
+    const bool percentageNumeric = doc["percentage"].is<float>() || doc["percentage"].is<int>();
+    const float percentage = percentageNumeric ? doc["percentage"].as<float>() : 0.f;
+    if (!koSyncHasStoredProgress(doc["progress"].isNull(), percentageNumeric, percentage)) {
       LOG_DBG("KOSync", "No stored progress in successful response");
       return NOT_FOUND;
     }
-
-    // A compliant KOSync 200 response carries a numeric percentage. Reject a
-    // malformed body rather than silently treating a missing field as 0%.
-    if (!doc["percentage"].is<float>() && !doc["percentage"].is<int>()) {
+    if (!percentageNumeric) {
       LOG_ERR("KOSync", "Response missing numeric 'percentage'");
+      return JSON_ERROR;
+    }
+    if (!koSyncPercentageUsable(true, percentage)) {
+      LOG_ERR("KOSync", "Response percentage is out of range");
       return JSON_ERROR;
     }
     if ((!doc["progress"].isNull() && !doc["progress"].is<const char*>()) ||
@@ -208,8 +302,8 @@ KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& doc
     }
 
     outProgress.document = documentHash;
-    outProgress.progress = doc["progress"].as<std::string>();
-    outProgress.percentage = doc["percentage"].as<float>();
+    outProgress.progress = doc["progress"] | std::string("");
+    outProgress.percentage = percentage;
     outProgress.device = doc["device"].as<std::string>();
     outProgress.deviceId = doc["device_id"].as<std::string>();
     outProgress.timestamp = doc["timestamp"].as<int64_t>();
@@ -252,7 +346,8 @@ KOReaderSyncClient::Error KOReaderSyncClient::updateProgress(const KOReaderProgr
   LOG_DBG("KOSync", "Request body: %s", body.c_str());
 
   ResponseBuffer buf;
-  esp_http_client_handle_t client = createClient(url.c_str(), &buf, HTTP_METHOD_PUT);
+  KoSyncRedirectGuard guard;
+  esp_http_client_handle_t client = createClient(url.c_str(), &buf, guard, HTTP_METHOD_PUT);
   if (!client) return NETWORK_ERROR;
 
   if (esp_http_client_set_header(client, "Content-Type", "application/json") != ESP_OK ||
@@ -262,7 +357,7 @@ KOReaderSyncClient::Error KOReaderSyncClient::updateProgress(const KOReaderProgr
     return NETWORK_ERROR;
   }
 
-  esp_err_t err = esp_http_client_perform(client);
+  esp_err_t err = performKoSyncWithRedirects(client, guard);
   const int httpCode = esp_http_client_get_status_code(client);
   lastHttpCode = httpCode;
   esp_http_client_cleanup(client);

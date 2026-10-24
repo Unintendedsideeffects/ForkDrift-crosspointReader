@@ -18,9 +18,11 @@
 #include <cstring>
 
 #include "CrossPointSettings.h"
+#include "HttpHeader.h"
 #include "OpdsServerStore.h"
 #include "SettingsSerializer.h"
 #include "src/activities/reader/ReadingStatsStore.h"
+#include "util/OpdsDownloadFolder.h"
 #include "util/RecentBooksStore.h"
 
 // ---- CrossPointSettings ----
@@ -124,6 +126,13 @@ bool JsonSettingsIO::saveOpds(const OpdsServerStore& store, const char* path) {
     obj["url"] = srv.url;
     obj["username"] = srv.username;
     obj["password"] = srv.password;
+    obj["downloadFolder"] = srv.downloadFolder;
+    JsonArray headers = obj["headers"].to<JsonArray>();
+    for (const auto& header : srv.customHeaders) {
+      JsonObject entry = headers.add<JsonObject>();
+      entry["name"] = header.name;
+      entry["value_obf"] = header.value;
+    }
   }
 
   String json;
@@ -151,6 +160,31 @@ bool JsonSettingsIO::loadOpds(OpdsServerStore& store, const char* json, bool* ne
     srv.url = obj["url"] | std::string("");
     srv.username = obj["username"] | std::string("");
     srv.password = obj["password"] | std::string("");
+    if (!obj["downloadFolder"].isNull()) {
+      const std::string rawFolder = obj["downloadFolder"] | std::string("");
+      std::string folder;
+      if (!OpdsDownloadFolder::normalize(rawFolder, folder)) {
+        store.servers.clear();
+        return false;
+      }
+      srv.downloadFolder = std::move(folder);
+    }
+    if (obj["headers"].is<JsonArrayConst>()) {
+      size_t slot = 0;
+      for (JsonObjectConst entry : obj["headers"].as<JsonArrayConst>()) {
+        if (slot >= OpdsServer::MAX_CUSTOM_HEADERS) {
+          break;
+        }
+        HttpHeader header;
+        header.name = entry["name"] | std::string("");
+        header.value = entry["value_obf"] | std::string("");
+        if (!header.name.empty() && !isValidHttpHeader(header.name, header.value)) {
+          ++slot;
+          continue;
+        }
+        srv.customHeaders[slot++] = std::move(header);
+      }
+    }
     store.servers.push_back(std::move(srv));
   }
   return true;

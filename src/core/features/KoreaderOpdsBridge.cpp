@@ -22,6 +22,16 @@ std::string applyOpdsServerToKoreaderSync(const OpdsServer& server) {
   FeatureModules::setKoreaderUsername(server.username, false);
   FeatureModules::setKoreaderPassword(server.password, false);
   FeatureModules::setKoreaderMatchMethod(kMatchMethodBinary, false);
+  for (size_t i = 0; i < OpdsServer::MAX_CUSTOM_HEADERS; ++i) {
+#if CROSSPOINT_HOST_BUILD
+    if (test_hooks::setKoreaderCustomHeader) {
+      test_hooks::setKoreaderCustomHeader(i, server.customHeaders[i].name, server.customHeaders[i].value);
+    } else
+#endif
+    {
+      FeatureModules::setKoreaderCustomHeader(i, server.customHeaders[i].name, server.customHeaders[i].value, false);
+    }
+  }
   FeatureModules::saveKoreaderSettings();
 
   return syncUrl;
@@ -32,6 +42,7 @@ namespace test_hooks {
 std::string (*getKoreaderUsername)() = nullptr;
 std::string (*getKoreaderPassword)() = nullptr;
 std::string (*getKoreaderServerUrl)() = nullptr;
+void (*setKoreaderCustomHeader)(size_t, const std::string&, const std::string&) = nullptr;
 }  // namespace test_hooks
 #endif
 

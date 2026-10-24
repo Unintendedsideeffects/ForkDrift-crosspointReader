@@ -1077,6 +1077,14 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
   }
 #endif
   if (want(StrId::STR_KOREADER_SYNC) && core::FeatureModules::hasCapability(core::Capability::KoreaderSync)) {
+    emit(SettingInfo::DynamicEnum(
+        StrId::STR_SYNC_PROFILE, {}, [] { return core::FeatureModules::getKoreaderActiveProfile(); },
+        [](uint8_t value) { core::FeatureModules::setKoreaderActiveProfile(value, false); }, "koActiveProfile",
+        StrId::STR_KOREADER_SYNC, [] { return core::FeatureModules::getKoreaderProfileLabels(); }));
+    emit(SettingInfo::DynamicString(
+        StrId::STR_SYNC_PROFILE_NAME, [] { return core::FeatureModules::getKoreaderProfileName(); },
+        [](const std::string& value) { core::FeatureModules::setKoreaderProfileName(value, false); }, "koProfileName",
+        StrId::STR_KOREADER_SYNC));
     emit(SettingInfo::DynamicString(
         StrId::STR_KOREADER_USERNAME, [] { return core::FeatureModules::getKoreaderUsername(); },
         [](const std::string& value) { core::FeatureModules::setKoreaderUsername(value, false); }, "koUsername",
@@ -1089,6 +1097,16 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
         StrId::STR_SYNC_SERVER_URL, [] { return core::FeatureModules::getKoreaderServerUrl(); },
         [](const std::string& value) { core::FeatureModules::setKoreaderServerUrl(value, false); }, "koServerUrl",
         StrId::STR_KOREADER_SYNC));
+    emit(SettingInfo::DynamicString(
+             StrId::STR_CUSTOM_HEADER_1, [] { return core::FeatureModules::getKoreaderCustomHeaderLine(0); },
+             [](const std::string& value) { core::FeatureModules::setKoreaderCustomHeaderLine(0, value, false); },
+             "koCustomHeader1", StrId::STR_KOREADER_SYNC)
+             .withObfuscated());
+    emit(SettingInfo::DynamicString(
+             StrId::STR_CUSTOM_HEADER_2, [] { return core::FeatureModules::getKoreaderCustomHeaderLine(1); },
+             [](const std::string& value) { core::FeatureModules::setKoreaderCustomHeaderLine(1, value, false); },
+             "koCustomHeader2", StrId::STR_KOREADER_SYNC)
+             .withObfuscated());
     emit(SettingInfo::DynamicEnum(
         StrId::STR_DOCUMENT_MATCHING, {StrId::STR_FILENAME, StrId::STR_BINARY},
         [] { return core::FeatureModules::getKoreaderMatchMethod(); },

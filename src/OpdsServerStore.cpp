@@ -4,10 +4,21 @@
 #include <JsonSettingsIO.h>
 #include <Logging.h>
 
+#include "util/OpdsDownloadFolder.h"
+
 OpdsServerStore OpdsServerStore::instance;
 
 namespace {
 constexpr char OPDS_FILE_JSON[] = "/.crosspoint/opds.json";
+
+bool prepareServer(OpdsServer& server) {
+  std::string folder;
+  if (!OpdsDownloadFolder::normalize(server.downloadFolder, folder)) {
+    return false;
+  }
+  server.downloadFolder = std::move(folder);
+  return true;
+}
 }  // namespace
 
 bool OpdsServerStore::saveToFile() const {
@@ -53,10 +64,19 @@ bool OpdsServerStore::addServer(const OpdsServer& server) {
     return false;
   }
 
-  servers.push_back(server);
-  LOG_DBG("OPS", "Added server: %s", server.name.c_str());
+  OpdsServer copy = server;
+  if (!prepareServer(copy)) {
+    return false;
+  }
+
+  servers.push_back(std::move(copy));
+  LOG_DBG("OPS", "Added server: %s", servers.back().name.c_str());
   markDirty();
-  return saveToFile();
+  if (!saveToFile()) {
+    servers.pop_back();
+    return false;
+  }
+  return true;
 }
 
 bool OpdsServerStore::updateServer(size_t index, const OpdsServer& server) {
@@ -64,10 +84,20 @@ bool OpdsServerStore::updateServer(size_t index, const OpdsServer& server) {
     return false;
   }
 
-  servers[index] = server;
-  LOG_DBG("OPS", "Updated server: %s", server.name.c_str());
+  OpdsServer copy = server;
+  if (!prepareServer(copy)) {
+    return false;
+  }
+
+  OpdsServer previous = servers[index];
+  servers[index] = std::move(copy);
+  LOG_DBG("OPS", "Updated server: %s", servers[index].name.c_str());
   markDirty();
-  return saveToFile();
+  if (!saveToFile()) {
+    servers[index] = std::move(previous);
+    return false;
+  }
+  return true;
 }
 
 bool OpdsServerStore::removeServer(size_t index) {

@@ -3,7 +3,9 @@
 #include <Epub.h>
 #include <FeatureFlags.h>
 #include <FontCacheManager.h>
+#include <FsHelpers.h>
 #include <GfxRenderer.h>
+#include <HalStorage.h>
 #include <I18n.h>
 #include <Logging.h>
 #include <OpdsStream.h>
@@ -27,6 +29,7 @@
 #include "network/http/FetchFailure.h"
 #include "network/http/HttpDownloader.h"
 #include "util/LibraryShelfStore.h"
+#include "util/OpdsDownloadFolder.h"
 #include "util/OpdsFilename.h"
 #include "util/UrlUtils.h"
 
@@ -302,7 +305,8 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
   http_fetch::Result fetch;
   {
     OpdsParserStream stream{parser};
-    fetch = HttpDownloader::fetchUrlResult(url, stream, creds.username, creds.password);
+    fetch = HttpDownloader::fetchUrlResult(url, stream, creds.username, creds.password, true,
+                                           server.customHeaders.data(), OpdsServer::MAX_CUSTOM_HEADERS);
     if (!fetch.ok()) {
       LOG_WRN("OPDS", "Catalog GET failed: %s", http_fetch::reasonName(fetch.reason));
       state = BrowserState::ERROR;
@@ -340,7 +344,8 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
     if (!descRef.empty()) {
       const std::string descUrl = (descRef.find("http") == 0) ? descRef : UrlUtils::buildUrl(url, descRef);
       std::string descDoc;
-      if (HttpDownloader::fetchUrl(descUrl, descDoc, creds.username, creds.password)) {
+      if (HttpDownloader::fetchUrl(descUrl, descDoc, creds.username, creds.password, nullptr, true,
+                                   server.customHeaders.data(), OpdsServer::MAX_CUSTOM_HEADERS)) {
         searchTemplate = OpenSearchParser::extractSearchTemplate(descDoc);
         LOG_DBG("OPDS", "OpenSearch search template: %s", searchTemplate.c_str());
       }
@@ -428,8 +433,27 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   // Build full download URL relative to the current feed, not the root server URL
   const std::string feedUrl = UrlUtils::buildUrl(server.url, currentPath);
   std::string downloadUrl = UrlUtils::buildUrl(feedUrl, book.href);
-  std::string filename = "/" + OpdsFilename::format(book.title, book.author, configuredOpdsFilenameFormat(), ".epub");
+  std::string folder;
+  if (!OpdsDownloadFolder::normalize(OpdsDownloadFolder::effective(server.downloadFolder, "/"), folder)) {
+    state = BrowserState::ERROR;
+    errorMessage = tr(STR_DOWNLOAD_FAILED);
+    requestUpdate();
+    return;
+  }
+  std::string filename = folder;
+  if (filename != "/") {
+    filename += '/';
+  }
+  filename += OpdsFilename::format(book.title, book.author, configuredOpdsFilenameFormat(), ".epub");
   LOG_DBG("OPDS", "Downloading: %s -> %s", downloadUrl.c_str(), filename.c_str());
+
+  const std::string dir = FsHelpers::extractFolderPath(filename);
+  if (dir != "/" && !Storage.mkdir(dir.c_str()) && !Storage.exists(dir.c_str())) {
+    state = BrowserState::ERROR;
+    errorMessage = tr(STR_DOWNLOAD_FAILED);
+    requestUpdate();
+    return;
+  }
 
   const auto creds = core::effectiveOpdsCredentials(server);
   const auto result = HttpDownloader::downloadToFile(
@@ -439,7 +463,7 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
         downloadTotal = total;
         requestUpdate(true);
       },
-      nullptr, creds.username, creds.password);
+      nullptr, creds.username, creds.password, server.customHeaders.data(), OpdsServer::MAX_CUSTOM_HEADERS);
 
   if (result == HttpDownloader::OK) {
 #if ENABLE_EPUB_SUPPORT

@@ -3,16 +3,11 @@
 #include <cstdint>
 #include <string_view>
 
-// Origin (scheme + host + port) comparison for HTTP redirect handling. Credentials
-// are scoped to the origin they were configured for: a redirect may take the
-// request elsewhere, but must not take the Authorization header with it.
-// Absorbed in spirit from upstream d6f7f2565 (HttpRedirectPolicy); ours follows
-// redirects through esp_http_client's HTTP_EVENT_REDIRECT instead of a manual loop.
 namespace http_origin {
 
 struct Origin {
   bool https = false;
-  std::string_view host;  // views into the parsed URL; valid while it lives
+  std::string_view host;
   uint16_t port = 0;
 };
 
@@ -26,8 +21,6 @@ inline bool equalsIgnoreCase(const std::string_view a, const std::string_view b)
   return true;
 }
 
-// Parses "scheme://[userinfo@]host[:port]/..." into its origin. Returns false for
-// anything that is not an absolute http(s) URL with a host.
 inline bool parse(const std::string_view url, Origin& out) {
   const size_t schemeEnd = url.find("://");
   if (schemeEnd == std::string_view::npos) return false;
@@ -69,7 +62,18 @@ inline bool sameOrigin(const Origin& a, const Origin& b) {
   return a.https == b.https && a.port == b.port && equalsIgnoreCase(a.host, b.host);
 }
 
-// True when following from -> to would leave TLS.
 inline bool isDowngrade(const Origin& from, const Origin& to) { return from.https && !to.https; }
+
+inline bool extraHeadersFollowRedirect(const std::string_view credentialUrl, const std::string_view nextUrl) {
+  Origin cred;
+  Origin next;
+  if (!parse(credentialUrl, cred) || !parse(nextUrl, next)) {
+    return false;
+  }
+  if (isDowngrade(cred, next)) {
+    return false;
+  }
+  return sameOrigin(cred, next);
+}
 
 }  // namespace http_origin

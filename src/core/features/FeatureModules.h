@@ -100,6 +100,14 @@ class FeatureModules {
   static void setKoreaderPassword(const std::string& password, bool save = true);
   static void setKoreaderServerUrl(const std::string& serverUrl, bool save = true);
   static void setKoreaderMatchMethod(uint8_t method, bool save = true);
+  static std::string getKoreaderCustomHeaderLine(size_t slot);
+  static void setKoreaderCustomHeaderLine(size_t slot, const std::string& line, bool save = true);
+  static void setKoreaderCustomHeader(size_t slot, const std::string& name, const std::string& value, bool save = true);
+  static uint8_t getKoreaderActiveProfile();
+  static void setKoreaderActiveProfile(uint8_t index, bool save = true);
+  static std::string getKoreaderProfileName();
+  static void setKoreaderProfileName(const std::string& name, bool save = true);
+  static std::vector<std::string> getKoreaderProfileLabels();
   static void saveKoreaderSettings();
   static std::vector<std::string> getUserFontFamilies();
   static uint8_t getSelectedUserFontFamilyIndex();

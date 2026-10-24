@@ -1492,7 +1492,12 @@ curl http://crosspoint.local/api/opds
     "name": "My OPDS Server",
     "url": "http://192.168.1.50/opds",
     "username": "user",
-    "hasPassword": true
+    "hasPassword": true,
+    "downloadFolder": "/Books/Calibre",
+    "headers": [
+      { "name": "CF-Access-Client-Id", "hasValue": true },
+      { "name": "", "hasValue": false }
+    ]
   }
 ]
 ```
@@ -1517,7 +1522,9 @@ curl -X POST -H "Content-Type: application/json" \
 | `name` | Yes | Display name for the OPDS server |
 | `url` | Yes | OPDS server URL |
 | `username` | No | Optional username |
-| `password` | No | Optional password |
+| `password` | No | Optional password. Omit to keep the existing secret; send `""` to clear. |
+| `downloadFolder` | No | Absolute SD path (max 63 bytes). Omit to keep the existing override; `""` inherits SD root. Invalid paths return 400. |
+| `headers` | No | Up to 2 `{ "name", "value" }` objects. Omit the array to keep existing headers. Empty `name` clears that slot. Omit `value` to keep the existing secret. |
 | `index` | No | Optional index to update an existing server |
 
 **Response (200 OK):**

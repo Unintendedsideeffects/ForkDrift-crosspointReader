@@ -2049,7 +2049,7 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Where**: `src/network/http/HttpDownloader.cpp` (OPDS `Authorization`), `lib/KOReaderSync/KOReaderSyncClient.cpp:95-96` (`x-auth-user`/`x-auth-key`), `src/features/terminus_sleep/Registration.cpp:335-336` (`ID`/`Access-Token`)
 - **What**: all three use `esp_http_client` with automatic redirects on, and IDF replays every custom header to the redirect target, so a redirect to another host receives the credentials (upstream d6f7f2565 fixed this for OPDS in their transport).
 - **Why not fixed here**: KOSync/Terminus were out of the OPDS scope; KOSync lives in `lib/` and would need the origin helper (`src/network/http/HttpOrigin.h`) moved to a lib.
-- **Status**: OPDS/HttpDownloader fixed in 6a4d33c19 (owner chose it over a concurrent session's version, kept in `git stash` "concurrent session 2026-10-09 18:29" and plans/stash-backup-2026-10-09-concurrent-session/); KOSync + Terminus still open
+- **Status**: OPDS/HttpDownloader fixed in 6a4d33c19 (owner chose it over a concurrent session's version, kept in `git stash` "concurrent session 2026-10-09 18:29" and plans/stash-backup-2026-10-09-concurrent-session/); KOSync origin-scopes `x-auth-*`, Basic, and custom headers (lane B, `disable_auto_redirect` + `http_origin`); Terminus still open
 
 ## 2026-10-09T17:52Z — Failed OPDS re-download deletes the existing book
 - **Found by**: claude — during the 2026-10 crossink absorption (crossink 1d954ae34)
@@ -2097,4 +2097,10 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Where**: `lib/Epub/Epub/parsers/ChapterHtmlSlimParser.cpp:1439-1476`
 - **What**: `startElement` handles `strcmp(name, "hr") == 0` twice in succession. The first branch emits the rule, pushes `ancestorStack_`, increments `depth`, and returns. The second branch is therefore unreachable: it would emit again and increment `depth` without pushing the ancestor stack.
 - **Why not fixed here**: out of scope for lane A1 (scope was justified spacing, hyphen/dash breaks, and figure container alignment/spacing). The sizing card named these handlers as a pre-existing dead duplicate.
+
+## 2026-10-24T15:10Z — OpenAPI schema for /api/opds omits downloadFolder and headers
+- **Found by**: cursor grok-4.6 — during lane B (plans/absorb-1024/deferred/lanes/LANE_B.md)
+- **Where**: `docs/http-api.openapi.yaml:2565-2599`
+- **What**: `OpdsServer` / `OpdsServerUpsert` still document only index/name/url/username/hasPassword/password. GET and POST `/api/opds` now also carry `downloadFolder` and `headers` (`docs/webserver-endpoints.md`).
+- **Why not fixed here**: lane B docs target was `docs/webserver-endpoints.md`; the OpenAPI file is a separate contract.
 - **Status**: open

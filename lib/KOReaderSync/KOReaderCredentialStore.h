@@ -1,67 +1,85 @@
 #pragma once
+
+#include <HttpHeader.h>
+
+#include <array>
 #include <cstdint>
 #include <string>
 
-// Document matching method for KOReader sync
 enum class DocumentMatchMethod : uint8_t {
-  FILENAME = 0,  // Match by filename (simpler, works across different file sources)
-  BINARY = 1,    // Match by partial MD5 of file content (more accurate, but files must be identical)
+  FILENAME = 0,
+  BINARY = 1,
 };
 
-/**
- * Singleton class for storing KOReader sync credentials on the SD card.
- * Passwords are XOR-obfuscated with the device's unique hardware MAC address
- * and base64-encoded before writing to JSON (not cryptographically secure,
- * but prevents casual reading and ties credentials to the specific device).
- */
+struct KOReaderSyncProfile {
+  std::string name;
+  std::string username;
+  std::string password;
+  std::string serverUrl;
+  std::array<HttpHeader, 2> customHeaders{};
+};
+
+class KOReaderCredentialStore;
+
+namespace KOReaderJsonIO {
+bool save(const KOReaderCredentialStore& store, const char* path);
+bool load(KOReaderCredentialStore& store, const char* json, bool* needsResave);
+}  // namespace KOReaderJsonIO
+
 class KOReaderCredentialStore {
  private:
   static KOReaderCredentialStore instance;
-  std::string username;
-  std::string password;
-  std::string serverUrl;                                            // Custom sync server URL (empty = default)
-  DocumentMatchMethod matchMethod = DocumentMatchMethod::FILENAME;  // Default to filename for compatibility
+  static constexpr size_t MAX_PROFILES = 4;
 
-  // Private constructor for singleton
+  std::array<KOReaderSyncProfile, MAX_PROFILES> profiles{};
+  size_t activeProfile = 0;
+  DocumentMatchMethod matchMethod = DocumentMatchMethod::FILENAME;
+
   KOReaderCredentialStore() = default;
 
+  friend bool KOReaderJsonIO::save(const KOReaderCredentialStore&, const char*);
+  friend bool KOReaderJsonIO::load(KOReaderCredentialStore&, const char*, bool*);
+
+  KOReaderSyncProfile& active() { return profiles[activeProfile]; }
+  const KOReaderSyncProfile& active() const { return profiles[activeProfile]; }
+
  public:
-  // Delete copy constructor and assignment
+  static constexpr size_t MAX_CUSTOM_HEADERS = 2;
+  static constexpr size_t PROFILE_COUNT = MAX_PROFILES;
+
   KOReaderCredentialStore(const KOReaderCredentialStore&) = delete;
   KOReaderCredentialStore& operator=(const KOReaderCredentialStore&) = delete;
 
-  // Get singleton instance
   static KOReaderCredentialStore& getInstance() { return instance; }
 
-  // Save/load from SD card
   bool saveToFile() const;
   bool loadFromFile();
 
-  // Credential management
   void setCredentials(const std::string& user, const std::string& pass);
-  const std::string& getUsername() const { return username; }
-  const std::string& getPassword() const { return password; }
+  const std::string& getUsername() const { return active().username; }
+  const std::string& getPassword() const { return active().password; }
 
-  // Get MD5 hash of password for API authentication
   std::string getMd5Password() const;
 
-  // Check if credentials are set
   bool hasCredentials() const;
-
-  // Clear credentials
   void clearCredentials();
 
-  // Server URL management
   void setServerUrl(const std::string& url);
-  const std::string& getServerUrl() const { return serverUrl; }
-
-  // Get base URL for API calls (with http:// normalization if no protocol, falls back to default)
+  const std::string& getServerUrl() const { return active().serverUrl; }
   std::string getBaseUrl() const;
 
-  // Document matching method
   void setMatchMethod(DocumentMatchMethod method);
   DocumentMatchMethod getMatchMethod() const { return matchMethod; }
+
+  size_t getActiveProfileIndex() const { return activeProfile; }
+  bool setActiveProfileIndex(size_t index);
+
+  void setProfileName(const std::string& name);
+  const std::string& getProfileName() const { return active().name; }
+  const std::array<KOReaderSyncProfile, MAX_PROFILES>& getProfiles() const { return profiles; }
+
+  bool setCustomHeader(size_t slot, const std::string& name, const std::string& value);
+  const std::array<HttpHeader, MAX_CUSTOM_HEADERS>& getCustomHeaders() const { return active().customHeaders; }
 };
 
-// Helper macro to access credential store
 #define KOREADER_STORE KOReaderCredentialStore::getInstance()

@@ -2,8 +2,11 @@
 
 #include <FeatureFlags.h>
 #include <GfxRenderer.h>
+#include <HttpHeader.h>
+#include <Logging.h>
 
 #include <cstring>
+#include <string>
 
 #include "KOReaderCredentialStore.h"
 #include "activities/settings/KOReaderSettingsActivity.h"
@@ -70,6 +73,69 @@ void setMatchMethod(const uint8_t method, const bool save) {
   }
 }
 
+void getCustomHeaderLine(size_t slot, char* outBuf, size_t bufSize) {
+  if (slot >= KOReaderCredentialStore::MAX_CUSTOM_HEADERS) {
+    copyToBuffer("", outBuf, bufSize);
+    return;
+  }
+  copyToBuffer(formatHttpHeaderLine(KOREADER_STORE.getCustomHeaders()[slot]), outBuf, bufSize);
+}
+
+void setCustomHeaderLine(size_t slot, const char* line, const bool save) {
+  HttpHeader parsed;
+  if (!parseHttpHeaderLine(line != nullptr ? line : "", parsed)) {
+    return;
+  }
+  if (!KOREADER_STORE.setCustomHeader(slot, parsed.name, parsed.value)) {
+    return;
+  }
+  if (save && !KOREADER_STORE.saveToFile()) {
+    LOG_WRN("KRS", "Failed to persist KOReader custom header");
+  }
+}
+
+void setCustomHeader(size_t slot, const char* name, const char* value, const bool save) {
+  if (!KOREADER_STORE.setCustomHeader(slot, name != nullptr ? name : "", value != nullptr ? value : "")) {
+    return;
+  }
+  if (save && !KOREADER_STORE.saveToFile()) {
+    LOG_WRN("KRS", "Failed to persist KOReader custom header");
+  }
+}
+
+uint8_t getActiveProfile() { return static_cast<uint8_t>(KOREADER_STORE.getActiveProfileIndex()); }
+
+void setActiveProfile(const uint8_t index, const bool save) {
+  if (!KOREADER_STORE.setActiveProfileIndex(index)) {
+    return;
+  }
+  if (save && !KOREADER_STORE.saveToFile()) {
+    LOG_WRN("KRS", "Failed to persist KOReader profile");
+  }
+}
+
+void getProfileName(char* outBuf, size_t bufSize) { copyToBuffer(KOREADER_STORE.getProfileName(), outBuf, bufSize); }
+
+void setProfileName(const char* value, const bool save) {
+  KOREADER_STORE.setProfileName(value != nullptr ? value : "");
+  if (save && !KOREADER_STORE.saveToFile()) {
+    LOG_WRN("KRS", "Failed to persist KOReader profile name");
+  }
+}
+
+void getProfileLabel(size_t index, char* outBuf, size_t bufSize) {
+  if (index >= KOReaderCredentialStore::PROFILE_COUNT) {
+    copyToBuffer("", outBuf, bufSize);
+    return;
+  }
+  const auto& profile = KOREADER_STORE.getProfiles()[index];
+  if (!profile.name.empty()) {
+    copyToBuffer(profile.name, outBuf, bufSize);
+    return;
+  }
+  copyToBuffer(std::to_string(index + 1), outBuf, bufSize);
+}
+
 void saveSettings() {
   if (!KOREADER_STORE.saveToFile()) {
     LOG_WRN("KRS", "Failed to persist KOReader settings");
@@ -104,6 +170,14 @@ void registerFeature() {
   api.setPassword = setPassword;
   api.setServerUrl = setServerUrl;
   api.setMatchMethod = setMatchMethod;
+  api.getCustomHeaderLine = getCustomHeaderLine;
+  api.setCustomHeaderLine = setCustomHeaderLine;
+  api.setCustomHeader = setCustomHeader;
+  api.getActiveProfile = getActiveProfile;
+  api.setActiveProfile = setActiveProfile;
+  api.getProfileName = getProfileName;
+  api.setProfileName = setProfileName;
+  api.getProfileLabel = getProfileLabel;
   api.saveSettings = saveSettings;
   core::SyncServiceRegistry::setKoreaderApi(api);
 

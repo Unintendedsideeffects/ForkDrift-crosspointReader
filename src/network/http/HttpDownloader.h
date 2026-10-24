@@ -1,5 +1,6 @@
 #pragma once
 #include <HalStorage.h>
+#include <HttpHeader.h>
 
 #include <functional>
 #include <string>
@@ -39,37 +40,45 @@ class HttpDownloader {
    */
   static http_fetch::Result fetchUrlResult(const std::string& url, std::string& outContent,
                                            const std::string& username = "", const std::string& password = "",
-                                           bool logFailure = true);
+                                           bool logFailure = true, const HttpHeader* extraHeaders = nullptr,
+                                           size_t extraHeaderCount = 0);
 
   static http_fetch::Result fetchUrlResult(const std::string& url, Stream& stream, const std::string& username = "",
-                                           const std::string& password = "", bool logFailure = true);
+                                           const std::string& password = "", bool logFailure = true,
+                                           const HttpHeader* extraHeaders = nullptr, size_t extraHeaderCount = 0);
 
   static http_fetch::Result fetchUrlResult(const std::string& url, const DataCallback& onData,
                                            const std::string& username = "", const std::string& password = "",
-                                           bool logFailure = true);
+                                           bool logFailure = true, const HttpHeader* extraHeaders = nullptr,
+                                           size_t extraHeaderCount = 0);
 
   static bool fetchUrl(const std::string& url, std::string& outContent, const std::string& username = "",
-                       const std::string& password = "", int* outStatus = nullptr, bool logFailure = true);
+                       const std::string& password = "", int* outStatus = nullptr, bool logFailure = true,
+                       const HttpHeader* extraHeaders = nullptr, size_t extraHeaderCount = 0);
 
   static bool fetchUrl(const std::string& url, Stream& stream, const std::string& username = "",
-                       const std::string& password = "", int* outStatus = nullptr, bool logFailure = true);
+                       const std::string& password = "", int* outStatus = nullptr, bool logFailure = true,
+                       const HttpHeader* extraHeaders = nullptr, size_t extraHeaderCount = 0);
 
   static bool fetchUrl(const std::string& url, const DataCallback& onData, const std::string& username = "",
-                       const std::string& password = "", int* outStatus = nullptr, bool logFailure = true);
+                       const std::string& password = "", int* outStatus = nullptr, bool logFailure = true,
+                       const HttpHeader* extraHeaders = nullptr, size_t extraHeaderCount = 0);
 
   /**
    * Probe a URL: sends GET with credentials, returns the HTTP status code
    * (or a negative HTTPClient error code) without reading the response body.
    * Useful for connection tests.
    */
-  static int probeUrl(const std::string& url, const std::string& username = "", const std::string& password = "");
+  static int probeUrl(const std::string& url, const std::string& username = "", const std::string& password = "",
+                      const HttpHeader* extraHeaders = nullptr, size_t extraHeaderCount = 0);
 
   /**
    * Download a file to the SD card with optional credentials.
    */
   static DownloadError downloadToFile(const std::string& url, const std::string& destPath,
                                       ProgressCallback progress = nullptr, bool* cancelFlag = nullptr,
-                                      const std::string& username = "", const std::string& password = "");
+                                      const std::string& username = "", const std::string& password = "",
+                                      const HttpHeader* extraHeaders = nullptr, size_t extraHeaderCount = 0);
 
   /**
    * POST a JSON body to a URL and return the response body as a string.

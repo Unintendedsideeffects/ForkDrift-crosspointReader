@@ -19,7 +19,8 @@ http_fetch::Result fetchRootBooks(const OpdsServer& server, std::vector<LibraryS
     OpdsParserStream stream{parser};
     const std::string url = UrlUtils::buildUrl(server.url, "");
     const auto creds = core::effectiveOpdsCredentials(server);
-    result = HttpDownloader::fetchUrlResult(url, stream, creds.username, creds.password, false);
+    result = HttpDownloader::fetchUrlResult(url, stream, creds.username, creds.password, false,
+                                            server.customHeaders.data(), OpdsServer::MAX_CUSTOM_HEADERS);
     if (!result.ok()) {
       return result;
     }

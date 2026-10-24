@@ -18,6 +18,7 @@
 #include <esp_task_wdt.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstring>
@@ -48,6 +49,7 @@
 #include "network/server/TodoPlannerApi.h"
 #include "network/server/WebDAVHandler.h"
 #include "network/server/WebRouteTableHandler.h"
+#include "util/OpdsDownloadFolder.h"
 #if ENABLE_REMOTE_CONTROL
 #include "network/server/RemoteControlApi.h"
 #endif
@@ -823,27 +825,28 @@ void CrossPointWebServer::handleRemoteButton() {
 void CrossPointWebServer::handleGetOpdsServers() const {
   const auto& servers = OPDS_STORE.getServers();
 
-  // Stream JSON array incrementally to avoid allocating the full response in memory
   server->setContentLength(CONTENT_LENGTH_UNKNOWN);
   server->send(200, "application/json", "");
   server->sendContent("[");
 
-  char output[512];
-  constexpr size_t outputSize = sizeof(output);
   JsonDocument doc;
-
   for (size_t i = 0; i < servers.size(); i++) {
     doc.clear();
     doc["index"] = i;
     doc["name"] = servers[i].name;
     doc["url"] = servers[i].url;
     doc["username"] = servers[i].username;
-    // Never expose passwords over the API — only indicate whether one is set
     doc["hasPassword"] = !servers[i].password.empty();
+    doc["downloadFolder"] = servers[i].downloadFolder;
+    JsonArray headers = doc["headers"].to<JsonArray>();
+    for (const auto& header : servers[i].customHeaders) {
+      JsonObject entry = headers.add<JsonObject>();
+      entry["name"] = header.name;
+      entry["hasValue"] = !header.value.empty();
+    }
 
-    const size_t written = serializeJson(doc, output, outputSize);
-    if (written >= outputSize) continue;
-
+    String output;
+    serializeJson(doc, output);
     if (i > 0) server->sendContent(",");
     server->sendContent(output);
   }
@@ -880,10 +883,45 @@ void CrossPointWebServer::handlePostOpdsServer() {
   opdsServer.url = doc["url"] | std::string("");
   opdsServer.username = doc["username"] | std::string("");
 
-  // The password field is optional in the JSON payload. When absent (vs. present but empty),
-  // we preserve the existing password — the web UI omits it when the user hasn't changed it.
   bool hasPasswordField = doc["password"].is<const char*>() || doc["password"].is<std::string>();
   std::string password = doc["password"] | std::string("");
+  const bool hasDownloadFolder = !doc["downloadFolder"].isNull();
+  const bool hasHeaders = doc["headers"].is<JsonArrayConst>();
+
+  if (hasDownloadFolder) {
+    const std::string rawFolder = doc["downloadFolder"] | std::string("");
+    std::string folder;
+    if (!OpdsDownloadFolder::normalize(rawFolder, folder)) {
+      server->send(400, "text/plain", "Invalid download folder (maximum 63 bytes)");
+      return;
+    }
+    opdsServer.downloadFolder = std::move(folder);
+  }
+
+  if (hasHeaders) {
+    size_t slot = 0;
+    for (JsonObjectConst entry : doc["headers"].as<JsonArrayConst>()) {
+      if (slot >= OpdsServer::MAX_CUSTOM_HEADERS) {
+        break;
+      }
+      const std::string name = entry["name"] | std::string("");
+      const bool hasValue = !entry["value"].isNull();
+      const std::string value = entry["value"] | std::string("");
+      if (name.empty()) {
+        opdsServer.customHeaders[slot] = {};
+      } else if (hasValue) {
+        if (!isValidHttpHeader(name, value)) {
+          server->send(400, "text/plain", "Invalid custom header");
+          return;
+        }
+        opdsServer.customHeaders[slot].name = name;
+        opdsServer.customHeaders[slot].value = value;
+      } else {
+        opdsServer.customHeaders[slot].name = name;
+      }
+      ++slot;
+    }
+  }
 
   if (doc["index"].is<int>()) {
     int idx = doc["index"].as<int>();
@@ -891,13 +929,32 @@ void CrossPointWebServer::handlePostOpdsServer() {
       server->send(400, "text/plain", "Invalid server index");
       return;
     }
-    // Preserve existing password if not explicitly provided
-    if (!hasPasswordField) {
-      const auto* existing = OPDS_STORE.getServer(static_cast<size_t>(idx));
-      if (existing) password = existing->password;
+    const auto* existing = OPDS_STORE.getServer(static_cast<size_t>(idx));
+    if (existing) {
+      if (!hasPasswordField) {
+        password = existing->password;
+      }
+      if (!hasDownloadFolder) {
+        opdsServer.downloadFolder = existing->downloadFolder;
+      }
+      if (!hasHeaders) {
+        opdsServer.customHeaders = existing->customHeaders;
+      } else {
+        for (size_t slot = 0; slot < OpdsServer::MAX_CUSTOM_HEADERS; ++slot) {
+          if (opdsServer.customHeaders[slot].name.empty()) {
+            continue;
+          }
+          if (doc["headers"][slot]["value"].isNull()) {
+            opdsServer.customHeaders[slot].value = existing->customHeaders[slot].value;
+          }
+        }
+      }
     }
     opdsServer.password = password;
-    OPDS_STORE.updateServer(static_cast<size_t>(idx), opdsServer);
+    if (!OPDS_STORE.updateServer(static_cast<size_t>(idx), opdsServer)) {
+      server->send(500, "text/plain", "Failed to save OPDS server");
+      return;
+    }
     LOG_DBG("WEB", "Updated OPDS server at index %d", idx);
   } else {
     opdsServer.password = password;
@@ -964,6 +1021,22 @@ void CrossPointWebServer::handleTestOpdsServer() {
   const std::string url = doc["url"] | std::string("");
   const std::string username = doc["username"] | std::string("");
   const std::string password = doc["password"] | std::string("");
+  std::array<HttpHeader, OpdsServer::MAX_CUSTOM_HEADERS> extraHeaders{};
+  if (doc["headers"].is<JsonArrayConst>()) {
+    size_t slot = 0;
+    for (JsonObjectConst entry : doc["headers"].as<JsonArrayConst>()) {
+      if (slot >= OpdsServer::MAX_CUSTOM_HEADERS) {
+        break;
+      }
+      extraHeaders[slot].name = entry["name"] | std::string("");
+      extraHeaders[slot].value = entry["value"] | std::string("");
+      if (!extraHeaders[slot].name.empty() && !isValidHttpHeader(extraHeaders[slot].name, extraHeaders[slot].value)) {
+        server->send(400, "text/plain", "Invalid custom header");
+        return;
+      }
+      ++slot;
+    }
+  }
 
   if (url.empty()) {
     server->send(400, "text/plain", "URL required");
@@ -975,7 +1048,8 @@ void CrossPointWebServer::handleTestOpdsServer() {
   bool fetched = false;
   {
     OpdsParserStream stream{parser};
-    fetched = HttpDownloader::fetchUrl(url, stream, username, password);
+    fetched = HttpDownloader::fetchUrl(url, stream, username, password, nullptr, true, extraHeaders.data(),
+                                       OpdsServer::MAX_CUSTOM_HEADERS);
   }
   if (fetched && parser) {
     resp["ok"] = true;
@@ -990,7 +1064,8 @@ void CrossPointWebServer::handleTestOpdsServer() {
 
   // A failed streamed fetch does not expose its HTTP status. Probe once more so
   // the UI can distinguish bad credentials/URLs from a malformed OPDS document.
-  const int code = HttpDownloader::probeUrl(url, username, password);
+  const int code =
+      HttpDownloader::probeUrl(url, username, password, extraHeaders.data(), OpdsServer::MAX_CUSTOM_HEADERS);
   resp["status"] = code;
   resp["ok"] = false;
   if (code > 0) {

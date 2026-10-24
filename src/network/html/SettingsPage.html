@@ -443,7 +443,7 @@
     }
 
     if (setting.type === 'string') {
-      const inputType = setting.name.toLowerCase().includes('password') ? 'password' : 'text';
+      const inputType = (setting.obfuscated || setting.name.toLowerCase().includes('password')) ? 'password' : 'text';
       const val = setting.value || '';
       const placeholder = inputType === 'password' && setting.hasValue ? ' placeholder="Saved"' : '';
       return '<input type="' + inputType + '" id="' + id + '" value="' + escapeHtml(val) + '"' +
@@ -677,7 +677,7 @@
     const changes = {};
     allSettings.forEach(function(s) {
       const current = getValue(s);
-      const isPasswordField = s.type === 'string' && s.name.toLowerCase().includes('password');
+      const isPasswordField = s.type === 'string' && (s.obfuscated || s.name.toLowerCase().includes('password'));
       if (isPasswordField) {
         // Password fields are masked on load; apply only when user explicitly edited.
         if (touchedFields[s.key] && current !== undefined) {

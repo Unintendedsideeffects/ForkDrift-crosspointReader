@@ -17,8 +17,10 @@
 namespace core {
 
 // Buffer sizes for credential strings.  Callers must allocate at least these sizes.
-static constexpr size_t kSyncCredBufSize = 128;  // username / password
-static constexpr size_t kSyncUrlBufSize = 256;   // server URL
+static constexpr size_t kSyncCredBufSize = 128;
+static constexpr size_t kSyncUrlBufSize = 256;
+static constexpr size_t kSyncHeaderBufSize = 192;
+static constexpr size_t kSyncProfileCount = 4;
 
 // Narrow API surface for KOReader sync credential and state access.
 // All string accessors write into caller-provided buffers (null-terminated).
@@ -36,6 +38,16 @@ struct KoreaderServiceApi {
   void (*setPassword)(const char* value, bool save);
   void (*setServerUrl)(const char* value, bool save);
   void (*setMatchMethod)(uint8_t method, bool save);
+
+  void (*getCustomHeaderLine)(size_t slot, char* outBuf, size_t bufSize);
+  void (*setCustomHeaderLine)(size_t slot, const char* line, bool save);
+  void (*setCustomHeader)(size_t slot, const char* name, const char* value, bool save);
+
+  uint8_t (*getActiveProfile)();
+  void (*setActiveProfile)(uint8_t index, bool save);
+  void (*getProfileName)(char* outBuf, size_t bufSize);
+  void (*setProfileName)(const char* value, bool save);
+  void (*getProfileLabel)(size_t index, char* outBuf, size_t bufSize);
 
   void (*saveSettings)();
 };

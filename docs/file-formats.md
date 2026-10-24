@@ -283,3 +283,24 @@ Located at `paragraphLutOffset`.
 #### List Item Lookup Table
 Located at `liLutOffset`.
 - **`listItemIndexes`**: `u16[lutSize]` array mapping each page to its starting typeset HTML list item index.
+
+---
+
+## SD JSON settings (additive)
+
+These files live under `/.crosspoint/` on the SD card. New keys are optional; older files load unchanged.
+
+### `opds.json`
+
+`servers[]` objects may include:
+
+- `headers`: array of `{ "name", "value_obf" }` (up to 2). Values use the same MAC-XOR + base64 obfuscation as `password_obf`. A missing `headers` key leaves both slots empty.
+- `downloadFolder`: absolute SD path, max 63 UTF-8 bytes. Missing or `""` inherits the default (`"/"` = SD root). `"/"` is an explicit SD-root override. Invalid paths fail the load rather than keeping a partial list.
+
+### `koreader.json`
+
+May include:
+
+- `headers`: up to 2 `{ "name", "value_obf" }` slots on the active profile (also mirrored at the document root for older readers).
+- `profiles`: up to 4 objects of `{ "name", "username", "password_obf", "serverUrl", "headers" }`. A file without `profiles` is treated as a single-server config and migrated into profile 0 on the next save.
+- `activeProfile`: 0–3 index into `profiles`.

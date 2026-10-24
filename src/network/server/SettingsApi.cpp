@@ -17,8 +17,11 @@
 
 namespace {
 
-bool isPasswordField(const char* key) {
-  return key != nullptr && (strstr(key, "password") != nullptr || strstr(key, "Password") != nullptr);
+bool isPasswordField(const SettingInfo& s) {
+  if (s.obfuscated) {
+    return true;
+  }
+  return s.key != nullptr && (strstr(s.key, "password") != nullptr || strstr(s.key, "Password") != nullptr);
 }
 
 // Serializes one setting as a JSON object into `output` (null-terminated).
@@ -67,8 +70,9 @@ size_t serializeSettingJson(const SettingInfo& s, char* output, size_t outputSiz
     }
     case SettingType::STRING: {
       doc["type"] = "string";
-      if (isPasswordField(s.key)) {
+      if (isPasswordField(s)) {
         doc["value"] = "";
+        doc["obfuscated"] = true;
         if (s.stringGetter) {
           doc["hasValue"] = !s.stringGetter().empty();
         } else if (s.stringPtr) {
