@@ -239,6 +239,8 @@ bool HalGPIO::wasAnyReleased() const {
   return hasVirtual || inputMgr.wasAnyReleased();
 }
 
+bool HalGPIO::rawInputActive() { return inputMgr.getState() != 0; }
+
 bool HalGPIO::virtualBitSet(uint8_t buttonIndex) const {
   const uint8_t bit = static_cast<uint8_t>(1u << buttonIndex);
   portENTER_CRITICAL(&virtualButtonMux);

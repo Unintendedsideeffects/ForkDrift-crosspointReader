@@ -34,6 +34,7 @@ class HalGPIO {
   bool wasAnyPressed() const { return false; }
   bool wasAnyReleased() const { return false; }
   unsigned long getHeldTime() const { return 0; }
+  bool rawInputActive() { return false; }
   bool deviceIsX3() const {
 #ifdef SCREEN_HARNESS_X3
     return true;

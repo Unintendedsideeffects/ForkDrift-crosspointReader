@@ -74,6 +74,7 @@ class HalGPIO {
   bool wasAnyReleased() const;
   unsigned long getHeldTime() const;
   unsigned long getPowerButtonHeldTime() const;
+  bool rawInputActive();
 
   // Inject a one-frame virtual button activation by physical index.
   // wasPressed(), wasReleased() and peekReleased() all report it for the rest of

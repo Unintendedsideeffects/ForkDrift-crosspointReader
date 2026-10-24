@@ -6,6 +6,7 @@
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
+#include <Utf8.h>
 
 #include <algorithm>
 
@@ -88,6 +89,7 @@ bool containsHiddenPathSegment(const std::string& path) {
 }  // namespace
 
 static std::string getFileName(std::string filename) {
+  filename = utf8ComposeNfc(filename);
   if (filename.back() == '/') {
     filename.pop_back();
     if (!UITheme::getInstance().getTheme().showsFileIcons()) {
@@ -108,6 +110,12 @@ void FileBrowserActivity::loadFiles() {
   }
 
   root.rewindDirectory();
+  size_t entryCount = 0;
+  for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
+    ++entryCount;
+  }
+  root.rewindDirectory();
+  files.reserve(entryCount);
 
   char name[500];
   for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
@@ -438,7 +446,8 @@ void FileBrowserActivity::confirmDeleteEntry(const std::string& entry) {
   };
 
   const std::string heading = tr(STR_DELETE_ITEM_CONFIRM);
-  startActivityForResult(std::make_unique<ConfirmationActivity>(renderer, mappedInput, heading, entry), handler);
+  startActivityForResult(std::make_unique<ConfirmationActivity>(renderer, mappedInput, heading, utf8ComposeNfc(entry)),
+                         handler);
 }
 
 void FileBrowserActivity::toggleHiddenFiles() {

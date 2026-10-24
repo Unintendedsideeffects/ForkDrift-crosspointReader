@@ -122,6 +122,14 @@ def patch_simulator_hal(env):
         marker="TimerRefresh",
     )
 
+    _replace_once(
+        os.path.join(src, "HalGPIO.h"),
+        "unsigned long getPowerButtonHeldTime() const;",
+        "unsigned long getPowerButtonHeldTime() const;\n"
+        "  bool rawInputActive() { return false; }",
+        marker="rawInputActive",
+    )
+
     # 2) startDeepSleep 2-arg overload (declaration)
     _replace_once(
         os.path.join(src, "HalPowerManager.h"),

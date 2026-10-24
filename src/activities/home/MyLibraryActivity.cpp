@@ -6,6 +6,7 @@
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
+#include <Utf8.h>
 
 #include <algorithm>
 #include <cctype>
@@ -148,6 +149,12 @@ void MyLibraryActivity::loadFiles() {
   }
 
   root.rewindDirectory();
+  size_t entryCount = 0;
+  for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
+    ++entryCount;
+  }
+  root.rewindDirectory();
+  files.reserve(entryCount);
 
   char name[500];
   for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
@@ -410,6 +417,7 @@ void MyLibraryActivity::loop() {
 }
 
 static std::string getFileName(std::string filename) {
+  filename = utf8ComposeNfc(filename);
   if (filename.back() == '/') {
     return filename.substr(0, filename.length() - 1);
   }
@@ -431,7 +439,7 @@ void MyLibraryActivity::render(RenderLock&&) {
     // still has directory context without the full header chrome.
     contentTop = kTabStripHeight + metrics.verticalSpacing;
     if (basepath != "/") {
-      const auto folderName = basepath.substr(basepath.rfind('/') + 1);
+      const auto folderName = utf8ComposeNfc(basepath.substr(basepath.rfind('/') + 1));
       renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, contentTop, folderName.c_str());
       contentTop += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing;
     }
@@ -439,7 +447,7 @@ void MyLibraryActivity::render(RenderLock&&) {
     // Own the string: `basepath.substr(...).c_str()` would dangle (points into a
     // temporary destroyed at the end of the statement) before drawHeader reads it.
     const std::string folderName =
-        basepath == "/" ? std::string(tr(STR_SD_CARD)) : basepath.substr(basepath.rfind('/') + 1);
+        basepath == "/" ? std::string(tr(STR_SD_CARD)) : utf8ComposeNfc(basepath.substr(basepath.rfind('/') + 1));
     GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, folderName.c_str());
 
     std::vector<TabInfo> tabs = {
@@ -502,7 +510,7 @@ void MyLibraryActivity::renderFilesTab(int contentTop, int contentHeight) const 
 
   GUI.drawList(
       renderer, Rect{0, contentTop, pageWidth, contentHeight}, fileCount, selectorIndex,
-      [this](int index) { return files[index]; }, nullptr,
+      [this](int index) { return utf8ComposeNfc(files[index]); }, nullptr,
       [this](int index) { return UITheme::getFileIcon(files[index]); });
 }
 
@@ -543,7 +551,7 @@ void MyLibraryActivity::renderGrid() const {
       title = recentBooks[idx].title;
     } else {
       path = basepath + files[idx];
-      title = files[idx];
+      title = utf8ComposeNfc(files[idx]);
       if (title.back() == '/') title.pop_back();
     }
 

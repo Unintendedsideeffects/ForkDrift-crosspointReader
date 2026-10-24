@@ -1273,7 +1273,11 @@ void loop() {
     yield();
   } else if (millis() - lastActivityTime >= HalPowerManager::IDLE_POWER_SAVING_MS) {
     powerManager.setPowerSaving(true);
-    delay(50);
+    const unsigned long idleStart = millis();
+    while (millis() - idleStart < 50) {
+      delay(10);
+      if (gpio.rawInputActive()) break;
+    }
   } else {
     delay(10);
   }
