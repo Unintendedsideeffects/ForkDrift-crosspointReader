@@ -66,6 +66,19 @@ features:
     conflicts: []
     recommends: []
 
+  epub_gif:
+    macro: ENABLE_EPUB_GIF
+    label: EPUB GIF Images
+    description: Static first-frame GIF rendering in EPUB and Markdown (no animation)
+    estimated_size_kib: 28
+    implemented: true
+    stable: true
+    requires_all:
+      - book_images
+    requires_any: []
+    conflicts: []
+    recommends: []
+
   markdown:
     macro: ENABLE_MARKDOWN
     label: Markdown/Obsidian
@@ -684,6 +697,7 @@ profiles:
       image_sleep: true
       epub_support: true
       book_images: true
+      epub_gif: true
       hyphenation: true
       xtc_support: true
       lyra_theme: true
@@ -714,6 +728,7 @@ profiles:
       opendyslexic_fonts: false
       image_sleep: true
       book_images: true
+      epub_gif: true
       markdown: true
       integrations: true
       koreader_sync: true

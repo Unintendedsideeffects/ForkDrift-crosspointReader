@@ -96,3 +96,67 @@ TEST_CASE("probeFromFile rejects an unsupported header without hanging") {
   // make this count 1, not 3, and no unpinned assertion here would notice.
   CHECK(Storage.openFileForReadCount() == 3);
 }
+
+#if ENABLE_EPUB_GIF
+namespace {
+
+std::vector<uint8_t> validGif89Header(uint16_t width, uint16_t height) {
+  return {'G',
+          'I',
+          'F',
+          '8',
+          '9',
+          'a',
+          static_cast<uint8_t>(width & 0xFF),
+          static_cast<uint8_t>(width >> 8),
+          static_cast<uint8_t>(height & 0xFF),
+          static_cast<uint8_t>(height >> 8)};
+}
+
+}  // namespace
+
+TEST_CASE("probeFromFile reads GIF89a logical screen descriptor as little-endian") {
+  Storage.reset();
+  HalFile writeHandle;
+  Storage.openFileForWrite("TEST", "/cache/figure.gif", writeHandle);
+  const std::vector<uint8_t> header = validGif89Header(100, 200);
+  writeHandle.write(header.data(), header.size());
+
+  ImageDimensions dims{0, 0};
+  REQUIRE(imagedims::probeFromFile("/cache/figure.gif", dims));
+  CHECK(dims.width == 100);
+  CHECK(dims.height == 200);
+  CHECK(Storage.openFileForReadCount() == 1);
+}
+
+TEST_CASE("probeFromFile rejects a G-prefix that is not a GIF signature") {
+  Storage.reset();
+  HalFile writeHandle;
+  Storage.openFileForWrite("TEST", "/cache/notgif.bin", writeHandle);
+  const std::vector<uint8_t> notGif = {'G', 'A', 'R', 'B', 'A', 'G', 'E'};
+  writeHandle.write(notGif.data(), notGif.size());
+
+  ImageDimensions dims{0, 0};
+  CHECK_FALSE(imagedims::probeFromFile("/cache/notgif.bin", dims));
+  CHECK(Storage.openFileForReadCount() == 3);
+}
+
+TEST_CASE("ImageDimsProbe accepts GIF87a and GIF89a and rejects zero dimensions") {
+  {
+    ImageDimsProbe probe;
+    const std::vector<uint8_t> gif87 = {'G', 'I', 'F', '8', '7', 'a', 2, 0, 2, 0};
+    CHECK(probe.write(gif87.data(), gif87.size()) == gif87.size() - 1);
+    ImageDimensions dims{0, 0};
+    REQUIRE(probe.getDimensions(dims));
+    CHECK(dims.width == 2);
+    CHECK(dims.height == 2);
+  }
+  {
+    ImageDimsProbe probe;
+    const std::vector<uint8_t> zero = validGif89Header(0, 10);
+    probe.write(zero.data(), zero.size());
+    ImageDimensions dims{0, 0};
+    CHECK_FALSE(probe.getDimensions(dims));
+  }
+}
+#endif

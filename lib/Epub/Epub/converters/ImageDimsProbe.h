@@ -1,4 +1,5 @@
 #pragma once
+#include <FeatureFlags.h>
 #include <Print.h>
 
 #include <string>
@@ -15,9 +16,9 @@
 // and the failed probes drive free heap under the critical floor, which is what
 // made image-heavy chapters lay out to zero elements. See docs/FINDINGS.md.
 //
-// Streaming JPEG/PNG header parser: finds image dimensions from the first few
-// KB of a compressed stream without inflating the whole image. Feed bytes via
-// the Print interface (e.g. Epub::readItemContentsToStream with
+// Streaming JPEG/PNG/GIF header parser: finds image dimensions from the first
+// few KB of a compressed stream without inflating the whole image. Feed bytes
+// via the Print interface (e.g. Epub::readItemContentsToStream with
 // allowEarlyStop=true); write() returns short once the dimensions are known or
 // the stream is known to be unusable, which the zip layer treats as a polite
 // early stop rather than an error.
@@ -25,6 +26,7 @@
 // JPEG: walks marker segments (skipping EXIF/APPn of any size statefully, so
 // nothing is buffered) until a SOFn frame header yields the dimensions.
 // PNG: reads the IHDR fields at their fixed offsets (bytes 16..23).
+// GIF: Logical Screen Descriptor little-endian width/height at bytes 6..9.
 class ImageDimsProbe : public Print {
  public:
   size_t write(uint8_t b) override;
@@ -54,6 +56,9 @@ class ImageDimsProbe : public Print {
     JpegLenLo,   // segment length, low byte
     JpegSkip,    // skipping a non-SOF segment body
     JpegSof,     // collecting the 5 SOF bytes: precision, height(2), width(2)
+#if ENABLE_EPUB_GIF
+    GifHeader,
+#endif
     Done,
     Failed,
   };
@@ -74,7 +79,7 @@ class ImageDimsProbe : public Print {
 
 namespace imagedims {
 
-// Read a JPEG/PNG's dimensions from a file on storage by streaming its header,
+// Read a JPEG/PNG/GIF's dimensions from a file on storage by streaming its header,
 // allocating nothing on the heap.
 //
 // Prefer this to ImageToFramebufferDecoder::getDimensions() anywhere the answer

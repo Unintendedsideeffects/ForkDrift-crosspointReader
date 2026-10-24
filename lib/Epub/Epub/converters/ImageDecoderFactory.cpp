@@ -6,21 +6,24 @@
 
 #include <cstdint>
 #include <memory>
+#include <new>
 #include <string>
 
+#if ENABLE_EPUB_GIF
+#include "GifToFramebufferConverter.h"
+#endif
+#include "ImageMagic.h"
 #include "JpegToFramebufferConverter.h"
 #include "PngToFramebufferConverter.h"
 
 std::unique_ptr<JpegToFramebufferConverter> ImageDecoderFactory::jpegDecoder = nullptr;
 std::unique_ptr<PngToFramebufferConverter> ImageDecoderFactory::pngDecoder = nullptr;
+#if ENABLE_EPUB_GIF
+std::unique_ptr<GifToFramebufferConverter> ImageDecoderFactory::gifDecoder = nullptr;
+#endif
 
 namespace {
-enum class SniffedFormat { Unknown, Jpeg, Png };
 
-// Detect the image format from magic bytes. Needed for EPUBs that name images
-// without a file extension (e.g. O'Reilly's "media/file14"), where the
-// extension-based lookup below finds nothing. Only meaningful for a real file
-// on storage (the extracted cache copy), not an EPUB-internal path.
 SniffedFormat sniffImageFormat(const std::string& imagePath) {
   SpiBusMutex::Guard guard;
   HalFile file;
@@ -30,14 +33,7 @@ SniffedFormat sniffImageFormat(const std::string& imagePath) {
   uint8_t magic[8] = {0};
   const int read = file.read(magic, sizeof(magic));
   file.close();
-  if (read >= 3 && magic[0] == 0xFF && magic[1] == 0xD8 && magic[2] == 0xFF) {
-    return SniffedFormat::Jpeg;
-  }
-  if (read >= 8 && magic[0] == 0x89 && magic[1] == 0x50 && magic[2] == 0x4E && magic[3] == 0x47 && magic[4] == 0x0D &&
-      magic[5] == 0x0A && magic[6] == 0x1A && magic[7] == 0x0A) {
-    return SniffedFormat::Png;
-  }
-  return SniffedFormat::Unknown;
+  return sniffImageMagic(magic, read);
 }
 }  // namespace
 
@@ -55,9 +51,12 @@ ImageToFramebufferDecoder* ImageDecoderFactory::getDecoder(const std::string& im
 
   bool wantJpeg = JpegToFramebufferConverter::supportsFormat(ext);
   bool wantPng = PngToFramebufferConverter::supportsFormat(ext);
-  // Missing/unknown extension: fall back to content sniffing (extensionless
-  // O'Reilly-style images). No-op when imagePath is not a readable file.
-  if (!wantJpeg && !wantPng) {
+#if ENABLE_EPUB_GIF
+  bool wantGif = GifToFramebufferConverter::supportsFormat(ext);
+#else
+  bool wantGif = false;
+#endif
+  if (!wantJpeg && !wantPng && !wantGif) {
     switch (sniffImageFormat(imagePath)) {
       case SniffedFormat::Jpeg:
         wantJpeg = true;
@@ -65,6 +64,11 @@ ImageToFramebufferDecoder* ImageDecoderFactory::getDecoder(const std::string& im
       case SniffedFormat::Png:
         wantPng = true;
         break;
+#if ENABLE_EPUB_GIF
+      case SniffedFormat::Gif:
+        wantGif = true;
+        break;
+#endif
       case SniffedFormat::Unknown:
         break;
     }
@@ -79,7 +83,8 @@ ImageToFramebufferDecoder* ImageDecoderFactory::getDecoder(const std::string& im
       }
     }
     return jpegDecoder.get();
-  } else if (wantPng) {
+  }
+  if (wantPng) {
     if (!pngDecoder) {
       pngDecoder.reset(new (std::nothrow) PngToFramebufferConverter());
       if (!pngDecoder) {
@@ -89,6 +94,18 @@ ImageToFramebufferDecoder* ImageDecoderFactory::getDecoder(const std::string& im
     }
     return pngDecoder.get();
   }
+#if ENABLE_EPUB_GIF
+  if (wantGif) {
+    if (!gifDecoder) {
+      gifDecoder.reset(new (std::nothrow) GifToFramebufferConverter());
+      if (!gifDecoder) {
+        LOG_ERR("DEC", "OOM: GifToFramebufferConverter");
+        return nullptr;
+      }
+    }
+    return gifDecoder.get();
+  }
+#endif
 
   LOG_ERR("DEC", "No decoder found for image: %s", imagePath.c_str());
   return nullptr;

@@ -90,6 +90,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   -DENABLE_BACKGROUND_SERVER_ON_CHARGE=1 \
   -DENABLE_BACKGROUND_SERVER_ALWAYS=1 \
   -DENABLE_TERMINUS_SLEEP=1 \
+  -DENABLE_EPUB_GIF=1 \
   -I"$ROOT_DIR" \
   -I"$ROOT_DIR/test" \
   -I"$ROOT_DIR/test/mock" \
@@ -141,6 +142,7 @@ g++ -std=c++20 -O0 -g -Wno-narrowing \
   "$ROOT_DIR/lib/miniz/src/InflateStream.cpp" \
   "$ROOT_DIR/lib/PngToBmpConverter/PngToBmpConverter.cpp" \
   "$ROOT_DIR/lib/Epub/Epub/converters/ImageDimsProbe.cpp" \
+  "$ROOT_DIR/lib/Epub/Epub/converters/GifRaster.cpp" \
   "$ROOT_DIR/lib/Epub/Epub/css/CssParser.cpp" \
   "$ROOT_DIR/lib/Epub/Epub/converters/ImageToFramebufferDecoder.cpp" \
   "$ROOT_DIR/lib/Markdown/MarkdownPreprocessor.cpp" \

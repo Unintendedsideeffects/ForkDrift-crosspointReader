@@ -593,7 +593,7 @@ Bookmarks are stored in the `.crosspoint/bookmarks` folder in the JSON format.
 Please note that this firmware is currently in active development. Current practical limitations include:
 
 * **Large cover images:** Large covers embedded in EPUB files can still take several seconds to convert for sleep screen and home screen thumbnails. Consider optimizing oversized covers if library browsing feels slow.
-* **Unsupported Image Formats:** Most JPG and PNG images in EPUBs render correctly. GIFs and progressive JPEGs are not supported and fall back to an `[Image]` placeholder.
+* **Unsupported Image Formats:** Most JPG and PNG images in EPUBs render correctly. Static GIFs render when EPUB GIF Images is compiled in (first frame only; animation is ignored). Progressive JPEGs are not supported and fall back to an `[Image]` placeholder. GIF layout is picked up after deleting `.crosspoint/` (or changing a render setting). Cover thumbnails stay JPEG/PNG.
 
 ---
 

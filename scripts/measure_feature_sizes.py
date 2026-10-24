@@ -84,6 +84,7 @@ FEATURES = [
     'bitter_fonts',             # font family feature
     'chareink_fonts',           # font family feature
     'book_images',              # firmware #error unless epub_support or markdown (see override)
+    'epub_gif',                 # requires: book_images
     'koreader_sync',            # requires: integrations
     'calibre_sync',             # requires: integrations
     'opds',                     # requires: calibre_sync (→ integrations)

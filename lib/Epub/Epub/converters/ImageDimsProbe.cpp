@@ -21,6 +21,10 @@ bool ImageDimsProbe::feed(const uint8_t b) {
         state = State::JpegSoi;
       } else if (b == PNG_SIG[0]) {
         state = State::PngHeader;
+#if ENABLE_EPUB_GIF
+      } else if (b == 'G') {
+        state = State::GifHeader;
+#endif
       } else {
         state = State::Failed;
         return false;
@@ -121,6 +125,49 @@ bool ImageDimsProbe::feed(const uint8_t b) {
         return false;
       }
       return true;
+
+#if ENABLE_EPUB_GIF
+    case State::GifHeader:
+      if (pos == 1) {
+        if (b != 'I') {
+          state = State::Failed;
+          return false;
+        }
+      } else if (pos == 2) {
+        if (b != 'F') {
+          state = State::Failed;
+          return false;
+        }
+      } else if (pos == 3) {
+        if (b != '8') {
+          state = State::Failed;
+          return false;
+        }
+      } else if (pos == 4) {
+        if (b != '7' && b != '9') {
+          state = State::Failed;
+          return false;
+        }
+      } else if (pos == 5) {
+        if (b != 'a') {
+          state = State::Failed;
+          return false;
+        }
+      } else if (pos == 6) {
+        width = b;
+      } else if (pos == 7) {
+        width |= static_cast<uint32_t>(b) << 8;
+      } else if (pos == 8) {
+        height = b;
+      } else if (pos == 9) {
+        height |= static_cast<uint32_t>(b) << 8;
+        state = State::Done;
+        pos++;
+        return false;
+      }
+      pos++;
+      return true;
+#endif
 
     case State::Done:
     case State::Failed:

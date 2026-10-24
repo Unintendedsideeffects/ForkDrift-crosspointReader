@@ -1,4 +1,6 @@
 #pragma once
+#include <FeatureFlags.h>
+
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -7,6 +9,9 @@
 
 class JpegToFramebufferConverter;
 class PngToFramebufferConverter;
+#if ENABLE_EPUB_GIF
+class GifToFramebufferConverter;
+#endif
 
 class ImageDecoderFactory {
  public:
@@ -17,4 +22,7 @@ class ImageDecoderFactory {
  private:
   static std::unique_ptr<JpegToFramebufferConverter> jpegDecoder;
   static std::unique_ptr<PngToFramebufferConverter> pngDecoder;
+#if ENABLE_EPUB_GIF
+  static std::unique_ptr<GifToFramebufferConverter> gifDecoder;
+#endif
 };

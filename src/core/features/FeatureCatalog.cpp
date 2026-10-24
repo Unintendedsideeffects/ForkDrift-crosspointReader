@@ -11,6 +11,7 @@ namespace core {
 namespace {
 
 constexpr const char* kRequiresBookImagesAny[] = {"epub_support", "markdown"};
+constexpr const char* kRequiresEpubGifAll[] = {"book_images"};
 constexpr const char* kRequiresTextSelectionAll[] = {"epub_support"};
 constexpr const char* kRequiresAnkiAll[] = {"text_selection"};
 constexpr const char* kRequiresAnnotationsAll[] = {"text_selection"};
@@ -42,6 +43,8 @@ constexpr FeatureDescriptor kFeatureCatalog[] = {
     {"image_sleep", "Image Sleep", ENABLE_IMAGE_SLEEP != 0, nullptr, 0, nullptr, 0},
     {"book_images", "Book Images", ENABLE_BOOK_IMAGES != 0, nullptr, 0, kRequiresBookImagesAny,
      sizeof(kRequiresBookImagesAny) / sizeof(kRequiresBookImagesAny[0])},
+    {"epub_gif", "EPUB GIF Images", ENABLE_EPUB_GIF != 0, kRequiresEpubGifAll,
+     sizeof(kRequiresEpubGifAll) / sizeof(kRequiresEpubGifAll[0]), nullptr, 0},
     {"markdown", "Markdown", ENABLE_MARKDOWN != 0, nullptr, 0, nullptr, 0},
     {"integrations", "Integrations", ENABLE_INTEGRATIONS != 0, nullptr, 0, nullptr, 0},
     {"koreader_sync", "KOReader Sync", ENABLE_KOREADER_SYNC != 0, kRequiresKOReaderSyncAll,
