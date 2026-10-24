@@ -70,6 +70,11 @@ bool FontDownloadActivity::fetchAndParseManifest() {
   // TLS buffers and the full JSON string in RAM simultaneously.
   static constexpr const char* MANIFEST_TMP = "/fonts_manifest.tmp";
 
+  // Drop the stale manifest list and rebuild the registry before the TLS gate and the JSON DOM
+  // are live, so discovery allocates from the least-fragmented heap.
+  families_.clear();
+  fontInstaller_.refreshRegistry();
+
   // Pre-flight heap gate. The HTTPS handshake needs a single ~38 KB contiguous
   // block for its TLS buffers (see HttpDownloader). On a fragmented heap the
   // handshake fails partway and drags free heap low enough to trip main.cpp's
@@ -120,8 +125,6 @@ bool FontDownloadActivity::fetchAndParseManifest() {
   }
 
   baseUrl_ = doc["baseUrl"] | "";
-  families_.clear();
-  fontInstaller_.refreshRegistry();
 
   JsonArray familiesArr = doc["families"].as<JsonArray>();
   // familiesArr.size() is server-controlled; reserve() uses throwing new and would

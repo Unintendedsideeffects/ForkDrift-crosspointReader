@@ -1,22 +1,30 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
 struct SdCardFontFileInfo {
-  std::string path;   // v4 on-disk naming: "/<root>/<Family>/<Family>_<size>.cpfont"
-                      // where <root> is "/.fonts" (preferred, hidden) or "/fonts" (visible).
-                      // e.g. "/.fonts/NotoSansCJK/NotoSansCJK_14.cpfont"
+  // Filename only (no directory), heap-allocated. nullptr means the canonical v4 name
+  // "<Family>_<size>.cpfont", which is rebuilt on demand by SdCardFontFamilyInfo::filePath().
+  std::unique_ptr<char[]> name;
   uint8_t pointSize;  // parsed from filename: 14
   uint8_t style;      // always 0 in v4 (all 4 styles bundled in one file);
                       // kept for potential future formats
 };
+static_assert(sizeof(SdCardFontFileInfo) == 2 * sizeof(void*), "SdCardFontFileInfo is resident per installed size");
 
 struct SdCardFontFamilyInfo {
-  std::string name;  // directory name, e.g. "NotoSansCJK"
+  static constexpr size_t PATH_BUFFER_SIZE = 160;
+
+  std::string name;            // directory name, e.g. "NotoSansCJK"
+  const char* root = nullptr;  // "/.fonts" (preferred, hidden) or "/fonts" (visible); points at a static string
   std::vector<SdCardFontFileInfo> files;
 
+  // Rebuilds "<root>/<Family>/<file>" into buf. Returns false if it does not fit.
+  bool filePath(const SdCardFontFileInfo& file, char* buf, size_t size) const;
   const SdCardFontFileInfo* findFile(uint8_t size, uint8_t style = 0) const;
   const SdCardFontFileInfo* findClosestReaderSize(uint8_t fontSizeEnum, uint8_t style = 0) const;
   bool hasSize(uint8_t size) const;
@@ -42,6 +50,7 @@ class SdCardFontRegistry {
   static const char* defaultWriteRoot();
 
   // Scan SD card, populate families_. Returns true if any families found.
+  // Invalidates pointers previously returned by getFamilies()/findFamily().
   bool discover();
 
   const std::vector<SdCardFontFamilyInfo>& getFamilies() const { return families_; }

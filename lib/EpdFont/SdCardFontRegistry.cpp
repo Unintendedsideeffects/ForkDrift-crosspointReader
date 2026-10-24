@@ -2,11 +2,24 @@
 
 #include <HalStorage.h>
 #include <Logging.h>
+#include <Memory.h>
 
 #include <algorithm>
 #include <cstring>
 
 // --- SdCardFontFamilyInfo helpers ---
+
+bool SdCardFontFamilyInfo::filePath(const SdCardFontFileInfo& file, char* buf, size_t size) const {
+  if (!buf || size == 0 || !root) return false;
+  int n;
+  if (file.name) {
+    n = snprintf(buf, size, "%s/%s/%s", root, name.c_str(), file.name.get());
+  } else {
+    n = snprintf(buf, size, "%s/%s/%s_%u.cpfont", root, name.c_str(), name.c_str(),
+                 static_cast<unsigned>(file.pointSize));
+  }
+  return n > 0 && static_cast<size_t>(n) < size;
+}
 
 const SdCardFontFileInfo* SdCardFontFamilyInfo::findFile(uint8_t size, uint8_t style) const {
   for (const auto& f : files) {
@@ -169,7 +182,17 @@ void SdCardFontRegistry::scanDirectory(const char* dirPath, SdCardFontFamilyInfo
     }
 
     SdCardFontFileInfo info;
-    info.path = std::string(dirPath) + "/" + nameBuffer;
+    char canonical[128];
+    snprintf(canonical, sizeof(canonical), "%s_%u.cpfont", family.name.c_str(), static_cast<unsigned>(size));
+    if (strcmp(canonical, nameBuffer) != 0) {
+      const size_t len = strlen(nameBuffer);
+      info.name = makeUniqueNoThrow<char[]>(len + 1);
+      if (!info.name) {
+        LOG_ERR("SDREG", "OOM storing font name %s", nameBuffer);
+        continue;
+      }
+      memcpy(info.name.get(), nameBuffer, len + 1);
+    }
     info.pointSize = size;
     info.style = style;
     family.files.push_back(std::move(info));
@@ -213,6 +236,7 @@ void SdCardFontRegistry::scanRoot(const char* rootPath, std::vector<SdCardFontFa
 
       SdCardFontFamilyInfo family;
       family.name = nameBuffer;
+      family.root = rootPath;
       std::string subDirPath = std::string(rootPath) + "/" + nameBuffer;
       SdCardFontRegistry::scanDirectory(subDirPath.c_str(), family);
 
@@ -229,7 +253,6 @@ void SdCardFontRegistry::scanRoot(const char* rootPath, std::vector<SdCardFontFa
 
 bool SdCardFontRegistry::discover() {
   families_.clear();
-  families_.reserve(MAX_SD_FAMILIES);
 
   // Hidden root is scanned first so it wins on name collisions.
   scanRoot(FONTS_DIR_HIDDEN, families_);
@@ -243,6 +266,7 @@ bool SdCardFontRegistry::discover() {
   if (static_cast<int>(families_.size()) > MAX_SD_FAMILIES) {
     families_.resize(MAX_SD_FAMILIES);
   }
+  shrinkToFit(families_);
 
   LOG_DBG("SDREG", "Discovery complete: %d families", static_cast<int>(families_.size()));
   return !families_.empty();

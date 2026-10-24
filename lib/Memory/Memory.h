@@ -5,6 +5,7 @@
 #include <new>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 // Nothrow versions of std::make_unique. Return nullptr on allocation failure
 // instead of calling abort() (the default when exceptions are disabled on ESP32).
@@ -35,6 +36,18 @@ template <typename T, typename std::enable_if<IsUnboundedArray<T>::value, int>::
 std::unique_ptr<T> makeUniqueNoThrow(size_t count) {
   using Elem = std::remove_extent_t<T>;
   return std::unique_ptr<T>(new (std::nothrow) Elem[count]());
+}
+
+// Release excess capacity of a vector. std::vector::shrink_to_fit() is a no-op when exceptions are disabled
+// (libstdc++ only reallocates inside a try/catch), so move into a right-sized vector and swap instead.
+// Invalidates pointers/iterators into `v`. T must be move-constructible.
+template <typename T>
+void shrinkToFit(std::vector<T>& v) {
+  if (v.capacity() == v.size()) return;
+  std::vector<T> tight;
+  tight.reserve(v.size());
+  for (auto& e : v) tight.push_back(std::move(e));
+  v.swap(tight);
 }
 
 // Helper struct to call a cleanup function on exit from any scope.
