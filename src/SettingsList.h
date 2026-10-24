@@ -219,6 +219,7 @@ inline std::vector<QuickActionOption> longPressMenuActionOptions() {
       {StrId::STR_IGNORE, S::LONG_MENU_OFF},
       {StrId::STR_SLEEP, S::LONG_MENU_SLEEP},
       {StrId::STR_CHANGE_FONT, S::LONG_MENU_CHANGE_FONT},
+      {StrId::STR_FOOTNOTES, S::LONG_MENU_FOOTNOTES},
   };
   if (core::FeatureModules::hasCapability(core::Capability::GuideDots)) {
     options.push_back({StrId::STR_TOGGLE_GUIDE_DOTS, S::LONG_MENU_TOGGLE_GUIDE_DOTS, "guide_dots"});

@@ -748,7 +748,8 @@ TEST_CASE("dark mode shortcut enum values are appended without shifting") {
   CHECK(static_cast<int>(CrossPointSettings::SHORT_PWRBTN_COUNT) == 18);
   CHECK(static_cast<int>(CrossPointSettings::LONG_MENU_TEXT_SELECT) == 13);
   CHECK(static_cast<int>(CrossPointSettings::LONG_MENU_TOGGLE_DARK_MODE) == 14);
-  CHECK(static_cast<int>(CrossPointSettings::LONG_PRESS_MENU_ACTION_COUNT) == 15);
+  CHECK(static_cast<int>(CrossPointSettings::LONG_MENU_FOOTNOTES) == 15);
+  CHECK(static_cast<int>(CrossPointSettings::LONG_PRESS_MENU_ACTION_COUNT) == 16);
 
   Storage.reset();
   CrossPointSettings& s = CrossPointSettings::getInstance();
@@ -793,4 +794,36 @@ TEST_CASE("UI long-press is 200ms and power-off long-press stays 400ms") {
   CHECK(CrossPointSettings::POWER_BUTTON_WAKE_SHORT_MS == 10);
   CrossPointSettings& s = CrossPointSettings::getInstance();
   CHECK(s.getPowerButtonLongPressDuration() == 400);
+}
+
+TEST_CASE("longPressMenuAction footnotes action is appended and supported") {
+  Storage.reset();
+  CrossPointSettings& s = CrossPointSettings::getInstance();
+  s.longPressMenuAction = CrossPointSettings::LONG_MENU_FOOTNOTES;
+  s.validateAndClamp();
+  CHECK(s.longPressMenuAction == CrossPointSettings::LONG_MENU_FOOTNOTES);
+
+  const auto settings = getSettingsList();
+  const SettingInfo* menuSetting = findSettingByKey(settings, "longPressMenuAction");
+  REQUIRE(menuSetting != nullptr);
+  CHECK(optionIndexForValue(*menuSetting, CrossPointSettings::LONG_MENU_FOOTNOTES) !=
+        menuSetting->enumPersistedValues.size());
+
+  const auto options = longPressMenuActionOptions();
+  bool found = false;
+  for (const auto& opt : options) {
+    if (opt.value == CrossPointSettings::LONG_MENU_FOOTNOTES) {
+      CHECK(opt.label == StrId::STR_FOOTNOTES);
+      found = true;
+      break;
+    }
+  }
+  CHECK(found);
+
+  // JSON persist/reload
+  s.longPressMenuAction = CrossPointSettings::LONG_MENU_FOOTNOTES;
+  CHECK(s.saveToFile());
+  s.longPressMenuAction = CrossPointSettings::LONG_MENU_OFF;
+  CHECK(s.loadFromFile());
+  CHECK(s.longPressMenuAction == CrossPointSettings::LONG_MENU_FOOTNOTES);
 }

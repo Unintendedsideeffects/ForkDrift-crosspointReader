@@ -189,21 +189,6 @@ int clampPercent(int percent) {
   return percent;
 }
 
-template <typename CumulativeGetter>
-int lowerBoundSpineIndex(const int spineCount, const size_t targetSize, CumulativeGetter cumulative) {
-  int first = 0;
-  int last = spineCount;
-  while (first < last) {
-    const int middle = first + (last - first) / 2;
-    if (targetSize <= cumulative(middle)) {
-      last = middle;
-    } else {
-      first = middle + 1;
-    }
-  }
-  return (first < spineCount) ? first : spineCount - 1;
-}
-
 int roundPercent(float percent) { return clampPercent(static_cast<int>(std::lround(percent))); }
 
 uint16_t clampAutoPageTurnIntervalSeconds(const uint16_t seconds) {
@@ -252,13 +237,10 @@ void EpubReaderActivity::initializeCompletionPromptTrigger() {
   int targetSpineIndex = spineCount - 1;
   size_t prevCumulative = 0;
 
-  for (int i = 0; i < spineCount; i++) {
-    const size_t cumulative = epub->getCumulativeSpineItemSize(i);
-    if (targetSize <= cumulative) {
-      targetSpineIndex = i;
-      prevCumulative = (i > 0) ? epub->getCumulativeSpineItemSize(i - 1) : 0;
-      break;
-    }
+  const int found = epub->getSpineIndexForSize(targetSize);
+  if (found >= 0) {
+    targetSpineIndex = found;
+    prevCumulative = (found > 0) ? epub->getCumulativeSpineItemSize(found - 1) : 0;
   }
 
   const size_t cumulative = epub->getCumulativeSpineItemSize(targetSpineIndex);
@@ -943,14 +925,13 @@ void EpubReaderActivity::jumpToPercent(int percent) {
   int targetSpineIndex = spineCount - 1;
   size_t prevCumulative = 0;
 
-  targetSpineIndex = lowerBoundSpineIndex(spineCount, targetSize,
-                                          [this](const int index) { return epub->getCumulativeSpineItemSize(index); });
-  const size_t cumulative = epub->getCumulativeSpineItemSize(targetSpineIndex);
-  if (targetSize <= cumulative) {
-    // Found the spine item containing the absolute position.
-    prevCumulative = (targetSpineIndex > 0) ? epub->getCumulativeSpineItemSize(targetSpineIndex - 1) : 0;
+  const int found = epub->getSpineIndexForSize(targetSize);
+  if (found >= 0) {
+    targetSpineIndex = found;
+    prevCumulative = (found > 0) ? epub->getCumulativeSpineItemSize(found - 1) : 0;
   }
 
+  const size_t cumulative = epub->getCumulativeSpineItemSize(targetSpineIndex);
   const size_t spineSize = (cumulative > prevCumulative) ? (cumulative - prevCumulative) : 0;
   // Store a normalized position within the spine so it can be applied once loaded.
   pendingSpineProgress =
@@ -1091,6 +1072,13 @@ void EpubReaderActivity::executeReaderQuickAction(CrossPointSettings::LONG_PRESS
       }
       activityManager.applyEffectiveDarkMode();
       requestUpdate();
+      break;
+    case S::LONG_MENU_FOOTNOTES:
+      if (footnoteDepth > 0) {
+        restoreSavedPosition();
+      } else {
+        onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction::FOOTNOTES);
+      }
       break;
     case S::LONG_MENU_OFF:
     default:

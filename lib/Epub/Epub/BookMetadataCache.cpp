@@ -481,7 +481,91 @@ BookMetadataCache::SpineEntry BookMetadataCache::getSpineEntry(const int index) 
   // Update memo cache
   cachedSpineIndex = index;
   cachedSpineEntry = entry;
+  cachedCumulativeIndex = index;
+  cachedCumulativeSize = entry.cumulativeSize;
   return entry;
+}
+
+uint32_t BookMetadataCache::getCumulativeSize(const int index) {
+  if (!loaded) {
+    LOG_ERR("BMC", "getCumulativeSize called but cache not loaded");
+    return 0;
+  }
+
+  if (index < 0 || index >= static_cast<int>(spineCount)) {
+    LOG_ERR("BMC", "getCumulativeSize index %d out of range", index);
+    return 0;
+  }
+
+  // Check memo cache first (avoid repeated seeks for same index)
+  if (cachedSpineIndex == index) {
+    return cachedSpineEntry.cumulativeSize;
+  }
+
+  if (cachedCumulativeIndex == index) {
+    return cachedCumulativeSize;
+  }
+
+  const uint64_t fileSize = bookFile.fileSize64();
+  const uint64_t lutPos = static_cast<uint64_t>(lutOffset) + sizeof(uint32_t) * static_cast<uint64_t>(index);
+  if (lutPos + sizeof(uint32_t) > fileSize) {
+    LOG_ERR("BMC", "Spine LUT offset out of range");
+    return 0;
+  }
+
+  // Seek to spine LUT item, read from LUT and get out data
+  bookFile.seek(lutPos);
+  uint32_t spineEntryPos;
+  if (!serialization::readPod(bookFile, spineEntryPos) || spineEntryPos >= fileSize) {
+    LOG_ERR("BMC", "Spine entry pos out of range");
+    return 0;
+  }
+  bookFile.seek(spineEntryPos);
+
+  uint32_t hrefLen = 0;
+  if (!serialization::readPod(bookFile, hrefLen) || hrefLen > 65536) {
+    LOG_ERR("BMC", "Invalid hrefLen in spine entry");
+    return 0;
+  }
+  if (static_cast<uint64_t>(spineEntryPos) + sizeof(uint32_t) + hrefLen + sizeof(uint32_t) > fileSize) {
+    LOG_ERR("BMC", "Spine entry truncated");
+    return 0;
+  }
+  if (!bookFile.seekCur(hrefLen)) {
+    LOG_ERR("BMC", "Failed to seek past href in spine entry");
+    return 0;
+  }
+
+  uint32_t cumulativeSize = 0;
+  if (!serialization::readPod(bookFile, cumulativeSize)) {
+    LOG_ERR("BMC", "Failed to read cumulativeSize");
+    return 0;
+  }
+
+  cachedCumulativeIndex = index;
+  cachedCumulativeSize = cumulativeSize;
+  return cumulativeSize;
+}
+
+int BookMetadataCache::getSpineIndexForSize(const uint32_t targetSize) {
+  if (!loaded || spineCount == 0) {
+    return -1;
+  }
+  const uint32_t totalSize = getCumulativeSize(spineCount - 1);
+  if (targetSize > totalSize) {
+    return -1;
+  }
+  int first = 0;
+  int last = spineCount;
+  while (first < last) {
+    const int middle = first + (last - first) / 2;
+    if (targetSize <= getCumulativeSize(middle)) {
+      last = middle;
+    } else {
+      first = middle + 1;
+    }
+  }
+  return (first < spineCount) ? first : -1;
 }
 
 BookMetadataCache::TocEntry BookMetadataCache::getTocEntry(const int index) {

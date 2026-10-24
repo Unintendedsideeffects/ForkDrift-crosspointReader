@@ -81,10 +81,14 @@ class BookMetadataCache {
   SpineEntry cachedSpineEntry;
   int cachedTocIndex = -1;
   TocEntry cachedTocEntry;
+  int cachedCumulativeIndex = -1;
+  uint32_t cachedCumulativeSize = 0;
 
   void invalidateMemoCache() {
     cachedSpineIndex = -1;
     cachedTocIndex = -1;
+    cachedCumulativeIndex = -1;
+    cachedCumulativeSize = 0;
   }
 
   HalFile bookFile;
@@ -146,6 +150,8 @@ class BookMetadataCache {
   bool load();
   SpineEntry getSpineEntry(int index);
   TocEntry getTocEntry(int index);
+  uint32_t getCumulativeSize(int index);
+  int getSpineIndexForSize(uint32_t targetSize);
   int getSpineCount() const { return spineCount; }
   int getTocCount() const { return tocCount; }
   bool isLoaded() const { return loaded; }
