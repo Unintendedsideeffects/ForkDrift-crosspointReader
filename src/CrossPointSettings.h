@@ -542,6 +542,9 @@ class CrossPointSettings {
 
   static uint8_t normalizeSleepScreenMode(uint8_t rawValue);
   static bool sleepModeActive(uint8_t mode);
+  // The sleep screen that applies when sleeping from the reader or from elsewhere
+  // (Smart split picks per context; otherwise the single sleepScreen).
+  static uint8_t effectiveSleepScreen(bool fromReader);
 
   // Callback to resolve SD card font IDs. Set by SdCardFontSystem::begin().
   // Returns font ID or 0 if not found.

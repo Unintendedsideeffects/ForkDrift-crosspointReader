@@ -66,6 +66,9 @@ class Activity {
   virtual bool preventAutoSleep() { return false; }
   virtual bool blocksBackgroundServer() { return false; }
   virtual bool isReaderActivity() const { return false; }
+  // Whether deep sleep from here should wake back into the open book. Differs from
+  // isReaderActivity() only for screens that stand in for a reader they replaced.
+  virtual bool sleepsAsReader() const { return isReaderActivity(); }
   virtual bool showsStatusBarIp() const { return false; }
   virtual bool showsGlobalStatusBar() const { return true; }
   virtual ScreenshotInfo getScreenshotInfo() const { return {}; }

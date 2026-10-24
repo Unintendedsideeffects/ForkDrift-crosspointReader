@@ -92,3 +92,22 @@ TEST_CASE("terminus start: an active backoff outranks the heap check") {
   CHECK(classifyStart(false, true, false) == StartDecision::DeferBackoff);
   CHECK(classifyStart(false, true, true) == StartDecision::DeferBackoff);
 }
+
+TEST_CASE("terminus charging dashboard: unplugging always hands over to deep sleep") {
+  using terminus_refresh::classifyChargingDashboardTick;
+  using terminus_refresh::DashboardTick;
+  // Even mid-cadence or mid-fetch: on battery the real sleep screen takes over.
+  CHECK(classifyChargingDashboardTick(false, false, false) == DashboardTick::Sleep);
+  CHECK(classifyChargingDashboardTick(false, true, false) == DashboardTick::Sleep);
+  CHECK(classifyChargingDashboardTick(false, true, true) == DashboardTick::Sleep);
+}
+
+TEST_CASE("terminus charging dashboard: refresh only when due and nothing is in flight") {
+  using terminus_refresh::classifyChargingDashboardTick;
+  using terminus_refresh::DashboardTick;
+  CHECK(classifyChargingDashboardTick(true, true, false) == DashboardTick::Refresh);
+  CHECK(classifyChargingDashboardTick(true, false, false) == DashboardTick::Stay);
+  // DeferNoHeap leaves the cadence due with only the retry timer armed; refreshing then
+  // would bring WiFi up just to be refused, on every main-loop tick.
+  CHECK(classifyChargingDashboardTick(true, true, true) == DashboardTick::Stay);
+}

@@ -52,6 +52,24 @@ inline StartDecision classifyStart(const bool fetchRunning, const bool backoffAc
   return StartDecision::Start;
 }
 
+// One main-loop tick of the charging dashboard (TrmnlViewActivity shown instead of deep
+// sleep while on USB power). Unplugging hands over to the real sleep screen. A refresh
+// starts only when due AND no fetch is running or backing off: DeferNoHeap leaves the
+// cadence "due" with only the retry timer armed, so without the backoff check the screen
+// would bring WiFi up and fail on every tick.
+enum class DashboardTick : uint8_t { Stay, Refresh, Sleep };
+
+inline DashboardTick classifyChargingDashboardTick(const bool usbConnected, const bool refreshDue,
+                                                   const bool fetchBusyOrBackingOff) {
+  if (!usbConnected) {
+    return DashboardTick::Sleep;
+  }
+  if (refreshDue && !fetchBusyOrBackingOff) {
+    return DashboardTick::Refresh;
+  }
+  return DashboardTick::Stay;
+}
+
 inline uint32_t effectiveIntervalS(const bool lastAttemptSucceeded, const uint32_t serverIntervalS) {
   return lastAttemptSucceeded ? normalizeServerInterval(serverIntervalS) : kFailureRetryIntervalS;
 }

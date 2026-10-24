@@ -107,6 +107,7 @@ class ActivityManager {
 
   bool preventAutoSleep() const;
   bool isReaderActivity() const;
+  bool sleepsAsReader() const;
   void applyEffectiveDarkMode();
   bool skipLoopDelay() const;
   bool blocksBackgroundServer() const;

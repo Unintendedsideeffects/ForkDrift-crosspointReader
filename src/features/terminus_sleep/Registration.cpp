@@ -865,6 +865,14 @@ bool shouldRefreshBeforeSleep() {
   return terminusFetchConfigured() && (!hasPinnedTerminusImage() || terminusFetchDue(true));
 }
 
+bool chargingDashboardSelected(const bool fromReader) {
+  return core::FeatureCatalog::isEnabled("terminus_sleep") &&
+         CrossPointSettings::effectiveSleepScreen(fromReader) == CrossPointSettings::TERMINUS_SLEEP &&
+         TERMINUS_STORE.hasCredentials();
+}
+
+bool fetchBusyOrBackingOff() { return fetchTaskRunning || fetchTaskRetryActive(); }
+
 uint32_t currentRefreshIntervalSeconds() { return trmnlRefreshIntervalS; }
 
 std::string machineStatusJson() {
@@ -877,6 +885,8 @@ std::string machineStatusJson() {
 #else
 bool startTrmnlFetchAndWait(uint32_t) { return false; }
 bool shouldRefreshBeforeSleep() { return false; }
+bool chargingDashboardSelected(bool) { return false; }
+bool fetchBusyOrBackingOff() { return false; }
 uint32_t currentRefreshIntervalSeconds() { return terminus_refresh::kDefaultIntervalS; }
 std::string machineStatusJson() { return R"({"configured":false,"timed_refresh_evidence":{"schema_version":1}})"; }
 #endif

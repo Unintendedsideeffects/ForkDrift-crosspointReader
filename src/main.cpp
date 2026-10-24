@@ -13,6 +13,7 @@
 #include <HeapTrace.h>
 #include <I18n.h>
 #include <Logging.h>
+#include <Memory.h>
 #include <SPI.h>
 #include <WiFi.h>
 #ifndef SIMULATOR
@@ -44,6 +45,7 @@
 #if ENABLE_TERMINUS_SLEEP
 #include "features/terminus_sleep/RefreshEvidence.h"
 #include "features/terminus_sleep/Registration.h"
+#include "features/terminus_sleep/TrmnlViewActivity.h"
 #include "util/TerminusCredentialStore.h"
 #endif
 #include "activities/settings/RecoveryMenuActivity.h"
@@ -320,10 +322,7 @@ void waitForPowerRelease() {
 
 #if ENABLE_TIMED_SLEEP_REFRESH
 static uint8_t effectiveTimedRefreshSleepMode() {
-  if (SETTINGS.sleepScreenSplit == CrossPointSettings::SLEEP_SPLIT_SMART) {
-    return APP_STATE.lastSleepFromReader ? SETTINGS.sleepScreenReader : SETTINGS.sleepScreenHome;
-  }
-  return SETTINGS.sleepScreen;
+  return CrossPointSettings::effectiveSleepScreen(APP_STATE.lastSleepFromReader);
 }
 
 // Returns true if the effective sleep mode is one that benefits from a timed refresh.
@@ -500,9 +499,35 @@ static uint64_t activeTimedRefreshIntervalMicros() {
 }
 #endif  // ENABLE_TIMED_SLEEP_REFRESH
 
+// Idle on USB power with Terminus as the sleep screen: show the live dashboard and
+// keep it refreshing instead of deep-sleeping with timer wakes. Only the idle
+// timeout diverts here; every explicit sleep (power button, reader menu, CMD:SLEEP)
+// still goes straight to enterDeepSleep(). Returns false to sleep as usual.
+static bool showChargingDashboardInsteadOfSleep() {
+#if ENABLE_TERMINUS_SLEEP
+  const bool fromReader = activityManager.isReaderActivity();
+  if (!gpio.isUsbConnected() || !features::terminus_sleep::chargingDashboardSelected(fromReader)) {
+    return false;
+  }
+  // Replace rather than push: the reader saves progress in onExit and frees its heap,
+  // which the fetch and image decode need. Back or unplugging reopens the book.
+  auto dashboard = makeUniqueNoThrow<TrmnlViewActivity>(
+      renderer, mappedInputManager, TrmnlViewActivity::Charging{fromReader ? APP_STATE.openEpubPath : std::string{}});
+  if (!dashboard) {
+    LOG_ERR("SLP", "OOM: charging dashboard; sleeping instead");
+    return false;
+  }
+  LOG_INF("SLP", "Idle on USB power; showing the Terminus dashboard instead of sleeping");
+  activityManager.replaceActivity(std::move(dashboard));
+  return true;
+#else
+  return false;
+#endif
+}
+
 void enterDeepSleep() {
   HalPowerManager::Lock powerLock;
-  APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
+  APP_STATE.lastSleepFromReader = activityManager.sleepsAsReader();
 
 #if ENABLE_TERMINUS_SLEEP
   // A selected Terminus sleep screen is a foreground user choice, so it must
@@ -1176,6 +1201,10 @@ void loop() {
   const unsigned long sleepTimeoutMs = SETTINGS.getSleepTimeoutMs();
   if (sleepTimeoutMs > 0 && millis() - lastActivityTime >= sleepTimeoutMs) {
     LOG_DBG("SLP", "Auto-sleep triggered after %lu ms of inactivity", sleepTimeoutMs);
+    if (showChargingDashboardInsteadOfSleep()) {
+      lastActivityTime = millis();
+      return;
+    }
     enterDeepSleep();
     return;
   }

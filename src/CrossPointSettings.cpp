@@ -682,6 +682,13 @@ bool CrossPointSettings::sleepModeActive(uint8_t mode) {
   return SETTINGS.sleepScreen == mode;
 }
 
+uint8_t CrossPointSettings::effectiveSleepScreen(const bool fromReader) {
+  if (SETTINGS.sleepScreenSplit == SLEEP_SPLIT_SMART) {
+    return fromReader ? SETTINGS.sleepScreenReader : SETTINGS.sleepScreenHome;
+  }
+  return SETTINGS.sleepScreen;
+}
+
 float CrossPointSettings::getReaderLineCompression() const {
   if (sdFontFamilyName[0] != '\0') {
     return compressionForLineSpacing(lineSpacing, 0.95f, 1.0f, 1.1f);

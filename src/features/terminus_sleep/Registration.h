@@ -16,6 +16,15 @@ bool startTrmnlFetchAndWait(uint32_t capMs);
 // its server-provided refresh interval has elapsed.
 bool shouldRefreshBeforeSleep();
 
+// True when the Terminus screen is the sleep screen for this context (reader or
+// not) and the device is paired: idle on USB power then shows the live dashboard
+// instead of deep-sleeping.
+bool chargingDashboardSelected(bool fromReader);
+
+// True while a fetch is running or a failed/deferred one is backing off, i.e.
+// starting another now would only fail.
+bool fetchBusyOrBackingOff();
+
 // Latest validated refresh cadence advertised by /api/display. Defaults to
 // the standard Terminus cadence until the first successful manifest fetch.
 uint32_t currentRefreshIntervalSeconds();

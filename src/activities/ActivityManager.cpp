@@ -432,6 +432,12 @@ bool ActivityManager::isReaderActivity() const {
          (currentActivity && currentActivity->isReaderActivity());
 }
 
+bool ActivityManager::sleepsAsReader() const {
+  return std::any_of(stackActivities.begin(), stackActivities.end(),
+                     [](const auto& activity) { return activity->sleepsAsReader(); }) ||
+         (currentActivity && currentActivity->sleepsAsReader());
+}
+
 void ActivityManager::applyEffectiveDarkMode() { renderer.setDarkMode(SETTINGS.effectiveDarkMode(isReaderActivity())); }
 
 bool ActivityManager::skipLoopDelay() const {

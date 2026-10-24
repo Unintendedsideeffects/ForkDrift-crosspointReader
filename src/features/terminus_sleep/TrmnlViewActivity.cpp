@@ -6,6 +6,7 @@
 #include <Epub/converters/ImageDecoderFactory.h>
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
+#include <HalGPIO.h>
 #include <HalStorage.h>
 #include <HeapGuard.h>
 #include <I18n.h>
@@ -16,6 +17,7 @@
 #include <algorithm>
 #include <iterator>
 
+#include "activities/ActivityManager.h"
 #include "components/UITheme.h"
 #include "features/terminus_sleep/Registration.h"
 #include "fontIds.h"
@@ -23,6 +25,9 @@
 #include "network/background/BackgroundWifiCoordinator.h"
 #include "network/background/BackgroundWifiService.h"
 #include "network/wifi/WifiUtil.h"
+#include "util/TerminusRefreshPolicy.h"
+
+void enterDeepSleep();
 
 namespace {
 
@@ -158,6 +163,51 @@ void TrmnlViewActivity::resolveCachedPath() {
   cachedPath.clear();
 }
 
+bool TrmnlViewActivity::preventAutoSleep() { return chargingMode && gpio.isUsbConnected(); }
+
+void TrmnlViewActivity::exitToOrigin() {
+  if (!chargingMode) {
+    finish();
+    return;
+  }
+  // The dashboard replaced whatever was showing, so there is nothing to pop back to.
+  if (returnBookPath.empty()) {
+    activityManager.goHome();
+    return;
+  }
+  activityManager.goToReader(returnBookPath, /*suppressBackRelease=*/true);
+}
+
+void TrmnlViewActivity::chargingTick() {
+  using terminus_refresh::DashboardTick;
+  const bool wifiBackoff = chargingRetryAtMs != 0 && static_cast<int32_t>(millis() - chargingRetryAtMs) < 0;
+  switch (terminus_refresh::classifyChargingDashboardTick(
+      gpio.isUsbConnected(), features::terminus_sleep::shouldRefreshBeforeSleep(),
+      features::terminus_sleep::fetchBusyOrBackingOff() || wifiBackoff)) {
+    case DashboardTick::Sleep:
+      // The real sleep screen shows the same cached image, without the radio.
+      LOG_INF("TRMNL", "Unplugged; handing the dashboard over to deep sleep");
+      enterDeepSleep();
+      return;
+    case DashboardTick::Refresh: {
+      // Unattended, so no full-screen progress message: the current image stays up
+      // until the fetch lands.
+      const Status before = status;
+      performRefresh();
+      chargingRetryAtMs = status == Status::NoWifi ? millis() + terminus_refresh::kFailureRetryIntervalS * 1000UL : 0;
+      // A retry that failed the same way again would repaint the identical stale
+      // frame and banner; skip that full e-ink flash every retry interval.
+      if (status != Status::Showing && status == before) {
+        return;
+      }
+      requestUpdate();
+      return;
+    }
+    case DashboardTick::Stay:
+      return;
+  }
+}
+
 void TrmnlViewActivity::loop() {
   // Paint the progress screen first, then block: requestUpdateAndWait() in
   // loop() would run the render before this returns, but doing the fetch here
@@ -170,7 +220,7 @@ void TrmnlViewActivity::loop() {
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-    finish();
+    exitToOrigin();
     return;
   }
 
@@ -178,6 +228,11 @@ void TrmnlViewActivity::loop() {
     status = Status::Refreshing;
     refreshPending = true;
     requestUpdateAndWait();
+    return;
+  }
+
+  if (chargingMode) {
+    chargingTick();
   }
 }
 

@@ -565,6 +565,18 @@ TEST_CASE("testNormalizeSleepScreenModeClampsUnknownValues") {
   s.validateAndClamp();
   CHECK(s.sleepScreenSplit == CrossPointSettings::SLEEP_SPLIT_UNIFIED);
 
+  // effectiveSleepScreen() is what both the timed refresh and the charging
+  // dashboard ask, so Smart split must pick per context and Unified must not.
+  s.sleepScreen = CrossPointSettings::COVER;
+  s.sleepScreenReader = CrossPointSettings::TERMINUS_SLEEP;
+  s.sleepScreenHome = CrossPointSettings::BLANK;
+  CHECK(CrossPointSettings::effectiveSleepScreen(true) == CrossPointSettings::COVER);
+  CHECK(CrossPointSettings::effectiveSleepScreen(false) == CrossPointSettings::COVER);
+  s.sleepScreenSplit = CrossPointSettings::SLEEP_SPLIT_SMART;
+  CHECK(CrossPointSettings::effectiveSleepScreen(true) == CrossPointSettings::TERMINUS_SLEEP);
+  CHECK(CrossPointSettings::effectiveSleepScreen(false) == CrossPointSettings::BLANK);
+  s.sleepScreenSplit = CrossPointSettings::SLEEP_SPLIT_UNIFIED;
+
 #if ENABLE_READING_STATS
   s.sleepScreen = CrossPointSettings::READING_STATS_SLEEP;
   s.validateAndClamp();

@@ -824,8 +824,13 @@ Tracks reading time, pages turned, and completion status. Enables "Mark Finished
 **Depends on:** `ENABLE_BACKGROUND_SERVER`, `ENABLE_IMAGE_SLEEP`
 
 Gates Terminus (TRMNL BYOS) integration: credential storage, on-device web setup, PNG dashboard downloads,
-and sleep-screen pinning. While connected, polling follows the server-provided refresh interval. On USB power,
-Timed Sleep Refresh can wake the sleeping device, fetch and redraw the dashboard, then return to deep sleep.
+and sleep-screen pinning. While connected, polling follows the server-provided refresh interval.
+
+**Charging dashboard:** when Terminus is the sleep screen and the device goes idle (sleep timeout) on USB
+power, it shows the live dashboard instead of deep-sleeping and refreshes it in place on the server's
+`refresh_rate` (60 s retry after a failure). Back returns to the book or Home that was open; unplugging hands
+over to the normal Terminus sleep screen. Explicit sleep (power button, reader menu) still deep-sleeps, and
+Timed Sleep Refresh then covers USB power as before.
 
 ---
 
