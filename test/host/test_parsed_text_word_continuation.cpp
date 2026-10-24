@@ -176,3 +176,115 @@ TEST_CASE("ParsedText: a 3-fragment chain that overflows packs as many fragments
   REQUIRE(lines[1]->getWords().size() == 1);
   CHECK(lines[1]->getWords()[0] == fragC);
 }
+
+namespace {
+
+BlockStyle justifiedStyle() {
+  BlockStyle style;
+  style.alignment = CssTextAlign::Justify;
+  return style;
+}
+
+int justifyExtra(const int spareSpace, const size_t gapCount) {
+  if (gapCount < 1 || spareSpace <= 0) return 0;
+  return spareSpace / static_cast<int>(gapCount);
+}
+
+std::vector<std::shared_ptr<TextBlock>> layoutJustified(ParsedText& text, uint16_t pageWidth) {
+  GfxRenderer renderer(display);
+  std::vector<std::shared_ptr<TextBlock>> lines;
+  text.layoutAndExtractLines(renderer, kFontId, pageWidth,
+                             [&](std::shared_ptr<TextBlock> line) { lines.push_back(std::move(line)); });
+  return lines;
+}
+
+}  // namespace
+
+TEST_CASE("ParsedText: wrap-carried NBSP is omitted from the continuation line") {
+  BlockStyle style = justifiedStyle();
+  style.textIndentDefined = true;
+  style.textIndent = 80;
+  ParsedText text(/*extraParagraphSpacing=*/true, /*forceParagraphIndents=*/true, /*hyphenationEnabled=*/false,
+                  /*focusReadingEnabled=*/false, style);
+  text.addWord("AAAA", EpdFontFamily::REGULAR);
+  text.addWord(" ", EpdFontFamily::REGULAR, false, /*attachToPrevious=*/true);
+  text.addWord("BBBBBBBBBB", EpdFontFamily::REGULAR, false, /*attachToPrevious=*/true);
+
+  const auto lines = layoutJustified(text, 120);
+  REQUIRE(lines.size() == 2);
+  REQUIRE(lines[1]->getWords().size() == 1);
+  CHECK(lines[1]->getWords()[0] == "BBBBBBBBBB");
+  REQUIRE(lines[1]->getWordXpos().size() == 1);
+  CHECK(lines[1]->getWordXpos()[0] == 0);
+}
+
+TEST_CASE("ParsedText: a mid-line NBSP still receives justifyExtra") {
+  ParsedText text(/*extraParagraphSpacing=*/true, /*forceParagraphIndents=*/false, /*hyphenationEnabled=*/false,
+                  /*focusReadingEnabled=*/false, justifiedStyle());
+  text.addWord("hello", EpdFontFamily::REGULAR);
+  text.addWord("world", EpdFontFamily::REGULAR);
+  text.addWord(" ", EpdFontFamily::REGULAR, false, /*attachToPrevious=*/true);
+  text.addWord("X", EpdFontFamily::REGULAR, false, /*attachToPrevious=*/true);
+  text.addWord("more", EpdFontFamily::REGULAR);
+  text.addWord("zzzzzzzzzz", EpdFontFamily::REGULAR);
+
+  constexpr uint16_t kWidth = 180;
+  const auto lines = layoutJustified(text, kWidth);
+  REQUIRE(lines.size() >= 2);
+  const auto& words = lines[0]->getWords();
+  const auto& xpos = lines[0]->getWordXpos();
+  REQUIRE(words.size() == 5);
+  CHECK(words[2] == " ");
+  constexpr int kWordSum = 50 + 50 + 6 + 10 + 40;
+  constexpr int kNaturalGaps = 6 + 6;
+  constexpr size_t kGaps = 3;
+  const int extra = justifyExtra(kWidth - kWordSum - kNaturalGaps, kGaps);
+  REQUIRE(xpos.size() == 5);
+  CHECK(xpos[3] - xpos[2] == static_cast<int16_t>(6 + extra));
+}
+
+TEST_CASE("ParsedText: a line-final attached space is not a justify gap") {
+  ParsedText text(/*extraParagraphSpacing=*/true, /*forceParagraphIndents=*/false, /*hyphenationEnabled=*/false,
+                  /*focusReadingEnabled=*/false, justifiedStyle());
+  text.addWord("AAAA", EpdFontFamily::REGULAR);
+  text.addWord("BBBB", EpdFontFamily::REGULAR);
+  text.addWord(" ", EpdFontFamily::REGULAR, false, /*attachToPrevious=*/true);
+  text.addWord("CCCCCCCCCC", EpdFontFamily::REGULAR, false, /*attachToPrevious=*/true);
+
+  constexpr uint16_t kWidth = 100;
+  const auto lines = layoutJustified(text, kWidth);
+  REQUIRE(lines.size() == 2);
+  REQUIRE(lines[0]->getWords().size() == 3);
+  CHECK(lines[0]->getWords()[2] == " ");
+  constexpr int kWordSum = 40 + 40 + 6;
+  constexpr int kNaturalGaps = 6;
+  const int extra = justifyExtra(kWidth - kWordSum - kNaturalGaps, 1);
+  REQUIRE(lines[0]->getWordXpos().size() == 3);
+  CHECK(lines[0]->getWordXpos()[1] == static_cast<int16_t>(40 + 6 + extra));
+}
+
+TEST_CASE("ParsedText: after visual reorder an attached space is not a gap unless its neighbour continues") {
+  BlockStyle style = justifiedStyle();
+  style.isRtl = true;
+  ParsedText text(/*extraParagraphSpacing=*/true, /*forceParagraphIndents=*/false, /*hyphenationEnabled=*/false,
+                  /*focusReadingEnabled=*/false, style);
+  text.addWord("AA", EpdFontFamily::REGULAR);
+  text.addWord("BB", EpdFontFamily::REGULAR);
+  text.addWord(" ", EpdFontFamily::REGULAR, false, /*attachToPrevious=*/true);
+  text.addWord("CC", EpdFontFamily::REGULAR);
+  text.addWord("ZZZZZZZZZZ", EpdFontFamily::REGULAR);
+
+  constexpr uint16_t kWidth = 100;
+  const auto lines = layoutJustified(text, kWidth);
+  REQUIRE(lines.size() >= 2);
+  const auto& words = lines[0]->getWords();
+  const auto& xpos = lines[0]->getWordXpos();
+  REQUIRE(words.size() == 4);
+  CHECK(words[2] == " ");
+  constexpr int kWordSum = 20 + 20 + 6 + 20;
+  constexpr int kNaturalGaps = 6 + 6;
+  constexpr size_t kGaps = 2;
+  const int extra = justifyExtra(kWidth - kWordSum - kNaturalGaps, kGaps);
+  REQUIRE(xpos.size() == 4);
+  CHECK(xpos[1] - xpos[0] == static_cast<int16_t>(20 + 6 + extra));
+}

@@ -2091,3 +2091,10 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **What**: these strings still use `length() > N` then `replace(..., "...")`, which can split a UTF-8 codepoint. The SSID sites in the same files were switched to `renderer.truncatedText` (width, glyph-safe); these leftover labels were not in that commit's slice.
 - **Why not fixed here**: out of scope for port/reader (scope was SSID truncation at the listed call sites, plus the other named commits).
 - **Status**: open
+
+## 2026-10-24T14:56Z — duplicate `<hr>` startElement handlers in ChapterHtmlSlimParser
+- **Found by**: cursor grok-4.6 — during absorb-1024 lane A1 (e86ae91d9 figure-as-block)
+- **Where**: `lib/Epub/Epub/parsers/ChapterHtmlSlimParser.cpp:1439-1476`
+- **What**: `startElement` handles `strcmp(name, "hr") == 0` twice in succession. The first branch emits the rule, pushes `ancestorStack_`, increments `depth`, and returns. The second branch is therefore unreachable: it would emit again and increment `depth` without pushing the ancestor stack.
+- **Why not fixed here**: out of scope for lane A1 (scope was justified spacing, hyphen/dash breaks, and figure container alignment/spacing). The sizing card named these handlers as a pre-existing dead duplicate.
+- **Status**: open

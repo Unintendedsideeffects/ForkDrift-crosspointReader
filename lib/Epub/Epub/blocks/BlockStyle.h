@@ -143,6 +143,11 @@ struct BlockStyle {
     return result;
   }
 
+  [[nodiscard]] static bool shouldSpendClosingInsetOnPage(bool hasTextBlock, bool emptyTextBlockAfterImage,
+                                                          bool textBlockEmpty) {
+    return !hasTextBlock || (emptyTextBlockAfterImage && textBlockEmpty);
+  }
+
   // Create a BlockStyle from CSS style properties, resolving CssLength values to pixels
   // emSize is the current font line height, used for em/rem unit conversion
   // paragraphAlignment is the user's paragraphAlignment setting preference

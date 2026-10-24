@@ -47,6 +47,7 @@ class ChapterHtmlSlimParser {
   // Set once </html> has been seen, so trailing junk after it is ignored rather
   // than failing the whole chapter.
   bool htmlEnded = false;
+  bool emptyTextBlockAfterImage = false;
   std::unique_ptr<ParsedText> currentTextBlock = nullptr;
   std::unique_ptr<Page> currentPage = nullptr;
   int16_t currentPageNextY = 0;

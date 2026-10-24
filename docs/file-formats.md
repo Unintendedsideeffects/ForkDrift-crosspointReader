@@ -96,16 +96,16 @@ Defined as:
 
 ## 2. Section Layout Cache (`section.bin`)
 
-### Version 37
+### Version 38
 
-The `section.bin` caches pre-computed typesetting details (word positions, styles, line breaks, page sizes) for a single spine section under a specific set of layout parameters. It is recalculated automatically if any cache-busting setting is altered.
+The `section.bin` caches pre-computed typesetting details (word positions, styles, line breaks, page sizes) for a single spine section under a specific set of layout parameters. It is recalculated automatically if any cache-busting setting is altered. Version 38 invalidates cached word lists (wrap-carried NBSP omitted, only stretchable literal spaces counted including after visual reorder, tokens split after explicit hyphens/dashes, figure containers apply publisher alignment/spacing) without changing the struct layout.
 
 ### File Structure Layout
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
 │ HEADER (38 bytes)                                       │
-│ - version (u8) [value = 37]                             │
+│ - version (u8) [value = 38]                             │
 │ - fontId (s32)                                          │
 │ - lineCompression (float)                               │
 │ - ... (other layout/typesetting flags)                  │
@@ -136,7 +136,7 @@ The header contains all rendering and layout parameters. Any mismatch during loa
 
 | Offset | Field Name | Type | Description |
 |---|---|---|---|
-| 0 | `version` | `u8` | Format version. Must be **`37`**. |
+| 0 | `version` | `u8` | Format version. Must be **`38`**. |
 | 1 | `fontId` | `s32` | Built-in or custom font ID. |
 | 5 | `lineCompression` | `float` | Line spacing factor (tight, normal, wide compression). |
 | 9 | `extraParagraphSpacing` | `bool` (u8) | Extra space added between paragraphs. |

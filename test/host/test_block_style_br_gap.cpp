@@ -101,12 +101,39 @@ TEST_CASE("BlockStyle: an inline <br> after text strips container margins, not o
   BlockStyle brStyle;
   brStyle.marginTop = 10;
   brStyle.marginBottom = 8;
+  brStyle.paddingTop = 5;
+  brStyle.paddingBottom = 3;
   brStyle.marginLeft = 12;
   brStyle.alignment = CssTextAlign::Center;
 
   const auto stripped = brStyle.withoutTop().withoutBottom();
   CHECK(stripped.marginTop == 0);
   CHECK(stripped.marginBottom == 0);
+  CHECK(stripped.paddingTop == 0);
+  CHECK(stripped.paddingBottom == 0);
+  CHECK(stripped.topInset() == 0);
+  CHECK(stripped.bottomInset() == 0);
   CHECK(stripped.marginLeft == 12);
   CHECK(stripped.alignment == CssTextAlign::Center);
+}
+
+TEST_CASE("BlockStyle: spend closing inset only for an empty-after-image block") {
+  CHECK(BlockStyle::shouldSpendClosingInsetOnPage(false, false, false));
+  CHECK(BlockStyle::shouldSpendClosingInsetOnPage(true, true, true));
+  CHECK_FALSE(BlockStyle::shouldSpendClosingInsetOnPage(true, true, false));
+  CHECK_FALSE(BlockStyle::shouldSpendClosingInsetOnPage(true, false, true));
+
+  BlockStyle closing;
+  closing.marginBottom = 36;
+  closing.paddingBottom = 0;
+  CHECK(closing.bottomInset() == 36);
+
+  BlockStyle parent;
+  parent.alignment = CssTextAlign::Justify;
+  parent.marginTop = 6;
+  parent.marginBottom = 12;
+  const auto restored = parent.withoutTop().withoutBottom();
+  CHECK(restored.topInset() == 0);
+  CHECK(restored.bottomInset() == 0);
+  CHECK(restored.alignment == CssTextAlign::Justify);
 }

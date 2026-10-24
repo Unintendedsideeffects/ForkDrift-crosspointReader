@@ -46,7 +46,10 @@ namespace {
 // skipped like display:none. Both change which content lays out.
 // v37: explicit font-weight/font-style: inherit preserved, and pending words flushed
 // before header and generic block elements open.
-constexpr uint8_t SECTION_FILE_VERSION = 37;
+// v38: omit wrap-carried NBSP; count only stretchable literal spaces, including after
+// visual reorder; split tokens after explicit hyphens/dashes; figure containers apply
+// publisher alignment/spacing. Payload layout unchanged.
+constexpr uint8_t SECTION_FILE_VERSION = 38;
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) +
                                  sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) +
                                  sizeof(bool) + sizeof(bool) + sizeof(uint8_t) + sizeof(bool) + sizeof(bool) +

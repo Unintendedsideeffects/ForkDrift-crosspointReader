@@ -69,7 +69,7 @@ bool probeImageDimensions(const std::string& path, ImageDimensions& out, bool* o
 }
 
 constexpr const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
-constexpr const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "pre"};
+constexpr const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote", "pre", "figure"};
 constexpr const char* BOLD_TAGS[] = {"b", "strong"};
 constexpr const char* ITALIC_TAGS[] = {"i", "em"};
 constexpr const char* UNDERLINE_TAGS[] = {"u", "ins"};
@@ -274,7 +274,8 @@ void ChapterHtmlSlimParser::flushPartWordBuffer() {
 
 // start a new text block if needed
 void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
-  nextWordContinues = false;  // New block = new paragraph, no continuation
+  emptyTextBlockAfterImage = false;
+  nextWordContinues = false;
   if (currentTextBlock) {
     // <li> deposited a bullet as the first (and so far only) word, then a nested
     // block-level child (<p>, <div>, ...) is opening. Reuse this block instead of
@@ -1236,17 +1237,11 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
                 }
                 std::shared_ptr<PageImage> pageImage(rawPageImage);
                 self->currentPage->elements.push_back(pageImage);
-                self->currentPageNextY += displayHeight + imageMarginBottom;
+                self->currentPageNextY += displayHeight;
 
-                // The image consumed the empty block's accumulated vertical spacing.
-                // Reset the block so the Vertical merge in startNewTextBlock doesn't
-                // re-apply the same margins to the next text paragraph.
                 if (self->currentTextBlock && self->currentTextBlock->isEmpty()) {
-                  BlockStyle resetStyle;
-                  resetStyle.alignment = (self->paragraphAlignment == static_cast<uint8_t>(CssTextAlign::None))
-                                             ? CssTextAlign::Justify
-                                             : static_cast<CssTextAlign>(self->paragraphAlignment);
-                  self->currentTextBlock->setBlockStyle(resetStyle);
+                  self->currentTextBlock->setBlockStyle(self->blockStyleStack.back().withoutTop().withoutBottom());
+                  self->emptyTextBlockAfterImage = true;
                 }
 
                 self->ancestorStack_.push_back({self->depth, std::string(name), classAttr});
@@ -1409,6 +1404,10 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   if (!self->embeddedStyle || requestedAlign != CssTextAlign::None) {
     userAlignmentBlockStyle.textAlignDefined = true;
     userAlignmentBlockStyle.alignment = requestedAlign == CssTextAlign::None ? CssTextAlign::Justify : requestedAlign;
+  }
+
+  if (self->embeddedStyle && strcmp(name, "figure") == 0 && cssStyle.hasTextAlign()) {
+    userAlignmentBlockStyle.alignment = cssStyle.textAlign;
   }
 
   if (!self->embeddedStyle) {
@@ -2034,10 +2033,15 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 
     // br is self-closing and not a container — it doesn't push/pop the stack.
     if (strcmp(name, "br") != 0 && self->blockStyleStack.size() > 1) {
-      // Apply closing element's bottom margin to the current text block so
-      // container spacing appears after the element's content (on the last child),
-      // not on the first child via the empty-block merge in startNewTextBlock.
-      if (self->currentTextBlock) {
+      const bool textBlockEmpty = self->currentTextBlock && self->currentTextBlock->isEmpty();
+      if (BlockStyle::shouldSpendClosingInsetOnPage(static_cast<bool>(self->currentTextBlock),
+                                                    self->emptyTextBlockAfterImage, textBlockEmpty)) {
+        self->currentPageNextY += self->blockStyleStack.back().bottomInset();
+        if (self->currentTextBlock) {
+          self->currentTextBlock->setBlockStyle(
+              self->blockStyleStack[self->blockStyleStack.size() - 2].withoutTop().withoutBottom());
+        }
+      } else if (self->currentTextBlock) {
         const auto style = self->currentTextBlock->getBlockStyle();
         self->currentTextBlock->setBlockStyle(style.addBottom(self->blockStyleStack.back()));
       }

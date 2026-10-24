@@ -70,7 +70,95 @@ uint32_t lastCodepoint(const std::string& word) {
 
 bool containsSoftHyphen(const std::string& word) { return word.find(SOFT_HYPHEN_UTF8) != std::string::npos; }
 
+constexpr bool allowsBreakAfterExplicitHyphen(const uint32_t cp) {
+  switch (cp) {
+    case '-':
+    case 0x058A:
+    case 0x2010:
+    case 0x2012:
+    case 0x2013:
+    case 0x2014:
+    case 0x2015:
+    case 0x2043:
+    case 0x207B:
+    case 0x208B:
+    case 0x2212:
+    case 0x2E17:
+    case 0x2E3A:
+    case 0x2E3B:
+    case 0xFE58:
+    case 0xFE63:
+    case 0xFF0D:
+    case 0x005F:
+    case 0x2026:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool endsWithBreakableHyphen(const std::string& word) { return allowsBreakAfterExplicitHyphen(lastCodepoint(word)); }
+
+std::vector<size_t> explicitHyphenBreakByteOffsets(const std::string& text, const bool attachToPrevious) {
+  size_t boundaryCount = 0;
+  {
+    const auto* ptr = reinterpret_cast<const unsigned char*>(text.c_str());
+    const auto* const end = ptr + text.size();
+    bool hasLeadingContent = attachToPrevious;
+    while (ptr < end) {
+      const uint32_t cp = utf8NextCodepoint(&ptr);
+      if (cp == 0) break;
+      if (allowsBreakAfterExplicitHyphen(cp)) {
+        while (ptr < end) {
+          const auto* const nextStart = ptr;
+          const uint32_t nextCp = utf8NextCodepoint(&ptr);
+          if (!allowsBreakAfterExplicitHyphen(nextCp)) {
+            ptr = nextStart;
+            break;
+          }
+        }
+        if (hasLeadingContent && ptr < end) ++boundaryCount;
+        hasLeadingContent = true;
+      } else {
+        hasLeadingContent = true;
+      }
+    }
+  }
+  if (boundaryCount == 0) return {};
+
+  std::vector<size_t> breakOffsets;
+  breakOffsets.reserve(boundaryCount);
+  const auto* ptr = reinterpret_cast<const unsigned char*>(text.c_str());
+  const auto* const start = ptr;
+  const auto* const end = ptr + text.size();
+  bool hasLeadingContent = attachToPrevious;
+  while (ptr < end) {
+    const uint32_t cp = utf8NextCodepoint(&ptr);
+    if (cp == 0) break;
+    if (allowsBreakAfterExplicitHyphen(cp)) {
+      while (ptr < end) {
+        const auto* const nextStart = ptr;
+        const uint32_t nextCp = utf8NextCodepoint(&ptr);
+        if (!allowsBreakAfterExplicitHyphen(nextCp)) {
+          ptr = nextStart;
+          break;
+        }
+      }
+      if (hasLeadingContent && ptr < end) {
+        breakOffsets.push_back(static_cast<size_t>(ptr - start));
+      }
+      hasLeadingContent = true;
+    } else {
+      hasLeadingContent = true;
+    }
+  }
+  return breakOffsets;
+}
+
 bool isNoBreakBeforeCjkPunctuation(const uint32_t cp) {
+  if (allowsBreakAfterExplicitHyphen(cp)) {
+    return true;
+  }
   switch (cp) {
     case '.':
     case ',':
@@ -148,6 +236,9 @@ bool containsCjkBreakableCodepoint(const std::string& text) {
 }
 
 bool hasCjkBreakOpportunityBetween(const uint32_t leftCp, const uint32_t rightCp) {
+  if (allowsBreakAfterExplicitHyphen(leftCp)) {
+    return !isNoBreakBeforeCjkPunctuation(rightCp) && !utf8IsCombiningMark(rightCp);
+  }
   if (!utf8IsCjkBreakable(leftCp) && !utf8IsCjkBreakable(rightCp)) return false;
   if (isNoBreakAfterCjkPunctuation(leftCp) || isNoBreakBeforeCjkPunctuation(rightCp)) return false;
   if (utf8IsCombiningMark(rightCp)) return false;
@@ -332,8 +423,11 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
 
   bool effectiveAttachToPrevious = attachToPrevious;
   bool effectiveNoSpaceBefore = false;
-  if (attachToPrevious && !words.empty() &&
-      hasCjkBreakOpportunityBetween(lastCodepoint(words.back()), firstCodepoint(word))) {
+  if (attachToPrevious && !words.empty() && endsWithBreakableHyphen(words.back())) {
+    effectiveAttachToPrevious = true;
+    effectiveNoSpaceBefore = true;
+  } else if (attachToPrevious && !words.empty() &&
+             hasCjkBreakOpportunityBetween(lastCodepoint(words.back()), firstCodepoint(word))) {
     effectiveAttachToPrevious = false;
     effectiveNoSpaceBefore = true;
   }
@@ -343,14 +437,17 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
     size_t tokenStart = 0;
     for (const size_t breakOffset : breakOffsets) {
       if (breakOffset <= tokenStart || breakOffset > word.size()) continue;
-      pushToken(word.substr(tokenStart, breakOffset - tokenStart), firstToken ? effectiveAttachToPrevious : false,
-                firstToken ? effectiveNoSpaceBefore : true, false);
+      const bool attach =
+          firstToken ? effectiveAttachToPrevious : (!words.empty() && endsWithBreakableHyphen(words.back()));
+      pushToken(word.substr(tokenStart, breakOffset - tokenStart), attach, firstToken ? effectiveNoSpaceBefore : true,
+                false);
       firstToken = false;
       tokenStart = breakOffset;
     }
     if (tokenStart < word.size()) {
-      pushToken(word.substr(tokenStart), firstToken ? effectiveAttachToPrevious : false,
-                firstToken ? effectiveNoSpaceBefore : true, false);
+      const bool attach =
+          firstToken ? effectiveAttachToPrevious : (!words.empty() && endsWithBreakableHyphen(words.back()));
+      pushToken(word.substr(tokenStart), attach, firstToken ? effectiveNoSpaceBefore : true, false);
     }
     if (wordStartsRtl) {
       hasRtlWord = true;
@@ -368,6 +465,26 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
 
   // Already-bold text should stay fully bold; focus splitting would make its suffix regular later.
   if (!this->focusReadingEnabled || (baseStyle & EpdFontFamily::BOLD) != 0) {
+    if (auto breakOffsets = explicitHyphenBreakByteOffsets(word, effectiveAttachToPrevious); !breakOffsets.empty()) {
+      bool firstToken = true;
+      size_t tokenStart = 0;
+      for (const size_t breakOffset : breakOffsets) {
+        if (breakOffset <= tokenStart || breakOffset > word.size()) continue;
+        pushToken(word.substr(tokenStart, breakOffset - tokenStart), firstToken ? effectiveAttachToPrevious : true,
+                  firstToken ? effectiveNoSpaceBefore : true, false);
+        firstToken = false;
+        tokenStart = breakOffset;
+      }
+      if (tokenStart < word.size()) {
+        pushToken(word.substr(tokenStart), firstToken ? effectiveAttachToPrevious : true,
+                  firstToken ? effectiveNoSpaceBefore : true, false);
+      }
+      if (wordStartsRtl) {
+        hasRtlWord = true;
+      }
+      return;
+    }
+
     pushToken(std::move(word), effectiveAttachToPrevious, effectiveNoSpaceBefore, false);
     if (wordStartsRtl) {
       hasRtlWord = true;
@@ -941,7 +1058,12 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
                              const std::function<void(std::shared_ptr<TextBlock>)>& processLine,
                              const GfxRenderer& renderer, const int fontId) {
   const size_t lineBreak = lineBreakIndices[breakIndex];
-  const size_t lastBreakAt = breakIndex > 0 ? lineBreakIndices[breakIndex - 1] : 0;
+  size_t lastBreakAt = breakIndex > 0 ? lineBreakIndices[breakIndex - 1] : 0;
+  if (breakIndex > 0) {
+    while (lastBreakAt + 1 < lineBreak && continuesVec[lastBreakAt] && words[lastBreakAt] == " ") {
+      ++lastBreakAt;
+    }
+  }
   const size_t lineWordCount = lineBreak - lastBreakAt;
 
   // Calculate first line indent (only for left/justified text).
@@ -982,17 +1104,15 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     lineWordWidthSum += wordWidths[lastBreakAt + wordIdx];
     // Count gaps: each word after the first creates a gap, unless it's a continuation
     if (wordIdx > 0 && noSpaceBeforeVec[lastBreakAt + wordIdx]) {
-      // Unicode break opportunity with no inserted Latin-style space. It is still
-      // a stretchable gap for justified CJK/Korean text.
-      actualGapCount++;
+      if (!continuesVec[lastBreakAt + wordIdx]) {
+        actualGapCount++;
+      }
     } else if (wordIdx > 0 && !continuesVec[lastBreakAt + wordIdx]) {
       actualGapCount++;
       totalNaturalGaps += renderer.getSpaceAdvance(fontId, lastCodepoint(lineWords[wordIdx - 1]),
                                                    firstCodepoint(lineWords[wordIdx]), lineWordStyles[wordIdx - 1]);
     } else if (wordIdx > 0 && continuesVec[lastBreakAt + wordIdx]) {
-      // Non-breaking space tokens (" " with continues=true) are visible, stretchable spaces —
-      // count them as justifiable gaps so justifyExtra is distributed to them too.
-      if (lineWords[wordIdx] == " ") {
+      if (lineWords[wordIdx] == " " && wordIdx + 1 < lineWordCount && continuesVec[lastBreakAt + wordIdx + 1]) {
         actualGapCount++;
       }
       // Cross-boundary kerning for continuation words (e.g. nonbreaking spaces, attached punctuation)
@@ -1067,7 +1187,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
         }
       }
       reorderedContinuesScratch.push_back(continues);
-      reorderedNoSpaceBeforeScratch.push_back(!continues && noSpaceBeforeVec[lastBreakAt + src]);
+      reorderedNoSpaceBeforeScratch.push_back(noSpaceBeforeVec[lastBreakAt + src]);
     }
 
     int reorderedWordWidthSum = 0;
@@ -1076,16 +1196,17 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     for (size_t wordIdx = 0; wordIdx < reorderedWidthsScratch.size(); wordIdx++) {
       reorderedWordWidthSum += reorderedWidthsScratch[wordIdx];
       if (wordIdx > 0 && reorderedNoSpaceBeforeScratch[wordIdx]) {
-        // Unicode break opportunity with no inserted Latin-style space. It is still
-        // a stretchable gap for justified CJK/Korean text.
-        reorderedGapCount++;
+        if (!reorderedContinuesScratch[wordIdx]) {
+          reorderedGapCount++;
+        }
       } else if (wordIdx > 0 && !reorderedContinuesScratch[wordIdx]) {
         reorderedGapCount++;
         reorderedNaturalGaps += renderer.getSpaceAdvance(fontId, lastCodepoint(reorderedWordsScratch[wordIdx - 1]),
                                                          firstCodepoint(reorderedWordsScratch[wordIdx]),
                                                          reorderedStylesScratch[wordIdx - 1]);
       } else if (wordIdx > 0 && reorderedContinuesScratch[wordIdx]) {
-        if (reorderedWordsScratch[wordIdx] == " ") {
+        if (reorderedWordsScratch[wordIdx] == " " && wordIdx + 1 < reorderedWidthsScratch.size() &&
+            reorderedContinuesScratch[wordIdx + 1]) {
           reorderedGapCount++;
         }
         reorderedNaturalGaps +=
