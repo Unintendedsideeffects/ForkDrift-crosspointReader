@@ -2049,7 +2049,7 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Where**: `src/network/http/HttpDownloader.cpp` (OPDS `Authorization`), `lib/KOReaderSync/KOReaderSyncClient.cpp:95-96` (`x-auth-user`/`x-auth-key`), `src/features/terminus_sleep/Registration.cpp:335-336` (`ID`/`Access-Token`)
 - **What**: all three use `esp_http_client` with automatic redirects on, and IDF replays every custom header to the redirect target, so a redirect to another host receives the credentials (upstream d6f7f2565 fixed this for OPDS in their transport).
 - **Why not fixed here**: KOSync/Terminus were out of the OPDS scope; KOSync lives in `lib/` and would need the origin helper (`src/network/http/HttpOrigin.h`) moved to a lib.
-- **Status**: OPDS/HttpDownloader fixed in 6a4d33c19 (owner chose it over a concurrent session's version, kept in `git stash` "concurrent session 2026-10-09 18:29" and plans/stash-backup-2026-10-09-concurrent-session/); KOSync origin-scopes `x-auth-*`, Basic, and custom headers (lane B, `disable_auto_redirect` + `http_origin`); Terminus still open
+- **Status**: OPDS/HttpDownloader fixed in 6a4d33c19 (owner chose it over a concurrent session's version, kept in `git stash` "concurrent session 2026-10-09 18:29" and plans/stash-backup-2026-10-09-concurrent-session/); KOSync origin-scopes `x-auth-*`, Basic, and custom headers (lane B, `disable_auto_redirect` + `http_origin`); Terminus fixed 2026-10-24 (`/api/display` poll follows redirects itself via `terminus_api::classifyRedirect`: `ID`/`Access-Token` only on the configured origin, targets failing `isAllowedRemoteUrl` or downgrading refused; host-tested in `test_terminus_api.cpp`). The image download sends no credentials and does not follow redirects. All three clients fixed
 
 ## 2026-10-09T17:52Z — Failed OPDS re-download deletes the existing book
 - **Found by**: claude — during the 2026-10 crossink absorption (crossink 1d954ae34)
@@ -2135,4 +2135,11 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Where**: `lib/Epub/Epub/parsers/ChapterHtmlSlimParser.cpp:224`
 - **What**: `flushPendingAnchor` does `currentPage.reset(new Page())` after a TOC chapter boundary. Neighbouring page allocations in the same file use `new (std::nothrow)` and null-check. With `-fno-exceptions`, this bare `new` calls `abort()` on OOM instead of degrading.
 - **Why not fixed here**: out of scope for lane K (scope was KOSync mapped-position compare and visible-text offset LUT). Other completePageFn sites already use nothrow.
+- **Status**: open
+
+## 2026-10-24T19:54Z — KOSync response buffer keeps redirect bodies
+- **Found by**: claude — during the Terminus redirect fix
+- **Where**: `lib/KOReaderSync/KOReaderSyncClient.cpp:61-73` `httpEventHandler`
+- **What**: since KOSync follows redirects itself (`disable_auto_redirect`), `esp_http_client_perform` delivers each 3xx response's body to the handler, which appends every `HTTP_EVENT_ON_DATA` regardless of status. After a redirect the buffer holds `<3xx page>` + the final JSON, so `getProgress` JSON parsing fails (and the 3xx bytes count toward the overflow cap). `HttpDownloader` and the Terminus manifest handler skip non-2xx bodies; KOSync does not.
+- **Why not fixed here**: out of scope for the Terminus fix (scope was `src/features/terminus_sleep/Registration.cpp`, `src/util/TerminusApi.*`). Fix: ignore `ON_DATA` when `esp_http_client_get_status_code(evt->client)` is not 2xx, or reset `buf->len` in `followKoSyncRedirect`.
 - **Status**: open

@@ -123,6 +123,12 @@ static const char* destPathForMagic(const uint8_t* magic, size_t len) {
 static esp_err_t manifestEventHandler(esp_http_client_event_t* evt) {
   auto* sink = static_cast<BoundedManifestSink*>(evt->user_data);
   if (evt->event_id == HTTP_EVENT_ON_DATA && sink) {
+    // Redirects are followed by performDisplayPoll(), so intermediate 3xx bodies
+    // arrive here too; only the final 2xx payload is the manifest.
+    const int status = esp_http_client_get_status_code(evt->client);
+    if (status < 200 || status >= 300) {
+      return ESP_OK;
+    }
     sink->write(static_cast<const uint8_t*>(evt->data), static_cast<size_t>(evt->data_len));
     if (sink->overflowed()) {
       return ESP_FAIL;
@@ -289,6 +295,56 @@ static const char* downloadVerifiedImage(const std::string& url) {
   return destPath;
 }
 
+static constexpr int TRMNL_MAX_REDIRECTS = 5;
+static constexpr int TRMNL_MAX_REDIRECT_URL = 1024;
+
+static bool isRedirectStatus(const int status) {
+  return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+}
+
+// esp_http_client_perform() with redirects followed here rather than by the
+// client: its automatic redirect replays every custom header, so the device ID
+// and Access-Token would go to whatever host a Location names.
+static esp_err_t performDisplayPoll(esp_http_client_handle_t client, const std::string& displayUrl,
+                                    const std::string& deviceId, const std::string& apiKey) {
+  std::string currentUrl = displayUrl;
+  for (int hop = 0;; ++hop) {
+    const esp_err_t err = esp_http_client_perform(client);
+    if (err != ESP_OK) return err;
+    if (!isRedirectStatus(esp_http_client_get_status_code(client))) return ESP_OK;
+    if (hop >= TRMNL_MAX_REDIRECTS) {
+      LOG_ERR("TRMNL", "Too many redirects");
+      return ESP_ERR_HTTP_MAX_REDIRECT;
+    }
+
+    // Cold path (once per hop): heap, not stack -- the fetch stack budget is
+    // pinned by the static_asserts below.
+    auto next = makeUniqueNoThrow<char[]>(TRMNL_MAX_REDIRECT_URL);
+    if (!next || esp_http_client_set_redirection(client) != ESP_OK ||
+        esp_http_client_get_url(client, next.get(), TRMNL_MAX_REDIRECT_URL) != ESP_OK) {
+      LOG_ERR("TRMNL", "Redirect: could not read target URL");
+      return ESP_FAIL;
+    }
+
+    switch (terminus_api::classifyRedirect(currentUrl, displayUrl, next.get())) {
+      case terminus_api::RedirectAction::Refuse:
+        LOG_ERR("TRMNL", "Refusing redirect to a non-HTTPS or downgraded target");
+        return ESP_FAIL;
+      case terminus_api::RedirectAction::FollowWithoutCredentials:
+        LOG_INF("TRMNL", "Redirect: not sending device credentials to a different origin");
+        esp_http_client_delete_header(client, "ID");
+        esp_http_client_delete_header(client, "Access-Token");
+        break;
+      case terminus_api::RedirectAction::FollowWithCredentials:
+        // Re-set in case an earlier hop left the origin and dropped them.
+        esp_http_client_set_header(client, "ID", deviceId.c_str());
+        esp_http_client_set_header(client, "Access-Token", apiKey.c_str());
+        break;
+    }
+    currentUrl.assign(next.get());
+  }
+}
+
 // Poll /api/display, get image_url, download, pin as next sleep screen.
 static bool fetchAndPinTrmnlImage() {
   // Snapshot credentials before creating the HTTP client. The fetch runs on a
@@ -325,6 +381,7 @@ static bool fetchAndPinTrmnlImage() {
     config.buffer_size = TRMNL_HTTP_BUFFER_BYTES;
     config.buffer_size_tx = TRMNL_HTTP_BUFFER_BYTES;
     config.crt_bundle_attach = arduino_esp_crt_bundle_attach;
+    config.disable_auto_redirect = true;
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) {
@@ -338,7 +395,7 @@ static bool fetchAndPinTrmnlImage() {
     esp_http_client_set_header(client, "Firmware-Version", CROSSPOINT_VERSION);
     esp_http_client_set_header(client, "User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
 
-    const esp_err_t err = esp_http_client_perform(client);
+    const esp_err_t err = performDisplayPoll(client, displayUrl, deviceId, apiKey);
     const int code = esp_http_client_get_status_code(client);
     esp_http_client_cleanup(client);
 

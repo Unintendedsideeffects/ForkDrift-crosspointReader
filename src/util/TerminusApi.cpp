@@ -1,6 +1,7 @@
 #include "util/TerminusApi.h"
 
 #include <ArduinoJson.h>
+#include <HttpOrigin.h>
 
 #include <algorithm>
 #include <cctype>
@@ -61,6 +62,20 @@ bool isAllowedRemoteUrl(const std::string& url) {
     return false;
   }
   return std::none_of(url.begin(), url.end(), [](const unsigned char c) { return std::isspace(c) != 0; });
+}
+
+RedirectAction classifyRedirect(const std::string& currentUrl, const std::string& credentialUrl,
+                                const std::string& nextUrl) {
+  http_origin::Origin from;
+  http_origin::Origin to;
+  if (!http_origin::parse(nextUrl, to) || !isAllowedRemoteUrl(nextUrl)) {
+    return RedirectAction::Refuse;
+  }
+  if (http_origin::parse(currentUrl, from) && http_origin::isDowngrade(from, to)) {
+    return RedirectAction::Refuse;
+  }
+  return http_origin::extraHeadersFollowRedirect(credentialUrl, nextUrl) ? RedirectAction::FollowWithCredentials
+                                                                         : RedirectAction::FollowWithoutCredentials;
 }
 
 std::string normalizeBaseUrl(std::string url) {
