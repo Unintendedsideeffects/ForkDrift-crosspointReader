@@ -13,7 +13,6 @@
 #include <HeapTrace.h>
 #include <I18n.h>
 #include <Logging.h>
-#include <Memory.h>
 #include <SPI.h>
 #include <WiFi.h>
 #ifndef SIMULATOR
@@ -42,10 +41,9 @@
 #include "activities/RenderLock.h"
 #include "activities/boot_sleep/SleepActivity.h"
 #include "core/OrientationManager.h"
+#include "features/terminus_sleep/Registration.h"
 #if ENABLE_TERMINUS_SLEEP
 #include "features/terminus_sleep/RefreshEvidence.h"
-#include "features/terminus_sleep/Registration.h"
-#include "features/terminus_sleep/TrmnlViewActivity.h"
 #include "util/TerminusCredentialStore.h"
 #endif
 #include "activities/settings/RecoveryMenuActivity.h"
@@ -504,25 +502,20 @@ static uint64_t activeTimedRefreshIntervalMicros() {
 // timeout diverts here; every explicit sleep (power button, reader menu, CMD:SLEEP)
 // still goes straight to enterDeepSleep(). Returns false to sleep as usual.
 static bool showChargingDashboardInsteadOfSleep() {
-#if ENABLE_TERMINUS_SLEEP
-  const bool fromReader = activityManager.isReaderActivity();
-  if (!gpio.isUsbConnected() || !features::terminus_sleep::chargingDashboardSelected(fromReader)) {
+  if (!gpio.isUsbConnected()) {
     return false;
   }
   // Replace rather than push: the reader saves progress in onExit and frees its heap,
   // which the fetch and image decode need. Back or unplugging reopens the book.
-  auto dashboard = makeUniqueNoThrow<TrmnlViewActivity>(
-      renderer, mappedInputManager, TrmnlViewActivity::Charging{fromReader ? APP_STATE.openEpubPath : std::string{}});
+  const bool fromReader = activityManager.isReaderActivity();
+  auto dashboard = features::terminus_sleep::makeChargingDashboard(renderer, mappedInputManager, fromReader,
+                                                                   fromReader ? APP_STATE.openEpubPath : std::string{});
   if (!dashboard) {
-    LOG_ERR("SLP", "OOM: charging dashboard; sleeping instead");
     return false;
   }
   LOG_INF("SLP", "Idle on USB power; showing the Terminus dashboard instead of sleeping");
   activityManager.replaceActivity(std::move(dashboard));
   return true;
-#else
-  return false;
-#endif
 }
 
 void enterDeepSleep() {

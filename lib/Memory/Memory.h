@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
+#include <iterator>
 #include <memory>
 #include <new>
 #include <type_traits>
@@ -46,7 +48,7 @@ void shrinkToFit(std::vector<T>& v) {
   if (v.capacity() == v.size()) return;
   std::vector<T> tight;
   tight.reserve(v.size());
-  for (auto& e : v) tight.push_back(std::move(e));
+  std::move(v.begin(), v.end(), std::back_inserter(tight));
   v.swap(tight);
 }
 

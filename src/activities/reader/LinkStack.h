@@ -109,8 +109,8 @@ inline bool loadLinkStackFile(const std::string& cachePath, int spineCount, Link
   bool applied = false;
   {
     HalFile f;
-    uint8_t data[LinkStack::kMaxBytes + 1];
     if (Storage.openFileForRead("ERS", path, f)) {
+      uint8_t data[LinkStack::kMaxBytes + 1];
       const size_t n = f.read(data, sizeof(data));
       if (n <= LinkStack::kMaxBytes) {
         applied = LinkStack::decode(data, n, spineCount, stack);

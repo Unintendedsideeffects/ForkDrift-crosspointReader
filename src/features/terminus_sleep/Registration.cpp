@@ -15,6 +15,7 @@
 
 #include "CrossPointSettings.h"
 #include "SpiBusMutex.h"
+#include "activities/Activity.h"
 #include "core/features/FeatureCatalog.h"
 #include "core/features/FeatureModules.h"
 #include "core/registries/HomeActionRegistry.h"
@@ -865,10 +866,19 @@ bool shouldRefreshBeforeSleep() {
   return terminusFetchConfigured() && (!hasPinnedTerminusImage() || terminusFetchDue(true));
 }
 
-bool chargingDashboardSelected(const bool fromReader) {
-  return core::FeatureCatalog::isEnabled("terminus_sleep") &&
-         CrossPointSettings::effectiveSleepScreen(fromReader) == CrossPointSettings::TERMINUS_SLEEP &&
-         TERMINUS_STORE.hasCredentials();
+std::unique_ptr<Activity> makeChargingDashboard(GfxRenderer& renderer, MappedInputManager& mappedInput,
+                                                const bool fromReader, const std::string& returnBookPath) {
+  if (!core::FeatureCatalog::isEnabled("terminus_sleep") ||
+      CrossPointSettings::effectiveSleepScreen(fromReader) != CrossPointSettings::TERMINUS_SLEEP ||
+      !TERMINUS_STORE.hasCredentials()) {
+    return nullptr;
+  }
+  auto dashboard =
+      makeUniqueNoThrow<TrmnlViewActivity>(renderer, mappedInput, TrmnlViewActivity::Charging{returnBookPath});
+  if (!dashboard) {
+    LOG_ERR("TRMNL", "OOM: charging dashboard");
+  }
+  return dashboard;
 }
 
 bool fetchBusyOrBackingOff() { return fetchTaskRunning || fetchTaskRetryActive(); }
@@ -885,7 +895,9 @@ std::string machineStatusJson() {
 #else
 bool startTrmnlFetchAndWait(uint32_t) { return false; }
 bool shouldRefreshBeforeSleep() { return false; }
-bool chargingDashboardSelected(bool) { return false; }
+std::unique_ptr<Activity> makeChargingDashboard(GfxRenderer&, MappedInputManager&, bool, const std::string&) {
+  return nullptr;
+}
 bool fetchBusyOrBackingOff() { return false; }
 uint32_t currentRefreshIntervalSeconds() { return terminus_refresh::kDefaultIntervalS; }
 std::string machineStatusJson() { return R"({"configured":false,"timed_refresh_evidence":{"schema_version":1}})"; }

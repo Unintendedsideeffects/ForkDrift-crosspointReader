@@ -29,10 +29,8 @@ class TrmnlViewActivity final : public Activity {
   struct Charging {
     std::string returnBookPath;  // empty: Back goes Home
   };
-  TrmnlViewActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, Charging charging)
-      : Activity("Trmnl", renderer, mappedInput),
-        chargingMode(true),
-        returnBookPath(std::move(charging.returnBookPath)) {}
+  TrmnlViewActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const Charging& charging)
+      : Activity("Trmnl", renderer, mappedInput), chargingMode(true), returnBookPath(charging.returnBookPath) {}
 
   void onEnter() override;
   void loop() override;
