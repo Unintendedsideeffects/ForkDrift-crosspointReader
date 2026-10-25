@@ -12,6 +12,7 @@
 #include "MappedInputManager.h"
 #include "activities/home/FileBrowserActionActivity.h"
 #include "components/UITheme.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 
 static constexpr int ROW_HEIGHT = 50;
@@ -22,7 +23,7 @@ int EpubReaderBookmarkListActivity::getPageItems() const {
   const auto orientation = renderer.getOrientation();
   const bool isPortraitInverted = orientation == GfxRenderer::Orientation::PortraitInverted;
   const int hintGutterHeight = isPortraitInverted ? 50 : 0;
-  const int startY = LIST_START_Y + hintGutterHeight;
+  const int startY = LIST_START_Y + hintGutterHeight + features::status_overlay::topInset();
   const int available = renderer.getScreenHeight() - startY - ROW_HEIGHT;
   return std::max(1, available / ROW_HEIGHT);
 }
@@ -152,7 +153,7 @@ void EpubReaderBookmarkListActivity::render(RenderLock&&) {
   const int contentX = isLandscapeCw ? hintGutterWidth : 0;
   const int contentWidth = pageWidth - hintGutterWidth;
   const int hintGutterHeight = isPortraitInverted ? 50 : 0;
-  const int contentY = hintGutterHeight;
+  const int contentY = hintGutterHeight + features::status_overlay::topInset();  // below the global bar
 
   const int titleX =
       contentX + (contentWidth - renderer.getTextWidth(UI_12_FONT_ID, tr(STR_BOOKMARKS), EpdFontFamily::BOLD)) / 2;

@@ -1458,9 +1458,7 @@ void GfxRenderer::displayBufferAsync(const HalDisplay::RefreshMode refreshMode) 
   }
   auto elapsed = millis() - start_ms;
   LOG_DBG("GFX", "Time = %lu ms from clearScreen to displayBuffer", elapsed);
-  if (postRenderHook != nullptr) {
-    postRenderHook(*this);
-  }
+  runPostRenderHook();
   if (darkMode) {
     invertScreen();
   }

@@ -140,6 +140,13 @@ class GfxRenderer {
   void setDarkMode(const bool enabled) { darkMode = enabled; }
   bool isDarkMode() const { return darkMode; }
   void setPostRenderHook(void (*hook)(const GfxRenderer&)) { postRenderHook = hook; }
+  // Paint the post-render overlay into the framebuffer without a refresh. For
+  // paths that rebuild the BW frame after the panel update (the reader's
+  // anti-aliasing pass) so the framebuffer -- the next differential baseline and
+  // what CMD:SCREENSHOT/menus capture -- still carries the overlay.
+  void runPostRenderHook() const {
+    if (postRenderHook != nullptr) postRenderHook(*this);
+  }
 
   // Screen ops
   int getScreenWidth() const;

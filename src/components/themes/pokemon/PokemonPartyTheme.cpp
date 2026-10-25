@@ -83,9 +83,11 @@ MenuIcon menuIconFor(UIIcon icon) {
       return {Text24Icon, 24};
     case UIIcon::Book:
       return {Book24Icon, 24};
-    default:
-      theme_icons::warnMissingIcon(icon, 32);
-      return {};
+    default: {
+      const theme_icons::ResolvedIcon resolved =
+          theme_icons::resolve([](UIIcon, int) -> const uint8_t* { return nullptr; }, icon, 32, 24);
+      return {resolved.bmp, resolved.size};
+    }
   }
 }
 

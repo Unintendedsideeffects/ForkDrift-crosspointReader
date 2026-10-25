@@ -10,6 +10,7 @@
 #include "ProgressMapper.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureModules.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 
 bool EpubReaderChapterSelectionActivity::hasSyncOption() const {
@@ -40,7 +41,7 @@ int EpubReaderChapterSelectionActivity::getPageItems() const {
   const auto orientation = renderer.getOrientation();
   const bool isPortraitInverted = orientation == GfxRenderer::Orientation::PortraitInverted;
   const int hintGutterHeight = isPortraitInverted ? 50 : 0;
-  const int startY = 60 + hintGutterHeight;
+  const int startY = 60 + hintGutterHeight + features::status_overlay::topInset();
   const int availableHeight = screenHeight - startY - lineHeight;
   return std::max(1, availableHeight / lineHeight);
 }
@@ -153,7 +154,7 @@ void EpubReaderChapterSelectionActivity::render(RenderLock&&) {
   const int contentX = isLandscapeCw ? hintGutterWidth : 0;
   const int contentWidth = pageWidth - hintGutterWidth;
   const int hintGutterHeight = isPortraitInverted ? 50 : 0;
-  const int contentY = hintGutterHeight;
+  const int contentY = hintGutterHeight + features::status_overlay::topInset();  // below the global bar
   const int pageItems = getPageItems();
   const int totalItems = getTotalItems();
 

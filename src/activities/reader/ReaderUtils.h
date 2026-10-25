@@ -118,6 +118,10 @@ void renderAntiAliased(GfxRenderer& renderer, GrayFn&& grayFn, RestoreFn&& resto
   renderer.setRenderMode(GfxRenderer::BW);
   renderer.clearScreen();
   restoreFn();
+  // restoreFn repaints page + reader chrome only; the global status bar comes
+  // from the post-render hook, which only displayBuffer() runs. Without this the
+  // re-synced baseline has no bar (seen on device: AA pages had a blank band).
+  renderer.runPostRenderHook();
   renderer.cleanupGrayscaleWithFrameBuffer();
 }
 

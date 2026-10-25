@@ -73,9 +73,11 @@ const uint8_t* minimalIconForName(UIIcon icon) {
       return Book24Icon;
     case UIIcon::File:
       return File24Icon;
-    default:
-      theme_icons::warnMissingIcon(icon, 24);
-      return nullptr;
+    default: {
+      const uint8_t* bmp = theme_icons::standard(icon, 24);
+      if (bmp == nullptr) theme_icons::warnMissingIcon(icon, 24);
+      return bmp;
+    }
   }
 }
 

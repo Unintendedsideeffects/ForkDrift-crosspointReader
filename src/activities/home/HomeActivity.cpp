@@ -627,20 +627,25 @@ std::string HomeActivity::menuIdLabel(const HomeMenuId id, const bool gridStyle)
   }
   switch (id) {
     case HomeMenuId::ContinueReading:
-      return "Continue Reading";
+      return std::string(tr(STR_CONTINUE_READING));
     case HomeMenuId::OpenBook:
-      return recentBooks.empty() ? "Open Book (empty)" : "Open Book";
+      return std::string(recentBooks.empty() ? tr(STR_NO_OPEN_BOOK) : tr(STR_OPEN_BOOK));
     case HomeMenuId::MyLibrary:
-      return gridStyle ? std::string(tr(STR_BOOKS)) : std::string("My Library");
+      return std::string(gridStyle ? tr(STR_BOOKS) : tr(STR_MY_LIBRARY));
 #if ENABLE_BOOKS_TAB_UI
     case HomeMenuId::BooksTab:
       // Unified library home entry — the single "Library" the tab strip fronts.
       return std::string(tr(STR_LIBRARY));
 #endif
-    case HomeMenuId::Library:
-      return std::string(tr(STR_LIBRARY));
+    case HomeMenuId::Library: {
+      // This tile opens the first OPDS server directly (onLibraryOpen), so name
+      // it after that server; "Library" next to "My Library" and "OPDS Browser"
+      // read as three names for overlapping things.
+      const auto& servers = OPDS_STORE.getServers();
+      return servers.empty() || servers[0].name.empty() ? std::string(tr(STR_LIBRARY)) : servers[0].name;
+    }
     case HomeMenuId::Opds:
-      return "OPDS Browser";
+      return std::string(tr(STR_OPDS_BROWSER));
 #if ENABLE_BOOKMARKS
     case HomeMenuId::Bookmarks:
       return tr(STR_BOOKMARKS);
@@ -673,12 +678,12 @@ UIIcon HomeActivity::menuIdIcon(const HomeMenuId id) const {
       return UIIcon::Book;
 #endif
     case HomeMenuId::Library:
-      return UIIcon::Book;
-    case HomeMenuId::Opds:
       return UIIcon::Library;
+    case HomeMenuId::Opds:
+      return UIIcon::Wifi;
 #if ENABLE_BOOKMARKS
     case HomeMenuId::Bookmarks:
-      return UIIcon::Book;
+      return UIIcon::Bookmark;
 #endif
     case HomeMenuId::FileTransfer:
       return UIIcon::Transfer;

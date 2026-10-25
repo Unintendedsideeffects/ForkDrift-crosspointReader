@@ -19,6 +19,7 @@
 #include "components/icons/text24.h"
 #include "components/icons/transfer.h"
 #include "components/icons/wifi.h"
+#include "components/themes/ThemeIcons.h"
 #include "fontIds.h"
 #if ENABLE_WIFI_CLOCK
 #include "util/DateUtils.h"
@@ -209,16 +210,11 @@ void ForkDriftTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int button
 
     const std::string label = buttonLabel(i);
     const UIIcon icon = rowIcon ? rowIcon(i) : UIIcon::Settings;
-    const uint8_t* iconBmp = iconFor(icon, iconSize);
-    int drawnIconSize = iconSize;
-    if (iconBmp == nullptr) {
-      iconBmp = iconFor(icon, smallIconSize);
-      drawnIconSize = smallIconSize;
-    }
+    const theme_icons::ResolvedIcon resolved = theme_icons::resolve(iconFor, icon, iconSize, smallIconSize);
     int textX = x + 12;
-    if (iconBmp) {
-      renderer.drawIcon(iconBmp, x + 12, y + (tileH - drawnIconSize) / 2, drawnIconSize, drawnIconSize);
-      textX += drawnIconSize + hPadding;
+    if (resolved.bmp) {
+      renderer.drawIcon(resolved.bmp, x + 12, y + (tileH - resolved.size) / 2, resolved.size, resolved.size);
+      textX += resolved.size + hPadding;
     }
     const int lineH = renderer.getLineHeight(UI_10_FONT_ID);
     const int textY = y + (tileH - lineH) / 2;

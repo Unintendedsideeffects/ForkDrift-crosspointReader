@@ -11,8 +11,11 @@
 // src/activities/home/HomeExtras.cpp and the 2026-08-16 entry in
 // docs/FINDINGS.md.
 //
-// This does NOT change any theme's table. It only decides what happens on a
-// miss: try the other menu icon size, and if that misses too, say so once.
+// A theme's own table is consulted first (so a theme can restyle an icon). On a
+// miss, resolve() tries the other menu icon size, then the shared catalogue
+// below, and only logs when the icon has no art at either size anywhere. That
+// makes "theme forgot to wire an icon" impossible for any icon that has art:
+// test_theme_icons.cpp enumerates every UIIcon to keep it that way.
 namespace theme_icons {
 
 struct ResolvedIcon {
@@ -24,6 +27,10 @@ struct ResolvedIcon {
 // Returns {nullptr, 0} when neither size resolves, having logged a warning the
 // first time that (icon, size) pair misses.
 ResolvedIcon resolve(const uint8_t* (*lookup)(UIIcon, int), UIIcon icon, int preferredSize, int fallbackSize);
+
+// Every icon bitmap the firmware ships, at its native size(s). Returns nullptr
+// when `icon` has no art at `size` (e.g. Text exists only at 24px).
+const uint8_t* standard(UIIcon icon, int size);
 
 // For themes whose lookup has no size axis: log a miss once per icon.
 void warnMissingIcon(UIIcon icon, int size);

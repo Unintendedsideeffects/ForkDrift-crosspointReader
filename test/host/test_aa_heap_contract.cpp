@@ -16,6 +16,23 @@ TEST_CASE("reader AA restores BW by repainting instead of allocating a second bu
   CHECK(text.find("cleanupGrayscaleWithFrameBuffer") != std::string::npos);
 }
 
+TEST_CASE("reader AA repaint keeps the global status bar in the re-synced baseline") {
+  std::ifstream source("src/activities/reader/ReaderUtils.h");
+  REQUIRE(source.good());
+  std::ostringstream buffer;
+  buffer << source.rdbuf();
+  const std::string text = buffer.str();
+
+  const size_t restore = text.find("restoreFn();");
+  const size_t hook = text.find("renderer.runPostRenderHook();");
+  const size_t cleanup = text.find("renderer.cleanupGrayscaleWithFrameBuffer();");
+  REQUIRE(restore != std::string::npos);
+  REQUIRE(cleanup != std::string::npos);
+  CHECK(hook != std::string::npos);
+  CHECK(restore < hook);
+  CHECK(hook < cleanup);
+}
+
 TEST_CASE("epub page turn does not allocate an 8 KB grayscale strip scratch") {
   std::ifstream source("src/activities/reader/EpubReaderActivity.cpp");
   REQUIRE(source.good());

@@ -7,6 +7,7 @@
 
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 
 void EpubReaderFootnotesActivity::onEnter() {
@@ -65,7 +66,7 @@ void EpubReaderFootnotesActivity::render(RenderLock&&) {
   const int contentX = isLandscapeCw ? hintGutterWidth : 0;
   const int contentWidth = pageWidth - hintGutterWidth;
   const int hintGutterHeight = isPortraitInverted ? 50 : 0;
-  const int contentY = hintGutterHeight;
+  const int contentY = hintGutterHeight + features::status_overlay::topInset();  // below the global bar
 
   // Manual centering to honor content gutters.
   const int titleX =

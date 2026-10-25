@@ -10,6 +10,7 @@
 #include "ReaderOptionsMemoryPolicy.h"
 #include "components/UITheme.h"
 #include "core/features/FeatureCatalog.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 
 EpubReaderMenuActivity::EpubReaderMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
@@ -229,7 +230,9 @@ void EpubReaderMenuActivity::render(RenderLock&&) {
   const int contentX = isLandscapeCw ? hintGutterWidth : 0;
   const int contentWidth = pageWidth - hintGutterWidth;
   const int hintGutterHeight = isPortraitInverted ? 50 : 0;
-  const int contentY = hintGutterHeight;
+  // The global status bar draws over the top band (post-render hook), so the
+  // header starts below it, like every themed screen's metrics.topPadding.
+  const int contentY = hintGutterHeight + features::status_overlay::topInset();
 
   // Title
   const std::string truncTitle =
@@ -246,7 +249,7 @@ void EpubReaderMenuActivity::render(RenderLock&&) {
                    std::to_string(totalPages) + std::string(tr(STR_PAGES_SEPARATOR));
   }
   progressLine += std::string(tr(STR_BOOK_PREFIX)) + std::to_string(bookProgressPercent) + "%";
-  renderer.drawCenteredText(UI_10_FONT_ID, 45, progressLine.c_str());
+  renderer.drawCenteredText(UI_10_FONT_ID, 45 + contentY, progressLine.c_str());
 
   const int startY = 75 + contentY;
   constexpr int lineHeight = 30;
