@@ -28,6 +28,11 @@ enum class RedirectAction : uint8_t { FollowWithCredentials, FollowWithoutCreden
 RedirectAction classifyRedirect(const std::string& currentUrl, const std::string& credentialUrl,
                                 const std::string& nextUrl);
 
+// API key a /api/terminus/save request should store. Clients never read the key
+// back (status only reports has_api_key), so an absent or empty api_key keeps the
+// stored one; returns empty when there is neither, which the handler rejects.
+std::string resolveSaveApiKey(const char* posted, const std::string& stored);
+
 // Canonicalize user/persisted base URLs and migrate the obsolete cloud host.
 std::string normalizeBaseUrl(std::string url);
 

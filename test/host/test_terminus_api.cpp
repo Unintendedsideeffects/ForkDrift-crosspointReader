@@ -94,3 +94,10 @@ TEST_CASE("Terminus manifest rejects malformed or unsafe server data") {
   CHECK_FALSE(terminus_api::parseDisplayManifest(R"({"image_url":"https://trmnl.com/screen.png","refresh_rate":12.5})",
                                                  manifest));
 }
+
+TEST_CASE("Terminus save keeps the stored API key when the client omits it") {
+  CHECK(terminus_api::resolveSaveApiKey("new-key", "old-key") == "new-key");
+  CHECK(terminus_api::resolveSaveApiKey("", "old-key") == "old-key");
+  CHECK(terminus_api::resolveSaveApiKey(nullptr, "old-key") == "old-key");
+  CHECK(terminus_api::resolveSaveApiKey("", "").empty());
+}

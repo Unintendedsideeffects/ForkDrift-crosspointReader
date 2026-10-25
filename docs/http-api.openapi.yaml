@@ -1143,16 +1143,27 @@ paths:
           application/json:
             schema:
               type: object
-              required: [api_key, device_id]
+              required: [device_id]
               properties:
                 api_key:
                   type: string
+                  description: >-
+                    Omit or send empty to keep the stored key (status only reports
+                    has_api_key). Required when no key is stored yet.
                 device_id:
                   type: string
                 device_model:
                   type: string
                 base_url:
                   type: string
+                sleep_enabled:
+                  type: boolean
+                  default: true
+                timed_refresh_interval:
+                  type: integer
+                  description: >-
+                    Timed sleep refresh mode (0 = off). Defaults to the screensaver
+                    cadence when omitted; send the current value to preserve it.
       responses:
         '200':
           description: Configuration saved
@@ -1168,11 +1179,14 @@ paths:
     post:
       tags: [sleep]
       operationId: testTerminusFetch
-      summary: Fetch and pin latest Terminus sleep image
+      summary: Start a fetch of the latest Terminus sleep image
+      description: >-
+        Returns 202 immediately and fetches in the background; the web server stops
+        during the fetch, so clients poll /api/terminus/status for last_stage.
       x-crosspoint-feature-gates: [terminus_sleep]
       responses:
-        '200':
-          description: Image fetched and pinned
+        '202':
+          description: Fetch started
           content:
             application/json:
               schema:
@@ -1184,12 +1198,8 @@ paths:
                     type: string
         '400':
           $ref: '#/components/responses/BadRequestText'
-        '502':
-          $ref: '#/components/responses/InternalServerErrorText'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailableText'
-        '504':
-          $ref: '#/components/responses/GatewayTimeoutText'
+        '409':
+          $ref: '#/components/responses/ConflictText'
   /api/terminus/clear:
     post:
       tags: [sleep]

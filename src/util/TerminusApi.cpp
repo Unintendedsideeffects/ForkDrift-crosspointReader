@@ -111,4 +111,11 @@ bool parseDisplayManifest(const std::string& json, DisplayManifest& out) {
   return true;
 }
 
+std::string resolveSaveApiKey(const char* posted, const std::string& stored) {
+  if (posted != nullptr && posted[0] != '\0') {
+    return posted;
+  }
+  return stored;
+}
+
 }  // namespace terminus_api

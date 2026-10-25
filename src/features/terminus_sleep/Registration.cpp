@@ -719,9 +719,9 @@ void handleTerminusSave(WebServer* server) {
     server->send(400, "application/json", "{\"error\":\"invalid json\"}");
     return;
   }
-  const char* apiKey = doc["api_key"] | "";
+  const std::string apiKey = terminus_api::resolveSaveApiKey(doc["api_key"] | "", TERMINUS_STORE.apiKey());
   const char* deviceId = doc["device_id"] | "";
-  if (apiKey[0] == '\0' || deviceId[0] == '\0') {
+  if (apiKey.empty() || deviceId[0] == '\0') {
     server->send(400, "application/json", "{\"error\":\"api_key and device_id required\"}");
     return;
   }
