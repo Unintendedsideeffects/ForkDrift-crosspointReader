@@ -633,20 +633,13 @@ void CrossPointSettings::validateAndClamp() {
   statusBarChapterPageCount = statusBarChapterPageCount ? 1 : 0;
   statusBarBookProgressPercentage = statusBarBookProgressPercentage ? 1 : 0;
   statusBarBattery = statusBarBattery ? 1 : 0;
-  backgroundServerOnCharge = backgroundServerOnCharge ? 1 : 0;
-  wifiAutoConnect = wifiAutoConnect ? 1 : 0;
+  if (backgroundServerMode >= BACKGROUND_SERVER_MODE_COUNT) backgroundServerMode = BACKGROUND_SERVER_SMART;
   autoSyncDayOnBackgroundPing = autoSyncDayOnBackgroundPing ? 1 : 0;
   terminusSleepEnabled = terminusSleepEnabled ? 1 : 0;
   stayAwakeWhileCharging = stayAwakeWhileCharging ? 1 : 0;
   if (timedSleepRefreshInterval >= TIMED_SLEEP_REFRESH_MODE_COUNT) timedSleepRefreshInterval = TIMED_REFRESH_OFF;
-  if (!supportsBackgroundServerOnChargeMode()) {
-    backgroundServerOnCharge = 0;
-  }
-  if (!supportsBackgroundServerAlwaysMode()) {
-    wifiAutoConnect = 0;
-  }
-  if (wifiAutoConnect) {
-    backgroundServerOnCharge = 1;
+  if (!supportsBackgroundServer()) {
+    backgroundServerMode = BACKGROUND_SERVER_OFF;
   }
   developerMode = developerMode ? 1 : 0;
   setDeveloperModeLoggingEnabled(developerMode != 0);
@@ -857,13 +850,13 @@ std::string CrossPointSettings::getCondensedSettings() const {
   buffer[42] = recentBooksView;
   buffer[43] = fadingFix;
   buffer[44] = embeddedStyle;
-  buffer[45] = backgroundServerOnCharge;
+  buffer[45] = backgroundServerMode;
   buffer[46] = timeMode;
   buffer[47] = timeZoneOffset;
   buffer[48] = releaseChannel;
   buffer[49] = darkMode;
   buffer[50] = 0;  // reserved (was usbMscPromptOnConnect; USB mass storage removed) — keep offset stable
-  buffer[51] = wifiAutoConnect;
+  buffer[51] = 0;  // reserved (was wifiAutoConnect; Always mode removed) — keep offset stable
   buffer[52] = focusReadingEnabled;
   buffer[53] = guideReadingEnabled;
   buffer[54] = showHiddenFiles;

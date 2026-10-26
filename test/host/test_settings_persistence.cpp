@@ -117,7 +117,7 @@ TEST_CASE("settings persistence ignores removed key while loading siblings") {
   REQUIRE(JsonSettingsIO::loadSettings(settings, withRemovedKey, nullptr));
   const uint8_t withRemovedFontSize = settings.fontSize;
   const uint8_t withRemovedTimeout = settings.sleepTimeoutMinutes;
-  const uint8_t withRemovedBackgroundOnCharge = settings.backgroundServerOnCharge;
+  const uint8_t withRemovedBackgroundMode = settings.backgroundServerMode;
 
   CrossPointSettings& baseline = resetSettingsState();
   REQUIRE(JsonSettingsIO::loadSettings(baseline, withoutRemovedKey, nullptr));
@@ -125,7 +125,19 @@ TEST_CASE("settings persistence ignores removed key while loading siblings") {
   CHECK(settings.sleepTimeoutMinutes == 20);
   CHECK(withRemovedFontSize == baseline.fontSize);
   CHECK(withRemovedTimeout == baseline.sleepTimeoutMinutes);
-  CHECK(withRemovedBackgroundOnCharge == baseline.backgroundServerOnCharge);
+  CHECK(withRemovedBackgroundMode == baseline.backgroundServerMode);
+}
+
+TEST_CASE("pre-Smart background server keys load as Smart, not Off") {
+  // Always / On Charge were stored as backgroundServerOnCharge + wifiAutoConnect.
+  // Both modes are now Smart; the old keys are ignored and the default applies.
+  if (!CrossPointSettings::supportsBackgroundServer()) {
+    return;
+  }
+  CrossPointSettings& settings = resetSettingsState();
+  const char* alwaysMode = "{\"version\":1,\"backgroundServerOnCharge\":1,\"wifiAutoConnect\":1}";
+  REQUIRE(JsonSettingsIO::loadSettings(settings, alwaysMode, nullptr));
+  CHECK(settings.backgroundServerMode == CrossPointSettings::BACKGROUND_SERVER_SMART);
 }
 
 TEST_CASE("settings persistence clamps hostile enum values and ignores wrong types") {

@@ -18,28 +18,21 @@
 
 BackgroundWifiCoordinator BackgroundWifiCoordinator::instance;
 
-background_server::AutoConnectInput BackgroundWifiCoordinator::buildAutoConnectInput(
-    const bool explicitRequest, const bool ignoreBootBackoff) const {
+background_server::AutoConnectInput BackgroundWifiCoordinator::buildAutoConnectInput() const {
   const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
   const std::optional<WifiCredential> cred = WIFI_STORE.findCredential(lastSsid);
 
   return background_server::AutoConnectInput{
-      // An explicit timer refresh is itself permission to connect even when the
-      // awake background server is Never or On Charge.
-      .alwaysModeEnabled = explicitRequest || SETTINGS.keepsBackgroundServerOnWifiWhileAwake(),
+      .connectWanted = sessionRequested_,
       .waitingForNewCredential = APP_STATE.wifiAutoConnectWaitingForNewCredential,
-      // Boot backoff protects ordinary wakes from repeated idle connections;
-      // it must not consume an explicitly scheduled refresh opportunity.
-      .skipCount = ignoreBootBackoff ? uint8_t{0} : APP_STATE.wifiAutoConnectSkipCount,
       .lastConnectedSsid = lastSsid,
       .hasCredentialForLastSsid = cred.has_value(),
   };
 }
 
-bool BackgroundWifiCoordinator::attemptAutoConnect(const char* logTag, const bool explicitRequest,
-                                                   const bool ignoreBootBackoff) {
+bool BackgroundWifiCoordinator::attemptAutoConnect(const char* logTag) {
   const background_server::AutoConnectDecision decision =
-      background_server::evaluateAutoConnect(buildAutoConnectInput(explicitRequest, ignoreBootBackoff));
+      background_server::evaluateAutoConnect(buildAutoConnectInput());
 
   // reconcile() runs every tick; only log a skip reason when it changes.
   const int actionCode = static_cast<int>(decision.action);
@@ -48,12 +41,6 @@ bool BackgroundWifiCoordinator::attemptAutoConnect(const char* logTag, const boo
 
   switch (decision.action) {
     case background_server::AutoConnectAction::None:
-      return false;
-    case background_server::AutoConnectAction::SkipDueToBackoff:
-      if (reasonChanged) {
-        LOG_DBG(logTag, "WiFi auto-connect skipped by backoff (%u remaining)",
-                static_cast<unsigned>(APP_STATE.wifiAutoConnectSkipCount));
-      }
       return false;
     case background_server::AutoConnectAction::NoLastSsid:
       if (reasonChanged) {
@@ -85,8 +72,6 @@ bool BackgroundWifiCoordinator::attemptAutoConnect(const char* logTag, const boo
     }
     case background_server::AutoConnectAction::MissingCredentialForLastSsid: {
       APP_STATE.wifiAutoConnectWaitingForNewCredential = true;
-      APP_STATE.wifiAutoConnectSkipCount = 0;
-      APP_STATE.wifiAutoConnectBackoffLevel = 0;
       if (!APP_STATE.saveToFile()) {
         LOG_WRN(logTag, "Failed to persist WiFi credential recovery state");
       }
@@ -121,46 +106,49 @@ void BackgroundWifiCoordinator::applyReconcileDecision(const background_server::
     case background_server::ReconcileAction::AttemptAutoConnect:
       if (attemptAutoConnect("BGCOORD")) {
         wifiAutoConnectAttempted_ = true;
+      } else {
+        // No credential / blocked latch: a session that cannot connect ends here
+        // instead of retrying every tick.
+        endSession("could not start a connection");
       }
       return;
   }
 }
 
-void BackgroundWifiCoordinator::logAlwaysModeStateTransition() {
-  const bool alwaysEnabled = core::FeatureModules::hasCapability(core::Capability::BackgroundServer) &&
-                             SETTINGS.keepsBackgroundServerOnWifiWhileAwake();
-
-  AlwaysBgServerState currentState = AlwaysBgServerState::Stopped;
-
-  if (alwaysEnabled) {
-    if (BG_WIFI.isRunning()) {
-      currentState = AlwaysBgServerState::Running;
-    } else if (BG_WIFI.isPendingOrRunning()) {
-      currentState = AlwaysBgServerState::Backoff;
-    } else {
-      const std::string lastSsid = WIFI_STORE.getLastConnectedSsid();
-      const std::optional<WifiCredential> cred = WIFI_STORE.findCredential(lastSsid);
-      if (!cred) {
-        currentState = AlwaysBgServerState::IdleNoCredential;
-      }
-    }
+void BackgroundWifiCoordinator::requestSession(const char* reason) {
+  if (!SETTINGS.smartNetworkEnabled() || !CrossPointSettings::supportsBatterySessions() ||
+      !core::FeatureModules::hasCapability(core::Capability::BackgroundServer)) {
+    return;
   }
-
-  if (currentState != lastAlwaysModeState_) {
-    if (currentState == AlwaysBgServerState::IdleNoCredential) {
-      LOG_WRN("BGCOORD", "bg server idle: no saved credential");
-    }
-    lastAlwaysModeState_ = currentState;
+  if (!sessionRequested_) {
+    LOG_INF("BGCOORD", "Network session requested: %s", reason);
   }
+  sessionRequested_ = true;
+}
+
+void BackgroundWifiCoordinator::endSession(const char* why) {
+  if (sessionRequested_) {
+    LOG_INF("BGCOORD", "Network session ended: %s", why);
+  }
+  sessionRequested_ = false;
+  sessionStarted_ = false;
+  wifiAutoConnectAttempted_ = false;
 }
 
 void BackgroundWifiCoordinator::reconcile(const BackgroundWifiReconcileContext& ctx) {
-  logAlwaysModeStateTransition();
+  if (sessionRequested_) {
+    if (ctx.usbPowered && !BG_WIFI.isPendingOrRunning()) {
+      // On USB the On-Charge server is the single owner; it serves while plugged in.
+      endSession("USB power: the on-charge server takes over");
+    } else if (sessionStarted_ && !BG_WIFI.isPendingOrRunning()) {
+      // Linger expired, a reader took the radio, or the connect failed.
+      endSession("bgwifi stopped");
+    }
+  }
 
   const background_server::ReconcileDecision decision =
       background_server::evaluateReconcile(background_server::ReconcileInput{
-          .backgroundWifiEnabled = core::FeatureModules::hasCapability(core::Capability::BackgroundServer) &&
-                                   SETTINGS.keepsBackgroundServerOnWifiWhileAwake(),
+          .sessionWanted = sessionRequested_,
           .blockedByActivity = ctx.blockedByActivity,
           .usbBackgroundServerRunning = ctx.usbBackgroundServerRunning,
           .staConnected = hasStaWifiConnection(),
@@ -170,24 +158,8 @@ void BackgroundWifiCoordinator::reconcile(const BackgroundWifiReconcileContext& 
       });
 
   applyReconcileDecision(decision);
-}
-
-void BackgroundWifiCoordinator::attemptBootAutoConnect() {
-  if (!SETTINGS.keepsBackgroundServerOnWifiWhileAwake()) {
-    return;
-  }
-
-  if (APP_STATE.wifiAutoConnectSkipCount > 0) {
-    APP_STATE.wifiAutoConnectSkipCount--;
-    if (!APP_STATE.saveToFile()) {
-      LOG_WRN("BGCOORD", "Failed to persist WiFi auto-connect backoff state");
-    }
-    LOG_DBG("BGCOORD", "WiFi auto-connect skipped (backoff remaining: %d)", APP_STATE.wifiAutoConnectSkipCount);
-    return;
-  }
-
-  if (attemptAutoConnect("BGCOORD")) {
-    wifiAutoConnectAttempted_ = true;
+  if (sessionRequested_ && BG_WIFI.isPendingOrRunning()) {
+    sessionStarted_ = true;
   }
 }
 
@@ -265,7 +237,7 @@ void BackgroundWifiCoordinator::releaseRadioForReader() {
   // up through a book open (2026-10-26, X4), free heap fell to 28 KB mid-index --
   // under heapguard's 32 KB floor, so every chapter after the cover failed with
   // "Failed to load EPUB". The book also needs one contiguous 32 KB inflate window.
-  // Wi-Fi comes back through reconcile() once the reader is gone.
+  // Closing the book requests the next network session (Smart mode).
   bool released = false;
   if (BG_WIFI.isPendingOrRunning()) {
     BG_WIFI.stop();
@@ -298,25 +270,8 @@ void BackgroundWifiCoordinator::releaseRadioForReader() {
 }
 
 void BackgroundWifiCoordinator::onPrepareDeepSleep() {
-  if (wifiAutoConnectAttempted_) {
-    const bool hadActivity = BG_WIFI.hadApiActivity();
-    if (BG_WIFI.isRunning()) {
-      BG_WIFI.stop();
-    }
-    if (hadActivity || SETTINGS.keepsBackgroundServerOnWifiWhileAwake()) {
-      APP_STATE.wifiAutoConnectBackoffLevel = 0;
-      APP_STATE.wifiAutoConnectSkipCount = 0;
-      LOG_DBG("BGCOORD", "WiFi auto-connect backoff reset (hadActivity=%d, always=%d)", hadActivity ? 1 : 0,
-              SETTINGS.keepsBackgroundServerOnWifiWhileAwake() ? 1 : 0);
-    } else {
-      if (APP_STATE.wifiAutoConnectBackoffLevel < 4) {
-        APP_STATE.wifiAutoConnectBackoffLevel++;
-      }
-      APP_STATE.wifiAutoConnectSkipCount = (1U << APP_STATE.wifiAutoConnectBackoffLevel) - 1U;
-      LOG_DBG("BGCOORD", "WiFi no API activity — backoff level %d, next skip: %d",
-              APP_STATE.wifiAutoConnectBackoffLevel, APP_STATE.wifiAutoConnectSkipCount);
-    }
-  } else if (BG_WIFI.isRunning()) {
+  if (BG_WIFI.isRunning()) {
     BG_WIFI.stop();
   }
+  endSession("deep sleep");
 }

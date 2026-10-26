@@ -142,7 +142,8 @@ TEST_CASE("testSettingsRoundTrip") {
   s.hideBatteryPercentage = CrossPointSettings::HIDE_READER;
   s.uiTheme = CrossPointSettings::LYRA;
   s.longPressButtonBehavior = CrossPointSettings::OFF;
-  s.backgroundServerOnCharge = CrossPointSettings::supportsBackgroundServerOnChargeMode() ? 1 : 0;
+  s.backgroundServerMode = CrossPointSettings::supportsBackgroundServer() ? CrossPointSettings::BACKGROUND_SERVER_SMART
+                                                                          : CrossPointSettings::BACKGROUND_SERVER_OFF;
   s.timeMode = CrossPointSettings::TIME_MODE_LOCAL;
   s.timeZoneOffset = 14;
   s.autoSyncDayOnBackgroundPing = 1;
@@ -150,7 +151,6 @@ TEST_CASE("testSettingsRoundTrip") {
   s.terminusSleepEnabled = 1;
   s.timedSleepRefreshInterval = 4;
   s.releaseChannel = CrossPointSettings::RELEASE_NIGHTLY;
-  s.wifiAutoConnect = CrossPointSettings::supportsBackgroundServerAlwaysMode() ? 1 : 0;
   strncpy(s.userFontPath, "/fonts/MyFont.ttf", sizeof(s.userFontPath) - 1);
   strncpy(s.selectedOtaBundle, "bundle-abc123", sizeof(s.selectedOtaBundle) - 1);
   strncpy(s.installedOtaBundle, "bundle-xyz789", sizeof(s.installedOtaBundle) - 1);
@@ -195,7 +195,7 @@ TEST_CASE("testSettingsRoundTrip") {
   s.hideBatteryPercentage = CrossPointSettings::HIDE_NEVER;
   s.uiTheme = CrossPointSettings::LYRA;
   s.longPressButtonBehavior = CrossPointSettings::CHAPTER_SKIP;
-  s.backgroundServerOnCharge = 0;
+  s.backgroundServerMode = CrossPointSettings::BACKGROUND_SERVER_OFF;
   s.timeMode = CrossPointSettings::TIME_MODE_UTC;
   s.timeZoneOffset = 12;
   s.autoSyncDayOnBackgroundPing = 0;
@@ -203,7 +203,6 @@ TEST_CASE("testSettingsRoundTrip") {
   s.terminusSleepEnabled = 0;
   s.timedSleepRefreshInterval = 0;
   s.releaseChannel = CrossPointSettings::RELEASE_STABLE;
-  s.wifiAutoConnect = 0;
   s.userFontPath[0] = '\0';
   s.selectedOtaBundle[0] = '\0';
   s.installedOtaBundle[0] = '\0';
@@ -240,7 +239,9 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(s.screenMargin == 12);
   CHECK(s.hideBatteryPercentage == CrossPointSettings::HIDE_READER);
   CHECK(s.longPressButtonBehavior == CrossPointSettings::OFF);
-  CHECK(s.backgroundServerOnCharge == (CrossPointSettings::supportsBackgroundServerOnChargeMode() ? 1 : 0));
+  CHECK(s.backgroundServerMode == (CrossPointSettings::supportsBackgroundServer()
+                                       ? CrossPointSettings::BACKGROUND_SERVER_SMART
+                                       : CrossPointSettings::BACKGROUND_SERVER_OFF));
   CHECK(s.timeMode == CrossPointSettings::TIME_MODE_LOCAL);
   CHECK(s.timeZoneOffset == 14);
   CHECK(s.autoSyncDayOnBackgroundPing == 1);
@@ -249,7 +250,6 @@ TEST_CASE("testSettingsRoundTrip") {
   CHECK(s.timedSleepRefreshInterval == 4);
   CHECK(s.getTimedRefreshIntervalMicros() == 8ULL * 3600ULL * 1000000ULL);
   CHECK(s.releaseChannel == CrossPointSettings::RELEASE_NIGHTLY);
-  CHECK(s.wifiAutoConnect == (CrossPointSettings::supportsBackgroundServerAlwaysMode() ? 1 : 0));
   CHECK(std::string(s.userFontPath) == "/fonts/MyFont.ttf");
   CHECK(std::string(s.selectedOtaBundle) == "bundle-abc123");
   CHECK(std::string(s.installedOtaBundle) == "bundle-xyz789");
@@ -304,31 +304,14 @@ TEST_CASE("stay awake while charging only blocks inactivity sleep on USB power")
 TEST_CASE("testBackgroundServerModeClamping") {
   CrossPointSettings& s = CrossPointSettings::getInstance();
 
-  s.backgroundServerOnCharge = 1;
-  s.wifiAutoConnect = 1;
+  s.backgroundServerMode = 7;  // out of range
   s.validateAndClamp();
-
-  CHECK(s.backgroundServerOnCharge == (CrossPointSettings::supportsBackgroundServerOnChargeMode() ? 1 : 0));
-  CHECK(s.wifiAutoConnect == (CrossPointSettings::supportsBackgroundServerAlwaysMode() ? 1 : 0));
-
-  s.setBackgroundServerMode(CrossPointSettings::BACKGROUND_SERVER_ALWAYS);
-  if (CrossPointSettings::supportsBackgroundServerAlwaysMode()) {
-    CHECK(s.getBackgroundServerMode() == CrossPointSettings::BACKGROUND_SERVER_ALWAYS);
-  } else if (CrossPointSettings::supportsBackgroundServerOnChargeMode()) {
-    CHECK(s.getBackgroundServerMode() == CrossPointSettings::BACKGROUND_SERVER_NEVER);
-  } else {
-    CHECK(s.getBackgroundServerMode() == CrossPointSettings::BACKGROUND_SERVER_NEVER);
-  }
-
-  s.setBackgroundServerMode(CrossPointSettings::BACKGROUND_SERVER_ON_CHARGE);
-  if (CrossPointSettings::supportsBackgroundServerOnChargeMode()) {
-    CHECK(s.getBackgroundServerMode() == CrossPointSettings::BACKGROUND_SERVER_ON_CHARGE);
-  } else {
-    CHECK(s.getBackgroundServerMode() == CrossPointSettings::BACKGROUND_SERVER_NEVER);
-  }
-
-  s.setBackgroundServerMode(CrossPointSettings::BACKGROUND_SERVER_NEVER);
-  CHECK(s.getBackgroundServerMode() == CrossPointSettings::BACKGROUND_SERVER_NEVER);
+  CHECK(s.backgroundServerMode == (CrossPointSettings::supportsBackgroundServer()
+                                       ? CrossPointSettings::BACKGROUND_SERVER_SMART
+                                       : CrossPointSettings::BACKGROUND_SERVER_OFF));
+  s.backgroundServerMode = CrossPointSettings::BACKGROUND_SERVER_OFF;
+  s.validateAndClamp();
+  CHECK(s.backgroundServerMode == CrossPointSettings::BACKGROUND_SERVER_OFF);
 
   s.opdsFilenameFormat = CrossPointSettings::OPDS_FILENAME_FORMAT_COUNT;
   s.autoSyncDayOnBackgroundPing = 7;

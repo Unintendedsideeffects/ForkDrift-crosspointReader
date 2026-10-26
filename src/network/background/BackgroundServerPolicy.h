@@ -20,7 +20,6 @@ ServiceState noteCleanupComplete(ServiceState state);
 enum class AutoConnectAction {
   None,
   BlockedWaitingForCredential,
-  SkipDueToBackoff,
   StartWithLastCredential,
   NoLastSsid,
   MissingCredentialForLastSsid,
@@ -34,9 +33,8 @@ enum class AutoConnectAction {
 };
 
 struct AutoConnectInput {
-  bool alwaysModeEnabled = false;
+  bool connectWanted = false;  // a network session (or an explicit timed refresh) asked for the radio
   bool waitingForNewCredential = false;
-  uint8_t skipCount = 0;
   std::string_view lastConnectedSsid;
   bool hasCredentialForLastSsid = false;
 };
@@ -55,7 +53,9 @@ enum class ReconcileAction {
 };
 
 struct ReconcileInput {
-  bool backgroundWifiEnabled = false;
+  // Smart mode with a session requested (book closed) and not yet ended. Without
+  // it reconcile never connects: there is no resident radio.
+  bool sessionWanted = false;
   bool blockedByActivity = false;
   bool usbBackgroundServerRunning = false;
   bool staConnected = false;
@@ -126,12 +126,26 @@ RunningHeapAction evaluateRunningHeap(uint32_t freeBytes);
 
 struct OnChargeServerInput {
   bool hasBackgroundServerCapability = false;
-  bool backgroundServerOnCharge = false;
+  bool smartEnabled = false;
   bool usbConnected = false;
   bool blockedByActivity = false;
   bool bgWifiRunning = false;
 };
 
 bool shouldRunOnChargeBackgroundServer(const OnChargeServerInput& input);
+
+// A book-close session keeps its server up while requests keep arriving, then
+// powers the radio down after this much idle time (user decision 2026-10-26).
+constexpr uint32_t SESSION_LINGER_IDLE_MS = 2 * 60 * 1000;
+
+enum class LingerAction : uint8_t {
+  KeepServing,
+  EndSession,
+};
+
+// Unsigned subtraction, so a millis() wrap between the two readings is harmless.
+constexpr LingerAction evaluateLinger(const uint32_t nowMs, const uint32_t lastActivityMs) {
+  return nowMs - lastActivityMs >= SESSION_LINGER_IDLE_MS ? LingerAction::EndSession : LingerAction::KeepServing;
+}
 
 }  // namespace background_server

@@ -65,7 +65,7 @@ TEST_CASE("recoverHeapAfterWifi does not reboot") {
   REQUIRE(end != std::string::npos);
   const std::string body = text.substr(start, end - start);
   CHECK(body.find("silentRestart") == std::string::npos);
-  CHECK(body.find("LeaveWifiForAlways") != std::string::npos);
+  CHECK(body.find("LeaveWifiForSession") != std::string::npos);
 }
 
 TEST_CASE("planner day-index header line last pixel is inclusive width-1") {
@@ -246,7 +246,8 @@ TEST_CASE("boot bakes missing covers before Wi-Fi and Home take the heap") {
   REQUIRE(catchUp != std::string::npos);
   CHECK(catchUp > text.find("RECENT_BOOKS.loadFromFile();"));
   CHECK(catchUp < text.find("activityManager.goHome();", catchUp - 2000));
-  CHECK(catchUp < text.find("attemptBootAutoConnect()"));
+  // Smart mode has no boot connect at all (2026-10-26 redesign).
+  CHECK(text.find("attemptBootAutoConnect") == std::string::npos);
 }
 
 TEST_CASE("a chapter that lost words is rebuilt after reclaim, never shown") {
@@ -270,11 +271,6 @@ TEST_CASE("swarm review 2026-10-26: cover and truncation fixes stay in place") {
   CHECK(reader.find("truncationRetrySpineIndex_ != currentSpineIndex") != std::string::npos);
   CHECK(reader.find("if (css && css->hasCache()) {") != std::string::npos);
 
-  const std::string main = slurp("src/main.cpp");
-  const auto boot = main.find("attemptBootAutoConnect()");
-  REQUIRE(boot != std::string::npos);
-  CHECK(main.rfind("if (!activityManager.blocksBackgroundServer()) {", boot) != std::string::npos);
-
   const std::string dav = slurp("src/network/server/WebDAVHandler.cpp");
   const auto put = dav.find("void WebDAVHandler::handlePut(");
   CHECK(dav.find("CoverArrivalQueue::instance().push(", put) < dav.find("\nvoid WebDAVHandler::", put + 1));
@@ -291,4 +287,27 @@ TEST_CASE("swarm review 2026-10-26: cover and truncation fixes stay in place") {
   CHECK(bake.find("markFailed(epub, true);") < bake.find("epub.load(/*buildIfMissing=*/true"));
   CHECK(bake.find("rememberPending(path);") != std::string::npos);
   CHECK(bake.find("homeCoverHeight") != std::string::npos);
+}
+
+TEST_CASE("Smart network sessions: radio only for book-close sessions and USB") {
+  // User decision 2026-10-26: no resident radio. Closing a book requests a session;
+  // the bgwifi server lingers 2 idle minutes and powers the radio down; USB power
+  // is the On-Charge server's alone. Leaving File Transfer / Calibre keeps nothing.
+  const std::string main = slurp("src/main.cpp");
+  CHECK(main.find("requestSession(\"book closed\")") != std::string::npos);
+  CHECK(main.find("attemptBootAutoConnect") == std::string::npos);
+
+  const std::string service = slurp("src/network/background/BackgroundWifiService.cpp");
+  CHECK(service.find("background_server::evaluateLinger(") != std::string::npos);
+  CHECK(service.find("server->transferInProgress()") != std::string::npos);
+  CHECK(service.find("(wifiOwned || lingerExpired)") != std::string::npos);
+
+  const std::string coordinator = slurp("src/network/background/BackgroundWifiCoordinator.cpp");
+  CHECK(coordinator.find("endSession(\"bgwifi stopped\")") != std::string::npos);
+  CHECK(coordinator.find("wifiAutoConnectSkipCount") == std::string::npos);
+
+  CHECK(slurp("src/activities/network/CrossPointWebServerActivity.cpp").find("Preserving WiFi connection") ==
+        std::string::npos);
+  CHECK(slurp("src/activities/network/CalibreConnectActivity.cpp").find("keepsBackgroundServerOnWifiWhileAwake") ==
+        std::string::npos);
 }

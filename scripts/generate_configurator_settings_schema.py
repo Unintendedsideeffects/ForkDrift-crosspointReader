@@ -56,7 +56,6 @@ SCHEMA_MACROS = [
 ]
 
 EXCLUDED_PERSISTED_KEYS = {
-    "backgroundServerOnCharge",
     "clockFormat",
     "clockHasBeenSynced",
     "clockUtcOffsetQ",
@@ -79,7 +78,6 @@ EXCLUDED_PERSISTED_KEYS = {
     "statusBarClock",
     "todoFallbackCover",
     "userFontPath",
-    "wifiAutoConnect",
 }
 
 

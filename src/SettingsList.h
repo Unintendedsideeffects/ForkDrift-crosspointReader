@@ -16,49 +16,7 @@
 #include "core/features/FeatureModules.h"
 #include "util/TerminusCredentialStore.h"
 
-inline bool supportsBackgroundServerModeSetting() {
-  return core::FeatureModules::hasCapability(core::Capability::BackgroundServerOnCharge);
-}
-
-inline bool supportsBackgroundServerAlwaysSetting() {
-  return core::FeatureModules::hasCapability(core::Capability::BackgroundServerAlways);
-}
-
-inline std::vector<std::string> backgroundServerModeOptions() {
-  std::vector<std::string> options = {std::string(I18N.get(StrId::STR_NEVER)),
-                                      std::string(I18N.get(StrId::STR_ONLY_ON_CHARGE))};
-  if (supportsBackgroundServerAlwaysSetting()) {
-    options.emplace_back(I18N.get(StrId::STR_ALWAYS));
-  }
-  return options;
-}
-
 inline std::vector<std::string> opdsFilenameFormatOptions() { return {"Author - Title", "Title - Author"}; }
-
-inline uint8_t getBackgroundServerModeSettingIndex() {
-  const uint8_t mode = SETTINGS.getBackgroundServerMode();
-  if (supportsBackgroundServerAlwaysSetting()) {
-    if (mode == CrossPointSettings::BACKGROUND_SERVER_ALWAYS) {
-      return 2;
-    }
-    if (mode == CrossPointSettings::BACKGROUND_SERVER_ON_CHARGE) {
-      return 1;
-    }
-    return 0;
-  }
-  return mode == CrossPointSettings::BACKGROUND_SERVER_ON_CHARGE ? 1 : 0;
-}
-
-inline void setBackgroundServerModeSettingIndex(const uint8_t index) {
-  if (supportsBackgroundServerAlwaysSetting()) {
-    SETTINGS.setBackgroundServerMode(
-        index <= CrossPointSettings::BACKGROUND_SERVER_ALWAYS ? index : CrossPointSettings::BACKGROUND_SERVER_NEVER);
-    return;
-  }
-
-  SETTINGS.setBackgroundServerMode(index == 1 ? CrossPointSettings::BACKGROUND_SERVER_ON_CHARGE
-                                              : CrossPointSettings::BACKGROUND_SERVER_NEVER);
-}
 
 struct QuickActionOption {
   StrId label;
@@ -1013,13 +971,10 @@ inline void forEachSetting(SettingSink sink, void* ctx, bool hasSleepImages, boo
                              "ankiConnectDeck", StrId::STR_CAT_SYSTEM)
              .withConfiguratorExport("anki_support"));
 #endif
-    if (supportsBackgroundServerModeSetting()) {
-      emit(SettingInfo::DynamicEnum(
-               StrId::STR_BACKGROUND_SERVER, {}, [] { return getBackgroundServerModeSettingIndex(); },
-               [](uint8_t value) { setBackgroundServerModeSettingIndex(value); }, "backgroundServerMode",
-               StrId::STR_CAT_SYSTEM, [] { return backgroundServerModeOptions(); })
-               .withConfiguratorExport("background_server_on_charge")
-               .withEnumOptionFeatureKeys({nullptr, nullptr, "background_server_always"}));
+    if constexpr (CrossPointSettings::supportsBackgroundServer()) {
+      emit(SettingInfo::Enum(StrId::STR_BACKGROUND_SERVER, &CrossPointSettings::backgroundServerMode,
+                             {StrId::STR_OFF, StrId::STR_SMART}, "backgroundServerMode", StrId::STR_CAT_SYSTEM)
+               .withConfiguratorExport("background_server_on_charge"));
 #if ENABLE_WIFI_CLOCK
       emit(SettingInfo::Toggle(StrId::STR_CLOCK_SYNC, &CrossPointSettings::autoSyncDayOnBackgroundPing,
                                "autoSyncDayOnBackgroundPing", StrId::STR_CAT_SYSTEM)

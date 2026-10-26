@@ -44,7 +44,7 @@ StartResourceVerdict evaluateStartResources(const StartResourceInput& input) {
 AutoConnectDecision evaluateAutoConnect(const AutoConnectInput& input) {
   AutoConnectDecision decision;
 
-  if (!input.alwaysModeEnabled) {
+  if (!input.connectWanted) {
     return decision;
   }
   if (input.waitingForNewCredential) {
@@ -56,10 +56,6 @@ AutoConnectDecision evaluateAutoConnect(const AutoConnectInput& input) {
       return decision;
     }
     decision.action = AutoConnectAction::BlockedWaitingForCredential;
-    return decision;
-  }
-  if (input.skipCount > 0) {
-    decision.action = AutoConnectAction::SkipDueToBackoff;
     return decision;
   }
   if (input.lastConnectedSsid.empty()) {
@@ -82,7 +78,7 @@ ReconcileDecision evaluateReconcile(const ReconcileInput& input) {
     return decision;
   }
 
-  if (!input.backgroundWifiEnabled || input.blockedByActivity) {
+  if (!input.sessionWanted || input.blockedByActivity) {
     if (input.bgWifiRunning) {
       decision.action = ReconcileAction::StopBgWifi;
       decision.stopKeepWifi = input.blockedByActivity;
@@ -112,8 +108,8 @@ ReconcileDecision evaluateReconcile(const ReconcileInput& input) {
 }
 
 bool shouldRunOnChargeBackgroundServer(const OnChargeServerInput& input) {
-  return input.hasBackgroundServerCapability && input.backgroundServerOnCharge && input.usbConnected &&
-         !input.blockedByActivity && !input.bgWifiRunning;
+  return input.hasBackgroundServerCapability && input.smartEnabled && input.usbConnected && !input.blockedByActivity &&
+         !input.bgWifiRunning;
 }
 
 }  // namespace background_server

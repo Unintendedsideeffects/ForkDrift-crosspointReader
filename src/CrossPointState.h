@@ -25,8 +25,6 @@ class CrossPointState {
   float pendingBookmarkProgress = PENDING_BOOKMARK_PROGRESS_NONE;
   bool pendingHomeFullRefresh = false;
   uint8_t lastSleepImage = UINT8_MAX;
-  uint8_t wifiAutoConnectSkipCount = 0;
-  uint8_t wifiAutoConnectBackoffLevel = 0;
   bool wifiAutoConnectWaitingForNewCredential = false;
   uint16_t recentSleepImages[SLEEP_RECENT_COUNT] = {};  // circular buffer of recent wallpaper indices
   uint8_t recentSleepPos = 0;                           // next write slot

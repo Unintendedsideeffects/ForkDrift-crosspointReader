@@ -48,15 +48,6 @@ std::vector<std::string> buildOptionLabels(const SettingInfo& setting) {
 
 int getNumericDefaultValue(const SettingInfo& setting) { return static_cast<int>(setting.persistedValue()); }
 
-void appendEmitRule(JsonArray emits, const char* key, const std::vector<uint8_t>& values) {
-  JsonObject emit = emits.add<JsonObject>();
-  emit["key"] = key;
-  JsonArray outValues = emit["values"].to<JsonArray>();
-  for (const auto value : values) {
-    outValues.add(value);
-  }
-}
-
 void appendSchemaSetting(JsonArray out, const std::vector<SettingInfo>& settings, const SettingInfo& setting) {
   if (!setting.configuratorExport || setting.key == nullptr) {
     return;
@@ -93,11 +84,6 @@ void appendSchemaSetting(JsonArray out, const std::vector<SettingInfo>& settings
         if (i < setting.enumOptionFeatureKeys.size() && setting.enumOptionFeatureKeys[i] != nullptr) {
           option["featureKey"] = setting.enumOptionFeatureKeys[i];
         }
-      }
-      if (std::string(setting.key) == "backgroundServerMode") {
-        JsonArray emits = item["emits"].to<JsonArray>();
-        appendEmitRule(emits, "backgroundServerOnCharge", {0, 1, 1});
-        appendEmitRule(emits, "wifiAutoConnect", {0, 0, 1});
       }
       break;
     }

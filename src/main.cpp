@@ -154,11 +154,13 @@ bool silentRestart(uint32_t target) {
 // in setup() (see the silentReboot branch there).
 bool silentRestartToReader() { return silentRestart(SILENT_REBOOT_TARGET_READER); }
 
-static bool backgroundServerKeepsWifiWhileAwake() {
-  if (SETTINGS.keepsBackgroundServerOnWifiWhileAwake()) {
+// A network session (or USB power in Smart mode, where the on-charge server owns
+// the radio) still wants the STA association a foreground activity leaves behind.
+static bool networkSessionKeepsWifi() {
+  if (BackgroundWifiCoordinator::getInstance().sessionActive()) {
     return true;
   }
-  return core::FeatureModules::hasCapability(core::Capability::BackgroundServer) && SETTINGS.backgroundServerOnCharge &&
+  return core::FeatureModules::hasCapability(core::Capability::BackgroundServer) && SETTINGS.smartNetworkEnabled() &&
          gpio.isUsbConnected();
 }
 
@@ -166,13 +168,13 @@ static bool backgroundServerKeepsWifiWhileAwake() {
 void recoverHeapAfterWifi(const char* tag) {
   const auto action = wifi_heap_recovery::evaluate({
       .wifiOff = WiFi.getMode() == WIFI_MODE_NULL,
-      .alwaysKeepsWifi = backgroundServerKeepsWifiWhileAwake(),
+      .sessionKeepsWifi = networkSessionKeepsWifi(),
   });
   if (action == wifi_heap_recovery::Action::Noop) {
     return;
   }
-  if (action == wifi_heap_recovery::Action::LeaveWifiForAlways) {
-    LOG_DBG(tag, "Leaving WiFi up for Always");
+  if (action == wifi_heap_recovery::Action::LeaveWifiForSession) {
+    LOG_DBG(tag, "Leaving WiFi up for the network session");
     return;
   }
 
@@ -811,14 +813,6 @@ void setup() {
 
   heaptrace::mark("boot:activity");
 
-  // A reader opened straight from setup() (silent reboot to reader) owns the radio:
-  // connecting here would put the STA radio back up for its first chapter index.
-  // Reconcile connects once no reader is open.
-  if (!activityManager.blocksBackgroundServer()) {
-    BackgroundWifiCoordinator::getInstance().attemptBootAutoConnect();
-  }
-  heaptrace::mark("boot:autoconnect");
-
   waitForPowerRelease();
   heaptrace::mark("boot:done");
 }
@@ -1124,7 +1118,7 @@ void loop() {
     const bool suppressUsbBackgroundServer = BG_WIFI.isRunning();
     const bool allowRun = background_server::shouldRunOnChargeBackgroundServer(background_server::OnChargeServerInput{
         .hasBackgroundServerCapability = core::FeatureModules::hasCapability(core::Capability::BackgroundServer),
-        .backgroundServerOnCharge = SETTINGS.backgroundServerOnCharge != 0,
+        .smartEnabled = SETTINGS.smartNetworkEnabled(),
         .usbConnected = usbConn,
         .blockedByActivity = activityManager.blocksBackgroundServer(),
         .bgWifiRunning = suppressUsbBackgroundServer,
@@ -1154,9 +1148,21 @@ void loop() {
     bgServerWasRunning = bgServerIsRunning;
   }
 
+  // Smart mode: closing a book (leaving every reader, incl. one stacked under
+  // KOSync) is the moment to run network jobs and let the phone sync.
+  {
+    static bool wasReading = false;
+    const bool reading = activityManager.isReaderActivity();
+    if (wasReading && !reading) {
+      BackgroundWifiCoordinator::getInstance().requestSession("book closed");
+    }
+    wasReading = reading;
+  }
+
   BackgroundWifiCoordinator::getInstance().reconcile(BackgroundWifiReconcileContext{
       .blockedByActivity = activityManager.blocksBackgroundServer(),
       .usbBackgroundServerRunning = backgroundServer.isRunning(),
+      .usbPowered = gpio.isUsbConnected(),
   });
 
   // New books get one cover attempt, never under a reader or a busy foreground.

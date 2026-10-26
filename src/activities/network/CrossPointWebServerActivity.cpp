@@ -122,12 +122,6 @@ void CrossPointWebServerActivity::onExit() {
   // Brief wait for LWIP stack to flush pending packets
   delay(50);
 
-  if (!isApMode && SETTINGS.keepsBackgroundServerOnWifiWhileAwake() && hasStaWifiConnection()) {
-    LOG_DBG("WEBACT", "Preserving WiFi connection for background file server");
-    LOG_DBG("WEBACT", "Free heap at onExit end: %d bytes", ESP.getFreeHeap());
-    return;
-  }
-
   // Disconnect WiFi gracefully
   if (isApMode) {
     LOG_DBG("WEBACT", "Stopping WiFi AP...");

@@ -136,6 +136,7 @@ bool BackgroundWifiService::canStartNow() {
 void BackgroundWifiService::run(const char* ssid, const char* password, const bool useCurrentConnection) {
   wifiOwned = false;
   bool serverStartFailed = false;
+  bool lingerExpired = false;  // declared before the first goto: an idle session always powers the radio down
 
   if (useCurrentConnection) {
     LOG_DBG("BGWIFI", "Starting background web server on existing WiFi connection");
@@ -215,6 +216,10 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
     LOG_DBG("BGWIFI", "Background web server running on port %d", server->getPort());
 
     // ── Service loop ──────────────────────────────────────────────────────
+    // A Smart session's jobs ran above (pre-server hook, shelf); from here the
+    // server lingers for the phone/web and powers the radio down once idle.
+    uint32_t lastActivityMs = millis();
+    uint32_t lastSeenRequests = 0;
     while (!stopRequested) {
       esp_task_wdt_reset();
 
@@ -225,6 +230,17 @@ void BackgroundWifiService::run(const char* ssid, const char* password, const bo
 
       server->handleClient();
       requestCount = server->getRequestCount();  // Propagate to volatile field
+      if (requestCount != lastSeenRequests || server->transferInProgress()) {
+        lastSeenRequests = requestCount;
+        lastActivityMs = millis();
+      }
+      if (background_server::evaluateLinger(millis(), lastActivityMs) == background_server::LingerAction::EndSession) {
+        LOG_INF("BGWIFI", "Session idle for %lus; powering the radio down (%lu requests)",
+                static_cast<unsigned long>(background_server::SESSION_LINGER_IDLE_MS / 1000),
+                static_cast<unsigned long>(requestCount));
+        lingerExpired = true;
+        break;
+      }
       if (!stopRequested && !shelfRefreshAttempted && ESP.getFreeHeap() >= library_shelf::kMinFreeBytes) {
         shelfRefreshAttempted = refreshLibraryShelf();
       }
@@ -244,7 +260,7 @@ cleanup:
     deferStartRetry("server start failed");
   }
 
-  if (wifiOwned && !(stopRequested && keepWifiOnStop)) {
+  if ((wifiOwned || lingerExpired) && !(stopRequested && keepWifiOnStop)) {
     WiFi.disconnect(false);
     delay(30);
     WiFi.mode(WIFI_OFF);

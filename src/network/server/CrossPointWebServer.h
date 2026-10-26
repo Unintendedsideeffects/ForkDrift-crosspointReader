@@ -90,6 +90,8 @@ class CrossPointWebServer {
 
   // Returns true if any push/pull API request was received since the server started
   bool hadApiActivity() const { return requestCount > 0; }
+  // A WebSocket upload spans many handleClient() calls with no new HTTP request.
+  bool transferInProgress() const { return wsUploadInProgress; }
 
   // Override the AP-mode captive-portal redirect target. Defaults to "/".
   void setApRedirectPath(std::string path);

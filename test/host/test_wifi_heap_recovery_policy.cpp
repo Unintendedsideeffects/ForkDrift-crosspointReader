@@ -6,6 +6,6 @@ TEST_CASE("recoverHeapAfterWifi never reboots") {
 
   CHECK(evaluate({true, false}) == Action::Noop);
   CHECK(evaluate({true, true}) == Action::Noop);
-  CHECK(evaluate({false, true}) == Action::LeaveWifiForAlways);
+  CHECK(evaluate({false, true}) == Action::LeaveWifiForSession);
   CHECK(evaluate({false, false}) == Action::TearDownWifi);
 }

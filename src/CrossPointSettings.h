@@ -249,12 +249,10 @@ class CrossPointSettings {
     RELEASE_LATEST_SUCCESSFUL_FACTORY_RESET = 3,
     RELEASE_CHANNEL_COUNT
   };
-  enum BACKGROUND_SERVER_MODE {
-    BACKGROUND_SERVER_NEVER = 0,
-    BACKGROUND_SERVER_ON_CHARGE = 1,
-    BACKGROUND_SERVER_ALWAYS = 2,
-    BACKGROUND_SERVER_MODE_COUNT
-  };
+  // Smart: the radio comes up only for a network session -- closing a book (jobs,
+  // then the server lingers 2 min idle) or USB power (server while plugged in).
+  // There is no resident "Always" radio: it starved reading and Home of ~43 KB.
+  enum BACKGROUND_SERVER_MODE { BACKGROUND_SERVER_OFF = 0, BACKGROUND_SERVER_SMART = 1, BACKGROUND_SERVER_MODE_COUNT };
   enum OPDS_FILENAME_FORMAT {
     OPDS_FILENAME_AUTHOR_TITLE = 0,
     OPDS_FILENAME_TITLE_AUTHOR = 1,
@@ -394,8 +392,9 @@ class CrossPointSettings {
   uint8_t fadingFix = 0;
   // Use book's embedded CSS styles for EPUB rendering
   uint8_t embeddedStyle = 1;
-  // JSON key backgroundServerOnCharge: true for On Charge and Always background-server modes.
-  uint8_t backgroundServerOnCharge = ENABLE_BACKGROUND_SERVER_ON_CHARGE || ENABLE_BACKGROUND_SERVER_ALWAYS;
+  uint8_t backgroundServerMode = (ENABLE_BACKGROUND_SERVER_ON_CHARGE || ENABLE_BACKGROUND_SERVER_ALWAYS)
+                                     ? BACKGROUND_SERVER_SMART
+                                     : BACKGROUND_SERVER_OFF;
   // Time settings
   uint8_t timeMode = TIME_MODE_UTC;
   // Timezone offset index: 0 = UTC-12, 12 = UTC+0, 26 = UTC+14
@@ -415,8 +414,6 @@ class CrossPointSettings {
   // Network identity — used for mDNS hostname, DHCP hostname, and AP SSID.
   // Only [a-z0-9-] chars; max 24 chars. Empty = fall back to last-4-MAC.
   char deviceName[32] = "";
-  // JSON key wifiAutoConnect: true only for Always (see getBackgroundServerMode / backgroundServerMode UI key).
-  uint8_t wifiAutoConnect = ENABLE_BACKGROUND_SERVER_ALWAYS;
   // JSON key focusReadingEnabled; configurator feature focus_reading (Focus Reading).
   uint8_t focusReadingEnabled = 0;
   // JSON key guideReadingEnabled; configurator feature guide_dots (Guide Dots).
@@ -469,11 +466,13 @@ class CrossPointSettings {
   static CrossPointSettings& getInstance() { return instance; }
   static bool resetToDefaults();
 
-  static constexpr bool supportsBackgroundServerOnChargeMode() {
+  static constexpr bool supportsBackgroundServer() {
     return ENABLE_BACKGROUND_SERVER_ON_CHARGE != 0 || ENABLE_BACKGROUND_SERVER_ALWAYS != 0;
   }
 
-  static constexpr bool supportsBackgroundServerAlwaysMode() { return ENABLE_BACKGROUND_SERVER_ALWAYS != 0; }
+  // Battery (book-close) sessions run on bgwifi, which the Always feature compiles in.
+  // A build with only On Charge gets Smart = USB sessions only.
+  static constexpr bool supportsBatterySessions() { return ENABLE_BACKGROUND_SERVER_ALWAYS != 0; }
 
   bool isGlobalStatusBarEnabled() const { return ENABLE_GLOBAL_STATUS_BAR != 0; }
 
@@ -484,41 +483,9 @@ class CrossPointSettings {
 
   bool preventsAutoSleepWhileCharging(bool usbConnected) const { return stayAwakeWhileCharging != 0 && usbConnected; }
 
-  uint8_t getBackgroundServerMode() const {
-    if (supportsBackgroundServerAlwaysMode() && wifiAutoConnect) {
-      return BACKGROUND_SERVER_ALWAYS;
-    }
-    if (supportsBackgroundServerOnChargeMode() && backgroundServerOnCharge) {
-      return BACKGROUND_SERVER_ON_CHARGE;
-    }
-    return BACKGROUND_SERVER_NEVER;
+  bool smartNetworkEnabled() const {
+    return supportsBackgroundServer() && backgroundServerMode == BACKGROUND_SERVER_SMART;
   }
-
-  void setBackgroundServerMode(const uint8_t mode) {
-    switch (mode) {
-      case BACKGROUND_SERVER_ALWAYS:
-        if (supportsBackgroundServerAlwaysMode()) {
-          backgroundServerOnCharge = 1;
-          wifiAutoConnect = 1;
-          break;
-        }
-        [[fallthrough]];
-      case BACKGROUND_SERVER_ON_CHARGE:
-        if (supportsBackgroundServerOnChargeMode()) {
-          backgroundServerOnCharge = 1;
-          wifiAutoConnect = 0;
-          break;
-        }
-        [[fallthrough]];
-      case BACKGROUND_SERVER_NEVER:
-      default:
-        backgroundServerOnCharge = 0;
-        wifiAutoConnect = 0;
-        break;
-    }
-  }
-
-  bool keepsBackgroundServerOnWifiWhileAwake() const { return getBackgroundServerMode() == BACKGROUND_SERVER_ALWAYS; }
 
   void syncDarkModeLegacyField() { darkMode = darkModeScope == DARK_EVERYWHERE ? 1 : 0; }
   bool isGlobalDarkMode() const { return darkModeScope == DARK_EVERYWHERE; }

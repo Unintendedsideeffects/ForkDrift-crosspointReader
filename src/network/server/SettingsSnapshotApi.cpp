@@ -42,7 +42,7 @@ String buildSettingsSnapshotJson(const CrossPointSettings& s) {
   doc["hideBatteryPercentage"] = s.hideBatteryPercentage;
   doc["longPressButtonBehavior"] = s.longPressButtonBehavior;
   doc["hyphenationEnabled"] = s.hyphenationEnabled;
-  doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
+  doc["backgroundServerMode"] = s.backgroundServerMode;
   doc["timeMode"] = s.timeMode;
   doc["timeZoneOffset"] = s.timeZoneOffset;
   doc["releaseChannel"] = s.releaseChannel;

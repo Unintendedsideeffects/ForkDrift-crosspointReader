@@ -74,7 +74,7 @@ void toDoc(const CrossPointSettings& s, JsonDocument& doc) {
   doc["longPressMenuAction"] = s.longPressMenuAction;
   doc["hyphenationEnabled"] = s.hyphenationEnabled;
   doc["showButtonHints"] = s.showButtonHints;
-  doc["backgroundServerOnCharge"] = s.backgroundServerOnCharge;
+  doc["backgroundServerMode"] = s.backgroundServerMode;
   doc["timeMode"] = s.timeMode;
   doc["timeZoneOffset"] = s.timeZoneOffset;
   doc["autoSyncDayOnBackgroundPing"] = s.autoSyncDayOnBackgroundPing;
@@ -93,7 +93,6 @@ void toDoc(const CrossPointSettings& s, JsonDocument& doc) {
   doc["installedOtaBundle"] = s.installedOtaBundle;
   doc["installedOtaFeatureFlags"] = s.installedOtaFeatureFlags;
   doc["deviceName"] = s.deviceName;
-  doc["wifiAutoConnect"] = s.wifiAutoConnect;
   doc["showHiddenFiles"] = s.showHiddenFiles;
   doc["hideFileExtension"] = s.hideFileExtension;
   doc["todoOpenDirectToToday"] = s.todoOpenDirectToToday;
@@ -233,7 +232,9 @@ bool fromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* needsResave) 
   s.showButtonHints = doc["showButtonHints"] | (uint8_t)1;
   s.focusReadingEnabled = doc["focusReadingEnabled"] | (uint8_t)0;
   s.guideReadingEnabled = doc["guideReadingEnabled"] | (uint8_t)0;
-  s.backgroundServerOnCharge = doc["backgroundServerOnCharge"] | (uint8_t)0;
+  // No migration from the old backgroundServerOnCharge / wifiAutoConnect pair: a
+  // missing key takes the build default (Smart), which is where both old modes land.
+  s.backgroundServerMode = doc["backgroundServerMode"] | s.backgroundServerMode;
   s.timeMode = clamp(doc["timeMode"] | (uint8_t)S::TIME_MODE_UTC, static_cast<uint8_t>(S::TIME_MODE_MANUAL + 1),
                      S::TIME_MODE_UTC);
   s.timeZoneOffset = doc["timeZoneOffset"] | (uint8_t)12;
@@ -258,7 +259,6 @@ bool fromDoc(CrossPointSettings& s, const JsonDocument& doc, bool* needsResave) 
   }
   s.syncDarkModeLegacyField();
   s.embeddedStyle = doc["embeddedStyle"] | (uint8_t)1;
-  s.wifiAutoConnect = doc["wifiAutoConnect"] | (uint8_t)0;
   s.showHiddenFiles = doc["showHiddenFiles"] | (uint8_t)0;
   s.hideFileExtension = doc["hideFileExtension"] | (uint8_t)0;
   s.todoOpenDirectToToday = doc["todoOpenDirectToToday"] | (uint8_t)0;

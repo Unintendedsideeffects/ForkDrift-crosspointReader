@@ -60,10 +60,6 @@ void CalibreConnectActivity::onExit() {
   stopWebServer();
   MDNS.end();
 
-  if (SETTINGS.keepsBackgroundServerOnWifiWhileAwake() && WiFi.status() == WL_CONNECTED) {
-    return;
-  }
-
   delay(50);
   WiFi.disconnect(false);
   delay(30);

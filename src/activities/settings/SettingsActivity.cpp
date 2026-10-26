@@ -46,7 +46,6 @@
 #include "util/SettingsBackup.h"
 
 namespace {
-constexpr char kBackgroundServerModeKey[] = "backgroundServerMode";
 
 struct SettingValueSnap {
   const char* key;
@@ -671,38 +670,14 @@ void SettingsActivity::toggleCurrentSetting() {
               const int idx = std::get<ListPickerResult>(result.data).selectedIndex;
               if (idx >= 0 && idx < static_cast<int>(optionCount)) {
                 const size_t newValue = static_cast<size_t>(idx);
-                const size_t currentIndex = setting.optionPosition();
-                const bool requiresBatteryWarning = setting.key != nullptr &&
-                                                    strcmp(setting.key, kBackgroundServerModeKey) == 0 &&
-                                                    currentIndex != CrossPointSettings::BACKGROUND_SERVER_ALWAYS &&
-                                                    newValue == CrossPointSettings::BACKGROUND_SERVER_ALWAYS;
-                if (requiresBatteryWarning) {
-                  startActivityForResult(
-                      std::make_unique<ConfirmationActivity>(
-                          renderer, mappedInput, std::string(I18N.get(StrId::STR_BACKGROUND_SERVER_WARNING_TITLE)),
-                          std::string(I18N.get(StrId::STR_BACKGROUND_SERVER_WARNING_BODY))),
-                      [this, setting, newValue, applyEnumValue, persistSettings](const ActivityResult& res) {
-                        if (!res.isCancelled) {
-                          applyEnumValue(setting, newValue);
-                          persistSettings();
-                          if (setting.key != nullptr && keyAffectsVisibility(setting.key)) {
-                            const int previousSelection = selectedSettingIndex;
-                            rebuildSettingsLists();
-                            selectedSettingIndex = std::min(previousSelection, settingsCount);
-                          }
-                        }
-                        requestUpdate();
-                      });
-                } else {
-                  applyEnumValue(setting, newValue);
-                  persistSettings();
-                  if (setting.key != nullptr && keyAffectsVisibility(setting.key)) {
-                    const int previousSelection = selectedSettingIndex;
-                    rebuildSettingsLists();
-                    selectedSettingIndex = std::min(previousSelection, settingsCount);
-                  }
-                  requestUpdate();
+                applyEnumValue(setting, newValue);
+                persistSettings();
+                if (setting.key != nullptr && keyAffectsVisibility(setting.key)) {
+                  const int previousSelection = selectedSettingIndex;
+                  rebuildSettingsLists();
+                  selectedSettingIndex = std::min(previousSelection, settingsCount);
                 }
+                requestUpdate();
               }
             } else {
               requestUpdate();
@@ -720,67 +695,27 @@ void SettingsActivity::toggleCurrentSetting() {
         items.push_back(enumOptionLabel(setting, i));
       }
       const size_t popupCurrent = setting.optionPosition() < optionCount ? setting.optionPosition() : 0;
-      optionPopup.show(
-          setting.nameId, items, static_cast<int>(popupCurrent),
-          [this, setting, applyEnumValue, persistSettings, optionCount](int idx) {
-            if (idx < 0 || idx >= static_cast<int>(optionCount)) {
-              requestUpdate();
-              return;
-            }
-            const auto newValue = static_cast<size_t>(idx);
-            const size_t currentIndex = setting.optionPosition();
-            const bool requiresBatteryWarning = setting.key != nullptr &&
-                                                strcmp(setting.key, kBackgroundServerModeKey) == 0 &&
-                                                currentIndex != CrossPointSettings::BACKGROUND_SERVER_ALWAYS &&
-                                                newValue == CrossPointSettings::BACKGROUND_SERVER_ALWAYS;
-            if (requiresBatteryWarning) {
-              startActivityForResult(
-                  std::make_unique<ConfirmationActivity>(
-                      renderer, mappedInput, std::string(I18N.get(StrId::STR_BACKGROUND_SERVER_WARNING_TITLE)),
-                      std::string(I18N.get(StrId::STR_BACKGROUND_SERVER_WARNING_BODY))),
-                  [this, setting, newValue, applyEnumValue, persistSettings](const ActivityResult& result) {
-                    if (!result.isCancelled) {
-                      applyEnumValue(setting, newValue);
-                      persistSettings();
-                    }
-                    requestUpdate();
-                  });
-              return;
-            }
-            applyEnumValue(setting, newValue);
-            persistSettings();
-            if (setting.key != nullptr && keyAffectsVisibility(setting.key)) {
-              const int previousSelection = selectedSettingIndex;
-              rebuildSettingsLists();
-              selectedSettingIndex = std::min(previousSelection, settingsCount);
-            }
-            requestUpdate();
-          });
+      optionPopup.show(setting.nameId, items, static_cast<int>(popupCurrent),
+                       [this, setting, applyEnumValue, persistSettings, optionCount](int idx) {
+                         if (idx < 0 || idx >= static_cast<int>(optionCount)) {
+                           requestUpdate();
+                           return;
+                         }
+                         const auto newValue = static_cast<size_t>(idx);
+                         applyEnumValue(setting, newValue);
+                         persistSettings();
+                         if (setting.key != nullptr && keyAffectsVisibility(setting.key)) {
+                           const int previousSelection = selectedSettingIndex;
+                           rebuildSettingsLists();
+                           selectedSettingIndex = std::min(previousSelection, settingsCount);
+                         }
+                         requestUpdate();
+                       });
       requestUpdate();
       return;
     }
 
     const uint8_t newValue = cycleEnumOptionIndex(setting);
-    const size_t currentIndex = setting.optionPosition();
-    const bool requiresBatteryWarning = setting.key != nullptr && strcmp(setting.key, kBackgroundServerModeKey) == 0 &&
-                                        currentIndex != CrossPointSettings::BACKGROUND_SERVER_ALWAYS &&
-                                        newValue == CrossPointSettings::BACKGROUND_SERVER_ALWAYS;
-
-    if (requiresBatteryWarning) {
-      startActivityForResult(
-          std::make_unique<ConfirmationActivity>(renderer, mappedInput,
-                                                 std::string(I18N.get(StrId::STR_BACKGROUND_SERVER_WARNING_TITLE)),
-                                                 std::string(I18N.get(StrId::STR_BACKGROUND_SERVER_WARNING_BODY))),
-          [this, setting, newValue, applyEnumValue, persistSettings](const ActivityResult& result) {
-            if (!result.isCancelled) {
-              applyEnumValue(setting, newValue);
-              persistSettings();
-            }
-            requestUpdate();
-          });
-      return;
-    }
-
     applyEnumValue(setting, newValue);
     if (setting.key != nullptr && keyAffectsVisibility(setting.key)) {
       const int previousSelection = selectedSettingIndex;

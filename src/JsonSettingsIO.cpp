@@ -44,8 +44,6 @@ bool loadStateFromDoc(CrossPointState& s, const JsonDocument& doc) {
   s.lastSleepImage = doc["lastSleepImage"] | (uint8_t)UINT8_MAX;
   s.readerActivityLoadCount = doc["readerActivityLoadCount"] | (uint8_t)0;
   s.lastSleepFromReader = doc["lastSleepFromReader"] | false;
-  s.wifiAutoConnectSkipCount = doc["wifiAutoConnectSkipCount"] | (uint8_t)0;
-  s.wifiAutoConnectBackoffLevel = doc["wifiAutoConnectBackoffLevel"] | (uint8_t)0;
   s.wifiAutoConnectWaitingForNewCredential = doc["wifiAutoConnectWaitingForNewCredential"] | false;
   s.pendingBookmarkSpine = doc["pendingBookmarkSpine"] | static_cast<uint16_t>(PENDING_BOOKMARK_SPINE_NONE);
   s.pendingBookmarkProgress = doc["pendingBookmarkProgress"] | PENDING_BOOKMARK_PROGRESS_NONE;
@@ -62,8 +60,6 @@ bool JsonSettingsIO::saveState(const CrossPointState& s, const char* path) {
   doc["lastSleepImage"] = s.lastSleepImage;
   doc["readerActivityLoadCount"] = s.readerActivityLoadCount;
   doc["lastSleepFromReader"] = s.lastSleepFromReader;
-  doc["wifiAutoConnectSkipCount"] = s.wifiAutoConnectSkipCount;
-  doc["wifiAutoConnectBackoffLevel"] = s.wifiAutoConnectBackoffLevel;
   doc["wifiAutoConnectWaitingForNewCredential"] = s.wifiAutoConnectWaitingForNewCredential;
   if (s.pendingBookmarkSpine != PENDING_BOOKMARK_SPINE_NONE) {
     doc["pendingBookmarkSpine"] = s.pendingBookmarkSpine;

@@ -5,26 +5,24 @@
 
 namespace {
 
-background_server::AutoConnectInput makeAutoConnectInput(const bool alwaysModeEnabled,
+background_server::AutoConnectInput makeAutoConnectInput(const bool connectWanted,
                                                          const bool waitingForNewCredential = false,
-                                                         const uint8_t skipCount = 0,
                                                          const char* lastConnectedSsid = "HomeNet",
                                                          const bool hasCredentialForLastSsid = true) {
   return background_server::AutoConnectInput{
-      .alwaysModeEnabled = alwaysModeEnabled,
+      .connectWanted = connectWanted,
       .waitingForNewCredential = waitingForNewCredential,
-      .skipCount = skipCount,
       .lastConnectedSsid = lastConnectedSsid,
       .hasCredentialForLastSsid = hasCredentialForLastSsid,
   };
 }
 
-background_server::ReconcileInput makeReconcileInput(const bool backgroundWifiEnabled, const bool blockedByActivity,
+background_server::ReconcileInput makeReconcileInput(const bool sessionWanted, const bool blockedByActivity,
                                                      const bool usbBackgroundServerRunning, const bool staConnected,
                                                      const bool bgWifiRunning, const bool bgWifiPendingOrRunning,
                                                      const bool wifiAutoConnectAttempted) {
   return background_server::ReconcileInput{
-      .backgroundWifiEnabled = backgroundWifiEnabled,
+      .sessionWanted = sessionWanted,
       .blockedByActivity = blockedByActivity,
       .usbBackgroundServerRunning = usbBackgroundServerRunning,
       .staConnected = staConnected,
@@ -60,20 +58,15 @@ TEST_CASE("background service lifecycle ignores invalid duplicate transitions") 
   CHECK(background_server::noteStopTimeout(ServiceState::Wedged) == ServiceState::Wedged);
 }
 
-TEST_CASE("background server always mode requests WiFi auto-connect") {
+TEST_CASE("background server session requests WiFi auto-connect") {
   const auto decision = background_server::evaluateAutoConnect(makeAutoConnectInput(true));
   CHECK(decision.action == background_server::AutoConnectAction::StartWithLastCredential);
 }
 
-TEST_CASE("background server always mode respects auto-connect backoff") {
-  const auto decision = background_server::evaluateAutoConnect(makeAutoConnectInput(true, false, 2));
-  CHECK(decision.action == background_server::AutoConnectAction::SkipDueToBackoff);
-}
-
-TEST_CASE("background server always mode waits for new credentials") {
+TEST_CASE("background server session waits for new credentials") {
   // Genuinely no credential for the last network: the latch must hold.
   const auto decision = background_server::evaluateAutoConnect(
-      makeAutoConnectInput(true, true, 0, "HomeNet", /*hasCredentialForLastSsid=*/false));
+      makeAutoConnectInput(true, true, "HomeNet", /*hasCredentialForLastSsid=*/false));
   CHECK(decision.action == background_server::AutoConnectAction::BlockedWaitingForCredential);
 }
 
@@ -85,7 +78,7 @@ TEST_CASE("background server always mode waits for new credentials") {
 // conclusion that can be re-derived, so it has to be re-checked, not trusted.
 TEST_CASE("background server: a stale credential latch clears when the credential is back") {
   const auto decision =
-      background_server::evaluateAutoConnect(makeAutoConnectInput(true, /*waitingForNewCredential=*/true, 0, "HomeNet",
+      background_server::evaluateAutoConnect(makeAutoConnectInput(true, /*waitingForNewCredential=*/true, "HomeNet",
                                                                   /*hasCredentialForLastSsid=*/true));
   CHECK(decision.action == background_server::AutoConnectAction::ClearStaleCredentialLatchAndStart);
 }
@@ -94,13 +87,13 @@ TEST_CASE("background server: the latch holds when there is no last SSID to re-c
   // An empty last-SSID cannot vouch for the credential, so this must not be
   // mistaken for a stale latch.
   const auto decision = background_server::evaluateAutoConnect(
-      makeAutoConnectInput(true, /*waitingForNewCredential=*/true, 0, "", /*hasCredentialForLastSsid=*/true));
+      makeAutoConnectInput(true, /*waitingForNewCredential=*/true, "", /*hasCredentialForLastSsid=*/true));
   CHECK(decision.action == background_server::AutoConnectAction::BlockedWaitingForCredential);
 }
 
 TEST_CASE("background server: clearing a stale latch still respects always mode") {
   const auto decision = background_server::evaluateAutoConnect(
-      makeAutoConnectInput(/*alwaysModeEnabled=*/false, /*waitingForNewCredential=*/true, 0, "HomeNet", true));
+      makeAutoConnectInput(/*connectWanted=*/false, /*waitingForNewCredential=*/true, "HomeNet", true));
   CHECK(decision.action == background_server::AutoConnectAction::None);
 }
 
@@ -112,7 +105,7 @@ TEST_CASE("background server on charge does not auto-connect WiFi") {
 TEST_CASE("background server on charge runs only on USB without blocking activity") {
   const background_server::OnChargeServerInput enabled{
       .hasBackgroundServerCapability = true,
-      .backgroundServerOnCharge = true,
+      .smartEnabled = true,
       .usbConnected = true,
       .blockedByActivity = false,
       .bgWifiRunning = false,
@@ -132,55 +125,67 @@ TEST_CASE("background server on charge runs only on USB without blocking activit
   CHECK_FALSE(background_server::shouldRunOnChargeBackgroundServer(wifiBusy));
 }
 
-TEST_CASE("background server always reconcile starts server on existing WiFi") {
+TEST_CASE("background server session reconcile starts server on existing WiFi") {
   const auto decision =
       background_server::evaluateReconcile(makeReconcileInput(true, false, false, true, false, false, false));
   CHECK(decision.action == background_server::ReconcileAction::StartUsingCurrentConnection);
 }
 
-TEST_CASE("background server always reconcile retries WiFi when disconnected") {
+TEST_CASE("background server session reconcile retries WiFi when disconnected") {
   const auto decision =
       background_server::evaluateReconcile(makeReconcileInput(true, false, false, false, false, false, true));
   CHECK(decision.action == background_server::ReconcileAction::AttemptAutoConnect);
 }
 
-TEST_CASE("background server always reconcile keeps connect attempt in flight") {
+TEST_CASE("background server session reconcile keeps connect attempt in flight") {
   const auto decision =
       background_server::evaluateReconcile(makeReconcileInput(true, false, false, false, true, true, true));
   CHECK(decision.action == background_server::ReconcileAction::None);
 }
 
-TEST_CASE("background server always reconcile stops stale task after failed connect") {
+TEST_CASE("background server session reconcile stops stale task after failed connect") {
   const auto decision =
       background_server::evaluateReconcile(makeReconcileInput(true, false, false, false, true, false, false));
   CHECK(decision.action == background_server::ReconcileAction::StopBgWifi);
   CHECK(decision.stopKeepWifi);
 }
 
-TEST_CASE("background server settings map always mode to wifi auto-connect") {
-  if (!CrossPointSettings::supportsBackgroundServerAlwaysMode()) {
+TEST_CASE("background server setting is Off or Smart, defaulting to Smart") {
+  if (!CrossPointSettings::supportsBackgroundServer()) {
     return;
   }
-
   CrossPointSettings& settings = CrossPointSettings::getInstance();
-  settings.setBackgroundServerMode(CrossPointSettings::BACKGROUND_SERVER_ALWAYS);
-  CHECK(settings.getBackgroundServerMode() == CrossPointSettings::BACKGROUND_SERVER_ALWAYS);
-  CHECK(settings.keepsBackgroundServerOnWifiWhileAwake());
-  CHECK(settings.wifiAutoConnect == 1);
-  CHECK(settings.backgroundServerOnCharge == 1);
+  const uint8_t saved = settings.backgroundServerMode;
+  settings.backgroundServerMode = CrossPointSettings::BACKGROUND_SERVER_SMART;
+  CHECK(settings.smartNetworkEnabled());
+  settings.backgroundServerMode = CrossPointSettings::BACKGROUND_SERVER_OFF;
+  CHECK_FALSE(settings.smartNetworkEnabled());
+  settings.backgroundServerMode = saved;
 }
 
-TEST_CASE("background server settings map on charge mode without wifi auto-connect") {
-  if (!CrossPointSettings::supportsBackgroundServerOnChargeMode()) {
-    return;
-  }
+TEST_CASE("Smart reconcile never connects without a requested session") {
+  // No resident radio: with nothing requested, a disconnected device stays off.
+  const auto idle =
+      background_server::evaluateReconcile(makeReconcileInput(false, false, false, false, false, false, false));
+  CHECK(idle.action == background_server::ReconcileAction::None);
+  const auto requested =
+      background_server::evaluateReconcile(makeReconcileInput(true, false, false, false, false, false, false));
+  CHECK(requested.action == background_server::ReconcileAction::AttemptAutoConnect);
+  // Home warming its carousel (or any blocker) defers the session, it does not drop it.
+  const auto deferred =
+      background_server::evaluateReconcile(makeReconcileInput(true, true, false, false, false, false, false));
+  CHECK(deferred.action == background_server::ReconcileAction::None);
+}
 
-  CrossPointSettings& settings = CrossPointSettings::getInstance();
-  settings.setBackgroundServerMode(CrossPointSettings::BACKGROUND_SERVER_ON_CHARGE);
-  CHECK(settings.getBackgroundServerMode() == CrossPointSettings::BACKGROUND_SERVER_ON_CHARGE);
-  CHECK_FALSE(settings.keepsBackgroundServerOnWifiWhileAwake());
-  CHECK(settings.wifiAutoConnect == 0);
-  CHECK(settings.backgroundServerOnCharge == 1);
+TEST_CASE("a session lingers two idle minutes, then powers the radio down") {
+  using background_server::LingerAction;
+  using background_server::SESSION_LINGER_IDLE_MS;
+  CHECK(SESSION_LINGER_IDLE_MS == 120000u);
+  CHECK(background_server::evaluateLinger(1000, 1000) == LingerAction::KeepServing);
+  CHECK(background_server::evaluateLinger(1000 + SESSION_LINGER_IDLE_MS - 1, 1000) == LingerAction::KeepServing);
+  CHECK(background_server::evaluateLinger(1000 + SESSION_LINGER_IDLE_MS, 1000) == LingerAction::EndSession);
+  // millis() wrapped between the last request and now.
+  CHECK(background_server::evaluateLinger(5000, 0xFFFFFF00u) == LingerAction::KeepServing);
 }
 
 // ── Start-resource gate ─────────────────────────────────────────────────────
