@@ -156,17 +156,19 @@ TEST_CASE("indexing recovery does not silent-restart the device") {
   CHECK(text.find("silentRestartToReader") == std::string::npos);
   CHECK(text.find("reclaimAfterIndexPressure") != std::string::npos);
   CHECK(text.find("decideAfterIndex") != std::string::npos);
-  CHECK(text.find("CoverThumbHeapPolicy::canAttempt") != std::string::npos);
+  CHECK(text.find("CoverThumbHeapPolicy::canBakeInline") != std::string::npos);
 }
 
-TEST_CASE("home cover thumbs consult CoverThumbHeapPolicy before EPUB inflate") {
+TEST_CASE("home never generates EPUB cover thumbs") {
+  // EPUB thumbs come from arrival (CoverArrivalQueue) or a first-page open. Home's
+  // loop loaded each recent EPUB and latched a failed book's cover path to "".
   std::ifstream source("src/activities/home/HomeActivity.cpp");
   REQUIRE(source.good());
   std::ostringstream buffer;
   buffer << source.rdbuf();
   const std::string text = buffer.str();
-  CHECK(text.find("CoverThumbHeapPolicy::canAttempt") != std::string::npos);
-  CHECK(text.find("InflateReader::hasSharedWindow") != std::string::npos);
+  CHECK(text.find("generateThumbBmps(epubSizes") == std::string::npos);
+  CHECK(text.find("Epub epub(book.path") == std::string::npos);
 }
 
 TEST_CASE("background UDP hello advertises a WS port only after ensureWs succeeds") {

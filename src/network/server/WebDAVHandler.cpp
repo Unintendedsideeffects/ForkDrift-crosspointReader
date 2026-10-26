@@ -12,6 +12,7 @@
 #include <new>
 
 #include "SpiBusMutex.h"
+#include "util/CoverArrivalQueue.h"
 #include "util/PathUtils.h"
 
 namespace {
@@ -1020,6 +1021,7 @@ void WebDAVHandler::clearEpubCacheIfNeeded(const String& path) const {
     // The file changed, so the derived layout is stale — but the reader's
     // progress and annotations are not, and a full clearCache() dropped them.
     Epub(path.c_str(), "/.crosspoint").clearRenderCache();
+    CoverArrivalQueue::instance().push(path.c_str());
     LOG_DBG("DAV", "Cleared epub render cache for: %s", path.c_str());
   }
 }

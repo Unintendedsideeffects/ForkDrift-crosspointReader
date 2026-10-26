@@ -64,6 +64,8 @@
 #include "network/server/SettingsApi.h"
 #include "network/wifi/WifiUtil.h"
 #include "util/ButtonNavigator.h"
+#include "util/CoverArrivalBake.h"
+#include "util/CoverArrivalQueue.h"
 #include "util/FactoryResetUtils.h"
 #include "util/FirmwareUpdateUtil.h"
 #include "util/LibraryShelfStore.h"
@@ -1144,6 +1146,12 @@ void loop() {
       .blockedByActivity = activityManager.blocksBackgroundServer(),
       .usbBackgroundServerRunning = backgroundServer.isRunning(),
   });
+
+  // New books get one cover attempt, never under a reader or a busy foreground.
+  if (!CoverArrivalQueue::instance().empty() && !activityManager.blocksBackgroundServer() &&
+      !activityManager.isUpdateRequested() && !RenderLock::peek()) {
+    cover_arrival::drainOne();
+  }
 #if ENABLE_WIFI_CLOCK
   TimeSync::loop(hasStaWifiConnection());
 #endif

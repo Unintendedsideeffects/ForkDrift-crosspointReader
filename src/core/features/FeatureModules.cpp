@@ -30,6 +30,7 @@ static constexpr int kDefaultThumbHeight = 240;
 #include "core/registries/ReaderRegistry.h"
 #include "core/registries/SettingsActionRegistry.h"
 #include "core/registries/SyncServiceRegistry.h"
+#include "util/CoverArrivalQueue.h"
 #include "util/StringUtils.h"
 #if ENABLE_XTC_SUPPORT
 #include "Xtc.h"
@@ -519,6 +520,7 @@ void FeatureModules::onWebFileChanged(const String& filePath) {
   if (FsHelpers::checkFileExtension(filePath, ".epub")) {
     Epub(filePath.c_str(), "/.crosspoint").clearRenderCache();
     stored_epub::invalidate(filePath.c_str());
+    CoverArrivalQueue::instance().push(filePath.c_str());
     LOG_DBG("FEATURES", "Cleared epub render cache for: %s", filePath.c_str());
   }
 #else

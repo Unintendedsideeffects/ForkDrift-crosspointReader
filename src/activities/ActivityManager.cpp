@@ -32,6 +32,7 @@
 #include "home/RecentBooksGridActivity.h"
 #include "network/CrossPointWebServerActivity.h"
 #include "network/background/BackgroundWebServer.h"
+#include "network/background/BackgroundWifiCoordinator.h"
 #include "network/background/BackgroundWifiService.h"
 #include "network/server/CrossPointWebServer.h"
 #include "settings/OpdsServerListActivity.h"
@@ -354,10 +355,8 @@ void ActivityManager::completeOpenReader() {
   };
   static const auto onBackHome = +[](void*) { activityManager.goHome(); };
 
-  if (BG_WIFI.isPendingOrRunning()) {
-    BG_WIFI.stop(/*keepWifi=*/true);
-  }
-  BackgroundWebServer::getInstance().stop(/*keepWifi=*/true);
+  BackgroundWebServer::getInstance().stop(/*keepWifi=*/false);
+  BackgroundWifiCoordinator::getInstance().releaseRadioForReader();
   // cppcheck-suppress knownConditionTrueFalse
   if (!core::HeapReclaimRegistry::empty()) {
     core::HeapReclaimRegistry::releaseAll();

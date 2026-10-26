@@ -46,5 +46,8 @@ class BackgroundWifiCoordinator {
   bool beginTimedSleepAutoConnect(const char* logTag);
   bool waitForStaConnection(uint32_t timeoutMs);
   void endTimedSleepWifi();
+  // Reading owns the radio's heap. Stops bgwifi and powers the STA radio down
+  // before a book loads; reconcile() reconnects once no reader is open.
+  void releaseRadioForReader();
   void onPrepareDeepSleep();
 };

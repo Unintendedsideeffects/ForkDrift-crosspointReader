@@ -260,6 +260,43 @@ void BackgroundWifiCoordinator::endTimedSleepWifi() {
   }
 }
 
+void BackgroundWifiCoordinator::releaseRadioForReader() {
+  // An associated STA radio is not cheap on this heap. With Always mode keeping it
+  // up through a book open (2026-10-26, X4), free heap fell to 28 KB mid-index --
+  // under heapguard's 32 KB floor, so every chapter after the cover failed with
+  // "Failed to load EPUB". The book also needs one contiguous 32 KB inflate window.
+  // Wi-Fi comes back through reconcile() once the reader is gone.
+  bool released = false;
+  if (BG_WIFI.isPendingOrRunning()) {
+    BG_WIFI.stop();
+    released = true;
+  }
+  if (WiFi.getMode() != WIFI_MODE_NULL) {
+    WiFi.disconnect(false);
+    delay(30);
+    WiFi.mode(WIFI_OFF);
+    delay(30);
+    WifiScanCache::invalidate();
+    released = true;
+  }
+  wifiAutoConnectAttempted_ = false;
+  if (!released) {
+    return;  // already off -- the second call from EpubReaderActivity::onEnter
+  }
+
+  // Deleted task stacks and driver buffers go back to the heap from the FreeRTOS
+  // idle task, not from the calls above. Without this wait the inflate window was
+  // measured 12 bytes short of its 32,768-byte run right after a teardown.
+  constexpr size_t kInflateWindowBytes = 32768;  // InflateReader's INFLATE_DICT_SIZE
+  constexpr unsigned long kReclaimWaitMs = 1000;
+  const unsigned long started = millis();
+  while (heapguard::largestBlock() <= kInflateWindowBytes && millis() - started < kReclaimWaitMs) {
+    delay(10);
+  }
+  LOG_INF("BGCOORD", "Radio released for reader: free=%u largest=%u", static_cast<unsigned>(heapguard::freeBytes()),
+          static_cast<unsigned>(heapguard::largestBlock()));
+}
+
 void BackgroundWifiCoordinator::onPrepareDeepSleep() {
   if (wifiAutoConnectAttempted_) {
     const bool hadActivity = BG_WIFI.hadApiActivity();

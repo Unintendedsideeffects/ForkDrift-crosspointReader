@@ -112,7 +112,15 @@ TEST_CASE("Settings list rebuild leaves Always running") {
 TEST_CASE("reader exit reclaims inflate occupancy") {
   const std::string text = slurp("src/activities/reader/EpubReaderActivity.cpp");
   CHECK(text.find("InflateReader::releaseSharedWindow") != std::string::npos);
-  CHECK(text.find("evaluateReaderExitReclaim") != std::string::npos);
+}
+
+TEST_CASE("cover thumbs bake inline on a first-page open, never in a background task") {
+  // A bake task raced the reader's chapter inflate, so its policy demanded 64 KB
+  // contiguous and no thumbnail was ever produced on device (2026-10-26).
+  const std::string text = slurp("src/activities/reader/EpubReaderActivity.cpp");
+  CHECK(text.find("xTaskCreate(coverThumbBakeTask") == std::string::npos);
+  CHECK(text.find("pendingCoverThumbBake_ = openedAtFirstPage;") != std::string::npos);
+  CHECK(text.find("CoverThumbHeapPolicy::canBakeInline") != std::string::npos);
 }
 
 TEST_CASE("reader onExit does not reclaim caches under the activity RenderLock") {
@@ -206,4 +214,23 @@ TEST_CASE("OPDS catalog load opens one TLS session; OpenSearch resolves on searc
   CHECK(text.find("OpenSearchParser::extractSearchTemplate", resolve) != std::string::npos);
   CHECK(text.find("resolveSearchTemplate();", text.find("void OpdsBookBrowserActivity::performSearch(")) !=
         std::string::npos);
+}
+
+TEST_CASE("reader open powers the STA radio down before the book loads") {
+  // Device walk 2026-10-26: Always mode kept the radio associated (stop keepWifi=true)
+  // through a book open; free heap hit 28 KB mid-index, under heapguard's 32 KB floor,
+  // and every chapter after the cover failed with "Failed to load EPUB".
+  const std::string text = slurp("src/activities/ActivityManager.cpp");
+  const auto start = text.find("void ActivityManager::completeOpenReader()");
+  REQUIRE(start != std::string::npos);
+  const auto release = text.find("releaseRadioForReader()", start);
+  const auto open = text.find("ReaderRegistry::open(", start);
+  REQUIRE(release != std::string::npos);
+  REQUIRE(open != std::string::npos);
+  CHECK(release < open);
+  CHECK(text.substr(start, open - start).find("keepWifi=*/true") == std::string::npos);
+
+  const std::string reader = slurp("src/activities/reader/EpubReaderActivity.cpp");
+  CHECK(reader.find("releaseRadioForReader()", reader.find("void EpubReaderActivity::onEnter()")) <
+        reader.find("void EpubReaderActivity::onExit()"));
 }

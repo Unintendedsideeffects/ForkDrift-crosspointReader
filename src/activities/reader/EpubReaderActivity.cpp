@@ -76,8 +76,8 @@
 #include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
 #include "network/background/BackgroundWebServer.h"
+#include "network/background/BackgroundWifiCoordinator.h"
 #include "network/background/BackgroundWifiService.h"
-#include "network/background/OccupancyLifetimePolicy.h"
 #include "util/CoverThumbHeapPolicy.h"
 #include "util/CoverThumbSizes.h"
 #include "util/RecentBooksStore.h"
@@ -91,14 +91,9 @@ namespace {
 constexpr uint8_t maxPageLoadRetryCount = 1;
 constexpr uint32_t minHeapForFontPrewarm = 24 * 1024;
 
-constexpr unsigned long kCoverThumbBakeIdleMs = 5000;
-std::atomic<bool> coverThumbBakeInProgress{false};
-
-struct CoverThumbBakeParams {
-  std::shared_ptr<Epub> epub;
-};
-
-void coverThumbBakeTask(void* param);
+// A first-page open bakes the cover thumbs inline once the reader has sat idle
+// this long, so the cover page is already on screen.
+constexpr unsigned long kCoverThumbBakeIdleMs = 1500;
 
 int copyCoverThumbSizesForEpub(const coverthumbs::Size* source, const int sourceCount, Epub::ThumbSize* dest,
                                const int destMax) {
@@ -110,69 +105,6 @@ int copyCoverThumbSizesForEpub(const coverthumbs::Size* source, const int source
     dest[i] = Epub::ThumbSize{source[i].width, source[i].height};
   }
   return count;
-}
-
-bool startCoverThumbBakeTask(const std::shared_ptr<Epub>& epub) {
-  const CoverThumbMemory snapshot{
-      ESP.getFreeHeap(),
-      ESP.getMaxAllocHeap(),
-      InflateReader::hasSharedWindow(),
-  };
-  if (!CoverThumbHeapPolicy::canAttempt(snapshot)) {
-    LOG_DBG("THUMB", "Cover thumbnail bake skipped: free=%u largest=%u window=%d", snapshot.freeHeap,
-            snapshot.largestBlock, snapshot.inflateWindowReserved ? 1 : 0);
-    return false;
-  }
-
-  // cppcheck-suppress unreadVariable
-  auto* params = new (std::nothrow) CoverThumbBakeParams{epub};
-  if (!params) {
-    return false;
-  }
-  if (xTaskCreate(coverThumbBakeTask, "CoverThumb", 6144, params, 0, nullptr) != pdPASS) {
-    delete params;
-    return false;
-  }
-  return true;
-}
-
-void coverThumbBakeTask(void* param) {
-  auto* params = static_cast<CoverThumbBakeParams*>(param);
-  const auto clearInProgress = []() { coverThumbBakeInProgress.store(false); };
-
-  if (params == nullptr) {
-    clearInProgress();
-    vTaskDelete(nullptr);
-    return;
-  }
-  std::shared_ptr<Epub> epub = std::move(params->epub);
-  delete params;
-  if (!epub) {
-    clearInProgress();
-    vTaskDelete(nullptr);
-    return;
-  }
-
-  const CoverThumbMemory snapshot{
-      ESP.getFreeHeap(),
-      ESP.getMaxAllocHeap(),
-      InflateReader::hasSharedWindow(),
-  };
-  if (CoverThumbHeapPolicy::canAttempt(snapshot)) {
-    coverthumbs::Size sizes[8] = {};
-    const int count = coverthumbs::all(sizes, 8);
-    Epub::ThumbSize epubSizes[8] = {};
-    const int epubCount = copyCoverThumbSizesForEpub(sizes, count, epubSizes, 8);
-    const bool success = epub->generateThumbBmps(epubSizes, epubCount);
-    LOG_INF("THUMB", "Cover thumbnail bake %s for %s", success ? "completed" : "failed", epub->getPath().c_str());
-  } else {
-    LOG_DBG("THUMB", "Cover thumbnail bake skipped: free=%u largest=%u window=%d", snapshot.freeHeap,
-            snapshot.largestBlock, snapshot.inflateWindowReserved ? 1 : 0);
-  }
-
-  epub.reset();
-  clearInProgress();
-  vTaskDelete(nullptr);
 }
 
 constexpr uint16_t DEFAULT_AUTO_PAGE_TURN_INTERVAL_S = 30;
@@ -354,15 +286,14 @@ void EpubReaderActivity::onEnter() {
   // min free 4,676 B at Home. That is the difference between a book opening and
   // "Failed to load EPUB".
   //
-  // keepWifi=true on both: the radio is not the expensive part, the server objects and their
-  // route tables are, and dropping the association would cost a reconnect on reader exit.
-  if (BG_WIFI.isPendingOrRunning()) {
-    BG_WIFI.stop(true);
-  }
-  // Unconditional and idempotent — it logs "already stopped" and returns when there is
-  // nothing to do. Restart is not handled here: once this activity exits,
-  // blocksBackgroundServer() goes false and main.cpp's reconcile brings it back up.
-  BackgroundWebServer::getInstance().stop(true);
+  // The radio goes too. The server objects were measured at ~16 KB, but the associated
+  // STA radio is what left free heap at 28 KB mid-index in Always mode (2026-10-26) --
+  // under the 32 KB floor, so chapters failed to index. Normally completeOpenReader()
+  // already did this before the load; this covers routes that reach the reader without
+  // it (boot resume, ReaderActivity). Once this activity exits, blocksBackgroundServer()
+  // goes false and main.cpp's reconcile reconnects.
+  BackgroundWebServer::getInstance().stop(/*keepWifi=*/false);
+  BackgroundWifiCoordinator::getInstance().releaseRadioForReader();
 
   if (!epub) {
     // Should be unreachable -- the factory returns nullptr rather than an
@@ -405,6 +336,10 @@ void EpubReaderActivity::onEnter() {
       }
     }
   }
+  // Cover thumbs are retried only when the book opens on its first page. A failed
+  // attempt at arrival (upload / OPDS) is not retried at Home or mid-book.
+  const bool openedAtFirstPage = currentSpineIndex == 0 && nextPageNumber == 0;
+
   // We may want a better condition to detect if we are opening for the first time.
   // This will trigger if the book is re-opened at Chapter 0.
   if (currentSpineIndex == 0) {
@@ -465,7 +400,7 @@ void EpubReaderActivity::onEnter() {
   initializeCompletionPromptTrigger();
 #endif  // ENABLE_READING_STATS
 
-  pendingCoverThumbBake_ = true;
+  pendingCoverThumbBake_ = openedAtFirstPage;
   lastReaderInputMs_ = millis();
 
   // Trigger first update
@@ -547,15 +482,7 @@ void EpubReaderActivity::onExit() {
 #endif  // ENABLE_READING_STATS
 
   pendingCoverThumbBake_ = false;
-  constexpr unsigned long kThumbWaitMs = 2000;
-  const unsigned long thumbWaitStart = millis();
-  while (coverThumbBakeInProgress.load() && (millis() - thumbWaitStart) < kThumbWaitMs) {
-    delay(10);
-  }
-  if (occupancy::evaluateReaderExitReclaim(coverThumbBakeInProgress.load()) ==
-      occupancy::ReaderExitReclaim::ReleaseInflateWindow) {
-    InflateReader::releaseSharedWindow();
-  }
+  InflateReader::releaseSharedWindow();
 }
 
 void EpubReaderActivity::loop() {
@@ -842,11 +769,11 @@ void EpubReaderActivity::loop() {
 }
 
 void EpubReaderActivity::queueCoverThumbBakeIfIdle() {
-  if (!pendingCoverThumbBake_ || coverThumbBakeInProgress.load() || !epub ||
-      millis() - lastReaderInputMs_ < kCoverThumbBakeIdleMs || activityManager.isUpdateRequested() ||
-      RenderLock::peek()) {
+  if (!pendingCoverThumbBake_ || !epub || millis() - lastReaderInputMs_ < kCoverThumbBakeIdleMs ||
+      activityManager.isUpdateRequested() || RenderLock::peek()) {
     return;
   }
+  pendingCoverThumbBake_ = false;
 
   coverthumbs::Size sizes[8] = {};
   const int count = coverthumbs::all(sizes, 8);
@@ -860,17 +787,25 @@ void EpubReaderActivity::queueCoverThumbBakeIfIdle() {
       break;
     }
   }
-
-  pendingCoverThumbBake_ = false;
   if (!anyMissing) {
     return;
   }
 
-  coverThumbBakeInProgress.store(true);
-  if (!startCoverThumbBakeTask(epub)) {
-    coverThumbBakeInProgress.store(false);
-    LOG_WRN("THUMB", "Could not start cover thumbnail job");
+  // Inline on the main loop under the RenderLock: nothing else can inflate while the
+  // bake runs, so it reuses the book's reserved window instead of needing a private
+  // 32 KB fallback. A background task (the old design) raced the reader's own
+  // chapter inflate, which is why it had to demand 64 KB contiguous and never ran.
+  RenderLock lock(*this);
+  const CoverThumbMemory snapshot{ESP.getFreeHeap(), ESP.getMaxAllocHeap(), InflateReader::hasSharedWindow()};
+  if (!CoverThumbHeapPolicy::canBakeInline(snapshot)) {
+    LOG_ERR("THUMB", "Cover thumbnail bake skipped: free=%u largest=%u window=%d", snapshot.freeHeap,
+            snapshot.largestBlock, snapshot.inflateWindowReserved ? 1 : 0);
+    return;
   }
+  Epub::ThumbSize epubSizes[8] = {};
+  const int epubCount = copyCoverThumbSizesForEpub(sizes, count, epubSizes, 8);
+  const bool success = epub->generateThumbBmps(epubSizes, epubCount);
+  LOG_INF("THUMB", "Cover thumbnail bake %s for %s", success ? "completed" : "failed", epub->getPath().c_str());
 }
 
 void EpubReaderActivity::reclaimAfterIndexPressure() {

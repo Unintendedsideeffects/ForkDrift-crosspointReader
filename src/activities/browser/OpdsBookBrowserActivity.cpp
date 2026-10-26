@@ -28,6 +28,7 @@
 #include "network/background/BackgroundWifiService.h"
 #include "network/http/FetchFailure.h"
 #include "network/http/HttpDownloader.h"
+#include "util/CoverArrivalQueue.h"
 #include "util/LibraryShelfStore.h"
 #include "util/OpdsDownloadFolder.h"
 #include "util/OpdsFilename.h"
@@ -470,6 +471,7 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
     Epub epub(filename, "/.crosspoint");
     // Re-downloading a book the user already has must not reset their place.
     epub.clearRenderCache();
+    CoverArrivalQueue::instance().push(filename);
 #endif
     state = BrowserState::BROWSING;
   } else {

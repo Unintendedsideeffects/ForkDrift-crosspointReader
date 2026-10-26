@@ -2,13 +2,11 @@
 
 #include <Arduino.h>
 #include <Bitmap.h>
-#include <Epub.h>
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <HeapGuard.h>
 #include <I18n.h>
-#include <InflateReader.h>
 #include <Utf8.h>
 #include <WiFi.h>
 #include <Xtc.h>
@@ -55,7 +53,6 @@
 #include "fontIds.h"
 #include "network/background/BackgroundWifiService.h"
 #include "util/BookProgressDataStore.h"
-#include "util/CoverThumbHeapPolicy.h"
 #include "util/CoverThumbSizes.h"
 #include "util/ForkDriftNavigation.h"
 #include "util/LibraryShelfStore.h"
@@ -127,18 +124,6 @@ bool isMissingAnyRegisteredCoverThumb(const std::string& coverBmpPath, const cov
     }
   }
   return false;
-}
-
-int copyCoverThumbSizesForEpub(const coverthumbs::Size* source, const int sourceCount, Epub::ThumbSize* dest,
-                               const int destMax) {
-  if (source == nullptr || dest == nullptr || sourceCount <= 0 || destMax <= 0) {
-    return 0;
-  }
-  const int count = std::min(sourceCount, destMax);
-  for (int i = 0; i < count; ++i) {
-    dest[i] = Epub::ThumbSize{source[i].width, source[i].height};
-  }
-  return count;
 }
 
 int copyCoverThumbSizesForXtc(const coverthumbs::Size* source, const int sourceCount, Xtc::ThumbSize* dest,
@@ -407,10 +392,10 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
   SpiBusMutex::Guard guard;
 
   // Release the cached framebuffer (getBufferSize() == 48000 bytes, ~13% of
-  // total DRAM) BEFORE the generation loop below. Thumb generation constructs an
-  // Epub per book — metadata cache, XML parse, image decode buffers — and with a
-  // full grid of recents that runs six times against a heap this block is
-  // needlessly pinning. It is pure waste, not a trade: every successful
+  // total DRAM) BEFORE the loop below. Repairing a missing cover path loads the
+  // book's metadata (and XTC thumbs are still generated here) — and with a full
+  // grid of recents that runs six times against a heap this block is needlessly
+  // pinning. It is pure waste, not a trade: every successful
   // generation sets coverRendered = false and requests an update, so the cached
   // frame is discarded and re-rendered regardless. Holding it here is what put a
   // cold cache + a full cover grid over the edge into OOM.
@@ -465,47 +450,10 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
       const bool staleCoverPath = !hasCoverThumbTemplate(book.coverBmpPath);
       if (isMissingAnyRegisteredCoverThumb(book.coverBmpPath, sizes, sizeCount)) {
         if (FsHelpers::hasEpubExtension(book.path)) {
-          const CoverThumbMemory thumbHeap{
-              ESP.getFreeHeap(),
-              ESP.getMaxAllocHeap(),
-              InflateReader::hasSharedWindow(),
-          };
-          if (!CoverThumbHeapPolicy::canAttempt(thumbHeap)) {
-            LOG_DBG("HOME", "cover thumbs skipped: free=%u largest=%u window=%d", thumbHeap.freeHeap,
-                    thumbHeap.largestBlock, thumbHeap.inflateWindowReserved ? 1 : 0);
-            progress++;
-            continue;
-          }
-          Epub epub(book.path, "/.crosspoint");
-          if (!showingLoading) {
-            showingLoading = true;
-            popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
-          }
-          GUI.fillPopupProgress(renderer, popupRect, 10 + progress * progressIncrement);
-          if (!epub.load(false, true)) {
-            LOG_ERR("HOME", "failed to load EPUB for thumb: %s", book.path.c_str());
-            RECENT_BOOKS.updateBook(book.path, book.title, book.author, "");
-            book.coverBmpPath = "";
-            coverRendered = false;
-            requestUpdate();
-            progress++;
-            continue;
-          }
-          Epub::ThumbSize epubSizes[8] = {};
-          const int epubSizeCount = copyCoverThumbSizesForEpub(sizes, sizeCount, epubSizes, 8);
-          const bool success = epub.generateThumbBmps(epubSizes, epubSizeCount);
-          if (!success) {
-            RECENT_BOOKS.updateBook(book.path, book.title, book.author, "");
-            book.coverBmpPath = "";
-          } else {
-            if (staleCoverPath) {
-              book.coverBmpPath = epub.getThumbBmpPath();
-              RECENT_BOOKS.updateBook(book.path, book.title, book.author, book.coverBmpPath);
-            }
-            bookUpdated[bookIdx] = true;
-          }
-          coverRendered = false;
-          requestUpdate();
+          // EPUB thumbs are not generated here. A new book gets one attempt on
+          // arrival (CoverArrivalQueue) and a retry when it opens on its first page.
+          // Home used to load every recent EPUB and, on any failure, clear its
+          // cover path for good -- with Always mode resident it never succeeded.
         } else if (FsHelpers::hasXtcExtension(book.path)) {
           Xtc xtc(book.path, "/.crosspoint");
           if (xtc.load()) {
