@@ -355,7 +355,9 @@ void ActivityManager::completeOpenReader() {
   };
   static const auto onBackHome = +[](void*) { activityManager.goHome(); };
 
-  BackgroundWebServer::getInstance().stop(/*keepWifi=*/false);
+  // Server objects first, radio second: On-Charge's stop(false) would power the radio
+  // off itself with no idle-reclaim wait, and releaseRadioForReader would see nothing to do.
+  BackgroundWebServer::getInstance().stop(/*keepWifi=*/true);
   BackgroundWifiCoordinator::getInstance().releaseRadioForReader();
   // cppcheck-suppress knownConditionTrueFalse
   if (!core::HeapReclaimRegistry::empty()) {

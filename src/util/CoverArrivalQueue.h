@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <mutex>
@@ -53,7 +54,8 @@ class CoverArrivalQueue {
   static bool isEpub(const std::string& path) {
     if (path.size() < 5) return false;
     std::string ext = path.substr(path.size() - 5);
-    for (auto& c : ext) c = static_cast<char>(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c);
+    std::transform(ext.begin(), ext.end(), ext.begin(),
+                   [](const char c) { return static_cast<char>(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c); });
     return ext == ".epub";
   }
   std::string& at(size_t i) { return slots_[(head_ + i) % kCapacity]; }

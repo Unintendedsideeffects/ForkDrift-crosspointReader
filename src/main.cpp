@@ -53,6 +53,7 @@
 #include "core/features/FeatureLifecycle.h"
 #include "core/features/FeatureModules.h"
 #include "core/registries/HeapReclaimRegistry.h"
+#include "features/epub/CoverThumbBake.h"
 #include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "network/background/BackgroundServerPolicy.h"
@@ -64,7 +65,6 @@
 #include "network/server/SettingsApi.h"
 #include "network/wifi/WifiUtil.h"
 #include "util/ButtonNavigator.h"
-#include "util/CoverArrivalBake.h"
 #include "util/CoverArrivalQueue.h"
 #include "util/FactoryResetUtils.h"
 #include "util/FirmwareUpdateUtil.h"
@@ -764,6 +764,13 @@ void setup() {
   LIBRARY_SHELF.loadFromFile();
   heaptrace::mark("boot:appstate");
 
+  // Before Wi-Fi and Home take their share of the heap: recent books that still
+  // have no cover thumbnail get one here. A quick resume (silent reboot) skips it.
+  if (!recoveryFirmwareMode && !silentReboot && !HalSystem::isRebootFromCrash()) {
+    cover_bake::catchUpAtBoot(RECENT_BOOKS.getBooksSnapshot());
+    heaptrace::mark("boot:cover-catchup");
+  }
+
   if (recoveryFirmwareMode) {
     // Skip normal home/reader routing: open the recovery menu (firmware flash,
     // clear cache, reset settings, factory reset) so a device made unusable by
@@ -804,7 +811,12 @@ void setup() {
 
   heaptrace::mark("boot:activity");
 
-  BackgroundWifiCoordinator::getInstance().attemptBootAutoConnect();
+  // A reader opened straight from setup() (silent reboot to reader) owns the radio:
+  // connecting here would put the STA radio back up for its first chapter index.
+  // Reconcile connects once no reader is open.
+  if (!activityManager.blocksBackgroundServer()) {
+    BackgroundWifiCoordinator::getInstance().attemptBootAutoConnect();
+  }
   heaptrace::mark("boot:autoconnect");
 
   waitForPowerRelease();
@@ -1150,7 +1162,7 @@ void loop() {
   // New books get one cover attempt, never under a reader or a busy foreground.
   if (!CoverArrivalQueue::instance().empty() && !activityManager.blocksBackgroundServer() &&
       !activityManager.isUpdateRequested() && !RenderLock::peek()) {
-    cover_arrival::drainOne();
+    cover_bake::drainArrival();
   }
 #if ENABLE_WIFI_CLOCK
   TimeSync::loop(hasStaWifiConnection());

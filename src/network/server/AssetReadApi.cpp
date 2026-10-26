@@ -47,31 +47,41 @@ AssetReadResult resolveCoverAssetPath(const String& rawPath, const std::vector<R
     return {404, "text/plain", "No cover available"};
   }
 
+  // Epub::generateThumbBmps writes zero-byte thumbs as "this book has no cover"
+  // markers. Serving one is a 200 with an empty body, which a client renders as a
+  // blank tile instead of its own placeholder.
+  enum class CoverFile { Missing, Empty, Present };
+  const auto probe = [](const std::string& path) {
+    SpiBusMutex::Guard guard;
+    if (!Storage.exists(path.c_str())) {
+      return CoverFile::Missing;
+    }
+    HalFile file = Storage.open(path.c_str());
+    return file && file.size() > 0 ? CoverFile::Present : CoverFile::Empty;
+  };
+
   static constexpr char kHeightToken[] = "[HEIGHT]";
   const size_t tokenPos = coverPath.find(kHeightToken);
+  bool sawEmptyMarker = false;
   if (tokenPos == std::string::npos) {
-    bool exists = false;
-    {
-      SpiBusMutex::Guard guard;
-      exists = Storage.exists(coverPath.c_str());
+    const CoverFile state = probe(coverPath);
+    if (state == CoverFile::Present) {
+      return {200, "image/bmp", "", coverPath};
     }
-    if (!exists) {
-      return {404, "text/plain", "Cover file not found"};
+    sawEmptyMarker = state == CoverFile::Empty;
+  } else {
+    for (const auto& suffix : thumbSuffixes) {
+      std::string candidate = coverPath;
+      candidate.replace(tokenPos, sizeof(kHeightToken) - 1, suffix);
+      const CoverFile state = probe(candidate);
+      if (state == CoverFile::Present) {
+        return {200, "image/bmp", "", candidate};
+      }
+      sawEmptyMarker = sawEmptyMarker || state == CoverFile::Empty;
     }
-    return {200, "image/bmp", "", coverPath};
   }
-
-  for (const auto& suffix : thumbSuffixes) {
-    std::string candidate = coverPath;
-    candidate.replace(tokenPos, sizeof(kHeightToken) - 1, suffix);
-    bool exists = false;
-    {
-      SpiBusMutex::Guard guard;
-      exists = Storage.exists(candidate.c_str());
-    }
-    if (exists) {
-      return {200, "image/bmp", "", candidate};
-    }
+  if (sawEmptyMarker) {
+    return {404, "text/plain", "No cover available"};
   }
   return {404, "text/plain", "Cover file not found"};
 }

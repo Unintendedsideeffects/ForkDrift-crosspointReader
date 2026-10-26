@@ -51,7 +51,11 @@ namespace {
 // publisher alignment/spacing.
 // v39: TextBlock carries a per-block fontId (heading/CSS font-size scale), and every page
 // persists a uint32_t visible-text start offset (resume/KOSync content coordinate).
-constexpr uint8_t SECTION_FILE_VERSION = 39;
+// v40: no format change. Sections that lost words to the heap guard were cached
+// before (partial truncation was a documented trade); they can't be told apart on
+// SD, so every v39 section rebuilds lazily. Progress, bookmarks, annotations and
+// thumbs live in other files and are untouched.
+constexpr uint8_t SECTION_FILE_VERSION = 40;
 constexpr uint32_t HEADER_SIZE =
     sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(bool) + sizeof(uint8_t) + sizeof(uint16_t) +
     sizeof(uint16_t) + sizeof(uint16_t) + sizeof(bool) + sizeof(bool) + sizeof(uint8_t) + sizeof(bool) + sizeof(bool) +
@@ -308,6 +312,9 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
                                 const uint16_t viewportWidth, const uint16_t viewportHeight,
                                 const bool hyphenationEnabled, const bool embeddedStyle, const uint8_t imageRendering,
                                 const bool focusReadingEnabled, const bool guideReadingEnabled, PopupCallback popupFn) {
+  // First, before any early return: callers read the tally after a false return to
+  // tell "lost words" from other failures, so it must describe THIS build.
+  ParsedText::resetHeapTruncationTally();
   const auto localPath = epub->getSpineItem(spineIndex).href;
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
 
@@ -409,8 +416,6 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
                          paragraphAlignment, viewportWidth, viewportHeight, hyphenationEnabled, embeddedStyle,
                          imageRendering, focusReadingEnabled, guideReadingEnabled);
   std::vector<PageLutEntry> lut = {};
-  size_t totalPageElements = 0;
-  ParsedText::resetHeapTruncationTally();
 
   size_t lastSlash = localPath.find_last_of('/');
   std::string contentBase = (lastSlash != std::string::npos) ? localPath.substr(0, lastSlash + 1) : "";
@@ -432,9 +437,8 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
   ChapterHtmlSlimParser visitor(
       epub, tmpHtmlPath, renderer, fontId, lineCompression, extraParagraphSpacing, forceParagraphIndents,
       paragraphAlignment, viewportWidth, viewportHeight, hyphenationEnabled, focusReadingEnabled, guideReadingEnabled,
-      [this, &lut, &writer, &totalPageElements](std::unique_ptr<Page> page, const uint16_t paragraphIndex,
-                                                const uint16_t listItemIndex, const uint32_t visibleTextOffset) {
-        totalPageElements += page ? page->elements.size() : 0;
+      [this, &lut, &writer](std::unique_ptr<Page> page, const uint16_t paragraphIndex, const uint16_t listItemIndex,
+                            const uint32_t visibleTextOffset) {
         lut.push_back(
             {this->onPageComplete(std::move(page), writer), paragraphIndex, listItemIndex, visibleTextOffset});
       },
@@ -457,34 +461,24 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
     return false;
   }
 
-  // Refuse to cache a chapter that laid out to nothing *because the heap was
-  // low*. ParsedText::addWord discards every word while free heap is under
-  // ~41KB (canAllocate's total-free clause, not fragmentation), so an
-  // image-heavy chapter can produce pages with no elements at all. Writing that
-  // is far worse than failing: the blank section is cached on SD and every
-  // subsequent open reads the blank cache instead of re-indexing, so a
-  // transient dip in free heap blanks the chapter permanently. Same sticky
-  // shape as the empty-CSS-parse defect (docs/FINDINGS.md 2026-08-12T19:45Z).
-  //
-  // Both conditions are required. Zero elements alone is a legitimate result —
-  // EPUBs do contain genuinely empty spine items, and refusing those would make
-  // them re-index (and error) on every single open. The truncation tally is what
-  // says the emptiness was caused by heap pressure rather than by the content.
-  //
-  // Deliberately NOT extended to partially truncated sections: those are lossy
-  // and are still cached. Refusing them would turn a partly readable chapter
-  // into an unreadable one on a device that cannot currently index it at all,
-  // which is a worse trade than it looks. Recorded as a known gap.
-  if (section_cache::evaluateEmptySection(
-          {totalPageElements, ParsedText::heapTruncationTally(), visitor.imagesAttempted()}) ==
-      section_cache::EmptySectionAction::RefuseOccupancy) {
-    LOG_ERR("SCT", "Refusing to cache empty section: %u block(s) dropped by the heap guard (free=%u largest=%u)",
+  // Refuse to cache a chapter that lost any words to the heap guard. The cached
+  // file is what every later open reads, so a lossy build is permanent until the
+  // cache is cleared -- that is how "the great new of your to a a" reached the
+  // screen (2026-10-26). The reader reclaims heap and rebuilds instead. Empty
+  // chapters with no dropped words (genuinely empty spine items, skipped images)
+  // are still cached normally.
+  if (section_cache::evaluateBuiltSection(ParsedText::heapTruncationTally()) ==
+      section_cache::BuiltSectionAction::RefuseTruncated) {
+    LOG_ERR("SCT", "Refusing to cache section: %u block(s) lost words to the heap guard (free=%u largest=%u)",
             static_cast<unsigned>(ParsedText::heapTruncationTally()), static_cast<unsigned>(heapguard::freeBytes()),
             static_cast<unsigned>(heapguard::largestBlock()));
     // Explicitly close() file before calling Storage.remove()
     file.close();
     Storage.remove(filePath.c_str());
-    if (cssParser) {
+    // Only drop CSS that can be reloaded. A partial parse keeps its rules resident
+    // and never writes the cache; clearing those would make the rebuild refuse as
+    // "CSS unavailable" for every remaining chapter of the session.
+    if (cssParser && cssParser->hasCache()) {
       cssParser->clear();
     }
     return false;

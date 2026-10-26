@@ -228,9 +228,67 @@ TEST_CASE("reader open powers the STA radio down before the book loads") {
   REQUIRE(release != std::string::npos);
   REQUIRE(open != std::string::npos);
   CHECK(release < open);
-  CHECK(text.substr(start, open - start).find("keepWifi=*/true") == std::string::npos);
+  // The On-Charge server's objects stop with keepWifi=true on purpose (2026-10-26
+  // swarm review): its stop(false) would power the radio off with no idle-reclaim
+  // wait. What must never happen is bgwifi keeping the radio through the load.
+  CHECK(text.substr(start, open - start).find("BG_WIFI.stop(/*keepWifi=*/true)") == std::string::npos);
 
   const std::string reader = slurp("src/activities/reader/EpubReaderActivity.cpp");
   CHECK(reader.find("releaseRadioForReader()", reader.find("void EpubReaderActivity::onEnter()")) <
         reader.find("void EpubReaderActivity::onExit()"));
+}
+
+TEST_CASE("boot bakes missing covers before Wi-Fi and Home take the heap") {
+  // Existing books never "arrive" again and rarely reopen on page one; boot is the
+  // only moment outside a reader with the heap whole (2026-10-26).
+  const std::string text = slurp("src/main.cpp");
+  const auto catchUp = text.find("cover_bake::catchUpAtBoot(");
+  REQUIRE(catchUp != std::string::npos);
+  CHECK(catchUp > text.find("RECENT_BOOKS.loadFromFile();"));
+  CHECK(catchUp < text.find("activityManager.goHome();", catchUp - 2000));
+  CHECK(catchUp < text.find("attemptBootAutoConnect()"));
+}
+
+TEST_CASE("a chapter that lost words is rebuilt after reclaim, never shown") {
+  const std::string text = slurp("src/activities/reader/EpubReaderActivity.cpp");
+  CHECK(text.find("truncatedIndexRetryPending_ = true;") != std::string::npos);
+  CHECK(text.find("STR_CHAPTER_LOW_MEMORY") != std::string::npos);
+  const std::string section = slurp("lib/Epub/Epub/Section.cpp");
+  CHECK(section.find("section_cache::evaluateBuiltSection(ParsedText::heapTruncationTally())") != std::string::npos);
+}
+
+TEST_CASE("swarm review 2026-10-26: cover and truncation fixes stay in place") {
+  const std::string section = slurp("lib/Epub/Epub/Section.cpp");
+  const auto build = section.find("bool Section::createSectionFile(");
+  REQUIRE(build != std::string::npos);
+  // Tally reset precedes every early return, so a false return describes THIS build.
+  CHECK(section.find("ParsedText::resetHeapTruncationTally();", build) < section.find("return false;", build));
+  // A truncation refusal keeps resident-only CSS (partial parse, never cached).
+  CHECK(section.find("if (cssParser && cssParser->hasCache()) {\n      cssParser->clear();") != std::string::npos);
+
+  const std::string reader = slurp("src/activities/reader/EpubReaderActivity.cpp");
+  CHECK(reader.find("truncationRetrySpineIndex_ != currentSpineIndex") != std::string::npos);
+  CHECK(reader.find("if (css && css->hasCache()) {") != std::string::npos);
+
+  const std::string main = slurp("src/main.cpp");
+  const auto boot = main.find("attemptBootAutoConnect()");
+  REQUIRE(boot != std::string::npos);
+  CHECK(main.rfind("if (!activityManager.blocksBackgroundServer()) {", boot) != std::string::npos);
+
+  const std::string dav = slurp("src/network/server/WebDAVHandler.cpp");
+  const auto put = dav.find("void WebDAVHandler::handlePut(");
+  CHECK(dav.find("CoverArrivalQueue::instance().push(", put) < dav.find("\nvoid WebDAVHandler::", put + 1));
+
+  const std::string modules = slurp("src/core/features/FeatureModules.cpp");
+  const auto fallback = modules.find("bool FeatureModules::tryGetDocumentCoverPath(");
+  REQUIRE(fallback != std::string::npos);
+  const std::string body = modules.substr(fallback, modules.find("\n}\n", fallback) - fallback);
+  CHECK(body.find(".load(") == std::string::npos);
+  CHECK(body.find("Xtc(") != std::string::npos);
+
+  const std::string bake = slurp("src/features/epub/CoverThumbBake.cpp");
+  // Crash guard: the failure marker is written before load/convert.
+  CHECK(bake.find("markFailed(epub, true);") < bake.find("epub.load(/*buildIfMissing=*/true"));
+  CHECK(bake.find("rememberPending(path);") != std::string::npos);
+  CHECK(bake.find("homeCoverHeight") != std::string::npos);
 }

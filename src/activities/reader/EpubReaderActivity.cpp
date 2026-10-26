@@ -2,6 +2,7 @@
 
 #include <BookCachePath.h>
 #include <Epub/Page.h>
+#include <Epub/ParsedText.h>
 #include <Epub/blocks/ImageBlock.h>
 #include <Epub/blocks/TextBlock.h>
 #include <FontCacheManager.h>
@@ -72,6 +73,7 @@
 #include "activities/util/ConfirmationActivity.h"
 #include "activities/util/IntervalSelectionActivity.h"
 #include "components/UITheme.h"
+#include "features/epub/CoverThumbBake.h"
 #include "features/status_overlay/Layout.h"
 #include "features/status_overlay/ReaderContext.h"
 #include "fontIds.h"
@@ -292,7 +294,7 @@ void EpubReaderActivity::onEnter() {
   // already did this before the load; this covers routes that reach the reader without
   // it (boot resume, ReaderActivity). Once this activity exits, blocksBackgroundServer()
   // goes false and main.cpp's reconcile reconnects.
-  BackgroundWebServer::getInstance().stop(/*keepWifi=*/false);
+  BackgroundWebServer::getInstance().stop(/*keepWifi=*/true);
   BackgroundWifiCoordinator::getInstance().releaseRadioForReader();
 
   if (!epub) {
@@ -489,6 +491,13 @@ void EpubReaderActivity::loop() {
   if (!epub) {
     // Should never happen
     finish();
+    return;
+  }
+
+  if (truncatedIndexRetryPending_) {
+    truncatedIndexRetryPending_ = false;
+    reclaimAfterIndexPressure();
+    requestUpdate();
     return;
   }
 
@@ -775,21 +784,11 @@ void EpubReaderActivity::queueCoverThumbBakeIfIdle() {
   }
   pendingCoverThumbBake_ = false;
 
-  coverthumbs::Size sizes[8] = {};
-  const int count = coverthumbs::all(sizes, 8);
-  bool anyMissing = false;
-  for (int i = 0; i < count; ++i) {
-    const coverthumbs::Size& size = sizes[i];
-    const std::string thumbPath =
-        size.width > 0 ? epub->getThumbBmpPath(size.width, size.height) : epub->getThumbBmpPath(size.height);
-    if (!Storage.exists(thumbPath.c_str())) {
-      anyMissing = true;
-      break;
-    }
-  }
-  if (!anyMissing) {
+  if (cover_bake::hasAllThumbs(*epub)) {
     return;
   }
+  coverthumbs::Size sizes[8] = {};
+  const int count = cover_bake::thumbSizes(sizes, 8);
 
   // Inline on the main loop under the RenderLock: nothing else can inflate while the
   // bake runs, so it reuses the book's reserved window instead of needing a private
@@ -805,6 +804,7 @@ void EpubReaderActivity::queueCoverThumbBakeIfIdle() {
   Epub::ThumbSize epubSizes[8] = {};
   const int epubCount = copyCoverThumbSizesForEpub(sizes, count, epubSizes, 8);
   const bool success = epub->generateThumbBmps(epubSizes, epubCount);
+  cover_bake::markFailed(*epub, !success);
   LOG_INF("THUMB", "Cover thumbnail bake %s for %s", success ? "completed" : "failed", epub->getPath().c_str());
 }
 
@@ -814,15 +814,18 @@ void EpubReaderActivity::reclaimAfterIndexPressure() {
     core::HeapReclaimRegistry::releaseAll();
   }
   if (epub) {
-    if (CssParser* css = epub->getCssParser()) {
+    CssParser* css = epub->getCssParser();
+    // Resident-only rules (partial parse, never cached) cannot be reloaded.
+    if (css && css->hasCache()) {
       css->releaseMemory();
     }
   }
   pendingCoverThumbBake_ = false;
-  if (BG_WIFI.isPendingOrRunning()) {
-    BG_WIFI.stop(true);
-  }
-  BackgroundWebServer::getInstance().stop(true);
+  // keepWifi=true so the server objects go but the radio teardown (and its idle
+  // reclaim wait) is releaseRadioForReader's; On-Charge's own stop(false) powers the
+  // radio off with no wait, which hid it from that function.
+  BackgroundWebServer::getInstance().stop(/*keepWifi=*/true);
+  BackgroundWifiCoordinator::getInstance().releaseRadioForReader();
 }
 
 bool EpubReaderActivity::persistOrientationSelection(const uint8_t orientation) {
@@ -1846,14 +1849,29 @@ void EpubReaderActivity::render(RenderLock&& lock) {
       }
 
       if (!sectionBuilt) {
-        LOG_ERR("ERS", "Failed to persist page data to SD");
-
+        const bool lostWords = ParsedText::heapTruncationTally() > 0;
         section.reset();
+        // Own budget, not the page-load retry's: an SD page-load failure must not
+        // spend the reclaim this chapter needs, nor the other way round.
+        if (lostWords && truncationRetrySpineIndex_ != currentSpineIndex) {
+          truncationRetrySpineIndex_ = currentSpineIndex;
+          LOG_ERR("ERS", "Chapter lost words to the heap guard; reclaiming and rebuilding once");
+          truncatedIndexRetryPending_ = true;
+          // The framebuffer was lent to the build, so redraw it in full before
+          // returning; loop() then reclaims and requests the rebuild.
+          renderer.clearScreen();
+          GUI.drawPopup(renderer, tr(STR_INDEXING));
+          return;
+        }
+        LOG_ERR("ERS", lostWords ? "Chapter still loses words after reclaim; not showing a lossy chapter"
+                                 : "Failed to persist page data to SD");
+        truncationRetrySpineIndex_ = -1;
         resetPageLoadRetryState();
         showPendingSyncSaveError();
-        renderReaderError(StrId::STR_LOAD_EPUB_FAILED);
+        renderReaderError(lostWords ? StrId::STR_CHAPTER_LOW_MEMORY : StrId::STR_LOAD_EPUB_FAILED);
         return;
       }
+      truncationRetrySpineIndex_ = -1;
       heapDirtyFromIndexing_ = true;
       heapDefragReclaimAttempts_ = 0;
       heapDefragRetryAfterMs_ = 0;

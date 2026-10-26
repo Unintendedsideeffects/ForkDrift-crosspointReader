@@ -78,6 +78,18 @@ TEST_CASE("asset read api expands the [HEIGHT] thumb template, best size first")
   CHECK(best.resolvedPath == "/.crosspoint/epub_1/thumb_226.bmp");
 }
 
+TEST_CASE("asset read api never serves a zero-byte no-cover marker") {
+  // generateThumbBmps writes empty thumbs for books without a cover image.
+  Storage.reset();
+  CHECK(Storage.writeFile("/.crosspoint/epub_2/thumb_W300_H450.bmp", ""));
+  const std::vector<RecentBook> books = {
+      {"/books/n.epub", "N", "A", "/.crosspoint/epub_2/thumb_[HEIGHT].bmp"},
+  };
+  const auto result = network::resolveCoverAssetPath("/books/n.epub", books, nullptr, {"W300_H450", "226"});
+  CHECK(result.statusCode == 404);
+  CHECK(result.body == "No cover available");
+}
+
 TEST_CASE("asset read api lists supported sleep images from canonical sleep directory") {
   Storage.reset();
   CHECK(Storage.writeFile("/sleep/first.bmp", "bmp"));

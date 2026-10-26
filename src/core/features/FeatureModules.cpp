@@ -20,7 +20,6 @@
 
 // Standard thumbnail height for cover images (matches HomeActivity: screenHeight/2 on 480px display).
 // This height is used wherever a cover BMP is referenced outside of a specific render context.
-static constexpr int kDefaultThumbHeight = 240;
 
 #include "CrossPointSettings.h"
 #include "SpiBusMutex.h"
@@ -520,7 +519,11 @@ void FeatureModules::onWebFileChanged(const String& filePath) {
   if (FsHelpers::checkFileExtension(filePath, ".epub")) {
     Epub(filePath.c_str(), "/.crosspoint").clearRenderCache();
     stored_epub::invalidate(filePath.c_str());
-    CoverArrivalQueue::instance().push(filePath.c_str());
+    // Also called for deletes and for the source of a move/rename; only a file that
+    // is there now is an arrival (a move's destination keeps its migrated thumbs).
+    if (Storage.exists(filePath.c_str())) {
+      CoverArrivalQueue::instance().push(filePath.c_str());
+    }
     LOG_DBG("FEATURES", "Cleared epub render cache for: %s", filePath.c_str());
   }
 #else
@@ -529,30 +532,24 @@ void FeatureModules::onWebFileChanged(const String& filePath) {
 }
 
 bool FeatureModules::tryGetDocumentCoverPath(const String& documentPath, std::string& outCoverPath) {
-#if ENABLE_EPUB_SUPPORT
-  String lowerPath = documentPath;
-#ifndef SIMULATOR
-  lowerPath.toLowerCase();
-#else
-  std::transform(lowerPath.s.begin(), lowerPath.s.end(), lowerPath.s.begin(), ::tolower);
-#endif
-  if (!lowerPath.endsWith(".epub")) {
-    return false;
-  }
-
-  Epub epub(documentPath.c_str(), "/.crosspoint");
-  SpiBusMutex::Guard guard;
-  if (!epub.load(false)) {
-    return false;
-  }
-
-  outCoverPath = epub.getThumbBmpPath(kDefaultThumbHeight);
-  return !outCoverPath.empty();
-#else
-  (void)documentPath;
+  // The cache path comes from the constructor, so this never loads the book. A
+  // load() here pinned the 32 KB inflate window (or failed for want of it) on
+  // every /api/cover request for a book outside recents, and returned a fixed
+  // thumb_240 that no baker writes. The [HEIGHT] template lets the resolver find
+  // whichever size exists.
+  const std::string path = documentPath.c_str();
   outCoverPath.clear();
-  return false;
+#if ENABLE_EPUB_SUPPORT
+  if (isEpubDocumentPath(path)) {
+    outCoverPath = Epub(path, "/.crosspoint").getThumbBmpPath();
+  }
 #endif
+#if ENABLE_XTC_SUPPORT
+  if (isXtcDocumentPath(path)) {
+    outCoverPath = Xtc(path, "/.crosspoint").getThumbBmpPath();
+  }
+#endif
+  return !outCoverPath.empty();
 }
 
 }  // namespace core

@@ -57,6 +57,10 @@ class EpubReaderActivity final : public Activity {
   bool automaticPageTurnActive = false;
   bool previewRenderOnly = false;
   bool heapDirtyFromIndexing_ = false;
+  // A chapter build refused because the heap guard dropped words. loop() reclaims
+  // heap outside the RenderLock, then the render rebuilds the chapter once.
+  bool truncatedIndexRetryPending_ = false;
+  int truncationRetrySpineIndex_ = -1;  // spine already given its one reclaim+rebuild
   unsigned long heapDefragRetryAfterMs_ = 0;
   uint8_t heapDefragReclaimAttempts_ = 0;
 #if ENABLE_READING_STATS
