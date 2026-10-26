@@ -2177,3 +2177,15 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Next step**: log `renderMode` and a checksum of the bar band at hook entry/exit and after `displayBuffer` returns on Home; compare with a Home frame drawn via the non-carousel path.
 - **Status**: open.
 
+
+## 2026-10-26T12:10Z — App covers: `/api/cover` never expanded the `[HEIGHT]` template; EPUB open/index fails both ways round Wi-Fi
+- **Found by**: claude — user report ("android app is not loading the covers", "failed to load epub"), X4 over USB/IP + HTTP
+- **Where**: `src/network/server/AssetReadApi.cpp` `resolveCoverAssetPath`, `AssetReadHandlers.cpp` `handleCover`, `CoverThumbHeapPolicy.h`, `lib/InflateReader/InflateReader.cpp` `ensureSharedWindow`, `lib/Memory/HeapGuard.h`
+- **Covers (fixed)**: recent books store `/.crosspoint/epub_<h>/thumb_[HEIGHT].bmp`. `/api/cover` ran `Storage.exists()` on that literal template, so it returned `404 Cover file not found` for every EPUB/XTC while `/api/recent` said `hasCover:true` — the app and the device web UI could never show a cover. The resolver now takes concrete suffixes (registry sizes, largest first, same names as `UITheme::getCoverThumbPath`). Host test `asset read api expands the [HEIGHT] thumb template`; the old tests only used literal paths, which is why this was never caught.
+- **Covers (still open)**: the thumbs themselves may not exist. The Lyra carousel shows the no-cover card for all three recent books. `CoverThumbHeapPolicy::canAttempt` needs largest ≥ 32 KB *first*, before the window-reserved branch, so with the window reserved (largest ~13 KB) the reserved branch is unreachable; and in Always mode Home never has 64 KB contiguous. Thumbs effectively never bake on this device configuration.
+- **"Failed to load EPUB" (open, two faces)**, *Continuous Delivery* (Addison-Wesley), Background Server = Always:
+  - Wi-Fi up (Always): book opens, cover page renders, every next chapter fails: `[PTX] OOM guard: truncating block (need=448 free=28476 largest=13300)` → `[SCT] Refusing to cache empty section` → `[ERS] Failed to persist page data to SD` → `STR_LOAD_EPUB_FAILED`. free 28.5 KB is under `kCriticalFloorBytes` (32 KB), so the guard refuses even 448 B.
+  - Wi-Fi off (mode Never, no reboot): open itself fails: `Failed to pre-allocate inflate window (32768 bytes): largest block 32756, short by 12`.
+  - Same class as `reader_heap_dead_band` / `heap/architecture-verdict.md`: a 32 KB contiguous inflate window plus a 32 KB free floor cannot both be met with Wi-Fi resident. Not fixed here; it needs a design decision (e.g. pin the window at boot before Wi-Fi, or stop Always-mode Wi-Fi while indexing).
+- **Device check after flashing the fix**: `/api/cover` still returns 404 for all three recent books. The template now expands correctly, which confirms that **no thumbnail file exists for any of them**.
+- **Status**: cover template fixed (host-tested, flashed); thumbnail baking and EPUB indexing under Always remain open.

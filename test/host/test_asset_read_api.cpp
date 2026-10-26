@@ -55,6 +55,29 @@ TEST_CASE("asset read api falls back to resolver and surfaces missing cover file
   CHECK(ok.resolvedPath == "/covers/fallback.bmp");
 }
 
+// Regression: recent books store "thumb_[HEIGHT].bmp" templates. /api/cover used
+// to Storage.exists() the literal template, so every cover 404'd and the Android
+// app and web UI showed none.
+TEST_CASE("asset read api expands the [HEIGHT] thumb template, best size first") {
+  Storage.reset();
+  const std::vector<RecentBook> books = {
+      {"/books/t.epub", "T", "A", "/.crosspoint/epub_1/thumb_[HEIGHT].bmp"},
+  };
+  const std::vector<std::string> suffixes = {"W300_H450", "226", "W120_H180"};
+
+  CHECK(network::resolveCoverAssetPath("/books/t.epub", books, nullptr, suffixes).statusCode == 404);
+  CHECK(network::resolveCoverAssetPath("/books/t.epub", books, nullptr).statusCode == 404);
+
+  CHECK(Storage.writeFile("/.crosspoint/epub_1/thumb_W120_H180.bmp", "small"));
+  CHECK(network::resolveCoverAssetPath("/books/t.epub", books, nullptr, suffixes).resolvedPath ==
+        "/.crosspoint/epub_1/thumb_W120_H180.bmp");
+
+  CHECK(Storage.writeFile("/.crosspoint/epub_1/thumb_226.bmp", "mid"));
+  const auto best = network::resolveCoverAssetPath("/books/t.epub", books, nullptr, suffixes);
+  CHECK(best.statusCode == 200);
+  CHECK(best.resolvedPath == "/.crosspoint/epub_1/thumb_226.bmp");
+}
+
 TEST_CASE("asset read api lists supported sleep images from canonical sleep directory") {
   Storage.reset();
   CHECK(Storage.writeFile("/sleep/first.bmp", "bmp"));

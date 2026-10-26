@@ -16,7 +16,8 @@
 namespace network {
 
 AssetReadResult resolveCoverAssetPath(const String& rawPath, const std::vector<RecentBook>& books,
-                                      const CoverPathResolver& fallbackResolver) {
+                                      const CoverPathResolver& fallbackResolver,
+                                      const std::vector<std::string>& thumbSuffixes) {
   if (rawPath.isEmpty()) {
     return {400, "text/plain", "Missing path"};
   }
@@ -46,16 +47,33 @@ AssetReadResult resolveCoverAssetPath(const String& rawPath, const std::vector<R
     return {404, "text/plain", "No cover available"};
   }
 
-  bool exists = false;
-  {
-    SpiBusMutex::Guard guard;
-    exists = Storage.exists(coverPath.c_str());
-  }
-  if (!exists) {
-    return {404, "text/plain", "Cover file not found"};
+  static constexpr char kHeightToken[] = "[HEIGHT]";
+  const size_t tokenPos = coverPath.find(kHeightToken);
+  if (tokenPos == std::string::npos) {
+    bool exists = false;
+    {
+      SpiBusMutex::Guard guard;
+      exists = Storage.exists(coverPath.c_str());
+    }
+    if (!exists) {
+      return {404, "text/plain", "Cover file not found"};
+    }
+    return {200, "image/bmp", "", coverPath};
   }
 
-  return {200, "image/bmp", "", coverPath};
+  for (const auto& suffix : thumbSuffixes) {
+    std::string candidate = coverPath;
+    candidate.replace(tokenPos, sizeof(kHeightToken) - 1, suffix);
+    bool exists = false;
+    {
+      SpiBusMutex::Guard guard;
+      exists = Storage.exists(candidate.c_str());
+    }
+    if (exists) {
+      return {200, "image/bmp", "", candidate};
+    }
+  }
+  return {404, "text/plain", "Cover file not found"};
 }
 
 namespace {
