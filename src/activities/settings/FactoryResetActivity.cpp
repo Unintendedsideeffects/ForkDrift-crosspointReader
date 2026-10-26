@@ -2,11 +2,13 @@
 
 #include <Arduino.h>
 #include <GfxRenderer.h>
+#include <I18n.h>
 #include <Logging.h>
 
 #include "MappedInputManager.h"
 #include "activities/TaskShutdown.h"
 #include "components/UITheme.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "util/FactoryResetUtils.h"
 
@@ -29,7 +31,8 @@ void FactoryResetActivity::renderScreen() {
   const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Factory Reset", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + features::status_overlay::topInset(), tr(STR_FACTORY_RESET), true,
+                            EpdFontFamily::BOLD);
 
   if (state == WARNING) {
     renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 90, "This will reset metadata", true);

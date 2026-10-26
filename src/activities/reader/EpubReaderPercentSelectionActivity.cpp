@@ -1,9 +1,11 @@
 #include "EpubReaderPercentSelectionActivity.h"
 
 #include <GfxRenderer.h>
+#include <I18n.h>
 
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 
 namespace {
@@ -58,7 +60,8 @@ void EpubReaderPercentSelectionActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   // Title and numeric percent value.
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Go to Position", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + features::status_overlay::topInset(), tr(STR_GO_TO_POSITION), true,
+                            EpdFontFamily::BOLD);
 
   const std::string percentText = std::to_string(percent) + "%";
   renderer.drawCenteredText(UI_12_FONT_ID, 90, percentText.c_str(), true, EpdFontFamily::BOLD);
@@ -83,7 +86,7 @@ void EpubReaderPercentSelectionActivity::render(RenderLock&&) {
   renderer.fillRect(knobX, barY - 4, 4, barHeight + 8, true);
 
   // Hint text for step sizes.
-  renderer.drawCenteredText(SMALL_FONT_ID, barY + 30, "Left/Right: 1%  Up/Down: 10%", true);
+  renderer.drawCenteredText(SMALL_FONT_ID, barY + 30, tr(STR_PERCENT_STEP_HINT), true);
 
   // Button hints follow the current front button layout.
   const auto labels = mappedInput.mapLabels("« Back", "Select", "-", "+");

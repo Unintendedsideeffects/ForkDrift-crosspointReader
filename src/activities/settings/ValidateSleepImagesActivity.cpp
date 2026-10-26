@@ -8,6 +8,7 @@
 
 #include "MappedInputManager.h"
 #include "activities/boot_sleep/SleepActivity.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 
 void ValidateSleepImagesActivity::onEnter() {
@@ -26,10 +27,11 @@ void ValidateSleepImagesActivity::render(RenderLock&&) {
   const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, tr(STR_VALIDATE_SLEEP_IMAGES), true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + features::status_overlay::topInset(), tr(STR_VALIDATE_SLEEP_IMAGES),
+                            true, EpdFontFamily::BOLD);
 
   if (state == SCANNING) {
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, "Scanning...", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, tr(STR_SCANNING), true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }

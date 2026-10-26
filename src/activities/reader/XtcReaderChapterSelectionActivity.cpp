@@ -1,18 +1,22 @@
 #include "XtcReaderChapterSelectionActivity.h"
 
 #include <GfxRenderer.h>
+#include <I18n.h>
 
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 
 namespace {
 constexpr int SKIP_PAGE_MS = 700;
+constexpr int LIST_TOP = 60;
+constexpr int LINE_HEIGHT = 30;
 }  // namespace
 
 int XtcReaderChapterSelectionActivity::getPageItems() const {
-  constexpr int startY = 60;
-  constexpr int lineHeight = 30;
+  const int startY = LIST_TOP + features::status_overlay::topInset();
+  constexpr int lineHeight = LINE_HEIGHT;
 
   const int screenHeight = renderer.getScreenHeight();
   const int endY = screenHeight - lineHeight;
@@ -102,21 +106,23 @@ void XtcReaderChapterSelectionActivity::render(RenderLock&&) {
 
   const auto pageWidth = renderer.getScreenWidth();
   const int pageItems = getPageItems();
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Select Chapter", true, EpdFontFamily::BOLD);
+  const int top = features::status_overlay::topInset();
+  const int listTop = LIST_TOP + top;
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + top, tr(STR_SELECT_CHAPTER), true, EpdFontFamily::BOLD);
 
   const auto& chapters = xtc->getChapters();
   if (chapters.empty()) {
-    renderer.drawCenteredText(UI_10_FONT_ID, 120, "No chapters");
+    renderer.drawCenteredText(UI_10_FONT_ID, 120 + top, tr(STR_NO_CHAPTERS));
     renderer.displayBuffer();
     return;
   }
 
   const auto pageStartIndex = selectorIndex / pageItems * pageItems;
-  renderer.fillRect(0, 60 + (selectorIndex % pageItems) * 30 - 2, pageWidth - 1, 30);
+  renderer.fillRect(0, listTop + (selectorIndex % pageItems) * LINE_HEIGHT - 2, pageWidth - 1, LINE_HEIGHT);
   for (int i = pageStartIndex; i < static_cast<int>(chapters.size()) && i < pageStartIndex + pageItems; i++) {
     const auto& chapter = chapters[i];
     const char* title = chapter.name.empty() ? "Unnamed" : chapter.name.c_str();
-    renderer.drawText(UI_10_FONT_ID, 20, 60 + (i % pageItems) * 30, title, i != selectorIndex);
+    renderer.drawText(UI_10_FONT_ID, 20, listTop + (i % pageItems) * LINE_HEIGHT, title, i != selectorIndex);
   }
 
   const auto labels = mappedInput.mapLabels("« Back", "Select", "Up", "Down");

@@ -20,6 +20,7 @@
 #include "activities/ActivityManager.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "components/UITheme.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "util/TimeSync.h"
 
@@ -314,7 +315,8 @@ void KOReaderSyncActivity::render(RenderLock&&) {
   const auto pageWidth = renderer.getScreenWidth();
 
   renderer.clearScreen();
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, tr(STR_KOREADER_SYNC), true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + features::status_overlay::topInset(), tr(STR_KOREADER_SYNC), true,
+                            EpdFontFamily::BOLD);
 
   if (state == NO_CREDENTIALS) {
     renderer.drawCenteredText(UI_10_FONT_ID, 280, tr(STR_NO_CREDENTIALS_MSG), true, EpdFontFamily::BOLD);

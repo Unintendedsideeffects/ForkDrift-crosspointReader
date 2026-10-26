@@ -1,6 +1,7 @@
 #include "KOReaderAuthActivity.h"
 
 #include <GfxRenderer.h>
+#include <I18n.h>
 #include <Logging.h>
 #include <WiFi.h>
 
@@ -9,6 +10,7 @@
 #include "MappedInputManager.h"
 #include "SilentRestart.h"
 #include "activities/network/WifiSelectionActivity.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "util/TimeSync.h"
 
@@ -120,7 +122,8 @@ void KOReaderAuthActivity::onExit() {
 
 void KOReaderAuthActivity::render(RenderLock&&) {
   renderer.clearScreen();
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, "KOReader Auth", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + features::status_overlay::topInset(), tr(STR_KOREADER_AUTH), true,
+                            EpdFontFamily::BOLD);
 
   if (state == AUTHENTICATING) {
     renderer.drawCenteredText(UI_10_FONT_ID, 300, statusMessage.c_str(), true, EpdFontFamily::BOLD);
@@ -130,7 +133,7 @@ void KOReaderAuthActivity::render(RenderLock&&) {
 
   if (state == SUCCESS) {
     renderer.drawCenteredText(UI_10_FONT_ID, 280, "Success!", true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(UI_10_FONT_ID, 320, "KOReader sync is ready to use");
+    renderer.drawCenteredText(UI_10_FONT_ID, 320, tr(STR_SYNC_READY));
 
     const auto labels = mappedInput.mapLabels("Done", "", "", "");
     renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -139,7 +142,7 @@ void KOReaderAuthActivity::render(RenderLock&&) {
   }
 
   if (state == FAILED) {
-    renderer.drawCenteredText(UI_10_FONT_ID, 280, "Authentication Failed", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, 280, tr(STR_AUTH_FAILED), true, EpdFontFamily::BOLD);
     const int height = renderer.getLineHeight(UI_10_FONT_ID);
     const int messageWidth = renderer.getScreenWidth() - 40;
     const auto errorLines = renderer.wrappedText(UI_10_FONT_ID, errorMessage.c_str(), messageWidth, 3);

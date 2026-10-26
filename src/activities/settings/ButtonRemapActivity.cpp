@@ -1,10 +1,12 @@
 #include "ButtonRemapActivity.h"
 
 #include <GfxRenderer.h>
+#include <I18n.h>
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 
 namespace {
@@ -103,11 +105,12 @@ void ButtonRemapActivity::render(RenderLock&&) {
     return "-";
   };
 
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Remap Front Buttons", true, EpdFontFamily::BOLD);
-  renderer.drawCenteredText(UI_10_FONT_ID, 40, "Press a front button for each role");
+  const int top = features::status_overlay::topInset();
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + top, tr(STR_REMAP_FRONT_BUTTONS), true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_10_FONT_ID, 40 + top, tr(STR_REMAP_PROMPT));
 
   for (uint8_t i = 0; i < kRoleCount; i++) {
-    const int y = 70 + i * 30;
+    const int y = 70 + top + i * 30;
     const bool isSelected = (i == currentStep);
 
     // Highlight the role that is currently being assigned.
@@ -126,12 +129,12 @@ void ButtonRemapActivity::render(RenderLock&&) {
 
   // Temporary warning banner for duplicates.
   if (!errorMessage.empty()) {
-    renderer.drawCenteredText(UI_10_FONT_ID, 210, errorMessage.c_str(), true);
+    renderer.drawCenteredText(UI_10_FONT_ID, 210 + top, errorMessage.c_str(), true);
   }
 
   // Provide side button actions at the bottom of the screen (split across two lines).
-  renderer.drawCenteredText(SMALL_FONT_ID, 250, "Side button Up: Reset to default layout", true);
-  renderer.drawCenteredText(SMALL_FONT_ID, 280, "Side button Down: Cancel remapping", true);
+  renderer.drawCenteredText(SMALL_FONT_ID, 250 + top, tr(STR_REMAP_RESET_HINT), true);
+  renderer.drawCenteredText(SMALL_FONT_ID, 280 + top, tr(STR_REMAP_CANCEL_HINT), true);
 
   // Live preview of logical labels under front buttons.
   // This mirrors the on-device front button order: Back, Confirm, Left, Right.

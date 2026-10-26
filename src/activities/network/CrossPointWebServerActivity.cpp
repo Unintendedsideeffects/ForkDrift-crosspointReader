@@ -19,6 +19,7 @@
 #include "WifiSelectionActivity.h"
 #include "components/ScreenComponents.h"
 #include "components/UITheme.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "network/background/BackgroundWebServer.h"
 #include "network/background/BackgroundWifiService.h"
@@ -547,10 +548,11 @@ void CrossPointWebServerActivity::renderCalibreUI() const {
   constexpr int SECTION_SPACING = 40;
   constexpr int TOP_PADDING = 14;
 
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Connect to Calibre", true, EpdFontFamily::BOLD);
-  renderWifiIndicator(15);
+  const int top = features::status_overlay::topInset();
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + top, tr(STR_CONNECT_TO_CALIBRE), true, EpdFontFamily::BOLD);
+  renderWifiIndicator(15 + top);
 
-  int y = 55 + TOP_PADDING;
+  int y = 55 + TOP_PADDING + top;
   renderer.drawCenteredText(UI_10_FONT_ID, y, "Network", true, EpdFontFamily::BOLD);
   y += LINE_SPACING;
 
@@ -562,7 +564,7 @@ void CrossPointWebServerActivity::renderCalibreUI() const {
   renderer.drawCenteredText(UI_10_FONT_ID, y + LINE_SPACING, ("IP: " + connectedIP).c_str());
 
   y += LINE_SPACING * 2 + SECTION_SPACING;
-  renderer.drawCenteredText(UI_10_FONT_ID, y, "Setup", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_CALIBRE_SETUP), true, EpdFontFamily::BOLD);
   y += LINE_SPACING;
   renderer.drawCenteredText(SMALL_FONT_ID, y, "1) Install CrossPoint Reader plugin");
   renderer.drawCenteredText(SMALL_FONT_ID, y + SMALL_SPACING, "2) Be on the same WiFi network");
@@ -570,7 +572,7 @@ void CrossPointWebServerActivity::renderCalibreUI() const {
   renderer.drawCenteredText(SMALL_FONT_ID, y + SMALL_SPACING * 3, "Keep this screen open while sending");
 
   y += SMALL_SPACING * 3 + SECTION_SPACING;
-  renderer.drawCenteredText(UI_10_FONT_ID, y, "Status", true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_CALIBRE_STATUS), true, EpdFontFamily::BOLD);
   y += LINE_SPACING;
 
   if (lastProgressTotal > 0 && lastProgressReceived <= lastProgressTotal) {
@@ -606,14 +608,15 @@ void CrossPointWebServerActivity::renderFileTransferUI() const {
   constexpr int LINE_SPACING = 28;
   constexpr int QR_TEXT_GAP_ROWS = 2;
 
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, tr(STR_FILE_TRANSFER), true, EpdFontFamily::BOLD);
+  const int top = features::status_overlay::topInset();
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + top, tr(STR_FILE_TRANSFER), true, EpdFontFamily::BOLD);
 
   if (!isApMode) {
-    renderWifiIndicator(15);
+    renderWifiIndicator(15 + top);
   }
   if (isApMode) {
     // AP mode display - center the content block
-    int startY = 55;
+    int startY = 55 + top;
 
     renderer.drawCenteredText(UI_10_FONT_ID, startY, tr(STR_HOTSPOT_MODE), true, EpdFontFamily::BOLD);
 
@@ -644,7 +647,7 @@ void CrossPointWebServerActivity::renderFileTransferUI() const {
                hostnameUrl);
   } else {
     // STA mode display
-    const int startY = 65;
+    const int startY = 65 + top;
 
     const auto pageWidth = renderer.getScreenWidth();
     const auto& metrics = UITheme::getInstance().getMetrics();

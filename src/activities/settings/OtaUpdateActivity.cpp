@@ -8,6 +8,7 @@
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "network/ota/OtaUpdater.h"
 
@@ -219,10 +220,11 @@ void OtaUpdateActivity::render(RenderLock&&) {
   const auto pageWidth = renderer.getScreenWidth();
 
   renderer.clearScreen();
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Update", true, EpdFontFamily::BOLD);
+  const int top = features::status_overlay::topInset();
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + top, tr(STR_UPDATE), true, EpdFontFamily::BOLD);
 
   if (state == CHECKING_FOR_UPDATE) {
-    renderer.drawCenteredText(UI_10_FONT_ID, 300, "Checking for update...", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, 300, tr(STR_CHECKING_UPDATE), true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
@@ -244,14 +246,14 @@ void OtaUpdateActivity::render(RenderLock&&) {
     const bool isInstalled = (String(SETTINGS.installedOtaBundle) == entry.id);
 
     // Section header + navigation counter
-    renderer.drawText(UI_10_FONT_ID, 15, 55, "Feature Store", true, EpdFontFamily::BOLD);
+    renderer.drawText(UI_10_FONT_ID, 15, 55 + top, "Feature Store", true, EpdFontFamily::BOLD);
     const String counter = String((int)(selectedBundleIndex + 1)) + " / " + String((int)entries.size());
     const int counterW = renderer.getTextWidth(UI_10_FONT_ID, counter.c_str());
-    renderer.drawText(UI_10_FONT_ID, pageWidth - counterW - 15, 55, counter.c_str());
+    renderer.drawText(UI_10_FONT_ID, pageWidth - counterW - 15, 55 + top, counter.c_str());
 
     // Card border
     const int cardX = 15;
-    const int cardY = 78;
+    const int cardY = 78 + top;
     const int cardW = pageWidth - 30;
     const int cardH = 510;
     renderer.drawRoundedRect(cardX, cardY, cardW, cardH, 2, 8, true);
@@ -323,7 +325,7 @@ void OtaUpdateActivity::render(RenderLock&&) {
   }
 
   if (state == WAITING_CONFIRMATION) {
-    renderer.drawCenteredText(UI_10_FONT_ID, 200, "New update available!", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, 200, tr(STR_NEW_UPDATE), true, EpdFontFamily::BOLD);
     renderer.drawText(UI_10_FONT_ID, 20, 250, "Current Version: " CROSSPOINT_VERSION);
     renderer.drawText(UI_10_FONT_ID, 20, 270, ("New Version: " + updater.getLatestVersion()).c_str());
     if (usingFeatureStore) {
@@ -341,7 +343,7 @@ void OtaUpdateActivity::render(RenderLock&&) {
   }
 
   if (state == UPDATE_IN_PROGRESS) {
-    renderer.drawCenteredText(UI_10_FONT_ID, 310, "Updating...", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, 310, tr(STR_UPDATING), true, EpdFontFamily::BOLD);
     renderer.drawRect(20, 350, pageWidth - 40, 50);
     if (updater.getTotalSize() > 0) {
       renderer.fillRect(24, 354, static_cast<int>(updaterProgress * static_cast<float>(pageWidth - 44)), 42);
@@ -352,7 +354,7 @@ void OtaUpdateActivity::render(RenderLock&&) {
           (formatOtaByteCount(updater.getProcessedSize()) + " / " + formatOtaByteCount(updater.getTotalSize()))
               .c_str());
     } else {
-      renderer.drawCenteredText(UI_10_FONT_ID, 420, "Downloading...", true, EpdFontFamily::BOLD);
+      renderer.drawCenteredText(UI_10_FONT_ID, 420, tr(STR_DOWNLOADING), true, EpdFontFamily::BOLD);
       renderer.drawCenteredText(UI_10_FONT_ID, 440, formatOtaByteCount(updater.getProcessedSize()).c_str());
     }
     renderer.displayBuffer();
@@ -360,7 +362,7 @@ void OtaUpdateActivity::render(RenderLock&&) {
   }
 
   if (state == NO_UPDATE) {
-    renderer.drawCenteredText(UI_10_FONT_ID, 300, "No update available", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, 300, tr(STR_NO_UPDATE), true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }

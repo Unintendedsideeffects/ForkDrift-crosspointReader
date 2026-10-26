@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "components/UITheme.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 
 int IntervalSelectionActivity::clampedValue(const int candidate) const {
@@ -66,7 +67,8 @@ void IntervalSelectionActivity::loop() {
 void IntervalSelectionActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, I18N.get(titleId), true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + features::status_overlay::topInset(), I18N.get(titleId), true,
+                            EpdFontFamily::BOLD);
 
   char formattedValue[32];
   if (valueFormatId != StrId::STR_NONE_OPT) {

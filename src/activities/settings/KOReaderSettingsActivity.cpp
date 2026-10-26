@@ -14,6 +14,7 @@
 #include "MappedInputManager.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "activities/util/ListPickerActivity.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 
 namespace {
@@ -170,16 +171,17 @@ void KOReaderSettingsActivity::render(RenderLock&&) {
 
   const auto pageWidth = renderer.getScreenWidth();
 
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, tr(STR_KOREADER_SYNC), true, EpdFontFamily::BOLD);
+  const int top = features::status_overlay::topInset();
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + top, tr(STR_KOREADER_SYNC), true, EpdFontFamily::BOLD);
 
-  renderer.fillRect(0, 60 + selectedIndex * 30 - 2, pageWidth - 1, 30);
+  renderer.fillRect(0, 60 + top + selectedIndex * 30 - 2, pageWidth - 1, 30);
 
   const StrId names[] = {StrId::STR_SYNC_PROFILE,      StrId::STR_SYNC_PROFILE_NAME, StrId::STR_KOREADER_USERNAME,
                          StrId::STR_KOREADER_PASSWORD, StrId::STR_SYNC_SERVER_URL,   StrId::STR_CUSTOM_HEADER_1,
                          StrId::STR_CUSTOM_HEADER_2,   StrId::STR_DOCUMENT_MATCHING, StrId::STR_KOREADER_AUTH};
 
   for (int i = 0; i < MENU_ITEMS; i++) {
-    const int settingY = 60 + i * 30;
+    const int settingY = 60 + top + i * 30;
     const bool isSelected = (i == selectedIndex);
 
     renderer.drawText(UI_10_FONT_ID, 20, settingY, I18N.get(names[i]), !isSelected);

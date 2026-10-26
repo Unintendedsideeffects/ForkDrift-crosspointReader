@@ -6,6 +6,7 @@
 #include "MappedInputManager.h"
 #include "activities/todo/TodoPlannerStorage.h"
 #include "activities/util/KeyboardEntryActivity.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 
 namespace {
@@ -128,11 +129,12 @@ void TodoInspectorSubactivity::render(Activity::RenderLock&& lock) { renderScree
 
 void TodoInspectorSubactivity::renderScreen() {
   renderer.clearScreen();
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, tr(STR_TODO_INSPECTOR_TITLE), true, EpdFontFamily::BOLD);
+  const int top = features::status_overlay::topInset();
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + top, tr(STR_TODO_INSPECTOR_TITLE), true, EpdFontFamily::BOLD);
 
   const int actionCount = static_cast<int>(sizeof(kActions) / sizeof(kActions[0]));
   for (int i = 0; i < actionCount; ++i) {
-    const int y = TOP_Y + i * ROW_HEIGHT;
+    const int y = TOP_Y + top + i * ROW_HEIGHT;
     const bool selected = i == selectedAction;
     if (selected) {
       renderer.fillRect(0, y, renderer.getScreenWidth(), ROW_HEIGHT);

@@ -13,12 +13,16 @@
 #include "activities/todo/DayDetailActivity.h"
 #include "activities/todo/TodoPlannerStorage.h"
 #include "core/features/FeatureCatalog.h"
+#include "features/status_overlay/Layout.h"
 #include "fontIds.h"
 #include "network/server/FileListApi.h"
 #include "util/DateUtils.h"
 
 namespace {
 constexpr int HEADER_HEIGHT = 50;
+
+// The header sits below the global status bar, so its bottom edge moves with it.
+int headerBottom() { return HEADER_HEIGHT + features::status_overlay::topInset(); }
 constexpr int ROW_HEIGHT = 38;
 constexpr int GUTTER_WIDTH = 8;
 constexpr int MARGIN_X = 14;
@@ -168,7 +172,7 @@ void DayIndexActivity::loop() {
   const bool downPressed = mappedInput.wasPressed(MappedInputManager::Button::Down);
   const bool confirmReleased = mappedInput.wasReleased(MappedInputManager::Button::Confirm);
   const bool longConfirm = confirmReleased && mappedInput.getHeldTime() >= LONG_CONFIRM_MS;
-  const int visibleRows = (renderer.getScreenHeight() - HEADER_HEIGHT) / ROW_HEIGHT;
+  const int visibleRows = (renderer.getScreenHeight() - headerBottom()) / ROW_HEIGHT;
 
   if (longConfirm && !today.empty()) {
     for (size_t i = 0; i < entries.size(); ++i) {
@@ -209,13 +213,14 @@ void DayIndexActivity::render(Activity::RenderLock&& lock) { renderScreen(); }
 void DayIndexActivity::renderScreen() {
   renderer.clearScreen();
 
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, tr(STR_TODO_DAY_INDEX_TITLE), true, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15 + features::status_overlay::topInset(), tr(STR_TODO_DAY_INDEX_TITLE),
+                            true, EpdFontFamily::BOLD);
   const int lastCol = renderer.getScreenWidth() - 1;
-  renderer.drawLine(0, HEADER_HEIGHT, lastCol, HEADER_HEIGHT);
+  renderer.drawLine(0, headerBottom(), lastCol, headerBottom());
 
-  const int visibleRows = (renderer.getScreenHeight() - HEADER_HEIGHT) / ROW_HEIGHT;
+  const int visibleRows = (renderer.getScreenHeight() - headerBottom()) / ROW_HEIGHT;
   if (entries.empty()) {
-    renderer.drawCenteredText(UI_10_FONT_ID, HEADER_HEIGHT + 40, tr(STR_TODO_FRESH_PAGE));
+    renderer.drawCenteredText(UI_10_FONT_ID, headerBottom() + 40, tr(STR_TODO_FRESH_PAGE));
   } else {
     for (int row = 0; row < visibleRows; ++row) {
       const int entryIndex = scrollOffset + row;
@@ -223,7 +228,7 @@ void DayIndexActivity::renderScreen() {
         break;
       }
 
-      const int y = HEADER_HEIGHT + row * ROW_HEIGHT;
+      const int y = headerBottom() + row * ROW_HEIGHT;
       const bool selected = entryIndex == selectedIndex;
       const DayIndexEntry& entry = entries[static_cast<size_t>(entryIndex)];
 

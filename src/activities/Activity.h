@@ -70,6 +70,9 @@ class Activity {
   // isReaderActivity() only for screens that stand in for a reader they replaced.
   virtual bool sleepsAsReader() const { return isReaderActivity(); }
   virtual bool showsStatusBarIp() const { return false; }
+  // The bar is painted over the top features::status_overlay::topInset() px after
+  // render(). Themed screens get that via UITheme metrics.topPadding; a screen that
+  // draws its own header must start at topInset() (and include it in page-size math).
   virtual bool showsGlobalStatusBar() const { return true; }
   virtual ScreenshotInfo getScreenshotInfo() const { return {}; }
 
