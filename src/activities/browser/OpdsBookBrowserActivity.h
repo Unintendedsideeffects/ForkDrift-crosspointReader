@@ -9,6 +9,7 @@
 #include "OpdsServerStore.h"
 #include "activities/Activity.h"
 #include "activities/books/TabView.h"
+#include "network/http/FetchFailure.h"
 #include "util/ButtonNavigator.h"
 
 /**
@@ -38,6 +39,11 @@ class OpdsBookBrowserActivity final : public Activity, public TabView {
   std::vector<std::string> navigationHistory;
   std::string currentPath;
   std::string searchTemplate;
+  // OpenSearch description URL from the feed when it has no inline template.
+  // Resolved into searchTemplate on the first search, not during the catalog
+  // load: a second TLS session right after the catalog GET does not fit the
+  // heap (two 16.7 KB mbedTLS I/O buffers vs a ~32 KB largest block).
+  std::string searchDescriptionUrl;
   bool consumeConfirm = false;
   bool consumeBack = false;
   int selectorIndex = 0;
@@ -58,6 +64,8 @@ class OpdsBookBrowserActivity final : public Activity, public TabView {
   void launchWifiSelection();
   void onWifiSelectionComplete(bool connected);
   void fetchFeed(const std::string& path);
+  bool canSearch() const { return !searchTemplate.empty() || !searchDescriptionUrl.empty(); }
+  http_fetch::Reason resolveSearchTemplate();
   void navigateToEntry(const OpdsEntry& entry);
   void navigateBack();
   void downloadBook(const OpdsEntry& book);

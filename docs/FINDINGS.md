@@ -2152,4 +2152,28 @@ max single-fragment word length (unchanged: 200 bytes, both before and after).
 - **Fix**: per screen, either move to `GUI.drawHeader(Rect{0, metrics.topPadding, ...})` + `GUI.drawList`, or add `features::status_overlay::topInset()` to every fixed y *and* to any page-size math. This is the 2nd occurrence of the class (1st: the walked screens), so the next rung is docs at the trap: a comment on `Activity::showsGlobalStatusBar()` saying "if you draw your own header, start at `topInset()`".
 - **Also seen on the same walk (not this class)**: OPDS catalog HTTPS fetch fails `mbedtls_ssl_setup -0x7F00` (alloc failed) with a largest block of 18–32 KB — the known contiguity problem (see heap-adjacency notes); and one `esp-x509-crt-bundle: PK verify failed` (-0x4290 / -0x4288) on an unidentified HTTPS fetch ~3 s after entering Settings.
 - **Status**: fixed — 0e91d0f22 (walked screens) + follow-up commit (the 14 listed screens: titles and top-anchored content shifted by `topInset()`, titles moved to `tr()`). Docs at the trap: comment on `Activity::showsGlobalStatusBar()`. Gate: `test/host/test_status_bar_inset_contract.cpp` rejects `drawCenteredText(UI_12_FONT_ID, 15,` (and 10/20) anywhere in `src/activities`.
-- **Left open (not this class)**: File Transfer in hotspot (AP) mode already overran the screen before this change (second QR code ends at y≈819 on an 800 px screen); the inset adds ~bar height to that. Needs a tighter AP layout (one QR, or smaller gap rows).
+- **Hotspot layout (same walk, not this class)**: File Transfer in AP mode overran the screen (second QR ended at y≈819 of 800). Fixed 2026-10-26: the two text+QR blocks are packed with an 8 px gap instead of two blank rows; second QR now ends at y≈732, device-verified above the button hints.
+
+## 2026-10-26T09:30Z — OPDS opened a second TLS session per catalog load; it never fit the heap
+- **Found by**: claude — device walk follow-up to the 2026-10-25T20:55Z entry
+- **Where**: `src/activities/browser/OpdsBookBrowserActivity.cpp` `fetchFeed` (OpenSearch description GET); framework `CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN=16384` with no asymmetric/variable buffers (Arduino 2.0.17 prebuilt libs)
+- **What**: the `mbedtls_ssl_setup -0x7F00` logged on every Grimmory open was not the catalog GET (that succeeded, logging only at DBG) but the OpenSearch description GET right after it, made while the parser still held the catalog. Each TLS session needs two ~16.7 KB contiguous I/O buffers; at that point free was 72.8 KB but the largest block 32,756 B. Result: ~3 s of failed connect per load and search silently disappeared.
+- **Fix**: the description URL is stored and resolved on the first search (`resolveSearchTemplate`, cached per URL for the boot); a failure there shows the fetch-failure message instead of hiding search. Gate: `test_walk_20260830_contract.cpp` asserts `fetchFeed` makes exactly one `HttpDownloader::fetchUrl*` call. Device-verified 2026-10-26: one Catalog GET, 8 entries, no mbedtls error, Search hint shown. Search itself (keyboard → description GET → search GET) not walked.
+- **Still structural**: any second HTTPS session after the catalog meets the same ~32 KB largest block, so the first search may still fail on low contiguity. The framework cannot shrink the buffers without a rebuilt sdkconfig (declined: see SDK migration decision). Plain-HTTP LAN URLs avoid TLS entirely.
+- **Related**: the `esp-x509-crt-bundle: PK verify failed` -0x4290 / -0x4288 from the 2026-10-25 walk decode as `RSA_PUBLIC_FAILED` + `MPI_ALLOC_FAILED` / `MPI_BUFFER_TOO_SMALL`: an allocation failure inside certificate verification, same heap class. Probable source: the background Library shelf HTTPS GET to the same server (restarts when leaving Settings; seen there on 2026-08-30). Not reproduced on 2026-10-26; that path already skips quietly and retries.
+- **Status**: fixed (load path); structural limit documented.
+
+## 2026-10-26T09:30Z — Carousel no-cover card drew its icon black-on-black
+- **Found by**: claude — same walk (books without cover thumbnails: Helm, SRE)
+- **Where**: `src/components/themes/lyra/LyraCarouselTheme.cpp` `drawCenterCover` fallback
+- **What**: the fallback card is a white upper third over a black band, but the book icon was placed at `height/3 + 14`, inside the black band. `drawIcon` only sets black pixels, so the icon vanished and the card read as a cover that failed half-way through drawing.
+- **Fix**: icon centred in the white third; title block starts 14 px into the black band. Device-verified 2026-10-26.
+- **Status**: fixed. Why these books have no thumbnails at all is the existing luxury-thumb / cover-decode heap story, not re-investigated.
+
+## 2026-10-26T09:30Z — Home framebuffer holds a stale battery percentage under the live one
+- **Found by**: claude — same walk, pixel dump of `CMD:SCREENSHOT`
+- **Where**: Home (carousel) only; status overlay `drawStatusOverlay` in `src/features/status_overlay/Registration.cpp`
+- **What**: on Home the battery text is two overlapping strings at the same position — the live value plus an older one (e.g. "97%" over "94%": the 4's crossbar is visible). The same session's OPDS, Settings and File Transfer frames are clean. The overlay fills the whole bar white before drawing and draws the percentage once; cached carousel frames are rendered after `clearScreen()` so they do not carry a bar; font kerning is zero for these digits (host-checked). So something draws into the bar band after the hook on Home, or the hook's fill is ineffective there — unresolved. Not known whether the panel shows it (the screenshot reads the RAM framebuffer).
+- **Next step**: log `renderMode` and a checksum of the bar band at hook entry/exit and after `displayBuffer` returns on Home; compare with a Home frame drawn via the non-carousel path.
+- **Status**: open.
+

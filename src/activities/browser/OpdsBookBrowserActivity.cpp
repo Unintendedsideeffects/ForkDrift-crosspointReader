@@ -86,6 +86,7 @@ void OpdsBookBrowserActivity::onEnter() {
   entries.clear();
   navigationHistory.clear();
   searchTemplate = "";
+  searchDescriptionUrl.clear();
   currentPath = "";
   selectorIndex = 0;
   consumeConfirm = false;
@@ -192,7 +193,7 @@ void OpdsBookBrowserActivity::loop() {
     } else if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       navigateBack();
     } else if (mappedInput.wasReleased(MappedInputManager::Button::Left)) {
-      if (!searchTemplate.empty() && selectorIndex == 0) launchSearch();
+      if (canSearch() && selectorIndex == 0) launchSearch();
     }
 
     if (!entries.empty()) {
@@ -260,7 +261,7 @@ void OpdsBookBrowserActivity::render(RenderLock&&) {
 
   const char* confirmLabel =
       (!entries.empty() && entries[selectorIndex].type == OpdsEntryType::BOOK) ? tr(STR_DOWNLOAD) : tr(STR_OPEN);
-  const char* searchLabel = (!searchTemplate.empty() && selectorIndex == 0) ? tr(STR_SEARCH) : tr(STR_DIR_UP);
+  const char* searchLabel = (canSearch() && selectorIndex == 0) ? tr(STR_SEARCH) : tr(STR_DIR_UP);
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), confirmLabel, searchLabel, tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
@@ -339,21 +340,15 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
   }
 
   searchTemplate = parser.getSearchTemplate();
+  searchDescriptionUrl.clear();
   if (searchTemplate.empty()) {
     // OPDS 1.2 / OpenSearch: the feed pointed at a description document rather
-    // than inlining a {searchTerms} template. Fetch & parse it to recover the
-    // real search URL. The doc is small and fixed-size, so a one-shot
-    // string fetch is used instead of streaming. Skipped entirely on OPDS 1.1
-    // servers (no description URL) — no extra request in that case.
+    // than inlining a {searchTerms} template. Remember where it is and resolve it
+    // when the user searches (see searchDescriptionUrl). Skipped entirely on OPDS
+    // 1.1 servers (no description URL).
     const std::string& descRef = parser.getSearchDescriptionUrl();
     if (!descRef.empty()) {
-      const std::string descUrl = (descRef.find("http") == 0) ? descRef : UrlUtils::buildUrl(url, descRef);
-      std::string descDoc;
-      if (HttpDownloader::fetchUrl(descUrl, descDoc, creds.username, creds.password, nullptr, true,
-                                   server.customHeaders.data(), OpdsServer::MAX_CUSTOM_HEADERS)) {
-        searchTemplate = OpenSearchParser::extractSearchTemplate(descDoc);
-        LOG_DBG("OPDS", "OpenSearch search template: %s", searchTemplate.c_str());
-      }
+      searchDescriptionUrl = (descRef.find("http") == 0) ? descRef : UrlUtils::buildUrl(url, descRef);
     }
   }
   const auto& nextUrl = parser.getNextPageUrl();
@@ -484,6 +479,38 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   requestUpdate();
 }
 
+http_fetch::Reason OpdsBookBrowserActivity::resolveSearchTemplate() {
+  // One resolved template per description URL for the rest of the boot, so the
+  // extra TLS round trip is paid at most once rather than on every search.
+  static std::string resolvedFor;
+  static std::string resolvedTemplate;
+  if (!resolvedFor.empty() && resolvedFor == searchDescriptionUrl) {
+    searchTemplate = resolvedTemplate;
+    return http_fetch::Reason::Ok;
+  }
+
+  // cppcheck-suppress knownConditionTrueFalse
+  if (!core::HeapReclaimRegistry::empty()) {
+    core::HeapReclaimRegistry::releaseAll();
+  }
+  const auto creds = core::effectiveOpdsCredentials(server);
+  std::string descDoc;
+  const http_fetch::Result fetch =
+      HttpDownloader::fetchUrlResult(searchDescriptionUrl, descDoc, creds.username, creds.password, true,
+                                     server.customHeaders.data(), OpdsServer::MAX_CUSTOM_HEADERS);
+  if (!fetch.ok()) {
+    return fetch.reason;
+  }
+  searchTemplate = OpenSearchParser::extractSearchTemplate(descDoc);
+  if (searchTemplate.empty()) {
+    return http_fetch::Reason::InvalidXml;
+  }
+  LOG_DBG("OPDS", "OpenSearch search template: %s", searchTemplate.c_str());
+  resolvedFor = searchDescriptionUrl;
+  resolvedTemplate = searchTemplate;
+  return http_fetch::Reason::Ok;
+}
+
 void OpdsBookBrowserActivity::launchSearch() {
   consumeConfirm = true;
   state = BrowserState::SEARCH_INPUT;
@@ -501,13 +528,22 @@ void OpdsBookBrowserActivity::launchSearch() {
 }
 
 void OpdsBookBrowserActivity::performSearch(const std::string& query) {
-  if (query.empty() || searchTemplate.empty()) {
+  if (query.empty() || !canSearch()) {
     state = BrowserState::BROWSING;
     requestUpdate();
     return;
   }
   if (deferUntilOnline(PendingAction::Search, OpdsEntry{}, query)) {
     return;  // connect on demand, then re-run from onWifiSelectionComplete
+  }
+  if (searchTemplate.empty()) {
+    const http_fetch::Reason reason = resolveSearchTemplate();
+    if (reason != http_fetch::Reason::Ok) {
+      state = BrowserState::ERROR;
+      errorMessage = I18N.get(messageForFetchReason(reason));
+      requestUpdate();
+      return;
+    }
   }
 
   auto urlEncode = [](const std::string& s) {

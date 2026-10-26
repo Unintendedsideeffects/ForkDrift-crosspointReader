@@ -340,13 +340,17 @@ void LyraCarouselTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
                              /*roundBottomLeft=*/true, /*roundBottomRight=*/true, Color::Black);
     constexpr int kFallbackTitlePadX = 14;
     constexpr int kFallbackTitlePadBottom = 14;
-    constexpr int kFallbackIconGap = 10;
+    constexpr int kFallbackTitlePadTop = 14;
+    // drawIcon only sets black pixels, so the icon must sit in the white upper
+    // third; inside the black band it vanished and the card read as a cover that
+    // failed halfway through drawing.
+    const int bandTop = outRect.y + outRect.height / 3;
     const int iconX = outRect.x + outRect.width / 2 - 16;
-    const int iconY = outRect.y + outRect.height / 3 + 14;
+    const int iconY = outRect.y + (outRect.height / 3 - 32) / 2;
     renderer.drawIcon(CoverIcon, iconX, iconY, 32, 32);
 
     const int fallbackTitleX = outRect.x + kFallbackTitlePadX;
-    const int fallbackTitleY = iconY + 32 + kFallbackIconGap;
+    const int fallbackTitleY = bandTop + kFallbackTitlePadTop;
     const int fallbackTitleW = outRect.width - kFallbackTitlePadX * 2;
     const int fallbackTitleH = outRect.y + outRect.height - kFallbackTitlePadBottom - fallbackTitleY;
     const int fallbackLineHeight = renderer.getLineHeight(UI_10_FONT_ID);

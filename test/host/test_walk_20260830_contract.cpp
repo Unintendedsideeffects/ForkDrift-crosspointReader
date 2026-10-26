@@ -181,3 +181,29 @@ TEST_CASE("Lyra tab underline last pixel is inclusive width-1 clamped to the bar
   CHECK(oldX2 == 480);
   CHECK(newX2 == 479);
 }
+
+TEST_CASE("OPDS catalog load opens one TLS session; OpenSearch resolves on search") {
+  // Device walk 2026-10-25: the catalog GET succeeded, then the OpenSearch
+  // description GET in the same fetchFeed hit mbedtls_ssl_setup -0x7F00 (two
+  // 16.7 KB I/O buffers vs a 32 KB largest block) and search silently vanished.
+  const std::string text = slurp("src/activities/browser/OpdsBookBrowserActivity.cpp");
+  const auto start = text.find("void OpdsBookBrowserActivity::fetchFeed(");
+  REQUIRE(start != std::string::npos);
+  const auto end = text.find("\nvoid OpdsBookBrowserActivity::", start + 1);
+  REQUIRE(end != std::string::npos);
+  const std::string body = text.substr(start, end - start);
+
+  size_t requests = 0;
+  for (size_t pos = body.find("HttpDownloader::fetchUrl"); pos != std::string::npos;
+       pos = body.find("HttpDownloader::fetchUrl", pos + 1)) {
+    ++requests;
+  }
+  CHECK(requests == 1);
+  CHECK(body.find("searchDescriptionUrl =") != std::string::npos);
+
+  const auto resolve = text.find("OpdsBookBrowserActivity::resolveSearchTemplate()");
+  REQUIRE(resolve != std::string::npos);
+  CHECK(text.find("OpenSearchParser::extractSearchTemplate", resolve) != std::string::npos);
+  CHECK(text.find("resolveSearchTemplate();", text.find("void OpdsBookBrowserActivity::performSearch(")) !=
+        std::string::npos);
+}
